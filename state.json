@@ -1,0 +1,16 @@
+{
+  "stage": "build",
+  "review": {
+    "verdict": "pass",
+    "score": 4,
+    "summary": "A fun, weekend-buildable concept, but there is no evidence anyone wants a watch-only AI date for their OC or would pay for it, and moderation plus companion-chatbot and contest-law exposure is heavy for a near-zero-overhead owner. The only reachable audience (pro-AI OC roleplayers) is narrow and may skew young or NSFW.",
+    "at": "2026-10-13T08:55:27.449Z"
+  },
+  "updatedAt": "2026-10-13T14:43:50.456Z",
+  "ownerApproved": true,
+  "ownerDecision": {
+    "decision": "build",
+    "at": "2026-10-13T14:43:50.456Z",
+    "source": "repohq"
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "verdict": "pass",
+  "score": 4,
+  "summary": "A fun, weekend-buildable concept, but there is no evidence anyone wants a watch-only AI date for their OC or would pay for it, and moderation plus companion-chatbot and contest-law exposure is heavy for a near-zero-overhead owner. The only reachable audience (pro-AI OC roleplayers) is narrow and may skew young or NSFW.",
+  "forcingQuestions": {
+    "demand": {
+      "score": 2,
+      "evidence": "No user has asked for this. RESEARCH.md cites Character.AI scale (~20M MAU, affiliate blogs) and Love Island's 25%+ prediction-game participation, which are adjacent behaviors, not demand for this product. No count of 'ship my OC' communities was found. Interest is not demand; the research rates confidence Low."
+    },
+    "statusQuo": {
+      "score": 4,
+      "evidence": "OC shippers already do this by hand in Discord/Reddit roleplay or Character.AI group chats, free and steerable. The habit is real, but 'creators can't steer' removes what many enjoy, and the workaround costs an evening of typing, not a painful loss."
+    },
+    "specificity": {
+      "score": 3,
+      "evidence": "Target is 'adults who make OCs and follow fictional relationship drama' plus friends: a category, no named person, community or size. Art-first OC communities reject AI (r/OriginalCharacter, itch.io thread), so the reachable segment is a pro-AI roleplay crowd of unknown size that RESEARCH.md says may skew young or NSFW."
+    },
+    "wedge": {
+      "score": 5,
+      "evidence": "M1 (one character, one house date, one prediction) is a real weekend build and free. But the value needs spectators and a second creator, so the smallest slice cannot show the core loop; a hand-run season is the only honest test."
+    },
+    "futureFit": {
+      "score": 4,
+      "evidence": "AI characters and fiction are commoditising; Character.AI could add an episode mode. Regulation (SB 243, FTC 6(b), age gating) is tightening around exactly this space. A shareable prediction habit is the only durable piece and it is unproven."
+    }
+  },
+  "premises": [
+    "OC creators want to watch their character in a story they cannot steer. Unsupported: no evidence; many enjoy steering.",
+    "A free prediction game drives spectator return. Partly supported by Love Island's participation, but that is a real cast with a TV audience.",
+    "Users will pay $3-$10 for premium characters, episode packs or cosmetics. Unsupported: all price evidence is chat subscriptions.",
+    "A watch-only show avoids companion-chatbot law and gambling rules. Unsettled; needs counsel.",
+    "Free models can write episodes funny and varied enough to hold a weekly audience. Untested."
+  ],
+  "alternatives": [
+    "Minimal viable: single-player 'date my OC with a house character' page with a shareable episode card, no accounts, predictions or payments. A weekend, but tests novelty only.",
+    "Ideal architecture: the full creator + spectator + seasons platform in the PRD. Right long-term shape but needs a community, moderation and legal work first.",
+    "Lateral: run a hand-made season in an existing pro-AI roleplay Discord (20-50 OCs, episodes posted by David, predictions by emoji reaction) before writing any app.",
+    "Extend an existing repo: pettycourt (AI-judged story, friend voting, shareable card) already has the generate-then-vote mechanic; a dating-episode mode would reuse it."
+  ],
+  "wedge": "One hand-run season in an existing pro-AI roleplay community: 20 OCs paired by David, episodes from a single prompt, followers predict via reactions. No app until requests for more episodes show up unprompted.",
+  "feasibility": {
+    "m1Weekend": true,
+    "zeroCost": true,
+    "notes": "Next.js on Vercel Hobby + Neon/Turso free + free model via LiteLLM + Zod. The test that proves M1: POST /episodes with two valid characters returns a schema-valid episode (setting, two goals, twist, ending in the enum, at most 450 words) and returns 502 with nothing stored after two invalid model outputs. M3 payments need a commercial-use host, and the moderation filter is the real work, not the weekend."
+  },
+  "risks": [
+    "Moderation load (minors, NSFW, real people in character sheets) is incompatible with near-zero owner time.",
+    "California SB 243 and similar laws: private right of action of $1,000 per violation, scope for a watch-only show unsettled.",
+    "Contest and gambling rules: free points with paid cosmetics need a gaming lawyer.",
+    "Cold start: predictions are only fun with many spectators per episode.",
+    "Hostility from OC artists toward AI use of characters; the reachable audience is narrow.",
+    "Free-model episodes may turn repetitive so the weekly habit never forms.",
+    "No payment evidence for the game half of the product."
+  ],
+  "killCriteria": "Drop it if a hand-run season gets fewer than 20 OC submissions, fewer than 25% of spectators predict a second episode, nobody asks for a next episode unprompted, counsel says SB 243 applies with obligations that cost money, or moderation needs more than an hour a week.",
+  "landing": {
+    "headline": "Send your original character on a blind date. Don't steer.",
+    "subhead": "Make an adult OC, let an AI showrunner write their blind date, and let friends predict how it ends. Free to play; points are just for bragging.",
+    "bullets": [
+      "Your character, one blind date, written in minutes",
+      "You can't steer it, so the ending really surprises you",
+      "Friends guess: second date, friends or disaster",
+      "Free points with no value, never real-money betting"
+    ],
+    "cta": "Join the first season",
+    "audience": "Adults (18+) in AI-friendly roleplay and OC communities who ship characters and like dating-show drama"
+  },
+  "launch": {
+    "channels": [
+      {
+        "name": "r/CharacterAI",
+        "url": "https://www.reddit.com/r/CharacterAI/",
+        "why": "Pro-AI character audience; check self-promotion rules first"
+      },
+      {
+        "name": "r/SillyTavernAI",
+        "url": "https://www.reddit.com/r/SillyTavernAI/",
+        "why": "Hobbyists who make and trade characters and are comfortable with AI fiction"
+      }
+    ],
+    "post": "I'm testing a game where your original character (18+) goes on an AI-written blind date and you can't steer it, while friends predict how it ends. Free points, no betting. Would you enter a character, or would you rather keep control? Page: {url}"
+  }
+}
