@@ -1,5 +1,18 @@
 # Botchelor — an AI blind-date show for original characters, with a free prediction game
 
+## Payment, tested live
+
+`npm run payment:live` runs a purchase on https://botchelor.vercel.app with Stripe in test mode (2026-10-13): a fresh browser opens the shop, ticks the 18+ box, clicks Buy, pays $4 on Stripe's checkout with the test card 4242 4242 4242 4242, comes back to the shop, and the signed webhook adds the 5 pack dates. It passes at desktop and phone size.
+
+![The shop with the episode pack and its Buy button](docs/screenshots/payment-desktop-1-shop-buy.png)
+The shop on the live site: the 5-date pack, the 18+ and terms box, and Buy (the Stripe Payment Link with this order attached).
+
+![Stripe test checkout on a phone, card filled in](docs/screenshots/payment-mobile-2-stripe-checkout.png)
+Stripe's hosted checkout on a phone, in test mode.
+
+![Back in the shop: plus 5 pack dates](docs/screenshots/payment-mobile-3-dates-added.png)
+Back in the shop: "plus 5 pack dates", added by the webhook once Stripe confirmed the payment.
+
 ## Screenshots
 
 Captured by `npm run screenshots` from the production build, with invented sample characters and players. A local stand-in plays the free model, so no API key is involved. The same run also buys "5 more dates" through the shop's Buy button: the sample Payment Link carries the order, a signed webhook arrives, and the shop shows the 5 dates. That check passes but saves no picture.
