@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { releaseEpisode, reserveEpisode } from "@/lib/allowance";
+import { PACK_5 } from "@/lib/catalog";
 import { getDb, type Db } from "@/lib/db";
 import { listFeed, toEpisodeJson, type CharacterRef } from "@/lib/game";
 import { handle, json, parseBody, readJson, session, userIdFromRequest, type Session } from "@/lib/http";
@@ -130,7 +131,7 @@ export const POST = handle(async (req) => {
         error: "episode_limit_reached",
         resets_at: seasonAt(new Date()).ends_at,
         shop_path: "/shop",
-        message: `No dates left: you've used this week's ${FREE_EPISODES_PER_SEASON} free ones (and any pack dates). Free dates come back Monday 00:00 UTC, or add an episode pack in the shop. Packs add dates, never points.`,
+        message: `No dates left: you've used this week's ${FREE_EPISODES_PER_SEASON} free ones (and any pack dates). Free dates come back Monday 00:00 UTC, or get ${PACK_5.name} in the shop. Packs add dates, never points.`,
       },
       429,
       sess,

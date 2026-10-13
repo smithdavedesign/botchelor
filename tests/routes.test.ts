@@ -1,13 +1,14 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { CATALOG } from "@/lib/catalog";
-import { api, fakeStripe, newUserCookie, setupEpisode, startTestDb, validCharacter } from "./helpers";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { CATALOG, ON_SALE } from "@/lib/catalog";
+import { api, newUserCookie, openPayments, setupEpisode, startTestDb, validCharacter } from "./helpers";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const APP_DIR = join(ROOT, "app");
 const LIB_DIR = join(ROOT, "lib");
+const SCRIPTS_DIR = join(ROOT, "scripts");
 const HTTP_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as const;
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -19,7 +20,8 @@ const PAYMENT_SDK = /from\s+["'](stripe|@stripe\/[^"']+|paypal[^"']*|@paypal\/[^
 const CASH_OUT_PATH = /cash|withdraw|payout|redeem|refund|transfer|exchange|convert/i;
 // M3 adds exactly these two money routes (buying a cosmetic or a premium house character), and no others.
 const PAYMENT_ROUTES = ["POST /api/checkout", "POST /api/webhooks/stripe"];
-const STRIPE_API = /api\.stripe\.com/;
+// The owner's note (M4): the app pays through a Stripe Payment Link and holds no Stripe API key.
+const STRIPE_API = /api\.stripe\.com|STRIPE_SECRET_KEY|checkout\/sessions|checkout\.sessions|sk_(test|live)_/;
 
 type Route = { path: string; file: string; methods: string[] };
 
@@ -120,9 +122,13 @@ describe("route listing: no payment or points-transfer endpoint (exit criterion)
     }
   });
 
-  it("talks to Stripe from lib/stripe.ts only", () => {
-    const callers = [...sourceFiles(APP_DIR), ...sourceFiles(LIB_DIR)].filter((f) => STRIPE_API.test(readFileSync(f, "utf8")));
-    expect(callers).toEqual([join(LIB_DIR, "stripe.ts")]);
+  // M3 allowed one file (lib/stripe.ts) to call the Stripe API. The owner's Payment Link note removes the
+  // API entirely, so now no file may call it, read a Stripe secret key or create Checkout Sessions.
+  it("never calls the Stripe API, reads a Stripe secret key or creates Checkout Sessions, anywhere", () => {
+    const files = [...sourceFiles(APP_DIR), ...sourceFiles(LIB_DIR), ...sourceFiles(SCRIPTS_DIR)];
+    expect(files).toContain(join(LIB_DIR, "stripe.ts"));
+    const callers = files.filter((f) => STRIPE_API.test(readFileSync(f, "utf8")));
+    expect(callers).toEqual([]);
   });
 });
 
@@ -136,6 +142,10 @@ describe("points have no purchase, cash-out or transfer route (M3 exit criterion
   });
   beforeEach(async () => {
     await t.reset();
+    openPayments(vi.stubEnv);
+  });
+  afterAll(() => {
+    vi.unstubAllEnvs();
   });
 
   it("lists no route that mentions points except the read-only GET /api/me", async () => {
@@ -174,12 +184,11 @@ describe("points have no purchase, cash-out or transfer route (M3 exit criterion
   });
 
   it.each(["points", "points_100", "coins", "boost", "rank_up"])(
-    "refuses to check out %j (422), without calling Stripe or storing an order",
+    "refuses to check out %j (422), without handing out a payment link or storing an order",
     async (sku) => {
-      const stripe = fakeStripe();
       const res = await api.checkout({ sku, attest: true }, newUserCookie());
       expect(res.status).toBe(422);
-      expect(stripe.calls).toHaveLength(0);
+      expect(await res.text()).not.toContain("buy.stripe.com");
       expect(await t.count("orders")).toBe(0);
     },
   );
@@ -195,6 +204,10 @@ describe("request bodies cannot smuggle in points or payments", () => {
   });
   beforeEach(async () => {
     await t.reset();
+    openPayments(vi.stubEnv);
+  });
+  afterAll(() => {
+    vi.unstubAllEnvs();
   });
 
   it("ignores points, amount and recipient fields on every write", async () => {
@@ -213,10 +226,9 @@ describe("request bodies cannot smuggle in points or payments", () => {
   it("ignores them on the M3 writes too: checkout and the waitlist", async () => {
     const smuggled = { points: 1000, amount: 1, price_cents: 1, currency: "jpy", to_user_id: "someone-else" };
     const user = newUserCookie();
-    const stripe = fakeStripe();
-    expect((await api.checkout({ sku: CATALOG[0].sku, attest: true, ...smuggled }, user)).status).toBe(200);
-    expect(stripe.calls[0].item.price_cents).toBe(CATALOG[0].price_cents);
-    expect(await t.count("orders", `amount_cents = ${CATALOG[0].price_cents} and currency = 'usd'`)).toBe(1);
+    const [item] = ON_SALE;
+    expect((await api.checkout({ sku: item.sku, attest: true, ...smuggled }, user)).status).toBe(200);
+    expect(await t.count("orders", `amount_cents = ${item.price_cents} and currency = 'usd'`)).toBe(1);
     expect((await api.joinWaitlist({ email: "a@example.com", attest: true, ...smuggled }, user)).status).toBe(201);
     expect((await (await api.me(user)).json()).points).toBe(0);
   });

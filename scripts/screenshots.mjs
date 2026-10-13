@@ -7,13 +7,16 @@
  * - No real infrastructure: DATABASE_URL, GOOGLE_API_KEY, LLM_* and STRIPE_* are dropped from the app's
  *   environment. Episodes come from a local OpenAI-compatible stub with canned, schema-valid sample
  *   episodes (the app validates them exactly as it would a free model's), so no key is needed.
+ * - Payments: a sample Payment Link that never leaves the machine (Playwright answers for Stripe's page)
+ *   and a webhook secret made up for this run only, so the shop's Buy button is driven end to end: the
+ *   app's checkout, the link with its order reference, and a signed checkout.session.completed.
  * - Sample data only: invented characters and display names.
  * - Chromium comes from CHROMIUM_PATH; no browser is ever downloaded.
  * - "Last week" is real data moved back seven days in the throwaway database while the app is stopped,
  *   so the first league view closes that season exactly as it would in production.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
@@ -123,11 +126,18 @@ function freePort() {
   });
 }
 
-/** The app's environment: this shell's, minus every piece of real infrastructure. */
+// The shop's sample payment setup. The link's host is answered by Playwright, never fetched.
+const SAMPLE_PAYMENT_LINK = "https://buy.stripe.com/test_botchelorSamplePack";
+const SAMPLE_PRICE_LABEL = "5 more dates · $4";
+const SAMPLE_PACK = { episodes: 5, amount_cents: 400 };
+// Made up for this run and handed only to the app it starts; never written anywhere.
+const RUN_WEBHOOK_SECRET = randomBytes(24).toString("hex");
+
+/** The app's environment: this shell's, minus every piece of real infrastructure, plus the samples above. */
 function appEnv(showrunnerPort) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (/^(DATABASE_URL|GOOGLE_API_KEY|LLM_|STRIPE_|VERCEL|CONTACT_EMAIL)/.test(key)) delete env[key];
+    if (/^(DATABASE_URL|GOOGLE_API_KEY|LLM_|STRIPE_|NEXT_PUBLIC_STRIPE_|VERCEL|CONTACT_EMAIL)/.test(key)) delete env[key];
   }
   return {
     ...env,
@@ -136,6 +146,9 @@ function appEnv(showrunnerPort) {
     LLM_BASE_URL: `http://127.0.0.1:${showrunnerPort}/v1`,
     LLM_API_KEY: "local-sample-showrunner",
     LLM_MODEL: "sample-showrunner",
+    STRIPE_PAYMENT_LINK: SAMPLE_PAYMENT_LINK,
+    STRIPE_PRICE_LABEL: SAMPLE_PRICE_LABEL,
+    STRIPE_WEBHOOK_SECRET: RUN_WEBHOOK_SECRET,
     NEXT_TELEMETRY_DISABLED: "1",
   };
 }
@@ -293,6 +306,56 @@ async function seedThisWeek(call, cast, { mira, otto }) {
 }
 
 // ---------------------------------------------------------------------------------------------------
+// Buying a pack: the shop's Buy button, the Payment Link (answered here, in place of Stripe's page) and
+// the signed checkout.session.completed that Stripe would send once the buyer pays.
+
+function signedEvent(session) {
+  const payload = JSON.stringify({
+    id: `evt_sample_${randomUUID().replace(/-/g, "")}`,
+    object: "event",
+    type: "checkout.session.completed",
+    data: { object: { object: "checkout.session", mode: "payment", payment_status: "paid", currency: "usd", ...session } },
+  });
+  const t = Math.floor(Date.now() / 1000);
+  const v1 = createHmac("sha256", RUN_WEBHOOK_SECRET).update(`${t}.${payload}`, "utf8").digest("hex");
+  return { payload, signature: `t=${t},v1=${v1}` };
+}
+
+async function buyPackThroughShop(page, base) {
+  let linkOpened = null;
+  await page.route(`${new URL(SAMPLE_PAYMENT_LINK).origin}/**`, (route) => {
+    linkOpened = new URL(route.request().url());
+    route.fulfill({ contentType: "text/html", body: "<title>Stripe test payment (sample stand-in)</title><h1>Paid (sample)</h1>" });
+  });
+  await page.goto(`${base}/shop`);
+  await page.getByText("2 of 3 free dates left").waitFor(); // the date just written spent one
+  await page.locator('input[name="attest"]').check();
+  await page.getByRole("button", { name: SAMPLE_PRICE_LABEL }).click();
+  await page.waitForURL((url) => url.href.startsWith(SAMPLE_PAYMENT_LINK));
+  const orderRef = linkOpened?.searchParams.get("client_reference_id");
+  if (!orderRef || `${linkOpened.origin}${linkOpened.pathname}` !== SAMPLE_PAYMENT_LINK) {
+    throw new Error(`the Buy button opened ${linkOpened?.href ?? "nothing"}, not the Payment Link with an order reference`);
+  }
+
+  const { payload, signature } = signedEvent({
+    id: `cs_test_sample_${randomUUID().replace(/-/g, "")}`,
+    client_reference_id: orderRef,
+    payment_link: "plink_botchelorSamplePack",
+    amount_total: SAMPLE_PACK.amount_cents,
+  });
+  const res = await fetch(`${base}/api/webhooks/stripe`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "stripe-signature": signature },
+    body: payload,
+  });
+  if (res.status !== 200) throw new Error(`the webhook answered ${res.status}`);
+
+  await page.goto(`${base}/shop?checkout=success`);
+  await page.getByText(`plus ${SAMPLE_PACK.episodes} pack dates`).waitFor();
+  console.log(`  bought "5 more dates" through the shop: the Payment Link carried the order, the webhook added ${SAMPLE_PACK.episodes} dates`);
+}
+
+// ---------------------------------------------------------------------------------------------------
 // Screenshots
 
 async function capture(base, leagueId, viewer) {
@@ -335,6 +398,9 @@ async function capture(base, leagueId, viewer) {
       await home.waitForURL(/\/episodes\/[0-9a-f-]{36}$/);
       await home.getByRole("heading", { level: 1, name: `${c.name} × Juniper Vale` }).waitFor();
       await shot(home, "episode");
+
+      // 2b. The same creator buys "5 more dates" through the shop (checked, not saved as a screenshot).
+      await buyPackThroughShop(home, base);
       await visitor.close();
 
       // 3. Seasons: Wren's league, with last season's podium (closed on this first view) and this week's board.

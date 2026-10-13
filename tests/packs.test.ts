@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { episodeAllowance, releaseEpisode, reserveEpisode } from "@/lib/allowance";
-import { CATALOG, catalogItem, type CatalogItem } from "@/lib/catalog";
+import { CATALOG, catalogItem, ON_SALE, type CatalogItem } from "@/lib/catalog";
 import { listMyCharacters } from "@/lib/game";
 import { setModelForTests } from "@/lib/model";
 import { refundOrder } from "@/lib/payments";
@@ -10,11 +10,13 @@ import {
   api,
   buy,
   episodeJson,
-  FAKE_WEBHOOK_SECRET,
-  fakeStripe,
+  FAKE_PAYMENT_LINK,
+  FAKE_PAYMENT_LINK_ID,
+  grantByHand,
   HOUSE_PARTNER_ID,
   named,
   newUserCookie,
+  openPayments,
   OTHER_WEBHOOK_SECRET,
   scriptedModel,
   setupEpisode,
@@ -36,10 +38,11 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await t.reset();
-  vi.stubEnv("STRIPE_WEBHOOK_SECRET", FAKE_WEBHOOK_SECRET);
+  openPayments(vi.stubEnv);
 });
 
-const PACKS = CATALOG.filter((i) => i.kind === "episode_pack");
+const PACKS = ON_SALE.filter((i) => i.kind === "episode_pack");
+const PACK = catalogItem("pack_5")!;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 type Creator = { cookie: string; characterId: string };
@@ -81,8 +84,12 @@ const allowanceOf = (cookie: string, now?: Date) => episodeAllowance(t.db, userI
 const episodesBy = (cookie: string) => t.count("episodes", `creator_id = '${userIdOf(cookie)}'`);
 
 describe("episode packs add episodes, not points (exit criterion)", () => {
+  it("has a pack on sale to test", () => {
+    expect(PACKS.length).toBeGreaterThanOrEqual(1);
+  });
+
   it.each(PACKS.map((p): [string, CatalogItem] => [p.sku, p]))(
-    "buying %s adds exactly its N episodes to the creator and changes no spectator's score",
+    "buying %s through the Payment Link adds exactly its N episodes to the creator and changes no spectator's score",
     async (_sku, pack) => {
       const n = pack.episodes!;
       // Three spectators on a league board with 20, 10 and 0 points.
@@ -120,20 +127,28 @@ describe("episode packs add episodes, not points (exit criterion)", () => {
         { rank: 3, name: "Alder", points: 0 },
       ]);
 
-      // The creator has used 3 of this week's free dates.
-      expect(await sendOnDates(creator, 3)).toEqual([200, 200, 200]);
+      // The creator has used all but one of this week's free dates.
+      const used = FREE - 1;
+      expect(await sendOnDates(creator, used)).toEqual(Array(used).fill(200));
       const unbought = await allowanceOf(creator.cookie);
-      expect(unbought).toMatchObject({ free_left: FREE - 3, pack_left: 0, left: FREE - 3 });
+      expect(unbought).toMatchObject({ free_left: 1, pack_left: 0, left: 1 });
 
-      await buy(pack.sku, creator.cookie);
+      // The shop's Buy button: a pending order, and the owner's Payment Link carrying its id.
+      const { orderId, url, paidEvent } = await startCheckout(pack.sku, creator.cookie);
+      expect(url).toBe(`${FAKE_PAYMENT_LINK}?client_reference_id=${orderId}`);
+      expect(await allowanceOf(creator.cookie)).toEqual(unbought); // nothing until Stripe says it's paid
+      // The buyer pays on Stripe; Stripe sends the signed checkout.session.completed for that link.
+      const payload = paidEvent({ payment_link: FAKE_PAYMENT_LINK_ID });
+      expect((await api.stripeWebhook(payload, await stripeSignature(payload))).status).toBe(200);
+
       const bought = await allowanceOf(creator.cookie);
       expect(bought.left - unbought.left).toBe(n);
-      expect(bought).toMatchObject({ free_left: FREE - 3, pack_left: n, left: FREE - 3 + n });
+      expect(bought).toMatchObject({ free_left: 1, pack_left: n, left: 1 + n });
       expect(await scores()).toEqual(before);
 
       // They are real dates: exactly that many more go through, then the next is refused.
       const { made, refused } = await spendUntilRefused(creator);
-      expect(made).toBe(FREE - 3 + n);
+      expect(made).toBe(1 + n);
       expect(refused.status).toBe(429);
       expect(await episodesBy(creator.cookie)).toBe(FREE + n);
       expect(await allowanceOf(creator.cookie)).toMatchObject({ free_left: 0, pack_left: 0, left: 0 });
@@ -239,40 +254,40 @@ describe("reserving dates across seasons", () => {
     for (let i = 0; i < FREE; i++) expect(await reserveEpisode(t.db, user, now)).toEqual({ source: "free", season_id: thisWeek.id });
     expect(await reserveEpisode(t.db, user, now)).toBeNull();
 
-    await buy("pack_10", cookie);
+    await buy(PACK.sku, cookie);
     expect(await reserveEpisode(t.db, user, now)).toEqual({ source: "pack" });
-    expect(await episodeAllowance(t.db, user, now)).toMatchObject({ free_left: 0, pack_left: 9 });
+    expect(await episodeAllowance(t.db, user, now)).toMatchObject({ free_left: 0, pack_left: 4 });
 
-    // Next week: ten free dates again, and the 9 pack dates are still there, untouched until the free ones run out.
+    // Next week: the free dates again, and the 4 pack dates are still there, untouched until the free ones run out.
     const later = new Date(nextWeek.starts_at);
     expect(await episodeAllowance(t.db, user, later)).toMatchObject({
       season_id: nextWeek.id,
       resets_at: nextWeek.ends_at,
       free_left: FREE,
-      pack_left: 9,
-      left: FREE + 9,
+      pack_left: 4,
+      left: FREE + 4,
     });
     expect(await reserveEpisode(t.db, user, later)).toEqual({ source: "free", season_id: nextWeek.id });
-    expect(await episodeAllowance(t.db, user, later)).toMatchObject({ free_left: FREE - 1, pack_left: 9 });
+    expect(await episodeAllowance(t.db, user, later)).toMatchObject({ free_left: FREE - 1, pack_left: 4 });
   });
 
   it("gives back exactly the date it reserved", async () => {
     const cookie = newUserCookie();
     const user = userIdOf(cookie);
-    await buy("pack_10", cookie);
+    await buy(PACK.sku, cookie);
     const free = await reserveEpisode(t.db, user);
     await releaseEpisode(t.db, user, free!);
-    expect(await episodeAllowance(t.db, user)).toMatchObject({ free_left: FREE, pack_left: 10 });
+    expect(await episodeAllowance(t.db, user)).toMatchObject({ free_left: FREE, pack_left: 5 });
 
     for (let i = 0; i < FREE; i++) await reserveEpisode(t.db, user);
     const pack = await reserveEpisode(t.db, user);
     expect(pack).toEqual({ source: "pack" });
-    expect(await episodeAllowance(t.db, user)).toMatchObject({ free_left: 0, pack_left: 9 });
+    expect(await episodeAllowance(t.db, user)).toMatchObject({ free_left: 0, pack_left: 4 });
     await releaseEpisode(t.db, user, pack!);
-    expect(await episodeAllowance(t.db, user)).toMatchObject({ free_left: 0, pack_left: 10 });
+    expect(await episodeAllowance(t.db, user)).toMatchObject({ free_left: 0, pack_left: 5 });
     // Releasing more than was reserved never goes below zero.
     await releaseEpisode(t.db, user, pack!);
-    expect(await episodeAllowance(t.db, user)).toMatchObject({ pack_left: 10 });
+    expect(await episodeAllowance(t.db, user)).toMatchObject({ pack_left: 5 });
   });
 
   it("gives a date back to the season it was taken from, even after that season has ended", async () => {
@@ -289,7 +304,8 @@ describe("reserving dates across seasons", () => {
   it("never lets parallel reservations past the limit", async () => {
     const cookie = newUserCookie();
     const user = userIdOf(cookie);
-    await buy("pack_10", cookie);
+    await buy(PACK.sku, cookie);
+    await buy(PACK.sku, cookie);
     const results = await Promise.all(Array.from({ length: FREE + 15 }, () => reserveEpisode(t.db, user)));
     expect(results.filter((r) => r?.source === "free")).toHaveLength(FREE);
     expect(results.filter((r) => r?.source === "pack")).toHaveLength(10);
@@ -317,95 +333,97 @@ describe("sending an existing character on another date", () => {
 });
 
 describe("buying episode packs", () => {
-  it("prices every pack between $5 and $10, for a whole number of episodes", () => {
-    expect(PACKS.length).toBeGreaterThanOrEqual(1);
-    for (const pack of PACKS) {
-      expect(pack.price_cents).toBeGreaterThanOrEqual(500);
-      expect(pack.price_cents).toBeLessThanOrEqual(1000);
-      expect(Number.isInteger(pack.episodes)).toBe(true);
-      expect(pack.episodes).toBeGreaterThan(0);
-      expect(pack.character_id).toBeUndefined();
-    }
+  // The roadmap said packs cost $5–$10. REVENUE.md, written later about getting the first dollar, sets the
+  // one pack at "5 more dates, $4", the price of the Payment Link David was asked to make. It stays inside
+  // the $3–$8 every other paid item already used.
+  it("sells one pack, 5 dates for a $4 list price, and gives no other item an episode count", () => {
+    expect(PACKS).toEqual([PACK]);
+    expect(PACK).toMatchObject({ sku: "pack_5", kind: "episode_pack", episodes: 5, price_cents: 400 });
+    expect(PACK.character_id).toBeUndefined();
     for (const item of CATALOG.filter((i) => i.kind !== "episode_pack")) expect(item.episodes).toBeUndefined();
+    for (const item of CATALOG) {
+      expect(item.price_cents).toBeGreaterThanOrEqual(200);
+      expect(item.price_cents).toBeLessThanOrEqual(800);
+    }
   });
 
   it("stores the catalog's episode count on the order, ignoring a smuggled one", async () => {
-    const stripe = fakeStripe();
     const buyer = newUserCookie();
-    const res = await api.checkout({ sku: "pack_10", attest: true, episodes: 1000, points: 1000 }, buyer);
+    const res = await api.checkout({ sku: PACK.sku, attest: true, episodes: 1000, points: 1000 }, buyer);
     expect(res.status).toBe(200);
-    const { rows } = await t.db.query("select kind, episodes, amount_cents, status from orders where user_id = $1", [userIdOf(buyer)]);
-    expect(rows).toEqual([{ kind: "episode_pack", episodes: 10, amount_cents: catalogItem("pack_10")!.price_cents, status: "pending" }]);
-    expect(stripe.calls[0].item.sku).toBe("pack_10");
+    const { rows } = await t.db.query("select sku, kind, episodes, amount_cents, status from orders where user_id = $1", [
+      userIdOf(buyer),
+    ]);
+    expect(rows).toEqual([{ sku: "pack_5", kind: "episode_pack", episodes: 5, amount_cents: 400, status: "pending" }]);
   });
 
-  it("stacks repeat purchases of the same pack (no 409)", async () => {
+  it("stacks repeat purchases of the pack (no 409)", async () => {
     const buyer = newUserCookie();
-    await buy("pack_10", buyer);
-    await buy("pack_10", buyer);
-    await buy("pack_25", buyer);
-    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 45, left: FREE + 45 });
+    await buy(PACK.sku, buyer);
+    await buy(PACK.sku, buyer);
+    await buy(PACK.sku, buyer);
+    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 15, left: FREE + 15 });
     expect(await t.count("orders", "status = 'paid'")).toBe(3);
   });
 
   it("adds nothing for an unpaid checkout or a webhook with a bad signature", async () => {
     const buyer = newUserCookie();
-    const { paidEvent } = await startCheckout("pack_25", buyer);
+    const { paidEvent } = await startCheckout(PACK.sku, buyer);
     expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 0 });
     const payload = paidEvent();
     expect((await api.stripeWebhook(payload, await stripeSignature(payload, OTHER_WEBHOOK_SECRET))).status).toBe(400);
     expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 0, left: FREE });
     // The correctly signed delivery adds the pack.
     expect((await api.stripeWebhook(payload, await stripeSignature(payload))).status).toBe(200);
-    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 25 });
+    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 5 });
   });
 
   it("refunds a used pack so that buying one again still adds exactly its N dates (refundOrder)", async () => {
     const buyer = newUserCookie();
     const user = userIdOf(buyer);
-    const orderId = await buy("pack_10", buyer);
-    for (let i = 0; i < FREE + 4; i++) await reserveEpisode(t.db, user);
-    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 6 });
+    const orderId = await buy(PACK.sku, buyer);
+    for (let i = 0; i < FREE + 2; i++) await reserveEpisode(t.db, user);
+    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 3 });
 
     expect(await refundOrder(t.db, orderId)).toBe(true);
     expect(await refundOrder(t.db, orderId)).toBe(false); // already refunded: nothing more happens
     expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 0, left: 0 });
 
-    await buy("pack_10", buyer);
-    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 10, left: 10 });
+    await buy(PACK.sku, buyer);
+    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 5, left: 5 });
   });
 
   it("keeps the dates of the packs that weren't refunded", async () => {
     const buyer = newUserCookie();
     const user = userIdOf(buyer);
-    await buy("pack_25", buyer);
-    const small = await buy("pack_10", buyer);
-    for (let i = 0; i < FREE + 30; i++) await reserveEpisode(t.db, user);
-    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 5 });
-    expect(await refundOrder(t.db, small)).toBe(true);
-    // 30 used, 25 still paid for: the used count is capped at 25, so nothing is left and nothing is owed.
+    await buy(PACK.sku, buyer);
+    const second = await buy(PACK.sku, buyer);
+    for (let i = 0; i < FREE + 7; i++) await reserveEpisode(t.db, user);
+    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 3 });
+    expect(await refundOrder(t.db, second)).toBe(true);
+    // 7 used, 5 still paid for: the used count is capped at 5, so nothing is left and nothing is owed.
     expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 0 });
-    await buy("pack_10", buyer);
-    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 10 });
+    await buy(PACK.sku, buyer);
+    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 5 });
   });
 
   it("refunds a frame or a premium character without touching anyone's dates", async () => {
     const buyer = newUserCookie();
     const user = userIdOf(buyer);
-    await buy("pack_10", buyer);
-    const frame = await buy("frame_rose", buyer);
+    await buy(PACK.sku, buyer);
+    const frame = await grantByHand(t.db, buyer, "frame_rose");
     for (let i = 0; i < FREE + 2; i++) await reserveEpisode(t.db, user);
     expect(await refundOrder(t.db, frame)).toBe(true);
-    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 8 });
+    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 3 });
     expect(await t.count("orders", `id = '${frame}' and status = 'refunded'`)).toBe(1);
   });
 
   it("stops counting a refunded pack's dates, and never shows fewer than zero left", async () => {
     const buyer = newUserCookie();
     const user = userIdOf(buyer);
-    await buy("pack_10", buyer);
-    for (let i = 0; i < FREE + 4; i++) await reserveEpisode(t.db, user);
-    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 6 });
+    await buy(PACK.sku, buyer);
+    for (let i = 0; i < FREE + 2; i++) await reserveEpisode(t.db, user);
+    expect(await allowanceOf(buyer)).toMatchObject({ pack_left: 3 });
     await t.db.query("update orders set status = 'refunded' where user_id = $1", [user]);
     expect(await allowanceOf(buyer)).toMatchObject({ free_left: 0, pack_left: 0, left: 0 });
     expect(await reserveEpisode(t.db, user)).toBeNull();

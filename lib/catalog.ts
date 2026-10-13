@@ -1,10 +1,14 @@
 /**
- * Everything the show sells (M3, M4). Pure data, so client components can render the shop.
+ * Everything the show has sold (M3, M4). Pure data, so client components can render the shop.
  *
  * Three kinds exist, and none touches the game: a premium house character to date, a cosmetic
  * frame around your name on league boards, or an episode pack (more dates for your characters).
  * Points, odds and rank are never for sale (there is no balance to sell: points are derived from
  * predictions, see lib/rules.ts).
+ *
+ * Payments go through one Stripe Payment Link (the owner's call, BUILD.md), and one link sells one
+ * thing: ON_SALE is just the 5-date pack. Premium characters and frames stay listed so an order
+ * restored by hand still unlocks them, but checkout refuses them.
  */
 import { PREMIUM_HOUSE_CHARACTERS } from "./house";
 import { FREE_EPISODES_PER_SEASON } from "./rules";
@@ -47,29 +51,22 @@ const FRAMES: readonly CatalogItem[] = [
   },
 ];
 
-const packDescription = (episodes: number) =>
-  `${episodes} more dates for your characters, on top of the ${FREE_EPISODES_PER_SEASON} free ones every week. ` +
-  "Used after the free ones, they never expire. Adds episodes, never points.";
-
-// M4. Names avoid anything that reads like currency or points (tests/routes.test.ts checks).
-const PACKS: readonly CatalogItem[] = [
-  {
-    sku: "pack_10",
-    kind: "episode_pack",
-    name: "Episode pack: 10 dates",
-    description: packDescription(10),
-    price_cents: 500,
-    episodes: 10,
-  },
-  {
-    sku: "pack_25",
-    kind: "episode_pack",
-    name: "Episode pack: 25 dates",
-    description: packDescription(25),
-    price_cents: 1000,
-    episodes: 25,
-  },
-];
+/**
+ * M4's one episode pack, sold through the owner's Stripe Payment Link: "5 more dates, $4" (REVENUE.md).
+ * The price is set on the link in Stripe; price_cents is the list price, and the least a payment must
+ * be for the webhook to grant it. If the link is ever changed to another size or price, change this.
+ * The name avoids anything that reads like currency or points (tests/routes.test.ts checks).
+ */
+export const PACK_5: CatalogItem = {
+  sku: "pack_5",
+  kind: "episode_pack",
+  name: "5 more dates",
+  description:
+    `5 more dates for your characters, on top of the ${FREE_EPISODES_PER_SEASON} free ones every week. ` +
+    "Used after the free ones, they never expire. Adds episodes, never points.",
+  price_cents: 400,
+  episodes: 5,
+};
 
 export const CATALOG: readonly CatalogItem[] = [
   ...PREMIUM_HOUSE_CHARACTERS.map(
@@ -83,10 +80,12 @@ export const CATALOG: readonly CatalogItem[] = [
     }),
   ),
   ...FRAMES,
-  ...PACKS,
+  PACK_5,
 ];
 
-export const SKUS = CATALOG.map((i) => i.sku) as [string, ...string[]];
+/** What checkout sells: what the one Payment Link sells. */
+export const ON_SALE: readonly CatalogItem[] = [PACK_5];
+export const ON_SALE_SKUS = ON_SALE.map((i) => i.sku) as [string, ...string[]];
 
 export function catalogItem(sku: string): CatalogItem | undefined {
   return CATALOG.find((i) => i.sku === sku);

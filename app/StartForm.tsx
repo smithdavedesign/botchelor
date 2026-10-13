@@ -11,18 +11,30 @@ export type Partner = {
   age: number;
   bio: string;
   traits: string[];
-  /** Premium house characters (M3): their price, and whether this viewer has bought them. */
-  premium?: { price: string; owned: boolean };
+  /** A premium house character (M3) this viewer owns. Off sale now, so only owners ever see one. */
+  premium?: boolean;
 };
 
 /** Dates left for this viewer (M4): free ones this week, plus any from episode packs. */
 export type DatesLeft = { free_left: number; free_per_season: number; pack_left: number };
 
-function DatesLeftNote({ dates }: { dates: DatesLeft }) {
+/** The shop's offer, e.g. "5 more dates for $4" (STRIPE_PRICE_LABEL); null while purchases aren't open. */
+function PackOffer({ offer }: { offer: string | null }) {
+  if (!offer) return null;
+  return (
+    <>
+      {" "}
+      Need more? <Link href="/shop">{offer}</Link> <span className="muted">(they never add points)</span>
+    </>
+  );
+}
+
+function DatesLeftNote({ dates, offer }: { dates: DatesLeft; offer: string | null }) {
   return (
     <p className="muted">
       {dates.free_left} of {dates.free_per_season} free dates left this week (they come back Monday 00:00 UTC)
       {dates.pack_left > 0 && `, plus ${dates.pack_left} from episode packs`}.
+      {dates.free_left + dates.pack_left <= 1 && <PackOffer offer={offer} />}
     </p>
   );
 }
@@ -30,10 +42,12 @@ function DatesLeftNote({ dates }: { dates: DatesLeft }) {
 export default function StartForm({
   partners,
   dates,
+  offer,
   myCharacters,
 }: {
   partners: Partner[];
   dates: DatesLeft;
+  offer: string | null;
   /** The viewer's existing characters, so one can go on another date without retyping its sheet. */
   myCharacters: { id: string; name: string }[];
 }) {
@@ -94,7 +108,7 @@ export default function StartForm({
     return (
       <section>
         <h2>Who should {character.name} meet?</h2>
-        <DatesLeftNote dates={dates} />
+        <DatesLeftNote dates={dates} offer={offer} />
         <div className="card">
           <strong>A blind date</strong>
           <p>
@@ -112,26 +126,20 @@ export default function StartForm({
               {p.name}, {p.age}
             </strong>
             <span className="badge">House character</span>
-            {p.premium && <span className="badge">Premium · {p.premium.price}</span>}
+            {p.premium && <span className="badge">Premium · yours</span>}
             <p>{p.bio}</p>
             <p className="muted">{p.traits.join(" · ")}</p>
-            {p.premium && !p.premium.owned ? (
-              <p>
-                <Link href="/shop">Unlock {p.name} in the shop</Link>{" "}
-                <span className="muted">(one-time {p.premium.price}; it doesn&apos;t change points)</span>
-              </p>
-            ) : (
-              <button type="button" disabled={busy !== null} onClick={() => sendOnDate(p.id)}>
-                Send {character.name} on a date with {p.premium ? p.name : p.name.split(" ")[0]}
-              </button>
-            )}
+            <button type="button" disabled={busy !== null} onClick={() => sendOnDate(p.id)}>
+              Send {character.name} on a date with {p.premium ? p.name : p.name.split(" ")[0]}
+            </button>
           </div>
         ))}
         {busy === "episode" && <p className="muted">The showrunner is writing the episode…</p>}
         {error && <p className="error">{error}</p>}
         {outOfDates && (
           <p>
-            <Link href="/shop">See episode packs</Link> <span className="muted">(optional; they never add points)</span>
+            {offer ? <Link href="/shop">{offer}</Link> : <Link href="/shop">See episode packs</Link>}{" "}
+            <span className="muted">(optional; they never add points)</span>
           </p>
         )}
       </section>
@@ -143,7 +151,7 @@ export default function StartForm({
       {myCharacters.length > 0 && (
         <section className="card">
           <h2>Your characters</h2>
-          <DatesLeftNote dates={dates} />
+          <DatesLeftNote dates={dates} offer={offer} />
           <ul className="list">
             {myCharacters.map((c) => (
               <li key={c.id}>

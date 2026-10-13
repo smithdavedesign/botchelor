@@ -1,13 +1,14 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
-import { formatPrice } from "@/lib/catalog";
+import { formatPrice, PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { readUserId, USER_COOKIE } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
+import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import { cleanRef } from "@/lib/waitlist";
 import StartForm, { type Partner } from "./StartForm";
 import WaitlistForm from "./WaitlistForm";
@@ -26,17 +27,21 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const dates = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
 
+  // Premium house characters are off sale (one Payment Link sells one thing), so only an owner sees one.
   const partners: Partner[] = [
     ...HOUSE_CHARACTERS.map(({ id, name, age, bio, traits }) => ({ id, name, age, bio, traits: [...traits] })),
-    ...PREMIUM_HOUSE_CHARACTERS.map(({ id, name, age, bio, traits, sku, price_cents }) => ({
+    ...PREMIUM_HOUSE_CHARACTERS.filter((c) => owned.includes(c.sku)).map(({ id, name, age, bio, traits }) => ({
       id,
       name,
       age,
       bio,
       traits: [...traits],
-      premium: { price: formatPrice(price_cents), owned: owned.includes(sku) },
+      premium: true,
     })),
   ];
+  const offer = paymentLinkFromEnv()
+    ? priceLabelFromEnv(process.env, `${PACK_5.name} for ${formatPrice(PACK_5.price_cents)}`)
+    : null;
 
   return (
     <>
@@ -62,7 +67,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </li>
           <li>
             <strong>Every week is a season.</strong> When it closes on Monday, the top {PODIUM_SIZE} in each friend
-            league earn a badge. Creators get {FREE_EPISODES_PER_SEASON} free dates a week.
+            league earn a badge. Creators get {FREE_EPISODES_PER_SEASON} free dates a week, and your first date is
+            always free.
           </li>
         </ol>
         <p>
@@ -79,10 +85,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         <StartForm
           partners={partners}
           dates={dates}
+          offer={offer}
           myCharacters={myCharacters.map(({ id, name }) => ({ id, name }))}
         />
         <p className="muted">
-          Premium house characters, episode packs and frames for your name on league boards are in the{" "}
+          Want more than {FREE_EPISODES_PER_SEASON} dates a week? &ldquo;{PACK_5.name}&rdquo; is in the{" "}
           <Link href="/shop">shop</Link>. Points and badges are free and can&apos;t be bought.
         </p>
       </section>
