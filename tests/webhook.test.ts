@@ -1,28 +1,30 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { CATALOG } from "@/lib/catalog";
-import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
+import { episodeAllowance } from "@/lib/allowance";
+import { catalogItem, ON_SALE } from "@/lib/catalog";
 import { ownedSkus } from "@/lib/payments";
+import { FREE_EPISODES_PER_SEASON as FREE } from "@/lib/rules";
 import {
-  paymentsFromEnv,
-  PaymentError,
-  stripeCheckout,
+  paymentLinkFromEnv,
+  paymentLinkUrl,
+  priceLabelFromEnv,
   verifyStripeSignature,
   WEBHOOK_TOLERANCE_SECONDS,
 } from "@/lib/stripe";
 import {
   api,
   checkoutEvent,
-  episodeJson,
+  FAKE_PAYMENT_LINK,
   FAKE_WEBHOOK_SECRET,
+  grantByHand,
   hmacHex,
+  newSessionId,
   newUserCookie,
+  openPayments,
   OTHER_WEBHOOK_SECRET,
-  scriptedModel,
   startCheckout,
   startTestDb,
   stripeSignature,
   userIdOf,
-  validCharacter,
 } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -35,25 +37,24 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await t.reset();
-  vi.stubEnv("STRIPE_WEBHOOK_SECRET", FAKE_WEBHOOK_SECRET);
+  openPayments(vi.stubEnv);
 });
 
 const now = () => Math.floor(Date.now() / 1000);
-const premium = PREMIUM_HOUSE_CHARACTERS[0];
+const PACK = ON_SALE[0];
+const packLeft = async (buyer: string) => (await episodeAllowance(t.db, userIdOf(buyer))).pack_left;
 
 async function orderStatus(orderId: string): Promise<string> {
   const { rows } = await t.db.query<{ status: string }>("select status from orders where id = $1", [orderId]);
   return rows[0].status;
 }
 
-/** Nothing granted: the order is still pending, nothing is owned, and the premium date stays locked. */
+/** Nothing granted: the order is still pending, nothing is owned, and no pack date was added. */
 async function expectNothingGranted(buyer: string, orderId: string) {
   expect(await orderStatus(orderId)).toBe("pending");
   expect(await ownedSkus(t.db, userIdOf(buyer))).toEqual([]);
   expect(await t.count("orders", "status = 'paid'")).toBe(0);
-  const own = await (await api.createCharacter(validCharacter(), buyer)).json();
-  scriptedModel([episodeJson()]);
-  expect((await api.createEpisode({ character_id: own.id, partner_id: premium.id }, buyer)).status).toBe(402);
+  expect(await episodeAllowance(t.db, userIdOf(buyer))).toMatchObject({ pack_left: 0, left: FREE });
 }
 
 type BadCase = [label: string, deliver: (payload: string) => Promise<{ body: string; signature: string | null }>];
@@ -90,7 +91,7 @@ const BAD_SIGNATURES: BadCase[] = [
 describe("a webhook with a bad signature returns 400 and grants nothing (exit criterion)", () => {
   it.each(BAD_SIGNATURES)("%s", async (_label, deliver) => {
     const buyer = newUserCookie();
-    const { orderId, paidEvent } = await startCheckout(premium.sku, buyer);
+    const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);
     const { body, signature } = await deliver(paidEvent());
 
     const res = await api.stripeWebhook(body, signature);
@@ -101,18 +102,19 @@ describe("a webhook with a bad signature returns 400 and grants nothing (exit cr
 
   it("grants the same event when it is correctly signed (control)", async () => {
     const buyer = newUserCookie();
-    const { orderId, paidEvent } = await startCheckout(premium.sku, buyer);
+    const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);
     const payload = paidEvent();
     const res = await api.stripeWebhook(payload, await stripeSignature(payload));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ received: true });
     expect(await orderStatus(orderId)).toBe("paid");
-    expect(await ownedSkus(t.db, userIdOf(buyer))).toEqual([premium.sku]);
+    expect(await ownedSkus(t.db, userIdOf(buyer))).toEqual([PACK.sku]);
+    expect(await packLeft(buyer)).toBe(PACK.episodes);
   });
 
   it("accepts any matching v1 during a secret rotation", async () => {
     const buyer = newUserCookie();
-    const { orderId, paidEvent } = await startCheckout("frame_rose", buyer);
+    const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);
     const payload = paidEvent();
     const ts = now();
     const header = `t=${ts},v1=${await hmacHex(OTHER_WEBHOOK_SECRET, `${ts}.${payload}`)},v1=${await hmacHex(FAKE_WEBHOOK_SECRET, `${ts}.${payload}`)}`;
@@ -123,7 +125,7 @@ describe("a webhook with a bad signature returns 400 and grants nothing (exit cr
   it("returns 500 and grants nothing when no webhook secret is configured (so Stripe retries later)", async () => {
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", "");
     const buyer = newUserCookie();
-    const { orderId, paidEvent } = await startCheckout(premium.sku, buyer);
+    const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);
     const payload = paidEvent();
     const res = await api.stripeWebhook(payload, await stripeSignature(payload));
     expect(res.status).toBe(500);
@@ -132,24 +134,79 @@ describe("a webhook with a bad signature returns 400 and grants nothing (exit cr
   });
 });
 
-describe("POST /api/webhooks/stripe with a valid signature", () => {
+describe("POST /api/webhooks/stripe with a valid signature (Payment Link sessions)", () => {
   const deliver = async (payload: string) => api.stripeWebhook(payload, await stripeSignature(payload));
 
-  it("grants an order once, however many times Stripe delivers the event", async () => {
+  it("records the Stripe session and the amount actually charged on the order", async () => {
     const buyer = newUserCookie();
-    const { orderId, paidEvent } = await startCheckout("frame_gold", buyer);
+    const { orderId, sessionId, paidEvent } = await startCheckout(PACK.sku, buyer);
+    expect((await deliver(paidEvent({ amount_total: PACK.price_cents + 100 }))).status).toBe(200);
+    const { rows } = await t.db.query("select status, stripe_session_id, amount_cents, currency, paid_at from orders where id = $1", [
+      orderId,
+    ]);
+    expect(rows[0]).toMatchObject({ status: "paid", stripe_session_id: sessionId, amount_cents: PACK.price_cents + 100, currency: "usd" });
+    expect(rows[0].paid_at).not.toBeNull();
+  });
+
+  it("grants a session once, however many times Stripe delivers it", async () => {
+    const buyer = newUserCookie();
+    const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);
     const payload = paidEvent();
     expect((await deliver(payload)).status).toBe(200);
     const first = (await t.db.query<{ paid_at: Date }>("select paid_at from orders where id = $1", [orderId])).rows[0].paid_at;
     expect((await deliver(payload)).status).toBe(200);
-    expect((await deliver(paidEvent())).status).toBe(200); // a re-sent event with a new event id
+    expect((await deliver(paidEvent())).status).toBe(200); // a re-sent event with a new event id, same session
+    expect((await deliver(paidEvent({}, "checkout.session.async_payment_succeeded"))).status).toBe(200);
     const { rows } = await t.db.query<{ status: string; paid_at: Date }>("select status, paid_at from orders");
     expect(rows).toEqual([{ status: "paid", paid_at: first }]);
+    expect(await packLeft(buyer)).toBe(PACK.episodes);
+  });
+
+  it("gives a second payment through the same link URL its own pack, once (a Payment Link can be paid again)", async () => {
+    const buyer = newUserCookie();
+    const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);
+    expect((await deliver(paidEvent())).status).toBe(200);
+    const again = newSessionId();
+    const second = paidEvent({ id: again });
+    expect((await deliver(second)).status).toBe(200);
+    expect((await deliver(second)).status).toBe(200); // the second payment, delivered twice
+    expect(await packLeft(buyer)).toBe(PACK.episodes! * 2);
+
+    const { rows } = await t.db.query<{ id: string; user_id: string; sku: string; status: string; episodes: number }>(
+      "select id, user_id, sku, status, episodes from orders where stripe_session_id = $1",
+      [again],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ user_id: userIdOf(buyer), sku: PACK.sku, status: "paid", episodes: PACK.episodes });
+    expect(rows[0].id).not.toBe(orderId);
+    expect(await t.count("orders", "status = 'paid'")).toBe(2);
+  });
+
+  it("gives a payment on a refunded order's link its own pack too", async () => {
+    const buyer = newUserCookie();
+    const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);
+    expect((await deliver(paidEvent())).status).toBe(200);
+    await t.db.query("update orders set status = 'refunded' where id = $1", [orderId]);
+    expect(await packLeft(buyer)).toBe(0);
+    expect((await deliver(paidEvent({ id: newSessionId() }))).status).toBe(200);
+    expect(await packLeft(buyer)).toBe(PACK.episodes);
+  });
+
+  it("never clones a one-time item: a second payment referencing an owned frame grants nothing more", async () => {
+    const buyer = newUserCookie();
+    const frameOrder = await grantByHand(t.db, buyer, "frame_rose");
+    const payload = checkoutEvent({
+      id: newSessionId(),
+      client_reference_id: frameOrder,
+      amount_total: catalogItem("frame_rose")!.price_cents,
+    });
+    expect((await deliver(payload)).status).toBe(200);
+    expect(await t.count("orders")).toBe(1);
   });
 
   it("waits for an async payment: unpaid completes nothing, async_payment_succeeded grants", async () => {
     const buyer = newUserCookie();
-    const { orderId, paidEvent } = await startCheckout("frame_gold", buyer);
+    const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);
     expect((await deliver(paidEvent({ payment_status: "unpaid" }))).status).toBe(200);
     expect(await orderStatus(orderId)).toBe("pending");
     expect((await deliver(paidEvent({}, "checkout.session.async_payment_succeeded"))).status).toBe(200);
@@ -159,21 +216,31 @@ describe("POST /api/webhooks/stripe with a valid signature", () => {
   it.each([
     ["an unknown order id", { client_reference_id: "00000000-0000-4000-8000-000000000000" }],
     ["a client_reference_id that isn't an order id", { client_reference_id: "someone-elses-app" }],
-    ["no client_reference_id", { client_reference_id: null }],
-    ["an amount below the catalog price", { amount_total: 1 }],
+    ["no client_reference_id (paid on the bare link, or Stripe dropped it)", { client_reference_id: null }],
+    ["an amount below the list price", { amount_total: 1 }],
+    ["no amount", { amount_total: null }],
     ["a different currency", { currency: "eur" }],
-    ["a checkout session other than the one created for the order", { id: "cs_test_made_elsewhere" }],
+    ["a session that didn't come from a Payment Link", { payment_link: null }],
   ])("acknowledges but grants nothing for %s", async (_label, overrides) => {
     const buyer = newUserCookie();
-    const { orderId, paidEvent } = await startCheckout(premium.sku, buyer);
+    const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);
     const res = await deliver(paidEvent(overrides));
     expect(res.status).toBe(200);
     await expectNothingGranted(buyer, orderId);
   });
 
+  it("refuses an under-priced second payment on a used link, too", async () => {
+    const buyer = newUserCookie();
+    const { paidEvent } = await startCheckout(PACK.sku, buyer);
+    expect((await deliver(paidEvent())).status).toBe(200);
+    expect((await deliver(paidEvent({ id: newSessionId(), amount_total: 1 }))).status).toBe(200);
+    expect((await deliver(paidEvent({ id: newSessionId(), payment_link: null }))).status).toBe(200);
+    expect(await t.count("orders", "status = 'paid'")).toBe(1);
+  });
+
   it("acknowledges unrelated event types without granting anything", async () => {
     const buyer = newUserCookie();
-    const { orderId, paidEvent } = await startCheckout(premium.sku, buyer);
+    const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);
     for (const type of ["checkout.session.expired", "payment_intent.succeeded", "charge.refunded"]) {
       expect((await deliver(paidEvent({}, type))).status).toBe(200);
     }
@@ -196,7 +263,7 @@ describe("POST /api/webhooks/stripe with a valid signature", () => {
 });
 
 describe("verifyStripeSignature", () => {
-  const payload = checkoutEvent({ id: "cs_test_x", client_reference_id: "o", amount_total: 300 });
+  const payload = checkoutEvent({ id: "cs_test_x", client_reference_id: "o", amount_total: 400 });
 
   it("accepts HMAC-SHA256(secret, `${t}.${rawBody}`) as hex, within the tolerance on either side", async () => {
     const ts = 1_800_000_000;
@@ -224,88 +291,39 @@ describe("verifyStripeSignature", () => {
   });
 });
 
-describe("the Stripe Checkout client", () => {
-  const secretKey = ["sk", "test", "A1b2C3d4".repeat(3)].join("_");
-  const item = CATALOG.find((i) => i.kind === "house_character")!;
-  const request = {
-    orderId: "4f1c2b8e-1111-4222-8333-944455556666",
-    item,
-    successUrl: "https://botchelor.example/shop?checkout=success",
-    cancelUrl: "https://botchelor.example/shop?checkout=cancelled",
-  };
-
-  function fakeFetch(respond: () => Response | Promise<Response>) {
-    const calls: { url: string; init: RequestInit }[] = [];
-    const fetchImpl = (async (url: string, init: RequestInit) => {
-      calls.push({ url, init });
-      return respond();
-    }) as unknown as typeof fetch;
-    return { calls, fetchImpl };
-  }
-
-  it("creates a one-item payment session priced from the catalog, keyed by the order id", async () => {
-    const { calls, fetchImpl } = fakeFetch(() =>
-      Response.json({ id: "cs_test_abc", url: "https://checkout.stripe.com/c/pay/cs_test_abc", object: "checkout.session" }),
-    );
-    const session = await stripeCheckout({ secretKey, fetchImpl }).createCheckoutSession(request);
-    expect(session).toEqual({ id: "cs_test_abc", url: "https://checkout.stripe.com/c/pay/cs_test_abc" });
-
-    expect(calls).toHaveLength(1);
-    const { url, init } = calls[0];
-    expect(url).toBe("https://api.stripe.com/v1/checkout/sessions");
-    expect(init.method).toBe("POST");
-    const headers = new Headers(init.headers);
-    expect(headers.get("authorization")).toBe(`Bearer ${secretKey}`);
-    expect(headers.get("content-type")).toBe("application/x-www-form-urlencoded");
-    expect(headers.get("idempotency-key")).toBe(request.orderId);
-
-    const body = new URLSearchParams(String(init.body));
-    expect(Object.fromEntries(body)).toEqual({
-      mode: "payment",
-      client_reference_id: request.orderId,
-      "metadata[order_id]": request.orderId,
-      "metadata[sku]": item.sku,
-      "line_items[0][quantity]": "1",
-      "line_items[0][price_data][currency]": "usd",
-      "line_items[0][price_data][unit_amount]": String(item.price_cents),
-      "line_items[0][price_data][product_data][name]": item.name,
-      "line_items[0][price_data][product_data][description]": item.description,
-      success_url: request.successUrl,
-      cancel_url: request.cancelUrl,
-    });
-    expect(String(init.body)).not.toContain(secretKey);
+describe("the Payment Link settings", () => {
+  it("reads STRIPE_PAYMENT_LINK, else NEXT_PUBLIC_STRIPE_PAYMENT_LINK, and only as an https URL", () => {
+    expect(paymentLinkFromEnv({ STRIPE_PAYMENT_LINK: FAKE_PAYMENT_LINK })?.href).toBe(FAKE_PAYMENT_LINK);
+    expect(paymentLinkFromEnv({ NEXT_PUBLIC_STRIPE_PAYMENT_LINK: FAKE_PAYMENT_LINK })?.href).toBe(FAKE_PAYMENT_LINK);
+    expect(
+      paymentLinkFromEnv({ STRIPE_PAYMENT_LINK: FAKE_PAYMENT_LINK, NEXT_PUBLIC_STRIPE_PAYMENT_LINK: "https://example.com/other" })?.href,
+    ).toBe(FAKE_PAYMENT_LINK);
+    expect(paymentLinkFromEnv({ STRIPE_PAYMENT_LINK: `  ${FAKE_PAYMENT_LINK}  ` })?.href).toBe(FAKE_PAYMENT_LINK);
+    for (const bad of [undefined, "", "   ", "http://buy.stripe.com/test_x", "buy.stripe.com/test_x", "javascript:alert(1)", "ftp://x.y/z"]) {
+      expect(paymentLinkFromEnv({ STRIPE_PAYMENT_LINK: bad })).toBeNull();
+    }
   });
 
-  it.each([
-    ["an HTTP error", () => Response.json({ error: { message: "Invalid API Key provided" } }, { status: 401 })],
-    ["a response without a url", () => Response.json({ id: "cs_test_abc" })],
-    ["a non-https url", () => Response.json({ id: "cs_test_abc", url: "http://checkout.stripe.com/c/pay/cs_test_abc" })],
-    ["a body that isn't JSON", () => new Response("<html>bad gateway</html>", { status: 200 })],
-    [
-      "a network failure",
-      () => {
-        throw new TypeError("fetch failed");
-      },
-    ],
-  ])("throws PaymentError on %s, never echoing the key", async (_label, respond) => {
-    const { fetchImpl } = fakeFetch(respond);
-    const attempt = stripeCheckout({ secretKey, fetchImpl }).createCheckoutSession(request);
-    await expect(attempt).rejects.toBeInstanceOf(PaymentError);
-    await expect(attempt).rejects.not.toThrow(secretKey);
+  it("adds the order id as client_reference_id without touching the configured link", () => {
+    const link = new URL(`${FAKE_PAYMENT_LINK}?prefilled_promo_code=LAUNCH`);
+    const orderId = "4f1c2b8e-1111-4222-8333-944455556666";
+    expect(paymentLinkUrl(link, orderId)).toBe(`${FAKE_PAYMENT_LINK}?prefilled_promo_code=LAUNCH&client_reference_id=${orderId}`);
+    expect(link.search).toBe("?prefilled_promo_code=LAUNCH");
   });
 
-  it("is switched off without STRIPE_SECRET_KEY, and on with it", () => {
-    expect(paymentsFromEnv({})).toBeNull();
-    expect(paymentsFromEnv({ STRIPE_SECRET_KEY: "" })).toBeNull();
-    expect(paymentsFromEnv({ STRIPE_SECRET_KEY: secretKey })).not.toBeNull();
+  it("uses STRIPE_PRICE_LABEL for the Buy button, trimmed and capped, with a plain fallback", () => {
+    expect(priceLabelFromEnv({ STRIPE_PRICE_LABEL: " 5 more dates · $4 " }, "Buy for $4")).toBe("5 more dates · $4");
+    expect(priceLabelFromEnv({ STRIPE_PRICE_LABEL: "" }, "Buy for $4")).toBe("Buy for $4");
+    expect(priceLabelFromEnv({}, "Buy for $4")).toBe("Buy for $4");
+    expect(priceLabelFromEnv({ STRIPE_PRICE_LABEL: "x".repeat(200) }, "Buy for $4")).toHaveLength(60);
   });
 });
 
 describe("orders never leak who bought", () => {
-  it("keeps the buyer's id out of what Stripe receives and what the webhook returns", async () => {
+  it("keeps the buyer's id out of the Payment Link url and what the webhook returns", async () => {
     const buyer = newUserCookie();
-    const { request, paidEvent } = await startCheckout(CATALOG[0].sku, buyer);
-    expect(JSON.stringify(request)).not.toContain(userIdOf(buyer));
+    const { url, paidEvent } = await startCheckout(PACK.sku, buyer);
+    expect(url).not.toContain(userIdOf(buyer));
     const payload = paidEvent();
     const res = await api.stripeWebhook(payload, await stripeSignature(payload));
     expect(await res.text()).not.toContain(userIdOf(buyer));

@@ -68,8 +68,12 @@ export function badgeLabel(place: number): string {
   return BADGE_LABELS[place as 1 | 2 | 3] ?? `#${place}`;
 }
 
-/** Dates each creator can send their characters on per season, free. Episode packs add more. */
-export const FREE_EPISODES_PER_SEASON = 10;
+/**
+ * Dates each creator can send their characters on per season, free. Episode packs add more. The first
+ * date is always free (REVENUE.md); three a week lets a creator try a blind date and a house date and
+ * still come back next week, and leaves "5 more dates" worth buying. It also caps free-model calls.
+ */
+export const FREE_EPISODES_PER_SEASON = 3;
 
 export const REPORT_REASONS =["sexual", "minor", "real_person", "hateful", "self_harm", "other"] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];

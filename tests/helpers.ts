@@ -16,12 +16,11 @@ import { POST as postReport } from "@/app/api/reports/route";
 import { POST as postIdentityConsent } from "@/app/api/reveal/route";
 import { POST as postWaitlist } from "@/app/api/waitlist/route";
 import { POST as postStripeWebhook } from "@/app/api/webhooks/stripe/route";
-import { catalogItem } from "@/lib/catalog";
+import { catalogItem, CURRENCY } from "@/lib/catalog";
 import { ensureSchema, pgliteDb, setDbForTests, type Db } from "@/lib/db";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
-import { PaymentError, setPaymentsForTests, type CheckoutRequest, type CheckoutSession } from "@/lib/stripe";
 
 export const BASE_URL = "http://localhost:3000";
 
@@ -71,12 +70,10 @@ export async function startTestDb() {
       await db.query("delete from episodes");
       await db.query("delete from characters where not is_house");
       setModelForTests(null);
-      setPaymentsForTests(null);
     },
     async close() {
       setDbForTests(null);
       setModelForTests(null);
-      setPaymentsForTests(null);
       await pg.close();
     },
     async count(table: Table, where = "true") {
@@ -150,7 +147,7 @@ export const api = {
   getLeague: (id: string, cookie?: string) => getLeagueRoute(getRequest(`/api/leagues/${id}`, cookie), params(id)),
   joinLeague: (id: string, cookie?: string) =>
     postJoinLeague(jsonRequest(`/api/leagues/${id}/join`, {}, { cookie }), params(id)),
-  /** M3: start a Stripe Checkout for one catalog item. */
+  /** Start buying one catalog item: a pending order, and the Stripe Payment Link to pay it on (M3, M4). */
   checkout: (body: unknown, cookie?: string) => postCheckout(jsonRequest("/api/checkout", body, { cookie })),
   /** M3: deliver a raw Stripe event, exactly as Stripe would (the signature covers the raw text). */
   stripeWebhook: (payload: string, signature?: string | null) =>
@@ -199,22 +196,21 @@ export async function hmacHex(secret: string, message: string): Promise<string> 
   return Buffer.from(signature).toString("hex");
 }
 
-/** A fake Stripe that records every Checkout request and returns a session (or fails). */
-export function fakeStripe(opts: { fail?: boolean } = {}) {
-  const calls: CheckoutRequest[] = [];
-  const sessions: CheckoutSession[] = [];
-  setPaymentsForTests({
-    async createCheckoutSession(req) {
-      calls.push(req);
-      if (opts.fail) throw new PaymentError("stripe returned HTTP 500");
-      const id = `cs_test_${req.orderId.replace(/-/g, "")}`;
-      const session = { id, url: `https://checkout.stripe.com/c/pay/${id}` };
-      sessions.push(session);
-      return session;
-    },
-  });
-  return { calls, sessions };
+/**
+ * A sample test-mode Stripe Payment Link and the id Stripe gives it (the owner's real one lives only in
+ * the environment). Tests set the link as STRIPE_PAYMENT_LINK with vi.stubEnv.
+ */
+export const FAKE_PAYMENT_LINK = "https://buy.stripe.com/test_botchelorSamplePack";
+export const FAKE_PAYMENT_LINK_ID = "plink_botchelorSamplePack";
+
+/** Opens the shop for a test file: the Payment Link and the webhook secret, as the owner set them in Vercel. */
+export function openPayments(stubEnv: (name: string, value: string) => unknown) {
+  stubEnv("STRIPE_PAYMENT_LINK", FAKE_PAYMENT_LINK);
+  stubEnv("STRIPE_WEBHOOK_SECRET", FAKE_WEBHOOK_SECRET);
 }
+
+/** A session id like the one Stripe creates each time someone opens the Payment Link. */
+export const newSessionId = () => `cs_test_${randomUUID().replace(/-/g, "")}`;
 
 /** A Stripe event wrapping a Checkout Session; `session` overrides the paid defaults. */
 export function checkoutEvent(session: Record<string, unknown>, type = "checkout.session.completed"): string {
@@ -227,33 +223,56 @@ export function checkoutEvent(session: Record<string, unknown>, type = "checkout
         object: "checkout.session",
         mode: "payment",
         payment_status: "paid",
-        currency: "usd",
+        currency: CURRENCY,
+        payment_link: FAKE_PAYMENT_LINK_ID,
         ...session,
       },
     },
   });
 }
 
-/** Starts a checkout for `sku` and returns the order and the paid event Stripe would send for it. */
+/**
+ * Starts buying `sku` the way the shop does: POST /api/checkout, which answers with the Payment Link
+ * carrying our order id as client_reference_id. Returns that order, the url, and the paid event Stripe
+ * would send once the buyer pays on the link (one Stripe session; pass another `id` for a new payment).
+ */
 export async function startCheckout(sku: string, cookie: string) {
-  const stripe = fakeStripe();
   const res = await api.checkout({ sku, attest: true }, cookie);
   if (res.status !== 200) throw new Error(`checkout failed with ${res.status}`);
-  const [request] = stripe.calls;
-  const [session] = stripe.sessions;
+  const { url } = (await res.json()) as { url: string };
+  const orderId = new URL(url).searchParams.get("client_reference_id");
+  if (!orderId) throw new Error(`no client_reference_id on ${url}`);
+  const sessionId = newSessionId();
   const price = catalogItem(sku)?.price_cents;
   const paidEvent = (overrides: Record<string, unknown> = {}, type?: string) =>
-    checkoutEvent({ id: session.id, client_reference_id: request.orderId, amount_total: price, ...overrides }, type);
-  return { orderId: request.orderId, sessionId: session.id, request, paidEvent };
+    checkoutEvent({ id: sessionId, client_reference_id: orderId, amount_total: price, ...overrides }, type);
+  return { orderId, url, sessionId, paidEvent };
 }
 
-/** Buys `sku` end to end: checkout, then the signed webhook. Needs STRIPE_WEBHOOK_SECRET = FAKE_WEBHOOK_SECRET. */
+/** Buys `sku` end to end: checkout, then the signed webhook. Needs openPayments(vi.stubEnv) first. */
 export async function buy(sku: string, cookie: string): Promise<string> {
   const { orderId, paidEvent } = await startCheckout(sku, cookie);
   const payload = paidEvent();
   const res = await api.stripeWebhook(payload, await stripeSignature(payload));
   if (res.status !== 200) throw new Error(`webhook failed with ${res.status}`);
   return orderId;
+}
+
+/**
+ * Gives `sku` to a user the way BUILD.md tells David to restore a purchase by hand: a paid order row.
+ * The only way to own an item that is off sale (premium characters and frames: one Payment Link sells
+ * one thing). Returns the order id.
+ */
+export async function grantByHand(db: Db, cookie: string, sku: string): Promise<string> {
+  const item = catalogItem(sku);
+  if (!item) throw new Error(`no such sku ${sku}`);
+  const id = randomUUID();
+  await db.query(
+    `insert into orders (id, user_id, sku, kind, amount_cents, currency, status, episodes, paid_at)
+     values ($1, $2, $3, $4, $5, $6, 'paid', $7, clock_timestamp())`,
+    [id, userIdOf(cookie), item.sku, item.kind, item.price_cents, CURRENCY, item.episodes ?? null],
+  );
+  return id;
 }
 
 /** Gives a user a display name (with the 18+ attestation) and returns their cookie. */

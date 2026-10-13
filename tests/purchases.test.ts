@@ -1,19 +1,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { POST as postCheckout } from "@/app/api/checkout/route";
-import { CATALOG, catalogItem, ITEM_KINDS } from "@/lib/catalog";
+import { CATALOG, catalogItem, ITEM_KINDS, ON_SALE } from "@/lib/catalog";
 import { ensureSchema } from "@/lib/db";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { ownedSkus } from "@/lib/payments";
 import { checkFields } from "@/lib/safety";
 import {
   api,
-  BASE_URL,
   buy,
   episodeJson,
-  FAKE_WEBHOOK_SECRET,
-  fakeStripe,
+  FAKE_PAYMENT_LINK,
+  grantByHand,
   named,
   newUserCookie,
+  openPayments,
   scriptedModel,
   setupEpisode,
   startTestDb,
@@ -31,11 +30,13 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await t.reset();
-  vi.stubEnv("STRIPE_WEBHOOK_SECRET", FAKE_WEBHOOK_SECRET);
+  openPayments(vi.stubEnv);
 });
 
 const CHARACTER_ITEMS = CATALOG.filter((i) => i.kind === "house_character");
 const FRAME_ITEMS = CATALOG.filter((i) => i.kind === "frame");
+const OFF_SALE = CATALOG.filter((i) => !ON_SALE.includes(i));
+const PACK = ON_SALE[0];
 
 type Entry = { rank: number; name: string; points: number; me: boolean; frame?: string };
 
@@ -70,8 +71,14 @@ async function dateWith(partnerId: string, creator: string) {
   return { res, model };
 }
 
+const ordersOf = async (cookie: string) =>
+  (await t.db.query("select * from orders where user_id = $1 order by created_at", [userIdOf(cookie)])).rows;
+
 describe("buying never changes points or rank (exit criterion)", () => {
-  it("buys every SKU and leaves every user's points balance and league rank unchanged", async () => {
+  // M3 bought every SKU through Stripe Checkout. Since the owner's Payment Link note, one link sells one
+  // thing, so every SKU on sale is bought through it and every other one is granted the way a purchase is
+  // restored by hand. Either way the same check runs after each one.
+  it("buys every SKU (on sale: through the Payment Link; off sale: by hand) and leaves every user's points balance and league rank unchanged", async () => {
     const wren = await named(newUserCookie(), "Wren");
     const kestrel = await named(newUserCookie(), "Kestrel");
     const alder = await named(newUserCookie(), "Alder");
@@ -96,12 +103,14 @@ describe("buying never changes points or rank (exit criterion)", () => {
       ],
     });
 
-    // The middle player and the last-placed player each buy every SKU: a change in either direction would show.
+    // The middle player and the last-placed player each get every SKU: a change in either direction would show.
+    expect(ON_SALE.length).toBeGreaterThanOrEqual(1);
     expect(CHARACTER_ITEMS.length).toBeGreaterThanOrEqual(1);
     expect(FRAME_ITEMS.length).toBeGreaterThanOrEqual(1);
     for (const buyer of [kestrel, alder]) {
       for (const item of CATALOG) {
-        await buy(item.sku, buyer);
+        if (ON_SALE.includes(item)) await buy(item.sku, buyer);
+        else await grantByHand(t.db, buyer, item.sku);
         expect(await ownedSkus(t.db, userIdOf(buyer))).toContain(item.sku);
         expect(await snapshot()).toEqual(before);
       }
@@ -117,22 +126,20 @@ describe("buying never changes points or rank (exit criterion)", () => {
   });
 });
 
-describe("POST /api/checkout", () => {
-  it("returns a Stripe Checkout url for every SKU and stores a pending order at the catalog price", async () => {
-    for (const item of CATALOG) {
+describe("POST /api/checkout (Stripe Payment Link)", () => {
+  it("answers with the Payment Link carrying the new order's id as client_reference_id, and stores a pending order at the list price", async () => {
+    for (const item of ON_SALE) {
       const buyer = newUserCookie();
-      const stripe = fakeStripe();
-      // Smuggled price, currency and points fields are ignored: the server prices from the catalog.
+      // Smuggled price, currency, episode and points fields are ignored: the server prices from the catalog.
       const res = await api.checkout(
-        { sku: item.sku, attest: true, amount: 1, price_cents: 1, currency: "jpy", points: 1000 },
+        { sku: item.sku, attest: true, amount: 1, price_cents: 1, currency: "jpy", episodes: 1000, points: 1000 },
         buyer,
       );
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body).toEqual({ url: stripe.sessions[0].url });
-      expect(body.url).toMatch(/^https:\/\//);
+      expect(Object.keys(body)).toEqual(["url"]);
 
-      const { rows } = await t.db.query("select * from orders where user_id = $1", [userIdOf(buyer)]);
+      const rows = await ordersOf(buyer);
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({
         sku: item.sku,
@@ -140,50 +147,41 @@ describe("POST /api/checkout", () => {
         amount_cents: item.price_cents,
         currency: "usd",
         status: "pending",
-        stripe_session_id: stripe.sessions[0].id,
+        episodes: item.episodes ?? null,
+        stripe_session_id: null,
         paid_at: null,
       });
 
-      // Stripe gets our order id, never the user's session cookie.
-      expect(stripe.calls).toHaveLength(1);
-      const [call] = stripe.calls;
-      expect(call.orderId).toBe(rows[0].id);
-      expect(call.item.sku).toBe(item.sku);
-      expect(call.item.price_cents).toBe(item.price_cents);
-      expect(call.successUrl).toBe(`${BASE_URL}/shop?checkout=success`);
-      expect(call.cancelUrl).toBe(`${BASE_URL}/shop?checkout=cancelled`);
-      expect(JSON.stringify(call)).not.toContain(userIdOf(buyer));
-      expect(JSON.stringify(body)).not.toContain(userIdOf(buyer));
+      // The owner's link, plus our random order id; never the user's session cookie.
+      const url = new URL(body.url);
+      expect(`${url.origin}${url.pathname}`).toBe(FAKE_PAYMENT_LINK);
+      expect([...url.searchParams]).toEqual([["client_reference_id", rows[0].id]]);
+      expect(body.url).not.toContain(userIdOf(buyer));
     }
   });
 
-  it("sends Stripe back to the site the browser is on (its Origin), even when the server sees another host", async () => {
-    // Off Vercel, Next builds req.url from the server's own host:port, not the public one.
-    const checkoutFrom = (origin: string | null) => {
-      const headers: Record<string, string> = { "content-type": "application/json", cookie: newUserCookie() };
-      if (origin !== null) headers.origin = origin;
-      return postCheckout(
-        new Request("http://localhost:3000/api/checkout", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ sku: "frame_rose", attest: true }),
-        }),
-      );
-    };
-    const stripe = fakeStripe();
-    expect((await checkoutFrom("https://botchelor.example")).status).toBe(200);
-    expect(stripe.calls[0].successUrl).toBe("https://botchelor.example/shop?checkout=success");
-    expect(stripe.calls[0].cancelUrl).toBe("https://botchelor.example/shop?checkout=cancelled");
-    // No Origin, or one that isn't an http(s) origin: fall back to the request URL.
-    for (const origin of [null, "null", "javascript:alert(1)", "https://botchelor.example/path"]) {
-      expect((await checkoutFrom(origin)).status).toBe(200);
-      expect(stripe.calls.at(-1)?.successUrl).toBe("http://localhost:3000/shop?checkout=success");
+  it("keeps a query already on the link, and sets exactly one client_reference_id", async () => {
+    vi.stubEnv("STRIPE_PAYMENT_LINK", `${FAKE_PAYMENT_LINK}?locale=en&client_reference_id=stale`);
+    const buyer = newUserCookie();
+    const res = await api.checkout({ sku: PACK.sku, attest: true }, buyer);
+    expect(res.status).toBe(200);
+    const url = new URL((await res.json()).url);
+    expect(url.searchParams.get("locale")).toBe("en");
+    expect(url.searchParams.getAll("client_reference_id")).toEqual([(await ordersOf(buyer))[0].id]);
+  });
+
+  it("never calls Stripe (or anything else) over the network", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      expect((await api.checkout({ sku: PACK.sku, attest: true }, newUserCookie())).status).toBe(200);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
     }
   });
 
   it("gives a first-time visitor a session cookie, so the order has an owner", async () => {
-    fakeStripe();
-    const res = await api.checkout({ sku: CATALOG[0].sku, attest: true });
+    const res = await api.checkout({ sku: PACK.sku, attest: true });
     expect(res.status).toBe(200);
     const cookie = res.headers.get("set-cookie") ?? "";
     const userId = /bz_uid=([0-9a-f-]{36})/.exec(cookie)?.[1];
@@ -192,60 +190,46 @@ describe("POST /api/checkout", () => {
   });
 
   it.each([
-    ["no attestation", { sku: "frame_rose" }],
-    ["attest: false", { sku: "frame_rose", attest: false }],
+    ["no attestation", { sku: "pack_5" }],
+    ["attest: false", { sku: "pack_5", attest: false }],
     ["no sku", { attest: true }],
     ["an unknown sku", { sku: "frame_diamond", attest: true }],
-  ])("returns 422 for %s, without calling Stripe or storing anything", async (_label, body) => {
-    const stripe = fakeStripe();
+    ...OFF_SALE.map((i): [string, Record<string, unknown>] => [`${i.sku}, which is off sale`, { sku: i.sku, attest: true }]),
+  ])("returns 422 for %s, storing nothing", async (_label, body) => {
     const res = await api.checkout(body, newUserCookie());
     expect(res.status).toBe(422);
-    expect(stripe.calls).toHaveLength(0);
     expect(await t.count("orders")).toBe(0);
   });
 
-  it("returns 503 payments_unavailable when no Stripe key is configured, storing nothing", async () => {
-    vi.stubEnv("STRIPE_SECRET_KEY", "");
-    const res = await api.checkout({ sku: CATALOG[0].sku, attest: true }, newUserCookie());
+  it.each([
+    ["unset", ""],
+    ["plain http", "http://buy.stripe.com/test_botchelorSamplePack"],
+    ["not a URL", "buy.stripe.com/test_botchelorSamplePack"],
+    ["a javascript: URL", "javascript:alert(1)"],
+  ])("returns 503 payments_unavailable when the Payment Link is %s, storing nothing", async (_label, link) => {
+    vi.stubEnv("STRIPE_PAYMENT_LINK", link);
+    vi.stubEnv("NEXT_PUBLIC_STRIPE_PAYMENT_LINK", "");
+    const res = await api.checkout({ sku: PACK.sku, attest: true }, newUserCookie());
     expect(res.status).toBe(503);
     expect((await res.json()).error).toBe("payments_unavailable");
     expect(await t.count("orders")).toBe(0);
   });
 
-  it("returns 502 when Stripe fails, and leaves no order behind", async () => {
-    const stripe = fakeStripe({ fail: true });
-    const res = await api.checkout({ sku: CATALOG[0].sku, attest: true }, newUserCookie());
-    expect(res.status).toBe(502);
-    expect((await res.json()).error).toBe("checkout_unavailable");
-    expect(stripe.calls).toHaveLength(1);
-    expect(await t.count("orders")).toBe(0);
-  });
-
-  it("returns 409 already_owned for an item the user already has, without calling Stripe", async () => {
+  it("lets a user buy the pack again, and retry after an abandoned checkout (a pending order is not ownership)", async () => {
     const buyer = newUserCookie();
-    await buy("frame_gold", buyer);
-    const stripe = fakeStripe();
-    const res = await api.checkout({ sku: "frame_gold", attest: true }, buyer);
-    expect(res.status).toBe(409);
-    expect((await res.json()).error).toBe("already_owned");
-    expect(stripe.calls).toHaveLength(0);
-    // Someone else can still buy it.
-    expect((await api.checkout({ sku: "frame_gold", attest: true }, newUserCookie())).status).toBe(200);
-  });
-
-  it("lets a user retry after an abandoned checkout (a pending order is not ownership)", async () => {
-    const buyer = newUserCookie();
-    fakeStripe();
-    expect((await api.checkout({ sku: "frame_rose", attest: true }, buyer)).status).toBe(200);
-    expect((await api.checkout({ sku: "frame_rose", attest: true }, buyer)).status).toBe(200);
+    expect((await api.checkout({ sku: PACK.sku, attest: true }, buyer)).status).toBe(200);
+    expect((await api.checkout({ sku: PACK.sku, attest: true }, buyer)).status).toBe(200);
     expect(await ownedSkus(t.db, userIdOf(buyer))).toEqual([]);
+    await buy(PACK.sku, buyer);
+    expect((await api.checkout({ sku: PACK.sku, attest: true }, buyer)).status).toBe(200);
+    expect(await t.count("orders", `user_id = '${userIdOf(buyer)}'`)).toBe(4);
   });
 });
 
-describe("premium house characters", () => {
+describe("premium house characters (off sale; an owned one still dates)", () => {
   const premium = PREMIUM_HOUSE_CHARACTERS[0];
 
-  it("returns 402 premium_character_locked to a creator who hasn't bought it, before any model call", async () => {
+  it("returns 402 premium_character_locked to a creator who doesn't own it, before any model call", async () => {
     const creator = newUserCookie();
     const { res, model } = await dateWith(premium.id, creator);
     expect(res.status).toBe(402);
@@ -254,9 +238,9 @@ describe("premium house characters", () => {
     expect(await t.count("episodes")).toBe(0);
   });
 
-  it("dates its owner once bought, as a labeled house character, with its sheet sent to the showrunner", async () => {
+  it("dates its owner, as a labeled house character, with its sheet sent to the showrunner", async () => {
     const creator = newUserCookie();
-    await buy(premium.sku, creator);
+    await grantByHand(t.db, creator, premium.sku);
     const { res, model } = await dateWith(premium.id, creator);
     expect(res.status).toBe(200);
     const episode = await res.json();
@@ -266,14 +250,14 @@ describe("premium house characters", () => {
   });
 
   it("is unlocked per user: another creator is still locked out", async () => {
-    await buy(premium.sku, newUserCookie());
+    await grantByHand(t.db, newUserCookie(), premium.sku);
     const { res } = await dateWith(premium.id, newUserCookie());
     expect(res.status).toBe(402);
   });
 
   it("locks again once the order is marked refunded", async () => {
     const creator = newUserCookie();
-    await buy(premium.sku, creator);
+    await grantByHand(t.db, creator, premium.sku);
     await t.db.query("update orders set status = 'refunded' where user_id = $1", [userIdOf(creator)]);
     const { res } = await dateWith(premium.id, creator);
     expect(res.status).toBe(402);
@@ -281,13 +265,15 @@ describe("premium house characters", () => {
 
   it("is never picked for a blind date, even when it's the likelier draw", async () => {
     // Leave one free house character against every premium one: if premium were eligible, eight
-    // fallbacks in a row would almost surely hit one.
+    // fallbacks in a row would almost surely hit one. The creator's free dates are reset between draws
+    // (M4 caps them per week; this test is about who gets drawn, not how often).
     const [keep, ...drop] = HOUSE_CHARACTERS.map((c) => c.id);
     await t.db.query("delete from characters where id = any($1::text[])", [drop]);
     try {
       const creator = newUserCookie();
       const own = await (await api.createCharacter(validCharacter(), creator)).json();
       for (let i = 0; i < 8; i++) {
+        await t.db.query("delete from free_episode_usage where user_id = $1", [userIdOf(creator)]);
         scriptedModel([episodeJson()]);
         const res = await api.createEpisode({ character_id: own.id, blind: true }, creator);
         expect(res.status).toBe(200);
@@ -300,20 +286,20 @@ describe("premium house characters", () => {
   });
 });
 
-describe("profile frames", () => {
-  it("shows the latest frame bought on league boards, for that member only, without moving anyone", async () => {
+describe("profile frames (off sale; an owned one still shows)", () => {
+  it("shows the latest frame owned on league boards, for that member only, without moving anyone", async () => {
     const wren = await named(newUserCookie(), "Wren");
     const kestrel = await named(newUserCookie(), "Kestrel");
     const league = await newLeague(wren, [kestrel]);
     const before = await board(league.id);
     expect(before.every((e) => !("frame" in e))).toBe(true);
 
-    await buy("frame_rose", kestrel);
+    await grantByHand(t.db, kestrel, "frame_rose");
     let after = await board(league.id);
     expect(after.find((e) => e.name === "Kestrel")?.frame).toBe("frame_rose");
     expect(after.find((e) => e.name === "Wren")).not.toHaveProperty("frame");
 
-    await buy("frame_gold", kestrel);
+    await grantByHand(t.db, kestrel, "frame_gold");
     after = await board(league.id);
     expect(after.find((e) => e.name === "Kestrel")?.frame).toBe("frame_gold");
     expect(after.map(({ rank, name, points: p }) => ({ rank, name, points: p }))).toEqual(
@@ -324,14 +310,17 @@ describe("profile frames", () => {
   it("doesn't show a frame from an unpaid (pending) order", async () => {
     const wren = await named(newUserCookie(), "Wren");
     const league = await newLeague(wren, []);
-    fakeStripe();
-    expect((await api.checkout({ sku: "frame_rose", attest: true }, wren)).status).toBe(200);
+    await t.db.query(
+      `insert into orders (id, user_id, sku, kind, amount_cents, currency, status)
+       values ('o-pending-frame', $1, 'frame_rose', 'frame', 200, 'usd', 'pending')`,
+      [userIdOf(wren)],
+    );
     expect((await board(league.id))[0]).not.toHaveProperty("frame");
   });
 });
 
 describe("the catalog", () => {
-  it("sells only premium house characters and cosmetic frames, each a one-time USD price", () => {
+  it("lists premium house characters, cosmetic frames and episode packs, each a one-time USD price", () => {
     expect(new Set(CATALOG.map((i) => i.sku)).size).toBe(CATALOG.length);
     for (const item of CATALOG) {
       expect(ITEM_KINDS).toContain(item.kind);
@@ -340,6 +329,11 @@ describe("the catalog", () => {
       expect(catalogItem(item.sku)).toBe(item);
     }
     expect(catalogItem("points")).toBeUndefined();
+  });
+
+  it("sells exactly one thing, through the one Payment Link: the 5-date episode pack", () => {
+    expect(ON_SALE.map((i) => [i.sku, i.kind, i.episodes])).toEqual([["pack_5", "episode_pack", 5]]);
+    for (const item of ON_SALE) expect(CATALOG).toContain(item);
   });
 
   it("prices premium house characters between $3 and $8, as the roadmap says", () => {

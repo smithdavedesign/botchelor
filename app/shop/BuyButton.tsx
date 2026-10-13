@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
 
-/** Starts a Stripe Checkout for one item and sends the browser to Stripe's hosted page. */
-export default function BuyButton({ sku, price, disabled }: { sku: string; price: string; disabled: boolean }) {
+/**
+ * Starts buying one item: the server stores a pending order and answers with the owner's Stripe Payment
+ * Link for it, and the browser goes there. `label` is the button text (STRIPE_PRICE_LABEL).
+ */
+export default function BuyButton({ sku, label, disabled }: { sku: string; label: string; disabled: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,11 +35,11 @@ export default function BuyButton({ sku, price, disabled }: { sku: string; price
       <label className="check">
         <input type="checkbox" name="attest" required disabled={disabled} />
         <span>
-          I&apos;m 18 or older and agree to the <Link href="/legal">terms and refund policy</Link>.
+          I&apos;m 18 or older and agree to the <Link href="/terms">terms and refund policy</Link>.
         </span>
       </label>
       <button type="submit" disabled={busy || disabled}>
-        {busy ? "Opening checkout…" : `Buy for ${price}`}
+        {busy ? "Opening Stripe…" : label}
       </button>
       {error && <p className="error">{error}</p>}
     </form>

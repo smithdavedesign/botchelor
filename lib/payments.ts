@@ -1,4 +1,4 @@
-import { CURRENCY, type CatalogItem } from "./catalog";
+import { catalogItem, CURRENCY, isRepeatable, type CatalogItem, type ItemKind } from "./catalog";
 import type { Db } from "./db";
 
 /**
@@ -30,8 +30,9 @@ export async function ownsSku(db: Db, userId: string, sku: string): Promise<bool
 }
 
 /**
- * A pending order priced from the catalog; its random id is what Stripe sees. An episode pack's
- * order also records how many dates it adds, so a later catalog change can't alter a past purchase.
+ * A pending order at the catalog's list price; its random id is what Stripe sees (as the Payment Link's
+ * client_reference_id). An episode pack's order also records how many dates it adds, so a later catalog
+ * change can't alter a past purchase.
  */
 export async function createPendingOrder(db: Db, userId: string, item: CatalogItem): Promise<string> {
   const id = crypto.randomUUID();
@@ -41,15 +42,6 @@ export async function createPendingOrder(db: Db, userId: string, item: CatalogIt
     [id, userId, item.sku, item.kind, item.price_cents, CURRENCY, item.episodes ?? null],
   );
   return id;
-}
-
-export async function attachCheckoutSession(db: Db, orderId: string, sessionId: string): Promise<void> {
-  await db.query("update orders set stripe_session_id = $2 where id = $1", [orderId, sessionId]);
-}
-
-/** Undo a checkout that never reached Stripe. Only ever removes a still-pending order. */
-export async function deletePendingOrder(db: Db, orderId: string): Promise<void> {
-  await db.query("delete from orders where id = $1 and status = 'pending'", [orderId]);
 }
 
 /**
@@ -77,32 +69,62 @@ export async function refundOrder(db: Db, orderId: string): Promise<boolean> {
   return rows[0].n > 0;
 }
 
+/** A paid Checkout Session, as the signed webhook reports it. */
 export type PaidSession = {
   orderId: string | null;
   sessionId: string;
+  /** The Payment Link that created the session (plink_…); null for a session made any other way. */
+  paymentLink: string | null;
   amountTotal: number | null;
   currency: string | null;
 };
 export type GrantOutcome = "granted" | "already_paid" | "unknown_order" | "mismatch";
 
+type OrderRow = { user_id: string; sku: string; kind: ItemKind; status: OrderStatus; episodes: number | null };
+
 /**
- * Marks an order paid, once. The single UPDATE is the idempotency check: a duplicate or late
- * delivery finds no pending row. It must be the session we created for this order (its URL only
- * reaches the browser after attachCheckoutSession), at the amount and currency we priced, so a
- * session that isn't ours, or was changed, grants nothing.
+ * Grants what one paid Stripe session bought, exactly once per session. The session must come from a
+ * Payment Link and pay at least the item's list price in our currency: the link's price is set in Stripe,
+ * so this is the floor that keeps a cheaper payment from unlocking it.
+ *
+ * - The first payment on an order fills in the pending row (one UPDATE … WHERE status = 'pending').
+ * - A Payment Link URL can be paid again (Back, then pay). That second session gets its own paid order,
+ *   cloned from the first, for repeatable items (packs); a one-time item is never granted twice.
+ * - A duplicate or late delivery of a session finds its id already recorded (`stripe_session_id` is
+ *   unique), so nothing doubles, even when two deliveries race.
  */
 export async function grantOrder(db: Db, paid: PaidSession): Promise<GrantOutcome> {
   if (!paid.orderId || !ORDER_ID.test(paid.orderId)) return "unknown_order";
-  const { rows } = await db.query(
-    `update orders set status = 'paid', paid_at = now()
-      where id = $1 and status = 'pending' and stripe_session_id = $2 and amount_cents = $3 and currency = $4
-      returning id`,
-    [paid.orderId, paid.sessionId, paid.amountTotal, paid.currency],
-  );
-  if (rows.length) return "granted";
-  const existing = (
-    await db.query<{ status: OrderStatus }>("select status from orders where id = $1", [paid.orderId])
+  const order = (
+    await db.query<OrderRow>("select user_id, sku, kind, status, episodes from orders where id = $1", [paid.orderId])
   ).rows[0];
-  if (!existing) return "unknown_order";
-  return existing.status === "pending" ? "mismatch" : "already_paid";
+  if (!order) return "unknown_order";
+  const item = catalogItem(order.sku);
+  const priced =
+    item !== undefined && paid.paymentLink !== null && paid.currency === CURRENCY && (paid.amountTotal ?? 0) >= item.price_cents;
+  if (!priced) return "mismatch";
+
+  const filled = await db.query(
+    `update orders set status = 'paid', paid_at = now(), stripe_session_id = $2, amount_cents = $3
+      where id = $1 and status = 'pending'
+        and not exists (select 1 from orders where stripe_session_id = $2)
+      returning id`,
+    [paid.orderId, paid.sessionId, paid.amountTotal],
+  );
+  if (filled.rows.length) return "granted";
+  if (await sessionRecorded(db, paid.sessionId)) return "already_paid";
+  if (!isRepeatable(order.kind)) return "already_paid";
+
+  const cloned = await db.query(
+    `insert into orders (id, user_id, sku, kind, amount_cents, currency, status, episodes, stripe_session_id, paid_at)
+     values ($1, $2, $3, $4, $5, $6, 'paid', $7, $8, now())
+     on conflict (stripe_session_id) do nothing
+     returning id`,
+    [crypto.randomUUID(), order.user_id, order.sku, order.kind, paid.amountTotal, CURRENCY, order.episodes, paid.sessionId],
+  );
+  return cloned.rows.length ? "granted" : "already_paid";
+}
+
+async function sessionRecorded(db: Db, sessionId: string): Promise<boolean> {
+  return (await db.query("select 1 from orders where stripe_session_id = $1", [sessionId])).rows.length > 0;
 }

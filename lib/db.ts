@@ -141,9 +141,10 @@ create index if not exists league_members_user_idx on league_members (user_id);
 -- M3. A premium house character is a house character with the catalog SKU that unlocks it.
 alter table characters add column if not exists premium_sku text;
 
--- One row per checkout. Our random id (never the session cookie) is what Stripe sees, as
--- client_reference_id. Ownership is "a paid order"; the webhook's UPDATE … WHERE status = 'pending'
--- makes duplicate deliveries no-ops. The CHECK lists mirror lib/catalog.ts and lib/payments.ts.
+-- One row per checkout. Our random id (never the session cookie) is what Stripe sees, as the Payment
+-- Link's client_reference_id. Ownership is "a paid order"; each Stripe session is recorded on exactly one
+-- order (stripe_session_id is unique), so duplicate deliveries are no-ops (lib/payments.ts grantOrder).
+-- The CHECK lists mirror lib/catalog.ts and lib/payments.ts.
 create table if not exists orders (
   id text primary key,
   user_id text not null,

@@ -2,6 +2,196 @@
 
 ## Plan
 
+M4 of 4, final pass: "Seasons", made able to take money. A previous run built M4's seasons, badges, packs and allowance; see "Plan (M4 seasons and packs, built)" below. That run's 366 tests all pass. But it sold packs through Stripe Checkout Sessions created with `STRIPE_SECRET_KEY`.
+
+The owner's note (David, 2026-10-13) replaces that:
+- Use the Stripe **Payment Link**: `STRIPE_PAYMENT_LINK` / `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` (test mode), with `STRIPE_PRICE_LABEL` as the button text.
+- Remove every use of `STRIPE_SECRET_KEY`, Checkout Sessions and the Stripe SDK.
+- The webhook is optional; `STRIPE_WEBHOOK_SECRET` is set.
+- `CONTACT_EMAIL` is set for the legal page.
+
+REVENUE.md adds the must-haves before charging (checkout, privacy and terms pages, a refund path) and "the free first date and a '5 more dates, $4' button".
+
+This plan applies gstack plan-eng-review's Step 0, 1. Architecture and 3. Test review to that change. Nobody was available to ask, so each question is answered here.
+
+### Step 0: Scope challenge
+
+1. **What already solves it.**
+   - **M4 itself is built:**
+     - `lib/seasons.ts`: lazy, idempotent season close, with badges for the top 3 per league.
+     - `lib/allowance.ts`: free dates per season plus pack dates, each reserved atomically.
+     - `episode_pack` orders.
+   - **The webhook** (`app/api/webhooks/stripe`) already does three things:
+     - verifies `Stripe-Signature` with `node:crypto`
+     - grants on `checkout.session.completed` / `async_payment_succeeded` with `payment_status = paid`
+     - maps the payment back to our random order id through `client_reference_id`, never the cookie
+
+     **A Payment Link carries `client_reference_id` as a URL parameter into the same event**, so the grant path stays. Only checkout changes:
+     - **Before:** create a Stripe session with the secret key.
+     - **After:** create a pending order and hand back the link with `?client_reference_id=<order id>`.
+   - **Test patterns stay:** `buy()` (checkout plus a signed webhook) and the before/after score snapshot.
+2. **Minimum change set:**
+   - **`lib/stripe.ts`.**
+     - Delete `stripeCheckout`, `PaymentError`, `STRIPE_SECRET_KEY` and every `api.stripe.com` call.
+     - Add `paymentLinkFromEnv()`: an https URL, or null.
+     - Add `paymentLinkUrl(link, orderId)`.
+     - Add `priceLabelFromEnv()`.
+     - `verifyStripeSignature` stays.
+   - **`lib/catalog.ts`.**
+     - One pack, `pack_5`: "5 more dates", list price $4 (REVENUE.md).
+     - `ON_SALE` is the items the Payment Link sells: just that pack.
+     - Premium characters and frames stay in the catalog, so already-paid orders keep working, but they are **off sale**: one Payment Link sells one thing.
+   - **`lib/rules.ts`:** `FREE_EPISODES_PER_SEASON` goes from 10 to **3**. See decisions.
+   - **`POST /api/checkout {sku, attest}`:**
+     - It is 422 unless the sku is on sale, and 503 when no valid link is configured. Nothing is stored in either case.
+     - Otherwise it creates a pending order at the list price and returns 200 `{url}`.
+     - There is no Stripe call, so there is no 502 and no Origin-based return URL. The Payment Link's after-payment redirect is set in the Stripe dashboard.
+   - **`lib/payments.ts` `grantOrder`:** we no longer create the session, so the grant changes:
+     - It requires `payment_link` on the session, currency USD, and `amount_total` ≥ the order's list price.
+     - It records the session id and the amount Stripe actually charged.
+     - A second payment through the same link URL (an already-used reference) grants a **new** pack order, keyed by its own session id.
+     - A duplicate delivery of the same session grants nothing (`stripe_session_id` is unique).
+   - **Pages:**
+     - **`/shop`:** lists the pack, with the Buy button labeled by `STRIPE_PRICE_LABEL`, plus already-owned items. "Purchases open soon" shows when there is no link.
+     - **Home and StartForm:** show "N of 3 free dates left this week", with a "5 more dates" link to the shop. Premium characters appear only to their owners.
+   - **Legal and launch checks:** `/terms` and `/privacy` (REVENUE.md's launch checks).
+     - Both render shared sections from `app/legal/sections.tsx`. `/legal` keeps rendering both, so old links and tests still work.
+     - Copy changes from Stripe Checkout to "Stripe's hosted payment page (a Payment Link)", and says what Stripe receives.
+     - Plus `app/robots.ts`, `app/sitemap.ts` and `app/opengraph-image.tsx`, all Next built-ins.
+   - **`scripts/screenshots.mjs`:** also drives a pack purchase through the shop. The Payment Link is intercepted by Playwright, and the webhook is signed with a random secret made at runtime.
+
+   **Deliberately NOT in this pass:**
+   - **A second Payment Link** for premium characters or frames. They stay off sale until David makes one per item.
+   - **Re-fetching the session from Stripe.** That needs the API key the owner removed. The signed event is trusted as delivered.
+   - **Pinning the Payment Link id (`plink_…`).** We know the link's URL, not its id; see "Review".
+   - **Refund webhooks, accounts, emails and promo codes.**
+   - **Live mode:** Vercel Hobby forbids commercial use, so the link stays in test mode until David picks a host.
+3. **Complexity check: it doesn't trigger.**
+   - New files: 3 small route-convention files (`robots.ts`, `sitemap.ts`, `opengraph-image.tsx`), 2 thin pages (`/terms`, `/privacy`) and 1 sections component.
+   - Edited: about 10 files.
+   - New services or classes: none. One is removed (the Checkout Sessions client).
+4. **Search check** (WebSearch; stripe.com itself was unreachable through the sandbox's fetch proxy):
+   - **[Layer 1]** Stripe documents `client_reference_id` as a Payment Link URL parameter that is copied into `checkout.session.completed`. It allows letters, digits, `-` and `_`, up to 200 characters, so our UUID order id fits. **Invalid values are silently dropped**, so the webhook must cope with a null reference: it logs, and the order is granted by hand.
+   - **[Layer 1]** Every Checkout Session has `payment_link`, the id of the link that created it. Stripe's fulfilment guide says to fulfil from the webhook, not the success page, to expect duplicate and concurrent deliveries, and to record fulfilment per session id. `orders.stripe_session_id` is already `unique`.
+   - **[Layer 2] Pitfall:** Stripe's sample re-fetches the session with the API key, but this app has no key. The signed event body (`amount_total`, `currency`, `payment_status`) is authenticated by the signature, so it is enough.
+   - **[EUREKA]** A Payment Link URL with a reference can be paid **more than once**. With Checkout Sessions, one session paid once.
+     - If someone pays twice through the same URL (Back, then pay again), the old "update the pending order" grant would silently swallow the second payment.
+     - So the grant is "one paid order per Stripe session": the first payment fills the pending order, and a later one clones it as a new paid order.
+   - **[Layer 1]** Next.js `robots.ts`, `sitemap.ts` and `opengraph-image.tsx` (`ImageResponse` from `next/og`) are file conventions, with no package to install.
+5. **TODOS.** There is no `TODOS.md`. Follow-ups go under "What's left".
+6. **Completeness.** Every new path gets a test:
+   - checkout: 503, 422 off sale, and the URL format (existing query kept, no cookie in it)
+   - webhook: no `payment_link`, an under-price amount, a repeat payment on one reference, and a duplicate session
+   - the link env: https only, or null
+   - the price label, the pages, robots, sitemap and the og image route
+7. **Distribution.** No new artifact.
+
+### 1. Architecture
+
+```
+ /shop ── BuyButton (text = STRIPE_PRICE_LABEL) ──► POST /api/checkout {sku: "pack_5", attest: true}
+                                                     ├─ sku not on sale / no attest ──────────────► 422, nothing stored
+                                                     ├─ no https STRIPE_PAYMENT_LINK ──────────────► 503, nothing stored
+                                                     ├─ INSERT orders(id = random uuid, user, pack_5, episode_pack,
+                                                     │                amount = list price 400, episodes = 5, 'pending')
+                                                     └─ 200 {url: <payment link>?client_reference_id=<order id>}
+ browser ─► Stripe-hosted Payment Link (test mode) ─► pays ─► Stripe redirects per the link's dashboard setting
+ Stripe ─► POST /api/webhooks/stripe (signed; unchanged checks: secret set, ≤256 KB, v1 HMAC, 300 s tolerance)
+            └─ completed | async_payment_succeeded, payment_status = paid
+                 grantOrder(ref = client_reference_id, session, payment_link, amount_total, currency)
+                   ├─ no ref / not a uuid / unknown order ───────────────────────► 200, logged, nothing granted
+                   ├─ no payment_link, currency ≠ usd, amount < list price ──────► 200, logged ("mismatch")
+                   ├─ UPDATE pending order → paid, session id, amount charged ───► granted
+                   ├─ this session already recorded (duplicate delivery) ────────► already_paid
+                   └─ ref already paid/refunded, pack, new session ──────────────► INSERT a cloned paid order
+                                                                                    ON CONFLICT (session) DO NOTHING
+ allowance = 3 free per season + Σ episodes of paid pack orders − pack dates used   (lib/allowance.ts, unchanged)
+ points    = Σ predictions on aired episodes   (no join to orders anywhere, unchanged)
+```
+
+Decisions:
+- **One thing on sale: "5 more dates", $4, as REVENUE.md recommends.**
+  - The price lives in Stripe, on the Payment Link. The catalog's $4 is the list price and the minimum a payment must reach.
+  - The button text comes from `STRIPE_PRICE_LABEL`. Without it, the button reads "Buy 5 more dates for $4".
+  - **Assumption, recorded:** David's link sells 5 dates for $4 with quantity fixed at 1. If it doesn't, edit `PACK_5` in `lib/catalog.ts`.
+- **3 free dates per creator per week** (it was 10). REVENUE.md says to sell "5 more dates" after a free first date. At 10 a week, almost nobody would ever need a pack.
+  - 1 a week was tried, and it breaks real M2 flows: block a blind date, then get matched again. 4 M2 tests need more than one date per creator.
+  - 3 keeps the first date free, lets a creator try a blind date and a house date, and still makes "5 more for $4" a real offer.
+  - It is still the per-cookie cap on free-model calls.
+- **Premium characters and frames are off sale, not deleted.** Any paid order keeps working: the premium date unlocks and the frame shows. But nothing can be bought without its own Payment Link.
+  - No key was ever configured, so there are no such orders in production.
+  - The landing page hides premium characters you don't own.
+- **Anything Stripe sees is not a credential.** The link carries our random order id, never the `bz_uid` cookie (tested).
+- **The webhook stays required for self-serve fulfilment.** Without `STRIPE_WEBHOOK_SECRET`, it answers 500 so Stripe retries. Orders stay pending, and David can grant one by hand with the SQL in "Run it locally".
+
+Realistic production failures:
+
+| Codepath | Failure | Handling |
+|---|---|---|
+| Checkout | `STRIPE_PAYMENT_LINK` unset or not https | 503 `payments_unavailable`, nothing stored; the shop says "Purchases open soon". Tested. |
+| Payment Link | Stripe drops an invalid `client_reference_id` | Can't happen with a UUID, but the webhook logs the session id as `unknown_order`, and David grants by hand. Tested (null reference). |
+| Payment Link | The buyer pays twice through the same URL | The second session gets its own paid order. Tested. |
+| Payment Link | David's link costs less than $4, or allows a quantity | Not granted (`mismatch`, logged), or granted for one pack only. Docs say to keep quantity at 1 and the price at $4. |
+| Payment Link | Another of David's links on the same Stripe account is paid with a botchelor reference | Granted only if it is at least the list price, in USD, from a Payment Link. Pinning the link id is listed under "Review". |
+| Webhook | Duplicate or concurrent deliveries of one session | The pending row is updated once. A clone hits `unique(stripe_session_id)`, so nothing doubles. Tested by repeat deliveries. |
+| Shop | The buyer returns before the webhook lands | The shop says the dates appear once Stripe confirms; the allowance is read live. |
+
+### 3. Test plan
+
+| Exit criterion | Tests |
+|---|---|
+| A season closes at its deadline and badges are awarded to the top 3 in each league | Built in the previous run and unchanged: `tests/seasons.test.ts`, "closes a season at its deadline and awards badges to the top 3 in each league" (1 ms before the deadline closes nothing; at the deadline, each league's top 3 get 1st, 2nd and 3rd), plus the lazy close over HTTP. |
+| Buying an episode pack adds exactly N episodes to the creator and changes no spectator's score | `tests/packs.test.ts`, "buying pack_5 through the Payment Link adds exactly its 5 episodes to the creator and changes no spectator's score", rewritten for the Payment Link and failing until it is built:<br>• Three spectators on a board have 20, 10 and 0 points.<br>• The creator uses their 3 free dates, then buys through `POST /api/checkout`. The url must be the configured link with `client_reference_id` = the order id.<br>• Then a signed `checkout.session.completed` arrives with `payment_link`.<br>• `left` grows by exactly 5, every score and the board are unchanged, exactly 5 more dates go through, and the next is 429. |
+
+New tests for the new paths:
+- **Checkout** (`purchases.test.ts`):
+  - 200 with the link plus `client_reference_id=<order id>`, keeping a query already on the link.
+  - The pending order is stored at the list price, with no user id in the url or the body.
+  - 503 when the link is unset, http, or not a URL.
+  - 422 for premium characters, frames and unknown skus, with nothing stored.
+  - A repeat buy is allowed, and smuggled prices are ignored.
+- **Webhook** (`webhook.test.ts`):
+  - Not granted without `payment_link`, below the list price, or in another currency.
+  - The session id and the amount charged are recorded.
+  - A second payment on the same reference adds a second pack.
+  - The same session delivered twice grants once.
+  - The 11 bad-signature cases stay, now against a pack order.
+- **Env** (`webhook.test.ts`): `paymentLinkFromEnv` (https only, `STRIPE_PAYMENT_LINK` first, then `NEXT_PUBLIC_`) and `priceLabelFromEnv`.
+- **Routes** (`routes.test.ts`): nothing in `app/`, `lib/` or `scripts/` mentions `STRIPE_SECRET_KEY`, `api.stripe.com` or `checkout/sessions`. This replaces "talks to Stripe from lib/stripe.ts only", which is stronger.
+- **Pages** (`waitlist.test.ts`, `pages.test.ts`):
+  - `/terms` has refunds, points and contact.
+  - `/privacy` has storage, processors and the checkout ID disclosure.
+  - `/legal` still has both.
+  - `robots` allows `/` and disallows `/api/`.
+  - `sitemap` lists the public pages.
+  - The shop's `BuyButton` renders the label.
+  - The og image route exports the right size and content type.
+
+**Earlier tests that change, because the owner's note supersedes Checkout Sessions:**
+- **Removed, as the code they tested is removed by the owner's instruction:**
+  - the "Stripe Checkout client" tests (REST call, `PaymentError`, secret key on and off)
+  - checkout's 502 and Origin return-URL tests
+
+  Each is replaced by a link-based test above.
+- **Changed for the new pricing and catalog:**
+  - The M3 "buys every SKU" exit test buys every SKU **on sale** through the link. The off-sale items are granted the way David restores a purchase by hand. Every user's points and rank are still compared after each one.
+  - Premium and frame tests get ownership the same way.
+  - "409 already owned" becomes "off-sale items → 422".
+  - "returns a Stripe Checkout url for every SKU" becomes the link url for the pack.
+  - "a checkout session other than the one created" becomes "a session not from a Payment Link".
+  - The pack tests use `pack_5`.
+  - "prices every pack between $5 and $10" (ROADMAP) becomes "$4 for 5 dates" (REVENUE.md, the later and more specific decision, inside the $3–$8 the shop already used).
+  - "never picked for a blind date" clears the creator's free-date counter between its 8 draws, because 3 free dates can't cover 8 draws.
+
+## Plan (M4 seasons and packs, built)
+
+> **Superseded in part by the Payment Link pass above.**
+> - Checkout now hands out the owner's Stripe Payment Link instead of creating a Checkout Session.
+> - One pack is sold: `pack_5`, 5 dates for $4. `pack_10` and `pack_25` are gone.
+> - There are 3 free dates a week, not 10.
+>
+> Seasons, badges, the allowance and the migrations below are unchanged.
+
 M4 of 4: "Seasons". M1–M3 are built, and their 323 tests stay green. This plan applies gstack plan-eng-review's Step 0 (scope challenge), 1. Architecture and 3. Test review to M4. Nobody was available to ask, so each question is answered here and the answer recorded.
 
 ### Step 0: Scope challenge
@@ -198,6 +388,11 @@ Other codepaths covered:
 - The `tests/helpers.ts` reset also clears the new tables.
 
 ## Plan (M3, built)
+
+> **Superseded in part by the owner's Payment Link note (M4 final pass).**
+> - `lib/stripe.ts` no longer creates Checkout Sessions, and nothing reads `STRIPE_SECRET_KEY`.
+> - Premium characters and frames are off sale: owned ones still work, but checkout refuses them.
+> - The webhook's signature check is unchanged. Its grant now matches Payment Link sessions (see "Plan" at the top).
 
 M3 of 4: "Paid items and a landing-page test". M1 and M2 are built, and their 224 tests stay green. This plan applies gstack plan-eng-review's Step 0 (scope challenge), 1. Architecture and 3. Test review to M3. Nobody was available to ask, so each question is answered here and the answer recorded.
 
@@ -433,41 +628,56 @@ Other codepaths covered:
 - **Schema** is applied on first use under `pg_advisory_xact_lock`. Every query is parameterized.
 - **The host can't predict** their own episode; they see the ending as soon as it's written.
 
-## Status (after M3)
+## Status (M4 done: the MVP can take money)
 
-`npm test` runs **323 tests in 16 files, and all pass**.
-- These include the 224 M1 and M2 tests. Two M1 assertions changed because M3 supersedes them (see "Two earlier tests change" above). One M2 helper resets the new tables.
-- `npm run typecheck` and `npm run build` are clean on Next.js 16.4.
-- A mutation check confirmed the new tests catch failures. Three deliberately broken builds were caught: signature checking switched off, the HMAC comparison skipped, and premium characters let into the blind-date fallback.
+`npm test` runs **386 tests in 19 files, and all pass**.
+- **M1–M3:** their exit tests all pass. The M3 payment tests were rewritten for the owner's Payment Link (see "Earlier tests that change" in the Plan). The M1, M2 and seasons test files are untouched.
+- **Builds:** `npm run typecheck` and `npm run build` are clean on Next.js 16.4. The build prerenders `/robots.txt`, `/sitemap.xml` and `/opengraph-image`.
+- **Mutation check:** the new grant tests catch three deliberately broken builds:
+  - the Payment Link and price checks switched off
+  - repeat payments never granted
+  - one-time items cloned
+- **Browser run:** `npm run screenshots` also buys a pack through the production build's shop in a real browser, at both sizes. The Buy button opens the Payment Link with the order reference, a signed `checkout.session.completed` arrives, and the shop shows "plus 5 pack dates".
 
 ### What the product does now
 
 1. **`/` is the landing page** for AI-friendly roleplayers:
    - The pitch: "written by AI, on purpose; you can't steer it".
-   - Three steps, a link to the feed, and a **Season 1 waitlist**: email, optional "where do you roleplay", and the 18+ attestation. The `?ref=` from the shared link is kept with the signup.
-   - The character builder below works as in M1 and M2: 18+, the content filter, then a blind date or a house character.
-   - The two **premium house characters** are listed with their prices. Locked ones link to the shop; owned ones get a "Send on a date" button.
-2. **One showrunner call** writes the episode, with the drama question. Invalid output gets one retry, then a 502 with nothing stored.
+   - Steps, a link to the feed, and a **Season 1 waitlist** (email, optional community, 18+ attestation, `?ref=` kept).
+   - The character builder: 18+, the content filter, then a blind date or a house character.
+   - **3 free dates a week; the first date is always free.**
+   - When a creator is down to their last date, the dates line offers "5 more dates" (the `STRIPE_PRICE_LABEL` text), linking to the shop.
+   - Returning creators see their characters, with "Send on another date".
+2. **One showrunner call** writes the episode, with the drama question. Invalid output gets one retry, then a 502 with nothing stored. No date is spent on a failure.
 3. **`/episodes/[id]`**:
    - AI disclosure and crisis links for everyone.
    - Creators see the whole episode; spectators see a teaser and predict (10 + 5 points).
-   - Mutual-consent identity reveal, the report button and blocks, as in M2.
-4. **`/feed`**: your dates, the latest episodes, your leagues and your block list.
-5. **`/leagues/[id]`**: the weekly board, now with **frames** around the names of members who bought one.
-6. **`/shop`** has four items:
-   - Vesper Lark ($3) and Captain Odalys Reyes ($5), premium house characters.
-   - The Rose and Gold frames ($2 each).
-   - **Buy** asks for the 18+ and terms checkbox, then opens Stripe Checkout and returns to `/shop?checkout=success`. The item appears once Stripe's webhook confirms the payment.
-   - Without a Stripe key, the shop says "Purchases open soon" and the buttons are disabled.
-7. **`/legal`**: terms, purchases, the 14-day refund policy, what's stored and who processes it, and the contact address (`CONTACT_EMAIL`).
-8. **Points are still free.** They can't be bought, cashed out or transferred, and carry no prizes. Nothing bought changes anyone's points, picks or rank.
+   - Mutual-consent identity reveal, the report button and blocks.
+4. **`/feed`**: your dates, the latest episodes, your leagues, **your badges** and your block list.
+5. **`/leagues/[id]`**: **seasons** (M4).
+   - The weekly board, plus when this season closes (Monday 00:00 UTC).
+   - The last 4 podiums, with 🥇🥈🥉 for the top 3. Ties share a place.
+   - The first visit after the deadline closes the season.
+6. **`/shop`** sells one thing, **"5 more dates"**, through the owner's **Stripe Payment Link**:
+   - The Buy button's text is `STRIPE_PRICE_LABEL`. It asks for the 18+ and terms checkbox.
+   - The app stores a pending order, then sends the browser to the link with `?client_reference_id=<order id>`.
+   - Stripe's signed `checkout.session.completed` adds 5 dates. Pack dates never expire, are used after the free ones, and never add points.
+   - Without a valid link, the shop says "Purchases open soon" and the button is disabled.
+   - Premium characters and frames are off sale. Anyone who owns one sees it there as "Yours".
+7. **`/terms`, `/privacy`, and `/legal` (both on one page):**
+   - who may use it
+   - points and badges have no value
+   - what you can buy, the 14-day refund policy, what's stored, what Stripe gets and who processes it
+   - the contact address (`CONTACT_EMAIL`)
+8. **`/robots.txt`, `/sitemap.xml` and an og:image** for link previews.
+9. **Points and badges are free.** They can't be bought, cashed out or transferred, and carry no prizes. Nothing bought changes anyone's points, picks or rank.
 
 API (all JSON; identity is the anonymous `bz_uid` cookie; no user id is ever returned):
 
 | Route | Result |
 |---|---|
 | `POST /api/characters` | 201 character, or 422 / 400 / 413 / 415 |
-| `POST /api/episodes` `{character_id, partner_id}` or `{character_id, blind: true}` | 200 full episode (with `ai_generated: true` and the drama fields), or **402 `premium_character_locked`** / 404 / 409 `match_unavailable` / 422 / 502 |
+| `POST /api/episodes` `{character_id, partner_id}` or `{character_id, blind: true}` | 200 full episode (with `ai_generated: true` and the drama fields), or 402 `premium_character_locked` / 404 / 409 `match_unavailable` / 422 / **429 `episode_limit_reached` `{resets_at, shop_path}`** / 502 |
 | `GET /api/episodes` | 200 `{episodes: [...]}`: the feed, newest 30 |
 | `GET /api/episodes/:id` | 200 the episode as this viewer may see it, or 404 |
 | `POST /api/predictions` `{episode_id, pick, drama_pick?}` | 201, or 403 / 404 / 409 / 422 |
@@ -476,9 +686,9 @@ API (all JSON; identity is the anonymous `bz_uid` cookie; no user id is ever ret
 | `POST /api/reports` `{episode_id, reason?}` | 201 / 200, or 404 / 422 |
 | `POST` / `DELETE /api/blocks` `{episode_id}` | 201 / 200, or 404 / 422 |
 | `POST /api/profile` `{name, attest: true}` | 200 `{name}`, or 422 |
-| `POST /api/leagues` `{name}` · `GET /api/leagues/:id` · `POST /api/leagues/:id/join` | as in M2. Board entries may carry `frame` |
+| `POST /api/leagues` `{name}` · `GET /api/leagues/:id` · `POST /api/leagues/:id/join` | as in M2. Board entries may carry `frame`; the league view has `season {id, closes_at}` and `past_seasons` (M4) |
 | `GET /api/me` | `{points}` (all-time) |
-| **`POST /api/checkout`** `{sku, attest: true}` | 200 `{url}` (Stripe Checkout), or 409 `already_owned` / 415 / 422 / 502 `checkout_unavailable` / 503 `payments_unavailable` |
+| **`POST /api/checkout`** `{sku: "pack_5", attest: true}` | 200 `{url}`: the Payment Link with `client_reference_id`. Or 415, 422 (not on sale, or no attestation), or 503 `payments_unavailable` (no https link). Nothing calls Stripe. |
 | **`POST /api/webhooks/stripe`** (Stripe only, signed) | 200 `{received: true}`, or 400 `invalid_signature` / `invalid_payload`, 413, 500 `webhook_not_configured` |
 | **`POST /api/waitlist`** `{email, attest: true, community?, ref?}` | 201 `{ok: true}` (new or repeat), or 415 / 422 |
 
@@ -497,70 +707,84 @@ API (all JSON; identity is the anonymous `bz_uid` cookie; no user id is ever ret
 | M2 | A leaderboard for 3 users with 20, 10, 0 returns them in that order | PASS | `tests/leagues.test.ts` |
 | M2 | `POST /reports` → 201, and the episode leaves the feed after 3 distinct reporters | PASS | `tests/reports.test.ts` |
 | M2 | Every episode response includes `ai_generated: true` | PASS | `tests/disclosure.test.ts` |
-| M3 | Buying any item never changes a user's points balance or leaderboard rank (buys every SKU, compares before and after) | PASS | `tests/purchases.test.ts` "buys every SKU and leaves every user's points balance and league rank unchanged" |
+| M3 | Buying any item never changes a user's points balance or leaderboard rank (buys every SKU, compares before and after) | PASS. Every SKU on sale is bought through the Payment Link; each off-sale SKU is granted by hand, the way a purchase is restored. Both are compared after each one. | `tests/purchases.test.ts` "buys every SKU (on sale: through the Payment Link; off sale: by hand) and leaves every user's points balance and league rank unchanged" |
 | M3 | A webhook with a bad signature returns 400 and grants nothing | PASS | `tests/webhook.test.ts` "a webhook with a bad signature returns 400 and grants nothing (exit criterion)" (11 bad-signature cases plus a signed control) |
 | M3 | Points have no purchase, cash-out or transfer route (route listing test) | PASS | `tests/routes.test.ts` "points have no purchase, cash-out or transfer route (M3 exit criterion)", plus the amended money-route allowlist |
+| **M4** | **A season closes at its deadline and badges are awarded to the top 3 in each league** | **PASS** | `tests/seasons.test.ts` "closes a season at its deadline and awards badges to the top 3 in each league": 1 ms before the deadline nothing closes; at it, each league's own top 3 get 1st, 2nd and 3rd. The lazy close over HTTP is tested too. |
+| **M4** | **Buying an episode pack adds exactly N episodes to the creator and changes no spectator's score** | **PASS** | `tests/packs.test.ts` "buying pack_5 through the Payment Link adds exactly its N episodes to the creator and changes no spectator's score". It runs checkout, the link with the order reference, then a signed `checkout.session.completed`. `left` grows by exactly 5, the scores and the board are unchanged, exactly 1 free + 5 pack dates go through, then 429. |
 
 ### Run it locally
 
 ```bash
-npm install          # works with npm_config_ignore_scripts; no native builds, no new dependencies in M3
-npm test             # 323 tests, under a minute; no network, no secrets
+npm install          # works with npm_config_ignore_scripts; no native builds, no new dependencies in M4
+npm test             # 386 tests, under a minute; no network, no secrets
 npm run dev          # http://localhost:3000
+npm run screenshots  # needs CHROMIUM_PATH; builds, plays a sample season, buys a pack, saves docs/screenshots/
 ```
 
-- **Database.** Without `DATABASE_URL`, the app uses a file-backed Postgres (PGlite) in `.data/`, which is gitignored. A `.data/` from M1 or M2 is upgraded in place on the first request.
+- **Database.** Without `DATABASE_URL`, the app uses a file-backed Postgres (PGlite) in `.data/`, which is gitignored. An older `.data/` is upgraded in place on the first request.
 - **Model.** Without a model key, `POST /api/episodes` returns 502 (it fails closed). Export a free Google AI Studio key as `GOOGLE_API_KEY` in your shell, or point `LLM_*` at another free OpenAI-compatible endpoint.
-- **Payments (test mode).** Without `STRIPE_SECRET_KEY`, the shop shows "Purchases open soon" and checkout returns 503. To try a purchase locally:
-  1. In your shell, export a Stripe **test-mode** secret key as `STRIPE_SECRET_KEY`.
-  2. Run the free Stripe CLI: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`. It prints a signing secret; export it as `STRIPE_WEBHOOK_SECRET`.
-  3. Start `npm run dev` from that shell and pay with one of Stripe's documented test cards.
+- **Payments (test mode).** Without `STRIPE_PAYMENT_LINK`, the shop shows "Purchases open soon" and checkout returns 503. To try a purchase locally:
+  1. In your shell, export your **test-mode** Payment Link as `STRIPE_PAYMENT_LINK`, and the button text as `STRIPE_PRICE_LABEL`.
+  2. Run the free Stripe CLI: `stripe listen --forward-to localhost:3000/api/webhooks/stripe --events checkout.session.completed,checkout.session.async_payment_succeeded`. It prints a signing secret; export it as `STRIPE_WEBHOOK_SECRET`.
+  3. Start `npm run dev` from that shell, press Buy in `/shop`, and pay with one of Stripe's documented test cards. The 5 dates appear on `/shop` once the event arrives.
+- **Granting a pack by hand.** Use this if the webhook isn't set up, or Stripe dropped the reference:
+  1. Find the payment in the Stripe dashboard. Its `client_reference_id` is our order id.
+  2. Run: `update orders set status = 'paid', paid_at = now(), stripe_session_id = '<cs_… id>' where id = '<order id>' and status = 'pending';`
+  3. For a payment with no reference:
+     - Ask the buyer to press Buy once more in the browser they use, but not pay. Then ask them to send you the `client_reference_id` from the Stripe page's address bar.
+     - That is a fresh order id, safe to share. Mark that pending order paid with the SQL in step 2.
+     - Never ask for the `bz_uid` cookie. It is the browser's login.
+- **Refunds.** Refund in the Stripe dashboard, then call `refundOrder(db, orderId)` (`lib/payments.ts`) from a script, or run the same SQL. It caps the dates already used, so the refunded pack's dates stop counting.
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `DATABASE_URL` | Postgres connection (Neon free tier) | Unset: local PGlite. Required on Vercel. |
 | `GOOGLE_API_KEY` | Gemini API key (free tier) | Unset: episodes return 502 |
 | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | Another OpenAI-compatible endpoint. `GOOGLE_API_KEY` is only ever sent to Google. | Gemini, `gemini-3.5-flash-lite` |
-| `STRIPE_SECRET_KEY` | Creates Checkout Sessions. Use a restricted key with only the Checkout Sessions write permission; test mode until live. | Unset: purchases closed (503) |
+| `STRIPE_PAYMENT_LINK` (or `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`) | The owner's Stripe Payment Link for "5 more dates". It must be https, and is read per request. | Unset or not https: purchases closed (503) |
+| `STRIPE_PRICE_LABEL` | The Buy button's text (at most 60 characters) | "Buy 5 more dates for $4" |
 | `STRIPE_WEBHOOK_SECRET` | Verifies `Stripe-Signature` on `/api/webhooks/stripe` | Unset: webhook answers 500, so Stripe retries |
-| `CONTACT_EMAIL` | Support address shown on `/legal` (refunds, restores, waitlist removal) | Unset: "will be posted here before purchases open" |
+| `CONTACT_EMAIL` | Support address on `/terms`, `/privacy` and `/legal` | Unset: "will be posted here before purchases open" |
+| `VERCEL_PROJECT_PRODUCTION_URL` | Set by Vercel itself; the absolute URL in `robots.txt`, `sitemap.xml` and og:image | `http://localhost:3000` |
+
+There is no `STRIPE_SECRET_KEY`. The app holds no Stripe API key, and `tests/routes.test.ts` fails if any file in `app/`, `lib/` or `scripts/` mentions one.
 
 ### Deploy on a free tier
 
 1. **Vercel Hobby + Neon free + Stripe test mode** (the current target, $0):
-   - The pipeline runs `.provision`. Neon gives `DATABASE_URL`, GCP gives `GOOGLE_API_KEY`, and the Vercel project `botchelor` gets the stored values as env.
-   - Once David has stored them, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `CONTACT_EMAIL` are pushed by the `vercel env` lines.
+   - The Vercel project `botchelor` has `DATABASE_URL`, `GOOGLE_API_KEY`, `STRIPE_PAYMENT_LINK`, `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, `STRIPE_PRICE_LABEL`, `STRIPE_WEBHOOK_SECRET` and `CONTACT_EMAIL` from the credential broker.
    - Vercel auto-detects Next.js, so no `vercel.json` is needed.
-   - The schema, including M3's `orders`, `waitlist` and `premium_sku`, is applied on the first request, under an advisory lock. There is no migration step.
-   - In the Stripe dashboard (test mode), add a webhook endpoint at `https://<deployment>/api/webhooks/stripe` with the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`.
-   - `/legal` is rendered per request, so `CONTACT_EMAIL` shows once it is set in the env. Vercel applies new env vars on the next deployment.
-   - Stripe's return URLs follow the browser's `Origin`, so they are right on any host, and on a custom domain, with no app-URL setting.
+   - The schema is applied on the first request, under an advisory lock. There is no migration step, and M4 adds no schema change.
+   - **In the Stripe dashboard (test mode), on the Payment Link** (requested in `.provision`):
+     - Sell "5 more dates" for $4, with quantity fixed at 1.
+     - Under "After payment", redirect to `https://botchelor.vercel.app/shop?checkout=success`.
+   - **The webhook endpoint:** `https://botchelor.vercel.app/api/webhooks/stripe`, with the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`.
+   - `/terms`, `/privacy` and `/legal` are rendered per request, so `CONTACT_EMAIL` shows once set. `robots.txt` and `sitemap.xml` are built with the production URL.
 2. **Taking real money** (live mode) needs a host that allows commercial use. **Vercel Hobby does not.**
-   - **Netlify's free plan does, at $0.** Connect the same repo; Netlify auto-detects Next.js. Set the same env vars and point Stripe's live webhook at the Netlify URL.
+   - **Netlify's free plan does, at $0.** Connect the same repo; Netlify auto-detects Next.js. Set the same env vars, swap in a live Payment Link and its live webhook secret, and point the webhook and the link's redirect at the Netlify URL.
    - The alternative is Vercel Pro, which is paid and needs David's approval.
-   - Then switch to the live key and the live webhook secret. The code is host-agnostic: only `lib/db.ts` checks `VERCEL`, to refuse a throwaway local database there.
-   - This is requested in `.provision`, along with a counsel review of `/legal`.
+   - The code is host-agnostic: only `lib/db.ts` checks `VERCEL`, to refuse a throwaway local database there.
+   - Off Vercel, `VERCEL_PROJECT_PRODUCTION_URL` isn't set. Set it by hand to the public host name, or robots.txt, the sitemap and og:image say localhost.
+   - This is requested in `.provision`, as is a counsel review of the terms.
 
 ### What's left
 
-- **M4:**
-  - Weekly seasons, friend leagues with badges for the top 3, and episode packs.
-  - Packs become a third catalog kind. Their exit test ("adds exactly N episodes, changes no spectator's score") can reuse `buy()` and the snapshot pattern from `purchases.test.ts`.
-  - The waitlist promises one email when Season 1 opens. Sending it is manual for now (SQL export); nothing in the app sends email.
+- **Before charging real money (David):**
+  - The four `.provision` requests: Payment Link settings, webhook events, removing any old `STRIPE_SECRET_KEY`, and a commercial-use host.
+  - Counsel on SB 243, contest and gambling rules, and the terms (REVIEW.md).
+  - A check of the live flow at botchelor.vercel.app as a stranger (REVENUE.md). It can't be done from this sandbox.
 - **Payments follow-ups:**
-  - **Accounts, or an email sign-in, to restore purchases across browsers.** Today it's a manual SQL move from the Stripe receipt.
-  - **A refund and dispute webhook.** `charge.refunded` doesn't carry `client_reference_id`, so it needs the payment intent stored. Today: `update orders set status = 'refunded' where stripe_session_id = …`.
-  - **A frame picker.** Today the latest frame bought is worn.
+  - **Pin the Payment Link's id.** Grant only sessions whose `payment_link` is ours. That needs the `plink_…` id as an env var (see "Review").
+  - **Accounts, or an email sign-in, to restore purchases across browsers.** Today it's done by hand from the Stripe receipt.
+  - **A refund and dispute webhook.** `charge.refunded` doesn't carry `client_reference_id`, so it needs the payment intent stored.
+  - **A Payment Link per premium character and frame,** if they should be sold again. The code still honours owned ones.
   - **Cleanup of abandoned `pending` orders.** They are harmless, but they accumulate.
-  - **A double-purchase guard across two open tabs** (see "Review").
-- **Hardening carried over from M2:**
-  - Rate limits on `POST /api/episodes`, `POST /api/reports`, `POST /api/checkout` and `POST /api/waitlist`.
+- **Hardening carried over:**
+  - Rate limits on `POST /api/reports`, `POST /api/checkout` and `POST /api/waitlist`. `POST /api/episodes` is capped by the weekly allowance, per cookie.
   - A moderation queue, consent withdrawal and feed pagination.
-  - A Playwright smoke test of the whole flow, including a Stripe test-mode purchase. Pages are covered only by typecheck, the build, render tests and source checks.
-- **Legal (REVIEW.md):**
-  - Counsel review of `/legal`.
-  - SB 243 scope.
-  - Contest and gambling rules for free points sold alongside paid items, before live mode.
+  - A real test-mode payment on the deployed site. The local browser run stands in for Stripe's page.
+- **Product (REVENUE.md):** run the hand-run mini-season, then offer "5 more dates" to creators whose episodes got a reaction. The waitlist's Season 1 email is sent by hand (SQL export).
 
 ## Infrastructure
 
@@ -572,12 +796,71 @@ The code reads every value from environment variables, and no test needs a real 
 | `gcp key botchelor generativelanguage.googleapis.com` (M1) | `GOOGLE_API_KEY`, restricted to the Gemini API | `lib/model.ts` |
 | `vercel project botchelor` (M1) | The Vercel project, with every stored value as env | Hosting (Hobby, $0; test-mode payments only) |
 | `request "GCP project check …"` (M1) | David confirms no billing account is linked to the key's project | Keeps Gemini on the free tier |
-| **`request "Stripe account for botchelor …"`** (M3) | A Stripe account in test mode, `STRIPE_SECRET_KEY` (a restricted key: Checkout Sessions write only) and `STRIPE_WEBHOOK_SECRET` (endpoint `/api/webhooks/stripe`, two `checkout.session.*` events). Stripe has no monthly fee, only a per-sale fee taken from revenue. | `lib/stripe.ts`, `app/api/webhooks/stripe/route.ts` |
-| **`vercel env botchelor STRIPE_SECRET_KEY`**, **`vercel env botchelor STRIPE_WEBHOOK_SECRET`** (M3) | Pushes both to Vercel once stored | the same |
-| **`request "Support email for botchelor …"`**, **`vercel env botchelor CONTACT_EMAIL`** (M3) | A public support address | `app/legal/page.tsx` |
-| **`request "Commercial-use host for botchelor …"`** (M3) | David's call before live mode: Netlify free ($0, commercial use allowed) or Vercel Pro (paid). Also counsel for `/legal`. | Taking real payments |
+| `request "Stripe account for botchelor …"` (M3) | A Stripe account in test mode and `STRIPE_WEBHOOK_SECRET`. The M3 `STRIPE_SECRET_KEY` part is **superseded**: David's 2026-10-13 note set a Payment Link instead, and the app reads no Stripe key. | `app/api/webhooks/stripe/route.ts` |
+| Set by David (2026-10-13): `STRIPE_PAYMENT_LINK`, `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, `STRIPE_PRICE_LABEL`, `STRIPE_WEBHOOK_SECRET`, `CONTACT_EMAIL` in Vercel | The test-mode Payment Link, its button text, the webhook secret and the support address | `lib/stripe.ts`, `app/shop`, `app/api/checkout`, `app/api/webhooks/stripe`, `app/legal/sections.tsx` |
+| **`request "Stripe Payment Link settings for botchelor …"`** (M4, in `.provision`) | The link sells "5 more dates" at $4 with quantity 1, and redirects to `/shop?checkout=success` after payment | `lib/catalog.ts` `PACK_5` (5 dates, $4 floor) |
+| **`request "Stripe webhook for botchelor …"`** (M4) | Confirms the endpoint and its two `checkout.session.*` events | `app/api/webhooks/stripe/route.ts` |
+| **`request "Remove STRIPE_SECRET_KEY …"`** (M4) | No unused Stripe key left in the Vercel env | (nothing reads it) |
+| **`request "Commercial-use host for botchelor …"`** (M3, repeated in M4) | David's call before live mode: Netlify free ($0, commercial use allowed) or Vercel Pro (paid). Also counsel for the terms. | Taking real payments |
+
+No new database, API key or paid service is needed for M4.
 
 ## Review
+
+Self-review of the M4 Payment Link pass. It checks `git status` / `git diff` against gstack's pre-landing checklist ("Review Categories", "Fix-First Heuristic"), and every changed file was read. Findings use the format `[severity] (confidence) file — finding`.
+
+**Fixed during review (tests re-run: 386 passing, typecheck and build clean):**
+- **[P2] (8/10) BUILD.md: the first draft of "grant a pack by hand" asked a buyer for their `bz_uid` cookie.** That cookie is the browser's login.
+  - **Fix:** the buyer presses Buy again and sends the fresh `client_reference_id`, which is only an order id.
+- **[P3] (9/10) `app/globals.css`: `.price` was dead after the shop stopped printing catalog prices.** Removed.
+- **[P3] (8/10) `lib/payments.ts`: an extra "session already recorded?" query on the mismatch path could never change the outcome.** Removed.
+
+**Pass 1, CRITICAL categories, with nothing open:**
+- **SQL and data safety.**
+  - Every value is a bound parameter.
+  - The grant is one conditional `UPDATE … WHERE status = 'pending'`, then an `INSERT … ON CONFLICT (stripe_session_id) DO NOTHING`. Neither is a read-then-write without a constraint behind it.
+  - `orders.stripe_session_id` is `unique`, so one Stripe session can't be recorded twice.
+- **Races.**
+  - Two deliveries of one session: the second `UPDATE` waits on the row lock, re-checks `status = 'pending'`, finds it paid and returns `already_paid`.
+  - Two deliveries of a repeat payment race on the unique session id.
+  - Each path is covered by a repeat-delivery test, and mutation-checked.
+- **Trust boundaries.**
+  - The event is trusted only after the HMAC check, which is unchanged and still covered by 11 bad-signature tests.
+  - The amount floor and the 5 dates come from `CATALOG`, never from the client or Stripe metadata. Smuggled `amount`, `episodes` and `points` are ignored (tested).
+  - The Payment Link URL carries our random order id, never the cookie (tested).
+  - The link itself must be https (tested).
+  - `STRIPE_PRICE_LABEL` is rendered as escaped React text and capped at 60 characters.
+- **XSS and CSRF.**
+  - There is no `dangerouslySetInnerHTML`.
+  - `POST /api/checkout` is JSON-only (415 otherwise), so a cross-site form can't create orders, and an order costs nothing anyway.
+- **Enum completeness.** No new enum value: `episode_pack` already existed.
+  - The sku changed from `pack_10`/`pack_25` to `pack_5`. Every consumer reads by `kind` (allowance, refunds) or through `catalogItem`.
+  - A legacy `pack_10` order would still count its dates.
+  - A legacy reference to one gets `mismatch` and is logged. None exist, because no Stripe key was ever configured.
+
+**Open (ASK category: design decisions, left for David):**
+- **[P2] (6/10) `lib/payments.ts`: the grant can't tell David's Payment Links apart.**
+  - It checks that the session came from *a* Payment Link, at no less than $4, in USD. It can't check that it was *this* link, because the app knows the link's URL, not its `plink_…` id.
+  - **The abuse case:** a buyer opens our link, copies `client_reference_id`, and appends it to another, cheaper-or-equal Payment Link on the same Stripe account. Two conditions: the webhook endpoint must listen to account-wide events, and David must have another link at $4 or more.
+  - **The cost:** the buyer pays David at least $4 and gets 5 dates, so it's no loss in money.
+  - **Fix:** an optional `STRIPE_PAYMENT_LINK_ID` env var, compared with the session's `payment_link`. About 5 lines and a test. Left out because the owner didn't set one.
+- **[P3] (7/10) A shared link-with-reference pays for its original buyer.** A Payment Link URL carrying our order id can be paid by anyone it is sent to, and each payment adds 5 dates to the original browser. That makes it a gift, not a loss.
+- **[P3] (6/10) `lib/catalog.ts`: the pack size lives in code; the price lives in Stripe.**
+  - If David's link sells something other than "5 dates for $4", one of two things happens:
+    - under $4: buyers aren't granted (logged as `mismatch`)
+    - more dates than 5: buyers get 5
+  - **Mitigation:** `.provision` asks David to set the link to exactly this, and BUILD.md says to edit `PACK_5` otherwise.
+- **[P3] (6/10) Free dates went from 10 to 3 a week.** This follows REVENUE.md ("free first date, then 5 more for $4"); 1 a week broke M2's real block-and-rematch flows. David may want a different number. It's one constant, `FREE_EPISODES_PER_SEASON`.
+- **[P3] (5/10) Premium characters and frames are off sale, not deleted.** Their code paths (402 gate, frames on boards) stay tested and honour owned orders. Deleting them is a product call.
+- **[P3] (5/10) No rate limit on `POST /api/checkout`.** Each call stores a pending row; there is no Stripe call or cost. This joins the open rate-limit items.
+
+**Informational:**
+- `api.stripe.com` was unreachable through the sandbox's fetch proxy. The Payment Link facts come from WebSearch summaries of Stripe's docs: `client_reference_id` rules, `payment_link` on sessions, and fulfilment advice.
+- The screenshot script's webhook secret is random per run and is only passed to the app it starts. Playwright answers for Stripe's payment page, so no request leaves the machine.
+
+## Review (M3)
+
+> Kept for the record. The Checkout Session findings below (session-id match, Origin-based return URLs, two open checkouts) concern code that the Payment Link pass removed. Their replacements are covered in "Review" above.
 
 This is a self-review of the M3 change set against gstack's pre-landing checklist ("Review Categories", "Fix-First Heuristic"), plus an independent adversarial review pass by a second agent that ran the tests and the typecheck itself. Nothing is committed yet (M1–M3 are untracked), so `git diff` only shows `README.md`, and every M3 file was read directly. Findings use the format `[severity] (confidence) file — finding`.
 

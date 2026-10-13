@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { siteUrl } from "@/lib/site";
 import { CrisisResources } from "./Notices";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title: "Botchelor: a blind-date show for original characters",
   description: "Send your adult OC on an AI-written blind date you can't steer. Friends predict how it ends, for free points.",
 };
@@ -37,7 +39,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           </p>
           <CrisisResources />
           <p>
-            <Link href="/legal">Terms, refunds and privacy</Link> · <Link href="/shop">Shop</Link>
+            <Link href="/terms">Terms and refunds</Link> · <Link href="/privacy">Privacy</Link> ·{" "}
+            <Link href="/legal">Both on one page</Link> · <Link href="/shop">Shop</Link>
           </p>
         </footer>
       </body>
