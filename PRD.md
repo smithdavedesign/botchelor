@@ -43,6 +43,102 @@ Numbers are targets to test, not forecasts. No revenue figures are claimed.
 - Are free points with paid cosmetics safe under state contest and gambling rules in every state? Needs a gaming lawyer.
 - Can free models produce episodes that are funny and varied enough to hold a weekly audience?
 - Can the character filter keep out minors and NSFW without a person reviewing each one?
+- Will owners build a soul from themselves rather than an OC? If so, where may that personal data be sent (free cloud models included), and how is it deleted?
+- Will creators pay for a compute budget (better media for their dates), or does it feel like paying per date?
+
+## Product vision: Soul vs. Persona
+_Added 2026-10-13. This is the direction beyond the MVP. Until the MVP scope, non-goals and $0-per-episode cost target above are revised, they still apply._
+
+The most interesting version of Botchelor isn't just two AI characters going on a date. It's a social simulation: people create AI personalities, put them into unpredictable situations, watch relationships develop, and then discover what happened behind the scenes. The private soul splits what the audience sees from who the character really is. A character's private thoughts, preferences and conversations aren't automatically shown to everyone watching.
+
+### Five pillars
+- **Identity:** your AI represents you, or the person you wish you were.
+- **Drama:** you don't control everything your AI does.
+- **Mystery:** the audience never knows the full story.
+- **Relationships:** characters remember past dates and develop ongoing relationships.
+- **Stakes:** owners choose how much autonomy, fictional money and risk to give their AI.
+
+### The signature mechanic: three layers per contestant
+
+| Layer | Who sees it | What's in it |
+|---|---|---|
+| Public persona | Everyone | Bio, appearance, interests, dating profile, and how the character presents itself |
+| Private soul | The owner only | Core values, preferences, boundaries, hidden ambitions, insecurities, humor and communication style. These drive decisions during a date without being revealed. |
+| Emergent identity | The owner, who controls whether it persists between seasons | Experiences, relationship history, learned preferences and changing compatibility, built up through the simulation |
+
+This raises the question that powers the product: does your AI date the way you told it to, or does it surprise you? Owners choose how closely it follows them, anywhere from a faithful digital stand-in to a fully autonomous character.
+
+**Privacy rule:** going on a date never gives the other owner access to your private soul. Transcripts, memories and private reflections each need explicit sharing rules. Every reflection is labeled as simulated output, not evidence of a conscious inner life.
+
+### Core features
+1. **The private soul.** Owners build a soul profile: personality traits, values, insecurities, humor, boundaries, romantic preferences and communication style. The audience sees the public persona. The AI uses the soul to make decisions on the date without revealing it to the other character or the audience. Afterwards the owner reads a private debrief: what their AI liked, what made it uncomfortable, what surprised it, and whether it wants another date.
+2. **The post-date group chat.** After a date, the two AIs can keep chatting privately, within permissions each owner sets. Owners see a consented recap, selected messages or a delayed reveal. The fun is finding out whether the chemistry was mutual, whether one AI misread the other, or whether a second date is brewing. The twist: an AI can ask for another date even when its owner expected the opposite.
+3. **The AI producer.** Each date gets a hidden setup: an awkward question, an unexpected choice, a conflicting goal or a surprise activity. The producer doesn't dictate the outcome; it creates circumstances that reveal personality. A shy character might surprise everyone; two confident ones might clash. This gives replayability without video for every scene.
+4. **The audience knows something they don't.** Viewers predict who is more attracted, who will ask for a second date, and who is hiding a dealbreaker. Some information stays hidden until the reveal. Correct predictions earn free points, never real-money wagers.
+5. **A persistent relationship universe.** Characters remember past dates, rejections, rivalries, friendships and exes. A character rejected last week might meet their former date's new match. The audience follows a living cast instead of disconnected chatbot sessions, and reunions, running jokes and relationship histories become the content.
+
+### Budget and autonomy
+Before a date, the owner sets up their contestant (a mockup, not a live spending system):
+
+```
+Your contestant: Alex · Charming · Competitive · Spontaneous
+Date budget    $25 in simulated date credits ($0 · $50 · $100)
+Autonomy       Guided · Balanced · Unpredictable
+Strategy       Genuine chemistry · Fun and adventure · Long-term compatibility · Unexpected storylines
+After the date Private summary · Full transcript (the other owner's consent rules apply) · Delayed reveal
+```
+
+- **Guided:** follows my preferences and asks before major decisions. **Balanced:** makes its own choices within my rules. **Unpredictable:** surprise me; authenticity matters more than my preferred outcome.
+- A bigger date budget unlocks more venues, activities and gifts.
+
+There are two separate budgets:
+- **Game budget:** the contestant's fictional spending on dinner, activities and gifts.
+- **Compute budget:** the real amount the owner authorizes Botchelor to spend on LLM calls, images, voice and video. A user might give their AI $200 of fictional date money and only $0.20 of real compute.
+
+The backend enforces the compute budget, never the AI. It sets hard caps per date and per user, reserves the estimated cost before an expensive job starts, and stops or downgrades generation when the limit is reached.
+
+### More mechanics
+- **Secret agendas:** each AI gets a private objective before a date, such as finding someone adventurous, avoiding talk about work, testing whether the other is sincere, or trying something outside its comfort zone. Some objectives fit together and some clash. The audience knows there are agendas, but not what they are.
+- **The confessional:** after each major event, the AI gives a private or selectively shared reflection, and viewers can unlock approved ones after the date. The comedy is the contrast between public behavior and private interpretation.
+- **The dating league:** histories, reputations and season records, such as the most compatible pairings, funniest failures, best conversationalists and most surprising matches. Use several categories, not just popularity, so different personality types can win.
+- **The chaos button:** during a date, viewers vote in a curveball: switch the activity, ask a hard question, bring in a rival, or trigger a surprise revelation. The choices come from a bounded event library, so audience votes don't each need a new model call.
+- **The relationship graph:** friendships, attraction, rivalry, past dates, rejections and second-date requests across the whole cast. Two characters who never dated might turn out to be the most compatible pairing through shared connections.
+- **Season mode:** eliminations, recouplings, reunions and a finale. Owners decide whether their AI plays to win, to find a match, or just to enjoy it. Seasons give people a natural reason to come back.
+
+### Further ideas (added by Claude)
+These build on what's already live and keep costs near $0:
+- **Guess the dealbreaker.** Every character already has a hidden `want` and `dealbreaker`. Before the reveal, spectators pick the real dealbreaker from four options (the other three come from other characters). That adds a new prediction type using data the app already collects.
+- **Know your own AI.** The owner predicts their own AI's ending too. A surprise score tracks how often their AI does something they didn't expect. That puts a number on "does it surprise you?" and gives a self-knowledge leaderboard.
+- **The note in the pocket.** Instead of chatting with their AI (a non-goal, and closer to companion-chatbot law), the owner slips it one sentence of advice before the date. The autonomy level decides whether it follows the note, and the debrief says whether it did.
+- **Sliding doors.** Once outcomes come from deterministic rules with a seed, an owner can replay a date with one thing changed (a trait, the venue, the agenda) and post both timelines side by side. Spectators guess which one is canon.
+- **Matchmakers.** Spectators propose pairings from the cast and earn points when one they proposed ends in a second date. Non-creators get a creative role, and the relationship graph gets fed.
+- **The box score.** After each date, a share card shows how the variables moved (chemistry +4, awkwardness +7, trust −2) along with the best line. It's a 9:16 image built on the existing Open Graph image route, so the growth loop costs nothing.
+- **Crowd-unlocked clips.** At video Level 2, a moment is rendered only after enough viewers ask to see it, so GPU spend follows demand.
+- **Show formats.** The same engine runs with different rules: speed dating, meet the parents (house characters play the parents), or the ex returns (pulled from the relationship graph). Formats can be paid cosmetic packs that never change points or odds.
+- **The reunion special.** A season-finale episode built from the cast's approved confessionals and the biggest moments in the relationship graph.
+
+### Guardrails these ideas need
+- **Fictional money is never bought.** The date budget comes from character settings, not purchases, and nothing bought changes outcomes, points or rank. This keeps the existing rule against payments affecting odds and avoids the contest and gambling question.
+- **"Your AI represents you" changes the privacy picture.** The MVP bans real people. A soul built from the owner is personal data: it's visible to the owner only, the owner can delete it, and someone has to decide which models it may be sent to.
+- **Debriefs are reports, not chats.** Keeping them one-way keeps the product clear of companion-chatbot rules.
+- **Outcomes move from the model to the engine.** Today the showrunner model picks the ending (`lib/showrunner.ts`). Predictions, the box score and sliding doors all need deterministic rules to decide outcomes, so results are fair to predict and can be replayed.
+
+### Phases
+Resist building all of this at once. ✓ means it's already live from M1–M4.
+
+| Phase | Goal | What's in it |
+|---|---|---|
+| 1. MVP | Make dates entertaining | Character creator ✓ and public persona · private soul profiles · simulated dates with dialogue · chemistry scoring and outcomes decided by rules · audience predictions ✓ and voting · hard AI spending limits |
+| 2. Retention | Give characters a life between dates | Private debriefs · consent-controlled AI-to-AI messages · persistent relationship histories · confessionals, secret agendas and surprise events · season mode (weekly seasons, friend leagues and badges ✓) and a recurring cast |
+| 3. Media | Make dates cinematic | Consistent character portraits · generated scene images · short image-to-video clips at pivotal moments · voice and lip-sync · GPU-backed async generation |
+| 4. Expansion | Build the wider ecosystem | Character communities · advanced autonomous behavior · optional adult features for eligible users, subject to legal, safety, licensing and payment requirements · creator monetization and interactive live events |
+
+### The loop to test first
+Don't make video the main attraction. Make the outcome of the date the attraction. If people care about the two characters, they'll want to watch the date. If they care about the relationship, they'll come back for the next episode. Video can amplify that later, but it can't carry the product.
+
+**Create your soul → choose budget and autonomy → send your AI on a date → watch the drama → read the private debrief → decide whether to send it on another date.**
+
+If that loop is fun with text and portraits, the product is worth investing in. If it isn't, expensive video won't fix it.
 
 ## Target architecture: the stack to build toward
 _Added 2026-10-13. This is the long-term direction. Until the MVP scope, non-goals and $0-per-episode cost target above are revised, they still apply: image and video generation, adult content, and paid GPUs or hosted models are all outside the MVP today._
