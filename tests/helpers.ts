@@ -1,0 +1,353 @@
+import { randomUUID } from "node:crypto";
+import { PGlite } from "@electric-sql/pglite";
+import { DELETE as deleteBlock, POST as postBlock } from "@/app/api/blocks/route";
+import { POST as postCheckout } from "@/app/api/checkout/route";
+import { POST as postCharacter } from "@/app/api/characters/route";
+import { GET as getEpisodeRoute } from "@/app/api/episodes/[id]/route";
+import { POST as postReveal } from "@/app/api/episodes/[id]/reveal/route";
+import { GET as getFeed, POST as postEpisode } from "@/app/api/episodes/route";
+import { POST as postJoinLeague } from "@/app/api/leagues/[id]/join/route";
+import { GET as getLeagueRoute } from "@/app/api/leagues/[id]/route";
+import { POST as postLeague } from "@/app/api/leagues/route";
+import { GET as getMe } from "@/app/api/me/route";
+import { POST as postPrediction } from "@/app/api/predictions/route";
+import { POST as postProfile } from "@/app/api/profile/route";
+import { POST as postReport } from "@/app/api/reports/route";
+import { POST as postIdentityConsent } from "@/app/api/reveal/route";
+import { POST as postWaitlist } from "@/app/api/waitlist/route";
+import { POST as postStripeWebhook } from "@/app/api/webhooks/stripe/route";
+import { catalogItem } from "@/lib/catalog";
+import { ensureSchema, pgliteDb, setDbForTests, type Db } from "@/lib/db";
+import { HOUSE_CHARACTERS } from "@/lib/house";
+import { USER_COOKIE } from "@/lib/http";
+import { setModelForTests, type ChatMessage } from "@/lib/model";
+import { PaymentError, setPaymentsForTests, type CheckoutRequest, type CheckoutSession } from "@/lib/stripe";
+
+export const BASE_URL = "http://localhost:3000";
+
+type Table =
+  | "characters"
+  | "episodes"
+  | "predictions"
+  | "profiles"
+  | "identity_consents"
+  | "reports"
+  | "blocks"
+  | "leagues"
+  | "league_members"
+  | "orders"
+  | "waitlist"
+  | "seasons"
+  | "badges"
+  | "free_episode_usage"
+  | "pack_episode_usage";
+
+/** One in-memory Postgres per test file, wired in as the app's database. */
+export async function startTestDb() {
+  const pg = new PGlite();
+  const db: Db = pgliteDb(pg);
+  await ensureSchema(db);
+  setDbForTests(db);
+  return {
+    db,
+    async reset() {
+      for (const table of [
+        "badges",
+        "seasons",
+        "free_episode_usage",
+        "pack_episode_usage",
+        "league_members",
+        "leagues",
+        "blocks",
+        "reports",
+        "identity_consents",
+        "profiles",
+        "orders",
+        "waitlist",
+      ]) {
+        await db.query(`delete from ${table}`);
+      }
+      await db.query("delete from predictions");
+      await db.query("delete from episodes");
+      await db.query("delete from characters where not is_house");
+      setModelForTests(null);
+      setPaymentsForTests(null);
+    },
+    async close() {
+      setDbForTests(null);
+      setModelForTests(null);
+      setPaymentsForTests(null);
+      await pg.close();
+    },
+    async count(table: Table, where = "true") {
+      const { rows } = await db.query<{ n: number }>(`select count(*)::int as n from ${table} where ${where}`);
+      return rows[0].n;
+    },
+  };
+}
+
+/** A fake showrunner model that returns (or throws) the scripted outputs in order and records every call. */
+export function scriptedModel(outputs: Array<string | Error>) {
+  const queue = [...outputs];
+  const calls: ChatMessage[][] = [];
+  setModelForTests({
+    async complete(messages) {
+      calls.push(messages);
+      const next = queue.shift();
+      if (next === undefined) throw new Error("scripted model ran out of outputs");
+      if (next instanceof Error) throw next;
+      return next;
+    },
+  });
+  return { calls };
+}
+
+export function newUserCookie(): string {
+  return `${USER_COOKIE}=${randomUUID()}`;
+}
+
+export function jsonRequest(
+  path: string,
+  body: unknown,
+  opts: { cookie?: string; contentType?: string; method?: string } = {},
+): Request {
+  const headers: Record<string, string> = { "content-type": opts.contentType ?? "application/json" };
+  if (opts.cookie) headers.cookie = opts.cookie;
+  return new Request(BASE_URL + path, {
+    method: opts.method ?? "POST",
+    headers,
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  });
+}
+
+function getRequest(path: string, cookie?: string): Request {
+  return new Request(BASE_URL + path, { headers: cookie ? { cookie } : {} });
+}
+
+const params = (id: string) => ({ params: Promise.resolve({ id }) });
+
+export const api = {
+  createCharacter: (body: unknown, cookie?: string, contentType?: string) =>
+    postCharacter(jsonRequest("/api/characters", body, { cookie, contentType })),
+  createEpisode: (body: unknown, cookie?: string) => postEpisode(jsonRequest("/api/episodes", body, { cookie })),
+  predict: (body: unknown, cookie?: string) => postPrediction(jsonRequest("/api/predictions", body, { cookie })),
+  /** M1: the host "airs the finale" (POST /api/episodes/:id/reveal). */
+  reveal: (id: string, cookie?: string) =>
+    postReveal(jsonRequest(`/api/episodes/${id}/reveal`, {}, { cookie }), params(id)),
+  me: (cookie?: string) => getMe(getRequest("/api/me", cookie)),
+  getEpisode: (id: string, cookie?: string) => getEpisodeRoute(getRequest(`/api/episodes/${id}`, cookie), params(id)),
+  feed: (cookie?: string) => getFeed(getRequest("/api/episodes", cookie)),
+  /** M2: one creator consents to revealing who made the episode (POST /api/reveal). */
+  consent: (episodeId: string, cookie?: string) =>
+    postIdentityConsent(jsonRequest("/api/reveal", { episode_id: episodeId }, { cookie })),
+  setProfile: (body: unknown, cookie?: string) => postProfile(jsonRequest("/api/profile", body, { cookie })),
+  report: (body: unknown, cookie?: string) => postReport(jsonRequest("/api/reports", body, { cookie })),
+  block: (episodeId: string, cookie?: string) =>
+    postBlock(jsonRequest("/api/blocks", { episode_id: episodeId }, { cookie })),
+  unblock: (episodeId: string, cookie?: string) =>
+    deleteBlock(jsonRequest("/api/blocks", { episode_id: episodeId }, { cookie, method: "DELETE" })),
+  createLeague: (body: unknown, cookie?: string) => postLeague(jsonRequest("/api/leagues", body, { cookie })),
+  getLeague: (id: string, cookie?: string) => getLeagueRoute(getRequest(`/api/leagues/${id}`, cookie), params(id)),
+  joinLeague: (id: string, cookie?: string) =>
+    postJoinLeague(jsonRequest(`/api/leagues/${id}/join`, {}, { cookie }), params(id)),
+  /** M3: start a Stripe Checkout for one catalog item. */
+  checkout: (body: unknown, cookie?: string) => postCheckout(jsonRequest("/api/checkout", body, { cookie })),
+  /** M3: deliver a raw Stripe event, exactly as Stripe would (the signature covers the raw text). */
+  stripeWebhook: (payload: string, signature?: string | null) =>
+    postStripeWebhook(
+      new Request(BASE_URL + "/api/webhooks/stripe", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          ...(signature ? { "stripe-signature": signature } : {}),
+        },
+        body: payload,
+      }),
+    ),
+  joinWaitlist: (body: unknown, cookie?: string) => postWaitlist(jsonRequest("/api/waitlist", body, { cookie })),
+};
+
+/**
+ * A fake webhook signing secret, built at runtime so no credential-shaped literal sits in the repo.
+ * Tests set it as STRIPE_WEBHOOK_SECRET with vi.stubEnv.
+ */
+export const FAKE_WEBHOOK_SECRET = ["whsec", "A1b2C3d4".repeat(4)].join("_");
+export const OTHER_WEBHOOK_SECRET = ["whsec", "Z9y8X7w6".repeat(4)].join("_");
+
+/**
+ * A Stripe-Signature header for `payload`. Uses Web Crypto, a different implementation from the
+ * app's node:crypto, so the test and the code don't share a bug.
+ */
+export async function stripeSignature(
+  payload: string,
+  secret = FAKE_WEBHOOK_SECRET,
+  timestamp = Math.floor(Date.now() / 1000),
+  scheme = "v1",
+): Promise<string> {
+  return `t=${timestamp},${scheme}=${await hmacHex(secret, `${timestamp}.${payload}`)}`;
+}
+
+export async function hmacHex(secret: string, message: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
+  return Buffer.from(signature).toString("hex");
+}
+
+/** A fake Stripe that records every Checkout request and returns a session (or fails). */
+export function fakeStripe(opts: { fail?: boolean } = {}) {
+  const calls: CheckoutRequest[] = [];
+  const sessions: CheckoutSession[] = [];
+  setPaymentsForTests({
+    async createCheckoutSession(req) {
+      calls.push(req);
+      if (opts.fail) throw new PaymentError("stripe returned HTTP 500");
+      const id = `cs_test_${req.orderId.replace(/-/g, "")}`;
+      const session = { id, url: `https://checkout.stripe.com/c/pay/${id}` };
+      sessions.push(session);
+      return session;
+    },
+  });
+  return { calls, sessions };
+}
+
+/** A Stripe event wrapping a Checkout Session; `session` overrides the paid defaults. */
+export function checkoutEvent(session: Record<string, unknown>, type = "checkout.session.completed"): string {
+  return JSON.stringify({
+    id: `evt_test_${randomUUID().replace(/-/g, "")}`,
+    object: "event",
+    type,
+    data: {
+      object: {
+        object: "checkout.session",
+        mode: "payment",
+        payment_status: "paid",
+        currency: "usd",
+        ...session,
+      },
+    },
+  });
+}
+
+/** Starts a checkout for `sku` and returns the order and the paid event Stripe would send for it. */
+export async function startCheckout(sku: string, cookie: string) {
+  const stripe = fakeStripe();
+  const res = await api.checkout({ sku, attest: true }, cookie);
+  if (res.status !== 200) throw new Error(`checkout failed with ${res.status}`);
+  const [request] = stripe.calls;
+  const [session] = stripe.sessions;
+  const price = catalogItem(sku)?.price_cents;
+  const paidEvent = (overrides: Record<string, unknown> = {}, type?: string) =>
+    checkoutEvent({ id: session.id, client_reference_id: request.orderId, amount_total: price, ...overrides }, type);
+  return { orderId: request.orderId, sessionId: session.id, request, paidEvent };
+}
+
+/** Buys `sku` end to end: checkout, then the signed webhook. Needs STRIPE_WEBHOOK_SECRET = FAKE_WEBHOOK_SECRET. */
+export async function buy(sku: string, cookie: string): Promise<string> {
+  const { orderId, paidEvent } = await startCheckout(sku, cookie);
+  const payload = paidEvent();
+  const res = await api.stripeWebhook(payload, await stripeSignature(payload));
+  if (res.status !== 200) throw new Error(`webhook failed with ${res.status}`);
+  return orderId;
+}
+
+/** Gives a user a display name (with the 18+ attestation) and returns their cookie. */
+export async function named(cookie: string, name: string): Promise<string> {
+  const res = await api.setProfile({ name, attest: true }, cookie);
+  if (res.status !== 200) throw new Error(`profile setup failed with ${res.status}`);
+  return cookie;
+}
+
+export function validCharacter(overrides: Record<string, unknown> = {}) {
+  return {
+    name: "Mira Quell",
+    age: 27,
+    bio: "A cartographer who maps cities that only exist on Tuesdays.",
+    traits: ["curious", "stubborn", "warm"],
+    want: "Someone who can read a map upside down",
+    dealbreaker: "People who hate surprises",
+    attest: true,
+    ...overrides,
+  };
+}
+
+export function validEpisodeDraft(overrides: Record<string, unknown> = {}) {
+  return {
+    setting: "A rooftop dumpling stall in a thunderstorm, run by a chef who narrates every order.",
+    goals: [
+      "Mira wants to find out whether her date can read a map upside down.",
+      "Rafe wants a date who will taste-test his cake honestly.",
+    ],
+    scenes: [
+      "Mira arrives early and redraws the menu as a map. Rafe arrives late, soaked, holding a cake box like a newborn.",
+      "They argue about whether dumplings count as cake. The chef takes sides, loudly, then switches sides.",
+    ],
+    twist: "The power goes out and the only light left is the candle on Rafe's cake.",
+    finale: "They split the last dumpling and agree never to agree about cake.",
+    ending: "friends",
+    drama_question: "leaves_first",
+    drama_answer: "b",
+    ...overrides,
+  };
+}
+
+export function episodeJson(overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify(validEpisodeDraft(overrides));
+}
+
+/** An otherwise valid episode whose text totals exactly `totalWords` words (scene filler is spread over 4 scenes). */
+export function episodeWithWordCount(totalWords: number, overrides: Record<string, unknown> = {}) {
+  const base = validEpisodeDraft({ ...overrides, scenes: [] });
+  const fixed = countStringWords(base);
+  const filler = totalWords - fixed;
+  if (filler < 4) throw new Error("target too small");
+  const per = Math.floor(filler / 4);
+  const sizes = [per, per, per, filler - per * 3];
+  return { ...base, scenes: sizes.map((n) => Array.from({ length: n }, () => "lantern").join(" ")) };
+}
+
+/** Counts whitespace-separated words across every string anywhere inside a JSON value. */
+export function countStringWords(value: unknown): number {
+  if (typeof value === "string") return value.trim().split(/\s+/).filter(Boolean).length;
+  if (Array.isArray(value)) return value.reduce<number>((sum, v) => sum + countStringWords(v), 0);
+  if (value && typeof value === "object") {
+    return Object.values(value).reduce<number>((sum, v) => sum + countStringWords(v), 0);
+  }
+  return 0;
+}
+
+export const HOUSE_PARTNER_ID = HOUSE_CHARACTERS[0].id;
+
+/** Creates a creator, their character and one generated episode with the given ending. */
+export async function setupEpisode(ending = "friends", draft: Record<string, unknown> = {}) {
+  const creator = newUserCookie();
+  const character = await (await api.createCharacter(validCharacter(), creator)).json();
+  scriptedModel([episodeJson({ ending, ...draft })]);
+  const res = await api.createEpisode({ character_id: character.id, partner_id: HOUSE_PARTNER_ID }, creator);
+  if (res.status !== 200) throw new Error(`episode setup failed with ${res.status}`);
+  const episode = await res.json();
+  return { creator, character, episode };
+}
+
+/**
+ * Two creators, one OC each, and a blind date requested by the host. Call it when no other user OC
+ * exists (right after reset), so the blind match can only pick the partner's character.
+ */
+export async function setupPairedEpisode(opts: { host?: string; partner?: string; ending?: string } = {}) {
+  const host = opts.host ?? newUserCookie();
+  const partner = opts.partner ?? newUserCookie();
+  const partnerCharacter = await (await api.createCharacter(validCharacter({ name: "Otto Fenn" }), partner)).json();
+  const hostCharacter = await (await api.createCharacter(validCharacter(), host)).json();
+  scriptedModel([episodeJson({ ending: opts.ending ?? "friends" })]);
+  const res = await api.createEpisode({ character_id: hostCharacter.id, blind: true }, host);
+  if (res.status !== 200) throw new Error(`paired episode setup failed with ${res.status}`);
+  const episode = await res.json();
+  return { host, partner, hostCharacter, partnerCharacter, episode };
+}
+
+export const userIdOf = (cookie: string) => cookie.split("=")[1];

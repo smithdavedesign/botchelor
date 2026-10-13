@@ -1,0 +1,645 @@
+# BUILD: Botchelor
+
+## Plan
+
+M4 of 4: "Seasons". M1–M3 are built, and their 323 tests stay green. This plan applies gstack plan-eng-review's Step 0 (scope challenge), 1. Architecture and 3. Test review to M4. Nobody was available to ask, so each question is answered here and the answer recorded.
+
+### Step 0: Scope challenge
+
+1. **What already solves part of M4.**
+   - **Friend leagues exist (M2).** Members join through the invite link. The board ranks by points from episodes that aired that week, starting Monday 00:00 UTC. A season is that same week, so there is no new league model and no new week rule.
+   - **Season standings can't change after the deadline:**
+     - Points are derived from predictions and never stored (M1).
+     - Picks lock atomically when the finale airs (`predictions` route, `for share`).
+     - `revealed_at` is set once.
+
+     So a season's result is a pure function of rows stamped before its deadline.
+   - **Packs reuse M3's checkout, webhook and `orders`.**
+     - A pack is a third catalog kind.
+     - Its order row carries the number of episodes, priced from the catalog like `amount_cents`.
+     - "Episodes bought" is the sum over paid pack orders, derived the same way ownership is.
+     - The webhook and the signature check don't change.
+   - **The episode route already gates before the model call** (the premium 402). The allowance check goes in the same place.
+   - **Test patterns:** `buy()` (checkout plus a signed webhook) and the before/after snapshot from `purchases.test.ts`.
+2. **Minimum change set:**
+   - **`lib/seasons.ts`:**
+     - `seasonAt(now)`. A season's id is its Monday, as `YYYY-MM-DD`.
+     - `closeDueSeasons(db, now)`.
+     - A league's past podiums, and a user's badges.
+     - `weekWindow` moves here; `lib/leagues.ts` re-exports it.
+   - **`lib/allowance.ts`:** `episodeAllowance`, `reserveEpisode` and `releaseEpisode`.
+   - **`lib/db.ts`:**
+     - New tables: `seasons`, `badges`, `free_episode_usage` and `pack_episode_usage`.
+     - A new `orders.episodes` column.
+     - The `orders.kind` CHECK is widened in place.
+     - An index on `episodes.revealed_at`.
+   - **`lib/catalog.ts`:** a new kind, `episode_pack`. "10 more dates" costs $5 and "25 more dates" costs $10.
+   - **`POST /api/checkout`:** packs can be bought again, so they never get a 409. The order stores `episodes` from the catalog.
+   - **`POST /api/episodes`:**
+     - It reserves one date before the model call, or returns **429 `episode_limit_reached`** with `resets_at` and `shop_path`.
+     - The reservation is released if nothing is saved (a 502, a 409 or an error).
+   - **`GET /api/leagues/:id` and the league page:** they close due seasons first, then return `season {id, closes_at}` and `past_seasons` (the last 4 podiums).
+   - **Pages:**
+     - The league page shows the season, its closing time, and past podiums with medals.
+     - `/feed` gets "Your badges".
+     - The home page and `StartForm` show "N free dates left this week (+M from packs)". A 429 links to the shop.
+     - The home page lists your characters, each with "Send on another date", backed by `listMyCharacters` in `lib/game.ts`.
+       - *Added during the build.* Before this, the builder could only send a character created in the same visit. A pack's dates would have meant retyping a sheet for every date.
+     - `/shop` gets a packs section and "N pack dates left".
+     - `/legal` covers packs and badges, and the footer copy changes.
+
+   **Deliberately NOT in M4:**
+   - A cron job or any scheduler (see the search check).
+   - A new API route. Pages read `lib`, as before, so there is no `GET` for the allowance or for badges.
+   - Season numbers ("Season 1"). Seasons are labeled by their week ("week of Oct 12"), because launch day isn't known.
+   - Emails or notifications when a season closes, and a season archive beyond the last 4 podiums.
+   - Badge cosmetics on board rows. Leaderboard entries keep their M2/M3 shape.
+   - Prizes of any kind, ever (a PRD non-goal).
+   - Gifting packs, pack expiry and a refund webhook. Refunds are still done by hand, as in M3.
+   - Per-league season lengths.
+   - Accounts. The allowance is per anonymous cookie, so it is soft (see "Review").
+3. **Complexity check: it triggers.** M4 adds 2 lib modules (`seasons`, `allowance`), 1 small component file (`app/Badges.tsx`) and 2 test files, and touches about 12 files. It adds no new external service and no new route.
+   - Reductions applied:
+     - No cron route, no new API route and no seasons page.
+     - A badge's kind is just its place number (1–3); there is no badge-type table.
+     - **Two counter tables instead of a credits ledger.**
+     - Packs give no points, by construction.
+   - This is a non-interactive run, so the recommendation is recorded and the work proceeds as reduced.
+4. **Search check** (WebSearch):
+   - **[Layer 1]** Vercel Cron is the built-in scheduler, and it is **not used here**.
+     - On Hobby it runs at most once a day, anywhere within the scheduled hour (±59 min), with no retries. It can't close a season "at its deadline".
+     - The planned live host (Netlify) has a different scheduler.
+   - **[EUREKA]** A season doesn't need to be closed *at* its deadline, only *as of* it.
+     - The standings depend only on rows stamped before the deadline: episodes aired in the window, picks locked when the finale airs, and members who joined before the deadline.
+     - So the first read after the deadline (a league board, `/feed`) closes the season in one idempotent statement, with exactly the result a close on the second would give.
+     - There is no scheduler to miss a run, and nothing depends on the host.
+     - It needs one cutoff the M2 board doesn't have: `league_members.joined_at < deadline`. Otherwise a Monday joiner would land on last week's podium.
+   - **[Layer 1]** Postgres `INSERT … ON CONFLICT DO UPDATE SET used = used + 1 WHERE used < limit RETURNING` is race-safe under READ COMMITTED: it takes a row lock and re-checks the latest version. So the allowance needs no advisory lock and no transaction API on `Db`.
+   - **[Layer 2] Pitfall:** checking for allowance and then inserting after a multi-second model call would let parallel requests overspend. Instead, a date is reserved before the call and released if nothing is saved.
+5. **TODOS.** There is no `TODOS.md`.
+   - M1's "no rate limit on `POST /api/episodes`" is partly addressed: the weekly allowance caps model calls per cookie.
+   - It stays open, because a new cookie gets a fresh allowance.
+6. **Completeness.** Every new path gets a test:
+   - 429, and release on a 502 and on a 409.
+   - Season rollover and pack carry-over.
+   - Repeat, refunded and pending packs.
+   - Ties, zero points, a late joiner and out-of-window episodes.
+   - Several missed seasons, and idempotent closing.
+   - An M3 database upgrading in place.
+   - Component markup.
+7. **Distribution.** No new artifact.
+
+### 1. Architecture (M4)
+
+```
+ POST /api/episodes {character_id, partner_id | blind}
+   ├─ 404 / 422 / 402 premium (as before; nothing reserved)
+   ├─ reserveEpisode(user, season = this week)
+   │     1. free:  INSERT free_episode_usage(user, season, 1) ON CONFLICT DO UPDATE used+1 WHERE used < 10
+   │     2. pack:  INSERT pack_episode_usage(user, 1)        ON CONFLICT DO UPDATE used+1
+   │                 WHERE used < Σ orders.episodes of the user's paid episode_pack orders
+   │     └─ neither ─► 429 episode_limit_reached {resets_at: next Monday 00:00 UTC, shop_path}  (no model call)
+   ├─ showrunner ─✗─► 502 ┐
+   ├─ insert     ─✗─► 409 ┼─► releaseEpisode: used − 1 on the row that was reserved
+   └─ 200                  ┘   (thrown errors too, via finally)
+
+ /shop ─► POST /api/checkout {sku: pack_10 | pack_25}          (no 409: packs stack)
+            └─ orders(kind 'episode_pack', episodes = N from CATALOG) ─► Stripe ─► signed webhook ─► 'paid'
+ dates bought = Σ episodes of paid pack orders (refunded ⇒ not counted). Nothing here touches predictions.
+
+ GET /api/leagues/:id · /leagues/[id] · /feed
+   └─ closeDueSeasons(now)
+        weeks = distinct Monday(revealed_at) of episodes aired before this week's start
+                and after the last closed season's end          (index on revealed_at; usually 0 rows)
+        for each week, oldest first, ONE statement:
+          week_points = Σ points of picks on episodes aired in [start, end)
+          podium      = rank() over (partition by league order by points desc)
+                        among members with joined_at < end and points > 0
+          INSERT badges (season, league, user, place ≤ 3, points) ON CONFLICT DO NOTHING
+          INSERT seasons (id, starts_at, ends_at)                 ON CONFLICT DO NOTHING
+   └─ getLeague: + season {id, closes_at}, + past_seasons (last 4 podiums, names from profiles, no user ids)
+```
+
+Decisions:
+- **A season is the leaderboard week.** It runs from Monday 00:00 UTC to the next Monday. Its id is the Monday (`2026-10-12`), and it closes at the next Monday 00:00 UTC.
+- **Badges.**
+  - 🥇 1st, 🥈 2nd and 🥉 3rd, per league, per season, by Olympic rank, so ties share a place:
+    - 25, 25, 10 → 1st, 1st, 3rd.
+    - 25, 10, 10, 5 → 1st, 2nd, 2nd, and nothing for the 5.
+  - **A badge needs at least 1 point that week.** Otherwise a league where nobody played would give everyone a gold.
+  - A badge also needs membership before the deadline.
+  - Badges are stored, with their place and points, because a podium is a record. Names are read live from `profiles`.
+  - A badge has no value, can't be bought, and nothing reads it for scoring.
+- **Where badges show.** The league page lists each past season's podium. `/feed` lists your own badges across your leagues. Badges never appear on episodes, so creator anonymity is unchanged.
+- **Free dates: 10 per creator per season.**
+  - That is a generous weekly cadence (more than one a day), and it doubles as the per-cookie cap on free-model calls.
+  - Every episode the creator asks for counts, blind or house. Failed generations don't count.
+- **Episode packs.**
+  - "10 more dates" costs $5; "25 more dates" costs $10.
+  - Pack dates are spent only after the week's free ones. They never expire, and they stack with repeat purchases.
+  - A refunded pack's dates stop counting, and the remainder floors at 0.
+  - **Packs add episodes, never points.** A purchase writes only `orders`. Spending a date writes only the usage counters, which count dates and nothing else.
+- **Migration.**
+  - `orders.kind`'s CHECK is replaced in place by a `DO` block, only when the old definition lacks `episode_pack`.
+  - New tables are `create table if not exists`.
+  - All of it runs inside the same advisory-locked bootstrap, so M1–M3 databases upgrade in place.
+
+Realistic production failures:
+
+| Codepath | Failure | Handling |
+|---|---|---|
+| Season close | Nobody visits for weeks | The first read closes every missed season, oldest first, with the same result as an on-time close. Tested. |
+| Season close | Two requests close it at once | Badges and the season row are `ON CONFLICT DO NOTHING`, and both requests compute the same podium. Tested by closing twice. |
+| Season close | Someone joins a league on Monday morning | The `joined_at < deadline` cutoff keeps them off last week's podium. Tested. |
+| Season close | A finale airs in Sunday's last milliseconds and commits after the close ran | That episode's points miss the podium (`revealed_at` is the transaction start). The window is a few ms. Listed under "Review". |
+| Allowance | Two tabs ask for dates at once with 1 left | The conditional upsert lets exactly one through; the other gets 429. The logic is tested; real concurrency relies on Postgres's documented re-check (PGlite has a single connection). |
+| Allowance | The model call fails | The date is released in `finally`. Tested for 502 and 409. |
+| Allowance | The process dies between reserve and release | That date is lost for the week. Accepted; listed under "Review". |
+| Allowance | A request straddles Monday 00:00 | It is reserved and released against the same week's row. |
+| Packs | The webhook is late | The shop says pack dates appear once Stripe confirms. The allowance is read live. |
+| Packs | A refund after the dates were used | `pack_left` floors at 0. Nothing is clawed back. |
+
+### 3. Test plan (M4)
+
+| Exit criterion | Tests |
+|---|---|
+| A season closes at its deadline and badges are awarded to the top 3 in each league | `seasons.test.ts`, "closes a season at its deadline and awards badges to the top 3 in each league":<br>• Two leagues share members. The scores are 25, 20, 15, 10, 5 and 0, from two aired episodes with drama questions.<br>• `closeDueSeasons` at the deadline minus 1 ms closes nothing and awards nothing.<br>• **At the deadline** it closes that season, exactly once. Each league's podium is its own top 3 (1st, 2nd, 3rd, with names and points), and the 4th member gets nothing.<br>• A member placed in both leagues holds both badges.<br>A second test does the same over HTTP. With last week's data, the first `GET /api/leagues/:id` closes the season lazily and shows the podium, idempotently. |
+| Buying an episode pack adds exactly N episodes to the creator and changes no spectator's score | `packs.test.ts`, one case per pack SKU:<br>• Three spectators in a league have 20, 10 and 0 points. A creator has used 3 of their 10 free dates.<br>• After the creator buys the pack through checkout and a signed webhook, `left` grows by exactly N. Every spectator's `/api/me` points and the league board are unchanged.<br>• Then exactly 7 + N more dates go through `POST /api/episodes`, and the next one is refused with 429. The scores are still unchanged. |
+
+Other codepaths covered:
+- **Allowance:**
+  - Exactly 10 free dates, then 429 with `resets_at` and `shop_path`. The 429 makes no model call and stores nothing.
+  - The limit is per creator, and blind dates count.
+  - Free dates reset the next season. Pack dates carry over, and free dates are spent first.
+  - A 502 or a 409 doesn't spend a date, and a 404, 422 or 402 doesn't reserve one.
+  - Parallel reservations never exceed the limit.
+  - Anonymous viewers see the full free allowance and no packs.
+- **Packs:**
+  - Priced between $5 and $10, with a whole number of episodes.
+  - Checkout stores `episodes` from the catalog, and a smuggled `episodes` field is ignored.
+  - Buying twice stacks, with no 409.
+  - A pending order adds nothing, and neither does a webhook with a bad signature. A refunded order stops counting.
+- **Seasons:**
+  - `seasonAt` edges: Monday 00:00, Sunday's last millisecond, and a month boundary.
+  - Ties share places (1, 1, 3 and 1, 2, 2), and zero points earn no badge.
+  - A late joiner is excluded, and only episodes aired inside the window count.
+  - Several missed seasons close oldest first, and closing is idempotent.
+  - The league view has `season {id, closes_at}`.
+  - No user ids appear in `past_seasons` or in badges.
+- **Data:**
+  - The `orders.kind` CHECK accepts `episode_pack`, and `episodes` must be positive.
+  - **An M3 database** with the old CHECK upgrades in place.
+  - A badge's place is 1–3 and its points are positive. The usage counters can't go negative.
+- **Components:** `Podium` and `BadgeList` render medals, names, places and league names, and no user ids.
+
+**One earlier test changes, because M4's roadmap supersedes it:**
+- `routes.test.ts`, "sells nothing but premium house characters and cosmetic frames" (M3), now also accepts the `episode_pack` kind that M4 adds.
+- Its name check (no point, coin, credit, token, gem, boost, rank, bet, odds, score or cash in any SKU or name) is unchanged, as is every route check.
+- The `tests/helpers.ts` reset also clears the new tables.
+
+## Plan (M3, built)
+
+M3 of 4: "Paid items and a landing-page test". M1 and M2 are built, and their 224 tests stay green. This plan applies gstack plan-eng-review's Step 0 (scope challenge), 1. Architecture and 3. Test review to M3. Nobody was available to ask, so each question is answered here and the answer recorded.
+
+### Step 0: Scope challenge
+
+1. **What already solves part of M3.**
+   - **Identity.** The anonymous `bz_uid` cookie is the buyer. No accounts are added.
+   - **Premium characters reuse the house-character path.**
+     - House characters are already rows in `characters` (`is_house`), seeded by `ensureSchema`.
+     - `POST /api/episodes {partner_id}` already picks one.
+     - A premium house character is the same kind of row with a `premium_sku`, behind an ownership check. There is no new partner or episode path.
+   - **Points can't be bought by construction.** They are derived from predictions on aired episodes (M1's EUREKA), so there is no balance a purchase could write to. Purchases write only `orders`. The exit-criterion test proves this; the design guarantees it.
+   - **The league board** (`getLeague`) is the only place a user's display name is shown, so that is where frames appear.
+   - **Reused patterns.** `lib/model.ts` (a plain `fetch` client, configured from env, swappable in tests) is the pattern for Stripe. `handle`/`readJson`/`parseBody` handle the JSON routes. The M1 route-listing test is extended.
+2. **Minimum change set for the three exit criteria and the deliverables:**
+   - **Catalog** (`lib/catalog.ts`, pure data and safe to import from the browser). Four one-time items in USD:
+     - Two premium house characters: Vesper Lark ($3) and Captain Odalys Reyes ($5).
+     - Two profile frames: Rose and Gold ($2 each).
+     - Every item is one of two kinds, `house_character` or `frame`. No item sells points, odds, rank or episodes.
+   - **Orders** (`lib/payments.ts`). An `orders` table, where ownership means a `paid` order. A refunded order is set to `refunded` by hand and no longer counts.
+   - **Stripe** (`lib/stripe.ts`), the only file that talks to Stripe.
+     - It creates a Checkout Session through the REST API with `fetch`: form-encoded, inline `price_data` (so David needs no product setup in Stripe), and `Idempotency-Key` set to the order id.
+     - It verifies webhook signatures with `node:crypto`.
+   - **`POST /api/checkout {sku, attest: true}`** → 200 `{url}`, or 409 `already_owned` / 422 / 503 `payments_unavailable` (no key) / 502 (Stripe error, nothing left stored).
+   - **`POST /api/webhooks/stripe`**:
+     - It verifies the signature, then grants the order on `checkout.session.completed` or `checkout.session.async_payment_succeeded` when `payment_status = paid` → 200.
+     - A bad signature → 400, and nothing is granted. A missing secret → 500, so Stripe retries once it is set.
+   - **The premium gate in `POST /api/episodes`.**
+     - A premium partner the creator doesn't own → 402 `premium_character_locked`, before any model call.
+     - Blind dates fall back only to the three free house characters.
+   - **Frames.** League board entries get a `frame`: the latest frame bought, shown as a border on the name. The key is omitted when there is no frame, so M2 responses are unchanged.
+   - **Pages:**
+     - `/shop`: buy buttons, owned items, checkout success and cancel notices.
+     - `/legal`: terms of sale, refunds and privacy, which Stripe needs before live mode.
+     - The **landing page** `/`, rewritten for the AI-friendly roleplay audience, with the waitlist and the existing character builder below.
+     - Nav and footer links.
+   - **Waitlist.** `POST /api/waitlist {email, attest, community?, ref?}` → always 201 `{ok: true}`, so it can't be used to check whether an email is on the list.
+     - It stores one row per lowercased email.
+     - `?ref=` on the landing URL is kept with the signup, so David can see which community's link converts (the "landing-page test").
+
+   **Deliberately NOT in M3:**
+   - Episode packs, seasons and badges (M4).
+   - Restoring purchases on another browser. That needs accounts; for now it's done by hand with SQL, from the Stripe receipt.
+   - Refund and dispute webhooks. Refunds are made in the Stripe dashboard, and the order is set to `refunded` by SQL.
+   - Choosing among owned frames. The latest purchase is worn.
+   - Emailing the waitlist, visit analytics and A/B variants.
+   - Stripe Customers, subscriptions, coupons and Stripe Tax (a paid add-on).
+   - A payment SDK, and a `GET` catalog API. Pages read `lib` directly, as `/feed` does.
+   - Deploy config for a second host. The code stays host-agnostic (see Infrastructure).
+3. **Complexity check: it triggers.** M3 adds 10 files and touches about 12. It adds **1 new external service (Stripe)** and 1 small error class (`PaymentError`, like `ModelError`). The count comes from the roadmap's nouns: items, checkout, webhook, landing page, waitlist.
+   - Reductions applied:
+     - One legal page instead of three.
+     - No `GET /api/shop`, and no frame picker.
+     - **No processed-events table:** the order row is the idempotency key.
+     - No refund webhook.
+     - The landing page is `/` and keeps the builder, so no route moves.
+   - Non-interactive run, so the recommendation is recorded and the work proceeds as reduced.
+4. **Search check** (WebSearch):
+   - **[Layer 1]** The Stripe SDK's `webhooks.constructEvent` is the built-in. It is **not used here**, for two reasons:
+     - This sandbox can't install packages.
+     - The repo already calls its model with plain `fetch`.
+
+     Stripe documents manual verification:
+     - `HMAC-SHA256(secret, t + "." + rawBody)`, hex.
+     - Accept any `v1`, since secret rotation sends several.
+     - Compare in constant time.
+     - Reject stale timestamps; the SDK default is a 300 s tolerance.
+     - Ignore `v0`.
+
+     Each rule has a test.
+   - **[Layer 1]** App Router route handlers don't pre-parse bodies, so `await req.text()` is the raw payload. No `bodyParser` config is needed. The route runs on the Node runtime, which has `node:crypto`.
+   - **[Layer 2]** The usual webhook pitfalls are duplicate deliveries, slow handlers that Stripe retries, and the test/live secret mix-up. Here the handler does one `UPDATE`, and duplicates are no-ops.
+   - **[Layer 2]** Vercel Hobby forbids "any method of requesting or processing payment from visitors". Netlify's free plan allows commercial use. **So Stripe stays in test mode on Vercel Hobby, and live mode needs a commercial-use host** (requested from David in `.provision`).
+   - **[EUREKA]** Never send the session cookie to Stripe.
+     - `bz_uid` is a bearer credential. Putting it in `client_reference_id` (the usual tutorial pattern) would hand every buyer's login to anyone with Stripe dashboard access.
+     - Instead, a random **order id** goes to Stripe. The webhook maps it back to the buyer and re-checks the session id, amount and currency we stored.
+     - The same row makes the webhook idempotent. `UPDATE orders … WHERE status = 'pending'` turns a duplicate delivery or a replay into a no-op, with no events table.
+5. **TODOS.** There is no `TODOS.md`. Follow-ups are listed under "What's left".
+6. **Completeness.** Every new error path gets a test (400, 402, 409, 413, 422, 500, 502, 503), along with the abuse cases: a tampered body, a stale timestamp, a wrong secret, a duplicate delivery, an amount mismatch, an unknown order, a foreign session, smuggled amount or points fields, and a points SKU.
+7. **Distribution.** No new artifact. It is the same Next.js app. Hosting for live payments is an infrastructure request, not code.
+
+### 1. Architecture (M3)
+
+```
+ /shop  ──BuyButton──►  POST /api/checkout {sku, attest}
+                          ├─ zod: sku ∈ CATALOG (no points SKU can exist) ─────────────────► 422
+                          ├─ no STRIPE_SECRET_KEY ──────────────────────────────────────────► 503, nothing stored
+                          ├─ already owns sku ──────────────────────────────────────────────► 409
+                          ├─ INSERT orders(id=random uuid, user, sku, kind, price from CATALOG, 'pending')
+                          ├─ lib/stripe: POST api.stripe.com/v1/checkout/sessions
+                          │     client_reference_id = order id (never the cookie), Idempotency-Key = order id
+                          │     └─ error ─► DELETE pending order ─► 502
+                          ├─ UPDATE orders SET stripe_session_id = session.id
+                          └─ 200 {url} ─► browser goes to Stripe Checkout ─► back to /shop?checkout=success
+ Stripe ──► POST /api/webhooks/stripe   (raw text, ≤ 256 KB)
+              ├─ no STRIPE_WEBHOOK_SECRET ─► 500 (Stripe retries)
+              ├─ verify Stripe-Signature (any v1, constant-time, |now - t| ≤ 300 s) ─✗─► 400, grants nothing
+              ├─ checkout.session.completed | async_payment_succeeded, payment_status = 'paid'
+              │     UPDATE orders SET status='paid' WHERE id = client_reference_id AND status='pending'
+              │       AND stripe_session_id = session.id AND amount_cents = amount_total AND currency = currency
+              │     (0 rows: duplicate, unknown order or mismatch ─► logged, nothing granted)
+              └─ 200 {received: true}
+ ownership = EXISTS(orders paid)   ──► POST /api/episodes {partner_id: premium} ─ not owned ─► 402
+                                   ──► league board: frame = latest paid frame (LATERAL), rank/points untouched
+ points = Σ predictions on aired episodes  (no join to orders anywhere)
+ /  landing ─► WaitlistForm ─► POST /api/waitlist ─► waitlist(email PK lowercased, community, ref) ─► 201 {ok:true}
+```
+
+Decisions:
+- **What a purchase is.** A one-time, non-transferable digital item tied to this browser's anonymous session.
+  - Losing the cookie loses the item. The shop says so before you buy, and `/legal` says how to get it restored.
+  - Restoring means David moves the order to the new browser in SQL, using the Stripe receipt.
+  - Buying needs the 18+ attestation in the request.
+- **Premium house characters.**
+  - They are labeled house characters, seeded like the free three, and checked by the same content filter test.
+  - Only their owner can choose them as a partner, and they never appear in someone else's blind date.
+  - Spectators watch and predict their episodes for free.
+- **Frames.**
+  - A frame shows only on league boards, where display names already appear. It never appears on episodes, which would undo creator anonymity.
+  - It is derived at read time (the latest paid frame). There is no stored "equipped" column.
+- **Prices.** They live in `CATALOG` on the server and are sent to Stripe as `price_data`. The client sends only a `sku`, and smuggled `amount`, `price_cents` or `points` fields are ignored.
+- **Landing page.**
+  - `/` speaks to AI-friendly roleplayers: "written by AI, on purpose".
+  - It explains the show and the free game, shows the cast with premium prices, collects waitlist signups for Season 1 (M4's weekly seasons) and keeps the builder below.
+  - The `ref` slug is the only attribution. There are no analytics or third-party scripts.
+- **Legal page.** It is a plain draft, and needs counsel before live mode (REVIEW.md). It covers:
+  - who may use the show
+  - that points have no value and can't be bought
+  - what you buy
+  - refunds (on request within 14 days)
+  - what is stored, and who processes it (Stripe, the model provider)
+  - the contact address, from `CONTACT_EMAIL`
+- **Migration.** `characters.premium_sku` is added with `ADD COLUMN IF NOT EXISTS`. `orders` and `waitlist` are `CREATE TABLE IF NOT EXISTS`. Both run in the same locked bootstrap, so M1 and M2 databases upgrade in place.
+
+Realistic production failures:
+
+| Codepath | Failure | Handling |
+|---|---|---|
+| Checkout | Stripe is down or the key is wrong | 502, and the pending order is deleted. The user can retry. The key is never logged. Tested. |
+| Checkout | No key configured yet | 503 `payments_unavailable`, nothing stored. The shop shows "purchases open soon". Tested. |
+| Checkout | Two tabs pay for the same item | Both orders become `paid`, and the item is owned once. The duplicate is a manual refund. A buy for an owned item → 409. Listed under "Review". |
+| Webhook | Stripe delivers the same event twice, or late | `WHERE status = 'pending'` makes the repeat a no-op → 200. Tested. |
+| Webhook | Wrong secret (test vs live), proxy rewrites the body | 400 and nothing granted; Stripe shows failed deliveries. Tested with a wrong secret and a tampered body. |
+| Webhook | Event arrives after the user is back on `/shop` | The shop says "your item appears once Stripe confirms; refresh". Ownership is read on every request. |
+| Webhook | Async payment method (`payment_status = unpaid`) | Not granted until `checkout.session.async_payment_succeeded`. Tested. |
+| Webhook | Event for another app on the same Stripe account | Unknown order id → 200, ignored, logged. Tested. |
+| Premium | Buyer clears cookies | The item is lost until David restores it by SQL. Disclosed before purchase. Accounts are listed under "What's left". |
+| Waitlist | Someone checks whether an email is on the list | The same 201 `{ok: true}` either way. Tested. |
+| Hosting | Payments taken on Vercel Hobby | Not allowed. Stripe stays in test mode until David picks a commercial-use host. |
+
+### 3. Test plan (M3)
+
+| Exit criterion | Tests |
+|---|---|
+| Buying any item never changes a user's points balance or leaderboard rank (a test buys every SKU and compares before and after) | `purchases.test.ts`, "buys every SKU and leaves every user's points and league rank unchanged".<br>A league of three has 20, 10 and 0 points. The middle and last players each buy **every** SKU through checkout and a signed webhook. After each purchase, every member's `/api/me` points and the board's `(rank, name, points)` are unchanged, and the item is owned. The buyer then dates a premium character, and points are still unchanged. |
+| A webhook with a bad signature returns 400 and grants nothing | `webhook.test.ts`. Each of these returns **400**, the order stays `pending`, and the item isn't owned (no 402 unlock, no frame): wrong secret, tampered body, missing header, header without `v1`, `v0` only, a stale timestamp (replay), a future timestamp, a `v1` for another timestamp, a garbage header, a non-hex `v1` and a non-numeric timestamp. A correctly signed control event grants the item. |
+| Points have no purchase, cash-out or transfer route (route listing test) | `routes.test.ts`:<br>• The only routes whose path looks like money are exactly `POST /api/checkout` and `POST /api/webhooks/stripe`.<br>• No route mentions points, rank or cash-out, and no mutating route mentions transfers.<br>• `/api/me` stays GET-only.<br>• Every catalog item is a `house_character` or a `frame`, and none is named like points or currency.<br>• `POST /api/checkout` with `points`, `points_100`, `coins`, `boost` or `rank_up` → 422, nothing stored, Stripe not called.<br>• Only `lib/stripe.ts` contacts Stripe, and no payment SDK is imported. |
+
+Other codepaths covered:
+- **Checkout:**
+  - 200 `{url}` for every SKU, with the order stored at the catalog price.
+  - Stripe receives the order id (not the cookie), the success and cancel URLs, and the price.
+  - The response contains no user id.
+  - 409 when already owned; 422 without `attest`; 503 with no key; 502 on a Stripe failure, with no order left behind.
+  - Smuggled `amount` and `price_cents` are ignored.
+  - A first-time visitor gets a session cookie.
+  - An abandoned checkout doesn't block a retry.
+- **Stripe client:**
+  - URL, auth header, form body and `Idempotency-Key`.
+  - Non-2xx, network error, a missing `url`, a non-https `url` and a non-JSON body → `PaymentError`.
+  - The key is never in an error message.
+  - No key → disabled.
+- **Signature verification** (pure): rotation (several `v1`), the tolerance edges, the exact signed-payload format, and spaces and extra schemes in the header.
+- **Webhook:**
+  - A duplicate delivery grants once.
+  - `unpaid` doesn't grant, then `async_payment_succeeded` does.
+  - Unknown, missing or malformed order id → 200, nothing granted.
+  - Amount, currency or session mismatch → 200, not granted.
+  - Unrelated event types → 200.
+  - Invalid JSON, or a non-event, with a valid signature → 400.
+  - A body over the limit → 413.
+  - No secret configured → 500, nothing granted.
+- **Premium characters:**
+  - Not owned → 402, with no model call and nothing stored. Owned → 200 with a house partner.
+  - Ownership is per user; a `refunded` order locks it again.
+  - Blind dates never pick a premium character.
+  - Their sheets pass the content filter.
+- **Frames:**
+  - A frame appears on the board after a purchase, and the latest one wins.
+  - It is absent for others and for a pending order.
+  - Rank and points are unchanged.
+- **Waitlist:**
+  - 201 `{ok: true}`. The email is stored trimmed and lowercased, with `community` and `ref`.
+  - A duplicate in a different case gives the same 201 and one row.
+  - 422 for a bad email, a missing attestation, an over-long community or a bad `ref`, with nothing stored. 415 for a non-JSON body.
+- **Data:**
+  - The CHECK lists for order status and kind accept every TS value and reject others.
+  - Amounts must be positive, and the currency must be USD.
+  - Waitlist emails and Stripe session ids are unique.
+  - The premium characters are seeded, adult and labeled.
+  - An M1 database upgrades in place.
+- **Pages:**
+  - The landing page renders the waitlist.
+  - `/legal` has refunds, "points can't be bought", the processors, and a contact address or a plain "not yet".
+  - The layout links to `/legal` and `/shop`.
+
+**Two earlier tests change, because M3's roadmap supersedes them:**
+- `routes.test.ts`, "has no route whose path takes a payment" (M1). M3 *adds* payment routes, so it becomes "no payment route except exactly the two M3 routes". The allowlist is exact (method and path), and the points, transfer and SDK checks are unchanged.
+- `db.test.ts`, "seeds exactly three labeled, adult house characters" (M1). It now counts the three *free* house characters and checks the premium ones separately (seeded, adult, labeled, priced).
+
+## Plan (M2, built): decisions still in force
+
+- **Creators are anonymous.** `creators` (display names) appears in an episode response only once every creator of the episode has POSTed `/api/reveal`. The names are joined in SQL only at that point, so no later code can leak them.
+- **Blind dates** pair with a random OC from another creator, with no block in either direction, and otherwise with a random *free* house character (M3). An explicit `partner_id` must be a house character, so nobody can aim at a chosen stranger.
+- **Roles.** The host (who asked for the date) airs the finale. The partner creator sees the episode, but can't predict or air it.
+- **Hidden** is derived at read time: 3 or more distinct reporters. Creators still see a hidden episode, and it can't air while hidden.
+- **Blocks are per episode.** They follow the visible characters of that episode, never the person, so nothing links a creator's other episodes.
+- **Leagues.**
+  - The UUID id doubles as the invite link, with a soft cap of 50 members.
+  - The week runs from Monday 00:00 UTC, and points count in the week the episode airs.
+  - Ranks are Olympic (`rank()`). M3's `frame` sits beside an entry and never in its ordering.
+- **Drama question.** Chosen and answered by the model: `leaves_first` or `rejected`, answered `a`, `b` or `neither`. A right drama pick earns 5 points; the ending pick earns 10.
+- **Disclosure.** `ai_generated: true` is on every episode response, and the AI disclosure and crisis links are on every episode page and in the footer.
+- **Migrations** are `ADD COLUMN IF NOT EXISTS` and `CREATE TABLE IF NOT EXISTS`, inside the advisory-locked bootstrap.
+
+## Plan (M1, built): decisions still in force
+
+- **Stack:** Next.js 16 route handlers under `/api/*`, Postgres via `pg` (Neon), PGlite for tests and local runs, and zod for untrusted model output.
+- **Identity:** an anonymous random UUID in the `bz_uid` cookie (`HttpOnly`, `SameSite=Lax`). It never appears in a response body, and since M3 it never goes to Stripe either.
+- **Model:** one OpenAI-compatible showrunner call (Gemini free tier by default; any LiteLLM or OpenRouter endpoint works via `LLM_*`).
+  - Output must parse, match the zod schema, fit 400 words and pass the content filter. One retry, then 502 with nothing stored.
+- **Points** are computed from picks on aired episodes, never stored, so there is no write path for points.
+- **Schema** is applied on first use under `pg_advisory_xact_lock`. Every query is parameterized.
+- **The host can't predict** their own episode; they see the ending as soon as it's written.
+
+## Status (after M3)
+
+`npm test` runs **323 tests in 16 files, and all pass**.
+- These include the 224 M1 and M2 tests. Two M1 assertions changed because M3 supersedes them (see "Two earlier tests change" above). One M2 helper resets the new tables.
+- `npm run typecheck` and `npm run build` are clean on Next.js 16.4.
+- A mutation check confirmed the new tests catch failures. Three deliberately broken builds were caught: signature checking switched off, the HMAC comparison skipped, and premium characters let into the blind-date fallback.
+
+### What the product does now
+
+1. **`/` is the landing page** for AI-friendly roleplayers:
+   - The pitch: "written by AI, on purpose; you can't steer it".
+   - Three steps, a link to the feed, and a **Season 1 waitlist**: email, optional "where do you roleplay", and the 18+ attestation. The `?ref=` from the shared link is kept with the signup.
+   - The character builder below works as in M1 and M2: 18+, the content filter, then a blind date or a house character.
+   - The two **premium house characters** are listed with their prices. Locked ones link to the shop; owned ones get a "Send on a date" button.
+2. **One showrunner call** writes the episode, with the drama question. Invalid output gets one retry, then a 502 with nothing stored.
+3. **`/episodes/[id]`**:
+   - AI disclosure and crisis links for everyone.
+   - Creators see the whole episode; spectators see a teaser and predict (10 + 5 points).
+   - Mutual-consent identity reveal, the report button and blocks, as in M2.
+4. **`/feed`**: your dates, the latest episodes, your leagues and your block list.
+5. **`/leagues/[id]`**: the weekly board, now with **frames** around the names of members who bought one.
+6. **`/shop`** has four items:
+   - Vesper Lark ($3) and Captain Odalys Reyes ($5), premium house characters.
+   - The Rose and Gold frames ($2 each).
+   - **Buy** asks for the 18+ and terms checkbox, then opens Stripe Checkout and returns to `/shop?checkout=success`. The item appears once Stripe's webhook confirms the payment.
+   - Without a Stripe key, the shop says "Purchases open soon" and the buttons are disabled.
+7. **`/legal`**: terms, purchases, the 14-day refund policy, what's stored and who processes it, and the contact address (`CONTACT_EMAIL`).
+8. **Points are still free.** They can't be bought, cashed out or transferred, and carry no prizes. Nothing bought changes anyone's points, picks or rank.
+
+API (all JSON; identity is the anonymous `bz_uid` cookie; no user id is ever returned):
+
+| Route | Result |
+|---|---|
+| `POST /api/characters` | 201 character, or 422 / 400 / 413 / 415 |
+| `POST /api/episodes` `{character_id, partner_id}` or `{character_id, blind: true}` | 200 full episode (with `ai_generated: true` and the drama fields), or **402 `premium_character_locked`** / 404 / 409 `match_unavailable` / 422 / 502 |
+| `GET /api/episodes` | 200 `{episodes: [...]}`: the feed, newest 30 |
+| `GET /api/episodes/:id` | 200 the episode as this viewer may see it, or 404 |
+| `POST /api/predictions` `{episode_id, pick, drama_pick?}` | 201, or 403 / 404 / 409 / 422 |
+| `POST /api/episodes/:id/reveal` (air the finale, host only) | 200 `{ending, predictions, ai_generated}`, or 403 / 404 / 409 |
+| `POST /api/reveal` `{episode_id}` (identity consent) | 201 / 200, or 403 / 404 / 422 `name_required` |
+| `POST /api/reports` `{episode_id, reason?}` | 201 / 200, or 404 / 422 |
+| `POST` / `DELETE /api/blocks` `{episode_id}` | 201 / 200, or 404 / 422 |
+| `POST /api/profile` `{name, attest: true}` | 200 `{name}`, or 422 |
+| `POST /api/leagues` `{name}` · `GET /api/leagues/:id` · `POST /api/leagues/:id/join` | as in M2. Board entries may carry `frame` |
+| `GET /api/me` | `{points}` (all-time) |
+| **`POST /api/checkout`** `{sku, attest: true}` | 200 `{url}` (Stripe Checkout), or 409 `already_owned` / 415 / 422 / 502 `checkout_unavailable` / 503 `payments_unavailable` |
+| **`POST /api/webhooks/stripe`** (Stripe only, signed) | 200 `{received: true}`, or 400 `invalid_signature` / `invalid_payload`, 413, 500 `webhook_not_configured` |
+| **`POST /api/waitlist`** `{email, attest: true, community?, ref?}` | 201 `{ok: true}` (new or repeat), or 415 / 422 |
+
+### Exit criteria
+
+| Milestone | Exit criterion | Status | Test |
+|---|---|---|---|
+| M1 | `POST /characters` age 17 → 422 and stores nothing; age 18 → 201 | PASS | `tests/characters.test.ts` |
+| M1 | Bio with a blocklisted real-person name or a sexual term → 422 | PASS | `tests/characters.test.ts` |
+| M1 | `POST /episodes` → 200 with setting, two goals, twist, ending in the enum, body ≤ 450 words | PASS | `tests/episodes.test.ts` |
+| M1 | Invalid JSON twice → 502 and no episode stored | PASS | `tests/episodes.test.ts` |
+| M1 | `POST /predictions` after the reveal → 409 | PASS | `tests/game.test.ts` |
+| M1 | A matching pick gives exactly 10 points; a mismatch gives 0 | PASS | `tests/game.test.ts` |
+| M1 | No endpoint accepts a payment or a points transfer (route listing) | PASS, as amended by M3: no payment route except exactly the two M3 routes, and no points transfer | `tests/routes.test.ts` |
+| M2 | A creator's name never appears in the episode API until both creators POST `/reveal` | PASS | `tests/identity.test.ts` |
+| M2 | A leaderboard for 3 users with 20, 10, 0 returns them in that order | PASS | `tests/leagues.test.ts` |
+| M2 | `POST /reports` → 201, and the episode leaves the feed after 3 distinct reporters | PASS | `tests/reports.test.ts` |
+| M2 | Every episode response includes `ai_generated: true` | PASS | `tests/disclosure.test.ts` |
+| M3 | Buying any item never changes a user's points balance or leaderboard rank (buys every SKU, compares before and after) | PASS | `tests/purchases.test.ts` "buys every SKU and leaves every user's points balance and league rank unchanged" |
+| M3 | A webhook with a bad signature returns 400 and grants nothing | PASS | `tests/webhook.test.ts` "a webhook with a bad signature returns 400 and grants nothing (exit criterion)" (11 bad-signature cases plus a signed control) |
+| M3 | Points have no purchase, cash-out or transfer route (route listing test) | PASS | `tests/routes.test.ts` "points have no purchase, cash-out or transfer route (M3 exit criterion)", plus the amended money-route allowlist |
+
+### Run it locally
+
+```bash
+npm install          # works with npm_config_ignore_scripts; no native builds, no new dependencies in M3
+npm test             # 323 tests, under a minute; no network, no secrets
+npm run dev          # http://localhost:3000
+```
+
+- **Database.** Without `DATABASE_URL`, the app uses a file-backed Postgres (PGlite) in `.data/`, which is gitignored. A `.data/` from M1 or M2 is upgraded in place on the first request.
+- **Model.** Without a model key, `POST /api/episodes` returns 502 (it fails closed). Export a free Google AI Studio key as `GOOGLE_API_KEY` in your shell, or point `LLM_*` at another free OpenAI-compatible endpoint.
+- **Payments (test mode).** Without `STRIPE_SECRET_KEY`, the shop shows "Purchases open soon" and checkout returns 503. To try a purchase locally:
+  1. In your shell, export a Stripe **test-mode** secret key as `STRIPE_SECRET_KEY`.
+  2. Run the free Stripe CLI: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`. It prints a signing secret; export it as `STRIPE_WEBHOOK_SECRET`.
+  3. Start `npm run dev` from that shell and pay with one of Stripe's documented test cards.
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `DATABASE_URL` | Postgres connection (Neon free tier) | Unset: local PGlite. Required on Vercel. |
+| `GOOGLE_API_KEY` | Gemini API key (free tier) | Unset: episodes return 502 |
+| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | Another OpenAI-compatible endpoint. `GOOGLE_API_KEY` is only ever sent to Google. | Gemini, `gemini-3.5-flash-lite` |
+| `STRIPE_SECRET_KEY` | Creates Checkout Sessions. Use a restricted key with only the Checkout Sessions write permission; test mode until live. | Unset: purchases closed (503) |
+| `STRIPE_WEBHOOK_SECRET` | Verifies `Stripe-Signature` on `/api/webhooks/stripe` | Unset: webhook answers 500, so Stripe retries |
+| `CONTACT_EMAIL` | Support address shown on `/legal` (refunds, restores, waitlist removal) | Unset: "will be posted here before purchases open" |
+
+### Deploy on a free tier
+
+1. **Vercel Hobby + Neon free + Stripe test mode** (the current target, $0):
+   - The pipeline runs `.provision`. Neon gives `DATABASE_URL`, GCP gives `GOOGLE_API_KEY`, and the Vercel project `botchelor` gets the stored values as env.
+   - Once David has stored them, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `CONTACT_EMAIL` are pushed by the `vercel env` lines.
+   - Vercel auto-detects Next.js, so no `vercel.json` is needed.
+   - The schema, including M3's `orders`, `waitlist` and `premium_sku`, is applied on the first request, under an advisory lock. There is no migration step.
+   - In the Stripe dashboard (test mode), add a webhook endpoint at `https://<deployment>/api/webhooks/stripe` with the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`.
+   - `/legal` is rendered per request, so `CONTACT_EMAIL` shows once it is set in the env. Vercel applies new env vars on the next deployment.
+   - Stripe's return URLs follow the browser's `Origin`, so they are right on any host, and on a custom domain, with no app-URL setting.
+2. **Taking real money** (live mode) needs a host that allows commercial use. **Vercel Hobby does not.**
+   - **Netlify's free plan does, at $0.** Connect the same repo; Netlify auto-detects Next.js. Set the same env vars and point Stripe's live webhook at the Netlify URL.
+   - The alternative is Vercel Pro, which is paid and needs David's approval.
+   - Then switch to the live key and the live webhook secret. The code is host-agnostic: only `lib/db.ts` checks `VERCEL`, to refuse a throwaway local database there.
+   - This is requested in `.provision`, along with a counsel review of `/legal`.
+
+### What's left
+
+- **M4:**
+  - Weekly seasons, friend leagues with badges for the top 3, and episode packs.
+  - Packs become a third catalog kind. Their exit test ("adds exactly N episodes, changes no spectator's score") can reuse `buy()` and the snapshot pattern from `purchases.test.ts`.
+  - The waitlist promises one email when Season 1 opens. Sending it is manual for now (SQL export); nothing in the app sends email.
+- **Payments follow-ups:**
+  - **Accounts, or an email sign-in, to restore purchases across browsers.** Today it's a manual SQL move from the Stripe receipt.
+  - **A refund and dispute webhook.** `charge.refunded` doesn't carry `client_reference_id`, so it needs the payment intent stored. Today: `update orders set status = 'refunded' where stripe_session_id = …`.
+  - **A frame picker.** Today the latest frame bought is worn.
+  - **Cleanup of abandoned `pending` orders.** They are harmless, but they accumulate.
+  - **A double-purchase guard across two open tabs** (see "Review").
+- **Hardening carried over from M2:**
+  - Rate limits on `POST /api/episodes`, `POST /api/reports`, `POST /api/checkout` and `POST /api/waitlist`.
+  - A moderation queue, consent withdrawal and feed pagination.
+  - A Playwright smoke test of the whole flow, including a Stripe test-mode purchase. Pages are covered only by typecheck, the build, render tests and source checks.
+- **Legal (REVIEW.md):**
+  - Counsel review of `/legal`.
+  - SB 243 scope.
+  - Contest and gambling rules for free points sold alongside paid items, before live mode.
+
+## Infrastructure
+
+The code reads every value from environment variables, and no test needs a real one. Test fakes are built at runtime from a prefix and a filler.
+
+| `.provision` line | Gives | Used by |
+|---|---|---|
+| `neon db botchelor` (M1) | `DATABASE_URL` (Postgres, Neon free tier) | `lib/db.ts` (`pg` pool, max 3). Prefer Neon's pooled connection string. |
+| `gcp key botchelor generativelanguage.googleapis.com` (M1) | `GOOGLE_API_KEY`, restricted to the Gemini API | `lib/model.ts` |
+| `vercel project botchelor` (M1) | The Vercel project, with every stored value as env | Hosting (Hobby, $0; test-mode payments only) |
+| `request "GCP project check …"` (M1) | David confirms no billing account is linked to the key's project | Keeps Gemini on the free tier |
+| **`request "Stripe account for botchelor …"`** (M3) | A Stripe account in test mode, `STRIPE_SECRET_KEY` (a restricted key: Checkout Sessions write only) and `STRIPE_WEBHOOK_SECRET` (endpoint `/api/webhooks/stripe`, two `checkout.session.*` events). Stripe has no monthly fee, only a per-sale fee taken from revenue. | `lib/stripe.ts`, `app/api/webhooks/stripe/route.ts` |
+| **`vercel env botchelor STRIPE_SECRET_KEY`**, **`vercel env botchelor STRIPE_WEBHOOK_SECRET`** (M3) | Pushes both to Vercel once stored | the same |
+| **`request "Support email for botchelor …"`**, **`vercel env botchelor CONTACT_EMAIL`** (M3) | A public support address | `app/legal/page.tsx` |
+| **`request "Commercial-use host for botchelor …"`** (M3) | David's call before live mode: Netlify free ($0, commercial use allowed) or Vercel Pro (paid). Also counsel for `/legal`. | Taking real payments |
+
+## Review
+
+This is a self-review of the M3 change set against gstack's pre-landing checklist ("Review Categories", "Fix-First Heuristic"), plus an independent adversarial review pass by a second agent that ran the tests and the typecheck itself. Nothing is committed yet (M1–M3 are untracked), so `git diff` only shows `README.md`, and every M3 file was read directly. Findings use the format `[severity] (confidence) file — finding`.
+
+**Fixed during review (tests re-run: 323 passing, typecheck and build clean):**
+- **[P2] (7/10) `lib/payments.ts`: a grant wasn't tied to the session we created.** Any signed `checkout.session.*` event carrying a pending order's id, amount and currency would grant it. Only someone with Stripe dashboard access could create one, but the fix is one condition.
+  - **Fix:** the grant also requires `stripe_session_id` to equal the session id we stored. The checkout URL only reaches the browser after that id is stored, so a real payment always matches.
+  - **Test:** "acknowledges but grants nothing for a checkout session other than the one created for the order".
+- **[P2] (6/10) `app/api/checkout/route.ts`: buyers could return from Stripe to the wrong host.**
+  - **Cause:** the return URLs used `new URL(req.url).origin`. Off Vercel, Next 16 builds `req.url` from the server's own host and port, so on Netlify (the planned live host) or `next start` behind a proxy, a buyer could pay and land on `localhost`.
+  - **Fix:** the URLs come from the browser's `Origin` header, which browsers send on every POST, when it is a clean http(s) origin; otherwise from `req.url`.
+  - **Why it's safe:** a forged `Origin` only redirects its own sender, and cross-site JSON posts can't get past CORS preflight.
+  - **Test:** "sends Stripe back to the site the browser is on".
+- **[P3] (7/10) `app/legal/page.tsx`: the page was prerendered.** A `CONTACT_EMAIL` set after the build never showed. It is now `force-dynamic`. Tested.
+- **[P3] (6/10) `app/legal/page.tsx`: the privacy notice understated what purchases link.** It said "not your card, name or address", but the stored checkout ID lets the operator match this browser's anonymous characters to the Stripe receipt (email and name). The notice now says so, and says it's only looked up on request. Tested.
+- **[P3] (5/10) `tests/webhook.test.ts`: the 413 test signed its body,** so it couldn't show that the size check runs before the signature check. It now also sends a bad signature and still expects 413.
+
+**Pass 1, CRITICAL categories, with nothing else open:**
+- **SQL and data safety.**
+  - Every value is a bound parameter. The new SQL interpolates only code constants (`CHARACTER_COLUMNS`), and tests interpolate only into test-only `count()` filters.
+  - The grant is one atomic `UPDATE … WHERE status = 'pending' AND stripe_session_id AND amount AND currency`, with no read-then-write.
+  - Waitlist emails, order ids and Stripe session ids each have a primary key or unique index.
+  - Ownership and frames are read-only `EXISTS` and `LATERAL … LIMIT 1` queries.
+- **Races.**
+  - Duplicate, late or concurrent webhook deliveries can't double-grant, because the second `UPDATE` finds no pending row. This is tested with repeat deliveries.
+  - The one accepted race is the double-pay case under "Open".
+- **Trust boundaries** (the LLM-output category applied to Stripe and the browser):
+  - Prices come from `CATALOG`, never from the client or from Stripe metadata.
+  - The webhook checks the signature on the raw text before parsing, then zod-checks the event and session shapes.
+  - Stripe's checkout `url` must be https.
+  - Stripe sees our order id, never the `bz_uid` cookie (tested), and no response carries a user id.
+- **XSS and CSRF.**
+  - There is no `dangerouslySetInnerHTML`.
+  - New writes are JSON-only (`readJson`, tested with a 415 on the waitlist).
+  - The webhook uses no cookie and is authenticated by its signature.
+- **Enum completeness.** I read every consumer of `ITEM_KINDS` and `ORDER_STATUSES`:
+  - the SQL `CHECK` lists, which `tests/db.test.ts` checks by inserting every value and some bad ones
+  - `KIND_LABELS`, `KIND_NOTES` and `OWNED_NOTES`, typed `Record<ItemKind, …>`, so the compiler enforces completeness
+  - `ownedSkus` and `grantOrder` (only `paid` counts; `refunded` is "already handled")
+  - the board's frame join (`kind = 'frame'`)
+
+  All of them handle every value.
+
+**Open (ASK category: design decisions or larger changes, left for David or a later milestone):**
+- **[P2] (7/10) `lib/house.ts`, `app/api/episodes/route.ts`: a premium house character is a weak creator fingerprint.**
+  - Only buyers can date Vesper or Odalys, and episodes are public. While a premium character has few buyers, a creator who reveals themselves on one premium date hints that the other dates with that character are theirs too.
+  - This is the same class as M2's accepted "a reveal on one episode names that character's creator everywhere".
+  - **Mitigated:** the shop says so before purchase, and the reveal form warns on premium dates.
+  - **The structural fixes are product calls:** let premium characters also appear in other creators' blind dates (diluting the signal, but giving them away), or show spectators a generic "premium cast member" instead of the name.
+- **[P3] (8/10) `app/api/checkout/route.ts`: two open checkouts for the same item can both be paid.** For example, two tabs, or Back and then Buy again. Stripe sessions stay payable for 24 hours.
+  - "Already owned" (409) only stops a new checkout *after* a payment.
+  - Both orders become `paid`, and the item is owned once.
+  - A duplicate shows up in `select user_id, sku, count(*) from orders where status = 'paid' group by 1, 2 having count(*) > 1` and is refunded by hand.
+  - **Fix options:** reuse an open pending session per `(user, sku)` with a shorter `expires_at`, or auto-refund. Either is about 30 lines plus tests.
+- **[P3] (5/10) Oversized bodies.** `app/api/webhooks/stripe/route.ts` and M1's `lib/http.ts` check `Content-Length` before reading, but a chunked body without one is read fully before the size check. The host's own body limit (Vercel 4.5 MB) bounds it. **Fix:** a streaming byte counter.
+- **[P3] (5/10) No rate limits on `POST /api/checkout` and `POST /api/waitlist`.**
+  - Checkout spam costs Stripe API calls and leaves pending rows, and it could hit Stripe's rate limit, so real buyers get 502s.
+  - Waitlist emails are unverified.
+  - The free-text `community` could carry a spreadsheet formula. Export with formula escaping, or as plain text.
+  - These join M1's open rate-limit item.
+- **[P3] (5/10) Leaderboard tests, M2 and M3, use the current UTC week.** A run that crosses Monday 00:00 UTC mid-test could fail falsely; it can never pass falsely.
+- **[P3] (6/10) Pages and client components are only type-checked, built and partly render-tested.** `CreatorReveal` and `BuyButton` need the app router, so they aren't rendered in tests. The next step is a Playwright run with a Stripe test-mode purchase.
+
+**Informational:**
+- `npm view` and package installs are blocked in this sandbox, so the Stripe SDK was never an option. The hand-written verification follows Stripe's documented algorithm. The test helper signs with Web Crypto, a different implementation from the app's `node:crypto`, and three mutations of the verifier (always-true, skipping the HMAC, premium in the blind fallback) each failed tests.
+- Stripe API versions: the session fields read (`id`, `object`, `client_reference_id`, `payment_status`, `amount_total`, `currency`) are stable. A signed event with an unexpected shape gets a 400, so Stripe retries instead of the order being dropped silently.
