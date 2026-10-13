@@ -9,6 +9,7 @@
     "start": "next start",
     "test": "vitest run",
     "screenshots": "node scripts/screenshots.mjs",
+    "payment:live": "node scripts/payment-live.mjs",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
