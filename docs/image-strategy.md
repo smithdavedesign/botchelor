@@ -126,6 +126,16 @@ the negatives above, and the version in every file name — so a later edit cann
 The lesson is the one the ledger is built around: a prompt is not a guarantee, and nothing ships
 without someone looking at it.
 
+### backdrop-v1: three of eight rejected, for the same reason one level down
+
+The first backdrops reused each venue's showrunner text, which is written with people in it. So the
+double date was drawn *with* its smug couple, the tasting menu *with* its hovering waiter, and the
+arcade's marquees came out as garbled pseudo-lettering — even though every prompt also said "empty of
+people". The other five (park, café, karaoke, beach, rooftop) passed. **backdrop-v2** describes each
+place from a separate, people-free `plate` in `lib/venues.ts`, blanks every screen and sign, and
+negates people and lettering. As with `look`, the plate is apart from `prompt` on purpose: the
+showrunner still gets the scene with its extras.
+
 A shared seed or prompt does not guarantee a consistent character across generations either, so
 every output is reviewed before approval — which is what `review_status` is for.
 

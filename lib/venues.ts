@@ -15,6 +15,13 @@ export type Venue = {
   prompt: string;
   /** The backdrop gradient (two hues, 0..360), drawn behind the matchup. */
   hues: readonly [number, number];
+  /**
+   * The empty set, for the backdrop image generator only (scripts/prompts.mjs). `prompt` is written for
+   * the showrunner and has people in it ("a smug couple", "a hovering waiter"); fed to an image model,
+   * it drew them — backdrop-v1 was rejected for exactly that. A plate describes the place with nobody
+   * in it, and screens and signs blank, since generated lettering comes out as garbled pseudo-text.
+   */
+  plate: string;
 };
 
 /**
@@ -23,14 +30,14 @@ export type Venue = {
  * where it happens, never a thumb on the scale.
  */
 export const DATE_VENUES = [
-  { id: "rooftop_bar", name: "A rooftop bar at golden hour", prompt: "a rooftop bar at golden hour, with the city going gold below them", hues: [32, 348] },
-  { id: "corner_cafe", name: "A corner café that closes in an hour", prompt: "a cramped corner café that is closing in an hour, chairs going up around them", hues: [28, 54] },
-  { id: "retro_arcade", name: "A loud retro arcade", prompt: "a loud retro arcade where one machine is broken and keeps announcing a winner", hues: [285, 200] },
-  { id: "botanic_park", name: "A botanic park before the rain", prompt: "a botanic park in the minutes before it rains, nobody willing to mention the sky", hues: [140, 100] },
-  { id: "tasting_menu", name: "A too-fancy tasting menu", prompt: "a too-fancy tasting-menu restaurant with eleven tiny courses and a hovering waiter", hues: [250, 215] },
-  { id: "night_beach", name: "A cold beach at night", prompt: "a cold beach at night with one shared blanket and a thermos of something terrible", hues: [220, 190] },
-  { id: "double_date", name: "An awkward double date", prompt: "an awkward double date with a smug couple who finish each other's sentences", hues: [340, 18] },
-  { id: "karaoke_booth", name: "A karaoke booth, one hour booked", prompt: "a karaoke booth booked for a full hour, with a song already queued by someone else", hues: [310, 265] },
+  { id: "rooftop_bar", name: "A rooftop bar at golden hour", prompt: "a rooftop bar at golden hour, with the city going gold below them", hues: [32, 348], plate: "an empty rooftop bar at golden hour, string lights, a few bistro tables and stools, the city skyline glowing gold below" },
+  { id: "corner_cafe", name: "A corner café that closes in an hour", prompt: "a cramped corner café that is closing in an hour, chairs going up around them", hues: [28, 54], plate: "an empty cramped corner café near closing time, chairs stacked upside down on some tables, warm lamplight, a rain-streaked window" },
+  { id: "retro_arcade", name: "A loud retro arcade", prompt: "a loud retro arcade where one machine is broken and keeps announcing a winner", hues: [285, 200], plate: "an empty retro arcade at night, rows of glowing cabinets with blank colourful screens and plain unlettered marquees, neon light on a patterned carpet" },
+  { id: "botanic_park", name: "A botanic park before the rain", prompt: "a botanic park in the minutes before it rains, nobody willing to mention the sky", hues: [140, 100], plate: "an empty botanic garden path under a heavy grey sky just before rain, lush palms and ferns, a wet stone bench" },
+  { id: "tasting_menu", name: "A too-fancy tasting menu", prompt: "a too-fancy tasting-menu restaurant with eleven tiny courses and a hovering waiter", hues: [250, 215], plate: "an empty, too-fancy fine-dining room, white tablecloths, one table set with many tiny plates and gleaming cutlery, candlelight" },
+  { id: "night_beach", name: "A cold beach at night", prompt: "a cold beach at night with one shared blanket and a thermos of something terrible", hues: [220, 190], plate: "an empty cold beach at night under a moonlit sky, a single checked blanket and a thermos on the sand, gentle waves" },
+  { id: "double_date", name: "An awkward double date", prompt: "an awkward double date with a smug couple who finish each other's sentences", hues: [340, 18], plate: "an empty restaurant booth set for four, four glasses and one shared dessert on the table, warm evening light" },
+  { id: "karaoke_booth", name: "A karaoke booth, one hour booked", prompt: "a karaoke booth booked for a full hour, with a song already queued by someone else", hues: [310, 265], plate: "an empty karaoke booth, a leather sofa around a low table with two microphones on it, a glowing screen showing only abstract colour" },
 ] as const satisfies readonly Venue[];
 
 export type VenueId = (typeof DATE_VENUES)[number]["id"];

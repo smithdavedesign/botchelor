@@ -3,6 +3,7 @@ import { ALL_HOUSE_CHARACTERS } from "@/lib/house";
 import { DATE_VENUES } from "@/lib/venues";
 import {
   BACKDROP_PROMPT_VERSION,
+  backdropPrompt,
   buildBatch,
   NEGATIVE_PROMPT,
   PORTRAIT_PROMPT_VERSION,
@@ -65,6 +66,21 @@ describe("the portrait prompts", () => {
     for (const job of batch.filter((j) => j.kind === "background")) {
       expect(job.prompt_version).toBe(BACKDROP_PROMPT_VERSION);
       expect(job.negative).toContain("people");
+    }
+  });
+
+  it("builds backdrops from an empty set, never the showrunner's peopled scene", () => {
+    // backdrop-v1 fed the showrunner text to the image model, which drew its couple and its waiter.
+    for (const v of DATE_VENUES) {
+      expect(v.plate, v.id).toMatch(/^an empty\b/);
+      const prompt = backdropPrompt(v);
+      expect(prompt).toContain(v.plate);
+      expect(prompt).not.toContain(v.prompt);
+      expect(prompt).toContain("No people, no lettering, no signage");
+    }
+    for (const job of batch.filter((j) => j.kind === "background")) {
+      expect(job.file).toMatch(/^venue-[a-z_]+-v2\.png$/);
+      for (const term of ["people", "couple", "waiter", "signage"]) expect(job.negative).toContain(term);
     }
   });
 

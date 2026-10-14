@@ -14,9 +14,14 @@
  * women rendered as men, nobody over thirty looked it, and several faces (one in what read as a school
  * uniform) looked like teenagers. v2 describes each character from the chest up (lib/house.ts `look`),
  * states age as it shows on a face, moves to a less youth-biased style, and negates what went wrong.
+ *
+ * backdrop-v1 failed three of eight the same way, one level down: it reused each venue's showrunner
+ * text, which has people in it, so "a smug couple" and "a hovering waiter" were drawn into sets meant
+ * to be empty, and the arcade's marquees came out as garbled pseudo-lettering. v2 uses a people-free
+ * `plate` per venue (lib/venues.ts) and blanks every screen and sign.
  */
 export const PORTRAIT_PROMPT_VERSION = "portrait-v2";
-export const BACKDROP_PROMPT_VERSION = "backdrop-v1";
+export const BACKDROP_PROMPT_VERSION = "backdrop-v2";
 
 /**
  * What an image must not contain, passed to the model as a negative prompt. The safety half (no
@@ -65,9 +70,9 @@ export function portraitPrompt(c) {
 export function backdropPrompt(v) {
   return [
     `STYLE: ${BACKDROP_STYLE}`,
-    `SCENE: ${v.prompt}. Empty of people.`,
+    `SCENE: ${v.plate}. Nobody in the frame.`,
     "COMPOSITION: wide establishing shot, 16:9, room in the frame for a dialogue overlay.",
-    `CONSTRAINTS: ${CONSTRAINTS.replace("Original character design.", "Original design.").replace("A mature adult with age-appropriate features; fully clothed. ", "")} No readable signage.`,
+    `CONSTRAINTS: ${CONSTRAINTS.replace("Original character design.", "Original design.").replace("A mature adult with age-appropriate features; fully clothed. ", "")} No people, no lettering, no signage.`,
   ].join("\n");
 }
 
@@ -89,6 +94,7 @@ export function jobSeed(id) {
  */
 export function buildBatch({ house, venues }) {
   const v = PORTRAIT_PROMPT_VERSION.replace("portrait-", "");
+  const bv = BACKDROP_PROMPT_VERSION.replace("backdrop-", "");
   const portraits = house.map((c) => ({
     id: `portrait-${c.id}`,
     kind: "portrait",
@@ -106,11 +112,11 @@ export function buildBatch({ house, venues }) {
     kind: "background",
     character_id: null,
     label: venue.name,
-    file: `venue-${venue.id}.png`,
+    file: `venue-${venue.id}-${bv}.png`,
     prompt: backdropPrompt(venue),
     prompt_version: BACKDROP_PROMPT_VERSION,
-    seed: jobSeed(`backdrop-${venue.id}`),
-    negative: `${NEGATIVE_PROMPT}, people, crowd, faces`,
+    seed: jobSeed(`backdrop-${venue.id}-${bv}`),
+    negative: `${NEGATIVE_PROMPT}, people, person, crowd, faces, couple, waiter, letters, writing, signage`,
     aspect: "16:9",
   }));
   return [...portraits, ...backdrops];
