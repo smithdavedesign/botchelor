@@ -77,8 +77,11 @@ The same season header and podium on a phone.
 ![The cast gallery with reviewed portraits, house badges and trait chips, desktop](docs/screenshots/cast-desktop.png)
 The cast gallery: a browsable library of the living cast, each house character shown with its **reviewed portrait** (a visitor's own OC keeps a gradient avatar — no per-visitor image to host or moderate), with a matchmaker and the relationship graph below.
 
+![The audience leaderboard: most likable and most surprising, desktop](docs/screenshots/cast-leaderboard-desktop.png)
+**Audience ratings (M12):** spectators rate a contestant 💗 Likable or 🤯 Surprising, and the cast gets a leaderboard. It's a $0 social signal — one vote per viewer per category, and it never changes a date, the odds or prediction points.
+
 ![A shareable contestant card for a character, desktop](docs/screenshots/contestant-desktop.png)
-Every character has a **shareable contestant card** (public persona only, with its own link-preview image) — a $0 growth loop.
+Every character has a **shareable contestant card** (public persona only, with its own link-preview image, and the audience-rating chips) — a $0 growth loop.
 
 For adults who make original characters and the friends who watch, it turns two character sheets into a short blind-date episode that creators can't steer and spectators predict for free points.
 

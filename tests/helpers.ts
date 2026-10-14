@@ -39,6 +39,7 @@ import { setConversationEnabledForTests } from "@/lib/conversation";
 import { setAfterglowEnabledForTests } from "@/lib/afterglow";
 import { setInlineGenerationForTests } from "@/lib/jobs";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
+import { POST as postRating } from "@/app/api/characters/[id]/ratings/route";
 import type { Ending } from "@/lib/rules";
 
 export const BASE_URL = "http://localhost:3000";
@@ -62,6 +63,7 @@ type Table =
   | "pack_episode_usage"
   | "souls"
   | "generation_jobs"
+  | "character_ratings"
   | "character_assets"
   | "watch_parties"
   | "watch_messages"
@@ -96,6 +98,7 @@ export async function startTestDb() {
         "watch_messages",
         "watch_parties",
         "character_assets",
+        "character_ratings",
         "badges",
         "seasons",
         "free_episode_usage",
@@ -188,6 +191,9 @@ export const api = {
   /** M11: one owner opens the afterglow (POST /api/episodes/:id/afterglow). */
   openAfterglow: (episodeId: string, cookie?: string) =>
     postAfterglow(jsonRequest(`/api/episodes/${episodeId}/afterglow`, {}, { cookie }), params(episodeId)),
+  /** Audience rating: toggle a category on a character (POST /api/characters/:id/ratings). */
+  rateCharacter: (characterId: string, category: string, cookie?: string) =>
+    postRating(jsonRequest(`/api/characters/${characterId}/ratings`, { category }, { cookie }), params(characterId)),
   setProfile: (body: unknown, cookie?: string) => postProfile(jsonRequest("/api/profile", body, { cookie })),
   report: (body: unknown, cookie?: string) => postReport(jsonRequest("/api/reports", body, { cookie })),
   block: (episodeId: string, cookie?: string) =>

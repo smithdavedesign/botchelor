@@ -330,6 +330,19 @@ create table if not exists matchmaker_proposals (
 create unique index if not exists matchmaker_unique
   on matchmaker_proposals (proposer_id, least(character_a, character_b), greatest(character_a, character_b));
 
+-- Audience ratings ("most likable / most surprising"): one vote per viewer per character per category.
+-- A $0 social signal — never touches the engine, the date outcome, predictions or league/season scoring;
+-- it feeds the cast leaderboard and the owner's all-time points only. You can't rate your own character
+-- (enforced in lib/ratings.ts). The CHECK list mirrors RATING_CATEGORIES in lib/rules.ts.
+create table if not exists character_ratings (
+  rater_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  category text not null check (category in ('likable', 'surprising')),
+  created_at timestamptz not null default now(),
+  primary key (rater_id, character_id, category)
+);
+create index if not exists character_ratings_board_idx on character_ratings (category, character_id);
+
 -- Persistent relationships (PRD "a persistent relationship universe"): one row per unordered pair,
 -- character_a < character_b. Fed back into the engine and the narration so repeat dates remember.
 create table if not exists relationships (
