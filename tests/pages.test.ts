@@ -106,6 +106,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
     expect(body).toMatch(/a place to belong/i);
     expect(body).toMatch(/https:\/\/botchelor\.vercel\.app\/feed/);
     expect(body).toMatch(/https:\/\/botchelor\.vercel\.app\/character\.schema\.json/);
+    expect(body).toMatch(/POST https:\/\/botchelor\.vercel\.app\/api\/mcp/);
     expect(body).toMatch(/GET https:\/\/botchelor\.vercel\.app\/api\/episodes/);
     expect(body).toMatch(/deterministic engine/);
 
