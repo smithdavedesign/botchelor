@@ -23,15 +23,19 @@
  *     --prompt {prompt} --output {out}'
  */
 import { spawn } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { buildBatch, PROMPT_VERSION } from "./prompts.mjs";
+import { buildBatch } from "./prompts.mjs";
 import { ROOT } from "./harness.mjs";
 
 const OUT_DIR = join(ROOT, ".data", "portraits");
 const PUBLIC_DIR = join(ROOT, "public", "cast");
-/** Where an approved file is served from. Recorded on the row at generation time; only approval copies it. */
-const servedUrl = (file) => `/cast/${file}`;
+/**
+ * Where an approved file is served from: a WebP next to the app, so twenty-five images cost a few MB in
+ * the repo rather than ~17 MB of PNG. Recorded on the row at generation time; only approval writes it.
+ */
+const servedName = (file) => `${basename(file, ".png")}.webp`;
+const servedUrl = (file) => `/cast/${servedName(file)}`;
 const DIMS = { "3:4": { width: 768, height: 1024 }, "16:9": { width: 1024, height: 576 } };
 
 const flags = new Set(process.argv.slice(2).filter((a) => a.startsWith("--")));
@@ -62,7 +66,7 @@ async function requireLedger(db) {
 
 function planFile(batch) {
   mkdirSync(OUT_DIR, { recursive: true });
-  const manifest = batch.map((job) => ({ ...job, out: join(OUT_DIR, job.file), prompt_version: PROMPT_VERSION }));
+  const manifest = batch.map((job) => ({ ...job, out: join(OUT_DIR, job.file) }));
   writeFileSync(join(OUT_DIR, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   return manifest;
 }
@@ -149,7 +153,7 @@ async function sheet(db, manifest) {
     .filter((job) => existsSync(job.out))
     .map((job) => {
       const row = byUrl.get(servedUrl(job.file));
-      const name = basename(job.file, ".png");
+      const name = job.character_id ?? basename(job.file, ".png");
       return `<figure class="${row?.review_status ?? "unrecorded"}">
   <img src="${job.file}" alt="${job.label}" loading="lazy">
   <figcaption>
@@ -198,7 +202,9 @@ async function approve(db, manifest, wanted) {
   mkdirSync(PUBLIC_DIR, { recursive: true });
   let ok = 0;
   for (const name of wanted) {
-    const job = manifest.find((j) => basename(j.file, ".png") === name || j.id === name || j.character_id === name);
+    const job = manifest.find(
+      (j) => basename(j.file, ".png") === name || j.id === name || j.character_id === name || `venue-${name}` === basename(j.file, ".png"),
+    );
     if (!job) {
       console.error(`· no job called "${name}"`);
       continue;
@@ -207,7 +213,8 @@ async function approve(db, manifest, wanted) {
       console.error(`· ${name}: nothing generated yet`);
       continue;
     }
-    copyFileSync(job.out, join(PUBLIC_DIR, job.file));
+    const { default: sharp } = await import("sharp");
+    await sharp(job.out).webp({ quality: 82, effort: 6 }).toFile(join(PUBLIC_DIR, servedName(job.file)));
     const { rows } = await db.query(
       `update character_assets set review_status = 'approved', reviewed_at = now(),
               reviewed_note = coalesce(reviewed_note, 'approved by the owner from the contact sheet')
@@ -219,7 +226,7 @@ async function approve(db, manifest, wanted) {
       continue;
     }
     ok++;
-    console.log(`✓ approved ${job.file} → public/cast/${job.file}`);
+    console.log(`✓ approved ${job.file} → public/cast/${servedName(job.file)}`);
   }
   return ok;
 }

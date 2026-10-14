@@ -75,30 +75,59 @@ When it happens, the shape is: generate offline in batches, review by hand, reco
 provenance, approve the keepers, and serve them from object storage. Never per episode — an episode
 being watched must not trigger a generation.
 
-The prompt template to record as `prompt_version` v1:
+The current portrait template is **`portrait-v2`** (`scripts/prompts.mjs`, which the generator and its
+tests share):
 
 ```
 STYLE:
-Original illustrated romance-game character portrait.
-Consistent line weight, lighting, rendering and framing.
+Semi-realistic painted portrait for a premium visual novel for adults.
+Grounded, mature character design; soft studio lighting;
+painterly rendering; clean framing.
 
-CHARACTER:
-Adult fictional character, age {age}.
-{appearance}
-{archetype}; {traits}.
+SUBJECT:
+{look}. Clearly {age} years old.
+
+EXPRESSION:
+{archetype} — {traits}.
 
 COMPOSITION:
-Head and shoulders, chest up, centered face,
-hands not in frame, simple background,
+Head and shoulders portrait, chest up, centred face,
+hands not in frame, simple uncluttered background,
 vertical 3:4 crop.
 
 CONSTRAINTS:
-Original design; no named franchise characters,
-no real-person likeness, no text or watermarks.
+Original character design; no named franchise characters,
+no real-person likeness, no celebrity resemblance.
+A mature adult with age-appropriate features; fully clothed.
+No text, captions, watermarks or signatures.
 ```
 
-A shared seed or prompt does not guarantee a consistent character across generations, so every output
-is reviewed by a human before approval — which is what `review_status` is for.
+`{look}` is a per-character field in `lib/house.ts`: presentation, age as it shows on a face,
+colouring, build and what they wear, chest up. It is deliberately **not** the `appearance` line, which
+the engine reads for want/dealbreaker cues — physical detail added there could change date outcomes.
+The negative prompt names what must not appear: minors and youthful faces, school uniforms, real
+people, text and watermarks, and anything revealing.
+
+### Why there is a v2: portrait-v1 was rejected, all seventeen
+
+v1 passed the model an age number, the clothing line and the personality — but no presentation and no
+physical description, in an anime style that defaults to young faces. Reviewed on 2026-10-13, the
+batch failed on both counts:
+
+- **Safety.** One character came out in a shirt, tie and badge cardigan that read as a school uniform,
+  on a youthful face. Several others (including a 47-year-old) read as teenagers. One had a bare chest
+  under an open jacket. For an adults-only dating show these are exactly what review exists to stop.
+- **Fidelity.** Nearly the whole cast rendered as the same young man with black hair: most of the
+  women came out as men, and nobody over thirty looked over thirty.
+
+None of v1 was approved. v2 fixes the cause rather than the symptoms, and `tests/prompts.test.ts`
+pins each fix — a physical `look` per character, an explicit age, visible age on everyone over forty,
+the negatives above, and the version in every file name — so a later edit cannot quietly undo them.
+The lesson is the one the ledger is built around: a prompt is not a guarantee, and nothing ships
+without someone looking at it.
+
+A shared seed or prompt does not guarantee a consistent character across generations either, so
+every output is reviewed before approval — which is what `review_status` is for.
 
 ## Rules that do not change
 

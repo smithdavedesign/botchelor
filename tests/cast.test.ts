@@ -59,6 +59,7 @@ describe("the house cast", () => {
           dealbreaker: c.dealbreaker,
           archetype: c.archetype,
           appearance: c.appearance,
+          look: c.look,
         }),
       ).toEqual({ ok: true });
     }
