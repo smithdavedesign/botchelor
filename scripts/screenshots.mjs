@@ -152,6 +152,19 @@ function sampleTurn(messages) {
   return { dialogue: TURN_LINES[n % TURN_LINES.length], action: "answers", emotion: "curious", interest_signal: 0.4 + (n % 5) * 0.1 };
 }
 
+const AFTERGLOW_LINES = [
+  "okay I'm not going to overthink this: last night was fun.",
+  "it really was. the part where the plan fell apart? best bit.",
+  "so… would you do it again? no pressure.",
+  "ask me properly and find out.",
+];
+function sampleAfterglow(messages) {
+  const user = messages.find((m) => m.role === "user")?.content ?? "";
+  const data = JSON.parse(user.slice(user.indexOf("{")));
+  const n = data.texts_so_far?.length ?? 0;
+  return { text: AFTERGLOW_LINES[n % AFTERGLOW_LINES.length] };
+}
+
 function startShowrunner() {
   const server = createServer((req, res) => {
     let body = "";
@@ -160,8 +173,11 @@ function startShowrunner() {
       try {
         const { messages } = JSON.parse(body);
         const user = messages.find((m) => m.role === "user")?.content ?? "";
-        const isTurn = user.includes('"you"') && user.includes('"them"');
-        const content = JSON.stringify(isTurn ? sampleTurn(messages) : sampleEpisode(messages));
+        const isAfterglow = user.includes('"your_feeling"');
+        const isTurn = !isAfterglow && user.includes('"you"') && user.includes('"them"');
+        const content = JSON.stringify(
+          isAfterglow ? sampleAfterglow(messages) : isTurn ? sampleTurn(messages) : sampleEpisode(messages),
+        );
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ choices: [{ message: { role: "assistant", content } }] }));
       } catch {

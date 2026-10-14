@@ -14,8 +14,10 @@ import { releaseEpisode, type Reservation } from "./allowance";
 import { track, trackEpisodeCost } from "./analytics";
 import { generationPaused } from "./compute";
 import { isConversationEnabled, simulateConversation, type Turn } from "./conversation";
+import { isAfterglowEnabled, simulateAfterglow, type AfterglowLine } from "./afterglow";
 import type { Db } from "./db";
 import { getEngine, type CharacterSheet } from "./engine";
+import { DEFAULT_FORMAT } from "./formats";
 import { getFrontierModel, getModel } from "./model";
 import {
   DEFAULT_AUTONOMY,
@@ -138,33 +140,45 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
   const t0 = Date.now();
   try {
     const seed = row.seed === null ? undefined : Number(row.seed);
+    const formatId = row.setup?.format ?? DEFAULT_FORMAT;
     const dateRequest: DateRequest = {
       autonomy: row.setup?.autonomy ?? DEFAULT_AUTONOMY,
       strategy: row.setup?.strategy ?? DEFAULT_STRATEGY,
       gameBudget: row.setup?.game_budget_a ?? DEFAULT_GAME_BUDGET,
       agendaId: row.setup?.agenda_a ?? null,
       note: row.note,
+      format: formatId,
     };
     const forDate = (p: "a" | "b"): CharacterForDate => ({ id: row![`${p}_id`], sheet: sheet(row!, p) });
     const built = await buildDate(db, episodeId, forDate("a"), forDate("b"), dateRequest, seed);
     const decided = getEngine().decide(built.input, built.seed);
 
     const model = row.use_frontier ? getFrontierModel() ?? getModel() : getModel();
-    const draft = await narrateEpisode(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue);
+    const draft = await narrateEpisode(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue, formatId);
 
     let transcript: Turn[] = [];
     if (isConversationEnabled()) {
       try {
-        transcript = await simulateConversation(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue);
+        transcript = await simulateConversation(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue, formatId);
       } catch {
         transcript = [];
+      }
+    }
+
+    // The afterglow (best-effort, like the conversation): a failure just leaves it empty.
+    let afterglow: AfterglowLine[] = [];
+    if (isAfterglowEnabled()) {
+      try {
+        afterglow = await simulateAfterglow(model, built.input, decided, built.souls, built.setup.venue, formatId);
+      } catch {
+        afterglow = [];
       }
     }
 
     const saved = await db.query<{ id: string }>(
       `update episodes
           set setting = $2, goals = $3::jsonb, scenes = $4::jsonb, twist = $5, finale = $6,
-              best_line = $7, confessionals = $8::jsonb, transcript = $9::jsonb, status = 'ready'
+              best_line = $7, confessionals = $8::jsonb, transcript = $9::jsonb, afterglow = $10::jsonb, status = 'ready'
         where id = $1 and status = 'generating'
         returning id`,
       [
@@ -177,6 +191,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
         draft.best_line,
         JSON.stringify(draft.confessionals),
         JSON.stringify(transcript),
+        JSON.stringify(afterglow),
       ],
     );
     if (saved.rows.length) {
@@ -185,7 +200,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       trackEpisodeCost({
         episode_id: episodeId,
         model: row.use_frontier ? "frontier" : "free",
-        model_calls: 1 + transcript.length,
+        model_calls: 1 + transcript.length + afterglow.length,
         ms: Date.now() - t0,
         transcript_turns: transcript.length,
       });

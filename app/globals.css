@@ -1320,3 +1320,35 @@ button.swatch.chosen {
   font-size: 0.78rem;
   color: var(--muted);
 }
+
+/* A format badge reads as the episode's billing, so it takes the second accent to stand apart from the
+   status badge next to it. */
+.badge-format {
+  background: color-mix(in srgb, var(--accent-2) 16%, transparent);
+  color: var(--accent-2);
+}
+
+/* M11: the afterglow — the private morning-after text thread. Styled like the transcript timeline, in a
+   warmer tint so it reads as texts rather than the date itself. */
+.afterglow .turn {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin: 0.5rem 0;
+}
+.afterglow .turn-b {
+  flex-direction: row-reverse;
+}
+.afterglow .turn-body {
+  max-width: 80%;
+  border-radius: 14px;
+  padding: 0.55rem 0.8rem;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.afterglow .turn-b .turn-body {
+  background: color-mix(in srgb, var(--accent-2) 14%, transparent);
+  text-align: right;
+}
+.afterglow .turn-line {
+  margin: 0;
+}

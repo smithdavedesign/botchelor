@@ -101,6 +101,15 @@ create table if not exists identity_consents (
   primary key (episode_id, user_id)
 );
 
+-- M11 afterglow reveal: each owner opts in to open the morning-after thread. Mirrors identity_consents
+-- (one row per owner who agreed); the thread and the mutual verdict unlock once every real owner has.
+create table if not exists afterglow_consents (
+  episode_id text not null references episodes (id) on delete cascade,
+  user_id text not null,
+  created_at timestamptz not null default now(),
+  primary key (episode_id, user_id)
+);
+
 create table if not exists reports (
   episode_id text not null references episodes (id) on delete cascade,
   reporter_id text not null,
@@ -268,6 +277,11 @@ alter table episodes add column if not exists variation text;
 -- list of { side, act, dialogue, action, emotion, interest }. Immutable like the rest of the episode;
 -- '[]' for episodes made before M9 or when the conversation couldn't be produced (the recap still stands).
 alter table episodes add column if not exists transcript jsonb not null default '[]';
+
+-- M11: the afterglow (PRD "the post-date group chat"). The private morning-after text thread the two
+-- AIs exchange after the date: an ordered list of { side, text }. Flavour only (never scores anything),
+-- immutable, owner-gated. '[]' when it couldn't be produced or for episodes made before M11.
+alter table episodes add column if not exists afterglow jsonb not null default '[]';
 
 -- M10 part 2: async generation. The engine outcome (ending, box score) is written synchronously and the
 -- episode is 'generating'; a background worker narrates + runs the conversation, then flips it to 'ready'.

@@ -242,6 +242,43 @@ Exit criteria (tested — `tests/async.test.ts`): a create returns a `generating
 feed, the worker makes it `ready` with full content; a terminal failure deletes the episode and refunds the
 date (job cascaded); the cron route is 404 without its token and runs the queued job with it.
 
+## M11: the afterglow + show formats (shipped)
+
+Two PRD features that reuse the M9 conversation engine and the deterministic engine, both $0.
+
+### Post-date AI-to-AI chat — "the afterglow" (PRD core feature #2)
+
+After the date, the two characters exchange a short **private morning-after text thread** (`lib/afterglow.ts`,
+`AFTERGLOW_TURNS = 4`). Each agent still sees only the other's PUBLIC sheet (never its soul or agenda), and
+the engine's `wants_another` is the private feeling each one performs — including the PRD's twist, an AI that
+warms up when its owner expected the opposite. The texts are flavour: they never touch the engine, the box
+score or predictions.
+
+- **Owner-controlled privacy.** Each owner already knows their own AI's verdict (the debrief); the **thread
+  and the mutual verdict — "was the chemistry mutual?" — unlock only when every real owner opts in**
+  (`afterglow_consents`, a mutual-consent reveal mirroring the identity reveal; `POST /api/episodes/:id/afterglow`).
+  A house date needs the one owner; a two-OC date needs both. Spectators never see it — it's private.
+- **Best-effort**, like the conversation: a failure leaves an empty thread and the episode is unaffected.
+
+Exit criteria (tested — `tests/afterglow.test.ts`): an agent's prompt never carries the other side's
+soul/agenda; each side is told only its own engine-decided feeling; the thread + verdict stay hidden until
+every owner opts in; a spectator never sees it; a failed thread still leaves the episode `ready`.
+
+### Show formats (PRD "More mechanics")
+
+`classic` / `speed_date` / `meet_the_parents` / `ex_returns` (`lib/formats.ts`). A format is a **cosmetic
+narrative wrapper**: it reframes the narration and the turn-by-turn conversation (tone, pacing, a
+producer-flavour presence) but **never touches the engine, the box score, predictions or odds**. Chosen in
+the builder's date settings, shown as a billing badge on the episode and the feed.
+
+- **Fairness guard (tested):** the same characters + the same seed produce a byte-identical outcome in every
+  format — the format is not part of the engine input (`tests/formats.test.ts`).
+- **Paid-pack seam built, off:** each format carries a `premiumSku` (all `null` today), gated before the date
+  is reserved exactly like a premium house character, so a format can be sold later without touching
+  generation. Formats stay $0 and can never buy a better result (PRD guardrail).
+- **Follow-ups:** wire `meet_the_parents` to name a real house regular and `ex_returns` to pull the actual ex
+  from the relationship graph (both are generic background presences today).
+
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
 The competitor report's image plan, built at $0 — first-party assets only, no hosted imagery:
@@ -274,13 +311,9 @@ expressions and backgrounds, and creator image uploads.
 Surfaced by the 2026-10-14 audit (`docs/audit.md`): features both PRDs describe that the roadmap wasn't
 tracking. All are $0 and reuse the existing engine.
 
-- **Post-date AI-to-AI chat** (`PRD.md` core feature #2 / Phase 2): after the date, the two AIs keep
-  talking privately, with consent-gated recaps for each owner — "whether the chemistry was mutual". M9's
-  conversation engine (`lib/conversation.ts`) is the technical basis; this is a distinct, owner-controlled
-  feature with its own privacy rules.
-- **Show formats** (`PRD.md` "More mechanics"): speed dating, meet-the-parents (house characters play the
-  parents), the ex returns (pulled from the relationship graph). The same engine with different rules;
-  sellable later as cosmetic format packs that never touch outcomes or odds.
+- ~~**Post-date AI-to-AI chat**~~ — **shipped (M11)**, see above.
+- ~~**Show formats**~~ — **shipped (M11)**, see above. Follow-ups noted there (name the chaperone / pull the
+  real ex from the relationship graph).
 - **The reunion special**: a season-finale episode assembled from approved confessionals and the biggest
   moments in the relationship graph.
 - **Chaos button / interactive theatre (Model B)**: audience votes a real curveball the engine responds

@@ -10,8 +10,10 @@ import { readUserId, USER_COOKIE } from "@/lib/http";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
 import { DATE_ACTS, DRAMA_QUESTION_LABELS, dramaAnswerLabel, ENDING_LABELS, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
+import { formatLabel } from "@/lib/formats";
 import { venueBackdropCss, venueName } from "@/lib/venues";
 import Avatar from "@/app/Avatar";
+import Afterglow from "./Afterglow";
 import BoxScore from "./BoxScore";
 import ConfessionalShare from "./ConfessionalShare";
 import CreatorReveal from "./CreatorReveal";
@@ -84,6 +86,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
         {a.name}
         {a.house && <span className="badge">House character</span>} meets {b.name}
         {b.house && <span className="badge">House character</span>}
+        {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
       </p>
       {episode.creators && (
         <p className="creators">
@@ -228,6 +231,10 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
             </p>
           )}
         </section>
+      )}
+
+      {episode.afterglow && (
+        <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} />
       )}
 
       {episode.is_creator && episode.box_score && <SlidingDoors episodeId={episode.id} />}

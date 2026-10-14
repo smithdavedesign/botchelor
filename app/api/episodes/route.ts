@@ -11,6 +11,7 @@ import { generationPaused, PAUSED_MESSAGE } from "@/lib/compute";
 import { track } from "@/lib/analytics";
 import { enqueueGeneration, inlineGenerationEnabled, runGenerationJob } from "@/lib/jobs";
 import { ownsSku } from "@/lib/payments";
+import { DEFAULT_FORMAT, format as showFormat, FORMAT_IDS } from "@/lib/formats";
 import {
   AGENDA_IDS,
   AUTONOMY_LEVELS,
@@ -45,6 +46,7 @@ const EpisodeInput = z
     agenda: z.enum(AGENDA_IDS).optional(),
     note: z.string().trim().max(200).optional(),
     self_pick: z.enum(ENDINGS).optional(),
+    format: z.enum(FORMAT_IDS).optional(),
   })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
     message: "Send either partner_id (a house character) or blind: true.",
@@ -164,6 +166,22 @@ export const POST = handle(async (req) => {
     }
   }
 
+  // A premium format pack: checked before the date is reserved, so it costs nothing. All formats are free
+  // today (premiumSku null), so this is a no-op; the seam lets a pack be switched on without more plumbing.
+  const fmt = showFormat(input.format ?? DEFAULT_FORMAT);
+  if (fmt.premiumSku && !(await ownsSku(db, sess.userId, fmt.premiumSku))) {
+    return json(
+      {
+        error: "format_locked",
+        sku: fmt.premiumSku,
+        shop_path: "/shop",
+        message: `${fmt.label} is a premium format. Unlock it in the shop first.`,
+      },
+      402,
+      sess,
+    );
+  }
+
   // One of this week's free dates, or a pack date (M4). Taken before the model call, so parallel requests
   // can't write more episodes than the creator has dates; given back below if no episode gets saved
   // (a failed generation costs no date, so it doesn't cap retries: see BUILD.md, "Review").
@@ -221,6 +239,7 @@ async function writeAndSave(
     gameBudget: input.game_budget ?? 25,
     agendaId: input.agenda ?? null,
     note: input.note ?? null,
+    format: input.format ?? DEFAULT_FORMAT,
   };
   const built = await buildDate(db, episodeId, forDate(own), forDate(partner), dateRequest);
   const decided = getEngine().decide(built.input, built.seed);
@@ -306,6 +325,7 @@ async function writeAndSave(
     sides: decided.sides,
     setup: built.setup,
     transcript: [],
+    afterglow: [],
     status: "generating",
   };
   return json(toEpisodeJson(stored, { full: true, showConfessionals: true }), 200, sess);
