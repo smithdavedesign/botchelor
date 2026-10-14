@@ -118,3 +118,17 @@ export function setFrontierModelForTests(model: Model | null): void {
 export function getFrontierModel(): Model | null {
   return testFrontierModel ?? frontierModelFromEnv();
 }
+
+/**
+ * The model for one live episode: the frontier model only when the request is authorized (a valid
+ * x-frontier-key, i.e. the owner's approval) AND a frontier model exists; otherwise the free model.
+ * So every normal request stays on the free model and marginal cost is $0 — only the owner's authorized
+ * requests spend on the frontier model. This is the same gate the admin tool uses, now in the live flow.
+ */
+export function episodeModel(req: Request, env: Record<string, string | undefined> = process.env): Model {
+  if (frontierAuthorized(req, env)) {
+    const frontier = getFrontierModel();
+    if (frontier) return frontier;
+  }
+  return getModel();
+}

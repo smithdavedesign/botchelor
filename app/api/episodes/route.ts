@@ -5,7 +5,7 @@ import { getDb, type Db } from "@/lib/db";
 import { getEngine } from "@/lib/engine";
 import { listFeed, toEpisodeJson, type CharacterRef, type StoredEpisode } from "@/lib/game";
 import { handle, json, parseBody, readJson, session, userIdFromRequest, type Session } from "@/lib/http";
-import { getModel } from "@/lib/model";
+import { episodeModel, type Model } from "@/lib/model";
 import { ownsSku } from "@/lib/payments";
 import {
   AGENDA_IDS,
@@ -173,9 +173,11 @@ export const POST = handle(async (req) => {
       sess,
     );
   }
+  // Free model by default ($0); the frontier model only when this request carries the owner's key.
+  const model = episodeModel(req);
   const outcome = { saved: false };
   try {
-    return await writeAndSave(db, sess, own, partner, input, outcome);
+    return await writeAndSave(db, sess, model, own, partner, input, outcome);
   } finally {
     if (!outcome.saved) {
       await releaseEpisode(db, sess.userId, reservation).catch((err: unknown) => {
@@ -194,6 +196,7 @@ type EpisodeInputData = z.infer<typeof EpisodeInput>;
 async function writeAndSave(
   db: Db,
   sess: Session,
+  model: Model,
   own: CharacterRow,
   partner: CharacterRow,
   input: EpisodeInputData,
@@ -212,7 +215,7 @@ async function writeAndSave(
 
   let draft: EpisodeDraft;
   try {
-    draft = await narrateEpisode(getModel(), built.input, decided, built.souls, built.setup.producer);
+    draft = await narrateEpisode(model, built.input, decided, built.souls, built.setup.producer);
   } catch (err) {
     if (!(err instanceof ShowrunnerError)) throw err;
     console.warn("[episodes] showrunner failed:", err.reasons.join(", "));

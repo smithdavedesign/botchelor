@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST as frontierAdmin } from "@/app/api/admin/frontier/route";
 import {
+  episodeModel,
   frontierAuthorized,
   frontierConfigured,
   frontierModelFromEnv,
@@ -41,6 +42,27 @@ describe("the frontier gate (unit)", () => {
     expect(frontierModelFromEnv({})).toBeNull();
     expect(frontierConfigured(FRONTIER_ENV)).toBe(true);
     expect(frontierModelFromEnv(FRONTIER_ENV)).not.toBeNull();
+  });
+});
+
+describe("episodeModel (the live-flow gate)", () => {
+  const free = { async complete() { return "FREE"; } };
+  const frontier = { async complete() { return "FRONTIER"; } };
+
+  it("picks the frontier model only for an authorized request, else the free model", () => {
+    setModelForTests(free);
+    setFrontierModelForTests(frontier);
+    const env = { FRONTIER_PASSWORD: PW };
+    expect(episodeModel(req(), {})).toBe(free); // no password configured → free
+    expect(episodeModel(req(), env)).toBe(free); // configured but no header → free
+    expect(episodeModel(req({ "x-frontier-key": "nope" }), env)).toBe(free); // wrong key → free
+    expect(episodeModel(req({ "x-frontier-key": PW }), env)).toBe(frontier); // owner's key → frontier
+  });
+
+  it("stays on the free model when authorized but no frontier model exists, so a date never fails for lack of one", () => {
+    setModelForTests(free);
+    setFrontierModelForTests(null);
+    expect(episodeModel(req({ "x-frontier-key": PW }), { FRONTIER_PASSWORD: PW })).toBe(free);
   });
 });
 
