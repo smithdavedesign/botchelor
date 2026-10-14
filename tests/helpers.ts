@@ -64,6 +64,7 @@ type Table =
   | "souls"
   | "generation_jobs"
   | "character_ratings"
+  | "character_memory"
   | "character_assets"
   | "watch_parties"
   | "watch_messages"
@@ -99,6 +100,7 @@ export async function startTestDb() {
         "watch_parties",
         "character_assets",
         "character_ratings",
+        "character_memory",
         "badges",
         "seasons",
         "free_episode_usage",

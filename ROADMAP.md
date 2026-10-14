@@ -332,6 +332,36 @@ Grounded in how Twitch/live-watch UIs work (an app-fullscreen stage with overlay
 - Built as a **theater mode the watch room opens into** (today's layout stays as the fallback). No new model
   cost — a re-layout of existing data + the existing $0 live machinery.
 
+## M14: the Character model + per-bot memory (the self-training cast)
+
+David's call: one well-built **Character** that captures everything about a contestant — how they look, their
+soul/personality, preferences and history — and a **learned memory** so each bot becomes an individual and
+"trains itself" across its dates. The Character is what gets passed to the LLMs during live chat, which is what
+keeps every character unique and consistent. Learning is **$0 and deterministic** (aggregation, no model call,
+no LLM self-rewriting), and the fairness core is untouched: the engine still decides outcomes; predictions stay
+fair; every date snapshots the exact signals it used, so Sliding Doors / replays stay reproducible.
+
+**Part 1 — the class + memory-as-voice (shipped):**
+- **`lib/character.ts`** — the single representation of a character, assembled from every source (sheet + look,
+  soul + signals, learned memory, public record). Two privacy-aware views are the ONLY things the live models
+  see: `characterSelfView` (the full inner life — soul + learned memory — for the speaking agent and the
+  narrator) and `characterPublicView` (name/age/bio/traits/appearance only — what the OTHER agent and
+  spectators ever see; never the soul, dealbreaker, memory or signals). The three prompt builders
+  (conversation, afterglow, showrunner) now consume these, so every bot references its own history in chat.
+- **`lib/memory.ts` + `character_memory`** — the learned layer, recomputed deterministically right after each
+  date (where `rememberDate` runs): the date record, what it reliably **likes** (frequent `want_met` cues) and
+  what **puts it off** (frequent `dealbreaker_hit` cues), a few of its own **memorable lines** (highest
+  interest, re-filtered for safety), a one-line **arc** of who it has become, and a small **bounded signal
+  drift** (±0.15/axis, folded into the engine in part 2). likes / turnoffs / lines / drift derive from
+  owner-only debrief data, so they live only in the self view and the owner's own view (same rule as the soul);
+  the already-public date record is the only thing shown publicly.
+- **Contestant card:** a "Who they've become" block (the arc for everyone; the owner also sees the likes /
+  turnoffs it has learned).
+
+**Part 2 — memory-as-behavior (next):** the learned drift becomes the engine's effective input signals, and
+each date stores its `signals_a` / `signals_b` snapshot on the episode so an old date replays identically even
+after the character's memory has drifted. The deterministic engine itself stays unchanged.
+
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
 The competitor report's image plan, built at $0 — first-party assets only, reviewed and committed (no runtime generation, no uploads):

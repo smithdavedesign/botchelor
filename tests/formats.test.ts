@@ -22,6 +22,7 @@ import {
   type SideSetup,
 } from "@/lib/engine";
 import type { Model } from "@/lib/model";
+import { assembleCharacter, type Character } from "@/lib/character";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { DEFAULT_FORMAT, FORMATS, format, formatNote, type FormatId } from "@/lib/formats";
 
@@ -33,6 +34,10 @@ const side = (sheet: CharacterSheet): SideSetup => ({
 const INPUT: DateInput = { a: side(sheetA), b: side(sheetB) };
 const sideOutcome = (wants: boolean): SideOutcome => ({ wants_another: wants, agenda_met: true, satisfied: wants, dealbreaker_hit: null, want_met: null, note_followed: null });
 const OUTCOME: Outcome = { ...deterministicEngine.decide(INPUT, 1), sides: [sideOutcome(true), sideOutcome(false)] };
+const CHARS: [Character, Character] = [
+  assembleCharacter({ id: "fmt-a", sheet: sheetA, soul: null, memory: null }),
+  assembleCharacter({ id: "fmt-b", sheet: sheetB, soul: null, memory: null }),
+];
 
 const DATE_REQ: DateRequest = { autonomy: "balanced", strategy: "genuine_chemistry", gameBudget: 25, agendaId: "find_adventurous", note: null, format: "classic" };
 
@@ -93,7 +98,7 @@ describe("formats — fairness (the engine never sees the format)", () => {
 describe("formats — framing only", () => {
   it("the showrunner prompt carries the chosen format's note", () => {
     const user = (f: FormatId) =>
-      buildMessages(INPUT, OUTCOME, [null, null], "a_hard_question", "rooftop_bar", f)
+      buildMessages(INPUT, OUTCOME, CHARS, "a_hard_question", "rooftop_bar", f)
         .filter((m) => m.role === "user").map((m) => m.content).join("\n");
     expect(user("speed_date")).toContain("SPEED DATE");
     expect(user("meet_the_parents")).toContain("CHAPERONE");
@@ -101,8 +106,8 @@ describe("formats — framing only", () => {
   });
 
   it("a speed date runs fewer conversation turns than a classic date", async () => {
-    const classic: Turn[] = await simulateConversation(turnModel(8), INPUT, OUTCOME, [null, null], "a_hard_question", "rooftop_bar", "classic");
-    const speed: Turn[] = await simulateConversation(turnModel(6), INPUT, OUTCOME, [null, null], "a_hard_question", "rooftop_bar", "speed_date");
+    const classic: Turn[] = await simulateConversation(turnModel(8), INPUT, OUTCOME, CHARS, "a_hard_question", "rooftop_bar", "classic");
+    const speed: Turn[] = await simulateConversation(turnModel(6), INPUT, OUTCOME, CHARS, "a_hard_question", "rooftop_bar", "speed_date");
     expect(classic.length).toBe(8);
     expect(speed.length).toBe(6);
   });

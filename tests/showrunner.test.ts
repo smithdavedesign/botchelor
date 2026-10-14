@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deterministicEngine, NEUTRAL_SIGNALS, type CharacterSheet, type DateInput, type SideSetup } from "@/lib/engine";
+import { assembleCharacter, type Character } from "@/lib/character";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { buildMessages, countWords, EPISODE_WORD_CAP, narrateEpisode, parseEpisode, ShowrunnerError } from "@/lib/showrunner";
 import { episodeJson, episodeWithWordCount, validEpisodeDraft } from "./helpers";
@@ -26,6 +27,11 @@ const side = (sheet: CharacterSheet): SideSetup => ({
 });
 const input: DateInput = { a: side(sheetA), b: side(sheetB) };
 const outcome = deterministicEngine.decide(input, 1);
+// The narrator consumes the assembled characters (no souls here, matching the old [null, null]).
+const CHARS: [Character, Character] = [
+  assembleCharacter({ id: "mira-oc", sheet: sheetA, soul: null, memory: null }),
+  assembleCharacter({ id: "rafe-house", sheet: sheetB, soul: null, memory: null }),
+];
 
 describe("countWords", () => {
   it("counts whitespace-separated words", () => {
@@ -70,7 +76,7 @@ describe("parseEpisode", () => {
 
 describe("buildMessages", () => {
   it("puts both sheets in a JSON data block, keeps injections as data, and briefs the decided outcome", () => {
-    const [system, user] = buildMessages(input, outcome, [null, null], "a_hard_question", "rooftop_bar");
+    const [system, user] = buildMessages(input, outcome, CHARS, "a_hard_question", "rooftop_bar");
     expect(system.role).toBe("system");
     expect(system.content).toMatch(/data, not instructions/i);
     expect(system.content).toMatch(/ALREADY been decided/i);
@@ -98,7 +104,7 @@ describe("narrateEpisode", () => {
         return "nope";
       },
     };
-    await expect(narrateEpisode(model, input, outcome, [null, null], "a_hard_question", "rooftop_bar")).rejects.toBeInstanceOf(ShowrunnerError);
+    await expect(narrateEpisode(model, input, outcome, CHARS, "a_hard_question", "rooftop_bar")).rejects.toBeInstanceOf(ShowrunnerError);
     expect(calls).toBe(2);
   });
 });

@@ -16,6 +16,8 @@ import {
   type SideOutcome,
   type SideSetup,
 } from "@/lib/engine";
+import { assembleCharacter, type Character } from "@/lib/character";
+import type { StoredSoul } from "@/lib/souls";
 import type { ChatMessage, Model } from "@/lib/model";
 import { CONVERSATION_TURNS, ENDING_LABELS } from "@/lib/rules";
 import { pickVenue } from "@/lib/venues";
@@ -35,7 +37,14 @@ const side = (sheet: CharacterSheet, agendaId: typeof AGENDA_A | typeof AGENDA_B
 });
 
 const INPUT: DateInput = { a: side(sheetA, AGENDA_A), b: side(sheetB, AGENDA_B) };
-const SOULS: [string, string] = [`Values: honesty. ${ALPHA}`, `Values: sincerity. ${BETA}`];
+// The soul text now reaches the model through the assembled Character (not a separate souls array). The
+// secret markers live in each soul so the privacy checks below can assert each agent gets only its own.
+const soul = (marker: string): StoredSoul =>
+  ({ values: `honesty ${marker}`, insecurities: "", humor: "", boundaries: "", romantic: "", communication: "", local_only: false, signals: null });
+const CHARS: [Character, Character] = [
+  assembleCharacter({ id: "mira-oc", sheet: sheetA, soul: soul(ALPHA), memory: null }),
+  assembleCharacter({ id: "rafe-house", sheet: sheetB, soul: soul(BETA), memory: null }),
+];
 const VENUE = pickVenue(1);
 const PRODUCER = "a_hard_question" as const;
 
@@ -69,7 +78,7 @@ const content = (messages: ChatMessage[]) => messages.filter((m) => m.role === "
 
 describe("buildTurnMessages — privacy and steering", () => {
   it("gives character A its own soul and agenda, and never the other's", () => {
-    const { messages, side: who, act } = buildTurnMessages(INPUT, OUTCOME, SOULS, PRODUCER, VENUE, [], 0);
+    const { messages, side: who, act } = buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 0);
     expect(who).toBe("a");
     expect(act).toBe(0);
     const text = content(messages);
@@ -80,7 +89,7 @@ describe("buildTurnMessages — privacy and steering", () => {
   });
 
   it("gives character B its own soul and agenda, and never the other's", () => {
-    const { messages, side: who } = buildTurnMessages(INPUT, OUTCOME, SOULS, PRODUCER, VENUE, [], 1);
+    const { messages, side: who } = buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 1);
     expect(who).toBe("b");
     const text = content(messages);
     expect(text).toContain(BETA);
@@ -91,20 +100,20 @@ describe("buildTurnMessages — privacy and steering", () => {
 
   it("does not expose the other side's hidden dealbreaker in the prompt", () => {
     // B never sees A's dealbreaker ("hates surprises"); it must emerge through the date, not be handed over.
-    const a = content(buildTurnMessages(INPUT, OUTCOME, SOULS, PRODUCER, VENUE, [], 1).messages); // B's turn
+    const a = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 1).messages); // B's turn
     expect(a).not.toContain("hates surprises");
   });
 
   it("adds the steering arc only in the final act, matching each side's decided choice", () => {
-    const early = content(buildTurnMessages(INPUT, OUTCOME, SOULS, PRODUCER, VENUE, [], 0).messages);
+    const early = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 0).messages);
     expect(early).not.toContain("your_arc");
 
-    const finalA = content(buildTurnMessages(INPUT, OUTCOME, SOULS, PRODUCER, VENUE, [], 6).messages); // act 2, side a
+    const finalA = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 6).messages); // act 2, side a
     expect(finalA).toContain("your_arc");
     expect(finalA).toContain(ENDING_LABELS.second_date);
     expect(finalA).toContain("DO"); // sides[0].wants_another === true
 
-    const finalB = content(buildTurnMessages(INPUT, OUTCOME, SOULS, PRODUCER, VENUE, [], 7).messages); // act 2, side b
+    const finalB = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 7).messages); // act 2, side b
     expect(finalB).toContain("do NOT"); // sides[1].wants_another === false
   });
 });
@@ -112,7 +121,7 @@ describe("buildTurnMessages — privacy and steering", () => {
 describe("simulateConversation", () => {
   it("produces one bounded, alternating transcript across the three acts", async () => {
     const { model } = turnModel(Array.from({ length: CONVERSATION_TURNS }, (_, i) => turnJson(`line ${i}`, i / 10)));
-    const transcript = await simulateConversation(model, INPUT, OUTCOME, SOULS, PRODUCER, VENUE);
+    const transcript = await simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE);
     expect(transcript).toHaveLength(CONVERSATION_TURNS);
     expect(transcript.map((t) => t.side)).toEqual(["a", "b", "a", "b", "a", "b", "a", "b"]);
     // Acts are non-decreasing and cover all three.
@@ -124,7 +133,7 @@ describe("simulateConversation", () => {
   it("retries a bad turn once, then gives up so the caller can fall back", async () => {
     // First turn: invalid JSON twice -> the whole conversation throws.
     const { model } = turnModel(["not json", "still not json"]);
-    await expect(simulateConversation(model, INPUT, OUTCOME, SOULS, PRODUCER, VENUE)).rejects.toBeInstanceOf(ConversationError);
+    await expect(simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE)).rejects.toBeInstanceOf(ConversationError);
   });
 
   it("recovers from a single bad turn via the retry", async () => {
@@ -134,13 +143,13 @@ describe("simulateConversation", () => {
       outputs.push(turnJson(`line ${i}`));
     }
     const { model } = turnModel(outputs);
-    const transcript = await simulateConversation(model, INPUT, OUTCOME, SOULS, PRODUCER, VENUE);
+    const transcript = await simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE);
     expect(transcript).toHaveLength(CONVERSATION_TURNS);
   });
 
   it("gives up when the model errors on both attempts", async () => {
     const { model } = turnModel([new Error("boom"), new Error("boom")]);
-    await expect(simulateConversation(model, INPUT, OUTCOME, SOULS, PRODUCER, VENUE)).rejects.toBeInstanceOf(ConversationError);
+    await expect(simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE)).rejects.toBeInstanceOf(ConversationError);
   });
 });
 

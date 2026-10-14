@@ -47,6 +47,7 @@ import {
   type WatchPoll,
 } from "./rules";
 import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
+import { updateCharacterMemory } from "./memory";
 import { narrateEpisode, ShowrunnerError, type CharacterSheet } from "./showrunner";
 import { isConversationEnabled, simulateConversation, type Turn } from "./conversation";
 import { generationPaused, PAUSED_MESSAGE } from "./compute";
@@ -637,7 +638,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   const decided = getEngine().decide(built.input, built.seed);
   let draft;
   try {
-    draft = await narrateEpisode(getModel(), built.input, decided, built.souls, built.setup.producer, built.setup.venue);
+    draft = await narrateEpisode(getModel(), built.input, decided, built.characters, built.setup.producer, built.setup.venue);
   } catch (err) {
     if (err instanceof ShowrunnerError) return { ok: false, status: 502, error: "showrunner_unavailable", message: "No model produced a valid template date." };
     throw err;
@@ -648,7 +649,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   let transcript: Turn[] = [];
   if (isConversationEnabled()) {
     try {
-      transcript = await simulateConversation(getModel(), built.input, decided, built.souls, built.setup.producer, built.setup.venue);
+      transcript = await simulateConversation(getModel(), built.input, decided, built.characters, built.setup.producer, built.setup.venue);
     } catch {
       transcript = [];
     }
@@ -681,6 +682,9 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
     ],
   );
   await rememberDate(db, a.id, b.id, decided.ending).catch(() => {});
+  // M14: fold this template date into each house character's learned memory (deterministic, $0).
+  await updateCharacterMemory(db, a.id).catch(() => {});
+  await updateCharacterMemory(db, b.id).catch(() => {});
 
   const id = crypto.randomUUID();
   await db.query(

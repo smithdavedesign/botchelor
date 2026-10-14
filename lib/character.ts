@@ -1,0 +1,180 @@
+/**
+ * M14 — the Character: the one representation of who a character is.
+ *
+ * A character's identity used to be scattered: the sheet + look in `characters`, the personality + engine
+ * signals in `souls`, the pair history in `relationships`, the per-date outcomes and dialogue on the
+ * episode, the crowd read in `character_ratings`. Each prompt builder re-assembled its own ad-hoc slice.
+ * This module assembles all of it into one object — how they look, their soul, their preferences, their
+ * learned history — and exposes the two privacy-aware views that are the ONLY things the live models see:
+ *
+ *   - characterSelfView: the full inner life (soul + learned memory). What the SPEAKING agent, and the
+ *     narrator, get for this character. This is what keeps every character unique and consistent.
+ *   - characterPublicView: name, age, bio, traits, appearance only. What the OTHER agent and spectators
+ *     ever see — never the soul, dealbreaker, memory or signals.
+ *
+ * Per-date context (secret agenda, the owner's note, autonomy, strategy) is NOT part of a Character — it
+ * belongs to one date, so the builders wrap the self view with it. The deterministic engine (lib/engine.ts)
+ * is untouched: it still decides from the sheet + signals; this object just gathers and presents them.
+ */
+import type { Db } from "./db";
+import { deriveSoulSignals, NEUTRAL_SIGNALS, type CharacterSheet, type SoulSignals } from "./engine";
+import { loadSoul, soulText, type StoredSoul } from "./souls";
+import { characterPortrait } from "./portraits";
+import { loadCharacterMemory, MEMORY_SIGNAL_CAP, type CharacterMemory } from "./memory";
+import { getCharacterHistory, type CharacterRecord } from "./game";
+
+const ZERO_RECORD: CharacterRecord = { dates: 0, second_dates: 0, friends: 0, disasters: 0 };
+
+/** The full, assembled character. `ownerId`, `soul`, `memory` and `signals` are server-only. */
+export type Character = {
+  id: string;
+  name: string;
+  age: number;
+  bio: string;
+  house: boolean;
+  /** Server-only. Null for a house character. */
+  ownerId: string | null;
+  look: { appearance: string | null; hue: number | null; portrait: string | null };
+  persona: { traits: readonly string[]; want: string };
+  /** Semi-private: it is the dealbreaker quiz answer, so the self view has it but the public view never does. */
+  dealbreaker: string;
+  soul: StoredSoul | null;
+  /** The signals from the soul / image, before any learned drift. */
+  baseSignals: SoulSignals;
+  /** The effective engine signals: baseSignals nudged by the learned memory, clamped to 0..1. */
+  signals: SoulSignals;
+  memory: CharacterMemory | null;
+  /** The public, aired date record (lib/game.ts). Zeros until loadCharacter fills it. */
+  record: CharacterRecord;
+};
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+
+/** The base signals a soul yields: image-trained signals win over text-derived ones; neutral with no soul. */
+export function soulBaseSignals(soul: StoredSoul | null): SoulSignals {
+  return soul ? (soul.signals ?? deriveSoulSignals(soul)) : NEUTRAL_SIGNALS;
+}
+
+/** The effective engine signals: base plus the memory's bounded drift, clamped to 0..1 per axis. */
+export function effectiveSignals(base: SoulSignals, memory: CharacterMemory | null): SoulSignals {
+  const d = memory?.signal_delta ?? {};
+  const axis = (k: keyof SoulSignals) => clamp01(base[k] + clampDelta(d[k]));
+  return { warmth: axis("warmth"), openness: axis("openness"), guardedness: axis("guardedness"), humor: axis("humor") };
+}
+
+/** A stored delta is already bounded, but clamp defensively so a bad row can never swing a result. */
+const clampDelta = (n: number | undefined) => Math.max(-MEMORY_SIGNAL_CAP, Math.min(MEMORY_SIGNAL_CAP, n ?? 0));
+
+/** Pure builder: assembles a Character from pieces already loaded. Used by buildDate (no extra queries). */
+export function assembleCharacter(args: {
+  id: string;
+  sheet: CharacterSheet;
+  ownerId?: string | null;
+  hue?: number | null;
+  soul: StoredSoul | null;
+  memory: CharacterMemory | null;
+  record?: CharacterRecord;
+}): Character {
+  const baseSignals = soulBaseSignals(args.soul);
+  return {
+    id: args.id,
+    name: args.sheet.name,
+    age: args.sheet.age,
+    bio: args.sheet.bio,
+    house: args.sheet.house,
+    ownerId: args.ownerId ?? null,
+    look: { appearance: args.sheet.appearance ?? null, hue: args.hue ?? null, portrait: characterPortrait(args.id) },
+    persona: { traits: args.sheet.traits, want: args.sheet.want },
+    dealbreaker: args.sheet.dealbreaker,
+    soul: args.soul,
+    baseSignals,
+    signals: effectiveSignals(baseSignals, args.memory),
+    memory: args.memory,
+    record: args.record ?? ZERO_RECORD,
+  };
+}
+
+/** Loads and assembles the full Character for a display page (sheet + soul + memory + portrait + record). */
+export async function loadCharacter(db: Db, id: string): Promise<Character | null> {
+  const { rows } = await db.query<{
+    id: string; owner_id: string | null; name: string; age: number; bio: string;
+    traits: string[]; want: string; dealbreaker: string; is_house: boolean;
+    appearance: string | null; avatar_hue: number | null;
+  }>(
+    `select id, owner_id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue
+       from characters where id = $1`,
+    [id],
+  );
+  const r = rows[0];
+  if (!r) return null;
+  const [soul, memory, history] = await Promise.all([
+    loadSoul(db, id),
+    loadCharacterMemory(db, id),
+    getCharacterHistory(db, id),
+  ]);
+  const sheet: CharacterSheet = {
+    name: r.name, age: r.age, bio: r.bio, traits: r.traits, want: r.want,
+    dealbreaker: r.dealbreaker, house: r.is_house, appearance: r.appearance ?? undefined,
+  };
+  return assembleCharacter({ id: r.id, sheet, ownerId: r.owner_id, hue: r.avatar_hue, soul, memory, record: history.record });
+}
+
+/** The minimal deterministic input the engine reads. The engine's type is unchanged. */
+export function characterSheet(c: Character): CharacterSheet {
+  return {
+    name: c.name,
+    age: c.age,
+    bio: c.bio,
+    traits: c.persona.traits,
+    want: c.persona.want,
+    dealbreaker: c.dealbreaker,
+    house: c.house,
+    ...(c.look.appearance ? { appearance: c.look.appearance } : {}),
+  };
+}
+
+/** The distilled learned memory as the model sees it: an arc, what it likes / dislikes, lines it has said. */
+function memoryView(memory: CharacterMemory | null): Record<string, unknown> | null {
+  if (!memory || memory.dates === 0) return null;
+  const v: Record<string, unknown> = {};
+  if (memory.arc) v.who_you_have_become = memory.arc;
+  if (memory.likes.length) v.what_you_tend_to_like = memory.likes;
+  if (memory.turnoffs.length) v.what_tends_to_put_you_off = memory.turnoffs;
+  if (memory.memorable_lines.length) v.lines_you_have_said_before = memory.memorable_lines;
+  return Object.keys(v).length ? v : null;
+}
+
+/**
+ * The speaking agent's own private view: full sheet plus its private inner life — the soul (omitted when
+ * local_only) and the learned memory. `privateExtra` carries this date's context (agenda, note, autonomy,
+ * strategy), which the builders own. This is the payload that keeps each character unique in live chat.
+ */
+export function characterSelfView(c: Character, privateExtra: Record<string, unknown> = {}): Record<string, unknown> {
+  const soul = c.soul && !c.soul.local_only ? soulText(c.soul) : null;
+  const memory = memoryView(c.memory);
+  return {
+    name: c.name,
+    age: c.age,
+    bio: c.bio,
+    traits: c.persona.traits,
+    want: c.persona.want,
+    dealbreaker: c.dealbreaker,
+    ...(c.look.appearance ? { appearance: c.look.appearance } : {}),
+    private: {
+      soul: soul ?? "(none — play from your public sheet)",
+      ...(memory ? { memory } : {}),
+      ...privateExtra,
+    },
+  };
+}
+
+/** What the OTHER agent and spectators ever see: public fields only. Never soul, dealbreaker, memory, signals. */
+export function characterPublicView(c: Character): Record<string, unknown> {
+  return {
+    name: c.name,
+    age: c.age,
+    bio: c.bio,
+    traits: c.persona.traits,
+    ...(c.look.appearance ? { appearance: c.look.appearance } : {}),
+  };
+}

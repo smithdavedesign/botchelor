@@ -9,6 +9,7 @@ import {
   type DateVariable,
   type ProducerId,
 } from "./rules";
+import { characterSelfView, type Character } from "./character";
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { venue, type VenueId } from "./venues";
@@ -17,7 +18,6 @@ import { checkFields } from "./safety";
 
 /** CharacterSheet now lives in the engine (it decides outcomes from it); re-exported for existing imports. */
 export type { CharacterSheet } from "./engine";
-import type { CharacterSheet } from "./engine";
 
 /** Hard cap on the *shown* episode text (setting, goals, scenes, twist, finale). Extras are length-capped. */
 export const EPISODE_WORD_CAP = 400;
@@ -94,23 +94,9 @@ Reply with only a JSON object (no markdown) with exactly these keys:
   "confessionals": ["character_a's one-sentence private reflection, first person", "character_b's one-sentence private reflection, first person"]
 }`;
 
-function sheetData(s: CharacterSheet) {
+/** This date's private context for a side: the dials the narrator should honour, added to the self view. */
+function dateContext(side: SideSetup): Record<string, unknown> {
   return {
-    name: s.name,
-    age: s.age,
-    bio: s.bio,
-    traits: s.traits,
-    want: s.want,
-    dealbreaker: s.dealbreaker,
-    ...(s.appearance ? { appearance: s.appearance } : {}),
-    house_character: s.house,
-  };
-}
-
-/** Private, model-only behaviour guidance from a side's soul and this date's settings. Never shown to viewers. */
-function privateGuidance(side: SideSetup, soulText: string | null): Record<string, unknown> {
-  return {
-    private_soul: soulText ?? "(none — play them from the public sheet)",
     secret_agenda: agenda(side.agendaId).label,
     autonomy: side.autonomy,
     strategy: side.strategy,
@@ -145,15 +131,21 @@ function outcomeBrief(input: DateInput, outcome: Outcome): string {
 export function buildMessages(
   input: DateInput,
   outcome: Outcome,
-  souls: [string | null, string | null],
+  characters: [Character, Character],
   producer: ProducerId,
   venueId: VenueId,
   formatId: FormatId = DEFAULT_FORMAT,
   formatCtx: FormatContext = {},
 ): ChatMessage[] {
+  // The narrator is trusted (unlike a dating agent), so it sees BOTH characters' full self view — soul,
+  // learned memory and all — plus each side's house flag and this date's private dials.
+  const narratorView = (c: Character, side: SideSetup) => ({
+    ...characterSelfView(c, dateContext(side)),
+    house_character: c.house,
+  });
   const data = {
-    character_a: { ...sheetData(input.a.sheet), private: privateGuidance(input.a, souls[0]) },
-    character_b: { ...sheetData(input.b.sheet), private: privateGuidance(input.b, souls[1]) },
+    character_a: narratorView(characters[0], input.a),
+    character_b: narratorView(characters[1], input.b),
     decided_outcome: outcomeBrief(input, outcome),
     date_location: venue(venueId).prompt,
     act_two_situation: producerEvent(producer).prompt,
@@ -199,13 +191,13 @@ export async function narrateEpisode(
   model: Model,
   input: DateInput,
   outcome: Outcome,
-  souls: [string | null, string | null],
+  characters: [Character, Character],
   producer: ProducerId,
   venueId: VenueId,
   formatId: FormatId = DEFAULT_FORMAT,
   formatCtx: FormatContext = {},
 ): Promise<EpisodeDraft> {
-  const messages = buildMessages(input, outcome, souls, producer, venueId, formatId, formatCtx);
+  const messages = buildMessages(input, outcome, characters, producer, venueId, formatId, formatCtx);
   const reasons: string[] = [];
   for (let attempt = 0; attempt < SHOWRUNNER_ATTEMPTS; attempt++) {
     let raw: string;
