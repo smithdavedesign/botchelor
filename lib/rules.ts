@@ -95,3 +95,93 @@ export const CRISIS_LINKS = [
   { label: "988 Suicide & Crisis Lifeline (call or text 988, US)", href: "https://988lifeline.org" },
   { label: "Find a free helpline in your country", href: "https://findahelpline.com" },
 ] as const;
+
+/* ------------------------------------------------------------------ *
+ * Simulation vocabulary (the "Full $0 vision", PRD "Soul vs. Persona")
+ *
+ * These are the owner's per-date settings and the game's own variables. They are pure labels and
+ * enums, so client components (the date-setup form, the box score) and the deterministic engine
+ * (lib/engine.ts) share one source of truth. The engine decides outcomes from these; the model only
+ * narrates. Nothing here costs a model call, and none of it can be bought (see PRD guardrails).
+ * ------------------------------------------------------------------ */
+
+/**
+ * How closely the AI follows its owner. Guided plays it safe and follows the note; Unpredictable
+ * trades the owner's preferred outcome for authenticity (more seeded variance). This is the dial the
+ * product is really about: "does your AI date the way you told it to, or does it surprise you?"
+ */
+export const AUTONOMY_LEVELS = ["guided", "balanced", "unpredictable"] as const;
+export type Autonomy = (typeof AUTONOMY_LEVELS)[number];
+export const DEFAULT_AUTONOMY: Autonomy = "balanced";
+export const AUTONOMY_LABELS: Record<Autonomy, string> = {
+  guided: "Guided",
+  balanced: "Balanced",
+  unpredictable: "Unpredictable",
+};
+export const AUTONOMY_BLURBS: Record<Autonomy, string> = {
+  guided: "Follows my preferences and plays it safe.",
+  balanced: "Makes its own choices within my rules.",
+  unpredictable: "Surprise me — authenticity matters more than my preferred outcome.",
+};
+
+/** What the AI optimises for. Each strategy re-weights which variable decides the ending. */
+export const STRATEGIES = ["genuine_chemistry", "fun_adventure", "long_term", "unexpected"] as const;
+export type Strategy = (typeof STRATEGIES)[number];
+export const DEFAULT_STRATEGY: Strategy = "genuine_chemistry";
+export const STRATEGY_LABELS: Record<Strategy, string> = {
+  genuine_chemistry: "Genuine chemistry",
+  fun_adventure: "Fun and adventure",
+  long_term: "Long-term compatibility",
+  unexpected: "Unexpected storylines",
+};
+
+/**
+ * Simulated date credits (the game budget): the fictional spend on venue, activities and gifts. It
+ * comes from character settings, is never bought, and so may nudge the date (PRD: "nothing bought
+ * changes outcomes"). Separate from the real compute budget the backend enforces (lib/compute.ts).
+ */
+export const GAME_BUDGETS = [0, 25, 50, 100] as const;
+export type GameBudget = (typeof GAME_BUDGETS)[number];
+export const DEFAULT_GAME_BUDGET: GameBudget = 25;
+export const formatGameBudget = (credits: number): string => `$${credits} in date credits`;
+
+/** The game variables that move during a date. The box score is how these moved (PRD: chemistry +4…). */
+export const DATE_VARIABLES = ["chemistry", "attraction", "trust", "awkwardness"] as const;
+export type DateVariable = (typeof DATE_VARIABLES)[number];
+export const VARIABLE_LABELS: Record<DateVariable, string> = {
+  chemistry: "Chemistry",
+  attraction: "Attraction",
+  trust: "Trust",
+  awkwardness: "Awkwardness",
+};
+/** Awkwardness is the one variable where a rise is bad news; the box score colours deltas by this. */
+export const VARIABLE_GOOD_WHEN_HIGH: Record<DateVariable, boolean> = {
+  chemistry: true,
+  attraction: true,
+  trust: true,
+  awkwardness: false,
+};
+
+/**
+ * The bounded library of secret agendas (PRD "secret agendas" + "the AI producer"). Each date, each
+ * side is dealt one private objective. The audience knows there are agendas, not what they are, until
+ * the reveal. `seeks`/`avoids` are the whole-word cues the engine matches against the *other*
+ * character to decide whether the agenda was met — no model call, fully deterministic and testable.
+ */
+export const AGENDAS = [
+  { id: "find_adventurous", label: "Find someone adventurous", seeks: ["adventurous", "spontaneous", "brave", "bold", "wild"], avoids: [] },
+  { id: "test_sincerity", label: "Test whether the other is sincere", seeks: ["honest", "genuine", "sincere", "loyal", "earnest"], avoids: [] },
+  { id: "find_funny", label: "Find someone who can make it laugh", seeks: ["funny", "witty", "playful", "dramatic", "silly"], avoids: [] },
+  { id: "avoid_work_talk", label: "Avoid talking about work", seeks: [], avoids: ["work", "ambitious", "career", "competitive", "driven"] },
+  { id: "keep_it_light", label: "Keep things light and low-stakes", seeks: ["warm", "gentle", "easygoing", "kind"], avoids: ["intense", "serious", "jealous"] },
+  { id: "out_of_comfort_zone", label: "Try something outside its comfort zone", seeks: ["curious", "open", "spontaneous", "creative"], avoids: ["rigid", "fussy"] },
+] as const;
+export type Agenda = (typeof AGENDAS)[number];
+export type AgendaId = Agenda["id"];
+export const AGENDA_IDS = AGENDAS.map((a) => a.id) as [AgendaId, ...AgendaId[]];
+export const agenda = (id: AgendaId): Agenda => AGENDAS.find((a) => a.id === id)!;
+export const agendaLabel = (id: AgendaId): string => agenda(id).label;
+
+/** Points for the extra $0 prediction types (PRD "Further ideas"). Side bets, like the drama pick. */
+export const POINTS_PER_DEALBREAKER_PICK = 5;
+export const POINTS_PER_MATCHMAKER = 10;

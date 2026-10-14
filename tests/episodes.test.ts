@@ -9,6 +9,7 @@ import {
   HOUSE_PARTNER_ID,
   newUserCookie,
   scriptedModel,
+  scriptOutcome,
   startTestDb,
   validCharacter,
   validEpisodeDraft,
@@ -36,7 +37,8 @@ const episodes = () => t.count("episodes");
 
 describe("POST /api/episodes: happy path (exit criterion)", () => {
   it("returns 200 with a setting, two goals, a twist and an ending from the enum, from one model call", async () => {
-    const { calls } = scriptedModel([episodeJson({ ending: "second_date" })]);
+    scriptOutcome({ ending: "second_date" });
+    const { calls } = scriptedModel([episodeJson()]);
     const res = await createEpisode();
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -57,7 +59,8 @@ describe("POST /api/episodes: happy path (exit criterion)", () => {
   });
 
   it.each(ENDINGS)("accepts the %s ending", async (ending) => {
-    scriptedModel([episodeJson({ ending })]);
+    scriptOutcome({ ending });
+    scriptedModel([episodeJson()]);
     const res = await createEpisode();
     expect(res.status).toBe(200);
     expect((await res.json()).ending).toBe(ending);
@@ -75,11 +78,14 @@ describe("POST /api/episodes: happy path (exit criterion)", () => {
     expect(body).not.toHaveProperty("creator_id");
   });
 
-  it("keeps the whole response body at or under 450 words for a 400-word episode", async () => {
+  it("keeps the shown episode at or under 450 words for a 400-word episode", async () => {
     scriptedModel([JSON.stringify(episodeWithWordCount(400))]);
     const res = await createEpisode();
     expect(res.status).toBe(200);
-    expect(countStringWords(await res.json())).toBeLessThanOrEqual(450);
+    const b = await res.json();
+    // The 400-word cap is on the shown episode; best_line and confessionals are separate, length-capped extras.
+    const shown = { setting: b.setting, goals: b.goals, scenes: b.scenes, twist: b.twist, finale: b.finale };
+    expect(countStringWords(shown)).toBeLessThanOrEqual(450);
   });
 
   it("accepts a JSON answer wrapped in a markdown code fence", async () => {
@@ -87,7 +93,8 @@ describe("POST /api/episodes: happy path (exit criterion)", () => {
     expect((await createEpisode()).status).toBe(200);
   });
 
-  it("sends both character sheets to the model as data, with the word limit", async () => {
+  it("sends both character sheets to the model as data, with the word limit and the decided outcome", async () => {
+    scriptOutcome({ ending: "second_date" });
     const { calls } = scriptedModel([episodeJson()]);
     await createEpisode();
     const prompt = calls[0].map((m) => m.content).join("\n");
@@ -96,7 +103,8 @@ describe("POST /api/episodes: happy path (exit criterion)", () => {
     expect(prompt).toContain(HOUSE_CHARACTERS[0].name);
     expect(prompt).toContain(HOUSE_CHARACTERS[0].bio);
     expect(prompt).toMatch(/350 words/);
-    expect(prompt).toMatch(/second_date/);
+    // The outcome is decided by the engine and handed to the model, not chosen by it.
+    expect(prompt).toContain("Decided ending: A second date");
   });
 });
 
@@ -120,7 +128,8 @@ describe("POST /api/episodes: fails closed (exit criterion)", () => {
 
   it.each([
     ["over the 400-word cap", JSON.stringify(episodeWithWordCount(420))],
-    ["an ending outside the enum", episodeJson({ ending: "married" })],
+    ["one confessional instead of two", episodeJson({ confessionals: ["only one"] })],
+    ["a missing best line", JSON.stringify({ ...validEpisodeDraft(), best_line: undefined })],
     ["one goal instead of two", episodeJson({ goals: ["Only one goal."] })],
     ["a missing twist", JSON.stringify({ ...validEpisodeDraft(), twist: undefined })],
     ["a JSON array", JSON.stringify([validEpisodeDraft()])],

@@ -1,5 +1,7 @@
+import type { SideOutcome, VariableArc } from "./engine";
 import type { Db } from "./db";
 import {
+  agendaLabel,
   ENDING_LABELS,
   ENDINGS,
   POINTS_PER_CORRECT_PICK,
@@ -7,9 +9,14 @@ import {
   pointsFor,
   predictionPoints,
   REPORT_HIDE_THRESHOLD,
+  type AgendaId,
+  type Autonomy,
+  type DateVariable,
   type DramaAnswer,
   type DramaQuestion,
   type Ending,
+  type GameBudget,
+  type Strategy,
 } from "./rules";
 
 // The rules moved to lib/rules.ts (client-safe); M1 code and tests import them from here.
@@ -20,6 +27,18 @@ const ANONYMOUS_CREATOR = "Anonymous creator";
 
 export type CharacterRef = { id: string; name: string; house: boolean };
 export type CreatorRef = { character_id: string; name: string };
+
+/** The per-date settings the owner chose (PRD budget & autonomy). Stored as episodes.setup (jsonb). */
+export type DateSetup = {
+  autonomy: Autonomy;
+  strategy: Strategy;
+  agenda_a: AgendaId;
+  agenda_b: AgendaId;
+  game_budget_a: GameBudget;
+  game_budget_b: GameBudget;
+};
+
+export type BoxScore = Record<DateVariable, VariableArc>;
 
 export type StoredEpisode = {
   id: string;
@@ -33,6 +52,11 @@ export type StoredEpisode = {
   drama_question: DramaQuestion | null;
   drama_answer: DramaAnswer | null;
   revealed: boolean;
+  best_line: string | null;
+  box_score: BoxScore | null;
+  confessionals: [string, string] | null;
+  sides: [SideOutcome, SideOutcome] | null;
+  setup: DateSetup | null;
 };
 
 export type EpisodeJson = {
@@ -51,8 +75,27 @@ export type EpisodeJson = {
   finale?: string;
   ending?: Ending;
   drama_answer?: DramaAnswer | null;
+  best_line?: string;
+  box_score?: BoxScore;
+  /** The secret agendas, revealed only once the finale airs (or always to the creators). */
+  agendas?: { character_id: string; agenda: string }[];
+  /** Approved confessionals: to the creators always, to spectators only after the finale airs. */
+  confessionals?: { character_id: string; line: string }[];
   // Only present once every creator of the episode has consented (POST /api/reveal).
   creators?: CreatorRef[];
+};
+
+/** The owner's private debrief of their own AI's date (PRD core feature 1). Owner-only, one-way. */
+export type Debrief = {
+  wants_another: boolean;
+  agenda_met: boolean;
+  satisfied: boolean;
+  /** What made it uncomfortable: the other character's cue that tripped the dealbreaker, or null. */
+  uncomfortable: string | null;
+  /** What it liked: the other character's cue that met the want, or null. */
+  liked: string | null;
+  note_followed: boolean | null;
+  agenda: string;
 };
 
 export type EpisodeView = EpisodeJson & {
@@ -67,13 +110,17 @@ export type EpisodeView = EpisodeJson & {
   my_pick: Ending | null;
   my_drama_pick: DramaAnswer | null;
   my_points: number | null;
+  /** The owner's private debrief of their own AI (the side they own). Owner-only. */
+  debrief?: Debrief;
   /** Creators only: where the mutual identity reveal stands. */
   identity?: { consented: boolean; consents: number; needed: number };
 };
 
-export function toEpisodeJson(ep: StoredEpisode, full: boolean, creators?: CreatorRef[]): EpisodeJson {
+type EpisodeJsonOpts = { full: boolean; showConfessionals: boolean; creators?: CreatorRef[] };
+
+export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): EpisodeJson {
   const [a, b] = ep.characters;
-  const teaser: EpisodeJson = {
+  const json: EpisodeJson = {
     id: ep.id,
     share_path: `/episodes/${ep.id}`,
     ai_generated: true,
@@ -86,17 +133,29 @@ export function toEpisodeJson(ep: StoredEpisode, full: boolean, creators?: Creat
     drama_question: ep.drama_question,
     revealed: ep.revealed,
   };
-  const json: EpisodeJson = full
-    ? {
-        ...teaser,
-        scenes: ep.scenes,
-        twist: ep.twist,
-        finale: ep.finale,
-        ending: ep.ending,
-        drama_answer: ep.drama_answer,
-      }
-    : teaser;
-  return creators ? { ...json, creators } : json;
+  if (opts.full) {
+    json.scenes = ep.scenes;
+    json.twist = ep.twist;
+    json.finale = ep.finale;
+    json.ending = ep.ending;
+    json.drama_answer = ep.drama_answer;
+    if (ep.best_line) json.best_line = ep.best_line;
+    if (ep.box_score) json.box_score = ep.box_score;
+    if (ep.setup) {
+      json.agendas = [
+        { character_id: a.id, agenda: agendaLabel(ep.setup.agenda_a) },
+        { character_id: b.id, agenda: agendaLabel(ep.setup.agenda_b) },
+      ];
+    }
+  }
+  if (opts.showConfessionals && ep.confessionals) {
+    json.confessionals = [
+      { character_id: a.id, line: ep.confessionals[0] },
+      { character_id: b.id, line: ep.confessionals[1] },
+    ];
+  }
+  if (opts.creators) json.creators = opts.creators;
+  return json;
 }
 
 type EpisodeRow = {
@@ -110,6 +169,12 @@ type EpisodeRow = {
   drama_question: DramaQuestion | null;
   drama_answer: DramaAnswer | null;
   revealed: boolean;
+  best_line: string | null;
+  box_score: BoxScore | null;
+  confessionals: [string, string] | null;
+  confessionals_shared: boolean;
+  sides: [SideOutcome, SideOutcome] | null;
+  setup: DateSetup | null;
   a_id: string;
   a_name: string;
   a_house: boolean;
@@ -118,6 +183,7 @@ type EpisodeRow = {
   b_house: boolean;
   is_creator: boolean;
   is_host: boolean;
+  my_side: 0 | 1 | null;
   hidden: boolean;
   consents: number;
   needed: number;
@@ -133,15 +199,17 @@ type EpisodeRow = {
  * Everything one viewer may know about episodes, in one statement. $1 is the viewer (or null) and
  * $2 the report threshold. User ids never leave SQL: creator roles come back as booleans, and the
  * creators' display names are only joined once every creator has consented, so no later code can
- * leak them early.
+ * leak them early. The private soul and the note are never selected here.
  */
 const EPISODE_SELECT = `
 select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_question, e.drama_answer,
        e.revealed_at is not null as revealed,
+       e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup,
        a.id as a_id, a.name as a_name, a.is_house as a_house,
        b.id as b_id, b.name as b_name, b.is_house as b_house,
        coalesce($1::text in (a.owner_id, b.owner_id), false) as is_creator,
        coalesce(e.creator_id = $1::text, false) as is_host,
+       case when a.owner_id = $1::text then 0 when b.owner_id = $1::text then 1 else null end as my_side,
        rep.n >= $2::int as hidden,
        cons.n as consents, need.n as needed,
        pa.name as a_creator_name, pb.name as b_creator_name,
@@ -161,6 +229,18 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
   left join profiles pb on pb.user_id = b.owner_id and need.n > 0 and cons.n >= need.n
   left join predictions p on p.episode_id = e.id and p.user_id = $1::text`;
 
+function debriefFrom(side: SideOutcome, setup: DateSetup | null, mySide: 0 | 1): Debrief {
+  return {
+    wants_another: side.wants_another,
+    agenda_met: side.agenda_met,
+    satisfied: side.satisfied,
+    uncomfortable: side.dealbreaker_hit,
+    liked: side.want_met,
+    note_followed: side.note_followed,
+    agenda: setup ? agendaLabel(mySide === 0 ? setup.agenda_a : setup.agenda_b) : "",
+  };
+}
+
 function toView(row: EpisodeRow): EpisodeView {
   const characters: [CharacterRef, CharacterRef] = [
     { id: row.a_id, name: row.a_name, house: row.a_house },
@@ -176,6 +256,7 @@ function toView(row: EpisodeRow): EpisodeView {
         .map((c) => ({ character_id: c.character_id, name: c.name ?? ANONYMOUS_CREATOR }))
     : undefined;
 
+  const full = row.revealed || row.is_creator;
   const episode = toEpisodeJson(
     {
       id: row.id,
@@ -189,9 +270,13 @@ function toView(row: EpisodeRow): EpisodeView {
       drama_question: row.drama_question,
       drama_answer: row.drama_answer,
       revealed: row.revealed,
+      best_line: row.best_line,
+      box_score: row.box_score,
+      confessionals: row.confessionals,
+      sides: row.sides,
+      setup: row.setup,
     },
-    row.revealed || row.is_creator,
-    creators,
+    { full, showConfessionals: row.is_creator || (row.revealed && row.confessionals_shared), creators },
   );
   const view: EpisodeView = {
     ...episode,
@@ -207,6 +292,8 @@ function toView(row: EpisodeRow): EpisodeView {
         : null,
   };
   if (row.is_creator) view.identity = { consented: row.my_consent, consents: row.consents, needed: row.needed };
+  // The private debrief: the owner's own side only, visible to that owner.
+  if (row.my_side !== null && row.sides) view.debrief = debriefFrom(row.sides[row.my_side], row.setup, row.my_side);
   return view;
 }
 

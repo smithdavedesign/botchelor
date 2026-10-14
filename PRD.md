@@ -217,3 +217,9 @@ Three levels of rendering:
 - **Level 3, live-feeling AI dates (later):** streamed dialogue, speech synthesis and avatar animation, with full video generation used selectively for cinematic moments instead of rendering every second in real time.
 
 This gives the visual payoff of video while keeping latency and GPU costs under control.
+
+## Cost and stack caveats
+_Added 2026-10-13. These apply to the Product vision and Target architecture sections above, not to the MVP. Two things keep those sections out of the MVP until the cost target is revised and the spend is approved._
+
+- **Cost.** The success metrics set a target of $0 per episode on free models. A hosted LLM, and GPUs running ComfyUI or Wan 2.2, cost money. Any such spend counts against the $300 budget for this product, and the owner would need to approve it first. The build proceeds on free models until then; anything paid is proposed for approval, not switched on.
+- **Stack.** ROADMAP.md still describes free models through LiteLLM, Vercel Hobby, and no job queue or object storage. The Target architecture above adds Redis/BullMQ, S3 and a CDN — new paid infrastructure the MVP does not run. The simulation and media layers are kept separate (see the architecture diagram) precisely so this infrastructure can be added later without rebuilding the game.
