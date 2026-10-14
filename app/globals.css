@@ -389,6 +389,13 @@ button.chosen {
   outline-offset: 2px;
 }
 
+/* A reviewed house-cast portrait (lib/portraits.ts) rendered in place of the gradient tile. */
+.avatar-portrait {
+  object-fit: cover;
+  display: block;
+  background: var(--soft);
+}
+
 .char {
   display: flex;
   align-items: center;

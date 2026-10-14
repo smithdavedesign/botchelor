@@ -74,8 +74,8 @@ Seasons (M4): the first visit after Monday 00:00 UTC closed last week's season, 
 ![The league's season and podium on a phone](docs/screenshots/league-season-mobile.png)
 The same season header and podium on a phone.
 
-![The cast gallery with avatars, house badges and trait chips, desktop](docs/screenshots/cast-desktop.png)
-The cast gallery: a browsable, avatar-rich library of the living cast, with a matchmaker and the relationship graph below.
+![The cast gallery with reviewed portraits, house badges and trait chips, desktop](docs/screenshots/cast-desktop.png)
+The cast gallery: a browsable library of the living cast, each house character shown with its **reviewed portrait** (a visitor's own OC keeps a gradient avatar — no per-visitor image to host or moderate), with a matchmaker and the relationship graph below.
 
 ![A shareable contestant card for a character, desktop](docs/screenshots/contestant-desktop.png)
 Every character has a **shareable contestant card** (public persona only, with its own link-preview image) — a $0 growth loop.

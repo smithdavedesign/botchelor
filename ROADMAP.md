@@ -281,7 +281,7 @@ the builder's date settings, shown as a billing badge on the episode and the fee
 
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
-The competitor report's image plan, built at $0 — first-party assets only, no hosted imagery:
+The competitor report's image plan, built at $0 — first-party assets only, reviewed and committed (no runtime generation, no uploads):
 
 - **A house cast of 17** (`lib/house.ts`): fifteen free characters plus the two premium ones, each with
   a distinct archetype (the sarcastic romantic, the confident flirt, the awkward intellectual, the
@@ -294,11 +294,17 @@ The competitor report's image plan, built at $0 — first-party assets only, no 
   hunting for a reference image. A picked look and a read image go through the same mapping
   (`traitsFromPalette`), so they set the same colour, appearance, traits and behaviour.
 - **A reusable venue library** (`lib/venues.ts`): eight date locations, dealt by the episode's seed,
-  each with a backdrop gradient painted behind the episode's setting. The showrunner is told where to
-  set the date; it no longer invents a location per episode.
+  each with a backdrop gradient and a reviewed backdrop photo painted behind the episode's setting. The
+  showrunner is told where to set the date; it no longer invents a location per episode.
+- **The reviewed portraits now render** (`lib/portraits.ts`, PR #25 art + its wiring): the 17 house-cast
+  portraits and 8 venue backdrops in `public/cast/*.webp` show on the cast gallery, the episode matchup,
+  the feed and the watch room. `app/Avatar.tsx` swaps the gradient tile for a character's portrait when it
+  has one; a visitor's OC has none, so it keeps its gradient — so there is still no per-visitor image to
+  host or moderate, and marginal cost stays $0.
 - **An asset provenance ledger** (`character_assets`, `lib/assets.ts`): source type, generator,
-  prompt and version, seed, licence, attribution and review status. Approved-only on read, so a
-  hosted portrait cannot reach a page without a human approving it. Empty today, by design.
+  prompt and version, seed, licence, attribution and review status. It stays the approval gate for any
+  DYNAMIC or user-supplied image (nothing generated/uploaded reaches a page unapproved); the fixed,
+  reviewed house cast renders straight from `lib/portraits.ts`, so the ledger is empty today, by design.
 - **A richer seeded season** (`npm run seed`): eleven OCs across eleven creators, sixteen dates
   covering all three endings, two friend leagues, eighty predictions, dealbreaker guesses, four
   matchmaker proposals and a pair who dated twice and are an item.
