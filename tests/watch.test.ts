@@ -250,6 +250,11 @@ describe("template rooms: join and the date starts", () => {
 
   it("shows the room in the lobby with a live watching count", async () => {
     const partyId = await templateRoom("second_date");
+    // The lobby only offers always-on rooms whose date plays line by line (conversation is off in this harness).
+    await t.db.query(
+      `update episodes set transcript = $2::jsonb where id = $1`,
+      [await episodeOf(partyId), JSON.stringify([{ side: "a", act: 0, dialogue: "hi", action: "", emotion: "", interest: 0.5 }])],
+    );
     await syncRoom(t.db, partyId, userIdOf(newUserCookie()));
     const res = await api.lobby();
     const rooms = (await res.json()).rooms as { id: string; kind: string; watching: number }[];

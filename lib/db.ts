@@ -282,6 +282,9 @@ alter table episodes add column if not exists transcript jsonb not null default 
 -- AIs exchange after the date: an ordered list of { side, text }. Flavour only (never scores anything),
 -- immutable, owner-gated. '[]' when it couldn't be produced or for episodes made before M11.
 alter table episodes add column if not exists afterglow jsonb not null default '[]';
+-- How many times the daily job has tried to backfill a missing conversation for this date (lib/backfill.ts),
+-- so a date the model keeps failing on stops costing calls after a few tries.
+alter table episodes add column if not exists transcript_backfill_attempts integer not null default 0;
 
 -- M10 part 2: async generation. The engine outcome (ending, box score) is written synchronously and the
 -- episode is 'generating'; a background worker narrates + runs the conversation, then flips it to 'ready'.

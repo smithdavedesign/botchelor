@@ -12,10 +12,12 @@
  */
 import { releaseEpisode, type Reservation } from "./allowance";
 import { track, trackEpisodeCost } from "./analytics";
+import { ConversationError } from "./conversation";
 import { generationPaused } from "./compute";
 import { isConversationEnabled, simulateConversation, type Turn } from "./conversation";
 import { isAfterglowEnabled, simulateAfterglow, type AfterglowLine } from "./afterglow";
 import type { Db } from "./db";
+import { safeEqual } from "./http";
 import { getEngine, type CharacterSheet } from "./engine";
 import { DEFAULT_FORMAT } from "./formats";
 import { getFrontierModel, getModel } from "./model";
@@ -165,8 +167,9 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     if (isConversationEnabled()) {
       try {
         transcript = await simulateConversation(model, built.input, decided, built.characters, built.setup.producer, built.setup.venue, formatId, undefined, fmtCtx);
-      } catch {
+      } catch (err) {
         transcript = [];
+        track("conversation_failed", { episode_id: episodeId, where: "job", reason: failureReason(err) });
       }
     }
 
@@ -243,4 +246,22 @@ export async function runQueuedJobs(db: Db, now: Date = new Date(), limit = 5): 
     ran++;
   }
   return ran;
+}
+
+/** A short, content-free reason for a failed conversation (model error codes / which turn), for the logs. */
+export function failureReason(err: unknown): string {
+  if (err instanceof ConversationError) return err.reasons.slice(0, 4).join(", ").slice(0, 160);
+  return err instanceof Error ? err.message.slice(0, 160) : "unknown";
+}
+
+/**
+ * Gate for the internal job routes: Vercel Cron's `Authorization: Bearer $CRON_SECRET`, or the internal admin
+ * token (x-jobs-token), both constant-time. Callers answer 404 when this is false, so they aren't public.
+ */
+export function internalJobAuthorized(req: Request): boolean {
+  const cronSecret = process.env.CRON_SECRET;
+  const adminToken = process.env.WATCH_ADMIN_TOKEN;
+  const okCron = Boolean(cronSecret) && safeEqual(req.headers.get("authorization") ?? "", `Bearer ${cronSecret}`);
+  const okAdmin = Boolean(adminToken) && safeEqual(req.headers.get("x-jobs-token") ?? "", adminToken ?? "");
+  return okCron || okAdmin;
 }
