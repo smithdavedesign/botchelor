@@ -89,7 +89,7 @@ Turning on frontier models, images or video costs money and needs the owner's ap
 - [Roadmap](ROADMAP.md)
 - [Build notes](BUILD.md): plan, how to run, test and deploy, review
 - [Architecture](docs/architecture.md): how it is put together, the episode path, and the invariants
-- [Competitive analysis](docs/competitive-analysis.md): what rivals do, where we win, and the feature roadmap
+- [Competitive scorecard](docs/competitive-scorecard.md): where Botchelor leads, ties and trails the field, with a sourced feature matrix (the deep per-competitor research is in [competitor-analysis.md](competitor-analysis.md))
 - [Image strategy](docs/image-strategy.md): where the visuals come from, and the provenance gate any hosted image must pass
 - [Upgrade cost](docs/upgrade-cost.md): what frontier models and the full stack would cost
 

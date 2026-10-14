@@ -1,11 +1,11 @@
 # Roadmap: Botchelor
 
-Suggested stack:
-- **Next.js on Vercel Hobby**: one repo for pages and API routes, $0.
-- **Neon or SQLite-on-Turso free tier**: characters, episodes and predictions are small relational data.
-- **Free models via LiteLLM**: one showrunner call per episode, $0 marginal cost.
-- **Zod schema validation**: model output is untrusted, so reject anything that is not a valid episode.
-- **Payments (M3 only)**: Stripe on a host that allows commercial use. Agents hold no card; David approves and pays.
+Stack (as built, $0 on free models):
+- **Next.js (App Router) on Vercel**: one repo for pages and API routes. Live at botchelor.vercel.app.
+- **Postgres via `pg` in production, PGlite in dev/tests**: characters, episodes, predictions and watch rooms are small relational data.
+- **Free models through an OpenAI-compatible endpoint**: M9 made a date a turn-by-turn two-agent conversation (~8 calls), with the engine still deciding the outcome. A **gated frontier model** (`episodeModel`, owner-approved) is the paid-quality option, off by default.
+- **Zod schema validation**: all model output and request bodies are untrusted and rejected unless valid.
+- **Payments**: Stripe Payment Links + a signature-verified webhook (M3). Agents hold no card; David approves and pays.
 
 ## M1: One character, one date, one prediction (weekend)
 Deliverables:
@@ -77,7 +77,7 @@ Exit criteria (tested):
 Deferred (needs spend approval; see docs/upgrade-cost.md): frontier text model, portraits, video, and the Redis/BullMQ + S3/CDN stack.
 
 ## M6: next-level (competitive polish, built)
-From a competitor review (docs/competitive-analysis.md): close the visual/customization gap vs. Character.AI, Talkie and the Love Island app, at $0.
+From a competitor review (docs/competitive-scorecard.md): close the visual/customization gap vs. Character.AI, Talkie and the Love Island app, at $0.
 
 Deliverables (built):
 - **Avatars** everywhere: deterministic SVG avatars (gradient + initials) on the episode matchup, the feed, the cast gallery, the builder preview and the shared box-score card. No image hosting, no real-person risk.
@@ -91,7 +91,7 @@ Deliverables (built):
 Next, still $0:
 - Follows and a community gallery with category boards (most-shipped, best conversationalist, funniest failure); relationship progression labels on the graph; per-beat moment cards.
 
-Deferred (spend + a moderation provider; see docs/competitive-analysis.md and docs/upgrade-cost.md):
+Deferred (spend + a moderation provider; see docs/competitive-scorecard.md and docs/upgrade-cost.md):
 - **Uploading and storing an image / "training" the look.** Blocked on object storage, a vision model, and automated image moderation (CSAM scanning + a real-person classifier), because the product bans real people and a solo owner can't moderate raw uploads. The in-browser image tinting above is the safe $0 stand-in shipped now.
 
 ## M7: competitor-driven UX (from competitor-analysis.md)
@@ -223,3 +223,21 @@ The competitor report's image plan, built at $0 — first-party assets only, no 
 
 Still deferred (needs spend and a moderation provider; `docs/upgrade-cost.md`): generated portraits,
 expressions and backgrounds, and creator image uploads.
+
+## Backlog (from the PRDs, not yet scheduled)
+
+Surfaced by the 2026-10-14 audit (`docs/audit.md`): features both PRDs describe that the roadmap wasn't
+tracking. All are $0 and reuse the existing engine.
+
+- **Post-date AI-to-AI chat** (`PRD.md` core feature #2 / Phase 2): after the date, the two AIs keep
+  talking privately, with consent-gated recaps for each owner — "whether the chemistry was mutual". M9's
+  conversation engine (`lib/conversation.ts`) is the technical basis; this is a distinct, owner-controlled
+  feature with its own privacy rules.
+- **Show formats** (`PRD.md` "More mechanics"): speed dating, meet-the-parents (house characters play the
+  parents), the ex returns (pulled from the relationship graph). The same engine with different rules;
+  sellable later as cosmetic format packs that never touch outcomes or odds.
+- **The reunion special**: a season-finale episode assembled from approved confessionals and the biggest
+  moments in the relationship graph.
+- **Chaos button / interactive theatre (Model B)**: audience votes a real curveball the engine responds
+  to (not just the flavour-only audience question shipped in M8), advertised on the episode, once Model A's
+  retention is proven.
