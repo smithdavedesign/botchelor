@@ -331,6 +331,13 @@ Grounded in how Twitch/live-watch UIs work (an app-fullscreen stage with overlay
   aired** — a beat between acts, not a uniform ticker.
 - Built as a **theater mode the watch room opens into** (today's layout stays as the fallback). No new model
   cost — a re-layout of existing data + the existing $0 live machinery.
+- **Follow-up (David, 2026-10-14): "replays don't play like a live date; it's hard to follow the chat."**
+  Shipped: the conversation now **drips in line by line** on the shared clock (`turnSchedule` in
+  `lib/watch.ts` spreads each act's lines across that act's window; the final act still only appears with the
+  decision) with a typing bubble for the next speaker; a room opened **after it finished replays from the
+  top**, paced like it aired (`app/useReplay.ts`, shared with the episode replay); and the date reads as a
+  **messaging thread** everywhere (`app/ChatThread.tsx`): beside the scene on desktop, the main view on a
+  phone, and on the episode page and the classic room.
 
 ## M14: the Character model + per-bot memory (the self-training cast)
 

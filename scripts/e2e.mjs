@@ -122,7 +122,8 @@ async function main() {
       await page.getByRole("heading", { level: 1 }).waitFor();
       assert((await page.locator(".matchup .avatar").count()) === 2, "expected two matchup avatars");
       assert((await page.getByText("The date, line by line").count()) > 0, "turn-by-turn transcript heading missing");
-      assert((await page.locator(".transcript .turn").count()) >= 4, "the two agents' turn-by-turn transcript is missing");
+      assert((await page.locator(".transcript .chat-bubble").count()) >= 4, "the two agents' turn-by-turn chat thread is missing");
+      assert((await page.locator(".transcript .chat-row-a").count()) > 0 && (await page.locator(".transcript .chat-row-b").count()) > 0, "the chat thread should put one character on each side");
       assert((await page.locator(".boxscore").count()) > 0, "box score missing for the creator");
       assert((await page.locator(".debrief").count()) > 0, "private debrief missing for the creator");
       assert((await page.getByText("Secret agendas & the producer").count()) > 0, "agendas/producer section missing");
@@ -143,6 +144,12 @@ async function main() {
       await page.getByRole("button", { name: "Watch in theater" }).click();
       await page.locator(".theater .scene").waitFor({ timeout: 10_000 });
       assert((await page.locator(".theater-hud").count()) > 0, "the theater HUD is missing");
+      // The replay plays line by line into the conversation thread (not all at once).
+      await page.locator(".theater-convo .chat-bubble").first().waitFor({ timeout: 10_000 });
+      const early = await page.locator(".theater-convo .chat-bubble:not(.chat-typing)").count();
+      await page.getByRole("button", { name: "Skip to the end" }).click();
+      const all = await page.locator(".theater-convo .chat-bubble:not(.chat-typing)").count();
+      assert(all > early, `the replay should reveal lines over time (had ${early}, skip showed ${all})`);
       await page.getByRole("button", { name: "Exit" }).click();
       await page.locator(".theater").waitFor({ state: "detached", timeout: 10_000 });
     });
@@ -209,7 +216,12 @@ async function main() {
       await page.getByRole("button", { name: /Theater mode/ }).click();
       await page.locator(".theater .scene").waitFor({ timeout: 10_000 });
       assert((await page.locator(".theater-hud").count()) > 0, "the theater HUD is missing");
-      assert((await page.locator(".theater-panel").count()) > 0, "the docked chat panel is missing in theater");
+      assert((await page.locator(".theater-convo .chat-thread").count()) > 0, "the conversation thread is missing in theater");
+      // The live chat docks behind its own icon (open by default on a wide screen, one tap away otherwise).
+      const chatIcon = page.getByRole("button", { name: "Live chat" });
+      await page.waitForTimeout(300); // let the wide-screen default settle before reading the toggle
+      if ((await chatIcon.getAttribute("aria-pressed")) !== "true") await chatIcon.click();
+      await page.locator(".theater-panel .watch-chat-head h2").filter({ hasText: "Live chat" }).waitFor({ timeout: 10_000 });
       // The voting & questions panel opens from its own icon (keeping the scene itself clean).
       await page.getByRole("button", { name: "Voting and questions" }).click();
       await page.getByRole("heading", { name: "Voting & questions" }).waitFor({ timeout: 10_000 });

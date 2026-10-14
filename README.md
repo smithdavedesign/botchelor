@@ -32,6 +32,14 @@ On a phone it becomes a **chat window** — a mood banner of the venue up top, t
 ![The live watch room in theater mode: a clean scene with chat and reactions docked, desktop](docs/screenshots/watch-theater-desktop.png)
 The **live** room in theater mode keeps the scene clean — the noise lives in side panels behind two small icons (Twitch-style): **💬 chat** (with the reactions) and **🗳️ voting & questions** (predictions, the chemistry/question/**chaos** polls). Open one, both, or neither. The decision still lands on the scene, because that's the payoff, not chrome.
 
+![A live room mid-date: the conversation as a messaging thread beside the scene, with a typing bubble for the next line, desktop](docs/screenshots/watch-live-thread-desktop.png)
+**Follow the date like a chat:** the whole conversation runs beside the scene as a messaging thread: one character on the left, the other on the right, act dividers, the producer's curveball as a note. Live, the lines **drip in one at a time on the shared clock** with a typing bubble for whoever speaks next, instead of a whole act landing at once. On a phone the thread is the main view under a venue banner.
+
+![The thread on a phone, mid-date](docs/screenshots/watch-live-thread-mobile.png)
+
+![A finished room replaying the date, ending on the decision, desktop](docs/screenshots/watch-replay-desktop.png)
+**Replays play like they aired:** open a room after it has finished and the date plays back from the top, line by line, paced by act, with play / pause / restart / skip. It ends on the decision.
+
 ![The character builder with the private-soul section open, desktop](docs/screenshots/builder-desktop.png)
 The builder: the public character sheet, plus an optional **private soul** (values, humour, communication style) that shapes how the AI behaves on the date without ever being shown to the audience.
 

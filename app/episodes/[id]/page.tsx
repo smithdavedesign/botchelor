@@ -16,6 +16,7 @@ import { venueBackdrop } from "@/lib/portraits";
 import Avatar from "@/app/Avatar";
 import Afterglow from "./Afterglow";
 import EpisodeTheater from "./EpisodeTheater";
+import ChatThread from "@/app/ChatThread";
 import BoxScore from "./BoxScore";
 import ConfessionalShare from "./ConfessionalShare";
 import CreatorReveal from "./CreatorReveal";
@@ -182,26 +183,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
               <span className="muted"> Watch it play out as a scene.</span>
             </p>
           )}
-          {episode.transcript.map((t, i) => {
-            const prev = episode.transcript![i - 1];
-            const showAct = !prev || prev.act !== t.act;
-            const who = t.side === "a" ? a : b;
-            const meta = [t.action, t.emotion].filter(Boolean).join(" · ");
-            return (
-              <div key={i}>
-                {showAct && <h3 className="act">{DATE_ACTS[t.act] ?? `Act ${t.act + 1}`}</h3>}
-                <div className={`turn turn-${t.side}`}>
-                  <Avatar seed={who.id} name={who.name} hue={who.hue} house={who.house} size={30} />
-                  <div className="turn-body">
-                    <p className="turn-line">
-                      <strong>{who.name}</strong> {t.dialogue}
-                    </p>
-                    {meta && <p className="turn-meta">{meta}</p>}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          <ChatThread characters={episode.characters} turns={episode.transcript} />
         </section>
       )}
 

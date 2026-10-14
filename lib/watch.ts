@@ -62,17 +62,36 @@ const WRAP_INDEX = WATCH_PHASE_INDEX.wrap;
 const LAST_AT = WATCH_PHASES[WATCH_PHASES.length - 1].at;
 
 /**
- * M9 part 2: the phase index at which each act's conversation turns become visible, the inverse of
- * WATCH_SCENE_AT_PHASE. Act 0 → act1 phase, act 1 → act2 phase, act 2 → the decision — so the final-act
- * turns (steered to the ending) only ever appear with the ending, never as a spoiler.
+ * The window on the clock (seconds) in which each act's conversation plays out: act 0 during first
+ * impressions, act 1 during the challenge, act 2 from the decision to the aftermath. The final-act turns
+ * (steered to the ending) therefore only ever appear with the ending, never as a spoiler.
  */
-const ACT_UNLOCK_PHASE_INDEX: number[] = (() => {
-  const out: number[] = [];
-  for (const [phaseId, sceneIndex] of Object.entries(WATCH_SCENE_AT_PHASE) as [WatchPhaseId, number][]) {
-    out[sceneIndex] = WATCH_PHASE_INDEX[phaseId];
+const AT = (id: WatchPhaseId) => WATCH_PHASES[WATCH_PHASE_INDEX[id]].at;
+const ACT_WINDOWS: [number, number][] = [
+  [AT("act1"), AT("act2")],
+  [AT("act2"), AT("twist")],
+  [AT("decision"), AT("wrap")],
+];
+
+/**
+ * When each turn goes live, in seconds from the start. Within its act the lines are spread evenly across the
+ * act's window (the first lands as the act opens), so the room watches the date unfold line by line — the
+ * way a live date reads — rather than a whole act appearing at once. A pure function of the transcript, so
+ * every viewer sees the same line at the same moment with no realtime server.
+ */
+export function turnSchedule(transcript: Turn[]): number[] {
+  const perAct = new Map<number, number[]>();
+  transcript.forEach((t, i) => perAct.set(t.act, [...(perAct.get(t.act) ?? []), i]));
+  const at: number[] = new Array(transcript.length).fill(Infinity);
+  for (const [act, indices] of perAct) {
+    const window = ACT_WINDOWS[act];
+    if (!window) continue; // an act the room has no window for never airs
+    const [start, end] = window;
+    const step = (end - start) / indices.length;
+    indices.forEach((turnIndex, k) => (at[turnIndex] = Math.floor(start + k * step)));
   }
-  return out;
-})();
+  return at;
+}
 
 /* ----------------------------------------- the clock ----------------------------------------- */
 
@@ -162,6 +181,11 @@ export type RoomState = {
   acts: { act: string; scene: string }[];
   /** M9: the turn-by-turn conversation turns unlocked so far (empty for pre-M9 / template-less dates). */
   turns: Turn[];
+  /**
+   * Who speaks next while an act is still playing out, for a "typing…" bubble; null between acts and once
+   * the date is over. Only the side (the turns strictly alternate), never the line, so it spoils nothing.
+   */
+  next_speaker: "a" | "b" | null;
   show_twist: boolean;
   twist: string | null;
   /** The ending, finale and best line are shown at the decision (and the episode is aired then). */
@@ -374,7 +398,15 @@ export async function getRoomState(
   }
   // M9: the turn-by-turn conversation, unlocked on the same clock as the scenes (act 2 only at the decision).
   const transcript = (row.transcript ?? []) as Turn[];
-  const turns = transcript.filter((t) => t.act < ACT_UNLOCK_PHASE_INDEX.length && idx >= ACT_UNLOCK_PHASE_INDEX[t.act]);
+  const schedule = turnSchedule(transcript);
+  const turns = transcript.filter((_, i) => clock.started && clock.elapsed >= schedule[i]);
+  // The next line is "being typed" only while its act's window is open (so a pause between acts stays quiet).
+  const nextIndex = turns.length < transcript.length ? turns.length : -1;
+  const nextWindow = nextIndex >= 0 ? ACT_WINDOWS[transcript[nextIndex].act] : undefined;
+  const next_speaker =
+    clock.started && !clock.ended && nextWindow && clock.elapsed >= nextWindow[0] && clock.elapsed < nextWindow[1]
+      ? transcript[nextIndex].side
+      : null;
 
   const venue = row.setup?.venue ?? null;
   const challenge =
@@ -406,6 +438,7 @@ export async function getRoomState(
     challenge,
     acts,
     turns,
+    next_speaker,
     show_twist: showTwist,
     twist: showTwist ? row.twist : null,
     show_ending: showEnding,

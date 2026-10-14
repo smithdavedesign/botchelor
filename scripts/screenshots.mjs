@@ -552,7 +552,7 @@ async function capture(base, leagueId, viewer) {
       await home.locator(".act").first().scrollIntoViewIfNeeded();
       await shot(home, "episode-acts");
       // M9: the turn-by-turn two-agent conversation — the date played out line by line.
-      await home.locator(".transcript .turn").first().waitFor();
+      await home.locator(".transcript .chat-bubble").first().waitFor();
       await home.locator(".transcript").scrollIntoViewIfNeeded();
       await shot(home, "episode-transcript", { full: true });
       // The box score, debrief and agendas are lower on the (creator's) page: scroll to them.

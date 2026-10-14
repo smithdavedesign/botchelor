@@ -14,9 +14,10 @@ import {
   reportMessage,
   syncRoom,
   toggleReaction,
+  turnSchedule,
   watchClock,
 } from "@/lib/watch";
-import { setConversationEnabledForTests } from "@/lib/conversation";
+import { setConversationEnabledForTests, type Turn } from "@/lib/conversation";
 import {
   api,
   episodeJson,
@@ -81,20 +82,41 @@ describe("M9: the turn-by-turn conversation in the room", () => {
     { side: "b", act: 2, dialogue: "B act2 ENDING", action: "", emotion: "", interest: 0.5 },
   ];
 
-  it("unlocks turns on the same clock as the scenes, and never shows the final act before the decision", async () => {
+  it("plays the date line by line on the shared clock, and never shows the final act before the decision", async () => {
     const { partyId, episode } = await premiereAtT0("second_date");
     await t.db.query(`update episodes set transcript = $2::jsonb where id = $1`, [episode.id, JSON.stringify(TRANSCRIPT)]);
+    const room = async (seconds: number) => (await getRoomState(t.db, partyId, null, at(seconds)))!;
+    const half = (from: string, to: string) => phaseAt(from) + Math.ceil((phaseAt(to) - phaseAt(from)) / 2);
 
-    expect((await getRoomState(t.db, partyId, null, at(phaseAt("preshow"))))!.turns).toHaveLength(0);
-    expect((await getRoomState(t.db, partyId, null, at(phaseAt("act1"))))!.turns).toHaveLength(2);
+    expect((await room(phaseAt("preshow"))).turns).toHaveLength(0);
+    // An act's lines drip across its window instead of landing all at once: the first as the act opens…
+    const opening = await room(phaseAt("act1"));
+    expect(opening.turns.map((x) => x.dialogue)).toEqual(["A act0"]);
+    expect(opening.next_speaker).toBe("b"); // …while the other side is "typing"
+    // …the second half-way through the act.
+    expect((await room(half("act1", "act2"))).turns).toHaveLength(2);
 
-    const act2 = (await getRoomState(t.db, partyId, null, at(phaseAt("act2"))))!;
-    expect(act2.turns).toHaveLength(4);
-    expect(act2.turns.some((x) => x.dialogue.includes("ENDING"))).toBe(false); // final-act turns are the ending: hidden
+    const act2 = await room(phaseAt("act2"));
+    expect(act2.turns).toHaveLength(3);
+    const late = await room(phaseAt("twist"));
+    expect(late.turns).toHaveLength(4);
+    expect(late.turns.some((x) => x.dialogue.includes("ENDING"))).toBe(false); // final-act turns are the ending: hidden
+    expect(late.next_speaker).toBeNull(); // a pause between acts stays quiet
 
-    const decision = (await getRoomState(t.db, partyId, null, at(phaseAt("decision"))))!;
-    expect(decision.turns).toHaveLength(6);
-    expect(decision.turns.filter((x) => x.act === 2)).toHaveLength(2);
+    const decision = await room(phaseAt("decision"));
+    expect(decision.turns.filter((x) => x.act === 2)).toHaveLength(1);
+    const after = await room(phaseAt("wrap"));
+    expect(after.turns).toHaveLength(6);
+    expect(after.next_speaker).toBeNull();
+  });
+
+  it("schedules every turn inside its own act's window, in order", () => {
+    const schedule = turnSchedule(TRANSCRIPT as Turn[]);
+    expect(schedule).toEqual([...schedule].sort((x, y) => x - y)); // monotonic, so unlocked turns are a prefix
+    expect(schedule[0]).toBe(phaseAt("act1"));
+    expect(schedule[2]).toBe(phaseAt("act2"));
+    expect(schedule[4]).toBe(phaseAt("decision"));
+    expect(schedule[5]).toBeLessThan(phaseAt("wrap"));
   });
 
   it("stores a transcript on a template room when the conversation is on", async () => {

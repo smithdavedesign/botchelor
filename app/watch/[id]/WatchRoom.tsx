@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Avatar from "@/app/Avatar";
-import Scene, { SceneThread } from "@/app/Scene";
+import Scene from "@/app/Scene";
+import ChatThread from "@/app/ChatThread";
+import { useReplay } from "@/app/useReplay";
 import { requestJson } from "@/app/request";
 import { DATE_ACTS, DATE_VARIABLES, ENDING_LABELS, ENDINGS, VARIABLE_LABELS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
@@ -97,7 +99,7 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
           </span>
           <span className="chip">{state.clock.started ? state.clock.phase_label : "Starting…"}</span>
           <button type="button" className="primary small" onClick={() => setTheater(true)}>
-            🎬 Theater mode
+            {state.clock.ended ? "▶ Watch the replay" : "🎬 Theater mode"}
           </button>
         </div>
       </header>
@@ -130,46 +132,103 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
 
 /**
  * Theater mode (M13): the full-screen "window into the date". The two characters live in the venue scene
- * (desktop) or a chat window (phone), the turns play out as persistent bubbles on the live clock, and every
- * existing feature — reactions, the polls, the chaos button, predictions, the decision — rides along as an
- * overlay rail. Chat docks to the side behind a small icon.
+ * with persistent speech bubbles, and the whole conversation runs beside it as a messaging thread (on a phone
+ * the thread is the main view, under a venue banner). Live, the lines drip in on the shared clock with a
+ * typing bubble for whoever speaks next; a room opened after it finished replays the date from the top,
+ * paced like it aired. Everything interactive lives in one docked side panel behind a small icon.
  */
 function Theater({ state, sync, onExit }: { state: RoomState; sync: () => void; onExit: () => void }) {
   const [a, b] = state.characters;
   // One docked side panel at a time, opened from a HUD icon, so the scene itself stays free of chrome.
-  const [panel, setPanel] = useState<"chat" | "votes" | null>("chat");
+  const [panel, setPanel] = useState<"chat" | "votes" | null>(null);
+  const [convo, setConvo] = useState(true);
   const toggle = (which: "chat" | "votes") => setPanel((p) => (p === which ? null : which));
-  const actLabel = state.turns.length
-    ? DATE_ACTS[state.turns[state.turns.length - 1].act] ?? null
-    : state.clock.started
-      ? state.clock.phase_label
-      : null;
+  // Only open the audience chat by default where there's room for the scene, the thread and the panel.
+  useEffect(() => {
+    if (window.innerWidth >= 1280) setPanel("chat");
+  }, []);
+
+  // Decided once, on entry: a finished room replays; a room you watched live stays live when it ends.
+  const [isReplay] = useState(state.clock.ended);
+  const replay = useReplay(state.turns, isReplay);
+  const turns = isReplay ? replay.shown : state.turns;
+  const typing = isReplay ? replay.typing : state.next_speaker;
+  const showVerdict = isReplay ? replay.done : state.show_ending;
+
+  const actLabel = turns.length
+    ? DATE_ACTS[turns[turns.length - 1].act] ?? null
+    : isReplay
+      ? null
+      : state.clock.started
+        ? state.clock.phase_label
+        : null;
   const leadingChemistry = state.chemistry.options.find((o) => o.id === state.chemistry.leading);
 
   return (
     <div className={`theater${panel ? "" : " theater-clean"}`}>
-      <div className="theater-stage">
-        <Scene
-          characters={state.characters}
-          venue={state.venue}
-          lineA={lastLine(state.turns, "a")}
-          lineB={lastLine(state.turns, "b")}
-          actLabel={actLabel}
-          placeholder="The date is about to begin…"
-        />
-        <SceneThread characters={state.characters} turns={state.turns} />
+      <div className={`theater-stage${convo ? " with-convo" : ""}`}>
+        <div className="theater-scene-area">
+          <Scene
+            characters={state.characters}
+            venue={state.venue}
+            lineA={lastLine(turns, "a")}
+            lineB={lastLine(turns, "b")}
+            actLabel={actLabel}
+            placeholder={isReplay ? "The replay begins…" : "The date is about to begin…"}
+          />
+        </div>
+        <div className="theater-convo">
+          <ChatThread
+            characters={state.characters}
+            turns={turns}
+            typing={typing}
+            challenge={state.challenge}
+            tone="dark"
+            follow
+            empty="The conversation appears here, line by line."
+          />
+        </div>
 
         <header className="theater-hud">
           <div className="theater-id">
             <strong>
               {a.name} <span className="vs">×</span> {b.name}
             </strong>
-            <span className="watch-live">
-              <span className="watch-dot" aria-hidden /> {state.watching}
-            </span>
-            <span className="chip">{state.clock.started ? state.clock.phase_label : "Starting…"}</span>
+            {isReplay ? (
+              <span className="chip">Replay</span>
+            ) : (
+              <>
+                <span className="watch-live">
+                  <span className="watch-dot" aria-hidden /> {state.watching}
+                </span>
+                <span className="chip">{state.clock.started ? state.clock.phase_label : "Starting…"}</span>
+              </>
+            )}
           </div>
           <div className="theater-tools">
+            {isReplay && (
+              <>
+                <button type="button" className="theater-icon" onClick={replay.toggle} aria-label={replay.playing ? "Pause" : "Play"} title={replay.playing ? "Pause" : "Play"}>
+                  {replay.playing ? "⏸" : "▶"}
+                </button>
+                <button type="button" className="theater-icon" onClick={replay.restart} aria-label="Restart" title="Restart">
+                  ↻
+                </button>
+                <button type="button" className="theater-icon" onClick={replay.skip} aria-label="Skip to the end" title="Skip to the end">
+                  ⏭
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className={`theater-icon theater-icon-wide${convo ? " on" : ""}`}
+              onClick={() => setConvo((v) => !v)}
+              aria-pressed={convo}
+              aria-label="The conversation"
+              title="The conversation"
+            >
+              📜
+            </button>
             <button
               type="button"
               className={`theater-icon${panel === "votes" ? " on" : ""}`}
@@ -197,7 +256,7 @@ function Theater({ state, sync, onExit }: { state: RoomState; sync: () => void; 
         </header>
 
         {/* The decision is the payoff, not chrome, so it lands on the scene; everything interactive is in a panel. */}
-        {state.show_ending && (
+        {showVerdict && (
           <div className="theater-verdict">
             <p className="ending">{state.ending_label}</p>
             {leadingChemistry && (
@@ -207,6 +266,13 @@ function Theater({ state, sync, onExit }: { state: RoomState; sync: () => void; 
             )}
             {state.chaos.timeline && (
               <p className="muted">🎲 Chaos: {state.chaos.timeline.label} → {state.chaos.timeline.ending_label} (non-canon).</p>
+            )}
+            {isReplay && (
+              <p className="muted">
+                <button type="button" className="linklike" onClick={replay.restart}>
+                  Watch again
+                </button>
+              </p>
             )}
           </div>
         )}
@@ -276,28 +342,13 @@ function Stage({ state, onPredict }: { state: RoomState; onPredict: () => void }
       )}
 
       {state.turns.length > 0 ? (
-        <section className="card watch-beat transcript">
-          {state.turns.map((t, i) => {
-            const prev = state.turns[i - 1];
-            const showAct = !prev || prev.act !== t.act;
-            const who = t.side === "a" ? a : b;
-            const meta = [t.action, t.emotion].filter(Boolean).join(" · ");
-            return (
-              <div key={i}>
-                {showAct && <h3 className="act">{DATE_ACTS[t.act] ?? `Act ${t.act + 1}`}</h3>}
-                {showAct && t.act === 1 && state.challenge && <p className="watch-challenge">🎬 {state.challenge}</p>}
-                <div className={`turn turn-${t.side}`}>
-                  <Avatar seed={who.id} name={who.name} hue={who.hue} house={who.house} size={28} />
-                  <div className="turn-body">
-                    <p className="turn-line">
-                      <strong>{who.name}</strong> {t.dialogue}
-                    </p>
-                    {meta && <p className="turn-meta">{meta}</p>}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <section className="card watch-beat">
+          <ChatThread
+            characters={state.characters}
+            turns={state.turns}
+            typing={state.next_speaker}
+            challenge={state.challenge}
+          />
         </section>
       ) : (
         state.acts.map((act, i) => (

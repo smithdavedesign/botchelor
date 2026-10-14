@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Scene, { SceneThread } from "@/app/Scene";
+import { useState } from "react";
+import Scene from "@/app/Scene";
+import ChatThread from "@/app/ChatThread";
+import { useReplay } from "@/app/useReplay";
 import { DATE_ACTS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
@@ -14,111 +16,91 @@ type Props = {
   endingLabel: string;
 };
 
-// Pace the replay like it aired: a steady beat within an act, a longer dramatic pause when the act turns
-// over (first impressions → the challenge → the decision). Deterministic from each turn's act, so a replay
-// relays the conversation the way a live viewer saw it unfold, not as a uniform ticker.
-const TURN_MS = 2100;
-const ACT_BREAK_MS = 3400;
-
 function lastOf(turns: Turn[], side: "a" | "b"): string | null {
   for (let i = turns.length - 1; i >= 0; i--) if (turns[i].side === side) return turns[i].dialogue;
   return null;
 }
 
-/** How long to wait before revealing the turn at `pos` (the one about to appear). */
-function delayBefore(transcript: Turn[], pos: number): number {
-  const next = transcript[pos];
-  const prev = transcript[pos - 1];
-  return pos > 0 && next && prev && next.act > prev.act ? ACT_BREAK_MS : TURN_MS;
-}
-
 /**
- * M13 — the episode's cinematic replay. The same immersive scene as the live theater, but it plays the
- * recorded transcript back on a timer (the "window into the date" for a date that already happened). The
- * readable transcript stays on the page as the record; this is the experience on top.
+ * M13 — the episode's cinematic replay. The same immersive scene as the live theater (characters in the
+ * venue, persistent bubbles, the conversation as a messaging thread beside it), played back line by line,
+ * paced like it aired. The readable thread stays on the page as the record; this is the experience on top.
  */
-export default function EpisodeTheater({ characters, venue, transcript, endingLabel }: Props) {
+export default function EpisodeTheater(props: Props) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState(0); // how many turns have played
-  const [playing, setPlaying] = useState(false);
-
-  useEffect(() => {
-    if (!open || !playing) return;
-    if (pos >= transcript.length) {
-      setPlaying(false);
-      return;
-    }
-    const timer = setTimeout(() => setPos((p) => p + 1), delayBefore(transcript, pos));
-    return () => clearTimeout(timer);
-  }, [open, playing, pos, transcript.length]);
-
-  function enter() {
-    setPos(0);
-    setPlaying(true);
-    setOpen(true);
-  }
-  function restart() {
-    setPos(0);
-    setPlaying(true);
-  }
-
   if (!open) {
     return (
-      <button type="button" className="primary" onClick={enter}>
+      <button type="button" className="primary" onClick={() => setOpen(true)}>
         🎬 Watch in theater
       </button>
     );
   }
+  return <Playback {...props} onExit={() => setOpen(false)} />;
+}
 
-  const shown = transcript.slice(0, pos);
+function Playback({ characters, venue, transcript, endingLabel, onExit }: Props & { onExit: () => void }) {
+  const replay = useReplay(transcript, true);
+  const [convo, setConvo] = useState(true);
+  const shown = replay.shown;
   const [a, b] = characters;
   const actLabel = shown.length ? DATE_ACTS[shown[shown.length - 1].act] ?? null : null;
-  const done = pos >= transcript.length;
 
   return (
-    <div className="theater chat-closed">
-      <div className="theater-stage">
-        <Scene
-          characters={characters}
-          venue={venue}
-          lineA={lastOf(shown, "a")}
-          lineB={lastOf(shown, "b")}
-          actLabel={actLabel}
-          placeholder="The date begins…"
-        />
-        <SceneThread characters={characters} turns={shown} />
+    <div className="theater theater-clean">
+      <div className={`theater-stage${convo ? " with-convo" : ""}`}>
+        <div className="theater-scene-area">
+          <Scene
+            characters={characters}
+            venue={venue}
+            lineA={lastOf(shown, "a")}
+            lineB={lastOf(shown, "b")}
+            actLabel={actLabel}
+            placeholder="The date begins…"
+          />
+        </div>
+        <div className="theater-convo">
+          <ChatThread characters={characters} turns={shown} typing={replay.typing} tone="dark" follow empty="The conversation appears here, line by line." />
+        </div>
 
         <header className="theater-hud">
           <div className="theater-id">
             <strong>
               {a.name} <span className="vs">×</span> {b.name}
             </strong>
+            <span className="chip">Replay</span>
           </div>
           <div className="theater-tools">
-            <button
-              type="button"
-              className="theater-icon"
-              onClick={() => setPlaying((p) => !p)}
-              aria-label={playing ? "Pause" : "Play"}
-              title={playing ? "Pause" : "Play"}
-            >
-              {playing ? "⏸" : "▶"}
+            <button type="button" className="theater-icon" onClick={replay.toggle} aria-label={replay.playing ? "Pause" : "Play"} title={replay.playing ? "Pause" : "Play"}>
+              {replay.playing ? "⏸" : "▶"}
             </button>
-            <button type="button" className="theater-icon" onClick={restart} aria-label="Restart" title="Restart">
+            <button type="button" className="theater-icon" onClick={replay.restart} aria-label="Restart" title="Restart">
               ↻
             </button>
-            <button type="button" className="secondary small" onClick={() => { setOpen(false); setPlaying(false); }}>
+            <button type="button" className="theater-icon" onClick={replay.skip} aria-label="Skip to the end" title="Skip to the end">
+              ⏭
+            </button>
+            <button
+              type="button"
+              className={`theater-icon theater-icon-wide${convo ? " on" : ""}`}
+              onClick={() => setConvo((v) => !v)}
+              aria-pressed={convo}
+              aria-label="The conversation"
+              title="The conversation"
+            >
+              📜
+            </button>
+            <button type="button" className="secondary small" onClick={onExit}>
               Exit
             </button>
           </div>
         </header>
 
-        {done && (
+        {replay.done && (
           <div className="theater-verdict">
             <p className="ending">{endingLabel}</p>
             <p className="muted">
               That&apos;s how it ended.{" "}
-              <button type="button" className="linklike" onClick={restart}>
+              <button type="button" className="linklike" onClick={replay.restart}>
                 Watch again
               </button>
             </p>
