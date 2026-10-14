@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { REPORT_REASONS } from "@/lib/rules";
@@ -25,7 +26,10 @@ export const POST = handle(async (req) => {
      returning episode_id`,
     [input.episode_id, sess.userId, input.reason],
   );
-  if (inserted.rows.length) return json({ episode_id: input.episode_id, reported: true }, 201, sess);
+  if (inserted.rows.length) {
+    track("content_reported", { target: "episode", reason: input.reason });
+    return json({ episode_id: input.episode_id, reported: true }, 201, sess);
+  }
 
   const exists = (await db.query("select 1 from episodes where id = $1", [input.episode_id])).rows.length > 0;
   if (!exists) return json({ error: "episode_not_found" }, 404, sess);

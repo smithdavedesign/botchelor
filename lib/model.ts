@@ -6,6 +6,8 @@
  * setting LLM_BASE_URL, LLM_API_KEY and LLM_MODEL. With no key configured, every call fails closed.
  */
 
+import { safeEqual } from "./http";
+
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
 export interface Model {
@@ -93,14 +95,6 @@ export const frontierConfigured = (env: Record<string, string | undefined> = pro
 export function frontierModelFromEnv(env: Record<string, string | undefined> = process.env, fetchImpl?: typeof fetch): Model | null {
   if (!frontierConfigured(env)) return null;
   return openAICompatibleModel({ baseUrl: env.FRONTIER_LLM_BASE_URL!, apiKey: env.FRONTIER_LLM_API_KEY!, model: env.FRONTIER_LLM_MODEL!, fetchImpl });
-}
-
-/** Constant-time compare, so the gate doesn't leak the password through timing. */
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let r = 0;
-  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return r === 0;
 }
 
 /** True only when a frontier password is set and the request carries the matching x-frontier-key header. */
