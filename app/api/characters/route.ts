@@ -63,7 +63,7 @@ export const POST = handle(async (req) => {
     [id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker],
   );
   const hasSoul = Boolean(soul && !isEmptySoul(soul));
-  if (hasSoul) await saveSoul(db, id, soul!);
+  if (hasSoul) await saveSoul(db, id, soul!, input.soul?.local_only ?? false);
 
   const { attest: _attest, soul: _soul, ...character } = input;
   return json({ id, ...character, house: false, has_soul: hasSoul }, 201, sess);

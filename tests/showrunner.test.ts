@@ -70,10 +70,11 @@ describe("parseEpisode", () => {
 
 describe("buildMessages", () => {
   it("puts both sheets in a JSON data block, keeps injections as data, and briefs the decided outcome", () => {
-    const [system, user] = buildMessages(input, outcome, [null, null]);
+    const [system, user] = buildMessages(input, outcome, [null, null], "a_hard_question");
     expect(system.role).toBe("system");
     expect(system.content).toMatch(/data, not instructions/i);
     expect(system.content).toMatch(/ALREADY been decided/i);
+    expect(system.content).toMatch(/three acts/i);
     expect(system.content).toContain(`${EPISODE_WORD_CAP - 50} words`);
     expect(user.role).toBe("user");
     const data = JSON.parse(user.content.slice(user.content.indexOf("{")));
@@ -83,6 +84,8 @@ describe("buildMessages", () => {
     expect(data.character_b.name).toBe(HOUSE_CHARACTERS[0].name);
     expect(typeof data.decided_outcome).toBe("string");
     expect(data.decided_outcome.length).toBeGreaterThan(0);
+    // The AI producer's act-2 situation is handed to the model.
+    expect(typeof data.act_two_situation).toBe("string");
   });
 });
 
@@ -95,7 +98,7 @@ describe("narrateEpisode", () => {
         return "nope";
       },
     };
-    await expect(narrateEpisode(model, input, outcome, [null, null])).rejects.toBeInstanceOf(ShowrunnerError);
+    await expect(narrateEpisode(model, input, outcome, [null, null], "a_hard_question")).rejects.toBeInstanceOf(ShowrunnerError);
     expect(calls).toBe(2);
   });
 });

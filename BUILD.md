@@ -955,3 +955,12 @@ Outcomes moved from the showrunner **model** to a deterministic, seeded **engine
 ### Deferred (needs spend approval — see docs/upgrade-cost.md)
 
 Frontier text model, character portraits and video, the compute-budget enforcement gate, and the Redis/BullMQ + S3/CDN stack. None is switched on; each is proposed, not built.
+
+### From the PRD review (added 2026-10-13)
+
+Acting on a PRD review's two biggest buildable-at-$0 points:
+
+- **A three-act date + the AI producer.** Every date is narrated as three acts — first impressions, a revealing challenge, the decision (`DATE_ACTS`). The challenge is dealt from a bounded producer library (`PRODUCER_EVENTS`, seeded, no model call), fed to the narration as act 2, and revealed with the agendas after the finale. Addresses "define what makes a date entertaining": the engine decides the outcome, the model writes believable dialogue that leads to it.
+- **Local-only souls.** A soul can be marked `local_only`: it still drives the engine (via `deriveSoulSignals`) but its text is never sent to any model. Addresses the review's strongest privacy point (the soul is the most damaging thing to leak) and is the control `docs/upgrade-cost.md §5` recommended.
+
+The review's other points were already satisfied (episodes are immutable once stored; predictions lock at reveal; the private soul is gated server-side, never in a spectator response) or are doc/legal/metrics items rather than code.

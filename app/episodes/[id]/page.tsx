@@ -8,7 +8,7 @@ import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { readUserId, USER_COOKIE } from "@/lib/http";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
-import { DRAMA_QUESTION_LABELS, dramaAnswerLabel, ENDING_LABELS, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
+import { DATE_ACTS, DRAMA_QUESTION_LABELS, dramaAnswerLabel, ENDING_LABELS, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
 import BoxScore from "./BoxScore";
 import ConfessionalShare from "./ConfessionalShare";
 import CreatorReveal from "./CreatorReveal";
@@ -87,7 +87,10 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
         <section className="card">
           <h2>The date</h2>
           {episode.scenes?.map((scene, i) => (
-            <p key={i}>{scene}</p>
+            <div key={i}>
+              <h3 className="act">{DATE_ACTS[i] ?? `Act ${i + 1}`}</h3>
+              <p>{scene}</p>
+            </div>
           ))}
           <h2>The twist</h2>
           <p>{episode.twist}</p>
@@ -112,7 +115,12 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
 
       {episode.agendas && (
         <section className="card">
-          <h2>Secret agendas</h2>
+          <h2>Secret agendas &amp; the producer</h2>
+          {episode.producer && (
+            <p className="muted">
+              The producer&apos;s act-2 situation: <strong>{episode.producer}</strong>.
+            </p>
+          )}
           <ul>
             {episode.agendas.map((ag) => (
               <li key={ag.character_id}>

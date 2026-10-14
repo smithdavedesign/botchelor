@@ -20,14 +20,15 @@ export const PUT = handle(async (req: Request, ctx: Ctx) => {
   const db = await getDb();
   if (!(await ownsCharacter(db, id, sess.userId))) return json({ error: "character_not_found" }, 404, sess);
 
-  const soul = normaliseSoul(parseBody(SoulInput, await readJson(req), "invalid_soul"));
+  const input = parseBody(SoulInput, await readJson(req), "invalid_soul");
+  const soul = normaliseSoul(input);
   if (isEmptySoul(soul)) {
     await deleteSoul(db, id);
     return json({ character_id: id, has_soul: false }, 200, sess);
   }
   assertSafeSoul(soul);
-  await saveSoul(db, id, soul);
-  return json({ character_id: id, has_soul: true }, 200, sess);
+  await saveSoul(db, id, soul, input.local_only ?? false);
+  return json({ character_id: id, has_soul: true, local_only: input.local_only ?? false }, 200, sess);
 });
 
 /** The owner deletes the soul (PRD guardrail: a soul built from the owner is personal data they can delete). */

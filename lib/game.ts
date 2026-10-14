@@ -11,6 +11,7 @@ import {
   POINTS_PER_MATCHMAKER,
   pointsFor,
   predictionPoints,
+  producerLabel,
   REPORT_HIDE_THRESHOLD,
   type AgendaId,
   type Autonomy,
@@ -19,6 +20,7 @@ import {
   type DramaQuestion,
   type Ending,
   type GameBudget,
+  type ProducerId,
   type Strategy,
 } from "./rules";
 
@@ -39,6 +41,8 @@ export type DateSetup = {
   agenda_b: AgendaId;
   game_budget_a: GameBudget;
   game_budget_b: GameBudget;
+  /** The AI producer's situation for act 2 (PRD "the AI producer"). Dealt by seed when the date is built. */
+  producer: ProducerId;
 };
 
 export type BoxScore = Record<DateVariable, VariableArc>;
@@ -82,6 +86,8 @@ export type EpisodeJson = {
   box_score?: BoxScore;
   /** The secret agendas, revealed only once the finale airs (or always to the creators). */
   agendas?: { character_id: string; agenda: string }[];
+  /** The AI producer's act-2 situation, revealed with the agendas. */
+  producer?: string;
   /** Approved confessionals: to the creators always, to spectators only after the finale airs. */
   confessionals?: { character_id: string; line: string }[];
   // Only present once every creator of the episode has consented (POST /api/reveal).
@@ -151,6 +157,7 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
         { character_id: a.id, agenda: agendaLabel(ep.setup.agenda_a) },
         { character_id: b.id, agenda: agendaLabel(ep.setup.agenda_b) },
       ];
+      json.producer = producerLabel(ep.setup.producer);
     }
   }
   if (opts.showConfessionals && ep.confessionals) {

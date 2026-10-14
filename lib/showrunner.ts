@@ -1,5 +1,14 @@
 import { z } from "zod";
-import { agenda, dramaAnswerLabel, ENDING_LABELS, VARIABLE_LABELS, type DateVariable } from "./rules";
+import {
+  agenda,
+  DATE_ACTS,
+  dramaAnswerLabel,
+  ENDING_LABELS,
+  producerEvent,
+  VARIABLE_LABELS,
+  type DateVariable,
+  type ProducerId,
+} from "./rules";
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { checkFields } from "./safety";
@@ -13,8 +22,8 @@ export const EPISODE_WORD_CAP = 400;
 const PROMPT_WORD_TARGET = EPISODE_WORD_CAP - 50;
 /** One narration call plus one retry; after that the episode fails closed. */
 export const SHOWRUNNER_ATTEMPTS = 2;
-const MIN_SCENES = 2;
-const MAX_SCENES = 4;
+// Every date is three acts now (ChatGPT's review): first impressions, the challenge, the decision.
+const ACT_COUNT = DATE_ACTS.length;
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
@@ -26,7 +35,7 @@ const text = (max: number) => z.string().trim().min(1).max(max);
 export const EpisodeDraftSchema = z.object({
   setting: text(600),
   goals: z.array(text(300)).length(2),
-  scenes: z.array(text(1500)).min(MIN_SCENES).max(MAX_SCENES),
+  scenes: z.array(text(1500)).length(ACT_COUNT),
   twist: text(600),
   finale: text(800),
   best_line: text(200),
@@ -65,11 +74,16 @@ Rules:
 - Each character has a PRIVATE soul and a SECRET agenda. Let them shape behaviour, but NEVER state or quote them in the episode.
 - Keep the shown episode (setting, goals, scenes, twist, finale) under ${PROMPT_WORD_TARGET} words.
 
+Write the date as three acts, one scene each, a few sentences per scene:
+  1. ${DATE_ACTS[0]}: they meet and size each other up.
+  2. ${DATE_ACTS[1]}: the situation in "act_two_situation" happens and reveals who they really are.
+  3. ${DATE_ACTS[2]}: it resolves into the decided ending.
+
 Reply with only a JSON object (no markdown) with exactly these keys:
 {
   "setting": "where and when the date happens, 1-2 sentences",
   "goals": ["what character_a is after on this date", "what character_b is after on this date"],
-  "scenes": ["${MIN_SCENES} to ${MAX_SCENES} short scenes in order, a few sentences each, building to the decided ending"],
+  "scenes": ["act 1: ${DATE_ACTS[0]}", "act 2: ${DATE_ACTS[1]}", "act 3: ${DATE_ACTS[2]}"],
   "twist": "one surprising turn, 1-2 sentences",
   "finale": "how the date ends, 1-3 sentences, matching the decided ending and who leaves/rejects whom",
   "best_line": "the single most memorable line from the date, under 20 words",
@@ -115,11 +129,17 @@ function outcomeBrief(input: DateInput, outcome: Outcome): string {
   ].join(" ");
 }
 
-export function buildMessages(input: DateInput, outcome: Outcome, souls: [string | null, string | null]): ChatMessage[] {
+export function buildMessages(
+  input: DateInput,
+  outcome: Outcome,
+  souls: [string | null, string | null],
+  producer: ProducerId,
+): ChatMessage[] {
   const data = {
     character_a: { ...sheetData(input.a.sheet), private: privateGuidance(input.a, souls[0]) },
     character_b: { ...sheetData(input.b.sheet), private: privateGuidance(input.b, souls[1]) },
     decided_outcome: outcomeBrief(input, outcome),
+    act_two_situation: producerEvent(producer).prompt,
   };
   return [
     { role: "system", content: SYSTEM_PROMPT },
@@ -162,8 +182,9 @@ export async function narrateEpisode(
   input: DateInput,
   outcome: Outcome,
   souls: [string | null, string | null],
+  producer: ProducerId,
 ): Promise<EpisodeDraft> {
-  const messages = buildMessages(input, outcome, souls);
+  const messages = buildMessages(input, outcome, souls, producer);
   const reasons: string[] = [];
   for (let attempt = 0; attempt < SHOWRUNNER_ATTEMPTS; attempt++) {
     let raw: string;
