@@ -471,12 +471,20 @@ export async function syncRoom(
     [partyId],
   )).rows[0].starts_at;
   if (watchClock(startsAt, now).phase_index >= WATCH_DECISION_INDEX) {
-    await db.query(
-      `update episodes set revealed_at = now()
-        where id = $1 and revealed_at is null
-          and (select count(*) from reports r where r.episode_id = episodes.id) < $2`,
-      [exists.episode_id, REPORT_HIDE_THRESHOLD],
-    );
+    const aired = (
+      await db.query<{ character_a: string; character_b: string }>(
+        `update episodes set revealed_at = now()
+          where id = $1 and revealed_at is null
+            and (select count(*) from reports r where r.episode_id = episodes.id) < $2
+         returning character_a, character_b`,
+        [exists.episode_id, REPORT_HIDE_THRESHOLD],
+      )
+    ).rows[0];
+    // M14: the date just aired — recompute both characters' learned memory from their aired dates ($0).
+    if (aired) {
+      await updateCharacterMemory(db, aired.character_a).catch(() => {});
+      await updateCharacterMemory(db, aired.character_b).catch(() => {});
+    }
   }
   return getRoomState(db, partyId, viewerId, now);
 }
@@ -682,9 +690,8 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
     ],
   );
   await rememberDate(db, a.id, b.id, decided.ending).catch(() => {});
-  // M14: fold this template date into each house character's learned memory (deterministic, $0).
-  await updateCharacterMemory(db, a.id).catch(() => {});
-  await updateCharacterMemory(db, b.id).catch(() => {});
+  // M14: learned memory is recomputed when the room airs the date (below), not now — a template date is
+  // unrevealed until its clock reaches the decision, and its arc is public, so counting it early would spoil.
 
   const id = crypto.randomUUID();
   await db.query(

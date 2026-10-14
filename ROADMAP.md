@@ -348,8 +348,9 @@ fair; every date snapshots the exact signals it used, so Sliding Doors / replays
   narrator) and `characterPublicView` (name/age/bio/traits/appearance only — what the OTHER agent and
   spectators ever see; never the soul, dealbreaker, memory or signals). The three prompt builders
   (conversation, afterglow, showrunner) now consume these, so every bot references its own history in chat.
-- **`lib/memory.ts` + `character_memory`** — the learned layer, recomputed deterministically right after each
-  date (where `rememberDate` runs): the date record, what it reliably **likes** (frequent `want_met` cues) and
+- **`lib/memory.ts` + `character_memory`** — the learned layer, recomputed deterministically when a date
+  **airs** (the reveal route + the watch room; aired-only, like the public record, so the public arc can't spoil
+  an open prediction): the date record, what it reliably **likes** (frequent `want_met` cues) and
   what **puts it off** (frequent `dealbreaker_hit` cues), a few of its own **memorable lines** (highest
   interest, re-filtered for safety), a one-line **arc** of who it has become, and a small **bounded signal
   drift** (±0.15/axis, folded into the engine in part 2). likes / turnoffs / lines / drift derive from

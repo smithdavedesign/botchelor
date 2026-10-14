@@ -25,7 +25,6 @@ import {
   DEFAULT_STRATEGY,
 } from "./rules";
 import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
-import { updateCharacterMemory } from "./memory";
 import { narrateEpisode, ShowrunnerError } from "./showrunner";
 import type { DateSetup } from "./game";
 
@@ -202,10 +201,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     );
     if (saved.rows.length) {
       await rememberDate(db, row.a_id, row.b_id, decided.ending).catch(() => {});
-      // M14: now the date is stored and 'ready', recompute each character's learned memory from all its
-      // dates (deterministic, no model call). Best-effort: a failure just leaves last run's memory in place.
-      await updateCharacterMemory(db, row.a_id).catch(() => {});
-      await updateCharacterMemory(db, row.b_id).catch(() => {});
+      // M14: learned memory is recomputed when a date AIRS (the reveal route / the watch room), not here —
+      // a generated date is not yet revealed, and its arc is public, so counting it would spoil predictions.
       await db.query(`update generation_jobs set status = 'succeeded', error = null, updated_at = now() where episode_id = $1`, [episodeId]);
       trackEpisodeCost({
         episode_id: episodeId,

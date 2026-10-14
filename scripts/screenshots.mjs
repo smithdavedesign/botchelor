@@ -622,6 +622,14 @@ async function capture(base, leagueId, viewer) {
       await castPage.getByText("Contestant card").waitFor();
       await shot(castPage, "contestant");
 
+      // 5b. The learned memory (M14): the "Who they've become" block. house-rafe has two seeded dates,
+      // so its memory has an arc — the headline of the self-training cast.
+      await castPage.goto(`${base}/characters/house-rafe`);
+      const becameHeading = castPage.getByRole("heading", { name: /Who they.*ve become/ });
+      await becameHeading.waitFor();
+      await becameHeading.scrollIntoViewIfNeeded();
+      await shot(castPage, "contestant-memory");
+
       // 6. The Reunion special: the season awards, the couples board and the confessional reel.
       const reunionPage = await member.newPage();
       await reunionPage.goto(`${base}/reunion`);

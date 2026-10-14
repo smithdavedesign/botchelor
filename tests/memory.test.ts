@@ -3,7 +3,7 @@ import { loadCharacterMemory, MEMORY_SIGNAL_CAP, updateCharacterMemory } from "@
 import type { SideOutcome } from "@/lib/engine";
 import type { Turn } from "@/lib/conversation";
 import type { Ending } from "@/lib/rules";
-import { api, HOUSE_PARTNER_ID, newUserCookie, startTestDb, validCharacter } from "./helpers";
+import { api, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 let clock = 0;
@@ -16,14 +16,15 @@ const so = (over: Partial<SideOutcome> = {}): SideOutcome => ({
 const turn = (side: "a" | "b", dialogue: string, interest: number): Turn =>
   ({ side, act: 1, dialogue, action: "", emotion: "", interest });
 
-/** Inserts a finished (ready) episode with controlled sides and transcript. created_at increases so order is stable. */
+/** Inserts an AIRED (revealed) episode with controlled sides and transcript. revealed_at increases so order is stable. */
 async function insertEpisode(opts: {
   id: string; a: string; b: string; ending: Ending; sides: [SideOutcome, SideOutcome]; transcript?: Turn[];
 }): Promise<void> {
   await t.db.query(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale,
-                           ending, status, sides, transcript, created_at)
-     values ($1, 'sys', $2, $3, 's', '[]'::jsonb, '[]'::jsonb, 't', 'f', $4, 'ready', $5::jsonb, $6::jsonb, to_timestamp($7))`,
+                           ending, status, sides, transcript, created_at, revealed_at)
+     values ($1, 'sys', $2, $3, 's', '[]'::jsonb, '[]'::jsonb, 't', 'f', $4, 'ready', $5::jsonb, $6::jsonb,
+             to_timestamp($7), to_timestamp($7))`,
     [opts.id, opts.a, opts.b, opts.ending, JSON.stringify(opts.sides), JSON.stringify(opts.transcript ?? []), 1_000 + clock++],
   );
 }
@@ -130,6 +131,27 @@ describe("updateCharacterMemory — deterministic aggregation", () => {
     expect(m.memorable_lines).toContain("a wholesome safe line");
   });
 
+  it("is wired by the reveal route: populated only once a date airs, never at generation", async () => {
+    const creator = newUserCookie();
+    const oc = await (await api.createCharacter(validCharacter(), creator)).json();
+    scriptOutcome({ ending: "second_date" });
+    scriptedModel([episodeJson()]);
+    const ep = await (await api.createEpisode({ character_id: oc.id, partner_id: HOUSE_PARTNER_ID }, creator)).json();
+    expect(ep.status).toBe("ready");
+
+    // Generated but not aired: no memory yet (its public arc would otherwise spoil the open prediction).
+    expect(await loadCharacterMemory(t.db, oc.id)).toBeNull();
+
+    // Air the finale: now both the OC and the house partner have learned from the aired date.
+    const revealed = await api.reveal(ep.id, creator);
+    expect(revealed.status).toBe(200);
+    const mine = await loadCharacterMemory(t.db, oc.id);
+    expect(mine?.dates).toBe(1);
+    expect(mine?.second_dates).toBe(1);
+    expect(mine?.arc).toContain("One date in");
+    expect((await loadCharacterMemory(t.db, HOUSE_PARTNER_ID))?.dates).toBe(1);
+  });
+
   it("a character with no finished dates has a zeroed memory and no arc", async () => {
     const s = await subject();
     const m = await updateCharacterMemory(t.db, s);
@@ -140,17 +162,18 @@ describe("updateCharacterMemory — deterministic aggregation", () => {
     expect(m.arc).toBeNull();
   });
 
-  it("ignores episodes that are still generating", async () => {
+  it("counts only aired dates, never a ready-but-unrevealed one (no spoiler in the public arc)", async () => {
     const s = await subject();
-    await insertEpisode({ id: "ready", a: s, b: HOUSE_PARTNER_ID, ending: "second_date", sides: [so({ want_met: "kind" }), so()] });
+    await insertEpisode({ id: "aired", a: s, b: HOUSE_PARTNER_ID, ending: "second_date", sides: [so({ want_met: "kind" }), so()] });
+    // A ready-but-unrevealed date still has predictions open; the arc is public, so it must not be counted.
     await t.db.query(
       `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending, status, sides)
-       values ('pending', 'sys', $1, $2, 's', '[]'::jsonb, '[]'::jsonb, 't', 'f', 'disaster', 'generating', $3::jsonb)`,
+       values ('unaired', 'sys', $1, $2, 's', '[]'::jsonb, '[]'::jsonb, 't', 'f', 'disaster', 'ready', $3::jsonb)`,
       [s, HOUSE_PARTNER_ID, JSON.stringify([so({ dealbreaker_hit: "cruel" }), so()])],
     );
     const m = await updateCharacterMemory(t.db, s);
-    expect(m.dates).toBe(1); // only the ready one
+    expect(m.dates).toBe(1); // only the aired one
     expect(m.disasters).toBe(0);
-    expect(m.turnoffs).toEqual([]); // the generating episode's dealbreaker is not counted
+    expect(m.turnoffs).toEqual([]); // the unaired episode's dealbreaker is not counted
   });
 });
