@@ -19,7 +19,9 @@ import { track } from "./analytics";
 import { failureReason } from "./jobs";
 import { HOUSE_CHARACTERS } from "./house";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
-import { getModel } from "./model";
+import { getDirectorModel, getModel } from "./model";
+import { generateDate } from "./pipeline";
+import { DEFAULT_FORMAT } from "./formats";
 import { getProfileName } from "./people";
 import {
   DATE_ACTS,
@@ -51,8 +53,8 @@ import {
 } from "./rules";
 import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
 import { updateCharacterMemory } from "./memory";
-import { narrateEpisode, ShowrunnerError, type CharacterSheet } from "./showrunner";
-import { isConversationEnabled, simulateConversation, type Turn } from "./conversation";
+import { ShowrunnerError, type CharacterSheet } from "./showrunner";
+import { isConversationEnabled, type Turn } from "./conversation";
 import { generationPaused, PAUSED_MESSAGE } from "./compute";
 import { venueName, type VenueId } from "./venues";
 
@@ -705,25 +707,25 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   const forDate = (c: HouseRow): CharacterForDate => ({ id: c.id, sheet: houseSheet(c) });
   const built = await buildDate(db, episodeId, forDate(a), forDate(b), DEFAULT_DATE_REQUEST);
   const decided = getEngine().decide(built.input, built.seed, built.setup.engine_version);
-  let draft;
+  // The shared pipeline (lib/pipeline.ts): the recap, plus the turn-by-turn conversation so template rooms
+  // play the date line by line too. Pre-generated system content; the conversation is best-effort and gated
+  // off in tests. Template rooms have no owners, so no afterglow.
+  let gen;
   try {
-    draft = await narrateEpisode(getModel(), built.input, decided, built.characters, built.setup.producer, built.setup.venue);
+    gen = await generateDate({ actor: getModel(), director: getDirectorModel() }, built, decided, {
+      formatId: built.setup.format ?? DEFAULT_FORMAT,
+      formatCtx: { chaperone: built.setup.chaperone, ex: built.setup.ex },
+      conversation: isConversationEnabled(),
+      afterglow: false,
+    });
   } catch (err) {
     if (err instanceof ShowrunnerError) return { ok: false, status: 502, error: "showrunner_unavailable", message: "No model produced a valid template date." };
     throw err;
   }
-
-  // M9: the turn-by-turn conversation, so template rooms play the date line by line too. Pre-generation
-  // (this is already system content built ahead of time), best-effort and gated off in tests.
-  let transcript: Turn[] = [];
-  if (isConversationEnabled()) {
-    try {
-      transcript = await simulateConversation(getModel(), built.input, decided, built.characters, built.setup.producer, built.setup.venue);
-    } catch (err) {
-      transcript = [];
-      track("conversation_failed", { episode_id: episodeId, where: "template", reason: failureReason(err) });
-    }
+  if (gen.conversationError) {
+    track("conversation_failed", { episode_id: episodeId, where: "template", reason: failureReason(gen.conversationError) });
   }
+  const { draft, transcript } = gen;
 
   await db.query(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,

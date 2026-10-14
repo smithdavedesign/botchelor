@@ -20,8 +20,8 @@ import {
 } from "./engine";
 import type { BoxScore, DateSetup } from "./game";
 import { assembleCharacter, type Character } from "./character";
-import { loadCharacterMemory } from "./memory";
-import { loadSoul } from "./souls";
+import { loadCharacterMemory, type CharacterMemory } from "./memory";
+import { loadSoul, type StoredSoul } from "./souls";
 import {
   AGENDA_IDS,
   DEFAULT_AUTONOMY,
@@ -106,39 +106,38 @@ export type BuiltDate = {
   seed: number;
 };
 
+/** Everything a date is assembled from, already loaded: the pure core of buildDate (no database). */
+export type DateParts = {
+  episodeId: string;
+  a: CharacterForDate;
+  b: CharacterForDate;
+  req: DateRequest;
+  seed: number;
+  soulA: StoredSoul | null;
+  soulB: StoredSoul | null;
+  memoryA: CharacterMemory | null;
+  memoryB: CharacterMemory | null;
+  history: DateHistory | undefined;
+  /** ex_returns: the name of A's real ex from the relationship graph, when there is one. */
+  ex?: string;
+  /** See buildDate: the snapshot a worker re-decides on. */
+  signalsOverride?: { a: SoulSignals; b: SoulSignals };
+};
+
 /**
- * Builds the full engine input for one date. The seed comes from the episode id, so the outcome is
- * reproducible and a Sliding Doors replay can reuse it with one input changed. Side A is the owner's;
- * side B (a house character or another user's OC) plays on balanced defaults with a dealt agenda.
+ * Assembles a date from parts that are already loaded. Pure and deterministic: the same parts and seed give
+ * the same date. buildDate loads the parts from the database; the quality eval (lib/eval.ts) passes them in
+ * directly, so it can generate dates without touching any stored data.
  */
-export async function buildDate(
-  db: Db,
-  episodeId: string,
-  a: CharacterForDate,
-  b: CharacterForDate,
-  req: DateRequest,
-  seedOverride?: number,
-  /**
-   * The exact effective signals to run on, instead of recomputing them from current memory. The async
-   * worker passes the snapshot POST stored (setup.signals_a/b) so it re-decides the SAME canonical outcome
-   * even if a character's memory has since drifted (e.g. a concurrent template date). Omitted at POST time.
-   */
-  signalsOverride?: { a: SoulSignals; b: SoulSignals },
-): Promise<BuiltDate> {
-  const seed = seedOverride ?? seedFrom(episodeId);
-  const [soulA, soulB, memoryA, memoryB] = await Promise.all([
-    loadSoul(db, a.id),
-    loadSoul(db, b.id),
-    loadCharacterMemory(db, a.id),
-    loadCharacterMemory(db, b.id),
-  ]);
-  const charA = assembleCharacter({ id: a.id, sheet: a.sheet, soul: soulA, memory: memoryA });
-  const charB = assembleCharacter({ id: b.id, sheet: b.sheet, soul: soulB, memory: memoryB });
+export function assembleDate(p: DateParts): BuiltDate {
+  const { a, b, req, seed } = p;
+  const charA = assembleCharacter({ id: a.id, sheet: a.sheet, soul: p.soulA, memory: p.memoryA });
+  const charB = assembleCharacter({ id: b.id, sheet: b.sheet, soul: p.soulB, memory: p.memoryB });
   // The effective engine signals this date runs on: the base soul/image signals nudged by the learned
   // memory's bounded drift (lib/character.ts), so a bot genuinely evolves across its dates. A worker
   // rebuilding a stored date passes the snapshot so it re-decides EXACTLY what POST stored.
-  const signalsA = signalsOverride?.a ?? charA.signals;
-  const signalsB = signalsOverride?.b ?? charB.signals;
+  const signalsA = p.signalsOverride?.a ?? charA.signals;
+  const signalsB = p.signalsOverride?.b ?? charB.signals;
   const agendaA = req.agendaId ?? pickAgenda(seedFrom(seed, "agenda-a"));
   const agendaB = pickAgenda(seedFrom(seed, "agenda-b"));
   const setup: DateSetup & { venue: VenueId } = {
@@ -160,7 +159,7 @@ export async function buildDate(
   // Fill the format's cast from real data (flavour only, never the engine): a named house regular as the
   // meet-the-parents chaperone, and a real past partner as the returning ex when the graph has one.
   if (req.format === "meet_the_parents") setup.chaperone = pickChaperone(seedFrom(seed, "chaperone"), [a.id, b.id]);
-  if (req.format === "ex_returns") setup.ex = await findEx(db, a.id, b.id);
+  if (req.format === "ex_returns") setup.ex = p.ex;
   // The engine itself is unchanged (still deterministic given signals); only its input signals now carry
   // the learned drift, and setup.signals_a/b above snapshots exactly what it ran on for reproducible replays.
   const sideA: SideSetup = {
@@ -181,8 +180,40 @@ export async function buildDate(
     note: null,
     gameBudget: DEFAULT_GAME_BUDGET,
   };
-  const history = await loadHistory(db, a.id, b.id);
-  return { input: { a: sideA, b: sideB, history }, characters: [charA, charB], setup, seed };
+  return { input: { a: sideA, b: sideB, history: p.history }, characters: [charA, charB], setup, seed };
+}
+
+/**
+ * Builds the full engine input for one date. The seed comes from the episode id, so the outcome is
+ * reproducible and a Sliding Doors replay can reuse it with one input changed. Side A is the owner's;
+ * side B (a house character or another user's OC) plays on balanced defaults with a dealt agenda.
+ */
+export async function buildDate(
+  db: Db,
+  episodeId: string,
+  a: CharacterForDate,
+  b: CharacterForDate,
+  req: DateRequest,
+  seedOverride?: number,
+  /**
+   * The exact effective signals to run on, instead of recomputing them from current memory. The async
+   * worker passes the snapshot POST stored (setup.signals_a/b) so it re-decides the SAME canonical outcome
+   * even if a character's memory has since drifted (e.g. a concurrent template date). Omitted at POST time.
+   */
+  signalsOverride?: { a: SoulSignals; b: SoulSignals },
+): Promise<BuiltDate> {
+  const [soulA, soulB, memoryA, memoryB, history, ex] = await Promise.all([
+    loadSoul(db, a.id),
+    loadSoul(db, b.id),
+    loadCharacterMemory(db, a.id),
+    loadCharacterMemory(db, b.id),
+    loadHistory(db, a.id, b.id),
+    req.format === "ex_returns" ? findEx(db, a.id, b.id) : Promise.resolve(undefined),
+  ]);
+  return assembleDate({
+    episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId),
+    soulA, soulB, memoryA, memoryB, history, ex, signalsOverride,
+  });
 }
 
 /* ------------------------------------- Sliding Doors ------------------------------------- */
