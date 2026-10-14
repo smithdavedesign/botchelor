@@ -128,7 +128,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The awkward intellectual",
     appearance: "a cardigan over the uniform, glasses pushed up, notes in every pocket",
     hue: 225,
-    look: "a woman in her mid-thirties with deep brown skin, short natural hair and round tortoiseshell glasses, a shy half-smile, in a navy night-security jacket with a work ID on a lanyard",
+    look: "a woman in her mid-thirties with deep brown skin, short natural coily hair and round tortoiseshell glasses, a shy half-smile, in a plain navy zip-up work jacket",
     signals: { warmth: 0.5, openness: 0.3, guardedness: 0.6, humor: 0.4 },
   },
   {

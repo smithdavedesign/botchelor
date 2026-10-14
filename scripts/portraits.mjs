@@ -38,8 +38,10 @@ const servedName = (file) => `${basename(file, ".png")}.webp`;
 const servedUrl = (file) => `/cast/${servedName(file)}`;
 const DIMS = { "3:4": { width: 768, height: 1024 }, "16:9": { width: 1024, height: 576 } };
 
-const flags = new Set(process.argv.slice(2).filter((a) => a.startsWith("--")));
+const flags = new Set(process.argv.slice(2).filter((a) => a.startsWith("--") && !a.startsWith("--only=")));
 const names = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+/** `--only=house-rafe,house-nell`: limit generation to a few jobs, to test a prompt before a full batch. */
+const only = process.argv.slice(2).find((a) => a.startsWith("--only="))?.slice(7).split(",").filter(Boolean) ?? null;
 
 async function loadBatch() {
   const [house, venues] = await Promise.all([import("../lib/house.ts"), import("../lib/venues.ts")]);
@@ -73,6 +75,7 @@ function planFile(batch) {
 
 /** Runs PORTRAIT_CMD once per job, sequentially — a 16GB machine cannot hold two image models at once. */
 async function generate(manifest) {
+  if (only) manifest = manifest.filter((job) => only.includes(job.character_id ?? "") || only.includes(job.id));
   const template = process.env.PORTRAIT_CMD;
   if (!template) throw new Error("set PORTRAIT_CMD to the image-model command (see the header of this file)");
   let made = 0;

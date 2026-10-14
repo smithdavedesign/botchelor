@@ -15,12 +15,17 @@
  * uniform) looked like teenagers. v2 describes each character from the chest up (lib/house.ts `look`),
  * states age as it shows on a face, moves to a less youth-biased style, and negates what went wrong.
  *
+ * portrait-v2 fixed age and presentation but overshot the style: "semi-realistic painted" came out as
+ * a photograph. For fictional characters on a dating show that is its own problem — a photoreal face is
+ * where real-person resemblance happens, and a visitor could take it for a real person. v3 asks for an
+ * editorial illustration and negates both failure modes: photorealism on one side, anime on the other.
+ *
  * backdrop-v1 failed three of eight the same way, one level down: it reused each venue's showrunner
  * text, which has people in it, so "a smug couple" and "a hovering waiter" were drawn into sets meant
  * to be empty, and the arcade's marquees came out as garbled pseudo-lettering. v2 uses a people-free
  * `plate` per venue (lib/venues.ts) and blanks every screen and sign.
  */
-export const PORTRAIT_PROMPT_VERSION = "portrait-v2";
+export const PORTRAIT_PROMPT_VERSION = "portrait-v3";
 export const BACKDROP_PROMPT_VERSION = "backdrop-v2";
 
 /**
@@ -37,6 +42,8 @@ export const NEGATIVE_PROMPT = [
   "deformed hands, extra fingers, extra limbs, distorted face, cropped head",
   "nudity, bare chest, open shirt, cleavage, shirtless, revealing clothing, suggestive pose",
   "blurry, low detail, oversaturated",
+  "photograph, photo, photorealistic, hyperrealistic, realistic skin pores, 3d render",
+  "anime, manga, cel shading",
 ].join(", ");
 
 const CONSTRAINTS = [
@@ -46,8 +53,9 @@ const CONSTRAINTS = [
 ].join(" ");
 
 const PORTRAIT_STYLE = [
-  "Semi-realistic painted portrait for a premium visual novel for adults.",
-  "Grounded, mature character design; soft studio lighting; painterly rendering; clean framing.",
+  "Stylised digital painting in the manner of a modern editorial or graphic-novel illustration:",
+  "clean shapes, visible painterly brushwork, a limited warm palette — unmistakably an illustration, not a photograph.",
+  "Mature character design that draws adult faces honestly, with age-appropriate lines and greying where described.",
 ].join(" ");
 
 const BACKDROP_STYLE = [

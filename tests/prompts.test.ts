@@ -30,6 +30,14 @@ describe("the portrait prompts", () => {
     }
   });
 
+  it("never asks for anything that carries lettering", () => {
+    // A badge, ID card or patch is drawn with text on it, and generated text comes out garbled — a v3
+    // test portrait's security-jacket patch read as pseudo-"POLICE". Describe plain clothing instead.
+    for (const c of ALL_HOUSE_CHARACTERS) {
+      expect(c.look, c.name).not.toMatch(/\b(badge|lanyard|ID|name ?tag|patch|logo|sign|lettering|text)\b/i);
+    }
+  });
+
   it("gives every character a distinct look, not one face for the cast", () => {
     const looks = ALL_HOUSE_CHARACTERS.map((c) => c.look);
     expect(new Set(looks).size).toBe(looks.length);
@@ -50,18 +58,19 @@ describe("the portrait prompts", () => {
   });
 
   it("negates what went wrong in v1", () => {
-    for (const term of ["teenager", "youthful face", "school uniform", "bare chest", "open shirt", "real person"]) {
+    // v1 (anime) read as teenagers; v2 ("semi-realistic") read as photographs of real people. Both negated.
+    for (const term of ["teenager", "youthful face", "school uniform", "bare chest", "open shirt", "real person", "photorealistic", "anime"]) {
       expect(NEGATIVE_PROMPT).toContain(term);
     }
     for (const job of portraits) expect(job.negative).toBe(NEGATIVE_PROMPT);
   });
 
   it("versions every job, and keeps the version in each portrait's file name", () => {
-    expect(PORTRAIT_PROMPT_VERSION).toBe("portrait-v2");
+    expect(PORTRAIT_PROMPT_VERSION).toBe("portrait-v3");
     for (const job of portraits) {
       expect(job.prompt_version).toBe(PORTRAIT_PROMPT_VERSION);
       // A regenerated version must never overwrite a rejected file or inherit its ledger row.
-      expect(job.file).toBe(`${job.character_id}-v2.png`);
+      expect(job.file).toBe(`${job.character_id}-v3.png`);
     }
     for (const job of batch.filter((j) => j.kind === "background")) {
       expect(job.prompt_version).toBe(BACKDROP_PROMPT_VERSION);
