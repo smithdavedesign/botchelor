@@ -77,3 +77,44 @@ export function setModelForTests(model: Model | null): void {
 export function getModel(): Model {
   return testModel ?? modelFromEnv();
 }
+
+/* ------------------------------------------------------------------ *
+ * Frontier model: a better, paid model, GATED behind an admin password (the owner's approval, 2026-10-13).
+ *
+ * Off by default: every normal request uses the free model above, so marginal cost stays $0. The frontier
+ * model is used only when FRONTIER_LLM_* is configured AND the request carries the matching x-frontier-key
+ * header, so spend is limited to explicitly authorized runs ("a handful of examples"). Keys come from the
+ * environment (keychain / Vercel), never from code, and the password is compared in constant time.
+ * ------------------------------------------------------------------ */
+
+export const frontierConfigured = (env: Record<string, string | undefined> = process.env): boolean =>
+  Boolean(env.FRONTIER_LLM_BASE_URL && env.FRONTIER_LLM_API_KEY && env.FRONTIER_LLM_MODEL);
+
+export function frontierModelFromEnv(env: Record<string, string | undefined> = process.env, fetchImpl?: typeof fetch): Model | null {
+  if (!frontierConfigured(env)) return null;
+  return openAICompatibleModel({ baseUrl: env.FRONTIER_LLM_BASE_URL!, apiKey: env.FRONTIER_LLM_API_KEY!, model: env.FRONTIER_LLM_MODEL!, fetchImpl });
+}
+
+/** Constant-time compare, so the gate doesn't leak the password through timing. */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
+/** True only when a frontier password is set and the request carries the matching x-frontier-key header. */
+export function frontierAuthorized(req: Request, env: Record<string, string | undefined> = process.env): boolean {
+  const pw = env.FRONTIER_PASSWORD;
+  if (!pw) return false;
+  const given = req.headers.get("x-frontier-key") ?? "";
+  return given.length > 0 && safeEqual(given, pw);
+}
+
+let testFrontierModel: Model | null = null;
+export function setFrontierModelForTests(model: Model | null): void {
+  testFrontierModel = model;
+}
+export function getFrontierModel(): Model | null {
+  return testFrontierModel ?? frontierModelFromEnv();
+}
