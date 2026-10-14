@@ -36,6 +36,7 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { setConversationEnabledForTests } from "@/lib/conversation";
+import { setInlineGenerationForTests } from "@/lib/jobs";
 import type { Ending } from "@/lib/rules";
 
 export const BASE_URL = "http://localhost:3000";
@@ -57,6 +58,7 @@ type Table =
   | "free_episode_usage"
   | "pack_episode_usage"
   | "souls"
+  | "generation_jobs"
   | "character_assets"
   | "watch_parties"
   | "watch_messages"
@@ -74,6 +76,9 @@ export async function startTestDb() {
   // The M9 conversation path is off in tests by default: episode tests script only the narration model.
   // The conversation module is tested directly in tests/conversation.test.ts.
   setConversationEnabledForTests(false);
+  // M10 part 2: run generation inline (no Next after() lifecycle in unit tests), so an episode is ready
+  // by the time POST returns — the same observable behaviour the suite was written against.
+  setInlineGenerationForTests(true);
   return {
     db,
     async reset() {

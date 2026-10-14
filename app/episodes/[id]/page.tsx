@@ -20,6 +20,7 @@ import EpisodeActions from "./EpisodeActions";
 import SafetyActions from "./SafetyActions";
 import SlidingDoors from "./SlidingDoors";
 import WatchPartyLaunch from "./WatchPartyLaunch";
+import GeneratingPoller from "./GeneratingPoller";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,28 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
   const nameOf = (characterId: string) => episode.characters.find((c) => c.id === characterId)?.name;
   // A creator of a house date has nobody to block; everyone else blocks "whoever made this".
   const canBlock = !episode.is_creator || episode.characters.every((c) => !c.house);
+
+  // M10: the date is generated in the background. Until it's ready, show a waiting state that polls.
+  if (episode.status !== "ready") {
+    return (
+      <article>
+        <p className="kicker">Botchelor episode</p>
+        <EpisodeNotices />
+        <div className="matchup">
+          <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} size={60} />
+          <span className="vs">×</span>
+          <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} size={60} />
+        </div>
+        <h1>
+          {a.name} × {b.name}
+        </h1>
+        <GeneratingPoller episodeId={episode.id} />
+        <p className="muted">
+          <Link href="/feed">More episodes</Link>
+        </p>
+      </article>
+    );
+  }
 
   return (
     <article>

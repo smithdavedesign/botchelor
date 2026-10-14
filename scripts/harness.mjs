@@ -128,6 +128,8 @@ export function appEnv(showrunnerPort, dataDir) {
     STRIPE_PRICE_LABEL: SAMPLE_PRICE_LABEL,
     STRIPE_WEBHOOK_SECRET: RUN_WEBHOOK_SECRET,
     WATCH_ADMIN_TOKEN,
+    // Generate episodes inline so the demo/e2e don't race the async after() worker.
+    BOTCHELOR_INLINE_GENERATION: "1",
     NEXT_TELEMETRY_DISABLED: "1",
   };
 }

@@ -269,6 +269,30 @@ alter table episodes add column if not exists variation text;
 -- '[]' for episodes made before M9 or when the conversation couldn't be produced (the recap still stands).
 alter table episodes add column if not exists transcript jsonb not null default '[]';
 
+-- M10 part 2: async generation. The engine outcome (ending, box score) is written synchronously and the
+-- episode is 'generating'; a background worker narrates + runs the conversation, then flips it to 'ready'.
+-- Legacy rows default 'ready'. A terminally failed generation deletes its episode and gives the date back
+-- (so a failure still "stores nothing and costs no date"); only 'generating' and 'ready' ever persist.
+alter table episodes add column if not exists status text not null default 'ready'
+  check (status in ('generating', 'ready'));
+
+-- One generation job per episode. Leased so two workers (the after()-hook and the cron backstop) never
+-- double-run it. use_frontier, creator_id and the date reservation are recorded at enqueue because the
+-- worker has no request: it needs them to pick the model and to give the date back on a terminal failure.
+create table if not exists generation_jobs (
+  episode_id text primary key references episodes (id) on delete cascade,
+  status text not null default 'queued' check (status in ('queued', 'running', 'succeeded', 'failed')),
+  use_frontier boolean not null default false,
+  creator_id text not null,
+  reservation jsonb,
+  attempts integer not null default 0,
+  leased_until timestamptz,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists generation_jobs_claim_idx on generation_jobs (status, leased_until);
+
 -- Guess the dealbreaker (PRD "Further ideas"): a spectator picks character_a's real dealbreaker from
 -- four options. Correct = it equals the stored dealbreaker, scored at reveal like the drama pick.
 create table if not exists dealbreaker_guesses (

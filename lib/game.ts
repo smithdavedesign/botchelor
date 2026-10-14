@@ -54,6 +54,10 @@ export type DateSetup = {
 
 export type BoxScore = Record<DateVariable, VariableArc>;
 
+/** M10: an episode is 'generating' while the background worker fills it in, then 'ready'. A terminal
+ *  failure deletes the episode (nothing stored, date refunded), so only these two statuses persist. */
+export type EpisodeStatus = "generating" | "ready";
+
 export type StoredEpisode = {
   id: string;
   characters: [CharacterRef, CharacterRef];
@@ -73,6 +77,7 @@ export type StoredEpisode = {
   setup: DateSetup | null;
   /** M9: the turn-by-turn conversation. Empty for pre-M9 episodes or when it couldn't be produced. */
   transcript: Turn[];
+  status: EpisodeStatus;
 };
 
 export type EpisodeJson = {
@@ -80,6 +85,8 @@ export type EpisodeJson = {
   share_path: string;
   /** Always true: every episode is written by the showrunner model. */
   ai_generated: true;
+  /** M10: 'generating' until the background worker finishes; the page polls while it is. */
+  status: EpisodeStatus;
   characters: [CharacterRef, CharacterRef];
   setting: string;
   goals: { character_id: string; goal: string }[];
@@ -148,6 +155,7 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     id: ep.id,
     share_path: `/episodes/${ep.id}`,
     ai_generated: true,
+    status: ep.status,
     characters: ep.characters,
     setting: ep.setting,
     goals: [
@@ -203,6 +211,7 @@ type EpisodeRow = {
   sides: [SideOutcome, SideOutcome] | null;
   setup: DateSetup | null;
   transcript: Turn[];
+  status: EpisodeStatus;
   a_id: string;
   a_name: string;
   a_house: boolean;
@@ -234,7 +243,7 @@ type EpisodeRow = {
 const EPISODE_SELECT = `
 select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_question, e.drama_answer,
        e.revealed_at is not null as revealed,
-       e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript,
+       e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.status,
        a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue,
        b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue,
        coalesce($1::text in (a.owner_id, b.owner_id), false) as is_creator,
@@ -306,6 +315,7 @@ function toView(row: EpisodeRow): EpisodeView {
       sides: row.sides,
       setup: row.setup,
       transcript: row.transcript ?? [],
+      status: row.status,
     },
     { full, showConfessionals: row.is_creator || (row.revealed && row.confessionals_shared), creators },
   );
@@ -353,6 +363,7 @@ export async function listFeed(db: Db, viewerId: string | null, limit = FEED_LIM
   const { rows } = await db.query<EpisodeRow>(
     `${EPISODE_SELECT}
       where rep.n < $2::int
+        and e.status = 'ready'
         and not exists (
           select 1 from blocks bl
             join episodes be on be.id = bl.via_episode_id
