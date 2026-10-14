@@ -964,3 +964,25 @@ Acting on a PRD review's two biggest buildable-at-$0 points:
 - **Local-only souls.** A soul can be marked `local_only`: it still drives the engine (via `deriveSoulSignals`) but its text is never sent to any model. Addresses the review's strongest privacy point (the soul is the most damaging thing to leak) and is the control `docs/upgrade-cost.md §5` recommended.
 
 The review's other points were already satisfied (episodes are immutable once stored; predictions lock at reveal; the private soul is gated server-side, never in a spectator response) or are doc/legal/metrics items rather than code.
+
+## Status (next-level pass: avatars, customization, E2E)
+
+A competitor-driven polish pass (docs/competitive-analysis.md), all $0.
+
+- **Avatars** (`lib/avatar.ts`, `app/Avatar.tsx`): deterministic SVG avatars (gradient + initials, optional owner-chosen hue) on the episode matchup, feed, cast gallery, builder preview and the box-score OG card. No image upload, so nothing to moderate and no real-person risk.
+- **Customization**: `characters.appearance` and `characters.avatar_hue` columns (idempotent migration), wired through the sheet, refs and cast; a builder with a live avatar preview, an appearance line and a colour picker.
+- **Visual overhaul** (`app/globals.css`): Fraunces/Inter type, a richer palette with real dark mode (`prefers-color-scheme`), gradients, a hero, a cast gallery and chips. Every existing class is preserved.
+
+### New scripts
+
+```bash
+npm run seed   # fills .data/pglite (the dev DB) with a demo season; export DATABASE_URL to seed a remote DB
+npm run e2e    # full end-to-end test in a real browser (needs CHROMIUM_PATH); 10 steps, build + stub showrunner
+```
+
+- `scripts/harness.mjs` is the shared app/showrunner lifecycle used by `e2e.mjs` and `seed.mjs`; the stub showrunner returns a valid three-act narration matching the engine's decided ending.
+- `npm run e2e` covers the whole product: custom-character build (soul, appearance, avatar colour) → send on a date → the three-act episode with avatars/box score/debrief/agendas → Sliding Doors → a spectator predicts and guesses the dealbreaker → the host airs the finale → the spectator is scored → the cast gallery/matchmaker → a shop purchase. All 10 steps pass.
+
+### Image upload / "image as training data"
+
+Proposed, not built (docs/competitive-analysis.md): it needs object storage, a vision model, and automated image moderation (CSAM scanning + a real-person classifier), since the product bans real people. Generated avatars are the $0 stand-in. The engine `CharacterSheet` already carries `appearance` so a future reference image slots in without touching the engine.
