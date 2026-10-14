@@ -13,7 +13,9 @@ export type AnalyticsEvent =
   | "prediction_submitted"
   | "purchase_completed"
   | "content_reported"
-  | "generation_failed";
+  | "generation_failed"
+  | "conversation_failed" // the best-effort two-agent conversation gave up (the date still airs, with no thread)
+  | "daily_job"; // the daily cron: lobby refresh + transcript backfill + queued-job backstop
 
 type Props = Record<string, string | number | boolean | null | undefined>;
 

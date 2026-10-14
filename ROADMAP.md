@@ -338,6 +338,14 @@ Grounded in how Twitch/live-watch UIs work (an app-fullscreen stage with overlay
   top**, paced like it aired (`app/useReplay.ts`, shared with the episode replay); and the date reads as a
   **messaging thread** everywhere (`app/ChatThread.tsx`): beside the scene on desktop, the main view on a
   phone, and on the episode page and the classic room.
+- **Keeping the lobby alive (David, 2026-10-14: "refresh + daily auto", "backfill them").** Prod's lobby
+  held only old rooms whose dates predated the conversation, so nothing could play line by line. Shipped: a
+  daily Vercel Cron (`/api/jobs/daily`, `vercel.json`) that adds one fresh house-vs-house room with a full
+  conversation (`refreshLobby`, idempotent per day), **backfills** the missing conversation for a few old
+  dates per run (`lib/backfill.ts`, steered to each date's *stored* outcome so no ending, box score or scored
+  prediction can change; at most 3 tries per date), and runs the generation backstop. The lobby no longer
+  offers an always-on room with no conversation. Conversation failures are now logged
+  (`conversation_failed`) instead of swallowed. Free model only, $0.
 
 ## M14: the Character model + per-bot memory (the self-training cast)
 

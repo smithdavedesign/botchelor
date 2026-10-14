@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
-import { handle, json, safeEqual } from "@/lib/http";
-import { runQueuedJobs } from "@/lib/jobs";
+import { handle, json } from "@/lib/http";
+import { internalJobAuthorized, runQueuedJobs } from "@/lib/jobs";
 
 // May process several queued jobs, each up to ~25s of model calls.
 export const maxDuration = 300;
@@ -13,11 +13,7 @@ export const dynamic = "force-dynamic";
  * (x-jobs-token), both constant-time. 404 when neither is configured/matched, so it isn't a public surface.
  */
 async function run(req: Request): Promise<Response> {
-  const cronSecret = process.env.CRON_SECRET;
-  const adminToken = process.env.WATCH_ADMIN_TOKEN;
-  const okCron = Boolean(cronSecret) && safeEqual(req.headers.get("authorization") ?? "", `Bearer ${cronSecret}`);
-  const okAdmin = Boolean(adminToken) && safeEqual(req.headers.get("x-jobs-token") ?? "", adminToken ?? "");
-  if (!okCron && !okAdmin) return json({ error: "not_found" }, 404);
+  if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
   const ran = await runQueuedJobs(await getDb());
   return json({ ran });
 }

@@ -14,7 +14,10 @@
  *    plays on one shared clock — "join and the date starts" — so there is always something to drop into.
  */
 import { getDb, type Db } from "./db";
-import { getEngine } from "./engine";
+import { getEngine, seedFrom } from "./engine";
+import { track } from "./analytics";
+import { failureReason } from "./jobs";
+import { HOUSE_CHARACTERS } from "./house";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
 import { getModel } from "./model";
 import { getProfileName } from "./people";
@@ -562,6 +565,9 @@ export async function listLobby(db: Db, now: Date = new Date(), limit = 24): Pro
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b
       where (select count(*) from reports r where r.episode_id = e.id) < $2
+        -- An always-on room is only worth opening if its date plays line by line; one whose conversation
+        -- couldn't be produced stays reachable by link but isn't offered (the daily job backfills it).
+        and (w.kind <> 'template' or jsonb_array_length(e.transcript) > 0)
       order by (w.kind = 'template') desc, w.created_at desc
       limit $3`,
     [WATCH_PRESENCE_WINDOW_SECONDS, REPORT_HIDE_THRESHOLD, limit],
@@ -691,8 +697,9 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   if (isConversationEnabled()) {
     try {
       transcript = await simulateConversation(getModel(), built.input, decided, built.characters, built.setup.producer, built.setup.venue);
-    } catch {
+    } catch (err) {
       transcript = [];
+      track("conversation_failed", { episode_id: episodeId, where: "template", reason: failureReason(err) });
     }
   }
 
@@ -735,6 +742,38 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
 }
 
 /* ---------------------------------- reactions, votes, chat ---------------------------------- */
+
+/**
+ * The daily lobby refresh (the "always-on" promise): once per UTC day, add a fresh house-vs-house room whose
+ * date has a full conversation, so the lobby always has something to tap into and watch live. The pairing
+ * is dealt from the day (two distinct free house characters), it is idempotent per day (a retried cron is a
+ * no-op), and a pairing whose conversation fails gets one other try. Free model only, so $0 marginal cost.
+ */
+export async function refreshLobby(db: Db, now: Date = new Date()): Promise<{ created: string | null; reason?: string }> {
+  if (generationPaused()) return { created: null, reason: "paused" };
+  const day = now.toISOString().slice(0, 10);
+  const today = await db.query<{ id: string }>(
+    `select w.id from watch_parties w join episodes e on e.id = w.episode_id
+      where w.kind = 'template' and w.created_at >= $1::date and jsonb_array_length(e.transcript) > 0
+      limit 1`,
+    [day],
+  );
+  if (today.rows.length) return { created: null, reason: "already_today" };
+
+  const cast = HOUSE_CHARACTERS.map((c) => c.id);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const i = seedFrom("lobby-a", day, attempt) % cast.length;
+    const j = (i + 1 + (seedFrom("lobby-b", day, attempt) % (cast.length - 1))) % cast.length;
+    const result = await createTemplateParty(db, cast[i], cast[j]);
+    if (!result || !result.ok) continue;
+    const { rows } = await db.query<{ n: number }>(
+      `select jsonb_array_length(e.transcript)::int as n from watch_parties w join episodes e on e.id = w.episode_id where w.id = $1`,
+      [result.id],
+    );
+    if ((rows[0]?.n ?? 0) > 0) return { created: result.id };
+  }
+  return { created: null, reason: "no_conversation" };
+}
 
 /** Toggles one of a viewer's emoji reactions on. Returns the new count and whether it is now theirs. */
 export async function toggleReaction(
