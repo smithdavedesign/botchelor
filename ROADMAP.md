@@ -310,6 +310,26 @@ contestant card, with a **cast leaderboard** (most likable / most surprising) on
   self-rating is 403 and an unknown character 404; the leaderboard orders by count; the owner earns points
   when others rate their OC, the rater earns none.
 
+## M13: the immersive date "theater" (shipped)
+
+David's call: make watching a date feel like an *experience* — a full-screen "window into the two date bots,"
+not a page you scroll. Every current feature is kept (the turn-by-turn date, live chat, reactions, the
+chemistry/question/chaos polls, predictions, the box score, the decision), re-homed into a cinematic layout.
+Grounded in how Twitch/live-watch UIs work (an app-fullscreen stage with overlays, docked-but-collapsible chat).
+
+**The design (David's answers, 2026-10-14):**
+- **The scene (desktop):** a full-bleed venue backdrop the two characters *live in*, one **left**, one **right**,
+  each with a **persistent speech bubble** — a character's latest line stays up until it speaks again. The date
+  advances on the existing phase clock (watch party) or as a cinematic replay (episode page).
+- **Chat (desktop):** docked to the side, with a **small Twitch-style icon to open/close** it.
+- **Mobile:** a **chat-window** view — the dialogue as a messaging thread with the characters' avatar icons.
+- **Both surfaces** get it: the live watch room **and** the static episode page (the episode replays its recorded
+  transcript in the same scene).
+- A top HUD (phase/viewers/venue) and a rail for the live inputs (predict, the polls, the chaos button) + the
+  decision/box-score payoff — overlays, not a scroll.
+- Built as a **theater mode the watch room opens into** (today's layout stays as the fallback). No new model
+  cost — a re-layout of existing data + the existing $0 live machinery.
+
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
 The competitor report's image plan, built at $0 — first-party assets only, reviewed and committed (no runtime generation, no uploads):

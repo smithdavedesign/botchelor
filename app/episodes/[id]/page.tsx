@@ -15,6 +15,7 @@ import { venueBackdropCss, venueName } from "@/lib/venues";
 import { venueBackdrop } from "@/lib/portraits";
 import Avatar from "@/app/Avatar";
 import Afterglow from "./Afterglow";
+import EpisodeTheater from "./EpisodeTheater";
 import BoxScore from "./BoxScore";
 import ConfessionalShare from "./ConfessionalShare";
 import CreatorReveal from "./CreatorReveal";
@@ -170,6 +171,17 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
         <section className="card transcript">
           <h2>The date, line by line</h2>
           <p className="muted">The two characters played this out turn by turn — nobody scripted the lines in advance.</p>
+          {episode.ending && (
+            <p className="theater-cta">
+              <EpisodeTheater
+                characters={episode.characters}
+                venue={episode.venue ?? null}
+                transcript={episode.transcript}
+                endingLabel={ENDING_LABELS[episode.ending]}
+              />
+              <span className="muted"> Watch it play out as a scene.</span>
+            </p>
+          )}
           {episode.transcript.map((t, i) => {
             const prev = episode.transcript![i - 1];
             const showAct = !prev || prev.act !== t.act;

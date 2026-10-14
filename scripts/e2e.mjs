@@ -138,6 +138,15 @@ async function main() {
       assert((await page.locator(".afterglow .turn").count()) >= 1, "the afterglow thread did not open");
     });
 
+    await step("the episode plays as an immersive theater (M13)", async () => {
+      await page.getByRole("button", { name: "Watch in theater" }).scrollIntoViewIfNeeded();
+      await page.getByRole("button", { name: "Watch in theater" }).click();
+      await page.locator(".theater .scene").waitFor({ timeout: 10_000 });
+      assert((await page.locator(".theater-hud").count()) > 0, "the theater HUD is missing");
+      await page.getByRole("button", { name: "Exit" }).click();
+      await page.locator(".theater").waitFor({ state: "detached", timeout: 10_000 });
+    });
+
     await step("Sliding Doors replays the date with one thing changed", async () => {
       await page.getByRole("heading", { name: "Sliding doors" }).scrollIntoViewIfNeeded();
       await page.getByRole("button", { name: "More unpredictable" }).click();
@@ -192,6 +201,17 @@ async function main() {
       } finally {
         await fan.close();
       }
+    });
+
+    await step("the watch room opens into theater mode (M13)", async () => {
+      await page.bringToFront();
+      await page.goto(roomUrl);
+      await page.getByRole("button", { name: /Theater mode/ }).click();
+      await page.locator(".theater .scene").waitFor({ timeout: 10_000 });
+      assert((await page.locator(".theater-hud").count()) > 0, "the theater HUD is missing");
+      assert((await page.locator(".theater-chat").count()) > 0, "the docked chat is missing in theater");
+      await page.getByRole("button", { name: "Exit" }).click();
+      await page.locator(".theater").waitFor({ state: "detached", timeout: 10_000 });
     });
 
     await step("an always-on template date can be joined from the lobby", async () => {
