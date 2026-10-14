@@ -24,6 +24,7 @@ import {
   type Strategy,
 } from "./rules";
 import type { VenueId } from "./venues";
+import type { Turn } from "./conversation";
 
 // The rules moved to lib/rules.ts (client-safe); M1 code and tests import them from here.
 export { ENDING_LABELS, ENDINGS, POINTS_PER_CORRECT_PICK, pointsFor, type Ending };
@@ -70,6 +71,8 @@ export type StoredEpisode = {
   confessionals: [string, string] | null;
   sides: [SideOutcome, SideOutcome] | null;
   setup: DateSetup | null;
+  /** M9: the turn-by-turn conversation. Empty for pre-M9 episodes or when it couldn't be produced. */
+  transcript: Turn[];
 };
 
 export type EpisodeJson = {
@@ -86,6 +89,8 @@ export type EpisodeJson = {
   venue?: VenueId;
   // Only present for the creators, or for everyone once the finale has aired.
   scenes?: string[];
+  /** The turn-by-turn date "footage" (M9). A spoiler (it reaches the ending), so gated like `scenes`. */
+  transcript?: Turn[];
   twist?: string;
   finale?: string;
   ending?: Ending;
@@ -155,6 +160,7 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
   if (ep.setup?.venue) json.venue = ep.setup.venue;
   if (opts.full) {
     json.scenes = ep.scenes;
+    if (ep.transcript.length) json.transcript = ep.transcript;
     json.twist = ep.twist;
     json.finale = ep.finale;
     json.ending = ep.ending;
@@ -196,6 +202,7 @@ type EpisodeRow = {
   confessionals_shared: boolean;
   sides: [SideOutcome, SideOutcome] | null;
   setup: DateSetup | null;
+  transcript: Turn[];
   a_id: string;
   a_name: string;
   a_house: boolean;
@@ -227,7 +234,7 @@ type EpisodeRow = {
 const EPISODE_SELECT = `
 select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_question, e.drama_answer,
        e.revealed_at is not null as revealed,
-       e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup,
+       e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript,
        a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue,
        b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue,
        coalesce($1::text in (a.owner_id, b.owner_id), false) as is_creator,
@@ -298,6 +305,7 @@ function toView(row: EpisodeRow): EpisodeView {
       confessionals: row.confessionals,
       sides: row.sides,
       setup: row.setup,
+      transcript: row.transcript ?? [],
     },
     { full, showConfessionals: row.is_creator || (row.revealed && row.confessionals_shared), creators },
   );

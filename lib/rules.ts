@@ -190,6 +190,23 @@ export const agendaLabel = (id: AgendaId): string => agenda(id).label;
 export const DATE_ACTS = ["First impressions", "The challenge", "The decision"] as const;
 
 /**
+ * M9 — the turn-by-turn two-agent conversation. Each character is its own agent that reacts to the
+ * other's actual last line (not one model narrating both). The engine still decides the outcome
+ * (predictions stay fair); the conversation performs it. Bounded so a date stays short and cheap.
+ */
+export const CONVERSATION_TURNS = 8; // dialogue turns total, alternating, character A opens
+export const TURN_DIALOGUE_MAX = 280; // characters per spoken line
+/** The narrative emotions an agent may report per turn (flavour only; never touches the engine). */
+export const TURN_EMOTIONS = [
+  "curious", "amused", "guarded", "warm", "nervous", "bored", "defensive", "flirty", "surprised", "cool",
+] as const;
+export type TurnEmotion = (typeof TURN_EMOTIONS)[number];
+
+/** Which act (0-based index into DATE_ACTS) a given turn belongs to, so turns map onto the 3-act clock. */
+export const actForTurn = (turnIndex: number, turns: number = CONVERSATION_TURNS): number =>
+  Math.min(DATE_ACTS.length - 1, Math.floor((turnIndex / turns) * DATE_ACTS.length));
+
+/**
  * The AI producer (PRD "the AI producer"): each date is dealt one hidden situation that act 2 turns on.
  * It doesn't dictate the outcome — the engine does — it just creates circumstances that reveal
  * personality. A bounded library, dealt by seed, so it needs no model call and stays reproducible.

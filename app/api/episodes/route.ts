@@ -20,6 +20,7 @@ import { checkFields } from "@/lib/safety";
 import { seasonAt } from "@/lib/seasons";
 import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { narrateEpisode, ShowrunnerError, type CharacterSheet, type EpisodeDraft } from "@/lib/showrunner";
+import { isConversationEnabled, simulateConversation, type Turn } from "@/lib/conversation";
 
 // One narration call at up to 25 s; the engine itself is instant.
 export const maxDuration = 60;
@@ -226,13 +227,25 @@ async function writeAndSave(
     );
   }
 
+  // M9: the date, performed turn-by-turn by the two character agents (lib/conversation.ts). Best-effort
+  // and gated (off in tests): the engine already decided the outcome and the recap above already stands,
+  // so a failed or disabled conversation just leaves the transcript empty — the episode is unaffected.
+  let transcript: Turn[] = [];
+  if (isConversationEnabled()) {
+    try {
+      transcript = await simulateConversation(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue);
+    } catch (err) {
+      console.warn("[episodes] conversation unavailable:", err instanceof Error ? err.message : "unknown");
+    }
+  }
+
   // The model call takes seconds; re-check at insert time that neither creator blocked the other meanwhile.
   const saved = await db.query(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
                            drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup,
-                           note, self_pick)
+                           note, self_pick, transcript)
      select $1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16,
-            $17::jsonb, $18::jsonb, $19, $20
+            $17::jsonb, $18::jsonb, $19, $20, $21::jsonb
       where not exists (
         select 1 from characters pc
           join blocks bl on (bl.blocker_id = $2 and bl.blocked_id = pc.owner_id)
@@ -260,6 +273,7 @@ async function writeAndSave(
       JSON.stringify(built.setup),
       input.note ?? null,
       input.self_pick ?? null,
+      JSON.stringify(transcript),
     ],
   );
   if (!saved.rows.length) {
@@ -292,6 +306,7 @@ async function writeAndSave(
     confessionals: [draft.confessionals[0], draft.confessionals[1]],
     sides: decided.sides,
     setup: built.setup,
+    transcript,
   };
   return json(toEpisodeJson(stored, { full: true, showConfessionals: true }), 200, sess);
 }

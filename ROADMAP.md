@@ -159,6 +159,44 @@ Deferred (needs spend or new infra):
 - Interactive theatre (**Model B**): bounded audience-chosen twists that the engine actually responds to
   — explicitly advertised on the episode, and only once Model A's retention is proven (brief §3).
 
+## M9: turn-by-turn two-agent dates (the conversation, part 1)
+
+From `Botchelor_PRD_v1.md` §6.4 and the two-agent architecture review: a date is no longer one model call
+narrating both characters. Each character is its **own agent** that reacts to the other's actual last
+line. The deterministic engine still **decides the outcome** (so predictions stay fair and Sliding Doors
+still replays exactly — David's call, 2026-10-14, "engine decides, agents perform"); the conversation
+**performs** it, steered onto the decided ending in the final act. The per-turn emotion/interest are
+narrative flavour only and never touch the engine, the box score or scoring.
+
+Built ($0, additive and safe):
+- **The conversation engine** (`lib/conversation.ts`): a bounded, alternating loop (8 turns, character A
+  opens). Each turn the speaking agent gets ITS OWN private soul, secret agenda and the owner's note, plus
+  **only the other character's PUBLIC sheet** — never the other's soul or agenda (PRD §12). Each turn is a
+  validated `{ dialogue, action, emotion, interest_signal }`, run through the content filter, with one
+  retry then a clean give-up.
+- **Stored and shown**: the transcript is an immutable `episodes.transcript` (jsonb), rendered on the
+  episode page as a chat-style "the date, line by line" timeline. It is a spoiler (it reaches the ending),
+  so it is gated like the scenes — creators always, everyone once the finale airs.
+- **Runs alongside the reliable recap**: the existing single-call narration still writes the setting,
+  box score, twist, finale and confessionals, so a failed or disabled conversation just leaves the
+  transcript empty — the episode is never broken. Free model by default; the gated frontier
+  (`episodeModel`) for paid/premium dates.
+
+Exit criteria (tested — `tests/conversation.test.ts`, and the Playwright e2e):
+- The transcript is bounded and alternates A/B across the three acts; a bad turn retries once then the
+  whole conversation gives up (the episode still saves on the recap).
+- An agent's prompt never contains the other side's private soul or secret agenda (privacy test).
+- The engine still decides the outcome deterministically; `interest_signal` never changes the stored
+  outcome, box score or points.
+- The episode page shows the turn-by-turn timeline (e2e), and reopening returns the identical transcript.
+
+Next (M9 part 2): template rooms pre-generate the transcript async; the watch room unlocks turns on the
+clock; make the conversation the primary content and drop the redundant narration call.
+
+Deferred to M10 (launch readiness): the async job table + worker (so creator/paid dates generate in the
+background instead of in the request), account deletion/export, the analytics event taxonomy, and
+per-episode unit-economics/cost logging.
+
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
 The competitor report's image plan, built at $0 — first-party assets only, no hosted imagery:

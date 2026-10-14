@@ -1291,3 +1291,32 @@ button.swatch.chosen {
 .watch-lobby-live.on {
   color: var(--accent);
 }
+
+/* M9: the turn-by-turn conversation timeline on the episode page. */
+.transcript .turn {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin: 0.5rem 0;
+}
+.transcript .turn-b {
+  flex-direction: row-reverse;
+}
+.transcript .turn-body {
+  max-width: 80%;
+  border-radius: 14px;
+  padding: 0.55rem 0.8rem;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+.transcript .turn-b .turn-body {
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
+  text-align: right;
+}
+.transcript .turn-line {
+  margin: 0;
+}
+.transcript .turn-meta {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}

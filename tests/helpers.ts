@@ -35,6 +35,7 @@ import { fixedEngine, setEngineForTests, type Outcome } from "@/lib/engine";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
+import { setConversationEnabledForTests } from "@/lib/conversation";
 import type { Ending } from "@/lib/rules";
 
 export const BASE_URL = "http://localhost:3000";
@@ -69,6 +70,9 @@ export async function startTestDb() {
   const db: Db = pgliteDb(pg);
   await ensureSchema(db);
   setDbForTests(db);
+  // The M9 conversation path is off in tests by default: episode tests script only the narration model.
+  // The conversation module is tested directly in tests/conversation.test.ts.
+  setConversationEnabledForTests(false);
   return {
     db,
     async reset() {
