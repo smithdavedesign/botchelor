@@ -473,6 +473,12 @@ async function capture(base, leagueId, viewer) {
       await castPage.getByRole("heading", { name: "The cast" }).waitFor();
       await castPage.locator(".gallery").first().waitFor();
       await shot(castPage, "cast");
+
+      // 5. A shareable contestant card.
+      await castPage.locator(".gallery .meta a").first().click();
+      await castPage.waitForURL(/\/characters\//);
+      await castPage.getByText("Contestant card").waitFor();
+      await shot(castPage, "contestant");
       await member.close();
     }
   } finally {

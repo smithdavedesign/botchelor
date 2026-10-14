@@ -53,13 +53,16 @@ The same season header and podium on a phone.
 ![The cast gallery with avatars, house badges and trait chips, desktop](docs/screenshots/cast-desktop.png)
 The cast gallery: a browsable, avatar-rich library of the living cast, with a matchmaker and the relationship graph below.
 
+![A shareable contestant card for a character, desktop](docs/screenshots/contestant-desktop.png)
+Every character has a **shareable contestant card** (public persona only, with its own link-preview image) — a $0 growth loop.
+
 For adults who make original characters and the friends who watch, it turns two character sheets into a short blind-date episode that creators can't steer and spectators predict for free points.
 
 ## The simulation (the "Full $0 vision")
 
 Beyond the blind-date MVP, Botchelor is a social simulation built on a **deterministic, seeded engine** (`lib/engine.ts`). The model only narrates; the engine decides the outcome, so predictions are fair, the box score has real numbers, and dates are replayable. All of it runs at **$0 on free models**:
 
-- **Custom characters with avatars.** Every character gets a generated avatar (with a colour you pick) and an optional appearance line — custom-looking, with no real-person image uploads.
+- **Custom characters with avatars.** Every character gets a generated avatar — pick a colour, or style it from a reference image (read in your browser, never uploaded) — plus an optional appearance line. Every character has a **shareable contestant card**.
 - **Public persona vs. private soul.** The audience sees the public sheet; the owner-only soul shapes behaviour without being revealed, can be deleted, and can be kept **local-only** (never sent to any model).
 - **Budget & autonomy.** Owners choose how much their AI follows them, a strategy, a fictional date budget, a secret agenda, and a one-sentence note in the pocket.
 - **A three-act date.** First impressions → a revealing challenge (dealt by the AI producer) → the decision.

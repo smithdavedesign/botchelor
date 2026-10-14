@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { avatarPalette, initials } from "@/lib/avatar";
+import { avatarPalette, hueFromPixels, initials } from "@/lib/avatar";
+import { getPublicCharacter } from "@/lib/game";
 import { api, newUserCookie, startTestDb, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -52,5 +53,46 @@ describe("avatars are deterministic", () => {
     expect(avatarPalette("abc", 0).hue).toBe(avatarPalette("abc").hue); // 0 = auto
     expect(initials("Mira Quell")).toBe("MQ");
     expect(initials("Rafe")).toBe("R");
+  });
+});
+
+describe("styling an avatar from an image (in-browser, nothing uploaded)", () => {
+  const solid = (r: number, g: number, b: number, n = 100) => {
+    const a = new Uint8ClampedArray(n * 4);
+    for (let i = 0; i < n; i++) {
+      a[i * 4] = r;
+      a[i * 4 + 1] = g;
+      a[i * 4 + 2] = b;
+      a[i * 4 + 3] = 255;
+    }
+    return a;
+  };
+
+  it("reads a dominant vivid hue, and returns null for a grey image", () => {
+    const blue = hueFromPixels(solid(0, 0, 255));
+    expect(blue).not.toBeNull();
+    expect(blue!).toBeGreaterThanOrEqual(240);
+    expect(blue!).toBeLessThanOrEqual(270);
+    expect(hueFromPixels(solid(128, 128, 128))).toBeNull(); // grey → stays "auto"
+    expect(hueFromPixels(solid(255, 255, 255))).toBeNull(); // white → auto
+  });
+});
+
+describe("the public contestant card", () => {
+  it("exposes the public persona but not the dealbreaker or the soul", async () => {
+    const owner = newUserCookie();
+    const body = await (
+      await api.createCharacter(
+        validCharacter({ appearance: "a coat of stars", avatar_hue: 160, soul: { values: "secret inner self" }, dealbreaker: "secret dealbreaker text" }),
+        owner,
+      )
+    ).json();
+    const card = await getPublicCharacter(t.db, body.id);
+    expect(card).toMatchObject({ id: body.id, name: "Mira Quell", appearance: "a coat of stars", hue: 160, house: false });
+    expect(card).toHaveProperty("want");
+    const json = JSON.stringify(card);
+    expect(json).not.toContain("secret dealbreaker text");
+    expect(json).not.toContain("secret inner self");
+    expect(await getPublicCharacter(t.db, "nope")).toBeNull();
   });
 });

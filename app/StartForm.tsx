@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import Avatar from "./Avatar";
-import { AVATAR_HUES } from "@/lib/avatar";
+import { AVATAR_HUES, hueFromPixels } from "@/lib/avatar";
 import {
   AGENDAS,
   AUTONOMY_BLURBS,
@@ -162,6 +162,36 @@ export default function StartForm({
   // For the live avatar preview in the builder.
   const [previewName, setPreviewName] = useState("");
   const [hue, setHue] = useState(0);
+
+  /**
+   * Style the avatar from a reference image, entirely in the browser: read its dominant colour with a
+   * canvas and set the avatar hue. The image is never uploaded or stored (so there is nothing to
+   * moderate and no real-person risk) — only the derived hue is sent, as any avatar colour would be.
+   */
+  function styleFromImage(file: File | undefined) {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 48;
+        canvas.height = 48;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, 48, 48);
+          const h = hueFromPixels(ctx.getImageData(0, 0, 48, 48).data);
+          if (h !== null) setHue(h);
+        }
+      } catch {
+        setError("Couldn't read that image. Pick a colour instead.");
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    };
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
+  }
 
   async function createCharacter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -353,6 +383,13 @@ export default function StartForm({
                 />
               ))}
             </div>
+            <label className="file-style">
+              Or style it from an image
+              <input type="file" accept="image/*" onChange={(e) => styleFromImage(e.target.files?.[0])} />
+            </label>
+            <span className="muted file-note">
+              We read the colours from your image in your browser to tint the avatar. The image is never uploaded or stored.
+            </span>
           </div>
         </div>
 

@@ -33,7 +33,9 @@ export default async function CastPage() {
               <div className="char">
                 <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={48} />
                 <div className="meta">
-                  <strong>{c.name}</strong>
+                  <Link href={`/characters/${c.id}`}>
+                    <strong>{c.name}</strong>
+                  </Link>
                   {c.house && <span className="badge">House</span>}
                 </div>
               </div>
