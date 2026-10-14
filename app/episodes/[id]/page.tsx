@@ -15,6 +15,7 @@ import CreatorReveal from "./CreatorReveal";
 import DealbreakerQuiz from "./DealbreakerQuiz";
 import EpisodeActions from "./EpisodeActions";
 import SafetyActions from "./SafetyActions";
+import SlidingDoors from "./SlidingDoors";
 
 export const dynamic = "force-dynamic";
 
@@ -155,6 +156,8 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
           )}
         </section>
       )}
+
+      {episode.is_creator && episode.box_score && <SlidingDoors episodeId={episode.id} />}
 
       {quiz && (
         <DealbreakerQuiz

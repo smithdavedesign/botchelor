@@ -7,14 +7,16 @@
 import type { Db } from "./db";
 import {
   deriveSoulSignals,
+  deterministicEngine,
   NEUTRAL_SIGNALS,
   seedFrom,
   type CharacterSheet,
   type DateHistory,
   type DateInput,
+  type Outcome,
   type SideSetup,
 } from "./engine";
-import type { DateSetup } from "./game";
+import type { BoxScore, DateSetup } from "./game";
 import { loadSoul, soulText } from "./souls";
 import {
   AGENDA_IDS,
@@ -25,6 +27,7 @@ import {
   type Autonomy,
   type Ending,
   type GameBudget,
+  type SlidingDoorChange,
   type Strategy,
 } from "./rules";
 
@@ -113,6 +116,118 @@ export async function buildDate(
   };
   const history = await loadHistory(db, a.id, b.id);
   return { input: { a: sideA, b: sideB, history }, souls: [soulText(soulA), soulText(soulB)], setup, seed };
+}
+
+/* ------------------------------------- Sliding Doors ------------------------------------- */
+
+function varySetup(setup: DateSetup, change: SlidingDoorChange): DateSetup {
+  switch (change) {
+    case "bolder":
+      return { ...setup, autonomy: "unpredictable" };
+    case "safer":
+      return { ...setup, autonomy: "guided" };
+    case "bigger_budget":
+      return { ...setup, game_budget_a: 100 };
+    case "long_game":
+      return { ...setup, strategy: "long_term" };
+  }
+}
+
+type DoorRow = {
+  seed: string | null;
+  setup: DateSetup | null;
+  note: string | null;
+  ending: Ending;
+  box_score: BoxScore | null;
+  a_id: string;
+  a_name: string;
+  a_age: number;
+  a_bio: string;
+  a_traits: string[];
+  a_want: string;
+  a_dealbreaker: string;
+  a_house: boolean;
+  b_id: string;
+  b_name: string;
+  b_age: number;
+  b_bio: string;
+  b_traits: string[];
+  b_want: string;
+  b_dealbreaker: string;
+  b_house: boolean;
+};
+
+const toSheet = (r: DoorRow, p: "a" | "b"): CharacterSheet => ({
+  name: r[`${p}_name`],
+  age: r[`${p}_age`],
+  bio: r[`${p}_bio`],
+  traits: r[`${p}_traits`],
+  want: r[`${p}_want`],
+  dealbreaker: r[`${p}_dealbreaker`],
+  house: r[`${p}_house`],
+});
+
+export type SlidingDoorsResult = {
+  change: SlidingDoorChange;
+  base: { ending: Ending; box_score: BoxScore };
+  alternate: { ending: Ending; box_score: BoxScore };
+};
+
+/**
+ * Replays an owner's date with exactly one input changed, reusing the stored seed so the only
+ * difference is the change (PRD "Sliding doors"). No model call: the engine recomputes the outcome
+ * deterministically, so the two timelines are a fair, reproducible comparison. Owner-only.
+ */
+export async function slidingDoors(
+  db: Db,
+  episodeId: string,
+  userId: string,
+  change: SlidingDoorChange,
+): Promise<SlidingDoorsResult | null> {
+  const { rows } = await db.query<DoorRow>(
+    `select e.seed::text as seed, e.setup, e.note, e.ending, e.box_score,
+            a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want,
+            a.dealbreaker a_dealbreaker, a.is_house a_house,
+            b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want,
+            b.dealbreaker b_dealbreaker, b.is_house b_house
+       from episodes e
+       join characters a on a.id = e.character_a
+       join characters b on b.id = e.character_b
+      where e.id = $1 and e.creator_id = $2`,
+    [episodeId, userId],
+  );
+  const row = rows[0];
+  if (!row || !row.setup || row.seed === null || !row.box_score) return null;
+  const seed = Number(row.seed);
+  const setup = row.setup;
+  const [soulA, soulB] = await Promise.all([loadSoul(db, row.a_id), loadSoul(db, row.b_id)]);
+  const history = await loadHistory(db, row.a_id, row.b_id);
+
+  const build = (s: DateSetup): DateInput => ({
+    a: {
+      sheet: toSheet(row, "a"),
+      signals: soulA ? deriveSoulSignals(soulA) : NEUTRAL_SIGNALS,
+      autonomy: s.autonomy,
+      strategy: s.strategy,
+      agendaId: s.agenda_a,
+      note: row.note,
+      gameBudget: s.game_budget_a,
+    },
+    b: {
+      sheet: toSheet(row, "b"),
+      signals: soulB ? deriveSoulSignals(soulB) : NEUTRAL_SIGNALS,
+      autonomy: DEFAULT_AUTONOMY,
+      strategy: DEFAULT_STRATEGY,
+      agendaId: s.agenda_b,
+      note: null,
+      gameBudget: s.game_budget_b,
+    },
+    history,
+  });
+
+  const toArc = (o: Outcome) => ({ ending: o.ending, box_score: o.variables });
+  const alt = deterministicEngine.decide(build(varySetup(setup, change)), seed);
+  return { change, base: { ending: row.ending, box_score: row.box_score }, alternate: toArc(alt) };
 }
 
 /** Remembers that a pair dated and how it went: feeds the next date's engine run and the relationship graph. */

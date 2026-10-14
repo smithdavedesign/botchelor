@@ -185,3 +185,13 @@ export const agendaLabel = (id: AgendaId): string => agenda(id).label;
 /** Points for the extra $0 prediction types (PRD "Further ideas"). Side bets, like the drama pick. */
 export const POINTS_PER_DEALBREAKER_PICK = 5;
 export const POINTS_PER_MATCHMAKER = 10;
+
+/** Sliding doors (PRD): the bounded one-thing-changed replays an owner can run. Client-safe labels. */
+export const SLIDING_DOOR_CHANGES = [
+  { id: "bolder", label: "More unpredictable" },
+  { id: "safer", label: "More guided" },
+  { id: "bigger_budget", label: "Bigger date budget" },
+  { id: "long_game", label: "Play the long game" },
+] as const;
+export type SlidingDoorChange = (typeof SLIDING_DOOR_CHANGES)[number]["id"];
+export const SLIDING_DOOR_IDS = SLIDING_DOOR_CHANGES.map((c) => c.id) as [SlidingDoorChange, ...SlidingDoorChange[]];

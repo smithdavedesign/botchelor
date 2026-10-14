@@ -138,6 +138,29 @@ describe("matchmakers", () => {
   });
 });
 
+describe("sliding doors", () => {
+  it("replays the owner's date with one input changed, deterministically and owner-only", async () => {
+    const creator = newUserCookie();
+    const ch = await (await api.createCharacter(validCharacter(), creator)).json();
+    // Real engine (no scriptOutcome) so there is a genuine seed-based outcome to replay.
+    scriptedModel([episodeJson()]);
+    const ep = await (
+      await api.createEpisode({ character_id: ch.id, partner_id: HOUSE_PARTNER_ID, autonomy: "guided" }, creator)
+    ).json();
+
+    const res = await api.slidingDoors(ep.id, "bolder", creator);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.base.box_score.chemistry.final).toBe(ep.box_score.chemistry.final);
+    expect(body.alternate.box_score.chemistry).toBeDefined();
+    // Deterministic: the same change replayed gives the same alternate timeline.
+    const again = await (await api.slidingDoors(ep.id, "bolder", creator)).json();
+    expect(again.alternate).toEqual(body.alternate);
+    // Owner-only.
+    expect((await api.slidingDoors(ep.id, "bolder", newUserCookie())).status).toBe(404);
+  });
+});
+
 describe("the box score and confessionals on an episode", () => {
   it("shows the box score to the creator and hides the confessionals until the host shares them", async () => {
     const { creator, episode } = await setupEpisode("friends");
