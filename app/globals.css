@@ -1568,7 +1568,7 @@ button.rating-chip:hover {
   min-width: 0;
   overflow: hidden;
 }
-.theater-chat {
+.theater-panel {
   flex: 0 0 340px;
   max-width: 88vw;
   display: flex;
@@ -1577,13 +1577,23 @@ button.rating-chip:hover {
   background: color-mix(in srgb, var(--card) 94%, #000);
   color: var(--ink);
   padding: 0 var(--space-4) var(--space-3);
-  overflow: hidden;
+  overflow-y: auto;
 }
-.theater-chat .watch-chat-head {
+.theater-panel .watch-chat-head {
   position: sticky;
   top: 0;
+  z-index: 1;
   background: inherit;
   padding-top: var(--space-3);
+}
+/* Reactions live at the top of the chat panel now (off the scene), as a compact row. */
+.theater-panel .watch-reactions {
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+/* The voting & questions panel: the feature cards stack, full-width in the panel. */
+.theater-votes .card {
+  margin: 0 0 var(--space-3);
 }
 
 /* The scene: the venue backdrop the two characters live in. */
@@ -1621,7 +1631,7 @@ button.rating-chip:hover {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: clamp(10.5rem, 24vh, 17rem);
+  bottom: clamp(5rem, 12vh, 9rem);
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
@@ -1732,40 +1742,6 @@ button.rating-chip:hover {
 .theater-verdict .muted {
   color: rgba(255, 255, 255, 0.72);
 }
-.theater-rail {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  max-height: 38vh;
-  overflow-y: auto;
-  padding: var(--space-3) var(--space-4);
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.82) 45%);
-}
-/* The existing feature cards, restyled compact + translucent inside the rail so they read as overlays. */
-.theater-rail .card {
-  background: rgba(255, 255, 255, 0.95);
-  color: var(--ink);
-  margin: 0;
-  padding: 0.6rem 0.85rem;
-}
-.theater-rail .card h2,
-.theater-rail .card h3 {
-  font-size: 1.05rem;
-  margin: 0 0 0.3rem;
-}
-.theater-rail .watch-predict p,
-.theater-rail .watch-poll p {
-  font-size: var(--text-sm);
-  margin: 0 0 0.4rem;
-}
-.theater-rail .watch-reactions {
-  justify-content: center;
-}
 
 /* The phone view: a chat window of the date (David's "chat window with icons"). Desktop hides it. */
 .scene-thread {
@@ -1828,14 +1804,9 @@ button.rating-chip:hover {
     overflow-y: auto;
     padding: 0.75rem var(--gutter) 1rem;
   }
-  .theater-rail {
-    position: relative;
-    max-height: none;
-    background: #0c0810;
-  }
-  .theater-chat {
+  .theater-panel {
     flex: 0 0 auto;
-    max-height: 40vh;
+    max-height: 46vh;
     max-width: none;
     border-left: 0;
     border-top: 1px solid rgba(255, 255, 255, 0.12);

@@ -14,11 +14,22 @@ type Props = {
   endingLabel: string;
 };
 
-const STEP_MS = 2600;
+// Pace the replay like it aired: a steady beat within an act, a longer dramatic pause when the act turns
+// over (first impressions → the challenge → the decision). Deterministic from each turn's act, so a replay
+// relays the conversation the way a live viewer saw it unfold, not as a uniform ticker.
+const TURN_MS = 2100;
+const ACT_BREAK_MS = 3400;
 
 function lastOf(turns: Turn[], side: "a" | "b"): string | null {
   for (let i = turns.length - 1; i >= 0; i--) if (turns[i].side === side) return turns[i].dialogue;
   return null;
+}
+
+/** How long to wait before revealing the turn at `pos` (the one about to appear). */
+function delayBefore(transcript: Turn[], pos: number): number {
+  const next = transcript[pos];
+  const prev = transcript[pos - 1];
+  return pos > 0 && next && prev && next.act > prev.act ? ACT_BREAK_MS : TURN_MS;
 }
 
 /**
@@ -37,7 +48,7 @@ export default function EpisodeTheater({ characters, venue, transcript, endingLa
       setPlaying(false);
       return;
     }
-    const timer = setTimeout(() => setPos((p) => p + 1), STEP_MS);
+    const timer = setTimeout(() => setPos((p) => p + 1), delayBefore(transcript, pos));
     return () => clearTimeout(timer);
   }, [open, playing, pos, transcript.length]);
 

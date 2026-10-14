@@ -584,10 +584,14 @@ async function capture(base, leagueId, viewer) {
       await fanPage.getByRole("heading", { level: 1 }).waitFor();
       await fanPage.locator(".watch-react").first().waitFor();
       await shot(fanPage, "watch", { full: true });
-      // M13: the same room in theater mode — the full-screen "window into the date".
+      // M13: the same room in theater mode — the full-screen "window into the date" (chat + reactions docked).
       await fanPage.getByRole("button", { name: /Theater mode/ }).click();
       await fanPage.locator(".theater").waitFor();
       await shot(fanPage, "watch-theater");
+      // The "voting & questions" panel opens from its own icon, keeping the scene clean.
+      await fanPage.getByRole("button", { name: "Voting and questions" }).click();
+      await fanPage.getByRole("heading", { name: "Voting & questions" }).waitFor();
+      await shot(fanPage, "watch-theater-votes");
       await fan.close();
 
       // 2b. The same creator buys "5 more dates" through the shop (checked, not saved as a screenshot).
