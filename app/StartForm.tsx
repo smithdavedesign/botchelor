@@ -54,6 +54,14 @@ const DEFAULT_SETTINGS: DateSettings = {
   self_pick: "",
 };
 
+/** Ready-made characters for the one-click "Use a sample character" fast start. */
+const SAMPLES = [
+  { name: "Juno Marlowe", age: "28", bio: "A tarot reader who only predicts the weather, and is weirdly accurate.", traits: ["mystic", "cheeky", "kind"], want: "Someone who'll dance in the rain she forecast", dealbreaker: "People who check their phone for the forecast", appearance: "a cool violet palette, soft and vivid", hue: 275 },
+  { name: "Cass Vega", age: "33", bio: "A demolition expert turned florist. Still flinches at loud bouquets.", traits: ["bold", "gentle", "precise"], want: "A quiet evening that doesn't blow up", dealbreaker: "Surprise fireworks", appearance: "a warm amber palette, bright and bold", hue: 30 },
+  { name: "Ira Fenn", age: "26", bio: "Runs a 24-hour library for insomniac poets. Knows which books are sleeping.", traits: ["bookish", "warm", "stubborn"], want: "Someone who reads the last page first, bravely", dealbreaker: "Dog-earing a page", appearance: "a cool teal palette, soft and balanced", hue: 160 },
+  { name: "Dorian Sol", age: "31", bio: "A retired game-show host who still announces his own breakfast.", traits: ["dramatic", "generous", "loud"], want: "An audience of one who claps anyway", dealbreaker: "Silence during the big reveal", appearance: "a warm red palette, bright and vivid", hue: 340 },
+];
+
 function PackOffer({ offer }: { offer: string | null }) {
   if (!offer) return null;
   return (
@@ -159,11 +167,23 @@ export default function StartForm({
   const [error, setError] = useState<string | null>(null);
   const [outOfDates, setOutOfDates] = useState(false);
   const [settings, setSettings] = useState<DateSettings>(DEFAULT_SETTINGS);
-  // For the live avatar preview in the builder.
-  const [previewName, setPreviewName] = useState("");
+  // The builder is controlled so "Use a sample character" and image-training can fill it (fast start).
+  const [sheet, setSheet] = useState({ name: "", age: "", bio: "", want: "", dealbreaker: "" });
   const [hue, setHue] = useState(0);
   const [appearance, setAppearance] = useState("");
+  const [traits, setTraits] = useState(["", "", ""]);
   const [styledFromImage, setStyledFromImage] = useState(false);
+  const setField = (k: keyof typeof sheet, v: string) => setSheet((prev) => ({ ...prev, [k]: v }));
+
+  /** Fill the whole card from a ready-made sample, so a new visitor reaches a date fast (Zeta's "borrow a character"). */
+  function useSample() {
+    const t = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
+    setSheet({ name: t.name, age: t.age, bio: t.bio, want: t.want, dealbreaker: t.dealbreaker });
+    setTraits([...t.traits]);
+    setAppearance(t.appearance);
+    setHue(t.hue);
+    setStyledFromImage(false);
+  }
 
   /**
    * Style the avatar from a reference image, entirely in the browser: read its dominant colour with a
@@ -182,10 +202,11 @@ export default function StartForm({
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(img, 0, 0, 48, 48);
-          const traits = imageTraits(ctx.getImageData(0, 0, 48, 48).data);
-          if (traits.hue !== null) setHue(traits.hue);
-          // The image also seeds the appearance line (only if the creator hasn't written their own).
-          setAppearance((prev) => (prev.trim() ? prev : traits.descriptor));
+          const read = imageTraits(ctx.getImageData(0, 0, 48, 48).data);
+          if (read.hue !== null) setHue(read.hue);
+          // The image also seeds the appearance line and the traits — but only fields left blank.
+          setAppearance((prev) => (prev.trim() ? prev : read.descriptor));
+          setTraits((prev) => (prev.every((t) => !t.trim()) ? [read.traits[0] ?? "", read.traits[1] ?? "", read.traits[2] ?? ""] : prev));
           setStyledFromImage(true);
         }
       } catch {
@@ -213,12 +234,12 @@ export default function StartForm({
     setError(null);
     try {
       const { status, data, message } = await requestJson("/api/characters", {
-        name: field("name"),
-        age: Number(field("age")),
-        bio: field("bio"),
-        traits: [field("trait1"), field("trait2"), field("trait3")],
-        want: field("want"),
-        dealbreaker: field("dealbreaker"),
+        name: sheet.name.trim(),
+        age: Number(sheet.age),
+        bio: sheet.bio.trim(),
+        traits: traits.map((t) => t.trim()),
+        want: sheet.want.trim(),
+        dealbreaker: sheet.dealbreaker.trim(),
         ...(appearance.trim() ? { appearance: appearance.trim() } : {}),
         ...(hue > 0 ? { avatar_hue: hue } : {}),
         ...(soul ? { soul } : {}),
@@ -340,35 +361,51 @@ export default function StartForm({
       )}
       <form className="card" onSubmit={createCharacter}>
         <h2>{myCharacters.length > 0 ? "A new character" : "Your character"}</h2>
+        <p className="muted sample-row">
+          In a hurry?{" "}
+          <button type="button" className="secondary small" onClick={useSample}>
+            Use a sample character
+          </button>{" "}
+          and just tick 18+ below.
+        </p>
         <label>
           Name
-          <input type="text" name="name" required maxLength={40} onChange={(e) => setPreviewName(e.target.value)} />
+          <input type="text" name="name" required maxLength={40} value={sheet.name} onChange={(e) => setField("name", e.target.value)} />
         </label>
         <label>
           Age (18 or older)
-          <input type="number" name="age" required min={18} max={1000} step={1} />
+          <input type="number" name="age" required min={18} max={1000} step={1} value={sheet.age} onChange={(e) => setField("age", e.target.value)} />
         </label>
         <label>
           Short bio
-          <textarea name="bio" required maxLength={500} rows={3} />
+          <textarea name="bio" required maxLength={500} rows={3} value={sheet.bio} onChange={(e) => setField("bio", e.target.value)} />
         </label>
         <label>Three traits</label>
         <div className="traits">
-          <input type="text" name="trait1" required maxLength={30} aria-label="Trait 1" />
-          <input type="text" name="trait2" required maxLength={30} aria-label="Trait 2" />
-          <input type="text" name="trait3" required maxLength={30} aria-label="Trait 3" />
+          {[0, 1, 2].map((i) => (
+            <input
+              key={i}
+              type="text"
+              name={`trait${i + 1}`}
+              required
+              maxLength={30}
+              aria-label={`Trait ${i + 1}`}
+              value={traits[i]}
+              onChange={(e) => setTraits((prev) => prev.map((t, j) => (j === i ? e.target.value : t)))}
+            />
+          ))}
         </div>
         <label>
           What they want from a date
-          <input type="text" name="want" required maxLength={140} />
+          <input type="text" name="want" required maxLength={140} value={sheet.want} onChange={(e) => setField("want", e.target.value)} />
         </label>
         <label>
           Their dealbreaker
-          <input type="text" name="dealbreaker" required maxLength={140} />
+          <input type="text" name="dealbreaker" required maxLength={140} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} />
         </label>
 
         <div className="looks">
-          <Avatar seed={previewName || "preview"} name={previewName || "?"} hue={hue} size={72} />
+          <Avatar seed={sheet.name || "preview"} name={sheet.name || "?"} hue={hue} size={72} />
           <div className="looks-fields">
             <label>
               Appearance <span className="muted">(optional)</span>
@@ -404,8 +441,8 @@ export default function StartForm({
             </label>
             <span className="muted file-note">
               {styledFromImage
-                ? "✓ Styled from your image: the avatar colour and the appearance line above came from it."
-                : "Pick an image and we'll read its colours, in your browser, to style the avatar and suggest an appearance. The image is never uploaded or stored."}
+                ? "✓ Trained from your image: the avatar colour, the appearance line and the traits above were read from it. Edit anything you like."
+                : "Pick an image and we'll read its palette, in your browser, to train the avatar colour, the appearance and the traits. The image is never uploaded or stored."}
             </span>
           </div>
         </div>
