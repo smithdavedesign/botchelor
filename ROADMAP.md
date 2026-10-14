@@ -54,3 +54,22 @@ Deliverables:
 Exit criteria:
 - A season closes at its deadline and badges are awarded to the top 3 in each league.
 - Buying an episode pack adds exactly N episodes to the creator and changes no spectator's score.
+
+## M5: the simulation (the "Full $0 vision", built)
+The PRD's Soul-vs-Persona direction, built on free models at $0. The biggest change: outcomes move from the showrunner model to a deterministic, seeded engine (`lib/engine.ts`), so the model only narrates.
+
+Deliverables:
+- Deterministic outcome engine (ending, drama, box score, per-side satisfaction) from sheets + soul + date settings + a seed.
+- Private soul per character (owner-only, content-filtered, deletable): optional on creation, with GET/PUT/DELETE.
+- Per-date settings: autonomy, strategy, fictional game budget, secret agenda, a note in the pocket.
+- The payoff: box score, private debrief, confessionals (host-approved), surprise score, persistent relationship graph.
+- $0 spectator mechanics: guess the dealbreaker, matchmakers, Sliding Doors.
+
+Exit criteria (tested):
+- The engine is deterministic: same input + seed → same outcome; a tripped dealbreaker never yields a second date.
+- A private soul never appears in any spectator-facing response, and its owner can delete it.
+- A correct dealbreaker guess scores at reveal; a matchmaker proposal scores only on a later second date.
+- Sliding Doors recomputes an alternate timeline from the stored seed with no model call, owner-only.
+- Buying still changes no points, picks or rank; league/season boards remain the prediction game only.
+
+Deferred (needs spend approval; see docs/upgrade-cost.md): frontier text model, portraits, video, and the Redis/BullMQ + S3/CDN stack.
