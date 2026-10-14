@@ -16,6 +16,8 @@ import {
   type SideOutcome,
   type SideSetup,
 } from "@/lib/engine";
+import { assembleCharacter, type Character } from "@/lib/character";
+import type { StoredSoul } from "@/lib/souls";
 import type { Model } from "@/lib/model";
 import { AFTERGLOW_TURNS, afterglowVerdictKind } from "@/lib/rules";
 import {
@@ -37,7 +39,13 @@ const side = (sheet: CharacterSheet, agendaId: "find_adventurous" | "test_sincer
   sheet, signals: NEUTRAL_SIGNALS, autonomy: "balanced", strategy: "genuine_chemistry", agendaId, note: null, gameBudget: 25,
 });
 const INPUT: DateInput = { a: side(sheetA, "find_adventurous"), b: side(sheetB, "test_sincerity") };
-const SOULS: [string, string] = [`Values honesty. ${ALPHA}`, `Values sincerity. ${BETA}`];
+// Soul text now reaches the model via the assembled Character; the markers prove each agent gets only its own.
+const soul = (marker: string): StoredSoul =>
+  ({ values: `honesty ${marker}`, insecurities: "", humor: "", boundaries: "", romantic: "", communication: "", local_only: false, signals: null });
+const CHARS: [Character, Character] = [
+  assembleCharacter({ id: "mira-oc", sheet: sheetA, soul: soul(ALPHA), memory: null }),
+  assembleCharacter({ id: "rafe-house", sheet: sheetB, soul: soul(BETA), memory: null }),
+];
 const sideOutcome = (wants: boolean): SideOutcome => ({ wants_another: wants, agenda_met: true, satisfied: wants, dealbreaker_hit: null, want_met: null, note_followed: null });
 const OUTCOME: Outcome = { ...deterministicEngine.decide(INPUT, 1), sides: [sideOutcome(true), sideOutcome(false)] };
 
@@ -51,21 +59,21 @@ const content = (messages: { role: string; content: string }[]) =>
 
 describe("afterglow — privacy and feeling", () => {
   it("an agent never sees the other side's soul or secret agenda", () => {
-    const a = content(buildAfterglowMessages(INPUT, OUTCOME, SOULS, "rooftop_bar", "classic", [], 0).messages); // A texts
+    const a = content(buildAfterglowMessages(INPUT, OUTCOME, CHARS, "rooftop_bar", "classic", [], 0).messages); // A texts
     expect(a).toContain(ALPHA); // A sees its own soul
     expect(a).not.toContain(BETA); // never B's soul
     expect(a).not.toContain("Test whether the other is sincere"); // never B's agenda label
 
-    const b = content(buildAfterglowMessages(INPUT, OUTCOME, SOULS, "rooftop_bar", "classic", [], 1).messages); // B texts
+    const b = content(buildAfterglowMessages(INPUT, OUTCOME, CHARS, "rooftop_bar", "classic", [], 1).messages); // B texts
     expect(b).toContain(BETA);
     expect(b).not.toContain(ALPHA);
     expect(b).not.toContain("Find someone adventurous");
   });
 
   it("each side is privately told its own engine-decided feeling", () => {
-    const a = content(buildAfterglowMessages(INPUT, OUTCOME, SOULS, "rooftop_bar", "classic", [], 0).messages);
+    const a = content(buildAfterglowMessages(INPUT, OUTCOME, CHARS, "rooftop_bar", "classic", [], 0).messages);
     expect(a).toContain("want to see this person again");
-    const b = content(buildAfterglowMessages(INPUT, OUTCOME, SOULS, "rooftop_bar", "classic", [], 1).messages);
+    const b = content(buildAfterglowMessages(INPUT, OUTCOME, CHARS, "rooftop_bar", "classic", [], 1).messages);
     expect(b).toContain("do NOT want to see this person again");
   });
 });
@@ -78,14 +86,14 @@ describe("afterglow — parsing and running", () => {
   });
 
   it("runs the whole thread, alternating A then B", async () => {
-    const thread: AfterglowLine[] = await simulateAfterglow(afterglowModel(AFTERGLOW_TURNS), INPUT, OUTCOME, SOULS, "rooftop_bar", "classic");
+    const thread: AfterglowLine[] = await simulateAfterglow(afterglowModel(AFTERGLOW_TURNS), INPUT, OUTCOME, CHARS, "rooftop_bar", "classic");
     expect(thread).toHaveLength(AFTERGLOW_TURNS);
     expect(thread.map((t) => t.side)).toEqual(["a", "b", "a", "b"]);
   });
 
   it("throws when a text can't be produced (the caller stores an empty thread)", async () => {
     const dud: Model = { async complete() { return "not json"; } };
-    await expect(simulateAfterglow(dud, INPUT, OUTCOME, SOULS, "rooftop_bar", "classic")).rejects.toBeInstanceOf(AfterglowError);
+    await expect(simulateAfterglow(dud, INPUT, OUTCOME, CHARS, "rooftop_bar", "classic")).rejects.toBeInstanceOf(AfterglowError);
   });
 });
 

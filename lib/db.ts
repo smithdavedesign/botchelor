@@ -356,6 +356,27 @@ create table if not exists relationships (
   check (character_a < character_b)
 );
 
+-- M14. The learned memory layer (lib/memory.ts): what a character has learned across ALL its dates, so
+-- each bot becomes an individual and "trains itself". Materialized, recomputed deterministically (no model
+-- call) right after each date is stored. One row per character. likes / turnoffs / signal_delta /
+-- memorable_lines derive from owner-only debrief data, so they are SELF / owner-only (same rule as the
+-- soul); only the already-public date record is ever shown publicly. signal_delta is a small bounded drift
+-- to the engine signals (±MEMORY_SIGNAL_CAP per axis in lib/memory.ts), so a character evolves without any
+-- one axis swinging a result; the engine (lib/engine.ts) is unchanged.
+create table if not exists character_memory (
+  character_id text primary key references characters (id) on delete cascade,
+  dates integer not null default 0,
+  second_dates integer not null default 0,
+  friends integer not null default 0,
+  disasters integer not null default 0,
+  likes jsonb not null default '[]',            -- most frequent want_met cues, from past SideOutcomes
+  turnoffs jsonb not null default '[]',         -- most frequent dealbreaker_hit cues
+  signal_delta jsonb not null default '{}',     -- {warmth?,openness?,guardedness?,humor?} small learned drift
+  memorable_lines jsonb not null default '[]',  -- a few of the character's own highest-interest lines
+  arc text,                                     -- one templated "who they've become" sentence (no model)
+  updated_at timestamptz not null default now()
+);
+
 -- Image assets and where they came from (the competitor report's image-rights record). Nothing in the
 -- app renders an image today: avatars and venue backdrops are drawn from character data (lib/avatar.ts,
 -- lib/venues.ts), which is why there is no upload to moderate and no marginal cost. This table is the

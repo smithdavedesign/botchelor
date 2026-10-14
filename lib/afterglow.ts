@@ -14,6 +14,7 @@
  * effort: if a line can't be produced the thread comes back empty and the episode is unaffected.
  */
 import { z } from "zod";
+import { characterPublicView, characterSelfView, type Character } from "./character";
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { formatNote, type FormatContext, type FormatId } from "./formats";
 import { ModelError, type ChatMessage, type Model } from "./model";
@@ -57,23 +58,12 @@ Rules:
 Reply with ONLY a JSON object (no markdown), exactly:
 {"text":"your single text message"}`;
 
-/** The speaker's own, private view: full sheet plus the private soul, agenda and note. Never sent about the other. */
-function selfView(side: SideSetup, soulText: string | null): Record<string, unknown> {
+/** This date's private context for the texting side: its secret agenda and the owner's note. */
+function dateContext(side: SideSetup): Record<string, unknown> {
   return {
-    name: side.sheet.name,
-    bio: side.sheet.bio,
-    traits: side.sheet.traits,
-    private: {
-      soul: soulText ?? "(none — text from your public sheet)",
-      secret_agenda: agenda(side.agendaId).label,
-      note_from_creator: side.note ?? "(none)",
-    },
+    secret_agenda: agenda(side.agendaId).label,
+    note_from_creator: side.note ?? "(none)",
   };
-}
-
-/** What the other character is to this agent: PUBLIC fields only. Never their soul, agenda or note. */
-function publicView(side: SideSetup): Record<string, unknown> {
-  return { name: side.sheet.name, bio: side.sheet.bio, traits: side.sheet.traits };
 }
 
 /** The private feeling for a side: whether the engine decided this AI wants to see the other again. */
@@ -87,7 +77,7 @@ function feelingFor(sideIndex: 0 | 1, outcome: Outcome): string {
 export function buildAfterglowMessages(
   input: DateInput,
   outcome: Outcome,
-  souls: [string | null, string | null],
+  characters: [Character, Character],
   venueId: VenueId,
   formatId: FormatId,
   thread: AfterglowLine[],
@@ -97,13 +87,14 @@ export function buildAfterglowMessages(
   const side: "a" | "b" = turnIndex % 2 === 0 ? "a" : "b";
   const sideIndex = side === "a" ? 0 : 1;
   const me = side === "a" ? input.a : input.b;
-  const them = side === "a" ? input.b : input.a;
+  const meChar = characters[sideIndex];
+  const themChar = characters[sideIndex === 0 ? 1 : 0];
   const names: [string, string] = [input.a.sheet.name, input.b.sheet.name];
   const history = thread.map((t) => ({ who: names[t.side === "a" ? 0 : 1], text: t.text }));
 
   const data = {
-    you: selfView(me, souls[sideIndex]),
-    them: publicView(them),
+    you: characterSelfView(meChar, dateContext(me)),
+    them: characterPublicView(themChar),
     the_date_was_at: venue(venueId).prompt,
     the_show_format: formatNote(formatId, formatCtx),
     texts_so_far: history,
@@ -143,7 +134,7 @@ export async function simulateAfterglow(
   model: Model,
   input: DateInput,
   outcome: Outcome,
-  souls: [string | null, string | null],
+  characters: [Character, Character],
   venueId: VenueId,
   formatId: FormatId,
   turns: number = AFTERGLOW_TURNS,
@@ -152,7 +143,7 @@ export async function simulateAfterglow(
   const thread: AfterglowLine[] = [];
   const reasons: string[] = [];
   for (let i = 0; i < turns; i++) {
-    const { messages, side } = buildAfterglowMessages(input, outcome, souls, venueId, formatId, thread, i, formatCtx);
+    const { messages, side } = buildAfterglowMessages(input, outcome, characters, venueId, formatId, thread, i, formatCtx);
     let line: AfterglowLine | null = null;
     for (let attempt = 0; attempt < AFTERGLOW_ATTEMPTS && !line; attempt++) {
       let raw: string;

@@ -13,6 +13,7 @@
  * just yields an empty transcript (the episode is unaffected).
  */
 import { z } from "zod";
+import { characterPublicView, characterSelfView, type Character } from "./character";
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import {
@@ -77,34 +78,13 @@ Reply with ONLY a JSON object (no markdown), exactly:
 {"dialogue":"your single line","action":"what you do in 1-4 words e.g. asks a question","emotion":"one word for how you feel","interest_signal":0.0}
 interest_signal is 0..1: how interested in the other person you are right now.`;
 
-/** The speaker's own, private view: their full sheet plus their private soul, agenda and note. */
-function selfView(side: SideSetup, soulText: string | null): Record<string, unknown> {
+/** This date's private context for the speaking side: the agenda, the owner's note, and the dials. */
+function dateContext(side: SideSetup): Record<string, unknown> {
   return {
-    name: side.sheet.name,
-    age: side.sheet.age,
-    bio: side.sheet.bio,
-    traits: side.sheet.traits,
-    want: side.sheet.want,
-    dealbreaker: side.sheet.dealbreaker,
-    ...(side.sheet.appearance ? { appearance: side.sheet.appearance } : {}),
-    private: {
-      soul: soulText ?? "(none — play from your public sheet)",
-      secret_agenda: agenda(side.agendaId).label,
-      note_from_creator: side.note ?? "(none)",
-      autonomy: side.autonomy,
-      strategy: side.strategy,
-    },
-  };
-}
-
-/** What the other character is to this agent: PUBLIC fields only. Never their soul, agenda, autonomy or note. */
-function publicView(side: SideSetup): Record<string, unknown> {
-  return {
-    name: side.sheet.name,
-    age: side.sheet.age,
-    bio: side.sheet.bio,
-    traits: side.sheet.traits,
-    ...(side.sheet.appearance ? { appearance: side.sheet.appearance } : {}),
+    secret_agenda: agenda(side.agendaId).label,
+    note_from_creator: side.note ?? "(none)",
+    autonomy: side.autonomy,
+    strategy: side.strategy,
   };
 }
 
@@ -120,7 +100,7 @@ function arcFor(sideIndex: 0 | 1, outcome: Outcome): string {
 export function buildTurnMessages(
   input: DateInput,
   outcome: Outcome,
-  souls: [string | null, string | null],
+  characters: [Character, Character],
   producer: ProducerId,
   venueId: VenueId,
   transcript: Turn[],
@@ -131,7 +111,8 @@ export function buildTurnMessages(
   const side: "a" | "b" = turnIndex % 2 === 0 ? "a" : "b";
   const sideIndex = side === "a" ? 0 : 1;
   const me = side === "a" ? input.a : input.b;
-  const them = side === "a" ? input.b : input.a;
+  const meChar = characters[sideIndex];
+  const themChar = characters[sideIndex === 0 ? 1 : 0];
   const act = actForTurn(turnIndex);
   const isFinalAct = act === DATE_ACTS.length - 1;
 
@@ -139,8 +120,8 @@ export function buildTurnMessages(
   const history = transcript.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue }));
 
   const data = {
-    you: selfView(me, souls[sideIndex]),
-    them: publicView(them),
+    you: characterSelfView(meChar, dateContext(me)),
+    them: characterPublicView(themChar),
     date_location: venue(venueId).prompt,
     the_show_format: formatNote(formatId, formatCtx),
     act: DATE_ACTS[act],
@@ -190,7 +171,7 @@ export async function simulateConversation(
   model: Model,
   input: DateInput,
   outcome: Outcome,
-  souls: [string | null, string | null],
+  characters: [Character, Character],
   producer: ProducerId,
   venueId: VenueId,
   formatId: FormatId = DEFAULT_FORMAT,
@@ -200,7 +181,7 @@ export async function simulateConversation(
   const transcript: Turn[] = [];
   const reasons: string[] = [];
   for (let i = 0; i < turns; i++) {
-    const { messages, side, act } = buildTurnMessages(input, outcome, souls, producer, venueId, transcript, i, formatId, formatCtx);
+    const { messages, side, act } = buildTurnMessages(input, outcome, characters, producer, venueId, transcript, i, formatId, formatCtx);
     let turn: Turn | null = null;
     for (let attempt = 0; attempt < TURN_ATTEMPTS && !turn; attempt++) {
       let raw: string;

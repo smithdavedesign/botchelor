@@ -6,6 +6,7 @@ import Avatar from "@/app/Avatar";
 import ShareLink from "@/app/ShareLink";
 import { getDb } from "@/lib/db";
 import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
+import { loadCharacterMemory } from "@/lib/memory";
 import { getCharacterRatings } from "@/lib/ratings";
 import { readUserId, USER_COOKIE } from "@/lib/http";
 import { ENDING_LABELS } from "@/lib/rules";
@@ -29,9 +30,10 @@ export default async function CharacterPage({ params }: Props) {
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
   const viewerId = readUserId((await cookies()).get(USER_COOKIE)?.value);
-  const [{ episodes, record }, ratings] = await Promise.all([
+  const [{ episodes, record }, ratings, memory] = await Promise.all([
     getCharacterHistory(db, id),
     getCharacterRatings(db, id, viewerId),
+    loadCharacterMemory(db, id),
   ]);
 
   return (
@@ -69,6 +71,28 @@ export default async function CharacterPage({ params }: Props) {
         <p className="muted">How the crowd reads this contestant. It&apos;s just for fun — it never changes a date, the odds or your points on a prediction.</p>
         <RatingButtons characterId={c.id} counts={ratings.counts} mine={ratings.mine} isOwner={ratings.is_owner} />
       </section>
+
+      {memory?.arc && (
+        <section className="card">
+          <h2>Who they&apos;ve become</h2>
+          <p>{memory.arc}</p>
+          {ratings.is_owner && (memory.likes.length > 0 || memory.turnoffs.length > 0) && (
+            <p className="muted">
+              {memory.likes.length > 0 && (
+                <>
+                  <strong>Warms to:</strong> {memory.likes.join(", ")}.{" "}
+                </>
+              )}
+              {memory.turnoffs.length > 0 && (
+                <>
+                  <strong>Clashes over:</strong> {memory.turnoffs.join(", ")}.
+                </>
+              )}{" "}
+              <em>Only you can see what your character has learned.</em>
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="card">
         <h2>Date record</h2>

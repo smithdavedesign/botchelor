@@ -17,7 +17,9 @@ import {
   type SideSetup,
 } from "./engine";
 import type { BoxScore, DateSetup } from "./game";
-import { loadSoul, soulText } from "./souls";
+import { assembleCharacter, type Character } from "./character";
+import { loadCharacterMemory } from "./memory";
+import { loadSoul } from "./souls";
 import {
   AGENDA_IDS,
   DEFAULT_AUTONOMY,
@@ -95,7 +97,8 @@ async function loadHistory(db: Db, aId: string, bId: string): Promise<DateHistor
 
 export type BuiltDate = {
   input: DateInput;
-  souls: [string | null, string | null];
+  /** The two fully-assembled characters (identity + soul + learned memory): what the LLM prompts consume. */
+  characters: [Character, Character];
   /** Always carries the dealt venue: DateSetup.venue is only optional for episodes stored before it existed. */
   setup: DateSetup & { venue: VenueId };
   seed: number;
@@ -115,7 +118,14 @@ export async function buildDate(
   seedOverride?: number,
 ): Promise<BuiltDate> {
   const seed = seedOverride ?? seedFrom(episodeId);
-  const [soulA, soulB] = await Promise.all([loadSoul(db, a.id), loadSoul(db, b.id)]);
+  const [soulA, soulB, memoryA, memoryB] = await Promise.all([
+    loadSoul(db, a.id),
+    loadSoul(db, b.id),
+    loadCharacterMemory(db, a.id),
+    loadCharacterMemory(db, b.id),
+  ]);
+  const charA = assembleCharacter({ id: a.id, sheet: a.sheet, soul: soulA, memory: memoryA });
+  const charB = assembleCharacter({ id: b.id, sheet: b.sheet, soul: soulB, memory: memoryB });
   const agendaA = req.agendaId ?? pickAgenda(seedFrom(seed, "agenda-a"));
   const agendaB = pickAgenda(seedFrom(seed, "agenda-b"));
   const setup: DateSetup & { venue: VenueId } = {
@@ -133,12 +143,11 @@ export async function buildDate(
   // meet-the-parents chaperone, and a real past partner as the returning ex when the graph has one.
   if (req.format === "meet_the_parents") setup.chaperone = pickChaperone(seedFrom(seed, "chaperone"), [a.id, b.id]);
   if (req.format === "ex_returns") setup.ex = await findEx(db, a.id, b.id);
-  // A local-only soul drives the engine (signals) but its text is never sent to the model.
-  const forModel = (s: typeof soulA) => (s && !s.local_only ? soulText(s) : null);
-  // Image-trained signals take precedence over the text-derived ones: an image shapes the behaviour.
+  // The engine input uses the base signals (soul / image). The learned memory shapes the LLM voice now
+  // (via the assembled characters); it reaches the engine in M14 PR2, snapshotted on the episode.
   const sideA: SideSetup = {
     sheet: a.sheet,
-    signals: soulA ? (soulA.signals ?? deriveSoulSignals(soulA)) : NEUTRAL_SIGNALS,
+    signals: charA.baseSignals,
     autonomy: req.autonomy,
     strategy: req.strategy,
     agendaId: agendaA,
@@ -147,7 +156,7 @@ export async function buildDate(
   };
   const sideB: SideSetup = {
     sheet: b.sheet,
-    signals: soulB ? (soulB.signals ?? deriveSoulSignals(soulB)) : NEUTRAL_SIGNALS,
+    signals: charB.baseSignals,
     autonomy: DEFAULT_AUTONOMY,
     strategy: DEFAULT_STRATEGY,
     agendaId: agendaB,
@@ -155,7 +164,7 @@ export async function buildDate(
     gameBudget: DEFAULT_GAME_BUDGET,
   };
   const history = await loadHistory(db, a.id, b.id);
-  return { input: { a: sideA, b: sideB, history }, souls: [forModel(soulA), forModel(soulB)], setup, seed };
+  return { input: { a: sideA, b: sideB, history }, characters: [charA, charB], setup, seed };
 }
 
 /* ------------------------------------- Sliding Doors ------------------------------------- */

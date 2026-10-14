@@ -25,6 +25,7 @@ import {
   DEFAULT_STRATEGY,
 } from "./rules";
 import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
+import { updateCharacterMemory } from "./memory";
 import { narrateEpisode, ShowrunnerError } from "./showrunner";
 import type { DateSetup } from "./game";
 
@@ -155,12 +156,12 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
 
     const model = row.use_frontier ? getFrontierModel() ?? getModel() : getModel();
     const fmtCtx = { chaperone: built.setup.chaperone, ex: built.setup.ex };
-    const draft = await narrateEpisode(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue, formatId, fmtCtx);
+    const draft = await narrateEpisode(model, built.input, decided, built.characters, built.setup.producer, built.setup.venue, formatId, fmtCtx);
 
     let transcript: Turn[] = [];
     if (isConversationEnabled()) {
       try {
-        transcript = await simulateConversation(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue, formatId, undefined, fmtCtx);
+        transcript = await simulateConversation(model, built.input, decided, built.characters, built.setup.producer, built.setup.venue, formatId, undefined, fmtCtx);
       } catch {
         transcript = [];
       }
@@ -170,7 +171,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     let afterglow: AfterglowLine[] = [];
     if (isAfterglowEnabled()) {
       try {
-        afterglow = await simulateAfterglow(model, built.input, decided, built.souls, built.setup.venue, formatId, undefined, fmtCtx);
+        afterglow = await simulateAfterglow(model, built.input, decided, built.characters, built.setup.venue, formatId, undefined, fmtCtx);
       } catch {
         afterglow = [];
       }
@@ -197,6 +198,10 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     );
     if (saved.rows.length) {
       await rememberDate(db, row.a_id, row.b_id, decided.ending).catch(() => {});
+      // M14: now the date is stored and 'ready', recompute each character's learned memory from all its
+      // dates (deterministic, no model call). Best-effort: a failure just leaves last run's memory in place.
+      await updateCharacterMemory(db, row.a_id).catch(() => {});
+      await updateCharacterMemory(db, row.b_id).catch(() => {});
       await db.query(`update generation_jobs set status = 'succeeded', error = null, updated_at = now() where episode_id = $1`, [episodeId]);
       trackEpisodeCost({
         episode_id: episodeId,
