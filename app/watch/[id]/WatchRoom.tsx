@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Avatar from "@/app/Avatar";
 import { requestJson } from "@/app/request";
-import { ENDING_LABELS, ENDINGS } from "@/lib/rules";
+import { DATE_ACTS, ENDING_LABELS, ENDINGS } from "@/lib/rules";
 import type { RoomState } from "@/lib/watch";
 
 const POLL_MS = 4000;
@@ -113,6 +113,7 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
 
 function Stage({ state, onPredict }: { state: RoomState; onPredict: () => void }) {
   void onPredict;
+  const [a, b] = state.characters;
   const leadingChemistry = state.chemistry.options.find((o) => o.id === state.chemistry.leading);
   return (
     <>
@@ -139,15 +140,41 @@ function Stage({ state, onPredict }: { state: RoomState; onPredict: () => void }
         </section>
       )}
 
-      {state.acts.map((act, i) => (
-        <section className="card watch-beat" key={i}>
-          <h3 className="act">{act.act}</h3>
-          <p>{act.scene}</p>
-          {act.act === "The challenge" && state.challenge && (
-            <p className="watch-challenge">🎬 {state.challenge}</p>
-          )}
+      {state.turns.length > 0 ? (
+        <section className="card watch-beat transcript">
+          {state.turns.map((t, i) => {
+            const prev = state.turns[i - 1];
+            const showAct = !prev || prev.act !== t.act;
+            const who = t.side === "a" ? a : b;
+            const meta = [t.action, t.emotion].filter(Boolean).join(" · ");
+            return (
+              <div key={i}>
+                {showAct && <h3 className="act">{DATE_ACTS[t.act] ?? `Act ${t.act + 1}`}</h3>}
+                {showAct && t.act === 1 && state.challenge && <p className="watch-challenge">🎬 {state.challenge}</p>}
+                <div className={`turn turn-${t.side}`}>
+                  <Avatar seed={who.id} name={who.name} hue={who.hue} house={who.house} size={28} />
+                  <div className="turn-body">
+                    <p className="turn-line">
+                      <strong>{who.name}</strong> {t.dialogue}
+                    </p>
+                    {meta && <p className="turn-meta">{meta}</p>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </section>
-      ))}
+      ) : (
+        state.acts.map((act, i) => (
+          <section className="card watch-beat" key={i}>
+            <h3 className="act">{act.act}</h3>
+            <p>{act.scene}</p>
+            {act.act === "The challenge" && state.challenge && (
+              <p className="watch-challenge">🎬 {state.challenge}</p>
+            )}
+          </section>
+        ))
+      )}
 
       {state.show_twist && state.twist && (
         <section className="card watch-beat">

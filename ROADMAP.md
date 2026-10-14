@@ -190,8 +190,10 @@ Exit criteria (tested — `tests/conversation.test.ts`, and the Playwright e2e):
   outcome, box score or points.
 - The episode page shows the turn-by-turn timeline (e2e), and reopening returns the identical transcript.
 
-Next (M9 part 2): template rooms pre-generate the transcript async; the watch room unlocks turns on the
-clock; make the conversation the primary content and drop the redundant narration call.
+M9 part 2 (shipped): template (house-vs-house) rooms pre-generate the transcript, and the **watch room
+unlocks the turns on the same clock as the scenes** — the final-act turns appear only at the decision, so
+the room plays the date line by line without spoiling the ending. Still to do (a later cleanup): make the
+conversation the primary content and drop the now-redundant single-call narration.
 
 Deferred to M10 (launch readiness): the async job table + worker (so creator/paid dates generate in the
 background instead of in the request), account deletion/export, the analytics event taxonomy, and
