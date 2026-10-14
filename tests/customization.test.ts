@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { avatarPalette, hueFromPixels, hueName, imageTraits, initials } from "@/lib/avatar";
 import { getPublicCharacter } from "@/lib/game";
+import { HOUSE_CHARACTERS } from "@/lib/house";
 import { relationshipStage } from "@/lib/mechanics";
+import { buildDate, DEFAULT_DATE_REQUEST } from "@/lib/simulation";
+import { loadSoul } from "@/lib/souls";
 import { api, newUserCookie, startTestDb, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -95,6 +98,28 @@ describe("styling an avatar from an image (in-browser, nothing uploaded)", () =>
     expect(grey.traits.length).toBeGreaterThanOrEqual(2);
     expect(hueName(240)).toBe("blue");
     expect(hueName(30)).toBe("amber");
+    // The image also yields behavioural signals: a warm image reads warmer than a cool one.
+    expect(Object.keys(blue.signals).sort()).toEqual(["guardedness", "humor", "openness", "warmth"]);
+    expect(amber.signals.warmth).toBeGreaterThan(blue.signals.warmth);
+  });
+
+  it("stores image-trained signals and feeds them to the engine (image trains behaviour)", async () => {
+    const owner = newUserCookie();
+    const sig = { warmth: 1, openness: 0.8, guardedness: 0, humor: 0.5 };
+    const c = await (await api.createCharacter(validCharacter({ image_signals: sig }), owner)).json();
+    expect(c.image_trained).toBe(true);
+    expect(await loadSoul(t.db, c.id)).toMatchObject({ signals: sig });
+    // The engine input for a date uses the image-trained signals, not neutral defaults.
+    const sheet = { name: c.name, age: 27, bio: "x", traits: ["a", "b", "c"], want: "w", dealbreaker: "d", house: false };
+    const house = HOUSE_CHARACTERS[0];
+    const built = await buildDate(
+      t.db,
+      "ep-signals",
+      { id: c.id, sheet },
+      { id: house.id, sheet: { ...house, traits: [...house.traits], house: true } },
+      DEFAULT_DATE_REQUEST,
+    );
+    expect(built.input.a.signals).toEqual(sig);
   });
 });
 

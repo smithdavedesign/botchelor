@@ -107,7 +107,9 @@ export function hueName(hue: number): string {
   return "pink"; // centre 315
 }
 
-export type ImageTraits = { hue: number | null; descriptor: string; traits: string[] };
+/** 0..1 behavioural signals the deterministic engine uses to decide a date (same shape as a soul's). */
+export type ImageSignals = { warmth: number; openness: number; guardedness: number; humor: number };
+export type ImageTraits = { hue: number | null; descriptor: string; traits: string[]; signals: ImageSignals };
 
 /**
  * What a reference image says about a character, computed entirely in the browser from its pixels: a
@@ -158,5 +160,17 @@ export function imageTraits(data: Uint8ClampedArray | number[]): ImageTraits {
     hue === null
       ? `a ${light}, neutral palette`
       : `a ${hue < 66 || hue >= 300 ? "warm" : hue < 180 ? "fresh" : "cool"} ${hueName(hue)} palette, ${light} and ${sat}`;
-  return { hue, descriptor, traits: uniqueTraits };
+
+  // The image's visual properties become behavioural signals the engine uses: warm/bright reads as
+  // warmth and openness, dark/muted as guardedness, colourful/vivid as humour.
+  const warm = hue !== null && (hue < 66 || hue >= 300);
+  const cool = hue !== null && hue >= 180 && hue < 300;
+  const clamp01 = (x: number) => Math.max(0, Math.min(1, Number(x.toFixed(2))));
+  const signals: ImageSignals = {
+    warmth: clamp01(warm ? 0.75 : cool ? 0.2 : 0.45),
+    openness: clamp01(avgL > 0.55 ? (distinct >= 4 ? 0.8 : 0.6) : 0.3),
+    guardedness: clamp01(avgL < 0.4 ? 0.6 : avgS < 0.25 ? 0.4 : 0.15),
+    humor: clamp01(distinct >= 4 ? 0.65 : avgS > 0.5 ? 0.4 : 0.2),
+  };
+  return { hue, descriptor, traits: uniqueTraits, signals };
 }

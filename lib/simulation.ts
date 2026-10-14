@@ -102,9 +102,10 @@ export async function buildDate(
   };
   // A local-only soul drives the engine (signals) but its text is never sent to the model.
   const forModel = (s: typeof soulA) => (s && !s.local_only ? soulText(s) : null);
+  // Image-trained signals take precedence over the text-derived ones: an image shapes the behaviour.
   const sideA: SideSetup = {
     sheet: a.sheet,
-    signals: soulA ? deriveSoulSignals(soulA) : NEUTRAL_SIGNALS,
+    signals: soulA ? (soulA.signals ?? deriveSoulSignals(soulA)) : NEUTRAL_SIGNALS,
     autonomy: req.autonomy,
     strategy: req.strategy,
     agendaId: agendaA,
@@ -113,7 +114,7 @@ export async function buildDate(
   };
   const sideB: SideSetup = {
     sheet: b.sheet,
-    signals: soulB ? deriveSoulSignals(soulB) : NEUTRAL_SIGNALS,
+    signals: soulB ? (soulB.signals ?? deriveSoulSignals(soulB)) : NEUTRAL_SIGNALS,
     autonomy: DEFAULT_AUTONOMY,
     strategy: DEFAULT_STRATEGY,
     agendaId: agendaB,

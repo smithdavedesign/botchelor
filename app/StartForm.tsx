@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import Avatar from "./Avatar";
-import { AVATAR_HUES, imageTraits } from "@/lib/avatar";
+import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
 import {
   AGENDAS,
   AUTONOMY_BLURBS,
@@ -173,6 +173,7 @@ export default function StartForm({
   const [appearance, setAppearance] = useState("");
   const [traits, setTraits] = useState(["", "", ""]);
   const [styledFromImage, setStyledFromImage] = useState(false);
+  const [imageSignals, setImageSignals] = useState<ImageSignals | null>(null);
   const setField = (k: keyof typeof sheet, v: string) => setSheet((prev) => ({ ...prev, [k]: v }));
 
   /** Fill the whole card from a ready-made sample, so a new visitor reaches a date fast (Zeta's "borrow a character"). */
@@ -182,6 +183,7 @@ export default function StartForm({
     setTraits([...t.traits]);
     setAppearance(t.appearance);
     setHue(t.hue);
+    setImageSignals(null);
     setStyledFromImage(false);
   }
 
@@ -207,6 +209,7 @@ export default function StartForm({
           // The image also seeds the appearance line and the traits — but only fields left blank.
           setAppearance((prev) => (prev.trim() ? prev : read.descriptor));
           setTraits((prev) => (prev.every((t) => !t.trim()) ? [read.traits[0] ?? "", read.traits[1] ?? "", read.traits[2] ?? ""] : prev));
+          setImageSignals(read.signals); // the image also trains how the AI behaves on the date
           setStyledFromImage(true);
         }
       } catch {
@@ -242,6 +245,7 @@ export default function StartForm({
         dealbreaker: sheet.dealbreaker.trim(),
         ...(appearance.trim() ? { appearance: appearance.trim() } : {}),
         ...(hue > 0 ? { avatar_hue: hue } : {}),
+        ...(imageSignals ? { image_signals: imageSignals } : {}),
         ...(soul ? { soul } : {}),
         attest: form.get("attest") === "on",
       });
@@ -441,8 +445,8 @@ export default function StartForm({
             </label>
             <span className="muted file-note">
               {styledFromImage
-                ? "✓ Trained from your image: the avatar colour, the appearance line and the traits above were read from it. Edit anything you like."
-                : "Pick an image and we'll read its palette, in your browser, to train the avatar colour, the appearance and the traits. The image is never uploaded or stored."}
+                ? "✓ Trained from your image: the avatar colour, the appearance, the traits — and your AI's instincts (how warm, bold or guarded it is on a date). Edit anything you like."
+                : "Pick an image and we'll read its palette, in your browser, to train the avatar, the appearance, the traits, and how your AI behaves on dates. The image is never uploaded or stored."}
             </span>
           </div>
         </div>

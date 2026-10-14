@@ -24,6 +24,16 @@ const CharacterInput = z.object({
   // Customization: an optional appearance line and an avatar hue (0 = auto). No image upload (safety).
   appearance: text(140).optional(),
   avatar_hue: z.number().int().min(0).max(360).optional(),
+  // Behavioural signals trained from a reference image, derived in the browser (lib/avatar.ts). The
+  // raw image is never sent — only these four 0..1 numbers, which the engine uses to decide dates.
+  image_signals: z
+    .object({
+      warmth: z.number().min(0).max(1),
+      openness: z.number().min(0).max(1),
+      guardedness: z.number().min(0).max(1),
+      humor: z.number().min(0).max(1),
+    })
+    .optional(),
   // Optional private soul (PRD core feature 1): owner-only, drives the engine, never shown to spectators.
   soul: SoulInput.optional(),
   attest: z.literal(true, "Confirm you are 18+ and this is your own original character."),
@@ -68,8 +78,10 @@ export const POST = handle(async (req) => {
     [id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue],
   );
   const hasSoul = Boolean(soul && !isEmptySoul(soul));
-  if (hasSoul) await saveSoul(db, id, soul!, input.soul?.local_only ?? false);
+  const signals = input.image_signals ?? null;
+  // Save a soul row when there is soul text OR image-trained signals (so the image can shape behaviour).
+  if (hasSoul || signals) await saveSoul(db, id, soul ?? normaliseSoul({}), input.soul?.local_only ?? false, signals);
 
-  const { attest: _attest, soul: _soul, ...character } = input;
-  return json({ id, ...character, house: false, has_soul: hasSoul, hue }, 201, sess);
+  const { attest: _attest, soul: _soul, image_signals: _sig, ...character } = input;
+  return json({ id, ...character, house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals) }, 201, sess);
 });

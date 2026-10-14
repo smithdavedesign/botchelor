@@ -5,6 +5,7 @@
  * OC either way; it still goes through the same content filter as a character sheet.
  */
 import { z } from "zod";
+import type { ImageSignals } from "./avatar";
 import type { Db } from "./db";
 import type { SoulProfile } from "./engine";
 import { ApiError } from "./http";
@@ -34,8 +35,8 @@ export const SoulInput = z.object({
 });
 export type SoulInputType = z.infer<typeof SoulInput>;
 
-/** A soul as stored: the content plus whether it is kept off the model. */
-export type StoredSoul = SoulProfile & { local_only: boolean };
+/** A soul as stored: the content, whether it is kept off the model, and any image-trained signals. */
+export type StoredSoul = SoulProfile & { local_only: boolean; signals: ImageSignals | null };
 
 const EMPTY: SoulProfile = { values: "", insecurities: "", humor: "", boundaries: "", romantic: "", communication: "" };
 
@@ -62,7 +63,7 @@ export function assertSafeSoul(soul: SoulProfile): void {
 
 export async function loadSoul(db: Db, characterId: string): Promise<StoredSoul | null> {
   const { rows } = await db.query<StoredSoul>(
-    `select ${SOUL_FIELDS.join(", ")}, local_only from souls where character_id = $1`,
+    `select ${SOUL_FIELDS.join(", ")}, local_only, signals from souls where character_id = $1`,
     [characterId],
   );
   return rows[0] ?? null;
@@ -84,15 +85,23 @@ export function soulText(soul: SoulProfile | null): string | null {
 }
 
 /** Upserts a soul for a character the caller owns. The caller must have checked ownership and safety. */
-export async function saveSoul(db: Db, characterId: string, soul: SoulProfile, localOnly = false): Promise<void> {
+export async function saveSoul(
+  db: Db,
+  characterId: string,
+  soul: SoulProfile,
+  localOnly = false,
+  signals: ImageSignals | null = null,
+): Promise<void> {
   await db.query(
-    `insert into souls (character_id, ${SOUL_FIELDS.join(", ")}, local_only, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, now())
+    `insert into souls (character_id, ${SOUL_FIELDS.join(", ")}, local_only, signals, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, now())
      on conflict (character_id) do update set
        values = excluded.values, insecurities = excluded.insecurities, humor = excluded.humor,
        boundaries = excluded.boundaries, romantic = excluded.romantic, communication = excluded.communication,
-       local_only = excluded.local_only, updated_at = now()`,
-    [characterId, soul.values, soul.insecurities, soul.humor, soul.boundaries, soul.romantic, soul.communication, localOnly],
+       local_only = excluded.local_only,
+       signals = coalesce(excluded.signals, souls.signals),
+       updated_at = now()`,
+    [characterId, soul.values, soul.insecurities, soul.humor, soul.boundaries, soul.romantic, soul.communication, localOnly, signals ? JSON.stringify(signals) : null],
   );
 }
 

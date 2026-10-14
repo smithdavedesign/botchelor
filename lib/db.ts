@@ -244,6 +244,9 @@ create table if not exists souls (
 );
 -- Keep a soul off the model entirely (engine-only). Added later; defaults to false so existing souls behave as before.
 alter table souls add column if not exists local_only boolean not null default false;
+-- Behavioural signals trained from a reference image (lib/avatar.ts): when set, the engine uses these
+-- instead of the ones derived from the soul text, so an image shapes how the character behaves on dates.
+alter table souls add column if not exists signals jsonb;
 
 -- The engine's decided outcome and the date's settings, stored on the episode. ending / drama_question
 -- / drama_answer already exist (now written by the engine, not the model). seed is bigint: it is a
