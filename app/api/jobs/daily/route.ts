@@ -33,6 +33,7 @@ async function run(req: Request): Promise<Response> {
     lobby_reason: lobby.reason ?? null,
     backfilled: backfill.filled.length,
     backfill_failed: backfill.failed.length,
+    rate_limited: backfill.rate_limited ?? false,
     jobs_ran: jobsRan,
   });
   return json({ lobby, backfill, jobs_ran: jobsRan });

@@ -10,12 +10,12 @@
  * too, so an old date doesn't "remember" dates that happened after it.
  *
  * Run by the daily job a few dates at a time (free model, $0). Each date is tried at most
- * BACKFILL_MAX_ATTEMPTS times, so one the model keeps failing on stops costing calls.
+ * BACKFILL_MAX_ATTEMPTS times (rate limits excepted), so one the model keeps failing on stops costing calls.
  */
 import { track } from "./analytics";
 import type { Character } from "./character";
 import { generationPaused } from "./compute";
-import { isConversationEnabled, simulateConversation, type Turn } from "./conversation";
+import { ConversationError, isConversationEnabled, simulateConversation, type Turn } from "./conversation";
 import type { Db } from "./db";
 import type { CharacterSheet, Outcome, SideOutcome, VariableArc } from "./engine";
 import { DEFAULT_FORMAT } from "./formats";
@@ -113,11 +113,20 @@ async function conversationFor(db: Db, r: Row): Promise<Turn[]> {
   );
 }
 
+/** The free tier said "slow down" (a 429 that outlasted the model client's own short backoff). */
+export function isRateLimited(err: unknown): boolean {
+  return err instanceof ConversationError && err.reasons.some((r) => r.includes("HTTP 429"));
+}
+
+export type BackfillResult = { filled: string[]; failed: string[]; rate_limited?: boolean };
+
 /**
  * Backfill up to `limit` dates that have no conversation, newest first. Only the transcript is written, and
- * only while it is still empty, so a concurrent fill or a re-run is a no-op. Returns what it filled/failed.
+ * only while it is still empty, so a concurrent fill or a re-run is a no-op. A rate limit is not the date's
+ * fault: it costs the date no try and ends this batch (pushing on would only hit the same quota), so the
+ * next run picks up where this one stopped.
  */
-export async function backfillTranscripts(db: Db, limit = 2): Promise<{ filled: string[]; failed: string[] }> {
+export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillResult> {
   const filled: string[] = [];
   const failed: string[] = [];
   if (limit <= 0 || generationPaused() || !isConversationEnabled()) return { filled, failed };
@@ -131,14 +140,13 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<{ filled: 
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b
-      where e.status = 'ready' and jsonb_array_length(e.transcript) = 0 and e.transcript_backfill_attempts < $1
+      where e.status = 'ready' and jsonb_array_length(e.transcript) = 0 and e.backfill_failures < $1
       order by e.created_at desc, e.id
       limit $2`,
     [BACKFILL_MAX_ATTEMPTS, limit],
   );
 
   for (const r of rows) {
-    await db.query(`update episodes set transcript_backfill_attempts = transcript_backfill_attempts + 1 where id = $1`, [r.id]);
     try {
       const transcript = await conversationFor(db, r);
       await db.query(
@@ -147,8 +155,10 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<{ filled: 
       );
       filled.push(r.id);
     } catch (err) {
-      failed.push(r.id);
       track("conversation_failed", { episode_id: r.id, where: "backfill", reason: failureReason(err) });
+      if (isRateLimited(err)) return { filled, failed, rate_limited: true };
+      await db.query(`update episodes set backfill_failures = backfill_failures + 1 where id = $1`, [r.id]);
+      failed.push(r.id);
     }
   }
   return { filled, failed };

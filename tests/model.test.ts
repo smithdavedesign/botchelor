@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LLM_BASE_URL,
   DEFAULT_LLM_MODEL,
+  MAX_RETRY_AFTER_MS,
   modelFromEnv,
   ModelError,
   openAICompatibleModel,
+  RETRY_DELAYS_MS,
   type ChatMessage,
 } from "@/lib/model";
 
@@ -48,9 +50,39 @@ describe("openAICompatibleModel", () => {
   });
 
   it("throws a ModelError on a non-2xx response", async () => {
-    const { fetchImpl } = fakeFetch({ status: 429, body: { error: { message: "quota" } } });
+    const { calls, fetchImpl } = fakeFetch({ status: 400, body: { error: { message: "bad request" } } });
     const model = openAICompatibleModel({ baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: "m", fetchImpl });
     await expect(model.complete(messages)).rejects.toBeInstanceOf(ModelError);
+    expect(calls).toHaveLength(1); // a plain error is not retried
+  });
+
+  it("backs off and retries a rate limit (429), then gives up with a ModelError after the bounded retries", async () => {
+    const { calls, fetchImpl } = fakeFetch({ status: 429, body: { error: { message: "quota" } } });
+    const waits: number[] = [];
+    const model = openAICompatibleModel({
+      baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: "m", fetchImpl,
+      sleep: async (ms) => void waits.push(ms),
+    });
+    await expect(model.complete(messages)).rejects.toThrow("HTTP 429");
+    expect(calls).toHaveLength(1 + RETRY_DELAYS_MS.length);
+    expect(waits).toEqual(RETRY_DELAYS_MS);
+  });
+
+  it("rides out a brief rate limit: 429 then 200 succeeds, honouring a capped Retry-After", async () => {
+    let n = 0;
+    const fetchImpl = (async () => {
+      n++;
+      return n === 1
+        ? new Response("{}", { status: 429, headers: { "retry-after": "60" } })
+        : new Response(JSON.stringify(completion('{"ok":true}')), { status: 200 });
+    }) as typeof fetch;
+    const waits: number[] = [];
+    const model = openAICompatibleModel({
+      baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: "m", fetchImpl,
+      sleep: async (ms) => void waits.push(ms),
+    });
+    expect(await model.complete(messages)).toBe('{"ok":true}');
+    expect(waits).toEqual([MAX_RETRY_AFTER_MS]); // 60s asked, capped
   });
 
   it("throws a ModelError when the response has no text content", async () => {

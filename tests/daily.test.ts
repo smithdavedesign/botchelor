@@ -3,6 +3,7 @@ import { GET as dailyJob } from "@/app/api/jobs/daily/route";
 import { BACKFILL_MAX_ATTEMPTS, backfillTranscripts } from "@/lib/backfill";
 import { setConversationEnabledForTests } from "@/lib/conversation";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { ModelError } from "@/lib/model";
 import { CONVERSATION_TURNS, ENDING_LABELS } from "@/lib/rules";
 import { createTemplateParty, listLobby, refreshLobby } from "@/lib/watch";
 import { BASE_URL, episodeJson, scriptedModel, scriptOutcome, setupEpisode, startTestDb } from "./helpers";
@@ -106,6 +107,20 @@ describe("backfillTranscripts", () => {
     scriptedModel([]); // any call now would throw "ran out of outputs"
     expect(await backfillTranscripts(t.db, 5)).toEqual({ filled: [], failed: [] });
     expect(await transcriptOf(episode.id)).toEqual([]);
+  });
+
+  it("a rate limit costs the date no try and ends the batch (the next run picks up there)", async () => {
+    const older = await setupEpisode("friends");
+    const newer = await setupEpisode("disaster");
+    setConversationEnabledForTests(true);
+    // The newest date's first turn is refused twice with a 429 (after the client's own backoff).
+    scriptedModel([new ModelError("model returned HTTP 429"), new ModelError("model returned HTTP 429")]);
+    const result = await backfillTranscripts(t.db, 5);
+    expect(result).toEqual({ filled: [], failed: [], rate_limited: true }); // stopped: the older date wasn't tried
+    const attempts = async (id: string) =>
+      (await t.db.query<{ n: number }>(`select backfill_failures n from episodes where id = $1`, [id])).rows[0].n;
+    expect(await attempts(newer.episode.id)).toBe(0);
+    expect(await attempts(older.episode.id)).toBe(0);
   });
 
   it("does nothing while the conversation is switched off", async () => {
