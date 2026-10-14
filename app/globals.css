@@ -1250,6 +1250,106 @@ button.swatch.chosen {
   color: var(--accent);
 }
 
+/* Audience polls + predictions: while open, big tappable choices (radio-like) with a live countdown; once
+   closed, a results card marked "Voting closed" so it never reads as something you can still vote in. */
+.watch-poll-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.watch-poll-head h2 {
+  margin-bottom: 0;
+}
+.poll-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.poll-status.live {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.poll-status.closed {
+  background: var(--paper-2);
+  color: var(--muted);
+}
+.poll-options {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+button.poll-option {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  min-height: 2.9rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 14px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 38%, var(--line));
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 600;
+  text-align: left;
+  box-shadow: none;
+}
+button.poll-option:not(.chosen):hover:not(:disabled) {
+  transform: none;
+  border-color: var(--accent);
+  background: var(--soft);
+  box-shadow: none;
+}
+button.poll-option.chosen:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+button.poll-option.chosen {
+  border-color: transparent;
+  background: var(--grad);
+  color: #fff;
+}
+.poll-dot {
+  flex: 0 0 auto;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 60%, var(--line));
+}
+.poll-option.chosen .poll-dot {
+  border-color: #fff;
+  background: #fff;
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 80%, #000);
+}
+.poll-label {
+  flex: 1 1 auto;
+}
+.poll-mine {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.poll-yours {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.watch-poll.is-closed .watch-bar {
+  opacity: 0.75;
+}
+
 .watch-chat-head {
   display: flex;
   align-items: baseline;

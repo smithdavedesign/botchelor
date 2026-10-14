@@ -70,6 +70,29 @@ const LAST_AT = WATCH_PHASES[WATCH_PHASES.length - 1].at;
  * (steered to the ending) therefore only ever appear with the ending, never as a spoiler.
  */
 const AT = (id: WatchPhaseId) => WATCH_PHASES[WATCH_PHASE_INDEX[id]].at;
+
+/**
+ * Each audience poll's voting window [opens, closes) and the phase its results show from. One source of truth
+ * for the server gate (pollOpenAt) and the room state, so a poll is never "open" while the room already shows
+ * its results (the chemistry call used to stay votable through the decision with its buttons hidden).
+ */
+const POLL_WINDOWS: Record<WatchPoll, { opens: WatchPhaseId; closes: WatchPhaseId; reveal: WatchPhaseId }> = {
+  question: { opens: "act2", closes: "verdict", reveal: "verdict" },
+  chaos: { opens: "act2", closes: "verdict", reveal: "decision" },
+  chemistry: { opens: "verdict", closes: "decision", reveal: "decision" },
+};
+
+/** Whether a poll is open, whether its results show, and (while open) the seconds left to vote. */
+function pollWindow(poll: WatchPoll, clock: WatchClock): { open: boolean; show_results: boolean; closes_in: number | null } {
+  const w = POLL_WINDOWS[poll];
+  const idx = clock.phase_index;
+  const open = clock.started && idx >= WATCH_PHASE_INDEX[w.opens] && idx < WATCH_PHASE_INDEX[w.closes];
+  return {
+    open,
+    show_results: clock.started && idx >= WATCH_PHASE_INDEX[w.reveal],
+    closes_in: open ? Math.max(0, AT(w.closes) - clock.elapsed) : null,
+  };
+}
 const ACT_WINDOWS: [number, number][] = [
   [AT("act1"), AT("act2")],
   [AT("act2"), AT("twist")],
@@ -156,6 +179,8 @@ export type WatchReactionTally = { emoji: string; label: string; count: number; 
 export type WatchPollTally = {
   open: boolean;
   show_results: boolean;
+  /** Seconds left to vote while the poll is open (for a live countdown); null otherwise. */
+  closes_in: number | null;
   my_choice: string | null;
   total: number;
   options: { id: string; label: string; count: number }[];
@@ -263,9 +288,9 @@ async function pollTally(
   viewerId: string | null,
   poll: WatchPoll,
   options: readonly { id: string; label: string }[],
-  open: boolean,
-  showResults: boolean,
+  window: { open: boolean; show_results: boolean; closes_in: number | null },
 ): Promise<WatchPollTally> {
+  const { open, show_results: showResults, closes_in } = window;
   const { rows } = await db.query<{ choice: string; count: number }>(
     `select choice, count(*)::int as count from watch_poll_votes where party_id = $1 and poll = $2 group by choice`,
     [partyId, poll],
@@ -285,7 +310,7 @@ async function pollTally(
   // The split stays hidden until the results window (brief: "percentages are intentionally not shown"):
   // viewers see how many have voted, never how it's trending, so the decision can still surprise them.
   const visible = showResults ? real : real.map((o) => ({ ...o, count: 0 }));
-  return { open, show_results: showResults, my_choice: mine, total, options: visible, leading };
+  return { open, show_results: showResults, closes_in, my_choice: mine, total, options: visible, leading };
 }
 
 /** The read-only room state at `now`: the content unlocked so far, the live tallies and recent chat. */
@@ -329,8 +354,7 @@ export async function getRoomState(
     viewerId,
     "chemistry",
     WATCH_CHEMISTRY_OPTIONS,
-    clock.started && idx >= VERDICT_INDEX && idx < WRAP_INDEX,
-    idx >= WATCH_DECISION_INDEX,
+    pollWindow("chemistry", clock),
   );
   const questionTally = await pollTally(
     db,
@@ -338,8 +362,7 @@ export async function getRoomState(
     viewerId,
     "question",
     WATCH_AUDIENCE_PROMPTS,
-    clock.started && idx >= ACT2_INDEX && idx < VERDICT_INDEX,
-    idx >= VERDICT_INDEX,
+    pollWindow("question", clock),
   );
   const leadingPrompt = questionTally.leading
     ? WATCH_AUDIENCE_PROMPTS.find((p) => p.id === questionTally.leading)?.label ?? null
@@ -352,8 +375,7 @@ export async function getRoomState(
     viewerId,
     "chaos",
     WATCH_CHAOS_OPTIONS,
-    clock.started && idx >= ACT2_INDEX && idx < VERDICT_INDEX,
-    idx >= WATCH_DECISION_INDEX,
+    pollWindow("chaos", clock),
   );
   let chaosTimeline: RoomState["chaos"]["timeline"] = null;
   if (idx >= WATCH_DECISION_INDEX && chaosTally.leading) {
@@ -806,10 +828,7 @@ export async function toggleReaction(
 
 /** Whether a poll is open to vote at `now`, from the room's clock. Enforced here, not only in the UI. */
 export function pollOpenAt(poll: WatchPoll, startsAt: Date | string | null, now: Date): boolean {
-  const idx = watchClock(startsAt, now).phase_index;
-  if (!watchClock(startsAt, now).started) return false;
-  if (poll === "chemistry") return idx >= VERDICT_INDEX && idx < WRAP_INDEX;
-  return idx >= ACT2_INDEX && idx < VERDICT_INDEX;
+  return pollWindow(poll, watchClock(startsAt, now)).open;
 }
 
 export async function castVote(

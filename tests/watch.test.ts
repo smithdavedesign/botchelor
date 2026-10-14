@@ -319,10 +319,28 @@ describe("audience polls are opinion, not control", () => {
     expect(atVerdict.chemistry.options.every((o) => o.count === 0)).toBe(true); // …but the split is not.
     expect(atVerdict.chemistry.my_choice).toBe("yes");
 
+    // While it's open, the room counts down to the moment it closes (the decision).
+    expect(atVerdict.chemistry.open).toBe(true);
+    expect(atVerdict.chemistry.closes_in).toBe(phaseAt("decision") - phaseAt("verdict"));
+
     const atDecision = (await getRoomState(t.db, partyId, userIdOf(viewer), at(phaseAt("decision"))))!;
     expect(atDecision.chemistry.show_results).toBe(true);
     expect(atDecision.chemistry.options.find((o) => o.id === "yes")!.count).toBe(1);
     expect(atDecision.chemistry.leading).toBe("yes");
+  });
+
+  it("never leaves a poll votable while its results show (the buttons would be gone)", async () => {
+    const { partyId } = await premiereAtT0();
+    const viewer = userIdOf(newUserCookie());
+    for (const phase of WATCH_PHASES) {
+      const room = (await getRoomState(t.db, partyId, viewer, at(phase.at)))!;
+      for (const poll of [room.chemistry, room.question, room.chaos]) {
+        expect(poll.open && poll.show_results, `${phase.id}`).toBe(false);
+        expect(poll.closes_in === null, `${phase.id}`).toBe(!poll.open);
+      }
+    }
+    // The chemistry call closes exactly when its results appear.
+    expect((await castVote(t.db, partyId, viewer, "chemistry", "yes", at(phaseAt("decision")))).ok).toBe(false);
   });
 
   it("the question poll opens during the challenge and closes at the verdict", async () => {

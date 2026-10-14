@@ -203,7 +203,7 @@ async function main() {
         await fpage.getByRole("button", { name: "Send" }).click();
         await fpage.getByText("he is absolutely LYING").waitFor({ timeout: 10_000 });
         // Predict the ending from inside the room.
-        await fpage.locator(".watch-predict .choices button").first().click();
+        await fpage.locator(".watch-predict button.poll-option").first().click();
         await fpage.getByText(/Locked in:/).waitFor({ timeout: 10_000 });
       } finally {
         await fan.close();
