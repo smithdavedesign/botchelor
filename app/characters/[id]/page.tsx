@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import ShareLink from "@/app/ShareLink";
 import { getDb } from "@/lib/db";
 import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
+import { getCharacterRatings } from "@/lib/ratings";
+import { readUserId, USER_COOKIE } from "@/lib/http";
 import { ENDING_LABELS } from "@/lib/rules";
+import RatingButtons from "./RatingButtons";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +28,11 @@ export default async function CharacterPage({ params }: Props) {
   const db = await getDb();
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
-  const { episodes, record } = await getCharacterHistory(db, id);
+  const viewerId = readUserId((await cookies()).get(USER_COOKIE)?.value);
+  const [{ episodes, record }, ratings] = await Promise.all([
+    getCharacterHistory(db, id),
+    getCharacterRatings(db, id, viewerId),
+  ]);
 
   return (
     <article>
@@ -57,6 +65,9 @@ export default async function CharacterPage({ params }: Props) {
         <p>
           <strong>Wants:</strong> {c.want}
         </p>
+        <h2>Audience rating</h2>
+        <p className="muted">How the crowd reads this contestant. It&apos;s just for fun — it never changes a date, the odds or your points on a prediction.</p>
+        <RatingButtons characterId={c.id} counts={ratings.counts} mine={ratings.mine} isOwner={ratings.is_owner} />
       </section>
 
       <section className="card">

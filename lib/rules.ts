@@ -245,6 +245,23 @@ export const producerLabel = (id: ProducerId): string => producerEvent(id).label
 export const POINTS_PER_DEALBREAKER_PICK = 5;
 export const POINTS_PER_MATCHMAKER = 10;
 
+/**
+ * Audience ratings of a character ("most likable / most surprising"). A $0 social signal: one vote per
+ * viewer per character per category, never a model call. It NEVER touches the engine, the date outcome,
+ * predictions or league/season scoring — it feeds the cast leaderboard and the owner's all-time points
+ * total only (so the weekly contest stays the prediction game). You can't rate your own character.
+ */
+export const RATING_CATEGORIES = [
+  { id: "likable", label: "Likable", emoji: "💗", board: "Most likable" },
+  { id: "surprising", label: "Surprising", emoji: "🤯", board: "Most surprising" },
+] as const;
+export type RatingCategory = (typeof RATING_CATEGORIES)[number]["id"];
+export const RATING_CATEGORY_IDS = RATING_CATEGORIES.map((c) => c.id) as [RatingCategory, ...RatingCategory[]];
+export const ratingCategory = (id: RatingCategory): (typeof RATING_CATEGORIES)[number] =>
+  RATING_CATEGORIES.find((c) => c.id === id)!;
+/** The owner earns a little each time another viewer rates their OC — a side-game point, like a dealbreaker guess. */
+export const POINTS_PER_RATING_RECEIVED = 2;
+
 /** Sliding doors (PRD): the bounded one-thing-changed replays an owner can run. Client-safe labels. */
 export const SLIDING_DOOR_CHANGES = [
   { id: "bolder", label: "More unpredictable" },

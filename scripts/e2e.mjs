@@ -241,6 +241,10 @@ async function main() {
       await spage.waitForURL(/\/characters\//);
       assert((await spage.locator(".contestant .avatar").count()) > 0, "contestant card avatar missing");
       assert((await spage.getByText("Share this contestant").count()) > 0, "share section missing on the card");
+      // Audience rating: a spectator (who doesn't own this contestant) toggles a rating chip on.
+      await spage.locator(".ratings .rating-chip").first().click();
+      await spage.locator(".rating-chip.on").first().waitFor({ timeout: 10_000 });
+      assert((await spage.locator(".rating-chip.on").count()) >= 1, "the rating chip did not toggle on");
     });
 
     await step("the shop sells a pack end to end (checkout, Payment Link, signed webhook)", async () => {

@@ -457,6 +457,22 @@ async function livenRoom(base, roomId) {
 // ---------------------------------------------------------------------------------------------------
 // Screenshots
 
+// A handful of audience ratings so the cast leaderboard and the contestant-card chips aren't empty in the
+// shots. Each rating is a distinct anonymous viewer (one vote per viewer per category), like real traffic.
+async function seedRatings(base) {
+  const targets = [
+    ["house-juniper", "likable", 7], ["house-rafe", "likable", 5], ["house-lior", "likable", 4],
+    ["house-sable", "surprising", 6], ["house-nell", "surprising", 3], ["house-boaz", "surprising", 2],
+    ["house-juniper", "surprising", 3], ["house-rafe", "surprising", 2],
+  ];
+  for (const [id, category, n] of targets) {
+    for (let i = 0; i < n; i++) {
+      const headers = { "content-type": "application/json", cookie: `bz_uid=${randomUUID()}`, origin: base };
+      await fetch(`${base}/api/characters/${id}/ratings`, { method: "POST", headers, body: JSON.stringify({ category }) });
+    }
+  }
+}
+
 async function capture(base, leagueId, viewer) {
   const { chromium, devices } = await import("playwright-core");
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
@@ -469,6 +485,25 @@ async function capture(base, leagueId, viewer) {
     for (const [label, device] of sizes) {
       const shot = async (page, name, opts = {}) => {
         await page.waitForLoadState("networkidle");
+        // The local `next start` static server can drop the tail of a big image burst (17 cast portraits),
+        // leaving an <img> blank in the shot even though the file is fine (prod's CDN serves them all).
+        // Wait for every image to decode, re-fetching any the dev server dropped, so no avatar is blank.
+        await page
+          .evaluate(async () => {
+            await Promise.all(
+              Array.from(document.images).map(async (img) => {
+                try {
+                  await img.decode();
+                } catch {
+                  await new Promise((res) => {
+                    img.onload = img.onerror = res;
+                    img.src = img.src + (img.src.includes("?") ? "&" : "?") + "r=" + Date.now();
+                  });
+                }
+              }),
+            );
+          })
+          .catch(() => {});
         const path = join(OUT_DIR, `${name}-${label}.png`);
         await page.screenshot({ path, fullPage: opts.full ?? false });
         saved.push(path);
@@ -558,6 +593,9 @@ async function capture(base, leagueId, viewer) {
       await castPage.getByRole("heading", { name: "The cast" }).waitFor();
       await castPage.locator(".gallery").first().waitFor();
       await shot(castPage, "cast");
+      // The audience leaderboard (most likable / most surprising), lower on the cast page.
+      await castPage.getByRole("heading", { name: "Audience leaderboard" }).scrollIntoViewIfNeeded();
+      await shot(castPage, "cast-leaderboard");
 
       // 5. A shareable contestant card.
       await castPage.locator(".gallery .meta a").first().click();
@@ -654,6 +692,7 @@ async function main() {
     console.log("Playing this week so far…");
     await seedThisWeek(client(app.base), cast, played);
 
+    await seedRatings(app.base);
     console.log("Taking screenshots…");
     const saved = await capture(app.base, played.league.id, cast.wren);
     console.log("Capturing the 'Filming the date…' state…");

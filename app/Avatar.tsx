@@ -29,7 +29,6 @@ export default function Avatar({ seed, name, hue, size = 48, house = false }: Pr
         alt={`${name} portrait`}
         width={size}
         height={size}
-        loading="lazy"
         decoding="async"
         className={`avatar avatar-portrait${house ? " avatar-house" : ""}`}
         style={{ borderRadius: r, width: size, height: size }}

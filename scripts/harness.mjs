@@ -394,6 +394,15 @@ export async function seedDataset(base) {
   await call("/api/matchmakers", { character_a: chars[5].id, character_b: chars[9].id }, spectators[2]);
   await call("/api/matchmakers", { character_a: chars[10].id, character_b: chars[0].id }, spectators[3]);
 
+  // A few audience ratings (distinct spectators, so none toggles another off), so the cast leaderboard
+  // has entries. Spectators own no characters, so none of these is a self-rating.
+  await call(`/api/characters/${chars[0].id}/ratings`, { category: "likable" }, spectators[0]);
+  await call(`/api/characters/${chars[0].id}/ratings`, { category: "likable" }, spectators[1]);
+  await call(`/api/characters/${chars[0].id}/ratings`, { category: "likable" }, spectators[2]);
+  await call(`/api/characters/${chars[4].id}/ratings`, { category: "surprising" }, spectators[0]);
+  await call(`/api/characters/${chars[4].id}/ratings`, { category: "surprising" }, spectators[1]);
+  await call(`/api/characters/${chars[2].id}/ratings`, { category: "likable" }, spectators[3]);
+
   // Air most of the finales, so the feed has aired episodes and the boards have scores.
   for (let i = 0; i < 11; i++) await call(`/api/episodes/${episodes[i].id}/reveal`, {}, creators[pairings[i].host]);
   // The designed pair's finales air too, so the second date shows up in the feed and on the graph.

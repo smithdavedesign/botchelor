@@ -4,7 +4,8 @@ import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
 import { readUserId, USER_COOKIE } from "@/lib/http";
 import { listCast, listMyProposals, listRelationshipEdges } from "@/lib/mechanics";
-import { ENDING_LABELS } from "@/lib/rules";
+import { topRatedCharacters } from "@/lib/ratings";
+import { ENDING_LABELS, RATING_CATEGORIES } from "@/lib/rules";
 import MatchmakerForm from "./MatchmakerForm";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +13,13 @@ export const dynamic = "force-dynamic";
 export default async function CastPage() {
   const viewerId = readUserId((await cookies()).get(USER_COOKIE)?.value);
   const db = await getDb();
-  const [cast, edges, proposals] = await Promise.all([
+  const [cast, edges, proposals, boards] = await Promise.all([
     listCast(db),
     listRelationshipEdges(db),
     viewerId ? listMyProposals(db, viewerId) : Promise.resolve([]),
+    Promise.all(RATING_CATEGORIES.map((c) => topRatedCharacters(db, c.id))),
   ]);
+  const leaderboards = RATING_CATEGORIES.map((c, i) => ({ category: c, top: boards[i] })).filter((b) => b.top.length > 0);
 
   return (
     <>
@@ -49,6 +52,31 @@ export default async function CastPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {leaderboards.length > 0 && (
+        <section>
+          <h2>Audience leaderboard</h2>
+          <p className="muted">How the crowd rates the cast. Just for fun — ratings never change a date, the odds or prediction points.</p>
+          <div className="boards">
+            {leaderboards.map(({ category, top }) => (
+              <div key={category.id} className="card board">
+                <h3>
+                  {category.emoji} {category.board}
+                </h3>
+                <ol className="board-list">
+                  {top.map((t) => (
+                    <li key={t.id}>
+                      <Avatar seed={t.id} name={t.name} hue={t.hue} house={t.house} size={28} />
+                      <Link href={`/characters/${t.id}`}>{t.name}</Link>
+                      <span className="board-count">{t.count}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       <MatchmakerForm cast={cast} />

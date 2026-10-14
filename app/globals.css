@@ -1421,3 +1421,81 @@ button.swatch.chosen {
 .afterglow .turn-line {
   margin: 0;
 }
+
+/* Audience ratings (lib/ratings.ts): the toggle chips on a contestant card and the cast leaderboard. */
+.ratings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+}
+.rating-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+button.rating-chip:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.rating-chip.on {
+  background: var(--soft);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  color: var(--accent);
+}
+.rating-chip.is-count {
+  cursor: default;
+  color: var(--muted);
+}
+
+.boards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+.board h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+}
+.board-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: rank;
+}
+.board-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+.board-list li:first-child {
+  border-top: 0;
+}
+.board-list li::before {
+  counter-increment: rank;
+  content: counter(rank);
+  flex: 0 0 1.2rem;
+  color: var(--muted);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.board-count {
+  margin-left: auto;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

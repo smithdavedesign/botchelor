@@ -279,6 +279,19 @@ the builder's date settings, shown as a billing badge on the episode and the fee
 - **Follow-ups:** wire `meet_the_parents` to name a real house regular and `ex_returns` to pull the actual ex
   from the relationship graph (both are generic background presences today).
 
+## M12: audience ratings + the cast leaderboard (shipped)
+
+Spectators rate a contestant **💗 Likable** or **🤯 Surprising** (`lib/ratings.ts`,
+`POST /api/characters/:id/ratings`): one toggle vote per viewer per character per category, on the
+contestant card, with a **cast leaderboard** (most likable / most surprising) on `/cast`.
+
+- **$0 and no model call.** It **never touches the engine, the date outcome, predictions or league/season
+  scoring** — those stay the prediction game. A rating feeds the leaderboard and the owner's all-time points
+  only (`POINTS_PER_RATING_RECEIVED`, a side-game point like a dealbreaker guess). You can't rate your own OC.
+- Exit criteria (tested — `tests/ratings.test.ts`): a vote toggles on/off; one per viewer per category; a
+  self-rating is 403 and an unknown character 404; the leaderboard orders by count; the owner earns points
+  when others rate their OC, the rater earns none.
+
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
 The competitor report's image plan, built at $0 — first-party assets only, reviewed and committed (no runtime generation, no uploads):
@@ -325,3 +338,23 @@ tracking. All are $0 and reuse the existing engine.
 - **Chaos button / interactive theatre (Model B)**: audience votes a real curveball the engine responds
   to (not just the flavour-only audience question shipped in M8), advertised on the episode, once Model A's
   retention is proven.
+
+### Considered, out of scope for now (David, 2026-10-14)
+
+From a "full dating-show platform" proposal. Parked deliberately — each conflicts with a core constraint
+(the $0/controlled-spend model, the anonymous-by-consent positioning, or the moderation/legal posture). To
+revisit only with demand evidence (the PRD's wedge: run the text MVP, measure willingness to pay) and, for
+the image work, a moderation provider and a spend budget.
+
+- **Generated avatars for visitor OCs.** The big cost/risk item: per-image spend (Replicate/SD/vision) plus
+  user-generated-image moderation (SB 243: minors, real people, NSFW). Already deferred (`docs/upgrade-cost.md`);
+  today a visitor's image is read in-browser only (palette → colour/traits), never stored. The reviewed
+  **house** portraits now render (M, `lib/portraits.ts`), which is the $0 half of this.
+- **A token currency for avatars / model picks.** Depends on generated avatars; would be a second currency
+  beside the existing free-dates + episode packs. Revisit if avatars ship.
+- **User-facing model-swap.** Uncapped spend if any visitor can pick an expensive model. The owner-gated
+  frontier (`/admin`) already covers the legitimate case at $0 marginal cost.
+- **Real sign-in accounts (email/GitHub/magic-link).** Trades away the anonymous-by-mutual-consent reveal,
+  which the PRD names as the differentiator, and adds PII. The cookie identity already persists characters,
+  packs, predictions and points.
+- **Ads for tokens.** Off-brand for the stage; low value next to the packs already selling.

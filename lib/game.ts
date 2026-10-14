@@ -9,6 +9,7 @@ import {
   POINTS_PER_DEALBREAKER_PICK,
   POINTS_PER_DRAMA_PICK,
   POINTS_PER_MATCHMAKER,
+  POINTS_PER_RATING_RECEIVED,
   pointsFor,
   predictionPoints,
   producerLabel,
@@ -539,8 +540,11 @@ export async function getPoints(db: Db, userId: string): Promise<number> {
                    where g.user_id = $1 and e.revealed_at is not null and g.pick = a.dealbreaker), 0) * $4
       + coalesce((select count(*) from matchmaker_proposals mp
                    where mp.proposer_id = $1 and ${matchmakerHitSql()}), 0) * $5
+      + coalesce((select count(*) from character_ratings cr
+                    join characters c on c.id = cr.character_id
+                   where c.owner_id = $1), 0) * $6
      )::int as points`,
-    [userId, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER],
+    [userId, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, POINTS_PER_RATING_RECEIVED],
   );
   return rows[0]?.points ?? 0;
 }
