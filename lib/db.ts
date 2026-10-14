@@ -447,11 +447,15 @@ create table if not exists watch_reactions (
 create table if not exists watch_poll_votes (
   party_id text not null references watch_parties (id) on delete cascade,
   user_id text not null,
-  poll text not null check (poll in ('chemistry', 'question')),
+  poll text not null check (poll in ('chemistry', 'question', 'chaos')),
   choice text not null,
   updated_at timestamptz not null default now(),
   primary key (party_id, user_id, poll)
 );
+-- The chaos button added the 'chaos' poll; widen the CHECK on an existing database (the inline one above
+-- only applies to a fresh table). Mirrors WATCH_POLLS in lib/rules.ts.
+alter table watch_poll_votes drop constraint if exists watch_poll_votes_poll_check;
+alter table watch_poll_votes add constraint watch_poll_votes_poll_check check (poll in ('chemistry', 'question', 'chaos'));
 
 -- Presence, for the live "N watching" count: upserted on every heartbeat, counted within the window.
 create table if not exists watch_presence (

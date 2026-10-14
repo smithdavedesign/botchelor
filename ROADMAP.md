@@ -354,9 +354,13 @@ tracking. All are $0 and reuse the existing engine.
 - ~~**The reunion special**~~ — **shipped** (`/reunion`, `lib/reunion.ts`): a $0 compilation — season awards
   (fan favourite, biggest disaster, …), the couples board from the relationship graph, and a reel of the
   shared confessionals. No new generation. Follow-up: scope it per weekly season (evergreen today).
-- **Chaos button / interactive theatre (Model B)**: audience votes a real curveball the engine responds
-  to (not just the flavour-only audience question shipped in M8), advertised on the episode, once Model A's
-  retention is proven.
+- ~~**Chaos button / interactive theatre**~~ — **shipped (the fair version, David's call)**. In a watch party
+  the audience votes a curveball from a bounded library (`WATCH_CHAOS_OPTIONS`) during the challenge; at the
+  decision the room shows the canonical outcome (**predictions resolve on that, so they stay fair**) *and* a
+  clearly-non-canon **"chaos timeline"** — the deterministic alternate the winning curveball produces, computed
+  with the Sliding Doors engine (`chaosReplay`, no model call). The engine "responds" to the crowd without ever
+  touching the real ending. Full **Model B** (the audience vote *is* an engine input, predictions open after)
+  stays deferred until retention is proven — it needs live per-vote generation.
 
 ### Considered, out of scope for now (David, 2026-10-14)
 

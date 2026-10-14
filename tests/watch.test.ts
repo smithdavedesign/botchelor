@@ -406,3 +406,32 @@ describe("watch-party routes take no money and move no points (exit criterion)",
 async function episodeOf(partyId: string): Promise<string> {
   return (await t.db.query<{ episode_id: string }>(`select episode_id from watch_parties where id = $1`, [partyId])).rows[0].episode_id;
 }
+
+describe("the chaos button (fair interactive theatre)", () => {
+  it("accepts a chaos curveball during the challenge, and rejects it when the window is closed", async () => {
+    const { partyId } = await premiereAtT0("friends");
+    const voter = userIdOf(newUserCookie());
+    expect((await castVote(t.db, partyId, voter, "chaos", "heat", at(phaseAt("act2")))).ok).toBe(true);
+    expect((await castVote(t.db, partyId, voter, "chaos", "heat", at(phaseAt("preshow")))).ok).toBe(false);
+  });
+
+  it("reveals a non-canon chaos timeline at the decision; the real ending is untouched", async () => {
+    const { partyId } = await premiereAtT0("friends");
+    await castVote(t.db, partyId, userIdOf(newUserCookie()), "chaos", "heat", at(phaseAt("act2")));
+    await castVote(t.db, partyId, userIdOf(newUserCookie()), "chaos", "heat", at(phaseAt("act2")));
+
+    // During the challenge: votes open, no timeline yet.
+    const mid = (await getRoomState(t.db, partyId, null, at(phaseAt("act2"))))!;
+    expect(mid.chaos.open).toBe(true);
+    expect(mid.chaos.timeline).toBeNull();
+
+    // At the decision: the winning curveball's deterministic alternate appears (computed for an anonymous viewer).
+    const decision = (await getRoomState(t.db, partyId, null, at(phaseAt("decision"))))!;
+    expect(decision.chaos.open).toBe(false);
+    expect(decision.chaos.timeline).not.toBeNull();
+    expect(decision.chaos.timeline!.label).toContain("heat");
+    expect(["second_date", "friends", "disaster"]).toContain(decision.chaos.timeline!.ending);
+    // Predictions still resolve on the canonical ending, which the chaos vote never changed.
+    expect(decision.ending).toBe("friends");
+  });
+});
