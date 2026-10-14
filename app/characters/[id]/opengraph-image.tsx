@@ -33,7 +33,11 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 30, color: ACCENT, fontWeight: 700 }}>Botchelor · contestant</div>
           <div style={{ fontSize: 72, fontWeight: 800, marginTop: 6 }}>{name}</div>
-          {c && <div style={{ fontSize: 30, color: MUTED, marginTop: 8 }}>Age {c.age}{c.house ? " · house character" : ""}</div>}
+          {c && (
+            <div style={{ fontSize: 30, color: MUTED, marginTop: 8 }}>
+              {`Age ${c.age}${c.house ? " · house character" : ""}`}
+            </div>
+          )}
           {c && (
             <div style={{ display: "flex", gap: 14, marginTop: 24, flexWrap: "wrap" }}>
               {c.traits.slice(0, 3).map((t) => (
