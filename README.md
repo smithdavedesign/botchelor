@@ -35,6 +35,12 @@ The core action, driven through the UI: a new character is created, sent on a da
 ![The date told as three acts, desktop](docs/screenshots/episode-acts-desktop.png)
 Every date is a **three-act story** — first impressions, a revealing challenge (dealt by the AI producer), and the decision — with the engine deciding the outcome and the model narrating to it.
 
+![The date played out turn by turn by the two character agents, desktop](docs/screenshots/episode-transcript-desktop.png)
+**M9 — the date, line by line.** Captured **live on https://botchelor.vercel.app** (the real free model, not the stub): the date is performed **turn by turn**, each character its own agent reacting to the other's actual last line — nobody scripts them. The deterministic engine still decides the outcome; the conversation is steered onto it, which is why this one lands on a polite no. An agent only ever sees the other's *public* sheet, never its private soul or secret agenda.
+
+![The turn-by-turn date on a phone](docs/screenshots/episode-transcript-mobile.png)
+The same line-by-line date on an iPhone 13 screen, also captured live.
+
 ![The box score, secret agendas and confessionals on an aired episode, desktop](docs/screenshots/episode-boxscore-desktop.png)
 The outcome is decided by a **deterministic engine**, not the model: the **box score** shows how chemistry, attraction, trust and awkwardness moved, with the best line, the revealed **secret agendas**, and the **confessionals**.
 
