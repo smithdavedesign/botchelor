@@ -36,7 +36,9 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { setConversationEnabledForTests } from "@/lib/conversation";
+import { setAfterglowEnabledForTests } from "@/lib/afterglow";
 import { setInlineGenerationForTests } from "@/lib/jobs";
+import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
 import type { Ending } from "@/lib/rules";
 
 export const BASE_URL = "http://localhost:3000";
@@ -47,6 +49,7 @@ type Table =
   | "predictions"
   | "profiles"
   | "identity_consents"
+  | "afterglow_consents"
   | "reports"
   | "blocks"
   | "leagues"
@@ -76,6 +79,9 @@ export async function startTestDb() {
   // The M9 conversation path is off in tests by default: episode tests script only the narration model.
   // The conversation module is tested directly in tests/conversation.test.ts.
   setConversationEnabledForTests(false);
+  // M11 afterglow is off in tests by default too (same reason: episode tests script only the narration
+  // model). The afterglow module is tested directly in tests/afterglow.test.ts.
+  setAfterglowEnabledForTests(false);
   // M10 part 2: run generation inline (no Next after() lifecycle in unit tests), so an episode is ready
   // by the time POST returns — the same observable behaviour the suite was written against.
   setInlineGenerationForTests(true);
@@ -99,6 +105,7 @@ export async function startTestDb() {
         "blocks",
         "reports",
         "identity_consents",
+        "afterglow_consents",
         "profiles",
         "orders",
         "waitlist",
@@ -178,6 +185,9 @@ export const api = {
   /** M2: one creator consents to revealing who made the episode (POST /api/reveal). */
   consent: (episodeId: string, cookie?: string) =>
     postIdentityConsent(jsonRequest("/api/reveal", { episode_id: episodeId }, { cookie })),
+  /** M11: one owner opens the afterglow (POST /api/episodes/:id/afterglow). */
+  openAfterglow: (episodeId: string, cookie?: string) =>
+    postAfterglow(jsonRequest(`/api/episodes/${episodeId}/afterglow`, {}, { cookie }), params(episodeId)),
   setProfile: (body: unknown, cookie?: string) => postProfile(jsonRequest("/api/profile", body, { cookie })),
   report: (body: unknown, cookie?: string) => postReport(jsonRequest("/api/reports", body, { cookie })),
   block: (episodeId: string, cookie?: string) =>

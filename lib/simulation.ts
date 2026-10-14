@@ -33,6 +33,7 @@ import {
   type Strategy,
 } from "./rules";
 import { pickVenue, type VenueId } from "./venues";
+import { DEFAULT_FORMAT, type FormatId } from "./formats";
 
 export type CharacterForDate = { id: string; sheet: CharacterSheet };
 
@@ -43,6 +44,8 @@ export type DateRequest = {
   /** The owner's chosen agenda for their side; null means the show deals one. */
   agendaId: AgendaId | null;
   note: string | null;
+  /** The show format (lib/formats.ts): cosmetic framing only, never the engine. Defaults to classic. */
+  format: FormatId;
 };
 
 export const DEFAULT_DATE_REQUEST: DateRequest = {
@@ -51,6 +54,7 @@ export const DEFAULT_DATE_REQUEST: DateRequest = {
   gameBudget: DEFAULT_GAME_BUDGET,
   agendaId: null,
   note: null,
+  format: DEFAULT_FORMAT,
 };
 
 const pickAgenda = (seed: number): AgendaId => AGENDA_IDS[seed % AGENDA_IDS.length];
@@ -102,6 +106,7 @@ export async function buildDate(
     game_budget_b: DEFAULT_GAME_BUDGET,
     producer: pickProducer(seedFrom(seed, "producer")),
     venue: pickVenue(seedFrom(seed, "venue")),
+    format: req.format,
   };
   // A local-only soul drives the engine (signals) but its text is never sent to the model.
   const forModel = (s: typeof soulA) => (s && !s.local_only ? soulText(s) : null);

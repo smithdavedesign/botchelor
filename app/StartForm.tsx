@@ -22,6 +22,7 @@ import {
   type GameBudget,
   type Strategy,
 } from "@/lib/rules";
+import { DEFAULT_FORMAT, FORMATS, type FormatId } from "@/lib/formats";
 import { requestJson } from "./request";
 
 export type Partner = {
@@ -42,6 +43,7 @@ export type Partner = {
 export type DatesLeft = { free_left: number; free_per_season: number; pack_left: number };
 
 type DateSettings = {
+  format: FormatId;
   autonomy: Autonomy;
   strategy: Strategy;
   game_budget: GameBudget;
@@ -51,6 +53,7 @@ type DateSettings = {
 };
 
 const DEFAULT_SETTINGS: DateSettings = {
+  format: DEFAULT_FORMAT,
   autonomy: "balanced",
   strategy: "genuine_chemistry",
   game_budget: 25,
@@ -93,6 +96,17 @@ function DateSettingsForm({ settings, onChange }: { settings: DateSettings; onCh
   return (
     <details className="card settings">
       <summary>Date settings (optional)</summary>
+      <label>
+        Show format
+        <select value={settings.format} onChange={(e) => set("format", e.target.value as FormatId)}>
+          {FORMATS.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="muted">{FORMATS.find((f) => f.id === settings.format)?.blurb}</p>
       <label>
         Autonomy
         <select value={settings.autonomy} onChange={(e) => set("autonomy", e.target.value as Autonomy)}>
@@ -289,6 +303,7 @@ export default function StartForm({
       autonomy: settings.autonomy,
       strategy: settings.strategy,
       game_budget: settings.game_budget,
+      ...(settings.format !== DEFAULT_FORMAT ? { format: settings.format } : {}),
       ...(settings.agenda ? { agenda: settings.agenda } : {}),
       ...(settings.note.trim() ? { note: settings.note.trim() } : {}),
       ...(settings.self_pick ? { self_pick: settings.self_pick as Ending } : {}),

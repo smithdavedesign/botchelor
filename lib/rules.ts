@@ -196,6 +196,20 @@ export const DATE_ACTS = ["First impressions", "The challenge", "The decision"] 
  */
 export const CONVERSATION_TURNS = 8; // dialogue turns total, alternating, character A opens
 export const TURN_DIALOGUE_MAX = 280; // characters per spoken line
+
+/**
+ * The afterglow (PRD core feature #2): the short private text thread the two AIs exchange the morning
+ * after. Bounded and short — it is texting, not another date. Alternating, character A texts first.
+ */
+export const AFTERGLOW_TURNS = 4;
+
+/** The mutual afterglow verdict, derived from each side's engine-decided wants_another. No model call. */
+export type AfterglowVerdictKind = "mutual_yes" | "one_sided" | "mutual_no";
+export function afterglowVerdictKind(aWants: boolean, bWants: boolean): AfterglowVerdictKind {
+  if (aWants && bWants) return "mutual_yes";
+  if (!aWants && !bWants) return "mutual_no";
+  return "one_sided";
+}
 /** The narrative emotions an agent may report per turn (flavour only; never touches the engine). */
 export const TURN_EMOTIONS = [
   "curious", "amused", "guarded", "warm", "nervous", "bored", "defensive", "flirty", "surprised", "cool",

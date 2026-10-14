@@ -12,6 +12,7 @@ import {
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { venue, type VenueId } from "./venues";
+import { DEFAULT_FORMAT, format, type FormatId } from "./formats";
 import { checkFields } from "./safety";
 
 /** CharacterSheet now lives in the engine (it decides outcomes from it); re-exported for existing imports. */
@@ -75,6 +76,7 @@ Rules:
 - Each character has a PRIVATE soul and a SECRET agenda. Let them shape behaviour, but NEVER state or quote them in the episode.
 - Keep the shown episode (setting, goals, scenes, twist, finale) under ${PROMPT_WORD_TARGET} words.
 - The date happens at the place given in "date_location". Your "setting" must put them there; do not move them somewhere else.
+- "show_format" sets the format this date is filmed in. Honour its framing throughout; it changes only the flavour, never who likes whom or how it ends.
 
 Write the date as three acts, one scene each, a few sentences per scene:
   1. ${DATE_ACTS[0]}: they meet and size each other up.
@@ -146,6 +148,7 @@ export function buildMessages(
   souls: [string | null, string | null],
   producer: ProducerId,
   venueId: VenueId,
+  formatId: FormatId = DEFAULT_FORMAT,
 ): ChatMessage[] {
   const data = {
     character_a: { ...sheetData(input.a.sheet), private: privateGuidance(input.a, souls[0]) },
@@ -153,6 +156,7 @@ export function buildMessages(
     decided_outcome: outcomeBrief(input, outcome),
     date_location: venue(venueId).prompt,
     act_two_situation: producerEvent(producer).prompt,
+    show_format: format(formatId).note,
   };
   return [
     { role: "system", content: SYSTEM_PROMPT },
@@ -197,8 +201,9 @@ export async function narrateEpisode(
   souls: [string | null, string | null],
   producer: ProducerId,
   venueId: VenueId,
+  formatId: FormatId = DEFAULT_FORMAT,
 ): Promise<EpisodeDraft> {
-  const messages = buildMessages(input, outcome, souls, producer, venueId);
+  const messages = buildMessages(input, outcome, souls, producer, venueId, formatId);
   const reasons: string[] = [];
   for (let attempt = 0; attempt < SHOWRUNNER_ATTEMPTS; attempt++) {
     let raw: string;

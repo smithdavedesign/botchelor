@@ -80,6 +80,21 @@ function genericTurn(messages) {
   return { dialogue: TURN_LINES[n % TURN_LINES.length], action: "answers", emotion: "curious", interest_signal: 0.4 + (n % 5) * 0.1 };
 }
 
+// One afterglow text (M11): the morning-after thread. Same { you, them } shape as a turn, told apart by
+// the "your_feeling" field the afterglow prompt carries (a date turn carries "act"/"transcript_so_far").
+const AFTERGLOW_LINES = [
+  "okay I'm not going to overthink this: last night was fun.",
+  "it really was. the part where the plan fell apart? best bit.",
+  "so… would you do it again? no pressure.",
+  "ask me properly and find out.",
+];
+function genericAfterglow(messages) {
+  const user = messages.find((m) => m.role === "user")?.content ?? "";
+  const data = JSON.parse(user.slice(user.indexOf("{")));
+  const n = data.texts_so_far?.length ?? 0;
+  return { text: AFTERGLOW_LINES[n % AFTERGLOW_LINES.length] };
+}
+
 /** Starts a local OpenAI-compatible endpoint that returns the stub narration (or one agent turn). Returns the http server. */
 export function startShowrunner() {
   const server = createServer((req, res) => {
@@ -89,8 +104,11 @@ export function startShowrunner() {
       try {
         const { messages } = JSON.parse(body);
         const user = messages.find((m) => m.role === "user")?.content ?? "";
-        const isTurn = user.includes('"you"') && user.includes('"them"');
-        const content = JSON.stringify(isTurn ? genericTurn(messages) : genericEpisode(messages));
+        const isAfterglow = user.includes('"your_feeling"');
+        const isTurn = !isAfterglow && user.includes('"you"') && user.includes('"them"');
+        const content = JSON.stringify(
+          isAfterglow ? genericAfterglow(messages) : isTurn ? genericTurn(messages) : genericEpisode(messages),
+        );
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ choices: [{ message: { role: "assistant", content } }] }));
       } catch {

@@ -109,9 +109,10 @@ async function main() {
       await page.getByText(`Who should ${CHAR.name} meet?`).waitFor();
     });
 
-    await step("sets date settings and sends the character on a date", async () => {
+    await step("sets date settings (incl. a show format) and sends the character on a date", async () => {
       await page.getByText("Date settings (optional)").click();
-      await page.locator("select").first().selectOption("unpredictable");
+      await page.getByLabel("Show format").selectOption("meet_the_parents");
+      await page.getByLabel("Autonomy").selectOption("unpredictable");
       await page.getByRole("button", { name: /Send Nova Pike on a date with/ }).first().click();
       await page.waitForURL(/\/episodes\/[0-9a-f-]{36}$/);
       episodeUrl = page.url();
@@ -126,6 +127,15 @@ async function main() {
       assert((await page.locator(".debrief").count()) > 0, "private debrief missing for the creator");
       assert((await page.getByText("Secret agendas & the producer").count()) > 0, "agendas/producer section missing");
       assert((await page.getByText(/Ending:/).count()) > 0, "ending not shown to the creator");
+      assert((await page.getByText("Meet the parents").count()) > 0, "the chosen show-format badge is missing");
+      assert((await page.getByRole("heading", { name: "The afterglow" }).count()) > 0, "the afterglow section is missing for the creator");
+    });
+
+    await step("the creator opens the afterglow and reads the morning-after texts", async () => {
+      await page.getByRole("button", { name: "Open the afterglow" }).scrollIntoViewIfNeeded();
+      await page.getByRole("button", { name: "Open the afterglow" }).click();
+      await page.locator(".afterglow .turn").first().waitFor({ timeout: 10_000 });
+      assert((await page.locator(".afterglow .turn").count()) >= 1, "the afterglow thread did not open");
     });
 
     await step("Sliding Doors replays the date with one thing changed", async () => {

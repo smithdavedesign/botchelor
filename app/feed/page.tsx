@@ -8,6 +8,7 @@ import { readUserId, USER_COOKIE } from "@/lib/http";
 import { listMyLeagues } from "@/lib/leagues";
 import { getProfileName, listBlocks } from "@/lib/people";
 import { ENDING_LABELS } from "@/lib/rules";
+import { formatLabel } from "@/lib/formats";
 import { listMyBadges, tryCloseDueSeasons, type Badge } from "@/lib/seasons";
 import { CreateLeagueForm, UnblockButton } from "./FeedActions";
 
@@ -36,6 +37,7 @@ function EpisodeItem({ episode }: { episode: EpisodeView }) {
             </strong>
           </Link>{" "}
           <span className="badge">{status}</span>
+          {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
         </div>
       </div>
       <p className="muted">{episode.setting}</p>
