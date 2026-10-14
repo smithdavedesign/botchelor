@@ -213,18 +213,30 @@ async function approve(db, manifest, wanted) {
       console.error(`· ${name}: nothing generated yet`);
       continue;
     }
-    const { default: sharp } = await import("sharp");
-    await sharp(job.out).webp({ quality: 82, effort: 6 }).toFile(join(PUBLIC_DIR, servedName(job.file)));
+    // The ledger row comes first. A file in public/ is servable the moment it lands, so it must never be
+    // written for an image the ledger has no record of — an earlier version wrote the file first and
+    // left a published path with no approval behind it when the row was missing.
     const { rows } = await db.query(
-      `update character_assets set review_status = 'approved', reviewed_at = now(),
-              reviewed_note = coalesce(reviewed_note, 'approved by the owner from the contact sheet')
-        where url = $1 returning id`,
+      "select id, review_status from character_assets where url = $1",
       [servedUrl(job.file)],
     );
     if (!rows[0]) {
-      console.error(`· ${name}: no ledger row — run --record first`);
+      console.error(`· ${name}: no ledger row — run --record first (nothing written to public/)`);
       continue;
     }
+    if (rows[0].review_status === "rejected") {
+      console.error(`· ${name}: rejected in review — not publishing it`);
+      continue;
+    }
+    const { default: sharp } = await import("sharp");
+    await sharp(job.out).webp({ quality: 82, effort: 6 }).toFile(join(PUBLIC_DIR, servedName(job.file)));
+    // Only once the file exists does the row say so; if the write failed above, the row stays pending.
+    await db.query(
+      `update character_assets set review_status = 'approved', reviewed_at = now(),
+              reviewed_note = coalesce(reviewed_note, $2)
+        where id = $1`,
+      [rows[0].id, process.env.PORTRAIT_REVIEW_NOTE || "approved from the contact sheet"],
+    );
     ok++;
     console.log(`✓ approved ${job.file} → public/cast/${servedName(job.file)}`);
   }
