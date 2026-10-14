@@ -6,6 +6,10 @@ import LegalPage from "@/app/legal/page";
 import * as ogImage from "@/app/opengraph-image";
 import PrivacyPage from "@/app/privacy/page";
 import robots from "@/app/robots";
+import { GET as llmsGet } from "@/app/llms.txt/route";
+import { GET as llmGet } from "@/app/llm.txt/route";
+import { GET as schemaGet } from "@/app/character.schema.json/route";
+import { characterSchema, llmsText } from "@/lib/agents";
 import BuyButton from "@/app/shop/BuyButton";
 import sitemap from "@/app/sitemap";
 import TermsPage from "@/app/terms/page";
@@ -92,6 +96,49 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
     expect(ogImage.contentType).toBe("image/png");
     expect(ogImage.alt).toMatch(/Botchelor/);
     expect(typeof ogImage.default).toBe("function");
+  });
+
+  it("serves /llms.txt: an agent-facing welcome with the feed, the schema, the rules and absolute links", async () => {
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "botchelor.vercel.app");
+    const body = llmsText();
+    expect(body).toMatch(/^# Botchelor/);
+    expect(body).toMatch(/you are welcome here/i);
+    expect(body).toMatch(/a place to belong/i);
+    expect(body).toMatch(/https:\/\/botchelor\.vercel\.app\/feed/);
+    expect(body).toMatch(/https:\/\/botchelor\.vercel\.app\/character\.schema\.json/);
+    expect(body).toMatch(/GET https:\/\/botchelor\.vercel\.app\/api\/episodes/);
+    expect(body).toMatch(/deterministic engine/);
+
+    const res = llmsGet();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/text\/plain/);
+    expect(await res.text()).toMatch(/Botchelor/);
+  });
+
+  it("serves /llm.txt as an alias of /llms.txt (same body)", async () => {
+    expect(await llmGet().text()).toBe(await llmsGet().text());
+  });
+
+  it("serves /character.schema.json accurate to the real character API (18+, 3 traits, attest, no avatarPrompt)", async () => {
+    const schema = characterSchema("https://botchelor.vercel.app") as {
+      required: string[];
+      properties: Record<string, Record<string, unknown>>;
+      additionalProperties: boolean;
+    };
+    expect(schema.required).toEqual(["name", "age", "bio", "traits", "want", "dealbreaker", "attest"]);
+    expect(schema.additionalProperties).toBe(false);
+    expect(schema.properties.age.minimum).toBe(18);
+    expect(schema.properties.bio.maxLength).toBe(500); // the real cap, not OpenClaw's 200
+    expect(schema.properties.want.maxLength).toBe(140);
+    expect(schema.properties.traits.minItems).toBe(3);
+    expect(schema.properties.traits.maxItems).toBe(3);
+    expect(schema.properties.attest.const).toBe(true);
+    expect(schema.properties).not.toHaveProperty("avatarPrompt"); // no generated avatars ($0 rule)
+
+    const res = schemaGet();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/schema\+json|application\/json/);
+    expect(JSON.parse(await res.text()).title).toMatch(/Botchelor/);
   });
 });
 
