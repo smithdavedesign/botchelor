@@ -15,6 +15,7 @@ import {
   type DateInput,
   type Outcome,
   type SideSetup,
+  type SoulSignals,
 } from "./engine";
 import type { BoxScore, DateSetup } from "./game";
 import { assembleCharacter, type Character } from "./character";
@@ -116,6 +117,12 @@ export async function buildDate(
   b: CharacterForDate,
   req: DateRequest,
   seedOverride?: number,
+  /**
+   * The exact effective signals to run on, instead of recomputing them from current memory. The async
+   * worker passes the snapshot POST stored (setup.signals_a/b) so it re-decides the SAME canonical outcome
+   * even if a character's memory has since drifted (e.g. a concurrent template date). Omitted at POST time.
+   */
+  signalsOverride?: { a: SoulSignals; b: SoulSignals },
 ): Promise<BuiltDate> {
   const seed = seedOverride ?? seedFrom(episodeId);
   const [soulA, soulB, memoryA, memoryB] = await Promise.all([
@@ -126,6 +133,11 @@ export async function buildDate(
   ]);
   const charA = assembleCharacter({ id: a.id, sheet: a.sheet, soul: soulA, memory: memoryA });
   const charB = assembleCharacter({ id: b.id, sheet: b.sheet, soul: soulB, memory: memoryB });
+  // The effective engine signals this date runs on: the base soul/image signals nudged by the learned
+  // memory's bounded drift (lib/character.ts), so a bot genuinely evolves across its dates. A worker
+  // rebuilding a stored date passes the snapshot so it re-decides EXACTLY what POST stored.
+  const signalsA = signalsOverride?.a ?? charA.signals;
+  const signalsB = signalsOverride?.b ?? charB.signals;
   const agendaA = req.agendaId ?? pickAgenda(seedFrom(seed, "agenda-a"));
   const agendaB = pickAgenda(seedFrom(seed, "agenda-b"));
   const setup: DateSetup & { venue: VenueId } = {
@@ -138,16 +150,19 @@ export async function buildDate(
     producer: pickProducer(seedFrom(seed, "producer")),
     venue: pickVenue(seedFrom(seed, "venue")),
     format: req.format,
+    // Snapshot the exact effective signals this date ran on, so a replay reproduces it even after memory drifts.
+    signals_a: signalsA,
+    signals_b: signalsB,
   };
   // Fill the format's cast from real data (flavour only, never the engine): a named house regular as the
   // meet-the-parents chaperone, and a real past partner as the returning ex when the graph has one.
   if (req.format === "meet_the_parents") setup.chaperone = pickChaperone(seedFrom(seed, "chaperone"), [a.id, b.id]);
   if (req.format === "ex_returns") setup.ex = await findEx(db, a.id, b.id);
-  // The engine input uses the base signals (soul / image). The learned memory shapes the LLM voice now
-  // (via the assembled characters); it reaches the engine in M14 PR2, snapshotted on the episode.
+  // The engine itself is unchanged (still deterministic given signals); only its input signals now carry
+  // the learned drift, and setup.signals_a/b above snapshots exactly what it ran on for reproducible replays.
   const sideA: SideSetup = {
     sheet: a.sheet,
-    signals: charA.baseSignals,
+    signals: signalsA,
     autonomy: req.autonomy,
     strategy: req.strategy,
     agendaId: agendaA,
@@ -156,7 +171,7 @@ export async function buildDate(
   };
   const sideB: SideSetup = {
     sheet: b.sheet,
-    signals: charB.baseSignals,
+    signals: signalsB,
     autonomy: DEFAULT_AUTONOMY,
     strategy: DEFAULT_STRATEGY,
     agendaId: agendaB,
@@ -240,10 +255,17 @@ async function computeDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pr
   const [soulA, soulB] = await Promise.all([loadSoul(db, row.a_id), loadSoul(db, row.b_id)]);
   const history = await loadHistory(db, row.a_id, row.b_id);
 
+  // Reproducibility: use the signals the date actually ran on (snapshotted on the setup in M14 part 2), so
+  // an old date replays identically even after the character's learned memory has drifted since. Episodes
+  // built before the snapshot fall back to deriving signals from the soul, exactly as they did then.
+  const fromSoul = (soul: typeof soulA) => (soul ? (soul.signals ?? deriveSoulSignals(soul)) : NEUTRAL_SIGNALS);
+  const sigA = setup.signals_a ?? fromSoul(soulA);
+  const sigB = setup.signals_b ?? fromSoul(soulB);
+
   const build = (s: DateSetup): DateInput => ({
     a: {
       sheet: toSheet(row, "a"),
-      signals: soulA ? (soulA.signals ?? deriveSoulSignals(soulA)) : NEUTRAL_SIGNALS,
+      signals: sigA,
       autonomy: s.autonomy,
       strategy: s.strategy,
       agendaId: s.agenda_a,
@@ -252,7 +274,7 @@ async function computeDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pr
     },
     b: {
       sheet: toSheet(row, "b"),
-      signals: soulB ? (soulB.signals ?? deriveSoulSignals(soulB)) : NEUTRAL_SIGNALS,
+      signals: sigB,
       autonomy: DEFAULT_AUTONOMY,
       strategy: DEFAULT_STRATEGY,
       agendaId: s.agenda_b,

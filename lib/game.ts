@@ -1,4 +1,4 @@
-import type { SideOutcome, VariableArc } from "./engine";
+import type { SideOutcome, SoulSignals, VariableArc } from "./engine";
 import type { Db } from "./db";
 import { matchmakerHitSql } from "./mechanics";
 import {
@@ -62,6 +62,14 @@ export type DateSetup = {
   chaperone?: string;
   /** ex_returns: a real past partner's name from the relationship graph, when there is one. Flavour only. */
   ex?: string;
+  /**
+   * M14 part 2: the EXACT effective engine signals this date ran on, snapshotted per side (base soul/image
+   * signals plus the learned memory drift). Stored so a Sliding Doors / chaos replay reproduces the date even
+   * after the character's memory has since drifted. Optional: episodes built before the snapshot have none,
+   * and the replay falls back to deriving signals from the soul (lib/simulation.ts computeDoors).
+   */
+  signals_a?: SoulSignals;
+  signals_b?: SoulSignals;
 };
 
 export type BoxScore = Record<DateVariable, VariableArc>;

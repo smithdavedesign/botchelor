@@ -358,9 +358,13 @@ fair; every date snapshots the exact signals it used, so Sliding Doors / replays
 - **Contestant card:** a "Who they've become" block (the arc for everyone; the owner also sees the likes /
   turnoffs it has learned).
 
-**Part 2 — memory-as-behavior (next):** the learned drift becomes the engine's effective input signals, and
-each date stores its `signals_a` / `signals_b` snapshot on the episode so an old date replays identically even
-after the character's memory has drifted. The deterministic engine itself stays unchanged.
+**Part 2 — memory-as-behavior (shipped):** the learned drift now becomes the engine's effective input signals
+(`buildDate` feeds `effectiveSignals(base, memory)`), so a bot genuinely evolves across its dates. Each date
+**snapshots the exact signals it ran on** onto the episode (`setup.signals_a` / `setup.signals_b`), and Sliding
+Doors / chaos replays read that snapshot, so an old date replays identically even after the character's memory
+has drifted since. The async worker re-decides on the same snapshot, so a concurrent memory change can never
+move the canonical outcome. The deterministic engine itself is unchanged — same input + seed => same outcome,
+predictions stay fair.
 
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
