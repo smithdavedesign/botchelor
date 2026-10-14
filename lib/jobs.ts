@@ -14,20 +14,21 @@ import { releaseEpisode, type Reservation } from "./allowance";
 import { track, trackEpisodeCost } from "./analytics";
 import { ConversationError } from "./conversation";
 import { generationPaused } from "./compute";
-import { isConversationEnabled, simulateConversation, type Turn } from "./conversation";
-import { isAfterglowEnabled, simulateAfterglow, type AfterglowLine } from "./afterglow";
+import { isConversationEnabled } from "./conversation";
+import { isAfterglowEnabled } from "./afterglow";
+import { generateDate } from "./pipeline";
 import type { Db } from "./db";
 import { safeEqual } from "./http";
 import { getEngine, type CharacterSheet } from "./engine";
 import { DEFAULT_FORMAT } from "./formats";
-import { getFrontierModel, getModel } from "./model";
+import { getDirectorModel, getFrontierModel, getModel } from "./model";
 import {
   DEFAULT_AUTONOMY,
   DEFAULT_GAME_BUDGET,
   DEFAULT_STRATEGY,
 } from "./rules";
 import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
-import { narrateEpisode, ShowrunnerError } from "./showrunner";
+import { ShowrunnerError } from "./showrunner";
 import type { DateSetup } from "./game";
 
 /**
@@ -160,29 +161,21 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // Re-decide under the calibration POST stored (a deploy between POST and this worker can't change it).
     const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
 
-    const model = row.use_frontier ? getFrontierModel() ?? getModel() : getModel();
+    // The owner-approved frontier model runs every role; otherwise the free actor model, plus the director
+    // model (LLM_DIRECTOR_MODEL, defaulting to the same free model) for the plan and the recap.
+    const frontier = row.use_frontier ? getFrontierModel() : null;
+    const models = frontier ? { actor: frontier, director: frontier } : { actor: getModel(), director: getDirectorModel() };
     const fmtCtx = { chaperone: built.setup.chaperone, ex: built.setup.ex };
-    const draft = await narrateEpisode(model, built.input, decided, built.characters, built.setup.producer, built.setup.venue, formatId, fmtCtx);
-
-    let transcript: Turn[] = [];
-    if (isConversationEnabled()) {
-      try {
-        transcript = await simulateConversation(model, built.input, decided, built.characters, built.setup.producer, built.setup.venue, formatId, undefined, fmtCtx);
-      } catch (err) {
-        transcript = [];
-        track("conversation_failed", { episode_id: episodeId, where: "job", reason: failureReason(err) });
-      }
+    const gen = await generateDate(models, built, decided, {
+      formatId,
+      formatCtx: fmtCtx,
+      conversation: isConversationEnabled(),
+      afterglow: isAfterglowEnabled(),
+    });
+    if (gen.conversationError) {
+      track("conversation_failed", { episode_id: episodeId, where: "job", reason: failureReason(gen.conversationError) });
     }
-
-    // The afterglow (best-effort, like the conversation): a failure just leaves it empty.
-    let afterglow: AfterglowLine[] = [];
-    if (isAfterglowEnabled()) {
-      try {
-        afterglow = await simulateAfterglow(model, built.input, decided, built.characters, built.setup.venue, formatId, undefined, fmtCtx);
-      } catch {
-        afterglow = [];
-      }
-    }
+    const { draft, transcript, afterglow } = gen;
 
     const saved = await db.query<{ id: string }>(
       `update episodes
@@ -211,7 +204,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       trackEpisodeCost({
         episode_id: episodeId,
         model: row.use_frontier ? "frontier" : "free",
-        model_calls: 1 + transcript.length + afterglow.length,
+        model_calls: gen.modelCalls,
         ms: Date.now() - t0,
         transcript_turns: transcript.length,
       });

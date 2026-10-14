@@ -36,6 +36,10 @@ export type Character = {
   ownerId: string | null;
   look: { appearance: string | null; hue: number | null; portrait: string | null };
   persona: { traits: readonly string[]; want: string };
+  /** How others refer to them ("she/her", "he/him", "they/them"); null when not given (prompts then avoid gendering). */
+  pronouns: string | null;
+  /** How they talk (house characters have a curated one; a creator may write one). Null when not given. */
+  voice: string | null;
   /** Semi-private: it is the dealbreaker quiz answer, so the self view has it but the public view never does. */
   dealbreaker: string;
   soul: StoredSoul | null;
@@ -85,6 +89,8 @@ export function assembleCharacter(args: {
     ownerId: args.ownerId ?? null,
     look: { appearance: args.sheet.appearance ?? null, hue: args.hue ?? null, portrait: characterPortrait(args.id) },
     persona: { traits: args.sheet.traits, want: args.sheet.want },
+    pronouns: args.sheet.pronouns ?? null,
+    voice: args.sheet.voice ?? null,
     dealbreaker: args.sheet.dealbreaker,
     soul: args.soul,
     baseSignals,
@@ -130,6 +136,8 @@ export function characterSheet(c: Character): CharacterSheet {
     dealbreaker: c.dealbreaker,
     house: c.house,
     ...(c.look.appearance ? { appearance: c.look.appearance } : {}),
+    ...(c.pronouns ? { pronouns: c.pronouns } : {}),
+    ...(c.voice ? { voice: c.voice } : {}),
   };
 }
 

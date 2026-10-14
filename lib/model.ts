@@ -10,8 +10,14 @@ import { safeEqual } from "./http";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
+/** Per-call generation settings. Optional: a model may ignore them (scripted test models do). */
+export type ModelOptions = {
+  /** Sampling temperature: higher for spoken dialogue (variety), lower for plans and recaps (fidelity). */
+  temperature?: number;
+};
+
 export interface Model {
-  complete(messages: ChatMessage[]): Promise<string>;
+  complete(messages: ChatMessage[], options?: ModelOptions): Promise<string>;
 }
 
 export class ModelError extends Error {
@@ -54,8 +60,10 @@ export function openAICompatibleModel(opts: {
   const delays = opts.retryDelaysMs ?? RETRY_DELAYS_MS;
   const sleep = opts.sleep ?? realSleep;
   return {
-    async complete(messages) {
+    async complete(messages, options) {
       let res: Response;
+      const body: Record<string, unknown> = { model: opts.model, messages, response_format: { type: "json_object" } };
+      if (options?.temperature !== undefined) body.temperature = options.temperature;
       // A free tier answers 429 when a burst of calls (a date is ~13 in a row) crosses its per-minute quota;
       // a short, bounded backoff rides that out instead of losing the whole conversation to one refusal.
       for (let attempt = 0; ; attempt++) {
@@ -63,7 +71,7 @@ export function openAICompatibleModel(opts: {
           res = await doFetch(url, {
             method: "POST",
             headers: { authorization: `Bearer ${opts.apiKey}`, "content-type": "application/json" },
-            body: JSON.stringify({ model: opts.model, messages, response_format: { type: "json_object" } }),
+            body: JSON.stringify(body),
             signal: AbortSignal.timeout(opts.timeoutMs ?? MODEL_TIMEOUT_MS),
           });
         } catch (err) {
@@ -104,6 +112,21 @@ export function setModelForTests(model: Model | null): void {
 
 export function getModel(): Model {
   return testModel ?? modelFromEnv();
+}
+
+/**
+ * The director: the model that plans the date and writes the recap (one or two calls a date), as opposed to
+ * the actor that speaks every line. LLM_DIRECTOR_MODEL puts it on a stronger model at the same endpoint and
+ * key — a better plan for almost no extra quota — and it falls back to the actor's model when unset.
+ */
+export function getDirectorModel(env: Record<string, string | undefined> = process.env): Model {
+  if (testModel) return testModel;
+  return env.LLM_DIRECTOR_MODEL ? modelFromEnv({ ...env, LLM_MODEL: env.LLM_DIRECTOR_MODEL }) : modelFromEnv(env);
+}
+
+/** A model by name at the configured endpoint and key (the quality eval's A/B arms). */
+export function namedModel(name: string, env: Record<string, string | undefined> = process.env): Model {
+  return modelFromEnv({ ...env, LLM_MODEL: name });
 }
 
 /* ------------------------------------------------------------------ *

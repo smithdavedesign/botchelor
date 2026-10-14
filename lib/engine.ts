@@ -36,6 +36,10 @@ export type CharacterSheet = {
   house: boolean;
   /** Optional appearance line (customization). Read for narration and for want/dealbreaker cue matching. */
   appearance?: string;
+  /** How others refer to them ("she/her", "he/him", "they/them"). For the prompts only; the engine never reads it. */
+  pronouns?: string;
+  /** How they talk, in a line ("dry, short sentences; drifts to ghost stories"). Prompts only; never the engine. */
+  voice?: string;
 };
 
 /** Owner-only signals derived from the private soul. 0..1, where 0 means "absent / neutral". */
