@@ -300,6 +300,112 @@ create table if not exists relationships (
   primary key (character_a, character_b),
   check (character_a < character_b)
 );
+
+-- Image assets and where they came from (the competitor report's image-rights record). Nothing in the
+-- app renders an image today: avatars and venue backdrops are drawn from character data (lib/avatar.ts,
+-- lib/venues.ts), which is why there is no upload to moderate and no marginal cost. This table is the
+-- provenance ledger that any later portrait, background or expression must pass through: who made it,
+-- under what licence, who gets credited, and whether a human approved it. lib/assets.ts only ever
+-- serves rows with review_status = 'approved', so an unreviewed asset cannot reach a page.
+create table if not exists character_assets (
+  id text primary key,
+  -- The character it belongs to, or null for a shared asset (a venue backdrop, a decorative plate).
+  character_id text references characters (id) on delete cascade,
+  kind text not null check (kind in ('portrait', 'expression', 'background', 'decoration')),
+  -- 'drawn' is what ships today: generated from character data in the browser, no file anywhere.
+  source_type text not null check (source_type in ('drawn', 'generated', 'uploaded', 'licensed')),
+  source_model text,          -- the generator and version, for a generated asset
+  prompt text,                -- the prompt it was generated from
+  prompt_version text,        -- which template version that prompt came from
+  seed bigint,                -- the generation seed, where the model supports one
+  source_url text,            -- where a licensed asset came from
+  license_name text,          -- the licence a third-party asset is used under
+  attribution text,           -- the credit that licence requires
+  url text,                   -- where the approved file is served from
+  review_status text not null default 'pending' check (review_status in ('pending', 'approved', 'rejected')),
+  reviewed_at timestamptz,
+  reviewed_note text,
+  created_at timestamptz not null default now(),
+  -- A licensed asset must say where it came from and under what terms, or it cannot be stored at all.
+  check (source_type <> 'licensed' or (source_url is not null and license_name is not null)),
+  -- A generated asset must name its generator, so an unattributable image cannot be approved later.
+  check (source_type <> 'generated' or source_model is not null),
+  -- Nothing can be approved without a file to serve.
+  check (review_status <> 'approved' or url is not null)
+);
+create index if not exists character_assets_character_idx on character_assets (character_id, kind)
+  where review_status = 'approved';
+
+-- M8. Watch parties: a synchronized "date room" over one pre-generated episode, with live reactions,
+-- chat and audience polls (the feature brief's Model A — the audience reacts, it never steers the
+-- characters). All added with IF NOT EXISTS so a live M7 database upgrades in place with no migration.
+--
+--   'premiere'  — a creator airs their own date at a set time; starts_at is the premiere, host_id the host.
+--   'template'  — an always-on room over a house-vs-house date; starts_at is null until the first viewer
+--                 joins, then the date plays on one shared clock ("join and it starts"), host_id null.
+create table if not exists watch_parties (
+  id text primary key,
+  episode_id text not null references episodes (id) on delete cascade,
+  kind text not null check (kind in ('premiere', 'template')),
+  host_id text,
+  starts_at timestamptz,
+  created_at timestamptz not null default now()
+);
+-- One room per episode: the room IS the episode's premiere, not a second copy of it.
+create unique index if not exists watch_parties_episode_idx on watch_parties (episode_id);
+create index if not exists watch_parties_kind_idx on watch_parties (kind, created_at desc);
+
+-- Live chat. hidden flips true once REPORT_HIDE_THRESHOLD distinct viewers report a message (lib/rules.ts),
+-- the same threshold that hides an episode. The body still passes the content filter (lib/safety.ts) on write.
+create table if not exists watch_messages (
+  id text primary key,
+  party_id text not null references watch_parties (id) on delete cascade,
+  user_id text not null,
+  handle text not null,
+  body text not null,
+  hidden boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists watch_messages_party_idx on watch_messages (party_id, created_at);
+create index if not exists watch_messages_user_idx on watch_messages (party_id, user_id, created_at);
+
+create table if not exists watch_message_reports (
+  message_id text not null references watch_messages (id) on delete cascade,
+  reporter_id text not null,
+  created_at timestamptz not null default now(),
+  primary key (message_id, reporter_id)
+);
+
+-- Emoji reactions, whole-room: one row per (party, user, emoji), so a viewer adds each emoji once
+-- (toggle) and a count is distinct viewers, never spammable.
+create table if not exists watch_reactions (
+  party_id text not null references watch_parties (id) on delete cascade,
+  user_id text not null,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  primary key (party_id, user_id, emoji)
+);
+
+-- Audience polls that are opinion, not prediction: the chemistry verdict and the audience-question pick.
+-- One vote per (party, user, poll), changeable until its window closes. These never score and never
+-- reach the engine (Model A): the crowd's verdict is entertainment, not control over the characters.
+create table if not exists watch_poll_votes (
+  party_id text not null references watch_parties (id) on delete cascade,
+  user_id text not null,
+  poll text not null check (poll in ('chemistry', 'question')),
+  choice text not null,
+  updated_at timestamptz not null default now(),
+  primary key (party_id, user_id, poll)
+);
+
+-- Presence, for the live "N watching" count: upserted on every heartbeat, counted within the window.
+create table if not exists watch_presence (
+  party_id text not null references watch_parties (id) on delete cascade,
+  user_id text not null,
+  last_seen timestamptz not null default now(),
+  primary key (party_id, user_id)
+);
+create index if not exists watch_presence_party_idx on watch_presence (party_id, last_seen);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */
@@ -311,13 +417,23 @@ export async function ensureSchema(db: Db): Promise<void> {
   ];
   for (const c of cast) {
     await db.query(
-      `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, premium_sku)
-       values ($1, null, true, $2, $3, $4, $5::jsonb, $6, $7, $8)
+      `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, premium_sku,
+                               appearance, avatar_hue)
+       values ($1, null, true, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)
        on conflict (id) do update set
          owner_id = null, is_house = true, name = excluded.name, age = excluded.age, bio = excluded.bio,
          traits = excluded.traits, want = excluded.want, dealbreaker = excluded.dealbreaker,
-         premium_sku = excluded.premium_sku`,
-      [c.id, c.name, c.age, c.bio, JSON.stringify(c.traits), c.want, c.dealbreaker, c.sku],
+         premium_sku = excluded.premium_sku, appearance = excluded.appearance, avatar_hue = excluded.avatar_hue`,
+      [c.id, c.name, c.age, c.bio, JSON.stringify(c.traits), c.want, c.dealbreaker, c.sku, c.appearance, c.hue],
+    );
+    // A house character's temperament, as engine-only signals. The text fields stay empty and
+    // local_only is true, so there is no private prose to leak — only the numbers the engine decides
+    // with, which is what stops a house date running on half the signal of a creator's OC.
+    await db.query(
+      `insert into souls (character_id, local_only, signals, updated_at)
+       values ($1, true, $2::jsonb, now())
+       on conflict (character_id) do update set local_only = true, signals = excluded.signals, updated_at = now()`,
+      [c.id, JSON.stringify(c.signals)],
     );
   }
 }

@@ -112,11 +112,57 @@ export type ImageSignals = { warmth: number; openness: number; guardedness: numb
 export type ImageTraits = { hue: number | null; descriptor: string; traits: string[]; signals: ImageSignals };
 
 /**
+ * The four numbers a palette is read down to: its dominant hue (or null for near-grey), its average
+ * lightness and saturation, and how many distinct hue families it holds. Reading an image produces
+ * these (imageTraits), and so does a curated look from the preset gallery (lib/presets.ts), so both
+ * roads lead through exactly the same mapping below.
+ */
+export type PaletteStats = { hue: number | null; lightness: number; saturation: number; variety: number };
+
+const clamp01 = (x: number) => Math.max(0, Math.min(1, Number(x.toFixed(2))));
+
+/**
+ * The one mapping from a palette to a character: its appearance descriptor, 2-3 suggested traits, and
+ * the behavioural signals the engine decides the date with. Warm/bright reads as warmth and openness,
+ * dark/muted as guardedness, colourful/vivid as humour. Pure, so a preset and a read image that share
+ * a palette also share a personality.
+ */
+export function traitsFromPalette(stats: PaletteStats): ImageTraits {
+  const { hue, lightness, saturation, variety } = stats;
+  const light = lightness > 0.62 ? "bright" : lightness < 0.38 ? "dark" : "soft";
+  const sat = saturation > 0.45 ? "vivid" : saturation < 0.2 ? "muted" : "balanced";
+
+  // The palette's visual properties, mapped to suggested personality traits.
+  const traits = [
+    lightness > 0.62 ? "sunny" : lightness < 0.38 ? "mysterious" : "gentle",
+    saturation > 0.45 ? "bold" : saturation < 0.2 ? "understated" : "steady",
+  ];
+  if (hue !== null) traits.push(hue < 66 || hue >= 300 ? "warm" : hue < 180 ? "grounded" : "cool");
+  if (variety >= 4 && traits.length < 3) traits.push("playful");
+  const uniqueTraits = [...new Set(traits)].slice(0, 3);
+
+  const descriptor =
+    hue === null
+      ? `a ${light}, neutral palette`
+      : `a ${hue < 66 || hue >= 300 ? "warm" : hue < 180 ? "fresh" : "cool"} ${hueName(hue)} palette, ${light} and ${sat}`;
+
+  const warm = hue !== null && (hue < 66 || hue >= 300);
+  const cool = hue !== null && hue >= 180 && hue < 300;
+  const signals: ImageSignals = {
+    warmth: clamp01(warm ? 0.75 : cool ? 0.2 : 0.45),
+    openness: clamp01(lightness > 0.55 ? (variety >= 4 ? 0.8 : 0.6) : 0.3),
+    guardedness: clamp01(lightness < 0.4 ? 0.6 : saturation < 0.25 ? 0.4 : 0.15),
+    humor: clamp01(variety >= 4 ? 0.65 : saturation > 0.5 ? 0.4 : 0.2),
+  };
+  return { hue, descriptor, traits: uniqueTraits, signals };
+}
+
+/**
  * What a reference image says about a character, computed entirely in the browser from its pixels: a
- * dominant hue (for the avatar), a short appearance descriptor, and 2-3 suggested personality traits
- * read from the image's brightness, saturation, warmth and colourfulness. The image itself is never
- * uploaded, stored or sent — only these derived values are, exactly like choosing a swatch and typing
- * traits. This is "using an image as training data" for the character's look AND vibe, safely at $0. Pure.
+ * dominant hue (for the avatar), a short appearance descriptor, 2-3 suggested personality traits, and
+ * the behavioural signals the engine uses. The image itself is never uploaded, stored or sent — only
+ * these derived values are, exactly like choosing a swatch and typing traits. This is "using an image
+ * as training data" for the character's look AND vibe, safely at $0. Pure.
  */
 export function imageTraits(data: Uint8ClampedArray | number[]): ImageTraits {
   const bins = new Array(12).fill(0);
@@ -140,37 +186,10 @@ export function imageTraits(data: Uint8ClampedArray | number[]): ImageTraits {
       best = i;
     }
   }
-  const hue = best < 0 ? null : best * 30 + 15;
-  const avgS = n ? sumS / n : 0;
-  const avgL = n ? sumL / n : 0.5;
-  const distinct = bins.filter((b) => b > 0.5).length;
-  const light = avgL > 0.62 ? "bright" : avgL < 0.38 ? "dark" : "soft";
-  const sat = avgS > 0.45 ? "vivid" : avgS < 0.2 ? "muted" : "balanced";
-
-  // The image's visual properties, mapped to suggested personality traits.
-  const traits = [
-    avgL > 0.62 ? "sunny" : avgL < 0.38 ? "mysterious" : "gentle",
-    avgS > 0.45 ? "bold" : avgS < 0.2 ? "understated" : "steady",
-  ];
-  if (hue !== null) traits.push(hue < 66 || hue >= 300 ? "warm" : hue < 180 ? "grounded" : "cool");
-  if (distinct >= 4 && traits.length < 3) traits.push("playful");
-  const uniqueTraits = [...new Set(traits)].slice(0, 3);
-
-  const descriptor =
-    hue === null
-      ? `a ${light}, neutral palette`
-      : `a ${hue < 66 || hue >= 300 ? "warm" : hue < 180 ? "fresh" : "cool"} ${hueName(hue)} palette, ${light} and ${sat}`;
-
-  // The image's visual properties become behavioural signals the engine uses: warm/bright reads as
-  // warmth and openness, dark/muted as guardedness, colourful/vivid as humour.
-  const warm = hue !== null && (hue < 66 || hue >= 300);
-  const cool = hue !== null && hue >= 180 && hue < 300;
-  const clamp01 = (x: number) => Math.max(0, Math.min(1, Number(x.toFixed(2))));
-  const signals: ImageSignals = {
-    warmth: clamp01(warm ? 0.75 : cool ? 0.2 : 0.45),
-    openness: clamp01(avgL > 0.55 ? (distinct >= 4 ? 0.8 : 0.6) : 0.3),
-    guardedness: clamp01(avgL < 0.4 ? 0.6 : avgS < 0.25 ? 0.4 : 0.15),
-    humor: clamp01(distinct >= 4 ? 0.65 : avgS > 0.5 ? 0.4 : 0.2),
-  };
-  return { hue, descriptor, traits: uniqueTraits, signals };
+  return traitsFromPalette({
+    hue: best < 0 ? null : best * 30 + 15,
+    lightness: n ? sumL / n : 0.5,
+    saturation: n ? sumS / n : 0,
+    variety: bins.filter((b) => b > 0.5).length,
+  });
 }

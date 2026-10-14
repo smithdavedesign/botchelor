@@ -215,7 +215,7 @@ async function writeAndSave(
 
   let draft: EpisodeDraft;
   try {
-    draft = await narrateEpisode(model, built.input, decided, built.souls, built.setup.producer);
+    draft = await narrateEpisode(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue);
   } catch (err) {
     if (!(err instanceof ShowrunnerError)) throw err;
     console.warn("[episodes] showrunner failed:", err.reasons.join(", "));

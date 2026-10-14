@@ -23,6 +23,7 @@ import {
   type ProducerId,
   type Strategy,
 } from "./rules";
+import type { VenueId } from "./venues";
 
 // The rules moved to lib/rules.ts (client-safe); M1 code and tests import them from here.
 export { ENDING_LABELS, ENDINGS, POINTS_PER_CORRECT_PICK, pointsFor, type Ending };
@@ -43,6 +44,11 @@ export type DateSetup = {
   game_budget_b: GameBudget;
   /** The AI producer's situation for act 2 (PRD "the AI producer"). Dealt by seed when the date is built. */
   producer: ProducerId;
+  /**
+   * Where the date happened, dealt by seed from the venue library (lib/venues.ts). Optional: episodes
+   * written before the library existed have no venue, and `venue()` falls back for them.
+   */
+  venue?: VenueId;
 };
 
 export type BoxScore = Record<DateVariable, VariableArc>;
@@ -76,6 +82,8 @@ export type EpisodeJson = {
   goals: { character_id: string; goal: string }[];
   drama_question: DramaQuestion | null;
   revealed: boolean;
+  /** Where the date happened (lib/venues.ts). Not a secret: it is the teaser's location, shown from the start. */
+  venue?: VenueId;
   // Only present for the creators, or for everyone once the finale has aired.
   scenes?: string[];
   twist?: string;
@@ -144,6 +152,7 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     drama_question: ep.drama_question,
     revealed: ep.revealed,
   };
+  if (ep.setup?.venue) json.venue = ep.setup.venue;
   if (opts.full) {
     json.scenes = ep.scenes;
     json.twist = ep.twist;

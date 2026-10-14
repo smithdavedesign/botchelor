@@ -389,6 +389,68 @@ button.chosen {
   vertical-align: middle;
 }
 
+/* The dealt venue (lib/venues.ts), painted with its own backdrop gradient behind the location's name. */
+.venue {
+  display: block;
+  margin: 0 0 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background-size: cover;
+  color: #fff;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 10px rgb(0 0 0 / 45%);
+}
+
+/* The curated look gallery in the builder (lib/presets.ts): a swatch row, like the hue picker. */
+.look-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.45rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.look-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem 0.25rem 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.look-chip:hover {
+  border-color: var(--accent);
+}
+
+.look-chip.chosen {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--soft);
+}
+
+/* The archetype line on a house character's card ("The sarcastic romantic"). */
+.archetype {
+  margin: 0.3rem 0 0;
+  font-weight: 600;
+  font-style: italic;
+}
+
+.look-dot {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 15%);
+}
+
 /* ---------------- gallery ---------------- */
 
 .gallery {
@@ -932,4 +994,300 @@ button.swatch.chosen {
 
 .sample-row {
   margin-top: 0.25rem;
+}
+
+/* ---------------- watch parties (M8): the live date room ---------------- */
+.watch {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.watch-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+.watch-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.watch-title h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+.watch-avatars,
+.watch-lobby-avatars {
+  display: inline-flex;
+}
+.watch-avatars .avatar + .avatar,
+.watch-lobby-avatars .avatar + .avatar {
+  margin-left: -12px;
+}
+.watch-status {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.watch-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.watch-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+  animation: watch-pulse 1.8s ease-out infinite;
+}
+@keyframes watch-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .watch-dot { animation: none; }
+}
+
+.watch-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+@media (min-width: 52rem) {
+  .watch-grid {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  }
+  .watch-side {
+    position: sticky;
+    top: 1rem;
+  }
+}
+.watch-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+.watch-stage .card {
+  margin: 0;
+}
+.venue-chip {
+  display: inline-block;
+  margin: 0 0 0.5rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.watch-goals {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+}
+.watch-beat .act,
+.watch-decision h2 {
+  margin-top: 0;
+}
+.watch-challenge {
+  margin-top: 0.5rem;
+  font-style: italic;
+  color: var(--muted);
+}
+.watch-decision {
+  border: 1.5px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+.watch-payoff {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius);
+  background: var(--soft);
+}
+
+.watch-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.watch-react {
+  margin: 0;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  border: 1.5px solid var(--line);
+  box-shadow: none;
+  font-weight: 600;
+}
+.watch-react:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--soft);
+}
+.watch-react.mine {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.watch-react-emoji {
+  font-size: 1.1rem;
+}
+
+.watch-poll .choices,
+.watch-predict .choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.watch-results {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.watch-results li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.2rem 0.6rem;
+  position: relative;
+}
+.watch-result-label {
+  grid-column: 1;
+}
+.watch-count {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.watch-bar {
+  grid-column: 1;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--grad);
+  min-width: 2px;
+}
+.watch-results li.leading .watch-result-label {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.watch-chat-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.watch-chat-head h2 {
+  margin: 0;
+}
+.watch-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.watch-messages {
+  max-height: 22rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+}
+.watch-msg {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.watch-msg strong {
+  color: var(--accent-2);
+  margin-right: 0.3rem;
+}
+.watch-msg.mine strong {
+  color: var(--accent);
+}
+.watch-report {
+  margin: 0 0 0 0.35rem;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  vertical-align: baseline;
+}
+.watch-report:hover:not(:disabled) {
+  transform: none;
+  color: var(--bad);
+}
+.watch-compose {
+  display: flex;
+  gap: 0.5rem;
+}
+.watch-compose input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.8rem;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+}
+.watch-compose button {
+  margin: 0;
+}
+.watch-fineprint {
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.watch-launch .button {
+  margin-right: 0.6rem;
+}
+
+/* lobby */
+.watch-lobby {
+  display: grid;
+  gap: 0.75rem;
+}
+.watch-lobby-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  text-decoration: none;
+  color: inherit;
+}
+.watch-lobby-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+.watch-lobby-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.watch-lobby-meta strong {
+  font-size: 1.05rem;
+}
+.watch-lobby-live {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.watch-lobby-live.on {
+  color: var(--accent);
 }

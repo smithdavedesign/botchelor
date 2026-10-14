@@ -6,8 +6,9 @@
  *
  *   build a custom character (soul, appearance, avatar colour) → send on a date → the three-act episode
  *   with avatars, box score, debrief, agendas and the producer → Sliding Doors → a spectator predicts
- *   and guesses the dealbreaker → the host airs the finale → the spectator is scored → the cast gallery
- *   and matchmaker → a shop purchase end to end.
+ *   and guesses the dealbreaker → a live watch party (host premiere + a viewer who reacts, chats and
+ *   predicts, plus an always-on template room joined from the lobby) → the host airs the finale → the
+ *   spectator is scored → the cast gallery and matchmaker → a shop purchase end to end.
  *
  * Exits non-zero if any step fails. No model key, no real payments, no network beyond localhost.
  */
@@ -22,6 +23,7 @@ import {
   SAMPLE_PACK,
   SAMPLE_PAYMENT_LINK,
   SAMPLE_PRICE_LABEL,
+  seedTemplateRooms,
   signedEvent,
   solidPng,
   startApp,
@@ -67,7 +69,10 @@ async function main() {
   const app = await startApp(port, appEnv(showrunner.address().port, DATA_DIR));
   const base = app.base;
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
+  // Always-on template date rooms, so the /watch lobby has something to drop into.
+  await seedTemplateRooms(base);
   let episodeUrl = "";
+  let roomUrl = "";
 
   try {
     const creator = await browser.newContext();
@@ -96,7 +101,7 @@ async function main() {
       await form.locator('input[name="appearance"]').fill(CHAR.appearance);
       // The live avatar preview should render.
       assert((await form.locator(".avatar").count()) > 0, "avatar preview missing");
-      await form.getByRole("button", { name: "Violet" }).click();
+      await form.getByRole("button", { name: "Violet", exact: true }).click();
       await form.getByText("Give them a private soul (optional)").click();
       await form.locator('input[name="soul_values"]').fill("Steady, inventive, allergic to goodbyes.");
       await form.locator('input[name="attest"]').check();
@@ -143,8 +148,61 @@ async function main() {
       await spage.getByText(/Locked in:/).waitFor();
     });
 
+    await step("the host turns the date into a live watch party (a premiere room)", async () => {
+      await page.bringToFront();
+      await page.goto(episodeUrl);
+      await page.getByRole("button", { name: "Start the premiere" }).click();
+      await page.waitForURL(/\/watch\/[0-9a-f-]{36}$/);
+      roomUrl = page.url();
+      await page.getByRole("heading", { level: 1 }).waitFor();
+      assert((await page.locator(".watch-live").count()) > 0, "live 'watching' indicator missing");
+      assert((await page.locator(".watch-react").count()) >= 3, "the reactions bar is missing");
+    });
+
+    await step("a viewer joins the room and reacts, chats and predicts live", async () => {
+      const fan = await browser.newContext();
+      const fpage = await fan.newPage();
+      try {
+        await fpage.goto(roomUrl);
+        await fpage.locator(".watch-react").first().waitFor();
+        // React: the first emoji's count should tick from 0 to 1 after the heartbeat syncs it back.
+        await fpage.locator(".watch-react").first().click();
+        await fpage.waitForFunction(
+          () => /\b[1-9]\b/.test(document.querySelector(".watch-react")?.textContent || ""),
+          { timeout: 10_000 },
+        );
+        // Chat: the message appears in the live feed.
+        await fpage.locator('input[aria-label="Chat message"]').fill("he is absolutely LYING 😂");
+        await fpage.getByRole("button", { name: "Send" }).click();
+        await fpage.getByText("he is absolutely LYING").waitFor({ timeout: 10_000 });
+        // Predict the ending from inside the room.
+        await fpage.locator(".watch-predict .choices button").first().click();
+        await fpage.getByText(/Locked in:/).waitFor({ timeout: 10_000 });
+      } finally {
+        await fan.close();
+      }
+    });
+
+    await step("an always-on template date can be joined from the lobby", async () => {
+      const guest = await browser.newContext();
+      const gpage = await guest.newPage();
+      try {
+        await gpage.goto(`${base}/watch`);
+        await gpage.getByRole("heading", { name: "Watch parties" }).waitFor();
+        assert((await gpage.locator(".watch-lobby-card").count()) > 0, "the lobby has no rooms");
+        await gpage.locator(".watch-lobby-card").first().click();
+        await gpage.waitForURL(/\/watch\/[0-9a-f-]{36}$/);
+        await gpage.getByRole("heading", { level: 1 }).waitFor();
+        assert((await gpage.locator(".watch-stage .card").count()) > 0, "the room stage did not render");
+        assert((await gpage.locator(".watch-react").count()) >= 3, "the room reactions bar is missing");
+      } finally {
+        await guest.close();
+      }
+    });
+
     await step("the host airs the finale", async () => {
       await page.bringToFront();
+      await page.goto(episodeUrl);
       await page.getByRole("button", { name: "Air the finale" }).click();
       await page.getByText("The finale has aired").waitFor({ timeout: 10_000 });
     });

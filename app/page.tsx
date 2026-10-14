@@ -45,13 +45,23 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
 
   const partners: Partner[] = [
-    ...HOUSE_CHARACTERS.map(({ id, name, age, bio, traits }) => ({ id, name, age, bio, traits: [...traits] })),
-    ...PREMIUM_HOUSE_CHARACTERS.filter((c) => owned.includes(c.sku)).map(({ id, name, age, bio, traits }) => ({
+    ...HOUSE_CHARACTERS.map(({ id, name, age, bio, traits, archetype, hue }) => ({
       id,
       name,
       age,
       bio,
       traits: [...traits],
+      archetype,
+      hue,
+    })),
+    ...PREMIUM_HOUSE_CHARACTERS.filter((c) => owned.includes(c.sku)).map(({ id, name, age, bio, traits, archetype, hue }) => ({
+      id,
+      name,
+      age,
+      bio,
+      traits: [...traits],
+      archetype,
+      hue,
       premium: true,
     })),
   ];

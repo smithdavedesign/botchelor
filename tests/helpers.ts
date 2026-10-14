@@ -21,6 +21,14 @@ import { POST as postReport } from "@/app/api/reports/route";
 import { POST as postIdentityConsent } from "@/app/api/reveal/route";
 import { POST as postWaitlist } from "@/app/api/waitlist/route";
 import { POST as postStripeWebhook } from "@/app/api/webhooks/stripe/route";
+import { POST as postWatchParty } from "@/app/api/episodes/[id]/watch-party/route";
+import { GET as getLobbyRoute } from "@/app/api/watch-parties/route";
+import { GET as getRoomRoute } from "@/app/api/watch-parties/[id]/route";
+import { POST as postSync } from "@/app/api/watch-parties/[id]/sync/route";
+import { POST as postChat } from "@/app/api/watch-parties/[id]/chat/route";
+import { POST as postChatReport } from "@/app/api/watch-parties/[id]/report/route";
+import { POST as postReaction } from "@/app/api/watch-parties/[id]/reactions/route";
+import { POST as postVote } from "@/app/api/watch-parties/[id]/votes/route";
 import { catalogItem, CURRENCY } from "@/lib/catalog";
 import { ensureSchema, pgliteDb, setDbForTests, type Db } from "@/lib/db";
 import { fixedEngine, setEngineForTests, type Outcome } from "@/lib/engine";
@@ -46,7 +54,14 @@ type Table =
   | "seasons"
   | "badges"
   | "free_episode_usage"
-  | "pack_episode_usage";
+  | "pack_episode_usage"
+  | "character_assets"
+  | "watch_parties"
+  | "watch_messages"
+  | "watch_message_reports"
+  | "watch_reactions"
+  | "watch_poll_votes"
+  | "watch_presence";
 
 /** One in-memory Postgres per test file, wired in as the app's database. */
 export async function startTestDb() {
@@ -58,6 +73,13 @@ export async function startTestDb() {
     db,
     async reset() {
       for (const table of [
+        "watch_message_reports",
+        "watch_poll_votes",
+        "watch_reactions",
+        "watch_presence",
+        "watch_messages",
+        "watch_parties",
+        "character_assets",
         "badges",
         "seasons",
         "free_episode_usage",
@@ -183,6 +205,20 @@ export const api = {
     putSoulRoute(jsonRequest(`/api/characters/${characterId}/soul`, body, { cookie, method: "PUT" }), params(characterId)),
   deleteSoul: (characterId: string, cookie?: string) =>
     deleteSoulRoute(jsonRequest(`/api/characters/${characterId}/soul`, {}, { cookie, method: "DELETE" }), params(characterId)),
+  // M8: watch parties.
+  createWatchParty: (episodeId: string, body: unknown = {}, cookie?: string) =>
+    postWatchParty(jsonRequest(`/api/episodes/${episodeId}/watch-party`, body, { cookie }), params(episodeId)),
+  lobby: (cookie?: string) => getLobbyRoute(getRequest("/api/watch-parties", cookie)),
+  getRoom: (id: string, cookie?: string) => getRoomRoute(getRequest(`/api/watch-parties/${id}`, cookie), params(id)),
+  syncRoom: (id: string, cookie?: string) => postSync(jsonRequest(`/api/watch-parties/${id}/sync`, {}, { cookie }), params(id)),
+  chat: (id: string, body: string, cookie?: string) =>
+    postChat(jsonRequest(`/api/watch-parties/${id}/chat`, { body }, { cookie }), params(id)),
+  reportMessage: (id: string, messageId: string, cookie?: string) =>
+    postChatReport(jsonRequest(`/api/watch-parties/${id}/report`, { message_id: messageId }, { cookie }), params(id)),
+  react: (id: string, emoji: string, cookie?: string) =>
+    postReaction(jsonRequest(`/api/watch-parties/${id}/reactions`, { emoji }, { cookie }), params(id)),
+  vote: (id: string, poll: string, choice: string, cookie?: string) =>
+    postVote(jsonRequest(`/api/watch-parties/${id}/votes`, { poll, choice }, { cookie }), params(id)),
 };
 
 /**

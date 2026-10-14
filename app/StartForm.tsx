@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import Avatar from "./Avatar";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
+import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
 import {
   AGENDAS,
   AUTONOMY_BLURBS,
@@ -29,6 +30,10 @@ export type Partner = {
   age: number;
   bio: string;
   traits: string[];
+  /** The temperament this house character covers, shown so a fifteen-strong cast stays quick to read. */
+  archetype?: string;
+  /** Their curated avatar hue (lib/house.ts), so the picker shows the designed cast, not auto colours. */
+  hue?: number | null;
   /** A premium house character (M3) this viewer owns. Off sale now, so only owners ever see one. */
   premium?: boolean;
 };
@@ -174,6 +179,8 @@ export default function StartForm({
   const [traits, setTraits] = useState(["", "", ""]);
   const [styledFromImage, setStyledFromImage] = useState(false);
   const [imageSignals, setImageSignals] = useState<ImageSignals | null>(null);
+  /** The curated look picked from the gallery (lib/presets.ts), or null for a hand-picked colour. */
+  const [lookId, setLookId] = useState<string | null>(null);
   const setField = (k: keyof typeof sheet, v: string) => setSheet((prev) => ({ ...prev, [k]: v }));
 
   /** Fill the whole card from a ready-made sample, so a new visitor reaches a date fast (Zeta's "borrow a character"). */
@@ -185,6 +192,21 @@ export default function StartForm({
     setHue(t.hue);
     setImageSignals(null);
     setStyledFromImage(false);
+    setLookId(null);
+  }
+
+  /**
+   * Apply a curated look from the gallery: the same four things a reference image trains — the avatar
+   * colour, the appearance line, the traits and the AI's instincts — because a preset is a palette we
+   * already read (lib/presets.ts). Typed-in fields are left alone; only blanks get filled.
+   */
+  function applyLook(look: ResolvedLook) {
+    setHue(look.hue ?? 0);
+    setAppearance((prev) => (prev.trim() ? prev : look.appearance));
+    setTraits((prev) => (prev.every((t) => !t.trim()) ? [look.traits[0] ?? "", look.traits[1] ?? "", look.traits[2] ?? ""] : prev));
+    setImageSignals(look.signals);
+    setStyledFromImage(false);
+    setLookId(look.id);
   }
 
   /**
@@ -306,31 +328,34 @@ export default function StartForm({
           </button>
         </div>
         <p className="muted">Or pick a house character. They belong to the show. Either way, you can&apos;t steer the date.</p>
-        {partners.map((p) => (
-          <div className="card" key={p.id}>
-            <div className="char">
-              <Avatar seed={p.id} name={p.name} house size={44} />
-              <div className="meta">
-                <strong>
-                  {p.name}, {p.age}
-                </strong>
-                <span className="badge">House character</span>
-                {p.premium && <span className="badge">Premium · yours</span>}
+        <ul className="gallery">
+          {partners.map((p) => (
+            <li className="card" key={p.id}>
+              <div className="char">
+                <Avatar seed={p.id} name={p.name} hue={p.hue ?? null} house size={44} />
+                <div className="meta">
+                  <strong>
+                    {p.name}, {p.age}
+                  </strong>
+                  <span className="badge">House character</span>
+                  {p.premium && <span className="badge">Premium · yours</span>}
+                </div>
               </div>
-            </div>
-            <p>{p.bio}</p>
-            <ul className="chips">
-              {p.traits.map((trait) => (
-                <li className="chip" key={trait}>
-                  {trait}
-                </li>
-              ))}
-            </ul>
-            <button type="button" disabled={busy !== null} onClick={() => sendOnDate(p.id)}>
-              Send {character.name} on a date with {p.premium ? p.name : p.name.split(" ")[0]}
-            </button>
-          </div>
-        ))}
+              {p.archetype && <p className="muted archetype">{p.archetype}</p>}
+              <p>{p.bio}</p>
+              <ul className="chips">
+                {p.traits.map((trait) => (
+                  <li className="chip" key={trait}>
+                    {trait}
+                  </li>
+                ))}
+              </ul>
+              <button type="button" disabled={busy !== null} onClick={() => sendOnDate(p.id)}>
+                Send {character.name} on a date with {p.premium ? p.name : p.name.split(" ")[0]}
+              </button>
+            </li>
+          ))}
+        </ul>
         {busy === "episode" && <p className="muted">The engine is deciding the outcome and the showrunner is writing it…</p>}
         {error && <p className="error">{error}</p>}
         {outOfDates && (
@@ -435,16 +460,40 @@ export default function StartForm({
                   onClick={() => {
                     setHue(h.id);
                     setStyledFromImage(false);
+                    setLookId(null);
                   }}
                 />
               ))}
             </div>
+            <span className="muted">Or pick a curated look</span>
+            <ul className="look-gallery">
+              {LOOK_GALLERY.map((look) => (
+                <li key={look.id}>
+                  <button
+                    type="button"
+                    className={`look-chip${lookId === look.id ? " chosen" : ""}`}
+                    aria-pressed={lookId === look.id}
+                    title={`${look.appearance} — ${look.traits.join(", ")}`}
+                    onClick={() => applyLook(look)}
+                  >
+                    <span
+                      className="look-dot"
+                      style={{ background: look.hue === null ? "hsl(0 0% 62%)" : `hsl(${look.hue} 70% 55%)` }}
+                    />
+                    {look.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+
             <label className="file-style">
               Or train the look from an image
               <input type="file" accept="image/*" onChange={(e) => styleFromImage(e.target.files?.[0])} />
             </label>
             <span className="muted file-note">
-              {styledFromImage
+              {lookId && !styledFromImage
+                ? "✓ Trained from that look: the avatar colour, the appearance, the traits — and your AI's instincts (how warm, bold or guarded it is on a date). Edit anything you like."
+                : styledFromImage
                 ? "✓ Trained from your image: the avatar colour, the appearance, the traits — and your AI's instincts (how warm, bold or guarded it is on a date). Edit anything you like."
                 : "Pick an image and we'll read its palette, in your browser, to train the avatar, the appearance, the traits, and how your AI behaves on dates. The image is never uploaded or stored."}
             </span>

@@ -988,3 +988,152 @@ npm run e2e    # full end-to-end test in a real browser (needs CHROMIUM_PATH); 1
 Shipped the safe $0 form: in the builder, an owner can pick a reference image and the browser reads its dominant colour with a canvas (`hueFromPixels`, `lib/avatar.ts`) to tint the avatar. The image is **never uploaded or stored** — only the derived hue is sent, exactly like choosing a swatch — so there is nothing to moderate and no real-person risk. Plus **shareable contestant cards** at `/characters/[id]` (public persona only, with their own OG image), linked from the cast gallery.
 
 Uploading and **storing** an image, or "training" the look on it, stays proposed (docs/competitive-analysis.md): it needs object storage, a vision model, and automated image moderation (CSAM scanning + a real-person classifier), since the product bans real people. The engine `CharacterSheet` already carries `appearance`, so a future reference image slots in without touching the engine.
+
+## Status (seeded content: the cast, the set, the look gallery, the asset ledger)
+
+Acting on the competitor report's image strategy (`docs/image-strategy.md`), which chose **first-party
+assets only** — competitor imagery is research, never republished — and on its instruction to populate
+the first version with a house cast, a reusable set of date locations and a curated gallery, rather than
+generating an image per character. All $0: nothing here hosts, uploads or generates an image.
+
+- **A house cast of 17** (`lib/house.ts`): fifteen free plus the two premium ones, each with a distinct
+  `archetype` (the sarcastic romantic, the confident flirt, the awkward intellectual, the mysterious
+  loner, the chaotic extrovert, the caretaker, the sceptic, the drifter, …), a curated `appearance` line
+  and a curated `hue`. `ensureSchema` now writes the appearance and hue too, so the gallery shows a
+  designed cast instead of fifteen id-derived colours. The blind-date fallback and the matchmaker both
+  got a much wider pool out of it.
+- **Temperaments for the house cast.** Each house character carries the four behavioural signals the
+  engine decides with, seeded into `souls` as engine-only rows (empty text, `local_only = true`, the
+  curated `signals`). **This was a real imbalance, not a polish item:** a house character had no soul,
+  so `avg(oc, 0)` halved warmth, openness and humour on every house date. Measured against the engine's
+  own thresholds (`FRIENDS_AT` 42, `SECOND_DATE_AT` 56): a date with no cue matches scores **31.7**, so
+  the *default* house date is a disaster, and a best-case one capped around **52** — a second date was
+  unreachable. A search over 1,200 (OC × house character × strategy × seed) combinations found **zero**
+  second dates before the change. The owner-only soul route still answers 404 for a house character
+  (nobody owns one), so there is nothing new to leak; `tests/cast.test.ts` asserts both.
+- **A curated look gallery** (`lib/presets.ts`): twelve palettes in the builder, next to the colour
+  swatches. The report's "pick a portrait from a curated gallery", with a palette standing in for a
+  portrait. `lib/avatar.ts` was refactored so a picked look and a read image both resolve through one
+  pure mapping (`traitsFromPalette`), which means picking "Golden hour" sets exactly what uploading a
+  golden-hour photo would: the colour, the appearance line, the traits and the AI's instincts. A test
+  reads a synthetic solid-colour image and asserts it lands on the same values as the matching preset.
+- **A reusable venue library** (`lib/venues.ts`): eight date locations, dealt from the episode's seed
+  like the producer's situation, stored on `episodes.setup.venue`, given to the showrunner as
+  `date_location` ("your `setting` must put them there"), and painted on the episode page as a two-hue
+  backdrop behind the location's name. The model no longer invents a location per date. `DateSetup.venue`
+  is optional so episodes stored before the library still render (`venue()` falls back).
+- **An asset provenance ledger** (`character_assets`, `lib/assets.ts`): kind, source type, generator,
+  prompt and prompt version, seed, source URL, licence, attribution and review status. Licensed assets
+  cannot be stored without a source and licence, generated ones without a generator, and nothing can be
+  approved without a file to serve — enforced as CHECK constraints *and* in code. `listApprovedAssets`
+  is the only read path and returns approved rows only, so an unreviewed image cannot reach a page. The
+  table is **empty by design**: it exists now so that shipping real portraits later needs no migration
+  and no retrofitted rules.
+- **Sliding Doors fix** (`lib/simulation.ts`): the replay re-derived signals from soul text, ignoring
+  image-trained ones, so an image-trained character's "what if" was computed from different inputs than
+  the real date it claimed to vary. It now uses `signals ?? deriveSoulSignals(soul)`, like `buildDate`.
+
+### The seeded season
+
+`npm run seed` now drives eleven OCs across eleven creators, sixteen dates, two friend leagues, eighty
+predictions, dealbreaker guesses, four matchmaker proposals and thirteen aired finales, all over HTTP
+exactly as the UI would. The pairings are **chosen rather than left to luck**, because the engine decides
+from cue matches between the two sheets, the signals on each side and the owner's dials:
+
+- a note plus a guided AI against a warm house character lands on *friends*;
+- a bare date against the guarded end of the cast ends badly, which is the show;
+- one pair is built to earn a *second date* — her want names his bakery, his want ("taste-test without
+  lying") finds "tastes" in her bio, they share the trait "generous", and neither trips the other's
+  dealbreaker — and dates twice, so the relationship graph has a progressed pair and a matchmaker
+  proposal that can pay off.
+
+The mix went from 11 disasters / 3 friends / 0 second dates to **8 friends / 6 disasters / 2 second
+dates**, so the demo feed shows the whole range of the game. The stub showrunner in
+`scripts/harness.mjs` now honours `date_location`, so seeded and screenshotted episodes read
+consistently with the venue they were dealt.
+
+```bash
+npm run seed                        # the local dev DB (.data/pglite)
+DATABASE_URL=… npm run seed         # a remote database (the house cast arrives on deploy by itself)
+```
+
+The code-seeded content (the cast, its souls and looks, the venues, the asset table) lands on any
+database by itself: `ensureSchema` is idempotent and runs on the first query of a cold start. Only the
+invented creators, episodes and leagues need the seeder.
+
+### Also
+
+- `tests/cast.test.ts`, `tests/venues.test.ts` and `tests/assets.test.ts` cover the new seed data: cast
+  size and spread, the content filter on every house field, hue coverage round the wheel, the gallery's
+  behaviour range, preset/image agreement, the venue library and its delivery into the prompt and the
+  episode JSON, and the asset ledger's provenance and approval gates.
+- One e2e selector had to become exact: the new "Ice violet" look chip collides with the "Violet"
+  swatch under a substring accessible-name match.
+
+## Status (M8: watch parties, built)
+
+The feature that turns "watch two bots talk" into a social event (see ROADMAP.md M8 and the feature
+brief). A synchronized **date room** over one pre-generated episode, with live reactions, live chat and
+audience polls. **Model A ("spectator mode")**: the audience reacts and predicts, it never steers the
+characters — the engine already decided the outcome, and the room reveals it on a shared clock.
+
+### The one design choice everything rests on
+
+There is **no realtime server and no video infra**. A room's phase is a pure function of the clock
+(`lib/watch.ts` `watchClock`): the start time plus `now` gives the beat, so every viewer sees the same
+thing with nothing to keep in sync. The client just polls one heartbeat (`POST
+…/sync`) for presence and fresh tallies. That heartbeat is also where every side effect lives — the read
+path (`getRoomState`) never writes:
+
+- a **template** room (always-on, house-vs-house) has `starts_at` null until the first viewer joins,
+  then the heartbeat sets it once — "join and the date starts", so the lobby always has a date in motion;
+- the finale **airs automatically** when the clock reaches the decision (the heartbeat sets `revealed_at`
+  if a report hasn't hidden it), so predictions resolve into points at the room's climax with no manual
+  step and no cron — a premiere is just a timed airing.
+
+### What the product does now (added to M1–M7)
+
+- **Two kinds of room** (`watch_parties.kind`): a creator hosts a **premiere** of their own date
+  (`POST /api/episodes/:id/watch-party`, host-only, one room per episode); **templates** are system
+  content over house pairs, created through the token-gated internal route (`WATCH_ADMIN_TOKEN`) that the
+  seed and the e2e use and that 404s when the token is unset.
+- **The live loop**: pre-show predictions → first impressions → the challenge (plus an audience-chosen
+  question, flavour only) → the twist → the chemistry verdict → the decision → the payoff ("the room
+  called it X; the characters chose Y"). Content unlocks strictly in that order; nothing leaks early.
+- **Audience inputs, all kept separate** (feature brief §3): emoji **reactions** (one of each per viewer,
+  so a count is distinct viewers, never spam), **live chat**, the **chemistry verdict** (opinion, never
+  scores, never reaches the engine, split hidden until the decision), and **predictions** (the existing
+  prediction game, scored on reveal). Creators can't predict their own date and don't see the panel.
+- **Moderation before scale** (feature brief §5): every message passes the shared content filter
+  (`lib/safety.ts`), plus a length cap, slow mode, a rolling per-viewer rate limit, report-to-hide at the
+  episode threshold, and a client-side "watch without chat" toggle. Anonymous viewers get a stable,
+  friendly handle derived from their id (never the raw id).
+- **A lobby** (`/watch`, in the sitemap) with a live "N watching" count from a presence table, and a
+  doorway on every episode page.
+
+### Data and privacy
+
+`watch_parties`, `watch_messages`, `watch_message_reports`, `watch_reactions`, `watch_poll_votes` and
+`watch_presence` (all `IF NOT EXISTS`, so a live M7 database upgrades in place). Template episodes carry a
+`system` creator id that no real user can match. Creator privacy is unchanged: a room shows the fictional
+character, never the person, and no soul, note or private debrief is ever selected into a room payload.
+
+### Exit criteria (tested — `tests/watch.test.ts`, 23 cases, and the Playwright e2e)
+
+- The phase is a pure, reproducible function of the clock; content unlocks in order, never early.
+- A template starts on the first join and only once; the finale airs exactly at the decision, and a
+  correct prediction then scores.
+- A reaction is one-per-emoji-per-viewer; a chemistry vote never scores; the split is hidden until the
+  decision; chat enforces the content filter, slow mode, the rate limit and report-to-hide.
+- No watch-party route takes money or moves points (the route-listing exit criterion still holds).
+- The e2e drives a host premiere and a viewer who reacts, chats and predicts live, plus joining a
+  template room from the lobby, in a real browser (16/16 steps).
+
+### Also
+
+- `npm run screenshots` now captures the room (`docs/screenshots/watch-{desktop,mobile}.png`), seeded with
+  a few live reactions and chat messages; `scripts/harness.mjs` `seedTemplateRooms` fills the lobby for
+  `npm run seed` and the e2e.
+- Deferred (needs spend or new infra): push-based realtime in place of polling once rooms are busy; a cron
+  that refreshes/loops template rooms; and Model B (bounded, advertised audience-chosen twists the engine
+  actually responds to), only once Model A's retention is proven.
