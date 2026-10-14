@@ -75,14 +75,16 @@ When it happens, the shape is: generate offline in batches, review by hand, reco
 provenance, approve the keepers, and serve them from object storage. Never per episode — an episode
 being watched must not trigger a generation.
 
-The current portrait template is **`portrait-v2`** (`scripts/prompts.mjs`, which the generator and its
+The current portrait template is **`portrait-v3`** (`scripts/prompts.mjs`, which the generator and its
 tests share):
 
 ```
 STYLE:
-Semi-realistic painted portrait for a premium visual novel for adults.
-Grounded, mature character design; soft studio lighting;
-painterly rendering; clean framing.
+Stylised digital painting in the manner of a modern editorial or
+graphic-novel illustration: clean shapes, visible painterly brushwork,
+a limited warm palette — unmistakably an illustration, not a photograph.
+Mature character design that draws adult faces honestly, with
+age-appropriate lines and greying where described.
 
 SUBJECT:
 {look}. Clearly {age} years old.
@@ -125,6 +127,28 @@ pins each fix — a physical `look` per character, an explicit age, visible age 
 the negatives above, and the version in every file name — so a later edit cannot quietly undo them.
 The lesson is the one the ledger is built around: a prompt is not a guarantee, and nothing ships
 without someone looking at it.
+
+### portrait-v2: stopped after one image — it came out as a photograph
+
+v2 fixed age and presentation, but "semi-realistic painted" overshot into photorealism. For fictional
+characters on a dating show that is its own risk: a photoreal face is where real-person resemblance
+happens, and a visitor could take it for a real person. **portrait-v3** asks for an editorial
+illustration and negates both failure modes, photorealism and anime. It was tested on the three hardest
+cases (a man in his thirties, the character v1 put in a school-uniform look, and the oldest woman)
+before any full batch, which is what `--only` is for.
+
+### What shipped
+
+All 25 images — 17 `portrait-v3` portraits and 8 `backdrop-v2` plates — passed review on 2026-10-13
+and are in `public/cast/` as WebP (about 1 MB in all). Two needed a second pass inside v3: Nell's
+jacket came out with a garbled patch, so her look now names a plain jacket (and a test forbids any look
+that names a lettered item), and Wally rendered lighter-skinned than his sheet, so his look states it
+plainly. They were approved by Claude on the owner's explicit delegation; each ledger row's
+`reviewed_note` says so, and what the image was checked for.
+
+Nothing displays them yet: avatars and venue backdrops are still drawn from data. Showing the portraits
+is a separate change to the avatar component, because it changes how the cast, the feed, the matchups
+and the share cards look.
 
 ### backdrop-v1: three of eight rejected, for the same reason one level down
 

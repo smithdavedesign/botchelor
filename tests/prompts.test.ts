@@ -23,7 +23,8 @@ describe("the portrait prompts", () => {
   it("describes every character physically, with presentation and an explicit age", () => {
     for (const c of ALL_HOUSE_CHARACTERS) {
       expect(c.look.trim().length).toBeGreaterThan(40);
-      expect(c.look).toMatch(/^an? (woman|man|heavyset man) /);
+      // Presentation leads the description, optionally qualified ("a heavyset man", "a Black man").
+      expect(c.look).toMatch(/^an? (\w+ )?(woman|man)\b/);
       const prompt = portraitPrompt(c);
       expect(prompt).toContain(c.look);
       expect(prompt).toContain(`Clearly ${c.age} years old`);

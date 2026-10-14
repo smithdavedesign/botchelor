@@ -1137,3 +1137,32 @@ character, never the person, and no soul, note or private debrief is ever select
 - Deferred (needs spend or new infra): push-based realtime in place of polling once rooms are busy; a cron
   that refreshes/loops template rooms; and Model B (bounded, advertised audience-chosen twists the engine
   actually responds to), only once Model A's retention is proven.
+
+## Status (the first portraits, generated locally and reviewed)
+
+The house cast and the venue set now have first-party art, generated on the owner's 16 GB M1 Pro at
+$0 with **Z-Image Turbo** (Apache-2.0, via mflux on MLX — it is not in the Ollama registry) and
+committed as WebP under `public/cast/`: 17 portraits and 8 backdrops, about 1 MB. `npm run portraits`
+builds every prompt from `lib/house.ts` and `lib/venues.ts`, generates, records each image in the
+`character_assets` ledger as pending, and writes a contact sheet; `--approve` is the only step that
+publishes, and it now refuses to write anything to `public/` without a ledger row.
+
+It took three portrait prompts, and the failures are the useful part (`docs/image-strategy.md` has the
+detail; `tests/prompts.test.ts` pins every fix):
+
+- **portrait-v1, rejected, all 17.** An age number and a clothing line, no presentation, no physical
+  description, an anime style: one young face for the whole cast, several reading as teenagers, one in
+  what looked like a school uniform, one bare-chested. On an adults-only dating show, that is the case
+  the review gate exists for.
+- **portrait-v2, stopped after one image.** Age and presentation fixed by a per-character `look`, but
+  "semi-realistic" came out photographic — the real-person-resemblance risk in its purest form.
+- **portrait-v3, approved.** An editorial illustration, both failure modes negated, tested on the three
+  hardest characters before the batch. Two characters needed their `look` corrected and regenerated.
+
+The backdrops failed once for the same reason one level down: the prompt reused each venue's showrunner
+text, so the double date was drawn with its couple and the tasting menu with its waiter. A separate,
+people-free `plate` per venue fixed all three failures.
+
+Approved by Claude on the owner's explicit delegation; every ledger row's `reviewed_note` records that
+and what was checked. The portraits are not displayed anywhere yet — that is a separate, visible change
+to the avatars.

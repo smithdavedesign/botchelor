@@ -198,7 +198,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The fixer",
     appearance: "oil-dark hands, a rag in the back pocket, a cap worn soft",
     hue: 135,
-    look: "a man in his late forties with dark brown skin, a weathered face and short grey-flecked hair under a worn cap, in a mechanic's work shirt",
+    look: "a Black man in his late forties with deep dark brown skin, a weathered face and short grey-flecked hair under a worn cap, in a mechanic's work shirt",
     signals: { warmth: 0.6, openness: 0.2, guardedness: 0.6, humor: 0.2 },
   },
   {
