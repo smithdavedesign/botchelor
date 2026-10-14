@@ -35,7 +35,7 @@ describe("the date venue library", () => {
   // the same filter as everything else that reaches a page.
   it("passes the content filter", () => {
     for (const v of DATE_VENUES) {
-      expect(checkFields({ name: v.name, prompt: v.prompt })).toEqual({ ok: true });
+      expect(checkFields({ name: v.name, prompt: v.prompt, plate: v.plate })).toEqual({ ok: true });
     }
   });
 

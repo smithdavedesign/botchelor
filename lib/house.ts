@@ -25,6 +25,18 @@ export type HouseCharacter = {
   appearance: string;
   hue: number;
   /**
+   * How the character looks from the chest up, for the portrait generator only (scripts/prompts.mjs):
+   * presentation, age as it shows on a face, colouring, build and what they wear. Kept apart from
+   * `appearance` on purpose — the engine reads `appearance` for want/dealbreaker cues, so physical
+   * detail added there could change date outcomes. Never shown, never read by the engine.
+   *
+   * The first batch was generated without this and came out as one young face for the whole cast:
+   * wrong presentation for most of the women, nobody over 30 looking over 30, and several faces that
+   * read as teenagers. Every detail here is an authoring decision about a fictional character, so
+   * change any of them freely.
+   */
+  look: string;
+  /**
    * The temperament the engine decides dates with, curated to match the archetype (lib/engine.ts
    * SoulSignals, 0..1). A creator's OC gets these from its private soul or its trained image; a house
    * character has neither, and without them every house date runs on half the signal the engine
@@ -46,6 +58,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The showman",
     appearance: "flour down a black apron, sleeves shoved up, a grin expecting applause",
     hue: 30,
+    look: "a man in his mid-thirties with light olive skin, dark tousled hair, a day of stubble and a wide showman's grin, in a black chef's apron over a dark t-shirt",
     signals: { warmth: 0.7, openness: 0.8, guardedness: 0.1, humor: 0.8 },
   },
   {
@@ -59,6 +72,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The mysterious loner",
     appearance: "salt-tangled hair, a storm coat two sizes too big, unbothered",
     hue: 200,
+    look: "a woman in her late twenties with pale freckled skin and long auburn hair tangled by salt wind, calm grey eyes, in an oversized dark storm coat",
     signals: { warmth: 0.35, openness: 0.25, guardedness: 0.7, humor: 0.5 },
   },
   {
@@ -72,6 +86,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The gentle giant",
     appearance: "clay to the elbows, scarred knuckles, a very careful handshake",
     hue: 15,
+    look: "a heavyset man in his early forties with dark brown skin, close-cropped hair greying at the temples, a faint scar along his jaw and gentle eyes, in a clay-dusted work shirt",
     signals: { warmth: 0.8, openness: 0.45, guardedness: 0.35, humor: 0.3 },
   },
   {
@@ -85,6 +100,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The sarcastic romantic",
     appearance: "black turtleneck, a pen behind one ear, an unimpressed eyebrow",
     hue: 340,
+    look: "a woman in her early thirties with warm brown skin, a sleek black bob and sharp eyeliner, one eyebrow raised, in a black turtleneck",
     signals: { warmth: 0.55, openness: 0.4, guardedness: 0.45, humor: 0.85 },
   },
   {
@@ -98,6 +114,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The confident flirt",
     appearance: "a shirt one button too open, polished shoes, perfect posture",
     hue: 285,
+    look: "a man in his late twenties with light skin, swept-back blond hair and a dancer's upright posture, clean-shaven and confident, in a crisp white shirt",
     signals: { warmth: 0.75, openness: 0.85, guardedness: 0.05, humor: 0.6 },
   },
   {
@@ -111,6 +128,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The awkward intellectual",
     appearance: "a cardigan over the uniform, glasses pushed up, notes in every pocket",
     hue: 225,
+    look: "a woman in her mid-thirties with deep brown skin, short natural coily hair and round tortoiseshell glasses, a shy half-smile, in a plain navy zip-up work jacket",
     signals: { warmth: 0.5, openness: 0.3, guardedness: 0.6, humor: 0.4 },
   },
   {
@@ -124,6 +142,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The chaotic extrovert",
     appearance: "mismatched everything, glitter that refuses to wash out, always mid-laugh",
     hue: 75,
+    look: "a woman in her early thirties with light tan skin, wild curly copper hair and glitter on her cheekbones, laughing, in a mismatched patterned jacket",
     signals: { warmth: 0.8, openness: 0.9, guardedness: 0.0, humor: 0.9 },
   },
   {
@@ -137,6 +156,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The sceptic",
     appearance: "grey jumper, reading glasses on a chain, a pencil for emergencies",
     hue: 190,
+    look: "a man in his mid-forties with pale skin, a neat salt-and-pepper beard and a receding hairline, sceptical eyes behind reading glasses on a chain, in a grey jumper",
     signals: { warmth: 0.3, openness: 0.25, guardedness: 0.65, humor: 0.55 },
   },
   {
@@ -150,6 +170,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The caretaker",
     appearance: "a steam-fogged apron, hair tied back fast, flour-dusted forearms",
     hue: 45,
+    look: "a woman in her late thirties with fair skin, rosy cheeks, laugh lines and dark-blonde hair tied back, in a steam-fogged cook's apron",
     signals: { warmth: 0.9, openness: 0.6, guardedness: 0.1, humor: 0.35 },
   },
   {
@@ -163,6 +184,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The thrill-seeker",
     appearance: "chalk on both palms, a windburnt face, boots that have seen things",
     hue: 255,
+    look: "a woman of thirty with fair windburnt skin, short platinum-blonde hair and a climber's strong shoulders, in a weathered technical jacket",
     signals: { warmth: 0.5, openness: 0.8, guardedness: 0.2, humor: 0.5 },
   },
   {
@@ -176,6 +198,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The fixer",
     appearance: "oil-dark hands, a rag in the back pocket, a cap worn soft",
     hue: 135,
+    look: "a Black man in his late forties with deep dark brown skin, a weathered face and short grey-flecked hair under a worn cap, in a mechanic's work shirt",
     signals: { warmth: 0.6, openness: 0.2, guardedness: 0.6, humor: 0.2 },
   },
   {
@@ -189,6 +212,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The grande dame",
     appearance: "silk scarf, rings on every finger, lipstick chosen like a weapon",
     hue: 315,
+    look: "a woman in her early fifties with fair skin, defined smile lines and silver-streaked dark hair in an elegant updo, bold red lipstick, a silk scarf at her throat",
     signals: { warmth: 0.5, openness: 0.7, guardedness: 0.3, humor: 0.75 },
   },
   {
@@ -202,6 +226,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The earnest optimist",
     appearance: "dirt under the nails, a tote of seedlings, sunburnt nose",
     hue: 105,
+    look: "a woman in her mid-twenties with olive skin, long wavy dark-brown hair and a sunburnt nose, bright and hopeful, in a linen shirt",
     signals: { warmth: 0.85, openness: 0.8, guardedness: 0.1, humor: 0.45 },
   },
   {
@@ -215,6 +240,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The competitive perfectionist",
     appearance: "track jacket zipped to the chin, stopwatch habit, restless hands",
     hue: 10,
+    look: "a man in his mid-thirties with medium-brown skin and a neatly trimmed black beard, intense focused eyes, in a track jacket zipped to the chin",
     signals: { warmth: 0.4, openness: 0.35, guardedness: 0.5, humor: 0.3 },
   },
   {
@@ -228,6 +254,7 @@ export const HOUSE_CHARACTERS: readonly HouseCharacter[] = [
     archetype: "The drifter",
     appearance: "a worn canvas jacket, one small bag, nothing that can't be left behind",
     hue: 165,
+    look: "a man in his early forties with light-medium skin, shaggy greying black hair and a few days' stubble, a relaxed squint, in a worn canvas jacket",
     signals: { warmth: 0.55, openness: 0.5, guardedness: 0.55, humor: 0.45 },
   },
 ];
@@ -256,6 +283,7 @@ export const PREMIUM_HOUSE_CHARACTERS: readonly PremiumHouseCharacter[] = [
     archetype: "The charming menace",
     appearance: "velvet waistcoat, cuffs that hide things, a notebook already open",
     hue: 275,
+    look: "a man in his late thirties with pale skin, slicked-back dark hair and a thin moustache, a theatrical smirk, in a velvet waistcoat over a buttoned shirt",
     signals: { warmth: 0.5, openness: 0.6, guardedness: 0.4, humor: 0.8 },
   },
   {
@@ -271,6 +299,7 @@ export const PREMIUM_HOUSE_CHARACTERS: readonly PremiumHouseCharacter[] = [
     archetype: "The quiet authority",
     appearance: "a captain's coat worn open, sea-squint, hands steady on anything",
     hue: 210,
+    look: "a woman in her mid-forties with tan weathered skin and dark hair with grey streaks pulled back, a steady commanding gaze, in a buttoned navy captain's coat",
     signals: { warmth: 0.6, openness: 0.35, guardedness: 0.5, humor: 0.4 },
   },
 ];
