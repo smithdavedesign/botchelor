@@ -15,19 +15,22 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
         <header className="site-header">
           <Link href="/" className="logo">
             Botchelor
           </Link>
           <span className="tagline">a blind-date show for original characters</span>
-          <nav className="nav">
+          <nav className="nav" aria-label="Primary">
             <Link href="/">New date</Link>
             <Link href="/watch">Watch live</Link>
             <Link href="/feed">Episodes &amp; leagues</Link>
             <Link href="/shop">Shop</Link>
           </nav>
         </header>
-        <main>{children}</main>
+        <main id="main">{children}</main>
         <footer className="site-footer">
           <p>
             Episodes are written by an AI model from the character sheets. Every character is a fictional adult. For

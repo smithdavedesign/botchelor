@@ -165,11 +165,14 @@ function sampleAfterglow(messages) {
   return { text: AFTERGLOW_LINES[n % AFTERGLOW_LINES.length] };
 }
 
-function startShowrunner() {
+function startShowrunner(hang = false) {
   const server = createServer((req, res) => {
     let body = "";
     req.on("data", (chunk) => (body += chunk));
     req.on("end", () => {
+      // The generating-state capture points the app here and never answers, so the episode stays
+      // 'generating' long enough to photograph (the real job would abort at MODEL_TIMEOUT_MS = 25s).
+      if (hang) return;
       try {
         const { messages } = JSON.parse(body);
         const user = messages.find((m) => m.role === "user")?.content ?? "";
@@ -496,9 +499,11 @@ async function capture(base, leagueId, viewer) {
       await shot(home, "builder", { full: true });
       await form.getByRole("button", { name: "Create character" }).click();
       await home.getByText(`Who should ${c.name} meet?`).waitFor();
-      // The date settings (PRD budget & autonomy): open them for a screenshot of the controls.
+      // The date settings (PRD budget & autonomy): open them for a screenshot of the controls, and pick a
+      // non-classic show format (M11) so the episode and feed carry a format badge.
       await home.getByText("Date settings (optional)").click();
       await home.getByText("A note in the pocket", { exact: false }).waitFor();
+      await home.getByLabel("Show format").selectOption("meet_the_parents");
       await shot(home, "date-settings");
       await home.getByRole("button", { name: `Send ${c.name} on a date with Juniper` }).click();
       await home.waitForURL(/\/episodes\/[0-9a-f-]{36}$/);
@@ -514,6 +519,12 @@ async function capture(base, leagueId, viewer) {
       // The box score, debrief and agendas are lower on the (creator's) page: scroll to them.
       await home.locator(".boxscore").scrollIntoViewIfNeeded();
       await shot(home, "episode-boxscore");
+      // M11: the afterglow — the creator opens the private morning-after texts (a house date needs only them).
+      await home.getByRole("button", { name: "Open the afterglow" }).scrollIntoViewIfNeeded();
+      await home.getByRole("button", { name: "Open the afterglow" }).click();
+      await home.locator(".afterglow .turn").first().waitFor();
+      await home.locator(".afterglow").scrollIntoViewIfNeeded();
+      await shot(home, "episode-afterglow");
 
       // 2a. The watch party (M8): the creator turns the date into a live room, a few viewers drop in and
       // chat, and a spectator's view — reactions, live chat and the prediction panel — is the screenshot.
@@ -561,6 +572,61 @@ async function capture(base, leagueId, viewer) {
   return saved;
 }
 
+// The "Filming the date…" state (M10 async generation): a short-lived instance whose model never answers,
+// so a fresh blind date stays 'generating' long enough to photograph in a real browser at both sizes. (The
+// real job would abort at MODEL_TIMEOUT_MS = 25s; the capture takes a few seconds, well inside that.)
+async function captureGenerating(baseEnv) {
+  const { chromium, devices } = await import("playwright-core");
+  const dir = join(ROOT, ".data", "screenshots-generating");
+  rmSync(dir, { recursive: true, force: true });
+  const hang = await startShowrunner(true);
+  const port = await freePort();
+  const env = {
+    ...baseEnv,
+    PGLITE_DIR: dir,
+    LLM_BASE_URL: `http://127.0.0.1:${hang.address().port}/v1`,
+    BOTCHELOR_INLINE_GENERATION: "",
+  };
+  const app = await startApp(port, env);
+  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
+  const saved = [];
+  try {
+    const call = client(app.base);
+    const who = { cookie: `bz_uid=${randomUUID()}` };
+    const c = CHARACTERS.tamsin;
+    const character = await call(
+      "/api/characters",
+      { name: c.name, age: c.age, bio: c.bio, traits: c.traits, want: c.want, dealbreaker: c.dealbreaker, attest: true },
+      who,
+    );
+    // Generation is NOT inline here, so this returns straight away with a 'generating' episode.
+    const ep = await call("/api/episodes", { character_id: character.id, blind: true }, who, [200]);
+    const sizes = [
+      ["desktop", { viewport: { width: 1280, height: 800 } }],
+      ["mobile", devices["iPhone 13"]],
+    ];
+    for (const [label, device] of sizes) {
+      const ctx = await browser.newContext(device);
+      await ctx.addCookies([{ name: "bz_uid", value: who.cookie.split("=")[1], url: app.base }]);
+      const page = await ctx.newPage();
+      await page.goto(`${app.base}/episodes/${ep.id}`);
+      const filming = page.getByRole("heading", { name: /Filming the date/ });
+      await filming.waitFor();
+      await filming.scrollIntoViewIfNeeded(); // on a phone the safety banner is tall; show the whole card
+      const path = join(OUT_DIR, `episode-generating-${label}.png`);
+      await page.screenshot({ path });
+      saved.push(path);
+      await ctx.close();
+    }
+  } finally {
+    await browser.close();
+    await stopApp(app);
+    hang.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+  return saved;
+}
+
 // ---------------------------------------------------------------------------------------------------
 
 async function main() {
@@ -590,6 +656,8 @@ async function main() {
 
     console.log("Taking screenshots…");
     const saved = await capture(app.base, played.league.id, cast.wren);
+    console.log("Capturing the 'Filming the date…' state…");
+    saved.push(...(await captureGenerating(env)));
     for (const path of saved) console.log(`  saved ${path.slice(ROOT.length + 1)}`);
   } finally {
     await stopApp(app);
