@@ -9,4 +9,4 @@ export function siteUrl(env: Record<string, string | undefined> = process.env): 
 }
 
 /** The pages worth listing for search engines: public, and the same for every visitor. */
-export const PUBLIC_PATHS = ["/", "/watch", "/feed", "/cast", "/shop", "/terms", "/privacy"] as const;
+export const PUBLIC_PATHS = ["/", "/watch", "/feed", "/cast", "/reunion", "/shop", "/terms", "/privacy"] as const;

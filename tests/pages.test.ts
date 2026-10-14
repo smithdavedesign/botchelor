@@ -86,7 +86,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "botchelor.vercel.app");
     const urls = sitemap().map((e) => e.url);
     expect(urls).toEqual(
-      ["/", "/watch", "/feed", "/cast", "/shop", "/terms", "/privacy"].map((p) => `https://botchelor.vercel.app${p}`),
+      ["/", "/watch", "/feed", "/cast", "/reunion", "/shop", "/terms", "/privacy"].map((p) => `https://botchelor.vercel.app${p}`),
     );
     expect(urls.join(" ")).not.toMatch(/\/api\/|\/leagues\/|\/episodes\/|\/watch\//);
   });

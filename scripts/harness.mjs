@@ -405,6 +405,8 @@ export async function seedDataset(base) {
 
   // Air most of the finales, so the feed has aired episodes and the boards have scores.
   for (let i = 0; i < 11; i++) await call(`/api/episodes/${episodes[i].id}/reveal`, {}, creators[pairings[i].host]);
+  // Share some confessionals, so the Reunion's confessional reel has lines (host-only, aired episodes).
+  for (let i = 0; i < 6; i++) await call(`/api/episodes/${episodes[i].id}/confessionals`, { shared: true }, creators[pairings[i].host]);
   // The designed pair's finales air too, so the second date shows up in the feed and on the graph.
   for (const i of [pairings.length - 2, pairings.length - 1]) {
     await call(`/api/episodes/${episodes[i].id}/reveal`, {}, creators[pairings[i].host]);

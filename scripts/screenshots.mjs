@@ -354,6 +354,9 @@ async function seedLastWeek(call, cast) {
   }
   await call(`/api/episodes/${rooftop.id}/reveal`, {}, miraCreator);
   await call(`/api/episodes/${lighthouse.id}/reveal`, {}, ottoCreator);
+  // Share their confessionals, so the Reunion's confessional reel has lines.
+  await call(`/api/episodes/${rooftop.id}/confessionals`, { shared: true }, miraCreator);
+  await call(`/api/episodes/${lighthouse.id}/confessionals`, { shared: true }, ottoCreator);
   return { league, mira, otto };
 }
 
@@ -383,6 +386,7 @@ async function seedThisWeek(call, cast, { mira, otto }) {
   await call("/api/predictions", { episode_id: pottery.id, pick: "disaster", drama_pick: "b" }, birch);
   await call("/api/predictions", { episode_id: pottery.id, pick: "friends", drama_pick: "a" }, wren);
   await call(`/api/episodes/${pottery.id}/reveal`, {}, miraCreator);
+  await call(`/api/episodes/${pottery.id}/confessionals`, { shared: true }, miraCreator);
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -602,6 +606,13 @@ async function capture(base, leagueId, viewer) {
       await castPage.waitForURL(/\/characters\//);
       await castPage.getByText("Contestant card").waitFor();
       await shot(castPage, "contestant");
+
+      // 6. The Reunion special: the season awards, the couples board and the confessional reel.
+      const reunionPage = await member.newPage();
+      await reunionPage.goto(`${base}/reunion`);
+      await reunionPage.getByRole("heading", { name: "The Reunion" }).waitFor();
+      await reunionPage.getByRole("heading", { name: "The season awards" }).waitFor();
+      await shot(reunionPage, "reunion", { full: true });
       await member.close();
     }
   } finally {

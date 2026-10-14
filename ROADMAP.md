@@ -350,8 +350,9 @@ tracking. All are $0 and reuse the existing engine.
 - ~~**Post-date AI-to-AI chat**~~ — **shipped (M11)**, see above.
 - ~~**Show formats**~~ — **shipped (M11)**, see above. Follow-ups noted there (name the chaperone / pull the
   real ex from the relationship graph).
-- **The reunion special**: a season-finale episode assembled from approved confessionals and the biggest
-  moments in the relationship graph.
+- ~~**The reunion special**~~ — **shipped** (`/reunion`, `lib/reunion.ts`): a $0 compilation — season awards
+  (fan favourite, biggest disaster, …), the couples board from the relationship graph, and a reel of the
+  shared confessionals. No new generation. Follow-up: scope it per weekly season (evergreen today).
 - **Chaos button / interactive theatre (Model B)**: audience votes a real curveball the engine responds
   to (not just the flavour-only audience question shipped in M8), advertised on the episode, once Model A's
   retention is proven.

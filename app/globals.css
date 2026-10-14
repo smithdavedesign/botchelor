@@ -1499,3 +1499,39 @@ button.rating-chip:hover {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
+/* The Reunion special (lib/reunion.ts): season awards, the couples board and the confessional reel. */
+.reunion-stats strong {
+  color: var(--ink);
+}
+.reunion-face {
+  display: inline-flex;
+  line-height: 0;
+}
+.reunion-faces {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+.award .award-body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.award-name {
+  margin: 0;
+  font-weight: 700;
+}
+.reunion-couple,
+.reunion-confessional {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.reunion-confessional {
+  align-items: flex-start;
+}
+.reunion-confessional .confessional {
+  margin: 0 0 0.2rem;
+}
