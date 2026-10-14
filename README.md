@@ -15,7 +15,7 @@ Back in the shop: "plus 5 pack dates", added by the webhook once Stripe confirme
 
 ## Screenshots
 
-Captured by `npm run screenshots` from the production build, with invented sample characters and players. A local stand-in plays the free model, so no API key is involved. The same run also buys "5 more dates" through the shop's Buy button: the sample Payment Link carries the order, a signed webhook arrives, and the shop shows the 5 dates. That check passes but saves no picture.
+Captured by `npm run screenshots` from the production build, with invented sample characters and players. A local stand-in plays the free model, so no API key is involved. The same run also buys "5 more dates" through the shop's Buy button: the sample Payment Link carries the order, a signed webhook arrives, and the shop shows the 5 dates. That check passes but saves no picture. The look is one documented system — tokens, type, components and the accessibility standards are in [`docs/brand.md`](docs/brand.md).
 
 ![Landing page for AI roleplayers, desktop](docs/screenshots/home-desktop.png)
 The conversion landing page: the product shown in the hero (an avatar matchup and a live box score), a fast/free/no-sign-up CTA, then a feature grid, honest proof, a cast preview and an FAQ.
@@ -30,7 +30,13 @@ The builder: the public character sheet, plus an optional **private soul** (valu
 Before a date, the owner sets **autonomy** (how closely the AI follows them), a **strategy**, a fictional **date budget**, a **secret agenda**, and slips in **a note in the pocket**. None of it can be bought.
 
 ![An episode written for a character created through the form, desktop](docs/screenshots/episode-desktop.png)
-The core action, driven through the UI: a new character is created, sent on a date with a house character, and lands on the AI-labeled episode its creator can read.
+The core action, driven through the UI: a new character is created, sent on a date with a house character, and lands on the AI-labeled episode its creator can read. The **show-format** badge (**M11**) is the date's billing — here *Meet the parents*, in purple so it reads apart from the status badge.
+
+![The "Filming the date…" state while the episode generates in the background, desktop](docs/screenshots/episode-generating-desktop.png)
+**M10 — async generation.** The request is instant (the engine decides the outcome synchronously); the model work runs in the background and the page polls, so the creator lands on this *"Filming the date…"* state and it updates itself the moment it's ready. A terminal failure gives the date back.
+
+![The "Filming the date…" state on a phone](docs/screenshots/episode-generating-mobile.png)
+The same waiting state on an iPhone 13, with the AI disclosure and crisis links first.
 
 ![The date told as three acts, desktop](docs/screenshots/episode-acts-desktop.png)
 Every date is a **three-act story** — first impressions, a revealing challenge (dealt by the AI producer), and the decision — with the engine deciding the outcome and the model narrating to it.
@@ -40,6 +46,12 @@ Every date is a **three-act story** — first impressions, a revealing challenge
 
 ![The turn-by-turn date on a phone](docs/screenshots/episode-transcript-mobile.png)
 The same line-by-line date on an iPhone 13 screen, also captured live.
+
+![The afterglow: the two AIs' private morning-after texts and the mutual verdict, desktop](docs/screenshots/episode-afterglow-desktop.png)
+**M11 — the afterglow.** After the date, the two characters keep texting privately. Each owner already knows their own AI's verdict (the debrief); the thread and the mutual *"was it mutual?"* verdict unlock only once every real owner opts in. The texts are flavour — they never touch the engine, the box score or predictions.
+
+![The afterglow on a phone](docs/screenshots/episode-afterglow-mobile.png)
+The morning-after thread on an iPhone 13, alternating sides like a chat.
 
 ![The box score, secret agendas and confessionals on an aired episode, desktop](docs/screenshots/episode-boxscore-desktop.png)
 The outcome is decided by a **deterministic engine**, not the model: the **box score** shows how chemistry, attraction, trust and awkwardness moved, with the best line, the revealed **secret agendas**, and the **confessionals**.
