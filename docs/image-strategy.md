@@ -88,8 +88,9 @@ Adult fictional character, age {age}.
 {archetype}; {traits}.
 
 COMPOSITION:
-Head and shoulders, centered face,
-simple background, vertical 3:4 crop.
+Head and shoulders, chest up, centered face,
+hands not in frame, simple background,
+vertical 3:4 crop.
 
 CONSTRAINTS:
 Original design; no named franchise characters,

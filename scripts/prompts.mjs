@@ -20,7 +20,7 @@ export const NEGATIVE_PROMPT = [
   "child, children, minor, teenager, youthful face",
   "celebrity, real person, recognisable public figure",
   "text, caption, watermark, signature, logo",
-  "deformed hands, extra fingers, extra limbs, distorted face",
+  "deformed hands, extra fingers, extra limbs, distorted face, cropped head",
   "nudity, revealing clothing, suggestive pose",
   "blurry, low detail, oversaturated",
 ].join(", ");
@@ -41,7 +41,7 @@ export function portraitPrompt(c) {
   return [
     `STYLE: ${STYLE}`,
     `CHARACTER: adult fictional character, age ${c.age}. ${c.appearance}. ${c.archetype}; ${c.traits.join(", ")}.`,
-    "COMPOSITION: head and shoulders, centred face, simple uncluttered background, vertical 3:4 crop.",
+    "COMPOSITION: head and shoulders portrait, chest up, centred face, hands not in frame, simple uncluttered background, vertical 3:4 crop.",
     `CONSTRAINTS: ${CONSTRAINTS}`,
   ].join("\n");
 }
