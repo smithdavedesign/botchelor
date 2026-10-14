@@ -466,6 +466,13 @@ async function capture(base, leagueId, viewer) {
       await league.goto(`${base}/leagues/${leagueId}`);
       await league.getByRole("heading", { name: "Latest podium" }).waitFor();
       await shot(league, "league-season");
+
+      // 4. The cast gallery: avatars, the matchmaker and the relationship graph.
+      const castPage = await member.newPage();
+      await castPage.goto(`${base}/cast`);
+      await castPage.getByRole("heading", { name: "The cast" }).waitFor();
+      await castPage.locator(".gallery").first().waitFor();
+      await shot(castPage, "cast");
       await member.close();
     }
   } finally {

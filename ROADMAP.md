@@ -75,3 +75,18 @@ Exit criteria (tested):
 - Buying still changes no points, picks or rank; league/season boards remain the prediction game only.
 
 Deferred (needs spend approval; see docs/upgrade-cost.md): frontier text model, portraits, video, and the Redis/BullMQ + S3/CDN stack.
+
+## M6: next-level (competitive polish, built)
+From a competitor review (docs/competitive-analysis.md): close the visual/customization gap vs. Character.AI, Talkie and the Love Island app, at $0.
+
+Deliverables (built):
+- **Avatars** everywhere: deterministic SVG avatars (gradient + initials) on the episode matchup, the feed, the cast gallery, the builder preview and the shared box-score card. No image hosting, no real-person risk.
+- **Character customization**: an appearance line and an avatar-colour picker, with a live preview in the builder.
+- **A visual overhaul**: display type (Fraunces/Inter), a richer palette with real dark mode, gradients, a hero, a cast gallery and chips.
+- **A full E2E suite** (`npm run e2e`, Playwright) and a **seed script** (`npm run seed`) for a lively demo database.
+
+Next, still $0:
+- Collectible contestant/moment cards and a community gallery with follows and category boards (Talkie/Love Island mechanics, our way).
+
+Deferred (spend + a moderation provider; see docs/competitive-analysis.md and docs/upgrade-cost.md):
+- **Image upload as a reference / "training data".** Blocked on object storage, a vision model, and automated image moderation (CSAM scanning + a real-person classifier), because the product bans real people and a solo owner can't moderate raw uploads. The generated avatars above are the $0 stand-in shipped now.

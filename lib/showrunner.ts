@@ -91,7 +91,16 @@ Reply with only a JSON object (no markdown) with exactly these keys:
 }`;
 
 function sheetData(s: CharacterSheet) {
-  return { name: s.name, age: s.age, bio: s.bio, traits: s.traits, want: s.want, dealbreaker: s.dealbreaker, house_character: s.house };
+  return {
+    name: s.name,
+    age: s.age,
+    bio: s.bio,
+    traits: s.traits,
+    want: s.want,
+    dealbreaker: s.dealbreaker,
+    ...(s.appearance ? { appearance: s.appearance } : {}),
+    house_character: s.house,
+  };
 }
 
 /** Private, model-only behaviour guidance from a side's soul and this date's settings. Never shown to viewers. */

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
+import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
 import { readUserId, USER_COOKIE } from "@/lib/http";
 import { listCast, listMyProposals, listRelationshipEdges } from "@/lib/mechanics";
@@ -24,6 +25,29 @@ export default async function CastPage() {
         A living cast whose characters remember past dates. Propose pairings and follow the relationship graph.{" "}
         <Link href="/feed">Back to the feed</Link>.
       </p>
+
+      {cast.length > 0 && (
+        <ul className="gallery">
+          {cast.map((c) => (
+            <li key={c.id} className="card">
+              <div className="char">
+                <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={48} />
+                <div className="meta">
+                  <strong>{c.name}</strong>
+                  {c.house && <span className="badge">House</span>}
+                </div>
+              </div>
+              <ul className="chips">
+                {c.traits.slice(0, 3).map((trait) => (
+                  <li className="chip" key={trait}>
+                    {trait}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <MatchmakerForm cast={cast} />
 

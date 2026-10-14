@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { getDb } from "@/lib/db";
 import { getEpisodeView } from "@/lib/game";
 import { DATE_VARIABLES, ENDING_LABELS, VARIABLE_LABELS } from "@/lib/rules";
@@ -28,7 +29,33 @@ export default async function Image({ params }: { params: Promise<{ id: string }
     (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", padding: 80, background: PAPER, color: INK, borderTop: `24px solid ${ACCENT}`, fontFamily: "sans-serif" }}>
         <div style={{ fontSize: 34, color: ACCENT, fontWeight: 700 }}>Botchelor · box score</div>
-        <div style={{ fontSize: 64, fontWeight: 800, marginTop: 12 }}>{names}</div>
+        {episode && (
+          <div style={{ display: "flex", alignItems: "center", gap: 22, marginTop: 18 }}>
+            {(() => {
+              const tile = (c: { id: string; name: string; hue: number | null }) => (
+                <div
+                  key={c.id}
+                  style={{
+                    display: "flex",
+                    width: 96,
+                    height: 96,
+                    borderRadius: 26,
+                    background: avatarGradientCss(avatarPalette(c.id, c.hue)),
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
+                    fontSize: 44,
+                    fontWeight: 800,
+                  }}
+                >
+                  {initials(c.name)}
+                </div>
+              );
+              return [tile(episode.characters[0]), <div key="x" style={{ fontSize: 34, color: MUTED }}>×</div>, tile(episode.characters[1])];
+            })()}
+          </div>
+        )}
+        <div style={{ fontSize: 56, fontWeight: 800, marginTop: 14 }}>{names}</div>
         {box ? (
           <div style={{ display: "flex", flexDirection: "column", marginTop: 30, gap: 18 }}>
             {DATE_VARIABLES.map((v) => (
