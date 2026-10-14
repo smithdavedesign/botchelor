@@ -310,6 +310,31 @@ contestant card, with a **cast leaderboard** (most likable / most surprising) on
   self-rating is 403 and an unknown character 404; the leaderboard orders by count; the owner earns points
   when others rate their OC, the rater earns none.
 
+## M13 (in design): the immersive date "theater"
+
+David's call: make watching a date feel like an *experience* — a full-screen, Twitch-style "window into the
+two date bots," not a page you scroll. Keep every current feature (the turn-by-turn date, live chat,
+reactions, the chemistry/question/chaos polls, predictions, the box score, the decision), re-homed into a
+cinematic layout.
+
+Grounded in how Twitch/live-watch UIs work (research 2026-10-14): a **theater layout** (a big stage, chat
+docked to the side and movable) reads as more immersive than an info-stacked page; an **overlay** (chat/
+reactions fading over the stage) feels richer still; native browser fullscreen hides page chrome, so the
+right build is an **app-fullscreen container** (a fixed 100vw×100vh stage) with everything else as overlays.
+
+**Proposed shape (pending David's answers):**
+- A **stage**: the two characters as two "windows" (portrait/avatar), left and right, over the venue backdrop;
+  the turn-by-turn dialogue plays out live as speech from each side on the existing phase clock.
+- **Chat + reactions** docked right on desktop (Twitch theater), below on mobile (vertical variant), with an
+  optional fade-over-stage overlay mode.
+- **A top HUD** (phase, viewers, venue) and a **bottom/side rail** for the live inputs (predict, the polls,
+  the chaos button) and the decision + box-score payoff — overlays, not a scroll.
+- Built as the watch room reimagined (`app/watch/[id]`), since that is where the live clock, chat and polls
+  already are; likely a "theater mode" the room opens into, preserving today's layout as a fallback.
+
+Open questions are tracked with the branch; implementation follows David's answers. No new model cost (it is
+a re-layout of existing data + the existing $0 live machinery).
+
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
 The competitor report's image plan, built at $0 — first-party assets only, reviewed and committed (no runtime generation, no uploads):
