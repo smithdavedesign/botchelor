@@ -15,7 +15,7 @@
  */
 import { z } from "zod";
 import type { DateInput, Outcome, SideSetup } from "./engine";
-import { format, type FormatId } from "./formats";
+import { formatNote, type FormatContext, type FormatId } from "./formats";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { AFTERGLOW_TURNS, agenda } from "./rules";
 import { checkFields } from "./safety";
@@ -92,6 +92,7 @@ export function buildAfterglowMessages(
   formatId: FormatId,
   thread: AfterglowLine[],
   turnIndex: number,
+  formatCtx: FormatContext = {},
 ): { messages: ChatMessage[]; side: "a" | "b" } {
   const side: "a" | "b" = turnIndex % 2 === 0 ? "a" : "b";
   const sideIndex = side === "a" ? 0 : 1;
@@ -104,7 +105,7 @@ export function buildAfterglowMessages(
     you: selfView(me, souls[sideIndex]),
     them: publicView(them),
     the_date_was_at: venue(venueId).prompt,
-    the_show_format: format(formatId).note,
+    the_show_format: formatNote(formatId, formatCtx),
     texts_so_far: history,
     your_feeling: feelingFor(sideIndex, outcome),
   };
@@ -146,11 +147,12 @@ export async function simulateAfterglow(
   venueId: VenueId,
   formatId: FormatId,
   turns: number = AFTERGLOW_TURNS,
+  formatCtx: FormatContext = {},
 ): Promise<AfterglowLine[]> {
   const thread: AfterglowLine[] = [];
   const reasons: string[] = [];
   for (let i = 0; i < turns; i++) {
-    const { messages, side } = buildAfterglowMessages(input, outcome, souls, venueId, formatId, thread, i);
+    const { messages, side } = buildAfterglowMessages(input, outcome, souls, venueId, formatId, thread, i, formatCtx);
     let line: AfterglowLine | null = null;
     for (let attempt = 0; attempt < AFTERGLOW_ATTEMPTS && !line; attempt++) {
       let raw: string;

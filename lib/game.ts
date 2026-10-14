@@ -58,6 +58,10 @@ export type DateSetup = {
    * episodes made before formats existed have none and read as the classic blind date. Never the engine.
    */
   format?: FormatId;
+  /** meet_the_parents: a real house regular's name to play the chaperone (lib/simulation.ts). Flavour only. */
+  chaperone?: string;
+  /** ex_returns: a real past partner's name from the relationship graph, when there is one. Flavour only. */
+  ex?: string;
 };
 
 export type BoxScore = Record<DateVariable, VariableArc>;

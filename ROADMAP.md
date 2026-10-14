@@ -276,8 +276,9 @@ the builder's date settings, shown as a billing badge on the episode and the fee
 - **Paid-pack seam built, off:** each format carries a `premiumSku` (all `null` today), gated before the date
   is reserved exactly like a premium house character, so a format can be sold later without touching
   generation. Formats stay $0 and can never buy a better result (PRD guardrail).
-- **Follow-ups:** wire `meet_the_parents` to name a real house regular and `ex_returns` to pull the actual ex
-  from the relationship graph (both are generic background presences today).
+- **Named cast (shipped):** `meet_the_parents` now deals a real house regular as the chaperone (by seed, never
+  one of the daters), and `ex_returns` pulls a real past partner from the relationship graph when there is one
+  (`formatNote()` + `lib/simulation.ts`, stored on `setup`). Still flavour only — never the engine.
 
 ## Agent interface: the front door + the MCP server (shipped)
 
