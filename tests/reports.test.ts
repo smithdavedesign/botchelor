@@ -9,6 +9,7 @@ import {
   named,
   newUserCookie,
   scriptedModel,
+  scriptOutcome,
   setupEpisode,
   setupPairedEpisode,
   startTestDb,
@@ -283,17 +284,16 @@ describe("block list", () => {
     expect((await api.block(y, spectator)).status).toBe(200);
   });
 
-  it("does not save a blind date if either creator blocks the other while the episode is being written", async () => {
-    const { host, partner, episode, hostCharacter } = await setupPairedEpisode();
-    setModelForTests({
-      async complete() {
-        expect((await api.block(episode.id, partner)).status).toBe(201); // lands mid-generation
-        return episodeJson();
-      },
-    });
+  it("never matches a blocked creator on a blind date (blocks are respected at match time)", async () => {
+    // With async generation the match is settled before any model runs, so the guard is at match time:
+    // a blocked creator is simply never picked. The partner blocks the host, then the host blinds again.
+    const { host, partner, episode, hostCharacter, partnerCharacter } = await setupPairedEpisode();
+    expect((await api.block(episode.id, partner)).status).toBe(201);
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
     const res = await api.createEpisode({ character_id: hostCharacter.id, blind: true }, host);
-    expect(res.status).toBe(409);
-    expect((await res.json()).error).toBe("match_unavailable");
-    expect(await t.count("episodes")).toBe(1);
+    expect(res.status).toBe(200); // matched to a house character, never the blocked partner
+    const ids = ((await res.json()).characters as { id: string }[]).map((c) => c.id);
+    expect(ids).not.toContain(partnerCharacter.id);
   });
 });

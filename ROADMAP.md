@@ -221,10 +221,26 @@ Exit criteria (tested — `tests/m10.test.ts`): the kill switch 503s and reserve
 the user's own data and delete removes it (hard-deleting a plain character, anonymizing one that's in an
 episode); `safeEqual` is correct; `track` emits one clean JSON line and never throws.
 
-Deferred to M10 part 2: the **async job table + worker** — the bigger piece, so creator/paid dates
-generate in the background (queued → worker → stored → room replays on the clock) instead of in the
-request. Best built when `app/api/episodes/route.ts` is quiet (the portraits session is nearby). The
-synchronous path (≈9 free calls, ~20s) is fine for the current MVP volume until then.
+### M10 part 2 — async episode generation (shipped)
+
+`POST /api/episodes` no longer blocks on the model. The engine decides the outcome synchronously (instant,
+deterministic) and writes the episode **`generating`**; the slow part (narration + the turn-by-turn
+conversation) runs in the background via Next's `after()` hook (`lib/jobs.ts`), and the episode page polls
+(`GeneratingPoller`) until it flips to **`ready`**. A `generation_jobs` table leases each job so nothing
+double-runs, and a token-gated cron backstop (`GET /api/jobs/run`, optional — wire with `CRON_SECRET`) re-runs
+anything `after()` misses. The worker rebuilds the date from the stored seed, so it's fully self-contained.
+
+- **Fairness kept:** a terminal failure **deletes the episode and refunds the date** — a failed date still
+  "stores nothing and costs nothing", exactly as before (now surfaced to the poller as a friendly retry).
+- **Model choice travels with the job** (`use_frontier`), since the worker has no request to re-authorize;
+  free by default, the gated frontier for an owner-approved paid date.
+- **Feed hides `generating` episodes**; the creator watches their own fill in.
+- **Inline for the harness:** `BOTCHELOR_INLINE_GENERATION=1` (set by the seed/e2e/screenshot runs and the
+  test harness) runs generation in the request, so demos and tests never race the background worker.
+
+Exit criteria (tested — `tests/async.test.ts`): a create returns a `generating` episode hidden from the
+feed, the worker makes it `ready` with full content; a terminal failure deletes the episode and refunds the
+date (job cascaded); the cron route is 404 without its token and runs the queued job with it.
 
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 

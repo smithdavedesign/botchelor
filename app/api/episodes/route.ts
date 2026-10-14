@@ -1,13 +1,15 @@
+import { after } from "next/server";
 import { z } from "zod";
-import { releaseEpisode, reserveEpisode } from "@/lib/allowance";
+import { releaseEpisode, reserveEpisode, type Reservation } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb, type Db } from "@/lib/db";
 import { getEngine } from "@/lib/engine";
-import { listFeed, toEpisodeJson, type CharacterRef, type StoredEpisode } from "@/lib/game";
+import { getEpisodeView, listFeed, toEpisodeJson, type CharacterRef, type StoredEpisode } from "@/lib/game";
 import { handle, json, parseBody, readJson, session, userIdFromRequest, type Session } from "@/lib/http";
-import { episodeModel, frontierAuthorized, type Model } from "@/lib/model";
+import { frontierAuthorized } from "@/lib/model";
 import { generationPaused, PAUSED_MESSAGE } from "@/lib/compute";
-import { track, trackEpisodeCost } from "@/lib/analytics";
+import { track } from "@/lib/analytics";
+import { enqueueGeneration, inlineGenerationEnabled, runGenerationJob } from "@/lib/jobs";
 import { ownsSku } from "@/lib/payments";
 import {
   AGENDA_IDS,
@@ -20,11 +22,11 @@ import {
 } from "@/lib/rules";
 import { checkFields } from "@/lib/safety";
 import { seasonAt } from "@/lib/seasons";
-import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
-import { narrateEpisode, ShowrunnerError, type CharacterSheet, type EpisodeDraft } from "@/lib/showrunner";
-import { isConversationEnabled, simulateConversation, type Turn } from "@/lib/conversation";
+import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
+import { type CharacterSheet } from "@/lib/showrunner";
 
-// One narration call at up to 25 s; the engine itself is instant.
+// The request itself is instant (the engine, no model). Generation runs in after(), which keeps the
+// function alive past the response, so the budget still covers the ~20s of model calls.
 export const maxDuration = 60;
 
 const id = z.string().min(1).max(64);
@@ -178,12 +180,12 @@ export const POST = handle(async (req) => {
       sess,
     );
   }
-  // Free model by default ($0); the frontier model only when this request carries the owner's key.
-  const model = episodeModel(req);
-  const modelLabel: "free" | "frontier" = frontierAuthorized(req) ? "frontier" : "free";
+  // The frontier model only when this request carries the owner's key; recorded on the job so the
+  // background worker (which has no request) knows which model to use.
+  const useFrontier = frontierAuthorized(req);
   const outcome = { saved: false };
   try {
-    return await writeAndSave(db, sess, model, modelLabel, own, partner, input, outcome);
+    return await writeAndSave(db, sess, useFrontier, reservation, own, partner, input, outcome);
   } finally {
     if (!outcome.saved) {
       await releaseEpisode(db, sess.userId, reservation).catch((err: unknown) => {
@@ -196,21 +198,23 @@ export const POST = handle(async (req) => {
 type EpisodeInputData = z.infer<typeof EpisodeInput>;
 
 /**
- * Decides the outcome with the engine, narrates it with one model call, and saves it: 200, or 502 /
- * 409 with nothing stored. `outcome.saved` turns true the moment the episode row exists.
+ * Decides the outcome with the engine (instant, no model), writes the episode in a 'generating' state,
+ * and queues the slow part — narration + the turn-by-turn conversation — to run in the background
+ * (lib/jobs.ts), kicked off with after() and backstopped by the cron worker route. Returns the
+ * generating episode right away; the page polls until it is 'ready'. `outcome.saved` turns true the
+ * moment the episode row exists (so a reserved date isn't given back). 409 only when the pair is blocked.
  */
 async function writeAndSave(
   db: Db,
   sess: Session,
-  model: Model,
-  modelLabel: "free" | "frontier",
+  useFrontier: boolean,
+  reservation: Reservation | null,
   own: CharacterRow,
   partner: CharacterRow,
   input: EpisodeInputData,
   saveState: { saved: boolean },
 ): Promise<Response> {
   const episodeId = crypto.randomUUID();
-  const genStart = Date.now();
   const dateRequest: DateRequest = {
     autonomy: input.autonomy ?? "balanced",
     strategy: input.strategy ?? "genuine_chemistry",
@@ -221,39 +225,15 @@ async function writeAndSave(
   const built = await buildDate(db, episodeId, forDate(own), forDate(partner), dateRequest);
   const decided = getEngine().decide(built.input, built.seed);
 
-  let draft: EpisodeDraft;
-  try {
-    draft = await narrateEpisode(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue);
-  } catch (err) {
-    if (!(err instanceof ShowrunnerError)) throw err;
-    console.warn("[episodes] showrunner failed:", err.reasons.join(", "));
-    track("generation_failed", { reason: "showrunner" });
-    return json(
-      { error: "showrunner_unavailable", message: "No free model produced a valid episode. Nothing was saved; try again in a minute." },
-      502,
-      sess,
-    );
-  }
-
-  // M9: the date, performed turn-by-turn by the two character agents (lib/conversation.ts). Best-effort
-  // and gated (off in tests): the engine already decided the outcome and the recap above already stands,
-  // so a failed or disabled conversation just leaves the transcript empty — the episode is unaffected.
-  let transcript: Turn[] = [];
-  if (isConversationEnabled()) {
-    try {
-      transcript = await simulateConversation(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue);
-    } catch (err) {
-      console.warn("[episodes] conversation unavailable:", err instanceof Error ? err.message : "unknown");
-    }
-  }
-
-  // The model call takes seconds; re-check at insert time that neither creator blocked the other meanwhile.
-  const saved = await db.query(
+  // Write the episode 'generating' with the engine outcome but placeholder narration; the background job
+  // fills the scenes + transcript and flips it to 'ready'. The block re-check stays here, so a blocked
+  // pair never even creates a generating row.
+  const saved = await db.query<{ id: string }>(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
                            drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup,
-                           note, self_pick, transcript)
-     select $1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16,
-            $17::jsonb, $18::jsonb, $19, $20, $21::jsonb
+                           note, self_pick, transcript, status)
+     select $1, $2, $3, $4, '', '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, $7, $8, $9::jsonb, $10::jsonb, null,
+            '[]'::jsonb, $11::jsonb, $12, $13, '[]'::jsonb, 'generating'
       where not exists (
         select 1 from characters pc
           join blocks bl on (bl.blocker_id = $2 and bl.blocked_id = pc.owner_id)
@@ -265,23 +245,15 @@ async function writeAndSave(
       sess.userId,
       own.id,
       partner.id,
-      draft.setting,
-      JSON.stringify(draft.goals),
-      JSON.stringify(draft.scenes),
-      draft.twist,
-      draft.finale,
       decided.ending,
       decided.drama_question,
       decided.drama_answer,
       built.seed,
       JSON.stringify(decided.variables),
       JSON.stringify(decided.sides),
-      draft.best_line,
-      JSON.stringify(draft.confessionals),
       JSON.stringify(built.setup),
       input.note ?? null,
       input.self_pick ?? null,
-      JSON.stringify(transcript),
     ],
   );
   if (!saved.rows.length) {
@@ -292,38 +264,49 @@ async function writeAndSave(
     );
   }
   saveState.saved = true;
-  await rememberDate(db, own.id, partner.id, decided.ending).catch((err: unknown) => {
-    console.error("[episodes] could not record the relationship:", err instanceof Error ? err.message : "unknown");
-  });
-  // M10 unit economics + product analytics (no content, just ids and counts).
-  trackEpisodeCost({
-    episode_id: episodeId,
-    model: modelLabel,
-    model_calls: 1 + transcript.length,
-    ms: Date.now() - genStart,
-    transcript_turns: transcript.length,
-  });
-  track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: input.blind === true });
 
-  // The creator watches the full episode right away; spectators get the teaser until the finale airs.
+  // Queue the slow part (narration + conversation). In production it runs after the response (and the
+  // cron route re-runs anything after() misses); inline — tests — it runs now so the episode is ready.
+  await enqueueGeneration(db, episodeId, useFrontier, sess.userId, reservation);
+  track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: input.blind === true });
+  if (inlineGenerationEnabled()) {
+    // No after() lifecycle here, so run the job now: ready → the full episode; a failure deletes the
+    // episode and gives the date back, which we surface as the old fail-closed 502.
+    await runGenerationJob(db, episodeId);
+    const view = await getEpisodeView(db, episodeId, sess.userId);
+    if (view && view.status === "ready") return json(view, 200, sess);
+    return json(
+      { error: "showrunner_unavailable", message: "No model produced a valid episode. Nothing was saved; try again in a minute." },
+      502,
+      sess,
+    );
+  }
+  try {
+    after(() => runGenerationJob(db, episodeId).catch(() => {}));
+  } catch {
+    // No request scope (a direct unit-test call): the job stays queued for the cron/inline path instead.
+  }
+
+  // The creator lands on the episode as it's "being filmed"; the page polls until it is ready.
   const stored: StoredEpisode = {
     id: episodeId,
     characters: [toRef(own), toRef(partner)],
-    setting: draft.setting,
-    goals: draft.goals,
-    scenes: draft.scenes,
-    twist: draft.twist,
-    finale: draft.finale,
+    setting: "",
+    goals: [],
+    scenes: [],
+    twist: "",
+    finale: "",
     ending: decided.ending,
     drama_question: decided.drama_question,
     drama_answer: decided.drama_answer,
     revealed: false,
-    best_line: draft.best_line,
+    best_line: null,
     box_score: decided.variables,
-    confessionals: [draft.confessionals[0], draft.confessionals[1]],
+    confessionals: null,
     sides: decided.sides,
     setup: built.setup,
-    transcript,
+    transcript: [],
+    status: "generating",
   };
   return json(toEpisodeJson(stored, { full: true, showConfessionals: true }), 200, sess);
 }

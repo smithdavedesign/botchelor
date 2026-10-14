@@ -19,6 +19,7 @@ import {
   openPayments,
   OTHER_WEBHOOK_SECRET,
   scriptedModel,
+  scriptOutcome,
   setupEpisode,
   setupPairedEpisode,
   startCheckout,
@@ -193,29 +194,28 @@ describe("the weekly free allowance", () => {
     expect(await sendOnDates(creator, 2)).toEqual([200, 429]);
   });
 
-  it("doesn't spend a date when the match is gone by the time the episode is written (409)", async () => {
-    const { host, partner, episode, hostCharacter } = await setupPairedEpisode();
-    setModelForTests({
-      async complete() {
-        expect((await api.block(episode.id, partner)).status).toBe(201); // lands mid-generation
-        return episodeJson();
-      },
-    });
+  it("spends the date when the episode is created (the match is settled before the model runs)", async () => {
+    // Async generation settles the pairing and writes the episode synchronously, so by the time the
+    // response returns the date is spent — setupPairedEpisode spent one, this spends a second.
+    const { host, hostCharacter } = await setupPairedEpisode();
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
     const res = await api.createEpisode({ character_id: hostCharacter.id, blind: true }, host);
-    expect(res.status).toBe(409);
-    expect(await allowanceOf(host)).toMatchObject({ free_left: FREE - 1 }); // only the setup date was spent
+    expect(res.status).toBe(200);
+    expect(await allowanceOf(host)).toMatchObject({ free_left: FREE - 2 });
   });
 
-  it("gives the date back when saving fails unexpectedly (500)", async () => {
+  it("gives the date back when generation fails because a character vanishes (502, nothing stored)", async () => {
     const creator = await newCreator();
     setModelForTests({
       async complete() {
-        // The character disappears mid-generation, so the episode insert fails its foreign key.
+        // The character disappears mid-generation; it is referenced by the (generating) episode, so the
+        // delete fails and narration can't complete — the date fails closed and is refunded.
         await t.db.query("delete from characters where id = $1", [creator.characterId]);
         return episodeJson();
       },
     });
-    expect((await dateRequest(creator)).status).toBe(500);
+    expect((await dateRequest(creator)).status).toBe(502);
     expect(await t.count("episodes")).toBe(0);
     expect(await allowanceOf(creator.cookie)).toMatchObject({ free_left: FREE });
   });
