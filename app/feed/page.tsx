@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
+import Avatar from "@/app/Avatar";
 import { BadgeList } from "@/app/Badges";
 import { getDb } from "@/lib/db";
 import { listFeed, listMyEpisodes, type EpisodeView } from "@/lib/game";
@@ -25,12 +26,18 @@ function EpisodeItem({ episode }: { episode: EpisodeView }) {
           : "Open for predictions";
   return (
     <li className="card">
-      <Link href={episode.share_path}>
-        <strong>
-          {a.name} × {b.name}
-        </strong>
-      </Link>{" "}
-      <span className="badge">{status}</span>
+      <div className="char">
+        <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} size={38} />
+        <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} size={38} />
+        <div className="meta">
+          <Link href={episode.share_path}>
+            <strong>
+              {a.name} × {b.name}
+            </strong>
+          </Link>{" "}
+          <span className="badge">{status}</span>
+        </div>
+      </div>
       <p className="muted">{episode.setting}</p>
     </li>
   );

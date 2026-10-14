@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import Avatar from "./Avatar";
+import { AVATAR_HUES } from "@/lib/avatar";
 import {
   AGENDAS,
   AUTONOMY_BLURBS,
@@ -157,6 +159,9 @@ export default function StartForm({
   const [error, setError] = useState<string | null>(null);
   const [outOfDates, setOutOfDates] = useState(false);
   const [settings, setSettings] = useState<DateSettings>(DEFAULT_SETTINGS);
+  // For the live avatar preview in the builder.
+  const [previewName, setPreviewName] = useState("");
+  const [hue, setHue] = useState(0);
 
   async function createCharacter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -179,6 +184,8 @@ export default function StartForm({
         traits: [field("trait1"), field("trait2"), field("trait3")],
         want: field("want"),
         dealbreaker: field("dealbreaker"),
+        ...(field("appearance") ? { appearance: field("appearance") } : {}),
+        ...(hue > 0 ? { avatar_hue: hue } : {}),
         ...(soul ? { soul } : {}),
         attest: form.get("attest") === "on",
       });
@@ -241,13 +248,24 @@ export default function StartForm({
         <p className="muted">Or pick a house character. They belong to the show. Either way, you can&apos;t steer the date.</p>
         {partners.map((p) => (
           <div className="card" key={p.id}>
-            <strong>
-              {p.name}, {p.age}
-            </strong>
-            <span className="badge">House character</span>
-            {p.premium && <span className="badge">Premium · yours</span>}
+            <div className="char">
+              <Avatar seed={p.id} name={p.name} house size={44} />
+              <div className="meta">
+                <strong>
+                  {p.name}, {p.age}
+                </strong>
+                <span className="badge">House character</span>
+                {p.premium && <span className="badge">Premium · yours</span>}
+              </div>
+            </div>
             <p>{p.bio}</p>
-            <p className="muted">{p.traits.join(" · ")}</p>
+            <ul className="chips">
+              {p.traits.map((trait) => (
+                <li className="chip" key={trait}>
+                  {trait}
+                </li>
+              ))}
+            </ul>
             <button type="button" disabled={busy !== null} onClick={() => sendOnDate(p.id)}>
               Send {character.name} on a date with {p.premium ? p.name : p.name.split(" ")[0]}
             </button>
@@ -274,9 +292,12 @@ export default function StartForm({
           <ul className="list">
             {myCharacters.map((c) => (
               <li key={c.id}>
-                <button type="button" className="secondary small" onClick={() => setCharacter(c)}>
-                  Send {c.name} on another date
-                </button>
+                <div className="char">
+                  <Avatar seed={c.id} name={c.name} size={36} />
+                  <button type="button" className="secondary small" onClick={() => setCharacter(c)}>
+                    Send {c.name} on another date
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -286,7 +307,7 @@ export default function StartForm({
         <h2>{myCharacters.length > 0 ? "A new character" : "Your character"}</h2>
         <label>
           Name
-          <input type="text" name="name" required maxLength={40} />
+          <input type="text" name="name" required maxLength={40} onChange={(e) => setPreviewName(e.target.value)} />
         </label>
         <label>
           Age (18 or older)
@@ -310,6 +331,30 @@ export default function StartForm({
           Their dealbreaker
           <input type="text" name="dealbreaker" required maxLength={140} />
         </label>
+
+        <div className="looks">
+          <Avatar seed={previewName || "preview"} name={previewName || "?"} hue={hue} size={72} />
+          <div className="looks-fields">
+            <label>
+              Appearance <span className="muted">(optional)</span>
+              <input type="text" name="appearance" maxLength={140} placeholder="tall, freckled, always in a yellow raincoat" />
+            </label>
+            <span className="muted">Avatar colour</span>
+            <div className="swatches">
+              {AVATAR_HUES.map((h) => (
+                <button
+                  key={h.id}
+                  type="button"
+                  className={`swatch${hue === h.id ? " chosen" : ""}`}
+                  style={h.id ? { background: `hsl(${h.id} 70% 55%)` } : undefined}
+                  aria-label={h.label}
+                  title={h.label}
+                  onClick={() => setHue(h.id)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
 
         <details className="settings">
           <summary>Give them a private soul (optional)</summary>

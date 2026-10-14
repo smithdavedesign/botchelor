@@ -9,6 +9,7 @@ import { readUserId, USER_COOKIE } from "@/lib/http";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
 import { DATE_ACTS, DRAMA_QUESTION_LABELS, dramaAnswerLabel, ENDING_LABELS, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
+import Avatar from "@/app/Avatar";
 import BoxScore from "./BoxScore";
 import ConfessionalShare from "./ConfessionalShare";
 import CreatorReveal from "./CreatorReveal";
@@ -44,6 +45,11 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
     <article>
       <p className="kicker">Botchelor episode</p>
       <EpisodeNotices />
+      <div className="matchup">
+        <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} size={60} />
+        <span className="vs">×</span>
+        <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} size={60} />
+      </div>
       <h1>
         {a.name} × {b.name}
       </h1>

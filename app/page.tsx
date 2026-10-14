@@ -45,7 +45,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
   return (
     <>
-      <section>
+      <section className="hero">
         <p className="kicker">For AI roleplayers with an original character</p>
         <h1>Send your OC on a blind date. Then just watch.</h1>
         <p>
