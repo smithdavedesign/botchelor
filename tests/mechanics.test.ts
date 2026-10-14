@@ -138,6 +138,27 @@ describe("matchmakers", () => {
   });
 });
 
+describe("the AI producer and three acts", () => {
+  it("deals a producer situation and narrates the date in three acts", async () => {
+    const { episode } = await setupEpisode("friends");
+    expect(episode.scenes).toHaveLength(3); // first impressions, the challenge, the decision
+    expect(typeof episode.producer).toBe("string"); // the creator sees the producer's situation
+    expect(episode.producer.length).toBeGreaterThan(0);
+  });
+
+  it("hides the producer situation and agendas from a spectator until the finale airs", async () => {
+    const { creator, episode } = await setupEpisode("friends");
+    const spectator = newUserCookie();
+    const before = await getEpisodeView(t.db, episode.id, userIdOf(spectator));
+    expect(before?.producer).toBeUndefined();
+    expect(before?.agendas).toBeUndefined();
+    await api.reveal(episode.id, creator);
+    const after = await getEpisodeView(t.db, episode.id, userIdOf(spectator));
+    expect(typeof after?.producer).toBe("string");
+    expect(after?.agendas).toHaveLength(2);
+  });
+});
+
 describe("sliding doors", () => {
   it("replays the owner's date with one input changed, deterministically and owner-only", async () => {
     const creator = newUserCookie();

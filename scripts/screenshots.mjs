@@ -65,6 +65,7 @@ const EPISODES = {
     scenes: [
       `${b} records an intro before saying hello. ${a} answers on air without missing a beat, and the gulls seem to approve.`,
       `They trade ghost stories. ${a}'s is about an opera house that only plays at low tide; ${b} has to pause the recording to stop laughing.`,
+      `The lamp dims and they have to decide, right there on the spiral stairs, whether this was a one-off or the start of something.`,
     ],
     twist: "The lighthouse lamp flickers in perfect time with the story, and neither of them is touching the switch.",
     finale: `${b} asks ${a} back for episode twelve. They walk down the spiral stairs together, still arguing about whether the ghost was real.`,
@@ -86,6 +87,7 @@ const EPISODES = {
     scenes: [
       `${b} teaches ${a} to centre clay. ${a} centres it, then announces a plan to throw a vase blindfolded.`,
       `The party next door starts singing. ${b} flinches at every candle being lit, while ${a} keeps suggesting they crash it.`,
+      `When the cake comes out, ${b} has to choose between the quiet night they wanted and the chaos ${a} is offering.`,
     ],
     twist: `${a} reveals a surprise: a cake, with nineteen candles, one for every time ${b} was set on fire professionally.`,
     finale: `${a} storms off when ${b} blows the candles out with a fire extinguisher. The vase survives; the date does not.`,
@@ -103,18 +105,19 @@ const EPISODES = {
 // The engine (not the model) decides the ending now and hands it to the showrunner in the prompt as
 // "Decided ending: <label>.". The real model narrates to match it; this stub does the same so the
 // finale never contradicts the ending the page shows.
+// best_line has no surrounding quotes: the box score renders it in quotes itself.
 const ENDING_FINALE = {
   "A second date": () => ({
     finale: "They swap numbers before they even reach the door, already arguing about where to go next.",
-    best_line: "“Same time next week — and bring the better story.”",
+    best_line: "Same time next week, and bring the better story.",
   }),
   "Just friends": () => ({
     finale: "No spark, but they split the last bite laughing and mean it: let's do this again, as friends.",
-    best_line: "“Friends, then. The good kind, not the polite kind.”",
+    best_line: "Friends, then. The good kind, not the polite kind.",
   }),
   "A disaster": () => ({
     finale: "It comes apart fast. One of them is gone before the plates are cleared, and neither asks for a rematch.",
-    best_line: "“Well. We'll always have the first ten minutes.”",
+    best_line: "Well. We'll always have the first ten minutes.",
   }),
 };
 
@@ -445,6 +448,9 @@ async function capture(base, leagueId, viewer) {
       await home.waitForURL(/\/episodes\/[0-9a-f-]{36}$/);
       await home.getByRole("heading", { level: 1, name: `${c.name} × Juniper Vale` }).waitFor();
       await shot(home, "episode");
+      // The three acts (first impressions / the challenge / the decision) are the "The date" section.
+      await home.locator(".act").first().scrollIntoViewIfNeeded();
+      await shot(home, "episode-acts");
       // The box score, debrief and agendas are lower on the (creator's) page: scroll to them.
       await home.locator(".boxscore").scrollIntoViewIfNeeded();
       await shot(home, "episode-boxscore");

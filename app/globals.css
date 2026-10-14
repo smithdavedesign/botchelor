@@ -456,3 +456,11 @@ details.settings[open] > summary {
 button.chosen {
   outline: 2px solid var(--accent);
 }
+
+.act {
+  margin: 1rem 0 0.25rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}

@@ -62,6 +62,8 @@ Deliverables:
 - Deterministic outcome engine (ending, drama, box score, per-side satisfaction) from sheets + soul + date settings + a seed.
 - Private soul per character (owner-only, content-filtered, deletable): optional on creation, with GET/PUT/DELETE.
 - Per-date settings: autonomy, strategy, fictional game budget, secret agenda, a note in the pocket.
+- The AI producer and a three-act date (first impressions, a revealing challenge, the decision).
+- Private souls with a local-only option (engine-only, never sent to any model).
 - The payoff: box score, private debrief, confessionals (host-approved), surprise score, persistent relationship graph.
 - $0 spectator mechanics: guess the dealbreaker, matchmakers, Sliding Doors.
 

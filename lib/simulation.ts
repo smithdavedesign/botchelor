@@ -23,10 +23,12 @@ import {
   DEFAULT_AUTONOMY,
   DEFAULT_GAME_BUDGET,
   DEFAULT_STRATEGY,
+  PRODUCER_IDS,
   type AgendaId,
   type Autonomy,
   type Ending,
   type GameBudget,
+  type ProducerId,
   type SlidingDoorChange,
   type Strategy,
 } from "./rules";
@@ -51,6 +53,7 @@ export const DEFAULT_DATE_REQUEST: DateRequest = {
 };
 
 const pickAgenda = (seed: number): AgendaId => AGENDA_IDS[seed % AGENDA_IDS.length];
+const pickProducer = (seed: number): ProducerId => PRODUCER_IDS[seed % PRODUCER_IDS.length];
 
 /** The canonical (sorted) key for a pair, so one unordered pair is one relationships row. */
 const pairKey = (x: string, y: string): [string, string] => (x < y ? [x, y] : [y, x]);
@@ -95,7 +98,10 @@ export async function buildDate(
     agenda_b: agendaB,
     game_budget_a: req.gameBudget,
     game_budget_b: DEFAULT_GAME_BUDGET,
+    producer: pickProducer(seedFrom(seed, "producer")),
   };
+  // A local-only soul drives the engine (signals) but its text is never sent to the model.
+  const forModel = (s: typeof soulA) => (s && !s.local_only ? soulText(s) : null);
   const sideA: SideSetup = {
     sheet: a.sheet,
     signals: soulA ? deriveSoulSignals(soulA) : NEUTRAL_SIGNALS,
@@ -115,7 +121,7 @@ export async function buildDate(
     gameBudget: DEFAULT_GAME_BUDGET,
   };
   const history = await loadHistory(db, a.id, b.id);
-  return { input: { a: sideA, b: sideB, history }, souls: [soulText(soulA), soulText(soulB)], setup, seed };
+  return { input: { a: sideA, b: sideB, history }, souls: [forModel(soulA), forModel(soulB)], setup, seed };
 }
 
 /* ------------------------------------- Sliding Doors ------------------------------------- */

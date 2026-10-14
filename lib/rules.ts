@@ -182,6 +182,34 @@ export const AGENDA_IDS = AGENDAS.map((a) => a.id) as [AgendaId, ...AgendaId[]];
 export const agenda = (id: AgendaId): Agenda => AGENDAS.find((a) => a.id === id)!;
 export const agendaLabel = (id: AgendaId): string => agenda(id).label;
 
+/**
+ * Every date is a three-act story (ChatGPT's PRD review: "define a structured date with three acts").
+ * The engine decides the outcome; the model narrates one scene per act, building to it. Act 2's
+ * challenge comes from the AI producer below.
+ */
+export const DATE_ACTS = ["First impressions", "The challenge", "The decision"] as const;
+
+/**
+ * The AI producer (PRD "the AI producer"): each date is dealt one hidden situation that act 2 turns on.
+ * It doesn't dictate the outcome — the engine does — it just creates circumstances that reveal
+ * personality. A bounded library, dealt by seed, so it needs no model call and stays reproducible.
+ * Revealed with the agendas after the finale airs.
+ */
+export const PRODUCER_EVENTS = [
+  { id: "a_hard_question", label: "A hard question lands", prompt: "someone asks a question that is hard to dodge" },
+  { id: "the_plan_changes", label: "The plan falls apart", prompt: "the plan for the date collapses and they have to improvise" },
+  { id: "an_awkward_silence", label: "An awkward silence", prompt: "a long, awkward silence settles over the table" },
+  { id: "a_face_from_the_past", label: "A face from the past", prompt: "someone connected to one of their pasts turns up unannounced" },
+  { id: "a_small_crisis", label: "A small crisis", prompt: "a small crisis lands that they have to handle together" },
+  { id: "a_dare", label: "A dare", prompt: "one of them proposes a dare, and the other has to decide" },
+  { id: "a_quiet_confession", label: "A quiet confession", prompt: "one of them admits something they had meant to keep quiet" },
+] as const;
+export type ProducerEvent = (typeof PRODUCER_EVENTS)[number];
+export type ProducerId = ProducerEvent["id"];
+export const PRODUCER_IDS = PRODUCER_EVENTS.map((e) => e.id) as [ProducerId, ...ProducerId[]];
+export const producerEvent = (id: ProducerId): ProducerEvent => PRODUCER_EVENTS.find((e) => e.id === id)!;
+export const producerLabel = (id: ProducerId): string => producerEvent(id).label;
+
 /** Points for the extra $0 prediction types (PRD "Further ideas"). Side bets, like the drama pick. */
 export const POINTS_PER_DEALBREAKER_PICK = 5;
 export const POINTS_PER_MATCHMAKER = 10;

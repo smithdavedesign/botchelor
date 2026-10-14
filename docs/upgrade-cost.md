@@ -98,9 +98,10 @@ personal data.
 - **Default (recommended):** a soul is sent only to a **zero-data-retention** endpoint (AI Gateway ZDR, or a
   provider contractually not training on inputs) — never to a free tier that may train on prompts. Owners can
   already delete a soul (`DELETE /api/characters/[id]/soul`).
-- **Offer a "local-only soul":** a soul that influences the deterministic engine (via `deriveSoulSignals`) but is
-  **never sent to any model**. The engine already works from signals, so this is a small flag. It lets privacy-
-  sensitive owners play without their soul leaving the database.
+- **Local-only soul (built).** Owners can mark a soul **local-only**: it drives the deterministic engine (via
+  `deriveSoulSignals`) but its text is **never sent to any model**, even a paid one. This shipped as part of the
+  simulation build, so a privacy-sensitive owner can already play without their soul leaving the database. When a
+  paid model is switched on, local-only souls are unaffected.
 
 ## Staged plan against the $300 budget
 

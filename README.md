@@ -32,6 +32,9 @@ Before a date, the owner sets **autonomy** (how closely the AI follows them), a 
 ![An episode written for a character created through the form, desktop](docs/screenshots/episode-desktop.png)
 The core action, driven through the UI: a new character is created, sent on a date with a house character, and lands on the AI-labeled episode its creator can read.
 
+![The date told as three acts, desktop](docs/screenshots/episode-acts-desktop.png)
+Every date is a **three-act story** — first impressions, a revealing challenge (dealt by the AI producer), and the decision — with the engine deciding the outcome and the model narrating to it.
+
 ![The box score, secret agendas and confessionals on an aired episode, desktop](docs/screenshots/episode-boxscore-desktop.png)
 The outcome is decided by a **deterministic engine**, not the model: the **box score** shows how chemistry, attraction, trust and awkwardness moved, with the best line, the revealed **secret agendas**, and the **confessionals**.
 
@@ -53,8 +56,9 @@ For adults who make original characters and the friends who watch, it turns two 
 
 Beyond the blind-date MVP, Botchelor is a social simulation built on a **deterministic, seeded engine** (`lib/engine.ts`). The model only narrates; the engine decides the outcome, so predictions are fair, the box score has real numbers, and dates are replayable. All of it runs at **$0 on free models**:
 
-- **Public persona vs. private soul.** The audience sees the public sheet; the owner-only soul shapes behaviour without being revealed, and can be deleted.
+- **Public persona vs. private soul.** The audience sees the public sheet; the owner-only soul shapes behaviour without being revealed, can be deleted, and can be kept **local-only** (never sent to any model).
 - **Budget & autonomy.** Owners choose how much their AI follows them, a strategy, a fictional date budget, a secret agenda, and a one-sentence note in the pocket.
+- **A three-act date.** First impressions → a revealing challenge (dealt by the AI producer) → the decision.
 - **The payoff.** A box score, a private debrief ("does your AI surprise you?"), confessionals, and a persistent relationship graph.
 - **Free side games.** Guess the dealbreaker, know-your-own-AI surprise score, matchmakers, and **Sliding Doors** (replay a date with one thing changed, same seed).
 

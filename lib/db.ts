@@ -235,6 +235,8 @@ create table if not exists souls (
   communication text not null default '',
   updated_at timestamptz not null default now()
 );
+-- Keep a soul off the model entirely (engine-only). Added later; defaults to false so existing souls behave as before.
+alter table souls add column if not exists local_only boolean not null default false;
 
 -- The engine's decided outcome and the date's settings, stored on the episode. ending / drama_question
 -- / drama_answer already exist (now written by the engine, not the model). seed is bigint: it is a

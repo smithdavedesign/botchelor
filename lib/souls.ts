@@ -25,8 +25,17 @@ export const SoulInput = z.object({
   boundaries: soulField(SOUL_FIELD_MAX).optional(),
   romantic: soulField(SOUL_FIELD_MAX).optional(),
   communication: soulField(SOUL_FIELD_MAX).optional(),
+  /**
+   * Keep this soul off the model entirely (ChatGPT's PRD review: the soul is the most damaging thing to
+   * leak). When true it drives the deterministic engine via signals, but its text is never sent to any
+   * model, even a paid one. Default false: the text is given to the model as private behaviour guidance.
+   */
+  local_only: z.boolean().optional(),
 });
 export type SoulInputType = z.infer<typeof SoulInput>;
+
+/** A soul as stored: the content plus whether it is kept off the model. */
+export type StoredSoul = SoulProfile & { local_only: boolean };
 
 const EMPTY: SoulProfile = { values: "", insecurities: "", humor: "", boundaries: "", romantic: "", communication: "" };
 
@@ -51,9 +60,9 @@ export function assertSafeSoul(soul: SoulProfile): void {
   }
 }
 
-export async function loadSoul(db: Db, characterId: string): Promise<SoulProfile | null> {
-  const { rows } = await db.query<SoulProfile>(
-    `select ${SOUL_FIELDS.join(", ")} from souls where character_id = $1`,
+export async function loadSoul(db: Db, characterId: string): Promise<StoredSoul | null> {
+  const { rows } = await db.query<StoredSoul>(
+    `select ${SOUL_FIELDS.join(", ")}, local_only from souls where character_id = $1`,
     [characterId],
   );
   return rows[0] ?? null;
@@ -75,15 +84,15 @@ export function soulText(soul: SoulProfile | null): string | null {
 }
 
 /** Upserts a soul for a character the caller owns. The caller must have checked ownership and safety. */
-export async function saveSoul(db: Db, characterId: string, soul: SoulProfile): Promise<void> {
+export async function saveSoul(db: Db, characterId: string, soul: SoulProfile, localOnly = false): Promise<void> {
   await db.query(
-    `insert into souls (character_id, ${SOUL_FIELDS.join(", ")}, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, now())
+    `insert into souls (character_id, ${SOUL_FIELDS.join(", ")}, local_only, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, now())
      on conflict (character_id) do update set
        values = excluded.values, insecurities = excluded.insecurities, humor = excluded.humor,
        boundaries = excluded.boundaries, romantic = excluded.romantic, communication = excluded.communication,
-       updated_at = now()`,
-    [characterId, soul.values, soul.insecurities, soul.humor, soul.boundaries, soul.romantic, soul.communication],
+       local_only = excluded.local_only, updated_at = now()`,
+    [characterId, soul.values, soul.insecurities, soul.humor, soul.boundaries, soul.romantic, soul.communication, localOnly],
   );
 }
 

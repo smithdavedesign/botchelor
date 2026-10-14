@@ -329,7 +329,8 @@ export function validEpisodeDraft(overrides: Record<string, unknown> = {}) {
     ],
     scenes: [
       "Mira arrives early and redraws the menu as a map. Rafe arrives late, soaked, holding a cake box like a newborn.",
-      "They argue about whether dumplings count as cake. The chef takes sides, loudly, then switches sides.",
+      "The power flickers and they argue about whether dumplings count as cake. The chef takes sides, loudly, then switches.",
+      "They split the last dumpling and decide, between the two of them, how the night ends.",
     ],
     twist: "The power goes out and the only light left is the candle on Rafe's cake.",
     finale: "They split the last dumpling and agree never to agree about cake.",
@@ -354,9 +355,9 @@ export function episodeWithWordCount(totalWords: number, overrides: Record<strin
   const base = validEpisodeDraft({ ...overrides, scenes: [] });
   const fixed = CAPPED_FIELDS.reduce((n, f) => n + countStringWords(base[f as keyof typeof base]), 0);
   const filler = totalWords - fixed;
-  if (filler < 4) throw new Error("target too small");
-  const per = Math.floor(filler / 4);
-  const sizes = [per, per, per, filler - per * 3];
+  if (filler < 3) throw new Error("target too small");
+  const per = Math.floor(filler / 3);
+  const sizes = [per, per, filler - per * 2];
   return { ...base, scenes: sizes.map((n) => Array.from({ length: n }, () => "lantern").join(" ")) };
 }
 

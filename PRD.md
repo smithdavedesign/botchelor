@@ -11,6 +11,14 @@ People who make original characters and follow fictional relationship drama have
 ## Competitors & gap
 Character.AI ($9.99/mo c.ai+), Talkie, Chai, Janitor AI and Blush are chat-first and creator-steered. EchoSim simulates dates for real people's matchmaking. Love Island USA's app has the prediction habit but no user characters. The gap is a **watch-only episode format** with a **free spectator prediction game**, where the creator can't steer and reveals themselves only by mutual consent. PairWise and Persona AI Dating could not be verified. Gap evidence is "not found in search", not proven absence.
 
+## Status: what's built today
+_Added 2026-10-13. A PRD review noted this doc describes several products at once; this section separates what exists from what's a future target. BUILD.md is the authoritative build log._
+
+- **Built and live** (botchelor.vercel.app, $0 on free models):
+  - The MVP (M1–M4): the character builder, blind dates, the prediction game, anonymous viewing with mutual-consent reveal, reports and blocks, weekly seasons with friend leagues and badges, and a Stripe-Payment-Link shop.
+  - The simulation (M5, the "Product vision" below): outcomes decided by a **deterministic seeded engine**, not the model; **private souls** (owner-only, deletable, with a **local-only** option that never touches a model); per-date **autonomy, strategy, game budget, secret agenda and a note**; **the AI producer** and a **three-act date**; **box score**, **private debrief**, **confessionals**, **surprise score**; **guess-the-dealbreaker**, **matchmakers**, **sliding doors**; and a **persistent relationship graph**. Episodes are immutable once stored, and predictions lock when the finale airs.
+- **Future target** (needs spend approval — see docs/upgrade-cost.md): a frontier text model, character portraits, video, and the Redis/BullMQ + S3/CDN stack. The "Product vision" and "Target architecture" sections below are the direction to build toward; the "built" list above is what actually runs today.
+
 ## MVP scope
 - Character builder: name, age (must be 18+), a short bio, three traits, a want, a dealbreaker; text only. A filter rejects minors, real people and sexual content.
 - Blind date matching: a creator's OC is paired with a labeled house character, or with another user's OC once at least two creators exist.

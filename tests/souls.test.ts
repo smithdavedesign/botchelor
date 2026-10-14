@@ -72,6 +72,28 @@ describe("the private soul", () => {
     expect(await t.count("characters", "not is_house")).toBe(before);
   });
 
+  it("can be kept local-only: it drives the engine but its text never reaches the model", async () => {
+    const owner = newUserCookie();
+    const local = await (await api.createCharacter(validCharacter({ soul: { ...SOUL, local_only: true } }), owner)).json();
+    expect(local.has_soul).toBe(true);
+    expect((await (await api.getSoul(local.id, owner)).json()).soul.local_only).toBe(true);
+
+    scriptOutcome({ ending: "friends" });
+    const { calls } = scriptedModel([episodeJson()]);
+    await api.createEpisode({ character_id: local.id, partner_id: HOUSE_PARTNER_ID }, owner);
+    const prompt = calls[0].map((m) => m.content).join("\n");
+    expect(prompt).not.toContain("deadpan"); // soul.humor
+    expect(prompt).not.toContain("Loyalty above all"); // soul.values
+
+    // Control: a normal soul does reach the model as private guidance.
+    const owner2 = newUserCookie();
+    const normal = await (await api.createCharacter(validCharacter({ name: "Nilo Vas", soul: SOUL }), owner2)).json();
+    scriptOutcome({ ending: "friends" });
+    const { calls: calls2 } = scriptedModel([episodeJson()]);
+    await api.createEpisode({ character_id: normal.id, partner_id: HOUSE_PARTNER_ID }, owner2);
+    expect(calls2[0].map((m) => m.content).join("\n")).toContain("deadpan");
+  });
+
   it("never leaks into what a spectator or a stranger can see of an episode", async () => {
     const creator = newUserCookie();
     const { id: characterId } = await (await api.createCharacter(validCharacter({ soul: SOUL }), creator)).json();

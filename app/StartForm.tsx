@@ -166,7 +166,9 @@ export default function StartForm({
     const soulEntries = (["values", "insecurities", "humor", "boundaries", "romantic", "communication"] as const)
       .map((k) => [k, field(`soul_${k}`)] as const)
       .filter(([, v]) => v.length > 0);
-    const soul = soulEntries.length ? Object.fromEntries(soulEntries) : undefined;
+    const soul = soulEntries.length
+      ? { ...Object.fromEntries(soulEntries), local_only: form.get("soul_local_only") === "on" }
+      : undefined;
     setBusy("character");
     setError(null);
     try {
@@ -339,6 +341,10 @@ export default function StartForm({
           <label>
             Communication style
             <input type="text" name="soul_communication" maxLength={300} />
+          </label>
+          <label className="check">
+            <input type="checkbox" name="soul_local_only" />
+            <span>Keep this soul off the model (engine only). It still shapes the date, but its text is never sent to any AI model.</span>
           </label>
         </details>
 
