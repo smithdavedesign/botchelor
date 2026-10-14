@@ -343,7 +343,25 @@ export const WATCH_AUDIENCE_PROMPTS = [
 ] as const;
 export const WATCH_AUDIENCE_PROMPT_IDS = WATCH_AUDIENCE_PROMPTS.map((o) => o.id) as [string, ...string[]];
 
-export const WATCH_POLLS = ["chemistry", "question"] as const;
+/**
+ * The chaos button (PRD "interactive theatre", the FAIR version). During the challenge the audience votes a
+ * curveball from this bounded library; at the decision the room shows the canonical outcome (predictions
+ * resolve on THAT, so they stay fair) AND a clearly-non-canon "chaos timeline" — the deterministic alternate
+ * the winning curveball produces, computed with the Sliding Doors engine (no model call). Each curveball maps
+ * to one SlidingDoorChange, so the engine "responds" to the crowd without ever touching the real ending.
+ */
+export const WATCH_CHAOS_OPTIONS = [
+  { id: "heat", label: "🔥 Turn up the heat", change: "bolder" },
+  { id: "cold_feet", label: "🧊 Give them cold feet", change: "safer" },
+  { id: "grand_gesture", label: "💸 A grand gesture", change: "bigger_budget" },
+  { id: "slow_burn", label: "🕯️ Make it a slow burn", change: "long_game" },
+] as const satisfies readonly { id: string; label: string; change: SlidingDoorChange }[];
+export const WATCH_CHAOS_IDS = WATCH_CHAOS_OPTIONS.map((o) => o.id) as [string, ...string[]];
+/** The Sliding Doors change a chaos curveball maps to, or null for an unknown id. */
+export const chaosChange = (id: string | null): SlidingDoorChange | null =>
+  WATCH_CHAOS_OPTIONS.find((o) => o.id === id)?.change ?? null;
+
+export const WATCH_POLLS = ["chemistry", "question", "chaos"] as const;
 export type WatchPoll = (typeof WATCH_POLLS)[number];
 
 /** Chat moderation: the controls that come before thousands of viewers (feature brief, "Chat moderation"). */

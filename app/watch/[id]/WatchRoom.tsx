@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Avatar from "@/app/Avatar";
 import { requestJson } from "@/app/request";
-import { DATE_ACTS, ENDING_LABELS, ENDINGS } from "@/lib/rules";
+import { DATE_ACTS, DATE_VARIABLES, ENDING_LABELS, ENDINGS, VARIABLE_LABELS } from "@/lib/rules";
 import type { RoomState } from "@/lib/watch";
 
 const POLL_MS = 4000;
@@ -199,6 +199,21 @@ function Stage({ state, onPredict }: { state: RoomState; onPredict: () => void }
               <strong>{state.ending_label}</strong>.
             </p>
           )}
+          {state.chaos.timeline && (
+            <div className="watch-chaos">
+              <p className="watch-payoff">
+                🎲 The audience hit the <strong>chaos button</strong>: <strong>{state.chaos.timeline.label}</strong>. In
+                that timeline it ends <strong>{state.chaos.timeline.ending_label}</strong>.
+              </p>
+              <p className="muted">
+                {DATE_VARIABLES.map((v) => `${VARIABLE_LABELS[v]} ${fmtDelta(state.chaos.timeline!.box_score[v].delta)}`).join(" · ")}
+              </p>
+              <p className="muted">
+                A non-canon &ldquo;what if&rdquo; — the real ending above still stands. The engine just replayed the
+                crowd&apos;s curveball.
+              </p>
+            </div>
+          )}
           {state.my_prediction && (
             <p className={state.my_prediction === state.ending ? "notice" : "muted"}>
               You predicted {ENDING_LABELS[state.my_prediction]}
@@ -251,6 +266,16 @@ function Polls({ state, onDone }: { state: RoomState; onDone: () => void }) {
           onDone={onDone}
         />
       )}
+      {state.chaos.open && (
+        <PollCard
+          title="🎲 The chaos button: throw them a curveball"
+          hint="The crowd's pick plays out as a non-canon 'what if' at the end — the real outcome is still the characters' call."
+          poll="chaos"
+          tally={state.chaos}
+          roomId={state.id}
+          onDone={onDone}
+        />
+      )}
       {(state.chemistry.open || state.chemistry.show_results) && (
         <PollCard
           title="Do they have chemistry?"
@@ -275,7 +300,7 @@ function PollCard({
 }: {
   title: string;
   hint: string;
-  poll: "chemistry" | "question";
+  poll: "chemistry" | "question" | "chaos";
   tally: RoomState["chemistry"];
   roomId: string;
   onDone: () => void;
@@ -447,4 +472,9 @@ function nameOf(state: RoomState, characterId: string): string {
 
 function stripEmoji(label: string): string {
   return label.replace(/^[^\p{L}]+/u, "").trim();
+}
+
+/** A signed box-score delta for the chaos timeline (e.g. +4, -2, 0). */
+function fmtDelta(d: number): string {
+  return d > 0 ? `+${d}` : String(d);
 }

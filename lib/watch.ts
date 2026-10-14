@@ -15,7 +15,7 @@
  */
 import { getDb, type Db } from "./db";
 import { getEngine } from "./engine";
-import type { CharacterRef, DateSetup } from "./game";
+import type { BoxScore, CharacterRef, DateSetup } from "./game";
 import { getModel } from "./model";
 import { getProfileName } from "./people";
 import {
@@ -25,8 +25,10 @@ import {
   ENDING_LABELS,
   REPORT_HIDE_THRESHOLD,
   WATCH_AUDIENCE_PROMPTS,
+  WATCH_CHAOS_OPTIONS,
   WATCH_CHEMISTRY_OPTIONS,
   WATCH_CHAT_LIMIT,
+  chaosChange,
   WATCH_DECISION_INDEX,
   WATCH_MESSAGE_MAX,
   WATCH_PHASE_INDEX,
@@ -44,7 +46,7 @@ import {
   type WatchPhaseId,
   type WatchPoll,
 } from "./rules";
-import { buildDate, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
+import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
 import { narrateEpisode, ShowrunnerError, type CharacterSheet } from "./showrunner";
 import { isConversationEnabled, simulateConversation, type Turn } from "./conversation";
 import { generationPaused, PAUSED_MESSAGE } from "./compute";
@@ -172,6 +174,14 @@ export type RoomState = {
   reactions: WatchReactionTally[];
   chemistry: WatchPollTally;
   question: WatchPollTally & { prompt: string | null };
+  /**
+   * The chaos button (fair interactive theatre): the audience votes a curveball during the challenge. At
+   * the decision, `timeline` is the deterministic, clearly-non-canon alternate the winning curveball would
+   * have produced. Predictions resolve on the real `ending` above, so this never touches fairness.
+   */
+  chaos: WatchPollTally & {
+    timeline: { label: string; ending: Ending; ending_label: string; box_score: BoxScore } | null;
+  };
   predictions_open: boolean;
   my_prediction: Ending | null;
   revealed: boolean;
@@ -307,6 +317,30 @@ export async function getRoomState(
     ? WATCH_AUDIENCE_PROMPTS.find((p) => p.id === questionTally.leading)?.label ?? null
     : null;
 
+  // The chaos button: votes open through the challenge, the winner + its (non-canon) timeline reveal at the decision.
+  const chaosTally = await pollTally(
+    db,
+    partyId,
+    viewerId,
+    "chaos",
+    WATCH_CHAOS_OPTIONS,
+    clock.started && idx >= ACT2_INDEX && idx < VERDICT_INDEX,
+    idx >= WATCH_DECISION_INDEX,
+  );
+  let chaosTimeline: RoomState["chaos"]["timeline"] = null;
+  if (idx >= WATCH_DECISION_INDEX && chaosTally.leading) {
+    const change = chaosChange(chaosTally.leading);
+    const replay = change ? await chaosReplay(db, row.episode_id, change) : null;
+    if (replay) {
+      chaosTimeline = {
+        label: WATCH_CHAOS_OPTIONS.find((o) => o.id === chaosTally.leading)?.label ?? "",
+        ending: replay.alternate.ending,
+        ending_label: ENDING_LABELS[replay.alternate.ending],
+        box_score: replay.alternate.box_score,
+      };
+    }
+  }
+
   const myPrediction = viewerId
     ? (
         await db.query<{ pick: Ending }>(`select pick from predictions where episode_id = $1 and user_id = $2`, [
@@ -386,6 +420,7 @@ export async function getRoomState(
     reactions,
     chemistry,
     question: { ...questionTally, prompt: leadingPrompt },
+    chaos: { ...chaosTally, timeline: chaosTimeline },
     predictions_open: clock.started && idx < WATCH_DECISION_INDEX && !row.revealed && !row.is_creator,
     my_prediction: myPrediction,
     revealed: row.revealed,

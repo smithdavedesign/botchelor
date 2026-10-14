@@ -63,7 +63,7 @@ The episode page on a phone, with the AI disclosure and crisis links first.
 The box score on an iPhone 13 screen.
 
 ![A live watch-party room: matchup, a live viewer count, reactions, live chat and the prediction panel, desktop](docs/screenshots/watch-desktop.png)
-**Watch parties (M8):** a date becomes a live event. The pre-generated date plays on one shared clock while the audience reacts (😂 ❤️ 🚩 🍿), argues in live chat and calls the ending — *spectator mode*: the audience reacts and predicts, it never steers the characters. Always-on **template rooms** start the moment someone taps in, so there's always a date to drop into. The chemistry verdict stays hidden until the decision, so the room can still be surprised.
+**Watch parties (M8):** a date becomes a live event. The pre-generated date plays on one shared clock while the audience reacts (😂 ❤️ 🚩 🍿), argues in live chat and calls the ending — *spectator mode*: the audience reacts and predicts, it never steers the characters. Always-on **template rooms** start the moment someone taps in, so there's always a date to drop into. The chemistry verdict stays hidden until the decision, so the room can still be surprised. The **chaos button** (shown during the challenge, not in this pre-show shot) lets the crowd vote a curveball; at the decision the room reveals a clearly-non-canon *"chaos timeline"* — the deterministic alternate it would've produced — while predictions still resolve on the real ending.
 
 ![The watch-party room on a phone: the date up top, chat in a panel below](docs/screenshots/watch-mobile.png)
 On a phone the date takes the screen and chat sits in a panel below, so the dialogue is never buried under the wall of messages.

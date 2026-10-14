@@ -213,31 +213,19 @@ export type SlidingDoorsResult = {
   alternate: { ending: Ending; box_score: BoxScore };
 };
 
-/**
- * Replays an owner's date with exactly one input changed, reusing the stored seed so the only
- * difference is the change (PRD "Sliding doors"). No model call: the engine recomputes the outcome
- * deterministically, so the two timelines are a fair, reproducible comparison. Owner-only.
- */
-export async function slidingDoors(
-  db: Db,
-  episodeId: string,
-  userId: string,
-  change: SlidingDoorChange,
-): Promise<SlidingDoorsResult | null> {
-  const { rows } = await db.query<DoorRow>(
-    `select e.seed::text as seed, e.setup, e.note, e.ending, e.box_score,
-            a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want,
-            a.dealbreaker a_dealbreaker, a.is_house a_house,
-            b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want,
-            b.dealbreaker b_dealbreaker, b.is_house b_house
-       from episodes e
-       join characters a on a.id = e.character_a
-       join characters b on b.id = e.character_b
-      where e.id = $1 and e.creator_id = $2`,
-    [episodeId, userId],
-  );
-  const row = rows[0];
-  if (!row || !row.setup || row.seed === null || !row.box_score) return null;
+const DOORS_SELECT = `
+  select e.seed::text as seed, e.setup, e.note, e.ending, e.box_score,
+         a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want,
+         a.dealbreaker a_dealbreaker, a.is_house a_house,
+         b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want,
+         b.dealbreaker b_dealbreaker, b.is_house b_house
+    from episodes e
+    join characters a on a.id = e.character_a
+    join characters b on b.id = e.character_b`;
+
+/** Recompute the one-thing-changed alternate for a loaded date row. No model call; deterministic. */
+async function computeDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Promise<SlidingDoorsResult | null> {
+  if (!row.setup || row.seed === null || !row.box_score) return null;
   const seed = Number(row.seed);
   const setup = row.setup;
   const [soulA, soulB] = await Promise.all([loadSoul(db, row.a_id), loadSoul(db, row.b_id)]);
@@ -268,6 +256,31 @@ export async function slidingDoors(
   const toArc = (o: Outcome) => ({ ending: o.ending, box_score: o.variables });
   const alt = deterministicEngine.decide(build(varySetup(setup, change)), seed);
   return { change, base: { ending: row.ending, box_score: row.box_score }, alternate: toArc(alt) };
+}
+
+/**
+ * Replays an owner's date with exactly one input changed, reusing the stored seed so the only
+ * difference is the change (PRD "Sliding doors"). No model call: the engine recomputes the outcome
+ * deterministically, so the two timelines are a fair, reproducible comparison. Owner-only.
+ */
+export async function slidingDoors(
+  db: Db,
+  episodeId: string,
+  userId: string,
+  change: SlidingDoorChange,
+): Promise<SlidingDoorsResult | null> {
+  const row = (await db.query<DoorRow>(`${DOORS_SELECT} where e.id = $1 and e.creator_id = $2`, [episodeId, userId])).rows[0];
+  return row ? computeDoors(db, row, change) : null;
+}
+
+/**
+ * The chaos button's "chaos timeline" (lib/watch.ts): the same deterministic one-thing-changed replay, but
+ * NOT owner-gated — it's a public, clearly-non-canon "what if the audience's curveball had hit" for a watch
+ * party. Predictions still resolve on the canonical ending (row.ending / base), so this changes nothing real.
+ */
+export async function chaosReplay(db: Db, episodeId: string, change: SlidingDoorChange): Promise<SlidingDoorsResult | null> {
+  const row = (await db.query<DoorRow>(`${DOORS_SELECT} where e.id = $1`, [episodeId])).rows[0];
+  return row ? computeDoors(db, row, change) : null;
 }
 
 /** Remembers that a pair dated and how it went: feeds the next date's engine run and the relationship graph. */

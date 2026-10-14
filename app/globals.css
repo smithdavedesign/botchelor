@@ -1535,3 +1535,18 @@ button.rating-chip:hover {
 .reunion-confessional .confessional {
   margin: 0 0 0.2rem;
 }
+
+/* The chaos button's non-canon "chaos timeline" reveal at the decision (lib/watch.ts). */
+.watch-chaos {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--accent-2) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent-2) 8%, transparent);
+}
+.watch-chaos p {
+  margin: 0 0 0.3rem;
+}
+.watch-chaos p:last-child {
+  margin-bottom: 0;
+}
