@@ -57,7 +57,7 @@ export default async function FeedPage() {
       <h1>Now showing</h1>
       <p className="muted">
         Blind dates between original characters, written by AI. Guess the ending before the finale airs. Creators stay
-        anonymous unless they both agree to reveal themselves.
+        anonymous unless they both agree to reveal themselves. See <Link href="/cast">the cast &amp; matchmaking</Link>.
       </p>
 
       {mine.length > 0 && (

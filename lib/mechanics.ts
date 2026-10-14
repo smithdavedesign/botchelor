@@ -138,4 +138,36 @@ export async function listMyProposals(db: Db, userId: string): Promise<Matchmake
   }));
 }
 
+export type CastMember = { id: string; name: string; traits: string[]; house: boolean };
+
+/** The cast a spectator can matchmake from: house characters and user OCs, newest first. */
+export async function listCast(db: Db, limit = 40): Promise<CastMember[]> {
+  const { rows } = await db.query<CastMember>(
+    `select id, name, traits, is_house as house from characters order by is_house desc, created_at desc, id limit $1`,
+    [limit],
+  );
+  return rows;
+}
+
+export type RelationshipEdge = {
+  a: string;
+  b: string;
+  dates: number;
+  second_dates: number;
+  last_ending: Ending | null;
+};
+
+/** The relationship graph (PRD "the relationship graph"): one edge per pair that has dated, by name. */
+export async function listRelationshipEdges(db: Db, limit = 40): Promise<RelationshipEdge[]> {
+  const { rows } = await db.query<RelationshipEdge>(
+    `select ca.name as a, cb.name as b, r.dates, r.second_dates, r.last_ending
+       from relationships r
+       join characters ca on ca.id = r.character_a
+       join characters cb on cb.id = r.character_b
+      order by r.updated_at desc limit $1`,
+    [limit],
+  );
+  return rows;
+}
+
 export { POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER };
