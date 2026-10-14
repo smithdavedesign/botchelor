@@ -704,7 +704,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   const episodeId = crypto.randomUUID();
   const forDate = (c: HouseRow): CharacterForDate => ({ id: c.id, sheet: houseSheet(c) });
   const built = await buildDate(db, episodeId, forDate(a), forDate(b), DEFAULT_DATE_REQUEST);
-  const decided = getEngine().decide(built.input, built.seed);
+  const decided = getEngine().decide(built.input, built.seed, built.setup.engine_version);
   let draft;
   try {
     draft = await narrateEpisode(getModel(), built.input, decided, built.characters, built.setup.producer, built.setup.venue);

@@ -382,6 +382,21 @@ has drifted since. The async worker re-decides on the same snapshot, so a concur
 move the canonical outcome. The deterministic engine itself is unchanged — same input + seed => same outcome,
 predictions stay fair.
 
+## M15: genuine dates (date quality, in progress — see `docs/date-quality.md`)
+
+David's brief (2026-10-14): the conversations don't feel genuine; audit how characters reach the model, do
+Phase 1 (make it genuine at $0) and Phase 2 (an eval harness + a model A/B), and push quality to its limits.
+
+- **Engine v2 — endings that can actually happen (shipped).** A date-quality audit found the engine could
+  never reach a second date (0% across ~31,000 simulated dates); a player's character met disaster ~95% of
+  the time and the adventurous strategies ~99% — so nearly every conversation was steered toward failure and
+  "disaster" was a free prediction. v2 measures the deciding score from a perfectly neutral date *under the
+  same strategy* (a strategy changes what matters, not how doomed the date is) and reads a soul-less
+  character as an unremarkable temperament instead of a blank zero. Calibrated so a house-vs-house date at
+  default settings ends roughly a third each way. **Versioned**: every date records the calibration that
+  decided it and replays (Sliding Doors, the chaos timeline, the worker's re-decide) use it, so old dates
+  reproduce exactly. A calibration guard test fails if a future tweak makes any ending vanish again.
+
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
 The competitor report's image plan, built at $0 — first-party assets only, reviewed and committed (no runtime generation, no uploads):

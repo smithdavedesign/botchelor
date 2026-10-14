@@ -157,7 +157,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     const signalsSnapshot =
       row.setup?.signals_a && row.setup?.signals_b ? { a: row.setup.signals_a, b: row.setup.signals_b } : undefined;
     const built = await buildDate(db, episodeId, forDate("a"), forDate("b"), dateRequest, seed, signalsSnapshot);
-    const decided = getEngine().decide(built.input, built.seed);
+    // Re-decide under the calibration POST stored (a deploy between POST and this worker can't change it).
+    const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
 
     const model = row.use_frontier ? getFrontierModel() ?? getModel() : getModel();
     const fmtCtx = { chaperone: built.setup.chaperone, ex: built.setup.ex };

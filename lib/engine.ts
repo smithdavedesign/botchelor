@@ -92,10 +92,32 @@ export type Outcome = {
   variables: Record<DateVariable, VariableArc>;
   sides: [SideOutcome, SideOutcome];
   seed: number;
+  /**
+   * The deciding score relative to a perfectly neutral date under the same strategy (v2's yardstick): how
+   * clearly the date landed where it did. For calibration and the date's beats; never stored or scored.
+   * Absent on outcomes that weren't computed by the engine (tests' fixed outcomes).
+   */
+  margin?: number;
 };
 
+/**
+ * Which calibration decided a date. The rules are the same; v2 re-centres where the endings fall. Every date
+ * records the version it was decided with (DateSetup.engine_version), and replays (Sliding Doors, the chaos
+ * timeline, the async worker's re-decide) use that same version, so an old date still reproduces exactly.
+ *
+ *   v1 (original): absolute ending thresholds. In practice no date could reach a second date (0% across
+ *      ~31,000 simulated dates); a typical player's character met disaster ~95% of the time, and the
+ *      adventurous strategies ~99%. Kept only to replay dates decided under it.
+ *   v2 (2026-10-14): thresholds measured from the score of a perfectly neutral date *under the same strategy*,
+ *      so a strategy changes what matters on the date rather than how doomed it is; and a character with no
+ *      soul or trained image reads as an unremarkable temperament instead of a blank zero. Calibrated so a
+ *      house-vs-house date at default settings ends roughly a third each way (docs/date-quality.md).
+ */
+export type EngineVersion = 1 | 2;
+export const CURRENT_ENGINE_VERSION: EngineVersion = 2;
+
 export interface Engine {
-  decide(input: DateInput, seed: number): Outcome;
+  decide(input: DateInput, seed: number, version?: EngineVersion): Outcome;
 }
 
 /* ---------------------------------- text cues ---------------------------------- */
@@ -207,6 +229,18 @@ const STRATEGY_WEIGHTS: Record<Strategy, [number, number, number, number]> = {
 };
 const SECOND_DATE_AT = 56;
 const FRIENDS_AT = 42;
+/** v2: how far above (or below) a perfectly neutral date's score the date must land, under its own strategy. */
+export const V2_SECOND_DATE_REL = 12;
+export const V2_FRIENDS_REL = 6.5;
+/** v2: a character with no soul and no trained image is an unremarkable temperament, not an absence of one. */
+export const UNREMARKABLE_SIGNALS: SoulSignals = { warmth: 0.4, openness: 0.4, guardedness: 0.3, humor: 0.4 };
+const isBlank = (s: SoulSignals) => s.warmth === 0 && s.openness === 0 && s.guardedness === 0 && s.humor === 0;
+
+/** The score a date with every variable at its starting value would get under a strategy (v2's zero point). */
+function neutralScore(strategy: Strategy): number {
+  const [wc, wa, wt, wk] = STRATEGY_WEIGHTS[strategy];
+  return wc * START.chemistry + wa * START.attraction + wt * START.trust - wk * START.awkwardness;
+}
 
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 const avg = (x: number, y: number) => (x + y) / 2;
@@ -238,7 +272,12 @@ function readSide(self: SideSetup, other: SideSetup): SideRead {
 
 /** The pure deterministic engine. Everything here is a function of (input, seed). */
 export const deterministicEngine: Engine = {
-  decide(input: DateInput, seed: number): Outcome {
+  decide(input: DateInput, seed: number, version: EngineVersion = CURRENT_ENGINE_VERSION): Outcome {
+    const v2 = version >= 2;
+    // v2 reads a blank temperament (no soul, no trained image) as unremarkable rather than as zero.
+    const sig = (side: SideSetup): SoulSignals => (v2 && isBlank(side.signals) ? UNREMARKABLE_SIGNALS : side.signals);
+    const sigA = sig(input.a);
+    const sigB = sig(input.b);
     const rand = rng(seed);
     const jitter = (level: Autonomy) => (rand() - 0.5) * 2 * JITTER[level];
 
@@ -257,10 +296,10 @@ export const deterministicEngine: Engine = {
       return n;
     })();
 
-    const warmth = avg(input.a.signals.warmth, input.b.signals.warmth);
-    const openness = avg(input.a.signals.openness, input.b.signals.openness);
-    const guarded = avg(input.a.signals.guardedness, input.b.signals.guardedness);
-    const humor = avg(input.a.signals.humor, input.b.signals.humor);
+    const warmth = avg(sigA.warmth, sigB.warmth);
+    const openness = avg(sigA.openness, sigB.openness);
+    const guarded = avg(sigA.guardedness, sigB.guardedness);
+    const humor = avg(sigA.humor, sigB.humor);
     const budget = avg(BUDGET_BUMP[input.a.gameBudget], BUDGET_BUMP[input.b.gameBudget]);
 
     // The note: did each side's AI take it? Only sides with a note; guided always, unpredictable rarely.
@@ -305,11 +344,17 @@ export const deterministicEngine: Engine = {
     // Ending: the initiating side's strategy decides which variables matter. A tripped dealbreaker hurts.
     const [wc, wa, wt, wk] = STRATEGY_WEIGHTS[input.a.strategy];
     const score = wc * chemistry + wa * attraction + wt * trust - wk * awkwardness - 11 * dealbreakers;
-    let ending: Ending = score >= SECOND_DATE_AT ? ENDINGS[0] : score >= FRIENDS_AT ? ENDINGS[1] : ENDINGS[2];
+    const rel = score - neutralScore(input.a.strategy);
+    let ending: Ending;
+    if (v2) {
+      ending = rel >= V2_SECOND_DATE_REL ? ENDINGS[0] : rel >= V2_FRIENDS_REL ? ENDINGS[1] : ENDINGS[2];
+    } else {
+      ending = score >= SECOND_DATE_AT ? ENDINGS[0] : score >= FRIENDS_AT ? ENDINGS[1] : ENDINGS[2];
+    }
 
     // Per-side satisfaction, for who-wants-another and who-leaves/who-rejects.
     const satOf = (self: SideSetup, r: SideRead, mine: Autonomy): number =>
-      (r.wantCue ? 16 : 0) + (r.agendaMet ? 8 : 0) + 14 * self.signals.warmth - (r.dealbreakerCue ? 28 : 0) +
+      (r.wantCue ? 16 : 0) + (r.agendaMet ? 8 : 0) + 14 * sig(self).warmth - (r.dealbreakerCue ? 28 : 0) +
       chemistry * 0.25 + trust * 0.1 - awkwardness * 0.2 + jitter(mine) * 0.5;
     const satA = satOf(input.a, ra, input.a.autonomy);
     const satB = satOf(input.b, rb, input.b.autonomy);
@@ -355,11 +400,12 @@ export const deterministicEngine: Engine = {
       },
     ];
 
-    return { ending, drama_question, drama_answer, variables, sides, seed };
+    return { ending, drama_question, drama_answer, variables, sides, seed, margin: Math.round(rel * 10) / 10 };
   },
 };
 
 /* ---------------------------------- injection (mirrors lib/model.ts) ---------------------------------- */
+// (CURRENT_ENGINE_VERSION is what new dates are decided with; see EngineVersion above.)
 
 let testEngine: Engine | null = null;
 
@@ -375,7 +421,7 @@ export function getEngine(): Engine {
 /** A fixed outcome, for integration tests that need a specific ending (see tests/helpers.ts). */
 export function fixedEngine(partial: Partial<Outcome> & { ending: Ending }): Engine {
   return {
-    decide(_input, seed) {
+    decide(_input, seed, _version) {
       const flat = (final: number): VariableArc => ({ start: final, delta: 0, final });
       const base: Outcome = {
         ending: partial.ending,

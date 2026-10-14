@@ -6,6 +6,7 @@
  */
 import type { Db } from "./db";
 import {
+  CURRENT_ENGINE_VERSION,
   deriveSoulSignals,
   deterministicEngine,
   NEUTRAL_SIGNALS,
@@ -153,6 +154,8 @@ export async function buildDate(
     // Snapshot the exact effective signals this date ran on, so a replay reproduces it even after memory drifts.
     signals_a: signalsA,
     signals_b: signalsB,
+    // ...and the engine calibration that decides it, for the same reason.
+    engine_version: CURRENT_ENGINE_VERSION,
   };
   // Fill the format's cast from real data (flavour only, never the engine): a named house regular as the
   // meet-the-parents chaperone, and a real past partner as the returning ex when the graph has one.
@@ -285,7 +288,8 @@ async function computeDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pr
   });
 
   const toArc = (o: Outcome) => ({ ending: o.ending, box_score: o.variables });
-  const alt = deterministicEngine.decide(build(varySetup(setup, change)), seed);
+  // Replay under the calibration the date was decided with (v1 for dates from before versioning).
+  const alt = deterministicEngine.decide(build(varySetup(setup, change)), seed, setup.engine_version ?? 1);
   return { change, base: { ending: row.ending, box_score: row.box_score }, alternate: toArc(alt) };
 }
 
