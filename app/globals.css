@@ -801,3 +801,131 @@ button.swatch.chosen {
 .contestant .meta h1 {
   margin: 0;
 }
+
+/* ---------------- landing page (conversion) ---------------- */
+.hero {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 1.75rem;
+  align-items: center;
+}
+
+.hero-copy {
+  min-width: 0;
+}
+
+.hero p,
+.hero .cta-row,
+.hero .trust-micro {
+  max-width: none;
+}
+
+.lede {
+  font-size: 1.15rem;
+  max-width: 44ch;
+}
+
+.cta-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 1.1rem;
+}
+
+.cta-final {
+  justify-content: center;
+  margin: 2.25rem 0;
+}
+
+.button-ghost {
+  display: inline-block;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.button-ghost:hover {
+  background: var(--soft);
+}
+
+.trust-micro {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 0.85rem;
+}
+
+.hero-art {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+}
+
+.mini-box {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.3rem 0.9rem;
+  width: 100%;
+  max-width: 15rem;
+  font-weight: 600;
+}
+
+.mini-cap {
+  font-size: 0.8rem;
+  text-align: center;
+  margin: 0;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.85rem;
+  margin: 1.5rem 0;
+}
+
+.feature {
+  margin: 0;
+}
+
+.feature h3 {
+  margin: 0 0 0.35rem;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.15rem;
+}
+
+.proof {
+  background: color-mix(in srgb, var(--accent) 6%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
+  font-size: 1.05rem;
+}
+
+.faq details {
+  margin: 0.5rem 0;
+}
+
+.faq summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.faq details[open] summary {
+  margin-bottom: 0.4rem;
+}
+
+@media (max-width: 720px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+  .hero-art {
+    order: -1;
+  }
+}

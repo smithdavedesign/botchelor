@@ -93,3 +93,45 @@ export function hueFromPixels(data: Uint8ClampedArray | number[]): number | null
   }
   return best < 0 ? null : best * 30 + 15; // the bin's centre, always 15..345 (never 0 = "auto")
 }
+
+/** A plain colour name for a hue, aligned to the 30-degree bins imageTraits uses (centres 15,45,…,345). */
+export function hueName(hue: number): string {
+  const h = ((hue % 360) + 360) % 360;
+  if (h < 30 || h >= 345) return "red";
+  if (h < 60) return "amber"; // centre 45
+  if (h < 90) return "lime"; // centre 75
+  if (h < 150) return "green"; // centres 105, 135
+  if (h < 200) return "teal"; // centres 165, 195
+  if (h < 255) return "blue"; // centre 225
+  if (h < 290) return "violet"; // centres 255, 285
+  return "pink"; // centre 315
+}
+
+export type ImageTraits = { hue: number | null; descriptor: string };
+
+/**
+ * What a reference image says about a character, computed entirely in the browser from its pixels: a
+ * dominant hue (for the avatar) and a short descriptor (for the appearance line). The image itself is
+ * never uploaded, stored or sent — only these derived values are, exactly like choosing a swatch. This
+ * is "using an image as training data" for the character's look and vibe, safely and at $0. Pure.
+ */
+export function imageTraits(data: Uint8ClampedArray | number[]): ImageTraits {
+  const hue = hueFromPixels(data);
+  let sumS = 0;
+  let sumL = 0;
+  let n = 0;
+  for (let i = 0; i + 3 < data.length; i += 4) {
+    if (data[i + 3] < 125) continue;
+    const { s, l } = rgbToHsl(data[i], data[i + 1], data[i + 2]);
+    sumS += s;
+    sumL += l;
+    n++;
+  }
+  const avgS = n ? sumS / n : 0;
+  const avgL = n ? sumL / n : 0.5;
+  const light = avgL > 0.62 ? "bright" : avgL < 0.38 ? "dark" : "soft";
+  const sat = avgS > 0.45 ? "vivid" : avgS < 0.2 ? "muted" : "balanced";
+  if (hue === null) return { hue, descriptor: `a ${light}, neutral palette` };
+  const warm = hue < 66 || hue >= 300 ? "warm" : hue < 180 ? "fresh" : "cool";
+  return { hue, descriptor: `a ${warm} ${hueName(hue)} palette, ${light} and ${sat}` };
+}

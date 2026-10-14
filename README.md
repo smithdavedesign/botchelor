@@ -18,7 +18,7 @@ Back in the shop: "plus 5 pack dates", added by the webhook once Stripe confirme
 Captured by `npm run screenshots` from the production build, with invented sample characters and players. A local stand-in plays the free model, so no API key is involved. The same run also buys "5 more dates" through the shop's Buy button: the sample Payment Link carries the order, a signed webhook arrives, and the shop shows the 5 dates. That check passes but saves no picture.
 
 ![Landing page for AI roleplayers, desktop](docs/screenshots/home-desktop.png)
-The start page explains the show, the free prediction game and weekly seasons: 3 free dates a week, and the first date is always free.
+The conversion landing page: the product shown in the hero (an avatar matchup and a live box score), a fast/free/no-sign-up CTA, then a feature grid, honest proof, a cast preview and an FAQ.
 
 ![Landing page on a phone](docs/screenshots/home-mobile.png)
 The same start page on an iPhone 13 screen.

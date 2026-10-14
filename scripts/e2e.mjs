@@ -72,10 +72,15 @@ async function main() {
     const creator = await browser.newContext();
     const page = await creator.newPage();
 
-    await step("landing page loads with the pitch and the builder", async () => {
+    await step("the conversion landing page loads: hero, CTA, features, cast, FAQ and the builder", async () => {
       await page.goto(base);
       await page.getByRole("heading", { level: 1 }).waitFor();
       assert((await page.getByText("Send your OC on a blind date").count()) > 0, "hero headline missing");
+      assert((await page.getByText(/Free, no sign-up/).count()) > 0, "free/no-sign-up value prop missing");
+      assert((await page.getByRole("link", { name: "Make your character" }).count()) > 0, "primary CTA missing");
+      assert((await page.locator(".hero-art .avatar").count()) === 2, "hero product teaser missing");
+      assert((await page.locator(".features .feature").count()) >= 3, "feature grid missing");
+      assert((await page.locator(".faq details").count()) >= 3, "FAQ missing");
       assert((await page.locator("#start").count()) > 0, "builder (#start) missing");
     });
 

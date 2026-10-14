@@ -36,16 +36,18 @@ These are structural, not just feature checkboxes:
 
 ## Shipped this pass (to close gaps, all $0)
 
-- **Reference-image avatar styling.** An owner can pick an image in the builder; the browser reads its dominant colour with a canvas and tints the avatar. The image is **never uploaded or stored** — only the derived hue is sent — so there is nothing to moderate and no real-person risk. This is the safe, buildable form of "use an image to customize your character."
+- **Image "trains" the character.** In the builder, pick a reference image; the browser reads its palette with a canvas and derives both the **avatar colour** and a suggested **appearance line** (e.g. "a cool blue palette, bright and vivid"). The image is **never uploaded or stored** — only the derived values are sent, exactly like choosing a swatch — so there is nothing to moderate and no real-person risk. This is the safe, buildable form of "use an image to customize your character."
 - **Shareable contestant cards.** Every character has a public card at `/characters/[id]` with its own Open Graph image (avatar, name, traits) and a copy-link button — the Talkie/Heartie "card" hook as a $0 growth loop. The cast gallery links to them.
+- **Relationship progression stages.** The relationship graph labels each pair's stage (strangers → sparks → an item), the companion apps' affection/stage systems done our way.
+- **A conversion landing page.** Rebuilt from the competitors' playbook (aigirlfriends.ai, candy.ai): the product is shown in the hero (an avatar matchup + a live mini box score), a low-friction "under a minute, free, no sign-up" CTA, a feature grid, honest social proof (the Love Island prediction-habit stat, not fabricated numbers), a cast preview, how-it-works, and an FAQ that handles objections (free? can I steer it? is my soul private? 18+?). Their tactics, our SFW positioning.
 - (Earlier this cycle: avatars everywhere, the visual overhaul with dark mode, the cast gallery, a full E2E suite and seed data.)
 
 ## Roadmap
 
 ### Next, still $0
 - **Follows + a community gallery** with category boards (most-shipped, best conversationalist, funniest failure), so the library grows and surfaces.
-- **Relationship progression labels** on the graph (acquaintances → sparks → an item), the companion apps' "stages" done our way.
 - **Moment cards**: a per-beat shareable card for a great line, on the OG route.
+- **Persona-style "who it's for"** on the landing (candy.ai's use-case narratives), in place of fabricated testimonials.
 
 ### Spend-gated (your approval; docs/upgrade-cost.md)
 - **Frontier text model** (Stage 1) — the biggest lever on dialogue quality, which is what keeps the tenth date as good as the first.
@@ -62,5 +64,6 @@ On its own axis — a watch-only AI dating show with a fair prediction game, a l
 - [What is Talkie AI? (AIChief)](https://aichief.com/ai-fun-tools/talkie-ai/) · [Talkie AI startup profile](https://neuronfeed.com/startups/talkie-ai)
 - [Best AI companion apps 2026 (Fostera)](https://fostera.ai/blog/best-ai-companion-apps-2026) · [Best AI companion apps 2026 (Heartie)](https://heartie.net/blog/best-ai-companion-apps-2026/) · [Best AI companion app 2026 (Sloane)](https://www.sloane.world/guides/best-ai-companion-app-2026)
 - [Love Island interactive games (NBCUniversal)](https://www.nbcuniversal.com/article/love-island-lets-viewers-join-fun-interactive-games) · [Love Island S7 app downloads (FoxData)](https://foxdata.com/en/blogs/love-island-usa-season-7-how-a-reality-dating-show-fueled-app-downloads-in-2025/)
+- Landing-page conversion tactics reviewed on [aigirlfriends.ai](https://aigirlfriends.ai/create-an-ai-girlfriend) and [candy.ai](https://candy.ai) (structure/tactics only; their adult content and positioning are not adopted).
 
 _These are mostly third-party review/SEO sources. The structural claims (watch-only format, deterministic engine, spectator role, $0/no-pay-to-win, privacy model) are facts about Botchelor's own code; the competitor specifics should be confirmed on each app's official listing before any public comparison._

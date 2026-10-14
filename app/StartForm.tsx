@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import Avatar from "./Avatar";
-import { AVATAR_HUES, hueFromPixels } from "@/lib/avatar";
+import { AVATAR_HUES, imageTraits } from "@/lib/avatar";
 import {
   AGENDAS,
   AUTONOMY_BLURBS,
@@ -162,6 +162,8 @@ export default function StartForm({
   // For the live avatar preview in the builder.
   const [previewName, setPreviewName] = useState("");
   const [hue, setHue] = useState(0);
+  const [appearance, setAppearance] = useState("");
+  const [styledFromImage, setStyledFromImage] = useState(false);
 
   /**
    * Style the avatar from a reference image, entirely in the browser: read its dominant colour with a
@@ -180,8 +182,11 @@ export default function StartForm({
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(img, 0, 0, 48, 48);
-          const h = hueFromPixels(ctx.getImageData(0, 0, 48, 48).data);
-          if (h !== null) setHue(h);
+          const traits = imageTraits(ctx.getImageData(0, 0, 48, 48).data);
+          if (traits.hue !== null) setHue(traits.hue);
+          // The image also seeds the appearance line (only if the creator hasn't written their own).
+          setAppearance((prev) => (prev.trim() ? prev : traits.descriptor));
+          setStyledFromImage(true);
         }
       } catch {
         setError("Couldn't read that image. Pick a colour instead.");
@@ -214,7 +219,7 @@ export default function StartForm({
         traits: [field("trait1"), field("trait2"), field("trait3")],
         want: field("want"),
         dealbreaker: field("dealbreaker"),
-        ...(field("appearance") ? { appearance: field("appearance") } : {}),
+        ...(appearance.trim() ? { appearance: appearance.trim() } : {}),
         ...(hue > 0 ? { avatar_hue: hue } : {}),
         ...(soul ? { soul } : {}),
         attest: form.get("attest") === "on",
@@ -367,7 +372,14 @@ export default function StartForm({
           <div className="looks-fields">
             <label>
               Appearance <span className="muted">(optional)</span>
-              <input type="text" name="appearance" maxLength={140} placeholder="tall, freckled, always in a yellow raincoat" />
+              <input
+                type="text"
+                name="appearance"
+                maxLength={140}
+                placeholder="tall, freckled, always in a yellow raincoat"
+                value={appearance}
+                onChange={(e) => setAppearance(e.target.value)}
+              />
             </label>
             <span className="muted">Avatar colour</span>
             <div className="swatches">
@@ -379,16 +391,21 @@ export default function StartForm({
                   style={h.id ? { background: `hsl(${h.id} 70% 55%)` } : undefined}
                   aria-label={h.label}
                   title={h.label}
-                  onClick={() => setHue(h.id)}
+                  onClick={() => {
+                    setHue(h.id);
+                    setStyledFromImage(false);
+                  }}
                 />
               ))}
             </div>
             <label className="file-style">
-              Or style it from an image
+              Or train the look from an image
               <input type="file" accept="image/*" onChange={(e) => styleFromImage(e.target.files?.[0])} />
             </label>
             <span className="muted file-note">
-              We read the colours from your image in your browser to tint the avatar. The image is never uploaded or stored.
+              {styledFromImage
+                ? "✓ Styled from your image: the avatar colour and the appearance line above came from it."
+                : "Pick an image and we'll read its colours, in your browser, to style the avatar and suggest an appearance. The image is never uploaded or stored."}
             </span>
           </div>
         </div>

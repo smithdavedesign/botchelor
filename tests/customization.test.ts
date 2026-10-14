@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { avatarPalette, hueFromPixels, initials } from "@/lib/avatar";
+import { avatarPalette, hueFromPixels, hueName, imageTraits, initials } from "@/lib/avatar";
 import { getPublicCharacter } from "@/lib/game";
+import { relationshipStage } from "@/lib/mechanics";
 import { api, newUserCookie, startTestDb, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -75,6 +76,31 @@ describe("styling an avatar from an image (in-browser, nothing uploaded)", () =>
     expect(blue!).toBeLessThanOrEqual(270);
     expect(hueFromPixels(solid(128, 128, 128))).toBeNull(); // grey → stays "auto"
     expect(hueFromPixels(solid(255, 255, 255))).toBeNull(); // white → auto
+  });
+
+  it("trains the avatar colour and the appearance line from the image's pixels", () => {
+    const blue = imageTraits(solid(30, 60, 220));
+    expect(blue.hue).not.toBeNull();
+    expect(blue.descriptor).toContain("blue");
+    expect(blue.descriptor).toMatch(/cool/);
+    const amber = imageTraits(solid(240, 170, 20));
+    expect(amber.descriptor).toContain("amber");
+    expect(amber.descriptor).toMatch(/warm/);
+    const grey = imageTraits(solid(128, 128, 128));
+    expect(grey.hue).toBeNull();
+    expect(grey.descriptor).toContain("neutral");
+    expect(hueName(240)).toBe("blue");
+    expect(hueName(30)).toBe("amber");
+  });
+});
+
+describe("relationship progression stages", () => {
+  it("labels a pair's stage from its history", () => {
+    expect(relationshipStage(0, 0, null)).toBe("strangers");
+    expect(relationshipStage(1, 0, "second_date")).toBe("sparks");
+    expect(relationshipStage(2, 2, "second_date")).toBe("an item");
+    expect(relationshipStage(1, 0, "friends")).toBe("just friends");
+    expect(relationshipStage(1, 0, "disaster")).toBe("it's complicated");
   });
 });
 

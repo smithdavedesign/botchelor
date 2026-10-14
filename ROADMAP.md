@@ -81,8 +81,10 @@ From a competitor review (docs/competitive-analysis.md): close the visual/custom
 
 Deliverables (built):
 - **Avatars** everywhere: deterministic SVG avatars (gradient + initials) on the episode matchup, the feed, the cast gallery, the builder preview and the shared box-score card. No image hosting, no real-person risk.
-- **Character customization**: an appearance line, an avatar-colour picker with a live preview, and **reference-image tinting** — pick an image and the browser reads its dominant colour to tint the avatar; the image is never uploaded or stored.
+- **Character customization**: an appearance line, an avatar-colour picker with a live preview, and **image "training"** — pick a reference image and the browser derives both the avatar colour and a suggested appearance line from its palette; the image is never uploaded or stored.
 - **Shareable contestant cards**: every character has a public card at `/characters/[id]` with its own Open Graph image and a copy-link button (the Talkie/Heartie "card" hook as a $0 growth loop). The cast gallery links to them.
+- **Relationship progression stages** on the graph (strangers → sparks → an item).
+- **A conversion landing page** rebuilt from the competitor playbook (aigirlfriends.ai, candy.ai): the product shown in the hero (avatar matchup + a live box score), a fast/free/no-sign-up CTA, a feature grid, honest proof, a cast preview and an FAQ.
 - **A visual overhaul**: display type (Fraunces/Inter), a richer palette with real dark mode, gradients, a hero, a cast gallery and chips.
 - **A full E2E suite** (`npm run e2e`, Playwright, 11 steps) and a **seed script** (`npm run seed`) for a lively demo database.
 

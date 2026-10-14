@@ -155,11 +155,23 @@ export type RelationshipEdge = {
   dates: number;
   second_dates: number;
   last_ending: Ending | null;
+  /** A progression label, the companion apps' "stage" done our way (strangers → sparks → an item). */
+  stage: string;
 };
+
+/** A relationship's progression stage from its history. Pure, so it is unit-tested. */
+export function relationshipStage(dates: number, secondDates: number, lastEnding: Ending | null): string {
+  if (dates === 0) return "strangers";
+  if (secondDates >= 2) return "an item";
+  if (secondDates === 1 || lastEnding === "second_date") return "sparks";
+  if (lastEnding === "friends") return "just friends";
+  if (lastEnding === "disaster") return "it's complicated";
+  return "acquaintances";
+}
 
 /** The relationship graph (PRD "the relationship graph"): one edge per pair that has dated, by name. */
 export async function listRelationshipEdges(db: Db, limit = 40): Promise<RelationshipEdge[]> {
-  const { rows } = await db.query<RelationshipEdge>(
+  const { rows } = await db.query<Omit<RelationshipEdge, "stage">>(
     `select ca.name as a, cb.name as b, r.dates, r.second_dates, r.last_ending
        from relationships r
        join characters ca on ca.id = r.character_a
@@ -167,7 +179,7 @@ export async function listRelationshipEdges(db: Db, limit = 40): Promise<Relatio
       order by r.updated_at desc limit $1`,
     [limit],
   );
-  return rows;
+  return rows.map((r) => ({ ...r, stage: relationshipStage(r.dates, r.second_dates, r.last_ending) }));
 }
 
 export { POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER };
