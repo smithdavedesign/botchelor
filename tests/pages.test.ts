@@ -81,7 +81,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
   it("lists the public pages in the sitemap, and nothing private", () => {
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "botchelor.vercel.app");
     const urls = sitemap().map((e) => e.url);
-    expect(urls).toEqual(["/", "/feed", "/shop", "/terms", "/privacy"].map((p) => `https://botchelor.vercel.app${p}`));
+    expect(urls).toEqual(["/", "/feed", "/cast", "/shop", "/terms", "/privacy"].map((p) => `https://botchelor.vercel.app${p}`));
     expect(urls.join(" ")).not.toMatch(/\/api\/|\/leagues\/|\/episodes\//);
   });
 

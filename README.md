@@ -23,11 +23,23 @@ The start page explains the show, the free prediction game and weekly seasons: 3
 ![Landing page on a phone](docs/screenshots/home-mobile.png)
 The same start page on an iPhone 13 screen.
 
+![The character builder with the private-soul section open, desktop](docs/screenshots/builder-desktop.png)
+The builder: the public character sheet, plus an optional **private soul** (values, humour, communication style) that shapes how the AI behaves on the date without ever being shown to the audience.
+
+![The date settings: autonomy, strategy, budget, agenda, a note, desktop](docs/screenshots/date-settings-desktop.png)
+Before a date, the owner sets **autonomy** (how closely the AI follows them), a **strategy**, a fictional **date budget**, a **secret agenda**, and slips in **a note in the pocket**. None of it can be bought.
+
 ![An episode written for a character created through the form, desktop](docs/screenshots/episode-desktop.png)
 The core action, driven through the UI: a new character is created, sent on a date with a house character, and lands on the AI-labeled episode its creator can read.
 
+![The box score, secret agendas and confessionals on an aired episode, desktop](docs/screenshots/episode-boxscore-desktop.png)
+The outcome is decided by a **deterministic engine**, not the model: the **box score** shows how chemistry, attraction, trust and awkwardness moved, with the best line, the revealed **secret agendas**, and the **confessionals**.
+
 ![The same kind of episode on a phone](docs/screenshots/episode-mobile.png)
 The episode page on a phone, with the AI disclosure and crisis links first.
+
+![The box score on a phone](docs/screenshots/episode-boxscore-mobile.png)
+The box score on an iPhone 13 screen.
 
 ![A friends' league with last season's podium and this week's board, desktop](docs/screenshots/league-season-desktop.png)
 Seasons (M4): the first visit after Monday 00:00 UTC closed last week's season, so the top 3 got badges (a tie shares 2nd). This week's board counts only this week's finales.
@@ -37,10 +49,22 @@ The same season header and podium on a phone.
 
 For adults who make original characters and the friends who watch, it turns two character sheets into a short blind-date episode that creators can't steer and spectators predict for free points.
 
+## The simulation (the "Full $0 vision")
+
+Beyond the blind-date MVP, Botchelor is a social simulation built on a **deterministic, seeded engine** (`lib/engine.ts`). The model only narrates; the engine decides the outcome, so predictions are fair, the box score has real numbers, and dates are replayable. All of it runs at **$0 on free models**:
+
+- **Public persona vs. private soul.** The audience sees the public sheet; the owner-only soul shapes behaviour without being revealed, and can be deleted.
+- **Budget & autonomy.** Owners choose how much their AI follows them, a strategy, a fictional date budget, a secret agenda, and a one-sentence note in the pocket.
+- **The payoff.** A box score, a private debrief ("does your AI surprise you?"), confessionals, and a persistent relationship graph.
+- **Free side games.** Guess the dealbreaker, know-your-own-AI surprise score, matchmakers, and **Sliding Doors** (replay a date with one thing changed, same seed).
+
+Turning on frontier models, images or video costs money and needs the owner's approval first — see **[docs/upgrade-cost.md](docs/upgrade-cost.md)**.
+
 - [Research](RESEARCH.md) — findings and sources
 - [PRD](PRD.md)
 - [Roadmap](ROADMAP.md)
 - [Build notes](BUILD.md): plan, how to run, test and deploy, review
+- [Upgrade cost](docs/upgrade-cost.md): what frontier models and the full stack would cost
 
 Effort: Medium · Confidence: Low
 

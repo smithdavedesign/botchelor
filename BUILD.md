@@ -926,3 +926,32 @@ This is a self-review of the M3 change set against gstack's pre-landing checklis
 **Informational:**
 - `npm view` and package installs are blocked in this sandbox, so the Stripe SDK was never an option. The hand-written verification follows Stripe's documented algorithm. The test helper signs with Web Crypto, a different implementation from the app's `node:crypto`, and three mutations of the verifier (always-true, skipping the HMAC, premium in the blind fallback) each failed tests.
 - Stripe API versions: the session fields read (`id`, `object`, `client_reference_id`, `payment_status`, `amount_total`, `currency`) are stable. A signed event with an unexpected shape gets a 400, so Stripe retries instead of the order being dropped silently.
+
+## Status (M5: the Full $0 vision, built)
+
+The PRD's "Soul vs. Persona" direction, built on free models at **$0**. `npm test` runs **403 tests across 22 files, all passing**; `npm run typecheck` and `npm run build` are clean on Next.js 16.4.
+
+### The one architectural change everything rests on
+
+Outcomes moved from the showrunner **model** to a deterministic, seeded **engine** (`lib/engine.ts`). The model now only narrates toward the outcome the engine already decided. This is what makes predictions fair, gives the box score real numbers, and makes Sliding Doors reproducible. Because the engine owns the outcome, a frontier model can be switched on or off per environment with no gameplay risk (see `docs/upgrade-cost.md`).
+
+- `lib/engine.ts` — pure, seeded (`mulberry32`), fully unit-tested. Inputs: two sheets, each side's soul signals, the owner's date settings, a seed, and the pair's history. Outputs: ending, drama question/answer, the four box-score arcs, per-side satisfaction.
+- `lib/showrunner.ts` — `narrateEpisode()` is given the decided outcome and the private souls, and returns setting/goals/scenes/twist/finale plus a best line and one confessional per character. Outcome fields were removed from its schema.
+- `lib/simulation.ts` — assembles a date from stored souls + relationship memory; `slidingDoors()` recomputes an alternate timeline from the stored seed with no model call.
+
+### What the product does now (added to M1–M4)
+
+- **Private soul** per character (`souls` table): owner-only, content-filtered like a sheet, optional on creation, editable and deletable at `GET/PUT/DELETE /api/characters/[id]/soul`. Never in any spectator-facing response.
+- **Date settings**: autonomy, strategy, a fictional game budget (never bought), a secret agenda (owner-chosen or dealt), and a note in the pocket. All on `POST /api/episodes`.
+- **The payoff**, on the episode page: the box score, the revealed secret agendas, the confessionals (host approves sharing at `POST /api/episodes/[id]/confessionals`), the owner's private debrief, and the surprise reveal (self-prediction vs. actual).
+- **$0 spectator mechanics**: guess the dealbreaker (`POST /api/dealbreaker-guesses`, a seeded 4-option quiz), matchmakers (`POST/GET /api/matchmakers`), and Sliding Doors (`POST /api/episodes/[id]/sliding-doors`, owner-only).
+- **The cast** (`/cast`): the relationship graph and a matchmaker form.
+- `getPoints` now sums the prediction game plus the free side games; **league and season boards stay prediction-only**, and nothing bought still changes points, picks or rank.
+
+### Data and privacy
+
+- The private soul is sent to the configured (free) model as behaviour guidance and is used by the engine locally; it is never returned to spectators and is deleted with its character. `docs/upgrade-cost.md` §5 recommends a zero-data-retention endpoint and an optional local-only soul once a paid model is switched on.
+
+### Deferred (needs spend approval — see docs/upgrade-cost.md)
+
+Frontier text model, character portraits and video, the compute-budget enforcement gate, and the Redis/BullMQ + S3/CDN stack. None is switched on; each is proposed, not built.

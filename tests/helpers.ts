@@ -3,6 +3,11 @@ import { PGlite } from "@electric-sql/pglite";
 import { DELETE as deleteBlock, POST as postBlock } from "@/app/api/blocks/route";
 import { POST as postCheckout } from "@/app/api/checkout/route";
 import { POST as postCharacter } from "@/app/api/characters/route";
+import { DELETE as deleteSoulRoute, GET as getSoulRoute, PUT as putSoulRoute } from "@/app/api/characters/[id]/soul/route";
+import { POST as postDealbreaker } from "@/app/api/dealbreaker-guesses/route";
+import { GET as getMatchmakers, POST as postMatchmaker } from "@/app/api/matchmakers/route";
+import { POST as postConfessionals } from "@/app/api/episodes/[id]/confessionals/route";
+import { POST as postSlidingDoors } from "@/app/api/episodes/[id]/sliding-doors/route";
 import { GET as getEpisodeRoute } from "@/app/api/episodes/[id]/route";
 import { POST as postReveal } from "@/app/api/episodes/[id]/reveal/route";
 import { GET as getFeed, POST as postEpisode } from "@/app/api/episodes/route";
@@ -18,9 +23,11 @@ import { POST as postWaitlist } from "@/app/api/waitlist/route";
 import { POST as postStripeWebhook } from "@/app/api/webhooks/stripe/route";
 import { catalogItem, CURRENCY } from "@/lib/catalog";
 import { ensureSchema, pgliteDb, setDbForTests, type Db } from "@/lib/db";
+import { fixedEngine, setEngineForTests, type Outcome } from "@/lib/engine";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
+import type { Ending } from "@/lib/rules";
 
 export const BASE_URL = "http://localhost:3000";
 
@@ -70,10 +77,12 @@ export async function startTestDb() {
       await db.query("delete from episodes");
       await db.query("delete from characters where not is_house");
       setModelForTests(null);
+      setEngineForTests(null);
     },
     async close() {
       setDbForTests(null);
       setModelForTests(null);
+      setEngineForTests(null);
       await pg.close();
     },
     async count(table: Table, where = "true") {
@@ -162,6 +171,18 @@ export const api = {
       }),
     ),
   joinWaitlist: (body: unknown, cookie?: string) => postWaitlist(jsonRequest("/api/waitlist", body, { cookie })),
+  guessDealbreaker: (body: unknown, cookie?: string) => postDealbreaker(jsonRequest("/api/dealbreaker-guesses", body, { cookie })),
+  proposeMatch: (body: unknown, cookie?: string) => postMatchmaker(jsonRequest("/api/matchmakers", body, { cookie })),
+  myProposals: (cookie?: string) => getMatchmakers(getRequest("/api/matchmakers", cookie)),
+  shareConfessionals: (episodeId: string, shared: boolean, cookie?: string) =>
+    postConfessionals(jsonRequest(`/api/episodes/${episodeId}/confessionals`, { shared }, { cookie }), params(episodeId)),
+  slidingDoors: (episodeId: string, change: string, cookie?: string) =>
+    postSlidingDoors(jsonRequest(`/api/episodes/${episodeId}/sliding-doors`, { change }, { cookie }), params(episodeId)),
+  getSoul: (characterId: string, cookie?: string) => getSoulRoute(getRequest(`/api/characters/${characterId}/soul`, cookie), params(characterId)),
+  putSoul: (characterId: string, body: unknown, cookie?: string) =>
+    putSoulRoute(jsonRequest(`/api/characters/${characterId}/soul`, body, { cookie, method: "PUT" }), params(characterId)),
+  deleteSoul: (characterId: string, cookie?: string) =>
+    deleteSoulRoute(jsonRequest(`/api/characters/${characterId}/soul`, {}, { cookie, method: "DELETE" }), params(characterId)),
 };
 
 /**
@@ -295,6 +316,10 @@ export function validCharacter(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/**
+ * A valid *narration* draft: the model no longer decides the ending (the engine does, lib/engine.ts).
+ * It writes the scenes, one best line and one confessional per character.
+ */
 export function validEpisodeDraft(overrides: Record<string, unknown> = {}) {
   return {
     setting: "A rooftop dumpling stall in a thunderstorm, run by a chef who narrates every order.",
@@ -308,9 +333,11 @@ export function validEpisodeDraft(overrides: Record<string, unknown> = {}) {
     ],
     twist: "The power goes out and the only light left is the candle on Rafe's cake.",
     finale: "They split the last dumpling and agree never to agree about cake.",
-    ending: "friends",
-    drama_question: "leaves_first",
-    drama_answer: "b",
+    best_line: "Dumplings are just cake that gave up on being sweet.",
+    confessionals: [
+      "I came for a map-reader and left thinking about the candlelight.",
+      "She insulted my cake and I have never felt more seen.",
+    ],
     ...overrides,
   };
 }
@@ -319,10 +346,13 @@ export function episodeJson(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify(validEpisodeDraft(overrides));
 }
 
-/** An otherwise valid episode whose text totals exactly `totalWords` words (scene filler is spread over 4 scenes). */
+/** The episode fields that count toward the word cap (not best_line / confessionals, which are extras). */
+const CAPPED_FIELDS = ["setting", "goals", "twist", "finale"] as const;
+
+/** An otherwise valid episode whose *capped* text totals exactly `totalWords` words (spread over 4 scenes). */
 export function episodeWithWordCount(totalWords: number, overrides: Record<string, unknown> = {}) {
   const base = validEpisodeDraft({ ...overrides, scenes: [] });
-  const fixed = countStringWords(base);
+  const fixed = CAPPED_FIELDS.reduce((n, f) => n + countStringWords(base[f as keyof typeof base]), 0);
   const filler = totalWords - fixed;
   if (filler < 4) throw new Error("target too small");
   const per = Math.floor(filler / 4);
@@ -342,11 +372,17 @@ export function countStringWords(value: unknown): number {
 
 export const HOUSE_PARTNER_ID = HOUSE_CHARACTERS[0].id;
 
-/** Creates a creator, their character and one generated episode with the given ending. */
-export async function setupEpisode(ending = "friends", draft: Record<string, unknown> = {}) {
+/** Forces the engine's outcome, the way scriptedModel forces the model. Clears with setEngineForTests(null). */
+export function scriptOutcome(partial: Partial<Outcome> & { ending: Ending }) {
+  setEngineForTests(fixedEngine(partial));
+}
+
+/** Creates a creator, their character and one episode: the engine is forced to `ending`, the model scripted. */
+export async function setupEpisode(ending: Ending = "friends", outcome: Partial<Outcome> = {}, draft: Record<string, unknown> = {}) {
   const creator = newUserCookie();
   const character = await (await api.createCharacter(validCharacter(), creator)).json();
-  scriptedModel([episodeJson({ ending, ...draft })]);
+  scriptOutcome({ ...outcome, ending });
+  scriptedModel([episodeJson(draft)]);
   const res = await api.createEpisode({ character_id: character.id, partner_id: HOUSE_PARTNER_ID }, creator);
   if (res.status !== 200) throw new Error(`episode setup failed with ${res.status}`);
   const episode = await res.json();
@@ -357,12 +393,13 @@ export async function setupEpisode(ending = "friends", draft: Record<string, unk
  * Two creators, one OC each, and a blind date requested by the host. Call it when no other user OC
  * exists (right after reset), so the blind match can only pick the partner's character.
  */
-export async function setupPairedEpisode(opts: { host?: string; partner?: string; ending?: string } = {}) {
+export async function setupPairedEpisode(opts: { host?: string; partner?: string; ending?: Ending } = {}) {
   const host = opts.host ?? newUserCookie();
   const partner = opts.partner ?? newUserCookie();
   const partnerCharacter = await (await api.createCharacter(validCharacter({ name: "Otto Fenn" }), partner)).json();
   const hostCharacter = await (await api.createCharacter(validCharacter(), host)).json();
-  scriptedModel([episodeJson({ ending: opts.ending ?? "friends" })]);
+  scriptOutcome({ ending: opts.ending ?? "friends" });
+  scriptedModel([episodeJson()]);
   const res = await api.createEpisode({ character_id: hostCharacter.id, blind: true }, host);
   if (res.status !== 200) throw new Error(`paired episode setup failed with ${res.status}`);
   const episode = await res.json();

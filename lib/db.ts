@@ -218,6 +218,76 @@ create table if not exists pack_episode_usage (
   user_id text primary key,
   used integer not null check (used >= 0)
 );
+
+-- Full $0 vision (PRD "Soul vs. Persona"). All added with IF NOT EXISTS / IF NOT EXISTS tables so a
+-- live M4 database upgrades in place with no migration step.
+
+-- The private soul: owner-only personal data (PRD guardrail). Never returned to spectators. Deleted
+-- with its character. The engine (lib/engine.ts) derives signals from it; the model is given it as
+-- behaviour guidance but told never to reveal it.
+create table if not exists souls (
+  character_id text primary key references characters (id) on delete cascade,
+  values text not null default '',
+  insecurities text not null default '',
+  humor text not null default '',
+  boundaries text not null default '',
+  romantic text not null default '',
+  communication text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+-- The engine's decided outcome and the date's settings, stored on the episode. ending / drama_question
+-- / drama_answer already exist (now written by the engine, not the model). seed is bigint: it is a
+-- uint32 and Sliding Doors replays from it.
+alter table episodes add column if not exists seed bigint;
+alter table episodes add column if not exists box_score jsonb;      -- the four VariableArcs
+alter table episodes add column if not exists sides jsonb;          -- the two SideOutcomes (debrief data)
+alter table episodes add column if not exists best_line text;
+alter table episodes add column if not exists confessionals jsonb;  -- [character_a line, character_b line]
+alter table episodes add column if not exists confessionals_shared boolean not null default false;
+alter table episodes add column if not exists setup jsonb;          -- autonomy, strategy, agendas, budgets
+alter table episodes add column if not exists note text;            -- owner-only: the note in the pocket
+alter table episodes add column if not exists self_pick text
+  check (self_pick in ('second_date', 'friends', 'disaster'));      -- owner's guess at their own AI's ending
+-- Sliding Doors: a replay episode points back at the one it varies, and says what it changed.
+alter table episodes add column if not exists varies_episode_id text references episodes (id) on delete set null;
+alter table episodes add column if not exists variation text;
+
+-- Guess the dealbreaker (PRD "Further ideas"): a spectator picks character_a's real dealbreaker from
+-- four options. Correct = it equals the stored dealbreaker, scored at reveal like the drama pick.
+create table if not exists dealbreaker_guesses (
+  episode_id text not null references episodes (id) on delete cascade,
+  user_id text not null,
+  pick text not null,
+  created_at timestamptz not null default now(),
+  primary key (episode_id, user_id)
+);
+
+-- Matchmakers (PRD "Further ideas"): a spectator proposes a pairing of two characters and earns points
+-- if a date between them ends in a second date. One proposal per spectator per unordered pair.
+create table if not exists matchmaker_proposals (
+  id text primary key,
+  proposer_id text not null,
+  character_a text not null references characters (id) on delete cascade,
+  character_b text not null references characters (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  check (character_a <> character_b)
+);
+create unique index if not exists matchmaker_unique
+  on matchmaker_proposals (proposer_id, least(character_a, character_b), greatest(character_a, character_b));
+
+-- Persistent relationships (PRD "a persistent relationship universe"): one row per unordered pair,
+-- character_a < character_b. Fed back into the engine and the narration so repeat dates remember.
+create table if not exists relationships (
+  character_a text not null references characters (id) on delete cascade,
+  character_b text not null references characters (id) on delete cascade,
+  dates integer not null default 0,
+  second_dates integer not null default 0,
+  last_ending text,
+  updated_at timestamptz not null default now(),
+  primary key (character_a, character_b),
+  check (character_a < character_b)
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

@@ -359,3 +359,100 @@ a.button {
   background: #ffe8cc;
   color: #a14d00;
 }
+
+/* Full $0 vision: date settings, box score, debrief, quiz, confessionals */
+details.settings {
+  margin: 0.75rem 0;
+}
+
+details.settings > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+details.settings[open] > summary {
+  margin-bottom: 0.5rem;
+}
+
+.boxscore .bsrow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.4rem 0;
+}
+
+.boxscore .bslabel {
+  flex: 0 0 7rem;
+  color: var(--muted);
+}
+
+.boxscore .bartrack {
+  flex: 1 1 auto;
+  height: 0.7rem;
+  background: var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.boxscore .barfill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.boxscore .bsfinal {
+  flex: 0 0 2rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.delta {
+  flex: 0 0 2.6rem;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.delta.up {
+  color: var(--ok);
+}
+
+.delta.down {
+  color: var(--bad);
+}
+
+.delta.flat {
+  color: var(--muted);
+}
+
+.bestline {
+  margin-top: 0.75rem;
+  font-style: italic;
+  font-size: 1.1rem;
+}
+
+.confessional {
+  font-style: italic;
+}
+
+.debrief ul {
+  margin: 0.5rem 0;
+  padding-left: 1.1rem;
+}
+
+.quiz .choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.quiz .choices button {
+  text-align: left;
+}
+
+button.chosen {
+  outline: 2px solid var(--accent);
+}

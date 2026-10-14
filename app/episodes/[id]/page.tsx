@@ -6,11 +6,16 @@ import { getDb } from "@/lib/db";
 import { getEpisodeView, getPoints } from "@/lib/game";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { readUserId, USER_COOKIE } from "@/lib/http";
+import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
 import { DRAMA_QUESTION_LABELS, dramaAnswerLabel, ENDING_LABELS, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
+import BoxScore from "./BoxScore";
+import ConfessionalShare from "./ConfessionalShare";
 import CreatorReveal from "./CreatorReveal";
+import DealbreakerQuiz from "./DealbreakerQuiz";
 import EpisodeActions from "./EpisodeActions";
 import SafetyActions from "./SafetyActions";
+import SlidingDoors from "./SlidingDoors";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +31,9 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
 
   const points = viewerId ? await getPoints(db, viewerId) : 0;
   const profileName = episode.is_creator ? await getProfileName(db, viewerId) : null;
+  // The $0 mechanics: spectators get the dealbreaker quiz; the owner (host) sees the surprise reveal.
+  const quiz = !episode.is_creator ? await getDealbreakerQuiz(db, id, viewerId) : null;
+  const surprise = episode.is_creator ? await getSurprise(db, id, viewerId) : null;
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
   const nameOf = (characterId: string) => episode.characters.find((c) => c.id === characterId)?.name;
@@ -98,6 +106,69 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
         <section className="card">
           <p className="muted">The date, the twist and the ending stay hidden until the finale airs.</p>
         </section>
+      )}
+
+      {episode.box_score && <BoxScore boxScore={episode.box_score} bestLine={episode.best_line} />}
+
+      {episode.agendas && (
+        <section className="card">
+          <h2>Secret agendas</h2>
+          <ul>
+            {episode.agendas.map((ag) => (
+              <li key={ag.character_id}>
+                <strong>{nameOf(ag.character_id)}:</strong> {ag.agenda}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {episode.confessionals && (
+        <section className="card">
+          <h2>The confessionals</h2>
+          {episode.confessionals.map((c) => (
+            <p key={c.character_id} className="confessional">
+              <strong>{nameOf(c.character_id)}:</strong> “{c.line}”
+            </p>
+          ))}
+          {episode.is_host && <ConfessionalShare episodeId={episode.id} shared={episode.confessionals_shared} />}
+        </section>
+      )}
+
+      {episode.debrief && (
+        <section className="card debrief">
+          <h2>Your private debrief</h2>
+          <p className="muted">A report on your own AI&apos;s date. Only you can see this.</p>
+          <ul>
+            <li>Wants another date: <strong>{episode.debrief.wants_another ? "yes" : "no"}</strong></li>
+            <li>What it liked: {episode.debrief.liked ? <>something about “{episode.debrief.liked}”</> : "nothing in particular"}</li>
+            <li>What made it uncomfortable: {episode.debrief.uncomfortable ? <>“{episode.debrief.uncomfortable}”</> : "nothing major"}</li>
+            <li>Its secret agenda ({episode.debrief.agenda}): <strong>{episode.debrief.agenda_met ? "met" : "not met"}</strong></li>
+            {episode.debrief.note_followed !== null && (
+              <li>Your note in the pocket: <strong>{episode.debrief.note_followed ? "it took your advice" : "it ignored your advice"}</strong></li>
+            )}
+          </ul>
+          {surprise && (
+            <p className={surprise.surprised ? "notice" : undefined}>
+              You guessed {ENDING_LABELS[surprise.self_pick]}; your AI landed on {ENDING_LABELS[surprise.actual]}.{" "}
+              {surprise.surprised ? "It surprised you." : "Exactly as you expected."}
+            </p>
+          )}
+        </section>
+      )}
+
+      {episode.is_creator && episode.box_score && <SlidingDoors episodeId={episode.id} />}
+
+      {quiz && (
+        <DealbreakerQuiz
+          episodeId={episode.id}
+          characterName={a.name}
+          options={quiz.options}
+          myPick={quiz.my_pick}
+          revealed={quiz.revealed}
+          answer={quiz.answer}
+          correct={quiz.correct}
+        />
       )}
 
       {episode.revealed && !episode.is_creator && (

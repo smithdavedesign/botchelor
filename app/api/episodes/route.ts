@@ -2,22 +2,45 @@ import { z } from "zod";
 import { releaseEpisode, reserveEpisode } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb, type Db } from "@/lib/db";
-import { listFeed, toEpisodeJson, type CharacterRef } from "@/lib/game";
+import { getEngine } from "@/lib/engine";
+import { listFeed, toEpisodeJson, type CharacterRef, type StoredEpisode } from "@/lib/game";
 import { handle, json, parseBody, readJson, session, userIdFromRequest, type Session } from "@/lib/http";
 import { getModel } from "@/lib/model";
 import { ownsSku } from "@/lib/payments";
-import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
+import {
+  AGENDA_IDS,
+  AUTONOMY_LEVELS,
+  FREE_EPISODES_PER_SEASON,
+  GAME_BUDGETS,
+  STRATEGIES,
+  ENDINGS,
+  type GameBudget,
+} from "@/lib/rules";
+import { checkFields } from "@/lib/safety";
 import { seasonAt } from "@/lib/seasons";
-import { generateEpisode, ShowrunnerError, type CharacterSheet, type EpisodeDraft } from "@/lib/showrunner";
+import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
+import { narrateEpisode, ShowrunnerError, type CharacterSheet, type EpisodeDraft } from "@/lib/showrunner";
 
-// Two model calls at up to 25 s each.
+// One narration call at up to 25 s; the engine itself is instant.
 export const maxDuration = 60;
 
 const id = z.string().min(1).max(64);
+const gameBudget = z.union(GAME_BUDGETS.map((b) => z.literal(b)) as [z.ZodLiteral<GameBudget>, ...z.ZodLiteral<GameBudget>[]]);
 
-// Either a chosen house partner, or a blind date the show picks. Never a chosen stranger's OC.
+// Either a chosen house partner, or a blind date the show picks. Never a chosen stranger's OC. The
+// date settings (PRD budget & autonomy) are all optional, with balanced defaults.
 const EpisodeInput = z
-  .object({ character_id: id, partner_id: id.optional(), blind: z.literal(true).optional() })
+  .object({
+    character_id: id,
+    partner_id: id.optional(),
+    blind: z.literal(true).optional(),
+    autonomy: z.enum(AUTONOMY_LEVELS).optional(),
+    strategy: z.enum(STRATEGIES).optional(),
+    game_budget: gameBudget.optional(),
+    agenda: z.enum(AGENDA_IDS).optional(),
+    note: z.string().trim().max(200).optional(),
+    self_pick: z.enum(ENDINGS).optional(),
+  })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
     message: "Send either partner_id (a house character) or blind: true.",
     path: ["partner_id"],
@@ -47,6 +70,7 @@ const toSheet = (c: CharacterRow): CharacterSheet => ({
   house: c.is_house,
 });
 const toRef = (c: CharacterRow): CharacterRef => ({ id: c.id, name: c.name, house: c.is_house });
+const forDate = (c: CharacterRow): CharacterForDate => ({ id: c.id, sheet: toSheet(c) });
 
 /**
  * Blind date: a random OC from another creator, skipping any pair where either creator blocked the
@@ -77,6 +101,14 @@ async function blindMatch(db: Db, userId: string): Promise<CharacterRow> {
 export const POST = handle(async (req) => {
   const sess = session(req);
   const input = parseBody(EpisodeInput, await readJson(req), "invalid_request");
+
+  if (input.note) {
+    const verdict = checkFields({ note: input.note });
+    if (!verdict.ok) {
+      return json({ error: "content_rejected", reason: verdict.reason, field: "note", message: "Keep the note clean: no real people, minors or sexual content." }, 422, sess);
+    }
+  }
+
   const db = await getDb();
 
   const own = (
@@ -139,7 +171,7 @@ export const POST = handle(async (req) => {
   }
   const outcome = { saved: false };
   try {
-    return await writeAndSave(db, sess, own, partner, outcome);
+    return await writeAndSave(db, sess, own, partner, input, outcome);
   } finally {
     if (!outcome.saved) {
       await releaseEpisode(db, sess.userId, reservation).catch((err: unknown) => {
@@ -149,20 +181,34 @@ export const POST = handle(async (req) => {
   }
 });
 
+type EpisodeInputData = z.infer<typeof EpisodeInput>;
+
 /**
- * Writes the episode with one showrunner call and saves it: 200, or 502 / 409 with nothing stored.
- * `outcome.saved` turns true the moment the episode row exists, even if something throws after it.
+ * Decides the outcome with the engine, narrates it with one model call, and saves it: 200, or 502 /
+ * 409 with nothing stored. `outcome.saved` turns true the moment the episode row exists.
  */
 async function writeAndSave(
   db: Db,
   sess: Session,
   own: CharacterRow,
   partner: CharacterRow,
-  outcome: { saved: boolean },
+  input: EpisodeInputData,
+  saveState: { saved: boolean },
 ): Promise<Response> {
+  const episodeId = crypto.randomUUID();
+  const dateRequest: DateRequest = {
+    autonomy: input.autonomy ?? "balanced",
+    strategy: input.strategy ?? "genuine_chemistry",
+    gameBudget: input.game_budget ?? 25,
+    agendaId: input.agenda ?? null,
+    note: input.note ?? null,
+  };
+  const built = await buildDate(db, episodeId, forDate(own), forDate(partner), dateRequest);
+  const decided = getEngine().decide(built.input, built.seed);
+
   let draft: EpisodeDraft;
   try {
-    draft = await generateEpisode(getModel(), toSheet(own), toSheet(partner));
+    draft = await narrateEpisode(getModel(), built.input, decided, built.souls);
   } catch (err) {
     if (!(err instanceof ShowrunnerError)) throw err;
     console.warn("[episodes] showrunner failed:", err.reasons.join(", "));
@@ -173,12 +219,13 @@ async function writeAndSave(
     );
   }
 
-  const episodeId = crypto.randomUUID();
   // The model call takes seconds; re-check at insert time that neither creator blocked the other meanwhile.
   const saved = await db.query(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
-                           drama_question, drama_answer)
-     select $1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12
+                           drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup,
+                           note, self_pick)
+     select $1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16,
+            $17::jsonb, $18::jsonb, $19, $20
       where not exists (
         select 1 from characters pc
           join blocks bl on (bl.blocker_id = $2 and bl.blocked_id = pc.owner_id)
@@ -195,9 +242,17 @@ async function writeAndSave(
       JSON.stringify(draft.scenes),
       draft.twist,
       draft.finale,
-      draft.ending,
-      draft.drama_question,
-      draft.drama_answer,
+      decided.ending,
+      decided.drama_question,
+      decided.drama_answer,
+      built.seed,
+      JSON.stringify(decided.variables),
+      JSON.stringify(decided.sides),
+      draft.best_line,
+      JSON.stringify(draft.confessionals),
+      JSON.stringify(built.setup),
+      input.note ?? null,
+      input.self_pick ?? null,
     ],
   );
   if (!saved.rows.length) {
@@ -207,12 +262,31 @@ async function writeAndSave(
       sess,
     );
   }
-  outcome.saved = true;
+  saveState.saved = true;
+  await rememberDate(db, own.id, partner.id, decided.ending).catch((err: unknown) => {
+    console.error("[episodes] could not record the relationship:", err instanceof Error ? err.message : "unknown");
+  });
 
   // The creator watches the full episode right away; spectators get the teaser until the finale airs.
-  // No creator names: nobody has consented to a reveal yet.
-  const episode = toEpisodeJson({ id: episodeId, characters: [toRef(own), toRef(partner)], ...draft, revealed: false }, true);
-  return json(episode, 200, sess);
+  const stored: StoredEpisode = {
+    id: episodeId,
+    characters: [toRef(own), toRef(partner)],
+    setting: draft.setting,
+    goals: draft.goals,
+    scenes: draft.scenes,
+    twist: draft.twist,
+    finale: draft.finale,
+    ending: decided.ending,
+    drama_question: decided.drama_question,
+    drama_answer: decided.drama_answer,
+    revealed: false,
+    best_line: draft.best_line,
+    box_score: decided.variables,
+    confessionals: [draft.confessionals[0], draft.confessionals[1]],
+    sides: decided.sides,
+    setup: built.setup,
+  };
+  return json(toEpisodeJson(stored, { full: true, showConfessionals: true }), 200, sess);
 }
 
 /** The public feed: newest episodes, minus hidden ones and creators the viewer blocked (or who blocked them). */

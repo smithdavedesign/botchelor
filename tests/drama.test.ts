@@ -1,9 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { getEpisodeView } from "@/lib/game";
-import { DRAMA_ANSWERS, DRAMA_QUESTIONS, ENDINGS, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "@/lib/rules";
-import { buildMessages, parseEpisode } from "@/lib/showrunner";
-import { HOUSE_CHARACTERS } from "@/lib/house";
-import { api, episodeJson, newUserCookie, setupEpisode, startTestDb, userIdOf, validEpisodeDraft } from "./helpers";
+import { POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "@/lib/rules";
+import { api, newUserCookie, setupEpisode, startTestDb, userIdOf } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
@@ -18,44 +16,8 @@ beforeEach(async () => {
 
 const pointsOf = async (cookie: string) => (await (await api.me(cookie)).json()).points;
 
-describe("showrunner output: the drama question", () => {
-  it("accepts every question with every answer it allows", () => {
-    for (const drama_question of DRAMA_QUESTIONS) {
-      for (const drama_answer of DRAMA_ANSWERS) {
-        const result = parseEpisode(episodeJson({ ending: "friends", drama_question, drama_answer }));
-        expect(result.ok, `${drama_question}/${drama_answer}`).toBe(true);
-      }
-    }
-  });
-
-  it.each([
-    ["a missing drama question", { drama_question: undefined }],
-    ["a missing drama answer", { drama_answer: undefined }],
-    ["an unknown question", { drama_question: "who_cries" }],
-    ["an unknown answer", { drama_answer: "c" }],
-    ["a name instead of a/b", { drama_answer: "Mira Quell" }],
-    ["a rejection on a second-date ending", { ending: "second_date", drama_question: "rejected", drama_answer: "a" }],
-  ])("rejects %s as a schema failure", (_label, overrides) => {
-    const raw = JSON.stringify({ ...validEpisodeDraft(), ...overrides });
-    expect(parseEpisode(raw)).toEqual({ ok: false, reason: "schema" });
-  });
-
-  it("allows nobody rejected on a second date, and who leaves first on any ending", () => {
-    expect(parseEpisode(episodeJson({ ending: "second_date", drama_question: "rejected", drama_answer: "neither" })).ok).toBe(true);
-    for (const ending of ENDINGS) {
-      expect(parseEpisode(episodeJson({ ending, drama_question: "leaves_first", drama_answer: "a" })).ok).toBe(true);
-    }
-  });
-
-  it("asks the model for the drama question with its exact options", () => {
-    const sheet = { ...HOUSE_CHARACTERS[0], house: true };
-    const [system] = buildMessages(sheet, sheet);
-    for (const value of [...DRAMA_QUESTIONS, ...DRAMA_ANSWERS]) expect(system.content).toContain(`"${value}"`);
-    expect(system.content).toMatch(/drama_question/);
-    expect(system.content).toMatch(/drama_answer/);
-  });
-});
-
+// The engine (not the model) now decides the drama question and answer; tests force it with scriptOutcome,
+// which setupEpisode's second argument wires up. The schema/invariant for drama lives in tests/engine.test.ts.
 describe("POST /api/predictions with a drama pick", () => {
   it("stores an optional drama pick next to the ending pick", async () => {
     const { episode } = await setupEpisode();
@@ -100,7 +62,7 @@ describe("POST /api/predictions with a drama pick", () => {
     expect(await getEpisodeView(t.db, episode.id, userIdOf(spectator))).toMatchObject({ my_points: points });
   });
 
-  it("ignores a drama pick on an M1 episode that has no drama question", async () => {
+  it("ignores a drama pick on an episode that has no drama question", async () => {
     const { creator, episode } = await setupEpisode("friends");
     await t.db.query("update episodes set drama_question = null, drama_answer = null where id = $1", [episode.id]);
     const spectator = newUserCookie();
