@@ -118,7 +118,7 @@ describe("backfillTranscripts", () => {
     const result = await backfillTranscripts(t.db, 5);
     expect(result).toEqual({ filled: [], failed: [], rate_limited: true }); // stopped: the older date wasn't tried
     const attempts = async (id: string) =>
-      (await t.db.query<{ n: number }>(`select transcript_backfill_attempts n from episodes where id = $1`, [id])).rows[0].n;
+      (await t.db.query<{ n: number }>(`select backfill_failures n from episodes where id = $1`, [id])).rows[0].n;
     expect(await attempts(newer.episode.id)).toBe(0);
     expect(await attempts(older.episode.id)).toBe(0);
   });

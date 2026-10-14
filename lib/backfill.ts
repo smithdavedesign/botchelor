@@ -10,7 +10,7 @@
  * too, so an old date doesn't "remember" dates that happened after it.
  *
  * Run by the daily job a few dates at a time (free model, $0). Each date is tried at most
- * BACKFILL_MAX_ATTEMPTS times, so one the model keeps failing on stops costing calls.
+ * BACKFILL_MAX_ATTEMPTS times (rate limits excepted), so one the model keeps failing on stops costing calls.
  */
 import { track } from "./analytics";
 import type { Character } from "./character";
@@ -140,7 +140,7 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b
-      where e.status = 'ready' and jsonb_array_length(e.transcript) = 0 and e.transcript_backfill_attempts < $1
+      where e.status = 'ready' and jsonb_array_length(e.transcript) = 0 and e.backfill_failures < $1
       order by e.created_at desc, e.id
       limit $2`,
     [BACKFILL_MAX_ATTEMPTS, limit],
@@ -157,7 +157,7 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
     } catch (err) {
       track("conversation_failed", { episode_id: r.id, where: "backfill", reason: failureReason(err) });
       if (isRateLimited(err)) return { filled, failed, rate_limited: true };
-      await db.query(`update episodes set transcript_backfill_attempts = transcript_backfill_attempts + 1 where id = $1`, [r.id]);
+      await db.query(`update episodes set backfill_failures = backfill_failures + 1 where id = $1`, [r.id]);
       failed.push(r.id);
     }
   }
