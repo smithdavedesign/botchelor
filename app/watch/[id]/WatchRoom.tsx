@@ -445,7 +445,8 @@ function Polls({ state, onDone }: { state: RoomState; onDone: () => void }) {
       {(state.question.open || state.question.show_results) && (
         <PollCard
           title="Audience call: which question gets asked?"
-          hint="You decide what they have to answer. (It colours the scene — it never changes the outcome.)"
+          openHint="You decide what they have to answer. It colours the scene — it never changes the outcome."
+          closedHint="The room's pick is what they had to answer."
           poll="question"
           tally={state.question}
           roomId={state.id}
@@ -455,7 +456,8 @@ function Polls({ state, onDone }: { state: RoomState; onDone: () => void }) {
       {state.chaos.open && (
         <PollCard
           title="🎲 The chaos button: throw them a curveball"
-          hint="The crowd's pick plays out as a non-canon 'what if' at the end — the real outcome is still the characters' call."
+          openHint="The crowd's pick plays out as a non-canon 'what if' at the end — the real outcome is still the characters' call."
+          closedHint="The winning curveball plays out as a non-canon 'what if' at the decision."
           poll="chaos"
           tally={state.chaos}
           roomId={state.id}
@@ -465,7 +467,8 @@ function Polls({ state, onDone }: { state: RoomState; onDone: () => void }) {
       {(state.chemistry.open || state.chemistry.show_results) && (
         <PollCard
           title="Do they have chemistry?"
-          hint="The split stays hidden until the decision."
+          openHint="The split stays hidden until the decision."
+          closedHint="The room's read, revealed at the decision."
           poll="chemistry"
           tally={state.chemistry}
           roomId={state.id}
@@ -476,16 +479,37 @@ function Polls({ state, onDone }: { state: RoomState; onDone: () => void }) {
   );
 }
 
+/** Seconds left on a live window, ticking down locally and re-synced whenever the server's value changes. */
+function useCountdown(seconds: number | null): number | null {
+  const [left, setLeft] = useState(seconds);
+  useEffect(() => {
+    setLeft(seconds);
+    if (seconds === null) return;
+    const timer = setInterval(() => setLeft((s) => (s === null ? null : Math.max(0, s - 1))), 1000);
+    return () => clearInterval(timer);
+  }, [seconds]);
+  return left;
+}
+
+const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+/**
+ * One audience poll. While it's open the options are big tappable choices with a live countdown and a clear
+ * "your vote" state (changeable until it closes); once it closes it turns into a results card marked
+ * "Voting closed", so a finished poll can never be mistaken for one you can still vote in.
+ */
 function PollCard({
   title,
-  hint,
+  openHint,
+  closedHint,
   poll,
   tally,
   roomId,
   onDone,
 }: {
   title: string;
-  hint: string;
+  openHint: string;
+  closedHint: string;
   poll: "chemistry" | "question" | "chaos";
   tally: RoomState["chemistry"];
   roomId: string;
@@ -493,45 +517,85 @@ function PollCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The tap shows as your vote at once; the next sync confirms it (or the error reverts it).
+  const [pending, setPending] = useState<string | null>(null);
+  const left = useCountdown(tally.open ? tally.closes_in : null);
+  const mine = pending ?? tally.my_choice;
+
   async function vote(choice: string) {
-    if (busy) return;
+    if (busy || !tally.open) return;
     setBusy(true);
     setError(null);
+    setPending(choice);
     const res = await requestJson(`/api/watch-parties/${roomId}/votes`, { poll, choice });
-    if (!res.ok) setError(res.message);
+    if (!res.ok) {
+      setError(res.message);
+      setPending(null);
+    }
     setBusy(false);
     onDone();
   }
-  const max = Math.max(1, ...tally.options.map((o) => o.count));
-  return (
-    <section className="card watch-poll">
-      <h2>{title}</h2>
-      {tally.show_results ? (
-        <ul className="watch-results">
-          {tally.options.map((o) => (
-            <li key={o.id} className={tally.leading === o.id ? "leading" : undefined}>
-              <span className="watch-result-label">{o.label}</span>
-              <span className="watch-bar" style={{ width: `${(o.count / max) * 100}%` }} aria-hidden />
-              <span className="watch-count">{o.count}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="choices">
-          {tally.options.map((o) => (
-            <button
-              key={o.id}
-              type="button"
-              className={`secondary${tally.my_choice === o.id ? " chosen" : ""}`}
-              disabled={busy || !tally.open}
-              onClick={() => vote(o.id)}
-            >
-              {o.label}
-            </button>
-          ))}
+
+  if (tally.show_results) {
+    const max = Math.max(1, ...tally.options.map((o) => o.count));
+    return (
+      <section className="card watch-poll is-closed">
+        <div className="watch-poll-head">
+          <h2>{title}</h2>
+          <span className="poll-status closed">Voting closed</span>
         </div>
-      )}
-      <p className="muted">{hint}</p>
+        {tally.total === 0 ? (
+          <p className="muted">Nobody voted on this one.</p>
+        ) : (
+          <ul className="watch-results">
+            {tally.options.map((o) => (
+              <li key={o.id} className={tally.leading === o.id ? "leading" : undefined}>
+                <span className="watch-result-label">
+                  {o.label}
+                  {tally.my_choice === o.id && <span className="poll-yours"> · your vote</span>}
+                </span>
+                <span className="watch-bar" style={{ width: `${(o.count / max) * 100}%` }} aria-hidden />
+                <span className="watch-count">{Math.round((o.count / tally.total) * 100)}%</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="muted">{closedHint}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="card watch-poll is-open">
+      <div className="watch-poll-head">
+        <h2>{title}</h2>
+        {tally.open && (
+          <span className="poll-status live">
+            <span className="watch-dot" aria-hidden /> Live{left !== null ? ` · ${fmtClock(left)}` : ""}
+          </span>
+        )}
+      </div>
+      <div className="poll-options" role="radiogroup" aria-label={title}>
+        {tally.options.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={mine === o.id}
+            className={`poll-option${mine === o.id ? " chosen" : ""}`}
+            disabled={busy || !tally.open}
+            onClick={() => vote(o.id)}
+          >
+            <span className="poll-dot" aria-hidden />
+            <span className="poll-label">{o.label}</span>
+            {mine === o.id && <span className="poll-mine">Your vote</span>}
+          </button>
+        ))}
+      </div>
+      <p className="muted">
+        {mine ? "Locked in — tap another to change it before it closes." : "Tap to vote."} {openHint}
+        {tally.total > 0 && ` ${tally.total} ${tally.total === 1 ? "vote" : "votes"} so far.`}
+      </p>
       {error && <p className="error">{error}</p>}
     </section>
   );
@@ -552,21 +616,34 @@ function Predictions({ state, onDone }: { state: RoomState; onDone: () => void }
   }
   return (
     <section className="card watch-predict">
-      <h2>How does it end?</h2>
-      <p className="muted">Predict before the decision. A right call scores on the prediction board.</p>
-      <div className="choices">
-        {ENDINGS.map((ending) => (
-          <button
-            key={ending}
-            type="button"
-            className={`secondary${state.my_prediction === ending ? " chosen" : ""}`}
-            disabled={busy || !state.predictions_open}
-            onClick={() => predict(ending)}
-          >
-            {ENDING_LABELS[ending]}
-          </button>
-        ))}
+      <div className="watch-poll-head">
+        <h2>How does it end?</h2>
+        <span className={`poll-status ${state.predictions_open ? "live" : "closed"}`}>
+          {state.predictions_open ? "Open" : "Closed"}
+        </span>
       </div>
+      <p className="muted">
+        {state.predictions_open ? "Predict before the decision. A right call scores on the prediction board." : "Predictions closed at the decision."}
+      </p>
+      {state.predictions_open && (
+        <div className="poll-options" role="radiogroup" aria-label="How does it end?">
+          {ENDINGS.map((ending) => (
+            <button
+              key={ending}
+              type="button"
+              role="radio"
+              aria-checked={state.my_prediction === ending}
+              className={`poll-option${state.my_prediction === ending ? " chosen" : ""}`}
+              disabled={busy}
+              onClick={() => predict(ending)}
+            >
+              <span className="poll-dot" aria-hidden />
+              <span className="poll-label">{ENDING_LABELS[ending]}</span>
+              {state.my_prediction === ending && <span className="poll-mine">Your call</span>}
+            </button>
+          ))}
+        </div>
+      )}
       {state.my_prediction && (
         <p className="notice">
           Locked in: {ENDING_LABELS[state.my_prediction]}.
