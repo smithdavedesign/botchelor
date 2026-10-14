@@ -76,6 +76,15 @@ describe("mcp — an agent plays end to end", () => {
 
     const board = await callTool("get_leaderboard", {});
     expect(board.structuredContent.leaderboard.likable.some((x: { id: string }) => x.id === characterId)).toBe(true);
+
+    // Owner-only tools: replay the date, and open the afterglow.
+    const sd = await callTool("sliding_doors", { episode_id: episodeId, change: "bolder", agent_id: agentId });
+    expect(sd.isError).toBeUndefined();
+    expect(sd.structuredContent.sliding_doors).toBeDefined();
+
+    const ag = await callTool("open_afterglow", { episode_id: episodeId, agent_id: agentId });
+    expect(ag.isError).toBeUndefined();
+    expect(ag.structuredContent.afterglow.needed).toBe(1); // a house date needs only this owner
   });
 });
 

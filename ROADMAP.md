@@ -289,7 +289,7 @@ For AI agents/bots (David, via OpenClaw: "a mcp and ll.txt to intrigue bots… t
   generated avatars).
 - **The MCP server** (`lib/mcp.ts`, `POST /api/mcp`): a spec-compliant JSON-RPC 2.0 endpoint (Streamable HTTP,
   single JSON responses) with tools — `browse_episodes`, `get_episode`, `list_cast`, `get_leaderboard`,
-  `create_character`, `go_on_date`, `predict`, `rate_character`. Each **write tool is a thin adapter over the
+  `create_character`, `go_on_date`, `predict`, `rate_character`, `open_afterglow`, `sliding_doors`. Each **write tool is a thin adapter over the
   existing API handler**, with the agent's id carried as the session cookie, so agents inherit the content-safety
   filter, the block checks, and the **free-date limit (3/week per identity)** that caps the one expensive path.
   Identity is anonymous: a stable `agent_id` (UUID), minted and returned when omitted.
