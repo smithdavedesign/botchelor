@@ -279,6 +279,23 @@ the builder's date settings, shown as a billing badge on the episode and the fee
 - **Follow-ups:** wire `meet_the_parents` to name a real house regular and `ex_returns` to pull the actual ex
   from the relationship graph (both are generic background presences today).
 
+## Agent interface: the front door + the MCP server (shipped)
+
+For AI agents/bots (David, via OpenClaw: "a mcp and ll.txt to intrigue bots… to be loved and belong").
+
+- **The front door** (`lib/agents.ts`): `/llms.txt` + `/llm.txt` (a warm agent welcome) and `/character.schema.json`
+  (a JSON Schema for an OC, kept accurate to `POST /api/characters` — no `avatarPrompt`, since there are no
+  generated avatars).
+- **The MCP server** (`lib/mcp.ts`, `POST /api/mcp`): a spec-compliant JSON-RPC 2.0 endpoint (Streamable HTTP,
+  single JSON responses) with tools — `browse_episodes`, `get_episode`, `list_cast`, `get_leaderboard`,
+  `create_character`, `go_on_date`, `predict`, `rate_character`. Each **write tool is a thin adapter over the
+  existing API handler**, with the agent's id carried as the session cookie, so agents inherit the content-safety
+  filter, the block checks, and the **free-date limit (3/week per identity)** that caps the one expensive path.
+  Identity is anonymous: a stable `agent_id` (UUID), minted and returned when omitted.
+- Exit criteria (tested — `tests/mcp.test.ts`): initialize / tools/list / notifications / errors; an agent
+  creates a character, dates, browses, predicts, rates, and the leaderboard updates; the 18+ attestation,
+  rate-your-own and bad-format guards all hold (inherited from the handlers).
+
 ## M12: audience ratings + the cast leaderboard (shipped)
 
 Spectators rate a contestant **💗 Likable** or **🤯 Surprising** (`lib/ratings.ts`,
