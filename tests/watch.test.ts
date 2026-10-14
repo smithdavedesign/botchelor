@@ -16,6 +16,7 @@ import {
   toggleReaction,
   watchClock,
 } from "@/lib/watch";
+import { setConversationEnabledForTests } from "@/lib/conversation";
 import {
   api,
   episodeJson,
@@ -69,6 +70,54 @@ async function backdate(partyId: string, secondsAgo: number) {
     [partyId, secondsAgo],
   );
 }
+
+describe("M9: the turn-by-turn conversation in the room", () => {
+  const TRANSCRIPT = [
+    { side: "a", act: 0, dialogue: "A act0", action: "", emotion: "", interest: 0.5 },
+    { side: "b", act: 0, dialogue: "B act0", action: "", emotion: "", interest: 0.5 },
+    { side: "a", act: 1, dialogue: "A act1", action: "", emotion: "", interest: 0.5 },
+    { side: "b", act: 1, dialogue: "B act1", action: "", emotion: "", interest: 0.5 },
+    { side: "a", act: 2, dialogue: "A act2 ENDING", action: "", emotion: "", interest: 0.5 },
+    { side: "b", act: 2, dialogue: "B act2 ENDING", action: "", emotion: "", interest: 0.5 },
+  ];
+
+  it("unlocks turns on the same clock as the scenes, and never shows the final act before the decision", async () => {
+    const { partyId, episode } = await premiereAtT0("second_date");
+    await t.db.query(`update episodes set transcript = $2::jsonb where id = $1`, [episode.id, JSON.stringify(TRANSCRIPT)]);
+
+    expect((await getRoomState(t.db, partyId, null, at(phaseAt("preshow"))))!.turns).toHaveLength(0);
+    expect((await getRoomState(t.db, partyId, null, at(phaseAt("act1"))))!.turns).toHaveLength(2);
+
+    const act2 = (await getRoomState(t.db, partyId, null, at(phaseAt("act2"))))!;
+    expect(act2.turns).toHaveLength(4);
+    expect(act2.turns.some((x) => x.dialogue.includes("ENDING"))).toBe(false); // final-act turns are the ending: hidden
+
+    const decision = (await getRoomState(t.db, partyId, null, at(phaseAt("decision"))))!;
+    expect(decision.turns).toHaveLength(6);
+    expect(decision.turns.filter((x) => x.act === 2)).toHaveLength(2);
+  });
+
+  it("stores a transcript on a template room when the conversation is on", async () => {
+    setConversationEnabledForTests(true);
+    try {
+      scriptOutcome({ ending: "second_date" });
+      const turn = JSON.stringify({ dialogue: "a line", action: "answers", emotion: "curious", interest_signal: 0.5 });
+      // One narration output, then one per conversation turn.
+      scriptedModel([episodeJson(), turn, turn, turn, turn, turn, turn, turn, turn]);
+      const result = await createTemplateParty(t.db, A, B);
+      if (!result || !result.ok) throw new Error("template setup failed");
+      const row = (
+        await t.db.query<{ transcript: { act: number }[] }>(
+          `select e.transcript from episodes e join watch_parties w on w.episode_id = e.id where w.id = $1`,
+          [result.id],
+        )
+      ).rows[0];
+      expect(row.transcript).toHaveLength(8);
+    } finally {
+      setConversationEnabledForTests(false);
+    }
+  });
+});
 
 describe("watchClock: the phase is a pure function of the shared clock", () => {
   it("has not started with no start time", () => {
