@@ -47,6 +47,7 @@ import {
 import { buildDate, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
 import { narrateEpisode, ShowrunnerError, type CharacterSheet } from "./showrunner";
 import { isConversationEnabled, simulateConversation, type Turn } from "./conversation";
+import { generationPaused, PAUSED_MESSAGE } from "./compute";
 import { venueName, type VenueId } from "./venues";
 
 /** House-vs-house template episodes have no human creator: this fixed id never matches a real user's. */
@@ -583,6 +584,7 @@ const houseSheet = (c: HouseRow): CharacterSheet => ({
  * so the lobby is never empty. Refreshing them on a schedule is a deferred, spend-free follow-up.
  */
 export async function createTemplateParty(db: Db, aId: string, bId: string): Promise<CreatePartyResult | null> {
+  if (generationPaused()) return { ok: false, status: 503, error: "generation_paused", message: PAUSED_MESSAGE };
   const rows = (
     await db.query<HouseRow>(
       `select id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue

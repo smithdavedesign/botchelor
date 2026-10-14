@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { grantOrder } from "@/lib/payments";
@@ -70,6 +71,8 @@ export const POST = handle(async (req) => {
       });
       if (outcome === "unknown_order" || outcome === "mismatch") {
         console.warn(`[stripe] ${event.data.type} not granted (${outcome}) for session ${checkout.data.id}`);
+      } else {
+        track("purchase_completed", { outcome, amount_cents: checkout.data.amount_total ?? null });
       }
     }
   }

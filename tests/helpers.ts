@@ -56,6 +56,7 @@ type Table =
   | "badges"
   | "free_episode_usage"
   | "pack_episode_usage"
+  | "souls"
   | "character_assets"
   | "watch_parties"
   | "watch_messages"

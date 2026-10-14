@@ -195,9 +195,36 @@ unlocks the turns on the same clock as the scenes** — the final-act turns appe
 the room plays the date line by line without spoiling the ending. Still to do (a later cleanup): make the
 conversation the primary content and drop the now-redundant single-call narration.
 
-Deferred to M10 (launch readiness): the async job table + worker (so creator/paid dates generate in the
-background instead of in the request), account deletion/export, the analytics event taxonomy, and
-per-episode unit-economics/cost logging.
+## M10: launch readiness + security hardening (part 1)
+
+From the 2026-10-14 audit (`docs/audit.md`): the security, privacy and observability controls a public
+launch needs. Built ($0):
+
+- **Generation kill switch** (`lib/compute.ts`): set `BOTCHELOR_PAUSE=1` in the environment and all model
+  generation stops — `POST /api/episodes` and template rooms fail closed with a 503 and spend nothing
+  (no date is even reserved), with no deploy needed. The frontier model's hard **money cap** lives at the
+  provider, set with the key (`secrets add <scope> FRONTIER_LLM_API_KEY --cap "<limit>"`), so even an
+  authorized frontier run can't exceed the owner's limit.
+- **Account deletion + data export** (`lib/account.ts`): `GET /api/me/export` returns everything stored
+  under the anonymous cookie id as JSON; `DELETE /api/me` (needs `{"confirm": true}`) removes it —
+  profile, characters, private souls, predictions, orders and the side-games. A character already in a
+  shared episode keeps its fictional sheet but loses its soul and owner link (the personal data is gone;
+  the shared episode isn't broken).
+- **Constant-time secret compares**: one shared `safeEqual` in `lib/http.ts`, used by the frontier gate
+  and the (previously `!==`) watch-template admin token.
+- **Unit economics + product analytics** (`lib/analytics.ts`): one structured JSON line per event to the
+  system log (Vercel captures stdout), free of PII/content — `episode_generated` (model calls, latency,
+  model, turns), `episode_created`, `prediction_submitted`, `purchase_completed`, `content_reported`,
+  `generation_failed`.
+
+Exit criteria (tested — `tests/m10.test.ts`): the kill switch 503s and reserves no date; export returns
+the user's own data and delete removes it (hard-deleting a plain character, anonymizing one that's in an
+episode); `safeEqual` is correct; `track` emits one clean JSON line and never throws.
+
+Deferred to M10 part 2: the **async job table + worker** — the bigger piece, so creator/paid dates
+generate in the background (queued → worker → stored → room replays on the clock) instead of in the
+request. Best built when `app/api/episodes/route.ts` is quiet (the portraits session is nearby). The
+synchronous path (≈9 free calls, ~20s) is fine for the current MVP volume until then.
 
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 

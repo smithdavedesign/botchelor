@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import {
@@ -43,6 +44,7 @@ export const POST = handle(async (req) => {
   );
   const saved = rows[0];
   if (saved) {
+    track("prediction_submitted", { episode_id: input.episode_id, pick: saved.pick });
     const body = saved.drama_pick
       ? { episode_id: input.episode_id, pick: saved.pick, drama_pick: saved.drama_pick }
       : { episode_id: input.episode_id, pick: saved.pick };

@@ -5,7 +5,9 @@ import { getDb, type Db } from "@/lib/db";
 import { getEngine } from "@/lib/engine";
 import { listFeed, toEpisodeJson, type CharacterRef, type StoredEpisode } from "@/lib/game";
 import { handle, json, parseBody, readJson, session, userIdFromRequest, type Session } from "@/lib/http";
-import { episodeModel, type Model } from "@/lib/model";
+import { episodeModel, frontierAuthorized, type Model } from "@/lib/model";
+import { generationPaused, PAUSED_MESSAGE } from "@/lib/compute";
+import { track, trackEpisodeCost } from "@/lib/analytics";
 import { ownsSku } from "@/lib/payments";
 import {
   AGENDA_IDS,
@@ -105,6 +107,8 @@ async function blindMatch(db: Db, userId: string): Promise<CharacterRow> {
 
 export const POST = handle(async (req) => {
   const sess = session(req);
+  // M10 kill switch: a paused system takes no date and spends nothing (PRD: an episode fails closed).
+  if (generationPaused()) return json({ error: "generation_paused", message: PAUSED_MESSAGE }, 503, sess);
   const input = parseBody(EpisodeInput, await readJson(req), "invalid_request");
 
   if (input.note) {
@@ -176,9 +180,10 @@ export const POST = handle(async (req) => {
   }
   // Free model by default ($0); the frontier model only when this request carries the owner's key.
   const model = episodeModel(req);
+  const modelLabel: "free" | "frontier" = frontierAuthorized(req) ? "frontier" : "free";
   const outcome = { saved: false };
   try {
-    return await writeAndSave(db, sess, model, own, partner, input, outcome);
+    return await writeAndSave(db, sess, model, modelLabel, own, partner, input, outcome);
   } finally {
     if (!outcome.saved) {
       await releaseEpisode(db, sess.userId, reservation).catch((err: unknown) => {
@@ -198,12 +203,14 @@ async function writeAndSave(
   db: Db,
   sess: Session,
   model: Model,
+  modelLabel: "free" | "frontier",
   own: CharacterRow,
   partner: CharacterRow,
   input: EpisodeInputData,
   saveState: { saved: boolean },
 ): Promise<Response> {
   const episodeId = crypto.randomUUID();
+  const genStart = Date.now();
   const dateRequest: DateRequest = {
     autonomy: input.autonomy ?? "balanced",
     strategy: input.strategy ?? "genuine_chemistry",
@@ -220,6 +227,7 @@ async function writeAndSave(
   } catch (err) {
     if (!(err instanceof ShowrunnerError)) throw err;
     console.warn("[episodes] showrunner failed:", err.reasons.join(", "));
+    track("generation_failed", { reason: "showrunner" });
     return json(
       { error: "showrunner_unavailable", message: "No free model produced a valid episode. Nothing was saved; try again in a minute." },
       502,
@@ -287,6 +295,15 @@ async function writeAndSave(
   await rememberDate(db, own.id, partner.id, decided.ending).catch((err: unknown) => {
     console.error("[episodes] could not record the relationship:", err instanceof Error ? err.message : "unknown");
   });
+  // M10 unit economics + product analytics (no content, just ids and counts).
+  trackEpisodeCost({
+    episode_id: episodeId,
+    model: modelLabel,
+    model_calls: 1 + transcript.length,
+    ms: Date.now() - genStart,
+    transcript_turns: transcript.length,
+  });
+  track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: input.blind === true });
 
   // The creator watches the full episode right away; spectators get the teaser until the finale airs.
   const stored: StoredEpisode = {
