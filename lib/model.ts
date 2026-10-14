@@ -24,27 +24,53 @@ export const MODEL_TIMEOUT_MS = 25_000;
 
 type CompletionResponse = { choices?: { message?: { content?: unknown } }[] };
 
+/** Statuses that mean "slow down / try again shortly" (a free tier's per-minute quota, a busy upstream). */
+const RETRYABLE_STATUS = new Set([429, 503]);
+/** Backoff before each retry of a retryable status. Bounded, so a generation job can't stall for long. */
+export const RETRY_DELAYS_MS = [2_000, 5_000];
+/** The most we'll honour from a Retry-After header. */
+export const MAX_RETRY_AFTER_MS = 8_000;
+const realSleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
+/** How long to wait before a retry: the server's Retry-After (seconds) when given, capped; else the backoff. */
+function retryDelay(res: Response, fallbackMs: number): number {
+  const after = Number(res.headers.get("retry-after"));
+  return Number.isFinite(after) && after > 0 ? Math.min(after * 1000, MAX_RETRY_AFTER_MS) : fallbackMs;
+}
+
 export function openAICompatibleModel(opts: {
   baseUrl: string;
   apiKey: string;
   model: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  /** Backoff before each retry of a 429/503 (default RETRY_DELAYS_MS); [] disables retries. */
+  retryDelaysMs?: number[];
+  /** Injectable for tests, so a retry doesn't really wait. */
+  sleep?: (ms: number) => Promise<void>;
 }): Model {
   const url = `${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`;
   const doFetch = opts.fetchImpl ?? fetch;
+  const delays = opts.retryDelaysMs ?? RETRY_DELAYS_MS;
+  const sleep = opts.sleep ?? realSleep;
   return {
     async complete(messages) {
       let res: Response;
-      try {
-        res = await doFetch(url, {
-          method: "POST",
-          headers: { authorization: `Bearer ${opts.apiKey}`, "content-type": "application/json" },
-          body: JSON.stringify({ model: opts.model, messages, response_format: { type: "json_object" } }),
-          signal: AbortSignal.timeout(opts.timeoutMs ?? MODEL_TIMEOUT_MS),
-        });
-      } catch (err) {
-        throw new ModelError(`model request failed (${err instanceof Error ? err.name : "unknown"})`);
+      // A free tier answers 429 when a burst of calls (a date is ~13 in a row) crosses its per-minute quota;
+      // a short, bounded backoff rides that out instead of losing the whole conversation to one refusal.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          res = await doFetch(url, {
+            method: "POST",
+            headers: { authorization: `Bearer ${opts.apiKey}`, "content-type": "application/json" },
+            body: JSON.stringify({ model: opts.model, messages, response_format: { type: "json_object" } }),
+            signal: AbortSignal.timeout(opts.timeoutMs ?? MODEL_TIMEOUT_MS),
+          });
+        } catch (err) {
+          throw new ModelError(`model request failed (${err instanceof Error ? err.name : "unknown"})`);
+        }
+        if (!RETRYABLE_STATUS.has(res.status) || attempt >= delays.length) break;
+        await sleep(retryDelay(res, delays[attempt]));
       }
       if (!res.ok) throw new ModelError(`model returned HTTP ${res.status}`);
       const data = (await res.json().catch(() => null)) as CompletionResponse | null;
