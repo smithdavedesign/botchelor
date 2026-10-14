@@ -83,6 +83,9 @@ The cast gallery: a browsable library of the living cast, each house character s
 ![A shareable contestant card for a character, desktop](docs/screenshots/contestant-desktop.png)
 Every character has a **shareable contestant card** (public persona only, with its own link-preview image, and the audience-rating chips) — a $0 growth loop.
 
+![The Reunion special: season awards, the couples board and the confessional reel, desktop](docs/screenshots/reunion-desktop.png)
+**The Reunion** (`/reunion`): a season-special **assembled at $0** from what already happened — the season awards (fan favourite, biggest disaster, …), the couples board from the relationship graph, and a reel of the confessionals creators chose to share. No new generation, no model call.
+
 For adults who make original characters and the friends who watch, it turns two character sheets into a short blind-date episode that creators can't steer and spectators predict for free points.
 
 ## The simulation (the "Full $0 vision")
