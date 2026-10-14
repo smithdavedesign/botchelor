@@ -1,60 +1,66 @@
 # Competitive analysis & feature roadmap
 
-_Written for David, 2026-10-13. What the competitors do, where Botchelor wins, and a prioritized roadmap — $0-now vs. spend-gated. Sources at the bottom._
+_Written for David, 2026-10-13. A sourced comparison of the main AI-character apps, an honest read of where Botchelor leads and lags, the features shipped to close the gaps, and the roadmap. Sources at the bottom. Where a fact is from a third-party review rather than an official page, it is flagged — confirm on each app's own listing before any public claim._
 
-## What the competitors do
+## Feature matrix (sourced)
 
-| App | What it is | UI / features worth stealing |
-|---|---|---|
-| **Character.AI** | Chat-first, biggest library | Personality sliders (humor/tone/empathy), backstory, voice selection, appearance, behavioral constraints, **AvatarFX** animated avatars, scene creation, group chats. Premium gates advanced creation. |
-| **Talkie** | Chat + gamification | **Collectible cards generated from conversations, tradeable** (a card game layered on chat), image-generated avatars (anime / 3D / realistic styles), 15+ adjustable traits, hairstyles/clothing/voice/quirks, public/private sharing, large community library. |
-| **Chai** | Mobile-first casual chat | Big community bot library, simple creation, mobile-native feel. |
-| **Janitor AI** | Power-user chat | Most customizable; bring-your-own model via API. |
-| **Love Island USA app** | Companion to the TV show | Real-time **play-along** at showtime, prediction games, polls, quizzes, puzzles, exclusive clips, push notifications for voting rounds. >25% of mobile viewers played the S7 prediction game. |
+| | Botchelor | Character.AI | Talkie | Replika | Candy AI / DreamGF |
+|---|---|---|---|---|---|
+| Core loop | **Watch-only AI dating show + prediction game** | 1:1 chat | 1:1 chat + cards | 1:1 companion | 1:1 companion |
+| Outcome engine | **Deterministic, seeded** (fair predictions, replayable) | model chat | model chat | model chat | model chat |
+| Avatars / images | **Generated avatars, consistent, free**; reference-image tinting in-browser | AI image gen (**Imagine Gallery, c.ai+ only, Mar 2026**) | image-generated avatars (anime/3D/realistic, paid tiers) | avatar-based, VR/AR on Quest | photo gen, **faces drift** (prompt-based) |
+| Collectible cards | **Shareable contestant & box-score cards** | — | collectible/tradeable cards | — | — |
+| Customization | sheet + soul + appearance + avatar colour/image + autonomy/strategy/agenda | sliders, voice, backstory, scenes | 15+ traits, appearance | outfits, traits | outfits, traits |
+| Progression | relationship graph + seasons/leagues/badges | — | gems/levels | affection levels | token spend |
+| Spectators | **yes — predict, matchmake, follow a cast** | no | no | no | no |
+| Privacy | **owner-only soul, local-only option, no real people** | standard | standard | standard | explicit, token-gated |
+| Price | **$0, free points, nothing pay-to-win** | c.ai+ **$9.99/mo** | Talkie+ **$9.99/mo** | Pro **~$19.99/mo** | **$14–40/mo** once image/video tokens are added |
 
-The pattern: competitors win on **visual richness (avatars/images), customization depth (sliders, appearance), gamification (cards, collections), and community (shareable libraries)**. They are almost all chat-first and creator-steered.
+Sources for the specifics: Character.AI's Imagine Gallery and $9.99 c.ai+ tier (startuphub/scrile reviews, Mar 2026); Talkie's $9.99 tier and community library (aichief); Replika VR/AR and ~$19.99 (fostera/heartie); Candy AI/DreamGF token costs and face-drift (sloane/heartie). All third-party; confirm on official listings.
 
-## Where Botchelor already wins
+## Where Botchelor genuinely leads
 
-- **Watch-only show, not a chatbot.** Nobody types both sides; the outcome is the attraction. No competitor does this.
-- **A real game engine.** Outcomes come from a deterministic, seeded engine, not a model, so predictions are fair and dates are replayable (Sliding Doors). Competitors' "outcomes" are just chat.
-- **A spectator job.** Non-creators predict, matchmake, and follow a living cast — the Love Island habit, but for user-made characters.
-- **Souls + privacy.** The public/private split, with a local-only soul that never touches a model. Stronger privacy posture than any of them.
-- **$0 and safe-by-default.** Free models, 18+ only, no real people, no real-money anything.
+These are structural, not just feature checkboxes:
 
-## The gaps (and the plan to close them)
+1. **It's a show, not a chatbot.** No competitor above is watch-only. The outcome of the date is the product; nobody types both sides. This is the one axis where "better" is defensible rather than a claim — the others don't do it at all.
+2. **A real, fair game engine.** Outcomes are decided by a deterministic, seeded engine, so predictions are fair, the box score is real, and Sliding Doors can replay a date. Competitors' "outcomes" are just more chat.
+3. **A job for non-creators.** Spectators predict, guess the dealbreaker, matchmake and follow a living cast. None of the companion apps have an audience role at all.
+4. **$0 and not pay-to-win.** Competitors monetize hard: $10–40/mo plus token systems for images/video, and 2026 reviews cite "aggressive monetization," mid-chat paywalls, and "goldfish memory" as why power users are leaving. Botchelor's points and badges are free and can never be bought, and nothing bought changes odds or rank. That is a real differentiator, and it's sourced.
+5. **Stronger privacy.** An owner-only soul with a local-only option that never touches a model, and a hard no-real-people rule. The visual-first apps are the opposite.
 
-### Shipped in this pass ($0)
-- **Avatars.** Every character gets a generated, consistent avatar (deterministic SVG — gradient + motif + initials), across the feed, episodes and cast. Closes the single biggest "feels alive" gap vs. Character.AI/Talkie, with no image hosting and no real-person risk.
-- **Appearance customization.** An optional appearance line and an avatar palette the owner picks — character customization without uploads.
-- **A visual overhaul.** Display type, a richer palette with real dark mode, a hero, card and button polish, and avatars throughout.
-- **A richer cast gallery.** The `/cast` page becomes a browsable, avatar-rich library (Talkie/Chai's community-library feel).
+## Where Botchelor lags (and the plan)
+
+- **No voice, no real portraits/video.** Character.AI and the visual-first apps generate images/video. Ours are stylized avatars. Closing this needs spend (a vision/image model + storage + moderation) — see docs/upgrade-cost.md. The honest trade: ours are free, consistent and safe; theirs are richer but paid and drift.
+- **Small library / cold start.** Competitors have huge community libraries. We seed a cast (`npm run seed`) and the contestant/cast pages make characters shareable to grow one; a follow/gallery system is next.
+- **No deep chat memory.** By design — we're a show, not a companion — but the relationship graph is our version of memory and is a differentiator, not a gap.
+
+## Shipped this pass (to close gaps, all $0)
+
+- **Reference-image avatar styling.** An owner can pick an image in the builder; the browser reads its dominant colour with a canvas and tints the avatar. The image is **never uploaded or stored** — only the derived hue is sent — so there is nothing to moderate and no real-person risk. This is the safe, buildable form of "use an image to customize your character."
+- **Shareable contestant cards.** Every character has a public card at `/characters/[id]` with its own Open Graph image (avatar, name, traits) and a copy-link button — the Talkie/Heartie "card" hook as a $0 growth loop. The cast gallery links to them.
+- (Earlier this cycle: avatars everywhere, the visual overhaul with dark mode, the cast gallery, a full E2E suite and seed data.)
+
+## Roadmap
 
 ### Next, still $0
-- **Collectible "contestant cards" and "moment cards"** (Talkie's hook, our way): a shareable character card and a per-episode moment card, built on the existing OG-image route. Optional badge/sticker collection earned from the free prediction game.
-- **Community gallery with follows.** Browse and follow creators' public characters; a "most-shipped" and "best conversationalist" board (several categories, not just popularity).
-- **Live-feeling season moments.** A weekly "finale night" where several episodes air together and the board updates in real time (the Love Island play-along feel), on the existing season engine.
-- **Personality sliders in the builder** mapped to the engine signals (warmth/boldness/humor), as a friendlier alternative to writing a soul.
+- **Follows + a community gallery** with category boards (most-shipped, best conversationalist, funniest failure), so the library grows and surfaces.
+- **Relationship progression labels** on the graph (acquaintances → sparks → an item), the companion apps' "stages" done our way.
+- **Moment cards**: a per-beat shareable card for a great line, on the OG route.
 
-### Spend-gated (proposed, not built — see docs/upgrade-cost.md)
-- **Image upload as a reference / portrait, and "image as training data".** This is the user's explicit ask. It is **not** a $0 feature and carries real risk, so it is proposed with guardrails rather than switched on:
-  - **Cost:** object storage + CDN for the images, and a vision model to derive anything from them. Both are in the upgrade-cost staging.
-  - **Safety/legal (the blocker):** uploads of real people are banned (the whole product bans real people), so an upload path needs **automated image moderation** (CSAM scanning via a service like a hash-matching API, plus a real-face / real-person classifier) before anything is stored or shown. A solo owner cannot moderate raw image uploads by hand. "Training data" specifically (fine-tuning or embedding a person's likeness) raises consent and likeness-rights issues on top of that.
-  - **The $0 stand-in shipped now:** generated avatars + appearance text give visual identity without uploads, so the product looks custom today while the upload path waits for budget + a moderation provider.
-- **Generated portraits and scenes, voice, and short video** — Phase 3 media, already in upgrade-cost.md.
+### Spend-gated (your approval; docs/upgrade-cost.md)
+- **Frontier text model** (Stage 1) — the biggest lever on dialogue quality, which is what keeps the tenth date as good as the first.
+- **Generated portraits** with a vision/image model, consistent per character (what Sloane's per-persona models do), plus storage/CDN.
+- **Image upload as a reference / "training" the look**, with the required guardrails: object storage, a moderation provider (CSAM scanning + a real-person classifier) before anything is stored or shown, since the product bans real people. The in-browser tinting above is the $0 stand-in until then.
 
-## Recommended order
+## Honest bottom line
 
-1. **This pass ($0):** avatars, appearance, the visual overhaul, the cast gallery, a full E2E test suite and seed data. (In progress.)
-2. **Next $0 pass:** contestant/moment cards + the community gallery with follows and category boards.
-3. **First spend (your approval):** Stage 1 of upgrade-cost.md (frontier text model + compute-budget gate), which also lifts dialogue quality above the free tier — the thing that keeps the tenth date as good as the first.
-4. **Image upload** only once a moderation provider and storage are funded, with the guardrails above.
+On its own axis — a watch-only AI dating show with a fair prediction game, a living cast and $0 pricing — Botchelor does something none of the competitors do, so there it leads outright. On raw visual generation and library size it is behind the paid, token-funded apps, and closing that fully needs spend. The $0 work this cycle (avatars, image tinting, contestant cards, the visual overhaul) makes it look and feel competitive without changing the free, safe, not-pay-to-win model that is its real edge.
 
 ## Sources
 
-- [Character.AI complete guide 2026](https://www.codaone.ai/blog/character-ai-complete-guide-2026/) · [Character.AI review](https://tooliverse.ai/tools/character-ai)
-- [What is Talkie AI?](https://aichief.com/ai-fun-tools/talkie-ai/) · [Talkie AI startup profile](https://neuronfeed.com/startups/talkie-ai)
-- [Best AI roleplay apps 2026](https://www.aigirlfriends.it.com/?p=174) · [Character AI vs Janitor AI](https://characterai.it.com/?p=2643)
-- [Love Island lets viewers join interactive games (NBCUniversal)](https://www.nbcuniversal.com/article/love-island-lets-viewers-join-fun-interactive-games) · [Love Island S7 app downloads (FoxData)](https://foxdata.com/en/blogs/love-island-usa-season-7-how-a-reality-dating-show-fueled-app-downloads-in-2025/)
+- [Character.AI review 2026 (StartupHub)](https://www.startuphub.ai/ai-news/reviews/2026/character-ai-review-2026) · [Character AI alternatives 2026 (Scrile)](https://www.scrile.com/blog/character-ai-alternative) · [Character.AI complete guide 2026 (Codaone)](https://www.codaone.ai/blog/character-ai-complete-guide-2026/)
+- [What is Talkie AI? (AIChief)](https://aichief.com/ai-fun-tools/talkie-ai/) · [Talkie AI startup profile](https://neuronfeed.com/startups/talkie-ai)
+- [Best AI companion apps 2026 (Fostera)](https://fostera.ai/blog/best-ai-companion-apps-2026) · [Best AI companion apps 2026 (Heartie)](https://heartie.net/blog/best-ai-companion-apps-2026/) · [Best AI companion app 2026 (Sloane)](https://www.sloane.world/guides/best-ai-companion-app-2026)
+- [Love Island interactive games (NBCUniversal)](https://www.nbcuniversal.com/article/love-island-lets-viewers-join-fun-interactive-games) · [Love Island S7 app downloads (FoxData)](https://foxdata.com/en/blogs/love-island-usa-season-7-how-a-reality-dating-show-fueled-app-downloads-in-2025/)
 
-_These are mostly third-party review/SEO sources; feature specifics should be confirmed on each app's official listing before any competitive claim is made publicly._
+_These are mostly third-party review/SEO sources. The structural claims (watch-only format, deterministic engine, spectator role, $0/no-pay-to-win, privacy model) are facts about Botchelor's own code; the competitor specifics should be confirmed on each app's official listing before any public comparison._

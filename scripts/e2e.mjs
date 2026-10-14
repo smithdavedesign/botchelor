@@ -160,6 +160,14 @@ async function main() {
       await spage.getByText("Proposed.").waitFor({ timeout: 10_000 });
     });
 
+    await step("each contestant has a shareable card", async () => {
+      await spage.goto(`${base}/cast`);
+      await spage.locator(".gallery .meta a").first().click();
+      await spage.waitForURL(/\/characters\//);
+      assert((await spage.locator(".contestant .avatar").count()) > 0, "contestant card avatar missing");
+      assert((await spage.getByText("Share this contestant").count()) > 0, "share section missing on the card");
+    });
+
     await step("the shop sells a pack end to end (checkout, Payment Link, signed webhook)", async () => {
       let linkUrl = null;
       await page.route(`${new URL(SAMPLE_PAYMENT_LINK).origin}/**`, (route) => {

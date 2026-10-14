@@ -774,3 +774,30 @@ button.swatch.chosen {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
+
+.file-style {
+  font-weight: 400;
+  margin-top: 0.5rem;
+}
+
+.file-style input {
+  margin-top: 0.3rem;
+}
+
+.file-note {
+  display: block;
+  font-size: 0.78rem;
+  margin-top: 0.2rem;
+}
+
+/* ---------------- contestant card (character page) ---------------- */
+.contestant {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.contestant .meta h1 {
+  margin: 0;
+}

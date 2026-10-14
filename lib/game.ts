@@ -389,6 +389,28 @@ export async function listMyCharacters(db: Db, userId: string, limit = MY_CHARAC
  * dealbreaker, matchmakers). League and season boards score the prediction game only (that is the
  * weekly contest); this total also counts the side games. All of it is free and none of it can be bought.
  */
+/** The public persona for a character's shareable card: no dealbreaker (it is the quiz) and no soul. */
+export type PublicCharacter = {
+  id: string;
+  name: string;
+  age: number;
+  bio: string;
+  traits: string[];
+  appearance: string | null;
+  want: string;
+  house: boolean;
+  hue: number | null;
+};
+
+export async function getPublicCharacter(db: Db, id: string): Promise<PublicCharacter | null> {
+  const { rows } = await db.query<PublicCharacter>(
+    `select id, name, age, bio, traits, appearance, want, is_house as house, avatar_hue as hue
+       from characters where id = $1`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
 export async function getPoints(db: Db, userId: string): Promise<number> {
   const { rows } = await db.query<{ points: number }>(
     `select (

@@ -48,3 +48,48 @@ export function initials(name: string): string {
 
 /** A CSS `linear-gradient(...)` string, for the OG card where inline SVG gradients are awkward. */
 export const avatarGradientCss = (p: AvatarPalette): string => `linear-gradient(135deg, ${p.from}, ${p.to})`;
+
+function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  let h = 0;
+  let s = 0;
+  if (d) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return { h, s, l };
+}
+
+/**
+ * The dominant vivid hue (1..360) in RGBA pixel data, or null if the image is mostly grey. This is how
+ * a reference image styles a character's avatar: the browser reads the colours with a canvas and sends
+ * only this one number — the image itself is never uploaded or stored, so there is nothing to moderate
+ * and no real-person risk. Pure, so it is unit-tested without a canvas.
+ */
+export function hueFromPixels(data: Uint8ClampedArray | number[]): number | null {
+  const bins = new Array(12).fill(0);
+  for (let i = 0; i + 3 < data.length; i += 4) {
+    if (data[i + 3] < 125) continue; // skip transparent
+    const { h, s, l } = rgbToHsl(data[i], data[i + 1], data[i + 2]);
+    if (s < 0.2 || l < 0.12 || l > 0.9) continue; // skip grey, near-black and near-white
+    bins[Math.floor(h / 30) % 12] += s * (1 - Math.abs(l - 0.5) * 0.8);
+  }
+  let best = -1;
+  let bestWeight = 0.5; // a floor, so an almost-grey image stays "auto"
+  for (let i = 0; i < 12; i++) {
+    if (bins[i] > bestWeight) {
+      bestWeight = bins[i];
+      best = i;
+    }
+  }
+  return best < 0 ? null : best * 30 + 15; // the bin's centre, always 15..345 (never 0 = "auto")
+}

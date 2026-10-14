@@ -983,6 +983,8 @@ npm run e2e    # full end-to-end test in a real browser (needs CHROMIUM_PATH); 1
 - `scripts/harness.mjs` is the shared app/showrunner lifecycle used by `e2e.mjs` and `seed.mjs`; the stub showrunner returns a valid three-act narration matching the engine's decided ending.
 - `npm run e2e` covers the whole product: custom-character build (soul, appearance, avatar colour) → send on a date → the three-act episode with avatars/box score/debrief/agendas → Sliding Doors → a spectator predicts and guesses the dealbreaker → the host airs the finale → the spectator is scored → the cast gallery/matchmaker → a shop purchase. All 10 steps pass.
 
-### Image upload / "image as training data"
+### Using an image to customize a character
 
-Proposed, not built (docs/competitive-analysis.md): it needs object storage, a vision model, and automated image moderation (CSAM scanning + a real-person classifier), since the product bans real people. Generated avatars are the $0 stand-in. The engine `CharacterSheet` already carries `appearance` so a future reference image slots in without touching the engine.
+Shipped the safe $0 form: in the builder, an owner can pick a reference image and the browser reads its dominant colour with a canvas (`hueFromPixels`, `lib/avatar.ts`) to tint the avatar. The image is **never uploaded or stored** — only the derived hue is sent, exactly like choosing a swatch — so there is nothing to moderate and no real-person risk. Plus **shareable contestant cards** at `/characters/[id]` (public persona only, with their own OG image), linked from the cast gallery.
+
+Uploading and **storing** an image, or "training" the look on it, stays proposed (docs/competitive-analysis.md): it needs object storage, a vision model, and automated image moderation (CSAM scanning + a real-person classifier), since the product bans real people. The engine `CharacterSheet` already carries `appearance`, so a future reference image slots in without touching the engine.
