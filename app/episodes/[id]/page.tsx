@@ -12,6 +12,7 @@ import { getProfileName } from "@/lib/people";
 import { DATE_ACTS, DRAMA_QUESTION_LABELS, dramaAnswerLabel, ENDING_LABELS, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
 import { formatLabel } from "@/lib/formats";
 import { venueBackdropCss, venueName } from "@/lib/venues";
+import { venueBackdrop } from "@/lib/portraits";
 import Avatar from "@/app/Avatar";
 import Afterglow from "./Afterglow";
 import BoxScore from "./BoxScore";
@@ -106,7 +107,20 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
       <section className="card">
         <h2>The setting</h2>
         {episode.venue && (
-          <p className="venue" style={{ backgroundImage: venueBackdropCss(episode.venue) }}>
+          <p
+            className="venue"
+            style={{
+              // A legibility scrim over the reviewed backdrop photo (lib/portraits.ts), with the venue's
+              // gradient as the fallback when there's no photo for this venue.
+              backgroundImage: [
+                "linear-gradient(rgba(15,10,20,0.30), rgba(15,10,20,0.48))",
+                venueBackdrop(episode.venue) ? `url(${venueBackdrop(episode.venue)})` : null,
+                venueBackdropCss(episode.venue),
+              ]
+                .filter(Boolean)
+                .join(", "),
+            }}
+          >
             {venueName(episode.venue)}
           </p>
         )}
