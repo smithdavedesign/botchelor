@@ -310,30 +310,25 @@ contestant card, with a **cast leaderboard** (most likable / most surprising) on
   self-rating is 403 and an unknown character 404; the leaderboard orders by count; the owner earns points
   when others rate their OC, the rater earns none.
 
-## M13 (in design): the immersive date "theater"
+## M13: the immersive date "theater" (shipped)
 
-David's call: make watching a date feel like an *experience* — a full-screen, Twitch-style "window into the
-two date bots," not a page you scroll. Keep every current feature (the turn-by-turn date, live chat,
-reactions, the chemistry/question/chaos polls, predictions, the box score, the decision), re-homed into a
-cinematic layout.
+David's call: make watching a date feel like an *experience* — a full-screen "window into the two date bots,"
+not a page you scroll. Every current feature is kept (the turn-by-turn date, live chat, reactions, the
+chemistry/question/chaos polls, predictions, the box score, the decision), re-homed into a cinematic layout.
+Grounded in how Twitch/live-watch UIs work (an app-fullscreen stage with overlays, docked-but-collapsible chat).
 
-Grounded in how Twitch/live-watch UIs work (research 2026-10-14): a **theater layout** (a big stage, chat
-docked to the side and movable) reads as more immersive than an info-stacked page; an **overlay** (chat/
-reactions fading over the stage) feels richer still; native browser fullscreen hides page chrome, so the
-right build is an **app-fullscreen container** (a fixed 100vw×100vh stage) with everything else as overlays.
-
-**Proposed shape (pending David's answers):**
-- A **stage**: the two characters as two "windows" (portrait/avatar), left and right, over the venue backdrop;
-  the turn-by-turn dialogue plays out live as speech from each side on the existing phase clock.
-- **Chat + reactions** docked right on desktop (Twitch theater), below on mobile (vertical variant), with an
-  optional fade-over-stage overlay mode.
-- **A top HUD** (phase, viewers, venue) and a **bottom/side rail** for the live inputs (predict, the polls,
-  the chaos button) and the decision + box-score payoff — overlays, not a scroll.
-- Built as the watch room reimagined (`app/watch/[id]`), since that is where the live clock, chat and polls
-  already are; likely a "theater mode" the room opens into, preserving today's layout as a fallback.
-
-Open questions are tracked with the branch; implementation follows David's answers. No new model cost (it is
-a re-layout of existing data + the existing $0 live machinery).
+**The design (David's answers, 2026-10-14):**
+- **The scene (desktop):** a full-bleed venue backdrop the two characters *live in*, one **left**, one **right**,
+  each with a **persistent speech bubble** — a character's latest line stays up until it speaks again. The date
+  advances on the existing phase clock (watch party) or as a cinematic replay (episode page).
+- **Chat (desktop):** docked to the side, with a **small Twitch-style icon to open/close** it.
+- **Mobile:** a **chat-window** view — the dialogue as a messaging thread with the characters' avatar icons.
+- **Both surfaces** get it: the live watch room **and** the static episode page (the episode replays its recorded
+  transcript in the same scene).
+- A top HUD (phase/viewers/venue) and a rail for the live inputs (predict, the polls, the chaos button) + the
+  decision/box-score payoff — overlays, not a scroll.
+- Built as a **theater mode the watch room opens into** (today's layout stays as the fallback). No new model
+  cost — a re-layout of existing data + the existing $0 live machinery.
 
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 

@@ -2,9 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Avatar from "@/app/Avatar";
+import Scene, { SceneThread } from "@/app/Scene";
 import { requestJson } from "@/app/request";
 import { DATE_ACTS, DATE_VARIABLES, ENDING_LABELS, ENDINGS, VARIABLE_LABELS } from "@/lib/rules";
+import type { Turn } from "@/lib/conversation";
 import type { RoomState } from "@/lib/watch";
+
+/** The most recent line a side has spoken, for its persistent scene bubble. */
+function lastLine(turns: Turn[], side: "a" | "b"): string | null {
+  for (let i = turns.length - 1; i >= 0; i--) if (turns[i].side === side) return turns[i].dialogue;
+  return null;
+}
 
 const POLL_MS = 4000;
 const CHAT_HIDDEN_KEY = "bz_watch_chat_hidden";
@@ -20,6 +28,7 @@ function readChatHidden(): boolean {
 export default function WatchRoom({ initial }: { initial: RoomState }) {
   const [state, setState] = useState<RoomState>(initial);
   const [chatHidden, setChatHidden] = useState(false);
+  const [theater, setTheater] = useState(false);
   const busy = useRef(false);
 
   // The heartbeat: register presence, advance the template clock / air the finale, pull fresh tallies.
@@ -60,6 +69,19 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
   }
 
   const [a, b] = state.characters;
+
+  if (theater) {
+    return (
+      <Theater
+        state={state}
+        sync={sync}
+        chatHidden={chatHidden}
+        onToggleChat={toggleChat}
+        onExit={() => setTheater(false)}
+      />
+    );
+  }
+
   return (
     <div className="watch">
       <header className="watch-head">
@@ -82,6 +104,9 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
             <span className="watch-dot" aria-hidden /> {state.watching} watching
           </span>
           <span className="chip">{state.clock.started ? state.clock.phase_label : "Starting…"}</span>
+          <button type="button" className="primary small" onClick={() => setTheater(true)}>
+            🎬 Theater mode
+          </button>
         </div>
       </header>
 
@@ -107,6 +132,109 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
           )}
         </aside>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Theater mode (M13): the full-screen "window into the date". The two characters live in the venue scene
+ * (desktop) or a chat window (phone), the turns play out as persistent bubbles on the live clock, and every
+ * existing feature — reactions, the polls, the chaos button, predictions, the decision — rides along as an
+ * overlay rail. Chat docks to the side behind a small icon.
+ */
+function Theater({
+  state,
+  sync,
+  chatHidden,
+  onToggleChat,
+  onExit,
+}: {
+  state: RoomState;
+  sync: () => void;
+  chatHidden: boolean;
+  onToggleChat: () => void;
+  onExit: () => void;
+}) {
+  const [a, b] = state.characters;
+  const actLabel = state.turns.length
+    ? DATE_ACTS[state.turns[state.turns.length - 1].act] ?? null
+    : state.clock.started
+      ? state.clock.phase_label
+      : null;
+  const leadingChemistry = state.chemistry.options.find((o) => o.id === state.chemistry.leading);
+
+  return (
+    <div className={`theater${chatHidden ? " chat-closed" : ""}`}>
+      <div className="theater-stage">
+        <Scene
+          characters={state.characters}
+          venue={state.venue}
+          lineA={lastLine(state.turns, "a")}
+          lineB={lastLine(state.turns, "b")}
+          actLabel={actLabel}
+          placeholder="The date is about to begin…"
+        />
+        <SceneThread characters={state.characters} turns={state.turns} />
+
+        <header className="theater-hud">
+          <div className="theater-id">
+            <strong>
+              {a.name} <span className="vs">×</span> {b.name}
+            </strong>
+            <span className="watch-live">
+              <span className="watch-dot" aria-hidden /> {state.watching}
+            </span>
+            <span className="chip">{state.clock.started ? state.clock.phase_label : "Starting…"}</span>
+          </div>
+          <div className="theater-tools">
+            <button
+              type="button"
+              className="theater-icon"
+              onClick={onToggleChat}
+              aria-pressed={!chatHidden}
+              aria-label={chatHidden ? "Show chat" : "Hide chat"}
+              title={chatHidden ? "Show chat" : "Hide chat"}
+            >
+              💬
+            </button>
+            <button type="button" className="secondary small" onClick={onExit}>
+              Exit
+            </button>
+          </div>
+        </header>
+
+        {state.show_ending && (
+          <div className="theater-verdict">
+            <p className="ending">{state.ending_label}</p>
+            {leadingChemistry && (
+              <p className="muted">
+                The room said {stripEmoji(leadingChemistry.label)}; the characters chose {state.ending_label}.
+              </p>
+            )}
+            {state.chaos.timeline && (
+              <p className="muted">🎲 Chaos: {state.chaos.timeline.label} → {state.chaos.timeline.ending_label} (non-canon).</p>
+            )}
+          </div>
+        )}
+
+        <div className="theater-rail">
+          <Reactions state={state} onDone={sync} />
+          <Polls state={state} onDone={sync} />
+          <Predictions state={state} onDone={sync} />
+        </div>
+      </div>
+
+      {!chatHidden && (
+        <aside className="theater-chat">
+          <div className="watch-chat-head">
+            <h2>Live chat</h2>
+            <button type="button" className="theater-icon" onClick={onToggleChat} aria-label="Hide chat" title="Hide chat">
+              ✕
+            </button>
+          </div>
+          <Chat state={state} onDone={sync} />
+        </aside>
+      )}
     </div>
   );
 }

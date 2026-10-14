@@ -564,6 +564,13 @@ async function capture(base, leagueId, viewer) {
       await home.locator(".afterglow .turn").first().waitFor();
       await home.locator(".afterglow").scrollIntoViewIfNeeded();
       await shot(home, "episode-afterglow");
+      // M13: the immersive "theater" — a cinematic replay of the recorded date (two bots in the scene, live bubbles).
+      await home.getByRole("button", { name: "Watch in theater" }).scrollIntoViewIfNeeded();
+      await home.getByRole("button", { name: "Watch in theater" }).click();
+      await home.locator(".theater").waitFor();
+      await home.waitForTimeout(6000); // let a couple of turns play so both characters have a bubble
+      await shot(home, "episode-theater");
+      await home.getByRole("button", { name: "Exit" }).click();
 
       // 2a. The watch party (M8): the creator turns the date into a live room, a few viewers drop in and
       // chat, and a spectator's view — reactions, live chat and the prediction panel — is the screenshot.
@@ -577,6 +584,10 @@ async function capture(base, leagueId, viewer) {
       await fanPage.getByRole("heading", { level: 1 }).waitFor();
       await fanPage.locator(".watch-react").first().waitFor();
       await shot(fanPage, "watch", { full: true });
+      // M13: the same room in theater mode — the full-screen "window into the date".
+      await fanPage.getByRole("button", { name: /Theater mode/ }).click();
+      await fanPage.locator(".theater").waitFor();
+      await shot(fanPage, "watch-theater");
       await fan.close();
 
       // 2b. The same creator buys "5 more dates" through the shop (checked, not saved as a screenshot).

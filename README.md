@@ -23,6 +23,15 @@ The conversion landing page: the product shown in the hero (an avatar matchup an
 ![Landing page on a phone](docs/screenshots/home-mobile.png)
 The same start page on an iPhone 13 screen.
 
+![The immersive date theater: the two characters live in the venue scene with speech bubbles, desktop](docs/screenshots/episode-theater-desktop.png)
+**The theater (M13):** watching a date is a full-screen *experience* — a window into the two bots, who live in the venue scene (one left, one right) with **persistent speech bubbles** while the date plays out. It's the live watch room's theater mode and a cinematic replay of any recorded date. Every feature rides along (reactions, the chemistry/chaos polls, predictions, the decision).
+
+![The theater on a phone: a chat window with the characters' icons](docs/screenshots/episode-theater-mobile.png)
+On a phone it becomes a **chat window** — a mood banner of the venue up top, the date playing out as a messaging thread with each character's icon.
+
+![The live watch room in theater mode: the scene, reactions and prediction, with chat docked, desktop](docs/screenshots/watch-theater-desktop.png)
+The **live** room in theater mode: the scene front and centre, chat docked to the side behind a small icon (Twitch-style), and the live inputs — reactions, predictions, the polls, the chaos button — as an overlay rail.
+
 ![The character builder with the private-soul section open, desktop](docs/screenshots/builder-desktop.png)
 The builder: the public character sheet, plus an optional **private soul** (values, humour, communication style) that shapes how the AI behaves on the date without ever being shown to the audience.
 
