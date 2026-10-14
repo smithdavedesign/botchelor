@@ -77,7 +77,8 @@ export default async function CastPage() {
               <li key={`${e.a}-${e.b}`} className="card">
                 <strong>
                   {e.a} × {e.b}
-                </strong>{" "}
+                </strong>
+                <span className="badge">{e.stage}</span>{" "}
                 <span className="muted">
                   {e.dates} {e.dates === 1 ? "date" : "dates"}
                   {e.second_dates > 0 && `, ${e.second_dates} second`}
