@@ -3,6 +3,10 @@ import { PGlite } from "@electric-sql/pglite";
 import { DELETE as deleteBlock, POST as postBlock } from "@/app/api/blocks/route";
 import { POST as postCheckout } from "@/app/api/checkout/route";
 import { POST as postCharacter } from "@/app/api/characters/route";
+import { DELETE as deleteSoulRoute, GET as getSoulRoute, PUT as putSoulRoute } from "@/app/api/characters/[id]/soul/route";
+import { POST as postDealbreaker } from "@/app/api/dealbreaker-guesses/route";
+import { GET as getMatchmakers, POST as postMatchmaker } from "@/app/api/matchmakers/route";
+import { POST as postConfessionals } from "@/app/api/episodes/[id]/confessionals/route";
 import { GET as getEpisodeRoute } from "@/app/api/episodes/[id]/route";
 import { POST as postReveal } from "@/app/api/episodes/[id]/reveal/route";
 import { GET as getFeed, POST as postEpisode } from "@/app/api/episodes/route";
@@ -166,6 +170,16 @@ export const api = {
       }),
     ),
   joinWaitlist: (body: unknown, cookie?: string) => postWaitlist(jsonRequest("/api/waitlist", body, { cookie })),
+  guessDealbreaker: (body: unknown, cookie?: string) => postDealbreaker(jsonRequest("/api/dealbreaker-guesses", body, { cookie })),
+  proposeMatch: (body: unknown, cookie?: string) => postMatchmaker(jsonRequest("/api/matchmakers", body, { cookie })),
+  myProposals: (cookie?: string) => getMatchmakers(getRequest("/api/matchmakers", cookie)),
+  shareConfessionals: (episodeId: string, shared: boolean, cookie?: string) =>
+    postConfessionals(jsonRequest(`/api/episodes/${episodeId}/confessionals`, { shared }, { cookie }), params(episodeId)),
+  getSoul: (characterId: string, cookie?: string) => getSoulRoute(getRequest(`/api/characters/${characterId}/soul`, cookie), params(characterId)),
+  putSoul: (characterId: string, body: unknown, cookie?: string) =>
+    putSoulRoute(jsonRequest(`/api/characters/${characterId}/soul`, body, { cookie, method: "PUT" }), params(characterId)),
+  deleteSoul: (characterId: string, cookie?: string) =>
+    deleteSoulRoute(jsonRequest(`/api/characters/${characterId}/soul`, {}, { cookie, method: "DELETE" }), params(characterId)),
 };
 
 /**

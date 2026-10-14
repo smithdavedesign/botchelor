@@ -13,9 +13,9 @@ import {
   type DateHistory,
   type DateInput,
   type SideSetup,
-  type SoulProfile,
 } from "./engine";
 import type { DateSetup } from "./game";
+import { loadSoul, soulText } from "./souls";
 import {
   AGENDA_IDS,
   DEFAULT_AUTONOMY,
@@ -46,28 +46,6 @@ export const DEFAULT_DATE_REQUEST: DateRequest = {
   agendaId: null,
   note: null,
 };
-
-export async function loadSoul(db: Db, characterId: string): Promise<SoulProfile | null> {
-  const { rows } = await db.query<SoulProfile>(
-    "select values, insecurities, humor, boundaries, romantic, communication from souls where character_id = $1",
-    [characterId],
-  );
-  return rows[0] ?? null;
-}
-
-/** The soul as one block of private guidance for the model, or null when there is no soul. */
-export function soulText(soul: SoulProfile | null): string | null {
-  if (!soul) return null;
-  const parts = [
-    soul.values && `Values: ${soul.values}`,
-    soul.insecurities && `Insecurities: ${soul.insecurities}`,
-    soul.humor && `Humour: ${soul.humor}`,
-    soul.boundaries && `Boundaries: ${soul.boundaries}`,
-    soul.romantic && `Romantic preferences: ${soul.romantic}`,
-    soul.communication && `Communication style: ${soul.communication}`,
-  ].filter(Boolean);
-  return parts.length ? parts.join(". ") : null;
-}
 
 const pickAgenda = (seed: number): AgendaId => AGENDA_IDS[seed % AGENDA_IDS.length];
 

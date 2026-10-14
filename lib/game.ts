@@ -1,11 +1,14 @@
 import type { SideOutcome, VariableArc } from "./engine";
 import type { Db } from "./db";
+import { matchmakerHitSql } from "./mechanics";
 import {
   agendaLabel,
   ENDING_LABELS,
   ENDINGS,
   POINTS_PER_CORRECT_PICK,
+  POINTS_PER_DEALBREAKER_PICK,
   POINTS_PER_DRAMA_PICK,
+  POINTS_PER_MATCHMAKER,
   pointsFor,
   predictionPoints,
   REPORT_HIDE_THRESHOLD,
@@ -369,13 +372,26 @@ export async function listMyCharacters(db: Db, userId: string, limit = MY_CHARAC
   return rows;
 }
 
+/**
+ * A player's all-time points: the prediction game (ending + drama) plus the free side games (guess the
+ * dealbreaker, matchmakers). League and season boards score the prediction game only (that is the
+ * weekly contest); this total also counts the side games. All of it is free and none of it can be bought.
+ */
 export async function getPoints(db: Db, userId: string): Promise<number> {
   const { rows } = await db.query<{ points: number }>(
-    `select coalesce(sum(${predictionPointsSql("$2", "$3")}), 0)::int as points
-       from predictions p
-       join episodes e on e.id = p.episode_id
-      where p.user_id = $1 and e.revealed_at is not null`,
-    [userId, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK],
+    `select (
+        coalesce((select sum(${predictionPointsSql("$2", "$3")})
+                    from predictions p join episodes e on e.id = p.episode_id
+                   where p.user_id = $1 and e.revealed_at is not null), 0)
+      + coalesce((select count(*)
+                    from dealbreaker_guesses g
+                    join episodes e on e.id = g.episode_id
+                    join characters a on a.id = e.character_a
+                   where g.user_id = $1 and e.revealed_at is not null and g.pick = a.dealbreaker), 0) * $4
+      + coalesce((select count(*) from matchmaker_proposals mp
+                   where mp.proposer_id = $1 and ${matchmakerHitSql()}), 0) * $5
+     )::int as points`,
+    [userId, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER],
   );
   return rows[0]?.points ?? 0;
 }

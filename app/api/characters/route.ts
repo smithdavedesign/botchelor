@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { checkFields, type RejectReason } from "@/lib/safety";
+import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput } from "@/lib/souls";
 
 const MIN_AGE = 18;
 const MAX_AGE = 1000; // immortal OCs are common; anything older is a typo
@@ -20,6 +21,8 @@ const CharacterInput = z.object({
   traits: z.array(text(30)).length(3, "Give exactly three traits."),
   want: text(140),
   dealbreaker: text(140),
+  // Optional private soul (PRD core feature 1): owner-only, drives the engine, never shown to spectators.
+  soul: SoulInput.optional(),
   attest: z.literal(true, "Confirm you are 18+ and this is your own original character."),
 });
 
@@ -48,6 +51,10 @@ export const POST = handle(async (req) => {
     );
   }
 
+  // Validate and filter the soul before writing anything, so a rejected soul stores no character.
+  const soul = input.soul ? normaliseSoul(input.soul) : null;
+  if (soul && !isEmptySoul(soul)) assertSafeSoul(soul);
+
   const db = await getDb();
   const id = crypto.randomUUID();
   await db.query(
@@ -55,7 +62,9 @@ export const POST = handle(async (req) => {
      values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8)`,
     [id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker],
   );
+  const hasSoul = Boolean(soul && !isEmptySoul(soul));
+  if (hasSoul) await saveSoul(db, id, soul!);
 
-  const { attest: _attest, ...character } = input;
-  return json({ id, ...character, house: false }, 201, sess);
+  const { attest: _attest, soul: _soul, ...character } = input;
+  return json({ id, ...character, house: false, has_soul: hasSoul }, 201, sess);
 });
