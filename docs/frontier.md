@@ -15,9 +15,11 @@ With those set, go to **`/admin`**, enter the password (kept in your browser onl
 
 The gate: `POST /api/admin/frontier` requires the `x-frontier-key` header to equal `FRONTIER_PASSWORD` (constant-time compare). Without it → **403**. Without `FRONTIER_LLM_*` → **503**. So a stranger can never trigger a paid call, and nothing in the public flow uses the frontier model.
 
-## Using it in the live episode flow (deferred, small)
+## In the live episode flow
 
-Right now the frontier model is only reachable from `/admin` (an eval/compare tool), so it never touches the production date pipeline. Wiring the same gate into `POST /api/episodes` (use the frontier model when the request carries a valid `x-frontier-key`) is a ~2-line change, deferred only to avoid colliding with the images/venues work in flight. When you want it, say so and I'll apply it on top of that work.
+`POST /api/episodes` picks its model through `episodeModel(req)` (in `lib/model.ts`): the frontier model **only** when the request carries a valid `x-frontier-key` and a frontier model is configured, otherwise the free model. So a normal date stays on the free model ($0), and you get a frontier-quality episode by sending your password from the live UI — the same gate as `/admin`, now in production. With no `FRONTIER_PASSWORD` set, every request uses the free model, so this is a no-op until you enable it. If authorization passes but no frontier model is configured, it falls back to the free model (a date never fails for lack of one).
+
+`/admin` remains the side-by-side compare tool for eval; the live flow is for running real episodes on the frontier model once you're happy with it.
 
 ## Keys
 
