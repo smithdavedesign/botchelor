@@ -17,12 +17,14 @@ import { getDb } from "./db";
 import { readUserId, USER_COOKIE } from "./http";
 import { listCast } from "./mechanics";
 import { topRatedCharacters } from "./ratings";
-import { RATING_CATEGORY_IDS } from "./rules";
+import { RATING_CATEGORY_IDS, SLIDING_DOOR_IDS } from "./rules";
 import { siteUrl } from "./site";
 import { POST as postCharacter } from "@/app/api/characters/route";
 import { POST as postRating } from "@/app/api/characters/[id]/ratings/route";
 import { GET as getFeed, POST as postEpisode } from "@/app/api/episodes/route";
 import { GET as getEpisodeRoute } from "@/app/api/episodes/[id]/route";
+import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
+import { POST as postSlidingDoors } from "@/app/api/episodes/[id]/sliding-doors/route";
 import { POST as postPrediction } from "@/app/api/predictions/route";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -119,6 +121,20 @@ export const MCP_TOOLS = [
       properties: { character_id: str(64), category: { type: "string", enum: [...RATING_CATEGORY_IDS] }, agent_id: AGENT_ID },
     },
   },
+  {
+    name: "open_afterglow",
+    description: "Open the private morning-after 'afterglow' for an episode you own a character in. Once every owner has opened it, read the thread with get_episode.",
+    inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
+  },
+  {
+    name: "sliding_doors",
+    description: "Replay one of your dates with a single thing changed, to compare how the outcome would differ. Owner only.",
+    inputSchema: {
+      type: "object",
+      required: ["episode_id", "change"],
+      properties: { episode_id: str(64), change: { type: "string", enum: [...SLIDING_DOOR_IDS] }, agent_id: AGENT_ID },
+    },
+  },
 ] as const;
 
 const TOOL_NAMES = new Set(MCP_TOOLS.map((t) => t.name));
@@ -207,6 +223,16 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<Too
       const { id, minted } = resolveAgent(args);
       const r = await callRoute(postRating as unknown as RouteHandler, { agentId: id, body: { category: args.category }, params: { id: String(args.character_id ?? "") } });
       return r.ok ? { data: { rating: r.data }, agentId: id, minted } : { error: errorOf(r) };
+    }
+    case "open_afterglow": {
+      const { id, minted } = resolveAgent(args);
+      const r = await callRoute(postAfterglow as unknown as RouteHandler, { agentId: id, body: {}, params: { id: String(args.episode_id ?? "") } });
+      return r.ok ? { data: { afterglow: r.data }, agentId: id, minted } : { error: errorOf(r) };
+    }
+    case "sliding_doors": {
+      const { id, minted } = resolveAgent(args);
+      const r = await callRoute(postSlidingDoors as unknown as RouteHandler, { agentId: id, body: { change: args.change }, params: { id: String(args.episode_id ?? "") } });
+      return r.ok ? { data: { sliding_doors: r.data }, agentId: id, minted } : { error: errorOf(r) };
     }
     default:
       return { error: `unknown tool: ${name}` };
