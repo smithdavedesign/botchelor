@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import type { Ending } from "@/lib/game";
 import { handle, json, session } from "@/lib/http";
+import { updateCharacterMemory } from "@/lib/memory";
 import { REPORT_HIDE_THRESHOLD } from "@/lib/rules";
 
 /**
@@ -15,11 +16,11 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
   // Atomic status transition: only the host, only once, and not while hidden by reports (scoring a
   // hidden episode would let its predictors work out the ending they can no longer see).
   const revealed = (
-    await db.query<{ ending: Ending }>(
+    await db.query<{ ending: Ending; character_a: string; character_b: string }>(
       `update episodes e set revealed_at = now()
         where e.id = $1 and e.creator_id = $2 and e.revealed_at is null
           and (select count(*) from reports r where r.episode_id = e.id) < $3
-       returning e.ending`,
+       returning e.ending, e.character_a, e.character_b`,
       [id, sess.userId, REPORT_HIDE_THRESHOLD],
     )
   ).rows[0];
@@ -48,6 +49,10 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
       sess,
     );
   }
+
+  // M14: the date just aired — fold it into both characters' learned memory (deterministic, $0, best-effort).
+  await updateCharacterMemory(db, revealed.character_a).catch(() => {});
+  await updateCharacterMemory(db, revealed.character_b).catch(() => {});
 
   const tally = (
     await db.query<{ total: number; correct: number }>(

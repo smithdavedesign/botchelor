@@ -12,6 +12,11 @@
  * owner's own view — never the public card, never the other agent (same rule as the soul). The learned
  * drift is capped (±MEMORY_SIGNAL_CAP per axis) so a character can evolve without one axis ever swinging a
  * result wildly; the deterministic engine itself is untouched (lib/engine.ts).
+ *
+ * Only AIRED (revealed) dates count, exactly like the public record (lib/game.ts getCharacterHistory). A
+ * ready-but-unrevealed episode still has predictions open, and the arc is shown on the public contestant
+ * card, so counting it would leak that date's outcome. Memory is therefore recomputed when a date airs
+ * (the reveal route and the watch room's airing), not when it is generated.
  */
 import type { Db } from "./db";
 import type { SideOutcome, SoulSignals } from "./engine";
@@ -85,6 +90,9 @@ type EpisodeRow = {
   is_a: boolean;
 };
 
+/** The episodes a character has learned from: its AIRED dates (same aired-only rule as the public record). */
+const MEMORY_EPISODES_WHERE = "(e.character_a = $1 or e.character_b = $1) and e.revealed_at is not null";
+
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
@@ -133,16 +141,16 @@ function buildArc(m: Omit<CharacterMemory, "arc">): string | null {
 }
 
 /**
- * Recomputes and stores a character's memory from ALL its finished (ready) episodes. Deterministic and
- * $0: it only aggregates data the engine already decided and the transcript already recorded. Call it
- * right after a date is stored (where rememberDate runs), for both characters. Returns the fresh memory.
+ * Recomputes and stores a character's memory from its AIRED (revealed) episodes. Deterministic and $0: it
+ * only aggregates data the engine already decided and the transcript already recorded. Call it when a date
+ * airs (the reveal route and the watch room's airing), for both characters. Returns the fresh memory.
  */
 export async function updateCharacterMemory(db: Db, characterId: string): Promise<CharacterMemory> {
   const { rows } = await db.query<EpisodeRow>(
     `select e.ending, e.sides, e.transcript, (e.character_a = $1) as is_a
        from episodes e
-      where (e.character_a = $1 or e.character_b = $1) and e.status = 'ready'
-      order by e.created_at, e.id`,
+      where ${MEMORY_EPISODES_WHERE}
+      order by e.revealed_at, e.id`,
     [characterId],
   );
 

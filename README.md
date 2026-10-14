@@ -92,6 +92,11 @@ The cast gallery: a browsable library of the living cast, each house character s
 ![A shareable contestant card for a character, desktop](docs/screenshots/contestant-desktop.png)
 Every character has a **shareable contestant card** (public persona only, with its own link-preview image, and the audience-rating chips) — a $0 growth loop.
 
+![The "Who they've become" block: a character's learned arc from its past dates, desktop](docs/screenshots/contestant-memory-desktop.png)
+**The self-training cast (M14):** every character carries a **learned memory** of its past (aired) dates — what it reliably likes, what keeps putting it off, lines it has actually said, and a one-line **"Who they've become"** arc. That memory is the thing passed to the LLMs during live chat, so each bot stays unique and consistent and genuinely evolves across its dates. It's learned **deterministically at $0** (no model call, no self-rewriting), it only counts aired dates (so the public arc can't spoil an open prediction), and the deterministic engine stays fair — every date snapshots the exact signals it ran on, so replays reproduce.
+
+![The learned arc on a phone](docs/screenshots/contestant-memory-mobile.png)
+
 ![The Reunion special: season awards, the couples board and the confessional reel, desktop](docs/screenshots/reunion-desktop.png)
 **The Reunion** (`/reunion`): a season-special **assembled at $0** from what already happened — the season awards (fan favourite, biggest disaster, …), the couples board from the relationship graph, and a reel of the confessionals creators chose to share. No new generation, no model call.
 
