@@ -60,10 +60,12 @@ export const FORMATS: readonly ShowFormat[] = [
     label: "Meet the parents",
     tagline: "A chaperone nobody invited.",
     blurb: "A protective house regular crashes the date and sizes up the match.",
+    // {chaperone} is filled with a real house regular's name at date-build time (lib/simulation.ts); it
+    // falls back to a generic phrase via formatNote() when none is available.
     note:
-      "A protective older house regular has turned up to CHAPERONE this date, judging whether the two are " +
-      "right for each other, interrupting and asking pointed questions. Keep the chaperone an unnamed " +
-      "background presence; the date is still decided between the two main characters.",
+      "{chaperone} has turned up to CHAPERONE this date, judging whether the two are right for each other, " +
+      "interrupting and asking pointed questions. Keep the chaperone a background presence; the date is still " +
+      "decided between the two main characters.",
     premiumSku: null,
   },
   {
@@ -71,13 +73,27 @@ export const FORMATS: readonly ShowFormat[] = [
     label: "The ex returns",
     tagline: "Someone from before walks in.",
     blurb: "An old flame makes a surprise appearance and tests the chemistry.",
+    // {ex} is filled from the relationship graph (a real past partner) when there is one; otherwise generic.
     note:
-      "Partway through, an EX of one of the characters makes a surprise appearance and lingers nearby, " +
-      "raising the stakes. Keep the ex an unnamed background presence; the date is still decided between " +
-      "the two main characters.",
+      "Partway through, {ex} makes a surprise appearance and lingers nearby, raising the stakes. Keep the ex " +
+      "a background presence; the date is still decided between the two main characters.",
     premiumSku: null,
   },
 ] as const;
+
+/** Names pulled from real data to fill a format's note (lib/simulation.ts computes them per date). */
+export type FormatContext = { chaperone?: string; ex?: string };
+
+/**
+ * A format's note with any real names filled in — a named house regular as the meet-the-parents chaperone,
+ * a real past partner as the returning ex — falling back to a generic phrase when there's no name. Classic
+ * and speed dates have no placeholders, so the note is returned unchanged.
+ */
+export function formatNote(id: FormatId | null | undefined, ctx: FormatContext = {}): string {
+  return format(id).note
+    .replace("{chaperone}", ctx.chaperone ? `A protective house regular, ${ctx.chaperone},` : "A protective older house regular")
+    .replace("{ex}", ctx.ex ? `${ctx.ex}, an ex of one of the characters,` : "an ex of one of the characters");
+}
 
 export const DEFAULT_FORMAT: FormatId = "classic";
 export const FORMAT_IDS = FORMATS.map((f) => f.id) as [FormatId, ...FormatId[]];

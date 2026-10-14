@@ -34,6 +34,7 @@ import {
 } from "./rules";
 import { pickVenue, type VenueId } from "./venues";
 import { DEFAULT_FORMAT, type FormatId } from "./formats";
+import { HOUSE_CHARACTERS } from "./house";
 
 export type CharacterForDate = { id: string; sheet: CharacterSheet };
 
@@ -59,6 +60,26 @@ export const DEFAULT_DATE_REQUEST: DateRequest = {
 
 const pickAgenda = (seed: number): AgendaId => AGENDA_IDS[seed % AGENDA_IDS.length];
 const pickProducer = (seed: number): ProducerId => PRODUCER_IDS[seed % PRODUCER_IDS.length];
+
+/** A real house regular to play the meet-the-parents chaperone: dealt by seed, never one of the two daters. */
+function pickChaperone(seed: number, excludeIds: string[]): string {
+  const pool = HOUSE_CHARACTERS.filter((c) => !excludeIds.includes(c.id));
+  return (pool[seed % pool.length] ?? HOUSE_CHARACTERS[0]).name;
+}
+
+/** The ex-returns format's real ex: A's most recent OTHER past partner from the relationship graph, if any. */
+async function findEx(db: Db, aId: string, bId: string): Promise<string | undefined> {
+  const { rows } = await db.query<{ name: string }>(
+    `select case when r.character_a = $1 then cb.name else ca.name end as name
+       from relationships r
+       join characters ca on ca.id = r.character_a
+       join characters cb on cb.id = r.character_b
+      where $1 in (r.character_a, r.character_b) and $2 not in (r.character_a, r.character_b)
+      order by r.updated_at desc limit 1`,
+    [aId, bId],
+  );
+  return rows[0]?.name;
+}
 
 /** The canonical (sorted) key for a pair, so one unordered pair is one relationships row. */
 const pairKey = (x: string, y: string): [string, string] => (x < y ? [x, y] : [y, x]);
@@ -108,6 +129,10 @@ export async function buildDate(
     venue: pickVenue(seedFrom(seed, "venue")),
     format: req.format,
   };
+  // Fill the format's cast from real data (flavour only, never the engine): a named house regular as the
+  // meet-the-parents chaperone, and a real past partner as the returning ex when the graph has one.
+  if (req.format === "meet_the_parents") setup.chaperone = pickChaperone(seedFrom(seed, "chaperone"), [a.id, b.id]);
+  if (req.format === "ex_returns") setup.ex = await findEx(db, a.id, b.id);
   // A local-only soul drives the engine (signals) but its text is never sent to the model.
   const forModel = (s: typeof soulA) => (s && !s.local_only ? soulText(s) : null);
   // Image-trained signals take precedence over the text-derived ones: an image shapes the behaviour.

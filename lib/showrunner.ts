@@ -12,7 +12,7 @@ import {
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { venue, type VenueId } from "./venues";
-import { DEFAULT_FORMAT, format, type FormatId } from "./formats";
+import { DEFAULT_FORMAT, formatNote, type FormatContext, type FormatId } from "./formats";
 import { checkFields } from "./safety";
 
 /** CharacterSheet now lives in the engine (it decides outcomes from it); re-exported for existing imports. */
@@ -149,6 +149,7 @@ export function buildMessages(
   producer: ProducerId,
   venueId: VenueId,
   formatId: FormatId = DEFAULT_FORMAT,
+  formatCtx: FormatContext = {},
 ): ChatMessage[] {
   const data = {
     character_a: { ...sheetData(input.a.sheet), private: privateGuidance(input.a, souls[0]) },
@@ -156,7 +157,7 @@ export function buildMessages(
     decided_outcome: outcomeBrief(input, outcome),
     date_location: venue(venueId).prompt,
     act_two_situation: producerEvent(producer).prompt,
-    show_format: format(formatId).note,
+    show_format: formatNote(formatId, formatCtx),
   };
   return [
     { role: "system", content: SYSTEM_PROMPT },
@@ -202,8 +203,9 @@ export async function narrateEpisode(
   producer: ProducerId,
   venueId: VenueId,
   formatId: FormatId = DEFAULT_FORMAT,
+  formatCtx: FormatContext = {},
 ): Promise<EpisodeDraft> {
-  const messages = buildMessages(input, outcome, souls, producer, venueId, formatId);
+  const messages = buildMessages(input, outcome, souls, producer, venueId, formatId, formatCtx);
   const reasons: string[] = [];
   for (let attempt = 0; attempt < SHOWRUNNER_ATTEMPTS; attempt++) {
     let raw: string;

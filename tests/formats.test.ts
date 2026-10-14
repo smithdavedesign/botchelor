@@ -6,6 +6,7 @@ import {
   newUserCookie,
   scriptedModel,
   scriptOutcome,
+  setupEpisode,
   startTestDb,
   validCharacter,
 } from "./helpers";
@@ -22,7 +23,7 @@ import {
 } from "@/lib/engine";
 import type { Model } from "@/lib/model";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
-import { DEFAULT_FORMAT, FORMATS, format, type FormatId } from "@/lib/formats";
+import { DEFAULT_FORMAT, FORMATS, format, formatNote, type FormatId } from "@/lib/formats";
 
 const sheetA: CharacterSheet = { name: "Mira", age: 27, bio: "a cartographer", traits: ["curious", "warm"], want: "a map reader", dealbreaker: "hates surprises", house: false };
 const sheetB: CharacterSheet = { name: "Rafe", age: 30, bio: "a baker", traits: ["dramatic", "kind"], want: "an honest taste-tester", dealbreaker: "liars", house: true };
@@ -32,6 +33,8 @@ const side = (sheet: CharacterSheet): SideSetup => ({
 const INPUT: DateInput = { a: side(sheetA), b: side(sheetB) };
 const sideOutcome = (wants: boolean): SideOutcome => ({ wants_another: wants, agenda_met: true, satisfied: wants, dealbreaker_hit: null, want_met: null, note_followed: null });
 const OUTCOME: Outcome = { ...deterministicEngine.decide(INPUT, 1), sides: [sideOutcome(true), sideOutcome(false)] };
+
+const DATE_REQ: DateRequest = { autonomy: "balanced", strategy: "genuine_chemistry", gameBudget: 25, agendaId: "find_adventurous", note: null, format: "classic" };
 
 const turnJson = () => JSON.stringify({ dialogue: "A friendly, safe line.", action: "asks", emotion: "curious", interest_signal: 0.5 });
 function turnModel(n: number): Model {
@@ -102,6 +105,40 @@ describe("formats — framing only", () => {
     const speed: Turn[] = await simulateConversation(turnModel(6), INPUT, OUTCOME, [null, null], "a_hard_question", "rooftop_bar", "speed_date");
     expect(classic.length).toBe(8);
     expect(speed.length).toBe(6);
+  });
+});
+
+describe("formats — a named cast from real data", () => {
+  it("formatNote fills a real chaperone/ex name, or a generic fallback", () => {
+    expect(formatNote("meet_the_parents", { chaperone: "Rafe Calloway" })).toContain("Rafe Calloway");
+    expect(formatNote("meet_the_parents")).toContain("A protective older house regular");
+    expect(formatNote("ex_returns", { ex: "Juniper Vale" })).toContain("Juniper Vale");
+    expect(formatNote("ex_returns")).toContain("an ex of one of the characters");
+    expect(formatNote("classic")).toBe(format("classic").note); // no placeholders, unchanged
+  });
+
+  it("meet_the_parents deals a real house regular who isn't one of the two daters", async () => {
+    const aFor: CharacterForDate = { id: "house-rafe", sheet: { ...sheetA, name: "Rafe Calloway" } };
+    const bFor: CharacterForDate = { id: "house-juniper", sheet: { ...sheetB, name: "Juniper Vale" } };
+    const built = await buildDate(t.db, "ep-mtp", aFor, bFor, { ...DATE_REQ, format: "meet_the_parents" }, 3);
+    expect(built.setup.chaperone).toBeTruthy();
+    expect(built.setup.chaperone).not.toBe("Rafe Calloway");
+    expect(built.setup.chaperone).not.toBe("Juniper Vale");
+  });
+
+  it("ex_returns pulls a real past partner from the relationship graph (or none when there is no history)", async () => {
+    // No history yet → no ex.
+    const aFor: CharacterForDate = { id: "fmt-a", sheet: sheetA };
+    const bFor: CharacterForDate = { id: "fmt-b", sheet: sheetB };
+    const none = await buildDate(t.db, "ep-ex0", aFor, bFor, { ...DATE_REQ, format: "ex_returns" }, 5);
+    expect(none.setup.ex).toBeUndefined();
+
+    // An OC that already dated house-rafe → that's the ex when it meets someone new.
+    const { character } = await setupEpisode("friends"); // the OC dates HOUSE_PARTNER_ID (house-rafe)
+    const ocFor: CharacterForDate = { id: character.id, sheet: { ...sheetA, name: character.name } };
+    const junFor: CharacterForDate = { id: "house-juniper", sheet: { ...sheetB, name: "Juniper Vale" } };
+    const withEx = await buildDate(t.db, "ep-ex1", ocFor, junFor, { ...DATE_REQ, format: "ex_returns" }, 9);
+    expect(withEx.setup.ex).toBe("Rafe Calloway");
   });
 });
 

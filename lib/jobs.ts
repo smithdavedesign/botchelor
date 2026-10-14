@@ -154,12 +154,13 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     const decided = getEngine().decide(built.input, built.seed);
 
     const model = row.use_frontier ? getFrontierModel() ?? getModel() : getModel();
-    const draft = await narrateEpisode(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue, formatId);
+    const fmtCtx = { chaperone: built.setup.chaperone, ex: built.setup.ex };
+    const draft = await narrateEpisode(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue, formatId, fmtCtx);
 
     let transcript: Turn[] = [];
     if (isConversationEnabled()) {
       try {
-        transcript = await simulateConversation(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue, formatId);
+        transcript = await simulateConversation(model, built.input, decided, built.souls, built.setup.producer, built.setup.venue, formatId, undefined, fmtCtx);
       } catch {
         transcript = [];
       }
@@ -169,7 +170,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     let afterglow: AfterglowLine[] = [];
     if (isAfterglowEnabled()) {
       try {
-        afterglow = await simulateAfterglow(model, built.input, decided, built.souls, built.setup.venue, formatId);
+        afterglow = await simulateAfterglow(model, built.input, decided, built.souls, built.setup.venue, formatId, undefined, fmtCtx);
       } catch {
         afterglow = [];
       }

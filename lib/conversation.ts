@@ -27,7 +27,7 @@ import {
 } from "./rules";
 import { checkFields } from "./safety";
 import { venue, type VenueId } from "./venues";
-import { DEFAULT_FORMAT, format, type FormatId } from "./formats";
+import { DEFAULT_FORMAT, format, formatNote, type FormatContext, type FormatId } from "./formats";
 
 /** One line of the date. `side` is "a"/"b"; `act` indexes DATE_ACTS. emotion/interest are flavour only. */
 export type Turn = {
@@ -126,6 +126,7 @@ export function buildTurnMessages(
   transcript: Turn[],
   turnIndex: number,
   formatId: FormatId = DEFAULT_FORMAT,
+  formatCtx: FormatContext = {},
 ): { messages: ChatMessage[]; side: "a" | "b"; act: number } {
   const side: "a" | "b" = turnIndex % 2 === 0 ? "a" : "b";
   const sideIndex = side === "a" ? 0 : 1;
@@ -141,7 +142,7 @@ export function buildTurnMessages(
     you: selfView(me, souls[sideIndex]),
     them: publicView(them),
     date_location: venue(venueId).prompt,
-    the_show_format: format(formatId).note,
+    the_show_format: formatNote(formatId, formatCtx),
     act: DATE_ACTS[act],
     situation: act === 1 ? producerEvent(producer).prompt : null,
     transcript_so_far: history,
@@ -194,11 +195,12 @@ export async function simulateConversation(
   venueId: VenueId,
   formatId: FormatId = DEFAULT_FORMAT,
   turns: number = format(formatId).turns ?? CONVERSATION_TURNS,
+  formatCtx: FormatContext = {},
 ): Promise<Turn[]> {
   const transcript: Turn[] = [];
   const reasons: string[] = [];
   for (let i = 0; i < turns; i++) {
-    const { messages, side, act } = buildTurnMessages(input, outcome, souls, producer, venueId, transcript, i, formatId);
+    const { messages, side, act } = buildTurnMessages(input, outcome, souls, producer, venueId, transcript, i, formatId, formatCtx);
     let turn: Turn | null = null;
     for (let attempt = 0; attempt < TURN_ATTEMPTS && !turn; attempt++) {
       let raw: string;
