@@ -61,7 +61,26 @@ function genericEpisode(messages) {
   };
 }
 
-/** Starts a local OpenAI-compatible endpoint that returns the stub narration. Returns the http server. */
+// One agent turn (M9): the stub plays whichever character is speaking ("you"), reacting in character.
+// Detected by the turn prompt's shape ({ you, them, ... }) so the same stub serves both call types.
+const TURN_LINES = [
+  "So, what are we both really doing here tonight?",
+  "Bold of you to assume I turned up with a plan.",
+  "Okay — that one actually made me laugh.",
+  "Careful. I might start to enjoy this.",
+  "Ask me the thing you actually want to ask.",
+  "Honestly? This is going better than I expected.",
+  "I could be talked into a second round of this.",
+  "Whatever else happens, this was not boring.",
+];
+function genericTurn(messages) {
+  const user = messages.find((m) => m.role === "user")?.content ?? "";
+  const data = JSON.parse(user.slice(user.indexOf("{")));
+  const n = data.transcript_so_far?.length ?? 0;
+  return { dialogue: TURN_LINES[n % TURN_LINES.length], action: "answers", emotion: "curious", interest_signal: 0.4 + (n % 5) * 0.1 };
+}
+
+/** Starts a local OpenAI-compatible endpoint that returns the stub narration (or one agent turn). Returns the http server. */
 export function startShowrunner() {
   const server = createServer((req, res) => {
     let body = "";
@@ -69,7 +88,9 @@ export function startShowrunner() {
     req.on("end", () => {
       try {
         const { messages } = JSON.parse(body);
-        const content = JSON.stringify(genericEpisode(messages));
+        const user = messages.find((m) => m.role === "user")?.content ?? "";
+        const isTurn = user.includes('"you"') && user.includes('"them"');
+        const content = JSON.stringify(isTurn ? genericTurn(messages) : genericEpisode(messages));
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ choices: [{ message: { role: "assistant", content } }] }));
       } catch {

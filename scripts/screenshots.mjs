@@ -134,6 +134,24 @@ function sampleEpisode(messages) {
   return episode;
 }
 
+// M9: one agent turn, for the turn-by-turn conversation. Detected by the turn prompt's shape.
+const TURN_LINES = [
+  "So — what are we both really doing here tonight?",
+  "Bold of you to assume I turned up with a plan.",
+  "Okay, that one actually made me laugh.",
+  "Careful. I might start to enjoy this.",
+  "Ask me the thing you actually want to ask.",
+  "Honestly? This is going better than I expected.",
+  "I could be talked into a second round of this.",
+  "Whatever else happens, this was not boring.",
+];
+function sampleTurn(messages) {
+  const user = messages.find((m) => m.role === "user")?.content ?? "";
+  const data = JSON.parse(user.slice(user.indexOf("{")));
+  const n = data.transcript_so_far?.length ?? 0;
+  return { dialogue: TURN_LINES[n % TURN_LINES.length], action: "answers", emotion: "curious", interest_signal: 0.4 + (n % 5) * 0.1 };
+}
+
 function startShowrunner() {
   const server = createServer((req, res) => {
     let body = "";
@@ -141,7 +159,9 @@ function startShowrunner() {
     req.on("end", () => {
       try {
         const { messages } = JSON.parse(body);
-        const content = JSON.stringify(sampleEpisode(messages));
+        const user = messages.find((m) => m.role === "user")?.content ?? "";
+        const isTurn = user.includes('"you"') && user.includes('"them"');
+        const content = JSON.stringify(isTurn ? sampleTurn(messages) : sampleEpisode(messages));
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ choices: [{ message: { role: "assistant", content } }] }));
       } catch {
@@ -470,6 +490,10 @@ async function capture(base, leagueId, viewer) {
       // The three acts (first impressions / the challenge / the decision) are the "The date" section.
       await home.locator(".act").first().scrollIntoViewIfNeeded();
       await shot(home, "episode-acts");
+      // M9: the turn-by-turn two-agent conversation — the date played out line by line.
+      await home.locator(".transcript .turn").first().waitFor();
+      await home.locator(".transcript").scrollIntoViewIfNeeded();
+      await shot(home, "episode-transcript", { full: true });
       // The box score, debrief and agendas are lower on the (creator's) page: scroll to them.
       await home.locator(".boxscore").scrollIntoViewIfNeeded();
       await shot(home, "episode-boxscore");
