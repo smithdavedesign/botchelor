@@ -223,3 +223,89 @@ export const SLIDING_DOOR_CHANGES = [
 ] as const;
 export type SlidingDoorChange = (typeof SLIDING_DOOR_CHANGES)[number]["id"];
 export const SLIDING_DOOR_IDS = SLIDING_DOOR_CHANGES.map((c) => c.id) as [SlidingDoorChange, ...SlidingDoorChange[]];
+
+/* ------------------------------------------------------------------ *
+ * Watch parties (M8): the synchronized "date room"
+ *
+ * A pre-generated date played on one shared clock, with live reactions, chat and audience polls. This
+ * is Model A ("spectator mode", per the feature brief): the audience reacts, predicts and votes on a
+ * verdict, but it NEVER steers the characters — the engine already decided the outcome. These are pure
+ * labels, enums and timings with no server imports, so the room UI and the server share one source of
+ * truth and nothing here needs a model call.
+ * ------------------------------------------------------------------ */
+
+/** The two kinds of room. A premiere is a host airing their own date; a template is always-on. */
+export const WATCH_PARTY_KINDS = ["premiere", "template"] as const;
+export type WatchPartyKind = (typeof WATCH_PARTY_KINDS)[number];
+
+/**
+ * The timeline. Each phase unlocks a little more of the date and opens or closes the audience's
+ * inputs. `at` is seconds from the start (the premiere time, or — for a template — the first join, so
+ * "join and the date starts"). Because the phase is a pure function of the clock, every viewer sees
+ * the same beat with no realtime server: the client reads the clock and polls for the live tallies.
+ */
+export const WATCH_PHASES = [
+  { id: "preshow", label: "Pre-show", at: 0 },
+  { id: "act1", label: "First impressions", at: 30 },
+  { id: "act2", label: "The challenge", at: 90 },
+  { id: "twist", label: "The twist", at: 150 },
+  { id: "verdict", label: "The verdict", at: 195 },
+  { id: "decision", label: "The decision", at: 240 },
+  { id: "wrap", label: "The aftermath", at: 285 },
+] as const;
+export type WatchPhase = (typeof WATCH_PHASES)[number];
+export type WatchPhaseId = WatchPhase["id"];
+export const WATCH_PHASE_INDEX: Record<WatchPhaseId, number> = Object.fromEntries(
+  WATCH_PHASES.map((p, i) => [p.id, i]),
+) as Record<WatchPhaseId, number>;
+/** The phase at which the ending is shown and the finale airs (predictions close and resolve). */
+export const WATCH_DECISION_INDEX = WATCH_PHASE_INDEX.decision;
+
+/** The phase index whose own act-scene becomes visible (act1→scene 0, act2→scene 1, decision→scene 2). */
+export const WATCH_SCENE_AT_PHASE: Partial<Record<WatchPhaseId, number>> = { act1: 0, act2: 1, decision: 2 };
+
+/** The reactions bar. Whole-room, one of each per viewer (a count is distinct viewers, never spam). */
+export const WATCH_REACTIONS = [
+  { emoji: "😂", label: "Funny" },
+  { emoji: "❤️", label: "Love it" },
+  { emoji: "🚩", label: "Red flag" },
+  { emoji: "🍿", label: "Here for the drama" },
+] as const;
+export const WATCH_REACTION_EMOJIS = WATCH_REACTIONS.map((r) => r.emoji) as [string, ...string[]];
+
+/**
+ * The audience verdict poll: "Do they have chemistry?" It is opinion, not prediction — it never scores
+ * and never touches the engine. The live split is hidden until the decision, so the room's best moment
+ * lands: the audience thinks it knows, then the characters decide for themselves.
+ */
+export const WATCH_CHEMISTRY_OPTIONS = [
+  { id: "yes", label: "❤️ Undeniable chemistry" },
+  { id: "maybe", label: "🤔 Need more evidence" },
+  { id: "no", label: "🚩 This is a disaster" },
+] as const;
+export const WATCH_CHEMISTRY_IDS = WATCH_CHEMISTRY_OPTIONS.map((o) => o.id) as [string, ...string[]];
+
+/**
+ * The audience-triggered moment (kept inside Model A): the crowd picks which curated question gets
+ * asked during the challenge. It colours the room, it does not change the outcome — the engine stands.
+ */
+export const WATCH_AUDIENCE_PROMPTS = [
+  { id: "truth", label: "Ask the hard truth: what are you really looking for?" },
+  { id: "dare", label: "Dare them: say the most honest thing you've thought tonight." },
+] as const;
+export const WATCH_AUDIENCE_PROMPT_IDS = WATCH_AUDIENCE_PROMPTS.map((o) => o.id) as [string, ...string[]];
+
+export const WATCH_POLLS = ["chemistry", "question"] as const;
+export type WatchPoll = (typeof WATCH_POLLS)[number];
+
+/** Chat moderation: the controls that come before thousands of viewers (feature brief, "Chat moderation"). */
+export const WATCH_MESSAGE_MAX = 240;
+/** Slow mode: the minimum gap between one viewer's messages, in seconds. */
+export const WATCH_SLOW_MODE_SECONDS = 5;
+/** A rolling rate limit per viewer per room: at most this many messages in the window. */
+export const WATCH_RATE_WINDOW_SECONDS = 60;
+export const WATCH_RATE_MAX = 12;
+/** How recently a viewer must have pinged to count as "watching" now. */
+export const WATCH_PRESENCE_WINDOW_SECONDS = 30;
+/** Newest chat messages kept in a room payload (older ones scroll off; the date is the point, not the wall). */
+export const WATCH_CHAT_LIMIT = 40;

@@ -28,14 +28,14 @@ describe("schema", () => {
   it("is idempotent", async () => {
     await ensureSchema(t.db);
     await ensureSchema(t.db);
-    expect(await t.count("characters", "is_house and premium_sku is null")).toBe(3);
-    expect(await t.count("characters", "is_house")).toBe(3 + PREMIUM_HOUSE_CHARACTERS.length);
+    expect(await t.count("characters", "is_house and premium_sku is null")).toBe(HOUSE_CHARACTERS.length);
+    expect(await t.count("characters", "is_house")).toBe(HOUSE_CHARACTERS.length + PREMIUM_HOUSE_CHARACTERS.length);
   });
 
-  // M1 seeded exactly three house characters. M3 adds premium ones, so this counts the three free ones;
-  // the premium ones are checked below.
-  it("seeds exactly three free, labeled, adult house characters", async () => {
-    expect(HOUSE_CHARACTERS).toHaveLength(3);
+  // M1 seeded three house characters; the cast is now the competitor report's 12-20 (lib/house.ts). This
+  // counts the free ones against that list; the premium ones are checked below.
+  it("seeds every free house character as a labeled, ownerless adult", async () => {
+    expect(HOUSE_CHARACTERS.length).toBeGreaterThanOrEqual(12);
     const { rows } = await t.db.query<{ id: string; name: string; age: number; owner_id: string | null }>(
       "select id, name, age, owner_id from characters where is_house and premium_sku is null order by id",
     );
@@ -43,6 +43,18 @@ describe("schema", () => {
     for (const row of rows) {
       expect(row.owner_id).toBeNull();
       expect(row.age).toBeGreaterThanOrEqual(18);
+    }
+  });
+
+  // The cast's curated look is seed data too: without it the gallery falls back to id-derived colours.
+  it("seeds each house character's curated appearance and avatar hue", async () => {
+    const { rows } = await t.db.query<{ id: string; appearance: string | null; avatar_hue: number | null }>(
+      "select id, appearance, avatar_hue from characters where is_house",
+    );
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    for (const c of [...HOUSE_CHARACTERS, ...PREMIUM_HOUSE_CHARACTERS]) {
+      expect(byId.get(c.id)?.appearance).toBe(c.appearance);
+      expect(byId.get(c.id)?.avatar_hue).toBe(c.hue);
     }
   });
 

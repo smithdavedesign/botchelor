@@ -396,6 +396,25 @@ async function buyPackThroughShop(page, base) {
 }
 
 // ---------------------------------------------------------------------------------------------------
+// Make a watch-party room feel alive: a few viewers drop in, react and chat (all through the real API).
+
+async function livenRoom(base, roomId) {
+  const lines = [
+    "the PAUSE before he answered 😭",
+    "she does NOT believe him lol",
+    "second date incoming. calling it now",
+    "he is absolutely lying and I'm here for it",
+  ];
+  const emojis = ["😂", "❤️", "🚩", "🍿"];
+  for (let i = 0; i < lines.length; i++) {
+    const headers = { "content-type": "application/json", cookie: `bz_uid=${randomUUID()}`, origin: base };
+    await fetch(`${base}/api/watch-parties/${roomId}/sync`, { method: "POST", headers, body: "{}" });
+    await fetch(`${base}/api/watch-parties/${roomId}/reactions`, { method: "POST", headers, body: JSON.stringify({ emoji: emojis[i] }) });
+    await fetch(`${base}/api/watch-parties/${roomId}/chat`, { method: "POST", headers, body: JSON.stringify({ body: lines[i] }) });
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------
 // Screenshots
 
 async function capture(base, leagueId, viewer) {
@@ -454,6 +473,20 @@ async function capture(base, leagueId, viewer) {
       // The box score, debrief and agendas are lower on the (creator's) page: scroll to them.
       await home.locator(".boxscore").scrollIntoViewIfNeeded();
       await shot(home, "episode-boxscore");
+
+      // 2a. The watch party (M8): the creator turns the date into a live room, a few viewers drop in and
+      // chat, and a spectator's view — reactions, live chat and the prediction panel — is the screenshot.
+      await home.getByRole("button", { name: "Start the premiere" }).click();
+      await home.waitForURL(/\/watch\/[0-9a-f-]{36}$/);
+      const roomId = home.url().split("/watch/")[1];
+      await livenRoom(base, roomId);
+      const fan = await browser.newContext(device);
+      const fanPage = await fan.newPage();
+      await fanPage.goto(`${base}/watch/${roomId}`);
+      await fanPage.getByRole("heading", { level: 1 }).waitFor();
+      await fanPage.locator(".watch-react").first().waitFor();
+      await shot(fanPage, "watch", { full: true });
+      await fan.close();
 
       // 2b. The same creator buys "5 more dates" through the shop (checked, not saved as a screenshot).
       await buyPackThroughShop(home, base);

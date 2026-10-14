@@ -86,7 +86,7 @@ Deliverables (built):
 - **Relationship progression stages** on the graph (strangers → sparks → an item).
 - **A conversion landing page** rebuilt from the competitor playbook (aigirlfriends.ai, candy.ai): the product shown in the hero (avatar matchup + a live box score), a fast/free/no-sign-up CTA, a feature grid, honest proof, a cast preview and an FAQ.
 - **A visual overhaul**: display type (Fraunces/Inter), a richer palette with real dark mode, gradients, a hero, a cast gallery and chips.
-- **A full E2E suite** (`npm run e2e`, Playwright, 11 steps) and a **seed script** (`npm run seed`) for a lively demo database.
+- **A full E2E suite** (`npm run e2e`, Playwright, every step of the product) and a **seed script** (`npm run seed`) for a lively demo database.
 
 Next, still $0:
 - Follows and a community gallery with category boards (most-shipped, best conversationalist, funniest failure); relationship progression labels on the graph; per-beat moment cards.
@@ -110,3 +110,78 @@ Next, still $0:
 Deferred (your approval; purchases must never touch outcomes or prediction odds):
 - Monetization depth à la PolyBuzz — themed episode packs, extra character slots, cosmetic appearance packs — as new Stripe Payment Links (cosmetic/quantity only).
 - Voice and generated portraits/video (see docs/upgrade-cost.md).
+
+## M8: watch parties (the live date room, built)
+Turn a date from "watch two bots talk" into a social event: a synchronized **date room** where the
+audience reacts, chats, predicts the ending and votes a chemistry verdict — **Model A ("spectator
+mode")**: the audience reacts and predicts, it never steers the characters. The engine still decides
+the outcome (lib/engine.ts); the room just reveals a pre-generated date on one shared clock. No
+realtime server, no video infra: the phase is a pure function of the clock, so every viewer sees the
+same beat and the client polls for live tallies (feature brief, "build this without overengineering").
+
+Built ($0):
+- **Always-on template rooms** — pre-generated house-vs-house dates that are always joinable; `starts_at`
+  is null until the first viewer joins, then the date plays ("tap in and it starts"). This is the hook:
+  there is always a date in motion to drop into, so the room is lively before there is a crowd (it
+  answers the brief's "concurrent attendance" risk). A premiere, by contrast, is a creator airing their
+  own OC's date (one real person's agent vs. a template agent, or a blind OC-vs-OC).
+- **The live loop** per date (feature brief §4): pre-show predictions → first impressions → the challenge
+  (with an audience-chosen question, flavour only) → the twist → the chemistry verdict → the decision
+  (the finale airs automatically, predictions resolve) → the payoff ("the room called it X; the
+  characters chose Y").
+- **Live reactions** (😂 ❤️ 🚩 🍿, one of each per viewer so a count is distinct viewers, never spam),
+  **live chat**, the **audience chemistry verdict** (split hidden until the decision) and **audience
+  predictions** (the existing prediction game, scored on reveal). The three verdicts stay separate
+  (audience opinion vs. the characters' decision vs. the creator's self-pick), per the brief §3.
+- **Moderation before scale** (brief §5): the shared content filter on every message (no real people,
+  minors or sexual content), a length cap, slow mode, a per-viewer rate limit, report-to-hide at the
+  same threshold as episodes, and a "watch without chat" toggle. Creator privacy is unchanged: rooms
+  show the fictional character, never the person, and no private soul or debrief is ever exposed.
+- A **lobby** (`/watch`) of joinable rooms with a live "N watching" count, and a doorway from each
+  episode (host starts a premiere; everyone gets the room link).
+
+Exit criteria (tested — tests/watch.test.ts, and the Playwright e2e):
+- The phase is a pure function of the clock: the same `starts_at` and `now` give the same phase, and
+  content unlocks in order (goals → acts → twist → ending), never early.
+- A template room has `starts_at` null until the first join, then it is set once; joining an in-progress
+  room drops the viewer in live.
+- The finale airs (and predictions resolve into points) the moment the clock reaches the decision, with
+  no manual step; a premiere can only be created by the episode's host.
+- A reaction is one-per-emoji-per-viewer (toggle); a chemistry vote never scores and never reaches the
+  engine; the chemistry split is hidden until the decision.
+- Chat enforces the content filter, slow mode and the rate limit, and a message hides after enough
+  distinct reports. The audience can never change the stored outcome through any room endpoint.
+- No watch-party route takes money or moves points (the route-listing exit criterion still holds).
+
+Deferred (needs spend or new infra):
+- Push-based realtime (WebSockets / a managed channel) in place of polling, once a room routinely holds
+  many concurrent viewers; a cron that refreshes/loops template rooms so the lobby restocks itself.
+- Interactive theatre (**Model B**): bounded audience-chosen twists that the engine actually responds to
+  — explicitly advertised on the episode, and only once Model A's retention is proven (brief §3).
+
+## Seeded content (from the image strategy; see `docs/image-strategy.md`)
+
+The competitor report's image plan, built at $0 — first-party assets only, no hosted imagery:
+
+- **A house cast of 17** (`lib/house.ts`): fifteen free characters plus the two premium ones, each with
+  a distinct archetype (the sarcastic romantic, the confident flirt, the awkward intellectual, the
+  mysterious loner, the chaotic extrovert, …), a curated appearance line and a curated avatar hue.
+- **Temperaments for the house cast**: each house character now carries the four behavioural signals
+  the engine decides dates with, seeded into `souls` as engine-only rows. Without them a house date
+  ran on half the signal of a creator's OC — warmth and humour averaged against zero — which capped
+  even a perfect match below a second date.
+- **A curated look gallery** (`lib/presets.ts`): twelve palettes a creator can pick instead of
+  hunting for a reference image. A picked look and a read image go through the same mapping
+  (`traitsFromPalette`), so they set the same colour, appearance, traits and behaviour.
+- **A reusable venue library** (`lib/venues.ts`): eight date locations, dealt by the episode's seed,
+  each with a backdrop gradient painted behind the episode's setting. The showrunner is told where to
+  set the date; it no longer invents a location per episode.
+- **An asset provenance ledger** (`character_assets`, `lib/assets.ts`): source type, generator,
+  prompt and version, seed, licence, attribution and review status. Approved-only on read, so a
+  hosted portrait cannot reach a page without a human approving it. Empty today, by design.
+- **A richer seeded season** (`npm run seed`): eleven OCs across eleven creators, sixteen dates
+  covering all three endings, two friend leagues, eighty predictions, dealbreaker guesses, four
+  matchmaker proposals and a pair who dated twice and are an item.
+
+Still deferred (needs spend and a moderation provider; `docs/upgrade-cost.md`): generated portraits,
+expressions and backgrounds, and creator image uploads.

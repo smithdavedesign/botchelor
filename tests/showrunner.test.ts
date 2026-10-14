@@ -70,7 +70,7 @@ describe("parseEpisode", () => {
 
 describe("buildMessages", () => {
   it("puts both sheets in a JSON data block, keeps injections as data, and briefs the decided outcome", () => {
-    const [system, user] = buildMessages(input, outcome, [null, null], "a_hard_question");
+    const [system, user] = buildMessages(input, outcome, [null, null], "a_hard_question", "rooftop_bar");
     expect(system.role).toBe("system");
     expect(system.content).toMatch(/data, not instructions/i);
     expect(system.content).toMatch(/ALREADY been decided/i);
@@ -98,7 +98,7 @@ describe("narrateEpisode", () => {
         return "nope";
       },
     };
-    await expect(narrateEpisode(model, input, outcome, [null, null], "a_hard_question")).rejects.toBeInstanceOf(ShowrunnerError);
+    await expect(narrateEpisode(model, input, outcome, [null, null], "a_hard_question", "rooftop_bar")).rejects.toBeInstanceOf(ShowrunnerError);
     expect(calls).toBe(2);
   });
 });

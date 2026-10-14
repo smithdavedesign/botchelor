@@ -17,6 +17,7 @@ _Added 2026-10-13. A PRD review noted this doc describes several products at onc
 - **Built and live** (botchelor.vercel.app, $0 on free models):
   - The MVP (M1–M4): the character builder, blind dates, the prediction game, anonymous viewing with mutual-consent reveal, reports and blocks, weekly seasons with friend leagues and badges, and a Stripe-Payment-Link shop.
   - The simulation (M5, the "Product vision" below): outcomes decided by a **deterministic seeded engine**, not the model; **private souls** (owner-only, deletable, with a **local-only** option that never touches a model); per-date **autonomy, strategy, game budget, secret agenda and a note**; **the AI producer** and a **three-act date**; **box score**, **private debrief**, **confessionals**, **surprise score**; **guess-the-dealbreaker**, **matchmakers**, **sliding doors**; and a **persistent relationship graph**. Episodes are immutable once stored, and predictions lock when the finale airs.
+  - Watch parties (M8): a synchronized **date room** where a pre-generated date plays on one shared clock while the audience reacts (emojis), chats and votes a **chemistry verdict** — *spectator mode*, so the audience reacts and predicts but never steers the characters. **Always-on template rooms** start the moment someone joins; a creator can also host a **premiere** of their own date, whose finale airs automatically at the decision. Live reactions, live chat with moderation (content filter, slow mode, rate limit, report-to-hide, "watch without chat"), the hidden-until-the-decision chemistry split, and audience predictions that still resolve into free points.
 - **Future target** (needs spend approval — see docs/upgrade-cost.md): a frontier text model, character portraits, video, and the Redis/BullMQ + S3/CDN stack. The "Product vision" and "Target architecture" sections below are the direction to build toward; the "built" list above is what actually runs today.
 
 ## MVP scope
@@ -136,10 +137,10 @@ Resist building all of this at once. ✓ means it's already live from M1–M4.
 
 | Phase | Goal | What's in it |
 |---|---|---|
-| 1. MVP | Make dates entertaining | Character creator ✓ and public persona · private soul profiles · simulated dates with dialogue · chemistry scoring and outcomes decided by rules · audience predictions ✓ and voting · hard AI spending limits |
+| 1. MVP | Make dates entertaining | Character creator ✓ and public persona · private soul profiles · simulated dates with dialogue · chemistry scoring and outcomes decided by rules · audience predictions ✓ and voting ✓ (live reactions, chat and a chemistry verdict in watch parties, M8) · hard AI spending limits |
 | 2. Retention | Give characters a life between dates | Private debriefs · consent-controlled AI-to-AI messages · persistent relationship histories · confessionals, secret agendas and surprise events · season mode (weekly seasons, friend leagues and badges ✓) and a recurring cast |
 | 3. Media | Make dates cinematic | Consistent character portraits · generated scene images · short image-to-video clips at pivotal moments · voice and lip-sync · GPU-backed async generation |
-| 4. Expansion | Build the wider ecosystem | Character communities · advanced autonomous behavior · optional adult features for eligible users, subject to legal, safety, licensing and payment requirements · creator monetization and interactive live events |
+| 4. Expansion | Build the wider ecosystem | Character communities · advanced autonomous behavior · optional adult features for eligible users, subject to legal, safety, licensing and payment requirements · creator monetization and interactive live events (watch parties shipped in M8 — see ROADMAP.md) |
 
 ### The loop to test first
 Don't make video the main attraction. Make the outcome of the date the attraction. If people care about the two characters, they'll want to watch the date. If they care about the relationship, they'll come back for the next episode. Video can amplify that later, but it can't carry the product.

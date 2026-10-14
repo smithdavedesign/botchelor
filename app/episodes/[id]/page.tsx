@@ -4,11 +4,13 @@ import { notFound } from "next/navigation";
 import EpisodeNotices from "@/app/Notices";
 import { getDb } from "@/lib/db";
 import { getEpisodeView, getPoints } from "@/lib/game";
+import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { readUserId, USER_COOKIE } from "@/lib/http";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
 import { DATE_ACTS, DRAMA_QUESTION_LABELS, dramaAnswerLabel, ENDING_LABELS, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
+import { venueBackdropCss, venueName } from "@/lib/venues";
 import Avatar from "@/app/Avatar";
 import BoxScore from "./BoxScore";
 import ConfessionalShare from "./ConfessionalShare";
@@ -17,6 +19,7 @@ import DealbreakerQuiz from "./DealbreakerQuiz";
 import EpisodeActions from "./EpisodeActions";
 import SafetyActions from "./SafetyActions";
 import SlidingDoors from "./SlidingDoors";
+import WatchPartyLaunch from "./WatchPartyLaunch";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +38,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
   // The $0 mechanics: spectators get the dealbreaker quiz; the owner (host) sees the surprise reveal.
   const quiz = !episode.is_creator ? await getDealbreakerQuiz(db, id, viewerId) : null;
   const surprise = episode.is_creator ? await getSurprise(db, id, viewerId) : null;
+  const partyId = await partyIdForEpisode(db, id);
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
   const nameOf = (characterId: string) => episode.characters.find((c) => c.id === characterId)?.name;
@@ -75,6 +79,11 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
 
       <section className="card">
         <h2>The setting</h2>
+        {episode.venue && (
+          <p className="venue" style={{ backgroundImage: venueBackdropCss(episode.venue) }}>
+            {venueName(episode.venue)}
+          </p>
+        )}
         <p>{episode.setting}</p>
         <h2>What they want</h2>
         <ul>
@@ -224,6 +233,8 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
           premiumPartner={episode.characters.some((c) => PREMIUM_IDS.has(c.id))}
         />
       )}
+
+      <WatchPartyLaunch episodeId={episode.id} isHost={episode.is_host} partyId={partyId} />
 
       <SafetyActions episodeId={episode.id} canBlock={canBlock} blocked={episode.blocked} />
 

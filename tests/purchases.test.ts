@@ -244,7 +244,7 @@ describe("premium house characters (off sale; an owned one still dates)", () => 
     const { res, model } = await dateWith(premium.id, creator);
     expect(res.status).toBe(200);
     const episode = await res.json();
-    expect(episode.characters[1]).toEqual({ id: premium.id, name: premium.name, house: true, hue: null });
+    expect(episode.characters[1]).toEqual({ id: premium.id, name: premium.name, house: true, hue: premium.hue });
     expect(episode.ai_generated).toBe(true);
     expect(model.calls[0].map((m) => m.content).join("\n")).toContain(premium.bio);
   });

@@ -32,6 +32,7 @@ import {
   type SlidingDoorChange,
   type Strategy,
 } from "./rules";
+import { pickVenue, type VenueId } from "./venues";
 
 export type CharacterForDate = { id: string; sheet: CharacterSheet };
 
@@ -70,7 +71,8 @@ async function loadHistory(db: Db, aId: string, bId: string): Promise<DateHistor
 export type BuiltDate = {
   input: DateInput;
   souls: [string | null, string | null];
-  setup: DateSetup;
+  /** Always carries the dealt venue: DateSetup.venue is only optional for episodes stored before it existed. */
+  setup: DateSetup & { venue: VenueId };
   seed: number;
 };
 
@@ -91,7 +93,7 @@ export async function buildDate(
   const [soulA, soulB] = await Promise.all([loadSoul(db, a.id), loadSoul(db, b.id)]);
   const agendaA = req.agendaId ?? pickAgenda(seedFrom(seed, "agenda-a"));
   const agendaB = pickAgenda(seedFrom(seed, "agenda-b"));
-  const setup: DateSetup = {
+  const setup: DateSetup & { venue: VenueId } = {
     autonomy: req.autonomy,
     strategy: req.strategy,
     agenda_a: agendaA,
@@ -99,6 +101,7 @@ export async function buildDate(
     game_budget_a: req.gameBudget,
     game_budget_b: DEFAULT_GAME_BUDGET,
     producer: pickProducer(seedFrom(seed, "producer")),
+    venue: pickVenue(seedFrom(seed, "venue")),
   };
   // A local-only soul drives the engine (signals) but its text is never sent to the model.
   const forModel = (s: typeof soulA) => (s && !s.local_only ? soulText(s) : null);
@@ -213,7 +216,7 @@ export async function slidingDoors(
   const build = (s: DateSetup): DateInput => ({
     a: {
       sheet: toSheet(row, "a"),
-      signals: soulA ? deriveSoulSignals(soulA) : NEUTRAL_SIGNALS,
+      signals: soulA ? (soulA.signals ?? deriveSoulSignals(soulA)) : NEUTRAL_SIGNALS,
       autonomy: s.autonomy,
       strategy: s.strategy,
       agendaId: s.agenda_a,
@@ -222,7 +225,7 @@ export async function slidingDoors(
     },
     b: {
       sheet: toSheet(row, "b"),
-      signals: soulB ? deriveSoulSignals(soulB) : NEUTRAL_SIGNALS,
+      signals: soulB ? (soulB.signals ?? deriveSoulSignals(soulB)) : NEUTRAL_SIGNALS,
       autonomy: DEFAULT_AUTONOMY,
       strategy: DEFAULT_STRATEGY,
       agendaId: s.agenda_b,

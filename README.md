@@ -44,6 +44,12 @@ The episode page on a phone, with the AI disclosure and crisis links first.
 ![The box score on a phone](docs/screenshots/episode-boxscore-mobile.png)
 The box score on an iPhone 13 screen.
 
+![A live watch-party room: matchup, a live viewer count, reactions, live chat and the prediction panel, desktop](docs/screenshots/watch-desktop.png)
+**Watch parties (M8):** a date becomes a live event. The pre-generated date plays on one shared clock while the audience reacts (😂 ❤️ 🚩 🍿), argues in live chat and calls the ending — *spectator mode*: the audience reacts and predicts, it never steers the characters. Always-on **template rooms** start the moment someone taps in, so there's always a date to drop into. The chemistry verdict stays hidden until the decision, so the room can still be surprised.
+
+![The watch-party room on a phone: the date up top, chat in a panel below](docs/screenshots/watch-mobile.png)
+On a phone the date takes the screen and chat sits in a panel below, so the dialogue is never buried under the wall of messages.
+
 ![A friends' league with last season's podium and this week's board, desktop](docs/screenshots/league-season-desktop.png)
 Seasons (M4): the first visit after Monday 00:00 UTC closed last week's season, so the top 3 got badges (a tie shares 2nd). This week's board counts only this week's finales.
 
@@ -62,9 +68,10 @@ For adults who make original characters and the friends who watch, it turns two 
 
 Beyond the blind-date MVP, Botchelor is a social simulation built on a **deterministic, seeded engine** (`lib/engine.ts`). The model only narrates; the engine decides the outcome, so predictions are fair, the box score has real numbers, and dates are replayable. All of it runs at **$0 on free models**:
 
-- **Custom characters with avatars.** Every character gets a generated avatar — pick a colour, or style it from a reference image (read in your browser, never uploaded) — plus an optional appearance line. Every character has a **shareable contestant card**.
+- **Custom characters with avatars.** Every character gets a generated avatar — pick a colour, choose one of twelve **curated looks**, or style it from a reference image (read in your browser, never uploaded) — plus an optional appearance line. A look or an image sets the colour, the appearance, the traits **and** how the AI behaves on a date. Every character has a **shareable contestant card**.
 - **Public persona vs. private soul.** The audience sees the public sheet; the owner-only soul shapes behaviour without being revealed, can be deleted, and can be kept **local-only** (never sent to any model).
 - **Budget & autonomy.** Owners choose how much their AI follows them, a strategy, a fictional date budget, a secret agenda, and a one-sentence note in the pocket.
+- **A cast and a set.** **Seventeen house characters**, each with its own archetype, curated look and temperament the engine decides with, plus a library of **eight date locations** dealt by the episode's seed — so every date happens somewhere specific, with no image or location ever generated per episode.
 - **A three-act date.** First impressions → a revealing challenge (dealt by the AI producer) → the decision.
 - **The payoff.** A box score, a private debrief ("does your AI surprise you?"), confessionals, and a persistent relationship graph.
 - **Free side games.** Guess the dealbreaker, know-your-own-AI surprise score, matchmakers, and **Sliding Doors** (replay a date with one thing changed, same seed).
@@ -75,7 +82,9 @@ Turning on frontier models, images or video costs money and needs the owner's ap
 - [PRD](PRD.md)
 - [Roadmap](ROADMAP.md)
 - [Build notes](BUILD.md): plan, how to run, test and deploy, review
+- [Architecture](docs/architecture.md): how it is put together, the episode path, and the invariants
 - [Competitive analysis](docs/competitive-analysis.md): what rivals do, where we win, and the feature roadmap
+- [Image strategy](docs/image-strategy.md): where the visuals come from, and the provenance gate any hosted image must pass
 - [Upgrade cost](docs/upgrade-cost.md): what frontier models and the full stack would cost
 
 Effort: Medium · Confidence: Low

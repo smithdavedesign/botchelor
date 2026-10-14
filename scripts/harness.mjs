@@ -44,9 +44,10 @@ function genericEpisode(messages) {
   const b = data.character_b.name;
   const ending = /Decided ending:\s*([^.]+)\./.exec(data.decided_outcome ?? "")?.[1]?.trim() ?? "Just friends";
   const situation = data.act_two_situation ?? "a surprise lands";
+  const location = data.date_location ?? "a rooftop cafe strung with lights";
   const fin = ENDING_FINALE[ending] ?? ENDING_FINALE["Just friends"];
   return {
-    setting: `A rooftop cafe strung with lights where ${a} and ${b} meet for the first time, a nervous waiter hovering.`,
+    setting: `At ${location}, where ${a} and ${b} meet for the first time, a nervous waiter hovering.`,
     goals: [`${a} wants to know if there is a real spark.`, `${b} wants a night worth retelling.`],
     scenes: [
       `${a} arrives first and rearranges the cutlery into a neat grid. ${b} arrives, knocks it over, and they both laugh before a word is said.`,
@@ -86,6 +87,8 @@ export const SAMPLE_PAYMENT_LINK = "https://buy.stripe.com/test_botchelorSampleP
 export const SAMPLE_PRICE_LABEL = "5 more dates · $4";
 export const SAMPLE_PACK = { episodes: 5, amount_cents: 400 };
 export const RUN_WEBHOOK_SECRET = randomBytes(24).toString("hex");
+// Gate for the internal template-room seeder (app/api/watch-parties/templates). Fresh per run.
+export const WATCH_ADMIN_TOKEN = randomBytes(24).toString("hex");
 
 /** The app's environment: this shell's, minus real infrastructure, plus the local stand-ins. */
 export function appEnv(showrunnerPort, dataDir) {
@@ -103,6 +106,7 @@ export function appEnv(showrunnerPort, dataDir) {
     STRIPE_PAYMENT_LINK: SAMPLE_PAYMENT_LINK,
     STRIPE_PRICE_LABEL: SAMPLE_PRICE_LABEL,
     STRIPE_WEBHOOK_SECRET: RUN_WEBHOOK_SECRET,
+    WATCH_ADMIN_TOKEN,
     NEXT_TELEMETRY_DISABLED: "1",
   };
 }
@@ -245,17 +249,39 @@ export function signedEvent(session) {
 // ---------------------------------------------------------------------------------------------------
 // A rich, believable demo dataset, driven over HTTP exactly as the UI would.
 
-const CAST = [
+/** The seeded OCs. Exported so a test can check the demo data the same way the seeder builds it. */
+export const CAST = [
   { name: "Mira Quell", age: 27, bio: "A cartographer who maps cities that only exist on Tuesdays. Never lost, and smug about it.", traits: ["curious", "stubborn", "warm"], want: "Someone who can read a map upside down", dealbreaker: "People who hate surprises", appearance: "windswept, ink-stained fingers, a coat full of folded maps", avatar_hue: 210, soul: { values: "honesty and curiosity", humor: "dry and quick", communication: "warm once she trusts you" } },
-  { name: "Otto Fenn", age: 36, bio: "A retired opera prompter who still whispers everyone's lines a second before they say them.", traits: ["devoted", "dramatic", "punctual"], want: "A date who lets him finish a story", dealbreaker: "Spoilers of any kind", appearance: "velvet jacket, reading glasses on a chain, immaculate", avatar_hue: 275 },
+  { name: "Otto Fenn", age: 36, bio: "A retired opera prompter who still whispers everyone's lines a second before they say them.", traits: ["devoted", "dramatic", "punctual"], want: "A date who lets him finish a story", dealbreaker: "Spoilers of any kind", appearance: "velvet jacket, reading glasses on a chain, immaculate", avatar_hue: 275, image_signals: { warmth: 0.45, openness: 0.6, guardedness: 0.15, humor: 0.4 } },
   { name: "Tamsin Holloway", age: 31, bio: "Sets the hardest crossword in the city and hides a marriage proposal in it every year, for strangers.", traits: ["clever", "romantic", "competitive"], want: "Someone who finishes the puzzle before asking for hints", dealbreaker: "Pens on a crossword", appearance: "sharp bob, a pencil behind each ear", avatar_hue: 340, soul: { values: "cleverness and follow-through", insecurities: "being underestimated" } },
-  { name: "Bas Niro", age: 40, bio: "Runs a night market stall that only sells things people lost. Somehow always has what you need.", traits: ["generous", "mysterious", "patient"], want: "Someone who returns what they borrow", dealbreaker: "Keeping the umbrella", appearance: "a coat of many pockets, a lantern that never goes out", avatar_hue: 30 },
+  { name: "Bas Niro", age: 40, bio: "Runs a night market stall that only sells things people lost. Somehow always has what you need.", traits: ["generous", "mysterious", "patient"], want: "Someone who returns what they borrow", dealbreaker: "Keeping the umbrella", appearance: "a coat of many pockets, a lantern that never goes out", avatar_hue: 30, image_signals: { warmth: 0.75, openness: 0.3, guardedness: 0.4, humor: 0.2 } },
   { name: "Wrenna Sol", age: 29, bio: "A storm chaser who is calmest in the eye of it. Collects the last photo on strangers' broken phones.", traits: ["brave", "spontaneous", "tender"], want: "Someone who will pull over for a good sky", dealbreaker: "Checking the forecast on a date", appearance: "sunburnt, a camera always around her neck", avatar_hue: 160, soul: { values: "wonder over safety", humor: "bold and silly" } },
+  { name: "Halden Voss", age: 44, bio: "Tunes the last four pipe organs in the county and refuses to say which one is his favourite. It is obvious.", traits: ["precise", "wry", "sentimental"], want: "Someone who sits through the whole piece", dealbreaker: "Clapping between movements", appearance: "tweed with dust on the shoulders, long careful hands", avatar_hue: 45, soul: { values: "craft before speed", insecurities: "being thought old-fashioned", communication: "formal until the third drink" } },
+  { name: "Ysolde Marchetti", age: 33, bio: "Restores wedding photographs for strangers and has never been to a wedding. Keeps the best ones pinned above her desk.", traits: ["observant", "guarded", "kind"], want: "Someone who tells her the real story behind the photo", dealbreaker: "Posing for a picture she did not ask to take", appearance: "paint-flecked smock, hair in a clip, always slightly squinting", avatar_hue: 315, soul: { values: "other people's happiness, studied from a safe distance", insecurities: "wanting it herself", boundaries: "do not rush her" } },
+  { name: "Pike Alderman", age: 38, bio: "Drives the night bus and keeps a notebook of everything passengers leave behind, sorted by how sad it is.", traits: ["steady", "nosy", "loyal"], want: "Someone who talks the whole way home", dealbreaker: "Silence as a punishment", appearance: "a driver's jacket, thermos in hand, permanently amused", avatar_hue: 190, image_signals: { warmth: 0.45, openness: 0.6, guardedness: 0.15, humor: 0.2 } },
+  { name: "Soraya Bell", age: 26, bio: "Runs an unlicensed rooftop cinema that screens only films with bad endings. Sells out every week.", traits: ["bold", "contrary", "generous"], want: "Someone who argues about the ending afterwards", dealbreaker: "Walking out early", appearance: "a projector-light tan, boots, a jacket covered in badges", avatar_hue: 105, soul: { values: "an honest ending over a happy one", humor: "loud and mean about films, soft about people" } },
+  { name: "Emrys Nakamura-Pine", age: 35, bio: "A beekeeper who names every queen after an opera villain. Has been stung four hundred times and counts it as a relationship.", traits: ["calm", "obsessive", "funny"], want: "Someone who is not afraid of the hives", dealbreaker: "Swatting anything", appearance: "a veil pushed back, sun-bleached overalls, honey on the cuffs", avatar_hue: 255, soul: { values: "patience and small creatures", communication: "quiet, then all at once", local_only: true } },
+  { name: "Pernilla Krause", age: 32, bio: "A dessert critic who tastes everything twice and has never once told a kind lie about a pudding. Keeps a list of every bakery that opens when it rains.", traits: ["generous", "exacting", "warm"], want: "A bakery that opens when it rains", dealbreaker: "Anyone who skips pudding", appearance: "a warm amber palette, bright and vivid", avatar_hue: 20, image_signals: { warmth: 0.75, openness: 0.8, guardedness: 0.15, humor: 0.65 } },
+];
+
+/** House partners the seeded dates use, so the demo shows the breadth of the cast, not just the first three. */
+export const HOUSE_PARTNERS = [
+  "house-rafe",
+  "house-juniper",
+  "house-dex",
+  "house-marisol",
+  "house-teo",
+  "house-nell",
+  "house-sable",
+  "house-orin",
+  "house-imogen",
+  "house-perpetua",
 ];
 
 /**
- * Seeds a rich season: five OCs across five creators, several dates with varied endings, a friend
- * league with predictions and a closed-out podium feel, and a couple of matchmaker proposals.
+ * Seeds a believable season: ten OCs across ten creators, dates against a broad spread of the house
+ * cast and each other, two friend leagues with predictions, dealbreaker guesses, matchmaker proposals
+ * and aired finales. Driven over HTTP exactly as the UI would, so the data is as real as a user's.
  */
 export async function seedDataset(base) {
   const call = client(base);
@@ -266,21 +292,47 @@ export async function seedDataset(base) {
     chars.push(await call("/api/characters", { ...sheet, ...(soul ? { soul } : {}), attest: true }, creators[i]));
   }
 
-  // A friend league among the first three creators.
-  for (const [i, name] of ["Wren", "Kestrel", "Alder"].entries()) await call("/api/profile", { name, attest: true }, creators[i]);
+  // Two friend leagues, so the board has more than one group on it.
+  const names = ["Wren", "Kestrel", "Alder", "Juno", "Fable", "Marlow", "Quill", "Rook", "Sable", "Thorn", "Pim"];
+  for (const [i, name] of names.entries()) await call("/api/profile", { name, attest: true }, creators[i]);
   const league = await call("/api/leagues", { name: "Rooftop Regulars" }, creators[0]);
-  for (const i of [1, 2]) await call(`/api/leagues/${league.id}/join`, {}, creators[i]);
+  for (const i of [1, 2, 3]) await call(`/api/leagues/${league.id}/join`, {}, creators[i]);
+  const league2 = await call("/api/leagues", { name: "The Arcade Gremlins" }, creators[4]);
+  for (const i of [5, 6, 7]) await call(`/api/leagues/${league2.id}/join`, {}, creators[i]);
 
-  const spectators = [persona(), persona(), persona()];
+  const spectators = [persona(), persona(), persona(), persona(), persona()];
   const endingsSeen = new Set();
   const episodes = [];
-  // Each OC dates a house character and another OC, with varied settings; predictions from spectators.
+  // Every OC gets a date: most against a different house character, some blind against each other,
+  // and the date settings vary so the stored setups are not all defaults. A few go on a second date,
+  // which is what gives the relationship graph repeat pairs and progression stages.
+  // The pairings are chosen, not left to luck: the engine decides outcomes from cue matches between the
+  // two sheets, the souls or trained looks on each side, and the owner's dials. Pairings with a note and
+  // a guided AI against a warm house character land on "friends"; bare dates against a guarded one end
+  // badly, which is the show. Two are built to earn a second date (see Pernilla, below), so the demo
+  // season covers all three endings, a repeat pair and a matchmaker proposal that pays off.
+  const warm = { autonomy: "guided", strategy: "genuine_chemistry", agenda: "find_funny", game_budget: 50 };
   const pairings = [
-    { host: 0, body: { character_id: chars[0].id, partner_id: "house-rafe" } },
-    { host: 1, body: { character_id: chars[1].id, blind: true, autonomy: "unpredictable", strategy: "unexpected" } },
-    { host: 2, body: { character_id: chars[2].id, partner_id: "house-juniper" } },
+    { host: 0, body: { character_id: chars[0].id, partner_id: "house-teo", ...warm, note: "Let them lead for one dance." } },
+    { host: 1, body: { character_id: chars[1].id, blind: true, autonomy: "unpredictable", strategy: "unexpected", note: "Let him finish the story." } },
+    { host: 2, body: { character_id: chars[2].id, partner_id: "house-ines", ...warm, note: "Ask what she planted." } },
     { host: 3, body: { character_id: chars[3].id, blind: true, strategy: "long_term" } },
-    { host: 4, body: { character_id: chars[4].id, partner_id: "house-dex", autonomy: "guided", note: "Be brave but kind." } },
+    { host: 4, body: { character_id: chars[4].id, partner_id: "house-marisol", ...warm, note: "Be brave but kind." } },
+    // Bare dates against the guarded end of the cast: no note, no dials, and it shows.
+    { host: 5, body: { character_id: chars[5].id, partner_id: "house-juniper" } },
+    { host: 6, body: { character_id: chars[6].id, partner_id: "house-sable", ...warm, note: "Tell her the real story." } },
+    { host: 7, body: { character_id: chars[7].id, blind: true, autonomy: "guided" } },
+    { host: 8, body: { character_id: chars[8].id, partner_id: "house-perpetua", ...warm, note: "Argue about the ending." } },
+    { host: 9, body: { character_id: chars[9].id, partner_id: "house-orin" } },
+    // Second dates for a few of them, so the relationship graph has repeat pairs and progression stages.
+    { host: 0, body: { character_id: chars[0].id, partner_id: "house-nell", autonomy: "unpredictable", strategy: "unexpected" } },
+    { host: 2, body: { character_id: chars[2].id, partner_id: "house-wally", strategy: "long_term" } },
+    { host: 5, body: { character_id: chars[5].id, partner_id: "house-rafe", ...warm, note: "Sit through the whole piece.", self_pick: "disaster" } },
+    { host: 9, body: { character_id: chars[9].id, partner_id: "house-dex", ...warm, agenda: "keep_it_light", note: "Do not swat anything." } },
+    // Built to earn a second date: her want names his bakery, his want ("taste-test without lying") finds
+    // "tastes" in her bio, they share the trait "generous", and neither trips the other's dealbreaker.
+    { host: 10, body: { character_id: chars[10].id, partner_id: "house-rafe", ...warm, game_budget: 100, note: "Say what you actually think of the pastry.", self_pick: "friends" } },
+    { host: 10, body: { character_id: chars[10].id, partner_id: "house-rafe", ...warm, game_budget: 100, note: "Same again." } },
   ];
   for (const { host, body } of pairings) {
     const ep = await call("/api/episodes", body, creators[host]);
@@ -291,15 +343,45 @@ export async function seedDataset(base) {
     for (let s = 0; s < spectators.length; s++) {
       await call("/api/predictions", { episode_id: ep.id, pick: picks[s % 3], drama_pick: ["a", "b", "neither"][s % 3] }, spectators[s]);
     }
-    // One dealbreaker guess per spectator (first option; scoring is handled at reveal).
+    // One dealbreaker guess per episode (the host's own character's; scoring is handled at reveal).
     await call("/api/dealbreaker-guesses", { episode_id: ep.id, pick: CAST[host].dealbreaker }, spectators[0], [201, 403, 422]);
   }
 
-  // A matchmaker proposal from a spectator.
+  // Matchmaker proposals from spectators.
   await call("/api/matchmakers", { character_a: chars[0].id, character_b: chars[4].id }, spectators[0]);
+  await call("/api/matchmakers", { character_a: chars[2].id, character_b: chars[7].id }, spectators[1]);
+  await call("/api/matchmakers", { character_a: chars[5].id, character_b: chars[9].id }, spectators[2]);
+  await call("/api/matchmakers", { character_a: chars[10].id, character_b: chars[0].id }, spectators[3]);
 
-  // Air a few finales so the feed has aired episodes and the board has scores.
-  for (let i = 0; i < 3; i++) await call(`/api/episodes/${episodes[i].id}/reveal`, {}, creators[pairings[i].host]);
+  // Air most of the finales, so the feed has aired episodes and the boards have scores.
+  for (let i = 0; i < 11; i++) await call(`/api/episodes/${episodes[i].id}/reveal`, {}, creators[pairings[i].host]);
+  // The designed pair's finales air too, so the second date shows up in the feed and on the graph.
+  for (const i of [pairings.length - 2, pairings.length - 1]) {
+    await call(`/api/episodes/${episodes[i].id}/reveal`, {}, creators[pairings[i].host]);
+  }
 
-  return { creators, chars, league, episodes, endingsSeen: [...endingsSeen] };
+  // Always-on template date rooms (M8): house-vs-house dates anyone can drop into, so the /watch lobby
+  // is never empty. These are system content, created through the internal (token-gated) route.
+  const templates = await seedTemplateRooms(base);
+
+  return { creators, chars, league, leagues: [league, league2], episodes, templates, endingsSeen: [...endingsSeen] };
+}
+
+/** House-vs-house template rooms for the watch-party lobby, via the internal token-gated route. */
+export async function seedTemplateRooms(base) {
+  const pairs = [
+    ["house-rafe", "house-juniper"],
+    ["house-dex", "house-marisol"],
+    ["house-teo", "house-ines"],
+  ];
+  const ids = [];
+  for (const [a, b] of pairs) {
+    const res = await fetch(`${base}/api/watch-parties/templates`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-watch-admin": WATCH_ADMIN_TOKEN },
+      body: JSON.stringify({ character_a: a, character_b: b }),
+    });
+    if (res.ok) ids.push((await res.json()).id);
+  }
+  return ids;
 }

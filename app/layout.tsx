@@ -22,6 +22,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <span className="tagline">a blind-date show for original characters</span>
           <nav className="nav">
             <Link href="/">New date</Link>
+            <Link href="/watch">Watch live</Link>
             <Link href="/feed">Episodes &amp; leagues</Link>
             <Link href="/shop">Shop</Link>
           </nav>
