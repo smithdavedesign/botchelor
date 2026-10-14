@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import ShareLink from "@/app/ShareLink";
 import { getDb } from "@/lib/db";
-import { getPublicCharacter } from "@/lib/game";
+import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
+import { ENDING_LABELS } from "@/lib/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +21,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 /** A shareable contestant card: a character's public persona only (no dealbreaker, no soul). */
 export default async function CharacterPage({ params }: Props) {
   const { id } = await params;
-  const c = await getPublicCharacter(await getDb(), id);
+  const db = await getDb();
+  const c = await getPublicCharacter(db, id);
   if (!c) notFound();
+  const { episodes, record } = await getCharacterHistory(db, id);
 
   return (
     <article>
@@ -54,6 +57,28 @@ export default async function CharacterPage({ params }: Props) {
         <p>
           <strong>Wants:</strong> {c.want}
         </p>
+      </section>
+
+      <section className="card">
+        <h2>Date record</h2>
+        {record.dates > 0 ? (
+          <>
+            <p>
+              <strong>{record.dates}</strong> {record.dates === 1 ? "aired date" : "aired dates"} ·{" "}
+              {record.second_dates} second {record.second_dates === 1 ? "date" : "dates"} · {record.friends} just
+              friends · {record.disasters} {record.disasters === 1 ? "disaster" : "disasters"}
+            </p>
+            <ul className="list">
+              {episodes.map((e) => (
+                <li key={e.episode_id}>
+                  <Link href={e.share_path}>vs {e.partner}</Link> <span className="badge">{ENDING_LABELS[e.ending]}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="muted">No aired dates yet.</p>
+        )}
       </section>
 
       <section className="card">

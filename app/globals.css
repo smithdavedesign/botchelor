@@ -929,3 +929,7 @@ button.swatch.chosen {
     order: -1;
   }
 }
+
+.sample-row {
+  margin-top: 0.25rem;
+}

@@ -93,3 +93,20 @@ Next, still $0:
 
 Deferred (spend + a moderation provider; see docs/competitive-analysis.md and docs/upgrade-cost.md):
 - **Uploading and storing an image / "training" the look.** Blocked on object storage, a vision model, and automated image moderation (CSAM scanning + a real-person classifier), because the product bans real people and a solo owner can't moderate raw uploads. The in-browser image tinting above is the safe $0 stand-in shipped now.
+
+## M7: competitor-driven UX (from competitor-analysis.md)
+A deep study of Zeta, Talkie, PolyBuzz and EchoSim (see `competitor-analysis.md`), with four lessons: remove friction (Zeta), make characters reusable assets (Talkie), offer paid depth without blocking the core (PolyBuzz), make outcomes satisfying and actionable (EchoSim).
+
+Built ($0):
+- **Time to first episode** — a one-click **"Use a sample character"** fast start (Zeta's "borrow a character"), so a new visitor reaches a date without filling a long form.
+- **Image trains the character** — a reference image derives the **avatar colour, the appearance line AND the traits**, entirely in the browser (nothing uploaded or stored).
+- **Characters as reusable assets** — each contestant card (`/characters/[id]`) shows a **date record and recent dates** with outcomes and links (Talkie's lesson).
+- The reveal is already a reality-show episode (box score, best line, private debrief, ending) — EchoSim's report structure, made entertaining rather than diagnostic.
+
+Next, still $0:
+- Discovery on the cast gallery: categories, search, a "featured" rail (Talkie/PolyBuzz).
+- A clearer "next episode" CTA on the reveal (rematch / new date) — EchoSim's step 5.
+
+Deferred (your approval; purchases must never touch outcomes or prediction odds):
+- Monetization depth à la PolyBuzz — themed episode packs, extra character slots, cosmetic appearance packs — as new Stripe Payment Links (cosmetic/quantity only).
+- Voice and generated portraits/video (see docs/upgrade-cost.md).

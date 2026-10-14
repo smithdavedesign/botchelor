@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { getEpisodeView, getPoints } from "@/lib/game";
+import { getCharacterHistory, getEpisodeView, getPoints } from "@/lib/game";
 import { getDealbreakerQuiz, getSurprise, getSurpriseScore } from "@/lib/mechanics";
 import { POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER } from "@/lib/rules";
 import {
@@ -135,6 +135,18 @@ describe("matchmakers", () => {
     const ch = await (await api.createCharacter(validCharacter(), u)).json();
     expect((await api.proposeMatch({ character_a: ch.id, character_b: ch.id }, u)).status).toBe(422);
     expect((await api.proposeMatch({ character_a: ch.id, character_b: "nope" }, u)).status).toBe(404);
+  });
+});
+
+describe("character date record (reusable-asset history)", () => {
+  it("lists a character's aired dates and tallies its record", async () => {
+    const { creator, character, episode } = await setupEpisode("second_date");
+    expect((await getCharacterHistory(t.db, character.id)).record.dates).toBe(0); // nothing aired yet
+    await api.reveal(episode.id, creator);
+    const h = await getCharacterHistory(t.db, character.id);
+    expect(h.record).toMatchObject({ dates: 1, second_dates: 1, friends: 0, disasters: 0 });
+    expect(h.episodes[0]).toMatchObject({ episode_id: episode.id, ending: "second_date" });
+    expect(h.episodes[0].partner.length).toBeGreaterThan(0);
   });
 });
 

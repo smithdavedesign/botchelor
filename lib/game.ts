@@ -411,6 +411,39 @@ export async function getPublicCharacter(db: Db, id: string): Promise<PublicChar
   return rows[0] ?? null;
 }
 
+export type CharacterEpisode = { episode_id: string; share_path: string; partner: string; ending: Ending };
+export type CharacterRecord = { dates: number; second_dates: number; friends: number; disasters: number };
+
+/**
+ * A character's public date record: the aired episodes it appeared in, newest first, and a tally. Makes
+ * a character a reusable asset with a history (the competitor report's Talkie lesson). Aired only.
+ */
+export async function getCharacterHistory(
+  db: Db,
+  id: string,
+  limit = 10,
+): Promise<{ episodes: CharacterEpisode[]; record: CharacterRecord }> {
+  const { rows } = await db.query<{ episode_id: string; partner: string; ending: Ending }>(
+    `select e.id as episode_id, e.ending,
+            case when e.character_a = $1 then b.name else a.name end as partner
+       from episodes e
+       join characters a on a.id = e.character_a
+       join characters b on b.id = e.character_b
+      where (e.character_a = $1 or e.character_b = $1) and e.revealed_at is not null
+      order by e.revealed_at desc, e.id
+      limit $2`,
+    [id, limit],
+  );
+  const episodes = rows.map((r) => ({ episode_id: r.episode_id, share_path: `/episodes/${r.episode_id}`, partner: r.partner, ending: r.ending }));
+  const record: CharacterRecord = {
+    dates: episodes.length,
+    second_dates: episodes.filter((e) => e.ending === "second_date").length,
+    friends: episodes.filter((e) => e.ending === "friends").length,
+    disasters: episodes.filter((e) => e.ending === "disaster").length,
+  };
+  return { episodes, record };
+}
+
 export async function getPoints(db: Db, userId: string): Promise<number> {
   const { rows } = await db.query<{ points: number }>(
     `select (

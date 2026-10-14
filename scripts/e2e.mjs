@@ -23,6 +23,7 @@ import {
   SAMPLE_PAYMENT_LINK,
   SAMPLE_PRICE_LABEL,
   signedEvent,
+  solidPng,
   startApp,
   startShowrunner,
   stopApp,
@@ -195,6 +196,27 @@ async function main() {
       assert(res.status === 200, `webhook → ${res.status}`);
       await page.goto(`${base}/shop?checkout=success`);
       await page.getByText(`plus ${SAMPLE_PACK.episodes} pack dates`).waitFor({ timeout: 10_000 });
+    });
+
+    await step("an image trains the character's look and traits, entirely in the browser", async () => {
+      await page.goto(base);
+      const form = page.locator("#start");
+      await form.locator('input[name="name"]').fill("Teal Test");
+      // A generated teal PNG — never saved to disk, never uploaded by the app.
+      await form.locator('input[type="file"]').setInputFiles({ name: "ref.png", mimeType: "image/png", buffer: solidPng(20, 120, 140) });
+      await page.waitForFunction(
+        () => (document.querySelector('input[name="appearance"]')?.value || "").includes("palette"),
+        { timeout: 6000 },
+      );
+      assert((await form.locator('input[name="trait1"]').inputValue()).length > 0, "traits were not trained from the image");
+      assert((await form.locator('input[name="appearance"]').inputValue()).includes("teal"), "appearance not trained from the image");
+    });
+
+    await step("a sample character fills the whole card for a fast start", async () => {
+      await page.goto(base);
+      await page.getByRole("button", { name: "Use a sample character" }).click();
+      assert((await page.locator('#start input[name="name"]').inputValue()).length > 0, "sample did not fill the name");
+      assert((await page.locator('#start input[name="dealbreaker"]').inputValue()).length > 0, "sample did not fill the dealbreaker");
     });
   } finally {
     await browser.close();

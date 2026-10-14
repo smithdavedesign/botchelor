@@ -107,31 +107,56 @@ export function hueName(hue: number): string {
   return "pink"; // centre 315
 }
 
-export type ImageTraits = { hue: number | null; descriptor: string };
+export type ImageTraits = { hue: number | null; descriptor: string; traits: string[] };
 
 /**
  * What a reference image says about a character, computed entirely in the browser from its pixels: a
- * dominant hue (for the avatar) and a short descriptor (for the appearance line). The image itself is
- * never uploaded, stored or sent — only these derived values are, exactly like choosing a swatch. This
- * is "using an image as training data" for the character's look and vibe, safely and at $0. Pure.
+ * dominant hue (for the avatar), a short appearance descriptor, and 2-3 suggested personality traits
+ * read from the image's brightness, saturation, warmth and colourfulness. The image itself is never
+ * uploaded, stored or sent — only these derived values are, exactly like choosing a swatch and typing
+ * traits. This is "using an image as training data" for the character's look AND vibe, safely at $0. Pure.
  */
 export function imageTraits(data: Uint8ClampedArray | number[]): ImageTraits {
-  const hue = hueFromPixels(data);
+  const bins = new Array(12).fill(0);
   let sumS = 0;
   let sumL = 0;
   let n = 0;
   for (let i = 0; i + 3 < data.length; i += 4) {
     if (data[i + 3] < 125) continue;
-    const { s, l } = rgbToHsl(data[i], data[i + 1], data[i + 2]);
+    const { h, s, l } = rgbToHsl(data[i], data[i + 1], data[i + 2]);
     sumS += s;
     sumL += l;
     n++;
+    if (s < 0.2 || l < 0.12 || l > 0.9) continue;
+    bins[Math.floor(h / 30) % 12] += s * (1 - Math.abs(l - 0.5) * 0.8);
   }
+  let best = -1;
+  let bestWeight = 0.5;
+  for (let i = 0; i < 12; i++) {
+    if (bins[i] > bestWeight) {
+      bestWeight = bins[i];
+      best = i;
+    }
+  }
+  const hue = best < 0 ? null : best * 30 + 15;
   const avgS = n ? sumS / n : 0;
   const avgL = n ? sumL / n : 0.5;
+  const distinct = bins.filter((b) => b > 0.5).length;
   const light = avgL > 0.62 ? "bright" : avgL < 0.38 ? "dark" : "soft";
   const sat = avgS > 0.45 ? "vivid" : avgS < 0.2 ? "muted" : "balanced";
-  if (hue === null) return { hue, descriptor: `a ${light}, neutral palette` };
-  const warm = hue < 66 || hue >= 300 ? "warm" : hue < 180 ? "fresh" : "cool";
-  return { hue, descriptor: `a ${warm} ${hueName(hue)} palette, ${light} and ${sat}` };
+
+  // The image's visual properties, mapped to suggested personality traits.
+  const traits = [
+    avgL > 0.62 ? "sunny" : avgL < 0.38 ? "mysterious" : "gentle",
+    avgS > 0.45 ? "bold" : avgS < 0.2 ? "understated" : "steady",
+  ];
+  if (hue !== null) traits.push(hue < 66 || hue >= 300 ? "warm" : hue < 180 ? "grounded" : "cool");
+  if (distinct >= 4 && traits.length < 3) traits.push("playful");
+  const uniqueTraits = [...new Set(traits)].slice(0, 3);
+
+  const descriptor =
+    hue === null
+      ? `a ${light}, neutral palette`
+      : `a ${hue < 66 || hue >= 300 ? "warm" : hue < 180 ? "fresh" : "cool"} ${hueName(hue)} palette, ${light} and ${sat}`;
+  return { hue, descriptor, traits: uniqueTraits };
 }

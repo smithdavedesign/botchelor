@@ -78,17 +78,21 @@ describe("styling an avatar from an image (in-browser, nothing uploaded)", () =>
     expect(hueFromPixels(solid(255, 255, 255))).toBeNull(); // white → auto
   });
 
-  it("trains the avatar colour and the appearance line from the image's pixels", () => {
+  it("trains the avatar colour, the appearance line AND the traits from the image's pixels", () => {
     const blue = imageTraits(solid(30, 60, 220));
     expect(blue.hue).not.toBeNull();
     expect(blue.descriptor).toContain("blue");
     expect(blue.descriptor).toMatch(/cool/);
+    expect(blue.traits).toContain("cool");
+    expect(blue.traits.length).toBeGreaterThanOrEqual(2);
     const amber = imageTraits(solid(240, 170, 20));
     expect(amber.descriptor).toContain("amber");
     expect(amber.descriptor).toMatch(/warm/);
+    expect(amber.traits).toContain("warm");
     const grey = imageTraits(solid(128, 128, 128));
     expect(grey.hue).toBeNull();
     expect(grey.descriptor).toContain("neutral");
+    expect(grey.traits.length).toBeGreaterThanOrEqual(2);
     expect(hueName(240)).toBe("blue");
     expect(hueName(30)).toBe("amber");
   });

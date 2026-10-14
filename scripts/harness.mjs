@@ -10,6 +10,7 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import { createHmac, randomBytes, randomUUID } from "node:crypto";
+import zlib from "node:zlib";
 import { createServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
@@ -179,6 +180,54 @@ export function client(base) {
     if (!expected.includes(res.status)) throw new Error(`POST ${path} → ${res.status} (${data.error ?? "?"})`);
     return data;
   };
+}
+
+// A minimal solid-colour PNG, so the E2E can prove "an image trains the character" without a fixture file.
+let _crcTable;
+function crc32(buf) {
+  if (!_crcTable) {
+    _crcTable = [];
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      _crcTable[n] = c >>> 0;
+    }
+  }
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) c = _crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+function pngChunk(type, data) {
+  const t = Buffer.from(type, "ascii");
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length, 0);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([t, data])), 0);
+  return Buffer.concat([len, t, data, crc]);
+}
+export function solidPng(r, g, b, size = 8) {
+  const stride = size * 3 + 1;
+  const raw = Buffer.alloc(stride * size);
+  for (let y = 0; y < size; y++) {
+    raw[y * stride] = 0; // filter type 0
+    for (let x = 0; x < size; x++) {
+      const o = y * stride + 1 + x * 3;
+      raw[o] = r;
+      raw[o + 1] = g;
+      raw[o + 2] = b;
+    }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0);
+  ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // colour type 2 = RGB
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk("IHDR", ihdr),
+    pngChunk("IDAT", zlib.deflateSync(raw)),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
 }
 
 export function signedEvent(session) {
