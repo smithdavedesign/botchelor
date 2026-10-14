@@ -325,8 +325,10 @@ Grounded in how Twitch/live-watch UIs work (an app-fullscreen stage with overlay
 - **Mobile:** a **chat-window** view — the dialogue as a messaging thread with the characters' avatar icons.
 - **Both surfaces** get it: the live watch room **and** the static episode page (the episode replays its recorded
   transcript in the same scene).
-- A top HUD (phase/viewers/venue) and a rail for the live inputs (predict, the polls, the chaos button) + the
-  decision/box-score payoff — overlays, not a scroll.
+- The scene stays **clean**: a minimal top HUD, and the noise lives in two side panels behind small icons —
+  **💬 chat** (with the reactions) and **🗳️ voting & questions** (predictions + the chemistry/question/chaos
+  polls). The decision lands on the scene (it's the payoff, not chrome). The episode replay is **paced like it
+  aired** — a beat between acts, not a uniform ticker.
 - Built as a **theater mode the watch room opens into** (today's layout stays as the fallback). No new model
   cost — a re-layout of existing data + the existing $0 live machinery.
 

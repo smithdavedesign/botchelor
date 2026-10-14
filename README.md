@@ -29,8 +29,8 @@ The same start page on an iPhone 13 screen.
 ![The theater on a phone: a chat window with the characters' icons](docs/screenshots/episode-theater-mobile.png)
 On a phone it becomes a **chat window** — a mood banner of the venue up top, the date playing out as a messaging thread with each character's icon.
 
-![The live watch room in theater mode: the scene, reactions and prediction, with chat docked, desktop](docs/screenshots/watch-theater-desktop.png)
-The **live** room in theater mode: the scene front and centre, chat docked to the side behind a small icon (Twitch-style), and the live inputs — reactions, predictions, the polls, the chaos button — as an overlay rail.
+![The live watch room in theater mode: a clean scene with chat and reactions docked, desktop](docs/screenshots/watch-theater-desktop.png)
+The **live** room in theater mode keeps the scene clean — the noise lives in side panels behind two small icons (Twitch-style): **💬 chat** (with the reactions) and **🗳️ voting & questions** (predictions, the chemistry/question/**chaos** polls). Open one, both, or neither. The decision still lands on the scene, because that's the payoff, not chrome.
 
 ![The character builder with the private-soul section open, desktop](docs/screenshots/builder-desktop.png)
 The builder: the public character sheet, plus an optional **private soul** (values, humour, communication style) that shapes how the AI behaves on the date without ever being shown to the audience.

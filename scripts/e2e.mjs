@@ -209,7 +209,10 @@ async function main() {
       await page.getByRole("button", { name: /Theater mode/ }).click();
       await page.locator(".theater .scene").waitFor({ timeout: 10_000 });
       assert((await page.locator(".theater-hud").count()) > 0, "the theater HUD is missing");
-      assert((await page.locator(".theater-chat").count()) > 0, "the docked chat is missing in theater");
+      assert((await page.locator(".theater-panel").count()) > 0, "the docked chat panel is missing in theater");
+      // The voting & questions panel opens from its own icon (keeping the scene itself clean).
+      await page.getByRole("button", { name: "Voting and questions" }).click();
+      await page.getByRole("heading", { name: "Voting & questions" }).waitFor({ timeout: 10_000 });
       await page.getByRole("button", { name: "Exit" }).click();
       await page.locator(".theater").waitFor({ state: "detached", timeout: 10_000 });
     });

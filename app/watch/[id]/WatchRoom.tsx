@@ -71,15 +71,7 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
   const [a, b] = state.characters;
 
   if (theater) {
-    return (
-      <Theater
-        state={state}
-        sync={sync}
-        chatHidden={chatHidden}
-        onToggleChat={toggleChat}
-        onExit={() => setTheater(false)}
-      />
-    );
+    return <Theater state={state} sync={sync} onExit={() => setTheater(false)} />;
   }
 
   return (
@@ -142,20 +134,11 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
  * existing feature — reactions, the polls, the chaos button, predictions, the decision — rides along as an
  * overlay rail. Chat docks to the side behind a small icon.
  */
-function Theater({
-  state,
-  sync,
-  chatHidden,
-  onToggleChat,
-  onExit,
-}: {
-  state: RoomState;
-  sync: () => void;
-  chatHidden: boolean;
-  onToggleChat: () => void;
-  onExit: () => void;
-}) {
+function Theater({ state, sync, onExit }: { state: RoomState; sync: () => void; onExit: () => void }) {
   const [a, b] = state.characters;
+  // One docked side panel at a time, opened from a HUD icon, so the scene itself stays free of chrome.
+  const [panel, setPanel] = useState<"chat" | "votes" | null>("chat");
+  const toggle = (which: "chat" | "votes") => setPanel((p) => (p === which ? null : which));
   const actLabel = state.turns.length
     ? DATE_ACTS[state.turns[state.turns.length - 1].act] ?? null
     : state.clock.started
@@ -164,7 +147,7 @@ function Theater({
   const leadingChemistry = state.chemistry.options.find((o) => o.id === state.chemistry.leading);
 
   return (
-    <div className={`theater${chatHidden ? " chat-closed" : ""}`}>
+    <div className={`theater${panel ? "" : " theater-clean"}`}>
       <div className="theater-stage">
         <Scene
           characters={state.characters}
@@ -189,11 +172,21 @@ function Theater({
           <div className="theater-tools">
             <button
               type="button"
-              className="theater-icon"
-              onClick={onToggleChat}
-              aria-pressed={!chatHidden}
-              aria-label={chatHidden ? "Show chat" : "Hide chat"}
-              title={chatHidden ? "Show chat" : "Hide chat"}
+              className={`theater-icon${panel === "votes" ? " on" : ""}`}
+              onClick={() => toggle("votes")}
+              aria-pressed={panel === "votes"}
+              aria-label="Voting and questions"
+              title="Voting & questions"
+            >
+              🗳️
+            </button>
+            <button
+              type="button"
+              className={`theater-icon${panel === "chat" ? " on" : ""}`}
+              onClick={() => toggle("chat")}
+              aria-pressed={panel === "chat"}
+              aria-label="Live chat"
+              title="Live chat"
             >
               💬
             </button>
@@ -203,6 +196,7 @@ function Theater({
           </div>
         </header>
 
+        {/* The decision is the payoff, not chrome, so it lands on the scene; everything interactive is in a panel. */}
         {state.show_ending && (
           <div className="theater-verdict">
             <p className="ending">{state.ending_label}</p>
@@ -216,23 +210,36 @@ function Theater({
             )}
           </div>
         )}
-
-        <div className="theater-rail">
-          <Reactions state={state} onDone={sync} />
-          <Polls state={state} onDone={sync} />
-          <Predictions state={state} onDone={sync} />
-        </div>
       </div>
 
-      {!chatHidden && (
-        <aside className="theater-chat">
+      {panel === "chat" && (
+        <aside className="theater-panel">
           <div className="watch-chat-head">
             <h2>Live chat</h2>
-            <button type="button" className="theater-icon" onClick={onToggleChat} aria-label="Hide chat" title="Hide chat">
+            <button type="button" className="theater-icon" onClick={() => setPanel(null)} aria-label="Close chat" title="Close">
               ✕
             </button>
           </div>
+          <Reactions state={state} onDone={sync} />
           <Chat state={state} onDone={sync} />
+        </aside>
+      )}
+
+      {panel === "votes" && (
+        <aside className="theater-panel theater-votes">
+          <div className="watch-chat-head">
+            <h2>Voting &amp; questions</h2>
+            <button type="button" className="theater-icon" onClick={() => setPanel(null)} aria-label="Close voting" title="Close">
+              ✕
+            </button>
+          </div>
+          <Predictions state={state} onDone={sync} />
+          <Polls state={state} onDone={sync} />
+          {!state.predictions_open &&
+            !state.question.open &&
+            !state.chaos.open &&
+            !state.chemistry.open &&
+            !state.show_ending && <p className="muted">The votes open once the date gets going.</p>}
         </aside>
       )}
     </div>
