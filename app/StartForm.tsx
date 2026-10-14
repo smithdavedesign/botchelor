@@ -3,6 +3,22 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import {
+  AGENDAS,
+  AUTONOMY_BLURBS,
+  AUTONOMY_LABELS,
+  AUTONOMY_LEVELS,
+  ENDING_LABELS,
+  ENDINGS,
+  GAME_BUDGETS,
+  STRATEGIES,
+  STRATEGY_LABELS,
+  formatGameBudget,
+  type Autonomy,
+  type Ending,
+  type GameBudget,
+  type Strategy,
+} from "@/lib/rules";
 import { requestJson } from "./request";
 
 export type Partner = {
@@ -18,7 +34,24 @@ export type Partner = {
 /** Dates left for this viewer (M4): free ones this week, plus any from episode packs. */
 export type DatesLeft = { free_left: number; free_per_season: number; pack_left: number };
 
-/** The shop's offer, e.g. "5 more dates for $4" (STRIPE_PRICE_LABEL); null while purchases aren't open. */
+type DateSettings = {
+  autonomy: Autonomy;
+  strategy: Strategy;
+  game_budget: GameBudget;
+  agenda: string;
+  note: string;
+  self_pick: string;
+};
+
+const DEFAULT_SETTINGS: DateSettings = {
+  autonomy: "balanced",
+  strategy: "genuine_chemistry",
+  game_budget: 25,
+  agenda: "",
+  note: "",
+  self_pick: "",
+};
+
 function PackOffer({ offer }: { offer: string | null }) {
   if (!offer) return null;
   return (
@@ -39,6 +72,73 @@ function DatesLeftNote({ dates, offer }: { dates: DatesLeft; offer: string | nul
   );
 }
 
+/** The owner's dials for this date (PRD budget & autonomy). All optional; sensible defaults. */
+function DateSettingsForm({ settings, onChange }: { settings: DateSettings; onChange: (s: DateSettings) => void }) {
+  const set = <K extends keyof DateSettings>(key: K, value: DateSettings[K]) => onChange({ ...settings, [key]: value });
+  return (
+    <details className="card settings">
+      <summary>Date settings (optional)</summary>
+      <label>
+        Autonomy
+        <select value={settings.autonomy} onChange={(e) => set("autonomy", e.target.value as Autonomy)}>
+          {AUTONOMY_LEVELS.map((a) => (
+            <option key={a} value={a}>
+              {AUTONOMY_LABELS[a]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="muted">{AUTONOMY_BLURBS[settings.autonomy]}</p>
+      <label>
+        Strategy
+        <select value={settings.strategy} onChange={(e) => set("strategy", e.target.value as Strategy)}>
+          {STRATEGIES.map((s) => (
+            <option key={s} value={s}>
+              {STRATEGY_LABELS[s]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Date budget <span className="muted">(fictional; can&apos;t be bought)</span>
+        <select value={settings.game_budget} onChange={(e) => set("game_budget", Number(e.target.value) as GameBudget)}>
+          {GAME_BUDGETS.map((b) => (
+            <option key={b} value={b}>
+              {formatGameBudget(b)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Secret agenda
+        <select value={settings.agenda} onChange={(e) => set("agenda", e.target.value)}>
+          <option value="">Let the show decide</option>
+          {AGENDAS.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        A note in the pocket <span className="muted">(one sentence; your AI may or may not take it)</span>
+        <input type="text" maxLength={200} value={settings.note} onChange={(e) => set("note", e.target.value)} />
+      </label>
+      <label>
+        Your guess: how will your own AI&apos;s date end?
+        <select value={settings.self_pick} onChange={(e) => set("self_pick", e.target.value)}>
+          <option value="">Skip</option>
+          {ENDINGS.map((end) => (
+            <option key={end} value={end}>
+              {ENDING_LABELS[end]}
+            </option>
+          ))}
+        </select>
+      </label>
+    </details>
+  );
+}
+
 export default function StartForm({
   partners,
   dates,
@@ -56,11 +156,17 @@ export default function StartForm({
   const [busy, setBusy] = useState<"character" | "episode" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [outOfDates, setOutOfDates] = useState(false);
+  const [settings, setSettings] = useState<DateSettings>(DEFAULT_SETTINGS);
 
   async function createCharacter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const field = (name: string) => String(form.get(name) ?? "");
+    const field = (name: string) => String(form.get(name) ?? "").trim();
+    // Build the private soul only from fields the creator actually filled in.
+    const soulEntries = (["values", "insecurities", "humor", "boundaries", "romantic", "communication"] as const)
+      .map((k) => [k, field(`soul_${k}`)] as const)
+      .filter(([, v]) => v.length > 0);
+    const soul = soulEntries.length ? Object.fromEntries(soulEntries) : undefined;
     setBusy("character");
     setError(null);
     try {
@@ -71,6 +177,7 @@ export default function StartForm({
         traits: [field("trait1"), field("trait2"), field("trait3")],
         want: field("want"),
         dealbreaker: field("dealbreaker"),
+        ...(soul ? { soul } : {}),
         attest: form.get("attest") === "on",
       });
       if (status === 201) setCharacter({ id: String(data.id), name: String(data.name) });
@@ -87,11 +194,20 @@ export default function StartForm({
     if (!character) return;
     setBusy("episode");
     setError(null);
+    const dateFields = {
+      autonomy: settings.autonomy,
+      strategy: settings.strategy,
+      game_budget: settings.game_budget,
+      ...(settings.agenda ? { agenda: settings.agenda } : {}),
+      ...(settings.note.trim() ? { note: settings.note.trim() } : {}),
+      ...(settings.self_pick ? { self_pick: settings.self_pick as Ending } : {}),
+    };
     try {
-      const { status, data, message } = await requestJson(
-        "/api/episodes",
-        partnerId ? { character_id: character.id, partner_id: partnerId } : { character_id: character.id, blind: true },
-      );
+      const { status, data, message } = await requestJson("/api/episodes", {
+        character_id: character.id,
+        ...(partnerId ? { partner_id: partnerId } : { blind: true }),
+        ...dateFields,
+      });
       if (status === 200) {
         router.push(String(data.share_path));
         return;
@@ -109,6 +225,7 @@ export default function StartForm({
       <section>
         <h2>Who should {character.name} meet?</h2>
         <DatesLeftNote dates={dates} offer={offer} />
+        <DateSettingsForm settings={settings} onChange={setSettings} />
         <div className="card">
           <strong>A blind date</strong>
           <p>
@@ -134,7 +251,7 @@ export default function StartForm({
             </button>
           </div>
         ))}
-        {busy === "episode" && <p className="muted">The showrunner is writing the episode…</p>}
+        {busy === "episode" && <p className="muted">The engine is deciding the outcome and the showrunner is writing it…</p>}
         {error && <p className="error">{error}</p>}
         {outOfDates && (
           <p>
@@ -191,14 +308,48 @@ export default function StartForm({
           Their dealbreaker
           <input type="text" name="dealbreaker" required maxLength={140} />
         </label>
+
+        <details className="settings">
+          <summary>Give them a private soul (optional)</summary>
+          <p className="muted">
+            The audience only ever sees the public character above. The soul shapes how your AI behaves on the date
+            without being shown to anyone else. It&apos;s yours to edit or delete, and the same no-minors, no-real-people,
+            no-sexual-content rules apply.
+          </p>
+          <label>
+            Core values
+            <input type="text" name="soul_values" maxLength={300} />
+          </label>
+          <label>
+            Insecurities
+            <input type="text" name="soul_insecurities" maxLength={300} />
+          </label>
+          <label>
+            Sense of humour
+            <input type="text" name="soul_humor" maxLength={300} />
+          </label>
+          <label>
+            Boundaries
+            <input type="text" name="soul_boundaries" maxLength={300} />
+          </label>
+          <label>
+            Romantic preferences
+            <input type="text" name="soul_romantic" maxLength={300} />
+          </label>
+          <label>
+            Communication style
+            <input type="text" name="soul_communication" maxLength={300} />
+          </label>
+        </details>
+
         <label className="check">
           <input type="checkbox" name="attest" required />
           <span>I&apos;m 18 or older, and this is my own original character: an adult, not a real person.</span>
         </label>
         <p className="muted">
-          No minors, real people or sexual content. Your sheet is sent to an AI model to write the episode, and other
-          creators&apos; blind dates may be matched with your character. Episodes appear in the public feed; you stay
-          anonymous.
+          No minors, real people or sexual content. Your sheet and any soul are sent to an AI model to write the episode,
+          and other creators&apos; blind dates may be matched with your character. Episodes appear in the public feed; you
+          stay anonymous.
         </p>
         <button type="submit" disabled={busy !== null}>
           {busy === "character" ? "Checking…" : "Create character"}

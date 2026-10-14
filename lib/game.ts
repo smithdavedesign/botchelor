@@ -113,6 +113,8 @@ export type EpisodeView = EpisodeJson & {
   my_pick: Ending | null;
   my_drama_pick: DramaAnswer | null;
   my_points: number | null;
+  /** Whether the host has shared the confessionals with viewers (meaningful to the host). */
+  confessionals_shared: boolean;
   /** The owner's private debrief of their own AI (the side they own). Owner-only. */
   debrief?: Debrief;
   /** Creators only: where the mutual identity reveal stands. */
@@ -293,6 +295,7 @@ function toView(row: EpisodeRow): EpisodeView {
       row.revealed && row.my_pick
         ? predictionPoints({ pick: row.my_pick, drama_pick: row.my_drama_pick }, row)
         : null,
+    confessionals_shared: row.confessionals_shared,
   };
   if (row.is_creator) view.identity = { consented: row.my_consent, consents: row.consents, needed: row.needed };
   // The private debrief: the owner's own side only, visible to that owner.
