@@ -10,6 +10,21 @@
  */
 export const PROMPT_VERSION = "portrait-v1";
 
+/**
+ * What the image must not contain, passed to the model as a negative prompt. The safety half of this
+ * (no minors, no real-person likeness, no franchise characters) is deliberately stated twice — here and
+ * in every prompt's CONSTRAINTS block — because the product bans all three outright. It is still a
+ * nudge, not a guarantee: the human review in lib/assets.ts is what actually keeps an image out.
+ */
+export const NEGATIVE_PROMPT = [
+  "child, children, minor, teenager, youthful face",
+  "celebrity, real person, recognisable public figure",
+  "text, caption, watermark, signature, logo",
+  "deformed hands, extra fingers, extra limbs, distorted face",
+  "nudity, revealing clothing, suggestive pose",
+  "blurry, low detail, oversaturated",
+].join(", ");
+
 const CONSTRAINTS = [
   "Original character design.",
   "No named franchise characters, no real-person likeness, no celebrity resemblance.",
@@ -64,6 +79,7 @@ export function buildBatch({ house, venues }) {
     file: `${c.id}.png`,
     prompt: portraitPrompt(c),
     seed: jobSeed(`portrait-${c.id}`),
+    negative: NEGATIVE_PROMPT,
     aspect: "3:4",
   }));
   const backdrops = venues.map((v) => ({
@@ -74,6 +90,7 @@ export function buildBatch({ house, venues }) {
     file: `venue-${v.id}.png`,
     prompt: backdropPrompt(v),
     seed: jobSeed(`backdrop-${v.id}`),
+    negative: `${NEGATIVE_PROMPT}, people, crowd, faces`,
     aspect: "16:9",
   }));
   return [...portraits, ...backdrops];

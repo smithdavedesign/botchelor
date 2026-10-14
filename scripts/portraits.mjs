@@ -18,8 +18,9 @@
  *   npm run portraits -- --approve house-rafe venue-rooftop_bar
  *
  * The model is whatever PORTRAIT_CMD names, so the backend is swappable:
- *   PORTRAIT_CMD='~/ai-stack/image-gen/.venv/bin/mflux-generate --model schnell --quantize 4 \
- *     --steps 4 --seed {seed} --width {width} --height {height} --prompt {prompt} --output {out}'
+ *   PORTRAIT_CMD='~/ai-stack/image-gen/.venv/bin/mflux-generate-z-image-turbo --quantize 4 --low-ram \
+ *     --steps 8 --seed {seed} --width {width} --height {height} --negative-prompt {negative} \
+ *     --prompt {prompt} --output {out}'
  */
 import { spawn } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -85,6 +86,7 @@ async function generate(manifest) {
         .replace("{prompt}", job.prompt)
         .replace("{out}", job.out)
         .replace("{seed}", String(job.seed))
+        .replace("{negative}", job.negative ?? "")
         .replace("{width}", String(width))
         .replace("{height}", String(height)),
     );
