@@ -70,8 +70,8 @@ describe("POST /api/episodes: happy path (exit criterion)", () => {
     scriptedModel([episodeJson()]);
     const body = await (await createEpisode()).json();
     expect(body.characters).toEqual([
-      { id: characterId, name: "Mira Quell", house: false },
-      { id: HOUSE_PARTNER_ID, name: HOUSE_CHARACTERS[0].name, house: true },
+      { id: characterId, name: "Mira Quell", house: false, hue: null },
+      { id: HOUSE_PARTNER_ID, name: HOUSE_CHARACTERS[0].name, house: true, hue: null },
     ]);
     expect(body.revealed).toBe(false);
     expect(body.share_path).toBe(`/episodes/${body.id}`);

@@ -231,7 +231,7 @@ describe("block list", () => {
     expect((await api.unblock(episode.id, partner)).status).toBe(200);
     scriptedModel([episodeJson()]);
     const matched = await (await api.createEpisode({ character_id: hostCharacter.id, blind: true }, host)).json();
-    expect(matched.characters[1]).toEqual({ id: partnerCharacter.id, name: "Otto Fenn", house: false });
+    expect(matched.characters[1]).toEqual({ id: partnerCharacter.id, name: "Otto Fenn", house: false, hue: null });
   });
 
   it("keeps the blocked character out of the blocker's feed, and the blocked creator isn't told", async () => {

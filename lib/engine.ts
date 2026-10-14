@@ -34,6 +34,8 @@ export type CharacterSheet = {
   want: string;
   dealbreaker: string;
   house: boolean;
+  /** Optional appearance line (customization). Read for narration and for want/dealbreaker cue matching. */
+  appearance?: string;
 };
 
 /** Owner-only signals derived from the private soul. 0..1, where 0 means "absent / neutral". */
@@ -134,7 +136,7 @@ function firstShared(needle: Set<string>, haystackText: string): string | null {
 
 /** Everything the *other* character visibly is: how one side reads the other for wants and dealbreakers. */
 function surface(sheet: CharacterSheet): string {
-  return `${sheet.traits.join(" ")} ${sheet.bio} ${sheet.want}`;
+  return `${sheet.traits.join(" ")} ${sheet.bio} ${sheet.want} ${sheet.appearance ?? ""}`;
 }
 
 /* ---------------------------------- soul signals ---------------------------------- */

@@ -321,8 +321,8 @@ describe("sending an existing character on another date", () => {
     await t.db.query("update characters set created_at = now() - interval '1 hour' where id = $1", [creator.characterId]);
 
     expect(await listMyCharacters(t.db, userIdOf(creator.cookie))).toEqual([
-      { id: second.id, name: "Otto Fenn", house: false },
-      { id: creator.characterId, name: "Mira Quell", house: false },
+      { id: second.id, name: "Otto Fenn", house: false, hue: null },
+      { id: creator.characterId, name: "Mira Quell", house: false, hue: null },
     ]);
     expect(await listMyCharacters(t.db, userIdOf(newUserCookie()))).toEqual([]);
 

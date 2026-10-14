@@ -180,8 +180,8 @@ describe("blind dates between two creators' OCs", () => {
   it("pairs the OC with another creator's OC, unlabeled as house, and both creators see the whole episode", async () => {
     const { host, partner, episode, hostCharacter, partnerCharacter } = await setupPairedEpisode({ ending: "disaster" });
     expect(episode.characters).toEqual([
-      { id: hostCharacter.id, name: "Mira Quell", house: false },
-      { id: partnerCharacter.id, name: "Otto Fenn", house: false },
+      { id: hostCharacter.id, name: "Mira Quell", house: false, hue: null },
+      { id: partnerCharacter.id, name: "Otto Fenn", house: false, hue: null },
     ]);
     expect(episode.goals.map((g: { character_id: string }) => g.character_id)).toEqual([
       hostCharacter.id,

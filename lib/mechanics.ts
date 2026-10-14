@@ -138,12 +138,12 @@ export async function listMyProposals(db: Db, userId: string): Promise<Matchmake
   }));
 }
 
-export type CastMember = { id: string; name: string; traits: string[]; house: boolean };
+export type CastMember = { id: string; name: string; traits: string[]; house: boolean; hue: number | null };
 
 /** The cast a spectator can matchmake from: house characters and user OCs, newest first. */
 export async function listCast(db: Db, limit = 40): Promise<CastMember[]> {
   const { rows } = await db.query<CastMember>(
-    `select id, name, traits, is_house as house from characters order by is_house desc, created_at desc, id limit $1`,
+    `select id, name, traits, is_house as house, avatar_hue as hue from characters order by is_house desc, created_at desc, id limit $1`,
     [limit],
   );
   return rows;

@@ -21,6 +21,9 @@ const CharacterInput = z.object({
   traits: z.array(text(30)).length(3, "Give exactly three traits."),
   want: text(140),
   dealbreaker: text(140),
+  // Customization: an optional appearance line and an avatar hue (0 = auto). No image upload (safety).
+  appearance: text(140).optional(),
+  avatar_hue: z.number().int().min(0).max(360).optional(),
   // Optional private soul (PRD core feature 1): owner-only, drives the engine, never shown to spectators.
   soul: SoulInput.optional(),
   attest: z.literal(true, "Confirm you are 18+ and this is your own original character."),
@@ -42,6 +45,7 @@ export const POST = handle(async (req) => {
     traits: input.traits,
     want: input.want,
     dealbreaker: input.dealbreaker,
+    appearance: input.appearance,
   });
   if (!verdict.ok) {
     return json(
@@ -57,14 +61,15 @@ export const POST = handle(async (req) => {
 
   const db = await getDb();
   const id = crypto.randomUUID();
+  const hue = input.avatar_hue && input.avatar_hue > 0 ? input.avatar_hue : null;
   await db.query(
-    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker)
-     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8)`,
-    [id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker],
+    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue)
+     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)`,
+    [id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue],
   );
   const hasSoul = Boolean(soul && !isEmptySoul(soul));
   if (hasSoul) await saveSoul(db, id, soul!, input.soul?.local_only ?? false);
 
   const { attest: _attest, soul: _soul, ...character } = input;
-  return json({ id, ...character, house: false, has_soul: hasSoul }, 201, sess);
+  return json({ id, ...character, house: false, has_soul: hasSoul, hue }, 201, sess);
 });

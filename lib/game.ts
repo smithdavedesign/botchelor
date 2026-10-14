@@ -30,7 +30,7 @@ export { ENDING_LABELS, ENDINGS, POINTS_PER_CORRECT_PICK, pointsFor, type Ending
 export const FEED_LIMIT = 30;
 const ANONYMOUS_CREATOR = "Anonymous creator";
 
-export type CharacterRef = { id: string; name: string; house: boolean };
+export type CharacterRef = { id: string; name: string; house: boolean; hue: number | null };
 export type CreatorRef = { character_id: string; name: string };
 
 /** The per-date settings the owner chose (PRD budget & autonomy). Stored as episodes.setup (jsonb). */
@@ -190,9 +190,11 @@ type EpisodeRow = {
   a_id: string;
   a_name: string;
   a_house: boolean;
+  a_hue: number | null;
   b_id: string;
   b_name: string;
   b_house: boolean;
+  b_hue: number | null;
   is_creator: boolean;
   is_host: boolean;
   my_side: 0 | 1 | null;
@@ -217,8 +219,8 @@ const EPISODE_SELECT = `
 select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_question, e.drama_answer,
        e.revealed_at is not null as revealed,
        e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup,
-       a.id as a_id, a.name as a_name, a.is_house as a_house,
-       b.id as b_id, b.name as b_name, b.is_house as b_house,
+       a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue,
+       b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue,
        coalesce($1::text in (a.owner_id, b.owner_id), false) as is_creator,
        coalesce(e.creator_id = $1::text, false) as is_host,
        case when a.owner_id = $1::text then 0 when b.owner_id = $1::text then 1 else null end as my_side,
@@ -255,8 +257,8 @@ function debriefFrom(side: SideOutcome, setup: DateSetup | null, mySide: 0 | 1):
 
 function toView(row: EpisodeRow): EpisodeView {
   const characters: [CharacterRef, CharacterRef] = [
-    { id: row.a_id, name: row.a_name, house: row.a_house },
-    { id: row.b_id, name: row.b_name, house: row.b_house },
+    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue },
+    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue },
   ];
   const identityRevealed = row.needed > 0 && row.consents >= row.needed;
   const creators = identityRevealed
@@ -373,7 +375,7 @@ export const MY_CHARACTERS_SHOWN = 20;
 /** The user's own characters, newest first, so the builder can send one on another date (M4). */
 export async function listMyCharacters(db: Db, userId: string, limit = MY_CHARACTERS_SHOWN): Promise<CharacterRef[]> {
   const { rows } = await db.query<CharacterRef>(
-    `select id, name, false as house from characters
+    `select id, name, false as house, avatar_hue as hue from characters
       where owner_id = $1 and not is_house
       order by created_at desc, id
       limit $2`,

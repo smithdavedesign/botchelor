@@ -141,6 +141,13 @@ create index if not exists league_members_user_idx on league_members (user_id);
 -- M3. A premium house character is a house character with the catalog SKU that unlocks it.
 alter table characters add column if not exists premium_sku text;
 
+-- Customization (next-level): an optional appearance line and an avatar hue (0/null = auto, derived from id).
+-- No image is stored: the avatar is drawn from the character data (lib/avatar.ts), so there is no upload
+-- to moderate and no real-person risk.
+alter table characters add column if not exists appearance text;
+alter table characters add column if not exists avatar_hue smallint
+  check (avatar_hue is null or (avatar_hue >= 0 and avatar_hue <= 360));
+
 -- One row per checkout. Our random id (never the session cookie) is what Stripe sees, as the Payment
 -- Link's client_reference_id. Ownership is "a paid order"; each Stripe session is recorded on exactly one
 -- order (stripe_session_id is unique), so duplicate deliveries are no-ops (lib/payments.ts grantOrder).
