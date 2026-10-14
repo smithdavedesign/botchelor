@@ -1,4 +1,4 @@
-import type { SideOutcome, SoulSignals, VariableArc } from "./engine";
+import type { EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
 import type { Db } from "./db";
 import { matchmakerHitSql } from "./mechanics";
 import {
@@ -70,6 +70,11 @@ export type DateSetup = {
    */
   signals_a?: SoulSignals;
   signals_b?: SoulSignals;
+  /**
+   * Which engine calibration decided this date (lib/engine.ts EngineVersion). Replays and the async worker's
+   * re-decide use the same version, so a date always reproduces. Absent on dates decided before versioning: v1.
+   */
+  engine_version?: EngineVersion;
 };
 
 export type BoxScore = Record<DateVariable, VariableArc>;

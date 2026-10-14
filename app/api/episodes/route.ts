@@ -242,7 +242,7 @@ async function writeAndSave(
     format: input.format ?? DEFAULT_FORMAT,
   };
   const built = await buildDate(db, episodeId, forDate(own), forDate(partner), dateRequest);
-  const decided = getEngine().decide(built.input, built.seed);
+  const decided = getEngine().decide(built.input, built.seed, built.setup.engine_version);
 
   // Write the episode 'generating' with the engine outcome but placeholder narration; the background job
   // fills the scenes + transcript and flips it to 'ready'. The block re-check stays here, so a blocked
