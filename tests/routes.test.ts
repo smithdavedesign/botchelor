@@ -111,9 +111,9 @@ describe("route listing: no payment or points-transfer endpoint (exit criterion)
     }
   });
 
-  it("serves the points balance read-only", async () => {
+  it("serves the points balance read-only (DELETE is account deletion, not a points write)", async () => {
     const me = (await discoverRoutes()).find((r) => r.path === "/api/me");
-    expect(me?.methods).toEqual(["GET"]);
+    expect(me?.methods).toEqual(["GET", "DELETE"]);
   });
 
   it("imports no payment SDK anywhere in the app or lib code", () => {
@@ -155,7 +155,8 @@ describe("points have no purchase, cash-out or transfer route (M3 exit criterion
       }
     }
     const me = (await discoverRoutes()).find((r) => r.path === "/api/me");
-    expect(me?.methods).toEqual(["GET"]);
+    // GET = read-only points; DELETE = account deletion (PRD §6.1). Neither writes/moves points.
+    expect(me?.methods).toEqual(["GET", "DELETE"]);
   });
 
   it("lists no cash-out or transfer route, for points or anything else", async () => {

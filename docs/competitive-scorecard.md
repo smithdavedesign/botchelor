@@ -71,9 +71,26 @@ Lead with the event and the fairness, not with visuals, because that is where we
 - **Grow the catalog:** make creating and sharing a character the easy path (Talkie's creator loop), since our characters are reusable assets, not throwaway chats.
 - **Then mobile**, once retention on web is proven.
 
+## Named-competitor feature matrix
+
+Merged from the former `docs/competitive-analysis.md`. Per-app specifics are third-party review/SEO sources (flagged below) — confirm on each app's official listing before any public claim. The structural claims about Botchelor are facts about its own code.
+
+| | Botchelor | Character.AI | Talkie | Replika | Candy AI / DreamGF |
+|---|---|---|---|---|---|
+| Core loop | **Watch-only AI dating show + prediction game** | 1:1 chat | 1:1 chat + cards | 1:1 companion | 1:1 companion |
+| Outcome engine | **Deterministic, seeded** (fair predictions, replayable) | model chat | model chat | model chat | model chat |
+| Avatars / images | **Generated avatars, consistent, free**; reference-image tinting in-browser | AI image gen (Imagine Gallery, c.ai+ only) | image-generated avatars (paid tiers) | avatar-based, VR/AR on Quest | photo gen, faces drift |
+| Collectible cards | **Shareable contestant & box-score cards** | — | collectible/tradeable cards | — | — |
+| Customization | sheet + soul + appearance + avatar colour/image + autonomy/strategy/agenda | sliders, voice, backstory, scenes | 15+ traits, appearance | outfits, traits | outfits, traits |
+| Progression | relationship graph + seasons/leagues/badges | — | gems/levels | affection levels | token spend |
+| Spectators | **yes — predict, matchmake, follow a cast** | no | no | no | no |
+| Privacy | **owner-only soul, local-only option, no real people** | standard | standard | standard | explicit, token-gated |
+| Price | **$0, free points, nothing pay-to-win** | c.ai+ ~$9.99/mo | Talkie+ ~$9.99/mo | Pro ~$19.99/mo | ~$14–40/mo with image/video tokens |
+
 ## Sources
 
 - [Candy AI Review 2026 — startuphub.ai](https://www.startuphub.ai/ai-news/reviews/2026/candy-ai-review-2026)
+- [Character.AI review 2026 (StartupHub)](https://www.startuphub.ai/ai-news/reviews/2026/character-ai-review-2026) · [Talkie AI (AIChief)](https://aichief.com/ai-fun-tools/talkie-ai/) · [Best AI companion apps 2026 (Fostera)](https://fostera.ai/blog/best-ai-companion-apps-2026) · [Love Island interactive games (NBCUniversal)](https://www.nbcuniversal.com/article/love-island-lets-viewers-join-fun-interactive-games)
 - [Candy AI real costs 2026 — indiehackers](https://www.indiehackers.com/post/candy-ai-review-real-costs-and-value-in-2026-598bee0e2b)
 - [AIGirlfriends.ai review — ipsnews](https://ipsnews.net/business/2025/08/05/aigirlfriends-ai-review-the-most-advanced-ai-girlfriend-platform-and-industry-authority/)
 - [Best AI girlfriend apps 2026 — indiehackers](https://www.indiehackers.com/post/best-ai-girlfriend-in-2026-top-ai-spicy-chat-apps-you-should-try-sao7EkUWYztDWcr8rtDi)

@@ -1,11 +1,11 @@
 # Roadmap: Botchelor
 
-Suggested stack:
-- **Next.js on Vercel Hobby**: one repo for pages and API routes, $0.
-- **Neon or SQLite-on-Turso free tier**: characters, episodes and predictions are small relational data.
-- **Free models via LiteLLM**: one showrunner call per episode, $0 marginal cost.
-- **Zod schema validation**: model output is untrusted, so reject anything that is not a valid episode.
-- **Payments (M3 only)**: Stripe on a host that allows commercial use. Agents hold no card; David approves and pays.
+Stack (as built, $0 on free models):
+- **Next.js (App Router) on Vercel**: one repo for pages and API routes. Live at botchelor.vercel.app.
+- **Postgres via `pg` in production, PGlite in dev/tests**: characters, episodes, predictions and watch rooms are small relational data.
+- **Free models through an OpenAI-compatible endpoint**: M9 made a date a turn-by-turn two-agent conversation (~8 calls), with the engine still deciding the outcome. A **gated frontier model** (`episodeModel`, owner-approved) is the paid-quality option, off by default.
+- **Zod schema validation**: all model output and request bodies are untrusted and rejected unless valid.
+- **Payments**: Stripe Payment Links + a signature-verified webhook (M3). Agents hold no card; David approves and pays.
 
 ## M1: One character, one date, one prediction (weekend)
 Deliverables:
@@ -77,7 +77,7 @@ Exit criteria (tested):
 Deferred (needs spend approval; see docs/upgrade-cost.md): frontier text model, portraits, video, and the Redis/BullMQ + S3/CDN stack.
 
 ## M6: next-level (competitive polish, built)
-From a competitor review (docs/competitive-analysis.md): close the visual/customization gap vs. Character.AI, Talkie and the Love Island app, at $0.
+From a competitor review (docs/competitive-scorecard.md): close the visual/customization gap vs. Character.AI, Talkie and the Love Island app, at $0.
 
 Deliverables (built):
 - **Avatars** everywhere: deterministic SVG avatars (gradient + initials) on the episode matchup, the feed, the cast gallery, the builder preview and the shared box-score card. No image hosting, no real-person risk.
@@ -91,7 +91,7 @@ Deliverables (built):
 Next, still $0:
 - Follows and a community gallery with category boards (most-shipped, best conversationalist, funniest failure); relationship progression labels on the graph; per-beat moment cards.
 
-Deferred (spend + a moderation provider; see docs/competitive-analysis.md and docs/upgrade-cost.md):
+Deferred (spend + a moderation provider; see docs/competitive-scorecard.md and docs/upgrade-cost.md):
 - **Uploading and storing an image / "training" the look.** Blocked on object storage, a vision model, and automated image moderation (CSAM scanning + a real-person classifier), because the product bans real people and a solo owner can't moderate raw uploads. The in-browser image tinting above is the safe $0 stand-in shipped now.
 
 ## M7: competitor-driven UX (from competitor-analysis.md)
@@ -159,6 +159,73 @@ Deferred (needs spend or new infra):
 - Interactive theatre (**Model B**): bounded audience-chosen twists that the engine actually responds to
   — explicitly advertised on the episode, and only once Model A's retention is proven (brief §3).
 
+## M9: turn-by-turn two-agent dates (the conversation, part 1)
+
+From `Botchelor_PRD_v1.md` §6.4 and the two-agent architecture review: a date is no longer one model call
+narrating both characters. Each character is its **own agent** that reacts to the other's actual last
+line. The deterministic engine still **decides the outcome** (so predictions stay fair and Sliding Doors
+still replays exactly — David's call, 2026-10-14, "engine decides, agents perform"); the conversation
+**performs** it, steered onto the decided ending in the final act. The per-turn emotion/interest are
+narrative flavour only and never touch the engine, the box score or scoring.
+
+Built ($0, additive and safe):
+- **The conversation engine** (`lib/conversation.ts`): a bounded, alternating loop (8 turns, character A
+  opens). Each turn the speaking agent gets ITS OWN private soul, secret agenda and the owner's note, plus
+  **only the other character's PUBLIC sheet** — never the other's soul or agenda (PRD §12). Each turn is a
+  validated `{ dialogue, action, emotion, interest_signal }`, run through the content filter, with one
+  retry then a clean give-up.
+- **Stored and shown**: the transcript is an immutable `episodes.transcript` (jsonb), rendered on the
+  episode page as a chat-style "the date, line by line" timeline. It is a spoiler (it reaches the ending),
+  so it is gated like the scenes — creators always, everyone once the finale airs.
+- **Runs alongside the reliable recap**: the existing single-call narration still writes the setting,
+  box score, twist, finale and confessionals, so a failed or disabled conversation just leaves the
+  transcript empty — the episode is never broken. Free model by default; the gated frontier
+  (`episodeModel`) for paid/premium dates.
+
+Exit criteria (tested — `tests/conversation.test.ts`, and the Playwright e2e):
+- The transcript is bounded and alternates A/B across the three acts; a bad turn retries once then the
+  whole conversation gives up (the episode still saves on the recap).
+- An agent's prompt never contains the other side's private soul or secret agenda (privacy test).
+- The engine still decides the outcome deterministically; `interest_signal` never changes the stored
+  outcome, box score or points.
+- The episode page shows the turn-by-turn timeline (e2e), and reopening returns the identical transcript.
+
+M9 part 2 (shipped): template (house-vs-house) rooms pre-generate the transcript, and the **watch room
+unlocks the turns on the same clock as the scenes** — the final-act turns appear only at the decision, so
+the room plays the date line by line without spoiling the ending. Still to do (a later cleanup): make the
+conversation the primary content and drop the now-redundant single-call narration.
+
+## M10: launch readiness + security hardening (part 1)
+
+From the 2026-10-14 audit (`docs/audit.md`): the security, privacy and observability controls a public
+launch needs. Built ($0):
+
+- **Generation kill switch** (`lib/compute.ts`): set `BOTCHELOR_PAUSE=1` in the environment and all model
+  generation stops — `POST /api/episodes` and template rooms fail closed with a 503 and spend nothing
+  (no date is even reserved), with no deploy needed. The frontier model's hard **money cap** lives at the
+  provider, set with the key (`secrets add <scope> FRONTIER_LLM_API_KEY --cap "<limit>"`), so even an
+  authorized frontier run can't exceed the owner's limit.
+- **Account deletion + data export** (`lib/account.ts`): `GET /api/me/export` returns everything stored
+  under the anonymous cookie id as JSON; `DELETE /api/me` (needs `{"confirm": true}`) removes it —
+  profile, characters, private souls, predictions, orders and the side-games. A character already in a
+  shared episode keeps its fictional sheet but loses its soul and owner link (the personal data is gone;
+  the shared episode isn't broken).
+- **Constant-time secret compares**: one shared `safeEqual` in `lib/http.ts`, used by the frontier gate
+  and the (previously `!==`) watch-template admin token.
+- **Unit economics + product analytics** (`lib/analytics.ts`): one structured JSON line per event to the
+  system log (Vercel captures stdout), free of PII/content — `episode_generated` (model calls, latency,
+  model, turns), `episode_created`, `prediction_submitted`, `purchase_completed`, `content_reported`,
+  `generation_failed`.
+
+Exit criteria (tested — `tests/m10.test.ts`): the kill switch 503s and reserves no date; export returns
+the user's own data and delete removes it (hard-deleting a plain character, anonymizing one that's in an
+episode); `safeEqual` is correct; `track` emits one clean JSON line and never throws.
+
+Deferred to M10 part 2: the **async job table + worker** — the bigger piece, so creator/paid dates
+generate in the background (queued → worker → stored → room replays on the clock) instead of in the
+request. Best built when `app/api/episodes/route.ts` is quiet (the portraits session is nearby). The
+synchronous path (≈9 free calls, ~20s) is fine for the current MVP volume until then.
+
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
 The competitor report's image plan, built at $0 — first-party assets only, no hosted imagery:
@@ -185,3 +252,21 @@ The competitor report's image plan, built at $0 — first-party assets only, no 
 
 Still deferred (needs spend and a moderation provider; `docs/upgrade-cost.md`): generated portraits,
 expressions and backgrounds, and creator image uploads.
+
+## Backlog (from the PRDs, not yet scheduled)
+
+Surfaced by the 2026-10-14 audit (`docs/audit.md`): features both PRDs describe that the roadmap wasn't
+tracking. All are $0 and reuse the existing engine.
+
+- **Post-date AI-to-AI chat** (`PRD.md` core feature #2 / Phase 2): after the date, the two AIs keep
+  talking privately, with consent-gated recaps for each owner — "whether the chemistry was mutual". M9's
+  conversation engine (`lib/conversation.ts`) is the technical basis; this is a distinct, owner-controlled
+  feature with its own privacy rules.
+- **Show formats** (`PRD.md` "More mechanics"): speed dating, meet-the-parents (house characters play the
+  parents), the ex returns (pulled from the relationship graph). The same engine with different rules;
+  sellable later as cosmetic format packs that never touch outcomes or odds.
+- **The reunion special**: a season-finale episode assembled from approved confessionals and the biggest
+  moments in the relationship graph.
+- **Chaos button / interactive theatre (Model B)**: audience votes a real curveball the engine responds
+  to (not just the flavour-only audience question shipped in M8), advertised on the episode, once Model A's
+  retention is proven.

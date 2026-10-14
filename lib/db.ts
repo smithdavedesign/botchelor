@@ -264,6 +264,10 @@ alter table episodes add column if not exists self_pick text
 -- Sliding Doors: a replay episode points back at the one it varies, and says what it changed.
 alter table episodes add column if not exists varies_episode_id text references episodes (id) on delete set null;
 alter table episodes add column if not exists variation text;
+-- M9: the turn-by-turn two-agent conversation (lib/conversation.ts). The date "footage": an ordered
+-- list of { side, act, dialogue, action, emotion, interest }. Immutable like the rest of the episode;
+-- '[]' for episodes made before M9 or when the conversation couldn't be produced (the recap still stands).
+alter table episodes add column if not exists transcript jsonb not null default '[]';
 
 -- Guess the dealbreaker (PRD "Further ideas"): a spectator picks character_a's real dealbreaker from
 -- four options. Correct = it equals the stored dealbreaker, scored at reveal like the drama pick.

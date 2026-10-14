@@ -73,6 +73,17 @@ export function parseBody<T>(schema: z.ZodType<T>, body: unknown, error: string)
   return result.data;
 }
 
+/**
+ * Constant-time string compare, so checking a secret (an admin token, a gate password) doesn't leak
+ * its length or content through timing. The one shared helper; lib/model.ts and the gated routes use it.
+ */
+export function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
 /** Wraps a route handler: ApiErrors become their JSON response, anything else a generic 500. */
 export function handle<C extends unknown[]>(fn: (req: Request, ...ctx: C) => Promise<Response>) {
   return async (req: Request, ...ctx: C): Promise<Response> => {

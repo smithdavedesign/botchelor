@@ -1,5 +1,7 @@
 # Review: Botchelor — PASS, score 4/10
 
+> **Historical snapshot (pre-build go/no-go, ~2026-10-12).** Kept for the record. The product has since shipped M1–M9 and is live at botchelor.vercel.app; see `BUILD.md`, `ROADMAP.md` and `docs/audit.md` for current status. The demand/retention/payment questions this review raises are still the real open questions — that was its point — but the "no product yet / M1 feasibility" framing is superseded.
+
 **Verdict: pass (4/10).** A fun, weekend-buildable idea with no demand evidence, an unproven payment story, heavy moderation and legal exposure, and a narrow, awkward audience.
 
 ## Forcing questions

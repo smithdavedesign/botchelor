@@ -126,6 +126,33 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
         </section>
       )}
 
+      {episode.transcript && episode.transcript.length > 0 && (
+        <section className="card transcript">
+          <h2>The date, line by line</h2>
+          <p className="muted">The two characters played this out turn by turn — nobody scripted the lines in advance.</p>
+          {episode.transcript.map((t, i) => {
+            const prev = episode.transcript![i - 1];
+            const showAct = !prev || prev.act !== t.act;
+            const who = t.side === "a" ? a : b;
+            const meta = [t.action, t.emotion].filter(Boolean).join(" · ");
+            return (
+              <div key={i}>
+                {showAct && <h3 className="act">{DATE_ACTS[t.act] ?? `Act ${t.act + 1}`}</h3>}
+                <div className={`turn turn-${t.side}`}>
+                  <Avatar seed={who.id} name={who.name} hue={who.hue} house={who.house} size={30} />
+                  <div className="turn-body">
+                    <p className="turn-line">
+                      <strong>{who.name}</strong> {t.dialogue}
+                    </p>
+                    {meta && <p className="turn-meta">{meta}</p>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      )}
+
       {episode.box_score && <BoxScore boxScore={episode.box_score} bestLine={episode.best_line} />}
 
       {episode.agendas && (

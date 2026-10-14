@@ -46,6 +46,8 @@ import {
 } from "./rules";
 import { buildDate, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
 import { narrateEpisode, ShowrunnerError, type CharacterSheet } from "./showrunner";
+import { isConversationEnabled, simulateConversation, type Turn } from "./conversation";
+import { generationPaused, PAUSED_MESSAGE } from "./compute";
 import { venueName, type VenueId } from "./venues";
 
 /** House-vs-house template episodes have no human creator: this fixed id never matches a real user's. */
@@ -55,6 +57,19 @@ const VERDICT_INDEX = WATCH_PHASE_INDEX.verdict;
 const ACT2_INDEX = WATCH_PHASE_INDEX.act2;
 const WRAP_INDEX = WATCH_PHASE_INDEX.wrap;
 const LAST_AT = WATCH_PHASES[WATCH_PHASES.length - 1].at;
+
+/**
+ * M9 part 2: the phase index at which each act's conversation turns become visible, the inverse of
+ * WATCH_SCENE_AT_PHASE. Act 0 → act1 phase, act 1 → act2 phase, act 2 → the decision — so the final-act
+ * turns (steered to the ending) only ever appear with the ending, never as a spoiler.
+ */
+const ACT_UNLOCK_PHASE_INDEX: number[] = (() => {
+  const out: number[] = [];
+  for (const [phaseId, sceneIndex] of Object.entries(WATCH_SCENE_AT_PHASE) as [WatchPhaseId, number][]) {
+    out[sceneIndex] = WATCH_PHASE_INDEX[phaseId];
+  }
+  return out;
+})();
 
 /* ----------------------------------------- the clock ----------------------------------------- */
 
@@ -142,6 +157,8 @@ export type RoomState = {
   challenge: string | null;
   /** The act scenes unlocked so far: act1 → 1 scene, act2 → 2, decision → all 3. */
   acts: { act: string; scene: string }[];
+  /** M9: the turn-by-turn conversation turns unlocked so far (empty for pre-M9 / template-less dates). */
+  turns: Turn[];
   show_twist: boolean;
   twist: string | null;
   /** The ending, finale and best line are shown at the decision (and the episode is aired then). */
@@ -176,6 +193,7 @@ type RoomRow = {
   drama_answer: DramaAnswer | null;
   best_line: string | null;
   setup: DateSetup | null;
+  transcript: Turn[];
   revealed: boolean;
   a_id: string;
   a_name: string;
@@ -190,7 +208,7 @@ type RoomRow = {
 
 const ROOM_SELECT = `
   select w.kind, w.host_id, w.starts_at, e.id as episode_id, e.setting, e.goals, e.scenes, e.twist,
-         e.finale, e.ending, e.drama_question, e.drama_answer, e.best_line, e.setup,
+         e.finale, e.ending, e.drama_question, e.drama_answer, e.best_line, e.setup, e.transcript,
          e.revealed_at is not null as revealed,
          a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue,
          b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue,
@@ -319,6 +337,9 @@ export async function getRoomState(
       acts.push({ act: DATE_ACTS[sceneIndex] ?? `Act ${sceneIndex + 1}`, scene: row.scenes[sceneIndex] });
     }
   }
+  // M9: the turn-by-turn conversation, unlocked on the same clock as the scenes (act 2 only at the decision).
+  const transcript = (row.transcript ?? []) as Turn[];
+  const turns = transcript.filter((t) => t.act < ACT_UNLOCK_PHASE_INDEX.length && idx >= ACT_UNLOCK_PHASE_INDEX[t.act]);
 
   const venue = row.setup?.venue ?? null;
   const challenge =
@@ -349,6 +370,7 @@ export async function getRoomState(
     ],
     challenge,
     acts,
+    turns,
     show_twist: showTwist,
     twist: showTwist ? row.twist : null,
     show_ending: showEnding,
@@ -562,6 +584,7 @@ const houseSheet = (c: HouseRow): CharacterSheet => ({
  * so the lobby is never empty. Refreshing them on a schedule is a deferred, spend-free follow-up.
  */
 export async function createTemplateParty(db: Db, aId: string, bId: string): Promise<CreatePartyResult | null> {
+  if (generationPaused()) return { ok: false, status: 503, error: "generation_paused", message: PAUSED_MESSAGE };
   const rows = (
     await db.query<HouseRow>(
       `select id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue
@@ -585,10 +608,21 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
     throw err;
   }
 
+  // M9: the turn-by-turn conversation, so template rooms play the date line by line too. Pre-generation
+  // (this is already system content built ahead of time), best-effort and gated off in tests.
+  let transcript: Turn[] = [];
+  if (isConversationEnabled()) {
+    try {
+      transcript = await simulateConversation(getModel(), built.input, decided, built.souls, built.setup.producer, built.setup.venue);
+    } catch {
+      transcript = [];
+    }
+  }
+
   await db.query(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
-                           drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb, $18::jsonb)`,
+                           drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup, transcript)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb, $18::jsonb, $19::jsonb)`,
     [
       episodeId,
       SYSTEM_CREATOR_ID,
@@ -608,6 +642,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
       draft.best_line,
       JSON.stringify(draft.confessionals),
       JSON.stringify(built.setup),
+      JSON.stringify(transcript),
     ],
   );
   await rememberDate(db, a.id, b.id, decided.ending).catch(() => {});

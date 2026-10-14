@@ -117,10 +117,11 @@ async function main() {
       episodeUrl = page.url();
     });
 
-    await step("the episode is a three-act story with avatars, box score, debrief, agendas and an ending", async () => {
+    await step("the episode is a three-act story with avatars, a turn-by-turn transcript, box score, debrief, agendas and an ending", async () => {
       await page.getByRole("heading", { level: 1 }).waitFor();
       assert((await page.locator(".matchup .avatar").count()) === 2, "expected two matchup avatars");
-      assert((await page.locator(".act").count()) === 3, "expected three acts");
+      assert((await page.getByText("The date, line by line").count()) > 0, "turn-by-turn transcript heading missing");
+      assert((await page.locator(".transcript .turn").count()) >= 4, "the two agents' turn-by-turn transcript is missing");
       assert((await page.locator(".boxscore").count()) > 0, "box score missing for the creator");
       assert((await page.locator(".debrief").count()) > 0, "private debrief missing for the creator");
       assert((await page.getByText("Secret agendas & the producer").count()) > 0, "agendas/producer section missing");
