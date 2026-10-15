@@ -94,6 +94,21 @@ create table if not exists profiles (
   updated_at timestamptz not null default now()
 );
 
+-- Optional account layer. The primary key IS the anonymous user id (bz_uid) the account adopts, so an
+-- account is just a login attached to an existing anonymous identity: all its characters, dates and points
+-- keep working unchanged. Everything stays optional — no account is ever required to play. Credentials are
+-- a username+password (handle, scrypt hash) and/or Google (sub + email); any may be null.
+create table if not exists accounts (
+  user_id text primary key,
+  handle text unique,
+  handle_display text,
+  email text unique,
+  google_sub text unique,
+  password_hash text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists identity_consents (
   episode_id text not null references episodes (id) on delete cascade,
   user_id text not null,

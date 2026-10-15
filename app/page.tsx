@@ -6,7 +6,7 @@ import { formatPrice, PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
-import { readUserId, USER_COOKIE } from "@/lib/http";
+import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
@@ -38,7 +38,7 @@ const FAQ = [
 /** The landing page: pitched at AI-friendly roleplayers, built to convert — hero, features, proof, cast, FAQ. */
 export default async function Home({ searchParams }: { searchParams: SearchParams }) {
   const { ref } = await searchParams;
-  const viewerId = readUserId((await cookies()).get(USER_COOKIE)?.value);
+  const viewerId = userIdFromCookieStore(await cookies());
   const db = viewerId ? await getDb() : null;
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
   const dates = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
