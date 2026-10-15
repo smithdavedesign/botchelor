@@ -2178,3 +2178,25 @@ button.rating-chip:hover {
 .link-button:hover {
   opacity: 0.8;
 }
+
+.owner-controls {
+  border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.traits-fields {
+  display: flex;
+  gap: 0.5rem;
+  border: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+}
+.traits-fields legend {
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+.traits-fields input {
+  flex: 1;
+  min-width: 0;
+}
+.link-button.danger {
+  color: var(--bad, #b4341f);
+}

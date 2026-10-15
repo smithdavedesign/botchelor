@@ -3,6 +3,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { DELETE as deleteBlock, POST as postBlock } from "@/app/api/blocks/route";
 import { POST as postCheckout } from "@/app/api/checkout/route";
 import { POST as postCharacter } from "@/app/api/characters/route";
+import { DELETE as deleteCharacterRoute, PATCH as patchCharacterRoute } from "@/app/api/characters/[id]/route";
 import { DELETE as deleteSoulRoute, GET as getSoulRoute, PUT as putSoulRoute } from "@/app/api/characters/[id]/soul/route";
 import { POST as postDealbreaker } from "@/app/api/dealbreaker-guesses/route";
 import { GET as getMatchmakers, POST as postMatchmaker } from "@/app/api/matchmakers/route";
@@ -196,6 +197,10 @@ export const api = {
   /** Audience rating: toggle a category on a character (POST /api/characters/:id/ratings). */
   rateCharacter: (characterId: string, category: string, cookie?: string) =>
     postRating(jsonRequest(`/api/characters/${characterId}/ratings`, { category }, { cookie }), params(characterId)),
+  editCharacter: (id: string, body: unknown, cookie?: string) =>
+    patchCharacterRoute(jsonRequest(`/api/characters/${id}`, body, { cookie, method: "PATCH" }), params(id)),
+  deleteCharacter: (id: string, cookie?: string) =>
+    deleteCharacterRoute(jsonRequest(`/api/characters/${id}`, {}, { cookie, method: "DELETE" }), params(id)),
   setProfile: (body: unknown, cookie?: string) => postProfile(jsonRequest("/api/profile", body, { cookie })),
   report: (body: unknown, cookie?: string) => postReport(jsonRequest("/api/reports", body, { cookie })),
   block: (episodeId: string, cookie?: string) =>

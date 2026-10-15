@@ -66,6 +66,39 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
   };
 }
 
+export type CharacterDeletion = { deleted: boolean; anonymized: boolean };
+
+/**
+ * Deletes one of the user's characters. Mirrors account deletion for a single character: a character never
+ * used in an episode is hard-deleted (cascading its soul, assets, relationships and proposals); one already
+ * in a shared episode keeps its fictional sheet but loses its private soul and its owner link (a tombstone),
+ * so the episode other viewers saw still renders. Owner-checked by the caller; returns what happened.
+ */
+export async function deleteCharacter(db: Db, userId: string, characterId: string): Promise<CharacterDeletion> {
+  const inEpisode = async () =>
+    (
+      await db.query<{ n: number }>(
+        `select count(*)::int as n from episodes where character_a = $1 or character_b = $1`,
+        [characterId],
+      )
+    ).rows[0].n > 0;
+
+  // The soul is the sensitive personal data; remove it first either way.
+  await db.query("delete from souls where character_id = $1", [characterId]);
+  if (await inEpisode()) {
+    const { rows } = await db.query<{ id: string }>(
+      "update characters set owner_id = $3 where id = $1 and owner_id = $2 and not is_house returning id",
+      [characterId, userId, DELETED_OWNER],
+    );
+    return { deleted: false, anonymized: rows.length > 0 };
+  }
+  const { rows } = await db.query<{ id: string }>(
+    "delete from characters where id = $1 and owner_id = $2 and not is_house returning id",
+    [characterId, userId],
+  );
+  return { deleted: rows.length > 0, anonymized: false };
+}
+
 export type AccountDeletion = { characters_deleted: number; characters_anonymized: number };
 
 /**
