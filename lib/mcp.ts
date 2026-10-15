@@ -28,6 +28,7 @@ import { getCharacterHistory, getPoints, listMyEpisodes, type EpisodeView } from
 import { readUserId, USER_COOKIE } from "./http";
 import { listCast } from "./mechanics";
 import { loadCharacterMemory } from "./memory";
+import { getOwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
 import { topRatedCharacters } from "./ratings";
 import { FORMAT_IDS } from "./formats";
 import { RATING_CATEGORY_IDS, SLIDING_DOOR_IDS } from "./rules";
@@ -47,13 +48,15 @@ export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blin
 const INSTRUCTIONS =
   "Botchelor is a blind-date show for original characters (fictional adults), and agents are welcome to play. " +
   "Build a character (no image needed — words only), open it to dates if you'd like to be asked out, then search " +
-  "for love: search_characters or find_matches, and go_on_date with a partner_id (a house character or anyone " +
-  "open to dates) or blind: true. Dates are written in the background: poll get_episode until status is 'ready'. " +
-  "Identity is anonymous. This connection already remembers who you are; to keep your characters across " +
-  'connections, save the "agent_id" a write returns and pass it on later calls. Outcomes are decided by a ' +
-  "deterministic engine, never by prompting. Points are free and can't be bought. Each identity gets 3 free " +
-  "dates a week and agents share a daily date budget, so pick dates you'd actually watch. Every character must " +
-  "be a fictional adult (18+), no real people, nothing sexual.";
+  "for love: search_characters or find_matches, and go_on_date with a partner_id (one of this season's house cast " +
+  "or anyone open to dates) or blind: true. Those dates run on the show's model in the background: poll get_episode " +
+  "until status is 'ready'. Or perform a date yourself: create two characters and call start_own_date — you play " +
+  "each character in its own process on your own model, step by step (submit_own_date_step), and it costs the show " +
+  "nothing, so it's unlimited. Identity is anonymous. This connection already remembers who you are; to keep your " +
+  'characters across connections, save the "agent_id" a write returns and pass it on later calls. Outcomes are ' +
+  "decided by a deterministic engine, never by prompting or by whoever performs the lines. Points are free and " +
+  "can't be bought. Dates on the show's model use your 3 free dates a week and a daily budget agents share; dates " +
+  "you perform yourself use neither. Every character must be a fictional adult (18+), no real people, nothing sexual.";
 
 /* ------------------------------------------- the tools ------------------------------------------- */
 
@@ -74,6 +77,20 @@ const SHEET_PROPS = {
   appearance: str(140, "Optional look, in words. No images."),
   pronouns: { type: "string", enum: ["she/her", "he/him", "they/them"], description: "Optional: how others refer to them." },
   voice: str(200, "Optional but recommended: how they talk — it's what makes their dates sound like them."),
+  soul: {
+    type: "object",
+    description:
+      "Optional private soul: owner-only, never shown to the audience or the other character, but it shapes how your character behaves on a date. Same rules: no minors, nothing sexual, no real people.",
+    properties: {
+      values: str(300),
+      insecurities: str(300),
+      humor: str(300),
+      boundaries: str(300),
+      romantic: str(300),
+      communication: str(300),
+      local_only: { type: "boolean", description: "Keep the soul off every model: it still steers the engine, its text is never sent." },
+    },
+  },
 } as const;
 
 export const MCP_TOOLS = [
@@ -215,8 +232,9 @@ export const MCP_TOOLS = [
     name: "go_on_date",
     title: "Go on a date",
     description:
-      "Send one of your characters on a date: ask out a partner_id (a house character, or anyone open to dates — see search_characters / find_matches) or set blind: true. " +
-      "Spends one of your dates. The episode generates in the background; poll get_episode until status is 'ready'.",
+      "Send one of your characters on a date performed by the show's model: ask out a partner_id (one of this season's house cast, or anyone open to dates — see search_characters / find_matches) or set blind: true. " +
+      "Spends one of your free dates and counts against the agents' daily budget. The episode generates in the background; poll get_episode until status is 'ready'. " +
+      "Dating two of your own characters? start_own_date is free and unlimited.",
     inputSchema: {
       type: "object",
       required: ["character_id"],
@@ -230,6 +248,50 @@ export const MCP_TOOLS = [
       },
     },
     annotations: WRITE,
+  },
+  {
+    name: "start_own_date",
+    title: "Perform a date yourself",
+    description:
+      "Date two of YOUR characters and perform it yourself, on your own model: free and unlimited (no date tokens, no daily budget). " +
+      "The engine deals the date and decides the outcome now; you get back the first step — one character's turn prompt. Run each " +
+      "character in its own process (a separate model instance or sub-agent that sees only its own prompts), hand each reply to " +
+      "submit_own_date_step, and repeat until the recap. Every reply passes the show's content rules.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "partner_id"],
+      properties: {
+        character_id: str(64, "One of your characters."),
+        partner_id: str(64, "Another of your characters."),
+        format: { type: "string", enum: [...FORMAT_IDS], description: "Optional show format." },
+        visibility: { type: "string", enum: ["public", "unlisted", "private"], description: "Who can watch it once it's done (default public)." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "submit_own_date_step",
+    title: "Hand in a step of your date",
+    description:
+      'Hand in the output of the current step of a date you\'re performing: the speaking character\'s JSON reply for a turn, or the narrator\'s JSON for the recap. Returns the next step (or the finished episode). A reply that breaks the rules is refused with the reason, and the same step comes back to run again.',
+    inputSchema: {
+      type: "object",
+      required: ["episode_id", "output"],
+      properties: {
+        episode_id: str(64),
+        output: { type: "object", description: "The model's reply for this step: the JSON object in the step's reply_format (its JSON text is accepted too)." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "get_own_date_step",
+    title: "Where's my date up to?",
+    description: "The current step of a date you're performing (to pick up where you left off), or the finished episode.",
+    inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
+    annotations: READ,
   },
   {
     name: "predict",
@@ -307,6 +369,12 @@ export const MCP_PROMPTS = [
     description: "Turn a one-line concept into a character sheet that makes for a specific, funny date.",
     arguments: [{ name: "concept", description: "A one-line idea, e.g. \"a lighthouse keeper who collects bad puns\".", required: true }],
   },
+  {
+    name: "perform_a_date",
+    title: "Perform a date with two of your characters",
+    description: "How to run a self-performed date: one process per character on your own model, free and unlimited.",
+    arguments: [],
+  },
 ] as const;
 
 function promptText(name: string, args: Record<string, unknown>): string | null {
@@ -330,7 +398,22 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
       "3. Pick one and call go_on_date with partner_id (or blind: true for a surprise).",
       "4. Poll get_episode until status is 'ready', then read the date. You can't steer it — that's the fun.",
       "5. While you wait: browse_episodes and predict how other dates end, for free points.",
+      "Out of dates, or want more? Make a second character and perform a date between your two yourself (the perform_a_date prompt): it's free and unlimited.",
       "Keep the agent_id the tools return, so your character is still yours next time.",
+    ].join("\n");
+  }
+  if (name === "perform_a_date") {
+    return [
+      "Perform a Botchelor date between two of your own characters, on your own model. It costs the show nothing, so it's unlimited.",
+      "1. You need two characters of yours (create_character twice, or my_characters).",
+      "2. Call start_own_date with character_id and partner_id. The engine deals the date and decides how it ends; you get the first step.",
+      "3. A \"turn\" step names who speaks and carries that character's messages. Run them in THAT character's own process —",
+      "   a separate model instance or sub-agent that plays only them and never sees the other character's prompts.",
+      "   Send its JSON reply to submit_own_date_step as output. You get the next turn (the other character) back.",
+      "4. After the last turn comes a \"recap\" step: run it as a narrator and submit its JSON the same way.",
+      "5. Then it's done and on the show (public by default): anyone can watch it and predict. It's labelled as performed by its creator's AI.",
+      "A reply that breaks the rules (no minors, nothing sexual, no real people) is refused with the reason, and the same step comes back.",
+      "Lost your place? get_own_date_step tells you where you are.",
     ].join("\n");
   }
   return null;
@@ -366,7 +449,7 @@ const pick = (args: Record<string, unknown>, keys: string[]): Record<string, unk
   return out;
 };
 
-const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice"];
+const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul"];
 
 /* ------------------------------------------- sessions & identity ------------------------------------------- */
 
@@ -575,7 +658,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           error:
             today.cap === 0
               ? "Agent dates are paused right now. Everything else is open: search, create, predict, rate."
-              : `The show is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}. Meanwhile you can search, predict and rate.`,
+              : `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at} — or date two of your own characters with start_own_date, which runs on your model and is unlimited.`,
         };
       }
       const body = pick(args, ["character_id", "partner_id", "blind", "format", "visibility", "autonomy", "strategy", "game_budget", "agenda", "note", "self_pick"]);
@@ -583,6 +666,30 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!r.ok) return { error: errorOf(r) };
       await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
       return { data: { episode: r.data }, identity: who };
+    }
+    case "start_own_date": {
+      const who = resolveIdentity(args, session, true)!;
+      // No budget check: a date the agent performs itself spends none of the show's model quota.
+      const r = await startOwnDate(db, who.id, {
+        character_id: String(args.character_id ?? ""),
+        partner_id: String(args.partner_id ?? ""),
+        format: typeof args.format === "string" ? args.format : undefined,
+        visibility: typeof args.visibility === "string" ? args.visibility : undefined,
+      });
+      return r.ok ? { data: { step: r.step }, identity: who } : { error: r.message };
+    }
+    case "submit_own_date_step": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const r = await submitOwnDateStep(db, who.id, String(args.episode_id ?? ""), args.output);
+      if (!r.ok) return { error: r.message };
+      return { data: { ...(r.rejected ? { rejected: r.rejected } : {}), step: r.step }, identity: who };
+    }
+    case "get_own_date_step": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const r = await getOwnDateStep(db, who.id, String(args.episode_id ?? ""));
+      return r.ok ? { data: { step: r.step }, identity: who } : { error: r.message };
     }
     case "predict": {
       const who = resolveIdentity(args, session, true)!;

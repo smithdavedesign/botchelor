@@ -877,7 +877,10 @@ function SendPhase({ character, partners, openCharacters, tokens, offer, autonom
         </>
       )}
 
-      <p className="muted">Or pick a house character — they belong to the show. Either way, you can&apos;t steer the date.</p>
+      <p className="muted">
+        Or one of this season&apos;s house cast — a handful the show fields each week. Either way, you can&apos;t steer the
+        date.
+      </p>
       <ul className="gallery">
         {partners.map((p) => (
           <li className="card" key={p.id}>

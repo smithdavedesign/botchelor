@@ -6,6 +6,7 @@
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, type Ending } from "./rules";
+import { seasonCastIds } from "./season-cast";
 
 export const DEALBREAKER_OPTIONS = 4;
 
@@ -138,13 +139,28 @@ export async function listMyProposals(db: Db, userId: string): Promise<Matchmake
   }));
 }
 
-export type CastMember = { id: string; name: string; traits: string[]; house: boolean; hue: number | null };
+export type CastMember = {
+  id: string;
+  name: string;
+  traits: string[];
+  house: boolean;
+  hue: number | null;
+  /** Made by an AI agent over MCP (badged as such). */
+  agent: boolean;
+};
 
-/** The cast a spectator can matchmake from: house characters and user OCs, newest first. */
+/**
+ * The cast a spectator can matchmake from: the characters people and agents made, newest first, then this
+ * season's handful of house characters (lib/season-cast.ts). Off-season and premium house characters sit out.
+ */
 export async function listCast(db: Db, limit = 40): Promise<CastMember[]> {
   const { rows } = await db.query<CastMember>(
-    `select id, name, traits, is_house as house, avatar_hue as hue from characters order by is_house desc, created_at desc, id limit $1`,
-    [limit],
+    `select id, name, traits, is_house as house, avatar_hue as hue, created_via = 'mcp' as agent
+       from characters
+      where not is_house or (premium_sku is null and id = any($2))
+      order by is_house, created_at desc, id
+      limit $1`,
+    [limit, seasonCastIds()],
   );
   return rows;
 }

@@ -10,6 +10,7 @@
  * ends from the two characters on the night.
  */
 import type { Db } from "./db";
+import { isOnSeasonCast, seasonCastIds } from "./season-cast";
 
 export type MadeBy = "house" | "agent" | "human";
 
@@ -26,7 +27,7 @@ export type DatingProfile = {
   hue: number | null;
   made_by: MadeBy;
   open_to_dates: boolean;
-  /** True when you can name them as your date's partner (house, or open to dates). */
+  /** True when you can name them as your date's partner (this season's house cast, or open to dates). */
   can_ask_out: boolean;
   /** Public, aired dates so far. */
   dates: number;
@@ -63,6 +64,8 @@ const NOT_BLOCKED = `not exists (
 const madeBy = (r: Pick<Row, "is_house" | "created_via">): MadeBy => (r.is_house ? "house" : r.created_via === "mcp" ? "agent" : "human");
 
 function toProfile(r: Row): DatingProfile {
+  // A house character is available only while it's on this season's cast; an OC, while it's open to dates.
+  const available = r.is_house ? isOnSeasonCast(r.id) : r.open_to_dates;
   return {
     id: r.id,
     name: r.name,
@@ -75,8 +78,8 @@ function toProfile(r: Row): DatingProfile {
     voice: r.voice,
     hue: r.avatar_hue,
     made_by: madeBy(r),
-    open_to_dates: r.is_house || r.open_to_dates,
-    can_ask_out: r.is_house || r.open_to_dates,
+    open_to_dates: available,
+    can_ask_out: available,
     dates: r.dates,
     url: `/characters/${r.id}`,
   };
@@ -124,12 +127,12 @@ async function candidates(db: Db, viewerId: string | null, openOnly: boolean, in
   const { rows } = await db.query<Row>(
     `select ${PUBLIC_COLUMNS}
        from characters c
-      where ((c.is_house and c.premium_sku is null and $2::boolean)
+      where ((c.is_house and c.premium_sku is null and $2::boolean and c.id = any($4))
              or (not c.is_house and (c.open_to_dates or not $3::boolean)))
         and ($1::text is null or c.is_house or (c.owner_id <> $1 and ${NOT_BLOCKED}))
       order by c.is_house, c.created_at desc, c.id
       limit 300`,
-    [viewerId, includeHouse, openOnly],
+    [viewerId, includeHouse, openOnly, seasonCastIds()],
   );
   return rows;
 }
@@ -230,10 +233,10 @@ export async function listMyDatingProfiles(db: Db, userId: string): Promise<Dati
 /* --------------------------------------------- the agents --------------------------------------------- */
 
 /**
- * The agents' daily date cap. Every date costs ~15 calls on the one free model key the whole show shares
- * (docs/date-quality.md), and that quota running dry once took live dates down for hours. So agents get
- * everything else without limit, and their dates a shared daily budget that leaves room for people.
- * BOTCHELOR_AGENT_DAILY_DATES overrides it; 0 turns agent dates off.
+ * The agents' daily date cap — for dates that run on OUR model only. Every such date costs ~15 calls on the
+ * one free model key the whole show shares (docs/date-quality.md), and that quota running dry once took live
+ * dates down for hours. A date an agent performs itself (two of its own characters, lib/own-date.ts) spends
+ * none of it, so it never counts here. BOTCHELOR_AGENT_DAILY_DATES overrides it; 0 pauses our-model agent dates.
  */
 export function agentDailyDateCap(env: Record<string, string | undefined> = process.env): number {
   const raw = env.BOTCHELOR_AGENT_DAILY_DATES?.trim();
@@ -247,7 +250,7 @@ const utcMidnight = (now: Date): Date => new Date(Date.UTC(now.getUTCFullYear(),
 export async function agentDatesToday(db: Db, now: Date = new Date()): Promise<{ used: number; cap: number; resets_at: string }> {
   const start = utcMidnight(now);
   const { rows } = await db.query<{ n: number }>(
-    `select count(*)::int as n from episodes where created_via = 'mcp' and created_at >= $1`,
+    `select count(*)::int as n from episodes where created_via = 'mcp' and performed_by = 'platform' and created_at >= $1`,
     [start.toISOString()],
   );
   return { used: rows[0]?.n ?? 0, cap: agentDailyDateCap(), resets_at: new Date(start.getTime() + 86_400_000).toISOString() };
@@ -260,6 +263,8 @@ export type AgentStats = {
   agent_characters: number;
   open_to_dates: number;
   agent_dates: number;
+  /** Of those, the dates agents performed themselves (no model quota spent, never budgeted). */
+  agent_performed_dates: number;
   dates_today: { used: number; cap: number; resets_at: string };
 };
 
@@ -273,13 +278,15 @@ export async function agentStats(db: Db, now: Date = new Date()): Promise<AgentS
     agent_characters: number;
     open_to_dates: number;
     agent_dates: number;
+    agent_performed_dates: number;
   }>(
     `select (select count(distinct agent_id)::int from mcp_sessions) as agents,
             (select count(*)::int from mcp_sessions) as sessions,
             (select count(distinct agent_id)::int from mcp_sessions where last_seen >= $1) as agents_last_7d,
             (select count(*)::int from characters where created_via = 'mcp') as agent_characters,
             (select count(*)::int from characters where open_to_dates and not is_house) as open_to_dates,
-            (select count(*)::int from episodes where created_via = 'mcp') as agent_dates`,
+            (select count(*)::int from episodes where created_via = 'mcp' and status = 'ready') as agent_dates,
+            (select count(*)::int from episodes where performed_by = 'agent' and status = 'ready') as agent_performed_dates`,
     [since],
   );
   return { ...rows[0], dates_today: await agentDatesToday(db, now) };

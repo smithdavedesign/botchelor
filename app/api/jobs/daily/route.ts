@@ -3,6 +3,7 @@ import { backfillTranscripts } from "@/lib/backfill";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { internalJobAuthorized, runQueuedJobs } from "@/lib/jobs";
+import { clearStaleOwnDates } from "@/lib/own-date";
 import { refreshLobby } from "@/lib/watch";
 
 // A fresh template date (~10 model calls) plus a few backfilled conversations (~8 calls each).
@@ -28,6 +29,8 @@ async function run(req: Request): Promise<Response> {
   const lobby = await refreshLobby(db).catch(() => ({ created: null, reason: "error" }));
   const backfill = await backfillTranscripts(db, limit);
   const jobsRan = await runQueuedJobs(db, new Date(), 3);
+  // Self-performed dates an agent started and never finished (never visible; lib/own-date.ts).
+  const ownDatesCleared = await clearStaleOwnDates(db).catch(() => 0);
   track("daily_job", {
     room_created: Boolean(lobby.created),
     lobby_reason: lobby.reason ?? null,
@@ -35,8 +38,9 @@ async function run(req: Request): Promise<Response> {
     backfill_failed: backfill.failed.length,
     rate_limited: backfill.rate_limited ?? false,
     jobs_ran: jobsRan,
+    own_dates_cleared: ownDatesCleared,
   });
-  return json({ lobby, backfill, jobs_ran: jobsRan });
+  return json({ lobby, backfill, jobs_ran: jobsRan, own_dates_cleared: ownDatesCleared });
 }
 
 // Vercel Cron sends GET; POST is for a manual trigger.

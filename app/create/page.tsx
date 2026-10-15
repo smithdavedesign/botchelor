@@ -5,7 +5,8 @@ import { formatPrice, PACK_5 } from "@/lib/catalog";
 import { listOpenCharacters } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
-import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
+import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
+import { seasonCast } from "@/lib/season-cast";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
@@ -40,8 +41,9 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
     agent: c.made_by === "agent",
   }));
 
+  // This season's house cast (a handful; lib/season-cast.ts), plus any premium one this viewer owns.
   const partners: Partner[] = [
-    ...HOUSE_CHARACTERS.map(({ id, name, age, bio, traits, archetype, hue }) => ({
+    ...seasonCast().map(({ id, name, age, bio, traits, archetype, hue }) => ({
       id,
       name,
       age,
