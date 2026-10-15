@@ -21,11 +21,15 @@ export const TEXT_PROVIDERS = {
   openrouter: { label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", defaultModel: "openai/gpt-4.1-mini" },
 } as const;
 
-/** Image/video providers are stored for later; generation isn't built yet (docs/upgrade-cost.md). */
+/**
+ * Image providers. OpenAI generation is wired (lib/image): it moderates its own input and output, so a
+ * user-key portrait is provider-moderated, and our prompt is built only from already content-filtered sheet
+ * text. fal / replicate are stored for later (no moderation story yet). Video is a key slot only for now.
+ */
 export const IMAGE_PROVIDERS = {
-  openai: { label: "OpenAI Images" },
-  fal: { label: "fal.ai" },
-  replicate: { label: "Replicate" },
+  openai: { label: "OpenAI Images", generates: true },
+  fal: { label: "fal.ai", generates: false },
+  replicate: { label: "Replicate", generates: false },
 } as const;
 
 export type TextProvider = keyof typeof TEXT_PROVIDERS;
@@ -133,6 +137,22 @@ export async function userTextModel(db: Db, userId: string, reasoning?: Reasonin
   if (!apiKey) return null;
   const p = TEXT_PROVIDERS[row.provider];
   return openAICompatibleModel({ baseUrl: p.baseUrl, apiKey, model: row.model || p.defaultModel, reasoning });
+}
+
+/** A user's saved image key (provider + decrypted key + optional model), or null. For portrait generation. */
+export async function userImageKey(
+  db: Db,
+  userId: string,
+  env: Record<string, string | undefined> = process.env,
+): Promise<{ provider: string; apiKey: string; model: string | null } | null> {
+  const { rows } = await db.query<{ provider: string; ciphertext: string; nonce: string; model: string | null }>(
+    `select provider, ciphertext, nonce, model from user_keys where user_id = $1 and kind = 'image' limit 1`,
+    [userId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const apiKey = decryptKey({ ciphertext: row.ciphertext, nonce: row.nonce }, env);
+  return apiKey ? { provider: row.provider, apiKey, model: row.model } : null;
 }
 
 /**
