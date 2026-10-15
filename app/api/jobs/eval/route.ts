@@ -2,7 +2,7 @@ import { z } from "zod";
 import { EVAL_CASES, rejudgeCase, runEvalCase } from "@/lib/eval";
 import { handle, json, readJson } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
-import { getDirectorModel, getModel, namedModel } from "@/lib/model";
+import { getDirectorModel, getModel, modelFromEnv, namedModel } from "@/lib/model";
 
 // One eval date: ~10-17 model calls on the free tier, plus the judge.
 export const maxDuration = 300;
@@ -10,6 +10,16 @@ export const dynamic = "force-dynamic";
 
 /** Model names the eval may request: Google models at the configured endpoint only (no arbitrary strings). */
 const MODEL_NAME = /^gemini-[a-z0-9.-]{1,40}$/;
+
+/**
+ * The eval's own Google key when one is configured (EVAL_GOOGLE_API_KEY, from a separate free project), so an
+ * eval never spends the live show's free daily quota. Without it the eval shares production's key: a full
+ * run is ~90 calls, so run it sparingly (docs/date-quality.md).
+ */
+function evalEnv(): Record<string, string | undefined> {
+  const key = process.env.EVAL_GOOGLE_API_KEY;
+  return key ? { ...process.env, GOOGLE_API_KEY: key, LLM_API_KEY: undefined, LLM_BASE_URL: undefined } : process.env;
+}
 
 /** A saved transcript to judge again (scripts/eval-rejudge.mjs): the shape lib/conversation.ts produces. */
 const SavedTranscript = z
@@ -46,11 +56,12 @@ export const POST = handle(async (req: Request) => {
   if (body.transcript !== undefined) {
     const transcript = SavedTranscript.safeParse(body.transcript);
     if (!body.judge || !transcript.success) return json({ error: "bad_rejudge", message: "rejudging needs a judge model and a saved transcript" }, 400);
-    return json({ case: c.id, ...(await rejudgeCase(c, transcript.data, namedModel(body.judge))), models: { judge: body.judge } });
+    return json({ case: c.id, ...(await rejudgeCase(c, transcript.data, namedModel(body.judge, evalEnv()))), models: { judge: body.judge } });
   }
-  const actor = body.actor ? namedModel(body.actor) : getModel();
-  const director = body.director ? namedModel(body.director) : body.actor ? actor : getDirectorModel();
-  const judge = body.judge ? namedModel(body.judge) : null;
+  const env = evalEnv();
+  const actor = body.actor ? namedModel(body.actor, env) : env === process.env ? getModel() : modelFromEnv(env);
+  const director = body.director ? namedModel(body.director, env) : body.actor ? actor : getDirectorModel(env);
+  const judge = body.judge ? namedModel(body.judge, env) : null;
   const result = await runEvalCase(c, { actor, director }, judge);
   return json({ ...result, models: { actor: body.actor ?? "default", director: body.director ?? body.actor ?? "default", judge: body.judge ?? null } });
 });

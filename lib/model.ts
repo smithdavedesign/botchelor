@@ -32,16 +32,49 @@ type CompletionResponse = { choices?: { message?: { content?: unknown } }[] };
 
 /** Statuses that mean "slow down / try again shortly" (a free tier's per-minute quota, a busy upstream). */
 const RETRYABLE_STATUS = new Set([429, 503]);
-/** Backoff before each retry of a retryable status. Bounded, so a generation job can't stall for long. */
-export const RETRY_DELAYS_MS = [2_000, 5_000];
-/** The most we'll honour from a Retry-After header. */
-export const MAX_RETRY_AFTER_MS = 8_000;
+/**
+ * Backoff before each retry of a retryable status. Bounded, so a generation job can't stall for long; the
+ * last, longer wait is what rides out a free tier's per-minute window (a date makes ~14 calls in a row).
+ */
+export const RETRY_DELAYS_MS = [2_000, 5_000, 15_000];
+/** The most we'll honour from the server's own retry hint (a Retry-After header, or Google's retryDelay). */
+export const MAX_RETRY_AFTER_MS = 15_000;
 const realSleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
-/** How long to wait before a retry: the server's Retry-After (seconds) when given, capped; else the backoff. */
-function retryDelay(res: Response, fallbackMs: number): number {
-  const after = Number(res.headers.get("retry-after"));
-  return Number.isFinite(after) && after > 0 ? Math.min(after * 1000, MAX_RETRY_AFTER_MS) : fallbackMs;
+type ErrorDetail = { retryDelay?: unknown; violations?: { quotaValue?: unknown }[] };
+type ErrorBody = { error?: { message?: unknown; status?: unknown; details?: ErrorDetail[] } };
+
+/** The error object of a refusal's JSON body (Google sometimes wraps it in an array), or null. */
+async function refusal(res: Response): Promise<ErrorBody["error"] | null> {
+  const body = (await res.json().catch(() => null)) as ErrorBody | ErrorBody[] | null;
+  return (Array.isArray(body) ? body[0]?.error : body?.error) ?? null;
+}
+
+/**
+ * How to handle a retryable refusal: stop at once when the model has no quota at all on this key (Google
+ * answers 429 with "limit: 0" for a model outside the free tier: retrying only wastes the date's time), else
+ * wait the server's hint (Retry-After, or Google's RetryInfo "17s"), capped; else the backoff.
+ */
+async function retryPlan(res: Response, fallbackMs: number): Promise<{ stop: true } | { stop: false; waitMs: number }> {
+  const err = await refusal(res.clone());
+  const message = typeof err?.message === "string" ? err.message : "";
+  const noQuota = /limit:\s*0\b/.test(message) || (err?.details ?? []).some((d) => d.violations?.some((v) => String(v.quotaValue) === "0"));
+  if (noQuota) return { stop: true };
+  const header = Number(res.headers.get("retry-after"));
+  const hinted = (err?.details ?? []).map((d) => (typeof d.retryDelay === "string" ? parseFloat(d.retryDelay) : NaN)).find(Number.isFinite);
+  const seconds = Number.isFinite(header) && header > 0 ? header : hinted !== undefined && hinted > 0 ? hinted : null;
+  return { stop: false, waitMs: seconds !== null ? Math.min(seconds * 1000, MAX_RETRY_AFTER_MS) : fallbackMs };
+}
+
+/**
+ * The provider's own short reason for a refusal, for the logs: it tells a per-minute burst from a model with
+ * no free-tier quota at all ("… limit: 0"). Trimmed, and scrubbed of anything shaped like a Google key.
+ */
+async function errorReason(res: Response): Promise<string> {
+  const err = await refusal(res);
+  const text = typeof err?.message === "string" ? err.message : typeof err?.status === "string" ? err.status : "";
+  const clean = text.replace(/AIza[0-9A-Za-z_-]{10,}/g, "[key]").replace(/\s+/g, " ").trim().slice(0, 160);
+  return clean ? ` (${clean})` : "";
 }
 
 export function openAICompatibleModel(opts: {
@@ -78,9 +111,12 @@ export function openAICompatibleModel(opts: {
           throw new ModelError(`model request failed (${err instanceof Error ? err.name : "unknown"})`);
         }
         if (!RETRYABLE_STATUS.has(res.status) || attempt >= delays.length) break;
-        await sleep(retryDelay(res, delays[attempt]));
+        const plan = await retryPlan(res, delays[attempt]);
+        if (plan.stop) break;
+        await res.body?.cancel().catch(() => {}); // free the connection while we wait
+        await sleep(plan.waitMs);
       }
-      if (!res.ok) throw new ModelError(`model returned HTTP ${res.status}`);
+      if (!res.ok) throw new ModelError(`model returned HTTP ${res.status}${await errorReason(res)}`);
       const data = (await res.json().catch(() => null)) as CompletionResponse | null;
       const content = data?.choices?.[0]?.message?.content;
       if (typeof content !== "string" || content.length === 0) throw new ModelError("model returned no text");

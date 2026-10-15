@@ -52,16 +52,33 @@ export class ConversationError extends Error {
 }
 
 /** Model calls a turn may take (a parse retry or one critic revision), then the conversation gives up. */
-export const TURN_ATTEMPTS = 2;
+/**
+ * Calls one turn may take. A usable line normally takes one; the critic may send it back once; the rest is
+ * for an unusable reply (bad JSON, a filtered line, a refused call), so one bad reply can't sink the date.
+ */
+export const TURN_ATTEMPTS = 3;
 /** Spoken dialogue wants variety: a warmer sampling temperature than plans and recaps. */
 export const TURN_TEMPERATURE = 0.9;
+const ACTION_MAX = 80;
+const EMOTION_MAX = 40;
 
+// Lengths are enforced by trimming (below), not by rejecting: a reply that runs long is still a good line.
 const TurnOutput = z.object({
-  dialogue: z.string().trim().min(1).max(TURN_DIALOGUE_MAX),
-  action: z.string().trim().max(80).optional(),
-  emotion: z.string().trim().max(40).optional(),
+  dialogue: z.string().trim().min(1),
+  action: z.string().trim().optional(),
+  emotion: z.string().trim().optional(),
   interest_signal: z.coerce.number().optional(),
 });
+
+/** Shortens text to `max` characters at the last sentence end (else the last space) inside the limit. */
+export function trimTo(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const head = text.slice(0, max);
+  const sentence = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "), head.lastIndexOf("… "));
+  if (sentence >= max * 0.5) return head.slice(0, sentence + 1);
+  const space = head.lastIndexOf(" ");
+  return `${(space > 0 ? head.slice(0, space) : head.slice(0, max - 1)).replace(/[\s,;:—–-]+$/, "")}…`;
+}
 
 const CODE_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.5);
@@ -153,27 +170,35 @@ export function buildTurnMessages(
   };
 }
 
-/** Parses one agent turn: must be JSON, match the schema, and the line must pass the content filter. */
-export function parseTurn(raw: string, side: "a" | "b", act: number): Turn | null {
+/** Why a reply couldn't be used (content-free; for the logs). */
+export type TurnRejection = "json" | "schema" | "filtered";
+
+/**
+ * Parses one agent turn: it must be JSON with a line of dialogue, and the line must pass the content filter.
+ * Over-long fields are trimmed to fit rather than rejected.
+ */
+export function parseTurnResult(raw: string, side: "a" | "b", act: number): { turn: Turn } | { rejected: TurnRejection } {
   const trimmed = raw.trim();
   const unfenced = CODE_FENCE.exec(trimmed)?.[1] ?? trimmed;
   let json: unknown;
   try {
     json = JSON.parse(unfenced);
   } catch {
-    return null;
+    return { rejected: "json" };
   }
   const parsed = TurnOutput.safeParse(json);
-  if (!parsed.success) return null;
-  if (!checkFields({ dialogue: parsed.data.dialogue }).ok) return null;
-  return {
-    side,
-    act,
-    dialogue: parsed.data.dialogue,
-    action: parsed.data.action ?? "",
-    emotion: parsed.data.emotion ?? "",
-    interest: clamp01(parsed.data.interest_signal ?? 0.5),
-  };
+  if (!parsed.success) return { rejected: "schema" };
+  const dialogue = trimTo(parsed.data.dialogue, TURN_DIALOGUE_MAX);
+  const action = trimTo(parsed.data.action ?? "", ACTION_MAX);
+  const emotion = trimTo(parsed.data.emotion ?? "", EMOTION_MAX);
+  if (!checkFields({ dialogue, action, emotion }).ok) return { rejected: "filtered" };
+  return { turn: { side, act, dialogue, action, emotion, interest: clamp01(parsed.data.interest_signal ?? 0.5) } };
+}
+
+/** parseTurnResult, as the line or null. */
+export function parseTurn(raw: string, side: "a" | "b", act: number): Turn | null {
+  const result = parseTurnResult(raw, side, act);
+  return "turn" in result ? result.turn : null;
 }
 
 /**
@@ -229,7 +254,7 @@ export async function simulateConversation(
       totalTurns: turns,
     });
     let turn: Turn | null = null;
-    let draft: Turn | null = null; // a parsed line the critic sent back: kept if the revision doesn't parse
+    let draft: Turn | null = null; // a parsed line the critic sent back: kept if the revision doesn't work out
     let prompt = messages;
     for (let attempt = 0; attempt < TURN_ATTEMPTS && !turn; attempt++) {
       let raw: string;
@@ -237,20 +262,22 @@ export async function simulateConversation(
         raw = await model.complete(prompt, { temperature: TURN_TEMPERATURE });
       } catch (err) {
         reasons.push(err instanceof ModelError ? err.message : "model_error");
+        if (draft) break; // the critic never costs more than its one revision
         continue;
       }
-      const parsed = parseTurn(raw, side, act);
-      if (!parsed) {
-        reasons.push(`turn_${i}_invalid`);
+      const parsed = parseTurnResult(raw, side, act);
+      if (!("turn" in parsed)) {
+        reasons.push(`turn_${i}_${parsed.rejected}`);
+        if (draft) break;
         continue;
       }
-      const note = draft ? null : critiqueTurn(transcript, parsed, input, characters, venueId);
+      const note = draft ? null : critiqueTurn(transcript, parsed.turn, input, characters, venueId);
       if (note && attempt + 1 < TURN_ATTEMPTS) {
-        draft = parsed;
+        draft = parsed.turn;
         prompt = [...messages, { role: "assistant", content: raw }, { role: "user", content: `Revise that line: ${note}. Reply with the JSON again.` }];
         continue;
       }
-      turn = parsed;
+      turn = parsed.turn;
     }
     turn ??= draft;
     if (!turn) throw new ConversationError(reasons);

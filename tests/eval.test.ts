@@ -62,8 +62,8 @@ describe("runEvalCase", () => {
 
   it("records a failed conversation instead of throwing (the recap still stands)", async () => {
     const c = EVAL_CASES[0];
-    // An unusable plan (rules fallback), a first turn that never parses, then the recap.
-    const actor = queue(["{}", "{}", "not a turn", "not a turn", episodeJson()]);
+    // An unusable plan (rules fallback), a first turn that never parses (every attempt), then the recap.
+    const actor = queue(["{}", "{}", "not a turn", "not a turn", "not a turn", episodeJson()]);
     const result = await runEvalCase(c, { actor, director: actor }, null);
     expect(result.transcript).toEqual([]);
     expect(result.conversation_error).toBeTruthy();
@@ -139,6 +139,31 @@ describe("POST /api/jobs/eval", () => {
     // A judge model and a well-formed transcript are both required.
     expect((await call({ case: "mira-dex", transcript: saved }, `Bearer ${secret}`)).status).toBe(400);
     expect((await call({ case: "mira-dex", judge: "gemini-3.5-flash-lite", transcript: [{ side: "c" }] }, `Bearer ${secret}`)).status).toBe(400);
+  });
+});
+
+describe("the eval's own key", () => {
+  const secret = ["eval", "test", "secret", "0123456789"].join("-");
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("uses EVAL_GOOGLE_API_KEY when set, so an eval never spends the live show's quota", async () => {
+    const liveKey = ["live", "key", "A1b2C3d4".repeat(3)].join("-");
+    const evalKey = ["eval", "key", "Z9y8X7w6".repeat(3)].join("-");
+    vi.stubEnv("CRON_SECRET", secret);
+    vi.stubEnv("GOOGLE_API_KEY", liveKey);
+    vi.stubEnv("EVAL_GOOGLE_API_KEY", evalKey);
+    const seen: string[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      seen.push(new Headers(init.headers).get("authorization") ?? "");
+      return new Response(JSON.stringify({ choices: [{ message: { content: judgeJson } }] }), { status: 200 });
+    });
+    const res = await evalRoute(new Request(`${BASE_URL}/api/jobs/eval`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${secret}` },
+      body: JSON.stringify({ case: "mira-dex", judge: "gemini-3.5-flash-lite", transcript: [{ side: "a", act: 0, dialogue: "Is that a compass?" }] }),
+    }));
+    expect(res.status).toBe(200);
+    expect(seen).toEqual([`Bearer ${evalKey}`]);
   });
 });
 

@@ -15,7 +15,7 @@
  */
 import { z } from "zod";
 import { characterBlindView, characterSelfView, type Character } from "./character";
-import type { Turn } from "./conversation";
+import { trimTo, type Turn } from "./conversation";
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { formatNote, type FormatContext, type FormatId } from "./formats";
 import { ModelError, type ChatMessage, type Model } from "./model";
@@ -41,7 +41,8 @@ export const AFTERGLOW_ATTEMPTS = 2;
 /** A text is a text: shorter than a date line. */
 export const AFTERGLOW_TEXT_MAX = 200;
 
-const LineOutput = z.object({ text: z.string().trim().min(1).max(AFTERGLOW_TEXT_MAX) });
+// Length is enforced by trimming (parseAfterglowLine), not by rejecting a text that runs long.
+const LineOutput = z.object({ text: z.string().trim().min(1) });
 const CODE_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
 
 const SYSTEM_PROMPT = `You are one fictional adult character the morning after a blind date on the comedic dating show "Botchelor".
@@ -67,9 +68,19 @@ function dateContext(side: SideSetup): Record<string, unknown> {
   };
 }
 
-/** The private feeling for a side: whether the engine decided this AI wants to see the other again. */
+/**
+ * The private feeling for a side: whether the engine decided this AI wants to see the other again, worded for
+ * the ending like the date's beats (lib/beats.ts), so "just friends" doesn't text like a second date.
+ */
 function feelingFor(sideIndex: 0 | 1, outcome: Outcome): string {
-  return outcome.sides[sideIndex].wants_another
+  const wants = outcome.sides[sideIndex].wants_another;
+  if (outcome.ending === "friends" && wants) {
+    return "You privately want to hang out with this person again, as a friend: warm and easy, nothing romantic. Never call it a date.";
+  }
+  if (outcome.ending === "disaster" && wants) {
+    return "The date went badly, and still, against your better judgement, you want to see this person again. Let it slip through your texts.";
+  }
+  return wants
     ? "You privately want to see this person again. Let it warm your texts without saying it outright."
     : "You privately do NOT want to see this person again. Let your texts cool off without being cruel.";
 }
@@ -127,8 +138,9 @@ export function parseAfterglowLine(raw: string, side: "a" | "b"): AfterglowLine 
   }
   const parsed = LineOutput.safeParse(json);
   if (!parsed.success) return null;
-  if (!checkFields({ text: parsed.data.text }).ok) return null;
-  return { side, text: parsed.data.text };
+  const text = trimTo(parsed.data.text, AFTERGLOW_TEXT_MAX);
+  if (!checkFields({ text }).ok) return null;
+  return { side, text };
 }
 
 /**
