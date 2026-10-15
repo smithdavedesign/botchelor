@@ -21,6 +21,7 @@ import { simulateConversation, type Turn } from "./conversation";
 import type { Outcome } from "./engine";
 import type { FormatContext, FormatId } from "./formats";
 import type { ChatMessage, Model, ModelOptions, Usage } from "./model";
+import { simulateReflections, type Reflections } from "./reflection";
 import { summarizeUsage, type DateUsage } from "./pricing";
 import { transcriptQuality, type QualityContext, type QualityMetrics } from "./quality";
 import { agenda } from "./rules";
@@ -38,6 +39,8 @@ export type GenerateOptions = {
   conversation: boolean;
   /** Run the morning-after texts (best-effort). */
   afterglow: boolean;
+  /** Run each character's post-date reflection (best-effort; lib/reflection.ts). */
+  reflection: boolean;
   /**
    * BYOK: the model for a given side's actor turns (and afterglow texts), or null for the platform model.
    * A side's prompt only ever carries that side's own soul, so a user's key never sees another user's
@@ -50,6 +53,8 @@ export type GeneratedDate = {
   draft: EpisodeDraft;
   transcript: Turn[];
   afterglow: AfterglowLine[];
+  /** Each character's post-date reflection (null per side when it couldn't be produced). */
+  reflections: Reflections;
   /** The beat sheet the conversation was played from (null when there was no conversation). */
   plan: DatePlan | null;
   /** The free genuineness metrics for the conversation (lib/quality.ts); null without one. */
@@ -130,11 +135,16 @@ export async function generateDate(
     }
   }
 
+  // Each character's own postmortem. Best-effort and never throws (nulls on failure), so it can't cost a date.
+  const reflections: Reflections = opts.reflection
+    ? await simulateReflections(actor.model, built.input, outcome, characters, venueId, opts.formatId, opts.formatCtx, transcript, opts.keyForSide)
+    : { a: null, b: null };
+
   const quality = transcript.length ? transcriptQuality(transcript, characters, qualityContext(built, draft.setting)) : null;
 
   const modelCalls = actor.calls() + (director === actor ? 0 : director.calls());
   const usage = summarizeUsage([...actor.usage(), ...(director === actor ? [] : director.usage())], modelCalls);
-  return { draft, transcript, afterglow, plan, quality, modelCalls, usage, conversationError, afterglowError };
+  return { draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, conversationError, afterglowError };
 }
 
 /** What the quality checks treat as shared (the venue, the recap's setting) and as each side's private notes. */

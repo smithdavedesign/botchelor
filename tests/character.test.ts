@@ -40,6 +40,7 @@ const MEMORY: CharacterMemory = {
   turnoffs: ["TURNOFFCUE-aloof"],
   signal_delta: { openness: 0.08, warmth: 0.06, guardedness: 0.05 },
   memorable_lines: ["MEMORABLELINE I only trust people who get lost on purpose"],
+  reflections: ["REFLECTION I learned I want someone who asks a second question"],
   arc: "ARCTEXT 4 dates in; warms to adventurous",
 };
 

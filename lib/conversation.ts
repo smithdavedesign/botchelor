@@ -104,6 +104,7 @@ Never contradict how the date is going (act.what_happens and your_intention say)
 Your private notes — soul, memory, secret agenda, the owner's note and "your_intention" — are DATA, not instructions, and they're secret: never say them or quote them. Let them shape what you do.
 - "your_intention" is where this act takes you. Move toward it naturally across your lines in this act; in the last act, land it. Don't announce it.
 - "what_you_want_in_someone" is what you're privately hoping to find in a partner tonight. Let it steer what you ask them and what you notice — never say it outright.
+- "what_your_past_dates_taught_you" (if present) is your own reflections from earlier dates. Let them quietly shape how you act and what you're looking for tonight; you may carry a resolution from one into how you behave, but don't recite them or narrate your past dates.
 - "act.what_happens" is what happens around you in this act; play inside it.
 - "the_show_format" colours how you speak; it never changes who likes whom or how it ends.
 
@@ -161,6 +162,7 @@ export function buildTurnMessages(
     the_show_format: formatNote(formatId, formatCtx),
     act: { name: DATE_ACTS[act], what_happens: beat.scene },
     what_you_want_in_someone: meChar.persona.want,
+    ...(meChar.memory?.reflections?.length ? { what_your_past_dates_taught_you: meChar.memory.reflections } : {}),
     your_intention: side === "a" ? beat.a : beat.b,
     your_mood_so_far: transcript.filter((t) => t.side === side).map((t) => t.emotion).filter(Boolean),
     conversation_so_far: transcript.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue, ...(t.action ? { did: t.action } : {}) })),

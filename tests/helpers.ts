@@ -42,6 +42,7 @@ import { USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { setConversationEnabledForTests } from "@/lib/conversation";
 import { setAfterglowEnabledForTests } from "@/lib/afterglow";
+import { setReflectionEnabledForTests } from "@/lib/reflection";
 import { setInlineGenerationForTests } from "@/lib/jobs";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
 import { POST as postRating } from "@/app/api/characters/[id]/ratings/route";
@@ -91,6 +92,9 @@ export async function startTestDb() {
   // M11 afterglow is off in tests by default too (same reason: episode tests script only the narration
   // model). The afterglow module is tested directly in tests/afterglow.test.ts.
   setAfterglowEnabledForTests(false);
+  // The post-date reflection path is off in tests by default too (same reason). The reflection module is
+  // tested directly in tests/reflection.test.ts.
+  setReflectionEnabledForTests(false);
   // M10 part 2: run generation inline (no Next after() lifecycle in unit tests), so an episode is ready
   // by the time POST returns — the same observable behaviour the suite was written against.
   setInlineGenerationForTests(true);

@@ -116,7 +116,7 @@ The hard work that makes paid models optional is done:
   the predictions or the points. So you can turn a frontier model on or off per environment with no gameplay risk.
 - **The model is already an OpenAI-compatible client** (`lib/model.ts`) read from env (`LLM_BASE_URL`,
   `LLM_API_KEY`, `LLM_MODEL`). Upgrading text quality is a config change, not a code change.
-- **The model work per date is bounded**: ~15 calls (a plan, ten turns, a few critic rewrites, the recap), all
+- **The model work per date is bounded**: ~17 calls (a plan, ten turns, a few critic rewrites, the recap, and two post-date reflections), all
   best-effort except the recap, with a fail-fast on a spent quota (`lib/model.ts`).
 
 ## 1. Frontier text model (the cheapest, highest-leverage upgrade)

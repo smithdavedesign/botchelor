@@ -154,6 +154,7 @@ export async function runEvalCase(c: EvalCase, models: DateModels, judge: Model 
     formatCtx: { chaperone: built.setup.chaperone, ex: built.setup.ex },
     conversation: true,
     afterglow: false,
+    reflection: false,
   });
   const ms = Date.now() - t0;
   const characters = built.characters as [Character, Character];
