@@ -29,7 +29,7 @@ import { type CharacterSheet } from "@/lib/showrunner";
 
 // The request itself is instant (the engine, no model). Generation runs in after(), which keeps the
 // function alive past the response, so the budget still covers the ~20s of model calls.
-export const maxDuration = 60;
+export const maxDuration = 300; // the after() worker generates the full date (~21 model calls); a paid/slower model needs well over 60s
 
 const id = z.string().min(1).max(64);
 const gameBudget = z.union(GAME_BUDGETS.map((b) => z.literal(b)) as [z.ZodLiteral<GameBudget>, ...z.ZodLiteral<GameBudget>[]]);

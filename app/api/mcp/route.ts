@@ -12,7 +12,7 @@ import { handleMcpPost, type McpContext } from "@/lib/mcp";
  * a browser-based client such as the MCP Inspector can connect without letting one site act as another.
  */
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300; // the after() worker generates the full date (~21 model calls); a paid/slower model needs well over 60s
 
 const MAX_BODY_BYTES = 64_000;
 const CORS = {
