@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import CreateWizard, { type EditInitial } from "@/app/create/CreateWizard";
+import { approvedPortraitId } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import type { CharacterExtras } from "@/lib/extras";
 import { userIdFromCookieStore } from "@/lib/http";
@@ -44,7 +45,7 @@ export default async function EditCharacterPage({ params }: { params: Promise<{ 
   ).rows[0];
   if (!row) notFound(); // not yours (or not there): no hint which
 
-  const soul = await loadSoul(db, id);
+  const [soul, portraitId] = await Promise.all([loadSoul(db, id), approvedPortraitId(db, id)]);
   const initial: EditInitial = {
     name: row.name,
     age: row.age,
@@ -70,6 +71,8 @@ export default async function EditCharacterPage({ params }: { params: Promise<{ 
         }
       : null,
     imageTrained: Boolean(soul?.signals),
+    // The same portrait the card shows (lib/game.ts getPublicCharacter): the newest approved one.
+    portrait: portraitId ? `/api/assets/${portraitId}` : null,
   };
   return <CreateWizard edit={{ id, initial }} />;
 }
