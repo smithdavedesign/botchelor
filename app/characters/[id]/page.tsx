@@ -10,7 +10,8 @@ import ProfileDetails from "./ProfileDetails";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { getDb } from "@/lib/db";
 import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
-import { describeDrift, loadCharacterMemory } from "@/lib/memory";
+import { thisWeek } from "@/lib/life";
+import { connections, describeDrift, loadCharacterMemory, stageFor } from "@/lib/memory";
 import { getCharacterRatings } from "@/lib/ratings";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ENDING_LABELS } from "@/lib/rules";
@@ -47,6 +48,9 @@ export default async function CharacterPage({ params }: Props) {
     loadCharacterMemory(db, id),
     getDatingProfile(db, id),
   ]);
+  const week = thisWeek(c.id, c.this_week);
+  const people = connections(memory);
+  const remembered = (memory?.people ?? []).filter((p) => p.wanted_more !== null || p.they_said);
 
   return (
     <article>
@@ -63,7 +67,7 @@ export default async function CharacterPage({ params }: Props) {
           </h1>
           <p className="muted">
             Age {c.age}
-            {c.pronouns && <> · {c.pronouns}</>}
+            {c.pronouns && <> · {c.pronouns}</>} · <span className="stage">{stageFor(memory?.dates ?? 0)}</span>
           </p>
           {(c.extras.occupation || c.extras.hometown) && (
             <p className="contestant-job">
@@ -88,6 +92,11 @@ export default async function CharacterPage({ params }: Props) {
 
       <section className="card">
         <p>{c.bio}</p>
+        {week && (
+          <p className="this-week">
+            🗓️ <strong>This week:</strong> {week}
+          </p>
+        )}
         {c.appearance && (
           <p className="muted">
             <strong>Looks:</strong> {c.appearance}
@@ -130,7 +139,8 @@ export default async function CharacterPage({ params }: Props) {
                 memory.turnoffs.length > 0 ||
                 drift.length > 0 ||
                 memory.memorable_lines.length > 0 ||
-                memory.reflections.length > 0;
+                memory.reflections.length > 0 ||
+                remembered.length > 0;
               if (!hasLearned) return null;
               return (
                 <div className="training-data muted">
@@ -168,6 +178,24 @@ export default async function CharacterPage({ params }: Props) {
                       </ul>
                     </div>
                   )}
+                  {remembered.length > 0 && (
+                    <div>
+                      <strong>Who it remembers:</strong>
+                      <ul className="list">
+                        {remembered.map((p) => (
+                          <li key={p.id}>
+                            {p.name}
+                            {p.wanted_more !== null && <> — {p.wanted_more ? "still wants to see them again" : "isn't hoping for a rematch"}</>}
+                            {p.they_said && (
+                              <>
+                                ; remembers them saying <q>{p.they_said}</q>
+                              </>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   {memory.reflections.length > 0 && (
                     <div>
                       <strong>How it reflected on its recent dates:</strong>
@@ -183,6 +211,48 @@ export default async function CharacterPage({ params }: Props) {
                 </div>
               );
             })()}
+        </section>
+      )}
+
+      {memory && ((memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) && (
+        <section className="card">
+          <h2>Their story so far</h2>
+          {(memory.milestones?.length ?? 0) > 0 && (
+            <ul className="chips milestones">
+              {memory.milestones!.map((m) => (
+                <li className="chip" key={m.id}>
+                  <Link href={`/episodes/${m.episode_id}`}>{m.label}</Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {(memory.chapters?.length ?? 0) > 0 && (
+            <ul className="list chapters">
+              {memory.chapters!.map((ch) => (
+                <li key={ch.season}>
+                  <strong>{ch.label}</strong> — {ch.line}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {people.length > 0 && (
+        <section className="card">
+          <h2>Connections</h2>
+          <ul className="list connections">
+            {people.map((p) => (
+              <li key={p.id}>
+                <Link href={`/characters/${p.id}`}>{p.name}</Link> <span className="badge">{p.label}</span>
+                <span className="muted">
+                  {p.dates > 1 && <> · {p.dates} dates</>}
+                  {p.turned_down === "them" && <> · {c.name.split(" ")[0]} turned them down</>}
+                  {p.turned_down === "you" && <> · they turned {c.name.split(" ")[0]} down</>}
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

@@ -2819,6 +2819,26 @@ button.dice:hover:not(:disabled) {
   font-weight: 600;
   color: var(--accent-2);
 }
+/* A character's week, its run on the show, and its story (lib/life.ts, lib/memory.ts). */
+.this-week {
+  margin: 0.75rem 0 0;
+  padding: 0.55rem 0.85rem;
+  border-radius: 12px;
+  background: var(--soft);
+  font-size: var(--text-sm);
+}
+.stage {
+  font-weight: 700;
+  color: var(--accent-2);
+}
+.milestones .chip a {
+  color: inherit;
+  text-decoration: none;
+}
+.chapters li,
+.connections li {
+  margin-bottom: 0.35rem;
+}
 .profile-prompts {
   display: grid;
   gap: 0.6rem;

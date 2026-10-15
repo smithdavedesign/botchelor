@@ -432,6 +432,15 @@ create table if not exists character_memory (
 );
 -- Added 2026-10-15 for existing deployments: the recent post-date reflections fed into the self-view.
 alter table character_memory add column if not exists reflections jsonb not null default '[]';
+-- Added 2026-10-15 (lib/memory.ts): who a character has dated and how they stand (people; each entry's
+-- wanted_more is owner/self-only, the rest is public), its story a season at a time (chapters) and the
+-- landmarks it has reached (milestones). All recomputed from the aired record; no model call.
+alter table character_memory add column if not exists people jsonb not null default '[]';
+alter table character_memory add column if not exists chapters jsonb not null default '[]';
+alter table character_memory add column if not exists milestones jsonb not null default '[]';
+-- What's new in a character's life this week (lib/life.ts): the creator's own update and the season it was
+-- written for, {text, season}. Null (or a past season) means the show deals one. Public; prompts only.
+alter table characters add column if not exists this_week jsonb;
 
 -- Image assets and where they came from (the competitor report's image-rights record). Nothing in the
 -- app renders an image today: avatars and venue backdrops are drawn from character data (lib/avatar.ts,

@@ -5,6 +5,8 @@ import CreateWizard, { type EditInitial } from "@/app/create/CreateWizard";
 import { approvedPortraitId } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import type { CharacterExtras } from "@/lib/extras";
+import { dealtEvent, isOwnUpdate, type StoredThisWeek } from "@/lib/life";
+import { seasonIdAt } from "@/lib/season-cast";
 import { userIdFromCookieStore } from "@/lib/http";
 import { loadSoul } from "@/lib/souls";
 
@@ -24,6 +26,7 @@ type Row = {
   avatar_hue: number | null;
   open_to_dates: boolean;
   extras: CharacterExtras | null;
+  this_week: StoredThisWeek | null;
 };
 
 /**
@@ -38,7 +41,7 @@ export default async function EditCharacterPage({ params }: { params: Promise<{ 
   const db = await getDb();
   const row = (
     await db.query<Row>(
-      `select name, age, bio, traits, want, dealbreaker, pronouns, voice, appearance, avatar_hue, open_to_dates, extras
+      `select name, age, bio, traits, want, dealbreaker, pronouns, voice, appearance, avatar_hue, open_to_dates, extras, this_week
          from characters where id = $1 and owner_id = $2 and not is_house`,
       [id, viewerId],
     )
@@ -73,6 +76,8 @@ export default async function EditCharacterPage({ params }: { params: Promise<{ 
     imageTrained: Boolean(soul?.signals),
     // The same portrait the card shows (lib/game.ts getPublicCharacter): the newest approved one.
     portrait: portraitId ? `/api/assets/${portraitId}` : null,
+    thisWeek: isOwnUpdate(row.this_week) ? row.this_week!.text : null,
+    thisWeekDealt: dealtEvent(id, seasonIdAt(new Date())),
   };
   return <CreateWizard edit={{ id, initial }} />;
 }

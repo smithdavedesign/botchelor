@@ -23,6 +23,7 @@ import { characterPortrait } from "./portraits";
 import { loadCharacterMemory, MEMORY_SIGNAL_CAP, type CharacterMemory } from "./memory";
 import { getCharacterHistory, type CharacterRecord } from "./game";
 import { extrasForPrompt, extrasVisible, hasExtras, voiceExamples, type CharacterExtras } from "./extras";
+import { thisWeek, type StoredThisWeek } from "./life";
 
 const ZERO_RECORD: CharacterRecord = { dates: 0, second_dates: 0, friends: 0, disasters: 0 };
 
@@ -53,6 +54,8 @@ export type Character = {
   record: CharacterRecord;
   /** Optional details (lib/extras.ts): occupation, style, hobbies, quirks, prompts. Dialogue flavour only. */
   extras: CharacterExtras;
+  /** What's new in their life this week (lib/life.ts), or null. Public; dialogue flavour only. */
+  thisWeek: string | null;
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
@@ -82,6 +85,7 @@ export function assembleCharacter(args: {
   memory: CharacterMemory | null;
   record?: CharacterRecord;
   extras?: CharacterExtras | null;
+  thisWeek?: string | null;
 }): Character {
   const baseSignals = soulBaseSignals(args.soul);
   return {
@@ -102,6 +106,7 @@ export function assembleCharacter(args: {
     memory: args.memory,
     record: args.record ?? ZERO_RECORD,
     extras: args.extras ?? {},
+    thisWeek: args.thisWeek ?? null,
   };
 }
 
@@ -111,9 +116,9 @@ export async function loadCharacter(db: Db, id: string): Promise<Character | nul
     id: string; owner_id: string | null; name: string; age: number; bio: string;
     traits: string[]; want: string; dealbreaker: string; is_house: boolean;
     appearance: string | null; avatar_hue: number | null; pronouns: string | null; voice: string | null;
-    extras: CharacterExtras | null;
+    extras: CharacterExtras | null; this_week: StoredThisWeek | null;
   }>(
-    `select id, owner_id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue, pronouns, voice, extras
+    `select id, owner_id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue, pronouns, voice, extras, this_week
        from characters where id = $1`,
     [id],
   );
@@ -129,7 +134,10 @@ export async function loadCharacter(db: Db, id: string): Promise<Character | nul
     dealbreaker: r.dealbreaker, house: r.is_house, appearance: r.appearance ?? undefined,
     pronouns: r.pronouns ?? undefined, voice: r.voice ?? undefined,
   };
-  return assembleCharacter({ id: r.id, sheet, ownerId: r.owner_id, hue: r.avatar_hue, soul, memory, record: history.record, extras: r.extras });
+  return assembleCharacter({
+    id: r.id, sheet, ownerId: r.owner_id, hue: r.avatar_hue, soul, memory, record: history.record, extras: r.extras,
+    thisWeek: thisWeek(r.id, r.this_week),
+  });
 }
 
 /** The minimal deterministic input the engine reads. The engine's type is unchanged. */
@@ -184,6 +192,7 @@ export function characterSelfView(c: Character, privateExtra: Record<string, unk
     ...(c.extras.never_says?.length ? { never_say: c.extras.never_says } : {}),
     // Their own details: things they know about themselves and may bring up (never the other's).
     ...(Object.keys(details).length ? { details } : {}),
+    ...(c.thisWeek ? { whats_new_this_week: c.thisWeek } : {}),
     private: {
       soul: soul ?? "(none — play from your public sheet)",
       ...(memory ? { memory } : {}),
@@ -202,6 +211,7 @@ export function characterPublicView(c: Character): Record<string, unknown> {
     ...(c.look.appearance ? { appearance: c.look.appearance } : {}),
     ...(c.pronouns ? { pronouns: c.pronouns } : {}),
     ...(hasExtras(c.extras) && Object.keys(extrasForPrompt(c.extras)).length ? { details: extrasForPrompt(c.extras) } : {}),
+    ...(c.thisWeek ? { this_week: c.thisWeek } : {}),
   };
 }
 

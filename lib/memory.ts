@@ -21,9 +21,11 @@
  */
 import type { Db } from "./db";
 import type { SideOutcome, SoulSignals } from "./engine";
-import type { Ending } from "./rules";
+import { ENDING_LABELS, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
 import type { Turn } from "./conversation";
 import { checkFields } from "./safety";
+import { seasonIdAt } from "./season-cast";
+import { venue, type VenueId } from "./venues";
 
 /** Max learned drift per signal axis. Small on purpose: a character evolves, it does not transform. */
 export const MEMORY_SIGNAL_CAP = 0.15;
@@ -75,7 +77,80 @@ export type CharacterMemory = {
   reflections: string[];
   /** A single templated sentence of who the character has become; null before its first date. */
   arc: string | null;
+  /** Everyone it has dated, most recent first: how they stand, and what it remembers of last time. */
+  people?: PersonMemory[];
+  /** Its story so far, one line a season, most recent first. Public: built from the aired record. */
+  chapters?: Chapter[];
+  /** Firsts and landmarks it has reached, in the order it reached them. Public: from the aired record. */
+  milestones?: Milestone[];
 };
+
+/** How two characters stand, from the public record of their aired dates together. */
+export type PairStatus = "seeing" | "exes" | "friends" | "bad_blood";
+export const PAIR_STATUS_LABELS: Record<PairStatus, string> = {
+  seeing: "💞 Seeing each other",
+  exes: "💔 Exes",
+  friends: "🤝 Friends",
+  bad_blood: "🔥 Bad blood",
+};
+
+/** What a character remembers of one person it has dated. */
+export type PersonMemory = {
+  id: string;
+  name: string;
+  house: boolean;
+  dates: number;
+  /** Public: from the endings of their aired dates. */
+  status: PairStatus;
+  last_ending: Ending;
+  last_venue: VenueId | null;
+  /** When their last date aired (ISO). */
+  last_at: string;
+  /** Public drama of their last date, from this character's side: "you" got turned down, or turned "them" down. */
+  turned_down: "you" | "them" | null;
+  /**
+   * PRIVATE (self and owner only, like the debrief): whether this character wanted to see them again after the
+   * last date. Never on the card and never in the other character's prompt.
+   */
+  wanted_more: boolean | null;
+  /** A line of theirs from last time that stuck, and one of this character's own (from the aired transcript). */
+  they_said: string | null;
+  you_said: string | null;
+};
+
+/** One season of a character's story ("Week of Oct 12: 3 dates: a second date with Nell, …"). */
+export type Chapter = { season: string; label: string; dates: number; line: string };
+
+export type MilestoneId =
+  | "first_date" | "first_spark" | "made_a_friend" | "survived_a_disaster" | "rematch" | "comeback"
+  | "heartbreaker" | "on_a_roll" | "five_dates" | "ten_dates" | "twenty_five_dates";
+export const MILESTONE_LABELS: Record<MilestoneId, string> = {
+  first_date: "🎬 First date",
+  first_spark: "💘 First second date",
+  made_a_friend: "🤝 Made a friend",
+  survived_a_disaster: "🧯 Survived a disaster",
+  rematch: "🔁 First rematch",
+  comeback: "🌅 Comeback: a second date right after a disaster",
+  heartbreaker: "💔 Heartbreaker: turned someone down",
+  on_a_roll: "🔥 On a roll: three second dates in a row",
+  five_dates: "⭐ Five dates",
+  ten_dates: "🏅 Ten dates",
+  twenty_five_dates: "👑 Twenty-five dates",
+};
+export type Milestone = { id: MilestoneId; label: string; season: string; episode_id: string };
+
+/** Where a character is in its run on the show, by aired dates. */
+export function stageFor(dates: number): string {
+  if (dates === 0) return "Fresh face";
+  if (dates <= 2) return "Newcomer";
+  if (dates <= 5) return "Regular";
+  if (dates <= 11) return "Veteran";
+  return "Legend";
+}
+
+/** How many people a character remembers, most recent first; and how many chapters it keeps. */
+export const PEOPLE_KEPT = 12;
+export const CHAPTERS_KEPT = 8;
 
 type MemoryRow = {
   dates: number;
@@ -88,12 +163,16 @@ type MemoryRow = {
   memorable_lines: string[];
   reflections: string[];
   arc: string | null;
+  people: PersonMemory[] | null;
+  chapters: Chapter[] | null;
+  milestones: Milestone[] | null;
 };
 
 /** Reads the materialized memory for a character, or null when it has none yet (a fresh OC). */
 export async function loadCharacterMemory(db: Db, characterId: string): Promise<CharacterMemory | null> {
   const { rows } = await db.query<MemoryRow>(
-    `select dates, second_dates, friends, disasters, likes, turnoffs, signal_delta, memorable_lines, reflections, arc
+    `select dates, second_dates, friends, disasters, likes, turnoffs, signal_delta, memorable_lines, reflections, arc,
+            people, chapters, milestones
        from character_memory where character_id = $1`,
     [characterId],
   );
@@ -110,15 +189,26 @@ export async function loadCharacterMemory(db: Db, characterId: string): Promise<
     memorable_lines: r.memorable_lines ?? [],
     reflections: r.reflections ?? [],
     arc: r.arc,
+    people: r.people ?? [],
+    chapters: r.chapters ?? [],
+    milestones: r.milestones ?? [],
   };
 }
 
 type EpisodeRow = {
+  id: string;
   ending: Ending;
   sides: [SideOutcome, SideOutcome] | null;
   transcript: Turn[] | null;
   reflections: { a: string | null; b: string | null } | null;
   is_a: boolean;
+  revealed_at: string | Date;
+  drama_question: DramaQuestion | null;
+  drama_answer: DramaAnswer | null;
+  venue: VenueId | null;
+  other_id: string;
+  other_name: string;
+  other_house: boolean;
 };
 
 /** The episodes a character has learned from: its AIRED dates (same aired-only rule as the public record). */
@@ -193,8 +283,11 @@ function buildArc(m: Omit<CharacterMemory, "arc">): string | null {
  */
 export async function updateCharacterMemory(db: Db, characterId: string): Promise<CharacterMemory> {
   const { rows } = await db.query<EpisodeRow>(
-    `select e.ending, e.sides, e.transcript, e.reflections, (e.character_a = $1) as is_a
+    `select e.id, e.ending, e.sides, e.transcript, e.reflections, (e.character_a = $1) as is_a,
+            e.revealed_at, e.drama_question, e.drama_answer, e.setup->>'venue' as venue,
+            o.id as other_id, o.name as other_name, o.is_house as other_house
        from episodes e
+       join characters o on o.id = case when e.character_a = $1 then e.character_b else e.character_a end
       where ${MEMORY_EPISODES_WHERE}
       order by e.revealed_at, e.id`,
     [characterId],
@@ -270,17 +363,26 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
     memorable_lines,
     reflections,
   };
-  const memory: CharacterMemory = { ...base, arc: buildArc(base) };
+  const dated = rows.map(toDated);
+  const memory: CharacterMemory = {
+    ...base,
+    arc: buildArc(base),
+    people: rememberPeople(dated),
+    chapters: buildChapters(dated),
+    milestones: findMilestones(dated),
+  };
 
   await db.query(
     `insert into character_memory
-       (character_id, dates, second_dates, friends, disasters, likes, turnoffs, signal_delta, memorable_lines, reflections, arc, updated_at)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, now())
+       (character_id, dates, second_dates, friends, disasters, likes, turnoffs, signal_delta, memorable_lines, reflections, arc,
+        people, chapters, milestones, updated_at)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12::jsonb, $13::jsonb, $14::jsonb, now())
      on conflict (character_id) do update set
        dates = excluded.dates, second_dates = excluded.second_dates, friends = excluded.friends,
        disasters = excluded.disasters, likes = excluded.likes, turnoffs = excluded.turnoffs,
        signal_delta = excluded.signal_delta, memorable_lines = excluded.memorable_lines,
-       reflections = excluded.reflections, arc = excluded.arc, updated_at = now()`,
+       reflections = excluded.reflections, arc = excluded.arc, people = excluded.people,
+       chapters = excluded.chapters, milestones = excluded.milestones, updated_at = now()`,
     [
       characterId,
       memory.dates,
@@ -293,7 +395,186 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
       JSON.stringify(memory.memorable_lines),
       JSON.stringify(memory.reflections),
       memory.arc,
+      JSON.stringify(memory.people),
+      JSON.stringify(memory.chapters),
+      JSON.stringify(memory.milestones),
     ],
   );
   return memory;
+}
+
+/* ------------------------------------ people, chapters, milestones ------------------------------------ */
+
+/** One aired date, from this character's side. */
+type Dated = {
+  id: string;
+  ending: Ending;
+  at: Date;
+  season: string;
+  venue: VenueId | null;
+  other: { id: string; name: string; house: boolean };
+  wanted_more: boolean | null;
+  turned_down: "you" | "them" | null;
+  they_said: string | null;
+  you_said: string | null;
+};
+
+/** A side's most-interested line of a date that still passes the content filter, or null. */
+function standout(transcript: Turn[] | null, side: "a" | "b"): string | null {
+  const lines = (transcript ?? []).filter((t) => t.side === side && t.dialogue);
+  const best = [...lines].sort((x, y) => (y.interest ?? 0) - (x.interest ?? 0))[0];
+  return best && checkFields({ line: best.dialogue }).ok ? best.dialogue : null;
+}
+
+function toDated(r: EpisodeRow): Dated {
+  const me = r.is_a ? "a" : "b";
+  const them = r.is_a ? "b" : "a";
+  const at = new Date(r.revealed_at);
+  const rejected = r.drama_question === "rejected" ? r.drama_answer : null;
+  return {
+    id: r.id,
+    ending: r.ending,
+    at,
+    season: seasonIdAt(at),
+    venue: r.venue,
+    other: { id: r.other_id, name: r.other_name, house: r.other_house },
+    wanted_more: r.sides?.[r.is_a ? 0 : 1]?.wants_another ?? null,
+    turned_down: rejected === me ? "you" : rejected === them ? "them" : null,
+    they_said: standout(r.transcript, them),
+    you_said: standout(r.transcript, me),
+  };
+}
+
+/** How a pair stands after its aired dates (oldest first): the latest ending, coloured by what came before. */
+export function pairStatus(endings: Ending[]): PairStatus {
+  const last = endings[endings.length - 1];
+  if (last === "second_date") return "seeing";
+  if (endings.includes("second_date")) return "exes";
+  return last === "friends" ? "friends" : "bad_blood";
+}
+
+/** Everyone the character has dated, most recent first, capped. */
+function rememberPeople(dated: Dated[]): PersonMemory[] {
+  const byId = new Map<string, Dated[]>();
+  for (const d of dated) byId.set(d.other.id, [...(byId.get(d.other.id) ?? []), d]);
+  return [...byId.values()]
+    .map((ds): PersonMemory => {
+      const last = ds[ds.length - 1];
+      return {
+        id: last.other.id,
+        name: last.other.name,
+        house: last.other.house,
+        dates: ds.length,
+        status: pairStatus(ds.map((d) => d.ending)),
+        last_ending: last.ending,
+        last_venue: last.venue,
+        last_at: last.at.toISOString(),
+        turned_down: last.turned_down,
+        wanted_more: last.wanted_more,
+        they_said: last.they_said,
+        you_said: last.you_said,
+      };
+    })
+    .sort((x, y) => y.last_at.localeCompare(x.last_at) || x.id.localeCompare(y.id))
+    .slice(0, PEOPLE_KEPT);
+}
+
+const ENDING_PHRASE: Record<Ending, string> = { second_date: "a second date", friends: "just friends", disaster: "a disaster" };
+
+/** "Week of Oct 12" for a season id. */
+export function chapterLabel(season: string): string {
+  const day = new Date(`${season}T00:00:00.000Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return `Week of ${day}`;
+}
+
+/** One line a season, most recent first: "2 dates: a second date with Nell, a disaster with Teo." */
+function buildChapters(dated: Dated[]): Chapter[] {
+  const bySeason = new Map<string, Dated[]>();
+  for (const d of dated) bySeason.set(d.season, [...(bySeason.get(d.season) ?? []), d]);
+  return [...bySeason.entries()]
+    .sort(([x], [y]) => y.localeCompare(x))
+    .slice(0, CHAPTERS_KEPT)
+    .map(([season, ds]) => {
+      const parts = ds.slice(0, 3).map((d) => `${ENDING_PHRASE[d.ending]} with ${d.other.name.split(" ")[0]}`);
+      const more = ds.length - parts.length;
+      return {
+        season,
+        label: chapterLabel(season),
+        dates: ds.length,
+        line: `${ds.length === 1 ? "1 date" : `${ds.length} dates`}: ${parts.join(", ")}${more > 0 ? `, and ${more} more` : ""}.`,
+      };
+    });
+}
+
+/** The firsts and landmarks in a character's aired record, in the order it reached them. */
+export function findMilestones(dated: { id: string; ending: Ending; season: string; other: { id: string }; turned_down: "you" | "them" | null }[]): Milestone[] {
+  const got = new Map<MilestoneId, Milestone>();
+  const reach = (id: MilestoneId, d: { id: string; season: string }) => {
+    if (!got.has(id)) got.set(id, { id, label: MILESTONE_LABELS[id], season: d.season, episode_id: d.id });
+  };
+  const seen = new Set<string>();
+  let streak = 0;
+  dated.forEach((d, i) => {
+    const prev = dated[i - 1];
+    reach("first_date", d);
+    if (d.ending === "second_date") reach("first_spark", d);
+    if (d.ending === "friends") reach("made_a_friend", d);
+    if (d.ending === "disaster") reach("survived_a_disaster", d);
+    if (seen.has(d.other.id)) reach("rematch", d);
+    seen.add(d.other.id);
+    if (d.ending === "second_date" && prev?.ending === "disaster") reach("comeback", d);
+    if (d.turned_down === "them") reach("heartbreaker", d);
+    streak = d.ending === "second_date" ? streak + 1 : 0;
+    if (streak >= 3) reach("on_a_roll", d);
+    if (i + 1 === 5) reach("five_dates", d);
+    if (i + 1 === 10) reach("ten_dates", d);
+    if (i + 1 === 25) reach("twenty_five_dates", d);
+  });
+  return [...got.values()];
+}
+
+/* --------------------------------------- what reaches a date's prompt --------------------------------------- */
+
+const STANDING: Record<PairStatus, string> = {
+  seeing: "You've been seeing each other.",
+  exes: "You had something once; it didn't last.",
+  friends: "You're friends.",
+  bad_blood: "Last time went badly.",
+};
+
+/**
+ * What this character remembers of the person it's about to meet, for its own prompt — or null when they've
+ * never aired a date together. Only its own side: its own feeling, never theirs.
+ */
+export function metBefore(memory: CharacterMemory | null | undefined, otherId: string): Record<string, unknown> | null {
+  const p = memory?.people?.find((x) => x.id === otherId);
+  if (!p) return null;
+  return {
+    times: p.dates,
+    last_time: `${venue(p.last_venue).name.toLowerCase()}; it ended: ${ENDING_LABELS[p.last_ending]}`,
+    where_you_stand: STANDING[p.status],
+    ...(p.turned_down === "you" ? { how_it_ended_for_you: "They turned you down." } : p.turned_down === "them" ? { how_it_ended_for_you: "You turned them down." } : {}),
+    ...(p.wanted_more !== null ? { how_you_left_it: p.wanted_more ? "You wanted to see them again." : "You didn't want to see them again." } : {}),
+    ...(p.they_said ? { something_they_said: p.they_said } : {}),
+    ...(p.you_said ? { something_you_said: p.you_said } : {}),
+  };
+}
+
+/** Its last few dates with OTHER people, so it has a dating life to mention ("my last date was a disaster"). */
+export function recentDates(memory: CharacterMemory | null | undefined, excludeId: string, n = 2): string[] {
+  return (memory?.people ?? [])
+    .filter((p) => p.id !== excludeId)
+    .slice(0, n)
+    .map((p) => `With ${p.name.split(" ")[0]} at ${venue(p.last_venue).name.toLowerCase()}: ${ENDING_LABELS[p.last_ending]}.`);
+}
+
+/** Words both sides of a rematch already heard last time: never "profile reading" (lib/quality.ts). */
+export function sharedHistory(memory: CharacterMemory | null | undefined, otherId: string): string {
+  const p = memory?.people?.find((x) => x.id === otherId);
+  return p ? [p.they_said ?? "", p.you_said ?? ""].join(" ") : "";
+}
+
+/** The public face of the people a character has dated: names and how they stand, never the private feeling. */
+export function connections(memory: CharacterMemory | null | undefined): { id: string; name: string; house: boolean; dates: number; status: PairStatus; label: string; turned_down: "you" | "them" | null }[] {
+  return (memory?.people ?? []).map((p) => ({ id: p.id, name: p.name, house: p.house, dates: p.dates, status: p.status, label: PAIR_STATUS_LABELS[p.status], turned_down: p.turned_down }));
 }

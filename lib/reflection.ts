@@ -20,6 +20,7 @@ import { characterBlindView, characterSelfView, type Character } from "./charact
 import { trimTo, type Turn } from "./conversation";
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { formatNote, type FormatContext, type FormatId } from "./formats";
+import { metBefore } from "./memory";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { agenda, ENDING_LABELS } from "./rules";
 import { checkFields } from "./safety";
@@ -92,12 +93,14 @@ export function buildReflectionMessages(
   const meChar = characters[sideIndex];
   const themChar = characters[sideIndex === 0 ? 1 : 0];
   const names: [string, string] = [input.a.sheet.name, input.b.sheet.name];
+  const history = metBefore(meChar.memory, themChar.id); // a rematch: this date is the next chapter, not a first meeting
   const data = {
     you: characterSelfView(meChar, dateContext(me)),
     them: characterBlindView(themChar),
     the_date_was_at: venue(venueId).prompt,
     the_show_format: formatNote(formatId, formatCtx),
     what_you_want_in_someone: meChar.persona.want,
+    ...(history ? { you_had_met_them_before: history } : {}),
     ...(date.length ? { the_date: date.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue })) } : {}),
     how_it_ended: ENDING_LABELS[outcome.ending],
     your_feeling: feelingFor(sideIndex, outcome),
