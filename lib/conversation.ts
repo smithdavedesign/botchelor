@@ -244,6 +244,12 @@ export async function simulateConversation(
   turns: number = format(formatId).turns ?? CONVERSATION_TURNS,
   formatCtx: FormatContext = {},
   plan?: DatePlan,
+  /**
+   * The model for a given side's turns (BYOK). When it returns a model, that side's lines run on it; else the
+   * platform `model`. A side's turn prompt only ever carries that side's own soul, so a user's key never sees
+   * another user's private soul (lib/keys, lib/pipeline keyForSide).
+   */
+  actorForSide?: (side: "a" | "b") => Model | null,
 ): Promise<Turn[]> {
   const transcript: Turn[] = [];
   const reasons: string[] = [];
@@ -253,13 +259,14 @@ export async function simulateConversation(
       plan: beats,
       totalTurns: turns,
     });
+    const turnModel = actorForSide?.(side) ?? model;
     let turn: Turn | null = null;
     let draft: Turn | null = null; // a parsed line the critic sent back: kept if the revision doesn't work out
     let prompt = messages;
     for (let attempt = 0; attempt < TURN_ATTEMPTS && !turn; attempt++) {
       let raw: string;
       try {
-        raw = await model.complete(prompt, { temperature: TURN_TEMPERATURE });
+        raw = await turnModel.complete(prompt, { temperature: TURN_TEMPERATURE });
       } catch (err) {
         reasons.push(err instanceof ModelError ? err.message : "model_error");
         if (draft) break; // the critic never costs more than its one revision

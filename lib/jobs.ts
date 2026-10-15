@@ -19,9 +19,21 @@ import { isAfterglowEnabled } from "./afterglow";
 import { generateDate } from "./pipeline";
 import type { Db } from "./db";
 import { safeEqual } from "./http";
+
+/** The owner ids of a date's two characters (null for a house character), in side order. */
+async function characterOwners(db: Db, aId: string, bId: string): Promise<[string | null, string | null]> {
+  const { rows } = await db.query<{ id: string; owner_id: string | null }>(
+    `select id, owner_id from characters where id = any($1)`,
+    [[aId, bId]],
+  );
+  const owner = (id: string) => rows.find((r) => r.id === id)?.owner_id ?? null;
+  return [owner(aId), owner(bId)];
+}
 import { getEngine, type CharacterSheet } from "./engine";
 import { DEFAULT_FORMAT } from "./formats";
-import { getDirectorModel, getFrontierModel, getModel } from "./model";
+import { getDirectorModel, getFrontierModel, getModel, roleReasoning } from "./model";
+import { buildKeyForSide } from "./keys";
+import { soulText } from "./souls";
 import {
   DEFAULT_AUTONOMY,
   DEFAULT_GAME_BUDGET,
@@ -168,11 +180,20 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     const frontier = row.use_frontier ? getFrontierModel() : null;
     const models = frontier ? { actor: frontier, director: frontier } : { actor: getModel(), director: getDirectorModel() };
     const fmtCtx = { chaperone: built.setup.chaperone, ex: built.setup.ex };
+    // BYOK: a creator's own saved key runs their side's lines (and a soulless partner's), never the plan or
+    // recap (those see both souls). Off on a frontier run (that's the owner-approved paid path already).
+    let keyForSide: ((side: "a" | "b") => ReturnType<typeof getModel> | null) | undefined;
+    if (!frontier) {
+      const owners = await characterOwners(db, row.a_id, row.b_id);
+      const reachable = built.characters.map((c) => Boolean(c.soul && !c.soul.local_only && (soulText(c.soul) ?? "").trim())) as [boolean, boolean];
+      keyForSide = await buildKeyForSide(db, owners, reachable, roleReasoning("actor"));
+    }
     const gen = await generateDate(models, built, decided, {
       formatId,
       formatCtx: fmtCtx,
       conversation: isConversationEnabled(),
       afterglow: isAfterglowEnabled(),
+      keyForSide,
     });
     if (gen.conversationError) {
       track("conversation_failed", { episode_id: episodeId, where: "job", reason: failureReason(gen.conversationError) });

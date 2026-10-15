@@ -117,6 +117,20 @@ create table if not exists accounts (
   updated_at timestamptz not null default now()
 );
 
+-- BYOK (M16): a signed-in user's own model provider key, AES-256-GCM encrypted (lib/keys). Only the
+-- provider, last four and optional model are ever read back; the key itself leaves only to that provider.
+create table if not exists user_keys (
+  user_id text not null references accounts (user_id) on delete cascade,
+  provider text not null,
+  kind text not null default 'text' check (kind in ('text', 'image')),
+  ciphertext text not null,
+  nonce text not null,
+  last4 text not null,
+  model text,
+  created_at timestamptz not null default now(),
+  primary key (user_id, provider, kind)
+);
+
 create table if not exists identity_consents (
   episode_id text not null references episodes (id) on delete cascade,
   user_id text not null,

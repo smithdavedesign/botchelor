@@ -157,16 +157,20 @@ export async function simulateAfterglow(
   turns: number = AFTERGLOW_TURNS,
   formatCtx: FormatContext = {},
   date: Turn[] = [],
+  /** BYOK: the model for a given side's texts, or null for the platform model. A text carries only that
+   *  side's own soul, so a user's key never sees another user's private soul (lib/pipeline keyForSide). */
+  actorForSide?: (side: "a" | "b") => Model | null,
 ): Promise<AfterglowLine[]> {
   const thread: AfterglowLine[] = [];
   const reasons: string[] = [];
   for (let i = 0; i < turns; i++) {
     const { messages, side } = buildAfterglowMessages(input, outcome, characters, venueId, formatId, thread, i, formatCtx, date);
+    const turnModel = actorForSide?.(side) ?? model;
     let line: AfterglowLine | null = null;
     for (let attempt = 0; attempt < AFTERGLOW_ATTEMPTS && !line; attempt++) {
       let raw: string;
       try {
-        raw = await model.complete(messages, { temperature: 0.9 });
+        raw = await turnModel.complete(messages, { temperature: 0.9 });
       } catch (err) {
         reasons.push(err instanceof ModelError ? err.message : "model_error");
         continue;
