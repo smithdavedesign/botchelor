@@ -326,6 +326,53 @@ async function main() {
       assert((await page.locator('#start input[name="name"]').inputValue()).length > 0, "sample did not fill the name");
       assert((await page.locator('#start input[name="dealbreaker"]').inputValue()).length > 0, "sample did not fill the dealbreaker");
     });
+
+    // M16: accounts, ownership, BYOK, visibility. This browser's anonymous session already owns the
+    // character and date made above, so an account adopts them.
+    const handle = `mapmaker${Date.now() % 100000}`;
+    const pw = ["e2e", "account", "pass", "99"].join("-"); // built from parts, never a literal secret
+    await step("signs up for an optional account that adopts this browser's characters and dates", async () => {
+      await page.goto(`${base}/account`);
+      await page.locator('input[name="handle"]').fill(handle);
+      await page.locator('input[name="password"]').fill(pw);
+      await page.locator('input[name="attest"]').check();
+      await page.getByRole("button", { name: "Create account" }).click();
+      await page.getByText(`Signed in as ${handle}`).waitFor({ timeout: 10_000 });
+      await page.getByRole("heading", { name: "Your characters" }).waitFor();
+      assert((await page.locator(".account-links a").count()) > 0, "the account shows no characters it should own");
+      assert((await page.locator(".account-dates li").count()) > 0, "the account shows no dates it should own");
+    });
+
+    await step("brings their own model key, shown only by its last four", async () => {
+      const apiKey = ["AIza", "e2e", "0".repeat(28), "L4st"].join(""); // fake, built from parts
+      await page.getByRole("heading", { name: "Your model key (optional)" }).waitFor();
+      await page.locator('select[name="provider"]').selectOption("google");
+      await page.locator('input[name="key"]').fill(apiKey);
+      await page.getByRole("button", { name: "Save key" }).click();
+      await page.getByText("····L4st").waitFor({ timeout: 10_000 });
+      const shown = await page.content();
+      assert(!shown.includes(apiKey), "the full API key must never be shown back");
+    });
+
+    await step("changes who can see a date, and it persists", async () => {
+      // This session's only date has a watch party (a public room), so it can't go private — unlisted is the
+      // allowed change here; the private-with-a-party rule is covered by unit tests.
+      const select = page.locator(".account-dates select").first();
+      await select.selectOption("unlisted");
+      await page.waitForTimeout(400);
+      await page.reload();
+      await page.locator(".account-dates select").first().waitFor();
+      assert((await page.locator(".account-dates select").first().inputValue()) === "unlisted", "visibility did not persist");
+    });
+
+    await step("edits their own character on its card", async () => {
+      await page.locator(".account-links a").first().click();
+      await page.getByRole("button", { name: "Edit or delete" }).click();
+      const newName = "Edited Contestant";
+      await page.locator('.owner-controls input[name="name"]').fill(newName);
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await page.getByRole("heading", { name: newName }).waitFor({ timeout: 10_000 });
+    });
   } finally {
     await browser.close();
     await stopApp(app);

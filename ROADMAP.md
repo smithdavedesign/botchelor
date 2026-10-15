@@ -416,6 +416,26 @@ Phase 1 (make it genuine at $0) and Phase 2 (an eval harness + a model A/B), and
 - **Next:** measure v4 after the quota resets (commands in `docs/date-quality.md`), re-judge all runs on one
   judge, then the director A/B if David approves the key.
 
+## M16: accounts, ownership, visibility and bring-your-own-key (see `docs/accounts-and-byok.md`)
+
+David's brief (2026-10-15): optional accounts (Google and/or handle+password, staying anonymous-friendly);
+a creator owns and can edit their own characters but not others'; private vs public dates; and players can
+bring their own model key for text (and later image/video). Built holistically, anonymous play preserved.
+
+- **Optional accounts (shipped, #57).** An account is a login attached to the anonymous id it adopts, so
+  nothing moves on sign-up. Signed `bz_sess` sessions (HMAC); handle+password (scrypt) and Google OAuth, both
+  gated on secrets so the app degrades to anonymous-only without them. `/account` page. `SESSION_SECRET` live.
+- **Character ownership (shipped, #58).** `PATCH`/`DELETE /api/characters/[id]`, owner-only; edit any time,
+  tombstone after airing; owner-only controls on the contestant card. Past outcomes stay settled.
+- **Date visibility (shipped, #59).** public / unlisted / private on every episode; feed, view and watch
+  scoped; private and unlisted excluded from every public aggregate (record, arc, points, boards, reunion);
+  `/account` lists your own dates with a visibility selector.
+- **Bring your own key (shipped, #60).** Encrypted (AES-GCM from SESSION_SECRET), account-only, known
+  OpenAI-compatible providers only. A key runs only its owner's side (and a soulless partner); the plan and
+  recap stay on the platform, so a key never sees another user's soul. Image/video keys stored for later.
+- **Next (owner / follow-ups):** set `GOOGLE_OAUTH_*` to turn on Google sign-in; per-side BYOK for
+  two-user blind dates; wire image/video generation (needs spend + moderation).
+
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
 The competitor report's image plan, built at $0 — first-party assets only, reviewed and committed (no runtime generation, no uploads):

@@ -146,6 +146,8 @@ export function appEnv(showrunnerPort, dataDir) {
     STRIPE_PRICE_LABEL: SAMPLE_PRICE_LABEL,
     STRIPE_WEBHOOK_SECRET: RUN_WEBHOOK_SECRET,
     WATCH_ADMIN_TOKEN,
+    // A throwaway signing secret so accounts + BYOK are exercised end to end (M16). Never a real key.
+    SESSION_SECRET: ["e2e", "session", "secret", randomBytes(16).toString("hex")].join("-"),
     // Generate episodes inline so the demo/e2e don't race the async after() worker.
     BOTCHELOR_INLINE_GENERATION: "1",
     NEXT_TELEMETRY_DISABLED: "1",
