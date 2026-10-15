@@ -187,6 +187,20 @@ export async function loginWithGoogle(db: Db, currentUserId: string, sub: string
 export const googleConfigured = (env: Record<string, string | undefined> = process.env): boolean =>
   Boolean(env.GOOGLE_OAUTH_CLIENT_ID && env.GOOGLE_OAUTH_CLIENT_SECRET);
 
+/**
+ * The exact OAuth redirect URI, which MUST be byte-identical in the authorization request (/start), the token
+ * exchange (/callback) and what's registered in Google — a mismatch is the classic "redirect_uri_mismatch".
+ * So it comes from one place: OAUTH_REDIRECT_BASE if set (pin it to the canonical domain), else Vercel's
+ * production domain, else the request's own origin (local dev). Always the same value in both routes.
+ */
+export function oauthRedirectUri(req: Request, env: Record<string, string | undefined> = process.env): string {
+  const base =
+    env.OAUTH_REDIRECT_BASE?.replace(/\/+$/, "") ||
+    (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : null) ||
+    new URL(req.url).origin;
+  return `${base}/api/auth/google/callback`;
+}
+
 /** A short-lived signed value tying the OAuth redirect to this browser (CSRF protection for the callback). */
 export function signOAuthState(nonce: string, env: Record<string, string | undefined> = process.env): string | null {
   const secret = sessionSecret(env);

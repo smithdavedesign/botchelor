@@ -10,6 +10,7 @@ import {
   exchangeGoogleCode,
   hashPassword,
   loginWithGoogle,
+  oauthRedirectUri,
   registerAccount,
   signOAuthState,
   signSession,
@@ -110,6 +111,16 @@ describe("accounts over the database", () => {
     const fetchImpl = (async () => new Response(JSON.stringify({ id_token: idToken }), { status: 200 })) as typeof fetch;
     const identity = await exchangeGoogleCode("code", "https://app/cb", { GOOGLE_OAUTH_CLIENT_ID: "id", GOOGLE_OAUTH_CLIENT_SECRET: ["c","sec"].join("-") }, fetchImpl);
     expect(identity).toEqual({ sub: "sub-xyz", email: "x@example.com" });
+  });
+
+  it("builds the redirect URI from one source so /start and /callback always match Google's registration", () => {
+    const req = new Request("https://botchelor-preview-xyz.vercel.app/api/auth/google/start");
+    // An explicit base wins (pin it to the canonical domain).
+    expect(oauthRedirectUri(req, { OAUTH_REDIRECT_BASE: "https://botchelor.vercel.app" })).toBe("https://botchelor.vercel.app/api/auth/google/callback");
+    // Else Vercel's production domain (so a preview deploy still points at the registered prod callback).
+    expect(oauthRedirectUri(req, { VERCEL_PROJECT_PRODUCTION_URL: "botchelor.vercel.app" })).toBe("https://botchelor.vercel.app/api/auth/google/callback");
+    // Else the request's own origin (local dev).
+    expect(oauthRedirectUri(new Request("http://localhost:3000/api/auth/google/start"), {})).toBe("http://localhost:3000/api/auth/google/callback");
   });
 });
 

@@ -1,4 +1,4 @@
-import { exchangeGoogleCode, googleConfigured, loginWithGoogle, verifyOAuthState } from "@/lib/auth";
+import { exchangeGoogleCode, googleConfigured, loginWithGoogle, oauthRedirectUri, verifyOAuthState } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, sessionCookies } from "@/lib/http";
 
@@ -23,7 +23,7 @@ export const GET = handle(async (req) => {
   if (!code || !state || state !== cookieState || !verifyOAuthState(state)) return redirect("/account?error=oauth_state");
 
   try {
-    const identity = await exchangeGoogleCode(code, `${url.origin}/api/auth/google/callback`);
+    const identity = await exchangeGoogleCode(code, oauthRedirectUri(req));
     const current = authFromRequest(req)?.userId ?? crypto.randomUUID();
     const userId = await loginWithGoogle(await getDb(), current, identity.sub, identity.email);
     return redirect("/account?signed_in=1", sessionCookies({ userId, authenticated: true }));

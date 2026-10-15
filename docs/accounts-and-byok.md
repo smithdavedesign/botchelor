@@ -151,6 +151,27 @@ moderates its own generation. The user pays, so it's $0 to us; the prompt is bui
 |---|---|---|
 | `SESSION_SECRET` | signed sessions → accounts and BYOK | anonymous-only, unsigned `bz_uid`, as before |
 | `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` | "Continue with Google" | the button is hidden; handle+password still works |
+| `OAUTH_REDIRECT_BASE` | pins the OAuth callback to the canonical domain (set on prod to `https://botchelor.vercel.app`) | the callback is derived from the request / Vercel's production domain |
+
+## Turning on Google sign-in (owner action, ~5 minutes)
+
+The whole flow is built and tested; it only needs an OAuth client, which has to be created under your Google
+account (it's an app identity tied to your login — an agent can't mint it). `OAUTH_REDIRECT_BASE` is already
+pinned on production, so the callback will match.
+
+1. Google Cloud Console → **APIs & Services → OAuth consent screen**: External, add an app name and your
+   support email, scopes `openid` and `email`. (A "Testing" app works for yourself; "Publish" for everyone.)
+2. **APIs & Services → Credentials → Create credentials → OAuth client ID**, type **Web application**.
+   Authorised redirect URI (exact): `https://botchelor.vercel.app/api/auth/google/callback`.
+3. Copy the **Client ID** and **Client secret**, then on Vercel production:
+   ```bash
+   printf '%s' "<client-id>"     | vercel env add GOOGLE_OAUTH_CLIENT_ID production --scope david-smiths-projects-fe129786
+   printf '%s' "<client-secret>" | vercel env add GOOGLE_OAUTH_CLIENT_SECRET production --sensitive --scope david-smiths-projects-fe129786
+   ```
+4. Redeploy (or push any commit). The "Continue with Google" button appears on `/account` and works.
+
+Store the client secret in the keychain too (`~/ai-stack/bin/secrets add botchelor GOOGLE_OAUTH_CLIENT_SECRET`),
+and it shows on RepoHQ → Settings → Keys. Handle+password registration already works and needs none of this.
 
 ## Tests
 - `tests/auth.test.ts` — session signing, passwords, account linking, the routes.
