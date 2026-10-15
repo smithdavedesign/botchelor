@@ -40,9 +40,11 @@ this table becomes a measurement, not an estimate.
   call per date, which understates today's pipeline about tenfold.
 
 **What keeps it down (in place since #55):**
-- **Thinking level per role.** The actor (every line, the texts) asks for `minimal`, and the director (plan,
-  recap) for `low`. Override with `LLM_ACTOR_REASONING` / `LLM_DIRECTOR_REASONING` (`default` sends none). A
-  model that refuses the setting is asked again without it, and remembered.
+- **Thinking level per role.** Both the actor (every line, the texts) and the director (plan, recap) ask for
+  `low` (the actor was raised from `minimal` on 2026-10-15 so it follows the grounded-first-date rules; budget a
+  little more thinking on the ~12 conversation calls). Override with `LLM_ACTOR_REASONING` /
+  `LLM_DIRECTOR_REASONING` (`default` sends none). A model that refuses the setting is asked again without it,
+  and remembered.
 - **Compact prompts.** The prompts are compact JSON: indentation was 5–8% of every call.
 - **Cache-friendly order.** The stable part of each turn (the rules, the speaker's own sheet, what they can see)
   comes first, so Gemini's implicit caching can discount it. Cached tokens are logged.
@@ -145,6 +147,27 @@ is fun (PRD: "If that loop is fun with text and portraits, the product is worth 
 compute-budget gate. It costs the same quality-wise, but it removes the daily cap and the training-on-prompts
 issue. Then the `gemini-3.8-flash` director A/B. A mid-frontier model for every role only if the A/B shows the
 writing still holds the show back.
+
+**2026-10-15 — the paid actor, specifically (David asked to "offer paid actor model").** The free-tier round
+(director → `gemini-3.5-flash`, actor reasoning → `low`, grounded prompt, `motif_fixation` critic; see
+`docs/date-quality.md` Round 2) is the ceiling without spending. The next lever is putting the ~12 **actor**
+turns on a paid model. This is already gated and needs no code change — it rides the frontier key
+(`docs/frontier.md`): set `FRONTIER_LLM_BASE_URL/_API_KEY/_MODEL` (via **Vercel AI Gateway**, with the free model
+kept as fallback), and the public flow stays $0 until a request carries the owner's `x-frontier-key`.
+
+What to buy, and the ask for approval:
+- **Model:** start with the live model on a **paid** Gemini key (`gemini-3.5-flash-lite`, same quality, no daily
+  cap, prompts not used for training) for the actor, keeping the `gemini-3.5-flash` director. If the eval A/B
+  wants more wit, step the actor up to a mid-frontier model (a Claude Haiku / GPT-mini class via the Gateway).
+- **Cost at today's pipeline:** ~1–2.5¢/date on paid Gemini; ~4–11¢/date if the actor goes mid-frontier (table
+  above). At 2,000 dates/mo that's ~$25–50 (paid Gemini) to ~$80–220 (mid-frontier every role).
+- **Provider cap to set at creation (policy: cap every billable key):** a **hard monthly budget on the Vercel AI
+  Gateway key**, suggested **$30/mo** to start, stored with `~/ai-stack/bin/secrets add … --cap "$30/mo"` and
+  read from env. The in-app compute-budget gate (per-user/per-day dollar cap) is the second guard and still
+  needs building (~a day) before exposing a paid key in the public flow.
+- **Approval needed from David:** (1) which model for the actor, (2) the monthly cap value, (3) go-ahead to
+  create the capped Gateway key and build the compute-budget gate. Agents don't create billable keys or spend;
+  this is the proposal — David approves and pays.
 
 ## 2. Character portraits (Level 1 images)
 
