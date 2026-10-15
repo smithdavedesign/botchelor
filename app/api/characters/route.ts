@@ -41,6 +41,15 @@ const CharacterInput = z.object({
       humor: z.number().min(0).max(1),
     })
     .optional(),
+  // The same four numbers, set directly (the builder's temperament sliders; agents). Private, like the soul.
+  temperament: z
+    .object({
+      warmth: z.number().min(0).max(1),
+      openness: z.number().min(0).max(1),
+      guardedness: z.number().min(0).max(1),
+      humor: z.number().min(0).max(1),
+    })
+    .optional(),
   // Optional private soul (PRD core feature 1): owner-only, drives the engine, never shown to spectators.
   soul: SoulInput.optional(),
   // Consent to be asked out by name: other creators (people or AI agents) may then pick this character as
@@ -100,11 +109,11 @@ export const POST = handle(async (req) => {
     ],
   );
   const hasSoul = Boolean(soul && !isEmptySoul(soul));
-  const signals = input.image_signals ?? null;
+  const signals = input.temperament ?? input.image_signals ?? null;
   // Save a soul row when there is soul text OR image-trained signals (so the image can shape behaviour).
   if (hasSoul || signals) await saveSoul(db, id, soul ?? normaliseSoul({}), input.soul?.local_only ?? false, signals);
 
-  const { attest: _attest, soul: _soul, image_signals: _sig, extras: _extras, this_week: _week, ...character } = input;
+  const { attest: _attest, soul: _soul, image_signals: _sig, temperament: _temp, extras: _extras, this_week: _week, ...character } = input;
   return json(
     { id, ...character, extras, this_week: thisWeek(id, input.this_week?.trim() ? stampThisWeek(input.this_week) : null), house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals) },
     201,

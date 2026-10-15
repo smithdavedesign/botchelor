@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { sheetSignals } from "@/lib/temperament";
 import {
   assembleCharacter,
   characterPublicView,
@@ -58,9 +59,11 @@ describe("assembleCharacter", () => {
     expect(c.look.portrait).toBeNull(); // not a house id
     expect(c.soul).toBe(SOUL);
     expect(c.memory).toBe(MEMORY);
-    // Effective = base (neutral here, no image/text signals matched) + the memory's bounded drift.
-    expect(c.signals.openness).toBeCloseTo(0.08, 5);
-    expect(c.baseSignals).toEqual(soulBaseSignals(SOUL));
+    // The soul's words name no temperament ("honesty"), so the base is what its own traits and voice describe
+    // (lib/temperament.ts: "curious" opens it up); effective = base + the memory's bounded drift.
+    expect(c.baseSignals).toEqual(sheetSignals(SHEET));
+    expect(c.baseSignals).toEqual(soulBaseSignals(SOUL, SHEET));
+    expect(c.signals.openness).toBeCloseTo(c.baseSignals.openness + 0.08, 5);
   });
 });
 

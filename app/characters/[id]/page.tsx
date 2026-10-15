@@ -10,7 +10,9 @@ import ProfileDetails from "./ProfileDetails";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { getDb } from "@/lib/db";
 import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
+import { loadCharacter } from "@/lib/character";
 import { thisWeek } from "@/lib/life";
+import { describeTemperament } from "@/lib/temperament";
 import { connections, describeDrift, loadCharacterMemory, stageFor } from "@/lib/memory";
 import { getCharacterRatings } from "@/lib/ratings";
 import { userIdFromCookieStore } from "@/lib/http";
@@ -49,6 +51,8 @@ export default async function CharacterPage({ params }: Props) {
     getDatingProfile(db, id),
   ]);
   const week = thisWeek(c.id, c.this_week);
+  // Owner only: how the engine reads it on a date (its effective temperament, learned drift included).
+  const plays = ratings.is_owner && !c.house ? (await loadCharacter(db, id))?.signals ?? null : null;
   const people = connections(memory);
   const remembered = (memory?.people ?? []).filter((p) => p.wanted_more !== null || p.they_said);
 
@@ -80,6 +84,12 @@ export default async function CharacterPage({ params }: Props) {
       </div>
 
       {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} />}
+      {plays && (
+        <p className="muted small owner-temperament">
+          🔒 How {c.name.split(" ")[0]} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}
+          <Link href={`/characters/${c.id}/edit`}>Soul step</Link>.
+        </p>
+      )}
 
       {c.clip_asset_id && (
         <section className="card">

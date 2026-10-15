@@ -24,6 +24,7 @@ import { loadCharacterMemory, MEMORY_SIGNAL_CAP, type CharacterMemory } from "./
 import { getCharacterHistory, type CharacterRecord } from "./game";
 import { extrasForPrompt, extrasVisible, hasExtras, voiceExamples, type CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
+import { baseSignals, sheetSignals } from "./temperament";
 
 const ZERO_RECORD: CharacterRecord = { dates: 0, second_dates: 0, friends: 0, disasters: 0 };
 
@@ -60,9 +61,13 @@ export type Character = {
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
-/** The base signals a soul yields: image-trained signals win over text-derived ones; neutral with no soul. */
-export function soulBaseSignals(soul: StoredSoul | null): SoulSignals {
-  return soul ? (soul.signals ?? deriveSoulSignals(soul)) : NEUTRAL_SIGNALS;
+/**
+ * The base signals a character plays from (lib/temperament.ts): explicit signals (a trained image or the builder's
+ * sliders) win, then the private soul's words, then the temperament its own traits and voice describe. Without
+ * a sheet (old callers), a soul-less character is blank, which the engine reads as unremarkable.
+ */
+export function soulBaseSignals(soul: StoredSoul | null, sheet?: Pick<CharacterSheet, "traits" | "voice">): SoulSignals {
+  return baseSignals(soul, soul ? deriveSoulSignals(soul) : null, sheet ? sheetSignals(sheet) : NEUTRAL_SIGNALS);
 }
 
 /** The effective engine signals: base plus the memory's bounded drift, clamped to 0..1 per axis. */
@@ -87,7 +92,7 @@ export function assembleCharacter(args: {
   extras?: CharacterExtras | null;
   thisWeek?: string | null;
 }): Character {
-  const baseSignals = soulBaseSignals(args.soul);
+  const base = soulBaseSignals(args.soul, args.sheet);
   return {
     id: args.id,
     name: args.sheet.name,
@@ -101,8 +106,8 @@ export function assembleCharacter(args: {
     voice: args.sheet.voice ?? null,
     dealbreaker: args.sheet.dealbreaker,
     soul: args.soul,
-    baseSignals,
-    signals: effectiveSignals(baseSignals, args.memory),
+    baseSignals: base,
+    signals: effectiveSignals(base, args.memory),
     memory: args.memory,
     record: args.record ?? ZERO_RECORD,
     extras: args.extras ?? {},

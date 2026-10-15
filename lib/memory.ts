@@ -178,6 +178,10 @@ export async function loadCharacterMemory(db: Db, characterId: string): Promise<
   );
   const r = rows[0];
   if (!r) return null;
+  // A memory written before people/chapters/milestones existed (2026-10-15): it has aired dates but not even the
+  // "First date" milestone every aired character reaches. Recompute it once from the aired record ($0, no model),
+  // so existing characters get their story and their rematch memory without waiting for their next date.
+  if (r.dates > 0 && !(r.milestones ?? []).length) return updateCharacterMemory(db, characterId);
   return {
     dates: r.dates,
     second_dates: r.second_dates,

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { sheetSignals } from "@/lib/temperament";
 import { buildDate, DEFAULT_DATE_REQUEST, slidingDoors } from "@/lib/simulation";
 import { characterSheet, loadCharacter } from "@/lib/character";
 import type { SideOutcome } from "@/lib/engine";
@@ -20,11 +21,13 @@ const so = (over: Partial<SideOutcome> = {}): SideOutcome => ({
 });
 
 /** Writes a learned drift directly onto a character's memory (bypassing the date pipeline). */
+// A memory row as the current code writes it (with its milestones), so lib/memory.ts doesn't treat it as one from
+// before the story existed and rebuild it from the (empty) aired record.
 async function setMemoryDelta(id: string, delta: Record<string, number>): Promise<void> {
   await t.db.query(
-    `insert into character_memory (character_id, dates, second_dates, friends, disasters, signal_delta)
-     values ($1, 3, 3, 0, 0, $2::jsonb)
-     on conflict (character_id) do update set signal_delta = excluded.signal_delta, dates = 3, second_dates = 3`,
+    `insert into character_memory (character_id, dates, second_dates, friends, disasters, signal_delta, milestones)
+     values ($1, 3, 3, 0, 0, $2::jsonb, '[{"id":"first_date"}]'::jsonb)
+     on conflict (character_id) do update set signal_delta = excluded.signal_delta, dates = 3, second_dates = 3, milestones = excluded.milestones`,
     [id, JSON.stringify(delta)],
   );
 }
@@ -47,7 +50,8 @@ describe("memory-as-behavior — the engine runs on effective signals", () => {
   it("buildDate feeds the engine the memory-drifted signals and snapshots them on the setup", async () => {
     const creator = newUserCookie();
     const oc = await makeOc(creator);
-    // No soul => base signals are neutral (all 0). A learned drift should show through as the effective signals.
+    // No soul => base signals are the temperament its own sheet describes (lib/temperament.ts). A learned drift
+    // shows through on top of them as the effective signals.
     await setMemoryDelta(oc.id, { warmth: 0.1, openness: 0.12 });
 
     const [ocChar, houseChar] = await Promise.all([loadCharacter(t.db, oc.id), loadCharacter(t.db, HOUSE_PARTNER_ID)]);
@@ -60,7 +64,12 @@ describe("memory-as-behavior — the engine runs on effective signals", () => {
       777,
     );
 
-    expect(built.setup.signals_a).toEqual({ warmth: 0.1, openness: 0.12, guardedness: 0, humor: 0 });
+    const base = sheetSignals(characterSheet(ocChar!));
+    const snap = built.setup.signals_a!;
+    expect(snap.warmth).toBeCloseTo(Math.min(1, base.warmth + 0.1), 5);
+    expect(snap.openness).toBeCloseTo(Math.min(1, base.openness + 0.12), 5);
+    expect(snap.guardedness).toBe(base.guardedness);
+    expect(snap.humor).toBe(base.humor);
     // The engine input used exactly that snapshot (side A is the owner's side).
     expect(built.input.a.signals).toEqual(built.setup.signals_a);
   });
@@ -77,7 +86,7 @@ describe("memory-as-behavior — the engine runs on effective signals", () => {
       DEFAULT_DATE_REQUEST,
       777,
     );
-    expect(built.setup.signals_a).toEqual({ warmth: 0, openness: 0, guardedness: 0, humor: 0 });
+    expect(built.setup.signals_a).toEqual(sheetSignals(characterSheet(ocChar!)));
     expect(built.input.a.signals).toEqual(built.setup.signals_a);
   });
 });

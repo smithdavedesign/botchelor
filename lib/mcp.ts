@@ -30,6 +30,7 @@ import { listCast } from "./mechanics";
 import { connections, describeDrift, loadCharacterMemory, PAIR_STATUS_LABELS, stageFor } from "./memory";
 import { loadCharacter } from "./character";
 import { originality } from "./originality";
+import { describeTemperament } from "./temperament";
 import { ownsCharacter } from "./souls";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { getOwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
@@ -100,6 +101,20 @@ const SHEET_PROPS = {
     },
   },
   extras: extrasJsonSchema(),
+  temperament: {
+    type: "object",
+    description:
+      "Optional and private: how the engine reads your character on a date, 0..1 each — warmth, openness (to new things), guardedness, humor. " +
+      "Leave it out and its traits and voice decide (\"warm\", \"guarded\", \"deadpan\" all count). On update, null hands it back to them.",
+    additionalProperties: false,
+    required: ["warmth", "openness", "guardedness", "humor"],
+    properties: {
+      warmth: { type: "number", minimum: 0, maximum: 1 },
+      openness: { type: "number", minimum: 0, maximum: 1 },
+      guardedness: { type: "number", minimum: 0, maximum: 1 },
+      humor: { type: "number", minimum: 0, maximum: 1 },
+    },
+  },
   this_week: str(100, "Optional: what's new in their life this week (\"just adopted a very old cat\"). Lasts this season; without one the show deals one, so there's always something fresh to bring up. On update, null hands it back to the show."),
 } as const;
 
@@ -519,7 +534,7 @@ const pick = (args: Record<string, unknown>, keys: string[]): Record<string, unk
   return out;
 };
 
-const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul", "extras", "this_week"];
+const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul", "extras", "this_week", "temperament"];
 
 /* ------------------------------------------- sessions & identity ------------------------------------------- */
 
@@ -814,12 +829,16 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const c = await loadCharacter(db, id);
       const m = c?.memory;
       if (!c || !m || m.dates === 0) {
-        return { data: { character_id: id, stage: stageFor(0), this_week: c?.thisWeek ?? null, note: "Nothing learned yet: it learns from each date once that date airs." }, identity: who };
+        return {
+          data: { character_id: id, stage: stageFor(0), ...(c ? { plays_as: describeTemperament(c.signals) } : {}), this_week: c?.thisWeek ?? null, note: "Nothing learned yet: it learns from each date once that date airs." },
+          identity: who,
+        };
       }
       return {
         data: {
           character_id: id,
           stage: stageFor(m.dates),
+          plays_as: describeTemperament(c.signals),
           this_week: c.thisWeek,
           record: { dates: m.dates, second_dates: m.second_dates, friends: m.friends, disasters: m.disasters },
           who_it_has_become: m.arc,

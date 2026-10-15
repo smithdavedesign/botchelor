@@ -221,7 +221,7 @@ async function rebuild(db: Db, row: Row) {
     note: row.note,
     format: formatId,
   };
-  const forDate = (p: "a" | "b"): CharacterForDate => ({ id: row[`${p}_id`], sheet: sheet(row, p) });
+  const forDate = (p: "a" | "b"): CharacterForDate => ({ id: row[`${p}_id`], sheet: row.setup?.[`sheet_${p}`] ?? sheet(row, p) });
   const signals = row.setup?.signals_a && row.setup?.signals_b ? { a: row.setup.signals_a, b: row.setup.signals_b } : undefined;
   const built = await buildDate(db, row.id, forDate("a"), forDate("b"), request, row.seed === null ? undefined : Number(row.seed), signals);
   const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);

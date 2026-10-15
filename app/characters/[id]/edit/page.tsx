@@ -74,6 +74,7 @@ export default async function EditCharacterPage({ params }: { params: Promise<{ 
         }
       : null,
     imageTrained: Boolean(soul?.signals),
+    temperament: soul?.signals ?? null,
     // The same portrait the card shows (lib/game.ts getPublicCharacter): the newest approved one.
     portrait: portraitId ? `/api/assets/${portraitId}` : null,
     thisWeek: isOwnUpdate(row.this_week) ? row.this_week!.text : null,

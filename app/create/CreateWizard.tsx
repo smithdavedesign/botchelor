@@ -7,6 +7,9 @@ import Avatar from "../Avatar";
 import { requestJson } from "../request";
 import DetailsStep, { DetailField } from "./DetailsStep";
 import OriginalityPanel from "./OriginalityPanel";
+import TemperamentSliders, { type TemperamentSource } from "./TemperamentSliders";
+import { deriveSoulSignals, type SoulSignals } from "@/lib/engine";
+import { sheetSignals } from "@/lib/temperament";
 import VoiceStep from "./VoiceStep";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
@@ -67,6 +70,8 @@ export type EditInitial = {
   extras: CharacterExtras;
   /** Their behaviour was trained from an image or a curated look (kept unless re-trained). */
   imageTrained: boolean;
+  /** Their explicit temperament (a trained image or the sliders), or null when their words decide it. */
+  temperament?: SoulSignals | null;
   /** Their generated (BYOK) portrait, as the card shows it, or null for the drawn avatar. */
   portrait: string | null;
   /** The creator's own "this week" update for the current season, or null when the show is dealing one. */
@@ -170,6 +175,8 @@ export default function CreateWizard({
   const [saved, setSaved] = useState(false);
   const [portrait, setPortrait] = useState<string | null>(init?.portrait ?? null);
   const [week, setWeek] = useState(init?.thisWeek ?? "");
+  // Editing: the owner chose to drop the explicit temperament and let the character's words decide again.
+  const [temperamentCleared, setTemperamentCleared] = useState(false);
 
   // Flow state.
   const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
@@ -381,6 +388,7 @@ export default function CreateWizard({
           // Their own update lasts this season; blanking it hands the week back to the show.
           ...(week.trim() !== (init?.thisWeek ?? "") ? { this_week: week.trim() || null } : {}),
           ...(imageSignals ? { image_signals: imageSignals } : {}),
+          ...(!imageSignals && temperamentCleared && init?.temperament ? { temperament: null } : {}),
         },
         "PATCH",
       );
@@ -397,6 +405,14 @@ export default function CreateWizard({
       setBusy(null);
     }
   }
+
+  // The temperament the engine would use right now (lib/temperament.ts): set explicitly, else the soul's words,
+  // else their traits and voice. Shown on the sliders, which set it explicitly when moved.
+  const explicitTemperament = imageSignals ?? (temperamentCleared ? null : init?.temperament ?? null);
+  const fromSoul = deriveSoulSignals(soul);
+  const soulSpeaks = Object.values(fromSoul).some((v) => v > 0);
+  const temperamentSource: TemperamentSource = explicitTemperament ? "set" : soulSpeaks ? "soul" : "sheet";
+  const shownTemperament = explicitTemperament ?? (soulSpeaks ? fromSoul : sheetSignals({ traits, voice }));
 
   const previewName = sheet.name || created?.name || "preview";
   // Editing: draw the avatar exactly as their card does (seeded by id, their generated portrait if any).
@@ -681,6 +697,25 @@ export default function CreateWizard({
               <input type="checkbox" checked={soul.local_only} onChange={(e) => setSoulField("local_only", e.target.checked)} />
               <span>Keep this soul off the model (engine only). It still shapes the date, but its text is never sent to any AI model.</span>
             </label>
+
+            <TemperamentSliders
+              value={shownTemperament}
+              source={temperamentSource}
+              onChange={(next) => {
+                setImageSignals(next);
+                setStyledFromImage(false);
+                setLookId(null);
+                setTemperamentCleared(false);
+              }}
+              onReset={
+                explicitTemperament
+                  ? () => {
+                      setImageSignals(null);
+                      setTemperamentCleared(true);
+                    }
+                  : null
+              }
+            />
 
             {!edit && (
               <>

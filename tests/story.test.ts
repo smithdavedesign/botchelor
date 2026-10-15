@@ -232,3 +232,18 @@ describe("for agents", () => {
     expect(JSON.stringify(d)).not.toContain("wanted_more");
   });
 });
+
+describe("memories from before the story existed", () => {
+  it("heal on first read: rebuilt once from the aired record", async () => {
+    const ira = await oc("Ira Fenn");
+    const nell = await oc("Nell Abiodun");
+    await aired({ a: ira, b: nell, ending: "second_date", at: WEEK1 });
+    // A row as it was stored before people/chapters/milestones: counts only.
+    await t.db.query(`insert into character_memory (character_id, dates, second_dates, arc) values ($1, 1, 1, 'One date in; still chasing a spark that sticks.')`, [ira]);
+    const m = (await loadCharacterMemory(t.db, ira))!;
+    expect(m.people!.map((p) => p.name)).toEqual(["Nell Abiodun"]);
+    expect(m.milestones!.map((x) => x.id)).toEqual(["first_date", "first_spark"]);
+    // Stored, so the next read is a plain read.
+    expect((await t.db.query<Any>(`select jsonb_array_length(milestones) as n from character_memory where character_id = $1`, [ira])).rows[0].n).toBe(2);
+  });
+});

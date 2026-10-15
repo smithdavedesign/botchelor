@@ -161,6 +161,9 @@ export function assembleDate(p: DateParts): BuiltDate {
     // Snapshot the exact effective signals this date ran on, so a replay reproduces it even after memory drifts.
     signals_a: signalsA,
     signals_b: signalsB,
+    // ...and the sheets it read, since a character can be edited after its date.
+    sheet_a: a.sheet,
+    sheet_b: b.sheet,
     // ...and the engine calibration that decides it, for the same reason.
     engine_version: CURRENT_ENGINE_VERSION,
   };
@@ -314,7 +317,7 @@ async function computeDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pr
 
   const build = (s: DateSetup): DateInput => ({
     a: {
-      sheet: toSheet(row, "a"),
+      sheet: setup.sheet_a ?? toSheet(row, "a"),
       signals: sigA,
       autonomy: s.autonomy,
       strategy: s.strategy,
@@ -323,7 +326,7 @@ async function computeDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pr
       gameBudget: s.game_budget_a,
     },
     b: {
-      sheet: toSheet(row, "b"),
+      sheet: setup.sheet_b ?? toSheet(row, "b"),
       signals: sigB,
       autonomy: DEFAULT_AUTONOMY,
       strategy: DEFAULT_STRATEGY,

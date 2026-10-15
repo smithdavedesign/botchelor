@@ -2819,6 +2819,51 @@ button.dice:hover:not(:disabled) {
   font-weight: 600;
   color: var(--accent-2);
 }
+/* The builder's temperament sliders (lib/temperament.ts). */
+.temperament {
+  margin: 1.25rem 0 0;
+  padding: 0;
+  border: 0;
+}
+.temperament-row {
+  display: grid;
+  grid-template-columns: 5.5rem 8.5rem 1fr 8.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.35rem 0;
+}
+.temperament-label {
+  font-weight: 600;
+}
+.temperament-end {
+  text-align: right;
+}
+.temperament-end:last-child {
+  text-align: left;
+}
+.temperament-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+@media (max-width: 560px) {
+  .temperament-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .temperament-end {
+    text-align: left;
+  }
+  .temperament-end:last-child {
+    text-align: right;
+  }
+  .temperament-label {
+    grid-column: 1 / -1;
+  }
+  .temperament-row input[type="range"] {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}
+
 /* The builder's originality check (lib/originality.ts). */
 .originality {
   margin-top: 1rem;
