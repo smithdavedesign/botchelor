@@ -5,11 +5,11 @@ import { buildEvalDate, EVAL_CASES, evalCharacter, runEvalCase } from "@/lib/eva
 import { buildJudgeMessages, judgeMean, parseJudge } from "@/lib/judge";
 import { format } from "@/lib/formats";
 import { CONVERSATION_TURNS } from "@/lib/rules";
-import { BASE_URL, episodeJson, scriptedModel } from "./helpers";
+import { BASE_URL, episodeJson, planJson, scriptedModel } from "./helpers";
 import type { Model } from "@/lib/model";
 
 const turnJson = (i: number) =>
-  JSON.stringify({ dialogue: `Is that a compass, or are you just planning to get lost? (${i})`, action: "asks", emotion: "curious", interest_signal: 0.6 });
+  JSON.stringify({ dialogue: `Line ${i}: is that a compass, or are you just planning to get lost?`, action: "asks", emotion: "curious", interest_signal: 0.6 });
 const judgeJson = JSON.stringify({
   in_character_a: 4, in_character_b: 3, natural: 4, motivated: 3, specific: 4, distinct: 4, engaging: 4,
   profile_reading: false, misgendering: false, abrupt_turn: false, note: "Good rhythm; the ending is thinly set up.",
@@ -47,19 +47,21 @@ describe("runEvalCase", () => {
   it("generates the date in memory, measures it and judges it", async () => {
     const c = EVAL_CASES.find((x) => x.id === "mira-dex")!;
     const turns = format(c.format).turns ?? CONVERSATION_TURNS;
-    const actor = queue([episodeJson(), ...Array.from({ length: turns }, (_, i) => turnJson(i))]);
+    const actor = queue([planJson(), ...Array.from({ length: turns }, (_, i) => turnJson(i)), episodeJson()]);
     const result = await runEvalCase(c, { actor, director: actor }, queue([judgeJson]));
     expect(result.transcript).toHaveLength(turns);
     expect(result.metrics.turns).toBe(turns);
+    expect(result.plan?.source).toBe("director");
     expect(result.judge?.natural).toBe(4);
     expect(result.judge_mean).toBe(judgeMean(result.judge!));
-    expect(result.model_calls).toBe(1 + turns);
+    expect(result.model_calls).toBe(1 + turns + 1); // the plan, the turns, the recap
     expect(result.conversation_error).toBeNull();
   });
 
   it("records a failed conversation instead of throwing (the recap still stands)", async () => {
     const c = EVAL_CASES[0];
-    const actor = queue([episodeJson()]); // the conversation's first turn runs out of outputs
+    // An unusable plan (rules fallback), a first turn that never parses, then the recap.
+    const actor = queue(["{}", "{}", "not a turn", "not a turn", episodeJson()]);
     const result = await runEvalCase(c, { actor, director: actor }, null);
     expect(result.transcript).toEqual([]);
     expect(result.conversation_error).toBeTruthy();
@@ -111,7 +113,7 @@ describe("POST /api/jobs/eval", () => {
     vi.stubEnv("CRON_SECRET", secret);
     const c = EVAL_CASES.find((x) => x.id === "mira-dex")!;
     const turns = format(c.format).turns ?? CONVERSATION_TURNS;
-    scriptedModel([episodeJson(), ...Array.from({ length: turns }, (_, i) => turnJson(i))]);
+    scriptedModel([planJson(), ...Array.from({ length: turns }, (_, i) => turnJson(i)), episodeJson()]);
     const res = await call({ case: "mira-dex" }, `Bearer ${secret}`);
     expect(res.status).toBe(200);
     const body = await res.json();

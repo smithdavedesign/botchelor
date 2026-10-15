@@ -500,11 +500,13 @@ export type PublicCharacter = {
   want: string;
   house: boolean;
   hue: number | null;
+  pronouns: string | null;
+  voice: string | null;
 };
 
 export async function getPublicCharacter(db: Db, id: string): Promise<PublicCharacter | null> {
   const { rows } = await db.query<PublicCharacter>(
-    `select id, name, age, bio, traits, appearance, want, is_house as house, avatar_hue as hue
+    `select id, name, age, bio, traits, appearance, want, is_house as house, avatar_hue as hue, pronouns, voice
        from characters where id = $1`,
     [id],
   );

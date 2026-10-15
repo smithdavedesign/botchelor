@@ -3,7 +3,7 @@ import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import { POINTS_PER_CORRECT_PICK, WATCH_PHASES } from "@/lib/rules";
+import { CONVERSATION_TURNS, POINTS_PER_CORRECT_PICK, WATCH_PHASES } from "@/lib/rules";
 import {
   castVote,
   createPremiereParty,
@@ -22,6 +22,7 @@ import {
   api,
   episodeJson,
   newUserCookie,
+  planJson,
   scriptOutcome,
   scriptedModel,
   setupEpisode,
@@ -124,8 +125,8 @@ describe("M9: the turn-by-turn conversation in the room", () => {
     try {
       scriptOutcome({ ending: "second_date" });
       const turn = JSON.stringify({ dialogue: "a line", action: "answers", emotion: "curious", interest_signal: 0.5 });
-      // One narration output, then one per conversation turn.
-      scriptedModel([episodeJson(), turn, turn, turn, turn, turn, turn, turn, turn]);
+      // M15 order: the director's plan, one output per conversation turn, then the recap written from them.
+      scriptedModel([planJson(), ...Array.from({ length: CONVERSATION_TURNS }, () => turn), episodeJson()]);
       const result = await createTemplateParty(t.db, A, B);
       if (!result || !result.ok) throw new Error("template setup failed");
       const row = (
@@ -134,7 +135,7 @@ describe("M9: the turn-by-turn conversation in the room", () => {
           [result.id],
         )
       ).rows[0];
-      expect(row.transcript).toHaveLength(8);
+      expect(row.transcript).toHaveLength(CONVERSATION_TURNS);
     } finally {
       setConversationEnabledForTests(false);
     }

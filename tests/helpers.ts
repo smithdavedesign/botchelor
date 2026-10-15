@@ -472,3 +472,17 @@ export async function setupPairedEpisode(opts: { host?: string; partner?: string
 }
 
 export const userIdOf = (cookie: string) => cookie.split("=")[1];
+
+/**
+ * A valid director plan (lib/beats.ts) for scripted models. Since M15 a date with the conversation on calls the
+ * director FIRST (plan → turns → recap), so a script for one reads [planJson(), ...turns, episodeJson()].
+ * Unparseable plan outputs ("{}") make planDate fall back to the deterministic rules plan after two tries.
+ */
+export function planJson(overrides: Record<string, unknown> = {}): string {
+  const act = (scene: string) => ({ scene, a: "You stay curious and ask what you actually want to know.", b: "You warm up slowly, in your own way." });
+  return JSON.stringify({
+    spine: "Two strangers find out whether a small shared joke can carry a whole evening.",
+    acts: [act("They meet and size each other up."), act("A small crisis tests them."), act("They decide how the night ends.")],
+    ...overrides,
+  });
+}

@@ -9,7 +9,9 @@ import {
   type DateVariable,
   type ProducerId,
 } from "./rules";
+import type { DatePlan } from "./beats";
 import { characterSelfView, type Character } from "./character";
+import { bestLine, type Turn } from "./conversation";
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { venue, type VenueId } from "./venues";
@@ -77,6 +79,7 @@ Rules:
 - Keep the shown episode (setting, goals, scenes, twist, finale) under ${PROMPT_WORD_TARGET} words.
 - The date happens at the place given in "date_location". Your "setting" must put them there; do not move them somewhere else.
 - "show_format" sets the format this date is filmed in. Honour its framing throughout; it changes only the flavour, never who likes whom or how it ends.
+- If "the_date_as_it_happened" is given, that IS the date: the two characters already played it out line by line. Your scenes must faithfully recap what was actually said and done in each act (quote a few words where it helps), your twist and finale must match it, "best_line" must be copied exactly from one of its lines, and the confessionals must reflect real moments from it. Refer to each character with their pronouns.
 
 Write the date as three acts, one scene each, a few sentences per scene:
   1. ${DATE_ACTS[0]}: they meet and size each other up.
@@ -128,6 +131,9 @@ function outcomeBrief(input: DateInput, outcome: Outcome): string {
   ].join(" ");
 }
 
+/** What the recap is written from when the date was already played out (M15): the lines, and the plan's spine. */
+export type DateStory = { transcript: Turn[]; plan: DatePlan | null };
+
 export function buildMessages(
   input: DateInput,
   outcome: Outcome,
@@ -136,6 +142,7 @@ export function buildMessages(
   venueId: VenueId,
   formatId: FormatId = DEFAULT_FORMAT,
   formatCtx: FormatContext = {},
+  story?: DateStory,
 ): ChatMessage[] {
   // The narrator is trusted (unlike a dating agent), so it sees BOTH characters' full self view — soul,
   // learned memory and all — plus each side's house flag and this date's private dials.
@@ -150,6 +157,14 @@ export function buildMessages(
     date_location: venue(venueId).prompt,
     act_two_situation: producerEvent(producer).prompt,
     show_format: formatNote(formatId, formatCtx),
+    ...(story?.plan ? { what_this_date_is_about: story.plan.spine } : {}),
+    ...(story && story.transcript.length
+      ? {
+          the_date_as_it_happened: story.transcript.map(
+            (t) => `[${DATE_ACTS[t.act] ?? `Act ${t.act + 1}`}] ${characters[t.side === "a" ? 0 : 1].name}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`,
+          ),
+        }
+      : {}),
   };
   return [
     { role: "system", content: SYSTEM_PROMPT },
@@ -187,6 +202,22 @@ export function parseEpisode(raw: string): ParseResult {
 }
 
 /** Narrates one episode toward the engine's decided outcome, with one retry. Fails closed otherwise. */
+/** Normalized for "is this line really in the transcript?": case, quotes and spacing don't matter. */
+const norm = (s: string) => s.toLowerCase().replace(/[“”"'’‘]/g, "").replace(/\s+/g, " ").trim();
+
+/**
+ * When the date was played out, the best line must be one that was actually said. A model that paraphrases or
+ * invents one is corrected deterministically: the transcript's most-interested line, trimmed to fit.
+ */
+export function anchorBestLine(draft: EpisodeDraft, transcript: Turn[]): EpisodeDraft {
+  if (transcript.length === 0) return draft;
+  const said = norm(draft.best_line);
+  if (said && transcript.some((t) => norm(t.dialogue).includes(said))) return draft;
+  const real = bestLine(transcript) ?? draft.best_line;
+  const fitted = real.length <= 200 ? real : `${real.slice(0, 197).replace(/\s+\S*$/, "")}…`;
+  return { ...draft, best_line: fitted };
+}
+
 export async function narrateEpisode(
   model: Model,
   input: DateInput,
@@ -196,19 +227,20 @@ export async function narrateEpisode(
   venueId: VenueId,
   formatId: FormatId = DEFAULT_FORMAT,
   formatCtx: FormatContext = {},
+  story?: DateStory,
 ): Promise<EpisodeDraft> {
-  const messages = buildMessages(input, outcome, characters, producer, venueId, formatId, formatCtx);
+  const messages = buildMessages(input, outcome, characters, producer, venueId, formatId, formatCtx, story);
   const reasons: string[] = [];
   for (let attempt = 0; attempt < SHOWRUNNER_ATTEMPTS; attempt++) {
     let raw: string;
     try {
-      raw = await model.complete(messages);
+      raw = await model.complete(messages, { temperature: 0.7 });
     } catch (err) {
       reasons.push(err instanceof ModelError ? err.message : "model_error");
       continue;
     }
     const result = parseEpisode(raw);
-    if (result.ok) return result.episode;
+    if (result.ok) return anchorBestLine(result.episode, story?.transcript ?? []);
     reasons.push(result.reason);
   }
   throw new ShowrunnerError(reasons);

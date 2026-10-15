@@ -501,6 +501,66 @@ button.chosen {
   border-color: var(--accent);
 }
 
+/* M15 builder: pronouns as pills, voice quick-picks, and a gentle nudge when a sheet is too thin to play. */
+.pronoun-pick {
+  border: 0;
+  padding: 0;
+  margin: var(--space-4) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.pronoun-pick legend {
+  width: 100%;
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+.pronoun-chip {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.35rem 0.85rem;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pronoun-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.pronoun-chip:has(input:focus-visible) {
+  outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  outline-offset: 2px;
+}
+.pronoun-chip.chosen {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--accent);
+}
+.voice-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: var(--space-2);
+}
+.voice-picks .look-chip {
+  margin: 0;
+  padding: 0.3rem 0.7rem;
+  box-shadow: none;
+  font-weight: 600;
+}
+.hint-nudge {
+  margin: var(--space-1) 0 0;
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-2) 10%, transparent);
+  font-size: 0.85rem;
+}
+
 .look-chip.chosen {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--soft);

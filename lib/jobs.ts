@@ -11,7 +11,7 @@
  * hook and the cron from double-running the same job.
  */
 import { releaseEpisode, type Reservation } from "./allowance";
-import { track, trackEpisodeCost } from "./analytics";
+import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { ConversationError } from "./conversation";
 import { generationPaused } from "./compute";
 import { isConversationEnabled } from "./conversation";
@@ -73,8 +73,8 @@ type GenRow = {
   creator_id: string;
   reservation: Reservation | null;
   attempts: number;
-  a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_house: boolean; a_appearance: string | null;
-  b_id: string; b_name: string; b_age: number; b_bio: string; b_traits: string[]; b_want: string; b_dealbreaker: string; b_house: boolean; b_appearance: string | null;
+  a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_house: boolean; a_appearance: string | null; a_pronouns: string | null; a_voice: string | null;
+  b_id: string; b_name: string; b_age: number; b_bio: string; b_traits: string[]; b_want: string; b_dealbreaker: string; b_house: boolean; b_appearance: string | null; b_pronouns: string | null; b_voice: string | null;
 };
 
 const sheet = (r: GenRow, p: "a" | "b"): CharacterSheet => ({
@@ -86,6 +86,8 @@ const sheet = (r: GenRow, p: "a" | "b"): CharacterSheet => ({
   dealbreaker: r[`${p}_dealbreaker`],
   house: r[`${p}_house`],
   appearance: r[`${p}_appearance`] ?? undefined,
+  pronouns: r[`${p}_pronouns`] ?? undefined,
+  voice: r[`${p}_voice`] ?? undefined,
 });
 
 /**
@@ -111,9 +113,9 @@ async function claim(db: Db, episodeId: string, now: Date): Promise<GenRow | nul
   const { rows } = await db.query<GenRow>(
     `select e.seed::text as seed, e.setup, e.note, j.use_frontier, j.creator_id, j.reservation, j.attempts,
             a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want,
-            a.dealbreaker a_dealbreaker, a.is_house a_house, a.appearance a_appearance,
+            a.dealbreaker a_dealbreaker, a.is_house a_house, a.appearance a_appearance, a.pronouns a_pronouns, a.voice a_voice,
             b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want,
-            b.dealbreaker b_dealbreaker, b.is_house b_house, b.appearance b_appearance
+            b.dealbreaker b_dealbreaker, b.is_house b_house, b.appearance b_appearance, b.pronouns b_pronouns, b.voice b_voice
        from episodes e
        join generation_jobs j on j.episode_id = e.id
        join characters a on a.id = e.character_a
@@ -175,6 +177,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     if (gen.conversationError) {
       track("conversation_failed", { episode_id: episodeId, where: "job", reason: failureReason(gen.conversationError) });
     }
+    if (gen.quality) trackDateQuality(episodeId, "job", gen.plan?.source ?? null, gen.quality);
     const { draft, transcript, afterglow } = gen;
 
     const saved = await db.query<{ id: string }>(

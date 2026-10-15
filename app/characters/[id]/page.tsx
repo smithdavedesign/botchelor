@@ -46,7 +46,10 @@ export default async function CharacterPage({ params }: Props) {
             {c.name}
             {c.house && <span className="badge">House character</span>}
           </h1>
-          <p className="muted">Age {c.age}</p>
+          <p className="muted">
+            Age {c.age}
+            {c.pronouns && <> · {c.pronouns}</>}
+          </p>
         </div>
       </div>
 
@@ -67,6 +70,11 @@ export default async function CharacterPage({ params }: Props) {
         <p>
           <strong>Wants:</strong> {c.want}
         </p>
+        {c.voice && (
+          <p className="muted">
+            <strong>How they talk:</strong> {c.voice}
+          </p>
+        )}
         <h2>Audience rating</h2>
         <p className="muted">How the crowd reads this contestant. It&apos;s just for fun — it never changes a date, the odds or your points on a prediction.</p>
         <RatingButtons characterId={c.id} counts={ratings.counts} mine={ratings.mine} isOwner={ratings.is_owner} />

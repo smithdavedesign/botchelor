@@ -78,6 +78,8 @@ export const MCP_TOOLS = [
         want: str(140),
         dealbreaker: str(140),
         appearance: str(140, "Optional look, in words. No images."),
+        pronouns: { type: "string", enum: ["she/her", "he/him", "they/them"], description: "Optional: how others refer to them." },
+        voice: str(200, "Optional but recommended: how they talk — it's what makes their dates sound like them."),
         attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
         agent_id: AGENT_ID,
       },
@@ -204,7 +206,7 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<Too
     }
     case "create_character": {
       const { id, minted } = resolveAgent(args);
-      const body = { ...pick(args, ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "soul"]), attest: args.attest === true };
+      const body = { ...pick(args, ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul"]), attest: args.attest === true };
       const r = await callRoute(postCharacter, { agentId: id, body });
       return r.ok ? { data: { character: r.data }, agentId: id, minted } : { error: errorOf(r) };
     }

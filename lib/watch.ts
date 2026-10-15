@@ -15,7 +15,7 @@
  */
 import { getDb, type Db } from "./db";
 import { getEngine, seedFrom } from "./engine";
-import { track } from "./analytics";
+import { track, trackDateQuality } from "./analytics";
 import { failureReason } from "./jobs";
 import { HOUSE_CHARACTERS } from "./house";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
@@ -669,6 +669,8 @@ type HouseRow = {
   is_house: boolean;
   appearance: string | null;
   avatar_hue: number | null;
+  pronouns: string | null;
+  voice: string | null;
 };
 
 const houseSheet = (c: HouseRow): CharacterSheet => ({
@@ -680,6 +682,8 @@ const houseSheet = (c: HouseRow): CharacterSheet => ({
   dealbreaker: c.dealbreaker,
   house: c.is_house,
   appearance: c.appearance ?? undefined,
+  pronouns: c.pronouns ?? undefined,
+  voice: c.voice ?? undefined,
 });
 
 /**
@@ -694,7 +698,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   if (generationPaused()) return { ok: false, status: 503, error: "generation_paused", message: PAUSED_MESSAGE };
   const rows = (
     await db.query<HouseRow>(
-      `select id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue
+      `select id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue, pronouns, voice
          from characters where id = any($1)`,
       [[aId, bId]],
     )
@@ -725,6 +729,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   if (gen.conversationError) {
     track("conversation_failed", { episode_id: episodeId, where: "template", reason: failureReason(gen.conversationError) });
   }
+  if (gen.quality) trackDateQuality(episodeId, "template", gen.plan?.source ?? null, gen.quality);
   const { draft, transcript } = gen;
 
   await db.query(
@@ -778,9 +783,11 @@ export async function refreshLobby(db: Db, now: Date = new Date()): Promise<{ cr
   const day = now.toISOString().slice(0, 10);
   const today = await db.query<{ id: string }>(
     `select w.id from watch_parties w join episodes e on e.id = w.episode_id
-      where w.kind = 'template' and w.created_at >= $1::date and jsonb_array_length(e.transcript) > 0
+      where w.kind = 'template' and w.created_at >= $1::timestamptz and jsonb_array_length(e.transcript) > 0
       limit 1`,
-    [day],
+    // An explicit UTC midnight: a bare 'YYYY-MM-DD'::date is read in the database session's time zone, which
+    // would make "today" depend on where the database runs.
+    [`${day}T00:00:00Z`],
   );
   if (today.rows.length) return { created: null, reason: "already_today" };
 

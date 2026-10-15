@@ -105,9 +105,9 @@ export async function loadCharacter(db: Db, id: string): Promise<Character | nul
   const { rows } = await db.query<{
     id: string; owner_id: string | null; name: string; age: number; bio: string;
     traits: string[]; want: string; dealbreaker: string; is_house: boolean;
-    appearance: string | null; avatar_hue: number | null;
+    appearance: string | null; avatar_hue: number | null; pronouns: string | null; voice: string | null;
   }>(
-    `select id, owner_id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue
+    `select id, owner_id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue, pronouns, voice
        from characters where id = $1`,
     [id],
   );
@@ -121,6 +121,7 @@ export async function loadCharacter(db: Db, id: string): Promise<Character | nul
   const sheet: CharacterSheet = {
     name: r.name, age: r.age, bio: r.bio, traits: r.traits, want: r.want,
     dealbreaker: r.dealbreaker, house: r.is_house, appearance: r.appearance ?? undefined,
+    pronouns: r.pronouns ?? undefined, voice: r.voice ?? undefined,
   };
   return assembleCharacter({ id: r.id, sheet, ownerId: r.owner_id, hue: r.avatar_hue, soul, memory, record: history.record });
 }
@@ -168,6 +169,8 @@ export function characterSelfView(c: Character, privateExtra: Record<string, unk
     want: c.persona.want,
     dealbreaker: c.dealbreaker,
     ...(c.look.appearance ? { appearance: c.look.appearance } : {}),
+    ...(c.pronouns ? { pronouns: c.pronouns } : {}),
+    ...(c.voice ? { voice: c.voice } : {}),
     private: {
       soul: soul ?? "(none — play from your public sheet)",
       ...(memory ? { memory } : {}),
@@ -176,7 +179,7 @@ export function characterSelfView(c: Character, privateExtra: Record<string, unk
   };
 }
 
-/** What the OTHER agent and spectators ever see: public fields only. Never soul, dealbreaker, memory, signals. */
+/** The public persona (the contestant card): public fields only. Never soul, dealbreaker, memory, signals. */
 export function characterPublicView(c: Character): Record<string, unknown> {
   return {
     name: c.name,
@@ -184,5 +187,30 @@ export function characterPublicView(c: Character): Record<string, unknown> {
     bio: c.bio,
     traits: c.persona.traits,
     ...(c.look.appearance ? { appearance: c.look.appearance } : {}),
+    ...(c.pronouns ? { pronouns: c.pronouns } : {}),
+  };
+}
+
+/** "Looks about late twenties": how old someone seems across a table, not a number off a profile. */
+export function apparentAge(age: number): string {
+  if (age >= 100) return "hard to place — somehow both young and very old";
+  // Never "teens": every character is an adult, and the date's models must never be nudged toward minors.
+  if (age < 20) return "about twenty";
+  const decade = Math.floor(age / 10) * 10;
+  const third = age % 10 <= 3 ? "early" : age % 10 <= 6 ? "mid" : "late";
+  return `${third} ${({ 20: "twenties", 30: "thirties", 40: "forties", 50: "fifties", 60: "sixties", 70: "seventies", 80: "eighties", 90: "nineties" } as Record<number, string>)[decade] ?? "years"}`;
+}
+
+/**
+ * The other person as a blind date actually meets them (M15): a name, how to refer to them, and what you can
+ * see across the table. Not their bio, traits or want — on a blind date you learn those only when they tell
+ * you, so a model handed the other's profile ends up reciting it ("A lighthouse keeper with eleven podcast
+ * listeners?"). This is what each agent gets for "them"; the profile stays on the contestant card.
+ */
+export function characterBlindView(c: Character): Record<string, unknown> {
+  return {
+    name: c.name,
+    pronouns: c.pronouns ?? "not given — use their name, or they/them",
+    what_you_can_see: [c.look.appearance, `looks ${apparentAge(c.age)}`].filter(Boolean),
   };
 }
