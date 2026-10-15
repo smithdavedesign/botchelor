@@ -535,12 +535,22 @@ export async function ensureSchema(db: Db): Promise<void> {
 const DEFAULT_LOCAL_DATA_DIR = ".data/pglite";
 const POOL_SIZE = 3;
 
+/**
+ * The Postgres pool for a DATABASE_URL. Neon closes idle connections when its compute scales down or
+ * restarts ("terminating connection due to administrator command", 57P01); node-postgres reports that as an
+ * "error" event on the pool, and an unhandled "error" event crashes the whole function instance (seen on prod,
+ * 2026-10-15). The pool has already discarded the dead client, so logging it is all that's needed.
+ */
+export async function createPool(url: string) {
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: url, max: POOL_SIZE });
+  pool.on("error", (err) => console.error(`[db] idle connection closed: ${err.message}`));
+  return pool;
+}
+
 async function openDb(): Promise<Db> {
   const url = process.env.DATABASE_URL;
-  if (url) {
-    const { Pool } = await import("pg");
-    return pgPoolDb(new Pool({ connectionString: url, max: POOL_SIZE }));
-  }
+  if (url) return pgPoolDb(await createPool(url));
   if (process.env.VERCEL) throw new Error("DATABASE_URL is not configured for this deployment");
   // Local runs without a database: a file-backed Postgres (PGlite) under .data/.
   const [{ PGlite }, { mkdirSync }] = await Promise.all([import("@electric-sql/pglite"), import("node:fs")]);

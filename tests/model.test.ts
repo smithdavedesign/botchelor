@@ -6,6 +6,7 @@ import {
   modelFromEnv,
   ModelError,
   openAICompatibleModel,
+  RATE_LIMIT_TRIP_MS,
   RETRY_DELAYS_MS,
   type ChatMessage,
 } from "@/lib/model";
@@ -82,12 +83,12 @@ describe("openAICompatibleModel", () => {
     await expect(quiet.complete(messages)).rejects.toThrow(/^model returned HTTP 503$/);
   });
 
-  it("rides out a brief rate limit: 429 then 200 succeeds, honouring a capped Retry-After", async () => {
+  it("rides out a brief rate limit: 429 then 200 succeeds, honouring Retry-After", async () => {
     let n = 0;
     const fetchImpl = (async () => {
       n++;
       return n === 1
-        ? new Response("{}", { status: 429, headers: { "retry-after": "60" } })
+        ? new Response("{}", { status: 429, headers: { "retry-after": "3" } })
         : new Response(JSON.stringify(completion('{"ok":true}')), { status: 200 });
     }) as typeof fetch;
     const waits: number[] = [];
@@ -96,7 +97,37 @@ describe("openAICompatibleModel", () => {
       sleep: async (ms) => void waits.push(ms),
     });
     expect(await model.complete(messages)).toBe('{"ok":true}');
-    expect(waits).toEqual([MAX_RETRY_AFTER_MS]); // 60s asked, capped
+    expect(waits).toEqual([3_000]);
+  });
+
+  it("gives up at once when waiting can't help: a longer wait than we'll spend, or the day's quota spent", async () => {
+    const waits: number[] = [];
+    const sleep = async (ms: number) => void waits.push(ms);
+    const slow = openAICompatibleModel({
+      baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: "m", sleep,
+      fetchImpl: (async () => new Response("{}", { status: 429, headers: { "retry-after": String(MAX_RETRY_AFTER_MS / 1000 + 45) } })) as typeof fetch,
+    });
+    await expect(slow.complete(messages)).rejects.toThrow("HTTP 429");
+    const daily = [{ error: { code: 429, message: "Quota exceeded.", details: [{ violations: [{ quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier", quotaValue: "500" }] }] } }];
+    const { calls, fetchImpl } = fakeFetch({ status: 429, body: daily });
+    const spent = openAICompatibleModel({ baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: "m", fetchImpl, sleep });
+    await expect(spent.complete(messages)).rejects.toThrow("HTTP 429");
+    expect(calls).toHaveLength(1);
+    expect(waits).toEqual([]);
+  });
+
+  it("after a refused call, fails fast for a minute instead of waiting out every call's retries", async () => {
+    let clock = 1_000_000;
+    const { calls, fetchImpl } = fakeFetch({ status: 429, body: { error: { message: "Resource exhausted." } } });
+    const model = openAICompatibleModel({
+      baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: "m", fetchImpl, retryDelaysMs: [], now: () => clock,
+    });
+    await expect(model.complete(messages)).rejects.toThrow("HTTP 429");
+    await expect(model.complete(messages)).rejects.toThrow("HTTP 429 (Resource exhausted.)"); // same reason, no request
+    expect(calls).toHaveLength(1);
+    clock += RATE_LIMIT_TRIP_MS;
+    await expect(model.complete(messages)).rejects.toThrow("HTTP 429");
+    expect(calls).toHaveLength(2); // the trip expired: it asks again
   });
 
   it("honours Google's own retry hint (RetryInfo), capped", async () => {
