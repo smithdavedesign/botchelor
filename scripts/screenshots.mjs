@@ -479,6 +479,13 @@ async function seedRatings(base) {
   }
 }
 
+/** A browser context that has already passed the 18+ gate, so screenshots skip the lock screen. */
+async function adultContext(browser, device, base) {
+  const ctx = await browser.newContext(device);
+  await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
+  return ctx;
+}
+
 async function capture(base, leagueId, viewer) {
   const { chromium, devices } = await import("playwright-core");
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
@@ -515,8 +522,16 @@ async function capture(base, leagueId, viewer) {
         saved.push(path);
       };
 
-      // 1. The start page, as a first-time visitor sees it.
-      const visitor = await browser.newContext(device);
+      // 0. The 18+ entry gate, as a first-time visitor meets it (a fresh context with no cookie).
+      const newcomer = await browser.newContext(device);
+      const gate = await newcomer.newPage();
+      await gate.goto(`${base}/`);
+      await gate.getByText("Are you 18 or older?").waitFor();
+      await shot(gate, "age-gate");
+      await newcomer.close();
+
+      // 1. The start page, as a first-time visitor sees it (past the gate).
+      const visitor = await adultContext(browser, device, base);
       const home = await visitor.newPage();
       await home.goto(`${base}/`);
       await home.getByRole("heading", { level: 1 }).waitFor();
@@ -580,7 +595,7 @@ async function capture(base, leagueId, viewer) {
       await home.waitForURL(/\/watch\/[0-9a-f-]{36}$/);
       const roomId = home.url().split("/watch/")[1];
       await livenRoom(base, roomId);
-      const fan = await browser.newContext(device);
+      const fan = await adultContext(browser, device, base);
       const fanPage = await fan.newPage();
       await fanPage.goto(`${base}/watch/${roomId}`);
       await fanPage.getByRole("heading", { level: 1 }).waitFor();
@@ -612,14 +627,14 @@ async function capture(base, leagueId, viewer) {
       await home.getByRole("button", { name: "Create account" }).click();
       await home.getByText(`Signed in as ${handle}`).waitFor();
       await home.getByRole("heading", { name: "Your model key (optional)" }).waitFor();
-      await home.locator('input[name="key"]').fill(sampleKey);
-      await home.getByRole("button", { name: "Save key" }).click();
+      await home.locator('input[name="key"]').first().fill(sampleKey); // the text-key form (an image-key form follows)
+      await home.getByRole("button", { name: "Save key", exact: true }).click();
       await home.getByText("····Ab12").waitFor();
       await shot(home, "account", { full: true });
       await visitor.close();
 
       // 3. Seasons: Wren's league, with last season's podium (closed on this first view) and this week's board.
-      const member = await browser.newContext(device);
+      const member = await adultContext(browser, device, base);
       await member.addCookies([{ name: "bz_uid", value: viewer.id, url: base }]);
       const league = await member.newPage();
       await league.goto(`${base}/leagues/${leagueId}`);
@@ -698,7 +713,7 @@ async function captureGenerating(baseEnv) {
       ["mobile", devices["iPhone 13"]],
     ];
     for (const [label, device] of sizes) {
-      const ctx = await browser.newContext(device);
+      const ctx = await adultContext(browser, device, app.base);
       await ctx.addCookies([{ name: "bz_uid", value: who.cookie.split("=")[1], url: app.base }]);
       const page = await ctx.newPage();
       await page.goto(`${app.base}/episodes/${ep.id}`);
