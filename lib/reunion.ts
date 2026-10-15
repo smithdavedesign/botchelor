@@ -78,7 +78,7 @@ async function confessionalReel(db: Db, limit: number): Promise<ReunionConfessio
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b
-      where e.confessionals_shared and e.revealed_at is not null
+      where e.confessionals_shared and e.revealed_at is not null and e.visibility = 'public'
         and e.confessionals is not null and jsonb_array_length(e.confessionals) = 2
       order by e.revealed_at desc
       limit $1`,
@@ -118,7 +118,7 @@ async function awards(db: Db): Promise<ReunionAward[]> {
          from episodes e
          join characters a on a.id = e.character_a
          join characters b on b.id = e.character_b
-        where e.ending = 'disaster' and e.revealed_at is not null
+        where e.ending = 'disaster' and e.revealed_at is not null and e.visibility = 'public'
         order by e.revealed_at desc limit 1`,
     )
   ).rows[0];
@@ -161,7 +161,7 @@ async function reunionStats(db: Db): Promise<ReunionStats> {
   const { rows } = await db.query<ReunionStats>(
     `select (select count(*)::int from relationships) as couples,
             (select coalesce(sum(second_dates), 0)::int from relationships) as second_dates,
-            (select count(*)::int from episodes where revealed_at is not null and status = 'ready') as aired`,
+            (select count(*)::int from episodes where revealed_at is not null and status = 'ready' and visibility = 'public') as aired`,
   );
   return rows[0] ?? { couples: 0, second_dates: 0, aired: 0 };
 }

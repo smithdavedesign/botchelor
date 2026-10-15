@@ -639,8 +639,8 @@ export async function createPremiereParty(
   startsAt: Date = new Date(),
 ): Promise<CreatePartyResult> {
   const episode = (
-    await db.query<{ is_host: boolean }>(
-      `select creator_id = $2 as is_host from episodes where id = $1`,
+    await db.query<{ is_host: boolean; visibility: string }>(
+      `select creator_id = $2 as is_host, visibility from episodes where id = $1`,
       [episodeId, userId],
     )
   ).rows[0];
@@ -651,6 +651,15 @@ export async function createPremiereParty(
       status: 403,
       error: "not_host",
       message: "Only the creator who asked for this date can host its premiere.",
+    };
+  }
+  // A watch party is a public viewing, so a private date can't host one; make it public or unlisted first.
+  if (episode.visibility === "private") {
+    return {
+      ok: false,
+      status: 409,
+      error: "episode_private",
+      message: "This date is private. Make it public or unlisted before hosting a watch party.",
     };
   }
   const existing = (await db.query<{ id: string }>(`select id from watch_parties where episode_id = $1`, [episodeId]))

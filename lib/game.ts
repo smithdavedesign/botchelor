@@ -161,6 +161,8 @@ export type EpisodeView = EpisodeJson & {
   is_creator: boolean;
   /** The viewer asked for this date, so they air the finale. */
   is_host: boolean;
+  /** public (in the feed), unlisted (link only), or private (creator only). */
+  visibility: "public" | "private" | "unlisted";
   /** Reported by enough distinct people: out of the feed, and only its creators can open it. */
   hidden: boolean;
   /** The viewer blocked this episode's creator(s) from this episode. Per episode, so it links nothing. */
@@ -268,6 +270,7 @@ type EpisodeRow = {
   b_hue: number | null;
   is_creator: boolean;
   is_host: boolean;
+  visibility: "public" | "private" | "unlisted";
   my_side: 0 | 1 | null;
   hidden: boolean;
   consents: number;
@@ -296,6 +299,7 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
        b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue,
        coalesce($1::text in (a.owner_id, b.owner_id), false) as is_creator,
        coalesce(e.creator_id = $1::text, false) as is_host,
+       e.visibility,
        case when a.owner_id = $1::text then 0 when b.owner_id = $1::text then 1 else null end as my_side,
        rep.n >= $2::int as hidden,
        cons.n as consents, need.n as needed, ag.n as afterglow_consents,
@@ -377,6 +381,7 @@ function toView(row: EpisodeRow): EpisodeView {
     ...episode,
     is_creator: row.is_creator,
     is_host: row.is_host,
+    visibility: row.visibility,
     hidden: row.hidden,
     blocked: row.blocked,
     my_pick: row.my_pick,
@@ -421,7 +426,12 @@ export async function getEpisodeView(db: Db, id: string, viewerId: string | null
     REPORT_HIDE_THRESHOLD,
     id,
   ]);
-  return rows[0] ? toView(rows[0]) : null;
+  const row = rows[0];
+  if (!row) return null;
+  // A private date is the creator's alone: a character owner or the host, nobody else. ('unlisted' is
+  // viewable by anyone with the link, so it is not gated here — only kept out of the feed below.)
+  if (row.visibility === "private" && !row.is_creator && !row.is_host) return null;
+  return toView(row);
 }
 
 /**
@@ -436,6 +446,7 @@ export async function listFeed(db: Db, viewerId: string | null, limit = FEED_LIM
     `${EPISODE_SELECT}
       where rep.n < $2::int
         and e.status = 'ready'
+        and e.visibility = 'public'
         and not exists (
           select 1 from blocks bl
             join episodes be on be.id = bl.via_episode_id
@@ -446,6 +457,54 @@ export async function listFeed(db: Db, viewerId: string | null, limit = FEED_LIM
     [viewerId, REPORT_HIDE_THRESHOLD, limit],
   );
   return rows.map(toView);
+}
+
+export type MyEpisodeCard = {
+  episode_id: string;
+  share_path: string;
+  title: string;
+  ending: Ending;
+  revealed: boolean;
+  status: EpisodeStatus;
+  visibility: "public" | "private" | "unlisted";
+  is_host: boolean;
+};
+
+/**
+ * A light list of the user's own dates for the account page: the ones they host or whose characters they
+ * own, every visibility included (this is the owner's private view). No scenes or transcript, so it's cheap.
+ */
+export async function listMyEpisodeCards(db: Db, userId: string, limit = FEED_LIMIT): Promise<MyEpisodeCard[]> {
+  const { rows } = await db.query<{
+    id: string;
+    ending: Ending;
+    revealed: boolean;
+    status: EpisodeStatus;
+    visibility: "public" | "private" | "unlisted";
+    is_host: boolean;
+    a_name: string;
+    b_name: string;
+  }>(
+    `select e.id, e.ending, e.revealed_at is not null as revealed, e.status, e.visibility,
+            e.creator_id = $1 as is_host, a.name as a_name, b.name as b_name
+       from episodes e
+       join characters a on a.id = e.character_a
+       join characters b on b.id = e.character_b
+      where e.creator_id = $1 or a.owner_id = $1 or b.owner_id = $1
+      order by e.created_at desc, e.id
+      limit $2`,
+    [userId, limit],
+  );
+  return rows.map((r) => ({
+    episode_id: r.id,
+    share_path: `/episodes/${r.id}`,
+    title: `${r.a_name} × ${r.b_name}`,
+    ending: r.ending,
+    revealed: r.revealed,
+    status: r.status,
+    visibility: r.visibility,
+    is_host: r.is_host,
+  }));
 }
 
 /** Episodes where the user owns one of the characters, hidden ones included. */
@@ -531,7 +590,7 @@ export async function getCharacterHistory(
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b
-      where (e.character_a = $1 or e.character_b = $1) and e.revealed_at is not null
+      where (e.character_a = $1 or e.character_b = $1) and e.revealed_at is not null and e.visibility = 'public'
       order by e.revealed_at desc, e.id
       limit $2`,
     [id, limit],
@@ -551,12 +610,12 @@ export async function getPoints(db: Db, userId: string): Promise<number> {
     `select (
         coalesce((select sum(${predictionPointsSql("$2", "$3")})
                     from predictions p join episodes e on e.id = p.episode_id
-                   where p.user_id = $1 and e.revealed_at is not null), 0)
+                   where p.user_id = $1 and e.revealed_at is not null and e.visibility = 'public'), 0)
       + coalesce((select count(*)
                     from dealbreaker_guesses g
                     join episodes e on e.id = g.episode_id
                     join characters a on a.id = e.character_a
-                   where g.user_id = $1 and e.revealed_at is not null and g.pick = a.dealbreaker), 0) * $4
+                   where g.user_id = $1 and e.revealed_at is not null and e.visibility = 'public' and g.pick = a.dealbreaker), 0) * $4
       + coalesce((select count(*) from matchmaker_proposals mp
                    where mp.proposer_id = $1 and ${matchmakerHitSql()}), 0) * $5
       + coalesce((select count(*) from character_ratings cr

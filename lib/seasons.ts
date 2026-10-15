@@ -60,7 +60,7 @@ export async function closeDueSeasons(db: Db, now?: Date): Promise<string[]> {
   const { rows } = await db.query<{ id: string }>(
     `select distinct to_char(date_trunc('week', e.revealed_at at time zone 'UTC'), 'YYYY-MM-DD') as id
        from episodes e
-      where e.revealed_at < coalesce($1::timestamptz, date_trunc('week', now() at time zone 'UTC') at time zone 'UTC')
+      where e.visibility = 'public' and e.revealed_at < coalesce($1::timestamptz, date_trunc('week', now() at time zone 'UTC') at time zone 'UTC')
         and e.revealed_at >= coalesce((select max(ends_at) from seasons), '-infinity'::timestamptz)
       order by id`,
     [now ? weekWindow(now).start.toISOString() : null],

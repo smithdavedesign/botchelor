@@ -41,7 +41,7 @@ export async function getLeague(db: Db, id: string, viewerId: string | null, now
        select p.user_id, sum(${predictionPointsSql("$5", "$6")})::int as points
          from predictions p
          join episodes e on e.id = p.episode_id
-        where e.revealed_at >= $3 and e.revealed_at < $4
+        where e.revealed_at >= $3 and e.revealed_at < $4 and e.visibility = 'public'
           and p.user_id in (select user_id from league_members where league_id = $1)
         group by p.user_id
      )

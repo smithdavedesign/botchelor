@@ -47,6 +47,9 @@ const EpisodeInput = z
     note: z.string().trim().max(200).optional(),
     self_pick: z.enum(ENDINGS).optional(),
     format: z.enum(FORMAT_IDS).optional(),
+    // M16: who can see the date. Defaults public (the feed). 'private' is the creator's alone (tracked,
+    // never public, never scored); 'unlisted' is viewable by link only.
+    visibility: z.enum(["public", "private", "unlisted"]).optional(),
   })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
     message: "Send either partner_id (a house character) or blind: true.",
@@ -254,9 +257,9 @@ async function writeAndSave(
   const saved = await db.query<{ id: string }>(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
                            drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup,
-                           note, self_pick, transcript, status)
+                           note, self_pick, transcript, status, visibility)
      select $1, $2, $3, $4, '', '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, $7, $8, $9::jsonb, $10::jsonb, null,
-            '[]'::jsonb, $11::jsonb, $12, $13, '[]'::jsonb, 'generating'
+            '[]'::jsonb, $11::jsonb, $12, $13, '[]'::jsonb, 'generating', $14
       where not exists (
         select 1 from characters pc
           join blocks bl on (bl.blocker_id = $2 and bl.blocked_id = pc.owner_id)
@@ -277,6 +280,7 @@ async function writeAndSave(
       JSON.stringify(built.setup),
       input.note ?? null,
       input.self_pick ?? null,
+      input.visibility ?? "public",
     ],
   );
   if (!saved.rows.length) {
