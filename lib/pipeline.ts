@@ -20,7 +20,8 @@ import type { Character } from "./character";
 import { simulateConversation, type Turn } from "./conversation";
 import type { Outcome } from "./engine";
 import type { FormatContext, FormatId } from "./formats";
-import type { ChatMessage, Model, ModelOptions } from "./model";
+import type { ChatMessage, Model, ModelOptions, Usage } from "./model";
+import { summarizeUsage, type DateUsage } from "./pricing";
 import { transcriptQuality, type QualityContext, type QualityMetrics } from "./quality";
 import { agenda } from "./rules";
 import { narrateEpisode, type EpisodeDraft } from "./showrunner";
@@ -49,22 +50,32 @@ export type GeneratedDate = {
   quality: QualityMetrics | null;
   /** Exactly how many model calls this date took (retries included): the unit-economics number. */
   modelCalls: number;
+  /** The tokens those calls used (thinking included) and what they'd cost at paid-tier prices (lib/pricing.ts). */
+  usage: DateUsage;
   /** Why the conversation came back empty, when it did (content-free; for the logs). */
   conversationError: unknown;
   afterglowError: unknown;
 };
 
-/** Wraps a model so every call (retries included) is counted. */
-export function countingModel(model: Model): { model: Model; calls: () => number } {
+/** Wraps a model so every call (retries included) is counted, along with the tokens each one reports. */
+export function countingModel(model: Model): { model: Model; calls: () => number; usage: () => Usage[] } {
   let n = 0;
+  const usage: Usage[] = [];
   return {
     model: {
       complete(messages: ChatMessage[], options?: ModelOptions) {
         n++;
-        return model.complete(messages, options);
+        return model.complete(messages, {
+          ...options,
+          onUsage: (u) => {
+            usage.push(u);
+            options?.onUsage?.(u);
+          },
+        });
       },
     },
     calls: () => n,
+    usage: () => usage,
   };
 }
 
@@ -116,7 +127,8 @@ export async function generateDate(
   const quality = transcript.length ? transcriptQuality(transcript, characters, qualityContext(built, draft.setting)) : null;
 
   const modelCalls = actor.calls() + (director === actor ? 0 : director.calls());
-  return { draft, transcript, afterglow, plan, quality, modelCalls, conversationError, afterglowError };
+  const usage = summarizeUsage([...actor.usage(), ...(director === actor ? [] : director.usage())], modelCalls);
+  return { draft, transcript, afterglow, plan, quality, modelCalls, usage, conversationError, afterglowError };
 }
 
 /** What the quality checks treat as shared (the venue, the recap's setting) and as each side's private notes. */

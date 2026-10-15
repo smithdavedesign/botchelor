@@ -12,7 +12,7 @@
  * Run by the daily job a few dates at a time (free model, $0). Each date is tried at most
  * BACKFILL_MAX_ATTEMPTS times (rate limits excepted), so one the model keeps failing on stops costing calls.
  */
-import { track } from "./analytics";
+import { track, trackEpisodeCost } from "./analytics";
 import type { Character } from "./character";
 import { generationPaused } from "./compute";
 import { ConversationError, isConversationEnabled, simulateConversation, type Turn } from "./conversation";
@@ -21,7 +21,9 @@ import type { CharacterSheet, Outcome, SideOutcome, VariableArc } from "./engine
 import { DEFAULT_FORMAT } from "./formats";
 import type { DateSetup } from "./game";
 import { failureReason } from "./jobs";
-import { getDirectorModel, getModel } from "./model";
+import { getDirectorModel, getModel, type Model } from "./model";
+import { countingModel } from "./pipeline";
+import { summarizeUsage } from "./pricing";
 import { planDate } from "./beats";
 import {
   DATE_VARIABLES,
@@ -87,7 +89,7 @@ export function storedOutcome(r: Row, seed: number): Outcome {
 }
 
 /** Produce the missing conversation for one stored date, steered to its stored outcome. Throws on failure. */
-async function conversationFor(db: Db, r: Row): Promise<Turn[]> {
+async function conversationFor(db: Db, r: Row, actor: Model, director: Model): Promise<Turn[]> {
   const seed = r.seed === null ? undefined : Number(r.seed);
   const format = r.setup?.format ?? DEFAULT_FORMAT;
   const req: DateRequest = {
@@ -108,8 +110,8 @@ async function conversationFor(db: Db, r: Row): Promise<Turn[]> {
   const venueId = r.setup?.venue ?? built.setup.venue;
   const formatCtx = { chaperone: r.setup?.chaperone, ex: r.setup?.ex };
   // Played from a beat sheet of the STORED outcome, like a fresh date (lib/beats.ts).
-  const plan = await planDate(getDirectorModel(), built.input, outcome, characters, producer, venueId, format, formatCtx);
-  return simulateConversation(getModel(), built.input, outcome, characters, producer, venueId, format, undefined, formatCtx, plan);
+  const plan = await planDate(director, built.input, outcome, characters, producer, venueId, format, formatCtx);
+  return simulateConversation(actor, built.input, outcome, characters, producer, venueId, format, undefined, formatCtx, plan);
 }
 
 /** The free tier said "slow down" (a 429 that outlasted the model client's own short backoff). */
@@ -146,13 +148,26 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
   );
 
   for (const r of rows) {
+    const t0 = Date.now();
+    const actor = countingModel(getModel());
+    const director = countingModel(getDirectorModel());
     try {
-      const transcript = await conversationFor(db, r);
+      const transcript = await conversationFor(db, r, actor.model, director.model);
       await db.query(
         `update episodes set transcript = $2::jsonb where id = $1 and jsonb_array_length(transcript) = 0`,
         [r.id, JSON.stringify(transcript)],
       );
       filled.push(r.id);
+      const calls = actor.calls() + director.calls();
+      trackEpisodeCost({
+        episode_id: r.id,
+        where: "backfill",
+        model: "free",
+        model_calls: calls,
+        ms: Date.now() - t0,
+        transcript_turns: transcript.length,
+        usage: summarizeUsage([...actor.usage(), ...director.usage()], calls),
+      });
     } catch (err) {
       track("conversation_failed", { episode_id: r.id, where: "backfill", reason: failureReason(err) });
       if (isRateLimited(err)) return { filled, failed, rate_limited: true };

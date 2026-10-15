@@ -7,6 +7,8 @@
  * never names, bios, dialogue, notes or soul data (PRD §14: "without placing sensitive character content
  * or personal information in analytics events").
  */
+import type { DateUsage } from "./pricing";
+
 export type AnalyticsEvent =
   | "episode_created"
   | "episode_generated" // the unit-economics event: model calls + latency for one date
@@ -32,15 +34,34 @@ export function track(event: AnalyticsEvent, props: Props = {}): void {
   }
 }
 
-/** Unit economics for one generated episode (no content): how many model calls, how long, which model. */
+/**
+ * Unit economics for one generated date (no content): which model, how many calls, how long, and the tokens they
+ * used. cost_usd is what the date would cost at paid-tier list prices (lib/pricing.ts): $0 in cash on the free
+ * tier, and the number pricing is set against (docs/upgrade-cost.md).
+ */
 export function trackEpisodeCost(props: {
   episode_id: string;
+  where?: "job" | "template" | "template_retake" | "backfill";
   model: "free" | "frontier";
   model_calls: number;
   ms: number;
   transcript_turns: number;
+  usage?: DateUsage;
 }): void {
-  track("episode_generated", props);
+  const { usage, ...rest } = props;
+  track("episode_generated", {
+    ...rest,
+    ...(usage
+      ? {
+          input_tokens: usage.input_tokens,
+          cached_input_tokens: usage.cached_input_tokens,
+          output_tokens: usage.output_tokens,
+          thinking_tokens: usage.thinking_tokens,
+          cost_usd: usage.cost_usd,
+          models: usage.models.join(","),
+        }
+      : {}),
+  });
 }
 
 /**

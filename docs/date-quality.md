@@ -325,14 +325,17 @@ Quality includes the date actually happening. What the eval exposed, and what's 
 
 ## Cost
 
-All free-tier calls; marginal cost $0. Calls per date went from ~9 (v1: conversation + recap) to ~12–14 (plan,
-10 turns, a few critic revisions, recap). The critic is the variable part: about 1–3 revisions a date. The
-showcase bar adds at most one extra date's calls per day, and only for the lobby room.
+All free-tier calls today, so the cash cost is $0. At Google's paid prices a date is ~15 calls, ~26k tokens in
+and ~2.2k out, about **1.3¢ before thinking** (budget 1–2.5¢). The conversation is about two-thirds of it, and
+the critic adds about 1–3 rewrites a date. The showcase bar adds at most one extra date's calls a day, for the
+lobby room only. The full breakdown, fixed costs and what it means for pricing are in
+[docs/upgrade-cost.md](upgrade-cost.md). Every generated date now logs its real tokens and paid-tier cost.
 
 ## Telemetry
 
 Every generated date logs `date_quality` (`lib/analytics.ts`): where it ran (job, template, template_retake,
-backfill), the plan's source (director or rules), and the free metrics. `conversation_failed` carries the
+backfill), the plan's source (director or rules), and the free metrics. It also logs `episode_generated`, with
+the calls, the tokens (thinking included) and the paid-tier cost (`lib/pricing.ts`). `conversation_failed` carries the
 content-free reason, now including the provider's short message.
 
 ## Limits and what's next

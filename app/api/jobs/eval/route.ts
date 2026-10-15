@@ -2,7 +2,7 @@ import { z } from "zod";
 import { EVAL_CASES, rejudgeCase, runEvalCase } from "@/lib/eval";
 import { handle, json, readJson } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
-import { getDirectorModel, getModel, modelFromEnv, namedModel } from "@/lib/model";
+import { getDirectorModel, getModel, modelFromEnv, namedModel, REASONING_EFFORTS, roleReasoning, type ReasoningEffort } from "@/lib/model";
 
 // One eval date: ~10-17 model calls on the free tier, plus the judge.
 export const maxDuration = 300;
@@ -42,7 +42,8 @@ const SavedTranscript = z
  * it can run against production's model key without touching a real date. Same gate as the job routes
  * (404 unless authorized). scripts/eval-dates.mjs drives it over the whole set and writes the report.
  *
- * Body: { case, actor?, director?, judge? } — optional model names for the A/B arms.
+ * Body: { case, actor?, director?, judge?, actor_reasoning?, director_reasoning? } — optional model names and
+ * thinking levels ("minimal" | "low" | "medium" | "high" | "default") for the A/B arms.
  * Or { case, judge, transcript } — judge a saved transcript again, generating nothing (eval-rejudge.mjs).
  */
 /**
@@ -56,7 +57,15 @@ export const GET = handle(async (req: Request) => {
 
 export const POST = handle(async (req: Request) => {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
-  const body = ((await readJson(req)) ?? {}) as { case?: string; actor?: string; director?: string; judge?: string; transcript?: unknown };
+  const body = ((await readJson(req)) ?? {}) as {
+    case?: string;
+    actor?: string;
+    director?: string;
+    judge?: string;
+    transcript?: unknown;
+    actor_reasoning?: string;
+    director_reasoning?: string;
+  };
   const c = EVAL_CASES.find((x) => x.id === body.case);
   if (!c) return json({ error: "unknown_case", cases: EVAL_CASES.map((x) => x.id) }, 400);
   for (const name of [body.actor, body.director, body.judge]) {
@@ -68,9 +77,29 @@ export const POST = handle(async (req: Request) => {
     return json({ case: c.id, ...(await rejudgeCase(c, transcript.data, namedModel(body.judge, evalEnv()))), models: { judge: body.judge } });
   }
   const env = evalEnv();
-  const actor = body.actor ? namedModel(body.actor, env) : env === process.env ? getModel() : modelFromEnv(env);
-  const director = body.director ? namedModel(body.director, env) : body.actor ? actor : getDirectorModel(env);
+  // A thinking level per role: the configured one, or an arm's override ("default" sends none).
+  const level = (asked: string | undefined, role: "actor" | "director"): ReasoningEffort | undefined | null =>
+    asked === undefined ? roleReasoning(role, env) : asked === "default" ? undefined : (REASONING_EFFORTS as readonly string[]).includes(asked) ? (asked as ReasoningEffort) : null;
+  const actorLevel = level(body.actor_reasoning, "actor");
+  const directorLevel = level(body.director_reasoning, "director");
+  if (actorLevel === null || directorLevel === null) return json({ error: "bad_reasoning", allowed: [...REASONING_EFFORTS, "default"] }, 400);
+  const actor = body.actor ? namedModel(body.actor, env, actorLevel) : env === process.env ? getModel(actorLevel) : modelFromEnv(env, undefined, actorLevel);
+  // An actor arm also directs (as before), unless the arm sets the director's thinking level separately.
+  const director = body.director
+    ? namedModel(body.director, env, directorLevel)
+    : body.actor
+      ? body.director_reasoning === undefined ? actor : namedModel(body.actor, env, directorLevel)
+      : getDirectorModel(env, directorLevel);
   const judge = body.judge ? namedModel(body.judge, env) : null;
   const result = await runEvalCase(c, { actor, director }, judge);
-  return json({ ...result, models: { actor: body.actor ?? "default", director: body.director ?? body.actor ?? "default", judge: body.judge ?? null } });
+  return json({
+    ...result,
+    models: {
+      actor: body.actor ?? "default",
+      director: body.director ?? body.actor ?? "default",
+      judge: body.judge ?? null,
+      actor_reasoning: actorLevel ?? "default",
+      director_reasoning: directorLevel ?? "default",
+    },
+  });
 });

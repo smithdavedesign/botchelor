@@ -50,6 +50,10 @@ const rows = [
   ["Words per line", (r) => mean(r.results.filter((x) => x.metrics).map((x) => x.metrics.avg_words))],
   ["Line-length spread (words)", (r) => mean(r.results.filter((x) => x.metrics).map((x) => x.metrics.length_spread ?? 0))],
   ["Model calls / date", (r) => mean(r.results.filter((x) => x.metrics).map((x) => x.model_calls))],
+  ["Tokens in / date", (r) => mean(r.results.filter((x) => x.usage?.cost_usd != null).map((x) => x.usage.input_tokens))],
+  ["Tokens out / date (thinking incl.)", (r) => mean(r.results.filter((x) => x.usage?.cost_usd != null).map((x) => x.usage.output_tokens))],
+  ["…of which thinking", (r) => mean(r.results.filter((x) => x.usage?.cost_usd != null).map((x) => x.usage.thinking_tokens))],
+  ["Paid-tier cost / date (¢)", (r) => mean(r.results.filter((x) => x.usage?.cost_usd != null).map((x) => x.usage.cost_usd * 100))],
   ["Conversations failed", (r) => `${r.results.filter((x) => x.conversation_error || x.error).length}/${r.results.length}`],
 ];
 console.log(`| Metric | ${runs.map((r) => r.label).join(" | ")} |`);

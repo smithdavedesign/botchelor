@@ -1,16 +1,110 @@
-# Upgrade cost: frontier models and the full stack
+# Upgrade cost: what a date costs, and what each upgrade would
 
-_Written for David, 2026-10-13. This is a spend proposal, not a switch that has been flipped._
+_Written for David, 2026-10-13; updated 2026-10-15 with measured numbers. A spend proposal, not a switch that
+has been flipped._
 
 Everything in the repo today runs at **$0 marginal cost** on free models and the free stack (Vercel Hobby,
-Neon free, Gemini free tier via LiteLLM/OpenAI-compatible). The PRD's Product-vision and Target-architecture
-sections describe a richer product — frontier dialogue, portraits, video — that **costs money and needs your
-approval first** (agents spend nothing; you put in up to the $300-per-product budget and pay). This doc says
-what each upgrade buys, roughly what it costs, and a staged order that stays inside $300.
+Neon free, Gemini free tier). The PRD's Product-vision and Target-architecture sections describe a richer
+product — frontier dialogue, portraits, video — that **costs money and needs your approval first** (agents
+spend nothing; you put in up to the $300-per-product budget and pay). This doc says what a date really costs,
+what each upgrade buys and costs, and a staged order that stays inside $300.
 
-**All prices below are representative, order-of-magnitude figures. Confirm the live numbers on the provider
-dashboards (or via Vercel AI Gateway spend reports) before authorising any spend.**
+**Model prices were read from Google's pricing page on 2026-10-15. Other providers' figures are representative
+ranges: confirm the live numbers before authorising any spend.**
 
+## What a date costs (measured)
+
+**How it was measured.** Every prompt of six real eval dates (`docs/eval/v3-lite.json`) was rebuilt offline with
+the app's own code, with no model calls. Each was priced at Google's paid list price for the live model,
+`gemini-3.5-flash-lite`: **$0.30 per 1M tokens in, $2.50 per 1M out**, with thinking billed as output. From now on,
+every generated date logs its real token counts and that price on the `episode_generated` event (see below), so
+this table becomes a measurement, not an estimate.
+
+| Part of a date | Calls | Tokens in / out | Cost at paid prices |
+|---|---|---|---|
+| The plan (director) | 1 | ~2,100 / ~700 | 0.24¢ |
+| The conversation (each turn resends the date so far) | 10 | ~16,400 / ~600 | 0.64¢ |
+| The critic's rewrites | ~3 | ~5,200 / ~200 | 0.20¢ |
+| The recap (director) | 1 | ~2,100 / ~700 | 0.24¢ |
+| **A whole date** | **~15** | **~26k / ~2.2k** | **~1.3¢** |
+| The afterglow (only when the owners open it) | 4 | ~5,500 / ~100 | +0.2¢ |
+
+- **Thinking is the open question.** Gemini 3 models can't turn thinking off. Its tokens bill as output and
+  weren't in the measurement: at ~300 a call, a date is ~2.4¢. **Budget 1–2.5¢ a date** until the logs say
+  otherwise.
+- **A better director**: `gemini-3.8-flash` for the plan and the recap adds ~0.4–1.1¢ a date now, and ~2.7¢
+  from 2027-01-01, when Google doubles its price.
+- **A frontier model for every role**: a date is ~26k tokens in and ~2.2k out, so cost ≈ 26 × (input $/M) +
+  2.2 × (output $/M), in thousandths of a dollar. At $1–3 in and $5–15 out per 1M (mid frontier), that's
+  ~4–11¢ a date. At $5 in and $25 out (top frontier), ~19¢. The 2026-10-13 version of this doc assumed one
+  call per date, which understates today's pipeline about tenfold.
+
+**What keeps it down (in place since #55):**
+- **Thinking level per role.** The actor (every line, the texts) asks for `minimal`, and the director (plan,
+  recap) for `low`. Override with `LLM_ACTOR_REASONING` / `LLM_DIRECTOR_REASONING` (`default` sends none). A
+  model that refuses the setting is asked again without it, and remembered.
+- **Compact prompts.** The prompts are compact JSON: indentation was 5–8% of every call.
+- **Cache-friendly order.** The stable part of each turn (the rules, the speaker's own sheet, what they can see)
+  comes first, so Gemini's implicit caching can discount it. Cached tokens are logged.
+- **The conversation history is kept on purpose.** It's ~15% of a turn's prompt, and callbacks to earlier lines
+  are one of the quality goals (`docs/date-quality.md`).
+
+## What saving a date costs
+
+- **A date is ~6 KB**: the transcript is ~2.3 KB; the rest is scenes, confessionals, the box score and the setup.
+  **A character is ~3 KB**, with its soul and learned memory.
+- Neon's free plan holds 1 GB per project, which is ~165,000 dates. Past that it's $0.35/GB-month, about
+  **$0.002 a month per thousand dates**. Storage doesn't belong in the price.
+
+## Fixed costs (what actually matters)
+
+| Item | Cost | Why |
+|---|---|---|
+| Hosting | **$20/month** (Vercel Pro, $20 usage included) or $0 (Netlify free) | Vercel Hobby is "personal, non-commercial": Stripe stays in test mode until the host changes |
+| Gemini paid key | ~1–2.5¢ a date | The free tier stops after a few hundred calls a day (~25–30 dates; it ran out on 2026-10-15). Paid prompts also aren't used to improve Google's products, which matters because they carry visitors' private souls |
+| Database | $0 on the free plan; worst case ~$20/month | Live watch rooms poll every 4s and keep the compute awake; always-on at 0.25 CU is ~182 CU-hours × $0.106 |
+| Stripe | 2.9% + 30¢ a purchase | The flat 30¢ is what punishes small prices |
+
+## What it means for pricing
+
+| Offer | Stripe fee | You keep | Model cost | Margin |
+|---|---|---|---|---|
+| 5 dates for $4 (live price) | $0.42 | $3.58 | 7–15¢ | ~96% |
+| 15 dates for $9 | $0.56 | $8.44 | 20–45¢ | ~95% |
+| $4.99 a month for 30 dates | $0.44 | $4.55 | 40–90¢ | 80–90% |
+
+- **Free dates are the real cost.** 3 a week is ~13 a month per active creator: 17–39¢ per creator per month on
+  paid Gemini. One $4 pack pays for the free dates of ~10–20 creators who never buy.
+- **Break-even** on $20–40 a month of fixed costs is ~6–11 packs a month.
+- **Avoid prices under ~$3**: Stripe's 30¢ alone is 10% or more.
+- **A premium tier is cheap to run**: a better director plus the afterglow is ~1–3¢ more per date.
+
+### Where the real numbers show up
+Every generated date logs `episode_generated` (`lib/analytics.ts`) with `where` (job, template,
+template_retake, backfill), `model_calls`, `input_tokens`, `cached_input_tokens`, `output_tokens`,
+`thinking_tokens` and `cost_usd` (paid-tier list price, `lib/pricing.ts`). The eval reports the same per date
+(`eval-report`: "Tokens in / out", "Paid-tier cost / date"). After the first day of real dates, replace the
+estimates above with those numbers.
+
+## Bring your own key (considered, not built)
+
+Letting a player use their own provider key would take that player's dates off our bill and our daily cap, and
+let them choose a stronger model. The engine still decides every outcome, so a better model can't buy a win.
+What it needs, from the design review on 2026-10-15:
+- **Privacy: a key may only carry its owner's side.** Each actor's prompt holds only that side's private soul
+  (plus a blind view of the other). So A's key may play A's turns, and a house character's (house characters
+  have no private text), but **never** B's turns. The director and the narrator see both souls, so they stay on
+  the platform key. A player's key would then cover the ~12 conversation calls (about two-thirds of a date)
+  and their afterglow texts.
+- **Known providers only** (Google, OpenAI, Anthropic, OpenRouter, …), with **no custom endpoints**. Otherwise a
+  player could point the calls at their own server, read everything in them, and use our server to call
+  arbitrary URLs.
+- **Where the key lives.** Kept only in the player's browser and sent with the requests that need it (starting a
+  date, opening the afterglow), it's never stored, logged or written to the job table, and no sign-in is needed.
+  Stored server-side (encrypted, e.g. Vercel KMS), it survives retries and works across devices, but then it
+  needs an account to protect it: an anonymous one (a passkey, no email, no name) keeps the show's anonymity.
+- **What it changes about money:** dates on a player's own key cost us only hosting and storage (fractions of a
+  cent). Revenue then comes from what isn't a model call: cosmetics, formats, character slots, a season pass.
 ## What is already built (so the upgrade is just swapping a provider)
 
 The hard work that makes paid models optional is done:
@@ -20,22 +114,23 @@ The hard work that makes paid models optional is done:
   the predictions or the points. So you can turn a frontier model on or off per environment with no gameplay risk.
 - **The model is already an OpenAI-compatible client** (`lib/model.ts`) read from env (`LLM_BASE_URL`,
   `LLM_API_KEY`, `LLM_MODEL`). Upgrading text quality is a config change, not a code change.
-- **One model call per episode.** Narration only. No chat loop, no retries beyond one.
+- **The model work per date is bounded**: ~15 calls (a plan, ten turns, a few critic rewrites, the recap), all
+  best-effort except the recap, with a fail-fast on a spent quota (`lib/model.ts`).
 
 ## 1. Frontier text model (the cheapest, highest-leverage upgrade)
 
 **What it buys:** noticeably better dialogue, wit and character voice — the thing that decides whether the loop
 is fun (PRD: "If that loop is fun with text and portraits, the product is worth investing in").
 
-**Cost model:** one episode is ≈ 2,000 input tokens (two sheets + private souls + the decided-outcome brief) and
-≈ 700 output tokens (scenes, best line, two confessionals). Per episode that is a fraction of a cent to ~2 cents
-depending on the model tier:
+**Cost model:** a date is ~26k tokens in and ~2.2k out over ~15 calls (measured, above):
 
-| Tier | ~$/episode | 2,000 episodes/mo | Notes |
+| Tier | ~$/date | 2,000 dates/mo | Notes |
 |---|---|---|---|
-| Free (today) | $0 | $0 | Gemini free tier; quality ceiling, rate limits |
-| Mid frontier (e.g. a Sonnet- or GPT-mid-class model) | ~$0.005–0.015 | ~$10–30/mo | the recommended first paid step |
-| Top frontier (e.g. an Opus- or GPT-top-class model) | ~$0.03–0.08 | ~$60–160/mo | best writing; likely overkill for a date |
+| Free (today) | $0 | $0 | Gemini free tier; a daily cap of ~25–30 dates; prompts may be used by Google |
+| Paid `gemini-3.5-flash-lite` (the live model) | ~$0.01–0.025 | ~$25–50/mo | same quality, no daily cap, no training on prompts |
+| …plus a `gemini-3.8-flash` director | ~$0.02–0.035 (2027: ~$0.04–0.05) | ~$40–70/mo | the A/B proposed in `docs/date-quality.md` |
+| Mid frontier for every role | ~$0.04–0.11 | ~$80–220/mo | |
+| Top frontier for every role | ~$0.19 | ~$380/mo | over budget at volume; only for gated runs |
 
 **How to turn it on safely:**
 - Route through **Vercel AI Gateway** (one key, model fallbacks, spend caps, zero-data-retention option) and set
@@ -46,8 +141,10 @@ depending on the model tier:
   backend enforces (reserve the estimated cost, refuse or downgrade to the free model when the cap is hit). This
   is ~a day's work and is the thing that makes a paid key safe to expose. It does not exist yet.
 
-**Recommendation:** Stage 1 is a mid-frontier model through AI Gateway with a hard cap (say $30/mo), plus the
-compute-budget gate. Biggest quality jump for the least money and risk.
+**Recommendation:** Stage 1 is the live model on a **paid key with a hard cap** (say $10–30/mo), plus the
+compute-budget gate. It costs the same quality-wise, but it removes the daily cap and the training-on-prompts
+issue. Then the `gemini-3.8-flash` director A/B. A mid-frontier model for every role only if the A/B shows the
+writing still holds the show back.
 
 ## 2. Character portraits (Level 1 images)
 
@@ -108,7 +205,7 @@ personal data.
 | Stage | Buys | ~Monthly | Caps |
 |---|---|---|---|
 | 0 (now) | Free models, free stack | $0 | — |
-| 1 | Compute-budget gate + mid-frontier text via AI Gateway | ~$20–40 | hard $/day cap; free-model fallback |
+| 1 | Compute-budget gate + the live model on a paid key (then the director A/B) | ~$10–50 | hard $/day cap; free-model fallback |
 | 2 | Level 1 portraits (hosted, cached) + Blob/CDN | ~$20–50 | cost per new character, not per date |
 | 3 | Commercial-use host for live payments | $0 (Netlify) or ~$20 (Vercel Pro) | — |
 | 4 | Level 2 crowd-unlocked video + queue/GPU | usage-based, spiky | demand-gated; per-user clip cap |

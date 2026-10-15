@@ -8,6 +8,8 @@ import {
   openAICompatibleModel,
   RATE_LIMIT_TRIP_MS,
   RETRY_DELAYS_MS,
+  roleReasoning,
+  usageFrom,
   type ChatMessage,
 } from "@/lib/model";
 
@@ -151,6 +153,49 @@ describe("openAICompatibleModel", () => {
     await expect(model.complete(messages)).rejects.toThrow(/HTTP 429 \(Quota exceeded .*limit: 0/);
     expect(calls).toHaveLength(1);
     expect(waits).toEqual([]);
+  });
+
+  it("reports each call's usage, reading both ways providers count thinking", async () => {
+    const seen: unknown[] = [];
+    // OpenAI's convention: reasoning inside completion_tokens, with a breakdown.
+    const openai = { ...completion("{}"), usage: { prompt_tokens: 1000, completion_tokens: 300, total_tokens: 1300, completion_tokens_details: { reasoning_tokens: 200 }, prompt_tokens_details: { cached_tokens: 400 } } };
+    const { fetchImpl } = fakeFetch({ body: openai });
+    await openAICompatibleModel({ baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: "m", fetchImpl }).complete(messages, { onUsage: (u) => seen.push(u) });
+    expect(seen[0]).toEqual({ model: "m", input: 1000, cachedInput: 400, output: 300, thinking: 200 });
+    // Thinking reported only in the total: billed output is the larger figure.
+    expect(usageFrom({ prompt_tokens: 1000, completion_tokens: 100, total_tokens: 1350 }, "g")).toEqual({ model: "g", input: 1000, cachedInput: 0, output: 350, thinking: 250 });
+    expect(usageFrom(undefined, "g")).toBeNull();
+  });
+
+  it("asks for the role's thinking level, and drops it for good if the model refuses it", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    let refused = false;
+    const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      bodies.push(body);
+      if (body.reasoning_effort && !refused) {
+        refused = true;
+        return new Response(JSON.stringify({ error: { message: "reasoning_effort is not supported for this model" } }), { status: 400 });
+      }
+      return new Response(JSON.stringify(completion('{"ok":true}')), { status: 200 });
+    }) as typeof fetch;
+    const name = `refuser-${Math.random()}`;
+    const model = openAICompatibleModel({ baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: name, fetchImpl, reasoning: "minimal" });
+    expect(await model.complete(messages)).toBe('{"ok":true}');
+    expect(bodies.map((b) => b.reasoning_effort)).toEqual(["minimal", undefined]); // refused, then asked without
+    await openAICompatibleModel({ baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: name, fetchImpl, reasoning: "minimal" }).complete(messages);
+    expect(bodies.at(-1)?.reasoning_effort).toBeUndefined(); // remembered for this model
+    // Any other 400 is a real error, not retried.
+    const { calls, fetchImpl: bad } = fakeFetch({ status: 400, body: { error: { message: "invalid messages" } } });
+    await expect(openAICompatibleModel({ baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: "m2", fetchImpl: bad, reasoning: "low" }).complete(messages)).rejects.toThrow("HTTP 400");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("gives the actor the least thinking and the director a little, overridable per role", () => {
+    expect(roleReasoning("actor", {})).toBe("minimal");
+    expect(roleReasoning("director", {})).toBe("low");
+    expect(roleReasoning("actor", { LLM_ACTOR_REASONING: "medium" })).toBe("medium");
+    expect(roleReasoning("director", { LLM_DIRECTOR_REASONING: "default" })).toBeUndefined(); // the model's own default
   });
 
   it("throws a ModelError when the response has no text content", async () => {

@@ -15,7 +15,7 @@
  */
 import { getDb, type Db } from "./db";
 import { getEngine, seedFrom } from "./engine";
-import { track, trackDateQuality } from "./analytics";
+import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { failureReason } from "./jobs";
 import { HOUSE_CHARACTERS } from "./house";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
@@ -721,6 +721,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   // The shared pipeline (lib/pipeline.ts): the recap, plus the turn-by-turn conversation so template rooms
   // play the date line by line too. Pre-generated system content; the conversation is best-effort and gated
   // off in tests. Template rooms have no owners, so no afterglow.
+  const t0 = Date.now();
   const take = () =>
     generateDate({ actor: getModel(), director: getDirectorModel() }, built, decided, {
       formatId: built.setup.format ?? DEFAULT_FORMAT,
@@ -749,6 +750,15 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
     }
   }
   if (gen.quality) trackDateQuality(episodeId, retaken ? "template_retake" : "template", gen.plan?.source ?? null, gen.quality);
+  trackEpisodeCost({
+    episode_id: episodeId,
+    where: retaken ? "template_retake" : "template",
+    model: "free",
+    model_calls: gen.modelCalls,
+    ms: Date.now() - t0,
+    transcript_turns: gen.transcript.length,
+    usage: gen.usage,
+  });
   const { draft, transcript } = gen;
 
   await db.query(
