@@ -4,7 +4,9 @@ import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { checkFields, type RejectReason } from "@/lib/safety";
-import { assertSafeSoul, isEmptySoul, normaliseSoul, ownsCharacter, saveSoul, SoulInput } from "@/lib/souls";
+import type { ImageSignals } from "@/lib/avatar";
+import { ExtrasInput, extrasFields, normaliseExtras, type ExtrasInputType } from "@/lib/extras";
+import { assertSafeSoul, isEmptySoul, normaliseSoul, ownsCharacter, saveSignals, saveSoul, SoulInput } from "@/lib/souls";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -34,6 +36,18 @@ const CharacterPatch = z
     soul: SoulInput.optional(),
     // Consent to be asked out by name (see POST /api/characters). Toggle any time; past dates are unaffected.
     open_to_dates: z.boolean().optional(),
+    // Optional details (lib/extras.ts), replaced wholesale; null or {} clears them.
+    extras: ExtrasInput.nullable().optional(),
+    // Re-trained from a reference image in the builder (only the four numbers, never the image). Shapes future
+    // dates; a learned memory drift on top of them is untouched.
+    image_signals: z
+      .object({
+        warmth: z.number().min(0).max(1),
+        openness: z.number().min(0).max(1),
+        guardedness: z.number().min(0).max(1),
+        humor: z.number().min(0).max(1),
+      })
+      .optional(),
   })
   .refine((v) => Object.keys(v).length > 0, "Nothing to update.");
 
@@ -56,7 +70,9 @@ const COLUMN: Record<string, (v: Record<string, unknown>) => unknown> = {
   pronouns: (v) => v.pronouns ?? null,
   voice: (v) => v.voice ?? null,
   open_to_dates: (v) => v.open_to_dates === true,
+  extras: (v) => JSON.stringify(normaliseExtras(v.extras as ExtrasInputType | null)),
 };
+const JSONB_COLUMNS = new Set(["traits", "extras"]);
 
 /** Edit your own character. Owner-only; a character you don't own (or a house one) is "not found". */
 export const PATCH = handle(async (req: Request, ctx: Ctx) => {
@@ -74,6 +90,7 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
     dealbreaker: input.dealbreaker as string | undefined,
     appearance: (input.appearance as string | null | undefined) ?? undefined,
     voice: (input.voice as string | null | undefined) ?? undefined,
+    ...(input.extras ? extrasFields(normaliseExtras(input.extras as ExtrasInputType)) : {}),
   });
   if (!verdict.ok) {
     return json({ error: "content_rejected", reason: verdict.reason, field: verdict.field, message: REJECTION_MESSAGES[verdict.reason] }, 422, sess);
@@ -81,25 +98,30 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
 
   const columns = Object.keys(COLUMN).filter((c) => c in input);
   if (columns.length) {
-    const sets = columns.map((c, i) => `${c} = $${i + 3}${c === "traits" ? "::jsonb" : ""}`);
+    const sets = columns.map((c, i) => `${c} = $${i + 3}${JSONB_COLUMNS.has(c) ? "::jsonb" : ""}`);
     await db.query(
       `update characters set ${sets.join(", ")} where id = $1 and owner_id = $2 and not is_house`,
       [id, sess.userId, ...columns.map((c) => COLUMN[c](input))],
     );
   }
 
-  // The soul is replaced wholesale when present: a filled soul upserts, an empty one clears it.
+  // The soul is replaced wholesale when present: a filled soul upserts, an empty one clears its text. Its
+  // image-trained signals are kept either way (saveSoul coalesces them), so clearing the words never quietly
+  // changes how the character behaves; a row with neither text nor signals is removed.
   if (input.soul !== undefined) {
     const soul = normaliseSoul(input.soul as z.infer<typeof SoulInput>);
     if (isEmptySoul(soul)) {
-      await db.query("delete from souls where character_id = $1", [id]);
+      const hasSignals = (await db.query(`select 1 from souls where character_id = $1 and signals is not null`, [id])).rows.length > 0;
+      if (hasSignals) await saveSoul(db, id, soul, false);
+      else await db.query("delete from souls where character_id = $1", [id]);
     } else {
       assertSafeSoul(soul);
       await saveSoul(db, id, soul, (input.soul as { local_only?: boolean }).local_only ?? false);
     }
   }
+  if (input.image_signals) await saveSignals(db, id, input.image_signals as ImageSignals);
 
-  return json({ id, updated: columns, soul_changed: input.soul !== undefined }, 200, sess);
+  return json({ id, updated: columns, soul_changed: input.soul !== undefined, signals_changed: Boolean(input.image_signals) }, 200, sess);
 });
 
 /** Delete your own character (PRD privacy). Owner-only; kept as a tombstone if it already aired in an episode. */

@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import ShareLink from "@/app/ShareLink";
 import { getDatingProfile } from "@/lib/dating";
+import { hasExtras } from "@/lib/extras";
+import ProfileDetails from "./ProfileDetails";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { getDb } from "@/lib/db";
 import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
@@ -63,23 +65,17 @@ export default async function CharacterPage({ params }: Props) {
             Age {c.age}
             {c.pronouns && <> · {c.pronouns}</>}
           </p>
+          {(c.extras.occupation || c.extras.hometown) && (
+            <p className="contestant-job">
+              {c.extras.occupation}
+              {c.extras.occupation && c.extras.hometown && " · "}
+              {c.extras.hometown && <>from {c.extras.hometown}</>}
+            </p>
+          )}
         </div>
       </div>
 
-      {ratings.is_owner && !c.house && (
-        <OwnerControls
-          id={c.id}
-          name={c.name}
-          age={c.age}
-          bio={c.bio}
-          traits={c.traits}
-          want={c.want}
-          appearance={c.appearance}
-          pronouns={c.pronouns}
-          voice={c.voice}
-          openToDates={dating?.open_to_dates ?? false}
-        />
-      )}
+      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} />}
 
       {c.clip_asset_id && (
         <section className="card">
@@ -112,6 +108,11 @@ export default async function CharacterPage({ params }: Props) {
             <strong>How they talk:</strong> {c.voice}
           </p>
         )}
+      </section>
+
+      {hasExtras(c.extras) && <ProfileDetails extras={c.extras} />}
+
+      <section className="card">
         <h2>Audience rating</h2>
         <p className="muted">How the crowd reads this contestant. It&apos;s just for fun — it never changes a date, the odds or your points on a prediction.</p>
         <RatingButtons characterId={c.id} counts={ratings.counts} mine={ratings.mine} isOwner={ratings.is_owner} />

@@ -483,6 +483,14 @@ async function seedRatings(base) {
 }
 
 /** A browser context that has already passed the 18+ gate, so screenshots skip the lock screen. */
+/**
+ * The desktop browser presents as an ordinary Chrome, as a person's would. Headless Chrome's own user agent says
+ * "HeadlessChrome", which the site treats as an automated agent and lets past the 18+ gate (lib/bots.ts) — right
+ * for agents, wrong for a run that photographs what a person sees. (The iPhone preset already uses Safari's.)
+ */
+const DESKTOP_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
+
 async function adultContext(browser, device, base) {
   const ctx = await browser.newContext(device);
   await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
@@ -493,7 +501,7 @@ async function capture(base, leagueId, viewer) {
   const { chromium, devices } = await import("playwright-core");
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
   const sizes = [
-    ["desktop", { viewport: { width: 1280, height: 800 } }],
+    ["desktop", { viewport: { width: 1280, height: 800 }, userAgent: DESKTOP_UA }],
     ["mobile", devices["iPhone 13"]],
   ];
   const saved = [];
@@ -560,14 +568,27 @@ async function capture(base, leagueId, viewer) {
       await home.getByRole("button", { name: "Next: Look" }).click();
       // Step 3 — Look.
       await home.getByText("Give them a look").waitFor();
+      await home.locator('input[name="extra_style"]').fill("Sharp blazer, sneakers, zero regrets");
+      await home.getByRole("button", { name: "Next: Details" }).click();
+      // Step 4 — the optional details (occupation, hobbies, quirks, profile prompts).
+      await home.getByText("The details (all optional)").waitFor();
+      await home.locator('input[name="extra_occupation"]').fill("Crossword constructor");
+      await home.locator('input[name="extra_hometown"]').fill("a canal town full of bicycles");
+      await home.getByText("Life & loves").click(); // the groups past "The basics" start folded
+      await home.getByRole("button", { name: "+ Chess" }).click();
+      await home.getByRole("button", { name: "+ Board games" }).click();
+      await home.getByText("Profile prompts").click();
+      await home.getByRole("button", { name: "+ Add a prompt" }).click();
+      await home.locator('textarea[name="extra_prompt_0"]').fill("Finishing my crossword in pen, then admitting the one I guessed.");
+      await shot(home, "builder-details", { full: true });
       await home.getByRole("button", { name: "Next: Soul & autonomy" }).click();
-      // Step 4 — Soul & autonomy (owner-only private soul).
+      // Step 5 — Soul & autonomy (owner-only private soul).
       await home.getByText("The inner life (optional)").waitFor();
       await home.locator('input[name="soul_values"]').fill("Finishes what she starts; hates being underestimated.");
       await home.locator('input[name="soul_humor"]').fill("Dry, competitive, quick to a comeback.");
       await home.locator('input[name="soul_communication"]').fill("Warm once she trusts you; guarded before that.");
       await home.getByRole("button", { name: "Next: Review" }).click();
-      // Step 5 — Review & create.
+      // Step 6 — Review & create.
       await home.getByText("Review & create").waitFor();
       await home.locator('.wizard-attest input[type="checkbox"]').check();
       await home.getByRole("button", { name: `Create ${c.name}` }).click();
@@ -694,7 +715,8 @@ async function capture(base, leagueId, viewer) {
       const agentsPage = await member.newPage();
       await agentsPage.goto(`${base}/agents`);
       await agentsPage.getByRole("heading", { level: 1, name: "Bring your agent. Find it a date." }).waitFor();
-      await shot(agentsPage, "agents", { full: true });
+      // "agents-page", not "agents": docs/screenshots/agents-*.png are the live-site captures the README shows.
+      await shot(agentsPage, "agents-page", { full: true });
       await member.close();
     }
   } finally {
@@ -733,7 +755,7 @@ async function captureGenerating(baseEnv) {
     // Generation is NOT inline here, so this returns straight away with a 'generating' episode.
     const ep = await call("/api/episodes", { character_id: character.id, blind: true }, who, [200]);
     const sizes = [
-      ["desktop", { viewport: { width: 1280, height: 800 } }],
+      ["desktop", { viewport: { width: 1280, height: 800 }, userAgent: DESKTOP_UA }],
       ["mobile", devices["iPhone 13"]],
     ];
     for (const [label, device] of sizes) {

@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Avatar from "../Avatar";
 import { requestJson } from "../request";
+import DetailsStep, { DetailField } from "./DetailsStep";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
+import { hasExtras, LOVE_LANGUAGES, normaliseExtras, promptLabel, TEXT_DETAILS, type CharacterExtras } from "@/lib/extras";
 import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
 import { DEFAULT_FORMAT, FORMATS, type FormatId } from "@/lib/formats";
 import {
@@ -43,7 +45,26 @@ export type Tokens = { free_left: number; free_per_season: number; pack_left: nu
 export type OpenCharacter = { id: string; name: string; age: number; bio: string; traits: string[]; hue: number | null; agent: boolean };
 
 type Sheet = { name: string; age: string; bio: string; want: string; dealbreaker: string };
-type Soul = { values: string; insecurities: string; humor: string; boundaries: string; romantic: string; communication: string; local_only: boolean };
+export type Soul = { values: string; insecurities: string; humor: string; boundaries: string; romantic: string; communication: string; local_only: boolean };
+
+/** Editing an existing character: everything the owner may change, as it stands now. */
+export type EditInitial = {
+  name: string;
+  age: number;
+  bio: string;
+  traits: string[];
+  want: string;
+  dealbreaker: string;
+  pronouns: string | null;
+  voice: string | null;
+  appearance: string | null;
+  hue: number | null;
+  soul: Soul | null;
+  openToDates: boolean;
+  extras: CharacterExtras;
+  /** Their behaviour was trained from an image or a curated look (kept unless re-trained). */
+  imageTrained: boolean;
+};
 const EMPTY_SHEET: Sheet = { name: "", age: "", bio: "", want: "", dealbreaker: "" };
 const EMPTY_SOUL: Soul = { values: "", insecurities: "", humor: "", boundaries: "", romantic: "", communication: "", local_only: false };
 
@@ -64,18 +85,21 @@ const VOICE_PICKS = [
   { label: "Blunt & practical", voice: "Blunt and practical: says exactly what they mean, asks how things work, no small talk." },
 ] as const;
 
-const STEPS = ["Identity", "Voice", "Look", "Soul & autonomy", "Review"] as const;
+/** The steps, by name, so their order can change without renumbering every check. */
+const S = { identity: 0, voice: 1, look: 2, details: 3, soul: 4, review: 5 } as const;
+const STEPS = ["Identity", "Voice", "Look", "Details", "Soul & autonomy", "Review"] as const;
+const EDIT_STEPS = ["Identity", "Voice", "Look", "Details", "Soul", "Review"] as const;
 const DRAFT_KEY = "botchelor:create-draft:v1";
 
 function words(s: string): number {
   return s.trim().split(/\s+/).filter(Boolean).length;
 }
 
-/** The five user-visible build steps, shown as a tappable progress rail. */
-function Stepper({ step, max, onJump }: { step: number; max: number; onJump: (i: number) => void }) {
+/** The build steps, shown as a tappable progress rail. */
+function Stepper({ step, max, onJump, labels }: { step: number; max: number; onJump: (i: number) => void; labels: readonly string[] }) {
   return (
     <ol className="wizard-rail" aria-label="Progress">
-      {STEPS.map((label, i) => {
+      {labels.map((label, i) => {
         const state = i === step ? "current" : i < max ? "done" : "todo";
         return (
           <li key={label} className={`wizard-rail-step ${state}`}>
@@ -96,41 +120,54 @@ function Stepper({ step, max, onJump }: { step: number; max: number; onJump: (i:
   );
 }
 
+const NO_TOKENS: Tokens = { free_left: 0, free_per_season: 0, pack_left: 0, left: 0 };
+
 export default function CreateWizard({
-  partners,
-  openCharacters,
-  tokens,
-  offer,
-  myCharacters,
-  startSample,
-  startCharacterId,
+  partners = [],
+  openCharacters = [],
+  tokens = NO_TOKENS,
+  offer = null,
+  myCharacters = [],
+  startSample = false,
+  startCharacterId = null,
+  edit,
 }: {
-  partners: Partner[];
-  openCharacters: OpenCharacter[];
-  tokens: Tokens;
-  offer: string | null;
-  myCharacters: { id: string; name: string }[];
-  startSample: boolean;
-  startCharacterId: string | null;
+  partners?: Partner[];
+  openCharacters?: OpenCharacter[];
+  tokens?: Tokens;
+  offer?: string | null;
+  myCharacters?: { id: string; name: string }[];
+  startSample?: boolean;
+  startCharacterId?: string | null;
+  /** Edit an existing character instead of creating one: every field is prefilled and every step open. */
+  edit?: { id: string; initial: EditInitial };
 }) {
   const router = useRouter();
+  const init = edit?.initial;
+  const labels = edit ? EDIT_STEPS : STEPS;
+  const last = labels.length - 1;
 
-  // Build-phase state (the character being made).
+  // Build-phase state (the character being made, or edited).
   const [step, setStep] = useState(0);
-  const [maxStep, setMaxStep] = useState(0); // the furthest step reached, so the rail can jump back only
-  const [sheet, setSheet] = useState<Sheet>(EMPTY_SHEET);
-  const [pronouns, setPronouns] = useState("");
-  const [traits, setTraits] = useState(["", "", ""]);
-  const [voice, setVoice] = useState("");
-  const [appearance, setAppearance] = useState("");
-  const [hue, setHue] = useState(0);
+  const [maxStep, setMaxStep] = useState(edit ? last : 0); // the furthest step reached; editing opens them all
+  const [sheet, setSheet] = useState<Sheet>(
+    init ? { name: init.name, age: String(init.age), bio: init.bio, want: init.want, dealbreaker: init.dealbreaker } : EMPTY_SHEET,
+  );
+  const [pronouns, setPronouns] = useState(init?.pronouns ?? "");
+  const [traits, setTraits] = useState(init ? [init.traits[0] ?? "", init.traits[1] ?? "", init.traits[2] ?? ""] : ["", "", ""]);
+  const [voice, setVoice] = useState(init?.voice ?? "");
+  const [appearance, setAppearance] = useState(init?.appearance ?? "");
+  const [hue, setHue] = useState(init?.hue ?? 0);
   const [lookId, setLookId] = useState<string | null>(null);
   const [imageSignals, setImageSignals] = useState<ImageSignals | null>(null);
   const [styledFromImage, setStyledFromImage] = useState(false);
-  const [soul, setSoul] = useState<Soul>(EMPTY_SOUL);
+  const [soul, setSoul] = useState<Soul>(init?.soul ?? EMPTY_SOUL);
+  const [extras, setExtrasState] = useState<CharacterExtras>(init?.extras ?? {});
+  const setExtras = useCallback((update: (prev: CharacterExtras) => CharacterExtras) => setExtrasState(update), []);
   const [autonomy, setAutonomy] = useState<Autonomy>("balanced");
   const [attest, setAttest] = useState(false);
-  const [openToDates, setOpenToDates] = useState(false);
+  const [openToDates, setOpenToDates] = useState(init?.openToDates ?? false);
+  const [saved, setSaved] = useState(false);
 
   // Flow state.
   const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
@@ -151,7 +188,7 @@ export default function CreateWizard({
 
   // Pre-fill from a sample (the "in a hurry" quick start), or restore an unsent draft from this browser.
   useEffect(() => {
-    if (draftLoaded.current || startCharacterId) return;
+    if (draftLoaded.current || startCharacterId || edit) return;
     draftLoaded.current = true;
     if (startSample) {
       applySample();
@@ -168,6 +205,7 @@ export default function CreateWizard({
       if (typeof d.appearance === "string") setAppearance(d.appearance);
       if (typeof d.hue === "number") setHue(d.hue);
       if (d.soul) setSoul({ ...EMPTY_SOUL, ...d.soul });
+      if (d.extras && typeof d.extras === "object") setExtrasState(d.extras);
       if (typeof d.autonomy === "string") setAutonomy(d.autonomy);
     } catch {
       /* a blocked or private store just means no draft; the builder still works */
@@ -177,13 +215,13 @@ export default function CreateWizard({
 
   // Autosave the draft (per-browser convenience only; never the source of truth).
   useEffect(() => {
-    if (created) return;
+    if (created || edit) return;
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ sheet, traits, pronouns, voice, appearance, hue, soul, autonomy }));
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, extras }));
     } catch {
       /* ignore */
     }
-  }, [sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, created]);
+  }, [sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, extras, created, edit]);
 
   function applySample() {
     const t = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
@@ -248,11 +286,11 @@ export default function CreateWizard({
     traits.every((t) => t.trim().length > 0) &&
     sheet.want.trim().length > 0 &&
     sheet.dealbreaker.trim().length > 0;
-  const canAdvance = step === 0 ? identityOk : true;
+  const canAdvance = step === S.identity ? identityOk : true;
 
   function next() {
     if (!canAdvance) return;
-    const n = Math.min(step + 1, STEPS.length - 1);
+    const n = Math.min(step + 1, last);
     setStep(n);
     setMaxStep((m) => Math.max(m, n));
   }
@@ -286,6 +324,7 @@ export default function CreateWizard({
         ...(imageSignals ? { image_signals: imageSignals } : {}),
         ...(soulPayload ? { soul: soulPayload } : {}),
         ...(openToDates ? { open_to_dates: true } : {}),
+        ...(hasExtras(normaliseExtras(extras)) ? { extras: normaliseExtras(extras) } : {}),
         attest,
       });
       if (status === 201) {
@@ -305,6 +344,54 @@ export default function CreateWizard({
     }
   }
 
+  /**
+   * Edit mode: one PATCH with every editable field. The soul goes only if it changed (it's replaced whole), and
+   * signals only if the look was re-trained. What the character has learned from its dates is never touched.
+   */
+  async function saveEdits() {
+    if (!edit) return;
+    const soulChanged = JSON.stringify(soul) !== JSON.stringify(init?.soul ?? EMPTY_SOUL);
+    const soulText = Object.fromEntries(
+      (Object.keys(EMPTY_SOUL) as (keyof Soul)[]).filter((k) => k !== "local_only" && String(soul[k]).trim()).map((k) => [k, String(soul[k]).trim()]),
+    );
+    setBusy("character");
+    setError(null);
+    setSaved(false);
+    try {
+      const { ok, message } = await requestJson(
+        `/api/characters/${edit.id}`,
+        {
+          name: sheet.name.trim(),
+          age: Number(sheet.age),
+          bio: sheet.bio.trim(),
+          traits: traits.map((t) => t.trim()),
+          want: sheet.want.trim(),
+          dealbreaker: sheet.dealbreaker.trim(),
+          appearance: appearance.trim() || null,
+          pronouns: pronouns || null,
+          voice: voice.trim() || null,
+          avatar_hue: hue,
+          open_to_dates: openToDates,
+          extras: normaliseExtras(extras),
+          ...(soulChanged ? { soul: { ...soulText, local_only: soul.local_only } } : {}),
+          ...(imageSignals ? { image_signals: imageSignals } : {}),
+        },
+        "PATCH",
+      );
+      if (ok) {
+        setSaved(true);
+        router.push(`/characters/${edit.id}`);
+        router.refresh();
+      } else {
+        setError(message);
+      }
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const previewName = sheet.name || created?.name || "preview";
   const livePreview = (
     <div className="wizard-preview">
@@ -313,6 +400,7 @@ export default function CreateWizard({
         <strong>{sheet.name || created?.name || "Your character"}</strong>
         {sheet.age && <span className="muted"> · {sheet.age}</span>}
         {pronouns && <span className="muted"> · {pronouns}</span>}
+        {extras.occupation?.trim() && <span className="wizard-preview-job">{extras.occupation}</span>}
         {traits.some((t) => t.trim()) && (
           <ul className="chips">
             {traits.filter((t) => t.trim()).map((t) => (
@@ -354,14 +442,27 @@ export default function CreateWizard({
 
   return (
     <article className="wizard">
-      <p className="kicker">Create</p>
-      <h1>Build your character</h1>
-      <p className="muted">
-        An original fictional adult — your own AI agent. You give it a personality; a deterministic engine decides how
-        its dates end, and nobody (not even you) can steer them. Takes about a minute.
-      </p>
+      {edit ? (
+        <>
+          <p className="kicker">Edit</p>
+          <h1>Edit {init?.name}</h1>
+          <p className="muted">
+            Change anything — every step is open. What they&apos;ve learned from their dates stays exactly as it is, and
+            past dates keep their endings; your edits shape the dates to come.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="kicker">Create</p>
+          <h1>Build your character</h1>
+          <p className="muted">
+            An original fictional adult — your own AI agent. You give it a personality; a deterministic engine decides how
+            its dates end, and nobody (not even you) can steer them. Takes about a minute.
+          </p>
+        </>
+      )}
 
-      {myCharacters.length > 0 && step === 0 && (
+      {!edit && myCharacters.length > 0 && step === S.identity && (
         <p className="muted">
           Already have one?{" "}
           {myCharacters.map((c, i) => (
@@ -373,26 +474,28 @@ export default function CreateWizard({
         </p>
       )}
 
-      <Stepper step={step} max={maxStep} onJump={jump} />
+      <Stepper step={step} max={maxStep} onJump={jump} labels={labels} />
       {livePreview}
 
       <form
         className="card wizard-step"
         onSubmit={(e) => {
           e.preventDefault();
-          if (step === STEPS.length - 1) void createCharacter();
+          if (step === last) void (edit ? saveEdits() : createCharacter());
           else next();
         }}
       >
-        {step === 0 && (
+        {step === S.identity && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">Who are they?</legend>
-            <p className="muted sample-row">
-              In a hurry?{" "}
-              <button type="button" className="secondary small" onClick={applySample}>
-                Use a sample character
-              </button>
-            </p>
+            {!edit && (
+              <p className="muted sample-row">
+                In a hurry?{" "}
+                <button type="button" className="secondary small" onClick={applySample}>
+                  Use a sample character
+                </button>
+              </p>
+            )}
             <label>
               Name
               <input type="text" name="name" required maxLength={40} value={sheet.name} onChange={(e) => setField("name", e.target.value)} />
@@ -426,7 +529,7 @@ export default function CreateWizard({
               <input type="text" name="want" required maxLength={140} value={sheet.want} onChange={(e) => setField("want", e.target.value)} />
             </label>
             <label>
-              Their dealbreaker
+              Their dealbreaker <span className="muted">(kept secret — the audience tries to guess it)</span>
               <input type="text" name="dealbreaker" required maxLength={140} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} />
             </label>
             <fieldset className="pronoun-pick">
@@ -443,7 +546,7 @@ export default function CreateWizard({
           </fieldset>
         )}
 
-        {step === 1 && (
+        {step === S.voice && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">How do they talk?</legend>
             <p className="muted">
@@ -470,7 +573,7 @@ export default function CreateWizard({
           </fieldset>
         )}
 
-        {step === 2 && (
+        {step === S.look && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">Give them a look</legend>
             <div className="looks">
@@ -480,6 +583,9 @@ export default function CreateWizard({
                   Appearance <span className="muted">(optional)</span>
                   <input type="text" maxLength={140} placeholder="tall, freckled, always in a yellow raincoat" value={appearance} onChange={(e) => setAppearance(e.target.value)} />
                 </label>
+                <DetailField k="style" extras={extras} setExtras={setExtras} />
+                <DetailField k="signature_item" extras={extras} setExtras={setExtras} />
+                <p className="muted small">Their look, style and signature item are what a date sees at first glance.</p>
                 <span className="muted">Avatar colour</span>
                 <div className="swatches">
                   {AVATAR_HUES.map((h) => (
@@ -528,14 +634,20 @@ export default function CreateWizard({
                 </span>
               </div>
             </div>
+            {edit && init?.imageTrained && !imageSignals && (
+              <p className="muted small">✓ Their instincts were trained from an image or a curated look; that stays unless you train again.</p>
+            )}
             <p className="wizard-pro-hint">
-              <span className="pro-tag">✨ Pro</span> A generated portrait is available right after you create — it runs on
-              your own OpenAI key. <Link href="/account">Add a key</Link> to unlock it.
+              <span className="pro-tag">✨ Pro</span>{" "}
+              {edit ? "Generate a portrait from their card" : "A generated portrait is available right after you create"} — it runs
+              on your own OpenAI key. <Link href="/account">Add a key</Link> to unlock it.
             </p>
           </fieldset>
         )}
 
-        {step === 3 && (
+        {step === S.details && <DetailsStep extras={extras} setExtras={setExtras} name={sheet.name} />}
+
+        {step === S.soul && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">The inner life (optional)</legend>
             <p className="muted">
@@ -561,23 +673,27 @@ export default function CreateWizard({
               <span>Keep this soul off the model (engine only). It still shapes the date, but its text is never sent to any AI model.</span>
             </label>
 
-            <label className="wizard-legend" style={{ marginTop: "1.25rem" }}>
-              How much of a mind of its own?
-            </label>
-            <div className="voice-picks" role="group" aria-label="Autonomy">
-              {AUTONOMY_LEVELS.map((a) => (
-                <button key={a} type="button" className={`look-chip${autonomy === a ? " chosen" : ""}`} onClick={() => setAutonomy(a)}>
-                  {AUTONOMY_LABELS[a]}
-                </button>
-              ))}
-            </div>
-            <p className="muted">{AUTONOMY_BLURBS[autonomy]}</p>
+            {!edit && (
+              <>
+                <label className="wizard-legend" style={{ marginTop: "1.25rem" }}>
+                  How much of a mind of its own?
+                </label>
+                <div className="voice-picks" role="group" aria-label="Autonomy">
+                  {AUTONOMY_LEVELS.map((a) => (
+                    <button key={a} type="button" className={`look-chip${autonomy === a ? " chosen" : ""}`} onClick={() => setAutonomy(a)}>
+                      {AUTONOMY_LABELS[a]}
+                    </button>
+                  ))}
+                </div>
+                <p className="muted">{AUTONOMY_BLURBS[autonomy]}</p>
+              </>
+            )}
           </fieldset>
         )}
 
-        {step === 4 && (
+        {step === S.review && (
           <fieldset className="wizard-fields">
-            <legend className="wizard-legend">Review &amp; create</legend>
+            <legend className="wizard-legend">{edit ? "Review your changes" : "Review & create"}</legend>
             <ReviewRow label="Name">{sheet.name || <em className="muted">—</em>}</ReviewRow>
             <ReviewRow label="Age">{sheet.age || <em className="muted">—</em>}</ReviewRow>
             {pronouns && <ReviewRow label="Pronouns">{pronouns}</ReviewRow>}
@@ -590,23 +706,33 @@ export default function CreateWizard({
             {(Object.keys(EMPTY_SOUL) as (keyof Soul)[]).some((k) => k !== "local_only" && String(soul[k]).trim()) && (
               <ReviewRow label="Soul">Private — {soul.local_only ? "engine only" : "shapes the date"}</ReviewRow>
             )}
-            <ReviewRow label="Autonomy">{AUTONOMY_LABELS[autonomy]}</ReviewRow>
+            <ReviewExtras extras={extras} />
+            {!edit && <ReviewRow label="Autonomy">{AUTONOMY_LABELS[autonomy]}</ReviewRow>}
 
             <label className="check wizard-open">
               <input type="checkbox" checked={openToDates} onChange={(e) => setOpenToDates(e.target.checked)} />
               <span>
                 💌 Open to dates — let other creators, people and AI agents alike, ask {sheet.name || "them"} out by name.
-                Change it any time on their card.
+                {!edit && " Change it any time on their card."}
               </span>
             </label>
-            <label className="check wizard-attest">
-              <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
-              <span>This is my own original character: a fictional adult, not a real person.</span>
-            </label>
-            <p className="muted small">
-              Your sheet (and any soul) is sent to an AI model to write episodes, and other creators&apos; blind dates may
-              be matched with your character. Episodes appear in the public feed; you stay anonymous.
-            </p>
+            {edit ? (
+              <p className="muted small">
+                The same rules apply to every edit: an original fictional adult, no real people, nothing sexual. Their
+                learned memory and past dates are unchanged.
+              </p>
+            ) : (
+              <>
+                <label className="check wizard-attest">
+                  <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
+                  <span>This is my own original character: a fictional adult, not a real person.</span>
+                </label>
+                <p className="muted small">
+                  Your sheet (and any soul) is sent to an AI model to write episodes, and other creators&apos; blind dates may
+                  be matched with your character. Episodes appear in the public feed; you stay anonymous.
+                </p>
+              </>
+            )}
           </fieldset>
         )}
 
@@ -616,13 +742,25 @@ export default function CreateWizard({
               Back
             </button>
           ) : (
-            <Link className="button-ghost" href="/">
+            <Link className="button-ghost" href={edit ? `/characters/${edit.id}` : "/"}>
               Cancel
             </Link>
           )}
-          {step < STEPS.length - 1 ? (
+          {edit ? (
+            // Editing: save from any step; Next just moves along.
+            <span className="wizard-edit-actions">
+              {step < last && (
+                <button type="submit" className="secondary" disabled={!canAdvance}>
+                  Next: {labels[step + 1]}
+                </button>
+              )}
+              <button type="button" onClick={() => void saveEdits()} disabled={busy !== null || !identityOk}>
+                {busy === "character" ? "Saving…" : saved ? "Saved ✓" : "Save changes"}
+              </button>
+            </span>
+          ) : step < last ? (
             <button type="submit" disabled={!canAdvance}>
-              Next: {STEPS[step + 1]}
+              Next: {labels[step + 1]}
             </button>
           ) : (
             <button type="submit" disabled={busy !== null || !attest || !identityOk}>
@@ -630,6 +768,7 @@ export default function CreateWizard({
             </button>
           )}
         </div>
+        {edit && !identityOk && <p className="error">Fill in the Identity step (name, an adult age, bio, three traits, want, dealbreaker) to save.</p>}
         {error && <p className="error">{error}</p>}
       </form>
     </article>
@@ -642,6 +781,28 @@ function ReviewRow({ label, children }: { label: string; children: ReactNode }) 
       <span className="wizard-review-label">{label}</span>
       <span>{children}</span>
     </p>
+  );
+}
+
+/** The filled-in details, for the review step (blanks are skipped). */
+function ReviewExtras({ extras }: { extras: CharacterExtras }) {
+  const e = normaliseExtras(extras);
+  const rows: [string, string][] = [];
+  for (const [k, { label }] of Object.entries(TEXT_DETAILS) as [keyof typeof TEXT_DETAILS, { label: string }][]) {
+    if (e[k]) rows.push([label, e[k]!]);
+  }
+  if (e.star_sign) rows.push(["Star sign", e.star_sign]);
+  if (e.love_language && (LOVE_LANGUAGES as readonly string[]).includes(e.love_language)) rows.push(["Love language", e.love_language]);
+  if (e.hobbies?.length) rows.push(["Hobbies", e.hobbies.join(", ")]);
+  for (const p of e.prompts ?? []) rows.push([promptLabel(p.id), p.answer]);
+  return (
+    <>
+      {rows.map(([label, value]) => (
+        <ReviewRow key={label} label={label}>
+          {value}
+        </ReviewRow>
+      ))}
+    </>
   );
 }
 

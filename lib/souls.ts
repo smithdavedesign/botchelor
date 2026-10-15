@@ -105,6 +105,18 @@ export async function saveSoul(
   );
 }
 
+/**
+ * Replaces just the image-trained signals (the builder re-trained the look from an image), leaving any soul
+ * text as it is. Creates an engine-only row (no text, local) when the character has no soul yet.
+ */
+export async function saveSignals(db: Db, characterId: string, signals: ImageSignals): Promise<void> {
+  await db.query(
+    `insert into souls (character_id, local_only, signals, updated_at) values ($1, true, $2::jsonb, now())
+     on conflict (character_id) do update set signals = excluded.signals, updated_at = now()`,
+    [characterId, JSON.stringify(signals)],
+  );
+}
+
 export async function deleteSoul(db: Db, characterId: string): Promise<void> {
   await db.query("delete from souls where character_id = $1", [characterId]);
 }

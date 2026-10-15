@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
+import { ExtrasInput, extrasFields, normaliseExtras } from "@/lib/extras";
 import { checkFields, type RejectReason } from "@/lib/safety";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput } from "@/lib/souls";
 
@@ -44,6 +45,8 @@ const CharacterInput = z.object({
   // Consent to be asked out by name: other creators (people or AI agents) may then pick this character as
   // their date's partner. Off by default; blind dates are unaffected.
   open_to_dates: z.boolean().optional(),
+  // Optional details (lib/extras.ts): occupation, hometown, style, hobbies, quirks, profile prompts. Public.
+  extras: ExtrasInput.optional(),
   attest: z.literal(true, "Confirm you are 18+ and this is your own original character."),
 });
 
@@ -56,6 +59,7 @@ const REJECTION_MESSAGES: Record<RejectReason, string> = {
 export const POST = handle(async (req) => {
   const sess = session(req);
   const input = parseBody(CharacterInput, await readJson(req), "invalid_character");
+  const extras = normaliseExtras(input.extras);
 
   const verdict = checkFields({
     name: input.name,
@@ -65,6 +69,7 @@ export const POST = handle(async (req) => {
     dealbreaker: input.dealbreaker,
     appearance: input.appearance,
     voice: input.voice,
+    ...extrasFields(extras),
   });
   if (!verdict.ok) {
     return json(
@@ -82,15 +87,15 @@ export const POST = handle(async (req) => {
   const id = crypto.randomUUID();
   const hue = input.avatar_hue && input.avatar_hue > 0 ? input.avatar_hue : null;
   await db.query(
-    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice, open_to_dates)
-     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13)`,
-    [id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue, input.pronouns ?? null, input.voice ?? null, input.open_to_dates === true],
+    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice, open_to_dates, extras)
+     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14::jsonb)`,
+    [id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue, input.pronouns ?? null, input.voice ?? null, input.open_to_dates === true, JSON.stringify(extras)],
   );
   const hasSoul = Boolean(soul && !isEmptySoul(soul));
   const signals = input.image_signals ?? null;
   // Save a soul row when there is soul text OR image-trained signals (so the image can shape behaviour).
   if (hasSoul || signals) await saveSoul(db, id, soul ?? normaliseSoul({}), input.soul?.local_only ?? false, signals);
 
-  const { attest: _attest, soul: _soul, image_signals: _sig, ...character } = input;
-  return json({ id, ...character, house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals) }, 201, sess);
+  const { attest: _attest, soul: _soul, image_signals: _sig, extras: _extras, ...character } = input;
+  return json({ id, ...character, extras, house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals) }, 201, sess);
 });

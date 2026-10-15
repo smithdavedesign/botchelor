@@ -20,6 +20,7 @@ import {
 } from "./engine";
 import type { BoxScore, DateSetup } from "./game";
 import { assembleCharacter, type Character } from "./character";
+import type { CharacterExtras } from "./extras";
 import { loadCharacterMemory, type CharacterMemory } from "./memory";
 import { loadSoul, type StoredSoul } from "./souls";
 import {
@@ -122,6 +123,9 @@ export type DateParts = {
   ex?: string;
   /** See buildDate: the snapshot a worker re-decides on. */
   signalsOverride?: { a: SoulSignals; b: SoulSignals };
+  /** Each side's optional details (lib/extras.ts). Dialogue flavour only: the engine never reads them. */
+  extrasA?: CharacterExtras | null;
+  extrasB?: CharacterExtras | null;
 };
 
 /**
@@ -131,8 +135,8 @@ export type DateParts = {
  */
 export function assembleDate(p: DateParts): BuiltDate {
   const { a, b, req, seed } = p;
-  const charA = assembleCharacter({ id: a.id, sheet: a.sheet, soul: p.soulA, memory: p.memoryA });
-  const charB = assembleCharacter({ id: b.id, sheet: b.sheet, soul: p.soulB, memory: p.memoryB });
+  const charA = assembleCharacter({ id: a.id, sheet: a.sheet, soul: p.soulA, memory: p.memoryA, extras: p.extrasA });
+  const charB = assembleCharacter({ id: b.id, sheet: b.sheet, soul: p.soulB, memory: p.memoryB, extras: p.extrasB });
   // The effective engine signals this date runs on: the base soul/image signals nudged by the learned
   // memory's bounded drift (lib/character.ts), so a bot genuinely evolves across its dates. A worker
   // rebuilding a stored date passes the snapshot so it re-decides EXACTLY what POST stored.
@@ -202,17 +206,21 @@ export async function buildDate(
    */
   signalsOverride?: { a: SoulSignals; b: SoulSignals },
 ): Promise<BuiltDate> {
-  const [soulA, soulB, memoryA, memoryB, history, ex] = await Promise.all([
+  const [soulA, soulB, memoryA, memoryB, history, ex, extras] = await Promise.all([
     loadSoul(db, a.id),
     loadSoul(db, b.id),
     loadCharacterMemory(db, a.id),
     loadCharacterMemory(db, b.id),
     loadHistory(db, a.id, b.id),
     req.format === "ex_returns" ? findEx(db, a.id, b.id) : Promise.resolve(undefined),
+    // Loaded here, beside the soul and memory, so every path that builds a date gets the details.
+    db.query<{ id: string; extras: CharacterExtras | null }>(`select id, extras from characters where id = any($1)`, [[a.id, b.id]]),
   ]);
+  const extrasOf = (id: string) => extras.rows.find((r) => r.id === id)?.extras ?? null;
   return assembleDate({
     episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId),
     soulA, soulB, memoryA, memoryB, history, ex, signalsOverride,
+    extrasA: extrasOf(a.id), extrasB: extrasOf(b.id),
   });
 }
 
