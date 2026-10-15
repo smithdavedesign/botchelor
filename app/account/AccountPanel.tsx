@@ -13,6 +13,12 @@ type Me = {
   google_available: boolean;
 };
 type Character = { id: string; name: string };
+type SavedKey = { provider: string; kind: string; last4: string; model: string | null };
+const TEXT_PROVIDERS: { id: string; label: string }[] = [
+  { id: "google", label: "Google Gemini" },
+  { id: "openai", label: "OpenAI" },
+  { id: "openrouter", label: "OpenRouter" },
+];
 type EpisodeCard = {
   episode_id: string;
   share_path: string;
@@ -33,6 +39,8 @@ export default function AccountPanel() {
   const [me, setMe] = useState<Me | null>(null);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [episodes, setEpisodes] = useState<EpisodeCard[]>([]);
+  const [keys, setKeys] = useState<SavedKey[]>([]);
+  const [keyError, setKeyError] = useState<string | null>(null);
   const [mode, setMode] = useState<"login" | "register">("register");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -46,6 +54,12 @@ export default function AccountPanel() {
     setMe(m as Me);
     setCharacters((c.characters ?? []) as Character[]);
     setEpisodes((e.episodes ?? []) as EpisodeCard[]);
+    if ((m as Me).authenticated) {
+      const k = await fetch("/api/me/keys").then((r) => r.json());
+      setKeys((k.keys ?? []) as SavedKey[]);
+    } else {
+      setKeys([]);
+    }
   }, []);
   useEffect(() => {
     void load();
@@ -70,6 +84,26 @@ export default function AccountPanel() {
     setBusy(true);
     await requestJson("/api/auth/logout").catch(() => {});
     setBusy(false);
+    await load();
+  }
+
+  async function saveKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setKeyError(null);
+    const { ok, message } = await requestJson(
+      "/api/me/keys",
+      { provider: String(form.get("provider") ?? ""), kind: "text", key: String(form.get("key") ?? ""), model: String(form.get("model") ?? "").trim() || undefined },
+      "PUT",
+    ).catch(() => ({ ok: false, message: "Network error." }));
+    if (ok) {
+      (event.target as HTMLFormElement).reset();
+      await load();
+    } else setKeyError(message);
+  }
+
+  async function removeKey(provider: string) {
+    await requestJson("/api/me/keys", { provider, kind: "text" }, "DELETE").catch(() => {});
     await load();
   }
 
@@ -181,6 +215,55 @@ export default function AccountPanel() {
           </ul>
         )}
       </section>
+
+      {me.authenticated && (
+        <section className="card">
+          <h2>Your model key (optional)</h2>
+          <p className="muted">
+            Bring your own key and your dates run on your quota and your chosen model instead of the free tier. The
+            engine still decides every outcome, so a stronger model can&apos;t buy a result. Your key runs only your own
+            character&apos;s lines (and a house partner&apos;s) — never another player&apos;s private character. Stored
+            encrypted; we only ever show the last four characters.
+          </p>
+          {keys.filter((k) => k.kind === "text").length > 0 && (
+            <ul className="account-links">
+              {keys
+                .filter((k) => k.kind === "text")
+                .map((k) => (
+                  <li key={k.provider}>
+                    <strong>{TEXT_PROVIDERS.find((p) => p.id === k.provider)?.label ?? k.provider}</strong> ····{k.last4}
+                    {k.model ? ` · ${k.model}` : ""}{" "}
+                    <button type="button" className="link-button danger" onClick={() => removeKey(k.provider)}>
+                      remove
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
+          <form onSubmit={saveKey}>
+            <label>
+              Provider
+              <select name="provider" defaultValue="google">
+                {TEXT_PROVIDERS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              API key
+              <input name="key" type="password" required minLength={8} maxLength={400} autoComplete="off" placeholder="sk-… / AIza…" />
+            </label>
+            <label>
+              Model (optional)
+              <input name="model" maxLength={80} placeholder="leave blank for a sensible default" />
+            </label>
+            <button type="submit">Save key</button>
+          </form>
+          {keyError && <p className="error">{keyError}</p>}
+        </section>
+      )}
 
       <section className="card">
         <h2>Your dates</h2>

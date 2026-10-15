@@ -38,6 +38,12 @@ export type GenerateOptions = {
   conversation: boolean;
   /** Run the morning-after texts (best-effort). */
   afterglow: boolean;
+  /**
+   * BYOK: the model for a given side's actor turns (and afterglow texts), or null for the platform model.
+   * A side's prompt only ever carries that side's own soul, so a user's key never sees another user's
+   * private soul. The plan and recap (which see both souls) always stay on the platform director.
+   */
+  keyForSide?: (side: "a" | "b") => Model | null;
 };
 
 export type GeneratedDate = {
@@ -98,7 +104,7 @@ export async function generateDate(
     // A director that is down (a stronger free model at its quota) costs nothing: planDate falls back to rules.
     plan = await planDate(director.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.formatCtx);
     try {
-      transcript = await simulateConversation(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, undefined, opts.formatCtx, plan);
+      transcript = await simulateConversation(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, undefined, opts.formatCtx, plan, opts.keyForSide);
     } catch (err) {
       conversationError = err;
     }
@@ -118,7 +124,7 @@ export async function generateDate(
   let afterglowError: unknown = null;
   if (opts.afterglow) {
     try {
-      afterglow = await simulateAfterglow(actor.model, built.input, outcome, characters, venueId, opts.formatId, undefined, opts.formatCtx, transcript);
+      afterglow = await simulateAfterglow(actor.model, built.input, outcome, characters, venueId, opts.formatId, undefined, opts.formatCtx, transcript, opts.keyForSide);
     } catch (err) {
       afterglowError = err;
     }
