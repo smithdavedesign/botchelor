@@ -1,6 +1,7 @@
 import type { EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
 import { approvedClipId, approvedPortraitId } from "./assets";
 import type { Db } from "./db";
+import type { CharacterExtras } from "./extras";
 import { matchmakerHitSql } from "./mechanics";
 import {
   agendaLabel,
@@ -566,11 +567,14 @@ export type PublicCharacter = {
   portrait_asset_id: string | null;
   /** A BYOK-generated video clip (poster at /api/assets/<id>, MP4 at /api/assets/<id>/video), or null. */
   clip_asset_id: string | null;
+  /** Optional public details (lib/extras.ts). */
+  extras: CharacterExtras;
 };
 
 export async function getPublicCharacter(db: Db, id: string): Promise<PublicCharacter | null> {
-  const { rows } = await db.query<Omit<PublicCharacter, "portrait_asset_id">>(
-    `select id, name, age, bio, traits, appearance, want, is_house as house, avatar_hue as hue, pronouns, voice
+  const { rows } = await db.query<Omit<PublicCharacter, "portrait_asset_id" | "clip_asset_id">>(
+    `select id, name, age, bio, traits, appearance, want, is_house as house, avatar_hue as hue, pronouns, voice,
+            coalesce(extras, '{}'::jsonb) as extras
        from characters where id = $1`,
     [id],
   );

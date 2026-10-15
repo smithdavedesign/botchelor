@@ -22,6 +22,7 @@ import { loadSoul, soulText, type StoredSoul } from "./souls";
 import { characterPortrait } from "./portraits";
 import { loadCharacterMemory, MEMORY_SIGNAL_CAP, type CharacterMemory } from "./memory";
 import { getCharacterHistory, type CharacterRecord } from "./game";
+import { extrasForPrompt, extrasVisible, hasExtras, type CharacterExtras } from "./extras";
 
 const ZERO_RECORD: CharacterRecord = { dates: 0, second_dates: 0, friends: 0, disasters: 0 };
 
@@ -50,6 +51,8 @@ export type Character = {
   memory: CharacterMemory | null;
   /** The public, aired date record (lib/game.ts). Zeros until loadCharacter fills it. */
   record: CharacterRecord;
+  /** Optional details (lib/extras.ts): occupation, style, hobbies, quirks, prompts. Dialogue flavour only. */
+  extras: CharacterExtras;
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
@@ -78,6 +81,7 @@ export function assembleCharacter(args: {
   soul: StoredSoul | null;
   memory: CharacterMemory | null;
   record?: CharacterRecord;
+  extras?: CharacterExtras | null;
 }): Character {
   const baseSignals = soulBaseSignals(args.soul);
   return {
@@ -97,6 +101,7 @@ export function assembleCharacter(args: {
     signals: effectiveSignals(baseSignals, args.memory),
     memory: args.memory,
     record: args.record ?? ZERO_RECORD,
+    extras: args.extras ?? {},
   };
 }
 
@@ -106,8 +111,9 @@ export async function loadCharacter(db: Db, id: string): Promise<Character | nul
     id: string; owner_id: string | null; name: string; age: number; bio: string;
     traits: string[]; want: string; dealbreaker: string; is_house: boolean;
     appearance: string | null; avatar_hue: number | null; pronouns: string | null; voice: string | null;
+    extras: CharacterExtras | null;
   }>(
-    `select id, owner_id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue, pronouns, voice
+    `select id, owner_id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue, pronouns, voice, extras
        from characters where id = $1`,
     [id],
   );
@@ -123,7 +129,7 @@ export async function loadCharacter(db: Db, id: string): Promise<Character | nul
     dealbreaker: r.dealbreaker, house: r.is_house, appearance: r.appearance ?? undefined,
     pronouns: r.pronouns ?? undefined, voice: r.voice ?? undefined,
   };
-  return assembleCharacter({ id: r.id, sheet, ownerId: r.owner_id, hue: r.avatar_hue, soul, memory, record: history.record });
+  return assembleCharacter({ id: r.id, sheet, ownerId: r.owner_id, hue: r.avatar_hue, soul, memory, record: history.record, extras: r.extras });
 }
 
 /** The minimal deterministic input the engine reads. The engine's type is unchanged. */
@@ -171,6 +177,8 @@ export function characterSelfView(c: Character, privateExtra: Record<string, unk
     ...(c.look.appearance ? { appearance: c.look.appearance } : {}),
     ...(c.pronouns ? { pronouns: c.pronouns } : {}),
     ...(c.voice ? { voice: c.voice } : {}),
+    // Their own details: things they know about themselves and may bring up (never the other's).
+    ...(hasExtras(c.extras) ? { details: extrasForPrompt(c.extras) } : {}),
     private: {
       soul: soul ?? "(none — play from your public sheet)",
       ...(memory ? { memory } : {}),
@@ -188,6 +196,7 @@ export function characterPublicView(c: Character): Record<string, unknown> {
     traits: c.persona.traits,
     ...(c.look.appearance ? { appearance: c.look.appearance } : {}),
     ...(c.pronouns ? { pronouns: c.pronouns } : {}),
+    ...(hasExtras(c.extras) ? { details: extrasForPrompt(c.extras) } : {}),
   };
 }
 
@@ -211,6 +220,7 @@ export function characterBlindView(c: Character): Record<string, unknown> {
   return {
     name: c.name,
     pronouns: c.pronouns ?? "not given — use their name, or they/them",
-    what_you_can_see: [c.look.appearance, `looks ${apparentAge(c.age)}`].filter(Boolean),
+    // Only what shows at a glance: their look, their style and signature item — never their job, hobbies or answers.
+    what_you_can_see: [c.look.appearance, `looks ${apparentAge(c.age)}`, ...extrasVisible(c.extras ?? {})].filter(Boolean),
   };
 }

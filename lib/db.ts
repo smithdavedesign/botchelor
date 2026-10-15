@@ -547,6 +547,9 @@ create index if not exists watch_presence_party_idx on watch_presence (party_id,
 alter table characters add column if not exists created_via text not null default 'web'
   check (created_via in ('web', 'mcp'));
 alter table characters add column if not exists open_to_dates boolean not null default false;
+-- Optional details (lib/extras.ts): occupation, hometown, style, hobbies, quirks, profile prompts... Public,
+-- content-filtered, editable any time. They flavour a date's dialogue; the engine never reads them.
+alter table characters add column if not exists extras jsonb not null default '{}'::jsonb;
 create index if not exists characters_open_idx on characters (open_to_dates) where open_to_dates;
 alter table episodes add column if not exists created_via text not null default 'web'
   check (created_via in ('web', 'mcp'));

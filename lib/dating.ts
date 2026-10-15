@@ -10,6 +10,7 @@
  * ends from the two characters on the night.
  */
 import type { Db } from "./db";
+import { extrasText, type CharacterExtras } from "./extras";
 import { isOnSeasonCast, seasonCastIds } from "./season-cast";
 
 export type MadeBy = "house" | "agent" | "human";
@@ -32,6 +33,8 @@ export type DatingProfile = {
   /** Public, aired dates so far. */
   dates: number;
   url: string;
+  /** Optional details (lib/extras.ts): occupation, hometown, style, hobbies, quirks, profile prompts. */
+  extras: CharacterExtras;
 };
 
 type Row = {
@@ -49,10 +52,11 @@ type Row = {
   created_via: string;
   open_to_dates: boolean;
   dates: number;
+  extras: CharacterExtras | null;
 };
 
 const PUBLIC_COLUMNS = `c.id, c.name, c.age, c.pronouns, c.bio, c.traits, c.want, c.appearance, c.voice, c.avatar_hue,
-  c.is_house, c.created_via, c.open_to_dates,
+  c.is_house, c.created_via, c.open_to_dates, c.extras,
   (select count(*)::int from episodes e
      where (e.character_a = c.id or e.character_b = c.id) and e.revealed_at is not null and e.visibility = 'public') as dates`;
 
@@ -82,6 +86,7 @@ function toProfile(r: Row): DatingProfile {
     can_ask_out: available,
     dates: r.dates,
     url: `/characters/${r.id}`,
+    extras: r.extras ?? {},
   };
 }
 
@@ -103,8 +108,8 @@ export function keywords(text: string): Set<string> {
   return out;
 }
 
-const haystack = (p: Pick<DatingProfile, "name" | "bio" | "want" | "appearance" | "voice" | "traits">): string =>
-  [p.name, p.bio, p.want, p.appearance ?? "", p.voice ?? "", ...p.traits].join(" ");
+const haystack = (p: Pick<DatingProfile, "name" | "bio" | "want" | "appearance" | "voice" | "traits"> & { extras?: CharacterExtras }): string =>
+  [p.name, p.bio, p.want, p.appearance ?? "", p.voice ?? "", ...p.traits, extrasText(p.extras ?? {})].join(" ");
 
 /* ------------------------------------------------ search ------------------------------------------------ */
 
@@ -195,6 +200,12 @@ export async function findMatches(
     for (const t of shared) {
       score += 3;
       why.push(`you're both ${t.toLowerCase()}`);
+    }
+    const myHobbies = new Set((me.extras.hobbies ?? []).map((h) => h.toLowerCase()));
+    const sharedHobbies = (p.extras.hobbies ?? []).filter((h) => myHobbies.has(h.toLowerCase()));
+    if (sharedHobbies.length) {
+      score += 2 * sharedHobbies.length;
+      why.push(`you both love ${sharedHobbies.map((h) => h.toLowerCase()).join(" and ")}`);
     }
     const theirWords = keywords(haystack({ ...p, want: "" }));
     const theyFit = [...myWant].filter((w) => theirWords.has(w)).slice(0, 3);

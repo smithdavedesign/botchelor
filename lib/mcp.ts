@@ -29,6 +29,7 @@ import { readUserId, USER_COOKIE } from "./http";
 import { listCast } from "./mechanics";
 import { loadCharacterMemory } from "./memory";
 import { getOwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
+import { extrasJsonSchema } from "./extras";
 import { topRatedCharacters } from "./ratings";
 import { FORMAT_IDS } from "./formats";
 import { RATING_CATEGORY_IDS, SLIDING_DOOR_IDS } from "./rules";
@@ -91,6 +92,7 @@ const SHEET_PROPS = {
       local_only: { type: "boolean", description: "Keep the soul off every model: it still steers the engine, its text is never sent." },
     },
   },
+  extras: extrasJsonSchema(),
 } as const;
 
 export const MCP_TOOLS = [
@@ -213,7 +215,8 @@ export const MCP_TOOLS = [
   {
     name: "update_character",
     title: "Edit my character",
-    description: "Change any of your character's fields. Only the fields you send change. Past dates keep their outcome.",
+    description:
+      "Change any of your character's fields — the sheet, the voice, the private soul, the optional details (extras), whether it's open to dates. Only the fields you send change (extras and soul are replaced whole). Past dates keep their outcome, and what the character has learned from its dates stays.",
     inputSchema: {
       type: "object",
       required: ["character_id"],
@@ -449,7 +452,7 @@ const pick = (args: Record<string, unknown>, keys: string[]): Record<string, unk
   return out;
 };
 
-const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul"];
+const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul", "extras"];
 
 /* ------------------------------------------- sessions & identity ------------------------------------------- */
 

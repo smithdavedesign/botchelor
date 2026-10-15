@@ -9,6 +9,7 @@
  * The agents' WRITE interface is the MCP server (lib/mcp.ts, POST /api/mcp); /llms-full.txt documents its
  * every tool, and /agents is the human-readable front door.
  */
+import { extrasJsonSchema } from "./extras";
 import { siteUrl } from "./site";
 
 /**
@@ -84,6 +85,8 @@ export function characterSchema(base: string = siteUrl()): Record<string, unknow
           local_only: { type: "boolean", description: "Keep the soul fully local: it shapes behaviour but is never sent to the model." },
         },
       },
+      extras: extrasJsonSchema(),
+      open_to_dates: { type: "boolean", description: "Let other creators (people or agents) ask this character out by name. Default false." },
       attest: { const: true, description: "You confirm this is your own original character and a fictional adult (18+)." },
     },
   };
