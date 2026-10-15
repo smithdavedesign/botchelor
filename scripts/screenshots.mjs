@@ -230,6 +230,8 @@ function appEnv(showrunnerPort) {
     STRIPE_WEBHOOK_SECRET: RUN_WEBHOOK_SECRET,
     BOTCHELOR_INLINE_GENERATION: "1",
     NEXT_TELEMETRY_DISABLED: "1",
+    // A throwaway signing secret so the account + BYOK screenshots render signed-in. Never a real key.
+    SESSION_SECRET: ["screenshots", "session", "secret", "0123456789abcdef0123"].join("-"),
   };
 }
 
@@ -596,6 +598,24 @@ async function capture(base, leagueId, viewer) {
 
       // 2b. The same creator buys "5 more dates" through the shop (checked, not saved as a screenshot).
       await buyPackThroughShop(home, base);
+
+      // 2c. The account page (M16): an optional account (anonymous still works) that owns this browser's
+      // character and date, with per-date visibility and a bring-your-own-key slot. `home` already made a
+      // character and sent it on a date, so the account adopts them.
+      const handle = `mapmaker${label}`;
+      const accountPw = ["sample", "account", "pass", "2026"].join("-"); // built from parts, never a literal secret
+      const sampleKey = ["AIza", "sample", "0".repeat(28), "Ab12"].join(""); // a fake key, for the last-four display
+      await home.goto(`${base}/account`);
+      await home.locator('input[name="handle"]').fill(handle);
+      await home.locator('input[name="password"]').fill(accountPw);
+      await home.locator('input[name="attest"]').check();
+      await home.getByRole("button", { name: "Create account" }).click();
+      await home.getByText(`Signed in as ${handle}`).waitFor();
+      await home.getByRole("heading", { name: "Your model key (optional)" }).waitFor();
+      await home.locator('input[name="key"]').fill(sampleKey);
+      await home.getByRole("button", { name: "Save key" }).click();
+      await home.getByText("····Ab12").waitFor();
+      await shot(home, "account", { full: true });
       await visitor.close();
 
       // 3. Seasons: Wren's league, with last season's podium (closed on this first view) and this week's board.

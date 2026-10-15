@@ -23,6 +23,12 @@ The conversion landing page: the product shown in the hero (an avatar matchup an
 ![Landing page on a phone](docs/screenshots/home-mobile.png)
 The same start page on an iPhone 13 screen.
 
+![The account page: signed in, owned characters, a bring-your-own-key slot, and per-date visibility, desktop](docs/screenshots/account-desktop.png)
+The optional account (M16): anonymous play still works, but signing in keeps your characters across devices, lets you edit them and keep dates private, and lets you bring your own model key — stored encrypted, shown only by its last four. See [docs/accounts-and-byok.md](docs/accounts-and-byok.md).
+
+![The account page on a phone](docs/screenshots/account-mobile.png)
+The account page on an iPhone 13 screen.
+
 ![The immersive date theater: the two characters live in the venue scene with speech bubbles, desktop](docs/screenshots/episode-theater-desktop.png)
 **The theater (M13):** watching a date is a full-screen *experience* — a window into the two bots, who live in the venue scene (one left, one right) with **persistent speech bubbles** while the date plays out. It's the live watch room's theater mode and a cinematic replay of any recorded date. Every feature rides along (reactions, the chemistry/chaos polls, predictions, the decision).
 
