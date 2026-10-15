@@ -6,7 +6,9 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import Avatar from "../Avatar";
 import { requestJson } from "../request";
 import DetailsStep, { DetailField } from "./DetailsStep";
+import OriginalityPanel from "./OriginalityPanel";
 import VoiceStep from "./VoiceStep";
+import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
 import { hasExtras, LOVE_LANGUAGES, normaliseExtras, promptLabel, sampleLineLabel, tellLabel, TEXT_DETAILS, type CharacterExtras } from "@/lib/extras";
 import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
@@ -441,6 +443,9 @@ export default function CreateWizard({
     );
   }
 
+  // The first stock phrase the sheet leans on, as you type (lib/originality.ts); the review step has the full check.
+  const firstCliche = findCliches({ bio: sheet.bio, traits, want: sheet.want, dealbreaker: sheet.dealbreaker })[0];
+  const stock = firstCliche ? `“${firstCliche.phrase}” is a phrase a lot of the cast uses. ${firstCliche.tip}` : null;
   const bioHint =
     sheet.bio.trim() && words(sheet.bio) < 8
       ? "Thin bios make generic dates. Give them one specific detail: a job, a habit, a story they'd tell."
@@ -515,6 +520,7 @@ export default function CreateWizard({
               <textarea name="bio" required maxLength={500} rows={3} value={sheet.bio} onChange={(e) => setField("bio", e.target.value)} />
             </label>
             {bioHint && <p className="hint-nudge">💡 {bioHint}</p>}
+            {stock && <p className="hint-nudge">✨ {stock}</p>}
             <label>Three traits</label>
             <div className="traits">
               {[0, 1, 2].map((i) => (
@@ -712,6 +718,11 @@ export default function CreateWizard({
             <ReviewExtras extras={extras} />
             {week.trim() && <ReviewRow label="This week">{week}</ReviewRow>}
             {!edit && <ReviewRow label="Autonomy">{AUTONOMY_LABELS[autonomy]}</ReviewRow>}
+
+            <OriginalityPanel
+              draft={{ name: sheet.name, bio: sheet.bio, traits, want: sheet.want, dealbreaker: sheet.dealbreaker, voice, extras: normaliseExtras(extras) }}
+              characterId={edit?.id}
+            />
 
             <label className="check wizard-open">
               <input type="checkbox" checked={openToDates} onChange={(e) => setOpenToDates(e.target.checked)} />

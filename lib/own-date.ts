@@ -26,6 +26,7 @@ import { qualityContext } from "./pipeline";
 import { transcriptQuality } from "./quality";
 import { CONVERSATION_TURNS, DATE_ACTS, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
+import { buildReflectionMessages, type Reflections } from "./reflection";
 import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
 
 /** How many unfinished self-performed dates one identity may have at once. */
@@ -34,6 +35,7 @@ export const OWN_DATE_MAX_OPEN = 3;
 export const OWN_DATE_TTL_HOURS = 24;
 
 const TURN_REPLY = '{"dialogue":"what they say","action":"what they do, 1-5 words, or \\"\\"","emotion":"one word","interest_signal":0.0}';
+const REFLECTION_REPLY = '{"reflection":"the character\'s private reflection, in its own voice (under 240 characters)"}';
 const RECAP_REPLY =
   '{"setting":"…","goals":["…","…"],"scenes":["act 1","act 2","act 3"],"twist":"…","finale":"…","best_line":"…","confessionals":["…","…"]}';
 
@@ -52,7 +54,17 @@ export type OwnDateStep =
       reply_format: string;
     }
   | { stage: "recap"; episode_id: string; instructions: string; messages: ChatMessage[]; reply_format: string }
-  | { stage: "done"; episode_id: string; episode: EpisodeView | null };
+  | { stage: "done"; episode_id: string; episode: EpisodeView | null; reflect?: ReflectStep };
+
+/**
+ * After the date: each character's own reflection, for the agent to run in that character's process and hand in
+ * with reflect_on_date. Optional (the date is already done); it's how a self-performed character learns, since
+ * our pipeline never writes one for a date it didn't perform. Offered while a side has none.
+ */
+export type ReflectStep = {
+  instructions: string;
+  prompts: { character_id: string; name: string; messages: ChatMessage[]; reply_format: string }[];
+};
 
 export type OwnDateResult = { ok: true; step: OwnDateStep; rejected?: string } | { ok: false; status: number; error: string; message: string };
 
@@ -64,6 +76,7 @@ type Row = {
   setup: DateSetup | null;
   note: string | null;
   transcript: Turn[];
+  reflections: Reflections | null;
   a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_appearance: string | null; a_pronouns: string | null; a_voice: string | null;
   b_id: string; b_name: string; b_age: number; b_bio: string; b_traits: string[]; b_want: string; b_dealbreaker: string; b_appearance: string | null; b_pronouns: string | null; b_voice: string | null;
 };
@@ -183,7 +196,7 @@ export async function startOwnDate(
 
 async function load(db: Db, userId: string, episodeId: string): Promise<Row | null> {
   const { rows } = await db.query<Row>(
-    `select e.id, e.creator_id, e.status, e.seed::text as seed, e.setup, e.note, e.transcript,
+    `select e.id, e.creator_id, e.status, e.seed::text as seed, e.setup, e.note, e.transcript, e.reflections,
             a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want, a.dealbreaker a_dealbreaker,
             a.appearance a_appearance, a.pronouns a_pronouns, a.voice a_voice,
             b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want, b.dealbreaker b_dealbreaker,
@@ -259,13 +272,44 @@ function stepFor(
   };
 }
 
+/** The reflection prompts for the sides that haven't reflected yet; undefined when both have. */
+function reflectStep(
+  built: BuiltDate,
+  decided: ReturnType<ReturnType<typeof getEngine>["decide"]>,
+  formatId: FormatId,
+  transcript: Turn[],
+  ids: [string, string],
+  done: Reflections | null,
+): ReflectStep | undefined {
+  const fmtCtx = { chaperone: built.setup.chaperone, ex: built.setup.ex };
+  const prompts = (["a", "b"] as const)
+    .filter((side) => !done?.[side])
+    .map((side) => ({
+      character_id: ids[side === "a" ? 0 : 1],
+      name: built.characters[side === "a" ? 0 : 1].name,
+      messages: buildReflectionMessages(built.input, decided, built.characters, built.setup.venue, formatId, side, fmtCtx, transcript),
+      reply_format: REFLECTION_REPLY,
+    }));
+  if (!prompts.length) return undefined;
+  return {
+    instructions:
+      "Optional, and how your characters learn: run each prompt in that character's own process, then hand its reflection text to " +
+      "reflect_on_date (episode_id, character_id, reflection). Each reflection joins what the character carries into future dates once this one airs.",
+    prompts,
+  };
+}
+
 /** Where a self-performed date is up to: the next step to run, or done. */
 export async function getOwnDateStep(db: Db, userId: string, episodeId: string): Promise<OwnDateResult> {
   const row = await load(db, userId, episodeId);
   if (!row) return err(404, "own_date_not_found", "No self-performed date of yours with that id.");
-  if (row.status === "ready") return { ok: true, step: { stage: "done", episode_id: episodeId, episode: await getEpisodeView(db, episodeId, userId) } };
   const { built, decided, formatId } = await rebuild(db, row);
-  return { ok: true, step: stepFor(episodeId, built, decided, formatId, row.transcript ?? [], [row.a_id, row.b_id]) };
+  const ids: [string, string] = [row.a_id, row.b_id];
+  if (row.status === "ready") {
+    const reflect = reflectStep(built, decided, formatId, row.transcript ?? [], ids, row.reflections);
+    return { ok: true, step: { stage: "done", episode_id: episodeId, episode: await getEpisodeView(db, episodeId, userId), ...(reflect ? { reflect } : {}) } };
+  }
+  return { ok: true, step: stepFor(episodeId, built, decided, formatId, row.transcript ?? [], ids) };
 }
 
 const asText = (output: unknown): string => (typeof output === "string" ? output : JSON.stringify(output ?? null));
@@ -274,7 +318,7 @@ const asText = (output: unknown): string => (typeof output === "string" ? output
 export async function submitOwnDateStep(db: Db, userId: string, episodeId: string, output: unknown): Promise<OwnDateResult> {
   const row = await load(db, userId, episodeId);
   if (!row) return err(404, "own_date_not_found", "No self-performed date of yours with that id.");
-  if (row.status === "ready") return { ok: true, step: { stage: "done", episode_id: episodeId, episode: await getEpisodeView(db, episodeId, userId) } };
+  if (row.status === "ready") return getOwnDateStep(db, userId, episodeId);
   const { built, decided, formatId } = await rebuild(db, row);
   const transcript = row.transcript ?? [];
   const current = stepFor(episodeId, built, decided, formatId, transcript, [row.a_id, row.b_id]);
@@ -314,7 +358,8 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
         trackDateQuality(episodeId, "agent", null, transcriptQuality(transcript, built.characters, qualityContext(built, draft.setting)));
       }
     }
-    return { ok: true, step: { stage: "done", episode_id: episodeId, episode: await getEpisodeView(db, episodeId, userId) } };
+    const reflect = reflectStep(built, decided, formatId, transcript, [row.a_id, row.b_id], row.reflections);
+    return { ok: true, step: { stage: "done", episode_id: episodeId, episode: await getEpisodeView(db, episodeId, userId), ...(reflect ? { reflect } : {}) } };
   }
   return { ok: true, step: current };
 }

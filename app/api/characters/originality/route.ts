@@ -1,0 +1,33 @@
+import { z } from "zod";
+import { getDb } from "@/lib/db";
+import { ExtrasInput, normaliseExtras } from "@/lib/extras";
+import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { originality } from "@/lib/originality";
+import { VOICE_MAX } from "@/lib/rules";
+import { ownsCharacter } from "@/lib/souls";
+
+const Draft = z.object({
+  name: z.string().trim().max(40).optional(),
+  bio: z.string().trim().max(500).optional(),
+  traits: z.array(z.string().trim().max(30)).max(3).optional(),
+  want: z.string().trim().max(140).optional(),
+  dealbreaker: z.string().trim().max(140).optional(),
+  voice: z.string().trim().max(VOICE_MAX).nullable().optional(),
+  extras: ExtrasInput.nullable().optional(),
+  /** Editing: the character being edited, so it isn't compared with itself. Must be yours. */
+  character_id: z.string().trim().max(64).optional(),
+});
+
+/**
+ * The originality check for a draft character (lib/originality.ts): the stock phrases it leans on, characters on
+ * the show it reads almost the same as, and what would make it stand out. A nudge only — nothing is stored and
+ * nothing is blocked. Reads only public sheet fields of other characters, and returns just their names.
+ */
+export const POST = handle(async (req: Request) => {
+  const sess = session(req);
+  const draft = parseBody(Draft, await readJson(req), "invalid_character");
+  const db = await getDb();
+  const exclude = draft.character_id && (await ownsCharacter(db, draft.character_id, sess.userId)) ? draft.character_id : null;
+  const report = await originality(db, { ...draft, extras: draft.extras ? normaliseExtras(draft.extras) : null }, exclude);
+  return json(report, 200, sess);
+});

@@ -2819,6 +2819,51 @@ button.dice:hover:not(:disabled) {
   font-weight: 600;
   color: var(--accent-2);
 }
+/* The builder's originality check (lib/originality.ts). */
+.originality {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+}
+.originality-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 0 0.4rem;
+}
+.originality-score {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.originality-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.originality-bar span {
+  display: block;
+  height: 100%;
+  background: var(--grad);
+}
+.originality ul {
+  margin: 0.6rem 0 0.4rem;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+.originality li + li {
+  margin-top: 0.25rem;
+}
+.originality-low .originality-bar span {
+  background: var(--accent);
+}
+.this-week-field {
+  display: block;
+  margin-top: 1rem;
+}
+
 /* A character's week, its run on the show, and its story (lib/life.ts, lib/memory.ts). */
 .this-week {
   margin: 0.75rem 0 0;
