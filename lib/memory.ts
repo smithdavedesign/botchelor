@@ -91,7 +91,7 @@ type EpisodeRow = {
 };
 
 /** The episodes a character has learned from: its AIRED dates (same aired-only rule as the public record). */
-const MEMORY_EPISODES_WHERE = "(e.character_a = $1 or e.character_b = $1) and e.revealed_at is not null";
+const MEMORY_EPISODES_WHERE = "(e.character_a = $1 or e.character_b = $1) and e.revealed_at is not null and e.visibility = 'public'";
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 const round3 = (n: number) => Math.round(n * 1000) / 1000;

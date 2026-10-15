@@ -87,6 +87,14 @@ alter table predictions add column if not exists drama_pick text
   check (drama_pick in ('a', 'b', 'neither'));
 create index if not exists episodes_created_idx on episodes (created_at desc);
 
+-- M16 date visibility. 'public' airs in the feed and counts toward public records; 'unlisted' is viewable
+-- by link only (not in the feed, not in public aggregates); 'private' is the creator's alone (the system
+-- still stores and tracks it, but no one else sees it and it never counts publicly). Existing rows default
+-- public, so nothing already aired changes.
+alter table episodes add column if not exists visibility text not null default 'public'
+  check (visibility in ('public', 'private', 'unlisted'));
+create index if not exists episodes_visibility_idx on episodes (visibility);
+
 create table if not exists profiles (
   user_id text primary key,
   name text not null,

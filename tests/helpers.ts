@@ -4,6 +4,9 @@ import { DELETE as deleteBlock, POST as postBlock } from "@/app/api/blocks/route
 import { POST as postCheckout } from "@/app/api/checkout/route";
 import { POST as postCharacter } from "@/app/api/characters/route";
 import { DELETE as deleteCharacterRoute, PATCH as patchCharacterRoute } from "@/app/api/characters/[id]/route";
+import { PATCH as patchVisibilityRoute } from "@/app/api/episodes/[id]/visibility/route";
+import { GET as getMyEpisodes } from "@/app/api/me/episodes/route";
+import { GET as getMyCharacters } from "@/app/api/me/characters/route";
 import { DELETE as deleteSoulRoute, GET as getSoulRoute, PUT as putSoulRoute } from "@/app/api/characters/[id]/soul/route";
 import { POST as postDealbreaker } from "@/app/api/dealbreaker-guesses/route";
 import { GET as getMatchmakers, POST as postMatchmaker } from "@/app/api/matchmakers/route";
@@ -197,6 +200,10 @@ export const api = {
   /** Audience rating: toggle a category on a character (POST /api/characters/:id/ratings). */
   rateCharacter: (characterId: string, category: string, cookie?: string) =>
     postRating(jsonRequest(`/api/characters/${characterId}/ratings`, { category }, { cookie }), params(characterId)),
+  setVisibility: (id: string, visibility: string, cookie?: string) =>
+    patchVisibilityRoute(jsonRequest(`/api/episodes/${id}/visibility`, { visibility }, { cookie, method: "PATCH" }), params(id)),
+  myEpisodes: (cookie?: string) => getMyEpisodes(getRequest("/api/me/episodes", cookie)),
+  myCharacters: (cookie?: string) => getMyCharacters(getRequest("/api/me/characters", cookie)),
   editCharacter: (id: string, body: unknown, cookie?: string) =>
     patchCharacterRoute(jsonRequest(`/api/characters/${id}`, body, { cookie, method: "PATCH" }), params(id)),
   deleteCharacter: (id: string, cookie?: string) =>
