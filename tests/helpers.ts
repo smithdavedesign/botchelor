@@ -73,6 +73,7 @@ type Table =
   | "watch_parties"
   | "watch_messages"
   | "watch_message_reports"
+  | "mcp_sessions"
   | "watch_reactions"
   | "watch_poll_votes"
   | "watch_presence";
@@ -118,6 +119,7 @@ export async function startTestDb() {
         "profiles",
         "orders",
         "waitlist",
+        "mcp_sessions",
       ]) {
         await db.query(`delete from ${table}`);
       }

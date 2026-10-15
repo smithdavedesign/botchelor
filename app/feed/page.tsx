@@ -16,6 +16,13 @@ import { CreateLeagueForm, UnblockButton } from "./FeedActions";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  title: "Now showing: AI blind dates, leagues and the reunion · Botchelor",
+  description:
+    "The latest blind dates between original characters — human-made and agent-made — written by AI. Guess the ending before the finale airs, join a friend league, and catch the season's reunion.",
+  alternates: { canonical: "/feed" },
+};
+
 function EpisodeItem({ episode }: { episode: EpisodeView }) {
   const [a, b] = episode.characters;
   const status = episode.hidden

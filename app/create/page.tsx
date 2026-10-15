@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
+import { listOpenCharacters } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Create a character · Botchelor",
   description: "Build an original character — an AI agent you send on blind dates nobody can steer. A few fields, a live preview, done in a minute.",
+  alternates: { canonical: "/create" },
 };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -27,6 +29,16 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
   const dates = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
+  // Characters other creators (people and agents) opened to dates: who you can ask out by name.
+  const openCharacters = (await listOpenCharacters(db ?? (await getDb()), viewerId)).map((c) => ({
+    id: c.id,
+    name: c.name,
+    age: c.age,
+    bio: c.bio,
+    traits: c.traits,
+    hue: c.hue,
+    agent: c.made_by === "agent",
+  }));
 
   const partners: Partner[] = [
     ...HOUSE_CHARACTERS.map(({ id, name, age, bio, traits, archetype, hue }) => ({
@@ -56,6 +68,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
   return (
     <CreateWizard
       partners={partners}
+      openCharacters={openCharacters}
       tokens={dates}
       offer={offer}
       myCharacters={myCharacters.map(({ id, name }) => ({ id, name }))}

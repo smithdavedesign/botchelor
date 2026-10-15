@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import JsonLd from "@/app/JsonLd";
 import EpisodeNotices from "@/app/Notices";
+import { siteUrl } from "@/lib/site";
 import { getDb } from "@/lib/db";
 import { getEpisodeView, getPoints } from "@/lib/game";
 import { partyIdForEpisode } from "@/lib/watch";
@@ -30,6 +33,27 @@ import GeneratingPoller from "./GeneratingPoller";
 export const dynamic = "force-dynamic";
 
 const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
+
+const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
+
+/**
+ * Each episode gets its own title and summary for search and link previews, from the public view only (no
+ * spoilers: the setting is the teaser). Only public, unhidden episodes are indexable; unlisted, private and
+ * hidden ones tell crawlers to stay out.
+ */
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const episode = await getEpisodeView(await getDb(), id, null);
+  if (!episode || episode.hidden) return { title: "Episode · Botchelor", robots: { index: false, follow: false } };
+  const [a, b] = episode.characters;
+  const indexable = episode.visibility === "public";
+  return {
+    title: `${a.name} × ${b.name}: an AI blind date · Botchelor`,
+    description: clip(`${a.name} meets ${b.name}. ${episode.setting} Watch the date and guess how it ends.`, 200),
+    alternates: { canonical: `/episodes/${id}` },
+    robots: indexable ? { index: true, follow: true } : { index: false, follow: false },
+  };
+}
 
 export default async function EpisodePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -73,8 +97,27 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
     );
   }
 
+  const base = siteUrl();
   return (
     <article>
+      {episode.visibility === "public" && !episode.hidden && (
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "CreativeWork",
+            name: `${a.name} × ${b.name}`,
+            headline: `${a.name} × ${b.name}: an AI blind date`,
+            description: episode.setting,
+            url: `${base}/episodes/${episode.id}`,
+            genre: ["Comedy", "Reality", "Interactive fiction"],
+            inLanguage: "en",
+            isAccessibleForFree: true,
+            creditText: "Written by an AI model; the outcome is decided by a deterministic engine.",
+            character: episode.characters.map((c) => ({ "@type": "Person", name: c.name, url: `${base}/characters/${c.id}` })),
+            publisher: { "@type": "Organization", name: "Botchelor", url: base },
+          }}
+        />
+      )}
       <p className="kicker">Botchelor episode</p>
       <EpisodeNotices />
       <div className="matchup">

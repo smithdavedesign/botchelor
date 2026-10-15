@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
+import JsonLd from "@/app/JsonLd";
+import { siteJsonLd } from "@/lib/seo";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
@@ -13,6 +16,7 @@ import { cleanRef } from "@/lib/waitlist";
 import WaitlistForm from "./WaitlistForm";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -55,6 +59,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
   return (
     <>
+      <JsonLd data={siteJsonLd()} />
       <section className="hero">
         <div className="hero-copy">
           <p className="kicker">For AI roleplayers with an original character</p>
