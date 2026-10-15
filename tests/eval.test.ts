@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST as evalRoute } from "@/app/api/jobs/eval/route";
 import { deterministicEngine } from "@/lib/engine";
-import { buildEvalDate, EVAL_CASES, evalCharacter, rescoreResult, runEvalCase } from "@/lib/eval";
+import { buildEvalDate, EVAL_CASES, evalCharacter, rejudgeCase, rescoreResult, runEvalCase } from "@/lib/eval";
 import { buildJudgeMessages, judgeMean, parseJudge } from "@/lib/judge";
 import { format } from "@/lib/formats";
 import { CONVERSATION_TURNS } from "@/lib/rules";
@@ -122,5 +122,36 @@ describe("POST /api/jobs/eval", () => {
     expect(body.case).toBe("mira-dex");
     expect(body.transcript).toHaveLength(turns);
     expect(body.metrics.turns).toBe(turns);
+  });
+
+  it("judges a saved transcript again without generating anything", async () => {
+    vi.stubEnv("CRON_SECRET", secret);
+    vi.stubEnv("GOOGLE_API_KEY", "");
+    vi.stubEnv("LLM_API_KEY", "");
+    const saved = [{ side: "a", act: 0, dialogue: "Is that a compass?", action: "", emotion: "curious", interest: 0.6 }];
+    scriptedModel([]); // the generation model must not be called at all
+    const res = await call({ case: "mira-dex", judge: "gemini-3.5-flash-lite", transcript: saved }, `Bearer ${secret}`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.case).toBe("mira-dex");
+    expect(body.judge).toBeNull(); // no key configured in tests: the judge fails closed
+    expect(body.transcript).toBeUndefined();
+    // A judge model and a well-formed transcript are both required.
+    expect((await call({ case: "mira-dex", transcript: saved }, `Bearer ${secret}`)).status).toBe(400);
+    expect((await call({ case: "mira-dex", judge: "gemini-3.5-flash-lite", transcript: [{ side: "c" }] }, `Bearer ${secret}`)).status).toBe(400);
+  });
+});
+
+describe("rejudgeCase", () => {
+  it("scores a saved transcript against the case's rebuilt characters and outcome", async () => {
+    const c = EVAL_CASES.find((x) => x.id === "mira-dex")!;
+    const saved = [{ side: "a" as const, act: 0, dialogue: "Is that a compass?", action: "", emotion: "", interest: 0.6 }];
+    const seen: string[] = [];
+    const judge: Model = { async complete(m) { seen.push(m.map((x) => x.content).join("\n")); return judgeJson; } };
+    const result = await rejudgeCase(c, saved, judge);
+    expect(result.judge?.natural).toBe(4);
+    expect(result.judge_mean).toBe(judgeMean(result.judge!));
+    expect(seen[0]).toContain("Is that a compass?");
+    expect(seen[0]).toContain("Decided ending");
   });
 });

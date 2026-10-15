@@ -6,6 +6,7 @@
  * watching. Used by the quality eval only; it never runs on a live date and never touches the outcome.
  */
 import { z } from "zod";
+import { ENDING_READS, wantsFact } from "./beats";
 import { characterSelfView, type Character } from "./character";
 import type { Turn } from "./conversation";
 import type { Outcome } from "./engine";
@@ -59,8 +60,8 @@ function outcomeLine(characters: [Character, Character], outcome: Outcome): stri
     outcome.drama_question === "rejected"
       ? outcome.drama_answer === "neither" ? "nobody is rejected" : `${dramaAnswerLabel("rejected", outcome.drama_answer, names)} gets turned down`
       : outcome.drama_answer === "neither" ? "they leave together" : `${dramaAnswerLabel("leaves_first", outcome.drama_answer, names)} leaves first`;
-  const wants = outcome.sides.map((s, i) => `${names[i]} ${s.wants_another ? "wants" : "does not want"} another date`).join("; ");
-  return `Decided ending: ${ENDING_LABELS[outcome.ending]}. ${drama}. ${wants}.`;
+  // Worded for the ending (lib/beats.ts), so "wants to see them again" after "Just friends" reads as friendship.
+  return `Decided ending: ${ENDING_LABELS[outcome.ending]} (${ENDING_READS[outcome.ending]}). ${drama}. ${wantsFact(outcome, 0, names)} ${wantsFact(outcome, 1, names)}`;
 }
 
 export function buildJudgeMessages(

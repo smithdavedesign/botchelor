@@ -77,10 +77,10 @@ const AGENDA_CAUSES: Record<AgendaId, { met: string; missed: string }> = {
 /** "dodge a real question" → "dodges a real question" (every cause above starts with a regular verb). */
 const thirdPerson = (cause: string) => cause.replace(/^(\w+)/, "$1s");
 
-/** How each ending must read to a viewer by the last line, so the decided result is never ambiguous. */
-const ENDING_READS: Record<Outcome["ending"], string> = {
-  second_date: "romance, and a plan to meet again",
-  friends: "warm, but clearly platonic: no date, no kiss",
+/** How each ending reads to a viewer, so what's said never contradicts the decided result. */
+export const ENDING_READS: Record<Outcome["ending"], string> = {
+  second_date: "a spark, and a plan to meet again",
+  friends: "warm, easy company with no romance",
   disaster: "a clear no, for a reason everyone saw",
 };
 
@@ -116,8 +116,29 @@ function dramaRole(outcome: Outcome, s: Side): string {
 }
 
 /**
+ * Where act two leaves a side, already pointing at the ending, so the last act lands it instead of flipping
+ * (v3's eval: dates that built romantic warmth for two acts, then announced "just friends").
+ */
+function actTwoFeeling(outcome: Outcome, s: Side): string {
+  const wants = outcome.sides[s].wants_another;
+  switch (outcome.ending) {
+    case "second_date":
+      return wants ? "By the end of this act you're falling for them a little." : "By the end of this act you like them, but something in you holds back.";
+    case "friends":
+      return wants
+        ? "By the end of this act you're enjoying their company: easy and friendly, with no romantic spark."
+        : "By the end of this act it's pleasant, and you can tell that's all it will be.";
+    case "disaster":
+      return wants
+        ? "By the end of this act it's going badly, and still something about them pulls at you."
+        : "By the end of this act something in you has started to cool.";
+  }
+}
+
+/**
  * Where a side ends up, feeling-wise, including the engine's deliberate surprises (wanting more after a
- * disaster). Each ending is spelled out so it reads unmistakably: "just friends" must not play as a second date.
+ * disaster). Worded so what's said never contradicts the ending: "just friends" must not play as a second
+ * date, and nobody announces it either.
  */
 function finalFeeling(outcome: Outcome, s: Side): string {
   const wants = outcome.sides[s].wants_another;
@@ -126,7 +147,7 @@ function finalFeeling(outcome: Outcome, s: Side): string {
       return wants ? "You want to see them again, and it shows: you ask, or you say yes." : "The night is lovely, and still something in you says no.";
     case "friends":
       return wants
-        ? "You like them, as a friend. You'd happily hang out again, just not as a date, and you let that show kindly."
+        ? "You like them as a friend: you'd hang out again, and nothing about your goodbye is romantic. Let it show; don't announce it."
         : "It's friendly, and that's all it is: you won't be chasing a second date.";
     case "disaster":
       return wants
@@ -135,8 +156,12 @@ function finalFeeling(outcome: Outcome, s: Side): string {
   }
 }
 
-/** A side's feeling about another date, as a fact for the director (worded for the ending, like finalFeeling). */
-function wantsFact(outcome: Outcome, s: Side, names: [string, string]): string {
+/**
+ * A side's feeling about another date as a plain fact, worded for the ending like finalFeeling. Used by the
+ * director and by the eval's judge (lib/judge.ts), so neither reads "wants another date" as romance after a
+ * friends ending.
+ */
+export function wantsFact(outcome: Outcome, s: Side, names: [string, string]): string {
   const me = names[s];
   const them = names[other(s)];
   const wants = outcome.sides[s].wants_another;
@@ -202,7 +227,7 @@ function rulesBeat(input: DateInput, outcome: Outcome, s: Side, act: number): st
     parts.push(mine.agenda_met ? "What you came to find out, you find out — and it goes your way." : "What you came to find out doesn't go your way, and it shows on your face.");
     if (mine.note_followed === true) parts.push("Your creator's advice comes back to you here, and you act on it (never say so).");
     if (mine.note_followed === false) parts.push("You remember your creator's advice — and decide to ignore it.");
-    parts.push(mine.wants_another ? "By the end of this act you're warming to them." : "By the end of this act something in you has started to cool.");
+    parts.push(actTwoFeeling(outcome, s));
     return parts.join(" ");
   }
   return `${finalFeeling(outcome, s)} ${dramaRole(outcome, s)} Land it your way, in your own words — no announcements.`;
@@ -217,9 +242,10 @@ export function rulesPlan(
   venueId: VenueId,
 ): DatePlan {
   const v = venue(venueId);
-  const chem = outcome.variables.chemistry.delta;
   const scene0 = `They meet at ${v.prompt}. First impressions: they size each other up and start finding out who the other is.`;
-  const scene1 = `${capitalize(producerEvent(producer).prompt)} — it shows who each of them really is${chem > 3 ? ", and pulls them closer" : chem < -3 ? ", and starts to pull them apart" : ""}.`;
+  // Act two already leans toward the ending (a spark, easy company, or the start of a clash).
+  const lean = { second_date: ", and pulls them closer", friends: ", and they find they get on", disaster: ", and starts to pull them apart" }[outcome.ending];
+  const scene1 = `${capitalize(producerEvent(producer).prompt)} — it shows who each of them really is${lean}.`;
   const names: [string, string] = [characters[0].name, characters[1].name];
   const drama =
     outcome.drama_question === "rejected"
@@ -249,7 +275,7 @@ For each of the three acts (${DATE_ACTS.join(" / ")}) write:
 Rules:
 - Honour every fact: the ending, each side's feeling, who leaves first or gets turned down, whose hopes are met and what trips whose dealbreaker.
 - Set the turn up early. Act two must contain the moments that cause the ending, as things a viewer can SEE happen (each fact names its moment); the last act lands it.
-- Make the ending unmistakable by the last line: a second date reads as romance with a plan to meet again; "Just friends" reads as warm but platonic (they'd hang out, never "a date", no kiss, no hand-holding); a disaster is a clear no whose cause the audience saw in act two.
+- Point every act at the ending so the last act lands it instead of flipping: for a second date, a spark that grows; for "Just friends", two people who click as company with no romantic spark (no flirting, no kiss, no hand-holding, and nobody announces "just friends"); for a disaster, a clear no whose cause the audience saw in act two.
 - Exits follow from the date. Nobody leaves on a sudden excuse (a bus, a class, a shift, a phone call).
 - Use each character's voice, history, soul and the venue's specifics. A running detail or callback is good.
 - "outline" is only a skeleton that already fits the facts. Rewrite every field in specifics (their lives, this venue, this situation); never copy its sentences.

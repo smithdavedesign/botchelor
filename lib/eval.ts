@@ -176,6 +176,18 @@ export async function runEvalCase(c: EvalCase, models: DateModels, judge: Model 
 }
 
 /**
+ * Judges a saved transcript again with today's judge (scripts/eval-rejudge.mjs), so runs scored by different
+ * versions of the judge's prompt still compare like for like. The case rebuilds exactly, so the judge sees the
+ * same characters and decided outcome the date was generated from.
+ */
+export async function rejudgeCase(c: EvalCase, transcript: Turn[], judge: Model): Promise<{ judge: JudgeScores | null; judge_mean: number | null }> {
+  const built = buildEvalDate(c);
+  const outcome = deterministicEngine.decide(built.input, built.seed);
+  const verdict = await judgeDate(judge, built.characters as [Character, Character], outcome, transcript, venue(built.setup.venue).prompt);
+  return { judge: verdict, judge_mean: verdict ? judgeMean(verdict) : null };
+}
+
+/**
  * Re-scores a saved result with today's metrics (scripts/eval-report.mjs --rescore), so runs measured by
  * different versions of lib/quality.ts still compare like for like. The case rebuilds exactly, so the
  * characters and private notes are the ones the date was generated with.

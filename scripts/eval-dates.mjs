@@ -3,10 +3,11 @@
  * Runs the date-quality eval (lib/eval.ts) against a deployment and writes the results.
  *
  *   CRON_SECRET=… node scripts/eval-dates.mjs --label baseline [--base https://botchelor.vercel.app]
- *       [--actor gemini-…] [--director gemini-…] [--judge gemini-…] [--cases a,b] [--gap 20]
+ *       [--actor gemini-…] [--director gemini-…] [--judge gemini-…] [--cases a,b] [--gap 20] [--repeat 2]
  *
  * Each case is one POST /api/jobs/eval (built in memory on the server: no stored data is read or written).
- * Requests are spaced (--gap seconds) to stay inside the free tier's per-minute quota. Writes
+ * Requests are spaced (--gap seconds) to stay inside the free tier's per-minute quota. --repeat N runs the
+ * whole set N times (the same engine outcomes, fresh words), since one sample per case is noisy. Writes
  * docs/eval/<label>.json (every transcript, metric and judge score) and prints a summary table.
  * Compare runs with scripts/eval-report.mjs.
  */
@@ -30,8 +31,10 @@ const cases = args.cases ? args.cases.split(",") : ALL;
 const models = { actor: args.actor || undefined, director: args.director || undefined, judge: args.judge || undefined };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const repeat = Math.max(1, Math.min(5, Number(args.repeat ?? 1)));
+const queue = Array.from({ length: repeat }, () => cases).flat();
 const results = [];
-for (const [i, id] of cases.entries()) {
+for (const [i, id] of queue.entries()) {
   if (i > 0) await sleep(gap);
   const t0 = Date.now();
   let result = null;
