@@ -5,7 +5,9 @@ import {
   ConversationError,
   critiqueTurn,
   parseTurn,
+  parseTurnResult,
   simulateConversation,
+  trimTo,
   type Turn,
 } from "@/lib/conversation";
 import {
@@ -21,7 +23,7 @@ import { assembleCharacter, type Character } from "@/lib/character";
 import type { StoredSoul } from "@/lib/souls";
 import type { ChatMessage, Model } from "@/lib/model";
 import type { DatePlan } from "@/lib/beats";
-import { CONVERSATION_TURNS, ENDING_LABELS } from "@/lib/rules";
+import { CONVERSATION_TURNS, ENDING_LABELS, TURN_DIALOGUE_MAX } from "@/lib/rules";
 import { pickVenue } from "@/lib/venues";
 
 const ALPHA = "ALPHASECRET";
@@ -180,8 +182,8 @@ describe("the turn critic", () => {
     expect(calls[2].at(-1)?.content).toMatch(/^Revise that line:/);
   });
 
-  it("keeps the first draft when the revision doesn't parse (the critic never costs a date)", async () => {
-    const { model } = turnModel([
+  it("keeps the first draft when the revision doesn't parse (the critic never costs a date, or a third call)", async () => {
+    const { model, calls } = turnModel([
       turnJson("hello there, stranger"),
       turnJson("A cartographer who wants a map reader, huh?"),
       "not json",
@@ -189,6 +191,8 @@ describe("the turn critic", () => {
     ]);
     const transcript = await simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE);
     expect(transcript[1].dialogue).toBe("A cartographer who wants a map reader, huh?");
+    expect(transcript[2].dialogue).toBe("Line 0: something friendly to say."); // turn 2 got the next output
+    expect(calls).toHaveLength(CONVERSATION_TURNS + 1); // one revision, nothing more
   });
 });
 
@@ -204,16 +208,19 @@ describe("simulateConversation", () => {
     expect(new Set(transcript.map((t) => t.act))).toEqual(new Set([0, 1, 2]));
   });
 
-  it("retries a bad turn once, then gives up so the caller can fall back", async () => {
-    // First turn: invalid JSON twice -> the whole conversation throws.
-    const { model } = turnModel(["not json", "still not json"]);
-    await expect(simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE)).rejects.toBeInstanceOf(ConversationError);
+  it("retries a bad turn, then gives up so the caller can fall back", async () => {
+    // First turn: unusable on every attempt -> the whole conversation throws, with the reasons.
+    const { model } = turnModel(["not json", "still not json", JSON.stringify({ line: "no dialogue" })]);
+    const err = await simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ConversationError);
+    expect((err as ConversationError).reasons).toEqual(["turn_0_json", "turn_0_json", "turn_0_schema"]);
   });
 
-  it("recovers from a single bad turn via the retry", async () => {
+  it("recovers from bad replies via the retries (two in a row is not the end of the date)", async () => {
     const outputs: Array<string | Error> = [];
     for (let i = 0; i < CONVERSATION_TURNS; i++) {
       if (i === 2) outputs.push("garbage"); // one bad attempt, then a good one on retry
+      if (i === 5) outputs.push("garbage", new Error("HTTP 503")); // two bad attempts, then a good third
       outputs.push(turnJson(`line ${i}`));
     }
     const { model } = turnModel(outputs);
@@ -221,8 +228,8 @@ describe("simulateConversation", () => {
     expect(transcript).toHaveLength(CONVERSATION_TURNS);
   });
 
-  it("gives up when the model errors on both attempts", async () => {
-    const { model } = turnModel([new Error("boom"), new Error("boom")]);
+  it("gives up when the model errors on every attempt", async () => {
+    const { model } = turnModel([new Error("boom"), new Error("boom"), new Error("boom")]);
     await expect(simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE)).rejects.toBeInstanceOf(ConversationError);
   });
 });
@@ -245,6 +252,18 @@ describe("parseTurn", () => {
     expect(parseTurn("{nope", "a", 0)).toBeNull();
     expect(parseTurn(JSON.stringify({ dialogue: "" }), "a", 0)).toBeNull();
     expect(parseTurn(turnJson("Honestly this feels like a porn shoot"), "a", 0)).toBeNull();
+    expect(parseTurnResult(JSON.stringify({ dialogue: "hi", action: "takes off everything, naked" }), "a", 0)).toEqual({ rejected: "filtered" });
+  });
+
+  it("trims a line that runs long instead of throwing it away", () => {
+    const long = `${"I have a lot to say about lighthouses. ".repeat(9)}And one more thing.`;
+    const turn = parseTurn(JSON.stringify({ dialogue: long, action: "gestures at the sea, the sky, the gulls, the rocks, the whole coastline, at length" }), "a", 0);
+    expect(turn).not.toBeNull();
+    expect(turn!.dialogue.length).toBeLessThanOrEqual(TURN_DIALOGUE_MAX);
+    expect(turn!.dialogue.endsWith("lighthouses.")).toBe(true); // cut at a sentence end
+    expect(turn!.action.length).toBeLessThanOrEqual(80);
+    expect(trimTo("short", 10)).toBe("short");
+    expect(trimTo("one two three four five", 12)).toBe("one two…");
   });
 });
 

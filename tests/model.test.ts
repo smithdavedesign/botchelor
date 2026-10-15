@@ -68,6 +68,20 @@ describe("openAICompatibleModel", () => {
     expect(waits).toEqual(RETRY_DELAYS_MS);
   });
 
+  it("puts the provider's short reason in the error (so the logs tell a burst from no quota), never a key", async () => {
+    const keyShaped = ["AI", "za", "Q1w2E3r4".repeat(4)].join(""); // built at runtime: no credential-shaped literal
+    const reason = `Quota exceeded for metric: free_tier_requests, limit: 0, model: m. key=${keyShaped}`;
+    const { fetchImpl } = fakeFetch({ status: 429, body: [{ error: { code: 429, message: reason, status: "RESOURCE_EXHAUSTED" } }] });
+    const model = openAICompatibleModel({ baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: "m", fetchImpl, retryDelaysMs: [] });
+    const err = await model.complete(messages).catch((e: Error) => e);
+    expect(String(err)).toContain("HTTP 429 (Quota exceeded for metric: free_tier_requests, limit: 0");
+    expect(String(err)).not.toContain(keyShaped);
+    // No body: just the status, as before.
+    const { fetchImpl: bare } = fakeFetch({ status: 503 });
+    const quiet = openAICompatibleModel({ baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: "m", fetchImpl: bare, retryDelaysMs: [] });
+    await expect(quiet.complete(messages)).rejects.toThrow(/^model returned HTTP 503$/);
+  });
+
   it("rides out a brief rate limit: 429 then 200 succeeds, honouring a capped Retry-After", async () => {
     let n = 0;
     const fetchImpl = (async () => {
@@ -83,6 +97,29 @@ describe("openAICompatibleModel", () => {
     });
     expect(await model.complete(messages)).toBe('{"ok":true}');
     expect(waits).toEqual([MAX_RETRY_AFTER_MS]); // 60s asked, capped
+  });
+
+  it("honours Google's own retry hint (RetryInfo), capped", async () => {
+    let n = 0;
+    const hint = [{ error: { code: 429, message: "Resource exhausted.", details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "11s" }] } }];
+    const fetchImpl = (async () => {
+      n++;
+      return n === 1 ? new Response(JSON.stringify(hint), { status: 429 }) : new Response(JSON.stringify(completion('{"ok":true}')), { status: 200 });
+    }) as typeof fetch;
+    const waits: number[] = [];
+    const model = openAICompatibleModel({ baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: "m", fetchImpl, sleep: async (ms) => void waits.push(ms) });
+    expect(await model.complete(messages)).toBe('{"ok":true}');
+    expect(waits).toEqual([11_000]);
+  });
+
+  it("doesn't retry a model with no quota at all on this key (a 429 with limit: 0)", async () => {
+    const body = [{ error: { code: 429, message: "Quota exceeded for metric: generate_content_free_tier_requests, limit: 0, model: m", status: "RESOURCE_EXHAUSTED" } }];
+    const { calls, fetchImpl } = fakeFetch({ status: 429, body });
+    const waits: number[] = [];
+    const model = openAICompatibleModel({ baseUrl: "https://llm.example.test/v1", apiKey: fakeKey(), model: "m", fetchImpl, sleep: async (ms) => void waits.push(ms) });
+    await expect(model.complete(messages)).rejects.toThrow(/HTTP 429 \(Quota exceeded .*limit: 0/);
+    expect(calls).toHaveLength(1);
+    expect(waits).toEqual([]);
   });
 
   it("throws a ModelError when the response has no text content", async () => {
