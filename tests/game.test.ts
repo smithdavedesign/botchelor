@@ -140,7 +140,7 @@ describe("reveal and scoring", () => {
   it("GET /api/me returns 0 points for a visitor without a session and sets no cookie", async () => {
     const res = await api.me();
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ points: 0 });
+    expect(await res.json()).toMatchObject({ points: 0, authenticated: false, account: null });
     expect(res.headers.get("set-cookie")).toBeNull();
   });
 });

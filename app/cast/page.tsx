@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
-import { readUserId, USER_COOKIE } from "@/lib/http";
+import { userIdFromCookieStore } from "@/lib/http";
 import { listCast, listMyProposals, listRelationshipEdges } from "@/lib/mechanics";
 import { topRatedCharacters } from "@/lib/ratings";
 import { ENDING_LABELS, RATING_CATEGORIES } from "@/lib/rules";
@@ -11,7 +11,7 @@ import MatchmakerForm from "./MatchmakerForm";
 export const dynamic = "force-dynamic";
 
 export default async function CastPage() {
-  const viewerId = readUserId((await cookies()).get(USER_COOKIE)?.value);
+  const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
   const [cast, edges, proposals, boards] = await Promise.all([
     listCast(db),

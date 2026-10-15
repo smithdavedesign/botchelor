@@ -8,7 +8,7 @@ import { getDb } from "@/lib/db";
 import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
 import { loadCharacterMemory } from "@/lib/memory";
 import { getCharacterRatings } from "@/lib/ratings";
-import { readUserId, USER_COOKIE } from "@/lib/http";
+import { userIdFromCookieStore } from "@/lib/http";
 import { ENDING_LABELS } from "@/lib/rules";
 import RatingButtons from "./RatingButtons";
 
@@ -29,7 +29,7 @@ export default async function CharacterPage({ params }: Props) {
   const db = await getDb();
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
-  const viewerId = readUserId((await cookies()).get(USER_COOKIE)?.value);
+  const viewerId = userIdFromCookieStore(await cookies());
   const [{ episodes, record }, ratings, memory] = await Promise.all([
     getCharacterHistory(db, id),
     getCharacterRatings(db, id, viewerId),
