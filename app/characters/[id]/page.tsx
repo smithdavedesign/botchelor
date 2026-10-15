@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import ShareLink from "@/app/ShareLink";
+import { getDatingProfile } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
 import { loadCharacterMemory } from "@/lib/memory";
@@ -20,8 +21,12 @@ type Props = { params: Promise<{ id: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const c = await getPublicCharacter(await getDb(), id);
-  if (!c) return { title: "Character not found · Botchelor" };
-  return { title: `${c.name} · Botchelor`, description: `${c.name}, a contestant on Botchelor: ${c.bio}` };
+  if (!c) return { title: "Character not found · Botchelor", robots: { index: false, follow: false } };
+  return {
+    title: `${c.name}, ${c.age}: a contestant on Botchelor`,
+    description: `${c.name}, a contestant on Botchelor: ${c.bio} Wants: ${c.want}`.slice(0, 200),
+    alternates: { canonical: `/characters/${c.id}` },
+  };
 }
 
 /** A shareable contestant card: a character's public persona only (no dealbreaker, no soul). */
@@ -31,10 +36,11 @@ export default async function CharacterPage({ params }: Props) {
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
   const viewerId = userIdFromCookieStore(await cookies());
-  const [{ episodes, record }, ratings, memory] = await Promise.all([
+  const [{ episodes, record }, ratings, memory, dating] = await Promise.all([
     getCharacterHistory(db, id),
     getCharacterRatings(db, id, viewerId),
     loadCharacterMemory(db, id),
+    getDatingProfile(db, id),
   ]);
 
   return (
@@ -46,6 +52,8 @@ export default async function CharacterPage({ params }: Props) {
           <h1>
             {c.name}
             {c.house && <span className="badge">House character</span>}
+            {dating?.made_by === "agent" && <span className="badge badge-agent">🤖 Agent-made</span>}
+            {!c.house && dating?.open_to_dates && <span className="badge badge-open">💌 Open to dates</span>}
           </h1>
           <p className="muted">
             Age {c.age}
@@ -65,6 +73,7 @@ export default async function CharacterPage({ params }: Props) {
           appearance={c.appearance}
           pronouns={c.pronouns}
           voice={c.voice}
+          openToDates={dating?.open_to_dates ?? false}
         />
       )}
 

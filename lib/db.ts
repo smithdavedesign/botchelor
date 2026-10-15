@@ -539,6 +539,35 @@ create table if not exists watch_presence (
   primary key (party_id, user_id)
 );
 create index if not exists watch_presence_party_idx on watch_presence (party_id, last_seen);
+
+-- Agents (the MCP front door). Where a character or a date came from ('web' or 'mcp'), so agent-made
+-- characters are labelled and the agents' daily date cap can be counted. And 'open to dates': the creator's
+-- consent to be asked out by name. Blind dates already draw from every OC; choosing a stranger's OC as the
+-- partner is allowed only when this is on. House characters are always available and ignore it.
+alter table characters add column if not exists created_via text not null default 'web'
+  check (created_via in ('web', 'mcp'));
+alter table characters add column if not exists open_to_dates boolean not null default false;
+create index if not exists characters_open_idx on characters (open_to_dates) where open_to_dates;
+alter table episodes add column if not exists created_via text not null default 'web'
+  check (created_via in ('web', 'mcp'));
+create index if not exists episodes_via_idx on episodes (created_via, created_at);
+
+-- Who the agents are: one row per MCP session (the Mcp-Session-Id we issue at initialize), or per agent
+-- identity for a client that never initializes. agent_id is the anonymous identity it plays as (the same
+-- UUID a browser keeps in bz_uid). Only what the client says about itself: its declared name and version
+-- and a truncated user agent. No IP, no account, nothing personal.
+create table if not exists mcp_sessions (
+  id text primary key,
+  agent_id text not null,
+  client_name text,
+  client_version text,
+  user_agent text,
+  calls integer not null default 0,
+  created_at timestamptz not null default now(),
+  last_seen timestamptz not null default now()
+);
+create index if not exists mcp_sessions_agent_idx on mcp_sessions (agent_id);
+create index if not exists mcp_sessions_seen_idx on mcp_sessions (last_seen desc);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

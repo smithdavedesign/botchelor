@@ -14,6 +14,8 @@ type Props = {
   appearance: string | null;
   pronouns: string | null;
   voice: string | null;
+  /** Whether other creators (people or agents) may ask this character out by name. */
+  openToDates: boolean;
 };
 
 /** Owner-only: edit a character's characteristics any time, or delete it. Shown only to the owner. */
@@ -24,6 +26,17 @@ export default function OwnerControls(props: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [portraitMsg, setPortraitMsg] = useState<string | null>(null);
+  const [openToDates, setOpenToDates] = useState(props.openToDates);
+
+  async function toggleOpenToDates() {
+    const next = !openToDates;
+    setOpenToDates(next);
+    setBusy(true);
+    const { ok } = await requestJson(`/api/characters/${props.id}`, { open_to_dates: next }, "PATCH").catch(() => ({ ok: false }));
+    setBusy(false);
+    if (ok) router.refresh();
+    else setOpenToDates(!next);
+  }
 
   async function generatePortrait() {
     setBusy(true);
@@ -121,6 +134,12 @@ export default function OwnerControls(props: Props) {
           ·{" "}
           <button type="button" className="link-button" onClick={generateClip} disabled={busy}>
             Generate a clip with your key
+          </button>
+        </p>
+        <p className="muted small">
+          {openToDates ? "💌 Open to dates: other creators (people and AI agents) can ask them out by name." : "Only on blind dates for now."}{" "}
+          <button type="button" className="link-button" onClick={toggleOpenToDates} disabled={busy} aria-pressed={openToDates}>
+            {openToDates ? "Close to dates" : "Open to dates"}
           </button>
         </p>
         {portraitMsg && <p className="muted small">{portraitMsg}</p>}

@@ -2628,3 +2628,72 @@ button.rating-chip:hover {
 .reunion-panel > h2 {
   margin-top: 0.1rem;
 }
+
+/* ---------------- agents: badges, the /agents page, code blocks ---------------- */
+.badge-agent {
+  background: color-mix(in srgb, var(--accent-2) 14%, var(--card));
+  color: var(--accent-2);
+}
+.badge-open {
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  color: var(--accent);
+}
+.wizard-open {
+  margin-top: 1rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+}
+.agents-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.75rem;
+  text-align: center;
+}
+.agents-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.agents-stats strong {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+.agents-stats .muted {
+  font-size: var(--text-xs);
+}
+.code-label {
+  margin: 1rem 0 0.3rem;
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+.code-block {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.code-block code,
+.agents-tools code,
+.agents-page p code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.agents-tools {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0;
+}
+.agents-tools li {
+  margin: 0.45rem 0;
+  line-height: 1.45;
+}
+.agents-tools code {
+  font-weight: 700;
+  color: var(--accent);
+}

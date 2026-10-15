@@ -1,11 +1,21 @@
 import type { MetadataRoute } from "next";
-import { PUBLIC_PATHS, siteUrl } from "@/lib/site";
+import { getDb } from "@/lib/db";
+import { contentSitemap, staticSitemap } from "@/lib/seo";
+import { siteUrl } from "@/lib/site";
+
+// Built per request (cached at the CDN below), so a new public episode is findable the same day.
+export const dynamic = "force-dynamic";
 
 /**
- * sitemap.xml: the public pages only. Episodes and leagues are reached by their share links, and an
- * episode can be hidden after reports, so none is listed.
+ * sitemap.xml: the public pages, plus the characters and episodes worth finding (lib/seo.ts). Only public,
+ * aired, unhidden episodes and characters that are open to dates or have aired publicly. If the database
+ * can't be reached, the static pages still go out: a sitemap must never fail.
  */
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
-  return PUBLIC_PATHS.map((path) => ({ url: `${base}${path}` }));
+  try {
+    return [...staticSitemap(base), ...(await contentSitemap(await getDb(), base))];
+  } catch {
+    return staticSitemap(base);
+  }
 }

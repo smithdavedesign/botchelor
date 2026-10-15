@@ -32,6 +32,8 @@ const CharacterPatch = z
     pronouns: z.enum(PRONOUNS, "Pick she/her, he/him or they/them.").nullable().optional(),
     voice: text(VOICE_MAX).nullable().optional(),
     soul: SoulInput.optional(),
+    // Consent to be asked out by name (see POST /api/characters). Toggle any time; past dates are unaffected.
+    open_to_dates: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, "Nothing to update.");
 
@@ -53,6 +55,7 @@ const COLUMN: Record<string, (v: Record<string, unknown>) => unknown> = {
   avatar_hue: (v) => (typeof v.avatar_hue === "number" && v.avatar_hue > 0 ? v.avatar_hue : null),
   pronouns: (v) => v.pronouns ?? null,
   voice: (v) => v.voice ?? null,
+  open_to_dates: (v) => v.open_to_dates === true,
 };
 
 /** Edit your own character. Owner-only; a character you don't own (or a house one) is "not found". */

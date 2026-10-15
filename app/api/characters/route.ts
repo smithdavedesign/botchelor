@@ -41,6 +41,9 @@ const CharacterInput = z.object({
     .optional(),
   // Optional private soul (PRD core feature 1): owner-only, drives the engine, never shown to spectators.
   soul: SoulInput.optional(),
+  // Consent to be asked out by name: other creators (people or AI agents) may then pick this character as
+  // their date's partner. Off by default; blind dates are unaffected.
+  open_to_dates: z.boolean().optional(),
   attest: z.literal(true, "Confirm you are 18+ and this is your own original character."),
 });
 
@@ -79,9 +82,9 @@ export const POST = handle(async (req) => {
   const id = crypto.randomUUID();
   const hue = input.avatar_hue && input.avatar_hue > 0 ? input.avatar_hue : null;
   await db.query(
-    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice)
-     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12)`,
-    [id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue, input.pronouns ?? null, input.voice ?? null],
+    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice, open_to_dates)
+     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13)`,
+    [id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue, input.pronouns ?? null, input.voice ?? null, input.open_to_dates === true],
   );
   const hasSoul = Boolean(soul && !isEmptySoul(soul));
   const signals = input.image_signals ?? null;

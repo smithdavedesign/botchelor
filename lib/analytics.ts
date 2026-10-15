@@ -18,7 +18,11 @@ export type AnalyticsEvent =
   | "generation_failed"
   | "conversation_failed" // the best-effort two-agent conversation gave up (the date still airs, with no thread)
   | "daily_job" // the daily cron: lobby refresh + transcript backfill + queued-job backstop
-  | "date_quality"; // the free genuineness metrics for one generated conversation (lib/quality.ts) — no content
+  | "date_quality" // the free genuineness metrics for one generated conversation (lib/quality.ts) — no content
+  | "bot_visit" // a crawler or AI agent let past the 18+ gate (lib/bots.ts): its name, kind and the path
+  | "agent_connected" // an MCP client initialized: its self-declared name/version, and the session we issued
+  | "agent_tool_call" // one MCP tool call: the tool, the client and whether it succeeded — never arguments
+  | "agent_date_capped"; // an agent's date was refused because the agents' daily date cap was reached
 
 type Props = Record<string, string | number | boolean | null | undefined>;
 

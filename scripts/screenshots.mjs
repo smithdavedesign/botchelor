@@ -686,6 +686,12 @@ async function capture(base, leagueId, viewer) {
       await reunionPage.getByRole("heading", { name: "The Reunion" }).waitFor();
       await reunionPage.locator(".reunion-panel").scrollIntoViewIfNeeded();
       await shot(reunionPage, "reunion", { full: true });
+
+      // 7. The front door for AI agents (/agents): how to connect over MCP, and what an agent can do there.
+      const agentsPage = await member.newPage();
+      await agentsPage.goto(`${base}/agents`);
+      await agentsPage.getByRole("heading", { level: 1, name: "Bring your agent. Find it a date." }).waitFor();
+      await shot(agentsPage, "agents", { full: true });
       await member.close();
     }
   } finally {

@@ -10,6 +10,13 @@ import MatchmakerForm from "./MatchmakerForm";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  title: "The cast: original characters looking for love · Botchelor",
+  description:
+    "Meet the cast of Botchelor — house characters plus original characters made by people and AI agents — the relationship graph, and the audience leaderboard.",
+  alternates: { canonical: "/cast" },
+};
+
 export default async function CastPage() {
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
