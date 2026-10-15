@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { getCharacterHistory } from "@/lib/game";
 import type { Ending } from "@/lib/rules";
+import { countRecentPrivateDates } from "@/lib/watch";
 import { api, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -92,5 +93,16 @@ describe("date visibility (M16): public / unlisted / private", () => {
     expect(mine).toHaveLength(2);
     expect(mine.every((e) => e.is_host)).toBe(true);
     expect(mine.map((e) => e.visibility).sort()).toEqual(["private", "public"]);
+  });
+
+  it("counts recent private dates for the watch-lobby teaser — a real number, only private ones", async () => {
+    const host = newUserCookie();
+    const other = newUserCookie();
+    expect(await countRecentPrivateDates(t.db)).toBe(0); // nothing private yet
+    await makeEpisode(host, "private");
+    await makeEpisode(other, "private");
+    await makeEpisode(host, "public"); // a public date must not be counted
+    await makeEpisode(host, "unlisted"); // nor an unlisted one
+    expect(await countRecentPrivateDates(t.db)).toBe(2);
   });
 });

@@ -2,16 +2,14 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
-import { formatPrice, PACK_5 } from "@/lib/catalog";
+import { PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
-import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import { cleanRef } from "@/lib/waitlist";
-import StartForm, { type Partner } from "./StartForm";
 import WaitlistForm from "./WaitlistForm";
 
 export const dynamic = "force-dynamic";
@@ -23,16 +21,16 @@ const FEATURES = [
   { title: "You can't steer it", body: "A deterministic engine decides what happens. Even you find out how it ends at the reveal." },
   { title: "Friends play along", body: "Spectators predict the ending, guess the dealbreaker and matchmake — for free points." },
   { title: "Give it a soul", body: "A private side only you see — and a surprise score for when your AI defies you." },
-  { title: "Custom characters", body: "Pick an avatar colour, or style it from an image read in your browser and never uploaded." },
+  { title: "Custom characters", body: "Pick an avatar colour, style it from an image read in your browser, or generate a Pro portrait." },
   { title: "A living cast", body: "Characters remember past dates. Follow the relationship graph as sparks and rivalries build." },
 ];
 
 const FAQ = [
-  { q: "Is it free?", a: `Yes. ${FREE_EPISODES_PER_SEASON} dates a week, your first is always free, and points can never be bought. Optional packs add dates — never points or odds.` },
+  { q: "Is it free?", a: `Yes. ${FREE_EPISODES_PER_SEASON} tokens a week, your first date is always free, and points can never be bought. Optional packs add tokens — never points or odds.` },
   { q: "Can I steer the date?", a: "No, and that's the point. A deterministic engine decides the outcome; the AI only writes the dialogue to match it." },
   { q: "Is my character's soul private?", a: "Yes. The soul is owner-only, can be kept local-only so it never touches any model, and you can delete it anytime." },
-  { q: "Who can use it?", a: "Adults (18+). Characters are fictional adults only — no real people, no sexual content. Every episode is AI-labeled with a report button." },
-  { q: "Do I need an account?", a: "No sign-up to start. Make a character and send it on a date right away." },
+  { q: "Who can use it?", a: "Characters are fictional adults only — no real people, no sexual content. Every episode is AI-labeled with a report button." },
+  { q: "Do I need an account?", a: "No sign-up to start. Make a character and send it on a date right away; sign in later to keep it across devices." },
 ];
 
 /** The landing page: pitched at AI-friendly roleplayers, built to convert — hero, features, proof, cast, FAQ. */
@@ -41,33 +39,18 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const viewerId = userIdFromCookieStore(await cookies());
   const db = viewerId ? await getDb() : null;
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
-  const dates = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
+  const tokens = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
 
-  const partners: Partner[] = [
-    ...HOUSE_CHARACTERS.map(({ id, name, age, bio, traits, archetype, hue }) => ({
-      id,
-      name,
-      age,
-      bio,
-      traits: [...traits],
-      archetype,
-      hue,
-    })),
-    ...PREMIUM_HOUSE_CHARACTERS.filter((c) => owned.includes(c.sku)).map(({ id, name, age, bio, traits, archetype, hue }) => ({
-      id,
-      name,
-      age,
-      bio,
-      traits: [...traits],
-      archetype,
-      hue,
+  const cast: { id: string; name: string; traits: string[]; premium: boolean }[] = [
+    ...HOUSE_CHARACTERS.map((c) => ({ id: c.id, name: c.name, traits: [...c.traits], premium: false })),
+    ...PREMIUM_HOUSE_CHARACTERS.filter((c) => owned.includes(c.sku)).map((c) => ({
+      id: c.id,
+      name: c.name,
+      traits: [...c.traits],
       premium: true,
     })),
   ];
-  const offer = paymentLinkFromEnv()
-    ? priceLabelFromEnv(process.env, `${PACK_5.name} for ${formatPrice(PACK_5.price_cents)}`)
-    : null;
   const [heroA, heroB] = HOUSE_CHARACTERS;
 
   return (
@@ -77,18 +60,18 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <p className="kicker">For AI roleplayers with an original character</p>
           <h1>Send your OC on a blind date. Then just watch.</h1>
           <p className="lede">
-            The showrunner writes the date — one short episode, written by AI, that nobody can steer. Make a character
+            The showrunner writes the date — one short episode, written by AI, that nobody can steer. Build a character
             in under a minute. Free, no sign-up.
           </p>
           <p className="cta-row">
-            <a className="button" href="#start">
+            <Link className="button" href="/create">
               Make your character
-            </a>
+            </Link>
             <Link className="button-ghost" href="/feed">
               Watch episodes
             </Link>
           </p>
-          <p className="trust-micro">18+ · fictional characters only, no real people · free points that can&apos;t be bought</p>
+          <p className="trust-micro">Fictional characters only, no real people · free points that can&apos;t be bought</p>
         </div>
         <div className="hero-art">
           <div className="matchup">
@@ -104,6 +87,38 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </div>
           <p className="muted mini-cap">A real box score, decided by the engine — and friends guess it first.</p>
         </div>
+      </section>
+
+      <section id="start" className="card start-card">
+        <h2>{myCharacters.length > 0 ? "Jump back in" : "Start here"}</h2>
+        {myCharacters.length > 0 && (
+          <>
+            <p className="muted">Your characters — send one on another date:</p>
+            <ul className="list start-mine">
+              {myCharacters.map((c) => (
+                <li key={c.id} className="char">
+                  <Avatar seed={c.id} name={c.name} size={36} />
+                  <Link className="button-ghost small" href={`/create?character=${c.id}`}>
+                    Send {c.name} on a date
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <p className="cta-row">
+          <Link className="button" href="/create">
+            {myCharacters.length > 0 ? "Build a new character" : "Build your character"}
+          </Link>
+          <Link className="button-ghost" href="/create?sample=1">
+            In a hurry? Use a sample
+          </Link>
+        </p>
+        <p className="muted">
+          {tokens.left} {tokens.left === 1 ? "token" : "tokens"} left this week (one sends a character on one date; free
+          ones come back Monday). Want more? &ldquo;{PACK_5.name}&rdquo; tops up your tokens in the{" "}
+          <Link href="/shop">token shop</Link>. Points and badges are free and can&apos;t be bought.
+        </p>
       </section>
 
       <section className="features">
@@ -127,7 +142,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         <h2>Meet the house cast</h2>
         <p className="muted">Send your character on a date with one of ours, or a blind date with another creator&apos;s.</p>
         <ul className="gallery">
-          {partners.slice(0, 5).map((p) => (
+          {cast.slice(0, 5).map((p) => (
             <li key={p.id} className="card">
               <div className="char">
                 <Avatar seed={p.id} name={p.name} house size={44} />
@@ -157,8 +172,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         <h2>How it works</h2>
         <ol className="steps">
           <li>
-            <strong>Make an adult OC.</strong> A name, an age, a short bio, three traits, a want and a dealbreaker. Add
-            a private soul and an avatar if you like.
+            <strong>Make an original character.</strong> A name, an age, a short bio, three traits, a want and a
+            dealbreaker. Add a private soul, a voice and an avatar if you like.
           </li>
           <li>
             <strong>Send them on a blind date.</strong> Creators stay anonymous unless both agree to reveal themselves.
@@ -169,26 +184,13 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </li>
           <li>
             <strong>Every week is a season.</strong> When it closes on Monday, the top {PODIUM_SIZE} in each friend
-            league earn a badge. Creators get {FREE_EPISODES_PER_SEASON} free dates a week, and your first is always
-            free.
+            league earn a badge. Creators get {FREE_EPISODES_PER_SEASON} free tokens a week, and your first date is
+            always free.
           </li>
         </ol>
       </section>
 
       <WaitlistForm refSlug={cleanRef(typeof ref === "string" ? ref : undefined)} />
-
-      <section id="start">
-        <StartForm
-          partners={partners}
-          dates={dates}
-          offer={offer}
-          myCharacters={myCharacters.map(({ id, name }) => ({ id, name }))}
-        />
-        <p className="muted">
-          Want more than {FREE_EPISODES_PER_SEASON} dates a week? &ldquo;{PACK_5.name}&rdquo; is in the{" "}
-          <Link href="/shop">shop</Link>. Points and badges are free and can&apos;t be bought.
-        </p>
-      </section>
 
       <section className="faq">
         <h2>Questions</h2>
@@ -201,9 +203,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       </section>
 
       <p className="cta-row cta-final">
-        <a className="button" href="#start">
+        <Link className="button" href="/create">
           Make your character
-        </a>
+        </Link>
       </p>
     </>
   );

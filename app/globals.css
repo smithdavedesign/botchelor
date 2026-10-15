@@ -207,6 +207,150 @@ h2 {
   color: var(--accent);
 }
 
+.nav a[aria-current="page"] {
+  background: var(--soft);
+  color: var(--accent);
+}
+
+/* The token meter (nav): always visible, a pill that doubles as the top-up entry. One token = one date. */
+.nav a.token-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.7rem 0.3rem 0.6rem;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+}
+.nav a.token-pill:hover {
+  background: var(--soft);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.token-pip {
+  color: var(--accent);
+  font-size: 1rem;
+}
+.token-count {
+  font-variant-numeric: tabular-nums;
+}
+.token-word {
+  color: var(--muted);
+  font-weight: 600;
+}
+.nav a.token-pill.low {
+  border-color: color-mix(in srgb, #d97706 70%, var(--line));
+}
+.nav a.token-pill.low .token-pip {
+  color: #d97706;
+}
+.nav a.token-pill.empty {
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 8%, var(--card));
+}
+.nav a.token-pill.empty .token-pip,
+.nav a.token-pill.empty .token-count {
+  color: var(--bad);
+}
+
+/* The hamburger: hidden on desktop, shown on phones. The bars morph to an × when open. */
+.nav-toggle {
+  display: none;
+  margin: 0;
+  padding: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  box-shadow: none;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+.nav-toggle:hover:not(:disabled) {
+  transform: none;
+  background: var(--soft);
+  border-color: var(--accent);
+}
+.nav-toggle-bars,
+.nav-toggle-bars::before,
+.nav-toggle-bars::after {
+  display: block;
+  width: 1.1rem;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ink);
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+.nav-toggle-bars {
+  position: relative;
+}
+.nav-toggle-bars::before,
+.nav-toggle-bars::after {
+  content: "";
+  position: absolute;
+  left: 0;
+}
+.nav-toggle-bars::before {
+  top: -6px;
+}
+.nav-toggle-bars::after {
+  top: 6px;
+}
+.nav-toggle-bars[data-open="true"] {
+  background: transparent;
+}
+.nav-toggle-bars[data-open="true"]::before {
+  transform: translateY(6px) rotate(45deg);
+}
+.nav-toggle-bars[data-open="true"]::after {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+.nav-links {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .nav {
+    gap: 0.5rem;
+  }
+  .nav-toggle {
+    display: inline-flex;
+  }
+  .nav-links {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: var(--gutter);
+    left: var(--gutter);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+  }
+  .nav-links[data-open="true"] {
+    display: flex;
+  }
+  .nav-links a {
+    padding: 0.7rem 0.9rem;
+    font-size: 1rem;
+  }
+}
+
 .site-footer {
   max-width: 46rem;
   margin: 0 auto;
@@ -2287,4 +2431,200 @@ button.rating-chip:hover {
 .age-gate-fine {
   font-size: 0.8rem;
   margin: 0;
+}
+
+/* ---------------- create wizard (/create): a stepped character builder ---------------- */
+.wizard-rail {
+  display: flex;
+  gap: 0.25rem;
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0.75rem;
+  overflow-x: auto;
+}
+.wizard-rail-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  flex: 1 1 0;
+  min-width: 3.5rem;
+}
+.wizard-rail-dot {
+  margin: 0;
+  padding: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  color: var(--muted);
+  box-shadow: none;
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+.wizard-rail-dot:hover:not(:disabled) {
+  transform: none;
+  border-color: var(--accent);
+}
+.wizard-rail-dot:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.wizard-rail-step.current .wizard-rail-dot {
+  background: var(--grad);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+.wizard-rail-step.done .wizard-rail-dot {
+  background: var(--soft);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.wizard-rail-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.15;
+}
+.wizard-rail-step.current .wizard-rail-label {
+  color: var(--accent);
+}
+
+.wizard-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-2);
+  margin-bottom: 0.25rem;
+}
+.wizard-preview-meta {
+  min-width: 0;
+}
+.wizard-preview-meta strong {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.1rem;
+}
+.wizard-preview-meta .chips {
+  margin: 0.3rem 0 0;
+}
+
+.wizard-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.wizard-legend {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  padding: 0;
+  margin-bottom: 0.25rem;
+}
+.wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+}
+.wizard-actions .button-ghost {
+  margin-top: 0;
+}
+.wizard-review-row {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0.4rem 0;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--line);
+}
+.wizard-review-label {
+  font-weight: 700;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.wizard-attest {
+  margin-top: 1rem;
+}
+
+/* The Pro (BYOK image) affordance: a tag and the portrait card in the send phase. */
+.pro-tag {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: var(--grad);
+  color: var(--accent-ink);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+.wizard-pro-hint {
+  margin: 0.85rem 0 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-2) 9%, transparent);
+  font-size: 0.88rem;
+}
+.wizard-pro-card h2 {
+  font-size: 1.2rem;
+}
+
+@media (max-width: 520px) {
+  .wizard-rail-label {
+    display: none;
+  }
+  .wizard-review-row {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+}
+
+/* ---------------- home start card ---------------- */
+.start-card {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
+}
+.start-mine {
+  margin: 0.5rem 0;
+}
+.start-mine .char {
+  margin: 0.4rem 0;
+}
+.start-mine .button-ghost {
+  margin-top: 0;
+}
+
+/* ---------------- watch: the private-dates teaser (a real count; hidden at zero) ---------------- */
+.private-teaser {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 1rem 0;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--accent-2) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent-2) 8%, var(--card));
+  font-size: 0.95rem;
+}
+.private-teaser-lock {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+/* ---------------- reunion panel (folded into the feed) ---------------- */
+.reunion-panel {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+.reunion-panel > h2 {
+  margin-top: 0.1rem;
 }

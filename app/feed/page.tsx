@@ -7,9 +7,11 @@ import { listFeed, listMyEpisodes, type EpisodeView } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
 import { listMyLeagues } from "@/lib/leagues";
 import { getProfileName, listBlocks } from "@/lib/people";
+import { getReunion } from "@/lib/reunion";
 import { ENDING_LABELS } from "@/lib/rules";
 import { formatLabel } from "@/lib/formats";
 import { listMyBadges, tryCloseDueSeasons, type Badge } from "@/lib/seasons";
+import ReunionPanel from "../ReunionPanel";
 import { CreateLeagueForm, UnblockButton } from "./FeedActions";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +56,7 @@ export default async function FeedPage() {
   const leagues = viewerId ? await listMyLeagues(db, viewerId) : [];
   const blocks = viewerId ? await listBlocks(db, viewerId) : [];
   const profileName = await getProfileName(db, viewerId);
+  const reunion = await getReunion(db);
   // A season that ended since anyone last looked is closed here, so the viewer's new badges show (M4).
   let badges: Badge[] = [];
   if (viewerId && leagues.length) {
@@ -135,6 +138,8 @@ export default async function FeedPage() {
           </ul>
         </section>
       )}
+
+      <ReunionPanel reunion={reunion} />
     </>
   );
 }
