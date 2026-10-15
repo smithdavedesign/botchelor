@@ -189,6 +189,7 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
     const o = other(s);
     const so = outcome.sides[s];
     facts.push(`${names[s]} is ${temperament(sides[s].signals).replace(/\byour\b/g, "their")}.`);
+    facts.push(`${names[s]} is privately hoping to find a partner who is "${characters[s].persona.want}" — give them a concrete moment to look for it (never have them say it aloud).`);
     if (so.want_met) facts.push(`${names[s]}'s hope for the date is met by ${names[o]}'s "${so.want_met}" side.`);
     if (so.dealbreaker_hit) facts.push(`${names[o]}'s "${so.dealbreaker_hit}" side trips ${names[s]}'s dealbreaker.`);
     const cause = AGENDA_CAUSES[sides[s].agendaId];
@@ -206,19 +207,20 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
   return facts;
 }
 
-/** One side's private beat for an act, from the engine's facts only. */
-function rulesBeat(input: DateInput, outcome: Outcome, s: Side, act: number): string {
+/** One side's private beat for an act, from the engine's facts only. `want` is this side's own want phrase. */
+function rulesBeat(input: DateInput, outcome: Outcome, s: Side, act: number, want: string): string {
   const sides = [input.a, input.b] as const;
   const me = sides[s];
   const mine = outcome.sides[s];
   const theirs = outcome.sides[other(s)];
   if (act === 0) {
-    return `You're ${temperament(me.signals)}. Be yourself from the first line and ask them something you genuinely want to know; let who you are come out as you talk (nobody opens with their résumé). Quietly, you're out to ${AGENDA_GOALS[me.agendaId]}.`;
+    return `You're ${temperament(me.signals)}. Be yourself from the first line and ask them something you genuinely want to know; let who you are come out as you talk (nobody opens with their résumé). What you're privately hoping to find in someone is "${want}" — let it steer what you ask them and what you notice, never say it. Quietly, you're also out to ${AGENDA_GOALS[me.agendaId]}.`;
   }
   if (act === 1) {
     const parts: string[] = [];
     const theirCause = AGENDA_CAUSES[sides[other(s)].agendaId];
     if (mine.want_met) parts.push(`Somewhere in this act you find out they're "${mine.want_met}" in exactly the way you'd hoped. Let it land.`);
+    else parts.push(`You're quietly weighing whether they're "${want}" — the thing you're really hoping for in someone — by what you ask them and how they answer.`);
     if (theirs.want_met) parts.push(`Let your "${theirs.want_met}" side show this act, without naming it.`);
     if (mine.dealbreaker_hit) parts.push(`Something in them — the "${mine.dealbreaker_hit}" in them — rubs against the one thing you can't stand. It shows before you say a word.`);
     if (theirs.dealbreaker_hit) parts.push(`Without meaning to, you let your "${theirs.dealbreaker_hit}" side show.`);
@@ -254,8 +256,8 @@ export function rulesPlan(
   const scene2 = `It resolves: ${ENDING_LABELS[outcome.ending]} (${ENDING_READS[outcome.ending]}). ${drama}.`;
   const beat = (act: number): ActBeat => ({
     scene: [scene0, scene1, scene2][act],
-    a: rulesBeat(input, outcome, 0, act),
-    b: rulesBeat(input, outcome, 1, act),
+    a: rulesBeat(input, outcome, 0, act, characters[0].persona.want),
+    b: rulesBeat(input, outcome, 1, act, characters[1].persona.want),
   });
   return {
     source: "rules",

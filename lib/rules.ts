@@ -340,8 +340,12 @@ export const WATCH_CHEMISTRY_OPTIONS = [
 export const WATCH_CHEMISTRY_IDS = WATCH_CHEMISTRY_OPTIONS.map((o) => o.id) as [string, ...string[]];
 
 /**
- * The audience-triggered moment (kept inside Model A): the crowd picks which curated question gets
- * asked during the challenge. It colours the room, it does not change the outcome — the engine stands.
+ * The audience-triggered moment: the crowd picks which curated question hangs over the challenge. It's the
+ * room's mood, shown in the watch room (openHint/closedHint in WatchRoom) and surfaced again at the decision —
+ * it never changes the outcome, and because the date's transcript is pre-generated it does not rewrite a line.
+ * The characters answering the winning question on screen is a planned follow-up (pre-generate both moments at
+ * date-build time, reveal the winner), tracked in docs/date-quality.md; until then the copy stays honest about
+ * what the vote does: it sets the question in the air, it doesn't script a new reply.
  */
 export const WATCH_AUDIENCE_PROMPTS = [
   { id: "truth", label: "Ask the hard truth: what are you really looking for?" },

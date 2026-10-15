@@ -97,6 +97,28 @@ describe("updateCharacterMemory — deterministic aggregation", () => {
     expect(m.arc).toContain("aloof");
   });
 
+  it("falls back to the subject's OWN want/dealbreaker when the engine matched no cue (so the arc isn't empty)", async () => {
+    const s = await subject(); // want: "Someone who can read a map upside down"; dealbreaker: "People who hate surprises"
+    // A friends ending the subject wanted more of, but the engine matched no want cue (want_met null): credit its own want.
+    await insertEpisode({ id: "e1", a: s, b: HOUSE_PARTNER_ID, ending: "friends", sides: [so({ want_met: null, wants_another: true }), so()] });
+    // A disaster with no dealbreaker cue matched: credit its own dealbreaker.
+    await insertEpisode({ id: "e2", a: s, b: HOUSE_PARTNER_ID, ending: "disaster", sides: [so({ want_met: null, dealbreaker_hit: null, wants_another: false, satisfied: false }), so()] });
+    // A positive date the subject did NOT want more of contributes no fallback like.
+    await insertEpisode({ id: "e3", a: s, b: HOUSE_PARTNER_ID, ending: "friends", sides: [so({ want_met: null, wants_another: false }), so()] });
+
+    const m = await updateCharacterMemory(t.db, s);
+    expect(m.likes).toEqual(["can read a map upside down"]);
+    expect(m.turnoffs).toEqual(["people who hate surprises"]);
+    expect(m.arc).toContain("can read a map upside down");
+  });
+
+  it("prefers a real engine-matched cue over the fallback when one exists", async () => {
+    const s = await subject();
+    await insertEpisode({ id: "e1", a: s, b: HOUSE_PARTNER_ID, ending: "second_date", sides: [so({ want_met: "adventurous" }), so()] });
+    const m = await updateCharacterMemory(t.db, s);
+    expect(m.likes).toEqual(["adventurous"]); // not the own-want fallback
+  });
+
   it("is deterministic: recomputing yields the identical row", async () => {
     const s = await subject();
     await insertEpisode({ id: "e1", a: s, b: HOUSE_PARTNER_ID, ending: "second_date", sides: [so({ want_met: "kind" }), so()] });

@@ -94,6 +94,12 @@ export type LineIssues = {
   /** The earlier stage direction this line's action repeats, if any. */
   repeated_action: string | null;
   name_tic: boolean;
+  /**
+   * The image this line keeps circling, if it's just re-riding a motif the date has already leaned on (a word
+   * seen in two-plus earlier lines) while saying nothing of its own and asking nothing — the "everyone riffs
+   * on the rain/tempo and no one says anything real" failure. Null when the line adds something or asks.
+   */
+  motif_fixation: string | null;
 };
 
 /** A stage direction's meaningful words ("pulls the blanket tighter" → pulls, blanket, tighter). */
@@ -167,6 +173,20 @@ export function lineIssues(
   const lastMine = mine.at(-1);
   const nameTic = says(text) && lastMine !== undefined && says(lastMine.dialogue);
 
+  // Motif fixation: the line keeps riding an image the date has already circled (a content word seen in two-plus
+  // earlier lines, either speaker) while engaging with nothing — it brings none of the speaker's own life, asks
+  // no question, and doesn't pick up anything the line before it actually said. That last guard is the point:
+  // normal topic continuity (you answer with a word they just used) is fine; drifting onto a pretty image and
+  // saying nothing real is the "everyone riffs on the rain/tempo" loop to break. Can't fire before the third line.
+  const motifCounts = new Map<string, number>();
+  for (const t of before) for (const w of new Set(contentWords(t.dialogue, 5))) motifCounts.set(w, (motifCounts.get(w) ?? 0) + 1);
+  const overused = contentWords(text, 5).find((w) => (motifCounts.get(w) ?? 0) >= 2) ?? null;
+  const groundsSelf = contentWords(text, 5).some((w) => ownSheet.has(w));
+  const prevLine = before.at(-1);
+  const prevWords = prevLine && prevLine.side !== line.side ? new Set(contentWords(prevLine.dialogue, 4)) : new Set<string>();
+  const picksUpPrev = contentWords(text, 4).some((w) => prevWords.has(w));
+  const motifFixation = overused && !groundsSelf && !picksUpPrev && !text.includes("?") ? overused : null;
+
   return {
     profile_reading: leakedWord || leakedGram || labelled,
     self_label: selfLabel,
@@ -175,6 +195,7 @@ export function lineIssues(
     repeated_opener: repeated,
     repeated_action: repeatedAction,
     name_tic: nameTic,
+    motif_fixation: motifFixation,
   };
 }
 

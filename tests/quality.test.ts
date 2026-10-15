@@ -107,3 +107,28 @@ describe("transcriptQuality — the audit's tells, on the real lines that showed
     expect(contentWords("The fog, the GULLS, and the lighthouse!", 3)).toEqual(["fog", "gulls", "lighthouse"]);
   });
 });
+
+describe("motif_fixation — breaking the one-image loop (the tempo/rain riff)", () => {
+  // side a is the OC (davidSheet): its sheet has none of thunder/drifting/stirs, so "grounds self" stays false.
+  const circled: Turn[] = [
+    turn("b", "The thunder is really building out there tonight.", 0.5),
+    turn("a", "Thunder like that ruins my careful plans honestly.", 0.5),
+    turn("b", "Anyway, I brought snacks for us to share.", 0.5),
+  ];
+  it("flags a line that re-rides an image seen earlier while saying nothing of its own and engaging nothing", () => {
+    const riff = turn("a", "I keep drifting back to that thunder and what it stirs.", 0.5);
+    expect(lineIssues(circled, riff, CHARS).motif_fixation).toBe("thunder");
+  });
+  it("spares a line that picks up what the previous line actually said", () => {
+    const responsive = turn("a", "Those snacks sound perfect, and that thunder can do its worst.", 0.5);
+    expect(lineIssues(circled, responsive, CHARS).motif_fixation).toBeNull();
+  });
+  it("spares a line that asks a real question", () => {
+    const asks = turn("a", "Thunder aside, what do you do when a plan of yours falls apart?", 0.5);
+    expect(lineIssues(circled, asks, CHARS).motif_fixation).toBeNull();
+  });
+  it("does not fire before an image has actually been circled", () => {
+    const early = turn("a", "This thunder is something else tonight.", 0.5);
+    expect(lineIssues(circled.slice(0, 1), early, CHARS).motif_fixation).toBeNull();
+  });
+});

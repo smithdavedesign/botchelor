@@ -39,6 +39,14 @@ export class ModelError extends Error {
 
 export const DEFAULT_LLM_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 export const DEFAULT_LLM_MODEL = "gemini-3.5-flash-lite";
+/**
+ * The recommended director model — the plan + recap, one or two calls a date versus the actor's ~12, where a
+ * stronger model is a big lever for little quota. It is NOT a default: on the stock free Google key the flash
+ * (non-lite) models answer 429 (docs/date-quality.md availability table), so forcing it would just fail and fall
+ * back to the rules plan. Put this in `LLM_DIRECTOR_MODEL` once a PAID key is configured to actually turn the
+ * director upgrade on (docs/upgrade-cost.md). The free default leaves the director on the actor's flash-lite.
+ */
+export const DEFAULT_DIRECTOR_MODEL = "gemini-3.5-flash";
 export const MODEL_TIMEOUT_MS = 25_000;
 
 type UsageBody = {
@@ -210,7 +218,9 @@ export function openAICompatibleModel(opts: {
  * ("default" sends none, so the model's own default applies).
  */
 export function roleReasoning(role: "actor" | "director", env: Record<string, string | undefined> = process.env): ReasoningEffort | undefined {
-  const raw = (role === "actor" ? env.LLM_ACTOR_REASONING : env.LLM_DIRECTOR_REASONING) || (role === "actor" ? "minimal" : "low");
+  // Actors used to think as little as possible ("minimal"); a touch more ("low") lets them actually follow the
+  // grounded-first-date instructions instead of defaulting to flowery filler, for a small per-line cost.
+  const raw = (role === "actor" ? env.LLM_ACTOR_REASONING : env.LLM_DIRECTOR_REASONING) || "low";
   return (REASONING_EFFORTS as readonly string[]).includes(raw) ? (raw as ReasoningEffort) : undefined;
 }
 
@@ -254,7 +264,18 @@ export function getDirectorModel(
   reasoning: ReasoningEffort | undefined = roleReasoning("director", env),
 ): Model {
   if (testModel) return testModel;
-  return modelFromEnv(env.LLM_DIRECTOR_MODEL ? { ...env, LLM_MODEL: env.LLM_DIRECTOR_MODEL } : env, undefined, reasoning);
+  return modelFromEnv({ ...env, LLM_MODEL: directorModelName(env) ?? env.LLM_MODEL }, undefined, reasoning);
+}
+
+/**
+ * The model name the director should run on, or undefined to use whatever the actor uses. Only LLM_DIRECTOR_MODEL
+ * sets it: on the stock free Google key the stronger Gemini models (`gemini-3.5-flash` and up) answer 429, so
+ * defaulting to one would make every date fail that call and fall back to the rules plan for no gain (see the
+ * free-tier availability table in docs/date-quality.md). DEFAULT_DIRECTOR_MODEL is the recommended value to put
+ * in LLM_DIRECTOR_MODEL once a PAID key is configured — that's the real director upgrade (docs/upgrade-cost.md).
+ */
+export function directorModelName(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.LLM_DIRECTOR_MODEL || undefined;
 }
 
 /** A model by name at the configured endpoint and key (the quality eval's A/B arms). */

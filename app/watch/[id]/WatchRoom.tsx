@@ -379,6 +379,11 @@ function Stage({ state, onPredict }: { state: RoomState; onPredict: () => void }
               {state.drama_question} <strong>{state.drama_answer}</strong>
             </p>
           )}
+          {state.question.show_results && state.question.prompt && (
+            <p className="watch-payoff">
+              🎤 The room&apos;s question for the challenge: <strong>{state.question.prompt}</strong>
+            </p>
+          )}
           {leadingChemistry && (
             <p className="watch-payoff">
               The room called it <strong>{stripEmoji(leadingChemistry.label)}</strong>. The characters chose{" "}
@@ -444,9 +449,9 @@ function Polls({ state, onDone }: { state: RoomState; onDone: () => void }) {
     <>
       {(state.question.open || state.question.show_results) && (
         <PollCard
-          title="Audience call: which question gets asked?"
-          openHint="You decide what they have to answer. It colours the scene — it never changes the outcome."
-          closedHint="The room's pick is what they had to answer."
+          title="Audience call: which question hangs over the challenge?"
+          openHint="You pick the question in the air during the challenge. It sets the mood between them — the ending is still theirs."
+          closedHint="The room put this question in the air for the challenge."
           poll="question"
           tally={state.question}
           roomId={state.id}
