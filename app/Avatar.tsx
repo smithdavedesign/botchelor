@@ -11,6 +11,8 @@ type Props = {
   size?: number;
   /** A house character gets a small ring so it reads as the show's own cast. */
   house?: boolean;
+  /** A BYOK-generated portrait to show instead of the drawn tile (served from /api/assets/<id>). */
+  portraitSrc?: string | null;
 };
 
 /**
@@ -18,9 +20,10 @@ type Props = {
  * everyone else (every visitor OC) gets the gradient tile with a soft motif and their initials. Pure (no
  * hooks, no client directive), so it renders in both server and client components.
  */
-export default function Avatar({ seed, name, hue, size = 48, house = false }: Props) {
+export default function Avatar({ seed, name, hue, size = 48, house = false, portraitSrc = null }: Props) {
   const r = size * 0.28;
-  const portrait = characterPortrait(seed);
+  // A BYOK-generated portrait (owner's own, provider-moderated) takes precedence, then a reviewed house portrait.
+  const portrait = portraitSrc ?? characterPortrait(seed);
   if (portrait) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- a static public asset; no loader/optimizer needed

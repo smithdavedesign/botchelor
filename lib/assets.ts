@@ -125,6 +125,26 @@ export async function listApprovedAssets(
   return rows;
 }
 
+/** One approved asset by id (for the serving route), or null if it's missing or not approved. */
+export async function getApprovedAsset(db: Db, id: string): Promise<CharacterAsset | null> {
+  const { rows } = await db.query<CharacterAsset>(
+    `select ${COLUMNS} from character_assets where id = $1 and review_status = 'approved'`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+/** The id of a character's newest approved portrait, or null. For rendering a generated avatar. */
+export async function approvedPortraitId(db: Db, characterId: string): Promise<string | null> {
+  const { rows } = await db.query<{ id: string }>(
+    `select id from character_assets
+      where character_id = $1 and kind = 'portrait' and review_status = 'approved' and url is not null
+      order by created_at desc limit 1`,
+    [characterId],
+  );
+  return rows[0]?.id ?? null;
+}
+
 /** The credit line a licensed asset's licence requires, or null when no credit is owed. */
 export const attributionLine = (asset: CharacterAsset): string | null =>
   asset.attribution ? `${asset.attribution}${asset.license_name ? ` (${asset.license_name})` : ""}` : null;

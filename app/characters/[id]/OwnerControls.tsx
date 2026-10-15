@@ -23,6 +23,22 @@ export default function OwnerControls(props: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [portraitMsg, setPortraitMsg] = useState<string | null>(null);
+
+  async function generatePortrait() {
+    setBusy(true);
+    setPortraitMsg("Generating a portrait on your key…");
+    const { ok, status, message } = await requestJson(`/api/characters/${props.id}/portrait`, {}, "POST").catch(() => ({ ok: false, status: 0, message: "Network error." }));
+    setBusy(false);
+    if (ok) {
+      setPortraitMsg(null);
+      router.refresh();
+    } else if (status === 400) {
+      setPortraitMsg("Add an OpenAI image key on your account first.");
+    } else {
+      setPortraitMsg(message);
+    }
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,8 +81,16 @@ export default function OwnerControls(props: Props) {
     return (
       <section className="card owner-controls">
         <p className="muted">
-          This is your character. <button type="button" className="link-button" onClick={() => setOpen(true)}>Edit or delete</button>
+          This is your character.{" "}
+          <button type="button" className="link-button" onClick={() => setOpen(true)}>
+            Edit or delete
+          </button>{" "}
+          ·{" "}
+          <button type="button" className="link-button" onClick={generatePortrait} disabled={busy}>
+            Generate a portrait with your key
+          </button>
         </p>
+        {portraitMsg && <p className="muted small">{portraitMsg}</p>}
       </section>
     );
   }

@@ -102,8 +102,23 @@ export default function AccountPanel() {
     } else setKeyError(message);
   }
 
-  async function removeKey(provider: string) {
-    await requestJson("/api/me/keys", { provider, kind: "text" }, "DELETE").catch(() => {});
+  async function saveImageKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setKeyError(null);
+    const { ok, message } = await requestJson(
+      "/api/me/keys",
+      { provider: "openai", kind: "image", key: String(form.get("key") ?? "") },
+      "PUT",
+    ).catch(() => ({ ok: false, message: "Network error." }));
+    if (ok) {
+      (event.target as HTMLFormElement).reset();
+      await load();
+    } else setKeyError(message);
+  }
+
+  async function removeKey(provider: string, kind: string) {
+    await requestJson("/api/me/keys", { provider, kind }, "DELETE").catch(() => {});
     await load();
   }
 
@@ -233,7 +248,7 @@ export default function AccountPanel() {
                   <li key={k.provider}>
                     <strong>{TEXT_PROVIDERS.find((p) => p.id === k.provider)?.label ?? k.provider}</strong> ····{k.last4}
                     {k.model ? ` · ${k.model}` : ""}{" "}
-                    <button type="button" className="link-button danger" onClick={() => removeKey(k.provider)}>
+                    <button type="button" className="link-button danger" onClick={() => removeKey(k.provider, "text")}>
                       remove
                     </button>
                   </li>
@@ -261,6 +276,35 @@ export default function AccountPanel() {
             </label>
             <button type="submit">Save key</button>
           </form>
+
+          <h3>Image key (optional)</h3>
+          <p className="muted small">
+            An OpenAI key to generate a portrait for your own characters, on your own quota. Images are
+            moderated by the provider and built only from your character&apos;s sheet. Generate from a
+            character&apos;s card.
+          </p>
+          {keys.filter((k) => k.kind === "image").length > 0 ? (
+            <ul className="account-links">
+              {keys
+                .filter((k) => k.kind === "image")
+                .map((k) => (
+                  <li key={`img-${k.provider}`}>
+                    <strong>OpenAI Images</strong> ····{k.last4}{" "}
+                    <button type="button" className="link-button danger" onClick={() => removeKey(k.provider, "image")}>
+                      remove
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          ) : (
+            <form onSubmit={saveImageKey}>
+              <label>
+                OpenAI image key
+                <input name="key" type="password" required minLength={8} maxLength={400} autoComplete="off" placeholder="sk-…" />
+              </label>
+              <button type="submit">Save image key</button>
+            </form>
+          )}
           {keyError && <p className="error">{keyError}</p>}
         </section>
       )}

@@ -104,8 +104,25 @@ date and asserts one character's soul text never appears in the prompts sent to 
   Account page has a "Your model key" section to add/remove a text key.
 - **Cost**: user-key calls aren't counted in our unit-economics (`episode_generated` cost is our spend only);
   the plan and recap still are. See [docs/upgrade-cost.md](upgrade-cost.md).
-- **Image / video** providers (`openai`, `fal`, `replicate`) are accepted and stored for later — generation
-  isn't built yet (it needs spend + moderation; see the upgrade doc).
+
+### Image generation on your own key (`lib/image`)
+A signed-in user can generate a **portrait** for their **own** character on their **own** image key. The user
+pays, so it's $0 to us — which is what made image generation compatible with the $0 rule for the first time.
+
+- **OpenAI only** (`gpt-image-1`) is wired, for safety: OpenAI moderates its own image input and output, so a
+  user-key portrait is **provider-moderated**. On top of that, the prompt (`portraitPrompt`) is built **only
+  from the character's already content-filtered sheet** (name, age, bio, traits, appearance, pronouns — each
+  passed `checkFields`), never free-form input, so nothing unsafe can be steered in.
+- **`POST /api/characters/[id]/portrait`** (owner-only): needs a saved OpenAI image key, generates, records the
+  result in the **asset ledger** (`lib/assets`, `character_assets`) as a `generated` portrait, and **approves**
+  it (provider-moderated generation from filtered text). The image renders as the character's avatar and stays
+  reportable like everything else.
+- **Storage/serving**: the PNG is a data URL in the ledger, served through **`GET /api/assets/[id]`** (approved
+  only) with a long immutable cache, so the bytes never sit inline in a page or an API body. At scale this
+  moves to a blob store.
+- Account page has an **image-key** slot; generate from a character's card ("Generate a portrait with your key").
+- **`fal` / `replicate`** keys are accepted and stored but not wired (no provider-side moderation story yet).
+  **Video** is a key slot only — no safe, $0 path yet.
 
 ### Not yet
 - A blind date between two users where only one has a key: that user's turns use their key; the other's and
@@ -113,6 +130,8 @@ date and asserts one character's soul text never appears in the prompts sent to 
 - Browser-only (unsaved) keys: the generation pipeline is an async background job, so a key has to be stored
   (encrypted) for the worker to use it. Ephemeral keys would need the key passed through the job, which we
   don't do.
+- Image generation beyond OpenAI (fal/replicate), and **video** generation: no moderated, safe path yet; the
+  key slots exist. The data-URL-in-the-ledger store is a first version; a blob store is the scale path.
 
 ## What each secret enables
 
@@ -128,5 +147,8 @@ date and asserts one character's soul text never appears in the prompts sent to 
   the public record.
 - `tests/keys.test.ts` — encryption / last-four-only, provider allowlist, auth gating, the per-side routing
   rule, and a live conversation proving no soul crosses a key boundary.
+- `tests/image.test.ts` — the prompt is built from filtered text, generation on the user's key (injected
+  fetch), provider refusals surface, owner-only, the asset is recorded approved and served, and the serving
+  route never returns an unapproved asset.
 - `npm run e2e` — sign up (adopting the browser's characters/dates), bring a key (last-four shown), change a
   date's visibility, edit a character on its card.

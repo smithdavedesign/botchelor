@@ -432,9 +432,12 @@ bring their own model key for text (and later image/video). Built holistically, 
   `/account` lists your own dates with a visibility selector.
 - **Bring your own key (shipped, #60).** Encrypted (AES-GCM from SESSION_SECRET), account-only, known
   OpenAI-compatible providers only. A key runs only its owner's side (and a soulless partner); the plan and
-  recap stay on the platform, so a key never sees another user's soul. Image/video keys stored for later.
+  recap stay on the platform, so a key never sees another user's soul. **Image portraits generate on the
+  user's own OpenAI key** (provider-moderated, prompt from filtered sheet text, approved into the asset ledger
+  and served from /api/assets); fal/replicate and video are key slots only.
 - **Next (owner / follow-ups):** set `GOOGLE_OAUTH_*` to turn on Google sign-in; per-side BYOK for
-  two-user blind dates; wire image/video generation (needs spend + moderation).
+  two-user blind dates; a blob store for generated portraits at scale; a moderated path for fal/replicate
+  and for video generation.
 
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 

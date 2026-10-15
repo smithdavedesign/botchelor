@@ -347,8 +347,8 @@ async function main() {
       const apiKey = ["AIza", "e2e", "0".repeat(28), "L4st"].join(""); // fake, built from parts
       await page.getByRole("heading", { name: "Your model key (optional)" }).waitFor();
       await page.locator('select[name="provider"]').selectOption("google");
-      await page.locator('input[name="key"]').fill(apiKey);
-      await page.getByRole("button", { name: "Save key" }).click();
+      await page.locator('input[name="key"]').first().fill(apiKey); // the text-key form (an image-key form follows)
+      await page.getByRole("button", { name: "Save key", exact: true }).click();
       await page.getByText("····L4st").waitFor({ timeout: 10_000 });
       const shown = await page.content();
       assert(!shown.includes(apiKey), "the full API key must never be shown back");
