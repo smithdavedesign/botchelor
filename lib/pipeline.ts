@@ -30,6 +30,16 @@ import { narrateEpisode, type EpisodeDraft } from "./showrunner";
 import type { BuiltDate } from "./simulation";
 import { venue } from "./venues";
 
+/**
+ * The version of the date's prompts (the actor, director, narrator, reflection and afterglow prompts, and what each
+ * is handed). Recorded on every generated date with the models that wrote it, so a change in quality can be traced
+ * to a prompt or a model. Bump it whenever a prompt or its data changes.
+ */
+export const PROMPT_VERSION = "2026-10-15.character-depth";
+
+/** Which models wrote a date, by role (whichever actually answered, fallbacks included), and with which prompts. */
+export type GeneratedWith = { actor: string[]; director: string[]; byok: string[]; prompts: string };
+
 /** The models a date is generated with: the actor speaks the turns, the director plans and narrates. */
 export type DateModels = { actor: Model; director: Model };
 
@@ -64,15 +74,18 @@ export type GeneratedDate = {
   modelCalls: number;
   /** The tokens those calls used (thinking included) and what they'd cost at paid-tier prices (lib/pricing.ts). */
   usage: DateUsage;
+  /** Which models actually wrote it (by role) and the prompt version: stored on the episode (generated_with). */
+  generatedWith: GeneratedWith;
   /** Why the conversation came back empty, when it did (content-free; for the logs). */
   conversationError: unknown;
   afterglowError: unknown;
 };
 
 /** Wraps a model so every call (retries included) is counted, along with the tokens each one reports. */
-export function countingModel(model: Model): { model: Model; calls: () => number; usage: () => Usage[] } {
+export function countingModel(model: Model): { model: Model; calls: () => number; usage: () => Usage[]; served: () => string[] } {
   let n = 0;
   const usage: Usage[] = [];
+  const served = new Set<string>();
   return {
     model: {
       complete(messages: ChatMessage[], options?: ModelOptions) {
@@ -83,11 +96,23 @@ export function countingModel(model: Model): { model: Model; calls: () => number
             usage.push(u);
             options?.onUsage?.(u);
           },
+          onModel: (id) => {
+            served.add(id);
+            options?.onModel?.(id);
+          },
         });
       },
     },
     calls: () => n,
     usage: () => usage,
+    served: () => [...served],
+  };
+}
+
+/** Wraps a BYOK side's model so the models that actually answered are recorded (never anything else about the key). */
+function recording(model: Model, into: Set<string>): Model {
+  return {
+    complete: (messages, options) => model.complete(messages, { ...options, onModel: (id) => (into.add(id), options?.onModel?.(id)) }),
   };
 }
 
@@ -100,6 +125,13 @@ export async function generateDate(
 ): Promise<GeneratedDate> {
   const actor = countingModel(models.actor);
   const director = models.director === models.actor ? actor : countingModel(models.director);
+  const byokServed = new Set<string>();
+  const keyForSide = opts.keyForSide
+    ? (side: "a" | "b") => {
+        const m = opts.keyForSide!(side);
+        return m ? recording(m, byokServed) : null;
+      }
+    : undefined;
   const characters: [Character, Character] = built.characters;
   const { producer, venue: venueId } = built.setup;
 
@@ -110,7 +142,7 @@ export async function generateDate(
     // A director that is down (a stronger free model at its quota) costs nothing: planDate falls back to rules.
     plan = await planDate(director.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.formatCtx);
     try {
-      transcript = await simulateConversation(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, undefined, opts.formatCtx, plan, opts.keyForSide);
+      transcript = await simulateConversation(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, undefined, opts.formatCtx, plan, keyForSide);
     } catch (err) {
       conversationError = err;
     }
@@ -130,7 +162,7 @@ export async function generateDate(
   let afterglowError: unknown = null;
   if (opts.afterglow) {
     try {
-      afterglow = await simulateAfterglow(actor.model, built.input, outcome, characters, venueId, opts.formatId, undefined, opts.formatCtx, transcript, opts.keyForSide);
+      afterglow = await simulateAfterglow(actor.model, built.input, outcome, characters, venueId, opts.formatId, undefined, opts.formatCtx, transcript, keyForSide);
     } catch (err) {
       afterglowError = err;
     }
@@ -138,14 +170,20 @@ export async function generateDate(
 
   // Each character's own postmortem. Best-effort and never throws (nulls on failure), so it can't cost a date.
   const reflections: Reflections = opts.reflection
-    ? await simulateReflections(actor.model, built.input, outcome, characters, venueId, opts.formatId, opts.formatCtx, transcript, opts.keyForSide)
+    ? await simulateReflections(actor.model, built.input, outcome, characters, venueId, opts.formatId, opts.formatCtx, transcript, keyForSide)
     : { a: null, b: null };
 
   const quality = transcript.length ? transcriptQuality(transcript, characters, qualityContext(built, draft.setting)) : null;
 
   const modelCalls = actor.calls() + (director === actor ? 0 : director.calls());
   const usage = summarizeUsage([...actor.usage(), ...(director === actor ? [] : director.usage())], modelCalls);
-  return { draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, conversationError, afterglowError };
+  const generatedWith: GeneratedWith = {
+    actor: actor.served(),
+    director: director.served(),
+    byok: [...byokServed],
+    prompts: PROMPT_VERSION,
+  };
+  return { draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, generatedWith, conversationError, afterglowError };
 }
 
 /** What the quality checks treat as shared (the venue, the recap's setting) and as each side's private notes. */

@@ -27,6 +27,11 @@ export type ModelOptions = {
   temperature?: number;
   /** Called with the call's token usage when the provider reports it (lib/pricing.ts turns it into a cost). */
   onUsage?: (usage: Usage) => void;
+  /**
+   * Called with the id of the model that actually answered ("google/gemini-3.5-flash-lite"). A fallback wrapper
+   * passes it through, so whichever model really served the call reports itself (lib/pipeline.ts records them).
+   */
+  onModel?: (id: string) => void;
 };
 
 export interface Model {
@@ -136,6 +141,18 @@ async function errorReason(res: Response): Promise<string> {
   return clean ? ` (${clean})` : "";
 }
 
+/** A model's id for the record: its provider (from the endpoint's host) and model name, e.g. "google/gemini-3.5-flash-lite". */
+export function modelId(baseUrl: string, model: string): string {
+  let host = "";
+  try {
+    host = new URL(baseUrl).hostname;
+  } catch {
+    /* an unparseable base URL is just "custom" */
+  }
+  const provider = host.endsWith("googleapis.com") ? "google" : host === "api.openai.com" ? "openai" : host.endsWith("openrouter.ai") ? "openrouter" : host || "custom";
+  return `${provider}/${model}`;
+}
+
 export function openAICompatibleModel(opts: {
   baseUrl: string;
   apiKey: string;
@@ -152,6 +169,7 @@ export function openAICompatibleModel(opts: {
   reasoning?: ReasoningEffort;
 }): Model {
   const url = `${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`;
+  const id = modelId(opts.baseUrl, opts.model);
   const doFetch = opts.fetchImpl ?? fetch;
   const delays = opts.retryDelaysMs ?? RETRY_DELAYS_MS;
   const sleep = opts.sleep ?? realSleep;
@@ -206,6 +224,7 @@ export function openAICompatibleModel(opts: {
         if (typeof content !== "string" || content.length === 0) throw new ModelError("model returned no text");
         const usage = usageFrom(data?.usage, opts.model);
         if (usage) options?.onUsage?.(usage);
+        options?.onModel?.(id);
         return content;
       }
     },

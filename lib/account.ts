@@ -31,6 +31,14 @@ export type AccountExport = {
   matchmaker_proposals: Record<string, unknown>[];
   leagues_owned: Record<string, unknown>[];
   leagues_joined: Record<string, unknown>[];
+  /** What each of the user's characters has learned from its dates (lib/memory.ts), with where it came from. */
+  character_memory: Record<string, unknown>[];
+  /** What the user told their characters to forget. */
+  memory_forgets: Record<string, unknown>[];
+  /** Their characters' reflections on each date (show-written or their own), by episode and character. */
+  reflections: Record<string, unknown>[];
+  /** Saved provider keys: the provider, last four and model only (the key itself is never exported or shown). */
+  provider_keys: Record<string, unknown>[];
 };
 
 /** Everything stored under this user id, as JSON. Owner-only (the route checks the cookie is the user). */
@@ -46,7 +54,8 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
     profile,
     points: await getPoints(db, userId),
     characters: await q(
-      `select id, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, premium_sku, created_at
+      `select id, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, premium_sku, pronouns, voice, extras,
+              this_week, open_to_dates, created_via, created_at
          from characters where owner_id = $1 and not is_house order by created_at`,
       [userId],
     ),
@@ -63,7 +72,43 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       "select league_id, joined_at from league_members where user_id = $1",
       [userId],
     ),
+    character_memory: await q(
+      `select m.* from character_memory m join characters c on c.id = m.character_id where c.owner_id = $1 and not c.is_house`,
+      [userId],
+    ),
+    memory_forgets: await q(
+      `select f.character_id, f.kind, f.item, f.created_at from memory_forgets f join characters c on c.id = f.character_id where c.owner_id = $1`,
+      [userId],
+    ),
+    reflections: await q(
+      `select e.id as episode_id, c.id as character_id,
+              case when e.character_a = c.id then e.reflections->>'a' else e.reflections->>'b' end as reflection
+         from episodes e join characters c on c.id in (e.character_a, e.character_b)
+        where c.owner_id = $1 and not c.is_house and e.reflections is not null
+          and (case when e.character_a = c.id then e.reflections->>'a' else e.reflections->>'b' end) is not null
+        order by e.created_at`,
+      [userId],
+    ),
+    provider_keys: await q("select provider, kind, last4, model, created_at from user_keys where user_id = $1", [userId]),
   };
+}
+
+/**
+ * Removes a character's private learned layer: its memory (which holds how it felt about each person), what it was
+ * told to forget, and its reflections on its dates. Run before a character becomes a tombstone (kept only because
+ * a shared episode still shows it), so nothing private outlives its owner. The episodes themselves stay.
+ */
+async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
+  if (!characterIds.length) return;
+  await db.query("delete from character_memory where character_id = any($1)", [characterIds]);
+  await db.query("delete from memory_forgets where character_id = any($1)", [characterIds]);
+  await db.query(
+    `update episodes set reflections = jsonb_build_object(
+        'a', case when character_a = any($1) then null else reflections->'a' end,
+        'b', case when character_b = any($1) then null else reflections->'b' end)
+      where reflections is not null and (character_a = any($1) or character_b = any($1))`,
+    [characterIds],
+  );
 }
 
 export type CharacterDeletion = { deleted: boolean; anonymized: boolean };
@@ -86,6 +131,9 @@ export async function deleteCharacter(db: Db, userId: string, characterId: strin
   // The soul is the sensitive personal data; remove it first either way.
   await db.query("delete from souls where character_id = $1", [characterId]);
   if (await inEpisode()) {
+    // A tombstone keeps its public sheet for the episodes it aired in, but nothing it privately learned.
+    const owned = await db.query("select 1 from characters where id = $1 and owner_id = $2 and not is_house", [characterId, userId]);
+    if (owned.rows.length) await forgetEverything(db, [characterId]);
     const { rows } = await db.query<{ id: string }>(
       "update characters set owner_id = $3 where id = $1 and owner_id = $2 and not is_house returning id",
       [characterId, userId, DELETED_OWNER],
@@ -123,7 +171,10 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
       returning id`,
     [userId],
   );
-  // 3. Characters still referenced by a shared episode: detach ownership (fictional sheet stays, soul gone).
+  // 3. Characters still referenced by a shared episode: detach ownership (fictional sheet stays, soul and learned
+  //    memory gone).
+  const kept = (await db.query<{ id: string }>("select id from characters where owner_id = $1 and not is_house", [userId])).rows.map((r) => r.id);
+  await forgetEverything(db, kept);
   const charactersAnonymized = await returning(
     "update characters set owner_id = $2 where owner_id = $1 and not is_house returning id",
     [userId, DELETED_OWNER],

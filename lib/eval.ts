@@ -9,11 +9,13 @@
  * (POST /api/jobs/eval) without touching a stored date.
  */
 import type { Character } from "./character";
+import { continuity, type Continuity } from "./continuity";
 import type { Turn } from "./conversation";
 import { deterministicEngine, type CharacterSheet, type Outcome } from "./engine";
 import type { FormatId } from "./formats";
 import { ALL_HOUSE_CHARACTERS } from "./house";
 import { judgeDate, judgeMean, type JudgeScores } from "./judge";
+import { computeMemory, metBefore, type CharacterMemory, type MemoryEpisode } from "./memory";
 import type { Model } from "./model";
 import { generateDate, qualityContext, type DateModels } from "./pipeline";
 import type { DateUsage } from "./pricing";
@@ -21,7 +23,7 @@ import { transcriptQuality, type QualityMetrics } from "./quality";
 import { ENDING_LABELS } from "./rules";
 import { assembleDate, DEFAULT_DATE_REQUEST, type BuiltDate, type CharacterForDate } from "./simulation";
 import type { StoredSoul } from "./souls";
-import { venue } from "./venues";
+import { venue, type VenueId } from "./venues";
 
 type EvalCharacter = { forDate: CharacterForDate; soul: StoredSoul | null };
 
@@ -202,4 +204,150 @@ export function rescoreResult(r: Pick<EvalResult, "case" | "transcript" | "recap
   if (!c) throw new Error(`unknown eval case ${r.case}`);
   const built = buildEvalDate(c);
   return transcriptQuality(r.transcript, built.characters as [Character, Character], qualityContext(built, r.recap.setting));
+}
+
+/* ------------------------------------------ sagas: continuity ------------------------------------------ */
+
+/**
+ * A saga: one character's run of dates, generated in order, with what it learned from each earlier date carried
+ * into the next — the continuity test the memory work needs (docs/character-depth.md). Each step is one request,
+ * so the earlier steps' transcripts are passed back in; memory is computed from them in memory (lib/memory.ts
+ * computeMemory), never read from or written to the database. Each step airs a day after the last.
+ */
+export type EvalSaga = { id: string; hero: string; steps: readonly { partner: string; seed: number; format: FormatId }[]; why: string };
+
+export const EVAL_SAGAS: readonly EvalSaga[] = [
+  {
+    id: "mira-saga",
+    hero: "eval-rich-oc",
+    steps: [
+      { partner: "house-dex", seed: 3, format: "classic" },
+      { partner: "house-nell", seed: 21, format: "classic" },
+      { partner: "house-dex", seed: 33, format: "classic" },
+    ],
+    why: "one character, three dates: it carries its dating life between them, and the rematch with Dex should remember last time",
+  },
+];
+
+/** Step 0 of every saga airs on this Monday evening; each later step a day after. */
+const SAGA_START = Date.UTC(2026, 0, 5, 20);
+
+type Aired = { id: string; a: string; b: string; outcome: Outcome; transcript: Turn[]; venue: VenueId; at: string };
+
+/** One character's memory of a saga's aired steps (as lib/memory.ts would compute it from the database). */
+function sagaMemory(characterId: string, aired: Aired[]): CharacterMemory | null {
+  const rows: MemoryEpisode[] = aired
+    .filter((x) => x.a === characterId || x.b === characterId)
+    .map((x) => {
+      const isA = x.a === characterId;
+      const other = evalCharacter(isA ? x.b : x.a).forDate;
+      return {
+        id: x.id,
+        ending: x.outcome.ending,
+        sides: x.outcome.sides,
+        transcript: x.transcript,
+        reflections: null,
+        is_a: isA,
+        revealed_at: x.at,
+        drama_question: x.outcome.drama_question,
+        drama_answer: x.outcome.drama_answer,
+        venue: x.venue,
+        other_id: other.id,
+        other_name: other.sheet.name,
+        other_house: other.sheet.house,
+      };
+    });
+  if (!rows.length) return null;
+  const sheet = evalCharacter(characterId).forDate.sheet;
+  return computeMemory(rows, { want: sheet.want, dealbreaker: sheet.dealbreaker });
+}
+
+/**
+ * Builds step `k` of a saga exactly as the live pipeline would, with each character's memory and the pair's
+ * history taken from the earlier steps (whose words are `prior[i]`). Deterministic: the engine decides every step
+ * from fixed seeds, so a step's outcome never depends on how the earlier dates were worded.
+ */
+export function buildSagaStep(saga: EvalSaga, k: number, prior: Turn[][]): { built: BuiltDate; outcome: Outcome; aired: Aired[] } {
+  const aired: Aired[] = [];
+  for (let i = 0; ; i++) {
+    const step = saga.steps[i];
+    const hero = evalCharacter(saga.hero);
+    const partner = evalCharacter(step.partner);
+    const together = aired.filter((x) => x.b === step.partner);
+    const built = assembleDate({
+      episodeId: `eval-${saga.id}-${i}`,
+      a: hero.forDate,
+      b: partner.forDate,
+      req: { ...DEFAULT_DATE_REQUEST, format: step.format },
+      seed: step.seed,
+      soulA: hero.soul,
+      soulB: partner.soul,
+      memoryA: sagaMemory(saga.hero, aired),
+      memoryB: sagaMemory(step.partner, aired),
+      history: together.length ? { dates: together.length, last_ending: together[together.length - 1].outcome.ending } : undefined,
+    });
+    const outcome = deterministicEngine.decide(built.input, built.seed);
+    if (i === k) return { built, outcome, aired };
+    aired.push({
+      id: `eval-${saga.id}-${i}`,
+      a: saga.hero,
+      b: step.partner,
+      outcome,
+      transcript: prior[i] ?? [],
+      venue: built.setup.venue,
+      at: new Date(SAGA_START + i * 86_400_000).toISOString(),
+    });
+  }
+}
+
+export type SagaResult = EvalResult & { saga: string; step: number; partner: string; continuity: Continuity };
+
+/** What each side could recall of the pair's last date: its place and what was said (null between strangers). */
+function lastTimeText(built: BuiltDate): { a: string; b: string } | null {
+  const [a, b] = built.characters;
+  const recall = (me: Character, other: Character) => {
+    const m = metBefore(me.memory, other.id);
+    return m ? [m.last_time, m.something_they_said, m.something_you_said].filter(Boolean).join(" ") : null;
+  };
+  const ra = recall(a, b);
+  const rb = recall(b, a);
+  return ra === null && rb === null ? null : { a: ra ?? "", b: rb ?? "" };
+}
+
+/** Generates, measures and (optionally) judges step `k` of a saga, given the earlier steps' transcripts. */
+export async function runSagaStep(saga: EvalSaga, k: number, prior: Turn[][], models: DateModels, judge: Model | null): Promise<SagaResult> {
+  const { built, outcome } = buildSagaStep(saga, k, prior);
+  const step = saga.steps[k];
+  const t0 = Date.now();
+  const gen = await generateDate(models, built, outcome, {
+    formatId: step.format,
+    formatCtx: { chaperone: built.setup.chaperone, ex: built.setup.ex },
+    conversation: true,
+    afterglow: false,
+    reflection: false,
+  });
+  const characters = built.characters as [Character, Character];
+  const metrics = gen.quality ?? transcriptQuality(gen.transcript, characters, qualityContext(built, gen.draft.setting));
+  const verdict = judge ? await judgeDate(judge, characters, outcome, gen.transcript, venue(built.setup.venue).prompt) : null;
+  return {
+    case: `${saga.id}-${k}`,
+    saga: saga.id,
+    step: k,
+    partner: step.partner,
+    format: step.format,
+    ending: ENDING_LABELS[outcome.ending],
+    wants_another: [outcome.sides[0].wants_another, outcome.sides[1].wants_another],
+    characters: [characters[0].name, characters[1].name],
+    transcript: gen.transcript,
+    recap: { setting: gen.draft.setting, scenes: gen.draft.scenes, best_line: gen.draft.best_line },
+    plan: gen.plan,
+    metrics,
+    judge: verdict,
+    judge_mean: verdict ? judgeMean(verdict) : null,
+    model_calls: gen.modelCalls,
+    usage: gen.usage,
+    ms: Date.now() - t0,
+    conversation_error: errorText(gen.conversationError),
+    continuity: continuity(gen.transcript, lastTimeText(built)),
+  };
 }

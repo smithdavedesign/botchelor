@@ -75,6 +75,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     [id, side, input.reflection],
   );
   const characterId = side === "a" ? row.character_a : row.character_b;
+  // A fresh reflection on a date is one its creator wants kept, even if they'd told it to forget the last one.
+  await db.query(`delete from memory_forgets where character_id = $1 and kind = 'reflection' and item = $2`, [characterId, id]);
   // Memory only learns from aired, public dates (the same rule as the record): fold it in now if this one has.
   const learns = row.revealed && row.visibility === "public";
   if (learns) await updateCharacterMemory(db, characterId);

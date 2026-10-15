@@ -71,6 +71,7 @@ type Table =
   | "generation_jobs"
   | "character_ratings"
   | "character_memory"
+  | "memory_forgets"
   | "character_assets"
   | "watch_parties"
   | "watch_messages"
@@ -114,6 +115,7 @@ export async function startTestDb() {
         "character_assets",
         "character_ratings",
         "character_memory",
+        "memory_forgets",
         "badges",
         "seasons",
         "free_episode_usage",

@@ -156,7 +156,7 @@ describe("agents learn and grow", () => {
     await api.reveal(done.episode_id, `${USER_COOKIE}=${agentId}`);
     const mem = (await call("my_character_memory", { character_id: a.character.id }, ctx)).structuredContent;
     expect(mem.stage).toBe("Newcomer");
-    expect(mem.its_reflections).toEqual(["Bo asked about maps twice. I liked being asked."]);
+    expect(mem.its_reflections).toEqual([{ text: "Bo asked about maps twice. I liked being asked.", from: expect.objectContaining({ episode_id: done.episode_id, with: "Bo Quill" }) }]);
     expect(mem.who_it_remembers[0]).toMatchObject({ name: "Bo Quill", dates: 1 });
     expect(mem.milestones).toContain("🎬 First date");
 

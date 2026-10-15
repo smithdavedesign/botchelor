@@ -331,6 +331,10 @@ alter table episodes add column if not exists afterglow jsonb not null default '
 -- The character's own postmortem in its voice; flavour + fed back into its OWN future self-view (never the
 -- engine). null/absent for episodes made before this or when a side's reflection couldn't be produced.
 alter table episodes add column if not exists reflections jsonb;
+-- Which models actually wrote the date, by role ({actor[], director[], byok[], prompts, frontier?}; lib/pipeline.ts
+-- GeneratedWith), fallbacks included, and the prompt version — so a change in quality traces to a model or a
+-- prompt. Internal: never in a viewer's episode view. Null for dates written before it was recorded.
+alter table episodes add column if not exists generated_with jsonb;
 -- How many times backfilling this date's missing conversation has genuinely failed (lib/backfill.ts), so a
 -- date the model keeps failing on stops costing calls. Rate limits don't count. (Replaces a first-day counter
 -- that also counted the free tier's 429s and so wrongly gave up on good dates.)
@@ -439,6 +443,19 @@ alter table character_memory add column if not exists reflections jsonb not null
 alter table character_memory add column if not exists people jsonb not null default '[]';
 alter table character_memory add column if not exists chapters jsonb not null default '[]';
 alter table character_memory add column if not exists milestones jsonb not null default '[]';
+-- Where each learned item came from ({reflections, lines, likes, turnoffs} → the aired dates behind them), so an
+-- owner can see why their character remembers something. Owner only. Null on rows from before it existed (they
+-- rebuild on first read).
+alter table character_memory add column if not exists sources jsonb;
+-- What an owner told their character to forget (lib/memory.ts FORGET_KINDS). Applied on every memory rebuild, so a
+-- forgotten item never comes back from the same dates. Deleting a row is "remember it again".
+create table if not exists memory_forgets (
+  character_id text not null references characters (id) on delete cascade,
+  kind text not null check (kind in ('reflection', 'line', 'like', 'turnoff', 'moment')),
+  item text not null,
+  created_at timestamptz not null default now(),
+  primary key (character_id, kind, item)
+);
 -- What's new in a character's life this week (lib/life.ts): the creator's own update and the season it was
 -- written for, {text, season}. Null (or a past season) means the show deals one. Public; prompts only.
 alter table characters add column if not exists this_week jsonb;

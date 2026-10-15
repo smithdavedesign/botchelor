@@ -5,6 +5,7 @@
  *   CRON_SECRET=… node scripts/eval-dates.mjs --label baseline [--base https://botchelor.vercel.app]
  *       [--actor gemini-…] [--director gemini-…] [--judge gemini-…] [--cases a,b] [--gap 20] [--repeat 2]
  *       [--actor-reasoning minimal|low|medium|high|default] [--director-reasoning …] [--shared-quota yes]
+ *   …or a continuity run: --saga mira-saga [--switch-actor gemini-…] (one character's dates in order, memory carried)
  *
  * Each case is one POST /api/jobs/eval (built in memory on the server: no stored data is read or written).
  * Requests are spaced (--gap seconds) to stay inside the free tier's per-minute quota. --repeat N runs the
@@ -58,6 +59,45 @@ async function checkQuota() {
   process.exit(2);
 }
 await checkQuota();
+
+// --saga <id>: one character's run of dates, in order, each step carrying the earlier steps' transcripts so its
+// memory (who it met, what was said) reaches the next date. Prints continuity per step: history claims, invented
+// history (claims between strangers: should be 0) and callbacks in a rematch. --switch-actor <model> runs the
+// LAST step on a different actor (does continuity survive a model change?).
+if (args.saga) {
+  const info = await (await fetch(`${base}/api/jobs/eval`, { headers: { authorization: `Bearer ${secret}` } })).json();
+  const saga = (info.sagas ?? []).find((x) => x.id === args.saga);
+  if (!saga) throw new Error(`unknown saga ${args.saga}; known: ${(info.sagas ?? []).map((x) => x.id).join(", ")}`);
+  const steps = [];
+  for (let k = 0; k < saga.steps; k++) {
+    if (k > 0) await sleep(gap);
+    const actor = k === saga.steps - 1 && args["switch-actor"] ? args["switch-actor"] : models.actor;
+    const res = await fetch(`${base}/api/jobs/eval`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${secret}` },
+      body: JSON.stringify({ saga: saga.id, step: k, prior: steps.map((r) => r.transcript), ...models, actor }),
+    });
+    if (!res.ok) throw new Error(`step ${k}: HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const r = await res.json();
+    steps.push(r);
+    const c = r.continuity;
+    console.log(
+      `${r.case.padEnd(14)} vs ${r.partner.padEnd(14)} ${r.ending.padEnd(14)} index ${r.metrics.index} judge ${r.judge_mean ?? "-"} | ` +
+        `met before ${c.met_before} claims ${c.history_claims} invented ${c.invented_history} callbacks ${c.callbacks} | actor ${r.models.actor}`,
+    );
+  }
+  const summary = {
+    invented_history: steps.reduce((n, r) => n + r.continuity.invented_history, 0),
+    rematch_called_back: steps.filter((r) => r.continuity.met_before).every((r) => r.continuity.called_back),
+    index: Math.round((steps.reduce((n, r) => n + r.metrics.index, 0) / steps.length) * 100) / 100,
+  };
+  mkdirSync(join(ROOT, "docs", "eval"), { recursive: true });
+  const out = join(ROOT, "docs", "eval", `${label}.json`);
+  writeFileSync(out, JSON.stringify({ label, ran_at: new Date().toISOString(), base, saga: saga.id, models, switch_actor: args["switch-actor"] ?? null, summary, results: steps }, null, 2) + "\n");
+  console.log(`\n${label}: ${JSON.stringify(summary)}\nwrote ${out}`);
+  process.exit(0);
+}
+
 const repeat = Math.max(1, Math.min(5, Number(args.repeat ?? 1)));
 const queue = Array.from({ length: repeat }, () => cases).flat();
 const results = [];

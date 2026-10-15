@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EVAL_CASES, rejudgeCase, runEvalCase } from "@/lib/eval";
+import { EVAL_CASES, EVAL_SAGAS, rejudgeCase, runEvalCase, runSagaStep } from "@/lib/eval";
 import { handle, json, readJson } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
 import { getDirectorModel, getModel, modelFromEnv, namedModel, REASONING_EFFORTS, roleReasoning, type ReasoningEffort } from "@/lib/model";
@@ -52,13 +52,20 @@ const SavedTranscript = z
  */
 export const GET = handle(async (req: Request) => {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
-  return json({ quota: process.env.EVAL_GOOGLE_API_KEY ? "eval" : "shared", cases: EVAL_CASES.map((x) => x.id) });
+  return json({
+    quota: process.env.EVAL_GOOGLE_API_KEY ? "eval" : "shared",
+    cases: EVAL_CASES.map((x) => x.id),
+    sagas: EVAL_SAGAS.map((x) => ({ id: x.id, steps: x.steps.length })),
+  });
 });
 
 export const POST = handle(async (req: Request) => {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
   const body = ((await readJson(req)) ?? {}) as {
     case?: string;
+    saga?: string;
+    step?: number;
+    prior?: unknown;
     actor?: string;
     director?: string;
     judge?: string;
@@ -66,12 +73,23 @@ export const POST = handle(async (req: Request) => {
     actor_reasoning?: string;
     director_reasoning?: string;
   };
-  const c = EVAL_CASES.find((x) => x.id === body.case);
-  if (!c) return json({ error: "unknown_case", cases: EVAL_CASES.map((x) => x.id) }, 400);
+  // A saga step (continuity): { saga, step, prior: [transcript of each earlier step] }.
+  const saga = body.saga !== undefined ? EVAL_SAGAS.find((x) => x.id === body.saga) : undefined;
+  if (body.saga !== undefined && !saga) return json({ error: "unknown_saga", sagas: EVAL_SAGAS.map((x) => x.id) }, 400);
+  let prior: z.infer<typeof SavedTranscript>[] = [];
+  if (saga) {
+    const step = Number(body.step);
+    if (!Number.isInteger(step) || step < 0 || step >= saga.steps.length) return json({ error: "bad_step", steps: saga.steps.length }, 400);
+    const parsed = z.array(SavedTranscript).length(step).safeParse(body.prior ?? []);
+    if (!parsed.success) return json({ error: "bad_prior", message: `step ${step} needs the transcripts of the ${step} steps before it` }, 400);
+    prior = parsed.data;
+  }
+  const c = saga ? null : EVAL_CASES.find((x) => x.id === body.case);
+  if (!saga && !c) return json({ error: "unknown_case", cases: EVAL_CASES.map((x) => x.id) }, 400);
   for (const name of [body.actor, body.director, body.judge]) {
     if (name !== undefined && !MODEL_NAME.test(name)) return json({ error: "bad_model_name" }, 400);
   }
-  if (body.transcript !== undefined) {
+  if (body.transcript !== undefined && c) {
     const transcript = SavedTranscript.safeParse(body.transcript);
     if (!body.judge || !transcript.success) return json({ error: "bad_rejudge", message: "rejudging needs a judge model and a saved transcript" }, 400);
     return json({ case: c.id, ...(await rejudgeCase(c, transcript.data, namedModel(body.judge, evalEnv()))), models: { judge: body.judge } });
@@ -91,7 +109,7 @@ export const POST = handle(async (req: Request) => {
       ? body.director_reasoning === undefined ? actor : namedModel(body.actor, env, directorLevel)
       : getDirectorModel(env, directorLevel);
   const judge = body.judge ? namedModel(body.judge, env) : null;
-  const result = await runEvalCase(c, { actor, director }, judge);
+  const result = saga ? await runSagaStep(saga, Number(body.step), prior, { actor, director }, judge) : await runEvalCase(c!, { actor, director }, judge);
   return json({
     ...result,
     models: {
