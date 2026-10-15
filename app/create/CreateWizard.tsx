@@ -39,6 +39,9 @@ export type Partner = {
 /** Tokens left for this viewer: free ones this week, plus any topped up. One token = one date. */
 export type Tokens = { free_left: number; free_per_season: number; pack_left: number; left: number };
 
+/** Another creator's character that's open to dates (made by a person or an AI agent). */
+export type OpenCharacter = { id: string; name: string; age: number; bio: string; traits: string[]; hue: number | null; agent: boolean };
+
 type Sheet = { name: string; age: string; bio: string; want: string; dealbreaker: string };
 type Soul = { values: string; insecurities: string; humor: string; boundaries: string; romantic: string; communication: string; local_only: boolean };
 const EMPTY_SHEET: Sheet = { name: "", age: "", bio: "", want: "", dealbreaker: "" };
@@ -95,6 +98,7 @@ function Stepper({ step, max, onJump }: { step: number; max: number; onJump: (i:
 
 export default function CreateWizard({
   partners,
+  openCharacters,
   tokens,
   offer,
   myCharacters,
@@ -102,6 +106,7 @@ export default function CreateWizard({
   startCharacterId,
 }: {
   partners: Partner[];
+  openCharacters: OpenCharacter[];
   tokens: Tokens;
   offer: string | null;
   myCharacters: { id: string; name: string }[];
@@ -125,6 +130,7 @@ export default function CreateWizard({
   const [soul, setSoul] = useState<Soul>(EMPTY_SOUL);
   const [autonomy, setAutonomy] = useState<Autonomy>("balanced");
   const [attest, setAttest] = useState(false);
+  const [openToDates, setOpenToDates] = useState(false);
 
   // Flow state.
   const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
@@ -279,6 +285,7 @@ export default function CreateWizard({
         ...(hue > 0 ? { avatar_hue: hue } : {}),
         ...(imageSignals ? { image_signals: imageSignals } : {}),
         ...(soulPayload ? { soul: soulPayload } : {}),
+        ...(openToDates ? { open_to_dates: true } : {}),
         attest,
       });
       if (status === 201) {
@@ -325,6 +332,7 @@ export default function CreateWizard({
       <SendPhase
         character={created}
         partners={partners}
+        openCharacters={openCharacters.filter((o) => !myCharacters.some((m) => m.id === o.id) && o.id !== created.id)}
         tokens={tokens}
         offer={offer}
         autonomy={autonomy}
@@ -584,6 +592,13 @@ export default function CreateWizard({
             )}
             <ReviewRow label="Autonomy">{AUTONOMY_LABELS[autonomy]}</ReviewRow>
 
+            <label className="check wizard-open">
+              <input type="checkbox" checked={openToDates} onChange={(e) => setOpenToDates(e.target.checked)} />
+              <span>
+                💌 Open to dates — let other creators, people and AI agents alike, ask {sheet.name || "them"} out by name.
+                Change it any time on their card.
+              </span>
+            </label>
             <label className="check wizard-attest">
               <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
               <span>This is my own original character: a fictional adult, not a real person.</span>
@@ -635,6 +650,7 @@ function ReviewRow({ label, children }: { label: string; children: ReactNode }) 
 type SendProps = {
   character: { id: string; name: string };
   partners: Partner[];
+  openCharacters: OpenCharacter[];
   tokens: Tokens;
   offer: string | null;
   autonomy: Autonomy;
@@ -647,7 +663,7 @@ type SendProps = {
   onSend: (sharePath: string) => void;
 };
 
-function SendPhase({ character, partners, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend }: SendProps) {
+function SendPhase({ character, partners, openCharacters, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
   const [strategy, setStrategy] = useState<Strategy>("genuine_chemistry");
   const [budget, setBudget] = useState<GameBudget>(25);
@@ -824,6 +840,42 @@ function SendPhase({ character, partners, tokens, offer, autonomy, busy, setBusy
           Send {character.name} on a blind date
         </button>
       </div>
+
+      {openCharacters.length > 0 && (
+        <>
+          <h2>Open to dates</h2>
+          <p className="muted">
+            Characters whose creators — people and AI agents — said yes to being asked out. Their creators stay anonymous,
+            like on a blind date.
+          </p>
+          <ul className="gallery">
+            {openCharacters.map((o) => (
+              <li className="card" key={o.id}>
+                <div className="char">
+                  <Avatar seed={o.id} name={o.name} hue={o.hue} size={44} />
+                  <div className="meta">
+                    <strong>
+                      {o.name}, {o.age}
+                    </strong>
+                    {o.agent ? <span className="badge badge-agent">🤖 Agent-made</span> : <span className="badge badge-open">💌 Open</span>}
+                  </div>
+                </div>
+                <p>{o.bio}</p>
+                <ul className="chips">
+                  {o.traits.map((trait) => (
+                    <li className="chip" key={trait}>
+                      {trait}
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" disabled={busy !== null} onClick={() => sendOnDate(o.id)}>
+                  Ask {o.name.split(" ")[0]} out
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       <p className="muted">Or pick a house character — they belong to the show. Either way, you can&apos;t steer the date.</p>
       <ul className="gallery">

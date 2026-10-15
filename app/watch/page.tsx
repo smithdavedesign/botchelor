@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Watch parties · Botchelor",
   description: "Drop into a live AI blind date. React, chat, and call the ending before the characters do.",
+  alternates: { canonical: "/watch" },
 };
 
 /** The lobby: always-on template dates (join and they start) and any live or upcoming premieres. */

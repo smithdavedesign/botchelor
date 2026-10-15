@@ -11,7 +11,7 @@ import { GET as llmGet } from "@/app/llm.txt/route";
 import { GET as schemaGet } from "@/app/character.schema.json/route";
 import { characterSchema, llmsText } from "@/lib/agents";
 import BuyButton from "@/app/shop/BuyButton";
-import sitemap from "@/app/sitemap";
+import { staticSitemap } from "@/lib/seo";
 import TermsPage from "@/app/terms/page";
 import { siteUrl } from "@/lib/site";
 
@@ -74,21 +74,25 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
     expect(siteUrl({})).toBe("http://localhost:3000");
   });
 
-  it("lets crawlers in, keeps them out of the API, and points them at the sitemap", () => {
+  it("lets crawlers and AI agents in by name, opens the MCP server, keeps them out of the rest of the API", () => {
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "botchelor.vercel.app");
-    expect(robots()).toEqual({
-      rules: { userAgent: "*", allow: "/", disallow: "/api/" },
-      sitemap: "https://botchelor.vercel.app/sitemap.xml",
-    });
+    const r = robots();
+    expect(r.sitemap).toBe("https://botchelor.vercel.app/sitemap.xml");
+    const rules = Array.isArray(r.rules) ? r.rules : [r.rules];
+    const everyone = rules.find((x) => x.userAgent === "*")!;
+    expect(everyone.allow).toEqual(expect.arrayContaining(["/", "/api/mcp", "/api/episodes"]));
+    expect(everyone.disallow).toEqual(expect.arrayContaining(["/api/", "/account", "/admin"]));
+    const named = rules.find((x) => Array.isArray(x.userAgent))!;
+    expect(named.userAgent).toEqual(expect.arrayContaining(["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended"]));
+    expect(named.allow).toEqual(expect.arrayContaining(["/", "/api/mcp"]));
   });
 
-  it("lists the public pages in the sitemap, and nothing private", () => {
-    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "botchelor.vercel.app");
-    const urls = sitemap().map((e) => e.url);
+  it("lists the public pages in the static part of the sitemap, and nothing private", () => {
+    const urls = staticSitemap("https://botchelor.vercel.app").map((e) => e.url);
     expect(urls).toEqual(
-      ["/", "/create", "/watch", "/feed", "/cast", "/shop", "/terms", "/privacy"].map((p) => `https://botchelor.vercel.app${p}`),
+      ["/", "/create", "/watch", "/feed", "/cast", "/agents", "/shop", "/terms", "/privacy"].map((p) => `https://botchelor.vercel.app${p}`),
     );
-    expect(urls.join(" ")).not.toMatch(/\/api\/|\/leagues\/|\/episodes\/|\/watch\//);
+    expect(urls.join(" ")).not.toMatch(/\/api\/|\/leagues\/|\/watch\/|\/account|\/admin/);
   });
 
   it("has a 1200×630 PNG og:image, described for screen readers", () => {

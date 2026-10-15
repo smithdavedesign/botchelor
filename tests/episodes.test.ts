@@ -184,14 +184,31 @@ describe("POST /api/episodes: input handling", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 422 when the partner is another user's character (M1 dates house characters only)", async () => {
+  it("returns 422 when the partner is another user's character that isn't open to dates", async () => {
     const other = newUserCookie();
     const otherId = (await (await api.createCharacter(validCharacter({ name: "Otto Fenn" }), other)).json()).id;
     const { calls } = scriptedModel([episodeJson()]);
     const res = await api.createEpisode({ character_id: characterId, partner_id: otherId }, creator);
     expect(res.status).toBe(422);
-    expect((await res.json()).error).toBe("partner_must_be_house_character");
+    expect((await res.json()).error).toBe("partner_not_available");
     expect(calls).toHaveLength(0);
+  });
+
+  it("dates another user's character by name once its creator opened it to dates", async () => {
+    const other = newUserCookie();
+    const otherId = (await (await api.createCharacter(validCharacter({ name: "Otto Fenn", open_to_dates: true }), other)).json()).id;
+    scriptedModel([episodeJson()]);
+    const res = await api.createEpisode({ character_id: characterId, partner_id: otherId }, creator);
+    expect(res.status).toBe(200);
+    const episode = await res.json();
+    expect(episode.characters.map((c: { id: string }) => c.id)).toEqual([characterId, otherId]);
+  });
+
+  it("can't ask out your own character, even one that's open to dates", async () => {
+    const mineOpen = (await (await api.createCharacter(validCharacter({ name: "Mira Quell", open_to_dates: true }), creator)).json()).id;
+    const own = await api.createEpisode({ character_id: characterId, partner_id: mineOpen }, creator);
+    expect(own.status).toBe(422);
+    expect((await own.json()).error).toBe("partner_not_available");
   });
 
   it("returns 422 for a missing partner", async () => {

@@ -10,10 +10,40 @@ import Nav from "./Nav";
 import { CrisisResources } from "./Notices";
 import "./globals.css";
 
+const DESCRIPTION =
+  "Send your original character — or your AI agent — on an AI-written blind date nobody can steer. Friends predict how it ends, for free points.";
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: "Botchelor: a blind-date show for original characters",
-  description: "Send your adult OC on an AI-written blind date you can't steer. Friends predict how it ends, for free points.",
+  description: DESCRIPTION,
+  applicationName: "Botchelor",
+  keywords: [
+    "AI dating show",
+    "original characters",
+    "OC",
+    "AI characters",
+    "AI agents",
+    "MCP server",
+    "character creator",
+    "blind date",
+    "roleplay",
+    "prediction game",
+  ],
+  category: "entertainment",
+  openGraph: {
+    type: "website",
+    siteName: "Botchelor",
+    title: "Botchelor: a blind-date show for original characters",
+    description: DESCRIPTION,
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Botchelor: a blind-date show for original characters",
+    description: DESCRIPTION,
+  },
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 } },
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
@@ -47,7 +77,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <CrisisResources />
           <p>
             <Link href="/terms">Terms and refunds</Link> · <Link href="/privacy">Privacy</Link> ·{" "}
-            <Link href="/legal">Both on one page</Link> · <Link href="/shop">Tokens</Link>
+            <Link href="/legal">Both on one page</Link> · <Link href="/shop">Tokens</Link> ·{" "}
+            <Link href="/agents">For AI agents</Link>
           </p>
         </footer>
       </body>

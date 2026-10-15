@@ -33,8 +33,9 @@ export const maxDuration = 60;
 const id = z.string().min(1).max(64);
 const gameBudget = z.union(GAME_BUDGETS.map((b) => z.literal(b)) as [z.ZodLiteral<GameBudget>, ...z.ZodLiteral<GameBudget>[]]);
 
-// Either a chosen house partner, or a blind date the show picks. Never a chosen stranger's OC. The
-// date settings (PRD budget & autonomy) are all optional, with balanced defaults.
+// Either a chosen partner, or a blind date the show picks. A chosen partner is a house character, or
+// another creator's OC only if that creator opened it to dates (characters.open_to_dates: consent to be
+// asked out by name). The date settings (PRD budget & autonomy) are all optional, with balanced defaults.
 const EpisodeInput = z
   .object({
     character_id: id,
@@ -52,7 +53,7 @@ const EpisodeInput = z
     visibility: z.enum(["public", "private", "unlisted"]).optional(),
   })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
-    message: "Send either partner_id (a house character) or blind: true.",
+    message: "Send either partner_id (a house character or one that's open to dates) or blind: true.",
     path: ["partner_id"],
   });
 
@@ -143,16 +144,26 @@ export const POST = handle(async (req) => {
   if (input.blind) {
     partner = await blindMatch(db, sess.userId);
   } else {
+    // A house character, or someone else's OC that's open to dates — never your own, never across a block.
     partner = (
-      await db.query<CharacterRow>(`select ${CHARACTER_COLUMNS} from characters c where c.id = $1 and c.is_house`, [
-        input.partner_id,
-      ])
+      await db.query<CharacterRow>(
+        `select ${CHARACTER_COLUMNS} from characters c
+          where c.id = $1
+            and (c.is_house
+                 or (c.open_to_dates and c.owner_id <> $2
+                     and not exists (
+                       select 1 from blocks bl
+                        where (bl.blocker_id = $2 and bl.blocked_id = c.owner_id)
+                           or (bl.blocker_id = c.owner_id and bl.blocked_id = $2))))`,
+        [input.partner_id, sess.userId],
+      )
     ).rows[0];
     if (!partner) {
       return json(
         {
-          error: "partner_must_be_house_character",
-          message: "Pick one of the house characters, or ask for a blind date with blind: true.",
+          error: "partner_not_available",
+          message:
+            "That character can't be asked out: pick a house character or one that's open to dates, or ask for a blind date with blind: true.",
         },
         422,
         sess,
