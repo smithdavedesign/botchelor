@@ -1,13 +1,28 @@
 import { deleteAccount } from "@/lib/account";
+import { accountForUser, googleConfigured, sessionsSignable } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getPoints } from "@/lib/game";
-import { handle, json, readJson, userIdFromRequest } from "@/lib/http";
+import { authFromRequest, handle, json, readJson, userIdFromRequest } from "@/lib/http";
 
-/** Read-only points total. Points have no write route: they are derived from revealed predictions. */
+/**
+ * Who the current session is and its points. Points are read-only (derived from revealed predictions). The
+ * account fields drive the /account page: whether sign-in is available, and this session's login if any.
+ */
 export const GET = handle(async (req) => {
-  const userId = userIdFromRequest(req);
-  if (!userId) return json({ points: 0 });
-  return json({ points: await getPoints(await getDb(), userId) });
+  const auth = authFromRequest(req);
+  const accountsAvailable = sessionsSignable();
+  if (!auth) return json({ points: 0, authenticated: false, account: null, accounts_available: accountsAvailable, google_available: googleConfigured() });
+  const db = await getDb();
+  const account = auth.authenticated ? await accountForUser(db, auth.userId) : null;
+  return json({
+    points: await getPoints(db, auth.userId),
+    authenticated: auth.authenticated,
+    account: account
+      ? { handle: account.handle_display, has_password: Boolean(account.password_hash), has_google: Boolean(account.google_sub) }
+      : null,
+    accounts_available: accountsAvailable,
+    google_available: googleConfigured(),
+  });
 });
 
 /**

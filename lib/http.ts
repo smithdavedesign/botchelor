@@ -1,7 +1,15 @@
 import type { z } from "zod";
+import { signSession, verifySession } from "./auth";
 
-/** Anonymous session: a random UUID in an HttpOnly cookie. It is never echoed in a response body. */
+/**
+ * Identity. Historically the user id is a random UUID in the `bz_uid` cookie (anonymous, unsigned). Once an
+ * account can own things and hold an API key, that id must be unforgeable, so an authenticated session is a
+ * SIGNED token in `bz_sess` (lib/auth). Both are read here: a valid signed cookie is authoritative (and may
+ * be authenticated); a legacy `bz_uid` is still accepted as an anonymous identity, so anonymous play and the
+ * old tests keep working. When SESSION_SECRET is unset the app simply never signs and behaves as before.
+ */
 export const USER_COOKIE = "bz_uid";
+export const SESSION_COOKIE = "bz_sess";
 export const MAX_BODY_BYTES = 10_000;
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -19,29 +27,68 @@ export function readUserId(value: string | null | undefined): string | null {
   return value && UUID.test(value) ? value : null;
 }
 
-export function userIdFromRequest(req: Request): string | null {
+function cookies(req: Request): Map<string, string> {
+  const out = new Map<string, string>();
   for (const part of (req.headers.get("cookie") ?? "").split(";")) {
     const eq = part.indexOf("=");
-    if (eq !== -1 && part.slice(0, eq).trim() === USER_COOKIE) return readUserId(part.slice(eq + 1).trim());
+    if (eq !== -1) out.set(part.slice(0, eq).trim(), part.slice(eq + 1).trim());
   }
-  return null;
+  return out;
 }
 
-export type Session = { userId: string; isNew: boolean };
+export type Auth = { userId: string; authenticated: boolean };
+
+/** The request's identity: the signed session if valid, else a legacy anonymous `bz_uid`, else null. */
+export function authFromRequest(req: Request): Auth | null {
+  const jar = cookies(req);
+  const signed = verifySession(jar.get(SESSION_COOKIE));
+  if (signed) return { userId: signed.uid, authenticated: signed.authenticated };
+  const legacy = readUserId(jar.get(USER_COOKIE));
+  return legacy ? { userId: legacy, authenticated: false } : null;
+}
+
+export function userIdFromRequest(req: Request): string | null {
+  return authFromRequest(req)?.userId ?? null;
+}
+
+/** The user id from a Next.js server cookie store (server components): signed session first, else legacy. */
+export function userIdFromCookieStore(store: { get(name: string): { value: string } | undefined }): string | null {
+  const signed = verifySession(store.get(SESSION_COOKIE)?.value);
+  return signed ? signed.uid : readUserId(store.get(USER_COOKIE)?.value);
+}
+
+export type Session = { userId: string; isNew: boolean; authenticated: boolean };
 
 export function session(req: Request): Session {
-  const existing = userIdFromRequest(req);
-  return existing ? { userId: existing, isNew: false } : { userId: crypto.randomUUID(), isNew: true };
+  const existing = authFromRequest(req);
+  return existing ? { ...existing, isNew: false } : { userId: crypto.randomUUID(), authenticated: false, isNew: true };
 }
 
-function sessionCookie(userId: string): string {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return `${USER_COOKIE}=${userId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${ONE_YEAR_SECONDS}${secure}`;
+const secureFlag = () => (process.env.NODE_ENV === "production" ? "; Secure" : "");
+
+/** The Set-Cookie for an identity: a signed `bz_sess` when the app can sign, else the legacy `bz_uid`. */
+export function sessionCookies(claims: Auth): string[] {
+  const token = signSession({ uid: claims.userId, authenticated: claims.authenticated });
+  if (token) return [`${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${ONE_YEAR_SECONDS}${secureFlag()}`];
+  return [`${USER_COOKIE}=${claims.userId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${ONE_YEAR_SECONDS}${secureFlag()}`];
+}
+
+/** Clears both identity cookies (sign out). */
+export function clearSessionCookies(): string[] {
+  const expire = `Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureFlag()}`;
+  return [`${SESSION_COOKIE}=; ${expire}`, `${USER_COOKIE}=; ${expire}`];
 }
 
 export function json(body: unknown, status = 200, sess?: Session): Response {
   const headers = new Headers({ "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-  if (sess?.isNew) headers.append("set-cookie", sessionCookie(sess.userId));
+  if (sess?.isNew) for (const c of sessionCookies(sess)) headers.append("set-cookie", c);
+  return new Response(JSON.stringify(body), { status, headers });
+}
+
+/** A JSON response that (re)issues the session cookie, authenticated or not. For sign in / up / out. */
+export function jsonWithSession(body: unknown, claims: Auth, status = 200, extraCookies: string[] = []): Response {
+  const headers = new Headers({ "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+  for (const c of [...sessionCookies(claims), ...extraCookies]) headers.append("set-cookie", c);
   return new Response(JSON.stringify(body), { status, headers });
 }
 

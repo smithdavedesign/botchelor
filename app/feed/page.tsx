@@ -4,7 +4,7 @@ import Avatar from "@/app/Avatar";
 import { BadgeList } from "@/app/Badges";
 import { getDb } from "@/lib/db";
 import { listFeed, listMyEpisodes, type EpisodeView } from "@/lib/game";
-import { readUserId, USER_COOKIE } from "@/lib/http";
+import { userIdFromCookieStore } from "@/lib/http";
 import { listMyLeagues } from "@/lib/leagues";
 import { getProfileName, listBlocks } from "@/lib/people";
 import { ENDING_LABELS } from "@/lib/rules";
@@ -46,7 +46,7 @@ function EpisodeItem({ episode }: { episode: EpisodeView }) {
 }
 
 export default async function FeedPage() {
-  const viewerId = readUserId((await cookies()).get(USER_COOKIE)?.value);
+  const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
   // The viewer's own dates get their own section below, so the public list skips them.
   const feed = (await listFeed(db, viewerId)).filter((episode) => !episode.is_creator);

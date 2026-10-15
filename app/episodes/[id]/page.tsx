@@ -6,7 +6,7 @@ import { getDb } from "@/lib/db";
 import { getEpisodeView, getPoints } from "@/lib/game";
 import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
-import { readUserId, USER_COOKIE } from "@/lib/http";
+import { userIdFromCookieStore } from "@/lib/http";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
 import { DATE_ACTS, DRAMA_QUESTION_LABELS, dramaAnswerLabel, ENDING_LABELS, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
@@ -33,7 +33,7 @@ const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
 
 export default async function EpisodePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const viewerId = readUserId((await cookies()).get(USER_COOKIE)?.value);
+  const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
   const episode = await getEpisodeView(db, id, viewerId);
   // Hidden after reports: a 404 for everyone except its creators (see ./not-found.tsx).

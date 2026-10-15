@@ -2127,3 +2127,54 @@ button.rating-chip:hover {
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+
+/* Account page (M16): auth forms + links. */
+.account-links {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.account-links a {
+  color: var(--accent);
+  font-weight: 600;
+}
+.account-actions {
+  margin-top: 0.5rem;
+}
+.button-google {
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+  padding: 0.7rem 1.2rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+.button-google:hover {
+  background: var(--soft);
+}
+.or-divider {
+  text-align: center;
+  margin: 0.75rem 0;
+}
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  width: auto;
+}
+.link-button:hover {
+  opacity: 0.8;
+}

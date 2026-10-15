@@ -29,6 +29,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Link href="/feed">Episodes &amp; leagues</Link>
             <Link href="/reunion">Reunion</Link>
             <Link href="/shop">Shop</Link>
+            <Link href="/account">Account</Link>
           </nav>
         </header>
         <main id="main">{children}</main>

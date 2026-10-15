@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Podium } from "@/app/Badges";
 import { frameClass } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
-import { readUserId, USER_COOKIE } from "@/lib/http";
+import { userIdFromCookieStore } from "@/lib/http";
 import { getLeague } from "@/lib/leagues";
 import { getProfileName } from "@/lib/people";
 import { PODIUM_SIZE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "@/lib/rules";
@@ -18,7 +18,7 @@ const day = (date: Date) => date.toLocaleDateString("en-US", { weekday: "short",
 
 export default async function LeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const viewerId = readUserId((await cookies()).get(USER_COOKIE)?.value);
+  const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
   await tryCloseDueSeasons(db);
   const league = await getLeague(db, id, viewerId);
