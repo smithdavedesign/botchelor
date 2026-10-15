@@ -382,7 +382,7 @@ has drifted since. The async worker re-decides on the same snapshot, so a concur
 move the canonical outcome. The deterministic engine itself is unchanged — same input + seed => same outcome,
 predictions stay fair.
 
-## M15: genuine dates (date quality, in progress — see `docs/date-quality.md`)
+## M15: genuine dates (date quality — see `docs/date-quality.md`)
 
 David's brief (2026-10-14): the conversations don't feel genuine; audit how characters reach the model, do
 Phase 1 (make it genuine at $0) and Phase 2 (an eval harness + a model A/B), and push quality to its limits.
@@ -396,6 +396,25 @@ Phase 1 (make it genuine at $0) and Phase 2 (an eval harness + a model A/B), and
   default settings ends roughly a third each way. **Versioned**: every date records the calibration that
   decided it and replays (Sliding Doors, the chaos timeline, the worker's re-decide) use it, so old dates
   reproduce exactly. A calibration guard test fails if a future tweak makes any ending vanish again.
+- **Phase 1 — genuine at $0 (shipped, #49).** A blind view of the other character (what you can see, never
+  their profile), pronouns and a voice for every character, a three-act beat sheet that turns the engine's
+  reasons into moments (director model, deterministic leak check, rules fallback), a conversation-craft
+  prompt, a free critic that sends a weak line back once, a recap written from the lines, an afterglow that
+  remembers the date. Judge 3.60 → 4.07 on the same free model; profile reading 0.83 → 0 lines a date.
+- **Phase 2 — the eval harness (shipped, #48 + rounds).** Six fixed in-memory dates, free metrics + a rubric
+  judge, `--repeat`, `--rescore`, re-judging (`scripts/eval-rejudge.mjs`), every run committed in `docs/eval/`.
+- **Rounds driven by the eval (shipped, #50, #51).** Legible endings ("just friends" never plays as a second
+  date), visible causes for each secret goal, no sudden exits, repeated stage directions and name tics in the
+  critic, act two leaning toward the ending, a judge that reads friendship right, and a showcase bar that
+  gives a weak lobby date one more take.
+- **The model A/B: blocked on the free tier.** No stronger Gemini model has usable free quota on production's
+  key (3.5/3.6/3.8-flash refuse; 2.5 is retired). Proposed to David: a capped paid key for a
+  `gemini-3.8-flash` director A/B (about a cent a date). His call.
+- **Reliability (shipped, #52, #53).** A bad reply can't sink a date (trim, third try), smarter 429s that fail
+  fast on a spent quota, an eval-only key (`EVAL_GOOGLE_API_KEY`) and a guard so evals can't drain the live
+  show's quota (they did once, 2026-10-15), and a Postgres pool that survives Neon dropping a connection.
+- **Next:** measure v4 after the quota resets (commands in `docs/date-quality.md`), re-judge all runs on one
+  judge, then the director A/B if David approves the key.
 
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 

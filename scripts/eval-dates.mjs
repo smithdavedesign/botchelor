@@ -4,11 +4,13 @@
  *
  *   CRON_SECRET=… node scripts/eval-dates.mjs --label baseline [--base https://botchelor.vercel.app]
  *       [--actor gemini-…] [--director gemini-…] [--judge gemini-…] [--cases a,b] [--gap 20] [--repeat 2]
+ *       [--shared-quota yes]
  *
  * Each case is one POST /api/jobs/eval (built in memory on the server: no stored data is read or written).
  * Requests are spaced (--gap seconds) to stay inside the free tier's per-minute quota. --repeat N runs the
  * whole set N times (the same engine outcomes, fresh words), since one sample per case is noisy. Writes
- * docs/eval/<label>.json (every transcript, metric and judge score) and prints a summary table.
+ * docs/eval/<label>.json (every transcript, metric and judge score) and prints a summary table. It refuses to run
+ * on the live show's quota unless the deployment has EVAL_GOOGLE_API_KEY or you pass --shared-quota yes.
  * Compare runs with scripts/eval-report.mjs.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -31,6 +33,25 @@ const cases = args.cases ? args.cases.split(",") : ALL;
 const models = { actor: args.actor || undefined, director: args.director || undefined, judge: args.judge || undefined };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// An eval on production's key spends the live show's free daily quota (~14 calls a date): on 2026-10-15 a few
+// back-to-back runs spent the day's quota and live dates failed until the reset. Refuse unless the deployment
+// has its own eval key, or the caller explicitly accepts sharing.
+async function checkQuota() {
+  const res = await fetch(`${base}/api/jobs/eval`, { headers: { authorization: `Bearer ${secret}` } }).catch(() => null);
+  const info = res?.ok ? await res.json() : null;
+  if (info?.quota === "eval") return;
+  if (args["shared-quota"] === "yes") {
+    console.error("warning: this eval spends the live show's free daily quota (no EVAL_GOOGLE_API_KEY on the deployment)");
+    return;
+  }
+  console.error(
+    "refusing: this deployment has no EVAL_GOOGLE_API_KEY, so an eval would spend the live show's free daily quota.\n" +
+      "Set EVAL_GOOGLE_API_KEY on the deployment (a separate free project), or pass --shared-quota yes to accept that.",
+  );
+  process.exit(2);
+}
+await checkQuota();
 const repeat = Math.max(1, Math.min(5, Number(args.repeat ?? 1)));
 const queue = Array.from({ length: repeat }, () => cases).flat();
 const results = [];

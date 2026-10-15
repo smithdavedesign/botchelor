@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { POST as evalRoute } from "@/app/api/jobs/eval/route";
+import { GET as evalGet, POST as evalRoute } from "@/app/api/jobs/eval/route";
 import { deterministicEngine } from "@/lib/engine";
 import { buildEvalDate, EVAL_CASES, evalCharacter, rejudgeCase, rescoreResult, runEvalCase } from "@/lib/eval";
 import { buildJudgeMessages, judgeMean, parseJudge } from "@/lib/judge";
@@ -145,6 +145,16 @@ describe("POST /api/jobs/eval", () => {
 describe("the eval's own key", () => {
   const secret = ["eval", "test", "secret", "0123456789"].join("-");
   afterEach(() => vi.unstubAllGlobals());
+
+  it("tells the scripts which quota an eval would spend (they refuse the live show's by default)", async () => {
+    vi.stubEnv("CRON_SECRET", secret);
+    const get = (auth?: string) => evalGet(new Request(`${BASE_URL}/api/jobs/eval`, { headers: auth ? { authorization: auth } : {} }));
+    expect((await get()).status).toBe(404);
+    vi.stubEnv("EVAL_GOOGLE_API_KEY", "");
+    expect((await (await get(`Bearer ${secret}`)).json()).quota).toBe("shared");
+    vi.stubEnv("EVAL_GOOGLE_API_KEY", ["eval", "key", "Z9y8X7w6".repeat(3)].join("-"));
+    expect((await (await get(`Bearer ${secret}`)).json()).quota).toBe("eval");
+  });
 
   it("uses EVAL_GOOGLE_API_KEY when set, so an eval never spends the live show's quota", async () => {
     const liveKey = ["live", "key", "A1b2C3d4".repeat(3)].join("-");
