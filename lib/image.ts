@@ -64,3 +64,77 @@ export async function generatePortrait(
   if (typeof b64 !== "string" || b64.length === 0) throw new Error("image provider returned no image");
   return { dataUrl: `data:image/png;base64,${b64}`, model, prompt };
 }
+
+/* ------------------------------------- video clips ------------------------------------- */
+
+export const DEFAULT_VIDEO_MODEL = "sora-2";
+export const CLIP_PROMPT_VERSION = "clip-v1";
+const VIDEOS_URL = "https://api.openai.com/v1/videos";
+
+/** A short clip prompt, from filtered sheet text only. A fictional adult; a brief, tasteful intro. */
+export function clipPrompt(c: PortraitInput): string {
+  const who = c.pronouns ? ` (${c.pronouns})` : "";
+  const look = c.appearance ? ` They look like: ${c.appearance}.` : "";
+  return (
+    `A short, tasteful, non-photorealistic animated introduction of a fictional adult dating-show contestant. ` +
+    `${c.name}${who}, an adult around ${Math.max(18, c.age)}, described as ${c.traits.join(", ")}.${look} ` +
+    `A friendly wave and a smile to camera, warm studio lighting, clean simple background. ` +
+    `No text, no watermark, fully clothed, suitable for all audiences.`
+  );
+}
+
+export type VideoJob = { id: string; status: string; prompt: string; model: string };
+export type VideoStatus = { status: "queued" | "in_progress" | "completed" | "failed" | string; progress: number };
+
+const authHeaders = (apiKey: string) => ({ authorization: `Bearer ${apiKey}`, "content-type": "application/json" });
+
+/** Starts a Sora video job on the user's key. Returns the job id to poll. */
+export async function createVideoJob(
+  apiKey: string,
+  character: PortraitInput,
+  model: string = DEFAULT_VIDEO_MODEL,
+  fetchImpl: typeof fetch = fetch,
+): Promise<VideoJob> {
+  const prompt = clipPrompt(character);
+  const res = await fetchImpl(VIDEOS_URL, {
+    method: "POST",
+    headers: authHeaders(apiKey),
+    body: JSON.stringify({ model, prompt, size: "720x1280", seconds: "4" }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`video provider returned HTTP ${res.status}${/safety|moderation|content_policy/i.test(detail) ? " (the provider blocked this clip)" : ""}`);
+  }
+  const body = (await res.json().catch(() => null)) as { id?: unknown; status?: unknown } | null;
+  if (typeof body?.id !== "string") throw new Error("video provider returned no job id");
+  return { id: body.id, status: typeof body.status === "string" ? body.status : "queued", prompt, model };
+}
+
+/** Polls a Sora job's status on the user's key. */
+export async function pollVideoJob(apiKey: string, videoId: string, fetchImpl: typeof fetch = fetch): Promise<VideoStatus> {
+  const res = await fetchImpl(`${VIDEOS_URL}/${encodeURIComponent(videoId)}`, { headers: authHeaders(apiKey), signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) throw new Error(`video provider returned HTTP ${res.status}`);
+  const body = (await res.json().catch(() => null)) as { status?: unknown; progress?: unknown } | null;
+  return { status: typeof body?.status === "string" ? body.status : "in_progress", progress: typeof body?.progress === "number" ? body.progress : 0 };
+}
+
+/** The completed clip's thumbnail still, as a durable JPEG data URL (stored and served as the poster). */
+export async function fetchVideoThumbnail(apiKey: string, videoId: string, fetchImpl: typeof fetch = fetch): Promise<string> {
+  const res = await fetchImpl(`${VIDEOS_URL}/${encodeURIComponent(videoId)}/content?variant=thumbnail`, {
+    headers: { authorization: `Bearer ${apiKey}` },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new Error(`video thumbnail returned HTTP ${res.status}`);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  const type = res.headers.get("content-type")?.includes("png") ? "png" : "jpeg";
+  return `data:image/${type};base64,${bytes.toString("base64")}`;
+}
+
+/** The completed clip's MP4, as a fetch Response to proxy to the viewer (bytes stay with the provider). */
+export async function fetchVideoContent(apiKey: string, videoId: string, fetchImpl: typeof fetch = fetch): Promise<Response> {
+  return fetchImpl(`${VIDEOS_URL}/${encodeURIComponent(videoId)}/content?variant=video`, {
+    headers: { authorization: `Bearer ${apiKey}` },
+    signal: AbortSignal.timeout(120_000),
+  });
+}

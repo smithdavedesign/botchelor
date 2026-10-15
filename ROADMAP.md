@@ -434,10 +434,11 @@ bring their own model key for text (and later image/video). Built holistically, 
   OpenAI-compatible providers only. A key runs only its owner's side (and a soulless partner); the plan and
   recap stay on the platform, so a key never sees another user's soul. **Image portraits generate on the
   user's own OpenAI key** (provider-moderated, prompt from filtered sheet text, approved into the asset ledger
-  and served from /api/assets); fal/replicate and video are key slots only.
+  and served from /api/assets); fal/replicate are key slots only. **Video clips generate on the user's OpenAI key too** (Sora, async:
+  start → poll → the thumbnail is the durable poster, the MP4 proxies on the owner's key).
 - **Next (owner / follow-ups):** set `GOOGLE_OAUTH_*` to turn on Google sign-in; per-side BYOK for
-  two-user blind dates; a blob store for generated portraits at scale; a moderated path for fal/replicate
-  and for video generation.
+  two-user blind dates; a blob store for generated portraits at scale; a moderated path for fal/replicate; a blob store so
+  generated portraits/clips are durable at scale (and clips outlive the provider's retention).
 
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 

@@ -1,5 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getAsset } from "@/app/api/assets/[id]/route";
+import * as videoRoute from "@/app/api/assets/[id]/video/route";
+import * as clipRoute from "@/app/api/characters/[id]/clip/route";
 import { POST as generateRoute } from "@/app/api/characters/[id]/portrait/route";
 import { setDbForTests } from "@/lib/db";
 import { generatePortrait, portraitPrompt } from "@/lib/image";
@@ -119,5 +121,65 @@ describe("POST /api/characters/[id]/portrait", () => {
     const character = await (await api.createCharacter(validCharacter(), owner)).json();
     const pendingId = await recordAsset(t.db, { character_id: character.id, kind: "portrait", source_type: "generated", source_model: "openai:gpt-image-1", url: `data:image/png;base64,${PNG_B64}` });
     expect((await getAsset(new Request(`${BASE_URL}/api/assets/${pendingId}`), params(pendingId))).status).toBe(404);
+  });
+});
+
+describe("BYOK video clip (OpenAI Sora on the user's key)", () => {
+  const MP4 = Buffer.from("fake-mp4-bytes");
+  /** A global fetch stub that answers OpenAI's video endpoints (create / poll / content). */
+  function stubVideo(status = "completed") {
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      const u = String(url);
+      if (u.endsWith("/v1/videos") && init?.method === "POST") return new Response(JSON.stringify({ id: "vid_1", status: "queued" }), { status: 200 });
+      if (/\/v1\/videos\/vid_1\/content\?variant=thumbnail/.test(u)) return new Response(Buffer.from(PNG_B64, "base64"), { status: 200, headers: { "content-type": "image/png" } });
+      if (/\/v1\/videos\/vid_1\/content\?variant=video/.test(u)) return new Response(MP4, { status: 200, headers: { "content-type": "video/mp4" } });
+      if (/\/v1\/videos\/vid_1/.test(u)) return new Response(JSON.stringify({ status, progress: 100 }), { status: 200 });
+      return new Response("not found", { status: 404 });
+    });
+  }
+  const ownerWithKey = async () => {
+    const cookie = newUserCookie();
+    const character = await (await api.createCharacter(validCharacter(), cookie)).json();
+    await registerAccount(t.db, userIdOf(cookie), `clipowner${Date.now() % 100000}`, ["a", "good", "password"].join("-"));
+    await saveUserKey(t.db, userIdOf(cookie), "openai", "image", KEY, null, { SESSION_SECRET: SECRET });
+    return { cookie, character };
+  };
+  const clipPost = (id: string, cookie: string) =>
+    clipRoute.POST(new Request(`${BASE_URL}/api/characters/${id}/clip`, { method: "POST", headers: { cookie } }), params(id));
+  const clipGet = (id: string, cookie: string) =>
+    clipRoute.GET(new Request(`${BASE_URL}/api/characters/${id}/clip`, { headers: { cookie } }), params(id));
+
+  it("needs an image key and starts a job, then finishes and serves the clip", async () => {
+    const { cookie, character } = await ownerWithKey();
+    stubVideo("completed");
+    const started = await clipPost(character.id, cookie);
+    expect(started.status).toBe(202);
+    const { asset_id } = await started.json();
+
+    const ready = await (await clipGet(character.id, cookie)).json(); // polls → completed → thumbnail → approved
+    expect(ready).toMatchObject({ status: "ready", video_path: `/api/assets/${asset_id}/video` });
+
+    // The poster is durable (served by the image route); the MP4 proxies on the owner's key.
+    const poster = await getAsset(new Request(`${BASE_URL}/api/assets/${asset_id}`), params(asset_id));
+    expect(poster.headers.get("content-type")).toBe("image/png");
+    const video = await videoRoute.GET(new Request(`${BASE_URL}/api/assets/${asset_id}/video`), params(asset_id));
+    expect(video.status).toBe(200);
+    expect(video.headers.get("content-type")).toBe("video/mp4");
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects a clip the provider fails, and is owner-only / needs a key", async () => {
+    const stranger = newUserCookie();
+    const { cookie, character } = await ownerWithKey();
+    expect((await clipPost(character.id, stranger)).status).toBe(404); // not the owner
+    const noKey = newUserCookie();
+    const ownNoKey = await (await api.createCharacter(validCharacter(), noKey)).json();
+    expect((await clipPost(ownNoKey.id, noKey)).status).toBe(400); // owner, no key
+
+    stubVideo("failed");
+    await clipPost(character.id, cookie);
+    const failed = await (await clipGet(character.id, cookie)).json();
+    expect(failed.status).toBe("failed");
+    vi.unstubAllGlobals();
   });
 });
