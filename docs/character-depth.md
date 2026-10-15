@@ -1,6 +1,6 @@
 # Character depth: how a character sounds, remembers, grows and stands out
 
-Shipped 2026-10-15 in PRs #80–#84. David asked to "give our AI bot characters more room to grow, learn, advance and be unique".
+Shipped 2026-10-15 in PRs #80–#85. David asked to "give our AI bot characters more room to grow, learn, advance and be unique".
 
 **The diagnosis.** Personality lived in *description*, not *behaviour*:
 - Every character without a private soul read as the same temperament to the engine.
@@ -44,7 +44,7 @@ Stored in `extras`, so it uses the same zod schema, content filter, PATCH path a
 
 - **The actor** gets only `your_tell_right_now`, in the second person, and nothing when that feeling has no tell.
 - **The director** sees every tell, so it can stage one.
-- **Writing tells:** they are verb phrases with no pronouns, because the same words read "When they're nervous, they…" on the card and "When you're nervous, you…" in the prompt.
+- **Writing tells:** they are verb phrases with no pronouns, because the same words read "When they're nervous, they…" on the card and "When you're nervous, you…" in the prompt. A creator who writes "lower his voice" is still fine: the prompt turns the character's *own* gendered pronouns into you/your (`ownPronounsToYou`). "they/their" stays as written, since it may mean the other person.
 
 ## 3. Memory of people and dates
 `updateCharacterMemory` now also builds `people`: everyone the character has dated, most recent first, capped at 12. It still uses aired, public dates only, with no model call.
