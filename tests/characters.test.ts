@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { USER_COOKIE } from "@/lib/http";
-import { api, newUserCookie, startTestDb, validCharacter } from "./helpers";
+import { HOUSE_CHARACTERS } from "@/lib/house";
+import { api, newUserCookie, setupEpisode, startTestDb, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
@@ -189,5 +190,71 @@ describe("POST /api/characters: pronouns and voice (M15)", () => {
   it("every house character has pronouns and a voice in the database", async () => {
     const { rows } = await t.db.query<{ n: number }>(`select count(*)::int as n from characters where is_house and (pronouns is null or voice is null)`);
     expect(rows[0].n).toBe(0);
+  });
+});
+
+describe("ownership: a creator edits and deletes only their own characters (M16)", () => {
+  const make = async (cookie: string, overrides = {}) => (await api.createCharacter(validCharacter(overrides), cookie)).json();
+  const sheet = async (id: string) =>
+    (await t.db.query<{ name: string; want: string; voice: string | null; owner_id: string | null }>(
+      `select name, want, voice, owner_id from characters where id = $1`,
+      [id],
+    )).rows[0];
+
+  it("the owner can change their character's characteristics any time", async () => {
+    const owner = newUserCookie();
+    const { id } = await make(owner);
+    const res = await api.editCharacter(id, { name: "Mira Vale", want: "someone who reads maps upside down", voice: "Warm, quick, talks with her hands." }, owner);
+    expect(res.status).toBe(200);
+    expect((await res.json()).updated).toEqual(expect.arrayContaining(["name", "want", "voice"]));
+    expect(await sheet(id)).toMatchObject({ name: "Mira Vale", want: "someone who reads maps upside down", voice: "Warm, quick, talks with her hands." });
+  });
+
+  it("can set and clear the soul through the same edit", async () => {
+    const owner = newUserCookie();
+    const { id } = await make(owner);
+    await api.editCharacter(id, { soul: { values: "honesty, even when it costs her", local_only: false } }, owner);
+    expect((await t.db.query(`select 1 from souls where character_id = $1`, [id])).rows).toHaveLength(1);
+    await api.editCharacter(id, { soul: { values: "", insecurities: "", humor: "", boundaries: "", romantic: "", communication: "" } }, owner);
+    expect((await t.db.query(`select 1 from souls where character_id = $1`, [id])).rows).toHaveLength(0);
+  });
+
+  it("can't touch someone else's character, or a house character (both 404, unchanged)", async () => {
+    const owner = newUserCookie();
+    const stranger = newUserCookie();
+    const { id } = await make(owner);
+    const before = await sheet(id);
+    expect((await api.editCharacter(id, { name: "Hijacked" }, stranger)).status).toBe(404);
+    expect((await api.deleteCharacter(id, stranger)).status).toBe(404);
+    expect(await sheet(id)).toEqual(before);
+    const house = HOUSE_CHARACTERS[0].id;
+    expect((await api.editCharacter(house, { name: "Nope" }, owner)).status).toBe(404);
+  });
+
+  it("content-filters an edit (no minors, real people or sexual content)", async () => {
+    const owner = newUserCookie();
+    const { id } = await make(owner);
+    const res = await api.editCharacter(id, { bio: "A high school student with big dreams." }, owner);
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ error: "content_rejected", field: "bio" });
+  });
+
+  it("hard-deletes a character that never went on a date", async () => {
+    const owner = newUserCookie();
+    const { id } = await make(owner);
+    const res = await api.deleteCharacter(id, owner);
+    expect(await res.json()).toMatchObject({ deleted: true, anonymized: false });
+    expect(await sheet(id)).toBeUndefined();
+  });
+
+  it("keeps a character that already aired, but strips its soul and owner link (a tombstone)", async () => {
+    const { creator, character, episode } = await setupEpisode("friends");
+    await api.editCharacter(character.id, { soul: { values: "guarded but kind", local_only: false } }, creator);
+    const res = await api.deleteCharacter(character.id, creator);
+    expect(await res.json()).toMatchObject({ deleted: false, anonymized: true });
+    const row = await sheet(character.id);
+    expect(row.owner_id).toBe("deleted"); // detached, fictional sheet kept
+    expect((await t.db.query(`select 1 from souls where character_id = $1`, [character.id])).rows).toHaveLength(0);
+    expect((await t.db.query(`select 1 from episodes where id = $1`, [episode.id])).rows).toHaveLength(1); // episode intact
   });
 });

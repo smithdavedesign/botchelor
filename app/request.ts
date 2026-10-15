@@ -15,7 +15,7 @@ export function describeError(data: ErrorBody): string {
 
 export type ApiResult = { ok: boolean; status: number; data: Record<string, unknown>; message: string };
 
-export async function requestJson(url: string, body: unknown = {}, method: "POST" | "DELETE" = "POST"): Promise<ApiResult> {
+export async function requestJson(url: string, body: unknown = {}, method: "POST" | "DELETE" | "PATCH" | "PUT" = "POST"): Promise<ApiResult> {
   const res = await fetch(url, {
     method,
     headers: { "content-type": "application/json" },

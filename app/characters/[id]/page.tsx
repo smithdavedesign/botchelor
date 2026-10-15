@@ -11,6 +11,7 @@ import { getCharacterRatings } from "@/lib/ratings";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ENDING_LABELS } from "@/lib/rules";
 import RatingButtons from "./RatingButtons";
+import OwnerControls from "./OwnerControls";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,20 @@ export default async function CharacterPage({ params }: Props) {
           </p>
         </div>
       </div>
+
+      {ratings.is_owner && !c.house && (
+        <OwnerControls
+          id={c.id}
+          name={c.name}
+          age={c.age}
+          bio={c.bio}
+          traits={c.traits}
+          want={c.want}
+          appearance={c.appearance}
+          pronouns={c.pronouns}
+          voice={c.voice}
+        />
+      )}
 
       <section className="card">
         <p>{c.bio}</p>
