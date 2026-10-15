@@ -74,8 +74,30 @@ async function main() {
   let episodeUrl = "";
   let roomUrl = "";
 
+  // A fresh browser context that has already passed the 18+ gate (so a step can get straight to the feature).
+  const adultContext = async (opts) => {
+    const ctx = await browser.newContext(opts);
+    await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
+    return ctx;
+  };
+
   try {
-    const creator = await browser.newContext();
+    await step("the 18+ gate blocks the site until you confirm you're an adult", async () => {
+      const visitor = await browser.newContext(); // no cookie: must hit the gate
+      const gatePage = await visitor.newPage();
+      await gatePage.goto(`${base}/feed`); // any page redirects to the gate (goto follows it)
+      assert(new URL(gatePage.url()).pathname === "/gate", `expected the gate, got ${gatePage.url()}`);
+      assert((await gatePage.getByText("Are you 18 or older?").count()) > 0, "age gate did not show");
+      assert((await gatePage.getByRole("heading", { name: "Now showing" }).count()) === 0, "page content leaked behind the gate");
+      const back = gatePage.waitForURL((url) => url.pathname === "/feed");
+      await gatePage.getByRole("button", { name: /I.m 18 or older/ }).click();
+      await back; // confirming drops us back where we were headed, and remembers it
+      assert((await gatePage.getByText("Are you 18 or older?").count()) === 0, "gate still blocking after confirming");
+      assert((await visitor.cookies()).some((c) => c.name === "bz_adult" && c.value === "1"), "adult choice not remembered");
+      await visitor.close();
+    });
+
+    const creator = await adultContext();
     const page = await creator.newPage();
 
     await step("the conversion landing page loads: hero, CTA, features, cast, FAQ and the builder", async () => {
@@ -161,7 +183,7 @@ async function main() {
     });
 
     // A spectator, in a separate browser session.
-    const spectator = await browser.newContext();
+    const spectator = await adultContext();
     const spage = await spectator.newPage();
 
     await step("a spectator sees a teaser, predicts the ending and guesses the dealbreaker", async () => {
@@ -187,7 +209,7 @@ async function main() {
     });
 
     await step("a viewer joins the room and reacts, chats and predicts live", async () => {
-      const fan = await browser.newContext();
+      const fan = await adultContext();
       const fpage = await fan.newPage();
       try {
         await fpage.goto(roomUrl);
@@ -230,7 +252,7 @@ async function main() {
     });
 
     await step("an always-on template date can be joined from the lobby", async () => {
-      const guest = await browser.newContext();
+      const guest = await adultContext();
       const gpage = await guest.newPage();
       try {
         await gpage.goto(`${base}/watch`);

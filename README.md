@@ -17,8 +17,11 @@ Back in the shop: "plus 5 pack dates", added by the webhook once Stripe confirme
 
 Captured by `npm run screenshots` from the production build, with invented sample characters and players. A local stand-in plays the free model, so no API key is involved. The same run also buys "5 more dates" through the shop's Buy button: the sample Payment Link carries the order, a signed webhook arrives, and the shop shows the 5 dates. That check passes but saves no picture. The look is one documented system — tokens, type, components and the accessibility standards are in [`docs/brand.md`](docs/brand.md).
 
+![The 18+ age gate: a full-screen lock asking "Are you 18 or older?" before any page loads, desktop](docs/screenshots/age-gate-desktop.png)
+The first thing a visitor meets: a full-screen 18+ lock. Enforced in middleware, so every page redirects here until you confirm you're an adult; the choice is remembered for a year. API routes, static files and link-preview images are exempt so agents and social unfurls still work.
+
 ![Landing page for AI roleplayers, desktop](docs/screenshots/home-desktop.png)
-The conversion landing page: the product shown in the hero (an avatar matchup and a live box score), a fast/free/no-sign-up CTA, then a feature grid, honest proof, a cast preview and an FAQ.
+The conversion landing page (past the gate): the product shown in the hero (an avatar matchup and a live box score), a fast/free/no-sign-up CTA, then a feature grid, honest proof, a cast preview and an FAQ.
 
 ![Landing page on a phone](docs/screenshots/home-mobile.png)
 The same start page on an iPhone 13 screen.
