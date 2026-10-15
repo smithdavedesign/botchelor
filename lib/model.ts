@@ -249,9 +249,40 @@ export function setModelForTests(model: Model | null): void {
   testModel = model;
 }
 
-/** The actor: speaks every line of the date and the morning-after texts. */
+/**
+ * Try `primary`; if it fails with a ModelError (the paid model is down, out of budget, rate-limited), fall
+ * back to `fallback` for that call. This is what lets a paid default never break the show: a spent budget just
+ * degrades the date to the free model instead of failing it. Any non-ModelError (a bug) still propagates.
+ */
+export function fallbackModel(primary: Model, fallback: Model): Model {
+  return {
+    async complete(messages, options) {
+      try {
+        return await primary.complete(messages, options);
+      } catch (err) {
+        if (err instanceof ModelError) return fallback.complete(messages, options);
+        throw err;
+      }
+    },
+  };
+}
+
+/**
+ * Whether the paid (frontier) model is the DEFAULT for all generation. Off unless FRONTIER_DEFAULT=1 AND a
+ * frontier model is configured — so the live show stays $0 until the owner turns it on with a configured,
+ * provider-capped key (docs/frontier.md). When on, getModel/getDirectorModel run the paid model with the free
+ * model as a fallback, so a spent monthly budget degrades the show to $0 rather than breaking it.
+ */
+export function paidDefaultOn(env: Record<string, string | undefined> = process.env): boolean {
+  return env.FRONTIER_DEFAULT === "1" && frontierConfigured(env);
+}
+
+/** The actor: speaks every line of the date and the morning-after texts. Paid-by-default (with free fallback) when FRONTIER_DEFAULT is on. */
 export function getModel(reasoning: ReasoningEffort | undefined = roleReasoning("actor")): Model {
-  return testModel ?? modelFromEnv(process.env, undefined, reasoning);
+  if (testModel) return testModel;
+  const free = modelFromEnv(process.env, undefined, reasoning);
+  const paid = paidDefaultOn() ? getFrontierModel() : null;
+  return paid ? fallbackModel(paid, free) : free;
 }
 
 /**
@@ -264,7 +295,9 @@ export function getDirectorModel(
   reasoning: ReasoningEffort | undefined = roleReasoning("director", env),
 ): Model {
   if (testModel) return testModel;
-  return modelFromEnv({ ...env, LLM_MODEL: directorModelName(env) ?? env.LLM_MODEL }, undefined, reasoning);
+  const free = modelFromEnv({ ...env, LLM_MODEL: directorModelName(env) ?? env.LLM_MODEL }, undefined, reasoning);
+  const paid = paidDefaultOn(env) ? getFrontierModel() : null;
+  return paid ? fallbackModel(paid, free) : free;
 }
 
 /**
@@ -287,9 +320,11 @@ export function namedModel(name: string, env: Record<string, string | undefined>
  * Frontier model: a better, paid model, GATED behind an admin password (the owner's approval, 2026-10-13).
  *
  * Off by default: every normal request uses the free model above, so marginal cost stays $0. The frontier
- * model is used only when FRONTIER_LLM_* is configured AND the request carries the matching x-frontier-key
- * header, so spend is limited to explicitly authorized runs ("a handful of examples"). Keys come from the
- * environment (keychain / Vercel), never from code, and the password is compared in constant time.
+ * model is used when FRONTIER_LLM_* is configured AND either the request carries the matching x-frontier-key
+ * header (an authorized one-off A/B run) OR FRONTIER_DEFAULT=1 is set (the paid model as the default for the
+ * whole show, with the free model as an automatic fallback — see paidDefaultOn / getModel, docs/frontier.md).
+ * Keys come from the environment (keychain / Vercel), never from code, and the password is compared in
+ * constant time. The spend cap lives at the provider; the app's floor is always the free model.
  * ------------------------------------------------------------------ */
 
 export const frontierConfigured = (env: Record<string, string | undefined> = process.env): boolean =>

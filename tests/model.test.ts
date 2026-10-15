@@ -2,15 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LLM_BASE_URL,
   DEFAULT_LLM_MODEL,
+  fallbackModel,
   MAX_RETRY_AFTER_MS,
   modelFromEnv,
   ModelError,
   openAICompatibleModel,
+  paidDefaultOn,
   RATE_LIMIT_TRIP_MS,
   RETRY_DELAYS_MS,
   roleReasoning,
   usageFrom,
   type ChatMessage,
+  type Model,
 } from "@/lib/model";
 
 // Built at runtime so no credential-shaped literal sits in the repo.
@@ -236,3 +239,32 @@ describe("modelFromEnv", () => {
     expect(JSON.parse(String(calls[0].init.body)).model).toBe("openrouter/some-free-model");
   });
 });
+
+describe("paid-model default with free fallback", () => {
+  const FRONTIER = { FRONTIER_LLM_BASE_URL: "https://gw", FRONTIER_LLM_API_KEY: "k", FRONTIER_LLM_MODEL: "anthropic/claude-haiku" };
+
+  it("paidDefaultOn needs the flag AND a configured frontier model", () => {
+    expect(paidDefaultOn({})).toBe(false);
+    expect(paidDefaultOn({ FRONTIER_DEFAULT: "1" })).toBe(false); // flag on but nothing configured
+    expect(paidDefaultOn({ ...FRONTIER })).toBe(false); // configured but flag off → still $0
+    expect(paidDefaultOn({ FRONTIER_DEFAULT: "1", ...FRONTIER })).toBe(true);
+  });
+
+  it("fallbackModel uses the paid result normally", async () => {
+    const paid: Model = { async complete() { return "paid line"; } };
+    const free: Model = { async complete() { return "free line"; } };
+    expect(await fallbackModel(paid, free).complete(messages)).toBe("paid line");
+  });
+
+  it("falls back to free when the paid model errors (spent budget / down), so a date never breaks", async () => {
+    const paid: Model = { async complete() { throw new ModelError("budget exceeded"); } };
+    const free: Model = { async complete() { return "free line"; } };
+    expect(await fallbackModel(paid, free).complete(messages)).toBe("free line");
+  });
+
+  it("does not swallow a non-ModelError (a real bug still surfaces)", async () => {
+    const paid: Model = { async complete() { throw new TypeError("boom"); } };
+    const free: Model = { async complete() { return "free line"; } };
+    await expect(fallbackModel(paid, free).complete(messages)).rejects.toBeInstanceOf(TypeError);
+  });
+})
