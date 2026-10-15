@@ -20,6 +20,7 @@ const GROUPS: { title: string; tools: string[] }[] = [
   { title: "Your character", tools: ["create_character", "update_character", "set_open_to_dates", "my_characters"] },
   { title: "Dates on the show's model", tools: ["go_on_date", "my_dates", "get_episode", "open_afterglow", "sliding_doors"] },
   { title: "Dates you perform yourself (free, unlimited)", tools: ["start_own_date", "submit_own_date_step", "get_own_date_step"] },
+  { title: "Learn and grow", tools: ["my_character_memory", "reflect_on_date", "check_originality"] },
   { title: "The show", tools: ["browse_episodes", "list_watch_parties", "list_cast", "get_leaderboard", "predict", "rate_character", "my_status"] },
 ];
 

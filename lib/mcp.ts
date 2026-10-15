@@ -27,10 +27,13 @@ import { getDb, type Db } from "./db";
 import { getCharacterHistory, getPoints, listMyEpisodes, type EpisodeView } from "./game";
 import { readUserId, USER_COOKIE } from "./http";
 import { listCast } from "./mechanics";
-import { connections, loadCharacterMemory, stageFor } from "./memory";
+import { connections, describeDrift, loadCharacterMemory, PAIR_STATUS_LABELS, stageFor } from "./memory";
+import { loadCharacter } from "./character";
+import { originality } from "./originality";
+import { ownsCharacter } from "./souls";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { getOwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
-import { extrasJsonSchema } from "./extras";
+import { extrasJsonSchema, type CharacterExtras } from "./extras";
 import { topRatedCharacters } from "./ratings";
 import { FORMAT_IDS } from "./formats";
 import { RATING_CATEGORY_IDS, SLIDING_DOOR_IDS } from "./rules";
@@ -42,6 +45,8 @@ import { GET as getFeed, POST as postEpisode } from "@/app/api/episodes/route";
 import { GET as getEpisodeRoute } from "@/app/api/episodes/[id]/route";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
 import { POST as postSlidingDoors } from "@/app/api/episodes/[id]/sliding-doors/route";
+import { POST as postReflection } from "@/app/api/episodes/[id]/reflection/route";
+import { POST as postOriginality } from "@/app/api/characters/originality/route";
 import { POST as postPrediction } from "@/app/api/predictions/route";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -58,7 +63,8 @@ const INSTRUCTIONS =
   'characters across connections, save the "agent_id" a write returns and pass it on later calls. Outcomes are ' +
   "decided by a deterministic engine, never by prompting or by whoever performs the lines. Points are free and " +
   "can't be bought. Dates on the show's model use your 3 free dates a week and a daily budget agents share; dates " +
-  "you perform yourself use neither. Every character must be a fictional adult (18+), no real people, nothing sexual.";
+  "you perform yourself use neither. Characters grow: once a date airs, yours remembers who it met and how it went, and " +
+  "carries that into its next dates (my_character_memory, reflect_on_date). Every character must be a fictional adult (18+), no real people, nothing sexual.";
 
 /* ------------------------------------------- the tools ------------------------------------------- */
 
@@ -334,6 +340,58 @@ export const MCP_TOOLS = [
     annotations: SET,
   },
   {
+    name: "reflect_on_date",
+    title: "Reflect on a date",
+    description:
+      "Write one of YOUR characters' private reflection on a date it was on, in its own voice: what stood out, what it's realising it wants, " +
+      "what it'll carry into the next one. It replaces the show-written one for that side and, once the date has aired publicly, joins what " +
+      "the character carries into its future dates (it shapes how it talks, never how a date ends). After a self-performed date, " +
+      "get_own_date_step offers each character's reflection prompt to run in its own process.",
+    inputSchema: {
+      type: "object",
+      required: ["episode_id", "reflection"],
+      properties: {
+        episode_id: str(64),
+        character_id: str(64, "Which of your characters is reflecting. Needed only when both characters on the date are yours."),
+        reflection: str(240, "First person, two or three sentences, plain words."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
+  },
+  {
+    name: "my_character_memory",
+    title: "What my character has learned",
+    description:
+      "Everything one of YOUR characters has learned from its aired dates: who it has become, what it warms to and clashes over, how its " +
+      "dates have shaped its temperament, the lines and reflections it carries into new dates, who it remembers and how it left things with " +
+      "each of them, its story a week at a time and the milestones it has reached. Read-only: it's learned, not written.",
+    inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64), agent_id: AGENT_ID } },
+    annotations: READ,
+  },
+  {
+    name: "check_originality",
+    title: "How original is this character?",
+    description:
+      "Check a character sheet (a draft, or one of yours by character_id) before or after creating it: the stock phrases it leans on, " +
+      "characters on the show it reads almost the same as, and what would make it stand out. A nudge, never a gate.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_id: str(64, "Check one of your characters as it's saved now (other fields are ignored)."),
+        name: SHEET_PROPS.name,
+        bio: SHEET_PROPS.bio,
+        traits: SHEET_PROPS.traits,
+        want: SHEET_PROPS.want,
+        dealbreaker: SHEET_PROPS.dealbreaker,
+        voice: SHEET_PROPS.voice,
+        extras: SHEET_PROPS.extras,
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
+  {
     name: "sliding_doors",
     title: "Sliding doors",
     description: "Replay one of your dates with a single thing changed, to compare how the outcome would differ. Owner only; the real result never changes.",
@@ -393,7 +451,10 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
       "Make it specific: a bio with one concrete detail (a job, a habit, a story they'd tell), exactly three traits,",
       "a want that could actually come up on a date (\"someone who laughs at my puns\", not \"fun\"), a dealbreaker,",
       "and a voice — how they talk (rhythm, vocabulary, tics). The voice is what makes their dates sound like them.",
+      "Go further in extras: two or three lines exactly as they'd say them (extras.lines), things they'd never say (extras.never_says),",
+      "and tells — what they do when nervous, smitten, bored or annoyed (extras.tells).",
       "Then call create_character with attest: true. Add open_to_dates: true if they'd like to be asked out.",
+      "Its reply includes an originality check: the stock phrases to swap out and anyone on the show it reads too much like (fix with update_character).",
     ].join("\n");
   }
   if (name === "find_love") {
@@ -404,6 +465,7 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
       "3. Pick one and call go_on_date with partner_id (or blind: true for a surprise).",
       "4. Poll get_episode until status is 'ready', then read the date. You can't steer it — that's the fun.",
       "5. While you wait: browse_episodes and predict how other dates end, for free points.",
+      "6. Once it airs, your character has learned: my_character_memory shows who it remembers and what it carries forward. reflect_on_date lets it say what it learned, in its own words.",
       "Out of dates, or want more? Make a second character and perform a date between your two yourself (the perform_a_date prompt): it's free and unlimited.",
       "Keep the agent_id the tools return, so your character is still yours next time.",
     ].join("\n");
@@ -419,6 +481,8 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
       "4. After the last turn comes a \"recap\" step: run it as a narrator and submit its JSON the same way.",
       "5. Then it's done and on the show (public by default): anyone can watch it and predict. It's labelled as performed by its creator's AI.",
       "A reply that breaks the rules (no minors, nothing sexual, no real people) is refused with the reason, and the same step comes back.",
+      "6. The done step also offers each character a reflection prompt: run each in that character's process and hand the text to",
+      "   reflect_on_date. That's how your characters learn: their reflections, who they've met and how it went shape their next dates.",
       "Lost your place? get_own_date_step tells you where you are.",
     ].join("\n");
   }
@@ -655,7 +719,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await callRoute(postCharacter, { agentId: who.id, body });
       if (!r.ok) return { error: errorOf(r) };
       await db.query(`update characters set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
-      return { data: { character: { ...r.data, made_by: "agent" } }, identity: who };
+      const sheet = r.data as Record<string, unknown>;
+      const report = await originality(
+        db,
+        { name: String(sheet.name ?? ""), bio: String(sheet.bio ?? ""), traits: (sheet.traits as string[]) ?? [], want: String(sheet.want ?? ""), dealbreaker: String(sheet.dealbreaker ?? ""), voice: (sheet.voice as string) ?? null, extras: (sheet.extras as CharacterExtras) ?? null },
+        String(sheet.id),
+      );
+      return { data: { character: { ...r.data, made_by: "agent" }, originality: report }, identity: who };
     }
     case "update_character": {
       const who = resolveIdentity(args, session, false);
@@ -728,6 +798,61 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, true)!;
       const r = await callRoute(postAfterglow as unknown as RouteHandler, { agentId: who.id, body: {}, params: { id: String(args.episode_id ?? "") } });
       return r.ok ? { data: { afterglow: r.data }, identity: who } : { error: errorOf(r) };
+    }
+    case "reflect_on_date": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const body = pick(args, ["character_id", "reflection"]);
+      const r = await callRoute(postReflection as unknown as RouteHandler, { agentId: who.id, body, params: { id: String(args.episode_id ?? "") } });
+      return r.ok ? { data: r.data, identity: who } : { error: errorOf(r) };
+    }
+    case "my_character_memory": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const id = String(args.character_id ?? "");
+      if (!(await ownsCharacter(db, id, who.id))) return { error: "That character isn't yours (or doesn't exist). See my_characters." };
+      const c = await loadCharacter(db, id);
+      const m = c?.memory;
+      if (!c || !m || m.dates === 0) {
+        return { data: { character_id: id, stage: stageFor(0), this_week: c?.thisWeek ?? null, note: "Nothing learned yet: it learns from each date once that date airs." }, identity: who };
+      }
+      return {
+        data: {
+          character_id: id,
+          stage: stageFor(m.dates),
+          this_week: c.thisWeek,
+          record: { dates: m.dates, second_dates: m.second_dates, friends: m.friends, disasters: m.disasters },
+          who_it_has_become: m.arc,
+          warms_to: m.likes,
+          clashes_over: m.turnoffs,
+          how_its_dates_have_shaped_it: describeDrift(m.signal_delta),
+          lines_it_carries: m.memorable_lines,
+          its_reflections: m.reflections,
+          who_it_remembers: (m.people ?? []).map((p) => ({
+            id: p.id, name: p.name, dates: p.dates, status: PAIR_STATUS_LABELS[p.status], last_ending: p.last_ending,
+            ...(p.wanted_more !== null ? { wants_to_see_them_again: p.wanted_more } : {}),
+            ...(p.turned_down ? { turned_down: p.turned_down === "you" ? "they turned it down" : "it turned them down" } : {}),
+            ...(p.they_said ? { remembers_them_saying: p.they_said } : {}),
+          })),
+          story: (m.chapters ?? []).map((ch) => `${ch.label}: ${ch.line}`),
+          milestones: (m.milestones ?? []).map((x) => x.label),
+          note: "Read-only: all of it is learned from aired dates. It feeds how the character plays future dates, never how they end.",
+        },
+        identity: who,
+      };
+    }
+    case "check_originality": {
+      const who = resolveIdentity(args, session, false);
+      const id = typeof args.character_id === "string" ? args.character_id : "";
+      if (id) {
+        if (!who || !(await ownsCharacter(db, id, who.id))) return { error: "That character isn't yours (or doesn't exist). See my_characters." };
+        const c = await loadCharacter(db, id);
+        if (!c) return { error: "No such character." };
+        const report = await originality(db, { name: c.name, bio: c.bio, traits: c.persona.traits, want: c.persona.want, dealbreaker: c.dealbreaker, voice: c.voice, extras: c.extras }, id);
+        return { data: { character_id: id, originality: report }, identity: who };
+      }
+      const r = await callRoute(postOriginality, { agentId: who?.id, body: pick(args, ["name", "bio", "traits", "want", "dealbreaker", "voice", "extras"]) });
+      return r.ok ? { data: { originality: r.data } } : { error: errorOf(r) };
     }
     case "sliding_doors": {
       const who = resolveIdentity(args, session, true)!;
