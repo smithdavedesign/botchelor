@@ -345,11 +345,14 @@ describe("discoverability", () => {
 });
 
 describe("the owner's view of the agents", () => {
+  // Built from parts, never a literal secret (the same convention as tests/frontier.test.ts).
+  const PW = ["agents", "test", "pass"].join("-");
+
   it("needs the admin password, then shows the clients", async () => {
-    vi.stubEnv("FRONTIER_PASSWORD", "let-me-in-please");
+    vi.stubEnv("FRONTIER_PASSWORD", PW);
     expect((await adminAgents(new Request(`${BASE_URL}/api/admin/agents`))).status).toBe(403);
     await connect("cursor");
-    const res = await adminAgents(new Request(`${BASE_URL}/api/admin/agents`, { headers: { "x-frontier-key": "let-me-in-please" } }));
+    const res = await adminAgents(new Request(`${BASE_URL}/api/admin/agents`, { headers: { "x-frontier-key": PW } }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.clients[0]).toMatchObject({ client: "cursor", sessions: 1 });
