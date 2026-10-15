@@ -1,0 +1,986 @@
+{
+  "label": "v2-lite",
+  "ran_at": "2026-10-15T00:27:25.062Z",
+  "base": "https://botchelor.vercel.app",
+  "models": {
+    "judge": "gemini-3.5-flash-lite"
+  },
+  "summary": {
+    "index": 90,
+    "judge_mean": 4.07,
+    "profile_reading": 0,
+    "abrupt_flips": 0,
+    "misgendered": 0,
+    "question_rate": 0.56,
+    "responsiveness": 0.77,
+    "distinctness": 0.86,
+    "model_calls": 11.67,
+    "conversations_failed": 0
+  },
+  "results": [
+    {
+      "case": "thin-oc-juniper",
+      "format": "classic",
+      "ending": "Just friends",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Jordan Pike",
+        "Juniper Vale"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Hey, I'm Jordan. Honestly I'm mostly just here because my friends dared me to wear this blue jacket on camera, but what about you—how'd you end up in this noise box?",
+          "action": "adjusts jacket collar",
+          "emotion": "relaxed",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "I keep a lighthouse. The gulls don't care much for arcade music. Do you think that machine is ever actually winning, or just lying?",
+          "action": "pulls storm coat tighter",
+          "emotion": "curious",
+          "interest": 0.3
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "I'm voting for lying. Definitely lying. Wait, you actually live in a lighthouse? That's... well, that's way less boring than what I do.",
+          "action": "leans against the broken cabinet",
+          "emotion": "curious",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "It's mostly damp. What is it that you do, Jordan, besides wear the blue dare jacket?",
+          "action": "tilts head curiously",
+          "emotion": "curious",
+          "interest": 0.3
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "I fix things that people break, mostly old bikes and stuff. But honestly? I want to see this lighthouse now. Is it actually as quiet as it sounds?",
+          "action": "shrugs with a grin",
+          "emotion": "intrigued",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "It is quiet enough that you can hear the rust on the hinges. Do you know anything about fixing foghorns? One of mine has been making a wet coughing sound.",
+          "action": "pulls frayed sleeve down",
+          "emotion": "curious",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "A wet coughing foghorn? Alright, challenge accepted. I'll fix your horn if you let me climb to the top before the lights go out.",
+          "action": "steps closer with a grin",
+          "emotion": "amused",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Deal. My bus leaves in five minutes anyway. Here's my card—don't lose it to the gulls.",
+          "action": "stands up and grabs coat",
+          "emotion": "fond",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "I won't. Text you when I've got my toolbox ready. See you, Juniper.",
+          "action": "waves as she leaves",
+          "emotion": "warm",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "See you, Jordan. Bring a wrench that believes in ghosts.",
+          "action": "zips up storm coat",
+          "emotion": "fond",
+          "interest": 0.7
+        }
+      ],
+      "recap": {
+        "setting": "A loud retro arcade where one machine is broken and keeps announcing a winner.",
+        "scenes": [
+          "Jordan introduces himself, admitting his blue jacket was a dare, while Juniper dryly questions if the broken arcade machine is actually winning or just lying.",
+          "When Jordan asks about the lighthouse and offers to fix a coughing foghorn, Juniper accepts the challenge and invites him to climb to the top.",
+          "Juniper announces her bus is leaving in five minutes, hands over her card, and departs while Jordan promises to bring his toolbox."
+        ],
+        "best_line": "Do you think that machine is ever actually winning, or just lying?"
+      },
+      "plan": {
+        "source": "director",
+        "spine": "Jordan Pike and Juniper Vale: a first date that ends \"Just friends\".",
+        "acts": [
+          {
+            "scene": "They meet at a loud retro arcade where one machine is broken and keeps announcing a winner. First impressions: they size each other up and start finding out who the other is.",
+            "a": "You're even-keeled. Be yourself from the first line: say who you are the way you'd actually say it, and ask them something you genuinely want to know. Quietly, you're out to try something outside your comfort zone.",
+            "b": "You're set in your ways, slow to let anyone in. Be yourself from the first line: say who you are the way you'd actually say it, and ask them something you genuinely want to know. Quietly, you're out to see whether they can make you laugh."
+          },
+          {
+            "scene": "Someone connected to one of their pasts turns up unannounced — it shows who each of them really is, and pulls them closer.",
+            "a": "What you came to find out, you find out — and it goes your way. By the end of this act you're warming to them.",
+            "b": "What you came to find out doesn't go your way. By the end of this act you're warming to them."
+          },
+          {
+            "scene": "It resolves: Just friends. Juniper Vale leaves first.",
+            "a": "You'd see them again — as friends, maybe more; you're honestly not sure. They're the one who leaves first. Land it your way, in your own words — no announcements.",
+            "b": "You'd see them again — as friends, maybe more; you're honestly not sure. You're the one who leaves first. Land it your way, in your own words — no announcements."
+          }
+        ]
+      },
+      "metrics": {
+        "turns": 10,
+        "avg_words": 21.7,
+        "length_spread": 7.03,
+        "question_rate": 0.7,
+        "responsiveness": 0.56,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "self_quotes": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "distinctness": 0.88,
+        "grounding": [
+          0,
+          0.6
+        ],
+        "index": 87
+      },
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 4,
+        "motivated": 3,
+        "specific": 4,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The best moment is Juniper's dry query about the foghorn's wet cough; the biggest issue is that the outcome notes both want another date, but the text ends on a platonic 'just friends' note without fully earning that shift."
+      },
+      "judge_mean": 4,
+      "model_calls": 12,
+      "ms": 11075,
+      "conversation_error": null,
+      "models": {
+        "actor": "default",
+        "director": "default",
+        "judge": "gemini-3.5-flash-lite"
+      }
+    },
+    {
+      "case": "rafe-juniper",
+      "format": "classic",
+      "ending": "A disaster",
+      "wants_another": [
+        false,
+        false
+      ],
+      "characters": [
+        "Rafe Calloway",
+        "Juniper Vale"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Well, a salt-tangled storm coat on a freezing beach—that's a bold pairing, but I respect it! I'm Rafe. I bake exclusively when it rains, mostly because the humidity ruins my mood. What brings you out to the freezing dark tonight?",
+          "action": "pulls the blanket tighter",
+          "emotion": "curious",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "The humidity doesn't bother the gulls. I live in a lighthouse. What kind of things do you bake when it rains?",
+          "action": "sipping the terrible thermos",
+          "emotion": "curious",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "A lighthouse! Oh, you are living my absolute Gothic romance fantasy. When the skies open up, I do cardamom brioche buns that puff up like little golden pillows. Do you actually bake out there, or just watch the waves rage?",
+          "action": "leans in eagerly",
+          "emotion": "delighted",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Mostly just the waves, and a loaf of soda bread that could double as a doorstop. Cardamom brioche sounds suspiciously nice. Have you ever seen a ghost?",
+          "action": "stares out at the dark water",
+          "emotion": "curious",
+          "interest": 0.3
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "A doorstop loaf? Oh, Juniper, you wound me. Bread requires a gentle touch, not architectural stability. And no ghosts, unless you count the ones who haunt my bad reviews.",
+          "action": "stares skeptically at the ocean",
+          "emotion": "cold",
+          "interest": 0.4
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "Bad reviews don't rattle chains. They just sit there. Do you believe in anything you can't measure?",
+          "action": "stares past him at the dark waves",
+          "emotion": "distant",
+          "interest": 0.3
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "I measure things in grams and degrees, Juniper. But sitting out here with a phantom breeze and a doorstop loaf... maybe I'm losing my edge.",
+          "action": "pulls blanket tighter",
+          "emotion": "detached",
+          "interest": 0.4
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "I think we're done here. Let's go.",
+          "action": "stands up and shakes out blanket",
+          "emotion": "done",
+          "interest": 0
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "Honestly? My fingers are frozen solid anyway. Let's find some actual shelter before we turn into permanent lighthouse fixtures.",
+          "action": "stands up and shakes off sand",
+          "emotion": "relieved",
+          "interest": 0.1
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Good. Watch your step on the rocks.",
+          "action": "walks off the beach into the dark",
+          "emotion": "done",
+          "interest": 0
+        }
+      ],
+      "recap": {
+        "setting": "A cold beach at night with one shared blanket and a thermos of something terrible.",
+        "scenes": [
+          "Rafe welcomes Juniper to the freezing dark while bundled in their shared blanket, and Juniper asks if he has ever seen a ghost.",
+          "A long, awkward silence settles over the beach as Rafe scoffs at her baking skills and questions her supernatural beliefs.",
+          "Juniper decides they are done here and stands up, and Rafe readily agrees to leave before they turn into permanent lighthouse fixtures."
+        ],
+        "best_line": "I measure things in grams and degrees, Juniper."
+      },
+      "plan": {
+        "source": "director",
+        "spine": "Rafe Calloway and Juniper Vale: a first date that ends A disaster.",
+        "acts": [
+          {
+            "scene": "They meet at a cold beach at night with one shared blanket and a thermos of something terrible. First impressions: they size each other up and start finding out who the other is.",
+            "a": "You're warm, quick to joke, game for anything, an open book. Be yourself from the first line: say who you are the way you'd actually say it, and ask them something you genuinely want to know. Quietly, you're out to keep things light and easy.",
+            "b": "You're set in your ways, slow to let anyone in. Be yourself from the first line: say who you are the way you'd actually say it, and ask them something you genuinely want to know. Quietly, you're out to test whether they mean what they say."
+          },
+          {
+            "scene": "A long, awkward silence settles over the cold sand as the terrible thermos is passed back and forth, driving up their chemistry and tension while their hidden tests fail.",
+            "a": "What you came to find out doesn't go your way as your attempts to keep things light hit a wall of salt and silence. By the end of this act something in you has started to cool.",
+            "b": "What you came to find out doesn't go your way as your silent trials of their sincerity fall flat against theatrical food metaphors. By the end of this act something in you has started to cool."
+          },
+          {
+            "scene": "It resolves: A disaster. They leave together into the dark, shivering and entirely out of patience with each other.",
+            "a": "By the end you've had enough of this date and its ghost stories. You leave together, retreating from the cold without a backward glance.",
+            "b": "By the end you've had enough of this date and its excessive flair. You leave together, pulling your storm coat tight and walking off the beach."
+          }
+        ]
+      },
+      "metrics": {
+        "turns": 10,
+        "avg_words": 23.4,
+        "length_spread": 11.28,
+        "question_rate": 0.7,
+        "responsiveness": 0.67,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "self_quotes": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "distinctness": 0.85,
+        "grounding": [
+          0.2,
+          0.4
+        ],
+        "index": 88
+      },
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 3,
+        "motivated": 2,
+        "specific": 4,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": true,
+        "note": "The abrupt turn is the biggest flaw as they just suddenly agree to leave, but the distinct voices and vivid food/lighthouse specifics are great."
+      },
+      "judge_mean": 3.71,
+      "model_calls": 12,
+      "ms": 11356,
+      "conversation_error": null,
+      "models": {
+        "actor": "default",
+        "director": "default",
+        "judge": "gemini-3.5-flash-lite"
+      }
+    },
+    {
+      "case": "mira-dex",
+      "format": "classic",
+      "ending": "Just friends",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Mira Quell",
+        "Dex Okafor"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "I saw those scarred knuckles stacking chairs earlier and had to wonder—are you a woodworker, or just really bad at fighting bread dough?",
+          "action": "fidgets with compass chain",
+          "emotion": "amused",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "A bit of both, honestly. Bread dough can be surprisingly vicious. It's nice to meet you, Mira. I'm Dex.",
+          "action": "offers a very careful handshake",
+          "emotion": "calm",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Nice to meet you too, Dex. Vicious bread is no joke, especially when it rises up against you. So, what kind of things do you usually make with your hands?",
+          "action": "taps compass against saucer",
+          "emotion": "amused",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Mostly mugs and bowls that end up slightly lopsided. I teach pottery now. I used to do stunt work, so working with clay is nice because nothing explodes if you sneeze. How about you, Mira? What do those ink-stained cuffs get up to?",
+          "action": "rubs clay off one wrist",
+          "emotion": "warm",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "Stunt work? Oh wow, okay, that definitely trumps fighting sourdough. I make maps, mostly of places that aren't quite there. Honestly I used to be terrified of heights, so I'd map everything from the floor up.",
+          "action": "draws a tiny map on a napkin",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "Mapping from the floor up sounds safer than jumping off buildings, I'll give you that. I'm actually terrified of heights myself. Irony of the job, I suppose.",
+          "action": "stares into his teacup",
+          "emotion": "amused",
+          "interest": 0.6
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "You faced a fear like that for a living? That takes real guts. I mapped my way out of my own panic once—figured if I knew every single floorboard, the room couldn't swallow me.",
+          "action": "sketches a tiny staircase on the napkin",
+          "emotion": "touched",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Floorboards don't judge you for staying put. I'd like to see where those maps go, if you're ever walking this way again.",
+          "action": "knocks softly on wooden doorframe",
+          "emotion": "warm",
+          "interest": 0.85
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "Well, according to my internal compass, my front door is that way—want to get completely lost on the walk over?",
+          "action": "steps out into the cool air",
+          "emotion": "warm",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "I'd like that. Lead the way, Mira.",
+          "action": "smiles gently and steps outside",
+          "emotion": "warm",
+          "interest": 0.8
+        }
+      ],
+      "recap": {
+        "setting": "A cramped corner café that is closing in an hour, with chairs going up around them as they talk.",
+        "scenes": [
+          "Mira Quell jokes about Dex Okafor's scarred knuckles while fidgeting with her compass chain, and Dex offers a very careful handshake while explaining he teaches pottery.",
+          "Mira admits she used to be terrified of heights and mapped everything from the floor up, prompting Dex to confess he is actually terrified of heights himself despite his stunt background.",
+          "Dex suggests he would like to see where her maps go, and Mira asks if he wants to get completely lost on the walk over as they step out together."
+        ],
+        "best_line": "Floorboards don't judge you for staying put."
+      },
+      "plan": {
+        "source": "director",
+        "spine": "Mira Quell and Dex Okafor share a warm, surprising hour in a closing café, finding a deep platonic rapport where neither wants to force a romance.",
+        "acts": [
+          {
+            "scene": "They meet at a cramped corner café that is closing in an hour, chairs going up around them, sizing each other up as the staff stacks tables nearby.",
+            "a": "You're cool and hard to read, set in your ways, an open book. Be yourself from the first line: talk with your hands, ask about their scarred knuckles, and keep things light and easy to avoid any awkwardness.",
+            "b": "You're warm. Be yourself from the first line: give a very careful handshake, speak in plain words, and gently test whether they actually mean what they say about loving unexpected places."
+          },
+          {
+            "scene": "One of them admits something they had meant to keep quiet—a confession about past fears—which pulls them closer despite their differences.",
+            "a": "What you came to find out, you find out—and it goes your way when they share a vulnerable truth. By the end of this act you're warming to them and drawing a little map on your napkin.",
+            "b": "What you came to find out doesn't go your way, as their unpredictable life brushes against your need for a quiet night. By the end of this act you're warming to them anyway."
+          },
+          {
+            "scene": "As the lights go out in the café, they pack up their things and walk out into the cool night together, deciding where they stand.",
+            "a": "You'd see them again—as friends, maybe more; you're honestly not sure. You leave together. Land it your way by making a warm, geography-laced quip about the walk ahead.",
+            "b": "You'd see them again—as friends, maybe more; you're honestly not sure. You leave together. Land it your way by offering a gentle, quiet smile and knocking softly on the wooden doorframe as you exit."
+          }
+        ]
+      },
+      "metrics": {
+        "turns": 10,
+        "avg_words": 26.5,
+        "length_spread": 9.87,
+        "question_rate": 0.6,
+        "responsiveness": 0.67,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "self_quotes": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "distinctness": 0.85,
+        "grounding": [
+          0.6,
+          0.2
+        ],
+        "index": 89
+      },
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 4,
+        "motivated": 5,
+        "specific": 4,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Strong, distinct voices with great integration of character quirks like the napkin drawing and stunt work. The transition to leaving together flows naturally from their shared vulnerability about fear."
+      },
+      "judge_mean": 4.29,
+      "model_calls": 12,
+      "ms": 22179,
+      "conversation_error": null,
+      "models": {
+        "actor": "default",
+        "director": "default",
+        "judge": "gemini-3.5-flash-lite"
+      }
+    },
+    {
+      "case": "teo-ines",
+      "format": "classic",
+      "ending": "A second date",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Teo Brandt",
+        "Inés Castellano"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Well, the azaleas are doing their best, but I think we're both about to get soaked. I'm Teo. Are you always this prepared for a storm, or is the tote of seedlings your usual arm candy?",
+          "action": "adjusts cuffs smoothly",
+          "emotion": "amused",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Oh, these? They're just passengers today. I'm Inés! Honestly, I kind of like rain—it saves me a trip with the watering can. Do you come to parks often, or are you just hiding out from the weather like me?",
+          "action": "shifts heavy tote bag",
+          "emotion": "bright",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "I teach ballroom, Ines, so my life is basically indoor parquet floors and very stern old pianos. Outdoors is foreign territory for me. What kind of green things are you hauling around in there?",
+          "action": "smiles and glances down at the tote",
+          "emotion": "amused",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Just a couple of dwarf maples and a very stubborn lime sapling! Ballroom dancing sounds intense though—do you spend all day spinning people around, or is there a lot of paperwork involved?",
+          "action": "peeks inside the canvas bag",
+          "emotion": "curious",
+          "interest": 0.6
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "A bit of both, honestly. Mostly untangling feet and occasionally acquiring small velvet boxes from people who get over-enthusiastic.",
+          "action": "laughs and shakes head",
+          "emotion": "warm",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "Small velvet boxes? Okay, now you have to explain that—do people just hand them to you like stray cats?",
+          "action": "leans forward with wide eyes",
+          "emotion": "curious",
+          "interest": 0.6
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "Let's just say my posture makes people feel things they can't quite articulate. Four times, to be exact. All unopened.",
+          "action": "wryly taps chest",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Four times?! You can't just drop that and leave me hanging! We definitely need to compare notes on this soon—are you free this weekend before your feet get tangled again?",
+          "action": "laughs and taps his arm",
+          "emotion": "hopeful",
+          "interest": 0.9
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "I'd love nothing more, but I've actually got a class to sprint to right now! Save me a dance this weekend, Ines.",
+          "action": "tosses a wave and jogs away",
+          "emotion": "charmed",
+          "interest": 0.95
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "I definitely will! Run along, go catch your class!",
+          "action": "waves back with a grin",
+          "emotion": "happy",
+          "interest": 0.95
+        }
+      ],
+      "recap": {
+        "setting": "A botanic park in the minutes before it rains, with neither Teo nor Inés willing to mention the dark sky overhead.",
+        "scenes": [
+          "Teo meets Inés among the azaleas, smoothly remarking on her heavy tote of seedlings while adjusting his polished cuffs.",
+          "When Inés asks about his life on the dance floor, Teo laughs and admits he has been proposed to four times, keeping every ring box unopened.",
+          "Inés is utterly fascinated and immediately suggests getting together again this weekend, prompting Teo to sprint off to his next class with a grin."
+        ],
+        "best_line": "Four times?! You can't just drop that and leave me hanging!"
+      },
+      "plan": {
+        "source": "director",
+        "spine": "Teo Brandt and Inés Castellano: a first date that ends \"A second date\".",
+        "acts": [
+          {
+            "scene": "They meet under the heavy canopy of the botanic park as the first drops of rain start to tap the leaves, both pretending the weather isn't changing. First impressions: they size each other up through sharp posture, dirt-smudged fingernails, and quick banter about the park's damp azaleas.",
+            "a": "You're warm, quick to joke, game for anything, an open book. Be yourself from the first line: say who you are the way you'd actually say it, and ask them something you genuinely want to know. Quietly, you're out to see whether they can make you laugh.",
+            "b": "You're warm, game for anything, an open book. Be yourself from the first line: say who you are the way you'd actually say it, and ask them something you genuinely want to know. Quietly, you're out to keep the conversation off work."
+          },
+          {
+            "scene": "Sheltering under a glass pavilion while the storm breaks outside, one of them lets slip an unintended confession about their private collection of ring boxes that changes the rhythm of the afternoon.",
+            "a": "What you came to find out doesn't go your way, as their earnest stories completely bypass your attempts at comedy. By the end of this act you're warming to them anyway, charmed by their total lack of irony.",
+            "b": "What you came to find out, you find out — and it goes your way, successfully dodging any talk of your midnight gardening escapades while learning about their curious romantic past. By the end of this act you're warming to them."
+          },
+          {
+            "scene": "Standing at the park gates as the clouds part, they agree to see each other again while Teo Brandt makes a swift exit to catch a prior engagement.",
+            "a": "You want to see them again, and it shows. You're the one who leaves first, tossing a final flirtatious remark over your shoulder as you dash into the street.",
+            "b": "You want to see them again, and it shows. They're the one who leaves first, waving from the sidewalk and leaving you smiling alone under the dripping maples."
+          }
+        ]
+      },
+      "metrics": {
+        "turns": 10,
+        "avg_words": 26.6,
+        "length_spread": 9.34,
+        "question_rate": 0.6,
+        "responsiveness": 1,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "self_quotes": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "distinctness": 0.87,
+        "grounding": [
+          0.6,
+          0.4
+        ],
+        "index": 94
+      },
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 4,
+        "motivated": 4,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The banter flows naturally with clear voices, though Teo's mention of his bio fact feels slightly like reading from a script rather than organic sharing."
+      },
+      "judge_mean": 4,
+      "model_calls": 14,
+      "ms": 34427,
+      "conversation_error": null,
+      "models": {
+        "actor": "default",
+        "director": "default",
+        "judge": "gemini-3.5-flash-lite"
+      }
+    },
+    {
+      "case": "orin-sable",
+      "format": "meet_the_parents",
+      "ending": "Just friends",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Orin Fletcher",
+        "Sable Quist"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "I'm Orin. That glitter on your sleeve looks permanent. Is it from a craft project or an escape attempt?",
+          "action": "adjusting reading glasses",
+          "emotion": "curious",
+          "interest": 0.3
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Escape attempt, obviously! Or glitter factory heist gone wrong. I'm Sable. Tell me, Orin, if I told you we had to climb out that window right now and steal a boat, would you ask why or just grab my hand?",
+          "action": "leans across table grinning",
+          "emotion": "amused",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "I'd ask which boat, what insurance covers the dock fees, and whether we actually know how to sail. Otherwise, I might just drop you in the water.",
+          "action": "taps pencil against water glass",
+          "emotion": "skeptical",
+          "interest": 0.3
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Insurance! Oh, Orin, you are killing me! That is the most beautifully responsible threat I've ever heard. Okay, serious question: what's the last totally unhinged thing you did just because it felt right?",
+          "action": "snorts with laughter",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "I once walked out of a movie theatre thirty minutes in because the historical timeline was ninety years off. That's about my limit. But I like your laugh. It sounds entirely unscripted.",
+          "action": "slips pencil behind ear",
+          "emotion": "warm",
+          "interest": 0.6
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "Thirty minutes! Oh, that's magnificent. You rebel, you! Honestly, unscripted is my middle name. Well, actually it's Joy, but unscripted is better. Come on, stand up with me—let's go see what song is queued up!",
+          "action": "grabs his hand eagerly",
+          "emotion": "fond",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "Alright. But if it's a duet, I only sing the spoken-word bridge. Lead the way, Sable.",
+          "action": "stands up slowly",
+          "emotion": "amused",
+          "interest": 0.65
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Spoken-word bridge! Oh, you are full of surprises, Orin. Honestly? I'd love to see you again for a proper coffee sometime. But go on, beat me to the door before I drag you into another scheme!",
+          "action": "waves as he leaves",
+          "emotion": "fond",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "Coffee sounds acceptable. No boats, though. I'll text you Tuesday.",
+          "action": "stepping out the door",
+          "emotion": "warm",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Deal! Text me Tuesday, Orin! Have the best walk home!",
+          "action": "waves enthusiastically from the booth",
+          "emotion": "fond",
+          "interest": 0.7
+        }
+      ],
+      "recap": {
+        "setting": "A cramped karaoke booth booked for a full hour, with a pre-queued song blinking on the monitor.",
+        "scenes": [
+          "Orin adjusted his reading glasses and asked Sable if the glitter on her sleeve was from a craft project or an escape attempt, to which she enthusiastically declared it an escape attempt and asked if he would steal a boat with her.",
+          "When their initial plan collapsed in the booth, Sable urged him to stand up and see what song was queued, leading Orin to agree with the caveat that he would only handle the spoken-word bridge.",
+          "Sable suggested getting coffee sometime, and Orin agreed to a follow-up text on Tuesday before stepping out the door first, leaving them as friendly acquaintances."
+        ],
+        "best_line": "That is the most beautifully responsible threat I've ever heard."
+      },
+      "plan": {
+        "source": "director",
+        "spine": "Orin Fletcher and Sable Quist: a first date that ends \"Just friends\".",
+        "acts": [
+          {
+            "scene": "They meet at a karaoke booth booked for a full hour, with a song already queued by someone else. First impressions: they size each other up and start finding out who the other is.",
+            "a": "You're set in your ways, slow to let anyone in. Be yourself from the first line: say who you are the way you'd actually say it, and ask them something you genuinely want to know. Quietly, you're out to find out whether they're up for an adventure.",
+            "b": "You're warm, quick to joke, game for anything, an open book. Be yourself from the first line: say who you are the way you'd actually say it, and ask them something you genuinely want to know. Quietly, you're out to test whether they mean what they say."
+          },
+          {
+            "scene": "The plan for the date collapses and they have to improvise — it shows who each of them really is, and pulls them closer.",
+            "a": "What you came to find out doesn't go your way. By the end of this act you're warming to them.",
+            "b": "What you came to find out, you find out — and it goes your way. By the end of this act you're warming to them."
+          },
+          {
+            "scene": "It resolves: Just friends. Orin Fletcher leaves first.",
+            "a": "You'd see them again — as friends, maybe more; you're honestly not sure. You're the one who leaves first. Land it your way, in your own words — no announcements.",
+            "b": "You'd see them again — as friends, maybe more; you're honestly not sure. They're the one who leaves first. Land it your way, in your own words — no announcements."
+          }
+        ]
+      },
+      "metrics": {
+        "turns": 10,
+        "avg_words": 26.1,
+        "length_spread": 10.7,
+        "question_rate": 0.4,
+        "responsiveness": 0.89,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "self_quotes": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "distinctness": 0.82,
+        "grounding": [
+          0,
+          0.8
+        ],
+        "index": 91
+      },
+      "judge": {
+        "in_character_a": 5,
+        "in_character_b": 5,
+        "natural": 4,
+        "motivated": 3,
+        "specific": 5,
+        "distinct": 5,
+        "engaging": 5,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The best moment is Orin's historical timeline movie theatre critique; the biggest problem is the quick pivot to parting ways right after agreeing to look at the karaoke queue."
+      },
+      "judge_mean": 4.57,
+      "model_calls": 12,
+      "ms": 17357,
+      "conversation_error": null,
+      "models": {
+        "actor": "default",
+        "director": "default",
+        "judge": "gemini-3.5-flash-lite"
+      }
+    },
+    {
+      "case": "kaz-nell",
+      "format": "speed_date",
+      "ending": "Just friends",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Kaz Lindqvist",
+        "Nell Abiodun"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Eleven courses of foam? I climbed a crane at dawn just to feel something real. What's your excuse for being here?",
+          "action": "rubs chalk off palms",
+          "emotion": "restless",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "A crane at dawn sounds... substantial. I guard museum rooms at night and talk to marble busts, so the show put me here. What were you building up there?",
+          "action": "adjusts glasses nervously",
+          "emotion": "wary",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "Nothing. Just the view. Sitting on these steps with you and actual salt is better than that foam anyway.",
+          "action": "brushes dumpling dust off knee",
+          "emotion": "surprised",
+          "interest": 0.6
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "That is remarkably true about the salt. And... thank you for asking about the museum earlier. Most people just make a joke about night guards and flashlights.",
+          "action": "brushes dumpling dust off knee",
+          "emotion": "surprised",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "Museums at night are alright. Come on, let's go find a fire escape or something. You can tell me which marble head has the best gossip.",
+          "action": "stands up and offers hand",
+          "emotion": "curious",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Oh—gossip is a strong word, but Hadrian's court had... complications. Let's go.",
+          "action": "takes her hand",
+          "emotion": "hopeful",
+          "interest": 0.9
+        }
+      ],
+      "recap": {
+        "setting": "A too-fancy tasting-menu restaurant with eleven tiny courses and a hovering waiter, running on a strict speed-date countdown.",
+        "scenes": [
+          "Kaz Lindqvist slams down at the tiny table, rubbing chalk off her palms and demanding to know Nell Abiodun's excuse, while Nell nervously adjusts her glasses and mentions guarding museum rooms at night.",
+          "When the fancy tasting menu collapses instantly, they sit on the steps with actual salt and dumplings, bonding over real food and deep questions instead of foam.",
+          "Kaz stands up and offers her hand to go find a fire escape and hear museum gossip, and Nell eagerly takes it as they walk out together just as friends."
+        ],
+        "best_line": "Eleven courses of foam? I climbed a crane at dawn just to feel something real."
+      },
+      "plan": {
+        "source": "director",
+        "spine": "Kaz Lindqvist and Nell Abiodun: a first date that ends \"Just friends\".",
+        "acts": [
+          {
+            "scene": "Over the first microscopic courses in the high-pressure speed-date setting, Kaz and Nell size each other up across the pristine tablecloth while the hovering waiter watches.",
+            "a": "You're game for anything, an open book. Be yourself from the first line: say who you are the way you'd actually say it, and ask them something you genuinely want to know. Quietly, you're out to try something outside your comfort zone.",
+            "b": "You're slow to let anyone in. Be yourself from the first line: say who you are the way you'd actually say it, and ask them something you genuinely want to know. Quietly, you're out to keep things light and easy."
+          },
+          {
+            "scene": "The pretentious tasting menu collapses entirely when the kitchen gets backed up, forcing them to ditch the table and improvise over a shared napkin of street food on the steps outside.",
+            "a": "What you came to find out doesn't go your way. By the end of this act you're warming to them.",
+            "b": "What you came to find out doesn't go your way. By the end of this act you're warming to them."
+          },
+          {
+            "scene": "Sitting together on the curb as the countdown timer hits zero, they clear the air about where they stand and decide to head out into the night together.",
+            "a": "You'd see them again — as friends, maybe more; you're honestly not sure. You leave together. Land it your way, in your own words — no announcements.",
+            "b": "You'd see them again — as friends, maybe more; you're honestly not sure. You leave together. Land it your way, in your own words — no announcements."
+          }
+        ]
+      },
+      "metrics": {
+        "turns": 6,
+        "avg_words": 22.5,
+        "length_spread": 5.47,
+        "question_rate": 0.33,
+        "responsiveness": 0.8,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "self_quotes": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "distinctness": 0.9,
+        "grounding": [
+          0.33,
+          0.67
+        ],
+        "index": 91
+      },
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 3,
+        "motivated": 4,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The best moment is Nell's appreciation for a follow-up question directly matching her want, though the dialogue moves a bit too fast for a first date."
+      },
+      "judge_mean": 3.86,
+      "model_calls": 8,
+      "ms": 6705,
+      "conversation_error": null,
+      "models": {
+        "actor": "default",
+        "director": "default",
+        "judge": "gemini-3.5-flash-lite"
+      }
+    }
+  ]
+}

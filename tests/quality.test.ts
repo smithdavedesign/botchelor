@@ -3,7 +3,7 @@ import { assembleCharacter, type Character } from "@/lib/character";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterSheet } from "@/lib/engine";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import { contentWords, transcriptQuality } from "@/lib/quality";
+import { contentWords, lineIssues, transcriptQuality } from "@/lib/quality";
 
 const jun = HOUSE_CHARACTERS.find((c) => c.id === "house-juniper")!;
 const juniperSheet: CharacterSheet = {
@@ -57,6 +57,32 @@ describe("transcriptQuality — the audit's tells, on the real lines that showed
   it("repeated_openers: the same speaker starting lines the same way", () => {
     const t = [turn("a", "Honestly, I love this place."), turn("b", "Do you."), turn("a", "Honestly, I could stay all night.")];
     expect(q(t).repeated_openers).toBe(1);
+  });
+
+  it("repeated_actions: a stage direction the date already used, by either side (from the eval's real lines)", () => {
+    const act = (side: "a" | "b", dialogue: string, action: string): Turn => ({ ...turn(side, dialogue), action });
+    // Juniper copies his "brushes dumpling dust off knee"; then he re-adjusts his shirt.
+    const t = [
+      act("a", "Sitting here is better than the foam.", "brushes dumpling dust off knee"),
+      act("b", "That is remarkably true about the salt.", "brushes dumpling dust off knee"),
+      act("a", "You keep the lighthouse alone?", "adjusts shirt cuff"),
+      act("b", "Mostly the gulls keep it.", "smiles"),
+      act("a", "Brave gulls.", "adjusts shirt collar"),
+      act("b", "Very.", "smiles"), // one-word actions are too common to count
+    ];
+    expect(q(t).repeated_actions).toBe(2);
+    expect(lineIssues(t.slice(0, 1), t[1], CHARS).repeated_action).toBe("brushes dumpling dust off knee");
+  });
+
+  it("name_tics: saying the other's name in line after line", () => {
+    const t = [
+      turn("b", "Oh, David, you're killing me."),
+      turn("a", "Am I?"),
+      turn("b", "You are full of surprises, David."),
+      turn("a", "Guilty."),
+      turn("b", "Text me Tuesday."),
+    ];
+    expect(q(t).name_tics).toBe(1);
   });
 
   it("question rate, responsiveness and distinct vocabulary behave sensibly", () => {

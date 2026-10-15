@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST as evalRoute } from "@/app/api/jobs/eval/route";
 import { deterministicEngine } from "@/lib/engine";
-import { buildEvalDate, EVAL_CASES, evalCharacter, runEvalCase } from "@/lib/eval";
+import { buildEvalDate, EVAL_CASES, evalCharacter, rescoreResult, runEvalCase } from "@/lib/eval";
 import { buildJudgeMessages, judgeMean, parseJudge } from "@/lib/judge";
 import { format } from "@/lib/formats";
 import { CONVERSATION_TURNS } from "@/lib/rules";
@@ -56,6 +56,8 @@ describe("runEvalCase", () => {
     expect(result.judge_mean).toBe(judgeMean(result.judge!));
     expect(result.model_calls).toBe(1 + turns + 1); // the plan, the turns, the recap
     expect(result.conversation_error).toBeNull();
+    // A saved result re-scores to the same numbers (eval-report --rescore compares runs on today's metrics).
+    expect(rescoreResult(JSON.parse(JSON.stringify(result)))).toEqual(result.metrics);
   });
 
   it("records a failed conversation instead of throwing (the recap still stands)", async () => {
