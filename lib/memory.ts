@@ -31,6 +31,24 @@ export const MEMORABLE_LINES = 3;
 /** How many top like / turnoff cues the arc and self-view keep. */
 export const MEMORY_TOP_CUES = 3;
 
+/** How each learned signal axis reads in plain words, up vs down, for the read-only "what it's learned" view. */
+const DRIFT_LABELS: Record<keyof SoulSignals, { up: string; down: string }> = {
+  warmth: { up: "warmer", down: "cooler" },
+  openness: { up: "more open to new things", down: "more set in its ways" },
+  guardedness: { up: "slower to let people in", down: "quicker to open up" },
+  humor: { up: "quicker to joke", down: "more earnest" },
+};
+
+/**
+ * Plain-language phrases for a learned signal drift, e.g. ["warmer (+0.06)", "more open to new things (+0.08)"].
+ * Pure and display-only (the character page's training-data panel); empty when nothing has drifted.
+ */
+export function describeDrift(delta: Partial<SoulSignals>): string[] {
+  return (Object.entries(delta) as [keyof SoulSignals, number][])
+    .filter(([, v]) => v !== 0)
+    .map(([axis, v]) => `${DRIFT_LABELS[axis]?.[v > 0 ? "up" : "down"] ?? axis} (${v > 0 ? "+" : ""}${v})`);
+}
+
 /** The learned layer for one character. All fields are derived; none are written by a model. */
 export type CharacterMemory = {
   dates: number;
