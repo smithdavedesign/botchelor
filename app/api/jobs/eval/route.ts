@@ -45,6 +45,15 @@ const SavedTranscript = z
  * Body: { case, actor?, director?, judge? } — optional model names for the A/B arms.
  * Or { case, judge, transcript } — judge a saved transcript again, generating nothing (eval-rejudge.mjs).
  */
+/**
+ * Internal: which quota an eval would spend here ("eval" with EVAL_GOOGLE_API_KEY, else "shared" with the live
+ * show) and the cases, so the scripts can refuse to drain the live show's quota by accident.
+ */
+export const GET = handle(async (req: Request) => {
+  if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
+  return json({ quota: process.env.EVAL_GOOGLE_API_KEY ? "eval" : "shared", cases: EVAL_CASES.map((x) => x.id) });
+});
+
 export const POST = handle(async (req: Request) => {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
   const body = ((await readJson(req)) ?? {}) as { case?: string; actor?: string; director?: string; judge?: string; transcript?: unknown };

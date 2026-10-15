@@ -3,7 +3,7 @@
  * Judges a saved eval run again with today's judge prompt, so every run is scored by the same judge:
  *
  *   CRON_SECRET=… node scripts/eval-rejudge.mjs docs/eval/v2-lite.json --judge gemini-3.5-flash-lite
- *       [--times 2] [--label v2-lite.j2] [--base https://botchelor.vercel.app] [--gap 4]
+ *       [--times 2] [--label v2-lite.j2] [--base https://botchelor.vercel.app] [--gap 4] [--shared-quota yes]
  *
  * Each transcript goes to POST /api/jobs/eval as { case, judge, transcript }: nothing is generated and no
  * stored data is touched. --times N judges every transcript N times and averages the scores (the booleans by
@@ -29,6 +29,25 @@ if (!secret) throw new Error("CRON_SECRET must be set (it gates the internal eva
 const run = JSON.parse(readFileSync(file, "utf8"));
 const label = args.label || `${basename(file, ".json")}.rejudged`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// An eval on production's key spends the live show's free daily quota (~14 calls a date): on 2026-10-15 a few
+// back-to-back runs spent the day's quota and live dates failed until the reset. Refuse unless the deployment
+// has its own eval key, or the caller explicitly accepts sharing.
+async function checkQuota() {
+  const res = await fetch(`${base}/api/jobs/eval`, { headers: { authorization: `Bearer ${secret}` } }).catch(() => null);
+  const info = res?.ok ? await res.json() : null;
+  if (info?.quota === "eval") return;
+  if (args["shared-quota"] === "yes") {
+    console.error("warning: this eval spends the live show's free daily quota (no EVAL_GOOGLE_API_KEY on the deployment)");
+    return;
+  }
+  console.error(
+    "refusing: this deployment has no EVAL_GOOGLE_API_KEY, so an eval would spend the live show's free daily quota.\n" +
+      "Set EVAL_GOOGLE_API_KEY on the deployment (a separate free project), or pass --shared-quota yes to accept that.",
+  );
+  process.exit(2);
+}
+await checkQuota();
 const SCORES = ["in_character_a", "in_character_b", "natural", "motivated", "specific", "distinct", "engaging"];
 const FLAGS = ["profile_reading", "misgendering", "abrupt_turn"];
 
