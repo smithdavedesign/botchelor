@@ -10,7 +10,7 @@ import ProfileDetails from "./ProfileDetails";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { getDb } from "@/lib/db";
 import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
-import { loadCharacterMemory } from "@/lib/memory";
+import { describeDrift, loadCharacterMemory } from "@/lib/memory";
 import { getCharacterRatings } from "@/lib/ratings";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ENDING_LABELS } from "@/lib/rules";
@@ -122,21 +122,51 @@ export default async function CharacterPage({ params }: Props) {
         <section className="card">
           <h2>Who they&apos;ve become</h2>
           <p>{memory.arc}</p>
-          {ratings.is_owner && (memory.likes.length > 0 || memory.turnoffs.length > 0) && (
-            <p className="muted">
-              {memory.likes.length > 0 && (
-                <>
-                  <strong>Warms to:</strong> {memory.likes.join(", ")}.{" "}
-                </>
-              )}
-              {memory.turnoffs.length > 0 && (
-                <>
-                  <strong>Clashes over:</strong> {memory.turnoffs.join(", ")}.
-                </>
-              )}{" "}
-              <em>Only you can see what your character has learned.</em>
-            </p>
-          )}
+          {ratings.is_owner &&
+            (() => {
+              const drift = describeDrift(memory.signal_delta);
+              const hasLearned =
+                memory.likes.length > 0 || memory.turnoffs.length > 0 || drift.length > 0 || memory.memorable_lines.length > 0;
+              if (!hasLearned) return null;
+              return (
+                <div className="training-data muted">
+                  <p>
+                    <em>
+                      What {c.name} has learned from its dates. It&apos;s read-only — you can&apos;t edit it — and it&apos;s
+                      gathered automatically from how its dates went, then fed back into how it plays future ones. Only you can
+                      see this.
+                    </em>
+                  </p>
+                  {memory.likes.length > 0 && (
+                    <p>
+                      <strong>Warms to:</strong> {memory.likes.join(", ")}.
+                    </p>
+                  )}
+                  {memory.turnoffs.length > 0 && (
+                    <p>
+                      <strong>Clashes over:</strong> {memory.turnoffs.join(", ")}.
+                    </p>
+                  )}
+                  {drift.length > 0 && (
+                    <p>
+                      <strong>How its dates have shaped it:</strong> {drift.join(", ")}.
+                    </p>
+                  )}
+                  {memory.memorable_lines.length > 0 && (
+                    <div>
+                      <strong>Lines it carries into new dates:</strong>
+                      <ul className="list">
+                        {memory.memorable_lines.map((line, i) => (
+                          <li key={i}>
+                            <q>{line}</q>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
         </section>
       )}
 

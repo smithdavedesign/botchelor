@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { loadCharacterMemory, MEMORY_SIGNAL_CAP, updateCharacterMemory } from "@/lib/memory";
+import { describeDrift, loadCharacterMemory, MEMORY_SIGNAL_CAP, updateCharacterMemory } from "@/lib/memory";
 import type { SideOutcome } from "@/lib/engine";
 import type { Turn } from "@/lib/conversation";
 import type { Ending } from "@/lib/rules";
@@ -45,6 +45,18 @@ afterAll(async () => {
 beforeEach(async () => {
   await t.reset();
   clock = 0;
+});
+
+describe("describeDrift — the read-only 'how its dates shaped it' phrases", () => {
+  it("renders each non-zero axis with direction and signed value, and skips zeros", () => {
+    expect(describeDrift({ warmth: 0.06, openness: 0.08, guardedness: 0.05 })).toEqual([
+      "warmer (+0.06)",
+      "more open to new things (+0.08)",
+      "slower to let people in (+0.05)",
+    ]);
+    expect(describeDrift({ guardedness: -0.1 })).toEqual(["quicker to open up (-0.1)"]);
+    expect(describeDrift({})).toEqual([]);
+  });
 });
 
 describe("updateCharacterMemory — deterministic aggregation", () => {
