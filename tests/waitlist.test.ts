@@ -113,7 +113,8 @@ describe("landing page (M3)", () => {
     expect(page).toContain("<WaitlistForm");
     expect(page).toMatch(/roleplay/i);
     expect(page).toMatch(/written by AI/i);
-    expect(page).toContain("<StartForm");
+    // The builder now lives at its own /create wizard; the landing page routes there.
+    expect(page).toContain('href="/create"');
   });
 
   it("links the shop and the legal page from the site layout", () => {

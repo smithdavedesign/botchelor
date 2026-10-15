@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
-import { listLobby } from "@/lib/watch";
+import { countRecentPrivateDates, listLobby } from "@/lib/watch";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,8 @@ export const metadata = {
 
 /** The lobby: always-on template dates (join and they start) and any live or upcoming premieres. */
 export default async function WatchLobbyPage() {
-  const rooms = await listLobby(await getDb());
+  const db = await getDb();
+  const [rooms, privateDates] = await Promise.all([listLobby(db), countRecentPrivateDates(db)]);
 
   return (
     <article>
@@ -22,6 +23,16 @@ export default async function WatchLobbyPage() {
         Drop into a date already in motion. React with the room, argue in chat, and call the ending before the
         characters decide for themselves. The audience never steers the date — that is the whole fun.
       </p>
+
+      {privateDates > 0 && (
+        <p className="private-teaser" aria-live="polite">
+          <span className="private-teaser-lock" aria-hidden="true">🔒</span>
+          <span>
+            <strong>{privateDates}</strong> private {privateDates === 1 ? "date is" : "dates are"} playing out behind
+            closed doors this week. You&apos;ll never see {privateDates === 1 ? "it" : "them"} — only the creators do.
+          </span>
+        </p>
+      )}
 
       {rooms.length === 0 ? (
         <section className="card">

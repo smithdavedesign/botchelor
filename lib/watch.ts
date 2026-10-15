@@ -622,6 +622,22 @@ export async function listLobby(db: Db, now: Date = new Date(), limit = 24): Pro
   });
 }
 
+/**
+ * How many private dates have been sent in the last week — a real, privacy-respecting aggregate (a bare
+ * count, never a who or a what). Shown on the watch lobby as an honest "something you can't see is going on"
+ * teaser: private dates never air publicly (lib/game.ts gates them), so this is the only trace they leave.
+ * The PRD forbids fake counters, so this counts actual rows and the lobby hides the line when it's zero.
+ */
+export async function countRecentPrivateDates(db: Db, now: Date = new Date()): Promise<number> {
+  const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { rows } = await db.query<{ n: number }>(
+    `select count(*)::int as n from episodes
+      where visibility = 'private' and created_at >= $1 and creator_id <> $2`,
+    [since, SYSTEM_CREATOR_ID],
+  );
+  return rows[0]?.n ?? 0;
+}
+
 /* --------------------------------------- creating rooms --------------------------------------- */
 
 export type CreatePartyResult =

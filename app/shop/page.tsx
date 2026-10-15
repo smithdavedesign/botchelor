@@ -10,7 +10,7 @@ import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import BuyButton from "./BuyButton";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Shop · Botchelor" };
+export const metadata: Metadata = { title: "Tokens · Botchelor" };
 
 const KIND_LABELS: Record<ItemKind, string> = {
   house_character: "Premium house character",
@@ -38,19 +38,19 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
 
   return (
     <>
-      <h1>Shop</h1>
+      <h1>Tokens</h1>
       <p>
-        More dates for your characters, when the free ones aren&apos;t enough.{" "}
+        Top up your tokens when the free ones run out. <strong>One token sends a character on one date.</strong>{" "}
         <strong>Nothing here changes points, picks, badges or rank, and points can&apos;t be bought.</strong>
       </p>
-      <p className="muted">
-        You have {dates.free_left} of {dates.free_per_season} free dates left this week
-        {dates.pack_left > 0 && `, plus ${dates.pack_left} pack ${dates.pack_left === 1 ? "date" : "dates"}`}. Free
-        dates come back Monday 00:00 UTC.
+      <p className="muted token-balance">
+        You have <strong>{dates.left}</strong> {dates.left === 1 ? "token" : "tokens"} left: {dates.free_left} of{" "}
+        {dates.free_per_season} free this week
+        {dates.pack_left > 0 && `, plus ${dates.pack_left} topped up`}. Free tokens come back Monday 00:00 UTC.
       </p>
       {checkout === "success" && (
         <p className="notice">
-          Thanks! Your dates are added as soon as Stripe confirms the payment, usually within a few seconds. Refresh if
+          Thanks! Your tokens are added as soon as Stripe confirms the payment, usually within a few seconds. Refresh if
           they aren&apos;t here yet.
         </p>
       )}
@@ -80,7 +80,7 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
 
       <p className="muted">
         You pay on Stripe&apos;s own page (a Stripe Payment Link); we never see your card. Botchelor has no accounts
-        yet, so purchases belong to this browser: keep your Stripe receipt, and we can move your dates to a new
+        yet, so purchases belong to this browser: keep your Stripe receipt, and we can move your tokens to a new
         browser. Refunds within 14 days, see the <Link href="/terms">terms</Link>.
       </p>
     </>
