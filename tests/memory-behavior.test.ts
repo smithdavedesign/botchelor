@@ -21,11 +21,13 @@ const so = (over: Partial<SideOutcome> = {}): SideOutcome => ({
 });
 
 /** Writes a learned drift directly onto a character's memory (bypassing the date pipeline). */
+// A memory row as the current code writes it (with its milestones), so lib/memory.ts doesn't treat it as one from
+// before the story existed and rebuild it from the (empty) aired record.
 async function setMemoryDelta(id: string, delta: Record<string, number>): Promise<void> {
   await t.db.query(
-    `insert into character_memory (character_id, dates, second_dates, friends, disasters, signal_delta)
-     values ($1, 3, 3, 0, 0, $2::jsonb)
-     on conflict (character_id) do update set signal_delta = excluded.signal_delta, dates = 3, second_dates = 3`,
+    `insert into character_memory (character_id, dates, second_dates, friends, disasters, signal_delta, milestones)
+     values ($1, 3, 3, 0, 0, $2::jsonb, '[{"id":"first_date"}]'::jsonb)
+     on conflict (character_id) do update set signal_delta = excluded.signal_delta, dates = 3, second_dates = 3, milestones = excluded.milestones`,
     [id, JSON.stringify(delta)],
   );
 }
