@@ -41,7 +41,14 @@ export const RETRY_DELAYS_MS = [2_000, 5_000, 15_000];
 export const MAX_RETRY_AFTER_MS = 15_000;
 const realSleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
-type ErrorDetail = { retryDelay?: unknown; violations?: { quotaValue?: unknown }[] };
+/**
+ * After the provider refuses a call for good with a 429, later calls on the same client fail at once for this
+ * long instead of each waiting out its own retries: a date is ~14 calls, and a spent quota won't come back
+ * mid-date (each waited-out call would add ~20s to a date that fails anyway).
+ */
+export const RATE_LIMIT_TRIP_MS = 60_000;
+
+type ErrorDetail = { retryDelay?: unknown; violations?: { quotaValue?: unknown; quotaId?: unknown }[] };
 type ErrorBody = { error?: { message?: unknown; status?: unknown; details?: ErrorDetail[] } };
 
 /** The error object of a refusal's JSON body (Google sometimes wraps it in an array), or null. */
@@ -51,19 +58,23 @@ async function refusal(res: Response): Promise<ErrorBody["error"] | null> {
 }
 
 /**
- * How to handle a retryable refusal: stop at once when the model has no quota at all on this key (Google
- * answers 429 with "limit: 0" for a model outside the free tier: retrying only wastes the date's time), else
- * wait the server's hint (Retry-After, or Google's RetryInfo "17s"), capped; else the backoff.
+ * How to handle a retryable refusal. Stop at once when waiting can't help: the model has no quota at all on
+ * this key (Google answers 429 with "limit: 0" for a model outside the free tier), the day's quota is spent
+ * (a "…PerDay…" quota), or the server asks for a longer wait than we're willing to spend. Otherwise wait the
+ * server's hint (Retry-After, or Google's RetryInfo "17s"), else the backoff.
  */
 async function retryPlan(res: Response, fallbackMs: number): Promise<{ stop: true } | { stop: false; waitMs: number }> {
   const err = await refusal(res.clone());
   const message = typeof err?.message === "string" ? err.message : "";
-  const noQuota = /limit:\s*0\b/.test(message) || (err?.details ?? []).some((d) => d.violations?.some((v) => String(v.quotaValue) === "0"));
-  if (noQuota) return { stop: true };
+  const violations = (err?.details ?? []).flatMap((d) => d.violations ?? []);
+  const noQuota = /limit:\s*0\b/.test(message) || violations.some((v) => String(v.quotaValue) === "0");
+  const dailySpent = violations.some((v) => /PerDay/i.test(String(v.quotaId ?? "")));
+  if (noQuota || dailySpent) return { stop: true };
   const header = Number(res.headers.get("retry-after"));
   const hinted = (err?.details ?? []).map((d) => (typeof d.retryDelay === "string" ? parseFloat(d.retryDelay) : NaN)).find(Number.isFinite);
   const seconds = Number.isFinite(header) && header > 0 ? header : hinted !== undefined && hinted > 0 ? hinted : null;
-  return { stop: false, waitMs: seconds !== null ? Math.min(seconds * 1000, MAX_RETRY_AFTER_MS) : fallbackMs };
+  if (seconds === null) return { stop: false, waitMs: fallbackMs };
+  return seconds * 1000 > MAX_RETRY_AFTER_MS ? { stop: true } : { stop: false, waitMs: seconds * 1000 };
 }
 
 /**
@@ -87,13 +98,19 @@ export function openAICompatibleModel(opts: {
   retryDelaysMs?: number[];
   /** Injectable for tests, so a retry doesn't really wait. */
   sleep?: (ms: number) => Promise<void>;
+  /** Injectable clock for tests (the rate-limit trip). */
+  now?: () => number;
 }): Model {
   const url = `${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`;
   const doFetch = opts.fetchImpl ?? fetch;
   const delays = opts.retryDelaysMs ?? RETRY_DELAYS_MS;
   const sleep = opts.sleep ?? realSleep;
+  const now = opts.now ?? Date.now;
+  let trippedUntil = 0;
+  let trippedBy = "";
   return {
     async complete(messages, options) {
+      if (now() < trippedUntil) throw new ModelError(trippedBy);
       let res: Response;
       const body: Record<string, unknown> = { model: opts.model, messages, response_format: { type: "json_object" } };
       if (options?.temperature !== undefined) body.temperature = options.temperature;
@@ -116,7 +133,14 @@ export function openAICompatibleModel(opts: {
         await res.body?.cancel().catch(() => {}); // free the connection while we wait
         await sleep(plan.waitMs);
       }
-      if (!res.ok) throw new ModelError(`model returned HTTP ${res.status}${await errorReason(res)}`);
+      if (!res.ok) {
+        const message = `model returned HTTP ${res.status}${await errorReason(res)}`;
+        if (res.status === 429) {
+          trippedUntil = now() + RATE_LIMIT_TRIP_MS;
+          trippedBy = message;
+        }
+        throw new ModelError(message);
+      }
       const data = (await res.json().catch(() => null)) as CompletionResponse | null;
       const content = data?.choices?.[0]?.message?.content;
       if (typeof content !== "string" || content.length === 0) throw new ModelError("model returned no text");

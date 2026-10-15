@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { ensureSchema, getDb, pgliteDb, pgPoolDb, setDbForTests } from "@/lib/db";
+import { createPool, ensureSchema, getDb, pgliteDb, pgPoolDb, setDbForTests } from "@/lib/db";
 import { ENDINGS, getEpisodeView, getPoints } from "@/lib/game";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { CATALOG, ITEM_KINDS } from "@/lib/catalog";
@@ -349,5 +349,15 @@ describe("pgPoolDb", () => {
     await db.exec("select 1; select 2;");
     expect(query).toHaveBeenNthCalledWith(1, "select $1::int as n", [1]);
     expect(query).toHaveBeenNthCalledWith(2, "select 1; select 2;");
+  });
+
+  it("survives the database dropping an idle connection (an unhandled pool error would crash the instance)", async () => {
+    // No connection is opened until a query runs, so a placeholder URL is fine here.
+    const pool = await createPool("postgres://user@127.0.0.1:1/none");
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => pool.emit("error", new Error("terminating connection due to administrator command"))).not.toThrow();
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining("terminating connection"));
+    logged.mockRestore();
+    await pool.end();
   });
 });
