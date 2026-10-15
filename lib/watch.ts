@@ -753,6 +753,8 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
       formatCtx: { chaperone: built.setup.chaperone, ex: built.setup.ex },
       conversation: isConversationEnabled(),
       afterglow: false,
+      // Template rooms have no owner, so a reflection would never be shown; skip it to spare the lobby's quota.
+      reflection: false,
     });
   let gen;
   try {

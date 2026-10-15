@@ -19,13 +19,15 @@ const turn = (side: "a" | "b", dialogue: string, interest: number): Turn =>
 /** Inserts an AIRED (revealed) episode with controlled sides and transcript. revealed_at increases so order is stable. */
 async function insertEpisode(opts: {
   id: string; a: string; b: string; ending: Ending; sides: [SideOutcome, SideOutcome]; transcript?: Turn[];
+  reflections?: { a: string | null; b: string | null };
 }): Promise<void> {
   await t.db.query(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale,
-                           ending, status, sides, transcript, created_at, revealed_at)
-     values ($1, 'sys', $2, $3, 's', '[]'::jsonb, '[]'::jsonb, 't', 'f', $4, 'ready', $5::jsonb, $6::jsonb,
-             to_timestamp($7), to_timestamp($7))`,
-    [opts.id, opts.a, opts.b, opts.ending, JSON.stringify(opts.sides), JSON.stringify(opts.transcript ?? []), 1_000 + clock++],
+                           ending, status, sides, transcript, reflections, created_at, revealed_at)
+     values ($1, 'sys', $2, $3, 's', '[]'::jsonb, '[]'::jsonb, 't', 'f', $4, 'ready', $5::jsonb, $6::jsonb, $7::jsonb,
+             to_timestamp($8), to_timestamp($8))`,
+    [opts.id, opts.a, opts.b, opts.ending, JSON.stringify(opts.sides), JSON.stringify(opts.transcript ?? []),
+     opts.reflections ? JSON.stringify(opts.reflections) : null, 1_000 + clock++],
   );
 }
 
@@ -129,6 +131,19 @@ describe("updateCharacterMemory — deterministic aggregation", () => {
     await insertEpisode({ id: "e1", a: s, b: HOUSE_PARTNER_ID, ending: "second_date", sides: [so({ want_met: "adventurous" }), so()] });
     const m = await updateCharacterMemory(t.db, s);
     expect(m.likes).toEqual(["adventurous"]); // not the own-want fallback
+  });
+
+  it("carries the subject's OWN recent reflections, most recent first, filtered and capped", async () => {
+    const s = await subject();
+    // Four aired dates with this side's reflection; one has none, one would be filtered by the content check.
+    await insertEpisode({ id: "e1", a: s, b: HOUSE_PARTNER_ID, ending: "friends", sides: [so(), so()], reflections: { a: "R1 oldest", b: "not mine" } });
+    await insertEpisode({ id: "e2", a: HOUSE_PARTNER_ID, b: s, ending: "friends", sides: [so(), so()], reflections: { a: "not mine", b: "R2 i talk too much" } });
+    await insertEpisode({ id: "e3", a: s, b: HOUSE_PARTNER_ID, ending: "friends", sides: [so(), so()], reflections: { a: "R3 She was barely legal.", b: "x" } }); // filtered out
+    await insertEpisode({ id: "e4", a: s, b: HOUSE_PARTNER_ID, ending: "friends", sides: [so(), so()], reflections: { a: "R4 newest and best", b: "x" } });
+
+    const m = await updateCharacterMemory(t.db, s);
+    // Most recent first (e4, e2, e1); e3's reflection is dropped by the content filter; never the other side's.
+    expect(m.reflections).toEqual(["R4 newest and best", "R2 i talk too much", "R1 oldest"]);
   });
 
   it("is deterministic: recomputing yields the identical row", async () => {

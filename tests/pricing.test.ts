@@ -58,7 +58,7 @@ describe("a date's usage, end to end", () => {
     const o = fixedEngine({ ending: "friends" }).decide(built.input, built.seed);
     const director = reporting([planJson(), episodeJson()]);
     const actor = reporting(Array.from({ length: CONVERSATION_TURNS }, (_, i) => turn(i)));
-    const gen = await generateDate({ actor, director }, built, o, { formatId: "classic", formatCtx: {}, conversation: true, afterglow: false });
+    const gen = await generateDate({ actor, director }, built, o, { formatId: "classic", formatCtx: {}, conversation: true, afterglow: false, reflection: false });
     const calls = CONVERSATION_TURNS + 2;
     expect(gen.usage.calls).toBe(calls);
     expect(gen.usage.input_tokens).toBe(2000 * calls);

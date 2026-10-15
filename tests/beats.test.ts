@@ -194,7 +194,7 @@ describe("the pipeline — plan, conversation, then the recap", () => {
     const built = buildEvalDate(c);
     const o = fixedEngine({ ending: "friends" }).decide(built.input, built.seed);
     const { model, seen } = scripted([planJson(), ...Array.from({ length: CONVERSATION_TURNS }, (_, i) => turn(i)), episodeJson()]);
-    const gen = await generateDate({ actor: model, director: model }, built, o, { formatId: "classic", formatCtx: {}, conversation: true, afterglow: false });
+    const gen = await generateDate({ actor: model, director: model }, built, o, { formatId: "classic", formatCtx: {}, conversation: true, afterglow: false, reflection: false });
     expect(gen.plan?.source).toBe("director");
     expect(gen.transcript).toHaveLength(CONVERSATION_TURNS);
     expect(seen[0][0].content).toMatch(/story editor/); // the director's prompt
@@ -209,7 +209,7 @@ describe("the pipeline — plan, conversation, then the recap", () => {
     const o = fixedEngine({ ending: "friends" }).decide(built.input, built.seed);
     const down: Model = { async complete() { throw new Error("HTTP 503"); } };
     const { model } = scripted([...Array.from({ length: CONVERSATION_TURNS }, (_, i) => turn(i)), episodeJson()]);
-    const gen = await generateDate({ actor: model, director: down }, built, o, { formatId: "classic", formatCtx: {}, conversation: true, afterglow: false });
+    const gen = await generateDate({ actor: model, director: down }, built, o, { formatId: "classic", formatCtx: {}, conversation: true, afterglow: false, reflection: false });
     expect(gen.plan?.source).toBe("rules");
     expect(gen.transcript).toHaveLength(CONVERSATION_TURNS);
     expect(gen.draft.setting).toBeTruthy();

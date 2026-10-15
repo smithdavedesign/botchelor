@@ -392,3 +392,27 @@ What changed this round (all free-tier, no determinism change):
 - **A stronger actor model.** The director bump + prompt + reasoning is the free ceiling; putting the ~12
   actor turns on a paid model is the next lever. Proposal (which model, cost/date, provider cap) for David to
   approve and pay: `docs/paid-actor-model.md`.
+
+## Round 3 (2026-10-15): the post-date reflection (the bot's own postmortem)
+
+David: "the bot should have a postmortem where it reflects on its date and learns or decides what it learned from
+that date." Built as a new, additive layer (`lib/reflection.ts`) — it never touches the deterministic engine, so
+outcomes, box scores and predictions stay fair and reproducible.
+
+- **What it is.** After the date, each character writes ONE short, first-person reflection: what stood out, what
+  it's realising about what it wants, maybe what it'll carry into the next date. Generated IN CHARACTER with
+  exactly the data a date turn gets — only that side's own private self plus a BLIND view of the other — so one
+  character's reflection can never carry the other's soul or agenda (the generator never has them). Best-effort
+  and it never throws: a side that fails is `null` and the episode is unaffected.
+- **It actually "learns."** The reflection is stored on `episodes.reflections` ({a, b}); at reveal,
+  `updateCharacterMemory` picks the character's few most recent reflections (content-filtered) into
+  `character_memory.reflections` (aired-only, same spoiler rule as the rest of memory). Those are then handed to
+  the actor on future dates (`lib/conversation.ts`, `what_your_past_dates_taught_you`), so a bot genuinely lets
+  its past dates shape how it talks and what it seeks — **behaviour, never the odds** (David's "also shapes future
+  dialogue" choice). The owner sees them read-only in the character page's training-data panel.
+- **Cost.** A dedicated in-character call per side = **+2 model calls a date** (David's choice over the near-$0
+  recap-folded option, for a more authentic own-voice reflection). Gated on (`isReflectionEnabled`, off in tests),
+  and **off for template/lobby rooms** (no owner to show them to, and it protects the always-on lobby's quota).
+  The per-date cost log (`episode_generated`) counts them automatically, so a date is now ~17 calls, not ~15.
+- **Not yet.** The agent-self-performed path (`lib/own-date.ts`) doesn't generate a reflection yet (it doesn't go
+  through the shared pipeline); its episodes just have none. Easy follow-up.

@@ -126,7 +126,11 @@ export default async function CharacterPage({ params }: Props) {
             (() => {
               const drift = describeDrift(memory.signal_delta);
               const hasLearned =
-                memory.likes.length > 0 || memory.turnoffs.length > 0 || drift.length > 0 || memory.memorable_lines.length > 0;
+                memory.likes.length > 0 ||
+                memory.turnoffs.length > 0 ||
+                drift.length > 0 ||
+                memory.memorable_lines.length > 0 ||
+                memory.reflections.length > 0;
               if (!hasLearned) return null;
               return (
                 <div className="training-data muted">
@@ -159,6 +163,18 @@ export default async function CharacterPage({ params }: Props) {
                         {memory.memorable_lines.map((line, i) => (
                           <li key={i}>
                             <q>{line}</q>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {memory.reflections.length > 0 && (
+                    <div>
+                      <strong>How it reflected on its recent dates:</strong>
+                      <ul className="list">
+                        {memory.reflections.map((text, i) => (
+                          <li key={i}>
+                            <q>{text}</q>
                           </li>
                         ))}
                       </ul>

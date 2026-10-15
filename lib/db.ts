@@ -326,6 +326,10 @@ alter table episodes add column if not exists transcript jsonb not null default 
 -- AIs exchange after the date: an ordered list of { side, text }. Flavour only (never scores anything),
 -- immutable, owner-gated. '[]' when it couldn't be produced or for episodes made before M11.
 alter table episodes add column if not exists afterglow jsonb not null default '[]';
+-- 2026-10-15: each character's post-date reflection (lib/reflection.ts), { a: string|null, b: string|null }.
+-- The character's own postmortem in its voice; flavour + fed back into its OWN future self-view (never the
+-- engine). null/absent for episodes made before this or when a side's reflection couldn't be produced.
+alter table episodes add column if not exists reflections jsonb;
 -- How many times backfilling this date's missing conversation has genuinely failed (lib/backfill.ts), so a
 -- date the model keeps failing on stops costing calls. Rate limits don't count. (Replaces a first-day counter
 -- that also counted the free tier's 429s and so wrongly gave up on good dates.)
@@ -422,9 +426,12 @@ create table if not exists character_memory (
   turnoffs jsonb not null default '[]',         -- most frequent dealbreaker_hit cues
   signal_delta jsonb not null default '{}',     -- {warmth?,openness?,guardedness?,humor?} small learned drift
   memorable_lines jsonb not null default '[]',  -- a few of the character's own highest-interest lines
+  reflections jsonb not null default '[]',      -- the character's few most recent post-date reflections (lib/reflection.ts)
   arc text,                                     -- one templated "who they've become" sentence (no model)
   updated_at timestamptz not null default now()
 );
+-- Added 2026-10-15 for existing deployments: the recent post-date reflections fed into the self-view.
+alter table character_memory add column if not exists reflections jsonb not null default '[]';
 
 -- Image assets and where they came from (the competitor report's image-rights record). Nothing in the
 -- app renders an image today: avatars and venue backdrops are drawn from character data (lib/avatar.ts,

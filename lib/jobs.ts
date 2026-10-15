@@ -16,6 +16,7 @@ import { ConversationError } from "./conversation";
 import { generationPaused } from "./compute";
 import { isConversationEnabled } from "./conversation";
 import { isAfterglowEnabled } from "./afterglow";
+import { isReflectionEnabled } from "./reflection";
 import { generateDate } from "./pipeline";
 import type { Db } from "./db";
 import { safeEqual } from "./http";
@@ -193,18 +194,20 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       formatCtx: fmtCtx,
       conversation: isConversationEnabled(),
       afterglow: isAfterglowEnabled(),
+      reflection: isReflectionEnabled(),
       keyForSide,
     });
     if (gen.conversationError) {
       track("conversation_failed", { episode_id: episodeId, where: "job", reason: failureReason(gen.conversationError) });
     }
     if (gen.quality) trackDateQuality(episodeId, "job", gen.plan?.source ?? null, gen.quality);
-    const { draft, transcript, afterglow } = gen;
+    const { draft, transcript, afterglow, reflections } = gen;
 
     const saved = await db.query<{ id: string }>(
       `update episodes
           set setting = $2, goals = $3::jsonb, scenes = $4::jsonb, twist = $5, finale = $6,
-              best_line = $7, confessionals = $8::jsonb, transcript = $9::jsonb, afterglow = $10::jsonb, status = 'ready'
+              best_line = $7, confessionals = $8::jsonb, transcript = $9::jsonb, afterglow = $10::jsonb,
+              reflections = $11::jsonb, status = 'ready'
         where id = $1 and status = 'generating'
         returning id`,
       [
@@ -218,6 +221,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
         JSON.stringify(draft.confessionals),
         JSON.stringify(transcript),
         JSON.stringify(afterglow),
+        JSON.stringify(reflections),
       ],
     );
     if (saved.rows.length) {

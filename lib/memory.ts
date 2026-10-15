@@ -2,16 +2,17 @@
  * M14 — the learned memory layer: how a character "trains itself" from its own past dates.
  *
  * This is the materialized, owner/self-only read of everything a character has learned across its dates:
- * what it reliably likes, what keeps putting it off, a few lines it has actually said, a one-line arc of
- * who it is becoming, and a small bounded drift to its engine signals. It is recomputed deterministically
- * from the character's finished episodes — aggregation only, NO model call and NO cost — right after a date
- * is stored (see lib/jobs.ts and lib/watch.ts, next to rememberDate).
+ * what it reliably likes, what keeps putting it off, a few lines it has actually said, its most recent post-date
+ * reflections, a one-line arc of who it is becoming, and a small bounded drift to its engine signals. It is
+ * recomputed deterministically from the character's finished episodes — aggregation only, NO model call and NO
+ * cost (the reflections are model-authored on the episode; here we only pick and filter them) — right after a
+ * date is stored (see lib/jobs.ts and lib/watch.ts, next to rememberDate).
  *
- * Privacy: likes / turnoffs / memorable_lines / signal_delta all derive from the owner-only debrief data
- * (the per-side SideOutcome and the transcript), so they live only in the character's SELF view and the
- * owner's own view — never the public card, never the other agent (same rule as the soul). The learned
- * drift is capped (±MEMORY_SIGNAL_CAP per axis) so a character can evolve without one axis ever swinging a
- * result wildly; the deterministic engine itself is untouched (lib/engine.ts).
+ * Privacy: likes / turnoffs / memorable_lines / signal_delta / reflections all derive from the owner-only
+ * debrief data (the per-side SideOutcome, the transcript, and this side's own reflection), so they live only in
+ * the character's SELF view and the owner's own view — never the public card, never the other agent (same rule
+ * as the soul). The learned drift is capped (±MEMORY_SIGNAL_CAP per axis) so a character can evolve without one
+ * axis ever swinging a result wildly; the deterministic engine itself is untouched (lib/engine.ts).
  *
  * Only AIRED (revealed) dates count, exactly like the public record (lib/game.ts getCharacterHistory). A
  * ready-but-unrevealed episode still has predictions open, and the arc is shown on the public contestant
@@ -28,6 +29,8 @@ import { checkFields } from "./safety";
 export const MEMORY_SIGNAL_CAP = 0.15;
 /** How many standout lines of its own a character carries forward. */
 export const MEMORABLE_LINES = 3;
+/** How many of its most recent post-date reflections a character carries into new dates. */
+export const REFLECTIONS_KEPT = 3;
 /** How many top like / turnoff cues the arc and self-view keep. */
 export const MEMORY_TOP_CUES = 3;
 
@@ -63,6 +66,13 @@ export type CharacterMemory = {
   signal_delta: Partial<SoulSignals>;
   /** A few of the character's own highest-interest lines, kept so its voice stays consistent. */
   memorable_lines: string[];
+  /**
+   * The character's few most recent post-date reflections (lib/reflection.ts), most recent first. Unlike the
+   * other fields these are model-authored TEXT, but memory itself still makes NO model call: it only picks the
+   * recent few the pipeline already wrote and content-filters them. Fed into the character's own future
+   * self-view (lib/conversation.ts) so its past dates shape how it talks — never the engine.
+   */
+  reflections: string[];
   /** A single templated sentence of who the character has become; null before its first date. */
   arc: string | null;
 };
@@ -76,13 +86,14 @@ type MemoryRow = {
   turnoffs: string[];
   signal_delta: Partial<SoulSignals>;
   memorable_lines: string[];
+  reflections: string[];
   arc: string | null;
 };
 
 /** Reads the materialized memory for a character, or null when it has none yet (a fresh OC). */
 export async function loadCharacterMemory(db: Db, characterId: string): Promise<CharacterMemory | null> {
   const { rows } = await db.query<MemoryRow>(
-    `select dates, second_dates, friends, disasters, likes, turnoffs, signal_delta, memorable_lines, arc
+    `select dates, second_dates, friends, disasters, likes, turnoffs, signal_delta, memorable_lines, reflections, arc
        from character_memory where character_id = $1`,
     [characterId],
   );
@@ -97,6 +108,7 @@ export async function loadCharacterMemory(db: Db, characterId: string): Promise<
     turnoffs: r.turnoffs ?? [],
     signal_delta: r.signal_delta ?? {},
     memorable_lines: r.memorable_lines ?? [],
+    reflections: r.reflections ?? [],
     arc: r.arc,
   };
 }
@@ -105,6 +117,7 @@ type EpisodeRow = {
   ending: Ending;
   sides: [SideOutcome, SideOutcome] | null;
   transcript: Turn[] | null;
+  reflections: { a: string | null; b: string | null } | null;
   is_a: boolean;
 };
 
@@ -180,7 +193,7 @@ function buildArc(m: Omit<CharacterMemory, "arc">): string | null {
  */
 export async function updateCharacterMemory(db: Db, characterId: string): Promise<CharacterMemory> {
   const { rows } = await db.query<EpisodeRow>(
-    `select e.ending, e.sides, e.transcript, (e.character_a = $1) as is_a
+    `select e.ending, e.sides, e.transcript, e.reflections, (e.character_a = $1) as is_a
        from episodes e
       where ${MEMORY_EPISODES_WHERE}
       order by e.revealed_at, e.id`,
@@ -198,6 +211,7 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
   const likeCues: string[] = [];
   const turnoffCues: string[] = [];
   const myLines: Array<{ dialogue: string; interest: number; order: number }> = [];
+  const myReflections: string[] = []; // in date order (oldest first); the most recent are taken below
 
   rows.forEach((r, order) => {
     if (r.ending === "second_date") second_dates++;
@@ -219,7 +233,16 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
     for (const t of r.transcript ?? []) {
       if (t.side === meSide && t.dialogue) myLines.push({ dialogue: t.dialogue, interest: t.interest ?? 0, order });
     }
+    const myReflection = r.reflections?.[meSide];
+    if (myReflection) myReflections.push(myReflection);
   });
+
+  // The character's most recent reflections first, content-filtered (defence in depth), capped. These feed its
+  // own future self-view (lib/conversation.ts): a model wrote the text, but picking them here is deterministic.
+  const reflections = [...myReflections]
+    .reverse()
+    .filter((text) => checkFields({ text }).ok)
+    .slice(0, REFLECTIONS_KEPT);
 
   const likes = topByFrequency(likeCues, MEMORY_TOP_CUES);
   const turnoffs = topByFrequency(turnoffCues, MEMORY_TOP_CUES);
@@ -245,18 +268,19 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
     turnoffs,
     signal_delta: learnSignalDelta(second_dates, disasters),
     memorable_lines,
+    reflections,
   };
   const memory: CharacterMemory = { ...base, arc: buildArc(base) };
 
   await db.query(
     `insert into character_memory
-       (character_id, dates, second_dates, friends, disasters, likes, turnoffs, signal_delta, memorable_lines, arc, updated_at)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10, now())
+       (character_id, dates, second_dates, friends, disasters, likes, turnoffs, signal_delta, memorable_lines, reflections, arc, updated_at)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, now())
      on conflict (character_id) do update set
        dates = excluded.dates, second_dates = excluded.second_dates, friends = excluded.friends,
        disasters = excluded.disasters, likes = excluded.likes, turnoffs = excluded.turnoffs,
-       signal_delta = excluded.signal_delta, memorable_lines = excluded.memorable_lines, arc = excluded.arc,
-       updated_at = now()`,
+       signal_delta = excluded.signal_delta, memorable_lines = excluded.memorable_lines,
+       reflections = excluded.reflections, arc = excluded.arc, updated_at = now()`,
     [
       characterId,
       memory.dates,
@@ -267,6 +291,7 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
       JSON.stringify(memory.turnoffs),
       JSON.stringify(memory.signal_delta),
       JSON.stringify(memory.memorable_lines),
+      JSON.stringify(memory.reflections),
       memory.arc,
     ],
   );
