@@ -460,6 +460,10 @@ create table if not exists character_assets (
 );
 create index if not exists character_assets_character_idx on character_assets (character_id, kind)
   where review_status = 'approved';
+-- M16: a BYOK-generated video clip is a new asset kind (widen the CHECK in place for existing databases).
+alter table character_assets drop constraint if exists character_assets_kind_check;
+alter table character_assets add constraint character_assets_kind_check
+  check (kind in ('portrait', 'expression', 'background', 'decoration', 'clip'));
 
 -- M8. Watch parties: a synchronized "date room" over one pre-generated episode, with live reactions,
 -- chat and audience polls (the feature brief's Model A — the audience reacts, it never steers the

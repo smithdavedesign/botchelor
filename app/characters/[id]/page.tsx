@@ -68,6 +68,15 @@ export default async function CharacterPage({ params }: Props) {
         />
       )}
 
+      {c.clip_asset_id && (
+        <section className="card">
+          {/* A BYOK-generated intro clip (owner's own, provider-moderated). Poster is durable; the MP4 proxies. */}
+          <video className="character-clip" controls playsInline preload="none" poster={`/api/assets/${c.clip_asset_id}`}>
+            <source src={`/api/assets/${c.clip_asset_id}/video`} type="video/mp4" />
+          </video>
+        </section>
+      )}
+
       <section className="card">
         <p>{c.bio}</p>
         {c.appearance && (

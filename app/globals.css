@@ -2224,3 +2224,10 @@ button.rating-chip:hover {
 .visibility-pick select {
   width: auto;
 }
+
+.character-clip {
+  width: 100%;
+  max-width: 320px;
+  border-radius: 14px;
+  display: block;
+}

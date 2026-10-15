@@ -40,6 +40,35 @@ export default function OwnerControls(props: Props) {
     }
   }
 
+  async function generateClip() {
+    setBusy(true);
+    setPortraitMsg("Starting a clip on your key (video takes a minute or two)…");
+    const start = await requestJson(`/api/characters/${props.id}/clip`, {}, "POST").catch(() => ({ ok: false, status: 0 }));
+    if (!start.ok) {
+      setBusy(false);
+      setPortraitMsg(start.status === 400 ? "Add an OpenAI image key on your account first." : "Couldn't start the clip.");
+      return;
+    }
+    // Poll until the provider finishes (bounded), then show it. A render can take a couple of minutes.
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 6000));
+      const res = await fetch(`/api/characters/${props.id}/clip`).then((r) => r.json()).catch(() => ({ status: "rendering" }));
+      if (res.status === "ready") {
+        setBusy(false);
+        setPortraitMsg(null);
+        router.refresh();
+        return;
+      }
+      if (res.status === "failed") {
+        setBusy(false);
+        setPortraitMsg("The provider couldn't make this clip.");
+        return;
+      }
+    }
+    setBusy(false);
+    setPortraitMsg("Still rendering — refresh the page in a minute to see your clip.");
+  }
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -88,6 +117,10 @@ export default function OwnerControls(props: Props) {
           ·{" "}
           <button type="button" className="link-button" onClick={generatePortrait} disabled={busy}>
             Generate a portrait with your key
+          </button>{" "}
+          ·{" "}
+          <button type="button" className="link-button" onClick={generateClip} disabled={busy}>
+            Generate a clip with your key
           </button>
         </p>
         {portraitMsg && <p className="muted small">{portraitMsg}</p>}

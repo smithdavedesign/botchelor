@@ -1,5 +1,5 @@
 import type { EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
-import { approvedPortraitId } from "./assets";
+import { approvedClipId, approvedPortraitId } from "./assets";
 import type { Db } from "./db";
 import { matchmakerHitSql } from "./mechanics";
 import {
@@ -564,6 +564,8 @@ export type PublicCharacter = {
   voice: string | null;
   /** A BYOK-generated portrait to render, served from /api/assets/<id>, or null for the drawn avatar. */
   portrait_asset_id: string | null;
+  /** A BYOK-generated video clip (poster at /api/assets/<id>, MP4 at /api/assets/<id>/video), or null. */
+  clip_asset_id: string | null;
 };
 
 export async function getPublicCharacter(db: Db, id: string): Promise<PublicCharacter | null> {
@@ -573,7 +575,8 @@ export async function getPublicCharacter(db: Db, id: string): Promise<PublicChar
     [id],
   );
   if (!rows[0]) return null;
-  return { ...rows[0], portrait_asset_id: await approvedPortraitId(db, id) };
+  const [portrait_asset_id, clip_asset_id] = await Promise.all([approvedPortraitId(db, id), approvedClipId(db, id)]);
+  return { ...rows[0], portrait_asset_id, clip_asset_id };
 }
 
 export type CharacterEpisode = { episode_id: string; share_path: string; partner: string; ending: Ending };

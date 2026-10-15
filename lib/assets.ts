@@ -9,7 +9,7 @@
  */
 import type { Db } from "./db";
 
-export const ASSET_KINDS = ["portrait", "expression", "background", "decoration"] as const;
+export const ASSET_KINDS = ["portrait", "expression", "background", "decoration", "clip"] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
 /** 'drawn' is what the app does today (generated from character data, no file). The rest need review. */
@@ -143,6 +143,39 @@ export async function approvedPortraitId(db: Db, characterId: string): Promise<s
     [characterId],
   );
   return rows[0]?.id ?? null;
+}
+
+/** A character's newest clip asset in ANY state (for the owner's status poll), or null. */
+export async function latestClip(db: Db, characterId: string): Promise<CharacterAsset | null> {
+  const { rows } = await db.query<CharacterAsset>(
+    `select ${COLUMNS} from character_assets where character_id = $1 and kind = 'clip' order by created_at desc limit 1`,
+    [characterId],
+  );
+  return rows[0] ?? null;
+}
+
+/** The id of a character's newest APPROVED clip, or null (for rendering the video on the card). */
+export async function approvedClipId(db: Db, characterId: string): Promise<string | null> {
+  const { rows } = await db.query<{ id: string }>(
+    `select id from character_assets
+      where character_id = $1 and kind = 'clip' and review_status = 'approved' and url is not null
+      order by created_at desc limit 1`,
+    [characterId],
+  );
+  return rows[0]?.id ?? null;
+}
+
+/** Sets an asset's servable file + video reference (completing a clip) without changing its review state. */
+export async function setAssetMedia(db: Db, id: string, url: string, sourceUrl?: string | null): Promise<void> {
+  await db.query(`update character_assets set url = $2, source_url = coalesce($3, source_url) where id = $1`, [id, url, sourceUrl ?? null]);
+}
+
+/** The approved asset plus the id of the character it belongs to (for proxying a clip on the owner's key). */
+export async function approvedAssetWithOwner(db: Db, id: string): Promise<{ asset: CharacterAsset; owner_id: string | null } | null> {
+  const asset = await getApprovedAsset(db, id);
+  if (!asset?.character_id) return asset ? { asset, owner_id: null } : null;
+  const { rows } = await db.query<{ owner_id: string | null }>(`select owner_id from characters where id = $1`, [asset.character_id]);
+  return { asset, owner_id: rows[0]?.owner_id ?? null };
 }
 
 /** The credit line a licensed asset's licence requires, or null when no credit is owed. */

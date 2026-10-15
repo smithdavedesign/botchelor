@@ -120,9 +120,20 @@ pays, so it's $0 to us — which is what made image generation compatible with t
 - **Storage/serving**: the PNG is a data URL in the ledger, served through **`GET /api/assets/[id]`** (approved
   only) with a long immutable cache, so the bytes never sit inline in a page or an API body. At scale this
   moves to a blob store.
-- Account page has an **image-key** slot; generate from a character's card ("Generate a portrait with your key").
+- Account page has an **image-key** slot; generate a portrait or a clip from a character's card.
 - **`fal` / `replicate`** keys are accepted and stored but not wired (no provider-side moderation story yet).
-  **Video** is a key slot only — no safe, $0 path yet.
+
+### Video clips on your own key (`lib/image`, async)
+Same pattern as portraits, through OpenAI's **Sora** video API (`POST /v1/videos` → poll → content), which
+moderates its own generation. The user pays, so it's $0 to us; the prompt is built only from filtered sheet text.
+
+- **`POST /api/characters/[id]/clip`** (owner-only) starts the render and returns right away (`202`), recording
+  a pending `clip` asset with the provider's video id. **`GET /api/characters/[id]/clip`** polls the provider
+  on the owner's key; when it completes it stores the **thumbnail as a durable poster** and approves the asset.
+- **`GET /api/assets/[id]/video`** streams the MP4 by proxying the provider on the **clip owner's** stored key
+  (their content, their key); the durable poster (served by `/api/assets/[id]`) remains if the owner removes
+  their key or the provider expires the content. The contestant card shows a `<video>` with that poster.
+- Owner UI: "Generate a clip with your key" on the character card (it polls while the provider renders).
 
 ### Not yet
 - A blind date between two users where only one has a key: that user's turns use their key; the other's and
@@ -130,8 +141,9 @@ pays, so it's $0 to us — which is what made image generation compatible with t
 - Browser-only (unsaved) keys: the generation pipeline is an async background job, so a key has to be stored
   (encrypted) for the worker to use it. Ephemeral keys would need the key passed through the job, which we
   don't do.
-- Image generation beyond OpenAI (fal/replicate), and **video** generation: no moderated, safe path yet; the
-  key slots exist. The data-URL-in-the-ledger store is a first version; a blob store is the scale path.
+- Image/clip generation beyond OpenAI (fal/replicate): no moderated path yet; the key slots exist. The
+  data-URL-in-the-ledger store (and proxying video on the owner's key) is a first version; a blob store is
+  the scale path, and would also let a clip outlive the provider's content retention.
 
 ## What each secret enables
 
