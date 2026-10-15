@@ -346,3 +346,49 @@ content-free reason, now including the provider's short message.
 - Next: measure v4. Then run the director A/B on a capped paid key (David's call). Then consider
   judge-in-the-loop for the lobby (re-take when the judge, not just the index, scores low), and memory
   callbacks (characters referencing their past dates, `lib/memory.ts`), which the beats don't use yet.
+
+## Round 2 (2026-10-15): grounding, visible wants, honest votes
+
+David watched a live replay (Teo Brandt × Nell Abiodun, a botanic park before the rain) and flagged three
+things: the date read like two people performing one metaphor at each other, his audience vote changed nothing,
+and the characters' memory looked empty. A read of the stored episode and `character_memory` confirmed all
+three and traced the causes:
+
+- **One image swallowed the date.** Every line circled rain/tempo/rhythm; nobody exchanged a real fact. On the
+  weakest free actor (`gemini-3.5-flash-lite`, reasoning `minimal`, temp 0.9) the good instructions in the
+  actor prompt were simply overridden toward the nearest poetic register. Nell also narrated her own agenda
+  out loud ("I am stepping outside my comfort zone").
+- **The wants never reached the floor.** Teo wants "a partner who leads back"; Nell wants "someone who asks a
+  follow-up question." Teo never asked Nell a single question, yet the engine marked her satisfied — because the
+  engine decides from hidden signals, and the beat sheet only *mentions* a want when `want_met` is non-null.
+- **`want_met`/`dealbreaker_hit` were both null**, so `character_memory.likes`/`turnoffs` were empty after 3 and
+  2 dates and the arcs fell back to "still figuring out what it wants." The cue matcher (`engine.ts readSide`)
+  is lexical overlap between the want phrase and the *other's static sheet*, which behaviourally-phrased wants
+  ("asks a follow-up question") can essentially never match.
+- **The audience "question" poll was cosmetic.** The transcript is pre-generated and frozen at build; the vote
+  lands ~a day later. The closed-poll copy ("The room's pick is what they had to answer") promised a
+  consequence the frozen date never delivered.
+
+What changed this round (all free-tier, no determinism change):
+
+| Change | File | Why |
+|---|---|---|
+| Director aims at `gemini-3.5-flash` by default (one call/date) | `lib/model.ts` `DEFAULT_DIRECTOR_MODEL`, `directorModelName` | The plan sets the whole date's grounding; a better director is a big lever for ~1 call, not per-line. Only on the stock Google setup; BYOK/custom endpoints untouched. If flash isn't in the free tier the call fails fast (`limit: 0`) and `planDate` falls back to the rules plan — graceful, and the actor's flash-lite quota is untouched; the flash director on every date means a paid key. |
+| Actor reasoning `minimal` → `low` | `lib/model.ts` `roleReasoning` | A touch more thinking so the actor actually follows the grounded-first-date rules instead of reaching for filler. |
+| Actor prompt rewritten: every line answers / asks / reveals one concrete thing; no extended metaphor; never narrate your own intention | `lib/conversation.ts` `SYSTEM_PROMPT` | Targets the exact failure (floral riff, agenda narration). |
+| `motif_fixation` critic | `lib/quality.ts`, `lib/conversation.ts` `critiqueTurn` | Sends back a line that keeps riding an image the date already circled while engaging nothing (no own content, no question, doesn't pick up the previous line). |
+| Each side's **want** is always in its beat and in the actor's turn data | `lib/beats.ts` (`rulesBeat`, `dateFacts`), `lib/conversation.ts` (`what_you_want_in_someone`) | So the date dramatizes what each character is looking for even when the engine matched no cue. |
+| Memory fallback: credit the character's OWN want/dealbreaker when the engine matched no cue | `lib/memory.ts` `wantCue`, `updateCharacterMemory` | Revives `likes`/`turnoffs` and the arc without touching the deterministic engine. |
+| Audience-vote copy made honest + the winning question surfaced at the decision | `app/watch/[id]/WatchRoom.tsx`, `lib/rules.ts` | Stops promising a reply the frozen date never gives; still shows the room's pick landing. |
+
+### Still open after this round
+
+- **Make the voted question genuinely answered on screen.** Pre-generate both audience-question micro-moments
+  at date-build time and reveal the winner (no live model call, no false promise). Deferred so it doesn't
+  collide with the in-flight character-extras work on `simulation.ts`/`db.ts`; needs one new stored field.
+- **Fix `want_met`/`dealbreaker_hit` at the source.** Broadening `engine.ts readSide` (match the want against the
+  other's soul/voice, or detect satisfaction from the transcript) changes engine outcomes, so it needs an eval
+  run and an engine-version bump before it ships. The memory fallback above is the safe interim.
+- **A stronger actor model.** The director bump + prompt + reasoning is the free ceiling; putting the ~12
+  actor turns on a paid model is the next lever. Proposal (which model, cost/date, provider cap) for David to
+  approve and pay: `docs/paid-actor-model.md`.

@@ -39,6 +39,20 @@ export class ModelError extends Error {
 
 export const DEFAULT_LLM_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 export const DEFAULT_LLM_MODEL = "gemini-3.5-flash-lite";
+/**
+ * The director plans the beat sheet and writes the recap — one or two calls a date, versus the actor's ~12. It
+ * aims at a stronger Gemini than the actor: the plan sets the whole date's grounding, so a better director is a
+ * big lever for ≈1 call, not per-line. Used only on the stock Google endpoint and when neither
+ * LLM_DIRECTOR_MODEL nor a custom LLM_MODEL/key is set (so BYOK/custom endpoints are never forced onto a Gemini
+ * model name). LLM_DIRECTOR_MODEL overrides it.
+ *
+ * Note on cost: if this model isn't in the project's free tier, Google answers its first call with 429
+ * "limit: 0" (handled as quota-spent, no retry) and planDate falls back to the deterministic rules plan — no
+ * user-facing failure, and the actor's separate flash-lite quota is untouched. So this is a safe default that
+ * upgrades the plan where the tier allows and degrades gracefully where it doesn't; getting the flash director
+ * for real on every date means a paid key (docs/upgrade-cost.md).
+ */
+export const DEFAULT_DIRECTOR_MODEL = "gemini-3.5-flash";
 export const MODEL_TIMEOUT_MS = 25_000;
 
 type UsageBody = {
@@ -210,7 +224,9 @@ export function openAICompatibleModel(opts: {
  * ("default" sends none, so the model's own default applies).
  */
 export function roleReasoning(role: "actor" | "director", env: Record<string, string | undefined> = process.env): ReasoningEffort | undefined {
-  const raw = (role === "actor" ? env.LLM_ACTOR_REASONING : env.LLM_DIRECTOR_REASONING) || (role === "actor" ? "minimal" : "low");
+  // Actors used to think as little as possible ("minimal"); a touch more ("low") lets them actually follow the
+  // grounded-first-date instructions instead of defaulting to flowery filler, for a small per-line cost.
+  const raw = (role === "actor" ? env.LLM_ACTOR_REASONING : env.LLM_DIRECTOR_REASONING) || "low";
   return (REASONING_EFFORTS as readonly string[]).includes(raw) ? (raw as ReasoningEffort) : undefined;
 }
 
@@ -254,7 +270,19 @@ export function getDirectorModel(
   reasoning: ReasoningEffort | undefined = roleReasoning("director", env),
 ): Model {
   if (testModel) return testModel;
-  return modelFromEnv(env.LLM_DIRECTOR_MODEL ? { ...env, LLM_MODEL: env.LLM_DIRECTOR_MODEL } : env, undefined, reasoning);
+  return modelFromEnv({ ...env, LLM_MODEL: directorModelName(env) ?? env.LLM_MODEL }, undefined, reasoning);
+}
+
+/**
+ * The model name the director should run on, or undefined to use whatever the actor uses. LLM_DIRECTOR_MODEL
+ * wins; otherwise, on the stock free Google setup (no custom endpoint or model), the director gets the stronger
+ * DEFAULT_DIRECTOR_MODEL. A custom LLM_BASE_URL or LLM_MODEL (BYOK, a proxy, the eval's named arms) is left
+ * exactly as configured, so nothing is ever forced onto a Gemini model name it can't serve.
+ */
+export function directorModelName(env: Record<string, string | undefined> = process.env): string | undefined {
+  if (env.LLM_DIRECTOR_MODEL) return env.LLM_DIRECTOR_MODEL;
+  const stockGoogle = !env.LLM_BASE_URL && !env.LLM_MODEL && !env.LLM_API_KEY;
+  return stockGoogle ? DEFAULT_DIRECTOR_MODEL : undefined;
 }
 
 /** A model by name at the configured endpoint and key (the quality eval's A/B arms). */

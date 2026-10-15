@@ -191,8 +191,10 @@ describe("openAICompatibleModel", () => {
     expect(calls).toHaveLength(1);
   });
 
-  it("gives the actor the least thinking and the director a little, overridable per role", () => {
-    expect(roleReasoning("actor", {})).toBe("minimal");
+  it("gives the actor and director a little thinking by default, overridable per role", () => {
+    // Actors used to think as little as possible ("minimal"); they now get "low" too, so they actually follow
+    // the grounded-first-date instructions instead of reaching for flowery filler.
+    expect(roleReasoning("actor", {})).toBe("low");
     expect(roleReasoning("director", {})).toBe("low");
     expect(roleReasoning("actor", { LLM_ACTOR_REASONING: "medium" })).toBe("medium");
     expect(roleReasoning("director", { LLM_DIRECTOR_REASONING: "default" })).toBeUndefined(); // the model's own default

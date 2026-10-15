@@ -96,6 +96,21 @@ const MEMORY_EPISODES_WHERE = "(e.character_a = $1 or e.character_b = $1) and e.
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
+/**
+ * A want/dealbreaker phrase trimmed to its cue for the arc and self-view ("A partner who leads back" → "leads
+ * back", "Someone who asks a follow-up question" → "asks a follow-up question"). Drops a leading "someone/a
+ * partner (who)" lead-in and lowercases; short or lead-in-only phrases fall back to the whole thing.
+ */
+export function wantCue(phrase: string): string {
+  const trimmed = phrase
+    .trim()
+    .replace(/^(?:someone|a partner|a person|a|an|the|my)\b/i, "")
+    .replace(/^\s*who\b/i, "")
+    .trim()
+    .toLowerCase();
+  return trimmed.length >= 3 ? trimmed : phrase.trim().toLowerCase();
+}
+
 /** Counts items and returns the top `k` by frequency, ties broken by first appearance (deterministic). */
 function topByFrequency(items: string[], k: number): string[] {
   const count = new Map<string, number>();
@@ -153,6 +168,11 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
       order by e.revealed_at, e.id`,
     [characterId],
   );
+  // This character's own want/dealbreaker, for the fallback cue below.
+  const sheet = (await db.query<{ want: string | null; dealbreaker: string | null }>(
+    `select want, dealbreaker from characters where id = $1`,
+    [characterId],
+  )).rows[0];
 
   let second_dates = 0;
   let friends = 0;
@@ -167,8 +187,15 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
     else if (r.ending === "disaster") disasters++;
 
     const mine = r.sides?.[r.is_a ? 0 : 1];
+    // The engine records the OTHER's cue that met the want / tripped the dealbreaker when it can match one
+    // (lib/engine.ts readSide, a lexical match against the other's sheet). Behaviourally-phrased wants ("asks a
+    // follow-up question") rarely match a static sheet, so the cue is usually null and this layer stayed empty.
+    // Fallback: when the date clearly went the character's way, credit its OWN want; when it clearly didn't,
+    // credit its OWN dealbreaker — so a bot still learns what it keeps warming to / clashing over.
     if (mine?.want_met) likeCues.push(mine.want_met);
+    else if (sheet?.want && (r.ending === "second_date" || r.ending === "friends") && mine?.wants_another) likeCues.push(wantCue(sheet.want));
     if (mine?.dealbreaker_hit) turnoffCues.push(mine.dealbreaker_hit);
+    else if (sheet?.dealbreaker && r.ending === "disaster") turnoffCues.push(wantCue(sheet.dealbreaker));
 
     const meSide = r.is_a ? "a" : "b";
     for (const t of r.transcript ?? []) {
