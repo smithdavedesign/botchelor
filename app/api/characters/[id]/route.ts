@@ -7,7 +7,7 @@ import { checkFields, type RejectReason } from "@/lib/safety";
 import type { ImageSignals } from "@/lib/avatar";
 import { ExtrasInput, extrasFields, normaliseExtras, type ExtrasInputType } from "@/lib/extras";
 import { stampThisWeek, THIS_WEEK_MAX } from "@/lib/life";
-import { assertSafeSoul, isEmptySoul, normaliseSoul, ownsCharacter, saveSignals, saveSoul, SoulInput } from "@/lib/souls";
+import { assertSafeSoul, clearSignals, isEmptySoul, normaliseSoul, ownsCharacter, saveSignals, saveSoul, SoulInput } from "@/lib/souls";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -51,6 +51,17 @@ const CharacterPatch = z
         guardedness: z.number().min(0).max(1),
         humor: z.number().min(0).max(1),
       })
+      .optional(),
+    // The temperament sliders (or an agent): the same four numbers, set directly. null drops them, so the character
+    // plays from its soul's words or its own traits and voice again (lib/temperament.ts).
+    temperament: z
+      .object({
+        warmth: z.number().min(0).max(1),
+        openness: z.number().min(0).max(1),
+        guardedness: z.number().min(0).max(1),
+        humor: z.number().min(0).max(1),
+      })
+      .nullable()
       .optional(),
   })
   .refine((v) => Object.keys(v).length > 0, "Nothing to update.");
@@ -126,8 +137,11 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
     }
   }
   if (input.image_signals) await saveSignals(db, id, input.image_signals as ImageSignals);
+  if (input.temperament) await saveSignals(db, id, input.temperament as ImageSignals);
+  else if (input.temperament === null) await clearSignals(db, id);
+  const signalsChanged = Boolean(input.image_signals) || input.temperament !== undefined;
 
-  return json({ id, updated: columns, soul_changed: input.soul !== undefined, signals_changed: Boolean(input.image_signals) }, 200, sess);
+  return json({ id, updated: columns, soul_changed: input.soul !== undefined, signals_changed: signalsChanged }, 200, sess);
 });
 
 /** Delete your own character (PRD privacy). Owner-only; kept as a tombstone if it already aired in an episode. */

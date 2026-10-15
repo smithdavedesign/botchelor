@@ -167,7 +167,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       note: row.note,
       format: formatId,
     };
-    const forDate = (p: "a" | "b"): CharacterForDate => ({ id: row![`${p}_id`], sheet: sheet(row!, p) });
+    // The sheets POST decided with (snapshotted on the setup), so an edit made while the job waited can't change it.
+    const forDate = (p: "a" | "b"): CharacterForDate => ({ id: row![`${p}_id`], sheet: row!.setup?.[`sheet_${p}`] ?? sheet(row!, p) });
     // Re-decide on the EXACT signals POST stored (M14 part 2 snapshot), so a character's memory drifting
     // between POST and this worker can't change the canonical outcome the narration is steered toward.
     const signalsSnapshot =

@@ -88,6 +88,13 @@ export function characterSchema(base: string = siteUrl()): Record<string, unknow
       },
       extras: extrasJsonSchema(),
       this_week: str(THIS_WEEK_MAX, { description: "Optional: what's new in their life this week. Lasts this season; without one the show deals one each week." }),
+      temperament: {
+        type: "object",
+        description: "Optional, private: how the engine reads them on a date (0..1 each). Without it, their traits and voice decide.",
+        additionalProperties: false,
+        required: ["warmth", "openness", "guardedness", "humor"],
+        properties: Object.fromEntries(["warmth", "openness", "guardedness", "humor"].map((k) => [k, { type: "number", minimum: 0, maximum: 1 }])),
+      },
       open_to_dates: { type: "boolean", description: "Let other creators (people or agents) ask this character out by name. Default false." },
       attest: { const: true, description: "You confirm this is your own original character and a fictional adult (18+)." },
     },

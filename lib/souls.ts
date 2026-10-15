@@ -117,6 +117,19 @@ export async function saveSignals(db: Db, characterId: string, signals: ImageSig
   );
 }
 
+/**
+ * Drops the explicit signals (a trained image or the builder's sliders), so the character plays from its soul's
+ * words or its sheet again (lib/temperament.ts). A row left with no text and no signals is removed.
+ */
+export async function clearSignals(db: Db, characterId: string): Promise<void> {
+  await db.query(`update souls set signals = null, updated_at = now() where character_id = $1`, [characterId]);
+  await db.query(
+    `delete from souls where character_id = $1 and signals is null
+       and ${SOUL_FIELDS.map((f) => `coalesce(${f}, '') = ''`).join(" and ")}`,
+    [characterId],
+  );
+}
+
 export async function deleteSoul(db: Db, characterId: string): Promise<void> {
   await db.query("delete from souls where character_id = $1", [characterId]);
 }

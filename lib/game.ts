@@ -1,4 +1,4 @@
-import type { EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
+import type { CharacterSheet, EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
 import { approvedClipId, approvedPortraitId } from "./assets";
 import type { Db } from "./db";
 import type { CharacterExtras } from "./extras";
@@ -72,6 +72,14 @@ export type DateSetup = {
    */
   signals_a?: SoulSignals;
   signals_b?: SoulSignals;
+  /**
+   * The two character sheets exactly as they were when the date was decided (the engine reads traits, bio, want,
+   * dealbreaker and appearance). Characters are editable, so replays use these instead of today's sheet.
+   * Private like the rest of the setup (it holds dealbreakers): never sent to a viewer. Optional: older episodes
+   * have none and replay against the current sheet.
+   */
+  sheet_a?: CharacterSheet;
+  sheet_b?: CharacterSheet;
   /**
    * Which engine calibration decided this date (lib/engine.ts EngineVersion). Replays and the async worker's
    * re-decide use the same version, so a date always reproduces. Absent on dates decided before versioning: v1.

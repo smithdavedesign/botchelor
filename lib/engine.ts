@@ -167,7 +167,7 @@ function surface(sheet: CharacterSheet): string {
 
 /* ---------------------------------- soul signals ---------------------------------- */
 
-const LEXICON: Record<keyof SoulSignals, readonly string[]> = {
+export const LEXICON: Record<keyof SoulSignals, readonly string[]> = {
   warmth: ["warm", "kind", "gentle", "caring", "affectionate", "affection", "loyal", "devoted",
     "tender", "nurturing", "loving", "generous", "sweet", "patient", "supportive", "earnest", "soft"],
   openness: ["curious", "open", "adventurous", "spontaneous", "creative", "playful", "experimental",
