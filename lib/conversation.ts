@@ -28,6 +28,7 @@ import { characterBlindView, characterSelfView, type Character } from "./charact
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { DEFAULT_FORMAT, format, formatNote, type FormatContext, type FormatId } from "./formats";
 import { ModelError, type ChatMessage, type Model } from "./model";
+import { currentTell } from "./personality";
 import { lineIssues } from "./quality";
 import { actForTurn, agenda, CONVERSATION_TURNS, DATE_ACTS, TURN_DIALOGUE_MAX, type ProducerId } from "./rules";
 import { checkFields } from "./safety";
@@ -96,6 +97,8 @@ Stay plain and specific:
 - Do NOT build an extended metaphor. The place or their job might suggest an image (rain, tempo, maps, stars) — use it once at most, then talk about something real. Never spend the date riffing on one image; if the last couple of lines have circled the same picture, change the subject to something actual about one of you.
 - Vary length: sometimes one short line, sometimes two or three sentences. Not every line is a joke — let some be awkward, sincere or quiet. Most lines need no action at all.
 - Sound like yourself: follow your "voice". SHOW your traits and your plan; never state them. Never narrate your own intention or mood ("I'm stepping out of my comfort zone", "I'll keep this light", "let me test you") — just do it.
+- "voice_examples" (if present) are lines you'd say: match their rhythm, length and word choice, but never repeat one word for word. Never say anything in "never_say".
+- "your_tell_right_now" (if present) is a habit of yours that fits how you feel in this act. Let it slip out once or twice this act — in what you do or how you say something — and never explain it.
 
 You're strangers. You only know what you can see ("them.what_you_can_see") and what they've said tonight. Never bring up facts about them they haven't told you, and don't sum them up with labels. Talk to them as "you"; use their name now and then, not every line; in the third person use their pronouns. Don't reuse your own openings, catchphrases or gestures from earlier.
 
@@ -155,6 +158,7 @@ export function buildTurnMessages(
   const beat = plan.acts[act] ?? plan.acts[plan.acts.length - 1];
 
   const names: [string, string] = [characters[0].name, characters[1].name];
+  const tell = currentTell(meChar, outcome, sideIndex, act);
   const data = {
     you: characterSelfView(meChar, dateContext(me)),
     them: characterBlindView(themChar),
@@ -164,6 +168,7 @@ export function buildTurnMessages(
     what_you_want_in_someone: meChar.persona.want,
     ...(meChar.memory?.reflections?.length ? { what_your_past_dates_taught_you: meChar.memory.reflections } : {}),
     your_intention: side === "a" ? beat.a : beat.b,
+    ...(tell ? { your_tell_right_now: tell } : {}),
     your_mood_so_far: transcript.filter((t) => t.side === side).map((t) => t.emotion).filter(Boolean),
     conversation_so_far: transcript.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue, ...(t.action ? { did: t.action } : {}) })),
     ...(transcript.length === 0 ? { note: "This is the first line of the date: you've just met." } : {}),
@@ -236,6 +241,8 @@ export function critiqueTurn(
   if (issues.repeated_action) notes.push(`"${issues.repeated_action}" has already happened tonight — do something different, or nothing ("action": "")`);
   if (issues.name_tic) notes.push(`you said ${them.name.split(" ")[0]}'s name last time too — people don't say it every line`);
   if (issues.motif_fixation) notes.push(`you keep circling "${issues.motif_fixation}" — drop that image and either say something real about your own life or ask ${them.name.split(" ")[0]} a genuine question`);
+  if (issues.never_said) notes.push(`you'd never say "${issues.never_said}" — put it your own way`);
+  if (issues.sample_echo) notes.push("that repeats one of your example lines — say something new in that same voice");
   return notes.length ? notes.join("; ") : null;
 }
 

@@ -24,6 +24,7 @@ import { characterSelfView, type Character } from "./character";
 import { UNREMARKABLE_SIGNALS, type DateInput, type Outcome, type SideSetup, type SoulSignals } from "./engine";
 import { formatNote, type FormatContext, type FormatId } from "./formats";
 import type { ChatMessage, Model } from "./model";
+import { allTells } from "./personality";
 import { contentWords } from "./quality";
 import { agenda, DATE_ACTS, dramaAnswerLabel, ENDING_LABELS, producerEvent, type AgendaId, type ProducerId } from "./rules";
 import { checkFields } from "./safety";
@@ -279,7 +280,7 @@ Rules:
 - Set the turn up early. Act two must contain the moments that cause the ending, as things a viewer can SEE happen (each fact names its moment); the last act lands it.
 - Point every act at the ending so the last act lands it instead of flipping: for a second date, a spark that grows; for "Just friends", two people who click as company with no romantic spark (no flirting, no kiss, no hand-holding, and nobody announces "just friends"); for a disaster, a clear no whose cause the audience saw in act two.
 - Exits follow from the date. Nobody leaves on a sudden excuse (a bus, a class, a shift, a phone call).
-- Use each character's voice, history, soul and the venue's specifics. A running detail or callback is good.
+- Use each character's voice, history, soul and the venue's specifics. A running detail or callback is good. A character's "tells" are habits that show when they feel a certain way: give one a moment where it fits how that act goes for them.
 - "outline" is only a skeleton that already fits the facts. Rewrite every field in specifics (their lives, this venue, this situation); never copy its sentences.
 - In a character's intention, never mention the OTHER character's private soul, secret goal, creator's advice or dealbreaker, and don't hand them facts about the other they haven't learned yet (write "when they tell you about their work…", not what the work is).
 - Never write anything for a character to say word for word.
@@ -296,6 +297,12 @@ const PlanOutput = z.object({
 
 const CODE_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
 
+/** A character's tells for the director, who plans the whole date (each actor only ever gets the one for its act). */
+const tellsOf = (c: Character): Record<string, unknown> => {
+  const tells = allTells(c);
+  return tells.length ? { tells } : {};
+};
+
 export function buildDirectorMessages(
   input: DateInput,
   outcome: Outcome,
@@ -307,8 +314,8 @@ export function buildDirectorMessages(
 ): ChatMessage[] {
   const outline = rulesPlan(input, outcome, characters, producer, venueId);
   const data = {
-    character_a: characterSelfView(characters[0], { secret_goal: AGENDA_GOALS[input.a.agendaId], creators_advice: input.a.note ?? "(none)" }),
-    character_b: characterSelfView(characters[1], { secret_goal: AGENDA_GOALS[input.b.agendaId], creators_advice: input.b.note ?? "(none)" }),
+    character_a: characterSelfView(characters[0], { secret_goal: AGENDA_GOALS[input.a.agendaId], creators_advice: input.a.note ?? "(none)", ...tellsOf(characters[0]) }),
+    character_b: characterSelfView(characters[1], { secret_goal: AGENDA_GOALS[input.b.agendaId], creators_advice: input.b.note ?? "(none)", ...tellsOf(characters[1]) }),
     where: venue(venueId).prompt,
     act_two_situation: producerEvent(producer).prompt,
     show_format: formatNote(formatId, formatCtx),
