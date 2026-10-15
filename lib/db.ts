@@ -1,6 +1,7 @@
 import type { PGlite } from "@electric-sql/pglite";
 import type { Pool } from "pg";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "./house";
+import { HOUSE_KITS } from "./house-kits";
 
 /** The only database surface the app uses: parameterized queries, plus multi-statement DDL. */
 export interface Db {
@@ -604,14 +605,15 @@ export async function ensureSchema(db: Db): Promise<void> {
   for (const c of cast) {
     await db.query(
       `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, premium_sku,
-                               appearance, avatar_hue, pronouns, voice)
-       values ($1, null, true, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12)
+                               appearance, avatar_hue, pronouns, voice, extras)
+       values ($1, null, true, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
        on conflict (id) do update set
          owner_id = null, is_house = true, name = excluded.name, age = excluded.age, bio = excluded.bio,
          traits = excluded.traits, want = excluded.want, dealbreaker = excluded.dealbreaker,
          premium_sku = excluded.premium_sku, appearance = excluded.appearance, avatar_hue = excluded.avatar_hue,
-         pronouns = excluded.pronouns, voice = excluded.voice`,
-      [c.id, c.name, c.age, c.bio, JSON.stringify(c.traits), c.want, c.dealbreaker, c.sku, c.appearance, c.hue, c.pronouns, c.voice],
+         pronouns = excluded.pronouns, voice = excluded.voice, extras = excluded.extras`,
+      // Their voice kit (lib/house-kits.ts): sample lines, never-says and tells, written in each one's voice.
+      [c.id, c.name, c.age, c.bio, JSON.stringify(c.traits), c.want, c.dealbreaker, c.sku, c.appearance, c.hue, c.pronouns, c.voice, JSON.stringify(HOUSE_KITS[c.id] ?? {})],
     );
     // A house character's temperament, as engine-only signals. The text fields stay empty and
     // local_only is true, so there is no private prose to leak — only the numbers the engine decides
