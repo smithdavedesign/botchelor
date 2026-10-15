@@ -16,6 +16,7 @@ import { ALL_HOUSE_CHARACTERS } from "./house";
 import { judgeDate, judgeMean, type JudgeScores } from "./judge";
 import type { Model } from "./model";
 import { generateDate, qualityContext, type DateModels } from "./pipeline";
+import type { DateUsage } from "./pricing";
 import { transcriptQuality, type QualityMetrics } from "./quality";
 import { ENDING_LABELS } from "./rules";
 import { assembleDate, DEFAULT_DATE_REQUEST, type BuiltDate, type CharacterForDate } from "./simulation";
@@ -134,6 +135,8 @@ export type EvalResult = {
   judge: JudgeScores | null;
   judge_mean: number | null;
   model_calls: number;
+  /** Tokens (thinking included) and the paid-tier cost of the date (lib/pricing.ts). */
+  usage: DateUsage;
   ms: number;
   conversation_error: string | null;
 };
@@ -170,6 +173,7 @@ export async function runEvalCase(c: EvalCase, models: DateModels, judge: Model 
     judge: verdict,
     judge_mean: verdict ? judgeMean(verdict) : null,
     model_calls: gen.modelCalls,
+    usage: gen.usage,
     ms,
     conversation_error: errorText(gen.conversationError),
   };

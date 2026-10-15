@@ -10,10 +10,23 @@ import { safeEqual } from "./http";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
+/**
+ * How much a model "thinks" before it answers (Gemini 3 can't turn thinking off; the default level applies when
+ * none is sent). Thinking bills as output, so it's the biggest cost lever: a short in-character line needs
+ * almost none (docs/upgrade-cost.md).
+ */
+export const REASONING_EFFORTS = ["minimal", "low", "medium", "high"] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+
+/** One call's token usage, as the provider billed it (output includes thinking). */
+export type Usage = { model: string; input: number; cachedInput: number; output: number; thinking: number };
+
 /** Per-call generation settings. Optional: a model may ignore them (scripted test models do). */
 export type ModelOptions = {
   /** Sampling temperature: higher for spoken dialogue (variety), lower for plans and recaps (fidelity). */
   temperature?: number;
+  /** Called with the call's token usage when the provider reports it (lib/pricing.ts turns it into a cost). */
+  onUsage?: (usage: Usage) => void;
 };
 
 export interface Model {
@@ -28,7 +41,34 @@ export const DEFAULT_LLM_BASE_URL = "https://generativelanguage.googleapis.com/v
 export const DEFAULT_LLM_MODEL = "gemini-3.5-flash-lite";
 export const MODEL_TIMEOUT_MS = 25_000;
 
-type CompletionResponse = { choices?: { message?: { content?: unknown } }[] };
+type UsageBody = {
+  prompt_tokens?: unknown;
+  completion_tokens?: unknown;
+  total_tokens?: unknown;
+  prompt_tokens_details?: { cached_tokens?: unknown };
+  completion_tokens_details?: { reasoning_tokens?: unknown };
+};
+type CompletionResponse = { choices?: { message?: { content?: unknown } }[]; usage?: UsageBody };
+
+const count = (n: unknown): number => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0);
+
+/**
+ * A call's usage from the response. Google doesn't document how its OpenAI-compatible endpoint reports thinking,
+ * so this reads both conventions: OpenAI counts reasoning inside completion_tokens (with a breakdown); Gemini may
+ * report it only in total_tokens. Billed output is whichever is larger, so the cost is right either way.
+ */
+export function usageFrom(body: UsageBody | undefined, model: string): Usage | null {
+  if (!body || typeof body.prompt_tokens !== "number") return null;
+  const input = count(body.prompt_tokens);
+  const completion = count(body.completion_tokens);
+  const output = Math.max(completion, count(body.total_tokens) - input);
+  const reported = body.completion_tokens_details?.reasoning_tokens;
+  const thinking = typeof reported === "number" ? count(reported) : Math.max(0, output - completion);
+  return { model, input, cachedInput: count(body.prompt_tokens_details?.cached_tokens), output, thinking };
+}
+
+/** Models that refused a thinking level (an endpoint or model without one): asked without it from then on. */
+const noReasoning = new Set<string>();
 
 /** Statuses that mean "slow down / try again shortly" (a free tier's per-minute quota, a busy upstream). */
 const RETRYABLE_STATUS = new Set([429, 503]);
@@ -100,6 +140,8 @@ export function openAICompatibleModel(opts: {
   sleep?: (ms: number) => Promise<void>;
   /** Injectable clock for tests (the rate-limit trip). */
   now?: () => number;
+  /** The thinking level to ask for (omitted: the model's default). Dropped automatically if the model refuses it. */
+  reasoning?: ReasoningEffort;
 }): Model {
   const url = `${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`;
   const doFetch = opts.fetchImpl ?? fetch;
@@ -111,45 +153,72 @@ export function openAICompatibleModel(opts: {
   return {
     async complete(messages, options) {
       if (now() < trippedUntil) throw new ModelError(trippedBy);
-      let res: Response;
-      const body: Record<string, unknown> = { model: opts.model, messages, response_format: { type: "json_object" } };
-      if (options?.temperature !== undefined) body.temperature = options.temperature;
-      // A free tier answers 429 when a burst of calls (a date is ~13 in a row) crosses its per-minute quota;
-      // a short, bounded backoff rides that out instead of losing the whole conversation to one refusal.
-      for (let attempt = 0; ; attempt++) {
-        try {
-          res = await doFetch(url, {
-            method: "POST",
-            headers: { authorization: `Bearer ${opts.apiKey}`, "content-type": "application/json" },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(opts.timeoutMs ?? MODEL_TIMEOUT_MS),
-          });
-        } catch (err) {
-          throw new ModelError(`model request failed (${err instanceof Error ? err.name : "unknown"})`);
+      let useReasoning = opts.reasoning !== undefined && !noReasoning.has(opts.model);
+      for (let pass = 0; ; pass++) {
+        let res: Response;
+        const body: Record<string, unknown> = { model: opts.model, messages, response_format: { type: "json_object" } };
+        if (options?.temperature !== undefined) body.temperature = options.temperature;
+        if (useReasoning) body.reasoning_effort = opts.reasoning;
+        // A free tier answers 429 when a burst of calls (a date is ~13 in a row) crosses its per-minute quota;
+        // a short, bounded backoff rides that out instead of losing the whole conversation to one refusal.
+        for (let attempt = 0; ; attempt++) {
+          try {
+            res = await doFetch(url, {
+              method: "POST",
+              headers: { authorization: `Bearer ${opts.apiKey}`, "content-type": "application/json" },
+              body: JSON.stringify(body),
+              signal: AbortSignal.timeout(opts.timeoutMs ?? MODEL_TIMEOUT_MS),
+            });
+          } catch (err) {
+            throw new ModelError(`model request failed (${err instanceof Error ? err.name : "unknown"})`);
+          }
+          if (!RETRYABLE_STATUS.has(res.status) || attempt >= delays.length) break;
+          const plan = await retryPlan(res, delays[attempt]);
+          if (plan.stop) break;
+          await res.body?.cancel().catch(() => {}); // free the connection while we wait
+          await sleep(plan.waitMs);
         }
-        if (!RETRYABLE_STATUS.has(res.status) || attempt >= delays.length) break;
-        const plan = await retryPlan(res, delays[attempt]);
-        if (plan.stop) break;
-        await res.body?.cancel().catch(() => {}); // free the connection while we wait
-        await sleep(plan.waitMs);
-      }
-      if (!res.ok) {
-        const message = `model returned HTTP ${res.status}${await errorReason(res)}`;
-        if (res.status === 429) {
-          trippedUntil = now() + RATE_LIMIT_TRIP_MS;
-          trippedBy = message;
+        if (!res.ok) {
+          const reason = await errorReason(res);
+          // A model or endpoint that doesn't take a thinking level: drop it (for this model, from now on) and ask again.
+          if (res.status === 400 && useReasoning && pass === 0 && /reason|think/i.test(reason)) {
+            noReasoning.add(opts.model);
+            useReasoning = false;
+            continue;
+          }
+          const message = `model returned HTTP ${res.status}${reason}`;
+          if (res.status === 429) {
+            trippedUntil = now() + RATE_LIMIT_TRIP_MS;
+            trippedBy = message;
+          }
+          throw new ModelError(message);
         }
-        throw new ModelError(message);
+        const data = (await res.json().catch(() => null)) as CompletionResponse | null;
+        const content = data?.choices?.[0]?.message?.content;
+        if (typeof content !== "string" || content.length === 0) throw new ModelError("model returned no text");
+        const usage = usageFrom(data?.usage, opts.model);
+        if (usage) options?.onUsage?.(usage);
+        return content;
       }
-      const data = (await res.json().catch(() => null)) as CompletionResponse | null;
-      const content = data?.choices?.[0]?.message?.content;
-      if (typeof content !== "string" || content.length === 0) throw new ModelError("model returned no text");
-      return content;
     },
   };
 }
 
-export function modelFromEnv(env: Record<string, string | undefined> = process.env, fetchImpl?: typeof fetch): Model {
+/**
+ * The thinking level for a role. The actor speaks ~12 short lines a date, so it asks for the least thinking;
+ * the director's plan and recap get a little. LLM_ACTOR_REASONING / LLM_DIRECTOR_REASONING override it
+ * ("default" sends none, so the model's own default applies).
+ */
+export function roleReasoning(role: "actor" | "director", env: Record<string, string | undefined> = process.env): ReasoningEffort | undefined {
+  const raw = (role === "actor" ? env.LLM_ACTOR_REASONING : env.LLM_DIRECTOR_REASONING) || (role === "actor" ? "minimal" : "low");
+  return (REASONING_EFFORTS as readonly string[]).includes(raw) ? (raw as ReasoningEffort) : undefined;
+}
+
+export function modelFromEnv(
+  env: Record<string, string | undefined> = process.env,
+  fetchImpl?: typeof fetch,
+  reasoning?: ReasoningEffort,
+): Model {
   const baseUrl = env.LLM_BASE_URL || DEFAULT_LLM_BASE_URL;
   // The Google key is only ever sent to Google's endpoint, never to a custom LLM_BASE_URL.
   const apiKey = env.LLM_API_KEY || (baseUrl === DEFAULT_LLM_BASE_URL ? env.GOOGLE_API_KEY : undefined);
@@ -160,7 +229,7 @@ export function modelFromEnv(env: Record<string, string | undefined> = process.e
       },
     };
   }
-  return openAICompatibleModel({ baseUrl, apiKey, model: env.LLM_MODEL || DEFAULT_LLM_MODEL, fetchImpl });
+  return openAICompatibleModel({ baseUrl, apiKey, model: env.LLM_MODEL || DEFAULT_LLM_MODEL, fetchImpl, reasoning });
 }
 
 let testModel: Model | null = null;
@@ -170,8 +239,9 @@ export function setModelForTests(model: Model | null): void {
   testModel = model;
 }
 
-export function getModel(): Model {
-  return testModel ?? modelFromEnv();
+/** The actor: speaks every line of the date and the morning-after texts. */
+export function getModel(reasoning: ReasoningEffort | undefined = roleReasoning("actor")): Model {
+  return testModel ?? modelFromEnv(process.env, undefined, reasoning);
 }
 
 /**
@@ -179,14 +249,17 @@ export function getModel(): Model {
  * the actor that speaks every line. LLM_DIRECTOR_MODEL puts it on a stronger model at the same endpoint and
  * key — a better plan for almost no extra quota — and it falls back to the actor's model when unset.
  */
-export function getDirectorModel(env: Record<string, string | undefined> = process.env): Model {
+export function getDirectorModel(
+  env: Record<string, string | undefined> = process.env,
+  reasoning: ReasoningEffort | undefined = roleReasoning("director", env),
+): Model {
   if (testModel) return testModel;
-  return env.LLM_DIRECTOR_MODEL ? modelFromEnv({ ...env, LLM_MODEL: env.LLM_DIRECTOR_MODEL }) : modelFromEnv(env);
+  return modelFromEnv(env.LLM_DIRECTOR_MODEL ? { ...env, LLM_MODEL: env.LLM_DIRECTOR_MODEL } : env, undefined, reasoning);
 }
 
 /** A model by name at the configured endpoint and key (the quality eval's A/B arms). */
-export function namedModel(name: string, env: Record<string, string | undefined> = process.env): Model {
-  return modelFromEnv({ ...env, LLM_MODEL: name });
+export function namedModel(name: string, env: Record<string, string | undefined> = process.env, reasoning?: ReasoningEffort): Model {
+  return modelFromEnv({ ...env, LLM_MODEL: name }, undefined, reasoning);
 }
 
 /* ------------------------------------------------------------------ *

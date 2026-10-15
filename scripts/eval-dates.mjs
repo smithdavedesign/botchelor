@@ -4,7 +4,7 @@
  *
  *   CRON_SECRET=… node scripts/eval-dates.mjs --label baseline [--base https://botchelor.vercel.app]
  *       [--actor gemini-…] [--director gemini-…] [--judge gemini-…] [--cases a,b] [--gap 20] [--repeat 2]
- *       [--shared-quota yes]
+ *       [--actor-reasoning minimal|low|medium|high|default] [--director-reasoning …] [--shared-quota yes]
  *
  * Each case is one POST /api/jobs/eval (built in memory on the server: no stored data is read or written).
  * Requests are spaced (--gap seconds) to stay inside the free tier's per-minute quota. --repeat N runs the
@@ -30,7 +30,13 @@ if (!secret) throw new Error("CRON_SECRET must be set (it gates the internal eva
 
 const ALL = ["thin-oc-juniper", "rafe-juniper", "mira-dex", "teo-ines", "orin-sable", "kaz-nell"];
 const cases = args.cases ? args.cases.split(",") : ALL;
-const models = { actor: args.actor || undefined, director: args.director || undefined, judge: args.judge || undefined };
+const models = {
+  actor: args.actor || undefined,
+  director: args.director || undefined,
+  judge: args.judge || undefined,
+  actor_reasoning: args["actor-reasoning"] || undefined,
+  director_reasoning: args["director-reasoning"] || undefined,
+};
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -80,6 +86,9 @@ for (const [i, id] of queue.entries()) {
     `${id.padEnd(16)} ${result.ending.padEnd(14)} turns ${String(m.turns).padStart(2)} index ${String(m.index).padStart(3)} ` +
       `judge ${result.judge_mean ?? "-"} | profile ${m.profile_reading} flips ${m.abrupt_flips} q ${m.question_rate} ` +
       `resp ${m.responsiveness} distinct ${m.distinctness} | ${result.model_calls} calls ${((Date.now() - t0) / 1000).toFixed(0)}s` +
+      (result.usage?.cost_usd != null
+        ? ` | ${result.usage.input_tokens} in ${result.usage.output_tokens} out (${result.usage.thinking_tokens} thinking) $${result.usage.cost_usd}`
+        : "") +
       (result.conversation_error ? ` | conversation failed: ${result.conversation_error}` : ""),
   );
 }
@@ -96,6 +105,10 @@ const summary = {
   responsiveness: mean(ok.map((r) => r.metrics.responsiveness)),
   distinctness: mean(ok.map((r) => r.metrics.distinctness)),
   model_calls: mean(ok.map((r) => r.model_calls)),
+  input_tokens: mean(ok.filter((r) => r.usage?.cost_usd != null).map((r) => r.usage.input_tokens)),
+  output_tokens: mean(ok.filter((r) => r.usage?.cost_usd != null).map((r) => r.usage.output_tokens)),
+  thinking_tokens: mean(ok.filter((r) => r.usage?.cost_usd != null).map((r) => r.usage.thinking_tokens)),
+  cost_usd: mean(ok.filter((r) => r.usage?.cost_usd != null).map((r) => r.usage.cost_usd)),
   conversations_failed: ok.filter((r) => r.conversation_error).length,
 };
 mkdirSync(join(ROOT, "docs", "eval"), { recursive: true });

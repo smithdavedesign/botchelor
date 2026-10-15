@@ -206,10 +206,12 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       await db.query(`update generation_jobs set status = 'succeeded', error = null, updated_at = now() where episode_id = $1`, [episodeId]);
       trackEpisodeCost({
         episode_id: episodeId,
+        where: "job",
         model: row.use_frontier ? "frontier" : "free",
         model_calls: gen.modelCalls,
         ms: Date.now() - t0,
         transcript_turns: transcript.length,
+        usage: gen.usage,
       });
     } else {
       // The episode was already filled (another worker won) — leave it; mark the job done.

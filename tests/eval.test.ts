@@ -109,6 +109,20 @@ describe("POST /api/jobs/eval", () => {
     vi.stubEnv("CRON_SECRET", secret);
     expect((await call({ case: "nope" }, `Bearer ${secret}`)).status).toBe(400);
     expect((await call({ case: "mira-dex", actor: "../../evil" }, `Bearer ${secret}`)).status).toBe(400);
+    expect((await call({ case: "mira-dex", actor_reasoning: "max" }, `Bearer ${secret}`)).status).toBe(400);
+  });
+
+  it("runs an arm at a chosen thinking level and says which levels it used", async () => {
+    vi.stubEnv("CRON_SECRET", secret);
+    const c = EVAL_CASES.find((x) => x.id === "kaz-nell")!;
+    const turns = format(c.format).turns ?? CONVERSATION_TURNS;
+    scriptedModel([planJson(), ...Array.from({ length: turns }, (_, i) => turnJson(i)), episodeJson()]);
+    const res = await call({ case: "kaz-nell", actor_reasoning: "low", director_reasoning: "default" }, `Bearer ${secret}`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.models).toMatchObject({ actor_reasoning: "low", director_reasoning: "default" });
+    expect(body.usage.calls).toBe(turns + 2);
+    expect(body.usage.cost_usd).toBeNull(); // scripted models report no usage: no cost, rather than a fake $0
   });
 
   it("runs one case with the configured model", async () => {
