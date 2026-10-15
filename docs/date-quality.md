@@ -373,7 +373,7 @@ What changed this round (all free-tier, no determinism change):
 
 | Change | File | Why |
 |---|---|---|
-| Director → `gemini-3.5-flash` by default (one call/date) | `lib/model.ts` `DEFAULT_DIRECTOR_MODEL`, `directorModelName` | The plan sets the whole date's grounding; a better director is the cheapest big lever, ~1 extra-tier call, not per-line. Only on the stock Google setup; BYOK/custom endpoints untouched. |
+| Director aims at `gemini-3.5-flash` by default (one call/date) | `lib/model.ts` `DEFAULT_DIRECTOR_MODEL`, `directorModelName` | The plan sets the whole date's grounding; a better director is a big lever for ~1 call, not per-line. Only on the stock Google setup; BYOK/custom endpoints untouched. If flash isn't in the free tier the call fails fast (`limit: 0`) and `planDate` falls back to the rules plan — graceful, and the actor's flash-lite quota is untouched; the flash director on every date means a paid key. |
 | Actor reasoning `minimal` → `low` | `lib/model.ts` `roleReasoning` | A touch more thinking so the actor actually follows the grounded-first-date rules instead of reaching for filler. |
 | Actor prompt rewritten: every line answers / asks / reveals one concrete thing; no extended metaphor; never narrate your own intention | `lib/conversation.ts` `SYSTEM_PROMPT` | Targets the exact failure (floral riff, agenda narration). |
 | `motif_fixation` critic | `lib/quality.ts`, `lib/conversation.ts` `critiqueTurn` | Sends back a line that keeps riding an image the date already circled while engaging nothing (no own content, no question, doesn't pick up the previous line). |

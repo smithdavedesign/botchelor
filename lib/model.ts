@@ -40,11 +40,17 @@ export class ModelError extends Error {
 export const DEFAULT_LLM_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 export const DEFAULT_LLM_MODEL = "gemini-3.5-flash-lite";
 /**
- * The director plans the beat sheet and writes the recap — one or two calls a date, versus the actor's ~12.
- * It runs on a stronger free Gemini by default: the plan sets the whole date's grounding and specificity, so a
- * better director is the cheapest big lever on date quality (≈1 extra-tier call, not per-line). Used only on the
- * default Google endpoint and when neither LLM_DIRECTOR_MODEL nor a custom LLM_MODEL is set (so BYOK/custom
- * endpoints are never forced onto a Gemini model name). LLM_DIRECTOR_MODEL overrides it.
+ * The director plans the beat sheet and writes the recap — one or two calls a date, versus the actor's ~12. It
+ * aims at a stronger Gemini than the actor: the plan sets the whole date's grounding, so a better director is a
+ * big lever for ≈1 call, not per-line. Used only on the stock Google endpoint and when neither
+ * LLM_DIRECTOR_MODEL nor a custom LLM_MODEL/key is set (so BYOK/custom endpoints are never forced onto a Gemini
+ * model name). LLM_DIRECTOR_MODEL overrides it.
+ *
+ * Note on cost: if this model isn't in the project's free tier, Google answers its first call with 429
+ * "limit: 0" (handled as quota-spent, no retry) and planDate falls back to the deterministic rules plan — no
+ * user-facing failure, and the actor's separate flash-lite quota is untouched. So this is a safe default that
+ * upgrades the plan where the tier allows and degrades gracefully where it doesn't; getting the flash director
+ * for real on every date means a paid key (docs/upgrade-cost.md).
  */
 export const DEFAULT_DIRECTOR_MODEL = "gemini-3.5-flash";
 export const MODEL_TIMEOUT_MS = 25_000;
