@@ -3,6 +3,7 @@ import {
   bestLine,
   buildTurnMessages,
   ConversationError,
+  critiqueTurn,
   parseTurn,
   simulateConversation,
   type Turn,
@@ -19,6 +20,7 @@ import {
 import { assembleCharacter, type Character } from "@/lib/character";
 import type { StoredSoul } from "@/lib/souls";
 import type { ChatMessage, Model } from "@/lib/model";
+import type { DatePlan } from "@/lib/beats";
 import { CONVERSATION_TURNS, ENDING_LABELS } from "@/lib/rules";
 import { pickVenue } from "@/lib/venues";
 
@@ -104,17 +106,77 @@ describe("buildTurnMessages — privacy and steering", () => {
     expect(a).not.toContain("hates surprises");
   });
 
-  it("adds the steering arc only in the final act, matching each side's decided choice", () => {
+  it("every act carries this side's private intention; only the last act carries the ending", () => {
     const early = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 0).messages);
-    expect(early).not.toContain("your_arc");
+    expect(early).toContain("your_intention");
+    expect(early).not.toContain(ENDING_LABELS.second_date);
 
-    const finalA = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 6).messages); // act 2, side a
-    expect(finalA).toContain("your_arc");
+    // Ten turns: turns 7-9 are the final act.
+    const finalA = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 8).messages); // side a
     expect(finalA).toContain(ENDING_LABELS.second_date);
-    expect(finalA).toContain("DO"); // sides[0].wants_another === true
+    expect(finalA).toContain("You want to see them again"); // sides[0].wants_another === true
 
-    const finalB = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 7).messages); // act 2, side b
-    expect(finalB).toContain("do NOT"); // sides[1].wants_another === false
+    const finalB = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 9).messages); // side b
+    expect(finalB).toContain("something in you says no"); // sides[1].wants_another === false, even on a second date
+  });
+
+  it("meets the other as a blind date does: name, pronouns, what you can see — never their profile", () => {
+    const bTurn = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 1).messages);
+    expect(bTurn).toContain("Mira"); // her name…
+    expect(bTurn).not.toContain("a cartographer"); // …but not her bio
+    expect(bTurn).not.toContain("a map reader"); // …or her want
+    expect(bTurn).not.toContain("hates surprises"); // …or her dealbreaker
+  });
+
+  it("a director plan's private beats reach only their own side", () => {
+    const plan: DatePlan = {
+      source: "director",
+      spine: "PLANSPINE",
+      acts: [0, 1, 2].map(() => ({ scene: "PUBLICSCENE", a: "AINTENT", b: "BINTENT" })) as DatePlan["acts"],
+    };
+    const a = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 0, "classic", {}, { plan }).messages);
+    const b = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 1, "classic", {}, { plan }).messages);
+    expect(a).toContain("AINTENT");
+    expect(a).not.toContain("BINTENT");
+    expect(b).toContain("BINTENT");
+    expect(b).not.toContain("AINTENT");
+    expect(a).toContain("PUBLICSCENE");
+    expect(b).toContain("PUBLICSCENE");
+    expect(a + b).not.toContain("PLANSPINE"); // the spine is the narrator's, not the agents'
+  });
+});
+
+describe("the turn critic", () => {
+  it("sends back a line that reads the other's profile, and says why", () => {
+    const leak: Turn = { side: "b", act: 0, dialogue: "A cartographer who wants a map reader, huh?", action: "", emotion: "", interest: 0.5 };
+    expect(critiqueTurn([], leak, INPUT, CHARS, VENUE)).toMatch(/haven't told you/);
+    const fine: Turn = { side: "b", act: 0, dialogue: "So what do you actually do when you're not out on a date?", action: "", emotion: "", interest: 0.5 };
+    expect(critiqueTurn([], fine, INPUT, CHARS, VENUE)).toBeNull();
+  });
+
+  it("revises a flagged line once and keeps the revision", async () => {
+    const { model, calls } = turnModel([
+      turnJson("Hi. I'm Mira. I brought a compass, just in case."), // turn 0 (Mira): fine
+      turnJson("A cartographer who wants a map reader, huh?"), // turn 1 (Rafe) reads her profile → sent back
+      turnJson("So what do you do when you're not on a date?"), // the revision
+      ...Array.from({ length: CONVERSATION_TURNS }, (_, i) => turnJson(`Line ${i}: something friendly to say.`)),
+    ]);
+    const transcript = await simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE);
+    expect(transcript).toHaveLength(CONVERSATION_TURNS);
+    // turn 0 (side a) is fine; turn 1 (side b) was the leak and got revised.
+    expect(transcript[1].dialogue).toBe("So what do you do when you're not on a date?");
+    expect(calls[2].at(-1)?.content).toMatch(/^Revise that line:/);
+  });
+
+  it("keeps the first draft when the revision doesn't parse (the critic never costs a date)", async () => {
+    const { model } = turnModel([
+      turnJson("hello there, stranger"),
+      turnJson("A cartographer who wants a map reader, huh?"),
+      "not json",
+      ...Array.from({ length: CONVERSATION_TURNS }, (_, i) => turnJson(`Line ${i}: something friendly to say.`)),
+    ]);
+    const transcript = await simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE);
+    expect(transcript[1].dialogue).toBe("A cartographer who wants a map reader, huh?");
   });
 });
 
@@ -123,7 +185,7 @@ describe("simulateConversation", () => {
     const { model } = turnModel(Array.from({ length: CONVERSATION_TURNS }, (_, i) => turnJson(`line ${i}`, i / 10)));
     const transcript = await simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE);
     expect(transcript).toHaveLength(CONVERSATION_TURNS);
-    expect(transcript.map((t) => t.side)).toEqual(["a", "b", "a", "b", "a", "b", "a", "b"]);
+    expect(transcript.map((t) => t.side)).toEqual(Array.from({ length: CONVERSATION_TURNS }, (_, i) => (i % 2 ? "b" : "a")));
     // Acts are non-decreasing and cover all three.
     expect(transcript[0].act).toBe(0);
     expect(transcript.at(-1)!.act).toBe(2);

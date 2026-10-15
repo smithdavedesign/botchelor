@@ -156,6 +156,13 @@ alter table characters add column if not exists premium_sku text;
 alter table characters add column if not exists appearance text;
 alter table characters add column if not exists avatar_hue smallint
   check (avatar_hue is null or (avatar_hue >= 0 and avatar_hue <= 360));
+-- M15 (genuine dates): how others refer to a character, and how it talks. Both are public persona (shown
+-- on the card) and both reach the date's models — the voice is the biggest lever for a character sounding
+-- like itself rather than like one witty narrator (docs/date-quality.md). The engine never reads either.
+-- The pronouns CHECK mirrors PRONOUNS in lib/rules.ts.
+alter table characters add column if not exists pronouns text
+  check (pronouns is null or pronouns in ('she/her', 'he/him', 'they/them'));
+alter table characters add column if not exists voice text;
 
 -- One row per checkout. Our random id (never the session cookie) is what Stripe sees, as the Payment
 -- Link's client_reference_id. Ownership is "a paid order"; each Stripe session is recorded on exactly one
@@ -503,13 +510,14 @@ export async function ensureSchema(db: Db): Promise<void> {
   for (const c of cast) {
     await db.query(
       `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, premium_sku,
-                               appearance, avatar_hue)
-       values ($1, null, true, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)
+                               appearance, avatar_hue, pronouns, voice)
+       values ($1, null, true, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12)
        on conflict (id) do update set
          owner_id = null, is_house = true, name = excluded.name, age = excluded.age, bio = excluded.bio,
          traits = excluded.traits, want = excluded.want, dealbreaker = excluded.dealbreaker,
-         premium_sku = excluded.premium_sku, appearance = excluded.appearance, avatar_hue = excluded.avatar_hue`,
-      [c.id, c.name, c.age, c.bio, JSON.stringify(c.traits), c.want, c.dealbreaker, c.sku, c.appearance, c.hue],
+         premium_sku = excluded.premium_sku, appearance = excluded.appearance, avatar_hue = excluded.avatar_hue,
+         pronouns = excluded.pronouns, voice = excluded.voice`,
+      [c.id, c.name, c.age, c.bio, JSON.stringify(c.traits), c.want, c.dealbreaker, c.sku, c.appearance, c.hue, c.pronouns, c.voice],
     );
     // A house character's temperament, as engine-only signals. The text fields stay empty and
     // local_only is true, so there is no private prose to leak — only the numbers the engine decides

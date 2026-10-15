@@ -6,10 +6,10 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { ModelError } from "@/lib/model";
 import { CONVERSATION_TURNS, ENDING_LABELS } from "@/lib/rules";
 import { createTemplateParty, listLobby, refreshLobby } from "@/lib/watch";
-import { BASE_URL, episodeJson, scriptedModel, scriptOutcome, setupEpisode, startTestDb } from "./helpers";
+import { BASE_URL, episodeJson, planJson, scriptedModel, scriptOutcome, setupEpisode, startTestDb } from "./helpers";
 
 const turnJson = (i: number) =>
-  JSON.stringify({ dialogue: `A safe, friendly line number ${i}.`, action: "asks", emotion: "curious", interest_signal: 0.5 });
+  JSON.stringify({ dialogue: `Line ${i}: a safe, friendly thing to say.`, action: "asks", emotion: "curious", interest_signal: 0.5 });
 const turns = (n: number) => Array.from({ length: n }, (_, i) => turnJson(i));
 const userText = (messages: { role: string; content: string }[]) => messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
 
@@ -52,7 +52,7 @@ describe("refreshLobby (daily)", () => {
   it("adds one fresh room with a full conversation per day, between two distinct house characters", async () => {
     setConversationEnabledForTests(true);
     scriptOutcome({ ending: "second_date" });
-    scriptedModel([episodeJson(), ...turns(CONVERSATION_TURNS)]);
+    scriptedModel([planJson(), ...turns(CONVERSATION_TURNS), episodeJson()]);
     const now = new Date();
     const first = await refreshLobby(t.db, now);
     expect(first.created).toBeTruthy();
@@ -79,7 +79,8 @@ describe("backfillTranscripts", () => {
     // The engine would now say "second date" — a backfill must ignore that and land on the stored ending.
     scriptOutcome({ ending: "second_date" });
     setConversationEnabledForTests(true);
-    const { calls } = scriptedModel(turns(CONVERSATION_TURNS));
+    // Two unusable plans → the rules plan (built from the STORED outcome), then the turns.
+    const { calls } = scriptedModel(["{}", "{}", ...turns(CONVERSATION_TURNS)]);
 
     const result = await backfillTranscripts(t.db, 5);
     expect(result).toEqual({ filled: [episode.id], failed: [] });
@@ -101,7 +102,7 @@ describe("backfillTranscripts", () => {
     const { episode } = await setupEpisode("disaster");
     setConversationEnabledForTests(true);
     for (let i = 0; i < BACKFILL_MAX_ATTEMPTS; i++) {
-      scriptedModel([new Error("model down"), new Error("model down")]); // the first turn fails both attempts
+      scriptedModel(["{}", "{}", new Error("model down"), new Error("model down")]); // rules plan; the first turn fails twice
       expect((await backfillTranscripts(t.db, 5)).failed).toEqual([episode.id]);
     }
     scriptedModel([]); // any call now would throw "ran out of outputs"
@@ -113,8 +114,8 @@ describe("backfillTranscripts", () => {
     const older = await setupEpisode("friends");
     const newer = await setupEpisode("disaster");
     setConversationEnabledForTests(true);
-    // The newest date's first turn is refused twice with a 429 (after the client's own backoff).
-    scriptedModel([new ModelError("model returned HTTP 429"), new ModelError("model returned HTTP 429")]);
+    // The plan falls back to rules; then the newest date's first turn is refused twice with a 429.
+    scriptedModel(["{}", "{}", new ModelError("model returned HTTP 429"), new ModelError("model returned HTTP 429")]);
     const result = await backfillTranscripts(t.db, 5);
     expect(result).toEqual({ filled: [], failed: [], rate_limited: true }); // stopped: the older date wasn't tried
     const attempts = async (id: string) =>
@@ -143,7 +144,7 @@ describe("GET /api/jobs/daily", () => {
     vi.stubEnv("CRON_SECRET", secret);
     setConversationEnabledForTests(true);
     scriptOutcome({ ending: "friends" });
-    scriptedModel([episodeJson(), ...turns(CONVERSATION_TURNS)]);
+    scriptedModel([planJson(), ...turns(CONVERSATION_TURNS), episodeJson()]);
     const res = await call({ authorization: `Bearer ${secret}` });
     expect(res.status).toBe(200);
     const body = await res.json();

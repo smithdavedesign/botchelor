@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { checkFields, type RejectReason } from "@/lib/safety";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput } from "@/lib/souls";
 
@@ -24,6 +25,10 @@ const CharacterInput = z.object({
   // Customization: an optional appearance line and an avatar hue (0 = auto). No image upload (safety).
   appearance: text(140).optional(),
   avatar_hue: z.number().int().min(0).max(360).optional(),
+  // M15: how others refer to them, and how they talk. Public persona; both reach the date's models so a
+  // character isn't misgendered and sounds like itself. The engine never reads them.
+  pronouns: z.enum(PRONOUNS, "Pick she/her, he/him or they/them.").optional(),
+  voice: text(VOICE_MAX).optional(),
   // Behavioural signals trained from a reference image, derived in the browser (lib/avatar.ts). The
   // raw image is never sent — only these four 0..1 numbers, which the engine uses to decide dates.
   image_signals: z
@@ -56,6 +61,7 @@ export const POST = handle(async (req) => {
     want: input.want,
     dealbreaker: input.dealbreaker,
     appearance: input.appearance,
+    voice: input.voice,
   });
   if (!verdict.ok) {
     return json(
@@ -73,9 +79,9 @@ export const POST = handle(async (req) => {
   const id = crypto.randomUUID();
   const hue = input.avatar_hue && input.avatar_hue > 0 ? input.avatar_hue : null;
   await db.query(
-    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue)
-     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)`,
-    [id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue],
+    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice)
+     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12)`,
+    [id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue, input.pronouns ?? null, input.voice ?? null],
   );
   const hasSoul = Boolean(soul && !isEmptySoul(soul));
   const signals = input.image_signals ?? null;

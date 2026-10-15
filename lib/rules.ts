@@ -182,6 +182,12 @@ export const AGENDA_IDS = AGENDAS.map((a) => a.id) as [AgendaId, ...AgendaId[]];
 export const agenda = (id: AgendaId): Agenda => AGENDAS.find((a) => a.id === id)!;
 export const agendaLabel = (id: AgendaId): string => agenda(id).label;
 
+/** How a character is referred to (M15). The DB CHECK on characters.pronouns mirrors this list. */
+export const PRONOUNS = ["she/her", "he/him", "they/them"] as const;
+export type Pronouns = (typeof PRONOUNS)[number];
+/** A character's "how they talk" line: long enough for a real voice, short enough to stay a voice. */
+export const VOICE_MAX = 200;
+
 /**
  * Every date is a three-act story (ChatGPT's PRD review: "define a structured date with three acts").
  * The engine decides the outcome; the model narrates one scene per act, building to it. Act 2's
@@ -194,7 +200,7 @@ export const DATE_ACTS = ["First impressions", "The challenge", "The decision"] 
  * other's actual last line (not one model narrating both). The engine still decides the outcome
  * (predictions stay fair); the conversation performs it. Bounded so a date stays short and cheap.
  */
-export const CONVERSATION_TURNS = 8; // dialogue turns total, alternating, character A opens
+export const CONVERSATION_TURNS = 10; // dialogue turns total, alternating, character A opens (10 since M15: room for questions and answers)
 export const TURN_DIALOGUE_MAX = 280; // characters per spoken line
 
 /**

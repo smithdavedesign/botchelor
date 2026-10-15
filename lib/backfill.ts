@@ -21,7 +21,8 @@ import type { CharacterSheet, Outcome, SideOutcome, VariableArc } from "./engine
 import { DEFAULT_FORMAT } from "./formats";
 import type { DateSetup } from "./game";
 import { failureReason } from "./jobs";
-import { getModel } from "./model";
+import { getDirectorModel, getModel } from "./model";
+import { planDate } from "./beats";
 import {
   DATE_VARIABLES,
   DEFAULT_AUTONOMY,
@@ -46,8 +47,8 @@ type Row = {
   drama_answer: DramaAnswer | null;
   box_score: Record<DateVariable, VariableArc> | null;
   sides: [SideOutcome, SideOutcome] | null;
-  a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_house: boolean; a_appearance: string | null;
-  b_id: string; b_name: string; b_age: number; b_bio: string; b_traits: string[]; b_want: string; b_dealbreaker: string; b_house: boolean; b_appearance: string | null;
+  a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_house: boolean; a_appearance: string | null; a_pronouns: string | null; a_voice: string | null;
+  b_id: string; b_name: string; b_age: number; b_bio: string; b_traits: string[]; b_want: string; b_dealbreaker: string; b_house: boolean; b_appearance: string | null; b_pronouns: string | null; b_voice: string | null;
 };
 
 const sheet = (r: Row, p: "a" | "b"): CharacterSheet => ({
@@ -59,6 +60,8 @@ const sheet = (r: Row, p: "a" | "b"): CharacterSheet => ({
   dealbreaker: r[`${p}_dealbreaker`],
   house: r[`${p}_house`],
   appearance: r[`${p}_appearance`] ?? undefined,
+  pronouns: r[`${p}_pronouns`] ?? undefined,
+  voice: r[`${p}_voice`] ?? undefined,
 });
 
 /** For dates stored before per-side verdicts existed: both sides feel the way the shared ending went. */
@@ -100,17 +103,13 @@ async function conversationFor(db: Db, r: Row): Promise<Turn[]> {
   const built = await buildDate(db, r.id, forDate("a"), forDate("b"), req, seed, snapshot);
   // An old date's characters speak as they were then: no memory of dates that came after it.
   const characters = built.characters.map((c) => ({ ...c, memory: null })) as [Character, Character];
-  return simulateConversation(
-    getModel(),
-    built.input,
-    storedOutcome(r, built.seed),
-    characters,
-    r.setup?.producer ?? built.setup.producer,
-    r.setup?.venue ?? built.setup.venue,
-    format,
-    undefined,
-    { chaperone: r.setup?.chaperone, ex: r.setup?.ex },
-  );
+  const outcome = storedOutcome(r, built.seed);
+  const producer = r.setup?.producer ?? built.setup.producer;
+  const venueId = r.setup?.venue ?? built.setup.venue;
+  const formatCtx = { chaperone: r.setup?.chaperone, ex: r.setup?.ex };
+  // Played from a beat sheet of the STORED outcome, like a fresh date (lib/beats.ts).
+  const plan = await planDate(getDirectorModel(), built.input, outcome, characters, producer, venueId, format, formatCtx);
+  return simulateConversation(getModel(), built.input, outcome, characters, producer, venueId, format, undefined, formatCtx, plan);
 }
 
 /** The free tier said "slow down" (a 429 that outlasted the model client's own short backoff). */
@@ -134,9 +133,9 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
   const { rows } = await db.query<Row>(
     `select e.id, e.seed::text as seed, e.setup, e.note, e.ending, e.drama_question, e.drama_answer, e.box_score, e.sides,
             a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want,
-            a.dealbreaker a_dealbreaker, a.is_house a_house, a.appearance a_appearance,
+            a.dealbreaker a_dealbreaker, a.is_house a_house, a.appearance a_appearance, a.pronouns a_pronouns, a.voice a_voice,
             b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want,
-            b.dealbreaker b_dealbreaker, b.is_house b_house, b.appearance b_appearance
+            b.dealbreaker b_dealbreaker, b.is_house b_house, b.appearance b_appearance, b.pronouns b_pronouns, b.voice b_voice
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b

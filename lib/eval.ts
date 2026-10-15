@@ -129,6 +129,7 @@ export type EvalResult = {
   characters: [string, string];
   transcript: Turn[];
   recap: { setting: string; scenes: string[]; best_line: string };
+  plan: { source: string; spine: string; acts: { scene: string; a: string; b: string }[] } | null;
   metrics: QualityMetrics;
   judge: JudgeScores | null;
   judge_mean: number | null;
@@ -154,10 +155,12 @@ export async function runEvalCase(c: EvalCase, models: DateModels, judge: Model 
   const ms = Date.now() - t0;
   const characters = built.characters as [Character, Character];
   const venuePrompt = venue(built.setup.venue).prompt;
-  const metrics = transcriptQuality(gen.transcript, characters, {
-    pronouns: [characters[0].pronouns, characters[1].pronouns],
-    shared: `${venuePrompt} ${gen.draft.setting}`,
-  });
+  const metrics =
+    gen.quality ??
+    transcriptQuality(gen.transcript, characters, {
+      pronouns: [characters[0].pronouns, characters[1].pronouns],
+      shared: `${venuePrompt} ${gen.draft.setting}`,
+    });
   const verdict = judge ? await judgeDate(judge, characters, outcome, gen.transcript, venuePrompt) : null;
   return {
     case: c.id,
@@ -167,6 +170,7 @@ export async function runEvalCase(c: EvalCase, models: DateModels, judge: Model 
     characters: [characters[0].name, characters[1].name],
     transcript: gen.transcript,
     recap: { setting: gen.draft.setting, scenes: gen.draft.scenes, best_line: gen.draft.best_line },
+    plan: gen.plan,
     metrics,
     judge: verdict,
     judge_mean: verdict ? judgeMean(verdict) : null,

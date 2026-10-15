@@ -25,6 +25,7 @@ import type { Model } from "@/lib/model";
 import { assembleCharacter, type Character } from "@/lib/character";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { DEFAULT_FORMAT, FORMATS, format, formatNote, type FormatId } from "@/lib/formats";
+import { CONVERSATION_TURNS } from "@/lib/rules";
 
 const sheetA: CharacterSheet = { name: "Mira", age: 27, bio: "a cartographer", traits: ["curious", "warm"], want: "a map reader", dealbreaker: "hates surprises", house: false };
 const sheetB: CharacterSheet = { name: "Rafe", age: 30, bio: "a baker", traits: ["dramatic", "kind"], want: "an honest taste-tester", dealbreaker: "liars", house: true };
@@ -105,11 +106,14 @@ describe("formats — framing only", () => {
     expect(user("classic")).not.toContain("SPEED DATE");
   });
 
-  it("a speed date runs fewer conversation turns than a classic date", async () => {
-    const classic: Turn[] = await simulateConversation(turnModel(8), INPUT, OUTCOME, CHARS, "a_hard_question", "rooftop_bar", "classic");
+  it("a speed date runs fewer conversation turns than a classic date — and still reaches the decision", async () => {
+    const classic: Turn[] = await simulateConversation(turnModel(CONVERSATION_TURNS), INPUT, OUTCOME, CHARS, "a_hard_question", "rooftop_bar", "classic");
     const speed: Turn[] = await simulateConversation(turnModel(6), INPUT, OUTCOME, CHARS, "a_hard_question", "rooftop_bar", "speed_date");
-    expect(classic.length).toBe(8);
+    expect(classic.length).toBe(CONVERSATION_TURNS);
     expect(speed.length).toBe(6);
+    // The acts map onto the format's own length, so a short date still has all three (it used to stop at act 2).
+    expect(new Set(speed.map((t) => t.act))).toEqual(new Set([0, 1, 2]));
+    expect(new Set(classic.map((t) => t.act))).toEqual(new Set([0, 1, 2]));
   });
 });
 

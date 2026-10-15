@@ -64,11 +64,33 @@ const DEFAULT_SETTINGS: DateSettings = {
 
 /** Ready-made characters for the one-click "Use a sample character" fast start. */
 const SAMPLES = [
-  { name: "Juno Marlowe", age: "28", bio: "A tarot reader who only predicts the weather, and is weirdly accurate.", traits: ["mystic", "cheeky", "kind"], want: "Someone who'll dance in the rain she forecast", dealbreaker: "People who check their phone for the forecast", appearance: "a cool violet palette, soft and vivid", hue: 275 },
-  { name: "Cass Vega", age: "33", bio: "A demolition expert turned florist. Still flinches at loud bouquets.", traits: ["bold", "gentle", "precise"], want: "A quiet evening that doesn't blow up", dealbreaker: "Surprise fireworks", appearance: "a warm amber palette, bright and bold", hue: 30 },
-  { name: "Ira Fenn", age: "26", bio: "Runs a 24-hour library for insomniac poets. Knows which books are sleeping.", traits: ["bookish", "warm", "stubborn"], want: "Someone who reads the last page first, bravely", dealbreaker: "Dog-earing a page", appearance: "a cool teal palette, soft and balanced", hue: 160 },
-  { name: "Dorian Sol", age: "31", bio: "A retired game-show host who still announces his own breakfast.", traits: ["dramatic", "generous", "loud"], want: "An audience of one who claps anyway", dealbreaker: "Silence during the big reveal", appearance: "a warm red palette, bright and vivid", hue: 340 },
+  { name: "Juno Marlowe", age: "28", bio: "A tarot reader who only predicts the weather, and is weirdly accurate.", traits: ["mystic", "cheeky", "kind"], want: "Someone who'll dance in the rain she forecast", dealbreaker: "People who check their phone for the forecast", appearance: "a cool violet palette, soft and vivid", hue: 275, pronouns: "she/her", voice: "Cheeky and cryptic: answers questions with forecasts, teases gently, then says something unexpectedly sincere." },
+  { name: "Cass Vega", age: "33", bio: "A demolition expert turned florist. Still flinches at loud bouquets.", traits: ["bold", "gentle", "precise"], want: "A quiet evening that doesn't blow up", dealbreaker: "Surprise fireworks", appearance: "a warm amber palette, bright and bold", hue: 30, pronouns: "she/her", voice: "Calm and exact: short sentences, a quiet laugh, explains flowers like explosives and explosives like flowers." },
+  { name: "Ira Fenn", age: "26", bio: "Runs a 24-hour library for insomniac poets. Knows which books are sleeping.", traits: ["bookish", "warm", "stubborn"], want: "Someone who reads the last page first, bravely", dealbreaker: "Dog-earing a page", appearance: "a cool teal palette, soft and balanced", hue: 160, pronouns: "they/them", voice: "Soft-spoken and bookish: quotes half a line then trails off, asks what you're reading, gets fierce about bad habits with books." },
+  { name: "Dorian Sol", age: "31", bio: "A retired game-show host who still announces his own breakfast.", traits: ["dramatic", "generous", "loud"], want: "An audience of one who claps anyway", dealbreaker: "Silence during the big reveal", appearance: "a warm red palette, bright and vivid", hue: 340, pronouns: "he/him", voice: "Booming game-show patter: narrates his own life, counts down to everything, and keeps checking if you're having fun." },
 ];
+
+/**
+ * Quick picks for "How do they talk?" (M15). A voice is the single biggest lever for a date that sounds like
+ * two particular people instead of one witty narrator (docs/date-quality.md), so the builder offers a start.
+ */
+const VOICE_PICKS = [
+  { label: "Dry & deadpan", voice: "Dry and deadpan: short sentences, long pauses, never laughs at their own jokes." },
+  { label: "Bubbly & fast", voice: "Bubbly and fast: exclamation marks, happy tangents, says yes before hearing the plan." },
+  { label: "Smooth flirt", voice: "Smooth and teasing: easy compliments, a raised eyebrow in every line, recovers fast when caught out." },
+  { label: "Nerdy & precise", voice: "Precise and a little nerdy: starts small, then explains something perfectly if you ask a follow-up." },
+  { label: "Shy, warms up", voice: "Shy at first: short careful answers that get longer and warmer once they trust you." },
+  { label: "Big & theatrical", voice: "Big and theatrical: dramatic pauses, grand gestures, turns small moments into scenes." },
+  { label: "Blunt & practical", voice: "Blunt and practical: says exactly what they mean, asks how things work, no small talk." },
+] as const;
+
+/** A sheet too thin to play: the model has nothing particular to work with, so the date comes out generic. */
+function thinSheetHint(bio: string, want: string): string | null {
+  const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
+  if (bio.trim() && words(bio) < 8) return "Thin bios make generic dates. Give them one specific detail: a job, a habit, a story they'd tell.";
+  if (want.trim() && words(want) < 3) return "Make the want specific (\"someone who laughs at my puns\", not \"fun\") so it can actually come up on the date.";
+  return null;
+}
 
 function PackOffer({ offer }: { offer: string | null }) {
   if (!offer) return null;
@@ -190,6 +212,8 @@ export default function StartForm({
   const [sheet, setSheet] = useState({ name: "", age: "", bio: "", want: "", dealbreaker: "" });
   const [hue, setHue] = useState(0);
   const [appearance, setAppearance] = useState("");
+  const [pronouns, setPronouns] = useState("");
+  const [voice, setVoice] = useState("");
   const [traits, setTraits] = useState(["", "", ""]);
   const [styledFromImage, setStyledFromImage] = useState(false);
   const [imageSignals, setImageSignals] = useState<ImageSignals | null>(null);
@@ -203,6 +227,8 @@ export default function StartForm({
     setSheet({ name: t.name, age: t.age, bio: t.bio, want: t.want, dealbreaker: t.dealbreaker });
     setTraits([...t.traits]);
     setAppearance(t.appearance);
+    setPronouns(t.pronouns);
+    setVoice(t.voice);
     setHue(t.hue);
     setImageSignals(null);
     setStyledFromImage(false);
@@ -280,6 +306,8 @@ export default function StartForm({
         want: sheet.want.trim(),
         dealbreaker: sheet.dealbreaker.trim(),
         ...(appearance.trim() ? { appearance: appearance.trim() } : {}),
+        ...(pronouns ? { pronouns } : {}),
+        ...(voice.trim() ? { voice: voice.trim() } : {}),
         ...(hue > 0 ? { avatar_hue: hue } : {}),
         ...(imageSignals ? { image_signals: imageSignals } : {}),
         ...(soul ? { soul } : {}),
@@ -424,6 +452,7 @@ export default function StartForm({
           Short bio
           <textarea name="bio" required maxLength={500} rows={3} value={sheet.bio} onChange={(e) => setField("bio", e.target.value)} />
         </label>
+        {thinSheetHint(sheet.bio, sheet.want) && <p className="hint-nudge">💡 {thinSheetHint(sheet.bio, sheet.want)}</p>}
         <label>Three traits</label>
         <div className="traits">
           {[0, 1, 2].map((i) => (
@@ -447,6 +476,37 @@ export default function StartForm({
           Their dealbreaker
           <input type="text" name="dealbreaker" required maxLength={140} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} />
         </label>
+
+        <fieldset className="pronoun-pick">
+          <legend>
+            Pronouns <span className="muted">(so nobody on the date gets it wrong)</span>
+          </legend>
+          {[["she/her", "she/her"], ["he/him", "he/him"], ["they/them", "they/them"], ["", "Not saying"]].map(([value, label]) => (
+            <label key={label} className={`pronoun-chip${pronouns === value ? " chosen" : ""}`}>
+              <input type="radio" name="pronouns" value={value} checked={pronouns === value} onChange={() => setPronouns(value)} />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+
+        <label>
+          How do they talk? <span className="muted">(optional, but it&apos;s what makes their dates sound like them)</span>
+          <textarea
+            name="voice"
+            maxLength={200}
+            rows={2}
+            placeholder="Dry and deadpan: short sentences, long pauses, never laughs at their own jokes."
+            value={voice}
+            onChange={(e) => setVoice(e.target.value)}
+          />
+        </label>
+        <div className="voice-picks" role="group" aria-label="Voice ideas">
+          {VOICE_PICKS.map((v) => (
+            <button key={v.label} type="button" className={`look-chip${voice === v.voice ? " chosen" : ""}`} onClick={() => setVoice(v.voice)}>
+              {v.label}
+            </button>
+          ))}
+        </div>
 
         <div className="looks">
           <Avatar seed={sheet.name || "preview"} name={sheet.name || "?"} hue={hue} size={72} />

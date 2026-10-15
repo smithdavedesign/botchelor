@@ -1,0 +1,774 @@
+{
+  "label": "baseline-v1",
+  "ran_at": "2026-10-15T00:08:45.037Z",
+  "base": "https://botchelor.vercel.app",
+  "models": {
+    "judge": "gemini-3.5-flash-lite"
+  },
+  "summary": {
+    "index": 76,
+    "judge_mean": 3.6,
+    "profile_reading": 0.83,
+    "abrupt_flips": 0.33,
+    "misgendered": 0,
+    "question_rate": 0.25,
+    "responsiveness": 0.59,
+    "distinctness": 0.92,
+    "model_calls": 8.67,
+    "conversations_failed": 0
+  },
+  "results": [
+    {
+      "case": "thin-oc-juniper",
+      "format": "classic",
+      "ending": "Just friends",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Jordan Pike",
+        "Juniper Vale"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "A ghost podcast and gulls? That is way wilder than anything I usually do, I'm kind of into it.",
+          "action": "leans on arcade machine",
+          "emotion": "amused",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Well, the gulls are tough critics, but maybe you've got a decent ghost story in you before that arcade machine explodes.",
+          "action": "tilts storm coat hood back",
+          "emotion": "curious",
+          "interest": 0.6
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Oh, I've got a couple wild stories, but let's go play that broken game first and see if we can actually win something for once.",
+          "action": "grins and points at machine",
+          "emotion": "excited",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "Lead the way, but if it tries to interrupt my ghost story, I'm unplugging it.",
+          "action": "points at the noisy machine",
+          "emotion": "amused",
+          "interest": 0.6
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "Deal, but first we gotta dodge my ex walking over right now—wanna hide behind this pinball machine?",
+          "action": "grabs her sleeve",
+          "emotion": "surprised",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "An ex? Perfect, maybe they can tell us a decent haunting tale while we crouch here.",
+          "action": "crouches behind pinball machine",
+          "emotion": "amused",
+          "interest": 0.6
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "You are hilarious, let's definitely grab drinks and swap stories after this craziness ends.",
+          "action": "crouches down laughing",
+          "emotion": "amused",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Drinks and ghost stories it is, but you're buying the round if my boots get sticky on the arcade floor.",
+          "action": "smirks and stands up",
+          "emotion": "amused",
+          "interest": 0.7
+        }
+      ],
+      "recap": {
+        "setting": "A loud retro arcade where one broken machine keeps announcing a winner amidst flashing neon lights.",
+        "scenes": [
+          "Jordan approaches Juniper near the flashing pinball machines, striking a cool pose while Juniper quietly studies a gull graphic on the wall.",
+          "Suddenly, an old rival from Jordan's past arrives demanding a rematch on the broken machine, creating complete chaos.",
+          "Juniper decides it is time to depart for the evening, leaving Jordan wanting another round while Juniper considers a future meetup."
+        ],
+        "best_line": "Even the gulls have better timing than this."
+      },
+      "metrics": {
+        "turns": 8,
+        "avg_words": 18.5,
+        "length_spread": 3.35,
+        "question_rate": 0.38,
+        "responsiveness": 0.43,
+        "profile_reading": 1,
+        "self_labels": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "distinctness": 0.9,
+        "grounding": [
+          0,
+          0.75
+        ],
+        "index": 79
+      },
+      "judge": {
+        "in_character_a": 2,
+        "in_character_b": 3,
+        "natural": 2,
+        "motivated": 2,
+        "specific": 2,
+        "distinct": 3,
+        "engaging": 3,
+        "profile_reading": true,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The biggest problem is Jordan instantly knowing about Juniper's podcast despite being on a blind date, though the deadpan banter about the ex behind the pinball machine has some charm."
+      },
+      "judge_mean": 2.43,
+      "model_calls": 9,
+      "ms": 37018,
+      "conversation_error": null,
+      "models": {
+        "actor": "default",
+        "director": "default",
+        "judge": "gemini-3.5-flash-lite"
+      }
+    },
+    {
+      "case": "rafe-juniper",
+      "format": "classic",
+      "ending": "A disaster",
+      "wants_another": [
+        false,
+        false
+      ],
+      "characters": [
+        "Rafe Calloway",
+        "Juniper Vale"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Well, a cold beach at midnight is dramatic enough to earn a pastry, provided you promise not to call my croissants 'just carbs.'",
+          "action": "pulls the blanket tighter",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Call them carbs if they lack a soul, or if they're store-bought. Have you ever baked while a phantom rapped on the lighthouse glass?",
+          "action": "sipping terrible thermos tea",
+          "emotion": "deadpan",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Only if the phantom has decent taste and brings a proper appetite for brown butter brioche!",
+          "action": "waves hands dramatically",
+          "emotion": "amused",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "Brioche won't save you if the phantom wants answers, Rafe. Do you believe in spirits, or are you just here for the snacks?",
+          "action": "stares deadpan",
+          "emotion": "curious",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "I am strictly here for the snacks, but I'll fight any ghost who insults my brioche!",
+          "action": "brandishes thermos like a sword",
+          "emotion": "amused",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "A fighter of pastries, how brave. Let's see if your courage holds when the floorboards groan at three in the morning.",
+          "action": "tilts head curiously",
+          "emotion": "curious",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "Honestly, fighting invisible seagulls in the dark sounds exhausting, so I think I'm heading back to my oven.",
+          "action": "pulls blanket tighter",
+          "emotion": "defensive",
+          "interest": 0.1
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "If you flee from creaking wood, you'd never survive a real haunting anyway. Safe travels to your oven.",
+          "action": "pulls blanket tighter",
+          "emotion": "unimpressed",
+          "interest": 0
+        }
+      ],
+      "recap": {
+        "setting": "A cold beach at night featuring one shared blanket and a thermos of terrible tea.",
+        "scenes": [
+          "Rafe greets Juniper with a flour-dusted grin expecting applause, while Juniper stares unbothered from beneath a massive storm coat.",
+          "A long, awkward silence settles over the beach as the terrible thermos tea makes both of them regret their life choices.",
+          "They mutually agree the date is an absolute disaster and decide to leave together to find better snacks."
+        ],
+        "best_line": "This tea tastes like liquid fog and despair."
+      },
+      "metrics": {
+        "turns": 8,
+        "avg_words": 20,
+        "length_spread": 3.24,
+        "question_rate": 0.25,
+        "responsiveness": 0.71,
+        "profile_reading": 2,
+        "self_labels": 0,
+        "misgendered": 0,
+        "abrupt_flips": 2,
+        "repeated_openers": 0,
+        "distinctness": 0.92,
+        "grounding": [
+          0.5,
+          0.25
+        ],
+        "index": 65
+      },
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 3,
+        "motivated": 3,
+        "specific": 4,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The voices are vivid and distinct, though the mutual rejection at the end feels slightly rushed rather than fully earned."
+      },
+      "judge_mean": 3.86,
+      "model_calls": 9,
+      "ms": 6933,
+      "conversation_error": null,
+      "models": {
+        "actor": "default",
+        "director": "default",
+        "judge": "gemini-3.5-flash-lite"
+      }
+    },
+    {
+      "case": "mira-dex",
+      "format": "classic",
+      "ending": "Just friends",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Mira Quell",
+        "Dex Okafor"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Nineteen times? Well, that definitely beats my personal record for most accidental detours into wet cement!",
+          "action": "laughs and gestures warmly",
+          "emotion": "amused",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Wet cement has a certain gravity to it, though at least it doesn't try to catch a breeze.",
+          "action": "wipes clay from hands",
+          "emotion": "wry",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "That is remarkably fair! Though I suppose you're used to things being up in flames, quite literally.",
+          "action": "laughs and gestures widely",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "I prefer my warmth safely contained inside a kiln these days, away from any sudden drafts.",
+          "action": "stirs lukewarm tea",
+          "emotion": "cautious",
+          "interest": 0.6
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "Kilns are great, though I once tried to map one and ended up drawing a toaster instead!",
+          "action": "laughs and gestures",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "Toasters have a way of throwing people off, but honesty usually leaves a much better blueprint. Do you ever draw outside the lines on purpose?",
+          "action": "gives a careful smile",
+          "emotion": "curious",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "Only if the lines lead somewhere entirely unexpected, preferably with better tea!",
+          "action": "draws a quick squiggle",
+          "emotion": "amused",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "I can certainly get behind better tea, as long as there are no hidden surprises waiting at the bottom of the cup.",
+          "action": "smiles carefully",
+          "emotion": "warm",
+          "interest": 0.7
+        }
+      ],
+      "recap": {
+        "setting": "A cramped corner café that is closing in an hour, chairs going up around them under the hum of dim neon lights.",
+        "scenes": [
+          "Mira arrives with ink-stained cuffs, immediately sketching a rough map of the café on a napkin, while Dex offers a very careful handshake with clay still dried to his elbows.",
+          "As the chairs scrape upward around them, Dex suddenly admits that he flinches at birthday candles and spent his past career getting set on fire professionally.",
+          "They share a warm laugh over the absurdity of their lives, realizing they are kindred spirits who prefer a low-stakes evening."
+        ],
+        "best_line": "I fold maps the way I live my life: completely upside down and hoping for the best."
+      },
+      "metrics": {
+        "turns": 8,
+        "avg_words": 17.88,
+        "length_spread": 3.72,
+        "question_rate": 0.25,
+        "responsiveness": 0.57,
+        "profile_reading": 1,
+        "self_labels": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "distinctness": 0.94,
+        "grounding": [
+          0.25,
+          0.25
+        ],
+        "index": 77
+      },
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 3,
+        "motivated": 3,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": true,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The biggest problem is Mira knowing about the nineteen fires without Dex saying it; the best moment is Dex's grounded pottery imagery balancing her frantic energy."
+      },
+      "judge_mean": 3.71,
+      "model_calls": 9,
+      "ms": 14775,
+      "conversation_error": null,
+      "models": {
+        "actor": "default",
+        "director": "default",
+        "judge": "gemini-3.5-flash-lite"
+      }
+    },
+    {
+      "case": "teo-ines",
+      "format": "classic",
+      "ending": "A second date",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Teo Brandt",
+        "Inés Castellano"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "You've got dirt under your nails and half a forest in that tote—careful, if you start planting me, I might actually stay still.",
+          "action": "adjusts shirt cuff",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "I promise I only plant things where the soil is stubborn and the city forgets to look.",
+          "action": "brushes dirt off knee",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Well, the soil here is certainly stubborn, but I assure you, everyone is looking right now.",
+          "action": "adjusts shirt collar",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "Let's talk about anything else before the sky opens up and ruins your polished shoes.",
+          "action": "brushes dirt off hands",
+          "emotion": "defensive",
+          "interest": 0.6
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "Fair enough, let's keep it light—make me laugh before the rain does and I'll forgive the threat to my footwear.",
+          "action": "adjusts shirt collar",
+          "emotion": "amused",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "If I wanted to make you laugh, I'd tell you about the time I tried to waltz with a parking meter, but let's just enjoy the breeze instead.",
+          "action": "waves hand dismissively",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "A parking meter? Oh, please tell me you at least let it lead.",
+          "action": "smiles and steps closer",
+          "emotion": "amused",
+          "interest": 0.9
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Obviously not, I have much better posture than a parking meter.",
+          "action": "smiles and steps closer",
+          "emotion": "amused",
+          "interest": 0.8
+        }
+      ],
+      "recap": {
+        "setting": "A botanic park in the minutes before it rains, where neither Teo nor Inés is willing to mention the heavy grey sky.",
+        "scenes": [
+          "Teo stands with perfect posture and an unbuttoned collar, while Inés arrives with dirt under her nails and a tote of seedlings.",
+          "As the first drops of rain begin to fall, Inés suddenly admits she has illegally planted thirty-one trees in city roundabouts without permission.",
+          "After sharing a hearty laugh over the roundabout rebellion, Teo abruptly stands up and announces he must leave immediately to beat the storm."
+        ],
+        "best_line": "If the city council catches me, tell them my trees died innocent."
+      },
+      "metrics": {
+        "turns": 8,
+        "avg_words": 18.13,
+        "length_spread": 5.4,
+        "question_rate": 0.13,
+        "responsiveness": 0.71,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "distinctness": 0.88,
+        "grounding": [
+          0.25,
+          0.25
+        ],
+        "index": 81
+      },
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 4,
+        "motivated": 4,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The best moment is Inés joking about the parking meter, which immediately brings out Teo's competitive ballroom vanity; the biggest problem is the repetitive physical stage directions for Teo adjusting his collar."
+      },
+      "judge_mean": 4,
+      "model_calls": 9,
+      "ms": 7880,
+      "conversation_error": null,
+      "models": {
+        "actor": "default",
+        "director": "default",
+        "judge": "gemini-3.5-flash-lite"
+      }
+    },
+    {
+      "case": "orin-sable",
+      "format": "meet_the_parents",
+      "ending": "Just friends",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Orin Fletcher",
+        "Sable Quist"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Forty-one party hats and zero dining tables is an architectural choice I can only assume lacks structural integrity.",
+          "action": "adjusts reading glasses",
+          "emotion": "skeptical",
+          "interest": 0.4
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Who needs a table when you can eat cake off a disco ball? Drop the pencil and grab a tambourine!",
+          "action": "tosses a tambourine",
+          "emotion": "excited",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Eating off a glass sphere sounds like a maintenance nightmare, but I suppose precision takes a backseat to chaos here.",
+          "action": "adjusts reading glasses",
+          "emotion": "skeptical",
+          "interest": 0.4
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "Precision is boring, Orin! Jump in the ball pit before Wally notices we're off-script!",
+          "action": "grabs a tambourine",
+          "emotion": "excited",
+          "interest": 0.8
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "A ball pit is technically a hazard, but seeing as you haven't caused a structural collapse yet, lead the way.",
+          "action": "drops the pencil",
+          "emotion": "amused",
+          "interest": 0.75
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "That is the absolute best 'yes' I have ever heard! Cannonball!",
+          "action": "dives into ball pit",
+          "emotion": "thrilled",
+          "interest": 0.9
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "I reserve the right to complain about the upholstery later, but I'm coming in.",
+          "action": "steps into ball pit",
+          "emotion": "amused",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "You actually jumped! Okay, you're officially my favorite hazard inspector ever!",
+          "action": "grabs his hand",
+          "emotion": "delighted",
+          "interest": 0.8
+        }
+      ],
+      "recap": {
+        "setting": "A vibrant karaoke booth booked for a full hour, with a pre-queued song blinking on the screen and a protective chaperone hovering by the door.",
+        "scenes": [
+          "Orin adjusts his reading glasses on their chain, noting the karaoke screen's song title contains a grammatical error, while Sable bursts into the booth wearing three different patterns and a party hat.",
+          "The booth's automated booking system suddenly crashes and deletes the entire song queue, forcing them to improvise entertainment using only a tambourine and a dry-erase marker.",
+          "Orin meticulously counts the remaining minutes on his watch, politely shakes Sable's glitter-covered hand, and departs first, leaving both wishing for another round despite the parting."
+        ],
+        "best_line": "Technically, that lyric lacks both subject and verb."
+      },
+      "metrics": {
+        "turns": 8,
+        "avg_words": 16.25,
+        "length_spread": 3.73,
+        "question_rate": 0.13,
+        "responsiveness": 0.29,
+        "profile_reading": 1,
+        "self_labels": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "distinctness": 0.95,
+        "grounding": [
+          0,
+          0.5
+        ],
+        "index": 71
+      },
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 3,
+        "motivated": 4,
+        "specific": 4,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": true,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Orin knows Sable's exact hat and table count without her mentioning it, but the friction between his exactitude and her chaos is delightful."
+      },
+      "judge_mean": 4,
+      "model_calls": 9,
+      "ms": 16436,
+      "conversation_error": null,
+      "models": {
+        "actor": "default",
+        "director": "default",
+        "judge": "gemini-3.5-flash-lite"
+      }
+    },
+    {
+      "case": "kaz-nell",
+      "format": "speed_date",
+      "ending": "Just friends",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Kaz Lindqvist",
+        "Nell Abiodun"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Eleven tiny courses? Let's skip the small talk and eat every single one of them at once.",
+          "action": "claps hands sharply",
+          "emotion": "excited",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Eleven courses means eleven timed courses, though, right? Or are you a simultaneous-plate anarchist?",
+          "action": "adjusts glasses nervously",
+          "emotion": "amused",
+          "interest": 0.8
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Total anarchist. I'll take all eleven plates piled high right now, no waiting!",
+          "action": "grabs the menu",
+          "emotion": "excited",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "I respect the ambition, but the culinary logistics alone would trigger a minor security incident.",
+          "action": "adjusts glasses briskly",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "Security incidents are just high-speed floor plans. Let's breach the kitchen and assemble them ourselves!",
+          "action": "grabs hand",
+          "emotion": "excited",
+          "interest": 0.9
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "Breaching the kitchen violates at least four health codes, but I love a well-organized heist. Lead the way.",
+          "action": "adjusts glasses and stands up",
+          "emotion": "thrilled",
+          "interest": 0.8
+        }
+      ],
+      "recap": {
+        "setting": "A too-fancy tasting-menu restaurant with eleven tiny courses and a hovering waiter, bathed in harsh speed-dating strobe lights.",
+        "scenes": [
+          "Kaz slides into the booth with chalk-dusted palms and blurts out a crane-climbing story, while Nell instantly rattles off the exact architectural history of the restaurant ceiling under a glaring ten-minute countdown.",
+          "When the hovering waiter drops the entire eleven-course tray onto the floor, the strict schedule collapses instantly and they have to improvise dinner using breadsticks and stolen salt shakers.",
+          "With the clock flashing red, Kaz asks a sharp follow-up about Nell's favorite marble bust, and Nell matches Kaz's restless energy by proposing they sneak out the kitchen fire escape together."
+        ],
+        "best_line": "Who needs eleven tiny courses when we can scale the fire escape right now?"
+      },
+      "metrics": {
+        "turns": 6,
+        "avg_words": 15.83,
+        "length_spread": 1.86,
+        "question_rate": 0.33,
+        "responsiveness": 0.8,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "distinctness": 0.9,
+        "grounding": [
+          0.67,
+          0
+        ],
+        "index": 83
+      },
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 3,
+        "motivated": 3,
+        "specific": 3,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The best moment is Nell matching Kaz's restless energy with logistics; the biggest problem is that it reads more like a sketch than a real date."
+      },
+      "judge_mean": 3.57,
+      "model_calls": 7,
+      "ms": 5495,
+      "conversation_error": null,
+      "models": {
+        "actor": "default",
+        "director": "default",
+        "judge": "gemini-3.5-flash-lite"
+      }
+    }
+  ]
+}

@@ -152,3 +152,42 @@ describe("POST /api/characters: input handling", () => {
     expect(res.headers.get("set-cookie")).toBeNull();
   });
 });
+
+describe("POST /api/characters: pronouns and voice (M15)", () => {
+  it("stores and returns pronouns and a voice, and the date's sheet carries them", async () => {
+    const cookie = newUserCookie();
+    const voice = "Dry and deadpan: short sentences, long pauses, never laughs at her own jokes.";
+    const res = await api.createCharacter(validCharacter({ pronouns: "she/her", voice }), cookie);
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body).toMatchObject({ pronouns: "she/her", voice });
+    const { rows } = await t.db.query<{ pronouns: string; voice: string }>(`select pronouns, voice from characters where id = $1`, [body.id]);
+    expect(rows[0]).toEqual({ pronouns: "she/her", voice });
+  });
+
+  it("both are optional", async () => {
+    const res = await api.createCharacter(validCharacter(), newUserCookie());
+    expect(res.status).toBe(201);
+    const { rows } = await t.db.query<{ pronouns: string | null; voice: string | null }>(
+      `select pronouns, voice from characters where id = $1`,
+      [(await res.json()).id],
+    );
+    expect(rows[0]).toEqual({ pronouns: null, voice: null });
+  });
+
+  it("rejects pronouns outside the list, and a voice over the limit", async () => {
+    expect((await api.createCharacter(validCharacter({ pronouns: "xe/xem" }), newUserCookie())).status).toBe(422);
+    expect((await api.createCharacter(validCharacter({ voice: "x".repeat(201) }), newUserCookie())).status).toBe(422);
+  });
+
+  it("runs the voice through the same content filter as the rest of the sheet", async () => {
+    const res = await api.createCharacter(validCharacter({ voice: "Talks like a porn star narrating a shoot." }), newUserCookie());
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ error: "content_rejected", field: "voice" });
+  });
+
+  it("every house character has pronouns and a voice in the database", async () => {
+    const { rows } = await t.db.query<{ n: number }>(`select count(*)::int as n from characters where is_house and (pronouns is null or voice is null)`);
+    expect(rows[0].n).toBe(0);
+  });
+});
