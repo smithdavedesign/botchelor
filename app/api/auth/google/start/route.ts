@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { googleConfigured, signOAuthState } from "@/lib/auth";
+import { googleConfigured, oauthRedirectUri, signOAuthState } from "@/lib/auth";
 import { handle, json } from "@/lib/http";
 
 const GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -11,10 +11,9 @@ export const GET = handle(async (req) => {
   const state = signOAuthState(nonce);
   if (!state) return json({ error: "accounts_unavailable" }, 503);
 
-  const origin = new URL(req.url).origin;
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_OAUTH_CLIENT_ID ?? "",
-    redirect_uri: `${origin}/api/auth/google/callback`,
+    redirect_uri: oauthRedirectUri(req),
     response_type: "code",
     scope: "openid email",
     state,
