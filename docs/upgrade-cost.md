@@ -149,16 +149,18 @@ issue. Then the `gemini-3.8-flash` director A/B. A mid-frontier model for every 
 writing still holds the show back.
 
 **2026-10-15 — the paid actor, specifically (David asked to "offer paid actor model").** The free-tier round
-(director → `gemini-3.5-flash`, actor reasoning → `low`, grounded prompt, `motif_fixation` critic; see
-`docs/date-quality.md` Round 2) is the ceiling without spending. The next lever is putting the ~12 **actor**
+(actor reasoning → `low`, grounded prompt, `motif_fixation` critic, visible wants; see `docs/date-quality.md`
+Round 2) is the ceiling without spending — the director stays on the free flash-lite there, because the
+stronger flash models 429 on the free key. The next lever is putting the ~12 **actor**
 turns on a paid model. This is already gated and needs no code change — it rides the frontier key
 (`docs/frontier.md`): set `FRONTIER_LLM_BASE_URL/_API_KEY/_MODEL` (via **Vercel AI Gateway**, with the free model
 kept as fallback), and the public flow stays $0 until a request carries the owner's `x-frontier-key`.
 
 What to buy, and the ask for approval:
 - **Model:** start with the live model on a **paid** Gemini key (`gemini-3.5-flash-lite`, same quality, no daily
-  cap, prompts not used for training) for the actor, keeping the `gemini-3.5-flash` director. If the eval A/B
-  wants more wit, step the actor up to a mid-frontier model (a Claude Haiku / GPT-mini class via the Gateway).
+  cap, prompts not used for training) for the actor, and set `LLM_DIRECTOR_MODEL=gemini-3.5-flash` (now that the
+  key is paid, it stops 429-ing) for the stronger plan/recap. If the eval A/B wants more wit, step the actor up
+  to a mid-frontier model (a Claude Haiku / GPT-mini class via the Gateway).
 - **Cost at today's pipeline:** ~1–2.5¢/date on paid Gemini; ~4–11¢/date if the actor goes mid-frontier (table
   above). At 2,000 dates/mo that's ~$25–50 (paid Gemini) to ~$80–220 (mid-frontier every role).
 - **Provider cap to set at creation (policy: cap every billable key):** a **hard monthly budget on the Vercel AI
