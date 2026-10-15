@@ -1,7 +1,8 @@
 /**
  * A character's optional details — the dating-profile layer on top of the sheet: what they do, where they're
- * from, their style, hobbies, quirks, what a good date looks like to them, and a few Hinge-style profile
- * prompts. All optional, all public (shown on the contestant card), all content-filtered like the sheet.
+ * from, their style, hobbies, quirks, what a good date looks like to them, a few Hinge-style profile prompts,
+ * and the voice kit (sample lines in their voice, things they'd never say, and their tells). All optional, all
+ * public (shown on the contestant card), all content-filtered like the sheet.
  *
  * They reach the date's models as the character's own knowledge of itself (lib/character.ts), and what's
  * visible at a glance (style, a signature item) is what the other character "can see". They flavour the
@@ -57,7 +58,43 @@ export const TEXT_DETAILS = {
 export type TextDetail = keyof typeof TEXT_DETAILS;
 export const TEXT_DETAIL_KEYS = Object.keys(TEXT_DETAILS) as TextDetail[];
 
+/**
+ * Lines in the character's own voice, for moments every date has. The single strongest way to keep a small
+ * model in one particular voice is to show it the voice (docs/date-quality.md): the actor matches their rhythm,
+ * length and word choice, and the critic (lib/quality.ts) sends back a line that just repeats one.
+ */
+export const SAMPLE_LINES = [
+  { id: "hello", label: "How they say hello" },
+  { id: "dodge", label: "How they dodge a question" },
+  { id: "flirt", label: "How they flirt (or try to)" },
+  { id: "upset", label: "When something goes wrong" },
+] as const;
+export type SampleLineId = (typeof SAMPLE_LINES)[number]["id"];
+export const SAMPLE_LINE_MAX = 140;
+
+/**
+ * Tells: a habit that slips out when they feel a certain way. Each act of a date hands the speaking character
+ * only the tell that fits how the engine decided that act goes for them (lib/personality.ts), so their
+ * personality reacts to the date instead of reciting itself.
+ */
+export const TELLS = [
+  { id: "nervous", label: "When they're nervous, they…" },
+  { id: "smitten", label: "When they like someone, they…" },
+  { id: "bored", label: "When they're bored, they…" },
+  { id: "annoyed", label: "When something annoys them, they…" },
+] as const;
+export type TellId = (typeof TELLS)[number]["id"];
+export const TELL_MAX = 100;
+
+/** Words or phrases the character would never say: the critic sends a line that uses one back. */
+export const MAX_NEVER_SAYS = 5;
+export const NEVER_SAY_MAX = 40;
+
 const opt = (max: number) => z.string().trim().max(max, `At most ${max} characters.`).optional();
+const keyed = <K extends string>(ids: readonly K[], max: number) =>
+  z.object(Object.fromEntries(ids.map((id) => [id, opt(max)])) as Record<K, ReturnType<typeof opt>>).strict();
+const SAMPLE_LINE_IDS = SAMPLE_LINES.map((l) => l.id);
+const TELL_IDS = TELLS.map((t) => t.id);
 
 export const ExtrasInput = z
   .object({
@@ -69,6 +106,9 @@ export const ExtrasInput = z
       .array(z.object({ id: z.enum(PROMPT_IDS), answer: z.string().trim().min(1).max(160) }))
       .max(MAX_PROMPTS, `At most ${MAX_PROMPTS} prompts.`)
       .optional(),
+    lines: keyed(SAMPLE_LINE_IDS, SAMPLE_LINE_MAX).optional(),
+    tells: keyed(TELL_IDS, TELL_MAX).optional(),
+    never_says: z.array(z.string().trim().min(1).max(NEVER_SAY_MAX)).max(MAX_NEVER_SAYS, `At most ${MAX_NEVER_SAYS}.`).optional(),
   })
   .strict();
 export type ExtrasInputType = z.infer<typeof ExtrasInput>;
@@ -79,7 +119,22 @@ export type CharacterExtras = Partial<Record<TextDetail, string>> & {
   love_language?: (typeof LOVE_LANGUAGES)[number];
   hobbies?: string[];
   prompts?: { id: PromptId; answer: string }[];
+  /** Sample lines in their voice (see SAMPLE_LINES). */
+  lines?: Partial<Record<SampleLineId, string>>;
+  /** Their tells (see TELLS). */
+  tells?: Partial<Record<TellId, string>>;
+  never_says?: string[];
 };
+
+/** Keeps only the filled entries of a keyed group; undefined when none are. */
+function filledKeys<K extends string>(ids: readonly K[], group: Partial<Record<K, string | undefined>> | undefined): Partial<Record<K, string>> | undefined {
+  const out: Partial<Record<K, string>> = {};
+  for (const id of ids) {
+    const v = group?.[id]?.trim();
+    if (v) out[id] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 /** Drops blanks and duplicates, so an emptied field is removed rather than stored as "". */
 export function normaliseExtras(input: ExtrasInputType | null | undefined): CharacterExtras {
@@ -96,6 +151,13 @@ export function normaliseExtras(input: ExtrasInputType | null | undefined): Char
   const seen = new Set<string>();
   const prompts = (input.prompts ?? []).filter((p) => p.answer.trim() && !seen.has(p.id) && seen.add(p.id));
   if (prompts.length) out.prompts = prompts.map((p) => ({ id: p.id, answer: p.answer.trim() }));
+  const lines = filledKeys(SAMPLE_LINE_IDS, input.lines);
+  if (lines) out.lines = lines;
+  const tells = filledKeys(TELL_IDS, input.tells);
+  if (tells) out.tells = tells;
+  const lower = new Set<string>();
+  const never = (input.never_says ?? []).map((s) => s.trim()).filter((s) => s && !lower.has(s.toLowerCase()) && lower.add(s.toLowerCase()));
+  if (never.length) out.never_says = never;
   return out;
 }
 
@@ -107,12 +169,21 @@ export function extrasFields(e: CharacterExtras): Record<string, string | readon
     ...Object.fromEntries(TEXT_DETAIL_KEYS.map((k) => [k, e[k]])),
     hobbies: e.hobbies,
     prompts: e.prompts?.map((p) => p.answer),
+    lines: e.lines ? Object.values(e.lines) : undefined,
+    tells: e.tells ? Object.values(e.tells) : undefined,
+    never_says: e.never_says,
   };
 }
 
 export const promptLabel = (id: string): string => PROFILE_PROMPTS.find((p) => p.id === id)?.label ?? id;
+export const sampleLineLabel = (id: string): string => SAMPLE_LINES.find((l) => l.id === id)?.label ?? id;
+export const tellLabel = (id: string): string => TELLS.find((t) => t.id === id)?.label ?? id;
 
-/** How the details read to the character itself on a date (its own knowledge; anything it may bring up). */
+/**
+ * How the details read to the character itself on a date (its own knowledge; anything it may bring up). The
+ * voice kit (sample lines, never-says) and the tells are handed over separately, where they do their job
+ * (lib/character.ts, lib/conversation.ts), not as things to talk about.
+ */
 export function extrasForPrompt(e: CharacterExtras): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const k of TEXT_DETAIL_KEYS) if (e[k]) out[k] = e[k];
@@ -123,6 +194,11 @@ export function extrasForPrompt(e: CharacterExtras): Record<string, unknown> {
   return out;
 }
 
+/** The sample lines, labelled for the model ("How they say hello: “…”"), in the order SAMPLE_LINES lists them. */
+export function voiceExamples(e: CharacterExtras): string[] {
+  return SAMPLE_LINES.filter((l) => e.lines?.[l.id]).map((l) => `${l.label}: ${e.lines![l.id]}`);
+}
+
 /** What the other character can see at a glance: only the visible details. */
 export function extrasVisible(e: CharacterExtras): string[] {
   return [e.style ? `dressed: ${e.style}` : null, e.signature_item ? `has ${e.signature_item}` : null].filter((s): s is string => Boolean(s));
@@ -130,7 +206,13 @@ export function extrasVisible(e: CharacterExtras): string[] {
 
 /** Text worth searching (lib/dating.ts): everything public. */
 export function extrasText(e: CharacterExtras): string {
-  return [...TEXT_DETAIL_KEYS.map((k) => e[k] ?? ""), ...(e.hobbies ?? []), ...(e.prompts ?? []).map((p) => p.answer)].join(" ");
+  return [
+    ...TEXT_DETAIL_KEYS.map((k) => e[k] ?? ""),
+    ...(e.hobbies ?? []),
+    ...(e.prompts ?? []).map((p) => p.answer),
+    ...Object.values(e.lines ?? {}),
+    ...Object.values(e.tells ?? {}),
+  ].join(" ");
 }
 
 /** The details as a JSON Schema (draft-07 compatible), for /character.schema.json and the MCP tools. */
@@ -155,6 +237,26 @@ export function extrasJsonSchema(): Record<string, unknown> {
           required: ["id", "answer"],
           properties: { id: { type: "string", enum: PROFILE_PROMPTS.map((p) => p.id) }, answer: { type: "string", maxLength: 160 } },
         },
+      },
+      lines: {
+        type: "object",
+        additionalProperties: false,
+        description:
+          "Sample lines in the character's own voice — the strongest way to make their dates sound like them. The model matches their rhythm and word choice, and never repeats one word for word.",
+        properties: Object.fromEntries(SAMPLE_LINES.map((l) => [l.id, { type: "string", maxLength: SAMPLE_LINE_MAX, description: l.label }])),
+      },
+      tells: {
+        type: "object",
+        additionalProperties: false,
+        description:
+          "Habits that slip out when they feel a certain way. Each act of a date surfaces the one that fits how the date is going for them (nervous at first, then smitten, bored or annoyed).",
+        properties: Object.fromEntries(TELLS.map((t) => [t.id, { type: "string", maxLength: TELL_MAX, description: t.label }])),
+      },
+      never_says: {
+        type: "array",
+        maxItems: MAX_NEVER_SAYS,
+        items: { type: "string", maxLength: NEVER_SAY_MAX },
+        description: "Words or phrases they'd never say. A line that uses one is sent back for a rewrite.",
       },
     },
   };
@@ -206,9 +308,46 @@ export const SUGGESTIONS: Partial<Record<TextDetail | "hobbies", readonly string
   hobbies: ["Birdwatching", "Pottery", "Bouldering", "Karaoke", "Baking", "Chess", "Night swimming", "Board games", "Thrifting", "Tarot", "Gardening", "Stargazing", "Roller skating"],
 };
 
+/** Starting points for the sample lines: meant to be rewritten in the character's own voice. */
+export const LINE_SUGGESTIONS: Record<SampleLineId, readonly string[]> = {
+  hello: [
+    "Oh good, you're real. I had a small bet with myself.", "Hi. I've already decided I like your shoes, so the pressure's on me.",
+    "You found it! Most people walk past this place twice.", "Hello. I'm told I'm better after the first ten minutes.",
+  ],
+  dodge: [
+    "Great question. Next question.", "Ask me that again after dessert.", "That's classified, but I'll trade you for a secret.",
+    "Mm. Tell me yours first.",
+  ],
+  flirt: [
+    "You have very trustworthy eyebrows.", "I'd split a dessert with you, and I never split dessert.", "Careful, I'm starting to have a nice time.",
+    "Is it hot in here, or is that just the soup?",
+  ],
+  upset: [
+    "Cool. Cool cool cool. This is fine.", "Right. Well. That's going in the diary.", "I'm going to need a minute and possibly a snack.",
+    "Okay, new plan: we pretend that didn't happen.",
+  ],
+};
+
+/** Starting points for the tells. */
+export const TELL_SUGGESTIONS: Record<TellId, readonly string[]> = {
+  nervous: ["over-explain the menu", "fold their napkin into tiny squares", "narrate what they're doing", "laugh a beat too early", "check the time without reading it"],
+  smitten: ["start finishing your sentences, badly", "go quiet and grin at the table", "suddenly remember every fact you've said", "offer you the last bite"],
+  bored: ["rearrange the sugar packets by colour", "start counting ceiling tiles out loud", "ask the waiter questions instead", "answer with one word"],
+  annoyed: ["get extremely, terrifyingly polite", "repeat your last word back as a question", "smile with only their mouth", "start tidying the table"],
+};
+
+/** Ideas for things a character would never say. */
+export const NEVER_SAY_SUGGESTIONS: readonly string[] = [
+  "no worries", "it is what it is", "per my last email", "I'm not like other people", "let's circle back", "calm down", "vibes", "literally",
+];
+
 /** A deterministic pick when a seed is given (tests), else random. */
 export function suggest(key: keyof typeof SUGGESTIONS, seed?: number): string {
-  const list = SUGGESTIONS[key] ?? [];
+  return pickFrom(SUGGESTIONS[key] ?? [], seed);
+}
+
+/** A pick from any suggestion list: deterministic with a seed, else random. */
+export function pickFrom(list: readonly string[], seed?: number): string {
   if (!list.length) return "";
   const i = seed === undefined ? Math.floor(Math.random() * list.length) : Math.abs(seed) % list.length;
   return list[i];

@@ -100,7 +100,21 @@ export type LineIssues = {
    * on the rain/tempo and no one says anything real" failure. Null when the line adds something or asks.
    */
   motif_fixation: string | null;
+  /** A phrase from the speaker's own "never says" list that this line uses, if any. */
+  never_said: string | null;
+  /** The line repeats one of the speaker's own sample lines (a 4-word run): it should be in that voice, not a copy. */
+  sample_echo: boolean;
 };
+
+/** The never-say phrase a line uses, matched on whole words (case-insensitive), or null. */
+export function neverSaid(text: string, never: readonly string[] | undefined): string | null {
+  const said = ` ${tokens(text).join(" ")} `;
+  for (const phrase of never ?? []) {
+    const words = tokens(phrase).join(" ");
+    if (words && said.includes(` ${words} `)) return phrase;
+  }
+  return null;
+}
 
 /** A stage direction's meaningful words ("pulls the blanket tighter" → pulls, blanket, tighter). */
 const actionWords = (action: string) => contentWords(action, 3);
@@ -187,6 +201,10 @@ export function lineIssues(
   const picksUpPrev = contentWords(text, 4).some((w) => prevWords.has(w));
   const motifFixation = overused && !groundsSelf && !picksUpPrev && !text.includes("?") ? overused : null;
 
+  // The voice kit (lib/extras.ts): a sample line is a register to match, not a script to read out.
+  const sampleGrams = new Set(Object.values(self.extras?.lines ?? {}).flatMap((l) => [...ngrams(tokens(l ?? ""), 4)]));
+  const sampleEcho = sampleGrams.size > 0 && [...ngrams(lineTokens, 4)].some((g) => sampleGrams.has(g));
+
   return {
     profile_reading: leakedWord || leakedGram || labelled,
     self_label: selfLabel,
@@ -196,6 +214,8 @@ export function lineIssues(
     repeated_action: repeatedAction,
     name_tic: nameTic,
     motif_fixation: motifFixation,
+    never_said: neverSaid(text, self.extras?.never_says),
+    sample_echo: sampleEcho,
   };
 }
 
@@ -214,6 +234,8 @@ export type QualityMetrics = {
   repeated_openers: number;
   repeated_actions: number;
   name_tics: number;
+  /** Lines that used a phrase the speaker would never say, or read out one of its own sample lines. */
+  voice_breaks: number;
   distinctness: number;
   grounding: [number, number];
   /** 0..100: one headline number combining the above (higher is more genuine). */
@@ -227,7 +249,7 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
   const avg = n ? wordsPerLine.reduce((x, y) => x + y, 0) / n : 0;
   const spread = n ? Math.sqrt(wordsPerLine.reduce((x, w) => x + (w - avg) ** 2, 0) / n) : 0;
 
-  let profileReading = 0, selfLabels = 0, selfQuotes = 0, misgendered = 0, abrupt = 0, repeated = 0, repeatedActions = 0, nameTics = 0;
+  let profileReading = 0, selfLabels = 0, selfQuotes = 0, misgendered = 0, abrupt = 0, repeated = 0, repeatedActions = 0, nameTics = 0, voiceBreaks = 0;
   let responsive = 0, replies = 0;
   const lastInterest: [number | null, number | null] = [null, null];
   const sideWords: [Set<string>, Set<string>] = [new Set(), new Set()];
@@ -245,6 +267,7 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
     if (issues.repeated_opener) repeated++;
     if (issues.repeated_action) repeatedActions++;
     if (issues.name_tic) nameTics++;
+    if (issues.never_said || issues.sample_echo) voiceBreaks++;
 
     const content = new Set(contentWords(t.dialogue));
     linesBy[s]++;
@@ -301,6 +324,7 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
     repeated_openers: repeated,
     repeated_actions: repeatedActions,
     name_tics: nameTics,
+    voice_breaks: voiceBreaks,
     distinctness: r2(distinctness),
     grounding: [r2(grounding[0]), r2(grounding[1])],
     index,

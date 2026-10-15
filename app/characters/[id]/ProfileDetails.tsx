@@ -1,4 +1,4 @@
-import { promptLabel, type CharacterExtras } from "@/lib/extras";
+import { promptLabel, SAMPLE_LINES, TELLS, type CharacterExtras } from "@/lib/extras";
 
 const STAR_GLYPH: Record<string, string> = {
   Aries: "♈", Taurus: "♉", Gemini: "♊", Cancer: "♋", Leo: "♌", Virgo: "♍", Libra: "♎", Scorpio: "♏", Sagittarius: "♐", Capricorn: "♑",
@@ -65,6 +65,32 @@ export default function ProfileDetails({ extras: e }: { extras: CharacterExtras 
           ["Walk-on music", e.walk_on_music],
         ]}
       />
+
+      {(e.lines && Object.keys(e.lines).length > 0) || e.never_says?.length ? (
+        <>
+          <h3 className="section">In their own words</h3>
+          <div className="profile-prompts">
+            {SAMPLE_LINES.filter((l) => e.lines?.[l.id]).map((l) => (
+              <figure key={l.id} className="profile-prompt">
+                <figcaption>{l.label}</figcaption>
+                <blockquote>{e.lines![l.id]}</blockquote>
+              </figure>
+            ))}
+          </div>
+          {e.never_says?.length ? (
+            <p className="muted">
+              <strong>Would never say:</strong> {e.never_says.map((x) => `“${x}”`).join(", ")}
+            </p>
+          ) : null}
+        </>
+      ) : null}
+
+      {e.tells && Object.keys(e.tells).length > 0 && (
+        <>
+          <h3 className="section">Their tells</h3>
+          <Facts rows={TELLS.map((t) => [t.label.replace(/…$/, ""), e.tells?.[t.id]] as [string, string | undefined])} />
+        </>
+      )}
 
       {(e.ideal_first_date || e.green_flag || e.red_flag) && (
         <>

@@ -6,8 +6,9 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import Avatar from "../Avatar";
 import { requestJson } from "../request";
 import DetailsStep, { DetailField } from "./DetailsStep";
+import VoiceStep from "./VoiceStep";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
-import { hasExtras, LOVE_LANGUAGES, normaliseExtras, promptLabel, TEXT_DETAILS, type CharacterExtras } from "@/lib/extras";
+import { hasExtras, LOVE_LANGUAGES, normaliseExtras, promptLabel, sampleLineLabel, tellLabel, TEXT_DETAILS, type CharacterExtras } from "@/lib/extras";
 import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
 import { DEFAULT_FORMAT, FORMATS, type FormatId } from "@/lib/formats";
 import {
@@ -71,21 +72,12 @@ const EMPTY_SHEET: Sheet = { name: "", age: "", bio: "", want: "", dealbreaker: 
 const EMPTY_SOUL: Soul = { values: "", insecurities: "", humor: "", boundaries: "", romantic: "", communication: "", local_only: false };
 
 const SAMPLES = [
-  { name: "Juno Marlowe", age: "28", bio: "A tarot reader who only predicts the weather, and is weirdly accurate.", traits: ["mystic", "cheeky", "kind"], want: "Someone who'll dance in the rain she forecast", dealbreaker: "People who check their phone for the forecast", appearance: "a cool violet palette, soft and vivid", hue: 275, pronouns: "she/her", voice: "Cheeky and cryptic: answers questions with forecasts, teases gently, then says something unexpectedly sincere." },
-  { name: "Cass Vega", age: "33", bio: "A demolition expert turned florist. Still flinches at loud bouquets.", traits: ["bold", "gentle", "precise"], want: "A quiet evening that doesn't blow up", dealbreaker: "Surprise fireworks", appearance: "a warm amber palette, bright and bold", hue: 30, pronouns: "she/her", voice: "Calm and exact: short sentences, a quiet laugh, explains flowers like explosives and explosives like flowers." },
-  { name: "Ira Fenn", age: "26", bio: "Runs a 24-hour library for insomniac poets. Knows which books are sleeping.", traits: ["bookish", "warm", "stubborn"], want: "Someone who reads the last page first, bravely", dealbreaker: "Dog-earing a page", appearance: "a cool teal palette, soft and balanced", hue: 160, pronouns: "they/them", voice: "Soft-spoken and bookish: quotes half a line then trails off, asks what you're reading, gets fierce about bad habits with books." },
-  { name: "Dorian Sol", age: "31", bio: "A retired game-show host who still announces his own breakfast.", traits: ["dramatic", "generous", "loud"], want: "An audience of one who claps anyway", dealbreaker: "Silence during the big reveal", appearance: "a warm red palette, bright and vivid", hue: 340, pronouns: "he/him", voice: "Booming game-show patter: narrates his own life, counts down to everything, and keeps checking if you're having fun." },
+  { name: "Juno Marlowe", age: "28", bio: "A tarot reader who only predicts the weather, and is weirdly accurate.", traits: ["mystic", "cheeky", "kind"], want: "Someone who'll dance in the rain she forecast", dealbreaker: "People who check their phone for the forecast", appearance: "a cool violet palette, soft and vivid", hue: 275, pronouns: "she/her", voice: "Cheeky and cryptic: answers questions with forecasts, teases gently, then says something unexpectedly sincere.", extras: { lines: { hello: "Clear skies, light breeze, and you. My forecast was right.", dodge: "Ask me again when the fog lifts." }, tells: { nervous: "check the sky through the nearest window", smitten: "start predicting your weather instead of hers" }, never_says: ["no worries"] } },
+  { name: "Cass Vega", age: "33", bio: "A demolition expert turned florist. Still flinches at loud bouquets.", traits: ["bold", "gentle", "precise"], want: "A quiet evening that doesn't blow up", dealbreaker: "Surprise fireworks", appearance: "a warm amber palette, bright and bold", hue: 30, pronouns: "she/her", voice: "Calm and exact: short sentences, a quiet laugh, explains flowers like explosives and explosives like flowers.", extras: { lines: { hello: "Hi. You're on time. I like that.", upset: "Okay. Nobody move. It's fine." }, tells: { nervous: "straighten everything on the table to right angles", annoyed: "go very still and very quiet" } } },
+  { name: "Ira Fenn", age: "26", bio: "Runs a 24-hour library for insomniac poets. Knows which books are sleeping.", traits: ["bookish", "warm", "stubborn"], want: "Someone who reads the last page first, bravely", dealbreaker: "Dog-earing a page", appearance: "a cool teal palette, soft and balanced", hue: 160, pronouns: "they/them", voice: "Soft-spoken and bookish: quotes half a line then trails off, asks what you're reading, gets fierce about bad habits with books.", extras: { lines: { hello: "Hello. Sorry. I was in the middle of a chapter. Hi.", flirt: "You'd be a good bookmark. That's a compliment." }, tells: { nervous: "quote half a line and trail off", bored: "read the menu like it's a novel" } } },
+  { name: "Dorian Sol", age: "31", bio: "A retired game-show host who still announces his own breakfast.", traits: ["dramatic", "generous", "loud"], want: "An audience of one who claps anyway", dealbreaker: "Silence during the big reveal", appearance: "a warm red palette, bright and vivid", hue: 340, pronouns: "he/him", voice: "Booming game-show patter: narrates his own life, counts down to everything, and keeps checking if you're having fun.", extras: { lines: { hello: "And here they are, folks! Give it up for my date!", upset: "Ladies and gentlemen, a brief technical difficulty." }, tells: { nervous: "count down to things that don't need counting", smitten: "lower his voice to an actual human volume" }, never_says: ["no comment"] } },
 ];
 
-const VOICE_PICKS = [
-  { label: "Dry & deadpan", voice: "Dry and deadpan: short sentences, long pauses, never laughs at their own jokes." },
-  { label: "Bubbly & fast", voice: "Bubbly and fast: exclamation marks, happy tangents, says yes before hearing the plan." },
-  { label: "Smooth flirt", voice: "Smooth and teasing: easy compliments, a raised eyebrow in every line, recovers fast when caught out." },
-  { label: "Nerdy & precise", voice: "Precise and a little nerdy: starts small, then explains something perfectly if you ask a follow-up." },
-  { label: "Shy, warms up", voice: "Shy at first: short careful answers that get longer and warmer once they trust you." },
-  { label: "Big & theatrical", voice: "Big and theatrical: dramatic pauses, grand gestures, turns small moments into scenes." },
-  { label: "Blunt & practical", voice: "Blunt and practical: says exactly what they mean, asks how things work, no small talk." },
-] as const;
 
 /** The steps, by name, so their order can change without renumbering every check. */
 const S = { identity: 0, voice: 1, look: 2, details: 3, soul: 4, review: 5 } as const;
@@ -233,6 +225,7 @@ export default function CreateWizard({
     setAppearance(t.appearance);
     setPronouns(t.pronouns);
     setVoice(t.voice);
+    setExtrasState((prev) => ({ ...prev, ...t.extras }));
     setHue(t.hue);
     setImageSignals(null);
     setStyledFromImage(false);
@@ -551,32 +544,7 @@ export default function CreateWizard({
           </fieldset>
         )}
 
-        {step === S.voice && (
-          <fieldset className="wizard-fields">
-            <legend className="wizard-legend">How do they talk?</legend>
-            <p className="muted">
-              Optional, but it&apos;s the single biggest lever for a date that sounds like a particular person instead of a
-              witty narrator. Pick a starting point or write your own.
-            </p>
-            <div className="voice-picks" role="group" aria-label="Voice ideas">
-              {VOICE_PICKS.map((v) => (
-                <button key={v.label} type="button" className={`look-chip${voice === v.voice ? " chosen" : ""}`} onClick={() => setVoice(v.voice)}>
-                  {v.label}
-                </button>
-              ))}
-            </div>
-            <label>
-              Their voice
-              <textarea
-                maxLength={200}
-                rows={3}
-                placeholder="Dry and deadpan: short sentences, long pauses, never laughs at their own jokes."
-                value={voice}
-                onChange={(e) => setVoice(e.target.value)}
-              />
-            </label>
-          </fieldset>
-        )}
+        {step === S.voice && <VoiceStep voice={voice} setVoice={setVoice} extras={extras} setExtras={setExtras} name={sheet.name} />}
 
         {step === S.look && (
           <fieldset className="wizard-fields">
@@ -849,6 +817,9 @@ function ReviewExtras({ extras }: { extras: CharacterExtras }) {
   if (e.love_language && (LOVE_LANGUAGES as readonly string[]).includes(e.love_language)) rows.push(["Love language", e.love_language]);
   if (e.hobbies?.length) rows.push(["Hobbies", e.hobbies.join(", ")]);
   for (const p of e.prompts ?? []) rows.push([promptLabel(p.id), p.answer]);
+  for (const [id, line] of Object.entries(e.lines ?? {})) rows.push([sampleLineLabel(id), `“${line}”`]);
+  if (e.never_says?.length) rows.push(["Would never say", e.never_says.map((x) => `“${x}”`).join(", ")]);
+  for (const [id, does] of Object.entries(e.tells ?? {})) rows.push([tellLabel(id).replace(/…$/, ""), `${does}`]);
   return (
     <>
       {rows.map(([label, value]) => (
