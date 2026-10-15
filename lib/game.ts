@@ -569,12 +569,14 @@ export type PublicCharacter = {
   clip_asset_id: string | null;
   /** Optional public details (lib/extras.ts). */
   extras: CharacterExtras;
+  /** The creator's own "this week" update as stored (lib/life.ts thisWeek turns it into what's shown). */
+  this_week: { text: string; season: string } | null;
 };
 
 export async function getPublicCharacter(db: Db, id: string): Promise<PublicCharacter | null> {
   const { rows } = await db.query<Omit<PublicCharacter, "portrait_asset_id" | "clip_asset_id">>(
     `select id, name, age, bio, traits, appearance, want, is_house as house, avatar_hue as hue, pronouns, voice,
-            coalesce(extras, '{}'::jsonb) as extras
+            coalesce(extras, '{}'::jsonb) as extras, this_week
        from characters where id = $1`,
     [id],
   );

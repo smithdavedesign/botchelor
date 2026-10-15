@@ -67,6 +67,10 @@ export type EditInitial = {
   imageTrained: boolean;
   /** Their generated (BYOK) portrait, as the card shows it, or null for the drawn avatar. */
   portrait: string | null;
+  /** The creator's own "this week" update for the current season, or null when the show is dealing one. */
+  thisWeek?: string | null;
+  /** What the show dealt them this week (shown as the field's placeholder). */
+  thisWeekDealt?: string;
 };
 const EMPTY_SHEET: Sheet = { name: "", age: "", bio: "", want: "", dealbreaker: "" };
 const EMPTY_SOUL: Soul = { values: "", insecurities: "", humor: "", boundaries: "", romantic: "", communication: "", local_only: false };
@@ -163,6 +167,7 @@ export default function CreateWizard({
   const [openToDates, setOpenToDates] = useState(init?.openToDates ?? false);
   const [saved, setSaved] = useState(false);
   const [portrait, setPortrait] = useState<string | null>(init?.portrait ?? null);
+  const [week, setWeek] = useState(init?.thisWeek ?? "");
 
   // Flow state.
   const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
@@ -321,6 +326,7 @@ export default function CreateWizard({
         ...(soulPayload ? { soul: soulPayload } : {}),
         ...(openToDates ? { open_to_dates: true } : {}),
         ...(hasExtras(normaliseExtras(extras)) ? { extras: normaliseExtras(extras) } : {}),
+        ...(week.trim() ? { this_week: week.trim() } : {}),
         attest,
       });
       if (status === 201) {
@@ -370,6 +376,8 @@ export default function CreateWizard({
           open_to_dates: openToDates,
           extras: normaliseExtras(extras),
           ...(soulChanged ? { soul: { ...soulText, local_only: soul.local_only } } : {}),
+          // Their own update lasts this season; blanking it hands the week back to the show.
+          ...(week.trim() !== (init?.thisWeek ?? "") ? { this_week: week.trim() || null } : {}),
           ...(imageSignals ? { image_signals: imageSignals } : {}),
         },
         "PATCH",
@@ -621,7 +629,26 @@ export default function CreateWizard({
           </fieldset>
         )}
 
-        {step === S.details && <DetailsStep extras={extras} setExtras={setExtras} name={sheet.name} />}
+        {step === S.details && (
+          <>
+            <DetailsStep extras={extras} setExtras={setExtras} name={sheet.name} />
+            <label className="detail-field this-week-field">
+              What&apos;s new this week <span className="muted">(optional)</span>
+              <input
+                type="text"
+                name="this_week"
+                maxLength={100}
+                placeholder={init?.thisWeekDealt ?? "Pet-sitting a very judgemental cat"}
+                value={week}
+                onChange={(e) => setWeek(e.target.value)}
+              />
+              <span className="muted small">
+                Fresh small talk for their dates. Leave it blank and the show deals them something new every week; yours lasts
+                until Monday.
+              </span>
+            </label>
+          </>
+        )}
 
         {step === S.soul && (
           <fieldset className="wizard-fields">
@@ -683,6 +710,7 @@ export default function CreateWizard({
               <ReviewRow label="Soul">Private — {soul.local_only ? "engine only" : "shapes the date"}</ReviewRow>
             )}
             <ReviewExtras extras={extras} />
+            {week.trim() && <ReviewRow label="This week">{week}</ReviewRow>}
             {!edit && <ReviewRow label="Autonomy">{AUTONOMY_LABELS[autonomy]}</ReviewRow>}
 
             <label className="check wizard-open">

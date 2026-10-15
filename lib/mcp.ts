@@ -27,7 +27,8 @@ import { getDb, type Db } from "./db";
 import { getCharacterHistory, getPoints, listMyEpisodes, type EpisodeView } from "./game";
 import { readUserId, USER_COOKIE } from "./http";
 import { listCast } from "./mechanics";
-import { loadCharacterMemory } from "./memory";
+import { connections, loadCharacterMemory, stageFor } from "./memory";
+import { thisWeek, type StoredThisWeek } from "./life";
 import { getOwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
 import { extrasJsonSchema } from "./extras";
 import { topRatedCharacters } from "./ratings";
@@ -93,6 +94,7 @@ const SHEET_PROPS = {
     },
   },
   extras: extrasJsonSchema(),
+  this_week: str(100, "Optional: what's new in their life this week (\"just adopted a very old cat\"). Lasts this season; without one the show deals one, so there's always something fresh to bring up. On update, null hands it back to the show."),
 } as const;
 
 export const MCP_TOOLS = [
@@ -169,7 +171,8 @@ export const MCP_TOOLS = [
   {
     name: "get_character",
     title: "Read a character's profile",
-    description: "A character's public profile: bio, traits, want, voice, who made them, whether they're open to dates, their date record and who they've become.",
+    description:
+      "A character's public profile: bio, traits, want, voice, who made them, whether they're open to dates, what's new in their life this week, their date record, who they've become, who they've dated and how they stand (connections), the milestones they've reached and their story a week at a time.",
     inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64) } },
     annotations: READ,
   },
@@ -452,7 +455,7 @@ const pick = (args: Record<string, unknown>, keys: string[]): Record<string, unk
   return out;
 };
 
-const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul", "extras"];
+const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul", "extras", "this_week"];
 
 /* ------------------------------------------- sessions & identity ------------------------------------------- */
 
@@ -599,8 +602,25 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const id = String(args.character_id ?? "");
       const profile = await getDatingProfile(db, id);
       if (!profile) return { error: "No such character." };
-      const [{ episodes, record }, memory] = await Promise.all([getCharacterHistory(db, id, 5), loadCharacterMemory(db, id)]);
-      return { data: { character: profile, record, recent_dates: episodes, ...(memory?.arc ? { who_theyve_become: memory.arc } : {}) } };
+      const [{ episodes, record }, memory, week] = await Promise.all([
+        getCharacterHistory(db, id, 5),
+        loadCharacterMemory(db, id),
+        db.query<{ this_week: StoredThisWeek | null }>(`select this_week from characters where id = $1`, [id]),
+      ]);
+      const people = connections(memory);
+      return {
+        data: {
+          character: profile,
+          stage: stageFor(memory?.dates ?? 0),
+          this_week: thisWeek(id, week.rows[0]?.this_week),
+          record,
+          recent_dates: episodes,
+          ...(memory?.arc ? { who_theyve_become: memory.arc } : {}),
+          ...(people.length ? { connections: people.map(({ id: pid, name: pname, dates, label, turned_down }) => ({ id: pid, name: pname, dates, status: label, turned_down })) } : {}),
+          ...(memory?.milestones?.length ? { milestones: memory.milestones.map((m) => m.label) } : {}),
+          ...(memory?.chapters?.length ? { story: memory.chapters.map((c) => `${c.label}: ${c.line}`) } : {}),
+        },
+      };
     }
     case "my_status": {
       const who = resolveIdentity(args, session, false);

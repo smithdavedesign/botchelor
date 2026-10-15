@@ -28,6 +28,7 @@ import { characterBlindView, characterSelfView, type Character } from "./charact
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { DEFAULT_FORMAT, format, formatNote, type FormatContext, type FormatId } from "./formats";
 import { ModelError, type ChatMessage, type Model } from "./model";
+import { metBefore, recentDates, sharedHistory } from "./memory";
 import { currentTell } from "./personality";
 import { lineIssues } from "./quality";
 import { actForTurn, agenda, CONVERSATION_TURNS, DATE_ACTS, TURN_DIALOGUE_MAX, type ProducerId } from "./rules";
@@ -100,7 +101,7 @@ Stay plain and specific:
 - "voice_examples" (if present) are lines you'd say: match their rhythm, length and word choice, but never repeat one word for word. Never say anything in "never_say".
 - "your_tell_right_now" (if present) is a habit of yours that fits how you feel in this act. Let it slip out once or twice this act — in what you do or how you say something — and never explain it.
 
-You're strangers. You only know what you can see ("them.what_you_can_see") and what they've said tonight. Never bring up facts about them they haven't told you, and don't sum them up with labels. Talk to them as "you"; use their name now and then, not every line; in the third person use their pronouns. Don't reuse your own openings, catchphrases or gestures from earlier.
+You're strangers — unless "you_have_met_them_before" says otherwise. You only know what you can see ("them.what_you_can_see"), what they've said tonight, and (if you've met before) what you remember from last time. Never bring up facts about them they haven't told you, and don't sum them up with labels. Talk to them as "you"; use their name now and then, not every line; in the third person use their pronouns. Don't reuse your own openings, catchphrases or gestures from earlier.
 
 Never contradict how the date is going (act.what_happens and your_intention say): a second date has real interest and a plan; "just friends" stays warm and easy with nothing romantic, and nobody announces "just friends"; a disaster is a clear no. Nobody leaves on a sudden excuse (a bus, a class, a shift): an exit follows from how the date went.
 
@@ -108,6 +109,8 @@ Your private notes — soul, memory, secret agenda, the owner's note and "your_i
 - "your_intention" is where this act takes you. Move toward it naturally across your lines in this act; in the last act, land it. Don't announce it.
 - "what_you_want_in_someone" is what you're privately hoping to find in a partner tonight. Let it steer what you ask them and what you notice — never say it outright.
 - "what_your_past_dates_taught_you" (if present) is your own reflections from earlier dates. Let them quietly shape how you act and what you're looking for tonight; you may carry a resolution from one into how you behave, but don't recite them or narrate your past dates.
+- "you_have_met_them_before" (if present): you're not strangers. You remember last time — where you stand, how it ended, something that was said. Pick up from there: a callback is welcome, and how you left it colours tonight. Don't recap the whole history.
+- "your_recent_dates" and "whats_new_this_week" are your own life: things you might bring up (or not), in your own words.
 - "act.what_happens" is what happens around you in this act; play inside it.
 - "the_show_format" colours how you speak; it never changes who likes whom or how it ends.
 
@@ -159,6 +162,8 @@ export function buildTurnMessages(
 
   const names: [string, string] = [characters[0].name, characters[1].name];
   const tell = currentTell(meChar, outcome, sideIndex, act);
+  const history = metBefore(meChar.memory, themChar.id);
+  const lately = recentDates(meChar.memory, themChar.id);
   const data = {
     you: characterSelfView(meChar, dateContext(me)),
     them: characterBlindView(themChar),
@@ -167,6 +172,8 @@ export function buildTurnMessages(
     act: { name: DATE_ACTS[act], what_happens: beat.scene },
     what_you_want_in_someone: meChar.persona.want,
     ...(meChar.memory?.reflections?.length ? { what_your_past_dates_taught_you: meChar.memory.reflections } : {}),
+    ...(history ? { you_have_met_them_before: history } : {}),
+    ...(lately.length ? { your_recent_dates: lately } : {}),
     your_intention: side === "a" ? beat.a : beat.b,
     ...(tell ? { your_tell_right_now: tell } : {}),
     your_mood_so_far: transcript.filter((t) => t.side === side).map((t) => t.emotion).filter(Boolean),
@@ -231,7 +238,10 @@ export function critiqueTurn(
     [agenda(input.a.agendaId).label, input.a.note ?? ""].filter(Boolean),
     [agenda(input.b.agendaId).label, input.b.note ?? ""].filter(Boolean),
   ];
-  const issues = lineIssues(before, turn, characters, { shared: venue(venueId).prompt, secrets });
+  // A rematch: what was said last time is something both of them heard, so bringing it up isn't profile reading.
+  const [a, b] = characters;
+  const shared = `${venue(venueId).prompt} ${sharedHistory(a.memory, b.id)} ${sharedHistory(b.memory, a.id)}`;
+  const issues = lineIssues(before, turn, characters, { shared, secrets });
   const notes: string[] = [];
   if (issues.profile_reading) notes.push(`you brought up something about ${them.name} they haven't told you — you only know what you can see and what they've said tonight`);
   if (issues.self_label) notes.push("don't describe yourself with your trait words — show it instead");

@@ -21,6 +21,7 @@ import { simulateConversation, type Turn } from "./conversation";
 import type { Outcome } from "./engine";
 import type { FormatContext, FormatId } from "./formats";
 import type { ChatMessage, Model, ModelOptions, Usage } from "./model";
+import { sharedHistory } from "./memory";
 import { simulateReflections, type Reflections } from "./reflection";
 import { summarizeUsage, type DateUsage } from "./pricing";
 import { transcriptQuality, type QualityContext, type QualityMetrics } from "./quality";
@@ -152,7 +153,7 @@ export function qualityContext(built: BuiltDate, setting: string): QualityContex
   const [a, b] = built.characters;
   return {
     pronouns: [a.pronouns, b.pronouns],
-    shared: `${venue(built.setup.venue).prompt} ${setting}`,
+    shared: `${venue(built.setup.venue).prompt} ${setting} ${sharedHistory(a.memory, b.id)} ${sharedHistory(b.memory, a.id)}`,
     secrets: [
       [agenda(built.input.a.agendaId).label, built.input.a.note ?? ""].filter(Boolean),
       [agenda(built.input.b.agendaId).label, built.input.b.note ?? ""].filter(Boolean),

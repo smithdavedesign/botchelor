@@ -24,6 +24,7 @@ import { characterSelfView, type Character } from "./character";
 import { UNREMARKABLE_SIGNALS, type DateInput, type Outcome, type SideSetup, type SoulSignals } from "./engine";
 import { formatNote, type FormatContext, type FormatId } from "./formats";
 import type { ChatMessage, Model } from "./model";
+import { PAIR_STATUS_LABELS } from "./memory";
 import { allTells } from "./personality";
 import { contentWords } from "./quality";
 import { agenda, DATE_ACTS, dramaAnswerLabel, ENDING_LABELS, producerEvent, type AgendaId, type ProducerId } from "./rules";
@@ -201,6 +202,15 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
     if (so.note_followed !== null) facts.push(`${names[s]} ${so.note_followed ? "takes" : "ignores"} their creator's advice.`);
     facts.push(wantsFact(outcome, s, names));
   });
+  // A rematch: the pair has aired dates before, so they aren't strangers and tonight picks up from last time.
+  const met = characters[0].memory?.people?.find((p) => p.id === characters[1].id) ?? characters[1].memory?.people?.find((p) => p.id === characters[0].id);
+  if (met) {
+    facts.push(
+      `${names[0]} and ${names[1]} have met before (${met.dates === 1 ? "one date" : `${met.dates} dates`}; last time ${venue(met.last_venue).name.toLowerCase()}, ` +
+        `which ended "${ENDING_LABELS[met.last_ending]}"; now: ${PAIR_STATUS_LABELS[met.status].replace(/^\S+\s/, "").toLowerCase()}). ` +
+        "Play it as a rematch: they remember each other, and a callback to last time belongs in act one.",
+    );
+  }
   const dir = (d: number) => (d > 3 ? "rises" : d < -3 ? "falls" : "holds");
   facts.push(
     `Over the date, chemistry ${dir(outcome.variables.chemistry.delta)}, trust ${dir(outcome.variables.trust.delta)} and awkwardness ${dir(outcome.variables.awkwardness.delta)}.`,

@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { ExtrasInput, extrasFields, normaliseExtras } from "@/lib/extras";
+import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { checkFields, type RejectReason } from "@/lib/safety";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput } from "@/lib/souls";
 
@@ -47,6 +48,8 @@ const CharacterInput = z.object({
   open_to_dates: z.boolean().optional(),
   // Optional details (lib/extras.ts): occupation, hometown, style, hobbies, quirks, profile prompts. Public.
   extras: ExtrasInput.optional(),
+  // What's new in their life this week (lib/life.ts): lasts this season; without one the show deals one.
+  this_week: z.string().trim().max(THIS_WEEK_MAX, `At most ${THIS_WEEK_MAX} characters.`).optional(),
   attest: z.literal(true, "Confirm you are 18+ and this is your own original character."),
 });
 
@@ -69,6 +72,7 @@ export const POST = handle(async (req) => {
     dealbreaker: input.dealbreaker,
     appearance: input.appearance,
     voice: input.voice,
+    this_week: input.this_week,
     ...extrasFields(extras),
   });
   if (!verdict.ok) {
@@ -87,15 +91,23 @@ export const POST = handle(async (req) => {
   const id = crypto.randomUUID();
   const hue = input.avatar_hue && input.avatar_hue > 0 ? input.avatar_hue : null;
   await db.query(
-    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice, open_to_dates, extras)
-     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14::jsonb)`,
-    [id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue, input.pronouns ?? null, input.voice ?? null, input.open_to_dates === true, JSON.stringify(extras)],
+    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice, open_to_dates, extras, this_week)
+     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb)`,
+    [
+      id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue,
+      input.pronouns ?? null, input.voice ?? null, input.open_to_dates === true, JSON.stringify(extras),
+      input.this_week?.trim() ? JSON.stringify(stampThisWeek(input.this_week)) : null,
+    ],
   );
   const hasSoul = Boolean(soul && !isEmptySoul(soul));
   const signals = input.image_signals ?? null;
   // Save a soul row when there is soul text OR image-trained signals (so the image can shape behaviour).
   if (hasSoul || signals) await saveSoul(db, id, soul ?? normaliseSoul({}), input.soul?.local_only ?? false, signals);
 
-  const { attest: _attest, soul: _soul, image_signals: _sig, extras: _extras, ...character } = input;
-  return json({ id, ...character, extras, house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals) }, 201, sess);
+  const { attest: _attest, soul: _soul, image_signals: _sig, extras: _extras, this_week: _week, ...character } = input;
+  return json(
+    { id, ...character, extras, this_week: thisWeek(id, input.this_week?.trim() ? stampThisWeek(input.this_week) : null), house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals) },
+    201,
+    sess,
+  );
 });

@@ -6,6 +6,7 @@ import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { checkFields, type RejectReason } from "@/lib/safety";
 import type { ImageSignals } from "@/lib/avatar";
 import { ExtrasInput, extrasFields, normaliseExtras, type ExtrasInputType } from "@/lib/extras";
+import { stampThisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, ownsCharacter, saveSignals, saveSoul, SoulInput } from "@/lib/souls";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -38,6 +39,9 @@ const CharacterPatch = z
     open_to_dates: z.boolean().optional(),
     // Optional details (lib/extras.ts), replaced wholesale; null or {} clears them.
     extras: ExtrasInput.nullable().optional(),
+    // What's new this week (lib/life.ts): a string lasts this season ("" = nothing new this week); null hands it
+    // back to the show, which deals one.
+    this_week: z.string().trim().max(THIS_WEEK_MAX, `At most ${THIS_WEEK_MAX} characters.`).nullable().optional(),
     // Re-trained from a reference image in the builder (only the four numbers, never the image). Shapes future
     // dates; a learned memory drift on top of them is untouched.
     image_signals: z
@@ -71,8 +75,9 @@ const COLUMN: Record<string, (v: Record<string, unknown>) => unknown> = {
   voice: (v) => v.voice ?? null,
   open_to_dates: (v) => v.open_to_dates === true,
   extras: (v) => JSON.stringify(normaliseExtras(v.extras as ExtrasInputType | null)),
+  this_week: (v) => (v.this_week === null ? null : JSON.stringify(stampThisWeek(v.this_week as string))),
 };
-const JSONB_COLUMNS = new Set(["traits", "extras"]);
+const JSONB_COLUMNS = new Set(["traits", "extras", "this_week"]);
 
 /** Edit your own character. Owner-only; a character you don't own (or a house one) is "not found". */
 export const PATCH = handle(async (req: Request, ctx: Ctx) => {
@@ -90,6 +95,7 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
     dealbreaker: input.dealbreaker as string | undefined,
     appearance: (input.appearance as string | null | undefined) ?? undefined,
     voice: (input.voice as string | null | undefined) ?? undefined,
+    this_week: (input.this_week as string | null | undefined) ?? undefined,
     ...(input.extras ? extrasFields(normaliseExtras(input.extras as ExtrasInputType)) : {}),
   });
   if (!verdict.ok) {

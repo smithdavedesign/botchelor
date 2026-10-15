@@ -21,6 +21,7 @@ import {
 import type { BoxScore, DateSetup } from "./game";
 import { assembleCharacter, type Character } from "./character";
 import type { CharacterExtras } from "./extras";
+import { thisWeek, type StoredThisWeek } from "./life";
 import { loadCharacterMemory, type CharacterMemory } from "./memory";
 import { loadSoul, type StoredSoul } from "./souls";
 import {
@@ -72,7 +73,7 @@ function pickChaperone(seed: number, excludeIds: string[]): string {
   return (pool[seed % pool.length] ?? HOUSE_CHARACTERS[0]).name;
 }
 
-/** The ex-returns format's real ex: A's most recent OTHER past partner from the relationship graph, if any. */
+/** The ex-returns format's real ex: A's most recent OTHER past partner from the relationship graph — one it once had a second date with when there is one. */
 async function findEx(db: Db, aId: string, bId: string): Promise<string | undefined> {
   const { rows } = await db.query<{ name: string }>(
     `select case when r.character_a = $1 then cb.name else ca.name end as name
@@ -80,7 +81,7 @@ async function findEx(db: Db, aId: string, bId: string): Promise<string | undefi
        join characters ca on ca.id = r.character_a
        join characters cb on cb.id = r.character_b
       where $1 in (r.character_a, r.character_b) and $2 not in (r.character_a, r.character_b)
-      order by r.updated_at desc limit 1`,
+      order by (r.second_dates > 0) desc, r.updated_at desc limit 1`,
     [aId, bId],
   );
   return rows[0]?.name;
@@ -126,6 +127,9 @@ export type DateParts = {
   /** Each side's optional details (lib/extras.ts). Dialogue flavour only: the engine never reads them. */
   extrasA?: CharacterExtras | null;
   extrasB?: CharacterExtras | null;
+  /** What's new in each side's life this week (lib/life.ts). Dialogue flavour only. */
+  thisWeekA?: string | null;
+  thisWeekB?: string | null;
 };
 
 /**
@@ -135,8 +139,8 @@ export type DateParts = {
  */
 export function assembleDate(p: DateParts): BuiltDate {
   const { a, b, req, seed } = p;
-  const charA = assembleCharacter({ id: a.id, sheet: a.sheet, soul: p.soulA, memory: p.memoryA, extras: p.extrasA });
-  const charB = assembleCharacter({ id: b.id, sheet: b.sheet, soul: p.soulB, memory: p.memoryB, extras: p.extrasB });
+  const charA = assembleCharacter({ id: a.id, sheet: a.sheet, soul: p.soulA, memory: p.memoryA, extras: p.extrasA, thisWeek: p.thisWeekA });
+  const charB = assembleCharacter({ id: b.id, sheet: b.sheet, soul: p.soulB, memory: p.memoryB, extras: p.extrasB, thisWeek: p.thisWeekB });
   // The effective engine signals this date runs on: the base soul/image signals nudged by the learned
   // memory's bounded drift (lib/character.ts), so a bot genuinely evolves across its dates. A worker
   // rebuilding a stored date passes the snapshot so it re-decides EXACTLY what POST stored.
@@ -214,13 +218,17 @@ export async function buildDate(
     loadHistory(db, a.id, b.id),
     req.format === "ex_returns" ? findEx(db, a.id, b.id) : Promise.resolve(undefined),
     // Loaded here, beside the soul and memory, so every path that builds a date gets the details.
-    db.query<{ id: string; extras: CharacterExtras | null }>(`select id, extras from characters where id = any($1)`, [[a.id, b.id]]),
+    db.query<{ id: string; extras: CharacterExtras | null; this_week: StoredThisWeek | null }>(
+      `select id, extras, this_week from characters where id = any($1)`,
+      [[a.id, b.id]],
+    ),
   ]);
-  const extrasOf = (id: string) => extras.rows.find((r) => r.id === id)?.extras ?? null;
+  const rowOf = (id: string) => extras.rows.find((r) => r.id === id);
   return assembleDate({
     episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId),
     soulA, soulB, memoryA, memoryB, history, ex, signalsOverride,
-    extrasA: extrasOf(a.id), extrasB: extrasOf(b.id),
+    extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
+    thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),
   });
 }
 

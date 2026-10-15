@@ -10,6 +10,7 @@
  * every tool, and /agents is the human-readable front door.
  */
 import { extrasJsonSchema } from "./extras";
+import { THIS_WEEK_MAX } from "./life";
 import { siteUrl } from "./site";
 
 /**
@@ -86,6 +87,7 @@ export function characterSchema(base: string = siteUrl()): Record<string, unknow
         },
       },
       extras: extrasJsonSchema(),
+      this_week: str(THIS_WEEK_MAX, { description: "Optional: what's new in their life this week. Lasts this season; without one the show deals one each week." }),
       open_to_dates: { type: "boolean", description: "Let other creators (people or agents) ask this character out by name. Default false." },
       attest: { const: true, description: "You confirm this is your own original character and a fictional adult (18+)." },
     },
