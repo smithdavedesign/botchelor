@@ -26,7 +26,24 @@ export function tellMoment(outcome: Outcome, side: 0 | 1, act: number): TellId {
 export function currentTell(c: Character, outcome: Outcome, side: 0 | 1, act: number): string | null {
   const id = tellMoment(outcome, side, act);
   const does = c.extras.tells?.[id]?.trim();
-  return does ? `${secondPerson(tellLabel(id))} ${does}` : null;
+  return does ? `${secondPerson(tellLabel(id))} ${ownPronounsToYou(does, c.pronouns)}` : null;
+}
+
+/**
+ * Creators often write a tell about their character in the third person ("lower his voice"). Spoken to the
+ * character itself, its OWN pronouns become "you"/"your" ("lower your voice"). Only that character's own
+ * gendered pronouns are touched: "they/their" might mean the other person, so it's left as written.
+ */
+export function ownPronounsToYou(text: string, pronouns: string | null): string {
+  const p = (pronouns ?? "").toLowerCase();
+  const map: Record<string, string> = p.startsWith("he")
+    ? { his: "your", him: "you", himself: "yourself", "he's": "you're", he: "you" }
+    : p.startsWith("she")
+      ? { hers: "yours", her: "your", herself: "yourself", "she's": "you're", she: "you" }
+      : {};
+  const words = Object.keys(map);
+  if (!words.length) return text;
+  return text.replace(new RegExp(`\\b(${words.join("|")})\\b`, "gi"), (w) => map[w.toLowerCase()] ?? w);
 }
 
 /** "When they're nervous, they…" → "When you're nervous, you" (the actor is spoken to in the second person). */

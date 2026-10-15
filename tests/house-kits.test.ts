@@ -37,3 +37,12 @@ describe("the house cast's voice kits", () => {
     });
   });
 });
+
+describe("the builder's sample characters", () => {
+  it("their tells carry no pronouns either", async () => {
+    const src = (await import("node:fs")).readFileSync("app/create/CreateWizard.tsx", "utf8");
+    const tells = [...src.matchAll(/tells: \{([^}]*)\}/g)].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+    expect(tells.length).toBeGreaterThanOrEqual(8);
+    for (const tell of tells) expect(tell).not.toMatch(/\b(he|she|his|her|hers|him|himself|herself)\b/i);
+  });
+});

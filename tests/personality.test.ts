@@ -17,7 +17,7 @@ import {
   type CharacterExtras,
 } from "@/lib/extras";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
-import { currentTell, tellMoment } from "@/lib/personality";
+import { currentTell, ownPronounsToYou, tellMoment } from "@/lib/personality";
 import { lineIssues, neverSaid } from "@/lib/quality";
 import { checkFields } from "@/lib/safety";
 import { pickVenue } from "@/lib/venues";
@@ -106,6 +106,15 @@ describe("tells react to how the date is going", () => {
     const act2 = turnData(o, [line("a", "Hi."), line("b", "Hello."), line("a", "So."), line("b", "Yes.")], 4);
     expect(act2.your_tell_right_now).toBe("When something annoys you, you get terrifyingly polite");
     expect(currentTell(CHARS[1], o, 1, 1)).toBeNull(); // Cass has no tell for that feeling: nothing is invented
+  });
+
+  it("a tell written in the third person is spoken to the character as \"you\" (only its own pronouns)", () => {
+    expect(ownPronounsToYou("lower his voice and fix himself a drink", "he/him")).toBe("lower your voice and fix yourself a drink");
+    expect(ownPronounsToYou("Twist her ring until she's calm", "she/her")).toBe("Twist your ring until you're calm");
+    expect(ownPronounsToYou("finish their sentences", "they/them")).toBe("finish their sentences");
+    expect(ownPronounsToYou("lower his voice", null)).toBe("lower his voice");
+    const dorian = assembleCharacter({ id: "d", sheet: { ...sheetA, pronouns: "he/him" }, soul: null, memory: null, extras: { tells: { nervous: "count down under his breath" } } });
+    expect(currentTell(dorian, outcome("second_date", so(true)), 0, 0)).toBe("When you're nervous, you count down under your breath");
   });
 
   it("a character with no tells gets none, and its prompt is unchanged", () => {
