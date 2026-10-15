@@ -48,6 +48,48 @@ describe("the lobby only offers rooms that play line by line", () => {
   });
 });
 
+describe("the showcase bar (template rooms are the shop window)", () => {
+  const line = (dialogue: string) => JSON.stringify({ dialogue, action: "", emotion: "curious", interest_signal: 0.5 });
+  // Quip ping-pong: no questions, the same words from both sides, every line the same length.
+  const flat = Array.from({ length: CONVERSATION_TURNS }, () => line("Nice weather."));
+  const alive = [
+    "What brings you out on a night like this?",
+    "Curiosity, mostly, and a friend who dared me. What about you?",
+    "A dare too, sort of. Do you always say yes to dares?",
+    "Only the ones with snacks involved. Do you?",
+    "Snacks are my weakness. What's the strangest dare you've taken?",
+    "I once sang shanties to an empty car park at two in the morning. The echo was incredible.",
+    "That's oddly beautiful. Would you sing one now?",
+    "Maybe after another round. You'd have to join the chorus.",
+    "Deal, though I warn you my voice frightens seagulls.",
+    "Then we'll practise somewhere gull-free. Same time next week?",
+  ].map(line);
+
+  it("a date under the bar gets one more take — same outcome — and the better take airs", async () => {
+    setConversationEnabledForTests(true);
+    scriptOutcome({ ending: "second_date" });
+    const { calls } = scriptedModel([planJson(), ...flat, episodeJson(), planJson(), ...alive, episodeJson()]);
+    const room = await createTemplateParty(t.db, HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id);
+    if (!room?.ok) throw new Error("template setup failed");
+    const { rows } = await t.db.query<{ transcript: { dialogue: string }[]; ending: string }>(
+      `select e.transcript, e.ending from watch_parties w join episodes e on e.id = w.episode_id where w.id = $1`,
+      [room.id],
+    );
+    expect(rows[0].transcript[0].dialogue).toBe("What brings you out on a night like this?");
+    expect(rows[0].ending).toBe("second_date");
+    expect(calls).toHaveLength(2 * (CONVERSATION_TURNS + 2));
+  });
+
+  it("a date that clears the bar airs on the first take (no extra calls)", async () => {
+    setConversationEnabledForTests(true);
+    scriptOutcome({ ending: "friends" });
+    const { calls } = scriptedModel([planJson(), ...alive, episodeJson()]);
+    const room = await createTemplateParty(t.db, HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id);
+    expect(room?.ok).toBe(true);
+    expect(calls).toHaveLength(CONVERSATION_TURNS + 2);
+  });
+});
+
 describe("refreshLobby (daily)", () => {
   it("adds one fresh room with a full conversation per day, between two distinct house characters", async () => {
     setConversationEnabledForTests(true);

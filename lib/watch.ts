@@ -61,6 +61,13 @@ import { venueName, type VenueId } from "./venues";
 /** House-vs-house template episodes have no human creator: this fixed id never matches a real user's. */
 export const SYSTEM_CREATOR_ID = "system";
 
+/**
+ * The genuineness index (lib/quality.ts) a template date must reach before it airs in the lobby without a
+ * second take. The v1 prompts averaged 68 on today's metrics and the v2 pipeline about 86, so 75 catches the
+ * dates that slipped back to the old tells.
+ */
+export const SHOWCASE_MIN_INDEX = 75;
+
 const VERDICT_INDEX = WATCH_PHASE_INDEX.verdict;
 const ACT2_INDEX = WATCH_PHASE_INDEX.act2;
 const WRAP_INDEX = WATCH_PHASE_INDEX.wrap;
@@ -714,14 +721,16 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   // The shared pipeline (lib/pipeline.ts): the recap, plus the turn-by-turn conversation so template rooms
   // play the date line by line too. Pre-generated system content; the conversation is best-effort and gated
   // off in tests. Template rooms have no owners, so no afterglow.
-  let gen;
-  try {
-    gen = await generateDate({ actor: getModel(), director: getDirectorModel() }, built, decided, {
+  const take = () =>
+    generateDate({ actor: getModel(), director: getDirectorModel() }, built, decided, {
       formatId: built.setup.format ?? DEFAULT_FORMAT,
       formatCtx: { chaperone: built.setup.chaperone, ex: built.setup.ex },
       conversation: isConversationEnabled(),
       afterglow: false,
     });
+  let gen;
+  try {
+    gen = await take();
   } catch (err) {
     if (err instanceof ShowrunnerError) return { ok: false, status: 502, error: "showrunner_unavailable", message: "No model produced a valid template date." };
     throw err;
@@ -729,7 +738,17 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   if (gen.conversationError) {
     track("conversation_failed", { episode_id: episodeId, where: "template", reason: failureReason(gen.conversationError) });
   }
-  if (gen.quality) trackDateQuality(episodeId, "template", gen.plan?.source ?? null, gen.quality);
+  // The lobby is the show's shop window: a conversation that scores under the showcase bar gets one more take
+  // (the same engine outcome, so nothing that's predicted changes) and the better take airs. Free metrics only.
+  let retaken = false;
+  if (gen.quality && gen.quality.index < SHOWCASE_MIN_INDEX) {
+    const retake = await take().catch(() => null);
+    if (retake?.quality && retake.quality.index > gen.quality.index) {
+      gen = retake;
+      retaken = true;
+    }
+  }
+  if (gen.quality) trackDateQuality(episodeId, retaken ? "template_retake" : "template", gen.plan?.source ?? null, gen.quality);
   const { draft, transcript } = gen;
 
   await db.query(

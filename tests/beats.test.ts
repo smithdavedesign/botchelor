@@ -61,11 +61,15 @@ describe("rulesPlan — the engine's reasons, act by act", () => {
 
   it("makes every ending legible: 'just friends' plays platonic, never as a second date", () => {
     const friends = rulesPlan(INPUT, outcome({ ending: "friends", sides: [so({ wants_another: true }), so({ wants_another: false })] }), CHARS, "a_dare", "rooftop_bar");
-    expect(friends.acts[2].scene).toMatch(/clearly platonic/);
+    expect(friends.acts[2].scene).toMatch(/no romance/);
     expect(friends.acts[2].a).toMatch(/as a friend/);
-    expect(friends.acts[2].a).toMatch(/just not as a date/);
+    expect(friends.acts[2].a).toMatch(/nothing about your goodbye is romantic/);
+    expect(friends.acts[2].a).toMatch(/don't announce it/);
     expect(friends.acts[2].a).not.toMatch(/maybe more/);
     expect(friends.acts[2].b).toMatch(/won't be chasing a second date/);
+    // Act two already leans that way, so the last act lands it instead of flipping.
+    expect(friends.acts[1].scene).toMatch(/they find they get on/);
+    expect(friends.acts[1].a).toMatch(/no romantic spark/);
     const disaster = rulesPlan(INPUT, outcome({ ending: "disaster", sides: [so({ wants_another: false }), so({ wants_another: false })] }), CHARS, "a_dare", "rooftop_bar");
     expect(disaster.acts[2].a).toMatch(/clear why/);
   });
