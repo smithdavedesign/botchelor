@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import ShareLink from "@/app/ShareLink";
 import { getDatingProfile } from "@/lib/dating";
+import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { getDb } from "@/lib/db";
 import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
 import { loadCharacterMemory } from "@/lib/memory";
@@ -15,6 +16,8 @@ import RatingButtons from "./RatingButtons";
 import OwnerControls from "./OwnerControls";
 
 export const dynamic = "force-dynamic";
+
+const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -52,6 +55,7 @@ export default async function CharacterPage({ params }: Props) {
           <h1>
             {c.name}
             {c.house && <span className="badge">House character</span>}
+            {c.house && dating && !dating.can_ask_out && !PREMIUM_IDS.has(c.id) && <span className="badge">Off this season</span>}
             {dating?.made_by === "agent" && <span className="badge badge-agent">🤖 Agent-made</span>}
             {!c.house && dating?.open_to_dates && <span className="badge badge-open">💌 Open to dates</span>}
           </h1>

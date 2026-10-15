@@ -7,6 +7,7 @@
 import type { MetadataRoute } from "next";
 import type { Db } from "./db";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
+import { seasonCastIds } from "./season-cast";
 import { PUBLIC_PATHS, siteUrl } from "./site";
 
 const PRIORITY: Record<string, number> = { "/": 1, "/create": 0.9, "/feed": 0.9, "/watch": 0.8, "/agents": 0.8, "/cast": 0.7 };
@@ -30,15 +31,17 @@ export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<
       limit 20000`,
     [REPORT_HIDE_THRESHOLD],
   );
+  // This season's house cast, every character open to dates, and anyone who has aired publicly.
   const characters = await db.query<{ id: string; at: Date | string }>(
     `select c.id, c.created_at as at
        from characters c
-      where (c.is_house and c.premium_sku is null) or c.open_to_dates
+      where (c.is_house and c.premium_sku is null and c.id = any($1)) or c.open_to_dates
          or exists (select 1 from episodes e
                      where (e.character_a = c.id or e.character_b = c.id)
                        and e.visibility = 'public' and e.revealed_at is not null)
       order by c.is_house desc, c.created_at desc
       limit 20000`,
+    [seasonCastIds()],
   );
   return [
     ...characters.rows.map((r) => ({ url: `${base}/characters/${r.id}`, lastModified: new Date(r.at), changeFrequency: "weekly" as const, priority: 0.6 })),

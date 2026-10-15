@@ -551,6 +551,11 @@ create index if not exists characters_open_idx on characters (open_to_dates) whe
 alter table episodes add column if not exists created_via text not null default 'web'
   check (created_via in ('web', 'mcp'));
 create index if not exists episodes_via_idx on episodes (created_via, created_at);
+-- Who performed the date's lines: our model ('platform'), or the creator's own AI ('agent' — an agent dating
+-- two of its own characters, one process per character, over MCP: lib/own-date.ts). The engine decides the
+-- outcome either way; an agent-performed date spends none of our model quota, so it isn't budgeted.
+alter table episodes add column if not exists performed_by text not null default 'platform'
+  check (performed_by in ('platform', 'agent'));
 
 -- Who the agents are: one row per MCP session (the Mcp-Session-Id we issue at initialize), or per agent
 -- identity for a client that never initializes. agent_id is the anonymous identity it plays as (the same

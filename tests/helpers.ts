@@ -37,6 +37,7 @@ import { catalogItem, CURRENCY } from "@/lib/catalog";
 import { ensureSchema, pgliteDb, setDbForTests, type Db } from "@/lib/db";
 import { fixedEngine, setEngineForTests, type Outcome } from "@/lib/engine";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { setSeasonCastForTests } from "@/lib/season-cast";
 import { USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { setConversationEnabledForTests } from "@/lib/conversation";
@@ -93,6 +94,9 @@ export async function startTestDb() {
   // M10 part 2: run generation inline (no Next after() lifecycle in unit tests), so an episode is ready
   // by the time POST returns — the same observable behaviour the suite was written against.
   setInlineGenerationForTests(true);
+  // The whole house roster is "on the season" in tests, so a suite that dates a particular house character
+  // doesn't depend on which week it runs. tests/season-cast.test.ts exercises the real rotation.
+  setSeasonCastForTests(HOUSE_CHARACTERS.map((c) => c.id));
   return {
     db,
     async reset() {

@@ -229,6 +229,9 @@ function appEnv(showrunnerPort) {
     STRIPE_PRICE_LABEL: SAMPLE_PRICE_LABEL,
     STRIPE_WEBHOOK_SECRET: RUN_WEBHOOK_SECRET,
     BOTCHELOR_INLINE_GENERATION: "1",
+    // This season's house cast, pinned to the house characters the run dates (Juniper through the UI, Dex and
+    // Rafe in the seed), so the shots don't depend on which week they're taken (lib/season-cast.ts).
+    BOTCHELOR_SEASON_CAST: "house-juniper,house-rafe,house-dex,house-sable",
     NEXT_TELEMETRY_DISABLED: "1",
     // A throwaway signing secret so the account + BYOK screenshots render signed-in. Never a real key.
     SESSION_SECRET: ["screenshots", "session", "secret", "0123456789abcdef0123"].join("-"),

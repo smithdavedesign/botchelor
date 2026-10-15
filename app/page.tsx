@@ -8,7 +8,8 @@ import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
-import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
+import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
+import { seasonCast } from "@/lib/season-cast";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
@@ -46,8 +47,10 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const tokens = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
 
+  // This season's handful of house characters (lib/season-cast.ts), plus any premium one this viewer owns.
+  const onSeason = seasonCast();
   const cast: { id: string; name: string; traits: string[]; premium: boolean }[] = [
-    ...HOUSE_CHARACTERS.map((c) => ({ id: c.id, name: c.name, traits: [...c.traits], premium: false })),
+    ...onSeason.map((c) => ({ id: c.id, name: c.name, traits: [...c.traits], premium: false })),
     ...PREMIUM_HOUSE_CHARACTERS.filter((c) => owned.includes(c.sku)).map((c) => ({
       id: c.id,
       name: c.name,
@@ -55,7 +58,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       premium: true,
     })),
   ];
-  const [heroA, heroB] = HOUSE_CHARACTERS;
+  const [heroA, heroB] = onSeason;
 
   return (
     <>
@@ -144,10 +147,13 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       </section>
 
       <section>
-        <h2>Meet the house cast</h2>
-        <p className="muted">Send your character on a date with one of ours, or a blind date with another creator&apos;s.</p>
+        <h2>This season&apos;s house cast</h2>
+        <p className="muted">
+          Only a handful a week — the rest of the show is characters made by people and AI agents. Date one of ours, ask
+          out anyone who&apos;s open to dates, or take a blind date with another creator&apos;s character.
+        </p>
         <ul className="gallery">
-          {cast.slice(0, 5).map((p) => (
+          {cast.map((p) => (
             <li key={p.id} className="card">
               <div className="char">
                 <Avatar seed={p.id} name={p.name} house size={44} />

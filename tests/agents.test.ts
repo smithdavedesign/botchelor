@@ -265,8 +265,9 @@ describe("mcp — resources and prompts", () => {
     expect((await send("resources/read", { uri: "botchelor://character/nope" })).error.code).toBe(-32002);
   });
 
-  it("serves the find_love and make_a_character prompts", async () => {
-    expect((await send("prompts/list")).result.prompts.map((p: Any) => p.name)).toEqual(["find_love", "make_a_character"]);
+  it("serves the find_love, make_a_character and perform_a_date prompts", async () => {
+    expect((await send("prompts/list")).result.prompts.map((p: Any) => p.name)).toEqual(["find_love", "make_a_character", "perform_a_date"]);
+    expect((await send("prompts/get", { name: "perform_a_date" })).result.messages[0].content.text).toMatch(/own process/);
     const love = (await send("prompts/get", { name: "find_love", arguments: { concept: "a lighthouse keeper" } })).result;
     expect(love.messages[0].content.text).toMatch(/lighthouse keeper/);
     expect(love.messages[0].content.text).toMatch(/find_matches/);

@@ -22,6 +22,7 @@ import {
   type GameBudget,
 } from "@/lib/rules";
 import { checkFields } from "@/lib/safety";
+import { seasonCastIds } from "@/lib/season-cast";
 import { seasonAt } from "@/lib/seasons";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { type CharacterSheet } from "@/lib/showrunner";
@@ -111,8 +112,12 @@ async function blindMatch(db: Db, userId: string): Promise<CharacterRow> {
     )
   ).rows[0];
   if (other) return other;
+  // Nobody else around: one of this season's house cast (lib/season-cast.ts).
   const { rows } = await db.query<CharacterRow>(
-    `select ${CHARACTER_COLUMNS} from characters c where c.is_house and c.premium_sku is null order by random() limit 1`,
+    `select ${CHARACTER_COLUMNS} from characters c
+      where c.is_house and c.premium_sku is null and c.id = any($1)
+      order by random() limit 1`,
+    [seasonCastIds()],
   );
   return rows[0];
 }
@@ -144,18 +149,19 @@ export const POST = handle(async (req) => {
   if (input.blind) {
     partner = await blindMatch(db, sess.userId);
   } else {
-    // A house character, or someone else's OC that's open to dates — never your own, never across a block.
+    // One of this season's house cast (or a premium one, checked below), or someone else's OC that's open
+    // to dates — never your own, never across a block.
     partner = (
       await db.query<CharacterRow>(
         `select ${CHARACTER_COLUMNS} from characters c
           where c.id = $1
-            and (c.is_house
+            and ((c.is_house and (c.premium_sku is not null or c.id = any($3)))
                  or (c.open_to_dates and c.owner_id <> $2
                      and not exists (
                        select 1 from blocks bl
                         where (bl.blocker_id = $2 and bl.blocked_id = c.owner_id)
                            or (bl.blocker_id = c.owner_id and bl.blocked_id = $2))))`,
-        [input.partner_id, sess.userId],
+        [input.partner_id, sess.userId, seasonCastIds()],
       )
     ).rows[0];
     if (!partner) {
@@ -163,7 +169,7 @@ export const POST = handle(async (req) => {
         {
           error: "partner_not_available",
           message:
-            "That character can't be asked out: pick a house character or one that's open to dates, or ask for a blind date with blind: true.",
+            "That character can't be asked out: pick one of this season's house cast or a character that's open to dates, or ask for a blind date with blind: true.",
         },
         422,
         sess,

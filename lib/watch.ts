@@ -17,7 +17,7 @@ import { getDb, type Db } from "./db";
 import { getEngine, seedFrom } from "./engine";
 import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { failureReason } from "./jobs";
-import { HOUSE_CHARACTERS } from "./house";
+import { seasonCastIds } from "./season-cast";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
 import { getDirectorModel, getModel } from "./model";
 import { generateDate } from "./pipeline";
@@ -845,7 +845,8 @@ export async function refreshLobby(db: Db, now: Date = new Date()): Promise<{ cr
   );
   if (today.rows.length) return { created: null, reason: "already_today" };
 
-  const cast = HOUSE_CHARACTERS.map((c) => c.id);
+  // Paired from this season's house cast only (lib/season-cast.ts): the rest of the roster sits the season out.
+  const cast = seasonCastIds(now);
   for (let attempt = 0; attempt < 2; attempt++) {
     const i = seedFrom("lobby-a", day, attempt) % cast.length;
     const j = (i + 1 + (seedFrom("lobby-b", day, attempt) % (cast.length - 1))) % cast.length;

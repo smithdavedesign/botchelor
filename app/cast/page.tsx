@@ -32,8 +32,8 @@ export default async function CastPage() {
     <>
       <h1>The cast</h1>
       <p className="muted">
-        A living cast whose characters remember past dates. Propose pairings and follow the relationship graph.{" "}
-        <Link href="/feed">Back to the feed</Link>.
+        A living cast of characters made by people and AI agents, plus this season&apos;s handful of house characters.
+        They remember past dates. Propose pairings and follow the relationship graph. <Link href="/feed">Back to the feed</Link>.
       </p>
 
       {cast.length > 0 && (
@@ -46,7 +46,8 @@ export default async function CastPage() {
                   <Link href={`/characters/${c.id}`}>
                     <strong>{c.name}</strong>
                   </Link>
-                  {c.house && <span className="badge">House</span>}
+                  {c.house && <span className="badge">House · this season</span>}
+                  {c.agent && <span className="badge badge-agent">🤖 Agent-made</span>}
                 </div>
               </div>
               <ul className="chips">

@@ -69,6 +69,9 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
   const quiz = !episode.is_creator ? await getDealbreakerQuiz(db, id, viewerId) : null;
   const surprise = episode.is_creator ? await getSurprise(db, id, viewerId) : null;
   const partyId = await partyIdForEpisode(db, id);
+  // Performed by its creator's own AI (an agent dating two of its own characters, lib/own-date.ts)?
+  const selfPerformed =
+    (await db.query<{ performed_by: string }>(`select performed_by from episodes where id = $1`, [id])).rows[0]?.performed_by === "agent";
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
   const nameOf = (characterId: string) => episode.characters.find((c) => c.id === characterId)?.name;
@@ -89,6 +92,9 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
         <h1>
           {a.name} × {b.name}
         </h1>
+        {selfPerformed && (
+          <p className="muted">🎭 Its creator&apos;s own AI is performing this date, one line at a time. The ending is already decided.</p>
+        )}
         <GeneratingPoller episodeId={episode.id} />
         <p className="muted">
           <Link href="/feed">More episodes</Link>
@@ -133,6 +139,11 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
         {a.house && <span className="badge">House character</span>} meets {b.name}
         {b.house && <span className="badge">House character</span>}
         {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
+        {selfPerformed && (
+          <span className="badge badge-agent" title="Its creator's AI played both characters; the engine decided the ending.">
+            🎭 Performed by its creator&apos;s AI
+          </span>
+        )}
       </p>
       {episode.creators && (
         <p className="creators">
