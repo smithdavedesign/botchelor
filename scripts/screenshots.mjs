@@ -414,7 +414,7 @@ async function buyPackThroughShop(page, base) {
     route.fulfill({ contentType: "text/html", body: "<title>Stripe test payment (sample stand-in)</title><h1>Paid (sample)</h1>" });
   });
   await page.goto(`${base}/shop`);
-  await page.getByText("2 of 3 free dates left").waitFor(); // the date just written spent one
+  await page.getByText("2 of 3 free this week").waitFor(); // the date just written spent one token
   await page.locator('input[name="attest"]').check();
   await page.getByRole("button", { name: SAMPLE_PRICE_LABEL }).click();
   await page.waitForURL((url) => url.href.startsWith(SAMPLE_PAYMENT_LINK));
@@ -437,7 +437,7 @@ async function buyPackThroughShop(page, base) {
   if (res.status !== 200) throw new Error(`the webhook answered ${res.status}`);
 
   await page.goto(`${base}/shop?checkout=success`);
-  await page.getByText(`plus ${SAMPLE_PACK.episodes} pack dates`).waitFor();
+  await page.getByText(`plus ${SAMPLE_PACK.episodes} topped up`).waitFor();
   console.log(`  bought "5 more dates" through the shop: the Payment Link carried the order, the webhook added ${SAMPLE_PACK.episodes} dates`);
 }
 
@@ -537,23 +537,37 @@ async function capture(base, leagueId, viewer) {
       await home.getByRole("heading", { level: 1 }).waitFor();
       await shot(home, "home");
 
-      // 2. The core action, through the UI: make a character, send them on a date, land on the episode.
+      // 2. The core action, through the UI: build a character in the /create wizard, send them on a date,
+      // land on the episode. The builder is a stepped wizard now (Identity -> Voice -> Look -> Soul -> Review).
       const c = CHARACTERS.tamsin;
-      const form = home.locator("#start");
-      await form.locator('input[name="name"]').fill(c.name);
-      await form.locator('input[name="age"]').fill(String(c.age));
-      await form.locator('textarea[name="bio"]').fill(c.bio);
-      for (const [i, trait] of c.traits.entries()) await form.locator(`input[name="trait${i + 1}"]`).fill(trait);
-      await form.locator('input[name="want"]').fill(c.want);
-      await form.locator('input[name="dealbreaker"]').fill(c.dealbreaker);
-      // The private soul (owner-only): open it and fill a couple of fields for the builder screenshot.
-      await form.getByText("Give them a private soul (optional)").click();
-      await form.locator('input[name="soul_values"]').fill("Finishes what she starts; hates being underestimated.");
-      await form.locator('input[name="soul_humor"]').fill("Dry, competitive, quick to a comeback.");
-      await form.locator('input[name="soul_communication"]').fill("Warm once she trusts you; guarded before that.");
-      await form.locator('input[name="attest"]').check();
+      await home.goto(`${base}/create`);
+      await home.getByRole("heading", { level: 1, name: "Build your character" }).waitFor();
+      // Step 1 — Identity.
+      await home.locator('input[name="name"]').fill(c.name);
+      await home.locator('input[name="age"]').fill(String(c.age));
+      await home.locator('textarea[name="bio"]').fill(c.bio);
+      for (const [i, trait] of c.traits.entries()) await home.locator(`input[name="trait${i + 1}"]`).fill(trait);
+      await home.locator('input[name="want"]').fill(c.want);
+      await home.locator('input[name="dealbreaker"]').fill(c.dealbreaker);
       await shot(home, "builder", { full: true });
-      await form.getByRole("button", { name: "Create character" }).click();
+      await home.getByRole("button", { name: "Next: Voice" }).click();
+      // Step 2 — Voice.
+      await home.getByText("How do they talk?").waitFor();
+      await home.getByRole("button", { name: "Dry & deadpan" }).click();
+      await home.getByRole("button", { name: "Next: Look" }).click();
+      // Step 3 — Look.
+      await home.getByText("Give them a look").waitFor();
+      await home.getByRole("button", { name: "Next: Soul & autonomy" }).click();
+      // Step 4 — Soul & autonomy (owner-only private soul).
+      await home.getByText("The inner life (optional)").waitFor();
+      await home.locator('input[name="soul_values"]').fill("Finishes what she starts; hates being underestimated.");
+      await home.locator('input[name="soul_humor"]').fill("Dry, competitive, quick to a comeback.");
+      await home.locator('input[name="soul_communication"]').fill("Warm once she trusts you; guarded before that.");
+      await home.getByRole("button", { name: "Next: Review" }).click();
+      // Step 5 — Review & create.
+      await home.getByText("Review & create").waitFor();
+      await home.locator('.wizard-attest input[type="checkbox"]').check();
+      await home.getByRole("button", { name: `Create ${c.name}` }).click();
       await home.getByText(`Who should ${c.name} meet?`).waitFor();
       // The date settings (PRD budget & autonomy): open them for a screenshot of the controls, and pick a
       // non-classic show format (M11) so the episode and feed carry a format badge.
@@ -561,7 +575,7 @@ async function capture(base, leagueId, viewer) {
       await home.getByText("A note in the pocket", { exact: false }).waitFor();
       await home.getByLabel("Show format").selectOption("meet_the_parents");
       await shot(home, "date-settings");
-      await home.getByRole("button", { name: `Send ${c.name} on a date with Juniper` }).click();
+      await home.getByRole("button", { name: "Send on a date with Juniper" }).click();
       await home.waitForURL(/\/episodes\/[0-9a-f-]{36}$/);
       await home.getByRole("heading", { level: 1, name: `${c.name} × Juniper Vale` }).waitFor();
       await shot(home, "episode");
@@ -665,11 +679,12 @@ async function capture(base, leagueId, viewer) {
       await becameHeading.scrollIntoViewIfNeeded();
       await shot(castPage, "contestant-memory");
 
-      // 6. The Reunion special: the season awards, the couples board and the confessional reel.
+      // 6. The Reunion, now folded into the feed (Episodes & leagues): the season awards, the couples board
+      // and the confessional reel assemble at the bottom of the feed.
       const reunionPage = await member.newPage();
-      await reunionPage.goto(`${base}/reunion`);
+      await reunionPage.goto(`${base}/feed`);
       await reunionPage.getByRole("heading", { name: "The Reunion" }).waitFor();
-      await reunionPage.getByRole("heading", { name: "The season awards" }).waitFor();
+      await reunionPage.locator(".reunion-panel").scrollIntoViewIfNeeded();
       await shot(reunionPage, "reunion", { full: true });
       await member.close();
     }

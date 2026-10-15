@@ -387,15 +387,15 @@ export default function CreateWizard({
             </p>
             <label>
               Name
-              <input type="text" required maxLength={40} value={sheet.name} onChange={(e) => setField("name", e.target.value)} />
+              <input type="text" name="name" required maxLength={40} value={sheet.name} onChange={(e) => setField("name", e.target.value)} />
             </label>
             <label>
               Age (18 or older)
-              <input type="number" required min={18} max={1000} step={1} value={sheet.age} onChange={(e) => setField("age", e.target.value)} />
+              <input type="number" name="age" required min={18} max={1000} step={1} value={sheet.age} onChange={(e) => setField("age", e.target.value)} />
             </label>
             <label>
               Short bio
-              <textarea required maxLength={500} rows={3} value={sheet.bio} onChange={(e) => setField("bio", e.target.value)} />
+              <textarea name="bio" required maxLength={500} rows={3} value={sheet.bio} onChange={(e) => setField("bio", e.target.value)} />
             </label>
             {bioHint && <p className="hint-nudge">💡 {bioHint}</p>}
             <label>Three traits</label>
@@ -404,6 +404,7 @@ export default function CreateWizard({
                 <input
                   key={i}
                   type="text"
+                  name={`trait${i + 1}`}
                   required
                   maxLength={30}
                   aria-label={`Trait ${i + 1}`}
@@ -414,11 +415,11 @@ export default function CreateWizard({
             </div>
             <label>
               What they want from a date
-              <input type="text" required maxLength={140} value={sheet.want} onChange={(e) => setField("want", e.target.value)} />
+              <input type="text" name="want" required maxLength={140} value={sheet.want} onChange={(e) => setField("want", e.target.value)} />
             </label>
             <label>
               Their dealbreaker
-              <input type="text" required maxLength={140} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} />
+              <input type="text" name="dealbreaker" required maxLength={140} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} />
             </label>
             <fieldset className="pronoun-pick">
               <legend>
@@ -544,7 +545,7 @@ export default function CreateWizard({
             ] as const).map(([k, label]) => (
               <label key={k}>
                 {label}
-                <input type="text" maxLength={300} value={soul[k]} onChange={(e) => setSoulField(k, e.target.value)} />
+                <input type="text" name={`soul_${k}`} maxLength={300} value={soul[k]} onChange={(e) => setSoulField(k, e.target.value)} />
               </label>
             ))}
             <label className="check">
