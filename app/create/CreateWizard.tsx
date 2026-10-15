@@ -64,6 +64,8 @@ export type EditInitial = {
   extras: CharacterExtras;
   /** Their behaviour was trained from an image or a curated look (kept unless re-trained). */
   imageTrained: boolean;
+  /** Their generated (BYOK) portrait, as the card shows it, or null for the drawn avatar. */
+  portrait: string | null;
 };
 const EMPTY_SHEET: Sheet = { name: "", age: "", bio: "", want: "", dealbreaker: "" };
 const EMPTY_SOUL: Soul = { values: "", insecurities: "", humor: "", boundaries: "", romantic: "", communication: "", local_only: false };
@@ -168,6 +170,7 @@ export default function CreateWizard({
   const [attest, setAttest] = useState(false);
   const [openToDates, setOpenToDates] = useState(init?.openToDates ?? false);
   const [saved, setSaved] = useState(false);
+  const [portrait, setPortrait] = useState<string | null>(init?.portrait ?? null);
 
   // Flow state.
   const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
@@ -393,9 +396,11 @@ export default function CreateWizard({
   }
 
   const previewName = sheet.name || created?.name || "preview";
+  // Editing: draw the avatar exactly as their card does (seeded by id, their generated portrait if any).
+  const avatarSeed = edit ? edit.id : previewName;
   const livePreview = (
     <div className="wizard-preview">
-      <Avatar seed={previewName} name={sheet.name || created?.name || "?"} hue={hue} size={88} />
+      <Avatar seed={avatarSeed} name={sheet.name || created?.name || "?"} hue={hue} size={88} portraitSrc={portrait} />
       <div className="wizard-preview-meta">
         <strong>{sheet.name || created?.name || "Your character"}</strong>
         {sheet.age && <span className="muted"> · {sheet.age}</span>}
@@ -577,7 +582,7 @@ export default function CreateWizard({
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">Give them a look</legend>
             <div className="looks">
-              <Avatar seed={previewName} name={sheet.name || "?"} hue={hue} size={72} />
+              <Avatar seed={avatarSeed} name={sheet.name || "?"} hue={hue} size={72} portraitSrc={portrait} />
               <div className="looks-fields">
                 <label>
                   Appearance <span className="muted">(optional)</span>
@@ -637,11 +642,14 @@ export default function CreateWizard({
             {edit && init?.imageTrained && !imageSignals && (
               <p className="muted small">✓ Their instincts were trained from an image or a curated look; that stays unless you train again.</p>
             )}
-            <p className="wizard-pro-hint">
-              <span className="pro-tag">✨ Pro</span>{" "}
-              {edit ? "Generate a portrait from their card" : "A generated portrait is available right after you create"} — it runs
-              on your own OpenAI key. <Link href="/account">Add a key</Link> to unlock it.
-            </p>
+            {edit ? (
+              <PortraitPanel id={edit.id} name={sheet.name || init?.name || "them"} portrait={portrait} onPortrait={setPortrait} />
+            ) : (
+              <p className="wizard-pro-hint">
+                <span className="pro-tag">✨ Pro</span> A generated portrait is available right after you create — it runs on
+                your own OpenAI key. <Link href="/account">Add a key</Link> to unlock it.
+              </p>
+            )}
           </fieldset>
         )}
 
@@ -781,6 +789,52 @@ function ReviewRow({ label, children }: { label: string; children: ReactNode }) 
       <span className="wizard-review-label">{label}</span>
       <span>{children}</span>
     </p>
+  );
+}
+
+/**
+ * Edit mode, Look step: their generated portrait (BYOK, Pro). Shows whether they have one and makes a new one
+ * on the owner's own image key. The server builds it from the SAVED sheet, so a just-changed look needs saving first.
+ */
+function PortraitPanel({ id, name, portrait, onPortrait }: { id: string; name: string; portrait: string | null; onPortrait: (src: string) => void }) {
+  const [state, setState] = useState<null | "working" | "no_key" | { error: string }>(null);
+  const first = name.split(" ")[0];
+
+  async function generate() {
+    setState("working");
+    const { ok, status, data, message } = await requestJson(`/api/characters/${id}/portrait`, {}, "POST").catch(() => ({
+      ok: false,
+      status: 0,
+      data: {} as Record<string, unknown>,
+      message: "Network error. Try again.",
+    }));
+    if (ok && typeof data.portrait_path === "string") {
+      onPortrait(data.portrait_path);
+      setState(null);
+    } else {
+      setState(status === 400 ? "no_key" : { error: message ?? "Couldn't generate a portrait." });
+    }
+  }
+
+  return (
+    <div className="wizard-pro-hint wizard-portrait">
+      <p>
+        <span className="pro-tag">✨ Pro</span> <strong>Portrait</strong> —{" "}
+        {portrait ? `${first}'s generated portrait shows on their card (and above).` : "none yet, so their card shows the drawn avatar."}
+      </p>
+      <p className="muted small">
+        Made from their saved sheet, on your own OpenAI key — if you&apos;ve just changed their look, save first.
+      </p>
+      <button type="button" className="secondary small" onClick={generate} disabled={state === "working"}>
+        {state === "working" ? "Generating…" : portrait ? "Generate a new portrait" : "Generate a portrait"}
+      </button>
+      {state === "no_key" && (
+        <p className="muted small">
+          Add an OpenAI image key on your <Link href="/account">account</Link> first.
+        </p>
+      )}
+      {state && typeof state === "object" && <p className="error">{state.error}</p>}
+    </div>
   );
 }
 
