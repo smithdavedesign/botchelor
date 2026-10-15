@@ -13,6 +13,9 @@
  *  - misgendered: referring to the other with words that contradict their pronouns ("tough guy").
  *  - abrupt_flips: one side's interest swinging by half the scale between its consecutive lines.
  *  - repeated_openers: a speaker starting lines the same way ("Honestly, …").
+ *  - repeated_actions: a stage direction the date has already used ("adjusts reading glasses" again, or the
+ *    other character copying "brushes dumpling dust off knee"). They show in the chat, so a loop is visible.
+ *  - name_tics: saying the other's name in line after line ("Oh, Orin…", "…, Orin!"); people rarely do.
  *  - question_rate / responsiveness: real first dates are mostly questions and follow-ups, not quip
  *    ping-pong; a reply should pick up something the other actually said.
  *  - distinctness: two different people use different words.
@@ -88,7 +91,13 @@ export type LineIssues = {
   self_quote: boolean;
   misgendered: boolean;
   repeated_opener: string | null;
+  /** The earlier stage direction this line's action repeats, if any. */
+  repeated_action: string | null;
+  name_tic: boolean;
 };
+
+/** A stage direction's meaningful words ("pulls the blanket tighter" → pulls, blanket, tighter). */
+const actionWords = (action: string) => contentWords(action, 3);
 
 /**
  * The tells in ONE line, given the conversation before it. Used by the turn critic (to send a line back once
@@ -139,11 +148,34 @@ export function lineIssues(
   const pron = (ctx.pronouns?.[o] ?? other.pronouns ?? "").toLowerCase();
   const misgendered = (pron.startsWith("she") && MASCULINE.test(text)) || (pron.startsWith("he") && FEMININE.test(text));
 
+  const mine = before.filter((t) => t.side === line.side);
   const opener = lineTokens.slice(0, 2).join(" ");
-  const usedBefore = before.filter((t) => t.side === line.side).map((t) => tokens(t.dialogue).slice(0, 2).join(" "));
+  const usedBefore = mine.map((t) => tokens(t.dialogue).slice(0, 2).join(" "));
   const repeated = opener && lineTokens.length > 2 && usedBefore.includes(opener) ? opener : null;
 
-  return { profile_reading: leakedWord || leakedGram || labelled, self_label: selfLabel, self_quote: selfQuote, misgendered, repeated_opener: repeated };
+  // A stage direction repeats when it shares a two-word run with any earlier one, either side's ("adjusts
+  // shirt cuff" → "adjusts shirt collar"). One-word actions ("smiles") are too common to count.
+  const act = actionWords(line.action);
+  const actGrams = ngrams(act, 2);
+  const repeatedAction = actGrams.size
+    ? before.find((t) => [...ngrams(actionWords(t.action), 2)].some((g) => actGrams.has(g)))?.action ?? null
+    : null;
+
+  // The other's first name in this line AND in this speaker's previous line.
+  const theirName = tokens(other.name)[0] ?? "";
+  const says = (t: string) => theirName.length > 1 && tokens(t).includes(theirName);
+  const lastMine = mine.at(-1);
+  const nameTic = says(text) && lastMine !== undefined && says(lastMine.dialogue);
+
+  return {
+    profile_reading: leakedWord || leakedGram || labelled,
+    self_label: selfLabel,
+    self_quote: selfQuote,
+    misgendered,
+    repeated_opener: repeated,
+    repeated_action: repeatedAction,
+    name_tic: nameTic,
+  };
 }
 
 export type QualityMetrics = {
@@ -159,6 +191,8 @@ export type QualityMetrics = {
   misgendered: number;
   abrupt_flips: number;
   repeated_openers: number;
+  repeated_actions: number;
+  name_tics: number;
   distinctness: number;
   grounding: [number, number];
   /** 0..100: one headline number combining the above (higher is more genuine). */
@@ -172,7 +206,8 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
   const avg = n ? wordsPerLine.reduce((x, y) => x + y, 0) / n : 0;
   const spread = n ? Math.sqrt(wordsPerLine.reduce((x, w) => x + (w - avg) ** 2, 0) / n) : 0;
 
-  let profileReading = 0, selfLabels = 0, selfQuotes = 0, misgendered = 0, abrupt = 0, repeated = 0, responsive = 0, replies = 0;
+  let profileReading = 0, selfLabels = 0, selfQuotes = 0, misgendered = 0, abrupt = 0, repeated = 0, repeatedActions = 0, nameTics = 0;
+  let responsive = 0, replies = 0;
   const lastInterest: [number | null, number | null] = [null, null];
   const sideWords: [Set<string>, Set<string>] = [new Set(), new Set()];
   const grounded: [number, number] = [0, 0];
@@ -187,6 +222,8 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
     if (issues.self_quote) selfQuotes++;
     if (issues.misgendered) misgendered++;
     if (issues.repeated_opener) repeated++;
+    if (issues.repeated_action) repeatedActions++;
+    if (issues.name_tic) nameTics++;
 
     const content = new Set(contentWords(t.dialogue));
     linesBy[s]++;
@@ -218,7 +255,7 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
         1 - Math.min(1, ((selfLabels + selfQuotes) / n) * 3),
         misgendered ? 0 : 1,
         1 - Math.min(1, abrupt / 2),
-        1 - Math.min(1, (repeated / n) * 3),
+        1 - Math.min(1, ((repeated + repeatedActions + nameTics) / n) * 3),
         Math.min(1, questionRate / 0.35),
         responsiveness,
         distinctness,
@@ -241,6 +278,8 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
     misgendered,
     abrupt_flips: abrupt,
     repeated_openers: repeated,
+    repeated_actions: repeatedActions,
+    name_tics: nameTics,
     distinctness: r2(distinctness),
     grounding: [r2(grounding[0]), r2(grounding[1])],
     index,

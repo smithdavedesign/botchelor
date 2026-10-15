@@ -53,8 +53,9 @@ const PRODUCER = "a_hard_question" as const;
 const sideOutcome = (wants: boolean): SideOutcome => ({ wants_another: wants, agenda_met: true, satisfied: wants, dealbreaker_hit: null, want_met: null, note_followed: null });
 const OUTCOME: Outcome = fixedEngine({ ending: "second_date", sides: [sideOutcome(true), sideOutcome(false)] }).decide(INPUT, 1);
 
+// One-word actions: a repeated multi-word stage direction is a tell the critic sends back.
 const turnJson = (dialogue: string, interest = 0.5) =>
-  JSON.stringify({ dialogue, action: "asks a question", emotion: "curious", interest_signal: interest });
+  JSON.stringify({ dialogue, action: "asks", emotion: "curious", interest_signal: interest });
 
 /** A model that returns (or throws) scripted outputs in order and records the messages it was given. */
 function turnModel(outputs: Array<string | Error>): { model: Model; calls: ChatMessage[][] } {
@@ -152,6 +153,17 @@ describe("the turn critic", () => {
     expect(critiqueTurn([], leak, INPUT, CHARS, VENUE)).toMatch(/haven't told you/);
     const fine: Turn = { side: "b", act: 0, dialogue: "So what do you actually do when you're not out on a date?", action: "", emotion: "", interest: 0.5 };
     expect(critiqueTurn([], fine, INPUT, CHARS, VENUE)).toBeNull();
+  });
+
+  it("sends back a stage direction the date already used, and a name said line after line", () => {
+    const before: Turn[] = [
+      { side: "a", act: 0, dialogue: "Is it always this cold up here, Rafe?", action: "pulls the blanket tighter", emotion: "", interest: 0.5 },
+      { side: "b", act: 0, dialogue: "Only when the oven's off.", action: "", emotion: "", interest: 0.5 },
+    ];
+    const copy: Turn = { side: "b", act: 0, dialogue: "Here, take the warm end.", action: "pulls blanket tighter", emotion: "", interest: 0.5 };
+    expect(critiqueTurn(before, copy, INPUT, CHARS, VENUE)).toMatch(/already happened tonight/);
+    const again: Turn = { side: "a", act: 0, dialogue: "You're a gentleman, Rafe.", action: "", emotion: "", interest: 0.5 };
+    expect(critiqueTurn(before, again, INPUT, CHARS, VENUE)).toMatch(/name last time too/);
   });
 
   it("revises a flagged line once and keeps the revision", async () => {

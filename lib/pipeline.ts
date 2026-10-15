@@ -21,7 +21,7 @@ import { simulateConversation, type Turn } from "./conversation";
 import type { Outcome } from "./engine";
 import type { FormatContext, FormatId } from "./formats";
 import type { ChatMessage, Model, ModelOptions } from "./model";
-import { transcriptQuality, type QualityMetrics } from "./quality";
+import { transcriptQuality, type QualityContext, type QualityMetrics } from "./quality";
 import { agenda } from "./rules";
 import { narrateEpisode, type EpisodeDraft } from "./showrunner";
 import type { BuiltDate } from "./simulation";
@@ -113,17 +113,21 @@ export async function generateDate(
     }
   }
 
-  const quality = transcript.length
-    ? transcriptQuality(transcript, characters, {
-        pronouns: [characters[0].pronouns, characters[1].pronouns],
-        shared: `${venue(venueId).prompt} ${draft.setting}`,
-        secrets: [
-          [agenda(built.input.a.agendaId).label, built.input.a.note ?? ""].filter(Boolean),
-          [agenda(built.input.b.agendaId).label, built.input.b.note ?? ""].filter(Boolean),
-        ],
-      })
-    : null;
+  const quality = transcript.length ? transcriptQuality(transcript, characters, qualityContext(built, draft.setting)) : null;
 
   const modelCalls = actor.calls() + (director === actor ? 0 : director.calls());
   return { draft, transcript, afterglow, plan, quality, modelCalls, conversationError, afterglowError };
+}
+
+/** What the quality checks treat as shared (the venue, the recap's setting) and as each side's private notes. */
+export function qualityContext(built: BuiltDate, setting: string): QualityContext {
+  const [a, b] = built.characters;
+  return {
+    pronouns: [a.pronouns, b.pronouns],
+    shared: `${venue(built.setup.venue).prompt} ${setting}`,
+    secrets: [
+      [agenda(built.input.a.agendaId).label, built.input.a.note ?? ""].filter(Boolean),
+      [agenda(built.input.b.agendaId).label, built.input.b.note ?? ""].filter(Boolean),
+    ],
+  };
 }

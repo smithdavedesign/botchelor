@@ -15,7 +15,7 @@ import type { FormatId } from "./formats";
 import { ALL_HOUSE_CHARACTERS } from "./house";
 import { judgeDate, judgeMean, type JudgeScores } from "./judge";
 import type { Model } from "./model";
-import { generateDate, type DateModels } from "./pipeline";
+import { generateDate, qualityContext, type DateModels } from "./pipeline";
 import { transcriptQuality, type QualityMetrics } from "./quality";
 import { ENDING_LABELS } from "./rules";
 import { assembleDate, DEFAULT_DATE_REQUEST, type BuiltDate, type CharacterForDate } from "./simulation";
@@ -155,12 +155,7 @@ export async function runEvalCase(c: EvalCase, models: DateModels, judge: Model 
   const ms = Date.now() - t0;
   const characters = built.characters as [Character, Character];
   const venuePrompt = venue(built.setup.venue).prompt;
-  const metrics =
-    gen.quality ??
-    transcriptQuality(gen.transcript, characters, {
-      pronouns: [characters[0].pronouns, characters[1].pronouns],
-      shared: `${venuePrompt} ${gen.draft.setting}`,
-    });
+  const metrics = gen.quality ?? transcriptQuality(gen.transcript, characters, qualityContext(built, gen.draft.setting));
   const verdict = judge ? await judgeDate(judge, characters, outcome, gen.transcript, venuePrompt) : null;
   return {
     case: c.id,
@@ -178,4 +173,16 @@ export async function runEvalCase(c: EvalCase, models: DateModels, judge: Model 
     ms,
     conversation_error: errorText(gen.conversationError),
   };
+}
+
+/**
+ * Re-scores a saved result with today's metrics (scripts/eval-report.mjs --rescore), so runs measured by
+ * different versions of lib/quality.ts still compare like for like. The case rebuilds exactly, so the
+ * characters and private notes are the ones the date was generated with.
+ */
+export function rescoreResult(r: Pick<EvalResult, "case" | "transcript" | "recap">): QualityMetrics {
+  const c = EVAL_CASES.find((x) => x.id === r.case);
+  if (!c) throw new Error(`unknown eval case ${r.case}`);
+  const built = buildEvalDate(c);
+  return transcriptQuality(r.transcript, built.characters as [Character, Character], qualityContext(built, r.recap.setting));
 }

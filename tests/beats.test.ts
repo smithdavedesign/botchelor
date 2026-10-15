@@ -59,6 +59,34 @@ describe("rulesPlan — the engine's reasons, act by act", () => {
     expect(surprise.acts[2].a).toMatch(/against your better judgement/);
   });
 
+  it("makes every ending legible: 'just friends' plays platonic, never as a second date", () => {
+    const friends = rulesPlan(INPUT, outcome({ ending: "friends", sides: [so({ wants_another: true }), so({ wants_another: false })] }), CHARS, "a_dare", "rooftop_bar");
+    expect(friends.acts[2].scene).toMatch(/clearly platonic/);
+    expect(friends.acts[2].a).toMatch(/as a friend/);
+    expect(friends.acts[2].a).toMatch(/just not as a date/);
+    expect(friends.acts[2].a).not.toMatch(/maybe more/);
+    expect(friends.acts[2].b).toMatch(/won't be chasing a second date/);
+    const disaster = rulesPlan(INPUT, outcome({ ending: "disaster", sides: [so({ wants_another: false }), so({ wants_another: false })] }), CHARS, "a_dare", "rooftop_bar");
+    expect(disaster.acts[2].a).toMatch(/clear why/);
+  });
+
+  it("stages each secret goal's moment as something the OTHER side does, without naming the goal", () => {
+    // Mira (a) is out to find someone adventurous; Rafe (b) is testing sincerity.
+    const met = rulesPlan(INPUT, outcome({ ending: "friends", sides: [so({ agenda_met: true }), so({ agenda_met: false })] }), CHARS, "a_dare", "rooftop_bar");
+    expect(met.acts[1].b).toMatch(/you say yes to a spontaneous idea/); // Mira's goal pays off through Rafe
+    expect(met.acts[1].a).toMatch(/you dodge a real question with a bit/); // Rafe's test fails through Mira
+    expect(met.acts[1].b).not.toMatch(/adventur/);
+    const facts = dateFacts(INPUT, outcome({ ending: "friends", sides: [so({ agenda_met: true }), so({ agenda_met: false })] }), CHARS).join(" ");
+    expect(facts).toContain("the moment is when Rafe says yes to a spontaneous idea");
+    expect(facts).toContain("the moment is when Mira dodges a real question with a bit");
+    expect(facts).toContain("Rafe would happily see Mira again, as a friend, not a date");
+  });
+
+  it("an exit follows from the date, never a sudden excuse", () => {
+    const o = outcome({ ending: "friends", drama_question: "leaves_first", drama_answer: "a", sides: [so({}), so({})] });
+    expect(rulesPlan(INPUT, o, CHARS, "a_dare", "rooftop_bar").acts[2].a).toMatch(/never a sudden excuse/);
+  });
+
   it("never puts one side's private data into the other side's beats", () => {
     const plan = rulesPlan(INPUT, outcome({ ending: "friends", sides: [so({}), so({})] }), CHARS, "a_dare", "rooftop_bar");
     const aBeats = plan.acts.map((x) => x.a).join(" ");

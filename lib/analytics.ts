@@ -53,12 +53,13 @@ export function trackDateQuality(
   plan: "director" | "rules" | null,
   q: {
     index: number; turns: number; profile_reading: number; self_labels: number; self_quotes: number; misgendered: number;
-    abrupt_flips: number; repeated_openers: number; question_rate: number; responsiveness: number; distinctness: number;
+    abrupt_flips: number; repeated_openers: number; repeated_actions: number; name_tics: number; question_rate: number;
+    responsiveness: number; distinctness: number;
   },
 ): void {
   track("date_quality", {
     episode_id, where, plan, index: q.index, turns: q.turns, profile_reading: q.profile_reading, self_labels: q.self_labels,
     self_quotes: q.self_quotes, misgendered: q.misgendered, abrupt_flips: q.abrupt_flips, repeated_openers: q.repeated_openers,
-    question_rate: q.question_rate, responsiveness: q.responsiveness, distinctness: q.distinctness,
+    repeated_actions: q.repeated_actions, name_tics: q.name_tics, question_rate: q.question_rate, responsiveness: q.responsiveness, distinctness: q.distinctness,
   });
 }
