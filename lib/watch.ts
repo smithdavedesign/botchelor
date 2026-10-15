@@ -790,8 +790,8 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
 
   await db.query(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
-                           drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup, transcript)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb, $18::jsonb, $19::jsonb)`,
+                           drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup, transcript, generated_with)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb, $18::jsonb, $19::jsonb, $20::jsonb)`,
     [
       episodeId,
       SYSTEM_CREATOR_ID,
@@ -812,6 +812,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
       JSON.stringify(draft.confessionals),
       JSON.stringify(built.setup),
       JSON.stringify(transcript),
+      JSON.stringify(gen.generatedWith),
     ],
   );
   await rememberDate(db, a.id, b.id, decided.ending).catch(() => {});

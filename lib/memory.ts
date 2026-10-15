@@ -83,7 +83,29 @@ export type CharacterMemory = {
   chapters?: Chapter[];
   /** Firsts and landmarks it has reached, in the order it reached them. Public: from the aired record. */
   milestones?: Milestone[];
+  /** Where each learned item came from (the date behind it): "why does my character remember this?" Owner only. */
+  sources?: MemorySources;
 };
+
+/** The aired date a memory came from. */
+export type Source = { episode_id: string; with: string; at: string };
+export type MemorySources = {
+  reflections: (Source & { text: string })[];
+  lines: (Source & { text: string })[];
+  likes: { cue: string; from: Source[] }[];
+  turnoffs: { cue: string; from: Source[] }[];
+};
+
+/**
+ * What an owner can tell its character to forget. The item is what identifies it: a reflection by the date it was
+ * written about, a line by its words, a like/turnoff by its cue, and a moment (how it left things with someone) by
+ * that person's id. Forgets are stored (memory_forgets) and applied on every rebuild, so a forgotten memory never
+ * comes back from the same dates. Forgetting is the only change an owner can make: memory is learned, not written.
+ */
+export const FORGET_KINDS = ["reflection", "line", "like", "turnoff", "moment"] as const;
+export type ForgetKind = (typeof FORGET_KINDS)[number];
+export type Forgets = ReadonlySet<string>;
+export const forgetKey = (kind: ForgetKind, item: string): string => `${kind}:${item}`;
 
 /** How two characters stand, from the public record of their aired dates together. */
 export type PairStatus = "seeing" | "exes" | "friends" | "bad_blood";
@@ -104,8 +126,9 @@ export type PersonMemory = {
   status: PairStatus;
   last_ending: Ending;
   last_venue: VenueId | null;
-  /** When their last date aired (ISO). */
+  /** When their last date aired (ISO), and which date that was (where the memory comes from). */
   last_at: string;
+  last_episode_id?: string;
   /** Public drama of their last date, from this character's side: "you" got turned down, or turned "them" down. */
   turned_down: "you" | "them" | null;
   /**
@@ -166,13 +189,14 @@ type MemoryRow = {
   people: PersonMemory[] | null;
   chapters: Chapter[] | null;
   milestones: Milestone[] | null;
+  sources: MemorySources | null;
 };
 
 /** Reads the materialized memory for a character, or null when it has none yet (a fresh OC). */
 export async function loadCharacterMemory(db: Db, characterId: string): Promise<CharacterMemory | null> {
   const { rows } = await db.query<MemoryRow>(
     `select dates, second_dates, friends, disasters, likes, turnoffs, signal_delta, memorable_lines, reflections, arc,
-            people, chapters, milestones
+            people, chapters, milestones, sources
        from character_memory where character_id = $1`,
     [characterId],
   );
@@ -181,7 +205,8 @@ export async function loadCharacterMemory(db: Db, characterId: string): Promise<
   // A memory written before people/chapters/milestones existed (2026-10-15): it has aired dates but not even the
   // "First date" milestone every aired character reaches. Recompute it once from the aired record ($0, no model),
   // so existing characters get their story and their rematch memory without waiting for their next date.
-  if (r.dates > 0 && !(r.milestones ?? []).length) return updateCharacterMemory(db, characterId);
+  // Same for a row written before provenance (sources) existed: rebuilt once, so every memory can say where it came from.
+  if (r.dates > 0 && (!(r.milestones ?? []).length || !r.sources)) return updateCharacterMemory(db, characterId);
   return {
     dates: r.dates,
     second_dates: r.second_dates,
@@ -196,10 +221,12 @@ export async function loadCharacterMemory(db: Db, characterId: string): Promise<
     people: r.people ?? [],
     chapters: r.chapters ?? [],
     milestones: r.milestones ?? [],
+    ...(r.sources ? { sources: r.sources } : {}),
   };
 }
 
-type EpisodeRow = {
+/** One aired date as memory reads it, from the character's side (`is_a`). Exported for the continuity eval. */
+export type MemoryEpisode = {
   id: string;
   ending: Ending;
   sides: [SideOutcome, SideOutcome] | null;
@@ -281,39 +308,28 @@ function buildArc(m: Omit<CharacterMemory, "arc">): string | null {
 }
 
 /**
- * Recomputes and stores a character's memory from its AIRED (revealed) episodes. Deterministic and $0: it
- * only aggregates data the engine already decided and the transcript already recorded. Call it when a date
- * airs (the reveal route and the watch room's airing), for both characters. Returns the fresh memory.
+ * Computes a character's memory from its aired dates (oldest first). Pure and deterministic: the same dates and
+ * forgets give the same memory. `sheet` is the character's own want/dealbreaker (the fallback cue below);
+ * `forgets` is what its owner told it to forget, which a rebuild never brings back (see forgetKey).
  */
-export async function updateCharacterMemory(db: Db, characterId: string): Promise<CharacterMemory> {
-  const { rows } = await db.query<EpisodeRow>(
-    `select e.id, e.ending, e.sides, e.transcript, e.reflections, (e.character_a = $1) as is_a,
-            e.revealed_at, e.drama_question, e.drama_answer, e.setup->>'venue' as venue,
-            o.id as other_id, o.name as other_name, o.is_house as other_house
-       from episodes e
-       join characters o on o.id = case when e.character_a = $1 then e.character_b else e.character_a end
-      where ${MEMORY_EPISODES_WHERE}
-      order by e.revealed_at, e.id`,
-    [characterId],
-  );
-  // This character's own want/dealbreaker, for the fallback cue below.
-  const sheet = (await db.query<{ want: string | null; dealbreaker: string | null }>(
-    `select want, dealbreaker from characters where id = $1`,
-    [characterId],
-  )).rows[0];
-
+export function computeMemory(
+  rows: MemoryEpisode[],
+  sheet: { want: string | null; dealbreaker: string | null } | undefined,
+  forgets: Forgets = new Set(),
+): CharacterMemory {
   let second_dates = 0;
   let friends = 0;
   let disasters = 0;
-  const likeCues: string[] = [];
-  const turnoffCues: string[] = [];
-  const myLines: Array<{ dialogue: string; interest: number; order: number }> = [];
-  const myReflections: string[] = []; // in date order (oldest first); the most recent are taken below
+  const likeCues: { cue: string; from: Source }[] = [];
+  const turnoffCues: { cue: string; from: Source }[] = [];
+  const myLines: Array<{ dialogue: string; interest: number; order: number; from: Source }> = [];
+  const myReflections: (Source & { text: string })[] = []; // in date order (oldest first); the most recent are taken below
 
   rows.forEach((r, order) => {
     if (r.ending === "second_date") second_dates++;
     else if (r.ending === "friends") friends++;
     else if (r.ending === "disaster") disasters++;
+    const from: Source = { episode_id: r.id, with: r.other_name, at: new Date(r.revealed_at).toISOString() };
 
     const mine = r.sides?.[r.is_a ? 0 : 1];
     // The engine records the OTHER's cue that met the want / tripped the dealbreaker when it can match one
@@ -321,39 +337,47 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
     // follow-up question") rarely match a static sheet, so the cue is usually null and this layer stayed empty.
     // Fallback: when the date clearly went the character's way, credit its OWN want; when it clearly didn't,
     // credit its OWN dealbreaker — so a bot still learns what it keeps warming to / clashing over.
-    if (mine?.want_met) likeCues.push(mine.want_met);
-    else if (sheet?.want && (r.ending === "second_date" || r.ending === "friends") && mine?.wants_another) likeCues.push(wantCue(sheet.want));
-    if (mine?.dealbreaker_hit) turnoffCues.push(mine.dealbreaker_hit);
-    else if (sheet?.dealbreaker && r.ending === "disaster") turnoffCues.push(wantCue(sheet.dealbreaker));
+    if (mine?.want_met) likeCues.push({ cue: mine.want_met, from });
+    else if (sheet?.want && (r.ending === "second_date" || r.ending === "friends") && mine?.wants_another) likeCues.push({ cue: wantCue(sheet.want), from });
+    if (mine?.dealbreaker_hit) turnoffCues.push({ cue: mine.dealbreaker_hit, from });
+    else if (sheet?.dealbreaker && r.ending === "disaster") turnoffCues.push({ cue: wantCue(sheet.dealbreaker), from });
 
     const meSide = r.is_a ? "a" : "b";
     for (const t of r.transcript ?? []) {
-      if (t.side === meSide && t.dialogue) myLines.push({ dialogue: t.dialogue, interest: t.interest ?? 0, order });
+      if (t.side === meSide && t.dialogue) myLines.push({ dialogue: t.dialogue, interest: t.interest ?? 0, order, from });
     }
     const myReflection = r.reflections?.[meSide];
-    if (myReflection) myReflections.push(myReflection);
+    if (myReflection && !forgets.has(forgetKey("reflection", r.id))) myReflections.push({ ...from, text: myReflection });
   });
 
   // The character's most recent reflections first, content-filtered (defence in depth), capped. These feed its
   // own future self-view (lib/conversation.ts): a model wrote the text, but picking them here is deterministic.
-  const reflections = [...myReflections]
+  const reflectionSources = [...myReflections]
     .reverse()
-    .filter((text) => checkFields({ text }).ok)
+    .filter((x) => checkFields({ text: x.text }).ok)
     .slice(0, REFLECTIONS_KEPT);
 
-  const likes = topByFrequency(likeCues, MEMORY_TOP_CUES);
-  const turnoffs = topByFrequency(turnoffCues, MEMORY_TOP_CUES);
+  // What it warms to / clashes over: the most frequent cues it hasn't been told to forget, with the dates behind them.
+  const cuesWithSources = (cues: { cue: string; from: Source }[], kind: "like" | "turnoff") => {
+    const kept = cues.filter((c) => !forgets.has(forgetKey(kind, c.cue)));
+    return topByFrequency(kept.map((c) => c.cue), MEMORY_TOP_CUES).map((cue) => ({
+      cue,
+      from: kept.filter((c) => c.cue === cue).map((c) => c.from).reverse().slice(0, 3),
+    }));
+  };
+  const likeSources = cuesWithSources(likeCues, "like");
+  const turnoffSources = cuesWithSources(turnoffCues, "turnoff");
 
   // A few of the character's own standout lines: highest interest first, stable ties, de-duped, and only
   // lines that still pass the content filter (defence in depth — the transcript was filtered on write).
-  const memorable_lines: string[] = [];
+  const lineSources: (Source & { text: string })[] = [];
   const seen = new Set<string>();
   for (const line of [...myLines].sort((x, y) => y.interest - x.interest || x.order - y.order)) {
-    if (seen.has(line.dialogue)) continue;
+    if (seen.has(line.dialogue) || forgets.has(forgetKey("line", line.dialogue))) continue;
     if (!checkFields({ line: line.dialogue }).ok) continue;
     seen.add(line.dialogue);
-    memorable_lines.push(line.dialogue);
-    if (memorable_lines.length >= MEMORABLE_LINES) break;
+    lineSources.push({ ...line.from, text: line.dialogue });
+    if (lineSources.length >= MEMORABLE_LINES) break;
   }
 
   const base = {
@@ -361,32 +385,98 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
     second_dates,
     friends,
     disasters,
-    likes,
-    turnoffs,
+    likes: likeSources.map((x) => x.cue),
+    turnoffs: turnoffSources.map((x) => x.cue),
     signal_delta: learnSignalDelta(second_dates, disasters),
-    memorable_lines,
-    reflections,
+    memorable_lines: lineSources.map((x) => x.text),
+    reflections: reflectionSources.map((x) => x.text),
   };
   const dated = rows.map(toDated);
-  const memory: CharacterMemory = {
+  return {
     ...base,
     arc: buildArc(base),
-    people: rememberPeople(dated),
+    people: rememberPeople(dated, forgets),
     chapters: buildChapters(dated),
     milestones: findMilestones(dated),
+    sources: { reflections: reflectionSources, lines: lineSources, likes: likeSources, turnoffs: turnoffSources },
   };
+}
+
+/** What a character's owner has told it to forget (memory_forgets). */
+export async function loadForgets(db: Db, characterId: string): Promise<{ kind: ForgetKind; item: string; created_at: string }[]> {
+  const { rows } = await db.query<{ kind: ForgetKind; item: string; created_at: string | Date }>(
+    `select kind, item, created_at from memory_forgets where character_id = $1 order by created_at desc`,
+    [characterId],
+  );
+  return rows.map((r) => ({ kind: r.kind, item: r.item, created_at: new Date(r.created_at).toISOString() }));
+}
+
+/** Forgotten items in words, for the owner's "Forgotten" list ("Your reflection on your date with Nell"). */
+export async function describeForgets(
+  db: Db,
+  characterId: string,
+  forgets: { kind: ForgetKind; item: string }[],
+): Promise<{ kind: ForgetKind; item: string; label: string }[]> {
+  const ids = forgets.filter((f) => f.kind === "reflection" || f.kind === "moment").map((f) => f.item);
+  const names = new Map<string, string>();
+  if (ids.length) {
+    const { rows } = await db.query<{ key: string; name: string }>(
+      `select e.id as key, o.name from episodes e
+         join characters o on o.id = case when e.character_a = $1 then e.character_b else e.character_a end
+        where e.id = any($2)
+       union all
+       select c.id as key, c.name from characters c where c.id = any($2)`,
+      [characterId, ids],
+    );
+    for (const r of rows) names.set(r.key, r.name);
+  }
+  const first = (id: string) => (names.get(id) ?? "someone").split(" ")[0];
+  return forgets.map((f) => ({
+    ...f,
+    label:
+      f.kind === "reflection" ? `Its reflection on the date with ${first(f.item)}`
+      : f.kind === "moment" ? `How it left things with ${first(f.item)}`
+      : f.kind === "line" ? `The line “${f.item}”`
+      : f.kind === "like" ? `Warming to “${f.item}”`
+      : `Clashing over “${f.item}”`,
+  }));
+}
+
+/**
+ * Recomputes and stores a character's memory from its AIRED (revealed) episodes. Deterministic and $0: it
+ * only aggregates data the engine already decided and the transcript already recorded, minus what its owner
+ * told it to forget. Call it when a date airs (the reveal route and the watch room's airing), for both
+ * characters, and after a forget. Returns the fresh memory.
+ */
+export async function updateCharacterMemory(db: Db, characterId: string): Promise<CharacterMemory> {
+  const [{ rows }, sheetRows, forgotten] = await Promise.all([
+    db.query<MemoryEpisode>(
+      `select e.id, e.ending, e.sides, e.transcript, e.reflections, (e.character_a = $1) as is_a,
+              e.revealed_at, e.drama_question, e.drama_answer, e.setup->>'venue' as venue,
+              o.id as other_id, o.name as other_name, o.is_house as other_house
+         from episodes e
+         join characters o on o.id = case when e.character_a = $1 then e.character_b else e.character_a end
+        where ${MEMORY_EPISODES_WHERE}
+        order by e.revealed_at, e.id`,
+      [characterId],
+    ),
+    // This character's own want/dealbreaker, for the fallback cue.
+    db.query<{ want: string | null; dealbreaker: string | null }>(`select want, dealbreaker from characters where id = $1`, [characterId]),
+    loadForgets(db, characterId),
+  ]);
+  const memory = computeMemory(rows, sheetRows.rows[0], new Set(forgotten.map((f) => forgetKey(f.kind, f.item))));
 
   await db.query(
     `insert into character_memory
        (character_id, dates, second_dates, friends, disasters, likes, turnoffs, signal_delta, memorable_lines, reflections, arc,
-        people, chapters, milestones, updated_at)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12::jsonb, $13::jsonb, $14::jsonb, now())
+        people, chapters, milestones, sources, updated_at)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, now())
      on conflict (character_id) do update set
        dates = excluded.dates, second_dates = excluded.second_dates, friends = excluded.friends,
        disasters = excluded.disasters, likes = excluded.likes, turnoffs = excluded.turnoffs,
        signal_delta = excluded.signal_delta, memorable_lines = excluded.memorable_lines,
        reflections = excluded.reflections, arc = excluded.arc, people = excluded.people,
-       chapters = excluded.chapters, milestones = excluded.milestones, updated_at = now()`,
+       chapters = excluded.chapters, milestones = excluded.milestones, sources = excluded.sources, updated_at = now()`,
     [
       characterId,
       memory.dates,
@@ -402,6 +492,7 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
       JSON.stringify(memory.people),
       JSON.stringify(memory.chapters),
       JSON.stringify(memory.milestones),
+      JSON.stringify(memory.sources),
     ],
   );
   return memory;
@@ -430,7 +521,7 @@ function standout(transcript: Turn[] | null, side: "a" | "b"): string | null {
   return best && checkFields({ line: best.dialogue }).ok ? best.dialogue : null;
 }
 
-function toDated(r: EpisodeRow): Dated {
+function toDated(r: MemoryEpisode): Dated {
   const me = r.is_a ? "a" : "b";
   const them = r.is_a ? "b" : "a";
   const at = new Date(r.revealed_at);
@@ -457,13 +548,14 @@ export function pairStatus(endings: Ending[]): PairStatus {
   return last === "friends" ? "friends" : "bad_blood";
 }
 
-/** Everyone the character has dated, most recent first, capped. */
-function rememberPeople(dated: Dated[]): PersonMemory[] {
+/** Everyone the character has dated, most recent first, capped. A forgotten moment keeps the public status only. */
+function rememberPeople(dated: Dated[], forgets: Forgets = new Set()): PersonMemory[] {
   const byId = new Map<string, Dated[]>();
   for (const d of dated) byId.set(d.other.id, [...(byId.get(d.other.id) ?? []), d]);
   return [...byId.values()]
     .map((ds): PersonMemory => {
       const last = ds[ds.length - 1];
+      const forgotten = forgets.has(forgetKey("moment", last.other.id));
       return {
         id: last.other.id,
         name: last.other.name,
@@ -473,10 +565,12 @@ function rememberPeople(dated: Dated[]): PersonMemory[] {
         last_ending: last.ending,
         last_venue: last.venue,
         last_at: last.at.toISOString(),
+        last_episode_id: last.id,
         turned_down: last.turned_down,
-        wanted_more: last.wanted_more,
-        they_said: last.they_said,
-        you_said: last.you_said,
+        // Forgetting "how it left things" drops the private moment; who they are to each other is public record.
+        wanted_more: forgotten ? null : last.wanted_more,
+        they_said: forgotten ? null : last.they_said,
+        you_said: forgotten ? null : last.you_said,
       };
     })
     .sort((x, y) => y.last_at.localeCompare(x.last_at) || x.id.localeCompare(y.id))

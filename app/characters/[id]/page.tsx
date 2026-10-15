@@ -13,12 +13,13 @@ import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
 import { loadCharacter } from "@/lib/character";
 import { thisWeek } from "@/lib/life";
 import { describeTemperament } from "@/lib/temperament";
-import { connections, describeDrift, loadCharacterMemory, stageFor } from "@/lib/memory";
+import { connections, describeDrift, describeForgets, loadCharacterMemory, loadForgets, stageFor } from "@/lib/memory";
 import { getCharacterRatings } from "@/lib/ratings";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ENDING_LABELS } from "@/lib/rules";
 import RatingButtons from "./RatingButtons";
 import OwnerControls from "./OwnerControls";
+import LearnedPanel from "./LearnedPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,39 @@ export default async function CharacterPage({ params }: Props) {
   // Owner only: how the engine reads it on a date (its effective temperament, learned drift included).
   const plays = ratings.is_owner && !c.house ? (await loadCharacter(db, id))?.signals ?? null : null;
   const people = connections(memory);
-  const remembered = (memory?.people ?? []).filter((p) => p.wanted_more !== null || p.they_said);
+  // Owner only: what it has learned, where each item came from, and what it's been told to forget.
+  const learned =
+    ratings.is_owner && !c.house && memory
+      ? {
+          sections: [
+            {
+              title: "Warms to:",
+              items: (memory.sources?.likes ?? memory.likes.map((cue) => ({ cue, from: [] }))).map((l) => ({ kind: "like" as const, item: l.cue, label: l.cue, from: l.from })),
+            },
+            {
+              title: "Clashes over:",
+              items: (memory.sources?.turnoffs ?? memory.turnoffs.map((cue) => ({ cue, from: [] }))).map((l) => ({ kind: "turnoff" as const, item: l.cue, label: l.cue, from: l.from })),
+            },
+            {
+              title: "Lines it carries into new dates:",
+              quote: true,
+              items: memory.sources
+                ? memory.sources.lines.map((l) => ({ kind: "line" as const, item: l.text, label: l.text, from: [l] }))
+                : memory.memorable_lines.map((text) => ({ kind: "line" as const, item: text, label: text, from: [] })),
+            },
+            {
+              title: "How it reflected on its recent dates:",
+              quote: true,
+              items: (memory.sources?.reflections ?? []).map((r) => ({ kind: "reflection" as const, item: r.episode_id, label: r.text, from: [r] })),
+            },
+          ],
+          drift: describeDrift(memory.signal_delta),
+          people: (memory.people ?? [])
+            .filter((p) => p.wanted_more !== null || p.they_said)
+            .map((p) => ({ ...p, from: p.last_episode_id ? [{ episode_id: p.last_episode_id, with: p.name, at: p.last_at }] : [] })),
+          forgotten: await describeForgets(db, id, await loadForgets(db, id)),
+        }
+      : null;
 
   return (
     <article>
@@ -141,86 +174,9 @@ export default async function CharacterPage({ params }: Props) {
         <section className="card">
           <h2>Who they&apos;ve become</h2>
           <p>{memory.arc}</p>
-          {ratings.is_owner &&
-            (() => {
-              const drift = describeDrift(memory.signal_delta);
-              const hasLearned =
-                memory.likes.length > 0 ||
-                memory.turnoffs.length > 0 ||
-                drift.length > 0 ||
-                memory.memorable_lines.length > 0 ||
-                memory.reflections.length > 0 ||
-                remembered.length > 0;
-              if (!hasLearned) return null;
-              return (
-                <div className="training-data muted">
-                  <p>
-                    <em>
-                      What {c.name} has learned from its dates. It&apos;s read-only — you can&apos;t edit it — and it&apos;s
-                      gathered automatically from how its dates went, then fed back into how it plays future ones. Only you can
-                      see this.
-                    </em>
-                  </p>
-                  {memory.likes.length > 0 && (
-                    <p>
-                      <strong>Warms to:</strong> {memory.likes.join(", ")}.
-                    </p>
-                  )}
-                  {memory.turnoffs.length > 0 && (
-                    <p>
-                      <strong>Clashes over:</strong> {memory.turnoffs.join(", ")}.
-                    </p>
-                  )}
-                  {drift.length > 0 && (
-                    <p>
-                      <strong>How its dates have shaped it:</strong> {drift.join(", ")}.
-                    </p>
-                  )}
-                  {memory.memorable_lines.length > 0 && (
-                    <div>
-                      <strong>Lines it carries into new dates:</strong>
-                      <ul className="list">
-                        {memory.memorable_lines.map((line, i) => (
-                          <li key={i}>
-                            <q>{line}</q>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {remembered.length > 0 && (
-                    <div>
-                      <strong>Who it remembers:</strong>
-                      <ul className="list">
-                        {remembered.map((p) => (
-                          <li key={p.id}>
-                            {p.name}
-                            {p.wanted_more !== null && <> — {p.wanted_more ? "still wants to see them again" : "isn't hoping for a rematch"}</>}
-                            {p.they_said && (
-                              <>
-                                ; remembers them saying <q>{p.they_said}</q>
-                              </>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {memory.reflections.length > 0 && (
-                    <div>
-                      <strong>How it reflected on its recent dates:</strong>
-                      <ul className="list">
-                        {memory.reflections.map((text, i) => (
-                          <li key={i}>
-                            <q>{text}</q>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+          {learned && (learned.sections.some((x) => x.items.length) || learned.drift.length > 0 || learned.people.length > 0 || learned.forgotten.length > 0) && (
+            <LearnedPanel characterId={c.id} name={c.name} {...learned} />
+          )}
         </section>
       )}
 

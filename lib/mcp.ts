@@ -27,7 +27,7 @@ import { getDb, type Db } from "./db";
 import { getCharacterHistory, getPoints, listMyEpisodes, type EpisodeView } from "./game";
 import { readUserId, USER_COOKIE } from "./http";
 import { listCast } from "./mechanics";
-import { connections, describeDrift, loadCharacterMemory, PAIR_STATUS_LABELS, stageFor } from "./memory";
+import { connections, describeDrift, loadCharacterMemory, loadForgets, PAIR_STATUS_LABELS, stageFor, type Source } from "./memory";
 import { loadCharacter } from "./character";
 import { originality } from "./originality";
 import { describeTemperament } from "./temperament";
@@ -48,6 +48,10 @@ import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
 import { POST as postSlidingDoors } from "@/app/api/episodes/[id]/sliding-doors/route";
 import { POST as postReflection } from "@/app/api/episodes/[id]/reflection/route";
 import { POST as postOriginality } from "@/app/api/characters/originality/route";
+import { DELETE as deleteForget, POST as postForget } from "@/app/api/characters/[id]/memory/forget/route";
+
+/** A memory's source date, as agents see it. */
+const fromDate = (s: Source) => ({ episode_id: s.episode_id, with: s.with, aired: s.at.slice(0, 10) });
 import { POST as postPrediction } from "@/app/api/predictions/route";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -383,6 +387,27 @@ export const MCP_TOOLS = [
       "each of them, its story a week at a time and the milestones it has reached. Read-only: it's learned, not written.",
     inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64), agent_id: AGENT_ID } },
     annotations: READ,
+  },
+  {
+    name: "forget_memory",
+    title: "Tell my character to forget something",
+    description:
+      "Make one of YOUR characters forget one thing it learned: a reflection (item: the episode_id it reflected on), a line it carries " +
+      "(item: the line), something it warms to or clashes over (kind like/turnoff, item: the cue), or how it left things with someone " +
+      "(kind moment, item: their character id). Use my_character_memory to see each item and the date it came from. It's gone from every " +
+      "future date and never comes back from the same dates. remember_again: true undoes it. Forgetting is the only change: memory is learned, not written.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "kind", "item"],
+      properties: {
+        character_id: str(64),
+        kind: { type: "string", enum: ["reflection", "line", "like", "turnoff", "moment"] },
+        item: str(600),
+        remember_again: { type: "boolean", description: "Undo an earlier forget." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
   },
   {
     name: "check_originality",
@@ -842,23 +867,39 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           this_week: c.thisWeek,
           record: { dates: m.dates, second_dates: m.second_dates, friends: m.friends, disasters: m.disasters },
           who_it_has_become: m.arc,
-          warms_to: m.likes,
-          clashes_over: m.turnoffs,
+          // Each learned item with the aired date(s) it came from — and the item to pass to forget_memory.
+          warms_to: (m.sources?.likes ?? m.likes.map((cue) => ({ cue, from: [] }))).map((l) => ({ cue: l.cue, from: l.from.map(fromDate) })),
+          clashes_over: (m.sources?.turnoffs ?? m.turnoffs.map((cue) => ({ cue, from: [] }))).map((l) => ({ cue: l.cue, from: l.from.map(fromDate) })),
           how_its_dates_have_shaped_it: describeDrift(m.signal_delta),
-          lines_it_carries: m.memorable_lines,
-          its_reflections: m.reflections,
+          lines_it_carries: m.sources ? m.sources.lines.map((l) => ({ text: l.text, from: fromDate(l) })) : m.memorable_lines.map((text) => ({ text })),
+          its_reflections: (m.sources?.reflections ?? []).map((r) => ({ text: r.text, from: fromDate(r) })),
           who_it_remembers: (m.people ?? []).map((p) => ({
             id: p.id, name: p.name, dates: p.dates, status: PAIR_STATUS_LABELS[p.status], last_ending: p.last_ending,
+            ...(p.last_episode_id ? { last_episode_id: p.last_episode_id } : {}),
             ...(p.wanted_more !== null ? { wants_to_see_them_again: p.wanted_more } : {}),
             ...(p.turned_down ? { turned_down: p.turned_down === "you" ? "they turned it down" : "it turned them down" } : {}),
             ...(p.they_said ? { remembers_them_saying: p.they_said } : {}),
           })),
           story: (m.chapters ?? []).map((ch) => `${ch.label}: ${ch.line}`),
           milestones: (m.milestones ?? []).map((x) => x.label),
-          note: "Read-only: all of it is learned from aired dates. It feeds how the character plays future dates, never how they end.",
+          forgotten: await loadForgets(db, id).then((fs) => fs.map(({ kind, item }) => ({ kind, item }))),
+          note: "Learned from aired dates; you can't write it, only tell it to forget something (forget_memory). It feeds how the character plays future dates, never how they end.",
         },
         identity: who,
       };
+    }
+    case "forget_memory": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const r = await callRoute((args.remember_again === true ? deleteForget : postForget) as unknown as RouteHandler, {
+        method: args.remember_again === true ? "DELETE" : "POST",
+        agentId: who.id,
+        body: pick(args, ["kind", "item"]),
+        params: { id: String(args.character_id ?? "") },
+      });
+      if (!r.ok) return { error: errorOf(r) };
+      const { memory: _m, ...rest } = r.data;
+      return { data: { ...rest, note: "Done. my_character_memory shows what it remembers now." }, identity: who };
     }
     case "check_originality": {
       const who = resolveIdentity(args, session, false);

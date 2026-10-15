@@ -208,7 +208,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       `update episodes
           set setting = $2, goals = $3::jsonb, scenes = $4::jsonb, twist = $5, finale = $6,
               best_line = $7, confessionals = $8::jsonb, transcript = $9::jsonb, afterglow = $10::jsonb,
-              reflections = $11::jsonb, status = 'ready'
+              reflections = $11::jsonb, generated_with = $12::jsonb, status = 'ready'
         where id = $1 and status = 'generating'
         returning id`,
       [
@@ -223,6 +223,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
         JSON.stringify(transcript),
         JSON.stringify(afterglow),
         JSON.stringify(reflections),
+        // Which models actually wrote it (by role, fallbacks included) and the prompt version: traceable quality.
+        JSON.stringify(row.use_frontier ? { ...gen.generatedWith, frontier: true } : gen.generatedWith),
       ],
     );
     if (saved.rows.length) {

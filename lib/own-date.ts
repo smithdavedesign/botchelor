@@ -22,7 +22,7 @@ import { getEngine, type CharacterSheet } from "./engine";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "./formats";
 import { getEpisodeView, type DateSetup, type EpisodeView } from "./game";
 import type { ChatMessage } from "./model";
-import { qualityContext } from "./pipeline";
+import { PROMPT_VERSION, qualityContext } from "./pipeline";
 import { transcriptQuality } from "./quality";
 import { CONVERSATION_TURNS, DATE_ACTS, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
@@ -347,10 +347,11 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     const saved = await db.query(
       `update episodes
           set setting = $2, goals = $3::jsonb, scenes = $4::jsonb, twist = $5, finale = $6, best_line = $7,
-              confessionals = $8::jsonb, status = 'ready'
+              confessionals = $8::jsonb, status = 'ready',
+              generated_with = jsonb_build_object('actor', '["agent"]'::jsonb, 'director', '["agent"]'::jsonb, 'byok', '[]'::jsonb, 'prompts', $10::text)
         where id = $1 and status = 'generating' and performed_by = 'agent' and jsonb_array_length(transcript) = $9
         returning id`,
-      [episodeId, draft.setting, JSON.stringify(draft.goals), JSON.stringify(draft.scenes), draft.twist, draft.finale, draft.best_line, JSON.stringify(draft.confessionals), transcript.length],
+      [episodeId, draft.setting, JSON.stringify(draft.goals), JSON.stringify(draft.scenes), draft.twist, draft.finale, draft.best_line, JSON.stringify(draft.confessionals), transcript.length, PROMPT_VERSION],
     );
     if (saved.rows.length) {
       await rememberDate(db, row.a_id, row.b_id, decided.ending).catch(() => {});

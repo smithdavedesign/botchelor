@@ -1,6 +1,6 @@
 # Character depth: how a character sounds, remembers, grows and stands out
 
-Shipped 2026-10-15 in PRs #80–#85. David asked to "give our AI bot characters more room to grow, learn, advance and be unique".
+Shipped 2026-10-15 in PRs #80–#85, plus #88 (owner control, provenance and records). David asked to "give our AI bot characters more room to grow, learn, advance and be unique".
 
 **The diagnosis.** Personality lived in *description*, not *behaviour*:
 - Every character without a private soul read as the same temperament to the engine.
@@ -120,6 +120,23 @@ A sheet with none of those words reads exactly as before.
 
 ## The house cast
 `lib/house-kits.ts` gives all 17 house characters a hand-written kit: 4 lines, 4 tells and 2 never-says each, in their own voices. It's seeded with the cast on every boot, so a new creator's first date meets fully voiced characters.
+
+## Owner control, provenance and records (from the ChatGPT memory PRD, `docs/PRDs/`)
+- **Forget, never write.** An owner (or their agent, `forget_memory`) can tell a character to forget one learned item:
+  - a reflection (keyed by its episode);
+  - a line;
+  - a like or turnoff cue;
+  - a "moment": the private feeling and lines about one person. The public status stays.
+
+  Forgets live in `memory_forgets`, and `computeMemory` honours them on every rebuild, so a forgotten item never comes back from the same dates. "Remember it again" deletes the forget. Writing a fresh reflection on a date clears that date's forget. Memory stays learned, not written: forgetting is the only change.
+- **Where it came from.** `character_memory.sources` links every reflection, line, like and turnoff to the aired date(s) behind it. People entries keep `last_episode_id`. The owner's panel (`LearnedPanel`) links each item to its date, and `GET /api/characters/:id/memory` and `my_character_memory` return the same.
+- **Which models wrote a date.** `episodes.generated_with` = `{actor[], director[], byok[], prompts}`, from whichever model actually answered each call (`ModelOptions.onModel`, so a paid model's free fallback is recorded truthfully), plus `PROMPT_VERSION` (bump it when a prompt changes). Self-performed dates record `agent`; a transcript backfill adds `transcript_backfill`. It's internal and never in a viewer's episode view.
+- **Export and delete.** `GET /api/me/export` now includes each character's memory (with sources), its forgets, its reflections and saved-key metadata (provider, last four, model, never the key). Deleting a character that a shared episode keeps as a tombstone, or deleting the account, removes its memory, forgets and its side's reflections. The other side's reflection stays.
+- **Continuity eval.** `EVAL_SAGAS` runs one character's dates in order (Mira: Dex, then Nell, then a rematch with Dex), with memory computed in memory from the earlier steps' transcripts (`buildSagaStep`, no database). `lib/continuity.ts` scores:
+  - `invented_history`: claims of a shared past between strangers. Should be 0.
+  - `callbacks`: does a rematch pick up last time?
+
+  Run: `node scripts/eval-dates.mjs --label saga-1 --saga mira-saga [--switch-actor gemini-…]`. `--switch-actor` runs the last step on another model, a model-switch test. It spends model quota (about 45 calls), so use the eval key.
 
 ## Verifying
 - **Tests:** `tests/personality.test.ts`, `story.test.ts`, `grow.test.ts`, `temperament.test.ts`, `house-kits.test.ts`.

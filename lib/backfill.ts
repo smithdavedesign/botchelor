@@ -22,7 +22,7 @@ import { DEFAULT_FORMAT } from "./formats";
 import type { DateSetup } from "./game";
 import { failureReason } from "./jobs";
 import { getDirectorModel, getModel, type Model } from "./model";
-import { countingModel } from "./pipeline";
+import { PROMPT_VERSION, countingModel } from "./pipeline";
 import { summarizeUsage } from "./pricing";
 import { planDate } from "./beats";
 import {
@@ -153,9 +153,13 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
     const director = countingModel(getDirectorModel());
     try {
       const transcript = await conversationFor(db, r, actor.model, director.model);
+      // The transcript was written later, by these models: recorded beside whatever wrote the rest (lib/pipeline.ts).
+      const backfilledWith = { actor: actor.served(), director: director.served(), prompts: PROMPT_VERSION };
       await db.query(
-        `update episodes set transcript = $2::jsonb where id = $1 and jsonb_array_length(transcript) = 0`,
-        [r.id, JSON.stringify(transcript)],
+        `update episodes set transcript = $2::jsonb,
+                generated_with = coalesce(generated_with, '{}'::jsonb) || jsonb_build_object('transcript_backfill', $3::jsonb)
+          where id = $1 and jsonb_array_length(transcript) = 0`,
+        [r.id, JSON.stringify(transcript), JSON.stringify(backfilledWith)],
       );
       filled.push(r.id);
       const calls = actor.calls() + director.calls();
