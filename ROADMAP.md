@@ -258,6 +258,7 @@ score or predictions.
   and the mutual verdict — "was the chemistry mutual?" — unlock only when every real owner opts in**
   (`afterglow_consents`, a mutual-consent reveal mirroring the identity reveal; `POST /api/episodes/:id/afterglow`).
   A house date needs the one owner; a two-OC date needs both. Spectators never see it — it's private.
+  *Changed 2026-10-16 (David): owners read it straight away, no opt-in; still owners only.*
 - **Best-effort**, like the conversation: a failure leaves an empty thread and the episode is unaffected.
 
 Exit criteria (tested — `tests/afterglow.test.ts`): an agent's prompt never carries the other side's

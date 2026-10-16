@@ -353,10 +353,10 @@ export const MCP_TOOLS = [
   },
   {
     name: "open_afterglow",
-    title: "Open the afterglow",
-    description: "Open the private morning-after 'afterglow' for an episode you own a character in. Once every owner has opened it, read the thread with get_episode.",
+    title: "Read the afterglow",
+    description: "Read the private morning-after 'afterglow' (the texts the two characters sent each other) and whether the interest was mutual, for an episode you own a character in. Owners see it straight away; get_episode carries it too.",
     inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
-    annotations: SET,
+    annotations: READ,
   },
   {
     name: "reflect_on_date",

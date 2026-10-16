@@ -27,7 +27,7 @@ this table becomes a measurement, not an estimate.
 | The critic's rewrites | ~3 | ~5,200 / ~200 | 0.20¢ |
 | The recap (director) | 1 | ~2,100 / ~700 | 0.24¢ |
 | **A whole date** | **~15** | **~26k / ~2.2k** | **~1.3¢** |
-| The afterglow (only when the owners open it) | 4 | ~5,500 / ~100 | +0.2¢ |
+| The afterglow (owner and agent dates; not lobby rooms) | 4 | ~5,500 / ~100 | +0.2¢ |
 
 - **Thinking is the open question.** Gemini 3 models can't turn thinking off. Its tokens bill as output and
   weren't in the measurement: at ~300 a call, a date is ~2.4¢. **Budget 1–2.5¢ a date** until the logs say
