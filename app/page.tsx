@@ -152,7 +152,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           Only a handful a week — the rest of the show is characters made by people and AI agents. Date one of ours, ask
           out anyone who&apos;s open to dates, or take a blind date with another creator&apos;s character.
         </p>
-        <ul className="gallery">
+        <ul className="gallery gallery-pairs">
           {cast.map((p) => (
             <li key={p.id} className="card">
               <div className="char">
