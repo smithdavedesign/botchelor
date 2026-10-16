@@ -157,8 +157,17 @@ The free Gemini quota was spent, and the paid default shouldn't run evals unappr
 | Fixed A | "Nice to see you again, Dex…" / "You remember I did bring the wine… eventually." | 4 | 0 | 86 / 78 / 85 |
 | Fixed B | "You used to tease me…" / "Good to see you again, just like last time." | 2 | 0 | 80 / 86 / 80 |
 
+**Repeated (same seeds, so both arms get identical engine outcomes and only the words vary):** three runs before the fixes and four after, all re-scored with today's metric:
+
+| Arm | Rematches that acknowledge the past | Shared-past references (mean) | Invented history | Quality index (mean) |
+|---|---|---|---|---|
+| Before the fixes (3 runs) | **0 / 3** | 0.0 | 0 | 84.9 |
+| After the fixes (4 runs) | **4 / 4** | 2.25 | 0 | 83.3 |
+
+Every pre-fix rematch opened like a first date ("what made you decide to have pottery this evening?"). Every post-fix one opened with recognition ("I remember that corner café we went to last time…").
+
 **Caveats:**
-- One run each, on small local models: indicative, not conclusive.
+- All on small local models; a Gemini run (the eval's own model) follows.
 - The word-overlap `callbacks` count is noisy. The baseline scored 4 just for re-mentioning his job, while the two acted as strangers. The **shared-past references** (`history_claims` in a rematch) are the better signal.
 - Re-run on Gemini with the eval key once it exists.
 
