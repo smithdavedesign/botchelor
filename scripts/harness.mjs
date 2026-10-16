@@ -219,11 +219,20 @@ export function persona() {
   return { id, cookie: `bz_uid=${id}` };
 }
 
+/**
+ * A stable private address per persona, sent as x-forwarded-for: the date-start limit counts per visitor
+ * (lib/limits.ts, 10 an hour), and a seeded season is many people, not one connection starting 20 dates.
+ */
+export function ipFor(id) {
+  const h = [...String(id)].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  return `10.${(h >>> 16) & 255}.${(h >>> 8) & 255}.${(h & 255) || 1}`;
+}
+
 export function client(base) {
   return async function call(path, body, who, expected = [200, 201]) {
     const res = await fetch(base + path, {
       method: "POST",
-      headers: { "content-type": "application/json", cookie: who.cookie, origin: base },
+      headers: { "content-type": "application/json", cookie: who.cookie, origin: base, "x-forwarded-for": ipFor(who.id ?? who.cookie) },
       body: JSON.stringify(body ?? {}),
     });
     const data = await res.json().catch(() => ({}));

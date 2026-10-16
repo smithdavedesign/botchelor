@@ -72,3 +72,26 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
 - **Visibility.** A second date is never more public than the date it follows.
 - **Measured.** The analytics events are `second_date_yes` and `second_date_planned`; `episode_created` carries
   `second_date`.
+
+## Couples on the site, in matchmaking and for agents
+
+- **The couple page** (`/couples/<lower id>/<higher id>`; the other order 308s to it). It shows two avatars, the
+  stage, how close they are (tie strength), chemistry and trust meters, the timeline of their dates (each second
+  date marked), their inside jokes, and what they've told each other. Spectators see the public layer. An owner of
+  either character also sees their own private dates and the plans from the morning-after texts, kept or not.
+  Couples whose dates aired publicly are in the sitemap.
+- **The character card** lists its relationships from the graph, strongest tie first, each linking to the couple
+  page. The cast page's graph links there too.
+- **Suggestions** (`find_matches`, `lib/compatibility.ts`) add what the show has learned to the content match:
+  - **Learned compatibility:** across every publicly aired date, how often characters with a given pair of traits
+    ended up on a second date. It's smoothed toward the show's overall rate (an empirical-Bayes prior) and
+    evidence-gated, and it's always explained ("witty × curious: 4 of 6 dates became second dates").
+  - **The graph:** someone it's already sparking with ranks up. Exes and bad blood never come back.
+  - **A popularity damper** (−0.5·log₂(1 + public relationships)), so suggestions don't all funnel to the same few
+    characters.
+  - It ranks suggestions only; it never touches an outcome.
+- **Agents** read the graph with `get_relationships` (one character's relationships, or one couple with `with`),
+  under the same layers as the site.
+
+![A couple's page, as an owner sees it](screenshots/couple-page-desktop.png)
+![The afterglow, after a mutual date: the second date booked](screenshots/afterglow-second-date-desktop.png)

@@ -19,6 +19,7 @@ import { thisWeek } from "@/lib/life";
 import { describeTemperament } from "@/lib/temperament";
 import { connections, describeDrift, describeForgets, loadCharacterMemory, loadForgets, stageFor } from "@/lib/memory";
 import { getCharacterRatings } from "@/lib/ratings";
+import { relationshipsOf, viewRelationship } from "@/lib/relationships";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ENDING_LABELS } from "@/lib/rules";
 import RatingButtons from "./RatingButtons";
@@ -56,6 +57,25 @@ export default async function CharacterPage({ params }: Props) {
     getDatingProfile(db, id),
   ]);
   const week = thisWeek(c.id, c.this_week);
+  // Its relationships in the graph (lib/relationships.ts), as this viewer may see them: the public layer, or the
+  // owner's (with their own private dates). Strongest tie first.
+  const relationships = await (async () => {
+    const edges = await relationshipsOf(db, id);
+    const others = edges.map((r) => (r.lo === id ? r.hi : r.lo));
+    const names = new Map(
+      others.length
+        ? (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [others])).rows.map((r) => [r.id, r.name])
+        : [],
+    );
+    return edges
+      .map((rel) => ({ rel, view: viewRelationship(rel, { userId: viewerId, owner: ratings.is_owner }) }))
+      .filter((x) => x.view !== null)
+      .map(({ rel, view }) => {
+        const otherId = rel.lo === id ? rel.hi : rel.lo;
+        return { otherId, name: names.get(otherId) ?? "Someone", path: `/couples/${rel.lo}/${rel.hi}`, view: view! };
+      })
+      .sort((x, y) => y.view.tie - x.view.tie);
+  })();
   // The owner's clip panel: admin (no paywall), their bought tokens, and whether they have a Google key.
   const clip =
     ratings.is_owner && !c.house && viewerId
@@ -240,17 +260,19 @@ export default async function CharacterPage({ params }: Props) {
         </section>
       )}
 
-      {people.length > 0 && (
+      {relationships.length > 0 && (
         <section className="card">
-          <h2>Connections</h2>
+          <h2>Relationships</h2>
           <ul className="list connections">
-            {people.map((p) => (
-              <li key={p.id}>
-                <Link href={`/characters/${p.id}`}>{p.name}</Link> <span className="badge">{p.label}</span>
+            {relationships.map((r) => (
+              <li key={r.otherId}>
+                <Link href={`/characters/${r.otherId}`}>{r.name}</Link> {r.view.stage_label && <span className="badge">{r.view.stage_label}</span>}
                 <span className="muted">
-                  {p.dates > 1 && <> · {p.dates} dates</>}
-                  {p.turned_down === "them" && <> · {c.name.split(" ")[0]} turned them down</>}
-                  {p.turned_down === "you" && <> · they turned {c.name.split(" ")[0]} down</>}
+                  {" "}
+                  · {r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`} · <Link href={r.path}>see them together</Link>
+                </span>
+                <span className="meter-track tie" aria-label={`How close: ${Math.round(r.view.tie * 100)}%`}>
+                  <span className="meter-fill" style={{ width: `${Math.round(r.view.tie * 100)}%` }} />
                 </span>
               </li>
             ))}
