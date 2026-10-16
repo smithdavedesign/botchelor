@@ -32,6 +32,12 @@ cloaking, and well-built agents treat hidden instructions as prompt injection an
 Vercel Web Analytics and Speed Insights render on production automatically; enable them once in the Vercel
 project (Analytics and Speed Insights tabs) so the data is collected.
 
+**Cookie consent (Google tags only).** `lib/consent.ts` sets Google Consent Mode v2 defaults before the Google
+tags load. Visitors from the EEA, the UK and Switzerland (from Vercel's `x-vercel-ip-country` header; unknown counts
+as a consent region) start with `analytics_storage` denied and see a banner. Everyone else starts granted. The
+choice is stored in the `bz_consent` cookie for a year and can be changed on /privacy. Ad storage is always denied.
+Vercel Web Analytics sets no cookies and isn't gated.
+
 ## Measuring it
 
 - **Search:** Google Search Console (impressions, clicks, indexing, sitemap status) and Bing Webmaster Tools.

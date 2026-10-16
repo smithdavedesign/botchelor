@@ -1,12 +1,13 @@
 import { PACK_5 } from "@/lib/catalog";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
+import { ConsentChoice } from "../ConsentBanner";
 
 /**
  * The terms and the privacy notice, written once and shown on /terms, /privacy and /legal (both on one
  * page, the M3 address). A plain draft for counsel to review before live payments (REVIEW.md).
  */
 
-export const LAST_UPDATED = "Last updated 16 October 2026 (analytics disclosed; episodes now written by Anthropic's Claude via Vercel AI Gateway).";
+export const LAST_UPDATED = "Last updated 16 October 2026 (Google Analytics cookie choice added; episodes now written by Anthropic's Claude via Vercel AI Gateway).";
 
 export function TermsSections() {
   return (
@@ -95,9 +96,11 @@ export function PrivacySections() {
           cookies and collect no personal information.
         </li>
         <li>
-          Google Analytics, loaded through Google Tag Manager, measures how people find and use the site (which pages,
-          which links brought them, which features they use). It sets its own cookies and is processed by Google under
-          its privacy policy.
+          Google Analytics measures how people find and use the site (which pages, which links brought them, which
+          features they use). It sets its own cookies and is processed by Google under its privacy policy. In the
+          EEA, the UK and Switzerland it sets no cookies until you allow them; elsewhere they&apos;re on unless you turn
+          them off. Your choice is kept in a cookie for a year, and you can change it here at any time:
+          <ConsentChoice />
         </li>
         <li>
           When you create a character, start a date, make a prediction or rate a character, we record that it happened
