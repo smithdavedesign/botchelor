@@ -59,13 +59,17 @@ function EpisodeItem({ episode }: { episode: EpisodeView }) {
 export default async function FeedPage() {
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
+  // Independent reads, so they run together rather than one round trip after another.
+  const [all, mine, leagues, blocks, profileName, reunion] = await Promise.all([
+    listFeed(db, viewerId),
+    viewerId ? listMyEpisodes(db, viewerId) : Promise.resolve([]),
+    viewerId ? listMyLeagues(db, viewerId) : Promise.resolve([]),
+    viewerId ? listBlocks(db, viewerId) : Promise.resolve([]),
+    getProfileName(db, viewerId),
+    getReunion(db),
+  ]);
   // The viewer's own dates get their own section below, so the public list skips them.
-  const feed = (await listFeed(db, viewerId)).filter((episode) => !episode.is_creator);
-  const mine = viewerId ? await listMyEpisodes(db, viewerId) : [];
-  const leagues = viewerId ? await listMyLeagues(db, viewerId) : [];
-  const blocks = viewerId ? await listBlocks(db, viewerId) : [];
-  const profileName = await getProfileName(db, viewerId);
-  const reunion = await getReunion(db);
+  const feed = all.filter((episode) => !episode.is_creator);
   // A season that ended since anyone last looked is closed here, so the viewer's new badges show (M4).
   let badges: Badge[] = [];
   if (viewerId && leagues.length) {

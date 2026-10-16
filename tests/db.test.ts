@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createPool, ensureSchema, getDb, isDroppedConnection, pgliteDb, pgPoolDb, setDbForTests, withVerifyFullSsl } from "@/lib/db";
+import { createPool, ensureSchema, ensureSchemaCurrent, getDb, isDroppedConnection, pgliteDb, pgPoolDb, schemaVersion, setDbForTests, withVerifyFullSsl } from "@/lib/db";
 import { ENDINGS, getEpisodeView, getPoints } from "@/lib/game";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { CATALOG, ITEM_KINDS } from "@/lib/catalog";
@@ -97,6 +97,35 @@ describe("schema", () => {
     await expect(
       t.db.query("insert into predictions (episode_id, user_id, pick) values ('ep-friends', 'u', 'married')"),
     ).rejects.toThrow();
+  });
+});
+
+describe("schema on a cold start", () => {
+  it("applies everything on a fresh database, then a cold start with nothing changed is one select", async () => {
+    const pg = new PGlite();
+    try {
+      const db = pgliteDb(pg);
+      await ensureSchemaCurrent(db);
+      const { rows } = await db.query<{ version: string }>("select version from schema_meta where id = 1");
+      expect(rows[0].version).toBe(schemaVersion());
+      expect((await db.query<{ n: number }>("select count(*)::int as n from characters where is_house")).rows[0].n).toBe(
+        HOUSE_CHARACTERS.length + PREMIUM_HOUSE_CHARACTERS.length,
+      );
+
+      const exec = vi.spyOn(db, "exec");
+      const query = vi.spyOn(db, "query");
+      await ensureSchemaCurrent(db);
+      expect(exec).not.toHaveBeenCalled();
+      expect(query).toHaveBeenCalledTimes(1);
+
+      // A changed schema or house cast (a new version) is applied again by the next cold start.
+      await db.query("update schema_meta set version = 'older' where id = 1");
+      await ensureSchemaCurrent(db);
+      expect(exec).toHaveBeenCalledTimes(1);
+      expect((await db.query<{ version: string }>("select version from schema_meta")).rows[0].version).toBe(schemaVersion());
+    } finally {
+      await pg.close();
+    }
   });
 });
 

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { PGlite } from "@electric-sql/pglite";
 import type { Pool } from "pg";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "./house";
@@ -665,6 +666,14 @@ create table if not exists reports_reviewed (
   primary key (episode_id, reporter_id)
 );
 create index if not exists reports_reviewed_reporter_idx on reports_reviewed (reporter_id);
+
+-- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
+-- whose schema is already in place skips the whole thing.
+create table if not exists schema_meta (
+  id integer primary key check (id = 1),
+  version text not null,
+  applied_at timestamptz not null default now()
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */
@@ -697,6 +706,37 @@ export async function ensureSchema(db: Db): Promise<void> {
       [c.id, JSON.stringify(c.signals)],
     );
   }
+}
+
+/** Everything ensureSchema writes, hashed: the DDL above and the house cast it upserts. */
+export function schemaVersion(): string {
+  return createHash("sha256")
+    .update(SCHEMA_SQL)
+    .update(JSON.stringify([HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS, HOUSE_KITS]))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+/**
+ * ensureSchema, skipped when this exact schema and house cast are already applied. Every serverless cold start used to
+ * re-run ~150 DDL statements (two of them table-locking constraint rebuilds) and two upserts per house character, one
+ * round trip each, before its first query: /feed took 3.9s on a cold start against 0.7s warm (2026-10-16). Now a cold
+ * start costs one select; the first instance after a schema or cast change applies it and records the new version.
+ */
+export async function ensureSchemaCurrent(db: Db): Promise<void> {
+  const version = schemaVersion();
+  try {
+    const { rows } = await db.query<{ version: string }>("select version from schema_meta where id = 1");
+    if (rows[0]?.version === version) return;
+  } catch {
+    // No schema_meta yet (a fresh database, or one from before it existed): apply everything below.
+  }
+  await ensureSchema(db);
+  await db.query(
+    `insert into schema_meta (id, version, applied_at) values (1, $1, now())
+       on conflict (id) do update set version = excluded.version, applied_at = now()`,
+    [version],
+  );
 }
 
 // PGLITE_DIR lets a throwaway run (scripts/screenshots.mjs) keep its sample data apart from yours.
@@ -749,7 +789,7 @@ export function getDb(): Promise<Db> {
   if (testDb) return Promise.resolve(testDb);
   if (!cache.__botchelorDb) {
     const opening = openDb().then(async (db) => {
-      await ensureSchema(db);
+      await ensureSchemaCurrent(db);
       return db;
     });
     // A failed open (e.g. the database is briefly unreachable) must not poison every later request.
