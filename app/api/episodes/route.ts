@@ -17,6 +17,7 @@ import { DEFAULT_FORMAT, format as showFormat, FORMAT_IDS } from "@/lib/formats"
 import {
   AGENDA_IDS,
   AUTONOMY_LEVELS,
+  DELETED_OWNER,
   FREE_EPISODES_PER_SEASON,
   GAME_BUDGETS,
   STRATEGIES,
@@ -97,21 +98,22 @@ const forDate = (c: CharacterRow): CharacterForDate => ({ id: c.id, sheet: toShe
 
 /**
  * Blind date: a random OC from another creator, skipping any pair where either creator blocked the
- * other; a random free house character when there is nobody (yet). Never fails, never premium.
+ * other and any character whose creator deleted their account; a random free house character when there is
+ * nobody (yet). Never fails, never premium.
  */
 async function blindMatch(db: Db, userId: string): Promise<CharacterRow> {
   const other = (
     await db.query<CharacterRow>(
       `select ${CHARACTER_COLUMNS}
          from characters c
-        where not c.is_house and c.owner_id <> $1
+        where not c.is_house and c.owner_id <> $1 and c.owner_id <> $2
           and not exists (
             select 1 from blocks bl
              where (bl.blocker_id = $1 and bl.blocked_id = c.owner_id)
                 or (bl.blocker_id = c.owner_id and bl.blocked_id = $1))
         order by random()
         limit 1`,
-      [userId],
+      [userId, DELETED_OWNER],
     )
   ).rows[0];
   if (other) return other;

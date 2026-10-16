@@ -14,9 +14,10 @@
  */
 import type { Db } from "./db";
 import { getPoints } from "./game";
+import { DELETED_OWNER } from "./rules";
 
 /** The owner link set on a character that must stay (it's in a shared episode) after its owner deletes. */
-export const DELETED_OWNER = "deleted";
+export { DELETED_OWNER };
 
 export type AccountExport = {
   exported_at: string;
@@ -176,7 +177,8 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   const kept = (await db.query<{ id: string }>("select id from characters where owner_id = $1 and not is_house", [userId])).rows.map((r) => r.id);
   await forgetEverything(db, kept);
   const charactersAnonymized = await returning(
-    "update characters set owner_id = $2 where owner_id = $1 and not is_house returning id",
+    // Closed to dates too: a deleted creator's character must never be asked out or blind-matched again.
+    "update characters set owner_id = $2, open_to_dates = false where owner_id = $1 and not is_house returning id",
     [userId, DELETED_OWNER],
   );
 
