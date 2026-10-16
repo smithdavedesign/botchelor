@@ -1953,6 +1953,36 @@ button.poll-option.chosen {
   display: grid;
   gap: 0.75rem;
 }
+/* The watch page (app/watch/page.tsx): how watching works, then one section per room state. */
+.watch-how {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.watch-how strong {
+  color: var(--ink);
+}
+.watch-section {
+  margin: 1.5rem 0 0;
+}
+.watch-section h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--text-lg);
+}
+.watch-dot.off {
+  background: var(--line);
+  animation: none;
+}
+.watch-lobby-second {
+  margin-left: 0.4rem;
+}
 .watch-lobby-card {
   display: flex;
   align-items: center;

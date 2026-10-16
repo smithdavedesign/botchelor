@@ -270,7 +270,7 @@ async function main() {
       const gpage = await guest.newPage();
       try {
         await gpage.goto(`${base}/watch`);
-        await gpage.getByRole("heading", { name: "Watch parties" }).waitFor();
+        await gpage.getByRole("heading", { name: "Watch a date" }).waitFor();
         assert((await gpage.locator(".watch-lobby-card").count()) > 0, "the lobby has no rooms");
         await gpage.locator(".watch-lobby-card").first().click();
         await gpage.waitForURL(/\/watch\/[0-9a-f-]{36}$/);
