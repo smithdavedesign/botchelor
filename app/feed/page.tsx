@@ -39,8 +39,8 @@ function EpisodeItem({ episode }: { episode: EpisodeView }) {
   return (
     <li className="card">
       <div className="char">
-        <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} size={38} />
-        <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} size={38} />
+        <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={38} />
+        <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={38} />
         <div className="meta">
           <Link href={episode.share_path}>
             <strong>

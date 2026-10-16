@@ -1,5 +1,5 @@
 import type { CharacterSheet, EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
-import { approvedClipId, approvedClipIsVideo, approvedPortraitId } from "./assets";
+import { approvedClipId, approvedClipIsVideo, approvedPortraitId, portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import type { CharacterExtras } from "./extras";
 import { matchmakerHitSql } from "./mechanics";
@@ -37,7 +37,14 @@ export { ENDING_LABELS, ENDINGS, POINTS_PER_CORRECT_PICK, pointsFor, type Ending
 export const FEED_LIMIT = 30;
 const ANONYMOUS_CREATOR = "Anonymous creator";
 
-export type CharacterRef = { id: string; name: string; house: boolean; hue: number | null };
+export type CharacterRef = {
+  id: string;
+  name: string;
+  house: boolean;
+  hue: number | null;
+  /** Their approved generated (BYOK) portrait's path, /api/assets/<id> (lib/assets.ts portraitPathSql), or null. */
+  portrait: string | null;
+};
 export type CreatorRef = { character_id: string; name: string };
 
 /** The per-date settings the owner chose (PRD budget & autonomy). Stored as episodes.setup (jsonb). */
@@ -274,10 +281,12 @@ type EpisodeRow = {
   a_name: string;
   a_house: boolean;
   a_hue: number | null;
+  a_portrait: string | null;
   b_id: string;
   b_name: string;
   b_house: boolean;
   b_hue: number | null;
+  b_portrait: string | null;
   is_creator: boolean;
   is_host: boolean;
   visibility: "public" | "private" | "unlisted";
@@ -305,8 +314,8 @@ const EPISODE_SELECT = `
 select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_question, e.drama_answer,
        e.revealed_at is not null as revealed,
        e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.afterglow, e.status,
-       a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue,
-       b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue,
+       a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait,
+       b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait,
        coalesce($1::text in (a.owner_id, b.owner_id), false) as is_creator,
        coalesce(e.creator_id = $1::text, false) as is_host,
        e.visibility,
@@ -349,8 +358,8 @@ function debriefFrom(side: SideOutcome, setup: DateSetup | null, mySide: 0 | 1):
 
 function toView(row: EpisodeRow): EpisodeView {
   const characters: [CharacterRef, CharacterRef] = [
-    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue },
-    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue },
+    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait },
+    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait },
   ];
   const identityRevealed = row.needed > 0 && row.consents >= row.needed;
   const creators = identityRevealed
@@ -544,9 +553,9 @@ export const MY_CHARACTERS_SHOWN = 20;
 /** The user's own characters, newest first, so the builder can send one on another date (M4). */
 export async function listMyCharacters(db: Db, userId: string, limit = MY_CHARACTERS_SHOWN): Promise<CharacterRef[]> {
   const { rows } = await db.query<CharacterRef>(
-    `select id, name, false as house, avatar_hue as hue from characters
-      where owner_id = $1 and not is_house
-      order by created_at desc, id
+    `select c.id, c.name, false as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait from characters c
+      where c.owner_id = $1 and not c.is_house
+      order by c.created_at desc, c.id
       limit $2`,
     [userId, limit],
   );

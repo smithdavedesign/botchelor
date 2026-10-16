@@ -6,6 +6,7 @@
  * the prediction game. Ratings feed only the cast leaderboard and the owner's all-time points total (see
  * getPoints in lib/game.ts). You can't rate your own character.
  */
+import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { RATING_CATEGORY_IDS, type RatingCategory } from "./rules";
 
@@ -89,12 +90,12 @@ export async function getCharacterRatings(
   return { counts, mine, is_owner: isOwner };
 }
 
-export type TopRated = { id: string; name: string; house: boolean; hue: number | null; count: number };
+export type TopRated = { id: string; name: string; house: boolean; hue: number | null; portrait: string | null; count: number };
 
 /** The top-rated characters in a category, for the cast leaderboard. Ties break by name. */
 export async function topRatedCharacters(db: Db, category: RatingCategory, limit = 5): Promise<TopRated[]> {
   const { rows } = await db.query<TopRated>(
-    `select c.id, c.name, c.is_house as house, c.avatar_hue as hue, count(*)::int as count
+    `select c.id, c.name, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, count(*)::int as count
        from character_ratings r
        join characters c on c.id = r.character_id
       where r.category = $1

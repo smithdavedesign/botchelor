@@ -39,12 +39,12 @@ export default function Scene({ characters, venue, lineA, lineB, actLabel, place
       <div className="scene-cast">
         <figure className="scene-char scene-char-a">
           {lineA && <p className="scene-bubble">{lineA}</p>}
-          <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} size={132} />
+          <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={132} />
           <figcaption className="scene-name">{a.name}</figcaption>
         </figure>
         <figure className="scene-char scene-char-b">
           {lineB && <p className="scene-bubble">{lineB}</p>}
-          <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} size={132} />
+          <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={132} />
           <figcaption className="scene-name">{b.name}</figcaption>
         </figure>
       </div>

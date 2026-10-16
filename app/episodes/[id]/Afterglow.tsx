@@ -52,7 +52,7 @@ export default function Afterglow({ episodeId, characters, afterglow }: Props) {
             const who = line.side === "a" ? a : b;
             return (
               <div key={i} className={`turn turn-${line.side}`}>
-                <Avatar seed={who.id} name={who.name} hue={who.hue} house={who.house} size={30} />
+                <Avatar seed={who.id} name={who.name} hue={who.hue} house={who.house} portraitSrc={who.portrait} size={30} />
                 <div className="turn-body">
                   <p className="turn-line">
                     <strong>{who.name}</strong> {line.text}

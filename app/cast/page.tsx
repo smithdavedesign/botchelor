@@ -44,7 +44,7 @@ export default async function CastPage() {
           {cast.map((c) => (
             <li key={c.id} className="card">
               <div className="char">
-                <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={48} />
+                <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={48} />
                 <div className="meta">
                   <Link href={`/characters/${c.id}`}>
                     <strong>{c.name}</strong>
@@ -78,7 +78,7 @@ export default async function CastPage() {
                 <ol className="board-list">
                   {top.map((t) => (
                     <li key={t.id}>
-                      <Avatar seed={t.id} name={t.name} hue={t.hue} house={t.house} size={28} />
+                      <Avatar seed={t.id} name={t.name} hue={t.hue} house={t.house} portraitSrc={t.portrait} size={28} />
                       <Link href={`/characters/${t.id}`}>{t.name}</Link>
                       <span className="board-count">{t.count}</span>
                     </li>

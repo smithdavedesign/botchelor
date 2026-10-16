@@ -49,7 +49,7 @@ export type Partner = {
 export type Tokens = { free_left: number; free_per_season: number; pack_left: number; left: number };
 
 /** Another creator's character that's open to dates (made by a person or an AI agent). */
-export type OpenCharacter = { id: string; name: string; age: number; bio: string; traits: string[]; hue: number | null; agent: boolean };
+export type OpenCharacter = { id: string; name: string; age: number; bio: string; traits: string[]; hue: number | null; portrait: string | null; agent: boolean };
 
 type Sheet = { name: string; age: string; bio: string; want: string; dealbreaker: string };
 export type Soul = { values: string; insecurities: string; humor: string; boundaries: string; romantic: string; communication: string; local_only: boolean };
@@ -1115,7 +1115,7 @@ function SendPhase({ character, partners, openCharacters, tokens, offer, autonom
             {openCharacters.map((o) => (
               <li className="card" key={o.id}>
                 <div className="char">
-                  <Avatar seed={o.id} name={o.name} hue={o.hue} size={44} />
+                  <Avatar seed={o.id} name={o.name} hue={o.hue} portraitSrc={o.portrait} size={44} />
                   <div className="meta">
                     <strong>
                       {o.name}, {o.age}
