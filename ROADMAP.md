@@ -440,6 +440,19 @@ bring their own model key for text (and later image/video). Built holistically, 
   two-user blind dates; a blob store for generated portraits at scale; a moderated path for fal/replicate; a blob store so
   generated portraits/clips are durable at scale (and clips outlive the provider's retention).
 
+## M17: launch readiness, part 2 (see `docs/launch-readiness.md`)
+
+From the 2026-10-16 launch review: what a public launch needs beyond features.
+
+- **CI (shipped, #103).** Typecheck + the unit suite on every PR (`.github/workflows/ci.yml`); self-merging PRs
+  used to be gated by "it builds" alone. Same PR: three prod error fixes (asset seed overflow, a retry when Neon
+  drops a connection, explicit `sslmode=verify-full`).
+- **Spend and abuse guards (shipped).** A per-visitor limit on starting dates (hashed IP, 10/hour, 30/day) and a
+  daily cap on paid-model dates (`FRONTIER_DAILY_DATE_CAP`, default 100), past which dates run on the free model.
+- **Report review (shipped).** `/admin` → Reports: put an episode back or take it down (private); nothing deleted.
+- **Monitoring (shipped).** `GET /api/health` (public liveness; open reports, stuck dates and paid usage for the
+  monitor), polled by RepoHQ's collector with Slack alerts in #team-agents.
+
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
 The competitor report's image plan, built at $0 — first-party assets only, reviewed and committed (no runtime generation, no uploads):

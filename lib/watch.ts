@@ -19,7 +19,8 @@ import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { failureReason } from "./jobs";
 import { seasonCastIds } from "./season-cast";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
-import { getDirectorModel, getModel } from "./model";
+import { claimPaidDate } from "./limits";
+import { getDirectorModel, getModel, paidDefaultOn } from "./model";
 import { generateDate } from "./pipeline";
 import { DEFAULT_FORMAT } from "./formats";
 import { getProfileName } from "./people";
@@ -747,8 +748,10 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   // play the date line by line too. Pre-generated system content; the conversation is best-effort and gated
   // off in tests. Template rooms have no owners, so no afterglow.
   const t0 = Date.now();
+  // Template rooms share the paid default's daily cap with everyone's dates (lib/limits.ts).
+  const paid = paidDefaultOn() ? await claimPaidDate(db) : false;
   const take = () =>
-    generateDate({ actor: getModel(), director: getDirectorModel() }, built, decided, {
+    generateDate({ actor: getModel(undefined, paid), director: getDirectorModel(process.env, undefined, paid) }, built, decided, {
       formatId: built.setup.format ?? DEFAULT_FORMAT,
       formatCtx: { chaperone: built.setup.chaperone, ex: built.setup.ex },
       conversation: isConversationEnabled(),

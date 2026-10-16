@@ -8,6 +8,7 @@ import { getEpisodeView, listFeed, toEpisodeJson, type CharacterRef, type Stored
 import { handle, json, parseBody, readJson, session, userIdFromRequest, type Session } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
 import { generationPaused, PAUSED_MESSAGE } from "@/lib/compute";
+import { DATE_START_LIMITS, overLimit, visitorKey } from "@/lib/limits";
 import { track } from "@/lib/analytics";
 import { enqueueGeneration, inlineGenerationEnabled, runGenerationJob } from "@/lib/jobs";
 import { ownsSku } from "@/lib/payments";
@@ -206,6 +207,25 @@ export const POST = handle(async (req) => {
     );
   }
 
+  // The frontier model only when this request carries the owner's key; recorded on the job so the
+  // background worker (which has no request) knows which model to use.
+  const useFrontier = frontierAuthorized(req);
+
+  // Per visitor, not per cookie (lib/limits.ts): free dates are counted per anonymous cookie, and a fresh cookie
+  // costs nothing, so this is what stops a script minting identities to flood the show. In-process calls (the
+  // MCP front door) carry no IP and have the agents' own daily cap; the owner's key skips it.
+  const visitor = useFrontier ? null : visitorKey(req.headers);
+  if (visitor && (await overLimit(db, "date_start", visitor, DATE_START_LIMITS))) {
+    return json(
+      {
+        error: "too_many_dates",
+        message: "That's a lot of dates from one connection. Take a breather: you can start another within the hour.",
+      },
+      429,
+      sess,
+    );
+  }
+
   // One of this week's free dates, or a pack date (M4). Taken before the model call, so parallel requests
   // can't write more episodes than the creator has dates; given back below if no episode gets saved
   // (a failed generation costs no date, so it doesn't cap retries: see BUILD.md, "Review").
@@ -222,9 +242,6 @@ export const POST = handle(async (req) => {
       sess,
     );
   }
-  // The frontier model only when this request carries the owner's key; recorded on the job so the
-  // background worker (which has no request) knows which model to use.
-  const useFrontier = frontierAuthorized(req);
   const outcome = { saved: false };
   try {
     return await writeAndSave(db, sess, useFrontier, reservation, own, partner, input, outcome);

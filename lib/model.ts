@@ -296,11 +296,14 @@ export function paidDefaultOn(env: Record<string, string | undefined> = process.
   return env.FRONTIER_DEFAULT === "1" && frontierConfigured(env);
 }
 
-/** The actor: speaks every line of the date and the morning-after texts. Paid-by-default (with free fallback) when FRONTIER_DEFAULT is on. */
-export function getModel(reasoning: ReasoningEffort | undefined = roleReasoning("actor")): Model {
+/**
+ * The actor: speaks every line of the date and the morning-after texts. Paid-by-default (with free fallback) when
+ * FRONTIER_DEFAULT is on and `allowPaid` (false once today's paid-date cap is spent: lib/limits.ts).
+ */
+export function getModel(reasoning: ReasoningEffort | undefined = roleReasoning("actor"), allowPaid = true): Model {
   if (testModel) return testModel;
   const free = modelFromEnv(process.env, undefined, reasoning);
-  const paid = paidDefaultOn() ? getFrontierModel() : null;
+  const paid = allowPaid && paidDefaultOn() ? getFrontierModel() : null;
   return paid ? fallbackModel(paid, free) : free;
 }
 
@@ -312,10 +315,11 @@ export function getModel(reasoning: ReasoningEffort | undefined = roleReasoning(
 export function getDirectorModel(
   env: Record<string, string | undefined> = process.env,
   reasoning: ReasoningEffort | undefined = roleReasoning("director", env),
+  allowPaid = true,
 ): Model {
   if (testModel) return testModel;
   const free = modelFromEnv({ ...env, LLM_MODEL: directorModelName(env) ?? env.LLM_MODEL }, undefined, reasoning);
-  const paid = paidDefaultOn(env) ? getFrontierModel() : null;
+  const paid = allowPaid && paidDefaultOn(env) ? getFrontierModel() : null;
   return paid ? fallbackModel(paid, free) : free;
 }
 

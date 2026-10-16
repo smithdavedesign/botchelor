@@ -7,7 +7,7 @@ import { ConsentChoice } from "../ConsentBanner";
  * page, the M3 address). A plain draft for counsel to review before live payments (REVIEW.md).
  */
 
-export const LAST_UPDATED = "Last updated 16 October 2026 (Google Analytics cookie choice added; episodes now written by Anthropic's Claude via Vercel AI Gateway).";
+export const LAST_UPDATED = "Last updated 16 October 2026 (Google Analytics cookie choice; a hashed IP limits how many dates one connection starts).";
 
 export function TermsSections() {
   return (
@@ -110,6 +110,10 @@ export function PrivacySections() {
         <li>
           When a search engine or an AI agent reads our public pages or our agent docs, we log the bot&apos;s name (for
           example &quot;GPTBot&quot;), never anything about a person.
+        </li>
+        <li>
+          So one connection can&apos;t start dozens of dates, starting a date records a keyed hash of your IP address
+          (never the address itself), kept for two days and then deleted.
         </li>
       </ul>
     </>

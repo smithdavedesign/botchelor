@@ -32,7 +32,8 @@ async function characterOwners(db: Db, aId: string, bId: string): Promise<[strin
 }
 import { getEngine, type CharacterSheet } from "./engine";
 import { DEFAULT_FORMAT } from "./formats";
-import { getDirectorModel, getFrontierModel, getModel, roleReasoning } from "./model";
+import { claimPaidDate } from "./limits";
+import { getDirectorModel, getFrontierModel, getModel, paidDefaultOn, roleReasoning } from "./model";
 import { buildKeyForSide } from "./keys";
 import { soulText } from "./souls";
 import {
@@ -180,7 +181,11 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // The owner-approved frontier model runs every role; otherwise the free actor model, plus the director
     // model (LLM_DIRECTOR_MODEL, defaulting to the same free model) for the plan and the recap.
     const frontier = row.use_frontier ? getFrontierModel() : null;
-    const models = frontier ? { actor: frontier, director: frontier } : { actor: getModel(), director: getDirectorModel() };
+    // The paid default (FRONTIER_DEFAULT) only while today's cap lasts (lib/limits.ts); past it, the free model.
+    const paid = !frontier && paidDefaultOn() ? await claimPaidDate(db) : false;
+    const models = frontier
+      ? { actor: frontier, director: frontier }
+      : { actor: getModel(undefined, paid), director: getDirectorModel(process.env, undefined, paid) };
     const fmtCtx = { chaperone: built.setup.chaperone, ex: built.setup.ex };
     // BYOK: a creator's own saved key runs their side's lines (and a soulless partner's), never the plan or
     // recap (those see both souls). Off on a frontier run (that's the owner-approved paid path already).
