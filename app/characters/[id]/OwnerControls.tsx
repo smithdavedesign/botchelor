@@ -12,6 +12,8 @@ type Props = {
   openToDates: boolean;
 };
 
+type Message = { text: string; error?: boolean };
+
 /**
  * Owner-only controls on a character's card: the full editor (every field, /characters/[id]/edit), the
  * open-to-dates switch, Pro portrait/clip generation on the owner's own key, and delete.
@@ -19,7 +21,7 @@ type Props = {
 export default function OwnerControls(props: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<Message | null>(null);
   const [openToDates, setOpenToDates] = useState(props.openToDates);
 
   async function toggleOpenToDates() {
@@ -34,26 +36,26 @@ export default function OwnerControls(props: Props) {
 
   async function generatePortrait() {
     setBusy(true);
-    setMessage("Generating a portrait on your key…");
+    setMessage({ text: "Generating a portrait on your key…" });
     const { ok, status, message } = await requestJson(`/api/characters/${props.id}/portrait`, {}, "POST").catch(() => ({ ok: false, status: 0, message: "Network error." }));
     setBusy(false);
     if (ok) {
       setMessage(null);
       router.refresh();
     } else if (status === 400) {
-      setMessage("Add an OpenAI image key on your account first.");
+      setMessage({ text: "Add an OpenAI image key on your account first.", error: true });
     } else {
-      setMessage(message);
+      setMessage({ text: message, error: true });
     }
   }
 
   async function generateClip() {
     setBusy(true);
-    setMessage("Starting a clip on your key (video takes a minute or two)…");
+    setMessage({ text: "Starting a clip on your key (video takes a minute or two)…" });
     const start = await requestJson(`/api/characters/${props.id}/clip`, {}, "POST").catch(() => ({ ok: false, status: 0 }));
     if (!start.ok) {
       setBusy(false);
-      setMessage(start.status === 400 ? "Add an OpenAI image key on your account first." : "Couldn't start the clip.");
+      setMessage({ text: start.status === 400 ? "Add an OpenAI image key on your account first." : "Couldn't start the clip.", error: true });
       return;
     }
     // Poll until the provider finishes (bounded), then show it. A render can take a couple of minutes.
@@ -68,12 +70,12 @@ export default function OwnerControls(props: Props) {
       }
       if (res.status === "failed") {
         setBusy(false);
-        setMessage("The provider couldn't make this clip.");
+        setMessage({ text: "The provider couldn't make this clip.", error: true });
         return;
       }
     }
     setBusy(false);
-    setMessage("Still rendering — refresh the page in a minute to see your clip.");
+    setMessage({ text: "Still rendering — refresh the page in a minute to see your clip." });
   }
 
   async function remove() {
@@ -85,7 +87,7 @@ export default function OwnerControls(props: Props) {
   }
 
   return (
-    <section className="card owner-controls">
+    <section className="card owner-controls" aria-label={`Your character: ${props.name}`} aria-busy={busy}>
       <div className="owner-head">
         <p className="muted">This is your character.</p>
         <Link className="button" href={`/characters/${props.id}/edit`}>
@@ -101,21 +103,30 @@ export default function OwnerControls(props: Props) {
           {openToDates ? "Close to dates" : "Open to dates"}
         </button>
       </p>
-      <p className="muted small">
-        <span className="pro-tag">✨ Pro</span>{" "}
-        <button type="button" className="link-button" onClick={generatePortrait} disabled={busy}>
-          Generate a portrait
-        </button>{" "}
-        ·{" "}
-        <button type="button" className="link-button" onClick={generateClip} disabled={busy}>
-          Generate a clip
-        </button>{" "}
-        <span>(on your own key)</span> ·{" "}
+      <div className="owner-actions">
+        <span className="pro-tag">✨ Pro</span>
+        <ul className="owner-action-list">
+          <li>
+            <button type="button" className="link-button" onClick={generatePortrait} disabled={busy}>
+              Generate a portrait
+            </button>
+          </li>
+          <li>
+            <button type="button" className="link-button" onClick={generateClip} disabled={busy}>
+              Generate a clip
+            </button>{" "}
+            <span className="owner-hint">(on your own key)</span>
+          </li>
+        </ul>
+      </div>
+      <div className="owner-danger">
         <button type="button" className="link-button danger" onClick={remove} disabled={busy}>
           Delete
         </button>
+      </div>
+      <p className={message?.error ? "owner-message error" : "owner-message muted small"} role="status" aria-live="polite">
+        {message?.text}
       </p>
-      {message && <p className="muted small">{message}</p>}
     </section>
   );
 }
