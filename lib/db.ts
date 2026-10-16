@@ -335,6 +335,11 @@ alter table episodes add column if not exists reflections jsonb;
 -- GeneratedWith), fallbacks included, and the prompt version — so a change in quality traces to a model or a
 -- prompt. Internal: never in a viewer's episode view. Null for dates written before it was recorded.
 alter table episodes add column if not exists generated_with jsonb;
+-- Admins (lib/admins.ts): accounts that claimed admin with the admin password. Admins skip the clip paywall.
+create table if not exists admins (
+  user_id text primary key,
+  created_at timestamptz not null default now()
+);
 -- How many times backfilling this date's missing conversation has genuinely failed (lib/backfill.ts), so a
 -- date the model keeps failing on stops costing calls. Rate limits don't count. (Replaces a first-day counter
 -- that also counted the free tier's 429s and so wrongly gave up on good dates.)
@@ -495,6 +500,9 @@ create table if not exists character_assets (
 create index if not exists character_assets_character_idx on character_assets (character_id, kind)
   where review_status = 'approved';
 -- M16: a BYOK-generated video clip is a new asset kind (widen the CHECK in place for existing databases).
+-- Intro clips (lib/video.ts, Veo on the player's own Google key) cost bought tokens: how many this clip took, so
+-- a clip Google blocks or fails is refunded exactly once (set back to 0 when refunded).
+alter table character_assets add column if not exists tokens_spent integer not null default 0;
 alter table character_assets drop constraint if exists character_assets_kind_check;
 alter table character_assets add constraint character_assets_kind_check
   check (kind in ('portrait', 'expression', 'background', 'decoration', 'clip'));

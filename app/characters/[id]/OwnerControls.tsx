@@ -10,14 +10,16 @@ type Props = {
   name: string;
   /** Whether other creators (people or agents) may ask this character out by name. */
   openToDates: boolean;
+  /** Intro clips (Veo on the owner's Google key): whether they're an admin (no tokens), their bought tokens, and whether they have a Google key. */
+  clip?: { admin: boolean; boughtTokens: number; hasKey: boolean; cost: number };
 };
 
-type Message = { text: string; error?: boolean };
+type Message = { text: string; error?: boolean; link?: { href: string; label: string } };
 
 /**
  * Owner-only controls on a character's card: the full editor (every field, /characters/[id]/edit), the
- * open-to-dates switch, Pro portrait generation on the owner's own key, and delete. Clips show as "coming soon"
- * while they move to a new video model (OpenAI retired Sora 2: lib/image.ts CLIPS_RETIRED).
+ * open-to-dates switch, Pro portrait generation on the owner's own key, a 4-second intro clip (Veo on their own
+ * Google key, behind the bought-token paywall unless they're an admin; lib/video.ts), and delete.
  */
 export default function OwnerControls(props: Props) {
   const router = useRouter();
@@ -48,6 +50,37 @@ export default function OwnerControls(props: Props) {
     } else {
       setMessage({ text: message, error: true });
     }
+  }
+
+  async function generateClip() {
+    setBusy(true);
+    setMessage({ text: "Starting a clip on your Google key (Veo takes a minute or two)…" });
+    const start = await requestJson(`/api/characters/${props.id}/clip`, {}, "POST").catch(() => ({ ok: false, status: 0, message: "Network error.", data: {} as Record<string, unknown> }));
+    if (!start.ok) {
+      setBusy(false);
+      if (start.status === 402) setMessage({ text: start.message ?? "A clip costs bought tokens.", error: true, link: { href: "/shop", label: "Get tokens" } });
+      else if (start.status === 400) setMessage({ text: start.message ?? "Add a Google key first.", error: true, link: { href: "/account", label: "Add a Google key" } });
+      else setMessage({ text: start.message ?? "Google couldn't start the clip.", error: true });
+      return;
+    }
+    // Poll until Google finishes (bounded), then show it. A render can take a couple of minutes.
+    for (let i = 0; i < 45; i++) {
+      await new Promise((r) => setTimeout(r, 6000));
+      const res = await fetch(`/api/characters/${props.id}/clip`).then((r) => r.json()).catch(() => ({ status: "rendering" }));
+      if (res.status === "ready") {
+        setBusy(false);
+        setMessage(null);
+        router.refresh();
+        return;
+      }
+      if (res.status === "failed") {
+        setBusy(false);
+        setMessage({ text: `${res.message ?? "Google couldn't make this clip."}${res.refunded ? " Your token was refunded." : ""}`, error: true });
+        return;
+      }
+    }
+    setBusy(false);
+    setMessage({ text: "Still rendering — refresh the page in a minute to see your clip." });
   }
 
   async function remove() {
@@ -84,13 +117,24 @@ export default function OwnerControls(props: Props) {
             </button>{" "}
             <span className="owner-hint">(on your own key)</span>
           </li>
-          <li>
-            {/* Clips paused while they move to a new video model (lib/image.ts CLIPS_RETIRED). */}
-            <button type="button" className="link-button" disabled aria-describedby="clip-soon" title="OpenAI retired the video model clips ran on; they're moving to a new one.">
-              Generate a clip
-            </button>{" "}
-            <span id="clip-soon" className="badge">Coming soon</span>
-          </li>
+          {props.clip && (
+            <li>
+              <button type="button" className="link-button" onClick={generateClip} disabled={busy}>
+                Generate a 4-second clip
+              </button>{" "}
+              <span className="owner-hint">
+                {props.clip.admin
+                  ? "(admin: no tokens; ~$0.20 on your Google key)"
+                  : `(${props.clip.cost} bought token${props.clip.cost === 1 ? "" : "s"} + ~$0.20 on your Google key; you have ${props.clip.boughtTokens})`}
+                {!props.clip.hasKey && (
+                  <>
+                    {" "}
+                    · <Link href="/account">add a Google key</Link>
+                  </>
+                )}
+              </span>
+            </li>
+          )}
         </ul>
       </div>
       <div className="owner-danger">
@@ -100,6 +144,12 @@ export default function OwnerControls(props: Props) {
       </div>
       <p className={message?.error ? "owner-message error" : "owner-message muted small"} role="status" aria-live="polite">
         {message?.text}
+        {message?.link && (
+          <>
+            {" "}
+            <Link href={message.link.href}>{message.link.label}</Link>
+          </>
+        )}
       </p>
     </section>
   );

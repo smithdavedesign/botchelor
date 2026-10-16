@@ -89,3 +89,28 @@ export async function releaseEpisode(db: Db, userId: string, reservation: Reserv
     await db.query("update pack_episode_usage set used = used - 1 where user_id = $1 and used > 0", [userId]);
   }
 }
+
+/* ------------------------------------ bought tokens (the clip paywall) ------------------------------------ */
+
+/**
+ * What an intro clip costs in BOUGHT tokens (the ones from a pack: tokens are dates, a pack is 5). Clips are a
+ * paid extra: the weekly free tokens stay for dates. Admins skip it (lib/admins.ts).
+ */
+export const CLIP_TOKEN_COST = 1;
+
+/** Spends `n` bought tokens if the user has them; false (nothing spent) when they don't. One conditional upsert. */
+export async function spendBoughtTokens(db: Db, userId: string, n: number): Promise<boolean> {
+  const { rows } = await db.query(
+    `insert into pack_episode_usage as u (user_id, used)
+     select $1, $2::int where ${PACK_EPISODES_BOUGHT} >= $2::int
+     on conflict (user_id) do update set used = u.used + $2::int where u.used + $2::int <= ${PACK_EPISODES_BOUGHT}
+     returning used`,
+    [userId, n],
+  );
+  return rows.length > 0;
+}
+
+/** Gives back `n` bought tokens (a clip that never got made). Never below zero. */
+export async function refundBoughtTokens(db: Db, userId: string, n: number): Promise<void> {
+  await db.query("update pack_episode_usage set used = greatest(0, used - $2::int) where user_id = $1", [userId, n]);
+}

@@ -43,6 +43,10 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
         Top up your tokens when the free ones run out. <strong>One token sends a character on one date.</strong>{" "}
         <strong>Nothing here changes points, picks, badges or rank, and points can&apos;t be bought.</strong>
       </p>
+      <p className="muted">
+        Topped-up tokens also make a 4-second intro clip for a character of yours: one token each, plus about $0.20 on
+        your own Google key (Veo). A clip Google can&apos;t make gives the token back.
+      </p>
       <p className="muted token-balance">
         You have <strong>{dates.left}</strong> {dates.left === 1 ? "token" : "tokens"} left: {dates.free_left} of{" "}
         {dates.free_per_season} free this week
