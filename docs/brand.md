@@ -116,6 +116,8 @@ All in `globals.css`; reuse the class, don't restyle.
     File pickers render their button as a secondary pill.
   - `fieldset` has `min-width: 0` so a group never pushes its card wider than a phone. Settings live in a
     `<details class="card settings">` so the builder stays uncluttered.
+  - Live, desktop and phone: [`account-form-desktop.png`](screenshots/account-form-desktop.png) ·
+    [`account-form-mobile.png`](screenshots/account-form-mobile.png).
 - **`.avatar`** — a pure gradient tile with initials (`app/Avatar.tsx`), seeded by character id so it never
   changes; house characters get a ring. No hosted images (see `docs/image-strategy.md`).
 - **`.transcript` / `.afterglow` timelines** — chat-style turns: avatar + bubble, alternating left (side a)
