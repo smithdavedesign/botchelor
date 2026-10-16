@@ -3,6 +3,15 @@
 What protects the show once strangers arrive, and how the owner sees trouble. Written 2026-10-16 from the launch
 review; the money, legal and posting steps that only the owner can do are tracked in RepoHQ (Road to revenue).
 
+## Owner decisions (2026-10-16)
+
+- **Launch without a lawyer's review** (REVENUE.md): accepted risk.
+- **Payments:** the production shop treats a Stripe test-mode link as "purchases open soon" (`lib/stripe.ts`), so the
+  free show launches first and Buy appears once a live Payment Link is set.
+- **Growth focus:** botchelor joined `policy.growth.focus` in idea-factory (after tiebreak), so RepoHQ's daily growth
+  loop picks a mission for it from its funnel (GROWTH.md).
+- **The owner's own visits** don't count: `?repohq-notrack=1` sets a `repohq_notrack` cookie (middleware.ts).
+
 ## Spend and abuse guards (`lib/limits.ts`)
 
 | Guard | What it stops | Setting |

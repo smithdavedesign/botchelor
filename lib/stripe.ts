@@ -15,13 +15,25 @@ const MAX_LABEL_LENGTH = 60;
 
 type Env = Record<string, string | undefined>;
 
-/** The owner's Payment Link, read per request so a new link needs no rebuild; null unless it is https. */
+/** Stripe's test-mode Payment Links live under buy.stripe.com/test_…, where a real card is declined. */
+export function isTestModeLink(url: URL): boolean {
+  return url.hostname === "buy.stripe.com" && url.pathname.startsWith("/test_");
+}
+
+/**
+ * The owner's Payment Link, read per request so a new link needs no rebuild; null unless it is https. On the
+ * production site a test-mode link counts as no link: a real buyer would land on Stripe's test page and be declined,
+ * so the shop says "purchases open soon" and checkout 503s until a live link is set. STRIPE_ALLOW_TEST_LINK=1 lifts
+ * that for a test-mode proof run against production (npm run payment:live).
+ */
 export function paymentLinkFromEnv(env: Env = process.env): URL | null {
   const raw = (env.STRIPE_PAYMENT_LINK || env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK || "").trim();
   if (!raw) return null;
   try {
     const url = new URL(raw);
-    return url.protocol === "https:" ? url : null;
+    if (url.protocol !== "https:") return null;
+    if (env.VERCEL_ENV === "production" && isTestModeLink(url) && env.STRIPE_ALLOW_TEST_LINK !== "1") return null;
+    return url;
   } catch {
     return null;
   }
