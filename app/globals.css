@@ -2830,11 +2830,16 @@ button.link-button.danger {
 /* How much they talk (lib/talk.ts): a label over its select, the explanation under it. */
 .owner-talk {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
   margin: var(--space-3) 0 0;
 }
 .owner-talk label {
   font-weight: 600;
+}
+.owner-talk select {
+  width: 100%;
+  max-width: 100%;
 }
 .owner-talk p {
   margin: 0;
