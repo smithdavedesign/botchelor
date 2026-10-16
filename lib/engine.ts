@@ -68,8 +68,12 @@ export type SideSetup = {
   gameBudget: GameBudget;
 };
 
-/** What the pair remembers (PRD "a persistent relationship universe"); absent on a first date. */
-export type DateHistory = { dates: number; last_ending: Ending | null };
+/**
+ * What the pair remembers (PRD "a persistent relationship universe"); absent on a first date. `chemistry` and `trust`
+ * are the running relationship state across their dates (lib/relationships.ts, 0..100), present on dates built since
+ * the relationship graph: with them, the night starts where they left off instead of from the last ending alone.
+ */
+export type DateHistory = { dates: number; last_ending: Ending | null; chemistry?: number; trust?: number };
 
 export type DateInput = { a: SideSetup; b: SideSetup; history?: DateHistory };
 
@@ -247,6 +251,8 @@ function neutralScore(strategy: Strategy): number {
 }
 
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+/** n held within ±limit. */
+const bounded = (n: number, limit: number) => Math.max(-limit, Math.min(limit, n));
 const avg = (x: number, y: number) => (x + y) / 2;
 
 type SideRead = {
@@ -318,9 +324,15 @@ export const deterministicEngine: Engine = {
 
     // Familiarity: repeat dates build trust and ease awkwardness; a past disaster casts a shadow, a
     // past second date glows. First dates have no history and so no effect.
-    const hist = input.history ?? { dates: 0, last_ending: null };
+    const hist: DateHistory = input.history ?? { dates: 0, last_ending: null };
     const familiarity = Math.min(hist.dates, 4);
-    const histChem = hist.last_ending === "disaster" ? -8 : hist.last_ending === "second_date" ? 6 : 0;
+    // With the running relationship state (lib/relationships.ts), the warmth they've built carries in, bounded to
+    // the same ±8 the last-ending rule moves; dates decided before it (no chemistry) replay exactly as they did.
+    const histChem =
+      hist.chemistry !== undefined
+        ? bounded(Math.round((hist.chemistry - 50) * 0.2), 8)
+        : hist.last_ending === "disaster" ? -8 : hist.last_ending === "second_date" ? 6 : 0;
+    const histTrust = hist.trust !== undefined ? bounded(Math.round((hist.trust - 50) * 0.12), 6) : 0;
 
     const chemistry = clamp(
       START.chemistry + 6 * traitResonance + 12 * humor + 9 * warmth + budget + strategyChem +
@@ -331,7 +343,7 @@ export const deterministicEngine: Engine = {
     );
     const trust = clamp(
       START.trust + 13 * warmth - 15 * guarded + strategyTrust + 3 * noteBump - 10 * dealbreakers +
-        4 * familiarity + jitter(input.a.autonomy),
+        4 * familiarity + histTrust + jitter(input.a.autonomy),
     );
     const awkwardness = clamp(
       START.awkwardness + 15 * dealbreakers + 12 * guarded + 7 * clashes - 11 * humor - 4 * noteBump -

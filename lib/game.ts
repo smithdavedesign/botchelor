@@ -1,4 +1,4 @@
-import type { CharacterSheet, EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
+import type { CharacterSheet, DateHistory, EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
 import { approvedClipId, approvedClipIsVideo, approvedPortraitId, portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import type { CharacterExtras } from "./extras";
@@ -92,6 +92,15 @@ export type DateSetup = {
    * re-decide use the same version, so a date always reproduces. Absent on dates decided before versioning: v1.
    */
   engine_version?: EngineVersion;
+  /**
+   * The pair's history exactly as the engine read it (lib/relationships.ts engineHistory), so a replay or the
+   * async worker re-decides on the same relationship even after the pair has dated again since. Absent on dates
+   * built before the snapshot (and on first dates).
+   */
+  history?: DateHistory;
+  /** A second date: the date whose morning-after plan this is, and the plan itself (their texts). Flavour only. */
+  followup_of?: string;
+  plan?: string[];
 };
 
 export type BoxScore = Record<DateVariable, VariableArc>;

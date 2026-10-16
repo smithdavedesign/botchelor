@@ -5,6 +5,7 @@
  * reports_reviewed, so the visibility queries that count `reports` never need to know review exists.
  */
 import type { Db } from "./db";
+import { refreshEpisodePair } from "./relationships";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
 
 export const REVIEW_DECISIONS = ["cleared", "removed"] as const;
@@ -101,6 +102,8 @@ export async function reviewReports(db: Db, episodeId: string, decision: ReviewD
   if (rows.length && decision === "removed") {
     await db.query("update episodes set visibility = 'private' where id = $1", [episodeId]);
   }
+  // Cleared or removed, the date's place in the relationship graph's public layer may have changed.
+  if (rows.length) await refreshEpisodePair(db, episodeId).catch(() => {});
   return rows.length;
 }
 

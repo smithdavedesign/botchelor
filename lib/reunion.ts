@@ -9,6 +9,7 @@
 import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { relationshipStage } from "./mechanics";
+import { healRelationships, STAGE_LABELS, type Stage } from "./relationships";
 import { topRatedCharacters } from "./ratings";
 import type { Ending } from "./rules";
 
@@ -34,7 +35,7 @@ export type Reunion = {
 type CoupleRow = {
   a_id: string; a_name: string; a_house: boolean; a_hue: number | null; a_portrait: string | null;
   b_id: string; b_name: string; b_house: boolean; b_hue: number | null; b_portrait: string | null;
-  dates: number; second_dates: number; last_ending: Ending | null;
+  dates: number; second_dates: number; last_ending: Ending | null; public_stage: Stage | null;
 };
 const charA = (r: CoupleRow): ReunionChar => ({ id: r.a_id, name: r.a_name, house: r.a_house, hue: r.a_hue, portrait: r.a_portrait });
 const charB = (r: CoupleRow): ReunionChar => ({ id: r.b_id, name: r.b_name, house: r.b_house, hue: r.b_hue, portrait: r.b_portrait });
@@ -42,15 +43,19 @@ const charB = (r: CoupleRow): ReunionChar => ({ id: r.b_id, name: r.b_name, hous
 const COUPLE_SELECT = `
   select ca.id a_id, ca.name a_name, ca.is_house a_house, ca.avatar_hue a_hue, ${portraitPathSql("ca")} a_portrait,
          cb.id b_id, cb.name b_name, cb.is_house b_house, cb.avatar_hue b_hue, ${portraitPathSql("cb")} b_portrait,
-         r.dates, r.second_dates, r.last_ending
+         r.public_dates as dates, r.public_second_dates as second_dates, r.public_last_ending as last_ending, r.public_stage
     from relationships r
     join characters ca on ca.id = r.character_a
     join characters cb on cb.id = r.character_b`;
 
-/** The standout pairings: the ones that dated most and got the most second dates. */
+/**
+ * The standout pairings: the ones that dated most and got the most second dates — on the public record only (the
+ * relationship graph's public layer), so a private date or an ending that hasn't aired never makes the special.
+ */
 async function topCouples(db: Db, limit: number): Promise<ReunionCouple[]> {
+  await healRelationships(db);
   const { rows } = await db.query<CoupleRow>(
-    `${COUPLE_SELECT} order by r.second_dates desc, r.dates desc, r.updated_at desc limit $1`,
+    `${COUPLE_SELECT} where r.public_dates > 0 order by r.public_second_dates desc, r.public_dates desc, r.public_last_at desc nulls last limit $1`,
     [limit],
   );
   return rows.map((r) => ({
@@ -59,7 +64,7 @@ async function topCouples(db: Db, limit: number): Promise<ReunionCouple[]> {
     dates: r.dates,
     second_dates: r.second_dates,
     last_ending: r.last_ending,
-    stage: relationshipStage(r.dates, r.second_dates, r.last_ending),
+    stage: r.public_stage ? STAGE_LABELS[r.public_stage] : relationshipStage(r.dates, r.second_dates, r.last_ending),
   }));
 }
 
@@ -160,8 +165,8 @@ async function awards(db: Db): Promise<ReunionAward[]> {
 
 async function reunionStats(db: Db): Promise<ReunionStats> {
   const { rows } = await db.query<ReunionStats>(
-    `select (select count(*)::int from relationships) as couples,
-            (select coalesce(sum(second_dates), 0)::int from relationships) as second_dates,
+    `select (select count(*)::int from relationships where public_dates > 0) as couples,
+            (select coalesce(sum(public_second_dates), 0)::int from relationships) as second_dates,
             (select count(*)::int from episodes where revealed_at is not null and status = 'ready' and visibility = 'public') as aired`,
   );
   return rows[0] ?? { couples: 0, second_dates: 0, aired: 0 };

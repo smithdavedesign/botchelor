@@ -101,7 +101,7 @@ Stay plain and specific:
 - "voice_examples" (if present) are lines you'd say: match their rhythm, length and word choice, but never repeat one word for word. Never say anything in "never_say".
 - "your_tell_right_now" (if present) is a habit of yours that fits how you feel in this act. Let it slip out once or twice this act — in what you do or how you say something — and never explain it.
 
-You're strangers — unless "you_have_met_them_before" says otherwise. You only know what you can see ("them.what_you_can_see"), what they've said tonight, and (if you've met before) what you remember from last time. Never bring up facts about them they haven't told you, and don't sum them up with labels. Talk to them as "you"; use their name now and then, not every line; in the third person use their pronouns. Don't reuse your own openings, catchphrases or gestures from earlier.
+You're strangers — unless "you_have_met_them_before" or "your_relationship_with_them" says otherwise. You only know what you can see ("them.what_you_can_see"), what they've said tonight, and (if you've met before) what you remember from last time. Never bring up facts about them they haven't told you, and don't sum them up with labels. Talk to them as "you"; use their name now and then, not every line; in the third person use their pronouns. Don't reuse your own openings, catchphrases or gestures from earlier.
 
 Never contradict how the date is going (act.what_happens and your_intention say): a second date has real interest and a plan; "just friends" stays warm and easy with nothing romantic, and nobody announces "just friends"; a disaster is a clear no. Nobody leaves on a sudden excuse (a bus, a class, a shift): an exit follows from how the date went.
 
@@ -110,6 +110,7 @@ Your private notes — soul, memory, secret agenda, the owner's note and "your_i
 - "what_you_want_in_someone" is what you're privately hoping to find in a partner tonight. Let it steer what you ask them and what you notice — never say it outright.
 - "what_your_past_dates_taught_you" (if present) is your own reflections from earlier dates. Let them quietly shape how you act and what you're looking for tonight; you may carry a resolution from one into how you behave, but don't recite them or narrate your past dates.
 - "you_have_met_them_before" (if present): you're not strangers. You remember last time — where you stand, how it ended, something that was said. Pick up from there: a callback is welcome, and how you left it colours tonight. Don't recap the whole history.
+- "your_relationship_with_them" (if present) is what you two have built: where you stand now, what they've told you about themselves (you know it, so never ask it again; you can build on it), your inside jokes (bring one back if it fits, don't force it), and, when it's there, "tonight_is_the_plan_you_made": tonight IS that plan, so do it, and let it show you both remembered.
 - "your_recent_dates" and "whats_new_this_week" are your own life: things you might bring up (or not), in your own words.
 - "act.what_happens" is what happens around you in this act; play inside it.
 - "the_show_format" colours how you speak; it never changes who likes whom or how it ends.
@@ -163,6 +164,10 @@ export function buildTurnMessages(
   const names: [string, string] = [characters[0].name, characters[1].name];
   const tell = currentTell(meChar, outcome, sideIndex, act);
   const history = metBefore(meChar.memory, themChar.id);
+  // The relationship graph's view (lib/relationships.ts): it also knows a date that hasn't aired yet, like the first
+  // date of a second date booked the morning after.
+  const together = meChar.pair ?? null;
+  const tonightsPlan = Boolean(together && "tonight_is_the_plan_you_made" in together);
   const lately = recentDates(meChar.memory, themChar.id);
   const data = {
     you: characterSelfView(meChar, dateContext(me)),
@@ -173,6 +178,7 @@ export function buildTurnMessages(
     what_you_want_in_someone: meChar.persona.want,
     ...(meChar.memory?.reflections?.length ? { what_your_past_dates_taught_you: meChar.memory.reflections } : {}),
     ...(history ? { you_have_met_them_before: history } : {}),
+    ...(together ? { your_relationship_with_them: together } : {}),
     ...(lately.length ? { your_recent_dates: lately } : {}),
     your_intention: side === "a" ? beat.a : beat.b,
     ...(tell ? { your_tell_right_now: tell } : {}),
@@ -180,9 +186,11 @@ export function buildTurnMessages(
     conversation_so_far: transcript.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue, ...(t.action ? { did: t.action } : {}) })),
     ...(transcript.length === 0
       ? {
-          note: history
-            ? "This is the first line of tonight's date. You've met before: greet them like someone you remember, not a stranger."
-            : "This is the first line of the date: you've just met.",
+          note: tonightsPlan
+            ? "This is the first line of tonight's date: the plan the two of you made in your texts. Greet them like someone you're glad to see again, and let it show you kept the plan."
+            : history || together
+              ? "This is the first line of tonight's date. You've met before: greet them like someone you remember, not a stranger."
+              : "This is the first line of the date: you've just met.",
         }
       : {}),
   };
@@ -246,7 +254,8 @@ export function critiqueTurn(
   ];
   // A rematch: what was said last time is something both of them heard, so bringing it up isn't profile reading.
   const [a, b] = characters;
-  const shared = `${venue(venueId).prompt} ${sharedHistory(a.memory, b.id)} ${sharedHistory(b.memory, a.id)}`;
+  // So is what the relationship graph says they've told each other, their inside jokes and their plans.
+  const shared = `${venue(venueId).prompt} ${sharedHistory(a.memory, b.id)} ${sharedHistory(b.memory, a.id)} ${a.pairShared ?? ""}`;
   const issues = lineIssues(before, turn, characters, { shared, secrets });
   const notes: string[] = [];
   if (issues.profile_reading) notes.push(`you brought up something about ${them.name} they haven't told you — you only know what you can see and what they've said tonight`);

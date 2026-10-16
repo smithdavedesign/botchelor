@@ -164,7 +164,7 @@ export async function startOwnDate(
     sheet: { name: c.name, age: c.age, bio: c.bio, traits: c.traits, want: c.want, dealbreaker: c.dealbreaker, house: false, appearance: c.appearance ?? undefined, pronouns: c.pronouns ?? undefined, voice: c.voice ?? undefined },
   });
   const request: DateRequest = { autonomy: DEFAULT_AUTONOMY, strategy: DEFAULT_STRATEGY, gameBudget: DEFAULT_GAME_BUDGET, agendaId: null, note: null, format: formatId };
-  const built = await buildDate(db, episodeId, toDate(a), toDate(b), request);
+  const built = await buildDate(db, episodeId, toDate(a), toDate(b), request, undefined, undefined, { creatorId: userId });
   const decided = getEngine().decide(built.input, built.seed, built.setup.engine_version);
 
   await db.query(
@@ -223,7 +223,10 @@ async function rebuild(db: Db, row: Row) {
   };
   const forDate = (p: "a" | "b"): CharacterForDate => ({ id: row[`${p}_id`], sheet: row.setup?.[`sheet_${p}`] ?? sheet(row, p) });
   const signals = row.setup?.signals_a && row.setup?.signals_b ? { a: row.setup.signals_a, b: row.setup.signals_b } : undefined;
-  const built = await buildDate(db, row.id, forDate("a"), forDate("b"), request, row.seed === null ? undefined : Number(row.seed), signals);
+  const built = await buildDate(db, row.id, forDate("a"), forDate("b"), request, row.seed === null ? undefined : Number(row.seed), signals, {
+    creatorId: row.creator_id,
+    historyOverride: row.setup?.history ?? null,
+  });
   const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
   return { built, decided, formatId };
 }
@@ -354,7 +357,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       [episodeId, draft.setting, JSON.stringify(draft.goals), JSON.stringify(draft.scenes), draft.twist, draft.finale, draft.best_line, JSON.stringify(draft.confessionals), transcript.length, PROMPT_VERSION],
     );
     if (saved.rows.length) {
-      await rememberDate(db, row.a_id, row.b_id, decided.ending).catch(() => {});
+      await rememberDate(db, row.a_id, row.b_id).catch(() => {});
       if (transcript.length) {
         trackDateQuality(episodeId, "agent", null, transcriptQuality(transcript, built.characters, qualityContext(built, draft.setting)));
       }

@@ -57,6 +57,13 @@ export type Character = {
   extras: CharacterExtras;
   /** What's new in their life this week (lib/life.ts), or null. Public; dialogue flavour only. */
   thisWeek: string | null;
+  /**
+   * Set only on a date's characters (lib/simulation.ts): this side's view of its relationship with the person it's
+   * meeting (lib/relationships.ts pairContext): where they stand, what the other has told it, their inside jokes,
+   * tonight's plan. Server-only, like memory. `pairShared` is the words both already know (never "profile reading").
+   */
+  pair?: Record<string, unknown> | null;
+  pairShared?: string;
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));

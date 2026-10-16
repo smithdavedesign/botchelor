@@ -8,6 +8,7 @@ import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { DELETED_OWNER, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, type Ending } from "./rules";
 import { seasonCastIds } from "./season-cast";
+import { healRelationships, STAGE_LABELS, type Stage } from "./relationships";
 
 export const DEALBREAKER_OPTIONS = 4;
 
@@ -170,6 +171,8 @@ export async function listCast(db: Db, limit = 40): Promise<CastMember[]> {
 }
 
 export type RelationshipEdge = {
+  a_id: string;
+  b_id: string;
   a: string;
   b: string;
   dates: number;
@@ -189,17 +192,26 @@ export function relationshipStage(dates: number, secondDates: number, lastEnding
   return "acquaintances";
 }
 
-/** The relationship graph (PRD "the relationship graph"): one edge per pair that has dated, by name. */
+/**
+ * The relationship graph (PRD "the relationship graph"): one edge per pair whose dates have aired publicly, by name,
+ * from the graph's public layer (lib/relationships.ts) — never a private date, never an ending before it airs.
+ */
 export async function listRelationshipEdges(db: Db, limit = 40): Promise<RelationshipEdge[]> {
-  const { rows } = await db.query<Omit<RelationshipEdge, "stage">>(
-    `select ca.name as a, cb.name as b, r.dates, r.second_dates, r.last_ending
+  await healRelationships(db);
+  const { rows } = await db.query<Omit<RelationshipEdge, "stage"> & { public_stage: Stage | null }>(
+    `select r.character_a as a_id, r.character_b as b_id, ca.name as a, cb.name as b, r.public_dates as dates,
+            r.public_second_dates as second_dates, r.public_last_ending as last_ending, r.public_stage
        from relationships r
        join characters ca on ca.id = r.character_a
        join characters cb on cb.id = r.character_b
-      order by r.updated_at desc limit $1`,
+      where r.public_dates > 0
+      order by r.public_last_at desc nulls last limit $1`,
     [limit],
   );
-  return rows.map((r) => ({ ...r, stage: relationshipStage(r.dates, r.second_dates, r.last_ending) }));
+  return rows.map(({ public_stage, ...r }) => ({
+    ...r,
+    stage: public_stage ? STAGE_LABELS[public_stage] : relationshipStage(r.dates, r.second_dates, r.last_ending),
+  }));
 }
 
 export { POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER };
