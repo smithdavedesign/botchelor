@@ -49,6 +49,8 @@ export type AccountExport = {
   arc_predictions: Record<string, unknown>[];
   notifications: Record<string, unknown>[];
   push_subscriptions: Record<string, unknown>[];
+  /** Email notifications: the address, whether it's on, and how many emails were sent (lib/email.ts). */
+  email: Record<string, unknown>[];
 };
 
 /** Everything stored under this user id, as JSON. Owner-only (the route checks the cookie is the user). */
@@ -113,6 +115,11 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
     arc_predictions: await q("select character_lo, character_hi, target, pick, created_at, resolved_at, outcome from arc_predictions where user_id = $1", [userId]),
     notifications: await q("select kind, title, body, link, created_at, read_at from notifications where user_id = $1 order by created_at", [userId]),
     push_subscriptions: await q("select split_part(endpoint, '/', 3) as push_service, created_at from push_subscriptions where user_id = $1", [userId]),
+    email: await q(
+      `select p.email, p.status, p.confirmed_at, p.last_digest_at, (select count(*)::int from email_sends s where s.user_id = p.user_id) as emails_sent
+         from email_prefs p where p.user_id = $1`,
+      [userId],
+    ),
   };
 }
 
@@ -228,6 +235,8 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from watch_presence where user_id = $1", [userId]);
   await run("delete from notifications where user_id = $1", [userId]);
   await run("delete from push_subscriptions where user_id = $1", [userId]);
+  await run("delete from email_prefs where user_id = $1", [userId]);
+  await run("delete from email_sends where user_id = $1", [userId]);
   await run("delete from couple_follows where user_id = $1", [userId]);
   await run("delete from arc_predictions where user_id = $1", [userId]);
   await run("delete from nudges where user_id = $1", [userId]);

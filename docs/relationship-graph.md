@@ -122,8 +122,18 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
 
   **Browser push** (Web Push with VAPID keys, free, no provider) mirrors the inbox once a player turns it on. The
   keys are `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (keychain: `vault/botchelor/*`). Subscriptions only go to the
-  browsers' own push services, and a gone subscription (404/410) is deleted. **No email:** accounts don't collect
-  one, and sending mail needs a provider the owner hasn't chosen.
+  browsers' own push services, and a gone subscription (404/410) is deleted.
+
+  **Email** (`lib/email.ts`, Resend from the Vercel Marketplace on its free plan: $0, no card, 100 a day):
+  - **Opt-in only, and confirmed.** It's on the account page for signed-in players. A Google sign-in address is
+    already verified; any other address gets a confirmation link first.
+  - **Few emails.** Only what's waiting on them goes at once (a second-date yes, a second date booked), at most 3 a
+    day per person. Everything else waits for one daily digest. A notification is never emailed twice.
+  - **One click out.** Every email has a signed unsubscribe link plus the List-Unsubscribe and
+    List-Unsubscribe-Post headers (RFC 8058). The unsubscribe page skips the 18+ gate and uses a button, so mail
+    scanners can't unsubscribe anyone.
+  - **Capped and switchable.** `EMAIL_DAILY_CAP` (80) applies show-wide. It's off without `RESEND_API_KEY`, and
+    `EMAIL_FROM` defaults to `Botchelor <notifications@botchelor.com>`.
 
 ## Spectators: following couples and calling their arcs (`lib/follows.ts`, `lib/arcs.ts`)
 

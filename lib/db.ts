@@ -508,6 +508,26 @@ create table if not exists push_subscriptions (
   created_at timestamptz not null default now()
 );
 create index if not exists push_subscriptions_user on push_subscriptions (user_id);
+-- Email notifications (lib/email.ts): opt-in only and confirmed ('pending' until the link is clicked), and a log of
+-- what was sent (for the per-person and show-wide daily caps).
+create table if not exists email_prefs (
+  user_id text primary key,
+  email text not null,
+  status text not null check (status in ('pending', 'on', 'off')),
+  confirmed_at timestamptz,
+  last_digest_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create table if not exists email_sends (
+  id text primary key,
+  user_id text not null,
+  kind text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists email_sends_recent on email_sends (created_at);
+-- When a notification went out by email (at once, or in a digest), so no email ever repeats it.
+alter table notifications add column if not exists emailed_at timestamptz;
 -- Spectators follow couples (lib/follows.ts): they hear when the couple goes on another public date or moves up.
 create table if not exists couple_follows (
   user_id text not null,

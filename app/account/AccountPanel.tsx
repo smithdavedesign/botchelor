@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { requestJson } from "../request";
+import EmailNotifications from "./EmailNotifications";
 
 type Account = { handle: string | null; has_password: boolean; has_google: boolean };
 type Me = {
@@ -35,7 +36,7 @@ type EpisodeCard = {
  * dates follow you across devices, private dates, a key you bring). Signing out returns to anonymous play.
  * Your characters and dates show either way — they belong to this browser's session.
  */
-export default function AccountPanel({ next = null }: { next?: string | null }) {
+export default function AccountPanel({ next = null, emailConfirmed = null }: { next?: string | null; emailConfirmed?: "confirmed" | "invalid" | null }) {
   const [me, setMe] = useState<Me | null>(null);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [episodes, setEpisodes] = useState<EpisodeCard[]>([]);
@@ -232,6 +233,7 @@ export default function AccountPanel({ next = null }: { next?: string | null }) 
   return (
     <>
       {authCard}
+      {me.authenticated && <EmailNotifications confirmed={emailConfirmed} />}
 
       <section className="card">
         <h2>Your characters</h2>

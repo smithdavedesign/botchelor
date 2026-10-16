@@ -28,6 +28,9 @@ export default async function NotificationsPage() {
         Texts between your characters and the people they&apos;re seeing, second dates, and couples moving up a stage.
       </p>
       {push && <PushToggle publicKey={push.publicKey} />}
+      <p className="muted small">
+        Rather hear by email? Turn it on in your <Link href="/account">account</Link>.
+      </p>
       <section className="card">
         {items.length === 0 ? (
           <p className="muted">

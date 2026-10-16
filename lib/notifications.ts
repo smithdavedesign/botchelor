@@ -1,12 +1,13 @@
 /**
  * Notifications: what happened between dates that a player would come back for ("Ira texted Mira", "Cass asked
  * Ira out again", "Mira and Rafe are now dating"). Every one lands in the in-app inbox (/notifications, the bell in
- * the nav), and in the browser too when the player turned on push (lib/push.ts). No email: accounts don't collect
- * one, and sending mail needs a provider the owner hasn't chosen.
+ * the nav), in the browser too when the player turned on push (lib/push.ts), and by email when they opted in
+ * (lib/email.ts: at once for what's waiting on them, the rest in a daily digest).
  *
  * Best effort and never in the way: a notification that can't be stored or pushed never fails the thing it's about.
  */
 import type { Db } from "./db";
+import { emailNow } from "./email";
 import { pushToUser } from "./push";
 
 export type NotificationKind =
@@ -35,8 +36,9 @@ export async function notify(
 ): Promise<void> {
   if (!userId || userId === "deleted") return;
   try {
+    const id = crypto.randomUUID();
     await db.query(`insert into notifications (id, user_id, kind, title, body, link) values ($1, $2, $3, $4, $5, $6)`, [
-      crypto.randomUUID(),
+      id,
       userId,
       n.kind,
       n.title.slice(0, 140),
@@ -44,6 +46,8 @@ export async function notify(
       n.link ?? null,
     ]);
     await pushToUser(db, userId, { title: n.title, body: n.body ?? "", url: n.link ?? "/notifications" });
+    // Email only for what's waiting on them, if they turned it on (lib/email.ts); the rest is in the daily digest.
+    await emailNow(db, userId, { ...n, id }).catch(() => false);
   } catch (err) {
     console.error("[notify] could not notify:", err instanceof Error ? err.message : "unknown");
   }
