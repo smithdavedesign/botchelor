@@ -9,6 +9,7 @@
     "start": "next start",
     "test": "vitest run",
     "e2e": "node scripts/e2e.mjs",
+    "e2e:visual": "node scripts/visual.mjs",
     "seed": "node scripts/seed.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "portraits": "node scripts/portraits.mjs",

@@ -27,6 +27,11 @@ export default function AgentsPanel() {
     } catch {
       /* private mode */
     }
+    // No saved password: say so instead of sending a request that can only 403.
+    if (!key) {
+      setError("Not signed in.");
+      return;
+    }
     try {
       const res = await fetch("/api/admin/agents", { headers: { "x-frontier-key": key } });
       const body = await res.json();

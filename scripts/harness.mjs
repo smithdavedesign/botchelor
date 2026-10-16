@@ -150,6 +150,9 @@ export function appEnv(showrunnerPort, dataDir) {
     SESSION_SECRET: ["e2e", "session", "secret", randomBytes(16).toString("hex")].join("-"),
     // Generate episodes inline so the demo/e2e don't race the async after() worker.
     BOTCHELOR_INLINE_GENERATION: "1",
+    // The whole house roster on this season's show (lib/season-cast.ts deals 4 a week), so the seeded season
+    // can date the house characters it names whatever week the script runs.
+    BOTCHELOR_SEASON_CAST_SIZE: "99",
     NEXT_TELEMETRY_DISABLED: "1",
   };
 }
