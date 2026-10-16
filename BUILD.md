@@ -65,7 +65,7 @@ This plan applies gstack plan-eng-review's Step 0, 1. Architecture and 3. Test r
    - **Re-fetching the session from Stripe.** That needs the API key the owner removed. The signed event is trusted as delivered.
    - **Pinning the Payment Link id (`plink_…`).** We know the link's URL, not its id; see "Review".
    - **Refund webhooks, accounts, emails and promo codes.**
-   - **Live mode:** Vercel Hobby forbids commercial use, so the link stays in test mode until David picks a host.
+   - **Live mode:** first blocked by Vercel Hobby's no-commercial-use rule. The team is on Vercel Pro (2026-10-13), so it now waits only on a live Payment Link (see "Deploy").
 3. **Complexity check: it doesn't trigger.**
    - New files: 3 small route-convention files (`robots.ts`, `sitemap.ts`, `opengraph-image.tsx`), 2 thin pages (`/terms`, `/privacy`) and 1 sections component.
    - Edited: about 10 files.
@@ -752,7 +752,7 @@ There is no `STRIPE_SECRET_KEY`. The app holds no Stripe API key, and `tests/rou
 
 ### Deploy on a free tier
 
-1. **Vercel Hobby + Neon free + Stripe test mode** (the current target, $0):
+1. **Vercel Pro + Neon free + Stripe test mode** (current, 2026-10-16). Payments run on a dedicated Stripe account (product "Botchelor: 5 more dates", $4 one-time); while its Payment Link is a test-mode one, production shows "Purchases open soon" (`lib/stripe.ts`; `STRIPE_ALLOW_TEST_LINK=1` only for a test run such as `npm run e2e:live`):
    - The Vercel project `botchelor` has `DATABASE_URL`, `GOOGLE_API_KEY`, `STRIPE_PAYMENT_LINK`, `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, `STRIPE_PRICE_LABEL`, `STRIPE_WEBHOOK_SECRET` and `CONTACT_EMAIL` from the credential broker.
    - Vercel auto-detects Next.js, so no `vercel.json` is needed.
    - The schema is applied on the first request, under an advisory lock. There is no migration step, and M4 adds no schema change.
@@ -761,9 +761,10 @@ There is no `STRIPE_SECRET_KEY`. The app holds no Stripe API key, and `tests/rou
      - Under "After payment", redirect to `https://botchelor.com/shop?checkout=success` (the canonical domain since 2026-10-16: the buyer's session cookie lives there).
    - **The webhook endpoint:** `https://botchelor.vercel.app/api/webhooks/stripe` (still served; never point it at a URL that redirects, since Stripe doesn't follow redirects), with the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`.
    - `/terms`, `/privacy` and `/legal` are rendered per request, so `CONTACT_EMAIL` shows once set. `robots.txt` and `sitemap.xml` are built with the production URL.
-2. **Taking real money** (live mode) needs a host that allows commercial use. **Vercel Hobby does not.**
-   - **Netlify's free plan does, at $0.** Connect the same repo; Netlify auto-detects Next.js. Set the same env vars, swap in a live Payment Link and its live webhook secret, and point the webhook and the link's redirect at the Netlify URL.
-   - The alternative is Vercel Pro, which is paid and needs David's approval.
+2. **Taking real money** (live mode). The host already allows it (Vercel Pro), so what's left is Stripe's side:
+   - David activates the Stripe account for live mode, updates its public details (website `https://botchelor.com`, statement descriptor `BOTCHELOR`), and stores a live **restricted** key (Products, Prices, Payment Links and Webhook Endpoints, write) with `~/ai-stack/bin/provision token stripe-live`.
+   - Then `provision stripe botchelor 4 --live --success-path "/shop?checkout=success" --webhook /api/webhooks/stripe --label "Buy 5 more dates for $4"` makes the live product, price, link and webhook, puts the link and webhook secret in Vercel and redeploys. A live link isn't hidden, so Buy appears.
+   - (Superseded: the Netlify free plan was the $0 alternative while the team was on Hobby.)
    - The code is host-agnostic: only `lib/db.ts` checks `VERCEL`, to refuse a throwaway local database there.
    - Off Vercel, `VERCEL_PROJECT_PRODUCTION_URL` isn't set. Set it by hand to the public host name, or robots.txt, the sitemap and og:image say localhost.
    - This is requested in `.provision`, as is a counsel review of the terms.

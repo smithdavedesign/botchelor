@@ -27,6 +27,8 @@ export const metadata: Metadata = {
   title: "Botchelor: a blind-date show for original characters",
   description: DESCRIPTION,
   applicationName: "Botchelor",
+  // The tab icon lives in public/ (also the JSON-LD logo at /icon.svg), so it's declared here: only app/icon.* is automatic.
+  icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }] },
   keywords: [
     "AI dating show",
     "original characters",

@@ -452,6 +452,12 @@ From the 2026-10-16 launch review: what a public launch needs beyond features.
 - **Report review (shipped).** `/admin` → Reports: put an episode back or take it down (private); nothing deleted.
 - **Monitoring (shipped).** `GET /api/health` (public liveness; open reports, stuck dates and paid usage for the
   monitor), polled by RepoHQ's collector with Slack alerts in #team-agents.
+- **Go live (shipped, 2026-10-16).** botchelor.com is the canonical domain; the owner's browsers are left out of the
+  funnel (`?repohq-notrack=1`); a Stripe test-mode link reads as "Purchases open soon" on production (#111); the MCP
+  Registry lists the server (`io.github.smithdavedesign/botchelor`, published by GitHub OIDC); a dedicated Stripe
+  account is set up in test mode; the database is dumped nightly (ai-stack `bin/db-backup`).
+- **Live end-to-end check (shipped, #113).** `npm run e2e:live` passed 9/9 on botchelor.com. It found that a deleted
+  creator's kept characters stayed in the cast, open to dates and in blind matching; fixed in the same PR.
 
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 

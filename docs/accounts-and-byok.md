@@ -169,15 +169,16 @@ Lite** through the Gemini API (`lib/video.ts`), on the player's own Google key.
 
 ## Turning on Google sign-in (owner action, ~5 minutes)
 
-The whole flow is built and tested; it only needs an OAuth client, which has to be created under your Google
-account (it's an app identity tied to your login — an agent can't mint it). `OAUTH_REDIRECT_BASE` is already
-pinned on production, so the callback will match.
+**Live (2026-10-16):** the OAuth client is published, `OAUTH_REDIRECT_BASE` is `https://botchelor.com`, and David
+signed in with Google on botchelor.com. The steps below are how to recreate the client; it has to be made under your
+Google account (an app identity tied to your login, which an agent can't mint).
 
 1. Google Cloud Console → **APIs & Services → OAuth consent screen**: External, add an app name and your
    support email, scopes `openid` and `email`. (A "Testing" app works for yourself; "Publish" for everyone.)
 2. **APIs & Services → Credentials → Create credentials → OAuth client ID**, type **Web application**.
-   Authorised redirect URI (exact): `https://botchelor.com/api/auth/google/callback`. Keep the old
-   `https://botchelor.vercel.app/api/auth/google/callback` too while `OAUTH_REDIRECT_BASE` moves over.
+   Authorised redirect URIs (exact): `https://botchelor.com/api/auth/google/callback`, and the old
+   `https://botchelor.vercel.app/api/auth/google/callback` (sign-in started on the old host hops to botchelor.com
+   first, so the callback lands on the host that holds the state cookie).
 3. Copy the **Client ID** and **Client secret**, then on Vercel production:
    ```bash
    printf '%s' "<client-id>"     | vercel env add GOOGLE_OAUTH_CLIENT_ID production --scope david-smiths-projects-fe129786

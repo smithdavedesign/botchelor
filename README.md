@@ -57,7 +57,7 @@ The same page on a phone.
 
 ## Payment, tested live
 
-`npm run payment:live` runs a purchase on https://botchelor.vercel.app with Stripe in test mode (2026-10-13): a fresh browser opens the shop, ticks the 18+ box, clicks Buy, pays $4 on Stripe's checkout with the test card 4242 4242 4242 4242, comes back to the shop, and the signed webhook adds the 5 pack dates. It passes at desktop and phone size.
+Purchases run on a dedicated Stripe account, in **test mode until live mode is switched on**: while the link is a test-mode one, the production shop says "Purchases open soon" instead of sending real buyers to a checkout that declines their card (`lib/stripe.ts`), and Buy appears as soon as a live Payment Link is set. `npm run e2e:live` (2026-10-16, https://botchelor.com, with `STRIPE_ALLOW_TEST_LINK=1` for the run) pays $4 on Stripe's checkout with the test card 4242 4242 4242 4242, comes back to the shop, and the signed webhook adds the 5 pack dates. The first proof, `npm run payment:live` on botchelor.vercel.app (2026-10-13), predates the 18+ gate; the screenshots below are from it.
 
 ![The shop with the episode pack and its Buy button](docs/screenshots/payment-desktop-1-shop-buy.png)
 The shop on the live site: the 5-date pack, the 18+ and terms box, and Buy (the Stripe Payment Link with this order attached).
@@ -196,7 +196,9 @@ Beyond the blind-date MVP, Botchelor is a social simulation built on a **determi
 Turning on frontier models, images or video costs money and needs the owner's approval first — see **[docs/upgrade-cost.md](docs/upgrade-cost.md)**.
 
 - [Research](RESEARCH.md) — findings and sources
-- [PRD](PRD.md)
+- PRDs ([docs/PRDs/](docs/PRDs/)): [the original](docs/PRDs/PRD.md), [v1, the commercial spec](docs/PRDs/Botchelor_PRD_v1.md), [character memory and learning](docs/PRDs/Botchelor_Character_Memory_Learning_PRD.md)
+- [Launch readiness](docs/launch-readiness.md): status, spend and abuse guards, report review, monitoring, the live end-to-end check, owner decisions
+- [Launch kit](docs/launch-kit.md): Season 1 post drafts, tagged links, the MCP Registry listing
 - [Roadmap](ROADMAP.md)
 - [Build notes](BUILD.md): plan, how to run, test and deploy, review
 - [Architecture](docs/architecture.md): how it is put together, the episode path, and the invariants
