@@ -9,7 +9,8 @@ review; the money, legal and posting steps that only the owner can do are tracke
 - **Verified:** Google sign-in on the live site (David), Search Console linked for botchelor.com, Bing verified, GA4
   with the consent banner, RepoHQ's funnel beacon (the owner's browsers excluded), the MCP Registry listing, the
   nightly database backup (ai-stack `bin/db-backup`), health alerts to #team-agents, and `npm run e2e:live` 9/9.
-- **Pending:** Stripe live mode (BUILD.md, "Taking real money"). Until then the shop says "Purchases open soon".
+- **Payments are live** on botchelor's own Stripe account (BUILD.md, "Taking real money"). `npm run e2e:live` never pays a live
+  link: it stops at Stripe's page and reports the purchase step as skipped.
 
 ## Owner decisions (2026-10-16)
 
@@ -45,7 +46,7 @@ The AI Gateway is prepaid, so its balance is the hard ceiling. Keep auto top-up 
 Stripe test purchase granted by the webhook, a character and a real private date, a prediction and a rating (undone),
 a password account, the MCP endpoint, the public pages, and a phone pass. It needs Stripe in test mode and, on
 production, `STRIPE_ALLOW_TEST_LINK=1` for the run (remove it after: a test link lets anyone "buy" with the test
-card). The test visitor is deleted at the end; its private date and the kept character remain until cleaned up.
+card). On a live link (the normal state now) the purchase step is skipped, never paid. The test visitor is deleted at the end; its private date and the kept character remain until cleaned up.
 `RESOLVE=<ip>` maps the host when the local DNS cache is stale. Screenshots: `docs/screenshots/live-*.png`.
 
 ## Monitoring (`GET /api/health`)

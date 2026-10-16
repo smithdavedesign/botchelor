@@ -7,8 +7,7 @@ a moderator where it's unclear) before posting. Nothing here should go out under
 
 **Ready to post (2026-10-16):** botchelor.com is live and checked end to end, Search Console and Bing are set, and
 the owner's Mac browsers are excluded from the funnel (open `https://botchelor.com/?repohq-notrack=1` once on a phone
-too). Payments are the one gap: until the Stripe link is a live-mode one the shop says "Purchases open soon", so the
-free show can launch first and Buy appears the moment a live link is set.
+too). Payments are live too (2026-10-16): the $4 pack sells through botchelor's own Stripe account.
 
 ## Links (one per channel, so every analytics tool can tell them apart)
 

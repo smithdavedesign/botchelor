@@ -3,8 +3,8 @@
 // granted by the webhook, a character and a real date (one paid-model date, a few cents), a prediction and a
 // rating (undone), a password account, the agent (MCP) endpoint and the public pages. Desktop, plus a phone pass.
 //
-// Needs Stripe in test mode, and on production STRIPE_ALLOW_TEST_LINK=1 (lib/stripe.ts hides a test-mode link from
-// real buyers there). Analytics requests are blocked so the run doesn't count as traffic, the test date is private,
+// The purchase needs Stripe in test mode, and on production STRIPE_ALLOW_TEST_LINK=1 (lib/stripe.ts hides a test-mode
+// link from real buyers there). On a live link it stops at Stripe's page and never pays: the step is skipped. Analytics requests are blocked so the run doesn't count as traffic, the test date is private,
 // and the test visitor and account are deleted at the end (DELETE /api/me). Screenshots: docs/screenshots/live-*.png.
 // RESOLVE=<ip> maps the site's host (and www.) to that IP: a stale local DNS cache right after a domain change.
 import fs from 'node:fs'
@@ -22,6 +22,7 @@ const CHROME = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.
 const ok = (status) => status >= 200 && status < 300
 
 const results = []
+class Skip extends Error {}
 async function step(name, fn) {
   const t0 = Date.now()
   try {
@@ -29,6 +30,11 @@ async function step(name, fn) {
     results.push({ name, ok: true })
     console.log(`✓ ${name}${detail ? ` — ${detail}` : ''} (${((Date.now() - t0) / 1000).toFixed(1)}s)`)
   } catch (e) {
+    if (e instanceof Skip) {
+      results.push({ name, ok: true, skipped: true })
+      console.log(`○ ${name}: skipped, ${e.message}`)
+      return
+    }
     results.push({ name, ok: false })
     console.log(`✗ ${name}: ${e.message}`)
   }
@@ -121,6 +127,12 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
     must(!(await buy.isDisabled()), 'Buy is disabled (no live link, or STRIPE_ALLOW_TEST_LINK unset on production)')
     await shot('shop')
     await buy.click()
+    await page.waitForURL(/checkout\.stripe\.com|buy\.stripe\.com/, { timeout: 30_000 })
+    // Only ever pay a test-mode checkout: a live one would charge a real card (the test card is declined there anyway).
+    if (!/buy\.stripe\.com\/test_|\/c\/pay\/cs_test_/.test(page.url())) {
+      await shot('stripe-checkout-live')
+      throw new Skip('the shop sells through a live Payment Link, so this run stops at Stripe\'s page')
+    }
     await payOnStripe(page, shot)
     must(page.url().includes('checkout=success'), `came back to ${page.url()}`)
     let after = before
@@ -238,6 +250,7 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
 
   await browser.close()
   const failed = results.filter((r) => !r.ok)
-  console.log(`\n${results.length - failed.length}/${results.length} passed on ${SITE}`)
+  const skipped = results.filter((r) => r.skipped).length
+  console.log(`\n${results.length - failed.length - skipped}/${results.length} passed${skipped ? `, ${skipped} skipped` : ''} on ${SITE}`)
   if (failed.length) process.exit(1)
 })().catch((e) => { console.error('FAILED:', e.message); process.exit(1) })

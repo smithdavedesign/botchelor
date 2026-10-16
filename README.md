@@ -57,7 +57,7 @@ The same page on a phone.
 
 ## Payment, tested live
 
-Purchases run on a dedicated Stripe account, in **test mode until live mode is switched on**: while the link is a test-mode one, the production shop says "Purchases open soon" instead of sending real buyers to a checkout that declines their card (`lib/stripe.ts`), and Buy appears as soon as a live Payment Link is set. `npm run e2e:live` (2026-10-16, https://botchelor.com, with `STRIPE_ALLOW_TEST_LINK=1` for the run) pays $4 on Stripe's checkout with the test card 4242 4242 4242 4242, comes back to the shop, and the signed webhook adds the 5 pack dates. The first proof, `npm run payment:live` on botchelor.vercel.app (2026-10-13), predates the 18+ gate; the screenshots below are from it.
+**Payments are live (2026-10-16)** on botchelor's own Stripe account: the $4 "5 more dates" pack sells through a live Payment Link, and the signed webhook on botchelor.com adds the dates once Stripe reports the payment paid. (Whenever the link is a test-mode one, the production shop says "Purchases open soon" instead, so real buyers never meet a checkout that declines their card: `lib/stripe.ts`.) `npm run e2e:live` (2026-10-16, https://botchelor.com, with `STRIPE_ALLOW_TEST_LINK=1` for the run) pays $4 on Stripe's checkout with the test card 4242 4242 4242 4242, comes back to the shop, and the signed webhook adds the 5 pack dates. The first proof, `npm run payment:live` on botchelor.vercel.app (2026-10-13), predates the 18+ gate; the screenshots below are from it.
 
 ![The shop with the episode pack and its Buy button](docs/screenshots/payment-desktop-1-shop-buy.png)
 The shop on the live site: the 5-date pack, the 18+ and terms box, and Buy (the Stripe Payment Link with this order attached).
