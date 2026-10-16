@@ -700,6 +700,21 @@ create table if not exists reports_reviewed (
 );
 create index if not exists reports_reviewed_reporter_idx on reports_reviewed (reporter_id);
 
+-- Refunds (lib/payments.ts refundForPayment): the Stripe PaymentIntent a paid session settled, so a charge.refunded
+-- event can find its order (the event carries the payment, not the session).
+alter table orders add column if not exists stripe_payment_intent text;
+create index if not exists orders_payment_intent_idx on orders (stripe_payment_intent);
+
+-- Server errors (lib/errors.ts): a short row per unexpected error, reported by GET /api/health so the owner hears about
+-- them. Route patterns and cleaned messages only, never a request body. Pruned after a week by the daily job.
+create table if not exists server_errors (
+  at timestamptz not null default now(),
+  kind text not null,
+  route text not null,
+  message text not null
+);
+create index if not exists server_errors_at_idx on server_errors (at);
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

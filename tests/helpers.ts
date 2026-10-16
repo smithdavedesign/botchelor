@@ -82,7 +82,8 @@ type Table =
   | "watch_presence"
   | "reports_reviewed"
   | "rate_hits"
-  | "paid_usage";
+  | "paid_usage"
+  | "server_errors";
 
 /** One in-memory Postgres per test file, wired in as the app's database. */
 export async function startTestDb() {
@@ -130,6 +131,7 @@ export async function startTestDb() {
         "reports_reviewed",
         "rate_hits",
         "paid_usage",
+        "server_errors",
         "identity_consents",
         "afterglow_consents",
         "relationships",

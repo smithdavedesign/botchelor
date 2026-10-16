@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
 import { paidDatesPerDay, paidDatesToday } from "@/lib/limits";
+import { serverErrorSummary } from "@/lib/errors";
 import { openReportSummary } from "@/lib/moderation";
 
 export const dynamic = "force-dynamic";
@@ -24,18 +25,20 @@ export const GET = handle(async (req: Request) => {
     return json({ ok: false, db: "unreachable" }, 503);
   }
   if (!internalJobAuthorized(req)) return json({ ok: true });
-  const [reports, stuck, paidToday] = await Promise.all([
+  const [reports, stuck, paidToday, errors] = await Promise.all([
     openReportSummary(db),
     db.query<{ n: number }>(
       `select count(*)::int as n from episodes where status = 'generating' and created_at < now() - make_interval(mins => $1)`,
       [STUCK_AFTER_MINUTES],
     ),
     paidDatesToday(db),
+    serverErrorSummary(db),
   ]);
   return json({
     ok: true,
     reports,
     stuck_generating: stuck.rows[0]?.n ?? 0,
     paid_dates: { today: paidToday, cap: paidDatesPerDay() },
+    errors,
   });
 });

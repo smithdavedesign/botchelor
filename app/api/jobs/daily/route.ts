@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { recentPublicUrls, submitIndexNow } from "@/lib/indexnow";
 import { internalJobAuthorized, runQueuedJobs } from "@/lib/jobs";
+import { pruneServerErrors } from "@/lib/errors";
 import { pruneRateHits } from "@/lib/limits";
 import { clearStaleOwnDates } from "@/lib/own-date";
 import { refreshLobby } from "@/lib/watch";
@@ -35,6 +36,7 @@ async function run(req: Request): Promise<Response> {
   const ownDatesCleared = await clearStaleOwnDates(db).catch(() => 0);
   // Rate-limit rows only live as long as their longest window (lib/limits.ts).
   await pruneRateHits(db).catch(() => {});
+  await pruneServerErrors(db).catch(() => {});
   // Push the last day's newly public pages to IndexNow (Bing → ChatGPT search, Copilot; Yandex). Opt-in by key.
   const indexnow = await recentPublicUrls(db, new Date(Date.now() - 26 * 60 * 60 * 1000))
     .then((urls) => submitIndexNow(urls))

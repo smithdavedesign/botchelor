@@ -69,6 +69,30 @@ export async function refundOrder(db: Db, orderId: string): Promise<boolean> {
   return rows[0].n > 0;
 }
 
+export type RefundOutcome = "refunded" | "partial" | "unknown_payment" | "already_refunded";
+
+/**
+ * A refund made in the Stripe dashboard (charge.refunded): a full refund marks the order refunded and takes back the
+ * pack's dates that haven't been used (refundOrder); a partial one changes nothing (logged for a decision by hand).
+ * The terms promise refunds within 14 days, so this keeps the pack and the money in step without anyone remembering.
+ */
+export async function refundForPayment(
+  db: Db,
+  charge: { paymentIntent: string | null; refunded: boolean },
+): Promise<RefundOutcome> {
+  if (!charge.paymentIntent) return "unknown_payment";
+  if (!charge.refunded) return "partial";
+  const order = (
+    await db.query<{ id: string; status: OrderStatus }>(
+      "select id, status from orders where stripe_payment_intent = $1 order by paid_at desc limit 1",
+      [charge.paymentIntent],
+    )
+  ).rows[0];
+  if (!order) return "unknown_payment";
+  if (order.status === "refunded") return "already_refunded";
+  return (await refundOrder(db, order.id)) ? "refunded" : "already_refunded";
+}
+
 /** A paid Checkout Session, as the signed webhook reports it. */
 export type PaidSession = {
   orderId: string | null;
@@ -77,6 +101,8 @@ export type PaidSession = {
   paymentLink: string | null;
   amountTotal: number | null;
   currency: string | null;
+  /** The PaymentIntent the session settled (pi_…), kept so a later refund finds this order. */
+  paymentIntent?: string | null;
 };
 export type GrantOutcome = "granted" | "already_paid" | "unknown_order" | "mismatch";
 
@@ -105,22 +131,22 @@ export async function grantOrder(db: Db, paid: PaidSession): Promise<GrantOutcom
   if (!priced) return "mismatch";
 
   const filled = await db.query(
-    `update orders set status = 'paid', paid_at = now(), stripe_session_id = $2, amount_cents = $3
+    `update orders set status = 'paid', paid_at = now(), stripe_session_id = $2, amount_cents = $3, stripe_payment_intent = $4
       where id = $1 and status = 'pending'
         and not exists (select 1 from orders where stripe_session_id = $2)
       returning id`,
-    [paid.orderId, paid.sessionId, paid.amountTotal],
+    [paid.orderId, paid.sessionId, paid.amountTotal, paid.paymentIntent ?? null],
   );
   if (filled.rows.length) return "granted";
   if (await sessionRecorded(db, paid.sessionId)) return "already_paid";
   if (!isRepeatable(order.kind)) return "already_paid";
 
   const cloned = await db.query(
-    `insert into orders (id, user_id, sku, kind, amount_cents, currency, status, episodes, stripe_session_id, paid_at)
-     values ($1, $2, $3, $4, $5, $6, 'paid', $7, $8, now())
+    `insert into orders (id, user_id, sku, kind, amount_cents, currency, status, episodes, stripe_session_id, stripe_payment_intent, paid_at)
+     values ($1, $2, $3, $4, $5, $6, 'paid', $7, $8, $9, now())
      on conflict (stripe_session_id) do nothing
      returning id`,
-    [crypto.randomUUID(), order.user_id, order.sku, order.kind, paid.amountTotal, CURRENCY, order.episodes, paid.sessionId],
+    [crypto.randomUUID(), order.user_id, order.sku, order.kind, paid.amountTotal, CURRENCY, order.episodes, paid.sessionId, paid.paymentIntent ?? null],
   );
   return cloned.rows.length ? "granted" : "already_paid";
 }
