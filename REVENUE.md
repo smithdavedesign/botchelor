@@ -21,7 +21,7 @@ $4 once. It is below the $9.99/mo anchor. It is also small enough to be an impul
 ## Shortest path
 1. **Agent, now:**
    - Add the privacy and terms pages, sitemap, robots.txt and og:image.
-   - Confirm the live flow at https://botchelor.vercel.app works for a stranger.
+   - Confirm the live flow at https://botchelor.com works for a stranger.
    - Add the free first date and a "5 more dates, $4" button.
 2. **David (about 15 minutes):** create a Stripe payment link for $4 and map it in RepoHQ. Keep fulfilment manual: the buyer enters an email and David adds 5 credits. Don't build the webhook before 5 or more sales.
 3. **David:** post the hand-run mini-season (see "First ten users" below).

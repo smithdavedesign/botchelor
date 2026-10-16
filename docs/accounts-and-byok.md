@@ -38,7 +38,7 @@ Server components read identity with `userIdFromCookieStore`; routes use `sessio
 - **Handles** are anonymous by design: 3–20 of `[a-z0-9_]`, case-insensitive-unique, no email required. A
   display name (for leagues and reveals) is separate.
 - **Google** stays hidden until `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` are set. Owner action:
-  create a Web OAuth client, redirect URI `https://botchelor.vercel.app/api/auth/google/callback`.
+  create a Web OAuth client, redirect URI `https://botchelor.com/api/auth/google/callback`.
 
 `/api/me` reports `{ authenticated, account: { handle, has_password, has_google } | null, accounts_available,
 google_available }`. `deleteAccount` (unchanged privacy flow) removes the account row too, cascading its keys.
@@ -165,7 +165,7 @@ Lite** through the Gemini API (`lib/video.ts`), on the player's own Google key.
 |---|---|---|
 | `SESSION_SECRET` | signed sessions → accounts and BYOK | anonymous-only, unsigned `bz_uid`, as before |
 | `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` | "Continue with Google" | the button is hidden; handle+password still works |
-| `OAUTH_REDIRECT_BASE` | pins the OAuth callback to the canonical domain (set on prod to `https://botchelor.vercel.app`) | the callback is derived from the request / Vercel's production domain |
+| `OAUTH_REDIRECT_BASE` | pins the OAuth callback to the canonical domain (set on prod to `https://botchelor.com`; `/start` on any other host hops there first, so the state cookie and the callback share a host) | the callback is derived from the request / Vercel's production domain |
 
 ## Turning on Google sign-in (owner action, ~5 minutes)
 
@@ -176,7 +176,8 @@ pinned on production, so the callback will match.
 1. Google Cloud Console → **APIs & Services → OAuth consent screen**: External, add an app name and your
    support email, scopes `openid` and `email`. (A "Testing" app works for yourself; "Publish" for everyone.)
 2. **APIs & Services → Credentials → Create credentials → OAuth client ID**, type **Web application**.
-   Authorised redirect URI (exact): `https://botchelor.vercel.app/api/auth/google/callback`.
+   Authorised redirect URI (exact): `https://botchelor.com/api/auth/google/callback`. Keep the old
+   `https://botchelor.vercel.app/api/auth/google/callback` too while `OAUTH_REDIRECT_BASE` moves over.
 3. Copy the **Client ID** and **Client secret**, then on Vercel production:
    ```bash
    printf '%s' "<client-id>"     | vercel env add GOOGLE_OAUTH_CLIENT_ID production --scope david-smiths-projects-fe129786

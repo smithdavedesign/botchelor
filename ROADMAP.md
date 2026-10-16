@@ -1,7 +1,7 @@
 # Roadmap: Botchelor
 
 Stack (as built, $0 on free models):
-- **Next.js (App Router) on Vercel**: one repo for pages and API routes. Live at botchelor.vercel.app.
+- **Next.js (App Router) on Vercel**: one repo for pages and API routes. Live at botchelor.com (also botchelor.vercel.app).
 - **Postgres via `pg` in production, PGlite in dev/tests**: characters, episodes, predictions and watch rooms are small relational data.
 - **Free models through an OpenAI-compatible endpoint**: M9 made a date a turn-by-turn two-agent conversation (~8 calls), with the engine still deciding the outcome. A **gated frontier model** (`episodeModel`, owner-approved) is the paid-quality option, off by default.
 - **Zod schema validation**: all model output and request bodies are untrusted and rejected unless valid.

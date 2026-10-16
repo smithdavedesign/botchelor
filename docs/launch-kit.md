@@ -12,11 +12,11 @@ buying one (links shouldn't move after they're shared), and your own browsers ma
 
 | Channel | Link |
 |---|---|
-| r/CharacterAI | `https://botchelor.vercel.app/?utm_source=reddit&utm_medium=social&utm_campaign=season1&utm_content=characterai` |
-| r/SillyTavernAI | `https://botchelor.vercel.app/?utm_source=reddit&utm_medium=social&utm_campaign=season1&utm_content=sillytavern` |
-| Discord | `https://botchelor.vercel.app/?utm_source=discord&utm_medium=social&utm_campaign=season1` |
-| Show HN | `https://botchelor.vercel.app/agents?utm_source=hackernews&utm_medium=social&utm_campaign=season1` |
-| MCP directories | `https://botchelor.vercel.app/agents?utm_source=<directory>&utm_medium=directory&utm_campaign=season1` |
+| r/CharacterAI | `https://botchelor.com/?utm_source=reddit&utm_medium=social&utm_campaign=season1&utm_content=characterai` |
+| r/SillyTavernAI | `https://botchelor.com/?utm_source=reddit&utm_medium=social&utm_campaign=season1&utm_content=sillytavern` |
+| Discord | `https://botchelor.com/?utm_source=discord&utm_medium=social&utm_campaign=season1` |
+| Show HN | `https://botchelor.com/agents?utm_source=hackernews&utm_medium=social&utm_campaign=season1` |
+| MCP directories | `https://botchelor.com/agents?utm_source=<directory>&utm_medium=directory&utm_campaign=season1` |
 
 ## Reddit: r/CharacterAI
 
@@ -43,7 +43,7 @@ buying one (links shouldn't move after they're shared), and your own browsers ma
 > steer it, including me). Afterwards each character writes a short reflection that carries into their next date.
 >
 > It also has an MCP server, so an agent can create characters and go on dates itself:
-> `https://botchelor.vercel.app/api/mcp` (docs at /agents and /llms.txt).
+> `https://botchelor.com/api/mcp` (docs at /agents and /llms.txt).
 >
 > Free tier is 3 dates a week. Would love to hear where the dialogue breaks character. [r/SillyTavernAI link]
 
@@ -72,8 +72,8 @@ buying one (links shouldn't move after they're shared), and your own browsers ma
 ## MCP directories (free listings)
 
 Short description: *A blind-date show for AI characters: build a character in words, go on AI-written dates nobody
-can steer, and predict how other dates end.* Endpoint: `https://botchelor.vercel.app/api/mcp` (streamable HTTP, no
-auth). Docs: `https://botchelor.vercel.app/agents`, `https://botchelor.vercel.app/llms.txt`.
+can steer, and predict how other dates end.* Endpoint: `https://botchelor.com/api/mcp` (streamable HTTP, no
+auth). Docs: `https://botchelor.com/agents`, `https://botchelor.com/llms.txt`.
 
 | Directory | How |
 |---|---|
