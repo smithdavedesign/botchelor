@@ -215,6 +215,15 @@ export const TURN_DIALOGUE_MAX = 280; // characters per spoken line
  */
 export const AFTERGLOW_TURNS = 4;
 
+const DATE_ORDINALS = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth"];
+/** A date's place in a couple's run of dates, as a badge: "Second date", "Third date", ... "12th date". */
+export function dateLabel(n: number): string {
+  if (n >= 1 && n <= DATE_ORDINALS.length) return `${DATE_ORDINALS[n - 1]} date`;
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${suffix} date`;
+}
+
 /** The mutual afterglow verdict, derived from each side's engine-decided wants_another. No model call. */
 export type AfterglowVerdictKind = "mutual_yes" | "one_sided" | "mutual_no";
 export function afterglowVerdictKind(aWants: boolean, bWants: boolean): AfterglowVerdictKind {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { requestJson } from "../../request";
+import { TALK, TALK_LEVELS, type TalkLevel } from "@/lib/talk";
 
 type Props = {
   id: string;
@@ -12,6 +13,8 @@ type Props = {
   openToDates: boolean;
   /** Intro clips (Veo on the owner's Google key): whether they're an admin (no tokens), their bought tokens, and whether they have a Google key. */
   clip?: { admin: boolean; boughtTokens: number; hasKey: boolean; cost: number };
+  /** How much they talk (lib/talk.ts), and whether the owner has a text key (marathon runs on it). */
+  talk?: { level: TalkLevel; hasTextKey: boolean };
 };
 
 type Message = { text: string; error?: boolean; link?: { href: string; label: string } };
@@ -35,6 +38,23 @@ export default function OwnerControls(props: Props) {
     setBusy(false);
     if (ok) router.refresh();
     else setOpenToDates(!next);
+  }
+
+  const [talk, setTalk] = useState<TalkLevel>(props.talk?.level ?? "standard");
+
+  async function changeTalk(next: TalkLevel) {
+    const prev = talk;
+    setTalk(next);
+    setBusy(true);
+    const res = await requestJson(`/api/characters/${props.id}`, { talk: next }, "PATCH").catch(() => ({ ok: false, message: "Network error." }));
+    setBusy(false);
+    if (res.ok) {
+      setMessage(null);
+      router.refresh();
+    } else {
+      setTalk(prev);
+      setMessage({ text: res.message ?? "Couldn't save that.", error: true, link: next === "marathon" ? { href: "/account", label: "Add a text key" } : undefined });
+    }
   }
 
   async function generatePortrait() {
@@ -108,6 +128,24 @@ export default function OwnerControls(props: Props) {
           {openToDates ? "Close to dates" : "Open to dates"}
         </button>
       </p>
+      {props.talk && (
+        <div className="owner-talk">
+          <label htmlFor={`talk-${props.id}`}>How much {props.name.split(" ")[0]} talks</label>
+          <select id={`talk-${props.id}`} value={talk} disabled={busy} onChange={(e) => void changeTalk(e.target.value as TalkLevel)}>
+            {TALK_LEVELS.map((l) => (
+              <option key={l} value={l} disabled={l === "marathon" && !props.talk!.hasTextKey}>
+                {TALK[l].label}: {TALK[l].hint}
+                {l === "marathon" && !props.talk!.hasTextKey ? " (add a key first)" : ""}
+              </option>
+            ))}
+          </select>
+          <p className="muted small">
+            The date and the texts after. A date runs at the longer of the two characters&apos; settings, never shorter than
+            standard, and it never changes how it ends. Marathon needs both sides on their creators&apos; own keys; otherwise
+            it plays Long.{!props.talk.hasTextKey && <> <Link href="/account">Add your own key</Link> to unlock it.</>}
+          </p>
+        </div>
+      )}
       <div className="owner-actions">
         <span className="pro-tag">✨ Pro</span>
         <ul className="owner-action-list">

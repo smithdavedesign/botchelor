@@ -27,6 +27,8 @@ type DateRow = {
   b_open: boolean;
   planned: string | null;
   blocked: boolean;
+  /** Which date this one was for the couple (1 for a first date). */
+  date_number: number;
 };
 
 async function loadDate(db: Db, episodeId: string): Promise<DateRow | null> {
@@ -34,6 +36,7 @@ async function loadDate(db: Db, episodeId: string): Promise<DateRow | null> {
     `select e.id, e.status, e.visibility, e.sides, a.id as a_id, b.id as b_id, a.name as a_name, b.name as b_name,
             a.owner_id as a_owner, b.owner_id as b_owner, a.open_to_dates as a_open, b.open_to_dates as b_open,
             (select f.id from episodes f where f.followup_of = e.id limit 1) as planned,
+            coalesce((e.setup->>'date_number')::int, case when e.followup_of is null then 1 else 2 end) as date_number,
             exists (select 1 from blocks bl
                      where a.owner_id is not null and b.owner_id is not null
                        and ((bl.blocker_id = a.owner_id and bl.blocked_id = b.owner_id)
@@ -68,6 +71,8 @@ export type SecondDateState = {
   partner_name: string;
   /** The plan from their morning-after texts (both sides' last plan-like text). */
   plan: string[];
+  /** Which date the next one would be for the couple (2 after a first date, 3 after a second...). */
+  next_date_number: number;
 };
 
 /** The second-date state of a date, as one of its owners sees it. */
@@ -102,6 +107,7 @@ export async function secondDateState(db: Db, episodeId: string, userId: string)
     partner_character_id: d[`${theirs}_id`],
     partner_name: d[`${theirs}_name`],
     plan: (rel?.plans ?? []).filter((p) => p.episode_id === episodeId).map((p) => p.text),
+    next_date_number: d.date_number + 1,
   };
 }
 
@@ -120,7 +126,7 @@ type Visibility = keyof typeof STRICTNESS;
 export const stricter = (x: Visibility, y: Visibility): Visibility => (STRICTNESS[x] >= STRICTNESS[y] ? x : y);
 
 export type SecondDateCheck =
-  | { ok: true; followupOf: string; visibility: Visibility }
+  | { ok: true; followupOf: string; visibility: Visibility; dateNumber: number }
   | { ok: false; status: number; error: string; message: string };
 
 /**
@@ -157,5 +163,5 @@ export async function checkSecondDate(
     const yes = (await db.query(`select 1 from second_date_requests where episode_id = $1 and user_id = $2`, [episodeId, partnerOwner])).rows.length > 0;
     if (!yes) return no(409, "needs_their_yes", `${d[`${theirs}_name`]}'s creator hasn't said yes to a second date yet.`);
   }
-  return { ok: true, followupOf: episodeId, visibility: stricter(requested ?? d.visibility, d.visibility) };
+  return { ok: true, followupOf: episodeId, visibility: stricter(requested ?? d.visibility, d.visibility), dateNumber: d.date_number + 1 };
 }

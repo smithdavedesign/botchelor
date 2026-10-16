@@ -3,13 +3,19 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Scene from "@/app/Scene";
+import type { CharacterRef } from "@/lib/game";
+import type { VenueId } from "@/lib/venues";
+
+/** The creator who just sent the date: wait on the theater stage itself, and play the date the moment it's filmed. */
+type Stage = { characters: [CharacterRef, CharacterRef]; venue: VenueId | null };
 
 /**
  * M10 part 2: while an episode is 'generating', poll its status and refresh the page the moment the
  * background worker finishes. If the episode disappears (404), generation failed terminally — the date
  * was given back — so offer another try. No websockets; a light poll, like the watch room.
  */
-export default function GeneratingPoller({ episodeId }: { episodeId: string }) {
+export default function GeneratingPoller({ episodeId, stage }: { episodeId: string; stage?: Stage }) {
   const router = useRouter();
   const [failed, setFailed] = useState(false);
 
@@ -27,7 +33,9 @@ export default function GeneratingPoller({ episodeId }: { episodeId: string }) {
         if (res.ok) {
           const data = (await res.json()) as { status?: string };
           if (data.status && data.status !== "generating") {
-            router.refresh();
+            // On the stage, go straight into the playback; otherwise just show the finished episode.
+            if (stage) router.replace(`/episodes/${episodeId}?play=1`);
+            else router.refresh();
             return;
           }
         }
@@ -41,7 +49,7 @@ export default function GeneratingPoller({ episodeId }: { episodeId: string }) {
       active = false;
       clearTimeout(timer);
     };
-  }, [episodeId, router, failed]);
+  }, [episodeId, router, failed, stage]);
 
   if (failed) {
     return (
@@ -55,6 +63,36 @@ export default function GeneratingPoller({ episodeId }: { episodeId: string }) {
           <Link href="/">Make another date</Link>
         </p>
       </section>
+    );
+  }
+
+  if (stage) {
+    const [a, b] = stage.characters;
+    return (
+      <div className="theater theater-clean theater-filming">
+        <div className="theater-stage">
+          <div className="theater-scene-area">
+            <Scene characters={stage.characters} venue={stage.venue} lineA={null} lineB={null} actLabel="Filming" placeholder="They're arriving…" />
+          </div>
+          <header className="theater-hud">
+            <div className="theater-id">
+              <strong>
+                {a.name} <span className="vs">×</span> {b.name}
+              </strong>
+              <span className="chip">🎬 Filming</span>
+            </div>
+            <div className="theater-tools">
+              <Link href={`/episodes/${episodeId}`} className="button secondary small">
+                Exit
+              </Link>
+            </div>
+          </header>
+          <div className="theater-verdict" role="status" aria-live="polite">
+            <p className="ending">Filming the date…</p>
+            <p className="muted">It starts playing here the moment it&apos;s ready, usually under a minute.</p>
+          </div>
+        </div>
+      </div>
     );
   }
 

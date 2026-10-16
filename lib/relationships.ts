@@ -49,6 +49,8 @@ export type HistoryItem = {
   creator: string;
   /** The date this one was the second date of (the plan they made), when it was. */
   followup_of: string | null;
+  /** Which date this was for the couple (2, 3, ...) when it followed another; absent on a first date. */
+  date_number?: number;
 };
 
 /** Something one of them said about themselves on a date. `about` is the end that said it. */
@@ -116,6 +118,7 @@ export type RelEpisode = {
   afterglow: AfterglowLine[] | null;
   venue: VenueId | null;
   followup_of: string | null;
+  date_number?: number | null;
 };
 
 const iso = (d: string | Date | null): string | null => (d === null ? null : new Date(d).toISOString());
@@ -311,6 +314,7 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
       public: e.revealed_at !== null && e.visibility === "public" && !e.hidden,
       creator: e.creator_id,
       followup_of: e.followup_of,
+      ...(e.followup_of ? { date_number: e.date_number ?? 2 } : {}),
     };
   });
   const endOf = (e: RelEpisode) => (side: "a" | "b"): End => ((side === "a") === (e.character_a === lo) ? "lo" : "hi");
@@ -338,6 +342,7 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
 const REL_EPISODES = `
   select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.character_a, e.character_b, e.ending,
          e.sides, e.box_score, e.transcript, e.afterglow, e.setup->>'venue' as venue, e.followup_of,
+         (e.setup->>'date_number')::int as date_number,
          (select count(*)::int from reports r where r.episode_id = e.id) >= $3 as hidden
     from episodes e
    where e.status = 'ready' and e.varies_episode_id is null
@@ -489,7 +494,7 @@ export type RelationshipView = {
   tie: number;
   chemistry: number | null;
   trust: number | null;
-  timeline: { episode_id: string; at: string; ending: Ending; ending_label: string; venue: string; aired: boolean; second_date_of: string | null }[];
+  timeline: { episode_id: string; at: string; ending: Ending; ending_label: string; venue: string; aired: boolean; second_date_of: string | null; date_number: number | null }[];
   jokes: string[];
   /** What each has told the other, by character id. */
   told: Record<string, string[]>;
@@ -527,6 +532,7 @@ export function viewRelationship(rel: Relationship, v: Viewer, now = new Date())
       venue: venueOf(h.venue).name,
       aired: h.aired_at !== null,
       second_date_of: h.followup_of && ids.has(h.followup_of) ? h.followup_of : null,
+      date_number: h.followup_of && ids.has(h.followup_of) ? (h.date_number ?? 2) : null,
     })),
     jokes: rel.jokes.filter((j) => j.episode_ids.some((id) => ids.has(id))).map((j) => j.phrase),
     told,

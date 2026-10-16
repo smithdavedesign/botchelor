@@ -2,6 +2,7 @@ import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
 import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch";
+import { dateLabel } from "@/lib/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
         </strong>
         <span className="muted">
           {room.kind === "template" ? "Open room" : "Premiere"} · {room.phase_label}
-          {room.followup_of && <span className="badge watch-lobby-second">Second date</span>}
+          {room.date_number && <span className="badge watch-lobby-second">{dateLabel(room.date_number)}</span>}
         </span>
       </div>
       <span className={`watch-lobby-live${room.status === "live" ? " on" : ""}`}>{action}</span>

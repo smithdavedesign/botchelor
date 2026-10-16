@@ -2827,6 +2827,18 @@ button.link-button.danger {
   border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
   container-type: inline-size;
 }
+/* How much they talk (lib/talk.ts): a label over its select, the explanation under it. */
+.owner-talk {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 0;
+}
+.owner-talk label {
+  font-weight: 600;
+}
+.owner-talk p {
+  margin: 0;
+}
 .owner-actions {
   display: flex;
   flex-wrap: wrap;

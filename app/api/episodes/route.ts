@@ -23,6 +23,7 @@ import {
   STRATEGIES,
   ENDINGS,
   type GameBudget,
+  dateLabel,
 } from "@/lib/rules";
 import { checkFields } from "@/lib/safety";
 import { seasonCastIds } from "@/lib/season-cast";
@@ -157,13 +158,13 @@ export const POST = handle(async (req) => {
   if (!own) return json({ error: "character_not_found" }, 404, sess);
 
   let partner: CharacterRow | undefined;
-  let secondDate: { followupOf: string; visibility: "public" | "private" | "unlisted" } | null = null;
+  let secondDate: { followupOf: string; visibility: "public" | "private" | "unlisted"; dateNumber: number } | null = null;
   if (input.second_date_of) {
     // Both characters wanted it, this is the other one, and its owner has agreed (lib/second-date.ts).
     if (!input.partner_id) return json({ error: "invalid_request", message: "A second date needs partner_id." }, 400, sess);
     const check = await checkSecondDate(db, sess.userId, own.id, input.partner_id, input.second_date_of, input.visibility);
     if (!check.ok) return json({ error: check.error, message: check.message }, check.status, sess);
-    secondDate = { followupOf: check.followupOf, visibility: check.visibility };
+    secondDate = { followupOf: check.followupOf, visibility: check.visibility, dateNumber: check.dateNumber };
     partner = (await db.query<CharacterRow>(`select ${CHARACTER_COLUMNS} from characters c where c.id = $1`, [input.partner_id])).rows[0];
     if (!partner) return json({ error: "partner_not_available", message: "That character isn't here any more." }, 422, sess);
   } else if (input.blind) {
@@ -291,7 +292,7 @@ async function writeAndSave(
   partner: CharacterRow,
   input: EpisodeInputData,
   saveState: { saved: boolean },
-  secondDate: { followupOf: string; visibility: "public" | "private" | "unlisted" } | null = null,
+  secondDate: { followupOf: string; visibility: "public" | "private" | "unlisted"; dateNumber: number } | null = null,
 ): Promise<Response> {
   const episodeId = crypto.randomUUID();
   const dateRequest: DateRequest = {
@@ -306,6 +307,8 @@ async function writeAndSave(
     creatorId: sess.userId,
     followupOf: secondDate?.followupOf ?? null,
   });
+  // Which date this is for the couple (lib/rules dateLabel): the badge says "Third date", not always "Second".
+  if (secondDate) built.setup.date_number = secondDate.dateNumber;
   const decided = getEngine().decide(built.input, built.seed, built.setup.engine_version);
 
   // Write the episode 'generating' with the engine outcome but placeholder narration; the background job
@@ -370,7 +373,7 @@ async function writeAndSave(
     if (partnerOwner && partnerOwner !== sess.userId) {
       await notify(db, partnerOwner, {
         kind: "second_date_booked",
-        title: `💞 ${own.name.split(" ")[0]} and ${partner.name.split(" ")[0]} have a second date`,
+        title: `💞 ${own.name.split(" ")[0]} and ${partner.name.split(" ")[0]} have a ${dateLabel(secondDate.dateNumber).toLowerCase()}`,
         body: built.setup.plan?.length ? `As planned: “${built.setup.plan[0]}”` : null,
         link: `/episodes/${episodeId}`,
       });

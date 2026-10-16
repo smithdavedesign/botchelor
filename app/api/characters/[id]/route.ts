@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TALK_LEVELS } from "@/lib/talk";
 import { deleteCharacter } from "@/lib/account";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
@@ -37,6 +38,8 @@ const CharacterPatch = z
     soul: SoulInput.optional(),
     // Consent to be asked out by name (see POST /api/characters). Toggle any time; past dates are unaffected.
     open_to_dates: z.boolean().optional(),
+    // How much they talk on a date and in the texts after (lib/talk.ts). "marathon" needs the owner's own text key.
+    talk: z.enum(TALK_LEVELS).nullable().optional(),
     // Optional details (lib/extras.ts), replaced wholesale; null or {} clears them.
     extras: ExtrasInput.nullable().optional(),
     // What's new this week (lib/life.ts): a string lasts this season ("" = nothing new this week); null hands it
@@ -85,6 +88,7 @@ const COLUMN: Record<string, (v: Record<string, unknown>) => unknown> = {
   pronouns: (v) => v.pronouns ?? null,
   voice: (v) => v.voice ?? null,
   open_to_dates: (v) => v.open_to_dates === true,
+  talk: (v) => (v.talk === "standard" ? null : (v.talk ?? null)),
   extras: (v) => JSON.stringify(normaliseExtras(v.extras as ExtrasInputType | null)),
   this_week: (v) => (v.this_week === null ? null : JSON.stringify(stampThisWeek(v.this_week as string))),
 };
@@ -111,6 +115,13 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   });
   if (!verdict.ok) {
     return json({ error: "content_rejected", reason: verdict.reason, field: verdict.field, message: REJECTION_MESSAGES[verdict.reason] }, 422, sess);
+  }
+
+  if (input.talk === "marathon") {
+    const key = await db.query(`select 1 from user_keys where user_id = $1 and kind = 'text' limit 1`, [sess.userId]);
+    if (!key.rows.length) {
+      return json({ error: "needs_own_key", message: "Marathon runs on your own model key. Add a text key on your account first." }, 400, sess);
+    }
   }
 
   const columns = Object.keys(COLUMN).filter((c) => c in input);

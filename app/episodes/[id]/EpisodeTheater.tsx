@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
@@ -14,6 +15,8 @@ type Props = {
   venue: VenueId | null;
   transcript: Turn[];
   endingLabel: string;
+  /** Open straight into the playback (the creator arriving from sending the date, `?play=1`). */
+  autoOpen?: boolean;
 };
 
 function lastOf(turns: Turn[], side: "a" | "b"): string | null {
@@ -27,7 +30,9 @@ function lastOf(turns: Turn[], side: "a" | "b"): string | null {
  * paced like it aired. The readable thread stays on the page as the record; this is the experience on top.
  */
 export default function EpisodeTheater(props: Props) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(props.autoOpen ?? false);
+  const router = useRouter();
+  const pathname = usePathname();
   if (!open) {
     return (
       <button type="button" className="primary" onClick={() => setOpen(true)}>
@@ -35,7 +40,16 @@ export default function EpisodeTheater(props: Props) {
       </button>
     );
   }
-  return <Playback {...props} onExit={() => setOpen(false)} />;
+  return (
+    <Playback
+      {...props}
+      onExit={() => {
+        setOpen(false);
+        // Leaving drops ?play=1, so a reload shows the episode rather than starting over.
+        if (props.autoOpen) router.replace(pathname, { scroll: false });
+      }}
+    />
+  );
 }
 
 function Playback({ characters, venue, transcript, endingLabel, onExit }: Props & { onExit: () => void }) {
