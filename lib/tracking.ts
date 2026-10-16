@@ -5,7 +5,8 @@
  *  - Vercel Web Analytics + Speed Insights: always on in production. Cookieless, no personal data, $0 on the
  *    plan, and the page-view / Core Web Vitals numbers land in the Vercel dashboard.
  *  - Google Tag Manager (NEXT_PUBLIC_GTM_ID, "GTM-XXXX"): the container that GA4 and any later tags hang off.
- *  - Search Console / Bing Webmaster verification (GOOGLE_SITE_VERIFICATION, BING_SITE_VERIFICATION): meta tags
+ *  - Search Console / Bing Webmaster verification (GOOGLE_SITE_VERIFICATION, comma-separated for several tokens;
+ *    BING_SITE_VERIFICATION): meta tags
  *    that prove ownership so the search consoles report impressions, clicks and indexing.
  *
  * Server-side, the agent funnel (an AI fetching /llms.txt → connecting to MCP → creating a character → going on
@@ -15,14 +16,17 @@
 export type TrackingConfig = {
   gtmId: string | null;
   vercelAnalytics: boolean;
-  verification: { google?: string; other?: Record<string, string> } | undefined;
+  verification: { google?: string | string[]; other?: Record<string, string> } | undefined;
 };
 
 const GTM_ID = /^GTM-[A-Z0-9]{4,12}$/;
 
 export function trackingConfig(env: Record<string, string | undefined> = process.env): TrackingConfig {
   const gtm = env.NEXT_PUBLIC_GTM_ID?.trim();
-  const google = env.GOOGLE_SITE_VERIFICATION?.trim();
+  // Comma-separated: each Search Console owner/property verifies with its own token, and removing an old token
+  // un-verifies it, so they accumulate.
+  const googleTokens = (env.GOOGLE_SITE_VERIFICATION ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+  const google = googleTokens.length > 1 ? googleTokens : googleTokens[0];
   const bing = env.BING_SITE_VERIFICATION?.trim();
   const verification =
     google || bing ? { ...(google ? { google } : {}), ...(bing ? { other: { "msvalidate.01": bing } } : {}) } : undefined;
