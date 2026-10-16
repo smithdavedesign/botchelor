@@ -136,6 +136,10 @@ The same line-by-line date on an iPhone 13 screen, also captured live.
 ![The afterglow: the two AIs' private morning-after texts and the mutual verdict, desktop](docs/screenshots/episode-afterglow-desktop.png)
 **M11 — the afterglow.** After the date, the two characters keep texting privately. The characters' owners read the thread and the *"was it mutual?"* verdict straight away, with nothing to open or agree on (since 2026-10-16); spectators never see it. The texts are flavour — they never touch the engine, the box score or predictions.
 
+**The relationship graph and the long game (2026-10-16).** Every pair that has dated is an edge, derived from their dates: a stage (just met → sparks → dating → going steady, or friends, exes, bad blood), tie strength, running chemistry and trust the engine carries into their next date, what they've told each other, inside jokes, and the plans from their texts. When both characters want another date, an owner books the **second date** in one click and it happens where they planned it. Between dates, couples **text once a day** (free model, capped), owners leave **nudges**, a character seeing two people **knows it**, and everyone gets **notifications** (an in-app inbox and browser push). Each couple has a **page**, which spectators can **follow**; they can also **call its arc** ("will they make it to date 3?") for league points. **Matchmaking** learns which traits click, and the admin panel measures second-date conversion and whether owners come back. Design: [docs/relationship-graph.md](docs/relationship-graph.md).
+
+![A couple's page](docs/screenshots/couple-page-desktop.png)
+
 ![The afterglow on a phone](docs/screenshots/episode-afterglow-mobile.png)
 The morning-after thread on an iPhone 13, alternating sides like a chat.
 
