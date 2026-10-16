@@ -758,8 +758,8 @@ There is no `STRIPE_SECRET_KEY`. The app holds no Stripe API key, and `tests/rou
    - The schema is applied on the first request, under an advisory lock. There is no migration step, and M4 adds no schema change.
    - **In the Stripe dashboard (test mode), on the Payment Link** (requested in `.provision`):
      - Sell "5 more dates" for $4, with quantity fixed at 1.
-     - Under "After payment", redirect to `https://botchelor.vercel.app/shop?checkout=success`.
-   - **The webhook endpoint:** `https://botchelor.vercel.app/api/webhooks/stripe`, with the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`.
+     - Under "After payment", redirect to `https://botchelor.com/shop?checkout=success` (the canonical domain since 2026-10-16: the buyer's session cookie lives there).
+   - **The webhook endpoint:** `https://botchelor.vercel.app/api/webhooks/stripe` (still served; never point it at a URL that redirects, since Stripe doesn't follow redirects), with the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`.
    - `/terms`, `/privacy` and `/legal` are rendered per request, so `CONTACT_EMAIL` shows once set. `robots.txt` and `sitemap.xml` are built with the production URL.
 2. **Taking real money** (live mode) needs a host that allows commercial use. **Vercel Hobby does not.**
    - **Netlify's free plan does, at $0.** Connect the same repo; Netlify auto-detects Next.js. Set the same env vars, swap in a live Payment Link and its live webhook secret, and point the webhook and the link's redirect at the Netlify URL.
@@ -773,7 +773,7 @@ There is no `STRIPE_SECRET_KEY`. The app holds no Stripe API key, and `tests/rou
 - **Before charging real money (David):**
   - The four `.provision` requests: Payment Link settings, webhook events, removing any old `STRIPE_SECRET_KEY`, and a commercial-use host.
   - Counsel on SB 243, contest and gambling rules, and the terms (REVIEW.md).
-  - A check of the live flow at botchelor.vercel.app as a stranger (REVENUE.md). It can't be done from this sandbox.
+  - A check of the live flow at botchelor.com as a stranger (REVENUE.md). It can't be done from this sandbox.
 - **Payments follow-ups:**
   - **Pin the Payment Link's id.** Grant only sessions whose `payment_link` is ours. That needs the `plink_…` id as an env var (see "Review").
   - **Accounts, or an email sign-in, to restore purchases across browsers.** Today it's done by hand from the Stripe receipt.

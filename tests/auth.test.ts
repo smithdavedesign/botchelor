@@ -181,6 +181,22 @@ describe("the auth routes", () => {
     expect(on.headers.getSetCookie().some((c) => c.startsWith("bz_oauth="))).toBe(true);
   });
 
+  it("Google /start on another host hops to the callback's host first, so the state cookie lands where the callback reads it", async () => {
+    vi.stubEnv("GOOGLE_OAUTH_CLIENT_ID", "client-id");
+    vi.stubEnv("GOOGLE_OAUTH_CLIENT_SECRET", ["client","sec"].join("-"));
+    vi.stubEnv("OAUTH_REDIRECT_BASE", "https://botchelor.com");
+    const old = await googleStart(new Request("https://botchelor.vercel.app/api/auth/google/start"));
+    expect(old.status).toBe(302);
+    expect(old.headers.get("location")).toBe("https://botchelor.com/api/auth/google/start?hop=1");
+    expect(old.headers.getSetCookie()).toEqual([]);
+    const canonical = await googleStart(new Request("https://botchelor.com/api/auth/google/start?hop=1"));
+    expect(canonical.headers.get("location")).toContain("accounts.google.com");
+    expect(canonical.headers.getSetCookie().some((c) => c.startsWith("bz_oauth="))).toBe(true);
+    // A proxy that reports another host never loops: the hop is taken once.
+    const proxied = await googleStart(new Request("https://internal.example/api/auth/google/start?hop=1"));
+    expect(proxied.headers.get("location")).toContain("accounts.google.com");
+  });
+
   it("the Google callback rejects a bad/missing state (CSRF)", async () => {
     vi.stubEnv("GOOGLE_OAUTH_CLIENT_ID", "client-id");
     vi.stubEnv("GOOGLE_OAUTH_CLIENT_SECRET", ["client","sec"].join("-"));
