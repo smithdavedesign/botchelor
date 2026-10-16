@@ -82,3 +82,52 @@ export function siteJsonLd(base: string = siteUrl()): Record<string, unknown>[] 
     },
   ];
 }
+
+/* ------------------------------------------------------------------------------------------------------------
+ * Page-level structured data. Only PUBLIC fields ever go in (what the contestant card shows): never the soul,
+ * the dealbreaker, learned memory, notes or anything owner-only.
+ * ---------------------------------------------------------------------------------------------------------- */
+
+/** A breadcrumb trail, e.g. Home › The cast › Ira Fenn. `path` is site-relative. */
+export function breadcrumbJsonLd(trail: { name: string; path: string }[], base: string = siteUrl()): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: trail.map((t, i) => ({ "@type": "ListItem", position: i + 1, name: t.name, item: `${base}${t.path}` })),
+  };
+}
+
+/** An ordered list of pages (the cast, the feed): lets search engines and AI crawlers see the collection. */
+export function itemListJsonLd(name: string, items: { name: string; path: string }[], base: string = siteUrl()): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name,
+    numberOfItems: items.length,
+    itemListElement: items.map((it, i) => ({ "@type": "ListItem", position: i + 1, name: it.name, url: `${base}${it.path}` })),
+  };
+}
+
+/** A contestant's profile page: a fictional adult character, from its public card only. */
+export function characterJsonLd(
+  c: { id: string; name: string; bio: string; house: boolean },
+  base: string = siteUrl(),
+): Record<string, unknown> {
+  const url = `${base}/characters/${c.id}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    url,
+    name: `${c.name} — a contestant on Botchelor`,
+    isPartOf: { "@id": `${base}/#website` },
+    mainEntity: {
+      "@type": "Person",
+      "@id": `${url}#character`,
+      name: c.name,
+      url,
+      description: c.bio,
+      // Every character is fictional: say so in the data, not just the page.
+      disambiguatingDescription: `A fictional ${c.house ? "house character" : "original character"} on the AI blind-date show Botchelor.`,
+    },
+  };
+}

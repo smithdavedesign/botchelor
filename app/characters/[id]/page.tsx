@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
+import JsonLd from "@/app/JsonLd";
+import { breadcrumbJsonLd, characterJsonLd } from "@/lib/seo";
 import ShareLink from "@/app/ShareLink";
 import { getDatingProfile } from "@/lib/dating";
 import { hasExtras } from "@/lib/extras";
@@ -91,6 +93,16 @@ export default async function CharacterPage({ params }: Props) {
 
   return (
     <article>
+      <JsonLd
+        data={[
+          characterJsonLd(c),
+          breadcrumbJsonLd([
+            { name: "Botchelor", path: "/" },
+            { name: "The cast", path: "/cast" },
+            { name: c.name, path: `/characters/${c.id}` },
+          ]),
+        ]}
+      />
       <p className="kicker">Contestant card</p>
       <div className="contestant">
         <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={96} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} />

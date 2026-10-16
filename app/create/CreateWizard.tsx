@@ -16,6 +16,7 @@ import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
 import { hasExtras, LOVE_LANGUAGES, normaliseExtras, promptLabel, sampleLineLabel, tellLabel, TEXT_DETAILS, type CharacterExtras } from "@/lib/extras";
 import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
 import { DEFAULT_FORMAT, FORMATS, type FormatId } from "@/lib/formats";
+import { trackConversion } from "@/app/conversion";
 import {
   AGENDAS,
   AUTONOMY_BLURBS,
@@ -339,6 +340,7 @@ export default function CreateWizard({
         attest,
       });
       if (status === 201) {
+        trackConversion("character_created", { open_to_dates: openToDates });
         setCreated({ id: String(data.id), name: String(data.name) });
         try {
           localStorage.removeItem(DRAFT_KEY);
@@ -979,6 +981,7 @@ function SendPhase({ character, partners, openCharacters, tokens, offer, autonom
         ...dateFields,
       });
       if (status === 200) {
+        trackConversion("date_started", { mode: partnerId ? "partner" : "blind" });
         onSend(String(data.share_path));
         return;
       }

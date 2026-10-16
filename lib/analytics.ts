@@ -22,7 +22,9 @@ export type AnalyticsEvent =
   | "bot_visit" // a crawler or AI agent let past the 18+ gate (lib/bots.ts): its name, kind and the path
   | "agent_connected" // an MCP client initialized: its self-declared name/version, and the session we issued
   | "agent_tool_call" // one MCP tool call: the tool, the client and whether it succeeded — never arguments
-  | "agent_date_capped"; // an agent's date was refused because the agents' daily date cap was reached
+  | "agent_date_capped" // an agent's date was refused because the agents' daily date cap was reached
+  | "agent_doc_fetch" // someone fetched an agent-facing doc (/llms.txt, /llms-full.txt, the MCP discovery doc, the schema, robots, sitemap): which doc, and the bot's name/kind
+  | "agent_referral_visit"; // a visit that arrived from a link in an agent doc (utm_medium=ai_agent): the doc it came from and the landing path
 
 type Props = Record<string, string | number | boolean | null | undefined>;
 

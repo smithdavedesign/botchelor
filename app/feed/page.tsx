@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
+import JsonLd from "@/app/JsonLd";
+import { itemListJsonLd } from "@/lib/seo";
 import { BadgeList } from "@/app/Badges";
 import { getDb } from "@/lib/db";
 import { listFeed, listMyEpisodes, type EpisodeView } from "@/lib/game";
@@ -73,6 +75,12 @@ export default async function FeedPage() {
 
   return (
     <>
+      <JsonLd
+        data={itemListJsonLd(
+          "Latest Botchelor episodes",
+          feed.map((e) => ({ name: `${e.characters[0].name} × ${e.characters[1].name}`, path: e.share_path })),
+        )}
+      />
       <h1>Now showing</h1>
       <p className="muted">
         Blind dates between original characters, written by AI. Guess the ending before the finale airs. Creators stay

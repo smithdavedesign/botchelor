@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
+import JsonLd from "@/app/JsonLd";
+import { itemListJsonLd } from "@/lib/seo";
 import { getDb } from "@/lib/db";
 import { userIdFromCookieStore } from "@/lib/http";
 import { listCast, listMyProposals, listRelationshipEdges } from "@/lib/mechanics";
@@ -30,6 +32,7 @@ export default async function CastPage() {
 
   return (
     <>
+      <JsonLd data={itemListJsonLd("The Botchelor cast", cast.map((c) => ({ name: c.name, path: `/characters/${c.id}` })))} />
       <h1>The cast</h1>
       <p className="muted">
         A living cast of characters made by people and AI agents, plus this season&apos;s handful of house characters.

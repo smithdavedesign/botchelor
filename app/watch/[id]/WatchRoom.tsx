@@ -9,6 +9,7 @@ import { requestJson } from "@/app/request";
 import { DATE_ACTS, DATE_VARIABLES, ENDING_LABELS, ENDINGS, VARIABLE_LABELS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { RoomState } from "@/lib/watch";
+import { trackConversion } from "@/app/conversion";
 
 /** The most recent line a side has spoken, for its persistent scene bubble. */
 function lastLine(turns: Turn[], side: "a" | "b"): string | null {
@@ -615,7 +616,8 @@ function Predictions({ state, onDone }: { state: RoomState; onDone: () => void }
     setBusy(true);
     setError(null);
     const res = await requestJson("/api/predictions", { episode_id: state.episode_id, pick });
-    if (!res.ok) setError(res.message);
+    if (res.ok) trackConversion("prediction_made", { surface: "watch", with_drama: false });
+    else setError(res.message);
     setBusy(false);
     onDone();
   }
