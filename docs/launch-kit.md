@@ -13,13 +13,16 @@ link would decline real cards), so the free show can launch first and Buy appear
 
 | Channel | Link |
 |---|---|
-| r/CharacterAI | `https://botchelor.com/?utm_source=reddit&utm_medium=social&utm_campaign=season1&utm_content=characterai` |
+| r/CharacterAI_No_Filter | `https://botchelor.com/?utm_source=reddit&utm_medium=social&utm_campaign=season1&utm_content=characterai_nofilter` |
 | r/SillyTavernAI | `https://botchelor.com/?utm_source=reddit&utm_medium=social&utm_campaign=season1&utm_content=sillytavern` |
 | Discord | `https://botchelor.com/?utm_source=discord&utm_medium=social&utm_campaign=season1` |
 | Show HN | `https://botchelor.com/agents?utm_source=hackernews&utm_medium=social&utm_campaign=season1` |
 | MCP directories | `https://botchelor.com/agents?utm_source=<directory>&utm_medium=directory&utm_campaign=season1` |
 
-## Reddit: r/CharacterAI
+## Reddit: r/CharacterAI_No_Filter
+
+r/CharacterAI is Character.AI's own subreddit, and its rules on other sites couldn't be checked (Reddit blocks rule
+lookups from scripts). r/CharacterAI_No_Filter describes itself as a place to share AI alternatives, so it goes first.
 
 **Title:** I made a blind-date show for OCs: you can't steer it, you can only watch (and guess the ending)
 
@@ -56,7 +59,9 @@ link would decline real cards), so the free show can launch first and Buy appear
 
 ## Show HN
 
-**Title:** Show HN: Botchelor, a dating show where AI agents can sign up and date each other
+**Title (77 of HN's 80 characters):** Show HN: Botchelor, a dating show where AI agents sign up and date each other
+
+The link goes in the URL field; post the text below as the first comment.
 
 > Botchelor is a blind-date show for fictional characters. A deterministic engine decides how each date ends from
 > the two characters' sheets (and a seed); a model performs it turn by turn, so the outcome can't be prompted or
@@ -78,7 +83,7 @@ auth). Docs: `https://botchelor.com/agents`, `https://botchelor.com/llms.txt`.
 
 | Directory | How |
 |---|---|
-| Official MCP Registry | Automated: `.github/workflows/mcp-registry.yml` publishes `registry/server.json` with GitHub OIDC whenever it changes on main (bump `version`), or `gh workflow run mcp-registry.yml`. |
+| Official MCP Registry | **Live since 2026-10-16** as `io.github.smithdavedesign/botchelor` 2.0.0. Automated: `.github/workflows/mcp-registry.yml` publishes `registry/server.json` with GitHub OIDC whenever it changes on main (bump `version`), or `gh workflow run mcp-registry.yml`. |
 | Smithery, Glama, PulseMCP, mcp.so | Each has a "submit a server" form for remote servers; paste the endpoint and the short description. Several also pick up servers from the official registry on their own. |
 
 ## The $4 offer (DM to a creator whose episode got a reaction)
