@@ -1612,28 +1612,64 @@ button.button-ghost:hover:not(:disabled) {
   .watch-dot { animation: none; }
 }
 
+/* The standard watch room is wider than the site's reading column, so the date, the live chat and the voting can sit
+   side by side. Theater mode is full-screen and ignores it. */
+main:has(> .watch) {
+  max-width: 84rem;
+}
 .watch-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "stage" "votes" "chat";
   gap: 1rem;
   align-items: start;
 }
+/* Two columns: the date, and beside it the live chat over the voting. */
 @media (min-width: 52rem) {
   .watch-grid {
     grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-  }
-  .watch-side {
-    position: sticky;
-    top: 1rem;
+    grid-template-areas: "stage chat" "stage votes";
+    grid-template-rows: auto 1fr;
   }
 }
-.watch-stage {
+/* Three columns: the date, the live chat, the voting. Chat and voting stay in view while the date scrolls. */
+@media (min-width: 72rem) {
+  .watch-grid {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "stage chat votes";
+    grid-template-rows: auto;
+  }
+  .watch-side,
+  .watch-votes {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+  }
+  .watch-side .watch-messages {
+    max-height: none;
+    height: max(14rem, calc(100vh - 16rem));
+  }
+}
+.watch-stage,
+.watch-votes {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
   min-width: 0;
 }
-.watch-stage .card {
+.watch-stage {
+  grid-area: stage;
+}
+.watch-votes {
+  grid-area: votes;
+}
+.watch-side {
+  grid-area: chat;
+  min-width: 0;
+}
+.watch-stage .card,
+.watch-votes .card {
   margin: 0;
 }
 .venue-chip {

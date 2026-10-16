@@ -19,6 +19,8 @@ function lastLine(turns: Turn[], side: "a" | "b"): string | null {
 
 const POLL_MS = 4000;
 const CHAT_HIDDEN_KEY = "bz_watch_chat_hidden";
+/** "standard" once this browser stepped out of theater mode; a date opens in theater mode otherwise. */
+const VIEW_KEY = "bz_watch_view";
 
 function readChatHidden(): boolean {
   try {
@@ -31,7 +33,8 @@ function readChatHidden(): boolean {
 export default function WatchRoom({ initial }: { initial: RoomState }) {
   const [state, setState] = useState<RoomState>(initial);
   const [chatHidden, setChatHidden] = useState(false);
-  const [theater, setTheater] = useState(false);
+  // A date opens in theater mode (the "window into the date"); stepping out is remembered in this browser.
+  const [theater, setTheaterState] = useState(true);
   const busy = useRef(false);
 
   // The heartbeat: register presence, advance the template clock / air the finale, pull fresh tallies.
@@ -54,10 +57,24 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
 
   useEffect(() => {
     setChatHidden(readChatHidden());
+    try {
+      if (localStorage.getItem(VIEW_KEY) === "standard") setTheaterState(false);
+    } catch {
+      /* no storage: theater mode, the default */
+    }
     void sync();
     const timer = setInterval(() => void sync(), POLL_MS);
     return () => clearInterval(timer);
   }, [sync]);
+
+  function setTheater(on: boolean) {
+    setTheaterState(on);
+    try {
+      localStorage.setItem(VIEW_KEY, on ? "theater" : "standard");
+    } catch {
+      /* ignore: the choice just isn't remembered */
+    }
+  }
 
   function toggleChat() {
     setChatHidden((prev) => {
@@ -105,9 +122,14 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
         </div>
       </header>
 
+      {/* The date, the live chat and the voting: three columns on a wide screen, two on a tablet (the chat over the
+          voting), one on a phone (the date, the voting, then the chat). */}
       <div className="watch-grid">
-        <section className="watch-stage">
+        <section className="watch-stage" aria-label="The date">
           <Stage state={state} onPredict={sync} />
+        </section>
+
+        <section className="watch-votes" aria-label="Voting">
           <Reactions state={state} onDone={sync} />
           <Polls state={state} onDone={sync} />
           <Predictions state={state} onDone={sync} />

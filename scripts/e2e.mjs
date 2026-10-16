@@ -43,6 +43,15 @@ const CHAR = {
 };
 
 const results = [];
+
+/** A date opens in theater mode (unless this browser chose the standard view before): step out to the standard room. */
+async function standardView(p) {
+  await p.locator(".theater, .watch-grid").first().waitFor({ timeout: 10_000 });
+  if (await p.locator(".theater").count()) {
+    await p.getByRole("button", { name: "Exit" }).click();
+    await p.locator(".watch-grid").waitFor({ timeout: 10_000 });
+  }
+}
 async function step(name, fn) {
   try {
     await fn();
@@ -203,6 +212,8 @@ async function main() {
       await page.getByRole("button", { name: "Start the premiere" }).click();
       await page.waitForURL(/\/watch\/[0-9a-f-]{36}$/);
       roomUrl = page.url();
+      await page.locator(".theater").waitFor({ timeout: 10_000 }); // a date opens in theater mode
+      await standardView(page);
       await page.getByRole("heading", { level: 1 }).waitFor();
       assert((await page.locator(".watch-live").count()) > 0, "live 'watching' indicator missing");
       assert((await page.locator(".watch-react").count()) >= 3, "the reactions bar is missing");
@@ -213,6 +224,7 @@ async function main() {
       const fpage = await fan.newPage();
       try {
         await fpage.goto(roomUrl);
+        await standardView(fpage);
         await fpage.locator(".watch-react").first().waitFor();
         // React: the first emoji's count should tick from 0 to 1 after the heartbeat syncs it back.
         await fpage.locator(".watch-react").first().click();
@@ -235,7 +247,9 @@ async function main() {
     await step("the watch room opens into theater mode (M13)", async () => {
       await page.bringToFront();
       await page.goto(roomUrl);
-      await page.getByRole("button", { name: /Theater mode/ }).click();
+      // This browser stepped out of theater earlier, so the standard room remembers that; the button goes back in.
+      await page.locator(".theater, .watch-grid").first().waitFor({ timeout: 10_000 });
+      if (!(await page.locator(".theater").count())) await page.getByRole("button", { name: /Theater mode|Watch the replay/ }).click();
       await page.locator(".theater .scene").waitFor({ timeout: 10_000 });
       assert((await page.locator(".theater-hud").count()) > 0, "the theater HUD is missing");
       assert((await page.locator(".theater-convo .chat-thread").count()) > 0, "the conversation thread is missing in theater");
@@ -260,6 +274,7 @@ async function main() {
         assert((await gpage.locator(".watch-lobby-card").count()) > 0, "the lobby has no rooms");
         await gpage.locator(".watch-lobby-card").first().click();
         await gpage.waitForURL(/\/watch\/[0-9a-f-]{36}$/);
+        await standardView(gpage);
         await gpage.getByRole("heading", { level: 1 }).waitFor();
         assert((await gpage.locator(".watch-stage .card").count()) > 0, "the room stage did not render");
         assert((await gpage.locator(".watch-react").count()) >= 3, "the room reactions bar is missing");
