@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -12,6 +13,9 @@ import { seasonLabel, tryCloseDueSeasons } from "@/lib/seasons";
 import LeagueActions from "./LeagueActions";
 
 export const dynamic = "force-dynamic";
+
+// A friends' league is invite-only and personal: never indexed.
+export const metadata: Metadata = { title: "Friends' league · Botchelor", robots: { index: false, follow: false } };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const day = (date: Date) => date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });

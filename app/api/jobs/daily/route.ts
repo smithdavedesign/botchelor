@@ -2,6 +2,7 @@ import { track } from "@/lib/analytics";
 import { backfillTranscripts } from "@/lib/backfill";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
+import { recentPublicUrls, submitIndexNow } from "@/lib/indexnow";
 import { internalJobAuthorized, runQueuedJobs } from "@/lib/jobs";
 import { clearStaleOwnDates } from "@/lib/own-date";
 import { refreshLobby } from "@/lib/watch";
@@ -31,6 +32,10 @@ async function run(req: Request): Promise<Response> {
   const jobsRan = await runQueuedJobs(db, new Date(), 3);
   // Self-performed dates an agent started and never finished (never visible; lib/own-date.ts).
   const ownDatesCleared = await clearStaleOwnDates(db).catch(() => 0);
+  // Push the last day's newly public pages to IndexNow (Bing → ChatGPT search, Copilot; Yandex). Opt-in by key.
+  const indexnow = await recentPublicUrls(db, new Date(Date.now() - 26 * 60 * 60 * 1000))
+    .then((urls) => submitIndexNow(urls))
+    .catch(() => ({ submitted: 0, status: null }));
   track("daily_job", {
     room_created: Boolean(lobby.created),
     lobby_reason: lobby.reason ?? null,
@@ -39,8 +44,10 @@ async function run(req: Request): Promise<Response> {
     rate_limited: backfill.rate_limited ?? false,
     jobs_ran: jobsRan,
     own_dates_cleared: ownDatesCleared,
+    indexnow_submitted: indexnow.submitted,
+    indexnow_status: indexnow.status,
   });
-  return json({ lobby, backfill, jobs_ran: jobsRan, own_dates_cleared: ownDatesCleared });
+  return json({ lobby, backfill, jobs_ran: jobsRan, own_dates_cleared: ownDatesCleared, indexnow });
 }
 
 // Vercel Cron sends GET; POST is for a manual trigger.

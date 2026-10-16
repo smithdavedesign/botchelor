@@ -20,6 +20,10 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.9",
+    "@next/third-parties": "^16.4.2",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/functions": "^3.10.1",
+    "@vercel/speed-insights": "^2.0.0",
     "next": "^16.4.0",
     "pg": "^8.23.1",
     "react": "^19.3.0",

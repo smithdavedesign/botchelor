@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import JsonLd from "@/app/JsonLd";
+import { breadcrumbJsonLd } from "@/lib/seo";
 import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
 import { getDb } from "@/lib/db";
@@ -108,7 +109,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
     <article>
       {episode.visibility === "public" && !episode.hidden && (
         <JsonLd
-          data={{
+          data={[{
             "@context": "https://schema.org",
             "@type": "CreativeWork",
             name: `${a.name} × ${b.name}`,
@@ -120,8 +121,14 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
             isAccessibleForFree: true,
             creditText: "Written by an AI model; the outcome is decided by a deterministic engine.",
             character: episode.characters.map((c) => ({ "@type": "Person", name: c.name, url: `${base}/characters/${c.id}` })),
-            publisher: { "@type": "Organization", name: "Botchelor", url: base },
-          }}
+            image: `${base}/episodes/${episode.id}/opengraph-image`,
+            isPartOf: { "@id": `${base}/#website` },
+            publisher: { "@type": "Organization", "@id": `${base}/#org`, name: "Botchelor", url: base, logo: `${base}/icon.svg` },
+          }, breadcrumbJsonLd([
+            { name: "Botchelor", path: "/" },
+            { name: "Now showing", path: "/feed" },
+            { name: `${a.name} × ${b.name}`, path: `/episodes/${episode.id}` },
+          ])]}
         />
       )}
       <p className="kicker">Botchelor episode</p>

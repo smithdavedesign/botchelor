@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import ShareLink from "@/app/ShareLink";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
+import { trackConversion } from "@/app/conversion";
 import {
   DRAMA_ANSWERS,
   DRAMA_QUESTION_LABELS,
@@ -40,7 +41,10 @@ export default function EpisodeActions(props: Props) {
     if (!pick) return setError("Pick an ending first.");
     const dramaPick = form.get("drama_pick");
     void run(() =>
-      requestJson("/api/predictions", { episode_id: episodeId, pick, ...(dramaPick ? { drama_pick: dramaPick } : {}) }),
+      requestJson("/api/predictions", { episode_id: episodeId, pick, ...(dramaPick ? { drama_pick: dramaPick } : {}) }).then((r) => {
+        if (r.ok) trackConversion("prediction_made", { surface: "episode", with_drama: Boolean(dramaPick) });
+        return r;
+      }),
     );
   }
 

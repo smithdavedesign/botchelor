@@ -4,6 +4,7 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { RATING_CATEGORIES, type RatingCategory } from "@/lib/rules";
 import type { RatingCounts, RatingMine } from "@/lib/ratings";
+import { trackConversion } from "@/app/conversion";
 
 type Props = { characterId: string; counts: RatingCounts; mine: RatingMine; isOwner: boolean };
 
@@ -19,6 +20,7 @@ export default function RatingButtons({ characterId, counts, mine, isOwner }: Pr
     const res = await requestJson(`/api/characters/${characterId}/ratings`, { category });
     setBusy(null);
     if (res.ok) {
+      if (res.data.rated) trackConversion("character_rated", { category });
       setState((s) => ({
         counts: (res.data.counts as RatingCounts) ?? s.counts,
         mine: { ...s.mine, [category]: Boolean(res.data.rated) },

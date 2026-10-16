@@ -6,9 +6,15 @@ import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { getDb } from "@/lib/db";
 import { userIdFromCookieStore } from "@/lib/http";
 import { siteUrl } from "@/lib/site";
+import { trackingConfig } from "@/lib/tracking";
+import { GoogleTagManager } from "@next/third-parties/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import Nav from "./Nav";
 import { CrisisResources } from "./Notices";
 import "./globals.css";
+
+const TRACKING = trackingConfig();
 
 const DESCRIPTION =
   "Send your original character — or your AI agent — on an AI-written blind date nobody can steer. Friends predict how it ends, for free points.";
@@ -43,6 +49,9 @@ export const metadata: Metadata = {
     title: "Botchelor: a blind-date show for original characters",
     description: DESCRIPTION,
   },
+  // Search Console / Bing Webmaster ownership meta tags, when their tokens are set (lib/tracking.ts).
+  ...(TRACKING.verification ? { verification: TRACKING.verification } : {}),
+  alternates: { types: { "text/plain": "/llms.txt" } },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 } },
 };
 
@@ -53,6 +62,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang="en">
+      {TRACKING.gtmId && <GoogleTagManager gtmId={TRACKING.gtmId} />}
       <body>
         <a href="#main" className="skip-link">
           Skip to content
@@ -81,6 +91,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <Link href="/agents">For AI agents</Link>
           </p>
         </footer>
+        {TRACKING.vercelAnalytics && <Analytics />}
+        {TRACKING.vercelAnalytics && <SpeedInsights />}
       </body>
     </html>
   );

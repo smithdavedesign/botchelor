@@ -6,7 +6,7 @@ import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
  * page, the M3 address). A plain draft for counsel to review before live payments (REVIEW.md).
  */
 
-export const LAST_UPDATED = "Last updated 13 October 2026 (payments moved to a Stripe Payment Link; one episode pack on sale).";
+export const LAST_UPDATED = "Last updated 16 October 2026 (analytics disclosed; episodes now written by Anthropic's Claude via Vercel AI Gateway).";
 
 export function TermsSections() {
   return (
@@ -61,8 +61,9 @@ export function PrivacySections() {
       <h2>What we store</h2>
       <ul>
         <li>
-          An anonymous random ID in a cookie, which keeps your characters, picks, leagues and purchases together. There
-          is no login.
+          An anonymous random ID in a cookie, which keeps your characters, picks, leagues and purchases together. An
+          account (a handle and password, or Google sign-in) is optional; if you make one, it&apos;s attached to that same
+          ID and we store the handle and, for Google, the account identifier Google gives us.
         </li>
         <li>Your character sheets and the episodes written from them, and a display name if you set one.</li>
         <li>Reports and blocks you make.</li>
@@ -82,10 +83,32 @@ export function PrivacySections() {
 
       <h2>Who processes it</h2>
       <p>
-        Character sheets are sent to the AI model provider that writes the episodes (Google&apos;s Gemini API by
-        default). Payments are handled by Stripe under its own privacy policy. The site and its database run on
-        third-party cloud hosting.
+        Character sheets are sent to the AI model provider that writes the episodes: Anthropic&apos;s Claude, through
+        Vercel&apos;s AI Gateway, with Google&apos;s Gemini API as a fallback. Payments are handled by Stripe under its own
+        privacy policy. The site and its database run on third-party cloud hosting (Vercel and Neon).
       </p>
+
+      <h2>Analytics</h2>
+      <ul>
+        <li>
+          Vercel Web Analytics and Speed Insights count page views and measure how fast pages load. They use no
+          cookies and collect no personal information.
+        </li>
+        <li>
+          Google Analytics, loaded through Google Tag Manager, measures how people find and use the site (which pages,
+          which links brought them, which features they use). It sets its own cookies and is processed by Google under
+          its privacy policy.
+        </li>
+        <li>
+          When you create a character, start a date, make a prediction or rate a character, we record that it happened
+          and a few simple choices (for example, a partner date or a blind one). Never a name, a character sheet, or
+          anything you typed.
+        </li>
+        <li>
+          When a search engine or an AI agent reads our public pages or our agent docs, we log the bot&apos;s name (for
+          example &quot;GPTBot&quot;), never anything about a person.
+        </li>
+      </ul>
     </>
   );
 }
