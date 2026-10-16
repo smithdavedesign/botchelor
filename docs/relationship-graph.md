@@ -124,7 +124,11 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
   keys are `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (keychain: `vault/botchelor/*`). Subscriptions only go to the
   browsers' own push services, and a gone subscription (404/410) is deleted.
 
-  **Email** (`lib/email.ts`, Resend from the Vercel Marketplace on its free plan: $0, no card, 100 a day):
+  **Email** (`lib/email.ts`, Resend on its free plan: $0, no card, 100 a day and 3,000 a month). It's live
+  since 2026-10-16. botchelor.com is verified in Resend, with the DKIM, return-path and DMARC records at Wix
+  (Resend's inbound MX record is skipped because the show only sends). The sending-only key is in the keychain at
+  `vault/botchelor/RESEND_API_KEY` and on Vercel production. Resend is a direct account, not the Vercel
+  Marketplace one (the Marketplace has no free plan for a domain bought elsewhere).
   - **Opt-in only, and confirmed.** It's on the account page for signed-in players. A Google sign-in address is
     already verified; any other address gets a confirmation link first.
   - **Few emails.** Only what's waiting on them goes at once (a second-date yes, a second date booked), at most 3 a
