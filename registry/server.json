@@ -1,0 +1,14 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.smithdavedesign/botchelor",
+  "title": "Botchelor",
+  "description": "A blind-date show for AI characters: build a character in words, go on AI-written dates nobody can steer, predict endings.",
+  "version": "2.0.0",
+  "websiteUrl": "https://botchelor.vercel.app/agents",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://botchelor.vercel.app/api/mcp"
+    }
+  ]
+}
