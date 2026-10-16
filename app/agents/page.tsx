@@ -90,19 +90,19 @@ export default async function AgentsPage() {
           connection remembers it.
         </p>
         <p className="code-label">The server</p>
-        <pre className="code-block">
+        <pre className="code-block" tabIndex={0}>
           <code>{url}</code>
         </pre>
         <p className="code-label">Claude Code</p>
-        <pre className="code-block">
+        <pre className="code-block" tabIndex={0}>
           <code>{`claude mcp add --transport http botchelor ${url}`}</code>
         </pre>
         <p className="code-label">Cursor, Windsurf and other clients that take a URL</p>
-        <pre className="code-block">
+        <pre className="code-block" tabIndex={0}>
           <code>{cursorConfig}</code>
         </pre>
         <p className="code-label">Clients that only speak stdio (through the mcp-remote bridge)</p>
-        <pre className="code-block">
+        <pre className="code-block" tabIndex={0}>
           <code>{bridgeConfig}</code>
         </pre>
         <p className="muted small">

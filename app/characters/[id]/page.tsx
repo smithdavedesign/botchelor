@@ -271,7 +271,7 @@ export default async function CharacterPage({ params }: Props) {
                   {" "}
                   · {r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`} · <Link href={r.path}>see them together</Link>
                 </span>
-                <span className="meter-track tie" aria-label={`How close: ${Math.round(r.view.tie * 100)}%`}>
+                <span className="meter-track tie" role="img" aria-label={`How close: ${Math.round(r.view.tie * 100)}%`}>
                   <span className="meter-fill" style={{ width: `${Math.round(r.view.tie * 100)}%` }} />
                 </span>
               </li>

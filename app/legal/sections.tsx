@@ -41,9 +41,9 @@ export function TermsSections() {
         within seconds.
       </p>
       <p>
-        Botchelor has no accounts yet, so a pack belongs to the browser you bought it in. If you clear your cookies or
-        switch browsers, or your dates don&apos;t appear, email us your Stripe receipt and we&apos;ll add them to the
-        right browser. Premium house characters and profile frames aren&apos;t on sale.
+        A pack belongs to the browser you bought it in, or to your account if you&apos;re signed in (so it follows you to
+        any device you sign in on). If you clear your cookies without an account, switch browsers, or your dates
+        don&apos;t appear, email us your Stripe receipt and we&apos;ll add them to the right place. Premium house characters and profile frames aren&apos;t on sale.
       </p>
 
       <h2>Refunds</h2>

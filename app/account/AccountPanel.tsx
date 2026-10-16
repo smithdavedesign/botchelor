@@ -179,7 +179,7 @@ export default function AccountPanel({ next = null }: { next?: string | null }) 
         )}
         <p className="muted" hidden={next === "/shop"}>
           Optional. Anonymous play already works. An account keeps your characters across devices, lets you keep dates
-          private, and (soon) bring your own model key. No email needed — a handle is anonymous.
+          private, and bring your own model key. No email needed — a handle is anonymous.
         </p>
         {me.google_available && (
           <>
