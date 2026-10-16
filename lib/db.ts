@@ -300,6 +300,16 @@ create table if not exists pack_episode_usage (
   user_id text primary key,
   used integer not null check (used >= 0)
 );
+-- Free dates an admin gave an account (POST /api/admin/tokens): counted like pack dates, never an order, so they
+-- never show up as revenue.
+create table if not exists token_grants (
+  id text primary key,
+  user_id text not null,
+  episodes integer not null check (episodes > 0),
+  granted_by text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists token_grants_user_idx on token_grants (user_id);
 
 -- Full $0 vision (PRD "Soul vs. Persona"). All added with IF NOT EXISTS / IF NOT EXISTS tables so a
 -- live M4 database upgrades in place with no migration step.

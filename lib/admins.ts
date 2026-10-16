@@ -11,6 +11,13 @@ export async function isAdmin(db: Db, userId: string | null | undefined): Promis
   return rows.length > 0;
 }
 
+/** Free dates for an admin's own account (testing the show without buying): 20 at a time. */
+export const ADMIN_TOKEN_GRANT = 20;
+
+export async function grantTokens(db: Db, userId: string, episodes: number, grantedBy: string): Promise<void> {
+  await db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, $3, $4)`, [crypto.randomUUID(), userId, episodes, grantedBy]);
+}
+
 export async function claimAdmin(db: Db, userId: string): Promise<void> {
   await db.query("insert into admins (user_id) values ($1) on conflict do nothing", [userId]);
 }
