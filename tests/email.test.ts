@@ -6,6 +6,7 @@ import { deleteAccount, exportAccount } from "@/lib/account";
 import { registerAccount } from "@/lib/auth";
 import {
   confirmEmail,
+  CONFIRMS_PER_USER_PER_DAY,
   emailNow,
   emailStatus,
   IMMEDIATE_PER_USER_PER_DAY,
@@ -95,6 +96,22 @@ describe("opting in", () => {
     expect(await startEmailOptIn(t.db, h.id, "not an email")).toMatchObject({ ok: false, status: 422 });
     const res = await optInRoute(new Request(`${BASE_URL}/api/me/email`, { method: "POST", headers: { cookie: newUserCookie(), "content-type": "application/json" }, body: "{}" }));
     expect(res.status).toBe(401);
+  });
+
+  it("a confirmation that can't be sent is a plain answer, not an error page; the address stays pending", async () => {
+    setEmailSenderForTests(async () => {
+      throw new Error("resend: validation_error");
+    });
+    const h = await player();
+    expect(await startEmailOptIn(t.db, h.id, "later@example.com")).toMatchObject({ ok: false, status: 502, error: "email_failed" });
+    expect((await emailStatus(t.db, h.id)).status).toBe("pending");
+  });
+
+  it("confirmation emails are capped per account, so nobody can use us to mail strangers", async () => {
+    const h = await player();
+    for (let i = 0; i < CONFIRMS_PER_USER_PER_DAY; i++) expect((await startEmailOptIn(t.db, h.id, `a${i}@example.com`)).ok).toBe(true);
+    expect(await startEmailOptIn(t.db, h.id, "one-more@example.com")).toMatchObject({ ok: false, status: 429 });
+    expect(sent).toHaveLength(CONFIRMS_PER_USER_PER_DAY);
   });
 
   it("is off without a provider key", async () => {
