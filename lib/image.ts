@@ -9,7 +9,35 @@
  * the assets route, so the heavy bytes never sit inline in a page or an API body.
  */
 export const PROMPT_VERSION = "portrait-v1";
-export const DEFAULT_IMAGE_MODEL = "gpt-image-1";
+/**
+ * The portrait model. OpenAI retires gpt-image-1 on 2026-10-23 (its /v1/models entry carries a shutdown_date), so
+ * the default is gpt-image-2, which has none and takes the same request.
+ */
+export const DEFAULT_IMAGE_MODEL = "gpt-image-2";
+
+/** Image models OpenAI has retired or is retiring: a key saved with one of these uses the default instead. */
+export const RETIRED_IMAGE_MODELS: readonly string[] = ["gpt-image-1", "dall-e-2", "dall-e-3"];
+
+/** The model a user's saved image key should run: their chosen one, unless it's retired (or unset). */
+export function imageModelFor(saved: string | null | undefined): string {
+  return saved && !RETIRED_IMAGE_MODELS.includes(saved) ? saved : DEFAULT_IMAGE_MODEL;
+}
+
+/**
+ * The provider's own reason for a refusal, short and safe to show the user: its error message, with anything
+ * shaped like a key scrubbed out. Empty when there's none.
+ */
+export async function providerReason(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  let message = "";
+  try {
+    const parsed = JSON.parse(text) as { error?: { message?: unknown } };
+    if (typeof parsed?.error?.message === "string") message = parsed.error.message;
+  } catch {
+    /* not JSON: no reason to show */
+  }
+  return message.replace(/sk-[A-Za-z0-9_-]{8,}/g, "[key]").replace(/\s+/g, " ").trim().slice(0, 240);
+}
 
 export type PortraitInput = {
   name: string;
@@ -46,7 +74,7 @@ export async function generatePortrait(
 ): Promise<GeneratedPortrait> {
   const prompt = portraitPrompt(character);
   const body: Record<string, unknown> = { model, prompt, size: "1024x1024", n: 1 };
-  // dall-e models need an explicit b64 format; gpt-image-1 always returns b64_json.
+  // dall-e models need an explicit b64 format; the gpt-image models always return b64_json.
   if (/^dall-e/.test(model)) body.response_format = "b64_json";
   const res = await fetchImpl("https://api.openai.com/v1/images/generations", {
     method: "POST",
@@ -55,9 +83,10 @@ export async function generatePortrait(
     signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok) {
-    // The provider's own moderation refuses unsafe prompts/outputs here (and a bad key, a spent quota, …).
-    const detail = await res.text().catch(() => "");
-    throw new Error(`image provider returned HTTP ${res.status}${/safety|moderation|content_policy/i.test(detail) ? " (the provider blocked this image)" : ""}`);
+    // The provider's own moderation refuses unsafe prompts/outputs here (and a bad key, a spent quota, …): say why.
+    const reason = await providerReason(res);
+    const blocked = /safety|moderation|content_policy/i.test(reason);
+    throw new Error(blocked ? "OpenAI blocked this image." : `OpenAI couldn't make the portrait (HTTP ${res.status})${reason ? `: ${reason}` : "."}`);
   }
   const data = (await res.json().catch(() => null)) as { data?: { b64_json?: unknown }[] } | null;
   const b64 = data?.data?.[0]?.b64_json;
@@ -68,6 +97,13 @@ export async function generatePortrait(
 /* ------------------------------------- video clips ------------------------------------- */
 
 export const DEFAULT_VIDEO_MODEL = "sora-2";
+/**
+ * OpenAI shut sora-2 and sora-2-pro down on 2026-09-24, and its /v1/videos API now answers 404, with no successor
+ * model. So clips are retired: nothing new is started, and existing clips keep their stored poster as a still.
+ */
+export const CLIPS_RETIRED = true;
+export const CLIPS_RETIRED_MESSAGE =
+  "Clips are off: OpenAI retired its video model (Sora 2) on 24 September 2026 and hasn't replaced it. Portraits still work.";
 export const CLIP_PROMPT_VERSION = "clip-v1";
 const VIDEOS_URL = "https://api.openai.com/v1/videos";
 

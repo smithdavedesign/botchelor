@@ -16,7 +16,8 @@ type Message = { text: string; error?: boolean };
 
 /**
  * Owner-only controls on a character's card: the full editor (every field, /characters/[id]/edit), the
- * open-to-dates switch, Pro portrait/clip generation on the owner's own key, and delete.
+ * open-to-dates switch, Pro portrait generation on the owner's own key, and delete. (Clips were retired with
+ * OpenAI's video model: lib/image.ts CLIPS_RETIRED.)
  */
 export default function OwnerControls(props: Props) {
   const router = useRouter();
@@ -47,35 +48,6 @@ export default function OwnerControls(props: Props) {
     } else {
       setMessage({ text: message, error: true });
     }
-  }
-
-  async function generateClip() {
-    setBusy(true);
-    setMessage({ text: "Starting a clip on your key (video takes a minute or two)…" });
-    const start = await requestJson(`/api/characters/${props.id}/clip`, {}, "POST").catch(() => ({ ok: false, status: 0 }));
-    if (!start.ok) {
-      setBusy(false);
-      setMessage({ text: start.status === 400 ? "Add an OpenAI image key on your account first." : "Couldn't start the clip.", error: true });
-      return;
-    }
-    // Poll until the provider finishes (bounded), then show it. A render can take a couple of minutes.
-    for (let i = 0; i < 40; i++) {
-      await new Promise((r) => setTimeout(r, 6000));
-      const res = await fetch(`/api/characters/${props.id}/clip`).then((r) => r.json()).catch(() => ({ status: "rendering" }));
-      if (res.status === "ready") {
-        setBusy(false);
-        setMessage(null);
-        router.refresh();
-        return;
-      }
-      if (res.status === "failed") {
-        setBusy(false);
-        setMessage({ text: "The provider couldn't make this clip.", error: true });
-        return;
-      }
-    }
-    setBusy(false);
-    setMessage({ text: "Still rendering — refresh the page in a minute to see your clip." });
   }
 
   async function remove() {
@@ -109,11 +81,6 @@ export default function OwnerControls(props: Props) {
           <li>
             <button type="button" className="link-button" onClick={generatePortrait} disabled={busy}>
               Generate a portrait
-            </button>
-          </li>
-          <li>
-            <button type="button" className="link-button" onClick={generateClip} disabled={busy}>
-              Generate a clip
             </button>{" "}
             <span className="owner-hint">(on your own key)</span>
           </li>

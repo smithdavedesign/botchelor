@@ -1,7 +1,7 @@
 import { latestClip, recordAsset, reviewAsset, setAssetMedia } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import { handle, json, session } from "@/lib/http";
-import { CLIP_PROMPT_VERSION, createVideoJob, fetchVideoThumbnail, pollVideoJob } from "@/lib/image";
+import { CLIP_PROMPT_VERSION, CLIPS_RETIRED, CLIPS_RETIRED_MESSAGE, createVideoJob, fetchVideoThumbnail, pollVideoJob } from "@/lib/image";
 import { IMAGE_PROVIDERS, userImageKey } from "@/lib/keys";
 import { ownsCharacter } from "@/lib/souls";
 
@@ -24,6 +24,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const sess = session(req);
   const db = await getDb();
   if (!(await ownsCharacter(db, id, sess.userId))) return json({ error: "character_not_found" }, 404, sess);
+  // OpenAI retired Sora 2 (lib/image.ts CLIPS_RETIRED): say so plainly rather than fail at the provider.
+  if (CLIPS_RETIRED) return json({ error: "clips_retired", message: CLIPS_RETIRED_MESSAGE }, 410, sess);
   const key = await ownerKey(db, sess.userId);
   if (!key) return json({ error: "no_image_key", message: "Add an OpenAI image key on your account first, then make a clip." }, 400, sess);
 
@@ -64,6 +66,11 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   if (!clip) return json({ status: "none" }, 200, sess);
   if (clip.review_status === "approved") return json({ status: "ready", poster_path: `/api/assets/${clip.id}`, video_path: `/api/assets/${clip.id}/video` }, 200, sess);
   if (clip.review_status === "rejected") return json({ status: "failed", message: "The provider couldn't make this clip." }, 200, sess);
+  // A clip still "rendering" when the video API was retired never will: close it out.
+  if (CLIPS_RETIRED) {
+    await reviewAsset(db, clip.id, "rejected", "openai video api retired");
+    return json({ status: "failed", message: CLIPS_RETIRED_MESSAGE }, 200, sess);
+  }
 
   const key = await ownerKey(db, sess.userId);
   if (!key || !clip.source_url) return json({ status: "rendering" }, 200, sess);
