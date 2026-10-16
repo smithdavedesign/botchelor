@@ -303,7 +303,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
       )}
 
       {episode.afterglow && (
-        <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} />
+        <Afterglow characters={episode.characters} afterglow={episode.afterglow} />
       )}
 
       {episode.is_creator && episode.box_score && <SlidingDoors episodeId={episode.id} />}

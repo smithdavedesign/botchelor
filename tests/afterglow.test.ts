@@ -106,7 +106,7 @@ describe("afterglow — the verdict", () => {
   });
 });
 
-describe("afterglow — owner-controlled reveal", () => {
+describe("afterglow — the owners read it straight away", () => {
   let t: Awaited<ReturnType<typeof startTestDb>>;
   beforeAll(async () => {
     t = await startTestDb();
@@ -123,29 +123,28 @@ describe("afterglow — owner-controlled reveal", () => {
   /** One narration + four afterglow texts, the model calls the inline job makes with conversation off. */
   const script = () => scriptedModel([episodeJson(), lineJson("fun night"), lineJson("it was"), lineJson("again?"), lineJson("ask me")]);
 
-  it("a house date opens with the single owner's consent, then shows the thread and verdict", async () => {
+  it("the owner of a house date reads the thread and the verdict straight away, with nothing to open", async () => {
     const creator = newUserCookie();
     const character = await (await api.createCharacter(validCharacter(), creator)).json();
     scriptOutcome({ ending: "second_date", sides: [sideOutcome(true), sideOutcome(true)] });
     script();
     const created = await (await api.createEpisode({ character_id: character.id, partner_id: HOUSE_PARTNER_ID }, creator)).json();
 
-    const before = await (await api.getEpisode(created.id, creator)).json();
-    expect(before.afterglow).toBeDefined();
-    expect(before.afterglow.revealed).toBe(false);
-    expect(before.afterglow.needed).toBe(1);
-    expect(before.afterglow.thread).toBeUndefined();
+    const view = await (await api.getEpisode(created.id, creator)).json();
+    expect(view.afterglow.revealed).toBe(true);
+    expect(view.afterglow.thread).toHaveLength(4);
+    expect(view.afterglow.verdict).toEqual({ a_wants: true, b_wants: true });
 
+    // The old "open" call still answers (older agent clients use it), now with the thread itself.
     const opened = await api.openAfterglow(created.id, creator);
-    expect(opened.status).toBe(201);
-
-    const after = await (await api.getEpisode(created.id, creator)).json();
-    expect(after.afterglow.revealed).toBe(true);
-    expect(after.afterglow.thread).toHaveLength(4);
-    expect(after.afterglow.verdict).toEqual({ a_wants: true, b_wants: true });
+    expect(opened.status).toBe(200);
+    const body = await opened.json();
+    expect(body.afterglow_revealed).toBe(true);
+    expect(body.thread).toHaveLength(4);
+    expect(body.verdict).toEqual({ a_wants: true, b_wants: true });
   });
 
-  it("a two-owner date needs both; a spectator never sees it", async () => {
+  it("on a two-owner date each owner reads it without the other agreeing; a spectator never sees it", async () => {
     const host = newUserCookie();
     const partner = newUserCookie();
     await (await api.createCharacter(validCharacter({ name: "Otto Fenn" }), partner)).json();
@@ -154,23 +153,17 @@ describe("afterglow — owner-controlled reveal", () => {
     script();
     const created = await (await api.createEpisode({ character_id: hostCharacter.id, blind: true }, host)).json();
 
-    // The host opens first: still locked, 1 of 2.
-    await api.openAfterglow(created.id, host);
-    let view = await (await api.getEpisode(created.id, host)).json();
-    expect(view.afterglow.revealed).toBe(false);
-    expect(view.afterglow.consents).toBe(1);
-    expect(view.afterglow.needed).toBe(2);
+    for (const owner of [host, partner]) {
+      const view = await (await api.getEpisode(created.id, owner)).json();
+      expect(view.afterglow.thread).toHaveLength(4);
+      expect(view.afterglow.verdict).toEqual({ a_wants: true, b_wants: false });
+    }
 
-    // The partner opens: now revealed for both owners.
-    await api.openAfterglow(created.id, partner);
-    view = await (await api.getEpisode(created.id, partner)).json();
-    expect(view.afterglow.revealed).toBe(true);
-    expect(view.afterglow.thread).toHaveLength(4);
-
-    // A spectator sees no afterglow at all (it is private between the owners).
+    // A spectator sees no afterglow at all, and can't fetch it through the old open call either.
     const spectator = newUserCookie();
     const seen = await (await api.getEpisode(created.id, spectator)).json();
     expect(seen.afterglow).toBeUndefined();
+    expect((await api.openAfterglow(created.id, spectator)).status).toBe(403);
   });
 
   it("a failed afterglow leaves the episode ready with no thread (best effort)", async () => {

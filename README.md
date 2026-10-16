@@ -134,7 +134,7 @@ Every date is a **three-act story** — first impressions, a revealing challenge
 The same line-by-line date on an iPhone 13 screen, also captured live.
 
 ![The afterglow: the two AIs' private morning-after texts and the mutual verdict, desktop](docs/screenshots/episode-afterglow-desktop.png)
-**M11 — the afterglow.** After the date, the two characters keep texting privately. Each owner already knows their own AI's verdict (the debrief); the thread and the mutual *"was it mutual?"* verdict unlock only once every real owner opts in. The texts are flavour — they never touch the engine, the box score or predictions.
+**M11 — the afterglow.** After the date, the two characters keep texting privately. The characters' owners read the thread and the *"was it mutual?"* verdict straight away, with nothing to open or agree on (since 2026-10-16); spectators never see it. The texts are flavour — they never touch the engine, the box score or predictions.
 
 ![The afterglow on a phone](docs/screenshots/episode-afterglow-mobile.png)
 The morning-after thread on an iPhone 13, alternating sides like a chat.

@@ -1,13 +1,10 @@
 "use client";
 
 import Avatar from "@/app/Avatar";
-import { requestJson } from "@/app/request";
-import { useAction } from "@/app/useAction";
 import type { CharacterRef, EpisodeView } from "@/lib/game";
 import { afterglowVerdictKind } from "@/lib/rules";
 
 type Props = {
-  episodeId: string;
   characters: [CharacterRef, CharacterRef];
   afterglow: NonNullable<EpisodeView["afterglow"]>;
 };
@@ -28,62 +25,31 @@ function verdictLine(verdict: { a_wants: boolean; b_wants: boolean }, names: [st
 }
 
 /**
- * M11 — the afterglow (owner-only). Before the reveal, each owner knows only their own AI's verdict (the
- * debrief); opening the thread is a mutual act. Once every real owner has opened it, the private
- * morning-after texts and the mutual verdict appear.
+ * M11 — the afterglow, for the characters' owners only: the morning-after texts and whether the interest was
+ * mutual, shown as soon as they exist. No owner has to open it or agree first.
  */
-export default function Afterglow({ episodeId, characters, afterglow }: Props) {
-  const { busy, error, run } = useAction();
+export default function Afterglow({ characters, afterglow }: Props) {
   const [a, b] = characters;
   const names: [string, string] = [a.name, b.name];
 
   return (
     <section className="card afterglow">
       <h2>The afterglow</h2>
-      <p className="muted">
-        The morning after, your characters kept texting. It&apos;s private between the two of you — open it to
-        find out whether the chemistry was mutual.
-      </p>
-
-      {afterglow.revealed ? (
-        <>
-          {afterglow.verdict && <p className="ending">{verdictLine(afterglow.verdict, names)}</p>}
-          {afterglow.thread?.map((line, i) => {
-            const who = line.side === "a" ? a : b;
-            return (
-              <div key={i} className={`turn turn-${line.side}`}>
-                <Avatar seed={who.id} name={who.name} hue={who.hue} house={who.house} portraitSrc={who.portrait} size={30} />
-                <div className="turn-body">
-                  <p className="turn-line">
-                    <strong>{who.name}</strong> {line.text}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </>
-      ) : (
-        <>
-          <p>
-            {afterglow.consented
-              ? `You've opened the afterglow. Waiting for the other creator to open it too (${afterglow.consents} of ${afterglow.needed}).`
-              : afterglow.needed > 1
-                ? `Both creators have to open it. ${afterglow.consents} of ${afterglow.needed} so far.`
-                : "Open it to read the texts and see if it was mutual."}
-          </p>
-          {!afterglow.consented && (
-            <button
-              type="button"
-              className="primary small"
-              disabled={busy}
-              onClick={() => run(() => requestJson(`/api/episodes/${episodeId}/afterglow`, {}))}
-            >
-              {busy ? "Opening…" : "Open the afterglow"}
-            </button>
-          )}
-          {error && <p className="error">{error}</p>}
-        </>
-      )}
+      <p className="muted">The morning after, your characters kept texting. Only the characters&apos; owners see this.</p>
+      {afterglow.verdict && <p className="ending">{verdictLine(afterglow.verdict, names)}</p>}
+      {afterglow.thread.map((line, i) => {
+        const who = line.side === "a" ? a : b;
+        return (
+          <div key={i} className={`turn turn-${line.side}`}>
+            <Avatar seed={who.id} name={who.name} hue={who.hue} house={who.house} portraitSrc={who.portrait} size={30} />
+            <div className="turn-body">
+              <p className="turn-line">
+                <strong>{who.name}</strong> {line.text}
+              </p>
+            </div>
+          </div>
+        );
+      })}
     </section>
   );
 }

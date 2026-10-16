@@ -160,8 +160,8 @@ create table if not exists identity_consents (
   primary key (episode_id, user_id)
 );
 
--- M11 afterglow reveal: each owner opts in to open the morning-after thread. Mirrors identity_consents
--- (one row per owner who agreed); the thread and the mutual verdict unlock once every real owner has.
+-- M11 afterglow reveal: each owner opted in to open the morning-after thread, and it unlocked once every real
+-- owner had. Unused since 2026-10-16 (owners now read it straight away); kept, since rows and tables aren't dropped.
 create table if not exists afterglow_consents (
   episode_id text not null references episodes (id) on delete cascade,
   user_id text not null,

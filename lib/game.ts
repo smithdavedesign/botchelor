@@ -119,7 +119,7 @@ export type StoredEpisode = {
   setup: DateSetup | null;
   /** M9: the turn-by-turn conversation. Empty for pre-M9 episodes or when it couldn't be produced. */
   transcript: Turn[];
-  /** M11: the private morning-after text thread (lib/afterglow.ts). Owner-gated; empty when not produced. */
+  /** M11: the private morning-after text thread (lib/afterglow.ts). Owners only; empty when not produced. */
   afterglow: AfterglowLine[];
   status: EpisodeStatus;
 };
@@ -194,16 +194,13 @@ export type EpisodeView = EpisodeJson & {
   /** Creators only: where the mutual identity reveal stands. */
   identity?: { consented: boolean; consents: number; needed: number };
   /**
-   * M11 afterglow (owner-only, when a thread exists). Each owner knows their own verdict (the debrief);
-   * the thread and the mutual verdict unlock only once every real owner opts in. `thread`/`verdict` are
-   * present only when `revealed`.
+   * M11 afterglow: the morning-after texts and whether the interest was mutual, for the characters' owners
+   * only (never a spectator), as soon as the thread exists. No owner has to agree first (David, 2026-10-16).
+   * `revealed` is always true; kept so older agent clients reading it still work.
    */
   afterglow?: {
-    revealed: boolean;
-    consented: boolean;
-    consents: number;
-    needed: number;
-    thread?: AfterglowLine[];
+    revealed: true;
+    thread: AfterglowLine[];
     verdict?: AfterglowVerdict;
   };
 };
@@ -299,8 +296,6 @@ type EpisodeRow = {
   my_pick: Ending | null;
   my_drama_pick: DramaAnswer | null;
   my_consent: boolean;
-  afterglow_consents: number;
-  my_afterglow_consent: boolean;
   blocked: boolean;
 };
 
@@ -321,11 +316,10 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
        e.visibility,
        case when a.owner_id = $1::text then 0 when b.owner_id = $1::text then 1 else null end as my_side,
        rep.n >= $2::int as hidden,
-       cons.n as consents, need.n as needed, ag.n as afterglow_consents,
+       cons.n as consents, need.n as needed,
        pa.name as a_creator_name, pb.name as b_creator_name,
        p.pick as my_pick, p.drama_pick as my_drama_pick,
        exists (select 1 from identity_consents mc where mc.episode_id = e.id and mc.user_id = $1::text) as my_consent,
-       exists (select 1 from afterglow_consents amc where amc.episode_id = e.id and amc.user_id = $1::text) as my_afterglow_consent,
        exists (select 1 from blocks bl where bl.blocker_id = $1::text and bl.via_episode_id = e.id) as blocked
   from episodes e
   join characters a on a.id = e.character_a
@@ -336,10 +330,6 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
     select count(*)::int as n from identity_consents ic
      where ic.episode_id = e.id and ic.user_id in (a.owner_id, b.owner_id)
   ) cons
-  cross join lateral (
-    select count(*)::int as n from afterglow_consents ac
-     where ac.episode_id = e.id and ac.user_id in (a.owner_id, b.owner_id)
-  ) ag
   left join profiles pa on pa.user_id = a.owner_id and need.n > 0 and cons.n >= need.n
   left join profiles pb on pb.user_id = b.owner_id and need.n > 0 and cons.n >= need.n
   left join predictions p on p.episode_id = e.id and p.user_id = $1::text`;
@@ -414,22 +404,13 @@ function toView(row: EpisodeRow): EpisodeView {
   if (row.is_creator) view.identity = { consented: row.my_consent, consents: row.consents, needed: row.needed };
   // The private debrief: the owner's own side only, visible to that owner.
   if (row.my_side !== null && row.sides) view.debrief = debriefFrom(row.sides[row.my_side], row.setup, row.my_side);
-  // The afterglow (owner-only): shown once a thread exists. The thread + mutual verdict unlock only
-  // when every real owner has opted in (needed>0 and consents reach it); a house date needs just the one.
+  // The afterglow: the characters' owners read the thread and the mutual verdict as soon as it exists.
   const thread = row.afterglow ?? [];
   if (row.is_creator && thread.length > 0) {
-    const revealed = row.needed > 0 && row.afterglow_consents >= row.needed;
     view.afterglow = {
-      revealed,
-      consented: row.my_afterglow_consent,
-      consents: row.afterglow_consents,
-      needed: row.needed,
-      ...(revealed
-        ? {
-            thread,
-            ...(row.sides ? { verdict: { a_wants: row.sides[0].wants_another, b_wants: row.sides[1].wants_another } } : {}),
-          }
-        : {}),
+      revealed: true,
+      thread,
+      ...(row.sides ? { verdict: { a_wants: row.sides[0].wants_another, b_wants: row.sides[1].wants_another } } : {}),
     };
   }
   return view;

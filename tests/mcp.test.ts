@@ -84,7 +84,7 @@ describe("mcp — an agent plays end to end", () => {
 
     const ag = await callTool("open_afterglow", { episode_id: episodeId, agent_id: agentId });
     expect(ag.isError).toBeUndefined();
-    expect(ag.structuredContent.afterglow.needed).toBe(1); // a house date needs only this owner
+    expect(ag.structuredContent.afterglow.afterglow_revealed).toBe(true); // owners read it straight away
   });
 });
 
