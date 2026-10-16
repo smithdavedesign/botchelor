@@ -52,7 +52,7 @@ export default function EpisodeTheater(props: Props) {
   );
 }
 
-function Playback({ characters, venue, transcript, endingLabel, onExit }: Props & { onExit: () => void }) {
+function Playback({ characters, venue, transcript, endingLabel, autoOpen, onExit }: Props & { onExit: () => void }) {
   const replay = useReplay(transcript, true);
   const [convo, setConvo] = useState(true);
   const shown = replay.shown;
@@ -81,7 +81,7 @@ function Playback({ characters, venue, transcript, endingLabel, onExit }: Props 
             <strong>
               {a.name} <span className="vs">×</span> {b.name}
             </strong>
-            <span className="chip">Replay</span>
+            <span className="chip">{autoOpen ? "Just filmed" : "Replay"}</span>
           </div>
           <div className="theater-tools">
             <button type="button" className="theater-icon" onClick={replay.toggle} aria-label={replay.playing ? "Pause" : "Play"} title={replay.playing ? "Pause" : "Play"}>

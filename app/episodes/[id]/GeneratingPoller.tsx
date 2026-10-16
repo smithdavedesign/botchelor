@@ -72,7 +72,7 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
       <div className="theater theater-clean theater-filming">
         <div className="theater-stage">
           <div className="theater-scene-area">
-            <Scene characters={stage.characters} venue={stage.venue} lineA={null} lineB={null} actLabel="Filming" placeholder="They're arriving…" />
+            <Scene characters={stage.characters} venue={stage.venue} lineA={null} lineB={null} actLabel={null} placeholder="They're arriving…" />
           </div>
           <header className="theater-hud">
             <div className="theater-id">
