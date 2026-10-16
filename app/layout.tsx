@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
 import { getDb } from "@/lib/db";
+import { unreadCount } from "@/lib/notifications";
 import { userIdFromCookieStore } from "@/lib/http";
 import { siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
@@ -65,6 +66,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const cookieStore = await cookies();
   const viewerId = userIdFromCookieStore(cookieStore);
   const dates = viewerId ? await episodeAllowance(await getDb(), viewerId) : freshAllowance();
+  // The bell's unread count (lib/notifications.ts): what happened between dates.
+  const unread = viewerId ? await unreadCount(await getDb(), viewerId).catch(() => 0) : 0;
   // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
   const google = Boolean(TRACKING.gaId || TRACKING.gtmId);
   const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, (await headers()).get("x-vercel-ip-country"));
@@ -87,7 +90,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             Botchelor
           </Link>
           <span className="tagline">a blind-date show for original characters</span>
-          <Nav tokens={dates.left} />
+          <Nav tokens={dates.left} unread={unread} />
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">

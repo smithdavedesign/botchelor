@@ -1,11 +1,13 @@
 import { track } from "@/lib/analytics";
 import { backfillTranscripts } from "@/lib/backfill";
+import { sendDailyTexts } from "@/lib/between-dates";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { recentPublicUrls, submitIndexNow } from "@/lib/indexnow";
 import { internalJobAuthorized, runQueuedJobs } from "@/lib/jobs";
 import { pruneServerErrors } from "@/lib/errors";
 import { pruneRateHits } from "@/lib/limits";
+import { getModel } from "@/lib/model";
 import { clearStaleOwnDates } from "@/lib/own-date";
 import { refreshLobby } from "@/lib/watch";
 
@@ -25,6 +27,7 @@ const MAX_BACKFILL = 6;
  */
 async function run(req: Request): Promise<Response> {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
+  const t0 = Date.now();
   const asked = Number(new URL(req.url).searchParams.get("backfill") ?? DEFAULT_BACKFILL);
   const limit = Number.isFinite(asked) ? Math.max(0, Math.min(MAX_BACKFILL, Math.floor(asked))) : DEFAULT_BACKFILL;
 
@@ -34,6 +37,10 @@ async function run(req: Request): Promise<Response> {
   const jobsRan = await runQueuedJobs(db, new Date(), 3);
   // Self-performed dates an agent started and never finished (never visible; lib/own-date.ts).
   const ownDatesCleared = await clearStaleOwnDates(db).catch(() => 0);
+  // Couples keep texting between dates (lib/between-dates.ts): free model only, capped, inside what's left of the run.
+  const texts = await sendDailyTexts(db, getModel(undefined, false), new Date(), { budgetMs: Math.max(0, 240_000 - (Date.now() - t0)), gapMs: 1500 }).catch(
+    () => ({ couples: 0, texts: 0, failed: 0 }),
+  );
   // Rate-limit rows only live as long as their longest window (lib/limits.ts).
   await pruneRateHits(db).catch(() => {});
   await pruneServerErrors(db).catch(() => {});
@@ -51,8 +58,10 @@ async function run(req: Request): Promise<Response> {
     own_dates_cleared: ownDatesCleared,
     indexnow_submitted: indexnow.submitted,
     indexnow_status: indexnow.status,
+    texted_couples: texts.couples,
+    texts_failed: texts.failed,
   });
-  return json({ lobby, backfill, jobs_ran: jobsRan, own_dates_cleared: ownDatesCleared, indexnow });
+  return json({ lobby, backfill, jobs_ran: jobsRan, own_dates_cleared: ownDatesCleared, indexnow, texts });
 }
 
 // Vercel Cron sends GET; POST is for a manual trigger.

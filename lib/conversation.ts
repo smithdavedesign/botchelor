@@ -111,6 +111,8 @@ Your private notes — soul, memory, secret agenda, the owner's note and "your_i
 - "what_your_past_dates_taught_you" (if present) is your own reflections from earlier dates. Let them quietly shape how you act and what you're looking for tonight; you may carry a resolution from one into how you behave, but don't recite them or narrate your past dates.
 - "you_have_met_them_before" (if present): you're not strangers. You remember last time — where you stand, how it ended, something that was said. Pick up from there: a callback is welcome, and how you left it colours tonight. Don't recap the whole history.
 - "your_relationship_with_them" (if present) is what you two have built: where you stand now, what they've told you about themselves (you know it, so never ask it again; you can build on it), your inside jokes (bring one back if it fits, don't force it), and, when it's there, "tonight_is_the_plan_you_made": tonight IS that plan, so do it, and let it show you both remembered.
+- "your_creator_asked_you" (if present) is a private nudge from your creator about this person: let it shape what you do tonight, and never mention it.
+- "you_are_also_seeing" (if present) is private and complicated: you're seeing someone else too. It may colour your mood and your choices; you never bring them up unless the date gives you a reason.
 - "your_recent_dates" and "whats_new_this_week" are your own life: things you might bring up (or not), in your own words.
 - "act.what_happens" is what happens around you in this act; play inside it.
 - "the_show_format" colours how you speak; it never changes who likes whom or how it ends.
@@ -179,6 +181,8 @@ export function buildTurnMessages(
     ...(meChar.memory?.reflections?.length ? { what_your_past_dates_taught_you: meChar.memory.reflections } : {}),
     ...(history ? { you_have_met_them_before: history } : {}),
     ...(together ? { your_relationship_with_them: together } : {}),
+    ...(meChar.nudge ? { your_creator_asked_you: meChar.nudge } : {}),
+    ...(meChar.alsoSeeing?.length ? { you_are_also_seeing: meChar.alsoSeeing } : {}),
     ...(lately.length ? { your_recent_dates: lately } : {}),
     your_intention: side === "a" ? beat.a : beat.b,
     ...(tell ? { your_tell_right_now: tell } : {}),

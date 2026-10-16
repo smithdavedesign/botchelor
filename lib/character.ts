@@ -64,6 +64,10 @@ export type Character = {
    */
   pair?: Record<string, unknown> | null;
   pairShared?: string;
+  /** Set only on a date's characters: its owner's standing nudge about this person (lib/between-dates.ts). Private. */
+  nudge?: string | null;
+  /** Set only on a date's characters: who else it's seeing, from the public record (lib/between-dates.ts). */
+  alsoSeeing?: string[];
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));

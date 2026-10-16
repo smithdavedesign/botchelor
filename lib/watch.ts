@@ -53,7 +53,8 @@ import {
   type WatchPhaseId,
   type WatchPoll,
 } from "./rules";
-import { PUBLIC_ONLY, refreshRelationship } from "./relationships";
+import { PUBLIC_ONLY } from "./relationships";
+import { refreshAndAnnounce } from "./relationship-events";
 import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
 import { updateCharacterMemory } from "./memory";
 import { ShowrunnerError, type CharacterSheet } from "./showrunner";
@@ -556,7 +557,7 @@ export async function syncRoom(
     if (aired) {
       await updateCharacterMemory(db, aired.character_a).catch(() => {});
       await updateCharacterMemory(db, aired.character_b).catch(() => {});
-      await refreshRelationship(db, aired.character_a, aired.character_b).catch(() => {});
+      await refreshAndAnnounce(db, aired.character_a, aired.character_b).catch(() => {});
     }
   }
   return getRoomState(db, partyId, viewerId, now);

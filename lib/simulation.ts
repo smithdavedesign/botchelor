@@ -23,6 +23,7 @@ import { assembleCharacter, type Character } from "./character";
 import type { CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { loadCharacterMemory, type CharacterMemory } from "./memory";
+import { activeNudge, alsoSeeing } from "./between-dates";
 import { engineHistory, loadRelationship, pairContext, pairSharedWords, refreshRelationship, venueForPlan, type Relationship } from "./relationships";
 import { loadSoul, type StoredSoul } from "./souls";
 import {
@@ -135,6 +136,9 @@ export type DateParts = {
   relationship?: Relationship | null;
   creatorId?: string;
   followupOf?: string | null;
+  /** Each owner's standing nudge about the other, and who else each is seeing (public). Flavour only. */
+  nudges?: { a: string | null; b: string | null };
+  alsoSeeing?: { a: string[]; b: string[] };
 };
 
 /**
@@ -152,6 +156,10 @@ export function assembleDate(p: DateParts): BuiltDate {
     charB.pair = pairContext(p.relationship, b.id, p.creatorId, p.followupOf ?? null);
     charA.pairShared = charB.pairShared = pairSharedWords(p.relationship, p.creatorId);
   }
+  if (p.nudges?.a) charA.nudge = p.nudges.a;
+  if (p.nudges?.b) charB.nudge = p.nudges.b;
+  if (p.alsoSeeing?.a.length) charA.alsoSeeing = p.alsoSeeing.a;
+  if (p.alsoSeeing?.b.length) charB.alsoSeeing = p.alsoSeeing.b;
   // A second date happens where they planned it, when the plan names a kind of place we have.
   const plans = p.followupOf ? (p.relationship?.plans ?? []).filter((x) => x.episode_id === p.followupOf) : [];
   // The effective engine signals this date runs on: the base soul/image signals nudged by the learned
@@ -182,6 +190,8 @@ export function assembleDate(p: DateParts): BuiltDate {
     // ...and the pair's history as the engine read it, so a replay sees the relationship as it stood that night.
     ...(p.history ? { history: p.history } : {}),
     ...(p.followupOf ? { followup_of: p.followupOf, plan: plans.map((x) => x.text) } : {}),
+    ...(p.nudges?.a ? { nudge_a: p.nudges.a } : {}),
+    ...(p.nudges?.b ? { nudge_b: p.nudges.b } : {}),
   };
   // Fill the format's cast from real data (flavour only, never the engine): a named house regular as the
   // meet-the-parents chaperone, and a real past partner as the returning ex when the graph has one.
@@ -232,9 +242,16 @@ export async function buildDate(
    * Who set the date up (the relationship layer each side may draw on), the date this is the second date of, and the
    * pair history to run on instead of today's (the worker passes the snapshot POST stored, like the signals).
    */
-  opts: { creatorId?: string; followupOf?: string | null; historyOverride?: DateHistory | null; legacyHistory?: boolean } = {},
+  opts: {
+    creatorId?: string;
+    followupOf?: string | null;
+    historyOverride?: DateHistory | null;
+    legacyHistory?: boolean;
+    /** The nudges as booked (the worker passes the setup's snapshot: by then they've been used). */
+    nudges?: { a: string | null; b: string | null };
+  } = {},
 ): Promise<BuiltDate> {
-  const [soulA, soulB, memoryA, memoryB, relationship, ex, extras] = await Promise.all([
+  const [soulA, soulB, memoryA, memoryB, relationship, ex, extras, nudges, seeingA, seeingB] = await Promise.all([
     loadSoul(db, a.id),
     loadSoul(db, b.id),
     loadCharacterMemory(db, a.id),
@@ -246,6 +263,11 @@ export async function buildDate(
       `select id, extras, this_week from characters where id = any($1)`,
       [[a.id, b.id]],
     ),
+    opts.nudges
+      ? Promise.resolve(opts.nudges)
+      : Promise.all([activeNudge(db, a.id, b.id), activeNudge(db, b.id, a.id)]).then(([x, y]) => ({ a: x, b: y })),
+    alsoSeeing(db, a.id, b.id).catch(() => []),
+    alsoSeeing(db, b.id, a.id).catch(() => []),
   ]);
   const rowOf = (id: string) => extras.rows.find((r) => r.id === id);
   // A worker re-deciding a stored date passes its snapshot; a date stored before snapshots ran on dates + last ending.
@@ -262,6 +284,7 @@ export async function buildDate(
     episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId),
     soulA, soulB, memoryA, memoryB, history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
+    nudges, alsoSeeing: { a: seeingA, b: seeingB },
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),
   });

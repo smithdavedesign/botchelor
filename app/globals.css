@@ -392,6 +392,45 @@ h2 {
   align-items: center;
 }
 
+/* Notifications (lib/notifications.ts): a bell with an unread count; on phones, a dot on the menu button. */
+.nav-bell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.nav-bell-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.nav-count {
+  min-width: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--accent-btn);
+  color: var(--accent-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25rem;
+  text-align: center;
+}
+.nav-toggle {
+  position: relative;
+}
+.nav-dot {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--accent-btn);
+  border: 1.5px solid var(--card);
+}
+
 @media (max-width: 720px) {
   .nav {
     gap: 0.5rem;
@@ -422,6 +461,28 @@ h2 {
     padding: 0.7rem 0.9rem;
     font-size: 1rem;
   }
+  .nav-bell-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+  }
+}
+
+/* The notifications page. */
+.notification {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.notification:last-child {
+  border-bottom: 0;
+}
+.notification.unread strong::before {
+  content: "● ";
+  color: var(--accent);
 }
 
 .site-footer {

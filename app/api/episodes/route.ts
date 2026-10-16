@@ -28,6 +28,8 @@ import { checkFields } from "@/lib/safety";
 import { seasonCastIds } from "@/lib/season-cast";
 import { seasonAt } from "@/lib/seasons";
 import { checkSecondDate } from "@/lib/second-date";
+import { useNudges } from "@/lib/between-dates";
+import { notify } from "@/lib/notifications";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { type CharacterSheet } from "@/lib/showrunner";
 
@@ -354,12 +356,26 @@ async function writeAndSave(
     );
   }
   saveState.saved = true;
+  // Their nudges for each other go into this date (snapshotted on the setup), so they're used now.
+  await useNudges(db, own.id, partner.id).catch(() => {});
 
   // Queue the slow part (narration + conversation). In production it runs after the response (and the
   // cron route re-runs anything after() misses); inline — tests — it runs now so the episode is ready.
   await enqueueGeneration(db, episodeId, useFrontier, sess.userId, reservation);
   track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: input.blind === true, second_date: secondDate !== null });
-  if (secondDate) track("second_date_planned", { episode_id: episodeId, followup_of: secondDate.followupOf, planned_venue: built.setup.plan?.length ? built.setup.venue : null });
+  if (secondDate) {
+    track("second_date_planned", { episode_id: episodeId, followup_of: secondDate.followupOf, planned_venue: built.setup.plan?.length ? built.setup.venue : null });
+    // The other character's creator hears it's happening (house characters have none).
+    const partnerOwner = (await db.query<{ owner_id: string | null }>(`select owner_id from characters where id = $1`, [partner.id])).rows[0]?.owner_id;
+    if (partnerOwner && partnerOwner !== sess.userId) {
+      await notify(db, partnerOwner, {
+        kind: "second_date_booked",
+        title: `💞 ${own.name.split(" ")[0]} and ${partner.name.split(" ")[0]} have a second date`,
+        body: built.setup.plan?.length ? `As planned: “${built.setup.plan[0]}”` : null,
+        link: `/episodes/${episodeId}`,
+      });
+    }
+  }
   if (inlineGenerationEnabled()) {
     // No after() lifecycle here, so run the job now: ready → the full episode; a failure deletes the
     // episode and gives the date back, which we surface as the old fail-closed 502.

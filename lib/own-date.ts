@@ -27,6 +27,7 @@ import { transcriptQuality } from "./quality";
 import { CONVERSATION_TURNS, DATE_ACTS, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
 import { buildReflectionMessages, type Reflections } from "./reflection";
+import { useNudges } from "./between-dates";
 import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
 
 /** How many unfinished self-performed dates one identity may have at once. */
@@ -189,6 +190,8 @@ export async function startOwnDate(
     ],
   );
   track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: false, performed_by: "agent" });
+  // Their nudges for each other are in this date's setup now, so they're used.
+  await useNudges(db, a.id, b.id).catch(() => {});
   return { ok: true, step: stepFor(episodeId, built, decided, formatId, [], [a.id, b.id]) };
 }
 
@@ -226,6 +229,7 @@ async function rebuild(db: Db, row: Row) {
   const built = await buildDate(db, row.id, forDate("a"), forDate("b"), request, row.seed === null ? undefined : Number(row.seed), signals, {
     creatorId: row.creator_id,
     historyOverride: row.setup?.history ?? null,
+    nudges: { a: row.setup?.nudge_a ?? null, b: row.setup?.nudge_b ?? null },
   });
   const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
   return { built, decided, formatId };

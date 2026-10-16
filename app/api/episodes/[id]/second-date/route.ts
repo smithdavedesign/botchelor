@@ -3,6 +3,7 @@ import { POST as createEpisode } from "@/app/api/episodes/route";
 import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { notify, ownersOf } from "@/lib/notifications";
 import { sayYesToSecondDate, secondDateState } from "@/lib/second-date";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -46,7 +47,18 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
 
   await sayYesToSecondDate(db, id, sess.userId);
   if (state.needs_their_yes && !state.they_asked) {
-    if (!state.you_asked) track("second_date_yes", { episode_id: id });
+    if (!state.you_asked) {
+      track("second_date_yes", { episode_id: id });
+      // Tell the other character's creator: their yes completes it.
+      const owners = await ownersOf(db, [state.my_character_id, state.partner_character_id]);
+      const mine = (await db.query<{ name: string }>(`select name from characters where id = $1`, [state.my_character_id])).rows[0]?.name ?? "Their date";
+      await notify(db, owners.get(state.partner_character_id), {
+        kind: "second_date_yes",
+        title: `💌 ${mine.split(" ")[0]} wants a second date with ${state.partner_name.split(" ")[0]}`,
+        body: "Their creator said yes. Say yes too and it's booked.",
+        link: `/episodes/${id}`,
+      });
+    }
     return json(
       { episode_id: id, status: "waiting", message: `You said yes. ${state.partner_name}'s creator has to say yes too; whoever completes it books the date.` },
       202,

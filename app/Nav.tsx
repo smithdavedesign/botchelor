@@ -17,7 +17,7 @@ const LINKS = [
  * the links themselves (a row on desktop, a drop-down panel on mobile). "Tokens" are this viewer's dates
  * left — one token sends a character on one date — so the meter doubles as the entry to top up (M4 packs).
  */
-export default function Nav({ tokens }: { tokens: number }) {
+export default function Nav({ tokens, unread = 0 }: { tokens: number; unread?: number }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -49,6 +49,7 @@ export default function Nav({ tokens }: { tokens: number }) {
         onClick={() => setOpen((v) => !v)}
       >
         <span className="nav-toggle-bars" aria-hidden="true" data-open={open} />
+        {unread > 0 && !open && <span className="nav-dot" aria-label={`${unread} unread notifications`} />}
       </button>
       <div id="nav-menu" className="nav-links" data-open={open}>
         {LINKS.map((l) => (
@@ -56,6 +57,15 @@ export default function Nav({ tokens }: { tokens: number }) {
             {l.label}
           </Link>
         ))}
+        <Link href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">
+          <span aria-hidden="true">🔔</span>
+          <span className="nav-bell-label">Notifications</span>
+          {unread > 0 && (
+            <span className="nav-count" aria-label={`${unread} unread`}>
+              {unread > 99 ? "99+" : unread}
+            </span>
+          )}
+        </Link>
       </div>
     </nav>
   );
