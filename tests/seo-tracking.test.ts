@@ -45,7 +45,7 @@ describe("llms.txt — llmstxt.org shape, honest, measurable", () => {
 
 describe("tracking config — every tag is opt-in by env", () => {
   it("renders nothing without ids, and only production counts for Vercel analytics", () => {
-    expect(trackingConfig({})).toEqual({ gtmId: null, vercelAnalytics: false, verification: undefined });
+    expect(trackingConfig({})).toEqual({ gtmId: null, gaId: null, vercelAnalytics: false, verification: undefined });
     expect(trackingConfig({ VERCEL_ENV: "preview" }).vercelAnalytics).toBe(false);
     expect(trackingConfig({ VERCEL_ENV: "production" }).vercelAnalytics).toBe(true);
   });
@@ -54,6 +54,12 @@ describe("tracking config — every tag is opt-in by env", () => {
     expect(trackingConfig({ NEXT_PUBLIC_GTM_ID: "GTM-ABC1234" }).gtmId).toBe("GTM-ABC1234");
     expect(trackingConfig({ NEXT_PUBLIC_GTM_ID: "GTM-x');alert(1)//" }).gtmId).toBeNull();
     expect(trackingConfig({ NEXT_PUBLIC_GTM_ID: "UA-123" }).gtmId).toBeNull();
+  });
+
+  it("accepts only a well-formed GA4 measurement id", () => {
+    expect(trackingConfig({ NEXT_PUBLIC_GA_ID: "G-VHL1LZTPHL" }).gaId).toBe("G-VHL1LZTPHL");
+    expect(trackingConfig({ NEXT_PUBLIC_GA_ID: "G-x');alert(1)//" }).gaId).toBeNull();
+    expect(trackingConfig({}).gaId).toBeNull();
   });
 
   it("emits Search Console and Bing verification when their tokens are set", () => {
