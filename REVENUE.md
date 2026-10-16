@@ -63,6 +63,6 @@ After 3 weeks of the mini-season, stop if any of these hold:
 - counsel saying SB 243 applies with costly obligations;
 - moderation taking over an hour a week.
 
-**Status (2026-10-16):** the $4 pack is set up in Stripe test mode on a dedicated account and verified end to end on botchelor.com (`npm run e2e:live`); the free show is live and the shop says "Purchases open soon" until live mode.
+**Status (2026-10-16):** live. The $4 pack sells through a live Payment Link on botchelor's own Stripe account; the flow was verified end to end in test mode (`npm run e2e:live`) and the live checkout page checked.
 
-**Next action for David:** switch Stripe to live mode (BUILD.md, "Taking real money"), then post the mini-season: `docs/launch-kit.md` has the drafts and one-click links.
+**Next action for David:** one real $4 purchase with his own card, refunded in the Stripe dashboard (the final proof), then post the mini-season: `docs/launch-kit.md` has the drafts and one-click links.

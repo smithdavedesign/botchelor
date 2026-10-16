@@ -458,6 +458,8 @@ From the 2026-10-16 launch review: what a public launch needs beyond features.
   account is set up in test mode; the database is dumped nightly (ai-stack `bin/db-backup`).
 - **Live end-to-end check (shipped, #113).** `npm run e2e:live` passed 9/9 on botchelor.com. It found that a deleted
   creator's kept characters stayed in the cast, open to dates and in blind matching; fixed in the same PR.
+- **Live payments (2026-10-16).** botchelor's own Stripe account (`acct_1UR4AVAFlr4wKG3U`) sells the $4 pack through a
+  live Payment Link; ai-stack `provision` gained per-repo Stripe keys so tiebreak's shared account stays untouched.
 
 ## Seeded content (from the image strategy; see `docs/image-strategy.md`)
 
