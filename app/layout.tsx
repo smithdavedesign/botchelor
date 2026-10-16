@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
+import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
 import { getDb } from "@/lib/db";
 import { userIdFromCookieStore } from "@/lib/http";
 import { siteUrl } from "@/lib/site";
@@ -10,6 +11,7 @@ import { trackingConfig } from "@/lib/tracking";
 import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import ConsentBanner from "./ConsentBanner";
 import Nav from "./Nav";
 import { CrisisResources } from "./Notices";
 import "./globals.css";
@@ -57,11 +59,20 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // The nav's token meter needs this viewer's dates left; an anonymous visitor gets the fresh weekly allowance.
-  const viewerId = userIdFromCookieStore(await cookies());
+  const cookieStore = await cookies();
+  const viewerId = userIdFromCookieStore(cookieStore);
   const dates = viewerId ? await episodeAllowance(await getDb(), viewerId) : freshAllowance();
+  // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
+  const google = Boolean(TRACKING.gaId || TRACKING.gtmId);
+  const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, (await headers()).get("x-vercel-ip-country"));
 
   return (
     <html lang="en">
+      {google && (
+        <head>
+          <script dangerouslySetInnerHTML={{ __html: consentDefaultScript(consent.granted) }} />
+        </head>
+      )}
       {TRACKING.gtmId && <GoogleTagManager gtmId={TRACKING.gtmId} />}
       {TRACKING.gaId && <GoogleAnalytics gaId={TRACKING.gaId} />}
       <body>
@@ -92,6 +103,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <Link href="/agents">For AI agents</Link>
           </p>
         </footer>
+        {google && consent.ask && <ConsentBanner />}
         {TRACKING.vercelAnalytics && <Analytics />}
         {TRACKING.vercelAnalytics && <SpeedInsights />}
       </body>

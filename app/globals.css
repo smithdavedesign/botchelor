@@ -3352,6 +3352,36 @@ button.dice:hover:not(:disabled) {
   }
 }
 
+/* Cookie choice for Google Analytics, shown only in consent regions (lib/consent.ts). */
+.consent-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  z-index: 50;
+  transform: translateX(-50%);
+  width: min(40rem, calc(100% - 2rem));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: var(--text-sm);
+}
+.consent-banner p {
+  flex: 1 1 16rem;
+  margin: 0;
+}
+.consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 /* Windows high-contrast mode (forced colors). Last in the file so it overrides the base button and badge rules. */
 @media (forced-colors: active) {
   button:not(.link-button):not(.linklike),
