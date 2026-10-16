@@ -8,6 +8,7 @@ changes the public pages, `/llms.txt`, or the analytics setup.
 | Layer | What | Where |
 |---|---|---|
 | Crawling | `robots.txt` (welcomes named AI crawlers), `sitemap.xml` (public pages + every public aired episode and public character) | `app/robots.ts`, `app/sitemap.ts`, `lib/seo.ts` |
+| One host | botchelor.com is canonical. Pages on the old `botchelor.vercel.app` 308 there (so Search Console's Change of Address works); a visitor with an identity cookie is first carried over by a one-minute signed token, so anonymous players keep their characters. `/api` (the Stripe webhook, MCP) and files (the verification files) stay on both hosts | `middleware.ts`, `app/api/auth/carry` |
 | Indexing | `noindex` on personal pages (`/account`, `/admin`, character edit, leagues, `/gate`); watch rooms point their canonical at the episode page | page `metadata` |
 | Rich results | JSON-LD: site graph (home), `CreativeWork` + breadcrumbs (episodes), `ProfilePage` + breadcrumbs (characters), `ItemList` (cast, feed), `WebAPI` (agents). Public fields only, never soul/dealbreaker/memory | `lib/seo.ts`, `app/JsonLd.tsx` |
 | Fast indexing | IndexNow: the daily cron pushes the last day's newly public URLs to Bing/Yandex/Seznam/Naver (Bing feeds ChatGPT search and Copilot) | `lib/indexnow.ts`, `/indexnow-key.txt` |
