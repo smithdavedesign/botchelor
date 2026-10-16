@@ -7,7 +7,7 @@ import { getDb } from "@/lib/db";
 import { userIdFromCookieStore } from "@/lib/http";
 import { siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
-import { GoogleTagManager } from "@next/third-parties/google";
+import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import Nav from "./Nav";
@@ -63,6 +63,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="en">
       {TRACKING.gtmId && <GoogleTagManager gtmId={TRACKING.gtmId} />}
+      {TRACKING.gaId && <GoogleAnalytics gaId={TRACKING.gaId} />}
       <body>
         <a href="#main" className="skip-link">
           Skip to content
