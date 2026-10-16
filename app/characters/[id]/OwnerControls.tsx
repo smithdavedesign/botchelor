@@ -16,8 +16,8 @@ type Message = { text: string; error?: boolean };
 
 /**
  * Owner-only controls on a character's card: the full editor (every field, /characters/[id]/edit), the
- * open-to-dates switch, Pro portrait generation on the owner's own key, and delete. (Clips were retired with
- * OpenAI's video model: lib/image.ts CLIPS_RETIRED.)
+ * open-to-dates switch, Pro portrait generation on the owner's own key, and delete. Clips show as "coming soon"
+ * while they move to a new video model (OpenAI retired Sora 2: lib/image.ts CLIPS_RETIRED).
  */
 export default function OwnerControls(props: Props) {
   const router = useRouter();
@@ -83,6 +83,13 @@ export default function OwnerControls(props: Props) {
               Generate a portrait
             </button>{" "}
             <span className="owner-hint">(on your own key)</span>
+          </li>
+          <li>
+            {/* Clips paused while they move to a new video model (lib/image.ts CLIPS_RETIRED). */}
+            <button type="button" className="link-button" disabled aria-describedby="clip-soon" title="OpenAI retired the video model clips ran on; they're moving to a new one.">
+              Generate a clip
+            </button>{" "}
+            <span id="clip-soon" className="badge">Coming soon</span>
           </li>
         </ul>
       </div>

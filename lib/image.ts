@@ -103,7 +103,7 @@ export const DEFAULT_VIDEO_MODEL = "sora-2";
  */
 export const CLIPS_RETIRED = true;
 export const CLIPS_RETIRED_MESSAGE =
-  "Clips are off: OpenAI retired its video model (Sora 2) on 24 September 2026 and hasn't replaced it. Portraits still work.";
+  "Clips are coming soon: OpenAI retired the video model they ran on (Sora 2), and we're moving them to a new one. Portraits still work.";
 export const CLIP_PROMPT_VERSION = "clip-v1";
 const VIDEOS_URL = "https://api.openai.com/v1/videos";
 

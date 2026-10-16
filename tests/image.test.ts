@@ -177,7 +177,7 @@ describe("BYOK video clip (OpenAI Sora on the user's key)", () => {
     stubVideo("completed");
     const res = await clipPost(character.id, cookie);
     expect(res.status).toBe(410);
-    expect((await res.json()).message).toMatch(/OpenAI retired its video model/);
+    expect((await res.json()).message).toMatch(/coming soon.*OpenAI retired the video model/i);
     expect(await t.count("character_assets")).toBe(0);
     vi.unstubAllGlobals();
   });
@@ -193,7 +193,7 @@ describe("BYOK video clip (OpenAI Sora on the user's key)", () => {
     await recordAsset(t.db, { character_id: other.id, kind: "clip", source_type: "generated", source_model: "openai:sora-2", source_url: "vid_stuck" });
     const closed = await (await clipGet(other.id, cookie)).json();
     expect(closed).toMatchObject({ status: "failed" });
-    expect(closed.message).toMatch(/retired/);
+    expect(closed.message).toMatch(/coming soon/i);
   });
 
   it("is still owner-only", async () => {
