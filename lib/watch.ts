@@ -574,6 +574,15 @@ export type LobbyEntry = {
   started: boolean;
   ended: boolean;
   watching: number;
+  /**
+   * What a visitor can do with the room right now: "live" (playing; join in), "ready" (an open room nobody has started:
+   * the first one in starts it for everyone), "upcoming" (a premiere with a set start) or "replay" (it has ended).
+   */
+  status: "live" | "ready" | "upcoming" | "replay";
+  /** When a premiere starts (or a started room started), ISO; null for an open room nobody has started. */
+  starts_at: string | null;
+  /** A second date: the first date it follows (lib/second-date.ts). */
+  followup_of: string | null;
 };
 
 /** Joinable rooms for the lobby: always-on templates first, then live and upcoming premieres. */
@@ -593,8 +602,9 @@ export async function listLobby(db: Db, now: Date = new Date(), limit = 24): Pro
     b_hue: number | null;
     b_portrait: string | null;
     watching: number;
+    followup_of: string | null;
   }>(
-    `select w.id, w.kind, w.starts_at,
+    `select w.id, w.kind, w.starts_at, e.followup_of,
             a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait,
             b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait,
             (select count(*) from watch_presence p
@@ -626,6 +636,9 @@ export async function listLobby(db: Db, now: Date = new Date(), limit = 24): Pro
       started: clock.started,
       ended: clock.ended,
       watching: r.watching,
+      status: !clock.started ? (r.kind === "template" ? "ready" : "upcoming") : clock.ended ? "replay" : "live",
+      starts_at: r.starts_at ? new Date(r.starts_at).toISOString() : null,
+      followup_of: r.followup_of,
     };
   });
 }
@@ -840,30 +853,52 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
 
 /* ---------------------------------- reactions, votes, chat ---------------------------------- */
 
+/** Open rooms the hourly job may add in one UTC day (each is one date on the model: about 5¢ on the paid default). */
+export const FRESH_ROOMS_PER_DAY = 6;
+
 /**
  * The daily lobby refresh (the "always-on" promise): once per UTC day, add a fresh house-vs-house room whose
  * date has a full conversation, so the lobby always has something to tap into and watch live. The pairing
  * is dealt from the day (two distinct free house characters), it is idempotent per day (a retried cron is a
  * no-op), and a pairing whose conversation fails gets one other try. Free model only, so $0 marginal cost.
  */
-export async function refreshLobby(db: Db, now: Date = new Date()): Promise<{ created: string | null; reason?: string }> {
+export async function refreshLobby(
+  db: Db,
+  now: Date = new Date(),
+  // ensureFresh (the hourly job): keep one open room nobody has started yet, up to maxPerDay a UTC day, so the lobby
+  // always has something to start live instead of only replays (an open room's clock starts with its first viewer).
+  opts: { ensureFresh?: boolean; maxPerDay?: number } = {},
+): Promise<{ created: string | null; reason?: string }> {
   if (generationPaused()) return { created: null, reason: "paused" };
   const day = now.toISOString().slice(0, 10);
-  const today = await db.query<{ id: string }>(
-    `select w.id from watch_parties w join episodes e on e.id = w.episode_id
-      where w.kind = 'template' and w.created_at >= $1::timestamptz and jsonb_array_length(e.transcript) > 0
-      limit 1`,
+  const today = await db.query<{ id: string; started: boolean }>(
+    `select w.id, w.starts_at is not null as started from watch_parties w join episodes e on e.id = w.episode_id
+      where w.kind = 'template' and w.created_at >= $1::timestamptz and jsonb_array_length(e.transcript) > 0`,
     // An explicit UTC midnight: a bare 'YYYY-MM-DD'::date is read in the database session's time zone, which
     // would make "today" depend on where the database runs.
     [`${day}T00:00:00Z`],
   );
-  if (today.rows.length) return { created: null, reason: "already_today" };
+  if (opts.ensureFresh) {
+    const fresh = await db.query(
+      `select 1 from watch_parties w join episodes e on e.id = w.episode_id
+        where w.kind = 'template' and w.starts_at is null and jsonb_array_length(e.transcript) > 0
+          and (select count(*) from reports r where r.episode_id = e.id) < $1
+        limit 1`,
+      [REPORT_HIDE_THRESHOLD],
+    );
+    if (fresh.rows.length) return { created: null, reason: "fresh_room_ready" };
+    if (today.rows.length >= (opts.maxPerDay ?? FRESH_ROOMS_PER_DAY)) return { created: null, reason: "daily_limit" };
+  } else if (today.rows.length) {
+    return { created: null, reason: "already_today" };
+  }
+  // Today's later rooms deal a different pairing from the first one.
+  const round = today.rows.length;
 
   // Paired from this season's house cast only (lib/season-cast.ts): the rest of the roster sits the season out.
   const cast = seasonCastIds(now);
   for (let attempt = 0; attempt < 2; attempt++) {
-    const i = seedFrom("lobby-a", day, attempt) % cast.length;
-    const j = (i + 1 + (seedFrom("lobby-b", day, attempt) % (cast.length - 1))) % cast.length;
+    const i = seedFrom("lobby-a", day, attempt + 2 * round) % cast.length;
+    const j = (i + 1 + (seedFrom("lobby-b", day, attempt + 2 * round) % (cast.length - 1))) % cast.length;
     const result = await createTemplateParty(db, cast[i], cast[j]);
     if (!result || !result.ok) continue;
     const { rows } = await db.query<{ n: number }>(

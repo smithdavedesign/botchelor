@@ -5,7 +5,8 @@ import { setConversationEnabledForTests } from "@/lib/conversation";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { ModelError } from "@/lib/model";
 import { CONVERSATION_TURNS, ENDING_LABELS } from "@/lib/rules";
-import { createTemplateParty, listLobby, refreshLobby } from "@/lib/watch";
+import { GET as lobbyJob } from "@/app/api/jobs/lobby/route";
+import { createTemplateParty, FRESH_ROOMS_PER_DAY, listLobby, refreshLobby } from "@/lib/watch";
 import { BASE_URL, episodeJson, planJson, scriptedModel, scriptOutcome, setupEpisode, startTestDb } from "./helpers";
 
 const turnJson = (i: number) =>
@@ -110,6 +111,51 @@ describe("refreshLobby (daily)", () => {
 
     // A retried cron the same day is a no-op (no extra model calls, no second room).
     expect(await refreshLobby(t.db, now)).toEqual({ created: null, reason: "already_today" });
+  });
+});
+
+describe("the watch page is honest about what's playing", () => {
+  async function openRoom() {
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    const room = await createTemplateParty(t.db, HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id);
+    if (!room?.ok) throw new Error("template setup failed");
+    await t.db.query(
+      `update episodes set transcript = $2::jsonb where id = (select episode_id from watch_parties where id = $1)`,
+      [room.id, JSON.stringify([{ side: "a", act: 0, dialogue: "hi", action: "", emotion: "", interest: 0.5 }])],
+    );
+    return room.id;
+  }
+  const statusOf = async (id: string) => (await listLobby(t.db)).find((r) => r.id === id)?.status;
+
+  it("an open room nobody started is ready, then live once it starts, then a replay", async () => {
+    const id = await openRoom();
+    expect(await statusOf(id)).toBe("ready");
+    await t.db.query("update watch_parties set starts_at = now() where id = $1", [id]);
+    expect(await statusOf(id)).toBe("live");
+    await t.db.query("update watch_parties set starts_at = now() - interval '1 day' where id = $1", [id]);
+    expect(await statusOf(id)).toBe("replay");
+  });
+
+  it("the hourly job keeps one room ready, up to its daily limit", async () => {
+    const id = await openRoom();
+    expect(await refreshLobby(t.db, new Date(), { ensureFresh: true })).toEqual({ created: null, reason: "fresh_room_ready" });
+    // Someone started it: the job adds another (a different pairing), all on the model.
+    await t.db.query("update watch_parties set starts_at = now() where id = $1", [id]);
+    setConversationEnabledForTests(true);
+    scriptOutcome({ ending: "second_date" });
+    scriptedModel([planJson(), ...turns(CONVERSATION_TURNS), episodeJson()]);
+    const made = await refreshLobby(t.db, new Date(), { ensureFresh: true });
+    expect(made.created).toBeTruthy();
+    expect(await statusOf(made.created!)).toBe("ready");
+    // At the day's limit it stops, even with nothing ready.
+    await t.db.query("update watch_parties set starts_at = now()");
+    expect(await refreshLobby(t.db, new Date(), { ensureFresh: true, maxPerDay: 2 })).toEqual({ created: null, reason: "daily_limit" });
+    expect(FRESH_ROOMS_PER_DAY).toBeGreaterThan(1);
+  });
+
+  it("the hourly job's route is not a public surface", async () => {
+    expect((await lobbyJob(new Request(`${BASE_URL}/api/jobs/lobby`))).status).toBe(404);
   });
 });
 

@@ -49,6 +49,7 @@ function EpisodeItem({ episode }: { episode: EpisodeView }) {
           </Link>{" "}
           <span className="badge">{status}</span>
           {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
+          {episode.followup_of && <span className="badge">Second date</span>}
         </div>
       </div>
       <p className="muted">{episode.setting}</p>

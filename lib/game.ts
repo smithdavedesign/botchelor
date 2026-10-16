@@ -149,6 +149,8 @@ export type EpisodeJson = {
   venue?: VenueId;
   /** The show format (lib/formats.ts). Not a secret: it is the episode's billing, shown from the start. Classic omitted. */
   format?: FormatId;
+  /** A second date: the first date it follows (lib/second-date.ts). Shown as a badge; not a spoiler. */
+  followup_of?: string;
   // Only present for the creators, or for everyone once the finale has aired.
   scenes?: string[];
   /** The turn-by-turn date "footage" (M9). A spoiler (it reaches the ending), so gated like `scenes`. */
@@ -236,6 +238,7 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
   // The format is the episode's billing (shown from the start), not a spoiler. Classic is the default, so
   // it needs no badge; only a chosen non-classic format is surfaced.
   if (ep.setup?.format && !isDefaultFormat(ep.setup.format)) json.format = ep.setup.format;
+  if (ep.setup?.followup_of) json.followup_of = ep.setup.followup_of;
   if (opts.full) {
     json.scenes = ep.scenes;
     if (ep.transcript.length) json.transcript = ep.transcript;
