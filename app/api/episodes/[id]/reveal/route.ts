@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db";
 import type { Ending } from "@/lib/game";
 import { handle, json, session } from "@/lib/http";
 import { updateCharacterMemory } from "@/lib/memory";
+import { refreshRelationship } from "@/lib/relationships";
 import { REPORT_HIDE_THRESHOLD } from "@/lib/rules";
 
 /**
@@ -53,6 +54,8 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
   // M14: the date just aired — fold it into both characters' learned memory (deterministic, $0, best-effort).
   await updateCharacterMemory(db, revealed.character_a).catch(() => {});
   await updateCharacterMemory(db, revealed.character_b).catch(() => {});
+  // ...and into the pair's edge: an aired public date joins the public layer of the relationship graph.
+  await refreshRelationship(db, revealed.character_a, revealed.character_b).catch(() => {});
 
   const tally = (
     await db.query<{ total: number; correct: number }>(

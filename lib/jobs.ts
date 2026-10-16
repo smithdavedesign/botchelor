@@ -174,7 +174,12 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // between POST and this worker can't change the canonical outcome the narration is steered toward.
     const signalsSnapshot =
       row.setup?.signals_a && row.setup?.signals_b ? { a: row.setup.signals_a, b: row.setup.signals_b } : undefined;
-    const built = await buildDate(db, episodeId, forDate("a"), forDate("b"), dateRequest, seed, signalsSnapshot);
+    // ...and on the pair's history as POST stored it (a date between them since can't change tonight's start).
+    const built = await buildDate(db, episodeId, forDate("a"), forDate("b"), dateRequest, seed, signalsSnapshot, {
+      creatorId: row.creator_id,
+      followupOf: row.setup?.followup_of ?? null,
+      historyOverride: row.setup?.history ?? null,
+    });
     // Re-decide under the calibration POST stored (a deploy between POST and this worker can't change it).
     const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
 
@@ -233,7 +238,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       ],
     );
     if (saved.rows.length) {
-      await rememberDate(db, row.a_id, row.b_id, decided.ending).catch(() => {});
+      await rememberDate(db, row.a_id, row.b_id).catch(() => {});
       // M14: learned memory is recomputed when a date AIRS (the reveal route / the watch room), not here —
       // a generated date is not yet revealed, and its arc is public, so counting it would spoil predictions.
       await db.query(`update generation_jobs set status = 'succeeded', error = null, updated_at = now() where episode_id = $1`, [episodeId]);

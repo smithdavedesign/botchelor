@@ -142,11 +142,15 @@ describe("formats — a named cast from real data", () => {
     const none = await buildDate(t.db, "ep-ex0", aFor, bFor, { ...DATE_REQ, format: "ex_returns" }, 5);
     expect(none.setup.ex).toBeUndefined();
 
-    // An OC that already dated house-rafe → that's the ex when it meets someone new.
-    const { character } = await setupEpisode("friends"); // the OC dates HOUSE_PARTNER_ID (house-rafe)
+    // An OC that already dated house-rafe → that's the ex when it meets someone new, once that date has aired
+    // publicly: a date nobody has seen yet (or a private one) never puts its partner on air as an ex.
+    const { character, episode, creator } = await setupEpisode("friends"); // the OC dates HOUSE_PARTNER_ID (house-rafe)
     const ocFor: CharacterForDate = { id: character.id, sheet: { ...sheetA, name: character.name } };
     const junFor: CharacterForDate = { id: "house-juniper", sheet: { ...sheetB, name: "Juniper Vale" } };
-    const withEx = await buildDate(t.db, "ep-ex1", ocFor, junFor, { ...DATE_REQ, format: "ex_returns" }, 9);
+    const unaired = await buildDate(t.db, "ep-ex1", ocFor, junFor, { ...DATE_REQ, format: "ex_returns" }, 9);
+    expect(unaired.setup.ex).toBeUndefined();
+    await api.reveal(episode.id, creator);
+    const withEx = await buildDate(t.db, "ep-ex2", ocFor, junFor, { ...DATE_REQ, format: "ex_returns" }, 9);
     expect(withEx.setup.ex).toBe("Rafe Calloway");
   });
 });

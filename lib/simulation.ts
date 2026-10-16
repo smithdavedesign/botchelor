@@ -23,6 +23,7 @@ import { assembleCharacter, type Character } from "./character";
 import type { CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { loadCharacterMemory, type CharacterMemory } from "./memory";
+import { engineHistory, loadRelationship, pairContext, pairSharedWords, refreshRelationship, venueForPlan, type Relationship } from "./relationships";
 import { loadSoul, type StoredSoul } from "./souls";
 import {
   AGENDA_IDS,
@@ -73,30 +74,26 @@ function pickChaperone(seed: number, excludeIds: string[]): string {
   return (pool[seed % pool.length] ?? HOUSE_CHARACTERS[0]).name;
 }
 
-/** The ex-returns format's real ex: A's most recent OTHER past partner from the relationship graph — one it once had a second date with when there is one. */
+/**
+ * The ex-returns format's real ex: A's most recent OTHER past partner from the relationship graph — one it once had a
+ * second date with when there is one. Public edges only, so a private date's partner never turns up on air.
+ */
 async function findEx(db: Db, aId: string, bId: string): Promise<string | undefined> {
   const { rows } = await db.query<{ name: string }>(
     `select case when r.character_a = $1 then cb.name else ca.name end as name
        from relationships r
        join characters ca on ca.id = r.character_a
        join characters cb on cb.id = r.character_b
-      where $1 in (r.character_a, r.character_b) and $2 not in (r.character_a, r.character_b)
-      order by (r.second_dates > 0) desc, r.updated_at desc limit 1`,
+      where $1 in (r.character_a, r.character_b) and $2 not in (r.character_a, r.character_b) and r.public_dates > 0
+      order by (r.public_second_dates > 0) desc, r.public_last_at desc nulls last limit 1`,
     [aId, bId],
   );
   return rows[0]?.name;
 }
 
-/** The canonical (sorted) key for a pair, so one unordered pair is one relationships row. */
-const pairKey = (x: string, y: string): [string, string] => (x < y ? [x, y] : [y, x]);
-
+/** The engine's view of the pair's history, from the relationship graph (every date between them). */
 async function loadHistory(db: Db, aId: string, bId: string): Promise<DateHistory | undefined> {
-  const [lo, hi] = pairKey(aId, bId);
-  const { rows } = await db.query<{ dates: number; last_ending: Ending | null }>(
-    "select dates, last_ending from relationships where character_a = $1 and character_b = $2",
-    [lo, hi],
-  );
-  return rows[0] ? { dates: rows[0].dates, last_ending: rows[0].last_ending } : undefined;
+  return engineHistory(await loadRelationship(db, aId, bId));
 }
 
 export type BuiltDate = {
@@ -130,6 +127,14 @@ export type DateParts = {
   /** What's new in each side's life this week (lib/life.ts). Dialogue flavour only. */
   thisWeekA?: string | null;
   thisWeekB?: string | null;
+  /**
+   * The pair's edge in the relationship graph (lib/relationships.ts), who set this date up (it decides which past
+   * dates each side may bring in: the public record plus that creator's own), and, for a second date, the date
+   * whose plan it is. All optional: without them a date is built exactly as before.
+   */
+  relationship?: Relationship | null;
+  creatorId?: string;
+  followupOf?: string | null;
 };
 
 /**
@@ -141,6 +146,14 @@ export function assembleDate(p: DateParts): BuiltDate {
   const { a, b, req, seed } = p;
   const charA = assembleCharacter({ id: a.id, sheet: a.sheet, soul: p.soulA, memory: p.memoryA, extras: p.extrasA, thisWeek: p.thisWeekA });
   const charB = assembleCharacter({ id: b.id, sheet: b.sheet, soul: p.soulB, memory: p.memoryB, extras: p.extrasB, thisWeek: p.thisWeekB });
+  // Each side's own view of the relationship (never the other's private wish), and the words both already know.
+  if (p.relationship && p.creatorId !== undefined) {
+    charA.pair = pairContext(p.relationship, a.id, p.creatorId, p.followupOf ?? null);
+    charB.pair = pairContext(p.relationship, b.id, p.creatorId, p.followupOf ?? null);
+    charA.pairShared = charB.pairShared = pairSharedWords(p.relationship, p.creatorId);
+  }
+  // A second date happens where they planned it, when the plan names a kind of place we have.
+  const plans = p.followupOf ? (p.relationship?.plans ?? []).filter((x) => x.episode_id === p.followupOf) : [];
   // The effective engine signals this date runs on: the base soul/image signals nudged by the learned
   // memory's bounded drift (lib/character.ts), so a bot genuinely evolves across its dates. A worker
   // rebuilding a stored date passes the snapshot so it re-decides EXACTLY what POST stored.
@@ -156,7 +169,7 @@ export function assembleDate(p: DateParts): BuiltDate {
     game_budget_a: req.gameBudget,
     game_budget_b: DEFAULT_GAME_BUDGET,
     producer: pickProducer(seedFrom(seed, "producer")),
-    venue: pickVenue(seedFrom(seed, "venue")),
+    venue: venueForPlan(plans) ?? pickVenue(seedFrom(seed, "venue")),
     format: req.format,
     // Snapshot the exact effective signals this date ran on, so a replay reproduces it even after memory drifts.
     signals_a: signalsA,
@@ -166,6 +179,9 @@ export function assembleDate(p: DateParts): BuiltDate {
     sheet_b: b.sheet,
     // ...and the engine calibration that decides it, for the same reason.
     engine_version: CURRENT_ENGINE_VERSION,
+    // ...and the pair's history as the engine read it, so a replay sees the relationship as it stood that night.
+    ...(p.history ? { history: p.history } : {}),
+    ...(p.followupOf ? { followup_of: p.followupOf, plan: plans.map((x) => x.text) } : {}),
   };
   // Fill the format's cast from real data (flavour only, never the engine): a named house regular as the
   // meet-the-parents chaperone, and a real past partner as the returning ex when the graph has one.
@@ -212,13 +228,18 @@ export async function buildDate(
    * even if a character's memory has since drifted (e.g. a concurrent template date). Omitted at POST time.
    */
   signalsOverride?: { a: SoulSignals; b: SoulSignals },
+  /**
+   * Who set the date up (the relationship layer each side may draw on), the date this is the second date of, and the
+   * pair history to run on instead of today's (the worker passes the snapshot POST stored, like the signals).
+   */
+  opts: { creatorId?: string; followupOf?: string | null; historyOverride?: DateHistory | null; legacyHistory?: boolean } = {},
 ): Promise<BuiltDate> {
-  const [soulA, soulB, memoryA, memoryB, history, ex, extras] = await Promise.all([
+  const [soulA, soulB, memoryA, memoryB, relationship, ex, extras] = await Promise.all([
     loadSoul(db, a.id),
     loadSoul(db, b.id),
     loadCharacterMemory(db, a.id),
     loadCharacterMemory(db, b.id),
-    loadHistory(db, a.id, b.id),
+    loadRelationship(db, a.id, b.id),
     req.format === "ex_returns" ? findEx(db, a.id, b.id) : Promise.resolve(undefined),
     // Loaded here, beside the soul and memory, so every path that builds a date gets the details.
     db.query<{ id: string; extras: CharacterExtras | null; this_week: StoredThisWeek | null }>(
@@ -227,9 +248,20 @@ export async function buildDate(
     ),
   ]);
   const rowOf = (id: string) => extras.rows.find((r) => r.id === id);
+  // A worker re-deciding a stored date passes its snapshot; a date stored before snapshots ran on dates + last ending.
+  const current = engineHistory(relationship);
+  const history =
+    opts.historyOverride !== undefined && opts.historyOverride !== null
+      ? opts.historyOverride
+      : opts.historyOverride === null
+        ? undefined
+        : opts.legacyHistory && current
+          ? { dates: current.dates, last_ending: current.last_ending }
+          : current;
   return assembleDate({
     episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId),
     soulA, soulB, memoryA, memoryB, history, ex, signalsOverride,
+    relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),
   });
@@ -306,7 +338,10 @@ async function computeDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pr
   const seed = Number(row.seed);
   const setup = row.setup;
   const [soulA, soulB] = await Promise.all([loadSoul(db, row.a_id), loadSoul(db, row.b_id)]);
-  const history = await loadHistory(db, row.a_id, row.b_id);
+  // The relationship as it stood that night (snapshotted since the graph); older dates fall back to today's dates and
+  // last ending only, which is all the engine read back then.
+  const today = await loadHistory(db, row.a_id, row.b_id);
+  const history: DateHistory | undefined = setup.history ?? (today ? { dates: today.dates, last_ending: today.last_ending } : undefined);
 
   // Reproducibility: use the signals the date actually ran on (snapshotted on the setup in M14 part 2), so
   // an old date replays identically even after the character's learned memory has drifted since. Episodes
@@ -368,17 +403,10 @@ export async function chaosReplay(db: Db, episodeId: string, change: SlidingDoor
   return row ? computeDoors(db, row, change) : null;
 }
 
-/** Remembers that a pair dated and how it went: feeds the next date's engine run and the relationship graph. */
-export async function rememberDate(db: Db, aId: string, bId: string, ending: Ending): Promise<void> {
-  const [lo, hi] = pairKey(aId, bId);
-  await db.query(
-    `insert into relationships (character_a, character_b, dates, second_dates, last_ending, updated_at)
-     values ($1, $2, 1, $3, $4, now())
-     on conflict (character_a, character_b) do update set
-       dates = relationships.dates + 1,
-       second_dates = relationships.second_dates + $3,
-       last_ending = $4,
-       updated_at = now()`,
-    [lo, hi, ending === "second_date" ? 1 : 0, ending],
-  );
+/**
+ * Remembers that a pair dated: recomputes their edge in the relationship graph from all their dates
+ * (lib/relationships.ts), which feeds the next date's engine run and the couple's page. Idempotent.
+ */
+export async function rememberDate(db: Db, aId: string, bId: string): Promise<void> {
+  await refreshRelationship(db, aId, bId);
 }

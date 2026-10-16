@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { refreshEpisodePair } from "@/lib/relationships";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -32,5 +33,7 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
     [id, sess.userId, visibility],
   );
   if (!rows.length) return json({ error: "not_host", message: "Only the person who set up this date can change who sees it." }, 404, sess);
+  // The relationship graph's public layer counts only public dates.
+  await refreshEpisodePair(db, id).catch(() => {});
   return json({ id, visibility }, 200, sess);
 });

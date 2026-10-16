@@ -53,6 +53,7 @@ import {
   type WatchPhaseId,
   type WatchPoll,
 } from "./rules";
+import { PUBLIC_ONLY, refreshRelationship } from "./relationships";
 import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
 import { updateCharacterMemory } from "./memory";
 import { ShowrunnerError, type CharacterSheet } from "./showrunner";
@@ -555,6 +556,7 @@ export async function syncRoom(
     if (aired) {
       await updateCharacterMemory(db, aired.character_a).catch(() => {});
       await updateCharacterMemory(db, aired.character_b).catch(() => {});
+      await refreshRelationship(db, aired.character_a, aired.character_b).catch(() => {});
     }
   }
   return getRoomState(db, partyId, viewerId, now);
@@ -747,7 +749,8 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
 
   const episodeId = crypto.randomUUID();
   const forDate = (c: HouseRow): CharacterForDate => ({ id: c.id, sheet: houseSheet(c) });
-  const built = await buildDate(db, episodeId, forDate(a), forDate(b), DEFAULT_DATE_REQUEST);
+  // A house room has no owner: its characters bring in only their public history together.
+  const built = await buildDate(db, episodeId, forDate(a), forDate(b), DEFAULT_DATE_REQUEST, undefined, undefined, { creatorId: PUBLIC_ONLY });
   const decided = getEngine().decide(built.input, built.seed, built.setup.engine_version);
   // The shared pipeline (lib/pipeline.ts): the recap, plus the turn-by-turn conversation so template rooms
   // play the date line by line too. Pre-generated system content; the conversation is best-effort and gated
@@ -823,7 +826,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
       JSON.stringify(gen.generatedWith),
     ],
   );
-  await rememberDate(db, a.id, b.id, decided.ending).catch(() => {});
+  await rememberDate(db, a.id, b.id).catch(() => {});
   // M14: learned memory is recomputed when the room airs the date (below), not now — a template date is
   // unrevealed until its clock reaches the decision, and its arc is public, so counting it early would spoil.
 

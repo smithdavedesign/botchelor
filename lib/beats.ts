@@ -211,6 +211,15 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
         "Play it as a rematch: they remember each other, and a callback to last time belongs in act one.",
     );
   }
+  // The relationship graph (lib/relationships.ts): where they stand, their inside jokes, and a second date's plan.
+  // It also knows a date that hasn't aired yet, so a second date booked the morning after is never played cold.
+  const pair = characters[0].pair ?? characters[1].pair;
+  if (pair) {
+    if (!met) facts.push(`${names[0]} and ${names[1]} have met before (${pair.times_together === 1 ? "one date" : `${pair.times_together} dates`}). Play it as people who remember each other.`);
+    if (typeof pair.where_you_stand_now === "string") facts.push(`Where they stand: ${pair.where_you_stand_now.toLowerCase()}.`);
+    if (Array.isArray(pair.your_inside_jokes) && pair.your_inside_jokes.length) facts.push(`Their inside jokes: ${pair.your_inside_jokes.map((j) => `"${j}"`).join(", ")}. One can come back, unforced.`);
+    if (Array.isArray(pair.tonight_is_the_plan_you_made)) facts.push(`Tonight is the second date they planned in their texts: ${pair.tonight_is_the_plan_you_made.join(" ")} Act one opens on that plan.`);
+  }
   const dir = (d: number) => (d > 3 ? "rises" : d < -3 ? "falls" : "holds");
   facts.push(
     `Over the date, chemistry ${dir(outcome.variables.chemistry.delta)}, trust ${dir(outcome.variables.trust.delta)} and awkwardness ${dir(outcome.variables.awkwardness.delta)}.`,
@@ -259,7 +268,12 @@ export function rulesPlan(
 ): DatePlan {
   const v = venue(venueId);
   // A rematch (the pair has aired a date before) opens as two people who remember each other, not strangers.
-  const rematch = Boolean(characters[0].memory?.people?.some((p) => p.id === characters[1].id) || characters[1].memory?.people?.some((p) => p.id === characters[0].id));
+  const rematch = Boolean(
+    characters[0].memory?.people?.some((p) => p.id === characters[1].id) ||
+      characters[1].memory?.people?.some((p) => p.id === characters[0].id) ||
+      characters[0].pair ||
+      characters[1].pair,
+  );
   const scene0 = rematch
     ? `They meet again at ${v.prompt}. They remember each other and last time, and tonight picks up from there.`
     : `They meet at ${v.prompt}. First impressions: they size each other up and start finding out who the other is.`;

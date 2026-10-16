@@ -132,6 +132,7 @@ export async function startTestDb() {
         "paid_usage",
         "identity_consents",
         "afterglow_consents",
+        "relationships",
         "profiles",
         "orders",
         "waitlist",

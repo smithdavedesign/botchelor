@@ -3,6 +3,7 @@ import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { REPORT_REASONS } from "@/lib/rules";
+import { refreshEpisodePair } from "@/lib/relationships";
 
 const ReportInput = z.object({
   episode_id: z.string().min(1).max(64),
@@ -28,6 +29,8 @@ export const POST = handle(async (req) => {
   );
   if (inserted.rows.length) {
     track("content_reported", { target: "episode", reason: input.reason });
+    // Enough reports hide a date, which takes it out of the relationship graph's public layer.
+    await refreshEpisodePair(db, input.episode_id).catch(() => {});
     return json({ episode_id: input.episode_id, reported: true }, 201, sess);
   }
 

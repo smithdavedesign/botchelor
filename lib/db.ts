@@ -440,6 +440,32 @@ create table if not exists relationships (
   check (character_a < character_b)
 );
 
+-- The relationship graph (lib/relationships.ts): each edge is DERIVED from the dates between the pair, recomputed
+-- whenever one is stored, airs, changes visibility or goes away (never edited). dates/second_dates/last_ending/
+-- mutual_yes/chemistry/trust/stage/tie_strength cover every date (the engine's and the owners' layer); public_* only
+-- the dates that aired publicly (what spectators see). detail: history, what they've told each other, inside jokes,
+-- plans (the history items carry the creator id, so detail never leaves the server raw).
+alter table relationships add column if not exists mutual_yes integer not null default 0;
+alter table relationships add column if not exists chemistry real;
+alter table relationships add column if not exists trust real;
+alter table relationships add column if not exists stage text;
+alter table relationships add column if not exists tie_strength real not null default 0;
+alter table relationships add column if not exists first_at timestamptz;
+alter table relationships add column if not exists last_at timestamptz;
+alter table relationships add column if not exists public_dates integer not null default 0;
+alter table relationships add column if not exists public_second_dates integer not null default 0;
+alter table relationships add column if not exists public_last_ending text;
+alter table relationships add column if not exists public_stage text;
+alter table relationships add column if not exists public_tie real not null default 0;
+alter table relationships add column if not exists public_last_at timestamptz;
+alter table relationships add column if not exists detail jsonb;
+alter table relationships add column if not exists computed_at timestamptz;
+-- The primary key serves "edges of X" when X is the lower id; this serves it when X is the higher one.
+create index if not exists relationships_character_b on relationships (character_b);
+-- A second date points at the date whose morning-after plan it is. One second date per date.
+alter table episodes add column if not exists followup_of text references episodes (id) on delete set null;
+create unique index if not exists episodes_one_second_date on episodes (followup_of) where followup_of is not null;
+
 -- M14. The learned memory layer (lib/memory.ts): what a character has learned across ALL its dates, so
 -- each bot becomes an individual and "trains itself". Materialized, recomputed deterministically (no model
 -- call) right after each date is stored. One row per character. likes / turnoffs / signal_delta /
