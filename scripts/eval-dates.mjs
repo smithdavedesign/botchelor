@@ -69,6 +69,11 @@ if (args.saga) {
   const saga = (info.sagas ?? []).find((x) => x.id === args.saga);
   if (!saga) throw new Error(`unknown saga ${args.saga}; known: ${(info.sagas ?? []).map((x) => x.id).join(", ")}`);
   const steps = [];
+  mkdirSync(join(ROOT, "docs", "eval"), { recursive: true });
+  const out = join(ROOT, "docs", "eval", `${label}.json`);
+  // Saved after every step, so a failure (a spent quota) keeps the steps that ran.
+  const save = (summary) =>
+    writeFileSync(out, JSON.stringify({ label, ran_at: new Date().toISOString(), base, saga: saga.id, models, switch_actor: args["switch-actor"] ?? null, summary, results: steps }, null, 2) + "\n");
   for (let k = 0; k < saga.steps; k++) {
     if (k > 0) await sleep(gap);
     const actor = k === saga.steps - 1 && args["switch-actor"] ? args["switch-actor"] : models.actor;
@@ -77,9 +82,13 @@ if (args.saga) {
       headers: { "content-type": "application/json", authorization: `Bearer ${secret}` },
       body: JSON.stringify({ saga: saga.id, step: k, prior: steps.map((r) => r.transcript), ...models, actor }),
     });
-    if (!res.ok) throw new Error(`step ${k}: HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    if (!res.ok) {
+      save({ incomplete: true, failed_step: k });
+      throw new Error(`step ${k}: HTTP ${res.status}: ${(await res.text()).slice(0, 300)} (steps so far saved to ${out})`);
+    }
     const r = await res.json();
     steps.push(r);
+    save({ incomplete: true });
     const c = r.continuity;
     console.log(
       `${r.case.padEnd(14)} vs ${r.partner.padEnd(14)} ${r.ending.padEnd(14)} index ${r.metrics.index} judge ${r.judge_mean ?? "-"} | ` +
@@ -91,9 +100,7 @@ if (args.saga) {
     rematch_called_back: steps.filter((r) => r.continuity.met_before).every((r) => r.continuity.called_back),
     index: Math.round((steps.reduce((n, r) => n + r.metrics.index, 0) / steps.length) * 100) / 100,
   };
-  mkdirSync(join(ROOT, "docs", "eval"), { recursive: true });
-  const out = join(ROOT, "docs", "eval", `${label}.json`);
-  writeFileSync(out, JSON.stringify({ label, ran_at: new Date().toISOString(), base, saga: saga.id, models, switch_actor: args["switch-actor"] ?? null, summary, results: steps }, null, 2) + "\n");
+  save(summary);
   console.log(`\n${label}: ${JSON.stringify(summary)}\nwrote ${out}`);
   process.exit(0);
 }

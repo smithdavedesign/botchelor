@@ -138,6 +138,30 @@ A sheet with none of those words reads exactly as before.
 
   Run: `node scripts/eval-dates.mjs --label saga-1 --saga mira-saga [--switch-actor gemini-…]`. `--switch-actor` runs the last step on another model, a model-switch test. It spends model quota (about 45 calls), so use the eval key.
 
+### First continuity results (2026-10-15, local Ollama, $0)
+The free Gemini quota was spent, and the paid default shouldn't run evals unapproved, so the saga ran on the local stack: steps 0–1 on `qwen2.5:7b`, the rematch on `llama3.1` (also a model switch). The saved runs are `docs/eval/saga-local-{baseline,fixed-a,fixed-b}.json`; `sagaContinuity` re-scores them on today's metric.
+
+**What the first run found:** the rematch played as strangers (Mira: "Are you a potter or something?"). The causes were all in the code:
+- The first turn told both sides "you've just met".
+- The rules plan opened with "First impressions… find out who the other is".
+- Nothing flagged a character re-performing its own line from an earlier date.
+
+**The fixes:**
+- A rematch-aware first-line note and act-one beat ("You've met before… don't ask what you already know").
+- A "they meet again" scene.
+- The critic sends back a line that repeats one of its own earlier-date lines.
+
+| Run | Rematch opens | Shared-past references | Invented history | Quality index (3 steps) |
+|---|---|---|---|---|
+| Baseline (before the fixes) | "I think I saw you at a pottery class" / "Made it yourself, or?" | 0 | 0 | 84 / 91 / 87 |
+| Fixed A | "Nice to see you again, Dex…" / "You remember I did bring the wine… eventually." | 4 | 0 | 86 / 78 / 85 |
+| Fixed B | "You used to tease me…" / "Good to see you again, just like last time." | 2 | 0 | 80 / 86 / 80 |
+
+**Caveats:**
+- One run each, on small local models: indicative, not conclusive.
+- The word-overlap `callbacks` count is noisy. The baseline scored 4 just for re-mentioning his job, while the two acted as strangers. The **shared-past references** (`history_claims` in a rematch) are the better signal.
+- Re-run on Gemini with the eval key once it exists.
+
 ## Verifying
 - **Tests:** `tests/personality.test.ts`, `story.test.ts`, `grow.test.ts`, `temperament.test.ts`, `house-kits.test.ts`.
 - **Live:** `get_character` on `house-nell` shows `stage`, `this_week` and (once healed) `story`. `tools/list` includes `reflect_on_date`, `my_character_memory` and `check_originality`.

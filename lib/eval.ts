@@ -9,7 +9,7 @@
  * (POST /api/jobs/eval) without touching a stored date.
  */
 import type { Character } from "./character";
-import { continuity, type Continuity } from "./continuity";
+import { continuity, type Continuity, type Recall } from "./continuity";
 import type { Turn } from "./conversation";
 import { deterministicEngine, type CharacterSheet, type Outcome } from "./engine";
 import type { FormatId } from "./formats";
@@ -302,16 +302,20 @@ export function buildSagaStep(saga: EvalSaga, k: number, prior: Turn[][]): { bui
 
 export type SagaResult = EvalResult & { saga: string; step: number; partner: string; continuity: Continuity };
 
-/** What each side could recall of the pair's last date: its place and what was said (null between strangers). */
-function lastTimeText(built: BuiltDate): { a: string; b: string } | null {
+/** What each side could recall of the pair's last date (its place, what the other said, and its own old lines); null between strangers. */
+function lastTimeText(built: BuiltDate): { a: Recall; b: Recall } | null {
   const [a, b] = built.characters;
-  const recall = (me: Character, other: Character) => {
+  const recall = (me: Character, other: Character): Recall | null => {
     const m = metBefore(me.memory, other.id);
-    return m ? [m.last_time, m.something_they_said, m.something_you_said].filter(Boolean).join(" ") : null;
+    if (!m) return null;
+    return {
+      recall: [m.last_time, m.something_they_said].filter(Boolean).join(" "),
+      own: [String(m.something_you_said ?? ""), ...(me.memory?.memorable_lines ?? [])].filter(Boolean),
+    };
   };
   const ra = recall(a, b);
   const rb = recall(b, a);
-  return ra === null && rb === null ? null : { a: ra ?? "", b: rb ?? "" };
+  return ra === null && rb === null ? null : { a: ra ?? { recall: "", own: [] }, b: rb ?? { recall: "", own: [] } };
 }
 
 /** Generates, measures and (optionally) judges step `k` of a saga, given the earlier steps' transcripts. */
@@ -348,6 +352,20 @@ export async function runSagaStep(saga: EvalSaga, k: number, prior: Turn[][], mo
     usage: gen.usage,
     ms: Date.now() - t0,
     conversation_error: errorText(gen.conversationError),
-    continuity: continuity(gen.transcript, lastTimeText(built)),
+    continuity: stepContinuity(built, gen.transcript),
   };
+}
+
+/** One saga step's continuity, from its built date (each side's memory) and what was said. */
+function stepContinuity(built: BuiltDate, transcript: Turn[]): Continuity {
+  const [a, b] = built.characters;
+  return continuity(transcript, lastTimeText(built), { a: a.memory?.memorable_lines ?? [], b: b.memory?.memorable_lines ?? [] });
+}
+
+/**
+ * Re-scores a saved saga run's continuity with today's lib/continuity.ts (like rescoreResult for the metrics): the
+ * steps rebuild exactly from the saved transcripts, so runs measured by different versions compare like for like.
+ */
+export function sagaContinuity(saga: EvalSaga, transcripts: Turn[][]): Continuity[] {
+  return transcripts.map((tr, k) => stepContinuity(buildSagaStep(saga, k, transcripts.slice(0, k)).built, tr));
 }

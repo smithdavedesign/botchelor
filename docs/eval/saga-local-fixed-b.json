@@ -1,0 +1,576 @@
+{
+  "label": "saga-local-fixed-b",
+  "ran_at": "2026-10-16T00:07:51.696Z",
+  "base": "local (vitest, lib/eval.ts runSagaStep), with the rematch fixes",
+  "saga": "mira-saga",
+  "models": {
+    "steps": [
+      "ollama/qwen2.5:7b",
+      "ollama/qwen2.5:7b",
+      "ollama/llama3.1:latest"
+    ]
+  },
+  "switch_actor": "ollama/llama3.1:latest",
+  "results": [
+    {
+      "case": "mira-saga-0",
+      "saga": "mira-saga",
+      "step": 0,
+      "partner": "house-dex",
+      "format": "classic",
+      "ending": "Just friends",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Mira Quell",
+        "Dex Okafor"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Tell me about that scar on your knuckle, Dex. How'd you get it?",
+          "action": "傾身向前，手指轻敲桌面",
+          "emotion": "好奇",
+          "interest": 0.55
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Knock on wood, Mira. Got my hand caught in a fire door. Brave, right?",
+          "action": "轻敲桌面，露出轻微笑容",
+          "emotion": "温和",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "That's quite the story. How long have you been cartographing these Tuesday cities?",
+          "action": "轻敲桌面，微笑",
+          "emotion": "好奇",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "I was actually just mapping out a new pottery workshop. You know, trying to avoid any sudden moves.",
+          "action": "轻敲桌面，眼神温柔",
+          "emotion": "温和",
+          "interest": 0.3
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "I see. You've got quite the hands, Dex. They tell a story, too.",
+          "action": "轻敲桌面，微笑",
+          "emotion": "好奇",
+          "interest": 0.85
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "Thanks, Mira. Sometimes my hands know more than my brain does.",
+          "action": "轻敲桌面，微笑",
+          "emotion": "温和",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "Have you ever lost a day because of a Tuesday city?",
+          "action": "轻敲桌面，好奇地看着对方",
+          "emotion": "好奇",
+          "interest": 0.9
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Never Tuesday, you know? By the time I get over the shock, it's always Wednesday.",
+          "action": "轻敲桌面，浅笑",
+          "emotion": "温和",
+          "interest": 0.3
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "That's a twist, Dex. Ever get lost in one of your Tuesday cities?",
+          "action": "轻敲桌面，微笑",
+          "emotion": "好奇",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Nope, just end up in a new spot every time. What about you? Get lost easily?",
+          "action": "轻敲桌面，浅笑",
+          "emotion": "温和",
+          "interest": 0.8
+        }
+      ],
+      "recap": {
+        "setting": "In a cramped corner café that is closing in an hour, with chairs going up around them, Mira Quell and Dex Okafor sit opposite each other, exchanging stories and questions in a low, measured tone.",
+        "scenes": [
+          "act 1: Mira asks about Dex's scar.",
+          "act 2: Mira inquires about Dex's hands.",
+          "act 3: Dex reveals he never gets lost in Tuesday cities."
+        ],
+        "best_line": "Have you ever lost a day because of a Tuesday city?"
+      },
+      "plan": {
+        "source": "rules",
+        "spine": "Mira Quell and Dex Okafor: a first date that ends \"Just friends\".",
+        "acts": [
+          {
+            "scene": "They meet at a cramped corner café that is closing in an hour, chairs going up around them. First impressions: they size each other up and start finding out who the other is.",
+            "a": "You're cool and hard to read, set in your ways, an open book. Be yourself from the first line and ask them something you genuinely want to know; let who you are come out as you talk (nobody opens with their résumé). What you're privately hoping to find in someone is \"Someone who can read a map upside down\" — let it steer what you ask them and what you notice, never say it. Quietly, you're also out to keep things light and easy.",
+            "b": "You're warm. Be yourself from the first line and ask them something you genuinely want to know; let who you are come out as you talk (nobody opens with their résumé). What you're privately hoping to find in someone is \"A quiet night that stays quiet\" — let it steer what you ask them and what you notice, never say it. Quietly, you're also out to test whether they mean what they say."
+          },
+          {
+            "scene": "One of them admits something they had meant to keep quiet — it shows who each of them really is, and they find they get on.",
+            "a": "You're quietly weighing whether they're \"Someone who can read a map upside down\" — the thing you're really hoping for in someone — by what you ask them and how they answer. At some point this act, you dodge a real question with a bit. What you came to find out, you find out — and it goes your way. By the end of this act you're enjoying their company: easy and friendly, with no romantic spark.",
+            "b": "You're quietly weighing whether they're \"A quiet night that stays quiet\" — the thing you're really hoping for in someone — by what you ask them and how they answer. At some point this act, you keep things playful and easy. What you came to find out doesn't go your way, and it shows on your face. By the end of this act you're enjoying their company: easy and friendly, with no romantic spark."
+          },
+          {
+            "scene": "It resolves: Just friends (warm, easy company with no romance). They leave together.",
+            "a": "You like them as a friend: you'd hang out again, and nothing about your goodbye is romantic. Let it show; don't announce it. You leave together. Land it your way, in your own words — no announcements.",
+            "b": "You like them as a friend: you'd hang out again, and nothing about your goodbye is romantic. Let it show; don't announce it. You leave together. Land it your way, in your own words — no announcements."
+          }
+        ]
+      },
+      "metrics": {
+        "turns": 10,
+        "avg_words": 13.7,
+        "length_spread": 2.05,
+        "question_rate": 0.7,
+        "responsiveness": 0.78,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "self_quotes": 0,
+        "misgendered": 0,
+        "abrupt_flips": 1,
+        "repeated_openers": 0,
+        "repeated_actions": 0,
+        "name_tics": 0,
+        "voice_breaks": 0,
+        "distinctness": 0.92,
+        "grounding": [
+          0.6,
+          0.4
+        ],
+        "index": 80
+      },
+      "judge": null,
+      "judge_mean": null,
+      "model_calls": 15,
+      "usage": {
+        "calls": 15,
+        "input_tokens": 26845,
+        "cached_input_tokens": 14248,
+        "output_tokens": 2382,
+        "thinking_tokens": 0,
+        "cost_usd": null,
+        "models": [
+          "qwen2.5:7b"
+        ]
+      },
+      "ms": 162638,
+      "conversation_error": null,
+      "continuity": {
+        "met_before": false,
+        "history_claims": 0,
+        "invented_history": 0,
+        "callbacks": 0,
+        "called_back": false,
+        "repeated_old_lines": 0
+      },
+      "models": {
+        "actor": "ollama/qwen2.5:7b",
+        "director": "ollama/qwen2.5:7b"
+      }
+    },
+    {
+      "case": "mira-saga-1",
+      "saga": "mira-saga",
+      "step": 1,
+      "partner": "house-nell",
+      "format": "classic",
+      "ending": "A disaster",
+      "wants_another": [
+        false,
+        false
+      ],
+      "characters": [
+        "Mira Quell",
+        "Nell Abiodun"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Have you ever ventured into a city that only exists on Tuesdays, Nell?",
+          "action": "smile warmly",
+          "emotion": "curious",
+          "interest": 0.3
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "That sounds intriguing. Have you heard of any unique places like that?",
+          "action": "lean in slightly",
+          "emotion": "curious",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Have you ever found yourself in a place that only exists on Tuesdays, Nell? I bet you've got some wild stories!",
+          "action": "lean in slightly",
+          "emotion": "curious",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Hmm, not exactly, but I did find myself locked in the museum once. A true adventure, I assure you.",
+          "action": "adjust glasses slightly",
+          "emotion": "curious",
+          "interest": 0.8
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "So, Nell, have you ever gotten hopelessly lost in a place that exists only on Tuesdays? I bet it made for a good map addition.",
+          "action": "",
+          "emotion": "curious",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "That museum adventure sounds like a real adventure. Have you ever gotten hopelessly lost anywhere fun?",
+          "action": "smile slightly",
+          "emotion": "curious",
+          "interest": 0.6
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "I bet it made for a good story, but how about this: have you ever gotten hopelessly lost in a place that exists only on Tuesdays? I'd love to hear your cartographic stories!",
+          "action": "draw a quick map on the napkin",
+          "emotion": "curious",
+          "interest": 0.8
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "No, but I did get lost in the vast halls of the museum one day. The marble busts made great listeners though, they were the best map I had!",
+          "action": "",
+          "emotion": "curious",
+          "interest": 0.8
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "No marble busts on Tuesday cities. Have you ever gotten hopelessly lost in a place that exists only on Tuesdays?",
+          "action": "",
+          "emotion": "curious",
+          "interest": 0.6
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Not exactly, but one day I did get lost in the museum's vast halls. The marble busts were silent but effective guides, making excellent map substitutes.",
+          "action": "tilt head slightly",
+          "emotion": "curious",
+          "interest": 0.7
+        }
+      ],
+      "recap": {
+        "setting": "In a cozy karaoke booth booked for an hour, with a song already queued, Mira Quell and Nell Abiodun sit facing each other, a mix of curiosity and nervousness in the air.",
+        "scenes": [
+          "act 1: First impressions",
+          "act 2: The challenge",
+          "act 3: The decision"
+        ],
+        "best_line": "Hmm, not exactly, but I did find myself locked in the museum once. A true adventure, I assure you."
+      },
+      "plan": {
+        "source": "rules",
+        "spine": "Mira Quell and Nell Abiodun: a first date that ends \"A disaster\".",
+        "acts": [
+          {
+            "scene": "They meet at a karaoke booth booked for a full hour, with a song already queued by someone else. First impressions: they size each other up and start finding out who the other is.",
+            "a": "You're cool and hard to read, set in your ways, an open book. Be yourself from the first line and ask them something you genuinely want to know; let who you are come out as you talk (nobody opens with their résumé). What you're privately hoping to find in someone is \"Someone who can read a map upside down\" — let it steer what you ask them and what you notice, never say it. Quietly, you're also out to see whether they can make you laugh.",
+            "b": "You're slow to let anyone in. Be yourself from the first line and ask them something you genuinely want to know; let who you are come out as you talk (nobody opens with their résumé). What you're privately hoping to find in someone is \"Someone who asks a follow-up question\" — let it steer what you ask them and what you notice, never say it. Quietly, you're also out to keep the conversation off work."
+          },
+          {
+            "scene": "One of them proposes a dare, and the other has to decide — it shows who each of them really is, and starts to pull them apart.",
+            "a": "You're quietly weighing whether they're \"Someone who can read a map upside down\" — the thing you're really hoping for in someone — by what you ask them and how they answer. At some point this act, you keep work out of the conversation. What you came to find out doesn't go your way, and it shows on your face. By the end of this act something in you has started to cool.",
+            "b": "You're quietly weighing whether they're \"Someone who asks a follow-up question\" — the thing you're really hoping for in someone — by what you ask them and how they answer. At some point this act, you tell jokes that fall flat. What you came to find out, you find out — and it goes your way. By the end of this act something in you has started to cool."
+          },
+          {
+            "scene": "It resolves: A disaster (a clear no, for a reason everyone saw). Mira Quell leaves first.",
+            "a": "By the end you've had enough of this date, and it's clear why: what happened in act two. You're the one who leaves first, because of how the night went (never a sudden excuse). Land it your way, in your own words — no announcements.",
+            "b": "By the end you've had enough of this date, and it's clear why: what happened in act two. They're the one who leaves first. Land it your way, in your own words — no announcements."
+          }
+        ]
+      },
+      "metrics": {
+        "turns": 10,
+        "avg_words": 21.4,
+        "length_spread": 6.5,
+        "question_rate": 0.7,
+        "responsiveness": 0.78,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "self_quotes": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 1,
+        "repeated_actions": 1,
+        "name_tics": 2,
+        "voice_breaks": 0,
+        "distinctness": 0.91,
+        "grounding": [
+          1,
+          0.8
+        ],
+        "index": 86
+      },
+      "judge": null,
+      "judge_mean": null,
+      "model_calls": 19,
+      "usage": {
+        "calls": 19,
+        "input_tokens": 35911,
+        "cached_input_tokens": 25975,
+        "output_tokens": 2867,
+        "thinking_tokens": 0,
+        "cost_usd": null,
+        "models": [
+          "qwen2.5:7b"
+        ]
+      },
+      "ms": 153478,
+      "conversation_error": null,
+      "continuity": {
+        "met_before": false,
+        "history_claims": 0,
+        "invented_history": 0,
+        "callbacks": 0,
+        "called_back": false,
+        "repeated_old_lines": 0
+      },
+      "models": {
+        "actor": "ollama/qwen2.5:7b",
+        "director": "ollama/qwen2.5:7b"
+      }
+    },
+    {
+      "case": "mira-saga-2",
+      "saga": "mira-saga",
+      "step": 2,
+      "partner": "house-dex",
+      "format": "classic",
+      "ending": "A second date",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Mira Quell",
+        "Dex Okafor"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Hey Dex, I see you're still being careful with your handshake. You used to tease me about being too loose.",
+          "action": "extending her hand again for a handshake",
+          "emotion": "warm",
+          "interest": 0
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "Knock on wood, Mira. Good to see you again, just like last time. Still get lost easily, I hope?",
+          "action": "",
+          "emotion": "cautious",
+          "interest": 0.1
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "You were still careful with your handshake. That's a nice habit to fall back into.",
+          "action": "",
+          "emotion": "warm",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "So, I'm still working on getting better about losing my way. How about you? Did you ever tell me about the compass on a chain?",
+          "action": "leans in, eyes on the compass",
+          "emotion": "curiosity",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "I'm glad you like my compass. I got it at an estate sale, and it's been with me ever since.",
+          "action": "holds compass out to Dex, smiling slightly",
+          "emotion": "warm",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "That looks familiar. What's the story behind the map?",
+          "action": "looks at the map",
+          "emotion": "curiosity",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "Ah, Rachel, what brings you here? I didn't know you were still working on Tuesday City.",
+          "action": "glances at Rachel, then back at Dex",
+          "emotion": "polite",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "That's a pretty rare map, I think I've seen it in an old book on navigation. Did you ever use it for anything exciting?",
+          "action": "leans forward, eyes locked on the map",
+          "emotion": "curiosity",
+          "interest": 0.6
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "My sister always said I was careless with my hands, but I've been working on controlling them. What's with the map you're drawing on the napkin?",
+          "action": "hands over the napkin with the map",
+          "emotion": "curious",
+          "interest": 0.4
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "So, you're really into navigation, huh? My uncle's a sailor, used to get us lost on purpose as kids just to see how we'd handle it.",
+          "action": "",
+          "emotion": "curiosity",
+          "interest": 0.6
+        }
+      ],
+      "recap": {
+        "setting": "A cozy Italian restaurant, a quiet corner table, dim lighting, and the soft sound of jazz music in the background. Mira Quell and Dex Okafor have just been seated, and are exchanging tentative smiles.",
+        "scenes": [
+          "act 1: First impressions: Mira and Dex exchange small talk, trying to find common ground.",
+          "act 2: The challenge: Rachel, a mutual acquaintance, arrives unexpectedly, leading to a surprising revelation about Mira's Tuesday City project.",
+          "act 3: The decision: Dex shows genuine interest in Mira's map, and they begin to build on the connection they've made."
+        ],
+        "best_line": "'My uncle's a sailor, used to get us lost on purpose as kids just to see how we'd handle it.'"
+      },
+      "plan": {
+        "source": "director",
+        "spine": "a second date unfolds as they navigate their past connection, unannounced interruptions, and their own desires",
+        "acts": [
+          {
+            "scene": "They meet again at an awkward double date with a smug couple who finish each other's sentences. They remember each other and last time, and tonight picks up from there. Mira Quell notices Dex Okafor's careful handshake, a callback to their first meeting.",
+            "a": "You're cool and hard to read, set in your ways, an open book. You've met them before and you remember it: greet them like someone you know, pick up something from last time, and don't ask what you already know. You quietly hope to find 'Someone who can read a map upside down' in them, so you ask if they've ever gotten lost on purpose, and listen intently to their response.",
+            "b": "You're warm. You've met them before and you remember it: greet them like someone you know, pick up something from last time, and don't ask what you already know (their job, what they told you). What you're privately hoping to find in someone is \"A quiet night that stays quiet\" — let it steer what you notice tonight, never say it. Quietly, you're also out to find out whether they're up for an adventure."
+          },
+          {
+            "scene": "The smug couple gets up to leave, and in the chaos, Mira Quell's former colleague, Rachel, bursts in, holding a map of the Tuesday city they worked on together. Dex Okafor flinches at the sudden noise. Mira Quell's eyes light up as she sees the map.",
+            "a": "You quietly weigh whether Dex Okafor is 'Someone who can read a map upside down' by what they ask and how they answer. You notice he doesn't even glance at the map, so you take it as a sign to suggest a more low-key activity, like getting a coffee, and turn down their idea of exploring the city together.",
+            "b": "You're quietly weighing whether they're \"A quiet night that stays quiet\" — the thing you're really hoping for in someone — by what you ask them and how they answer. At some point this act, you keep work out of the conversation. What you came to find out doesn't go your way, and it shows on your face. By the end of this act you're falling for them a little."
+          },
+          {
+            "scene": "As the evening winds down, Mira Quell leans in, and Dex Okafor finds himself mirroring her movement. They share a laugh, and the awkwardness of the double date melts away. The smug couple returns, and Mira Quell whispers something in Dex Okafor's ear.",
+            "a": "You want to see them again, and it shows: you ask, or you say yes. You leave together, feeling a spark of connection, and a plan to meet again, perhaps to explore the Tuesday city together.",
+            "b": "You want to see them again, and it shows: you ask, or you say yes. You leave together. Land it your way, in your own words — no announcements."
+          }
+        ]
+      },
+      "metrics": {
+        "turns": 10,
+        "avg_words": 20,
+        "length_spread": 5.25,
+        "question_rate": 0.7,
+        "responsiveness": 0.56,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "self_quotes": 0,
+        "misgendered": 0,
+        "abrupt_flips": 1,
+        "repeated_openers": 0,
+        "repeated_actions": 0,
+        "name_tics": 0,
+        "voice_breaks": 1,
+        "distinctness": 0.89,
+        "grounding": [
+          0.4,
+          0
+        ],
+        "index": 80
+      },
+      "judge": null,
+      "judge_mean": null,
+      "model_calls": 17,
+      "usage": {
+        "calls": 17,
+        "input_tokens": 34587,
+        "cached_input_tokens": 20724,
+        "output_tokens": 2491,
+        "thinking_tokens": 0,
+        "cost_usd": null,
+        "models": [
+          "llama3.1:latest"
+        ]
+      },
+      "ms": 168423,
+      "conversation_error": null,
+      "continuity": {
+        "met_before": true,
+        "history_claims": 1,
+        "invented_history": 0,
+        "callbacks": 0,
+        "called_back": false,
+        "repeated_old_lines": 1
+      },
+      "models": {
+        "actor": "ollama/llama3.1:latest",
+        "director": "ollama/llama3.1:latest"
+      }
+    }
+  ],
+  "continuity": [
+    {
+      "met_before": false,
+      "history_claims": 0,
+      "invented_history": 0,
+      "callbacks": 0,
+      "called_back": false,
+      "repeated_old_lines": 0
+    },
+    {
+      "met_before": false,
+      "history_claims": 0,
+      "invented_history": 0,
+      "callbacks": 0,
+      "called_back": false,
+      "repeated_old_lines": 0
+    },
+    {
+      "met_before": true,
+      "history_claims": 2,
+      "invented_history": 0,
+      "callbacks": 2,
+      "called_back": true,
+      "repeated_old_lines": 0
+    }
+  ]
+}

@@ -7,7 +7,8 @@ import { POST as postReflection } from "@/app/api/episodes/[id]/reflection/route
 import { GET as evalGet, POST as evalPost } from "@/app/api/jobs/eval/route";
 import { deleteCharacter, exportAccount } from "@/lib/account";
 import { continuity } from "@/lib/continuity";
-import type { Turn } from "@/lib/conversation";
+import { buildTurnMessages, critiqueTurn, type Turn } from "@/lib/conversation";
+import { rulesPlan } from "@/lib/beats";
 import type { SideOutcome } from "@/lib/engine";
 import { buildSagaStep, EVAL_SAGAS, runSagaStep } from "@/lib/eval";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
@@ -276,9 +277,19 @@ const TURNS = format("classic").turns ?? CONVERSATION_TURNS;
 describe("5. continuity: one character's run of dates", () => {
   it("strangers who claim a past are inventing it; a rematch that picks up last time is a callback", () => {
     const first = continuity([line("a", "Remember when we met last time? Oh wait."), line("b", "Hi.")], null);
-    expect(first).toEqual({ met_before: false, history_claims: 1, invented_history: 1, callbacks: 0, called_back: false });
-    const rematch = continuity([line("a", "Still carrying that thermos?"), line("b", "Hello again.")], { a: "a cold beach at night; It's soup. It's always soup in the thermos", b: "" });
-    expect(rematch).toMatchObject({ met_before: true, invented_history: 0, callbacks: 1, called_back: true });
+    expect(first).toEqual({ met_before: false, history_claims: 1, invented_history: 1, callbacks: 0, called_back: false, repeated_old_lines: 0 });
+    const lastTime = { a: { recall: "a cold beach at night; It's soup. It's always soup in the thermos", own: [] }, b: { recall: "", own: ["Those are from the fire, not my pottery class."] } };
+    const rematch = continuity([line("a", "Still carrying that thermos?"), line("b", "Hello again.")], lastTime);
+    expect(rematch).toMatchObject({ met_before: true, invented_history: 0, callbacks: 1, called_back: true, repeated_old_lines: 0 });
+    // Re-performing your own old line word for word is an echo, not a memory: it never counts as a callback.
+    const echo = continuity([line("b", "Those are from the fire, not my pottery class")], lastTime);
+    expect(echo).toMatchObject({ callbacks: 0, called_back: false, repeated_old_lines: 1 });
+    // ...but sharing a phrase with an old line while greeting someone you remember is a callback (saga-local-v2).
+    const remembers = continuity(
+      [line("a", "Hey Dex, I see you're still careful with your handshake. You used to tease me about it."), line("b", "Knock on wood, Mira. Good to see you again, just like last time.")],
+      { a: { recall: "", own: [] }, b: { recall: "", own: ["Knock on wood, Mira. I hope the kiln holds."] } },
+    );
+    expect(remembers).toMatchObject({ callbacks: 2, called_back: true, repeated_old_lines: 0 });
   });
 
   it("a saga carries memory forward: the rematch remembers last time, the date in between knows its dating life", () => {
@@ -295,6 +306,30 @@ describe("5. continuity: one character's run of dates", () => {
     expect(metBefore(step2.built.characters[1].memory, "eval-rich-oc")).toMatchObject({ times: 1 }); // Dex remembers Mira too
     // Deterministic: the same prior gives the same date.
     expect(buildSagaStep(saga, 2, prior).outcome).toEqual(step2.outcome);
+  });
+
+  it("a rematch opens as two people who remember each other; a first date as strangers (saga-local-baseline's bug)", () => {
+    const saga = EVAL_SAGAS[0];
+    const prior = [[line("a", "Your hands are enormous. In a good way.", 0.9), line("b", "I've been set on fire nineteen times, professionally.", 0.9)], [line("a", "Do museums get lonely?", 0.7)]];
+    const firstTurn = (k: number) => {
+      const { built, outcome } = buildSagaStep(saga, k, prior.slice(0, k));
+      const msgs = buildTurnMessages(built.input, outcome, built.characters, "a_hard_question", built.setup.venue, [], 0, "classic", {}, { totalTurns: TURNS });
+      return { data: JSON.parse(msgs.messages[1].content.replace(/^[^\n]*\n/, "")), plan: rulesPlan(built.input, outcome, built.characters, "a_hard_question", built.setup.venue) };
+    };
+    const first = firstTurn(0);
+    expect(first.data.note).toBe("This is the first line of the date: you've just met.");
+    expect(first.plan.acts[0].scene).toMatch(/First impressions/);
+    const rematch = firstTurn(2);
+    expect(rematch.data.note).toMatch(/You've met before: greet them like someone you remember/);
+    expect(rematch.plan.acts[0].scene).toMatch(/They meet again/);
+    expect(rematch.plan.acts[0].a).toMatch(/don't ask what you already know/);
+    expect(rematch.plan.spine).toMatch(/a rematch/);
+
+    // Re-performing your own line from an earlier date is sent back, like reading out a sample line.
+    const { built } = buildSagaStep(saga, 2, prior);
+    const mira = built.characters[0];
+    expect(mira.memory!.memorable_lines).toContain("Your hands are enormous. In a good way.");
+    expect(critiqueTurn([line("b", "Hi again.")], line("a", "Your hands are enormous. In a good way."), built.input, built.characters, built.setup.venue)).toMatch(/something you said on an earlier date/);
   });
 
   it("a saga step runs through the eval route with its continuity measured", async () => {
@@ -318,11 +353,24 @@ describe("5. continuity: one character's run of dates", () => {
     expect(r.partner).toBe("house-dex");
   });
 
+  it("a spent quota answers 503 with the reason, not a bare 500", async () => {
+    vi.stubEnv("CRON_SECRET", ["cron", "test", "secret"].join("-"));
+    setModelForTests({ async complete() { throw new ModelError("model returned HTTP 429 (You exceeded your current quota)"); } });
+    const res = await evalPost(new Request("http://localhost:3000/api/jobs/eval", {
+      method: "POST",
+      headers: { authorization: `Bearer ${["cron", "test", "secret"].join("-")}`, "content-type": "application/json" },
+      body: JSON.stringify({ saga: "mira-saga", step: 0, prior: [] }),
+    }));
+    setModelForTests(null);
+    expect(res.status).toBe(503);
+    expect(JSON.stringify(await res.json())).toContain("exceeded your current quota");
+  });
+
   it("runSagaStep works with any models (a model switch is just a different actor for the last step)", async () => {
     const turns = Array.from({ length: TURNS }, (_, i) => JSON.stringify({ dialogue: `Line ${i}: hello there.`, action: "", emotion: "", interest_signal: 0.5 }));
     const q = [planJson(), ...turns, episodeJson()];
     const m: Model = { async complete() { const next = q.shift(); if (!next) throw new Error("out"); return next; } };
     const r = await runSagaStep(EVAL_SAGAS[0], 0, [], { actor: m, director: m }, null);
-    expect(r.continuity).toEqual({ met_before: false, history_claims: 0, invented_history: 0, callbacks: 0, called_back: false });
+    expect(r.continuity).toEqual({ met_before: false, history_claims: 0, invented_history: 0, callbacks: 0, called_back: false, repeated_old_lines: 0 });
   });
 });

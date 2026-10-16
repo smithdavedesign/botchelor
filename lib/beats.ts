@@ -219,11 +219,14 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
 }
 
 /** One side's private beat for an act, from the engine's facts only. `want` is this side's own want phrase. */
-function rulesBeat(input: DateInput, outcome: Outcome, s: Side, act: number, want: string): string {
+function rulesBeat(input: DateInput, outcome: Outcome, s: Side, act: number, want: string, rematch = false): string {
   const sides = [input.a, input.b] as const;
   const me = sides[s];
   const mine = outcome.sides[s];
   const theirs = outcome.sides[other(s)];
+  if (act === 0 && rematch) {
+    return `You're ${temperament(me.signals)}. You've met them before and you remember it: greet them like someone you know, pick up something from last time, and don't ask what you already know (their job, what they told you). What you're privately hoping to find in someone is "${want}" — let it steer what you notice tonight, never say it. Quietly, you're also out to ${AGENDA_GOALS[me.agendaId]}.`;
+  }
   if (act === 0) {
     return `You're ${temperament(me.signals)}. Be yourself from the first line and ask them something you genuinely want to know; let who you are come out as you talk (nobody opens with their résumé). What you're privately hoping to find in someone is "${want}" — let it steer what you ask them and what you notice, never say it. Quietly, you're also out to ${AGENDA_GOALS[me.agendaId]}.`;
   }
@@ -255,7 +258,11 @@ export function rulesPlan(
   venueId: VenueId,
 ): DatePlan {
   const v = venue(venueId);
-  const scene0 = `They meet at ${v.prompt}. First impressions: they size each other up and start finding out who the other is.`;
+  // A rematch (the pair has aired a date before) opens as two people who remember each other, not strangers.
+  const rematch = Boolean(characters[0].memory?.people?.some((p) => p.id === characters[1].id) || characters[1].memory?.people?.some((p) => p.id === characters[0].id));
+  const scene0 = rematch
+    ? `They meet again at ${v.prompt}. They remember each other and last time, and tonight picks up from there.`
+    : `They meet at ${v.prompt}. First impressions: they size each other up and start finding out who the other is.`;
   // Act two already leans toward the ending (a spark, easy company, or the start of a clash).
   const lean = { second_date: ", and pulls them closer", friends: ", and they find they get on", disaster: ", and starts to pull them apart" }[outcome.ending];
   const scene1 = `${capitalize(producerEvent(producer).prompt)} — it shows who each of them really is${lean}.`;
@@ -267,12 +274,12 @@ export function rulesPlan(
   const scene2 = `It resolves: ${ENDING_LABELS[outcome.ending]} (${ENDING_READS[outcome.ending]}). ${drama}.`;
   const beat = (act: number): ActBeat => ({
     scene: [scene0, scene1, scene2][act],
-    a: rulesBeat(input, outcome, 0, act, characters[0].persona.want),
-    b: rulesBeat(input, outcome, 1, act, characters[1].persona.want),
+    a: rulesBeat(input, outcome, 0, act, characters[0].persona.want, rematch),
+    b: rulesBeat(input, outcome, 1, act, characters[1].persona.want, rematch),
   });
   return {
     source: "rules",
-    spine: `${names[0]} and ${names[1]}: a first date that ends "${ENDING_LABELS[outcome.ending]}".`,
+    spine: `${names[0]} and ${names[1]}: ${rematch ? "a rematch" : "a first date"} that ends "${ENDING_LABELS[outcome.ending]}".`,
     acts: [beat(0), beat(1), beat(2)],
   };
 }

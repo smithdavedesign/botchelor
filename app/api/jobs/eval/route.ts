@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { EVAL_CASES, EVAL_SAGAS, rejudgeCase, runEvalCase, runSagaStep } from "@/lib/eval";
 import { handle, json, readJson } from "@/lib/http";
+import { ShowrunnerError } from "@/lib/showrunner";
 import { internalJobAuthorized } from "@/lib/jobs";
 import { getDirectorModel, getModel, modelFromEnv, namedModel, REASONING_EFFORTS, roleReasoning, type ReasoningEffort } from "@/lib/model";
 
@@ -109,7 +110,14 @@ export const POST = handle(async (req: Request) => {
       ? body.director_reasoning === undefined ? actor : namedModel(body.actor, env, directorLevel)
       : getDirectorModel(env, directorLevel);
   const judge = body.judge ? namedModel(body.judge, env) : null;
-  const result = saga ? await runSagaStep(saga, Number(body.step), prior, { actor, director }, judge) : await runEvalCase(c!, { actor, director }, judge);
+  let result;
+  try {
+    result = saga ? await runSagaStep(saga, Number(body.step), prior, { actor, director }, judge) : await runEvalCase(c!, { actor, director }, judge);
+  } catch (err) {
+    // No model could write the recap (a spent quota, a provider outage): say so, rather than a bare 500.
+    if (err instanceof ShowrunnerError) return json({ error: "model_unavailable", reasons: err.reasons.map((r) => r.slice(0, 200)) }, 503);
+    throw err;
+  }
   return json({
     ...result,
     models: {

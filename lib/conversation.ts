@@ -178,7 +178,13 @@ export function buildTurnMessages(
     ...(tell ? { your_tell_right_now: tell } : {}),
     your_mood_so_far: transcript.filter((t) => t.side === side).map((t) => t.emotion).filter(Boolean),
     conversation_so_far: transcript.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue, ...(t.action ? { did: t.action } : {}) })),
-    ...(transcript.length === 0 ? { note: "This is the first line of the date: you've just met." } : {}),
+    ...(transcript.length === 0
+      ? {
+          note: history
+            ? "This is the first line of tonight's date. You've met before: greet them like someone you remember, not a stranger."
+            : "This is the first line of the date: you've just met.",
+        }
+      : {}),
   };
 
   return {
@@ -252,7 +258,7 @@ export function critiqueTurn(
   if (issues.name_tic) notes.push(`you said ${them.name.split(" ")[0]}'s name last time too — people don't say it every line`);
   if (issues.motif_fixation) notes.push(`you keep circling "${issues.motif_fixation}" — drop that image and either say something real about your own life or ask ${them.name.split(" ")[0]} a genuine question`);
   if (issues.never_said) notes.push(`you'd never say "${issues.never_said}" — put it your own way`);
-  if (issues.sample_echo) notes.push("that repeats one of your example lines — say something new in that same voice");
+  if (issues.sample_echo) notes.push("that repeats one of your example lines or something you said on an earlier date, word for word — say something new in that same voice");
   return notes.length ? notes.join("; ") : null;
 }
 
