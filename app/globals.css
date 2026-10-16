@@ -1647,8 +1647,13 @@ button.button-ghost:hover:not(:disabled) {
 }
 .watch-status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem;
+}
+/* Each status item keeps its words together; on a phone the row wraps whole items instead. */
+.watch-status > * {
+  white-space: nowrap;
 }
 .watch-live {
   display: inline-flex;
@@ -3207,6 +3212,9 @@ button.link-button.danger {
   background: var(--paper-2);
   border: 1px solid var(--line);
   overflow-x: auto;
+  /* Long URLs wrap instead of hiding off the edge of a phone screen; indentation is kept. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-size: var(--text-sm);
   line-height: 1.45;
 }
