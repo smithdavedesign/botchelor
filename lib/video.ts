@@ -69,20 +69,16 @@ export async function startVeoClip(
   const image = portrait ? /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(portrait) : null;
   const prompt = veoClipPrompt(character, Boolean(image));
   const instance: Record<string, unknown> = { prompt };
-  if (image) instance.image = { inlineData: { mimeType: image[1], data: image[2] } };
-  const send = (durationSeconds: number | string) =>
-    fetchImpl(`${VEO_BASE_URL}/models/${VEO_MODEL}:predictLongRunning`, {
-      method: "POST",
-      headers: headers(apiKey),
-      body: JSON.stringify({ instances: [instance], parameters: { aspectRatio: "9:16", durationSeconds, resolution: "720p" } }),
-      signal: AbortSignal.timeout(30_000),
-    });
-  let res = await send(CLIP_SECONDS);
-  // The docs list durationSeconds values as strings ("4"); some API versions want a number. Try the other once.
-  if (res.status === 400) {
-    const reason = await googleReason(res.clone());
-    if (/duration/i.test(reason)) res = await send(String(CLIP_SECONDS));
-  }
+  // The predict endpoint takes the image as bytesBase64Encoded; it answers 400 "`inlineData` isn't supported by this
+  // model" to the inlineData shape in Google's docs (checked against the live API, 2026-10-16). durationSeconds is a
+  // number (4–8), whatever the docs' strings say.
+  if (image) instance.image = { bytesBase64Encoded: image[2], mimeType: image[1] };
+  const res = await fetchImpl(`${VEO_BASE_URL}/models/${VEO_MODEL}:predictLongRunning`, {
+    method: "POST",
+    headers: headers(apiKey),
+    body: JSON.stringify({ instances: [instance], parameters: { aspectRatio: "9:16", durationSeconds: CLIP_SECONDS, resolution: "720p" } }),
+    signal: AbortSignal.timeout(30_000),
+  });
   if (!res.ok) {
     const reason = await googleReason(res);
     throw new VideoError(`Google couldn't start the clip (HTTP ${res.status})${reason ? `: ${reason}` : "."}`);

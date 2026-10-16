@@ -91,22 +91,22 @@ describe("Veo on the player's Google key (lib/video.ts)", () => {
     stubVeo("done", seen);
     const job = await startVeoClip(GOOGLE_KEY, { name: "Ira Fenn", age: 26, bio: "", traits: ["bookish", "warm", "stubborn"], pronouns: "they/them" }, PNG);
     expect(job.operation).toBe(OP);
-    expect(seen.start.instances[0].image.inlineData.mimeType).toBe("image/png");
+    // The live API refuses the docs' inlineData shape ("`inlineData` isn't supported by this model").
+    expect(seen.start.instances[0].image).toEqual({ bytesBase64Encoded: PNG.split(",")[1], mimeType: "image/png" });
     expect(seen.start.instances[0].prompt).toMatch(/Bring this illustrated portrait to life/);
     expect(seen.start.parameters).toEqual({ aspectRatio: "9:16", durationSeconds: 4, resolution: "720p" });
     expect(veoClipPrompt({ name: "X", age: 17, bio: "", traits: ["a"] }, false)).toMatch(/an adult around 18/);
   });
 
-  it("retries the duration as a string when Google wants one", async () => {
+  it("sends no image without a portrait, and shows Google's own reason for a refusal", async () => {
     const bodies: Any[] = [];
     const f = (async (_u: string, init?: RequestInit) => {
       bodies.push(JSON.parse(String(init?.body)));
-      return bodies.length === 1
-        ? new Response(JSON.stringify({ error: { message: "Invalid value at 'parameters.durationSeconds'" } }), { status: 400 })
-        : new Response(JSON.stringify({ name: OP }), { status: 200 });
+      return new Response(JSON.stringify({ error: { message: "`bogusField` isn't supported by this model." } }), { status: 400 });
     }) as typeof fetch;
-    await startVeoClip(GOOGLE_KEY, { name: "X", age: 30, bio: "", traits: ["a"] }, null, f);
-    expect(bodies.map((b) => b.parameters.durationSeconds)).toEqual([4, "4"]);
+    await expect(startVeoClip(GOOGLE_KEY, { name: "X", age: 30, bio: "", traits: ["a"] }, null, f)).rejects.toThrow(/HTTP 400\): `bogusField` isn't supported/);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0].instances[0].image).toBeUndefined();
   });
 
   it("polls only Google's own operation names, reports filtered clips, and downloads only from Google", async () => {
