@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import EpisodeOg from "@/app/episodes/[id]/opengraph-image";
 import CharacterOg from "@/app/characters/[id]/opengraph-image";
 import StaticOg from "@/app/opengraph-image";
+import { recordAsset, reviewAsset } from "@/lib/assets";
 import { api, setupEpisode, startTestDb } from "./helpers";
 
 // The 8-byte PNG signature. ImageResponse renders lazily, so reading the body is what actually runs Satori
@@ -33,6 +34,14 @@ describe("opengraph images render to PNG (next/og / Satori)", () => {
   it("the character card renders", async () => {
     const { character } = await setupEpisode();
     await renderPng(await CharacterOg({ params: Promise.resolve({ id: character.id }) }));
+  });
+
+  it("both cards render with an OC's generated portrait embedded (and the house partner's, on the episode card)", async () => {
+    const { character, episode } = await setupEpisode();
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    await reviewAsset(t.db, await recordAsset(t.db, { character_id: character.id, kind: "portrait", source_type: "generated", source_model: "openai:test", url: png }), "approved");
+    await renderPng(await CharacterOg({ params: Promise.resolve({ id: character.id }) }));
+    await renderPng(await EpisodeOg({ params: Promise.resolve({ id: episode.id }) }));
   });
 
   it("the site card renders", async () => {

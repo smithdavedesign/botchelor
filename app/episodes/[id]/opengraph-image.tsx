@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
+import { approvedPortraitDataUrl } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import { getEpisodeView } from "@/lib/game";
 import { DATE_VARIABLES, ENDING_LABELS, VARIABLE_LABELS } from "@/lib/rules";
@@ -17,8 +18,11 @@ const ACCENT = "#d6336c";
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let episode = null;
+  let portraits: (string | null)[] = [null, null];
   try {
-    episode = await getEpisodeView(await getDb(), id, null);
+    const db = await getDb();
+    episode = await getEpisodeView(db, id, null);
+    if (episode) portraits = await Promise.all(episode.characters.map((c) => approvedPortraitDataUrl(db, c.id)));
   } catch {
     episode = null;
   }
@@ -27,25 +31,30 @@ export default async function Image({ params }: { params: Promise<{ id: string }
 
   // Satori (next/og) requires an explicit `display` on every <div> with more than one child; it is safe on
   // single-child ones too, so every div here sets it, and every text node is a single child of its div.
-  const tile = (c: { id: string; name: string; hue: number | null }) => (
-    <div
-      key={c.id}
-      style={{
-        display: "flex",
-        width: 96,
-        height: 96,
-        borderRadius: 26,
-        background: avatarGradientCss(avatarPalette(c.id, c.hue)),
-        alignItems: "center",
-        justifyContent: "center",
-        color: "#fff",
-        fontSize: 44,
-        fontWeight: 800,
-      }}
-    >
-      {initials(c.name)}
-    </div>
-  );
+  // An OC's generated portrait when it has one, else the gradient tile.
+  const tile = (c: { id: string; name: string; hue: number | null }, portrait: string | null) =>
+    portrait ? (
+      // eslint-disable-next-line @next/next/no-img-element -- Satori renders a plain <img>, not next/image
+      <img key={c.id} src={portrait} alt="" width={96} height={96} style={{ borderRadius: 26, objectFit: "cover" }} />
+    ) : (
+      <div
+        key={c.id}
+        style={{
+          display: "flex",
+          width: 96,
+          height: 96,
+          borderRadius: 26,
+          background: avatarGradientCss(avatarPalette(c.id, c.hue)),
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#fff",
+          fontSize: 44,
+          fontWeight: 800,
+        }}
+      >
+        {initials(c.name)}
+      </div>
+    );
 
   return new ImageResponse(
     (
@@ -53,9 +62,9 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         <div style={{ display: "flex", fontSize: 34, color: ACCENT, fontWeight: 700 }}>Botchelor · box score</div>
         {episode && (
           <div style={{ display: "flex", alignItems: "center", gap: 22, marginTop: 18 }}>
-            {tile(episode.characters[0])}
+            {tile(episode.characters[0], portraits[0])}
             <div style={{ display: "flex", fontSize: 34, color: MUTED }}>×</div>
-            {tile(episode.characters[1])}
+            {tile(episode.characters[1], portraits[1])}
           </div>
         )}
         <div style={{ display: "flex", fontSize: 56, fontWeight: 800, marginTop: 14 }}>{names}</div>

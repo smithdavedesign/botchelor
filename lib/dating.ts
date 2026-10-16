@@ -9,6 +9,7 @@
  * Compatibility here is a hint for who to ask. It never touches the date: the engine decides how a date
  * ends from the two characters on the night.
  */
+import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { extrasText, type CharacterExtras } from "./extras";
 import { isOnSeasonCast, seasonCastIds } from "./season-cast";
@@ -26,6 +27,8 @@ export type DatingProfile = {
   appearance: string | null;
   voice: string | null;
   hue: number | null;
+  /** Their approved generated portrait's path (/api/assets/<id>), or null. */
+  portrait: string | null;
   made_by: MadeBy;
   open_to_dates: boolean;
   /** True when you can name them as your date's partner (this season's house cast, or open to dates). */
@@ -48,6 +51,7 @@ type Row = {
   appearance: string | null;
   voice: string | null;
   avatar_hue: number | null;
+  portrait: string | null;
   is_house: boolean;
   created_via: string;
   open_to_dates: boolean;
@@ -56,7 +60,7 @@ type Row = {
 };
 
 const PUBLIC_COLUMNS = `c.id, c.name, c.age, c.pronouns, c.bio, c.traits, c.want, c.appearance, c.voice, c.avatar_hue,
-  c.is_house, c.created_via, c.open_to_dates, c.extras,
+  ${portraitPathSql("c")} as portrait, c.is_house, c.created_via, c.open_to_dates, c.extras,
   (select count(*)::int from episodes e
      where (e.character_a = c.id or e.character_b = c.id) and e.revealed_at is not null and e.visibility = 'public') as dates`;
 
@@ -81,6 +85,7 @@ function toProfile(r: Row): DatingProfile {
     appearance: r.appearance,
     voice: r.voice,
     hue: r.avatar_hue,
+    portrait: r.portrait,
     made_by: madeBy(r),
     open_to_dates: available,
     can_ask_out: available,

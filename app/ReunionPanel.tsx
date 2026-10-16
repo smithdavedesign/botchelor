@@ -6,7 +6,7 @@ import { ENDING_LABELS } from "@/lib/rules";
 function Face({ c, size = 34 }: { c: ReunionChar; size?: number }) {
   return (
     <Link href={`/characters/${c.id}`} className="reunion-face">
-      <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={size} />
+      <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={size} />
     </Link>
   );
 }

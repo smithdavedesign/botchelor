@@ -105,7 +105,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             <ul className="list start-mine">
               {myCharacters.map((c) => (
                 <li key={c.id} className="char">
-                  <Avatar seed={c.id} name={c.name} size={36} />
+                  <Avatar seed={c.id} name={c.name} hue={c.hue} portraitSrc={c.portrait} size={36} />
                   <Link className="button-ghost small" href={`/create?character=${c.id}`}>
                     Send {c.name} on a date
                   </Link>

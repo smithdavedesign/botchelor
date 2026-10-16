@@ -134,16 +134,36 @@ export async function getApprovedAsset(db: Db, id: string): Promise<CharacterAss
   return rows[0] ?? null;
 }
 
+/** The newest approved portrait of the character whose id is the SQL expression `characterId`. */
+const approvedPortraitSelect = (characterId: string) =>
+  `select portrait_asset.id from character_assets portrait_asset
+    where portrait_asset.character_id = ${characterId} and portrait_asset.kind = 'portrait'
+      and portrait_asset.review_status = 'approved' and portrait_asset.url is not null
+    order by portrait_asset.created_at desc limit 1`;
+
 /** The id of a character's newest approved portrait, or null. For rendering a generated avatar. */
 export async function approvedPortraitId(db: Db, characterId: string): Promise<string | null> {
-  const { rows } = await db.query<{ id: string }>(
-    `select id from character_assets
-      where character_id = $1 and kind = 'portrait' and review_status = 'approved' and url is not null
-      order by created_at desc limit 1`,
-    [characterId],
-  );
+  const { rows } = await db.query<{ id: string }>(approvedPortraitSelect("$1"), [characterId]);
   return rows[0]?.id ?? null;
 }
+
+/**
+ * A character's newest approved portrait as a data URL a share card (next/og) can embed, or null. Only PNG or
+ * JPEG: the card's rasterizer draws a webp as nothing at all, so the card keeps the gradient tile for those (and
+ * for the house cast, whose ledger rows point at /cast files).
+ */
+export async function approvedPortraitDataUrl(db: Db, characterId: string): Promise<string | null> {
+  const id = await approvedPortraitId(db, characterId);
+  const url = id ? (await getApprovedAsset(db, id))?.url : null;
+  return url && /^data:image\/(png|jpeg);base64,/.test(url) ? url : null;
+}
+
+/**
+ * SQL for the served path (`/api/assets/<id>`) of the newest approved portrait of the `characters` row aliased
+ * `alias`, or null when it has none. approvedPortraitId inline, so every list of characters (an episode's two,
+ * the feed, the cast, a watch room) carries its generated portraits in the same statement, not a read per avatar.
+ */
+export const portraitPathSql = (alias: string): string => `('/api/assets/' || (${approvedPortraitSelect(`${alias}.id`)}))`;
 
 /** A character's newest clip asset in ANY state (for the owner's status poll), or null. */
 export async function latestClip(db: Db, characterId: string): Promise<CharacterAsset | null> {

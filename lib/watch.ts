@@ -19,6 +19,7 @@ import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { failureReason } from "./jobs";
 import { seasonCastIds } from "./season-cast";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
+import { portraitPathSql } from "./assets";
 import { getDirectorModel, getModel } from "./model";
 import { generateDate } from "./pipeline";
 import { DEFAULT_FORMAT } from "./formats";
@@ -271,10 +272,12 @@ type RoomRow = {
   a_name: string;
   a_house: boolean;
   a_hue: number | null;
+  a_portrait: string | null;
   b_id: string;
   b_name: string;
   b_house: boolean;
   b_hue: number | null;
+  b_portrait: string | null;
   is_creator: boolean;
 };
 
@@ -282,8 +285,8 @@ const ROOM_SELECT = `
   select w.kind, w.host_id, w.starts_at, e.id as episode_id, e.setting, e.goals, e.scenes, e.twist,
          e.finale, e.ending, e.drama_question, e.drama_answer, e.best_line, e.setup, e.transcript,
          e.revealed_at is not null as revealed,
-         a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue,
-         b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue,
+         a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait,
+         b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait,
          coalesce($2::text in (a.owner_id, b.owner_id), false) as is_creator
     from watch_parties w
     join episodes e on e.id = w.episode_id
@@ -447,8 +450,8 @@ export async function getRoomState(
     idx >= ACT2_INDEX && row.setup ? capitalize(producerEvent(row.setup.producer).prompt) + "." : null;
 
   const characters: [CharacterRef, CharacterRef] = [
-    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue },
-    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue },
+    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait },
+    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait },
   ];
   const names: [string, string] = [row.a_name, row.b_name];
 
@@ -580,15 +583,17 @@ export async function listLobby(db: Db, now: Date = new Date(), limit = 24): Pro
     a_name: string;
     a_house: boolean;
     a_hue: number | null;
+    a_portrait: string | null;
     b_id: string;
     b_name: string;
     b_house: boolean;
     b_hue: number | null;
+    b_portrait: string | null;
     watching: number;
   }>(
     `select w.id, w.kind, w.starts_at,
-            a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue,
-            b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue,
+            a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait,
+            b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait,
             (select count(*) from watch_presence p
               where p.party_id = w.id and p.last_seen > now() - ($1::int * interval '1 second'))::int as watching
        from watch_parties w
@@ -611,8 +616,8 @@ export async function listLobby(db: Db, now: Date = new Date(), limit = 24): Pro
       room_path: `/watch/${r.id}`,
       title: `${r.a_name} × ${r.b_name}`,
       characters: [
-        { id: r.a_id, name: r.a_name, house: r.a_house, hue: r.a_hue },
-        { id: r.b_id, name: r.b_name, house: r.b_house, hue: r.b_hue },
+        { id: r.a_id, name: r.a_name, house: r.a_house, hue: r.a_hue, portrait: r.a_portrait },
+        { id: r.b_id, name: r.b_name, house: r.b_house, hue: r.b_hue, portrait: r.b_portrait },
       ] as [CharacterRef, CharacterRef],
       phase_label: clock.started ? (clock.ended ? "Aftermath" : clock.phase_label) : "Tap in to start",
       started: clock.started,

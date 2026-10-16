@@ -11,19 +11,21 @@ type Props = {
   size?: number;
   /** A house character gets a small ring so it reads as the show's own cast. */
   house?: boolean;
-  /** A BYOK-generated portrait to show instead of the drawn tile (served from /api/assets/<id>). */
+  /** A BYOK-generated portrait to show instead of the drawn tile (served from /api/assets/<id>): pass the
+   *  character's `portrait` wherever it's drawn, or an OC that has one shows its initials instead. */
   portraitSrc?: string | null;
 };
 
 /**
- * A character's avatar. A house character with a reviewed portrait (lib/portraits.ts) shows that image;
- * everyone else (every visitor OC) gets the gradient tile with a soft motif and their initials. Pure (no
- * hooks, no client directive), so it renders in both server and client components.
+ * A character's avatar. A house character with a reviewed portrait (lib/portraits.ts) shows that image; an
+ * OC shows its generated portrait when it has one, and otherwise the gradient tile with a soft motif and its
+ * initials. Pure (no hooks, no client directive), so it renders in both server and client components.
  */
 export default function Avatar({ seed, name, hue, size = 48, house = false, portraitSrc = null }: Props) {
   const r = size * 0.28;
-  // A BYOK-generated portrait (owner's own, provider-moderated) takes precedence, then a reviewed house portrait.
-  const portrait = portraitSrc ?? characterPortrait(seed);
+  // A house character's reviewed file first: its ledger row (when it has one) only redirects to that same file.
+  // Then an OC's BYOK-generated portrait (the owner's own, provider-moderated).
+  const portrait = characterPortrait(seed) ?? portraitSrc;
   if (portrait) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- a static public asset; no loader/optimizer needed
