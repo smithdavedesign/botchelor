@@ -2,8 +2,38 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ADULT_COOKIE } from "@/lib/age";
 import { track } from "@/lib/analytics";
 import { detectBot } from "@/lib/bots";
+import { siteUrl } from "@/lib/site";
 import { NOTRACK_COOKIE } from "@/lib/tracking";
 import { metric } from "@vercel/functions";
+
+/**
+ * The site's old address. Its pages move permanently to the canonical domain (siteUrl: botchelor.com), so search
+ * and players end up on one host. Only pages: the matcher below already skips /api (the Stripe webhook is
+ * registered here and Stripe doesn't follow redirects; MCP clients POST) and files (the Search Console and Bing
+ * verification files keep the old property verified). Preview deployments have other hosts and never move.
+ */
+const OLD_HOSTS = new Set(["botchelor.vercel.app"]);
+/** The identity cookies (lib/http: USER_COOKIE, SESSION_COOKIE), named here to keep node:crypto out of middleware. */
+const IDENTITY_COOKIES = ["bz_sess", "bz_uid"];
+
+/** A page visit on the old host: a cookieless visitor (or crawler) moves for good; a player carries their identity. */
+function moveToCanonical(req: NextRequest): NextResponse | null {
+  const host = (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? req.nextUrl.host).toLowerCase();
+  if (!OLD_HOSTS.has(host)) return null;
+  const canonical = siteUrl();
+  const target = new URL(canonical).host;
+  if (target === host || target.endsWith(".vercel.app") || target.startsWith("localhost")) return null;
+  const to = `${req.nextUrl.pathname}${req.nextUrl.search}`;
+  if (IDENTITY_COOKIES.some((c) => req.cookies.has(c))) {
+    // Cookies are per host: hand who they are to the new host first (app/api/auth/carry). Temporary, per browser.
+    const url = req.nextUrl.clone();
+    url.pathname = "/api/auth/carry";
+    url.search = "";
+    url.searchParams.set("to", to);
+    return NextResponse.redirect(url, 307);
+  }
+  return NextResponse.redirect(`${canonical}${to}`, 308);
+}
 
 /**
  * The agent-facing docs (and the crawler essentials). They're files, so the gate never applies to them, but
@@ -33,6 +63,8 @@ const section = (path: string) => `/${path.split("/")[1] ?? ""}`;
  * people. Each pass is logged as a `bot_visit` so we can see who's reading the show.
  */
 export function middleware(req: NextRequest): NextResponse {
+  const moved = moveToCanonical(req);
+  if (moved) return moved; // the query (?repohq-notrack=1 included) travels with it and is handled on arrival
   const res = route(req);
   // ?repohq-notrack=1 marks the owner's browser for RepoHQ's funnel (app/funnel.ts). Set on whatever goes out, the
   // 18+ gate's redirect included, so it sticks even before the gate is passed. 400 days: the most a browser keeps.

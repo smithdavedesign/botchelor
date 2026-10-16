@@ -63,6 +63,44 @@ export function verifySession(token: string | null | undefined, env: Record<stri
   }
 }
 
+/* ----------------------------------- host moves ----------------------------------- */
+
+/** How long a carry token is good for: it only has to survive one redirect. */
+export const CARRY_TTL_SECONDS = 60;
+
+export type CarryClaims = SessionClaims & { adult: boolean };
+
+/**
+ * A one-hop token that moves this browser's identity from the old host (botchelor.vercel.app) to the canonical
+ * one, since cookies are per host (app/api/auth/carry). `carry.v1.<payload>.<sig>`: its own prefix and HMAC
+ * context, so a carry token is never accepted as a session or a session as a carry; it expires in a minute.
+ */
+export function signCarry(claims: CarryClaims, env: Record<string, string | undefined> = process.env, now = Date.now()): string | null {
+  const secret = sessionSecret(env);
+  if (!secret) return null;
+  const payload = b64url(
+    Buffer.from(JSON.stringify({ u: claims.uid, a: claims.authenticated ? 1 : 0, g: claims.adult ? 1 : 0, e: Math.floor(now / 1000) + CARRY_TTL_SECONDS })),
+  );
+  return `carry.v1.${payload}.${b64url(hmac(secret, `carry:${payload}`))}`;
+}
+
+/** Verifies a carry token: well formed, correctly signed and unexpired. */
+export function verifyCarry(token: string | null | undefined, env: Record<string, string | undefined> = process.env, now = Date.now()): CarryClaims | null {
+  const secret = sessionSecret(env);
+  if (!secret || !token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 4 || parts[0] !== "carry" || parts[1] !== "v1") return null;
+  const [, , payload, sig] = parts;
+  if (!safeEqual(sig, b64url(hmac(secret, `carry:${payload}`)))) return null;
+  try {
+    const c = JSON.parse(Buffer.from(payload, "base64url").toString()) as { u?: unknown; a?: unknown; g?: unknown; e?: unknown };
+    if (typeof c.u !== "string" || !UUID.test(c.u) || typeof c.e !== "number" || c.e < Math.floor(now / 1000)) return null;
+    return { uid: c.u, authenticated: c.a === 1, adult: c.g === 1 };
+  } catch {
+    return null;
+  }
+}
+
 /* ----------------------------------- passwords ----------------------------------- */
 
 const SCRYPT_KEYLEN = 64;
