@@ -11,6 +11,7 @@ import { getEpisodeView, getPoints } from "@/lib/game";
 import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { userIdFromCookieStore } from "@/lib/http";
+import { secondDateState } from "@/lib/second-date";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
 import { DATE_ACTS, DRAMA_QUESTION_LABELS, dramaAnswerLabel, ENDING_LABELS, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
@@ -18,7 +19,7 @@ import { formatLabel } from "@/lib/formats";
 import { venueBackdropCss, venueName } from "@/lib/venues";
 import { venueBackdrop } from "@/lib/portraits";
 import Avatar from "@/app/Avatar";
-import Afterglow from "./Afterglow";
+import Afterglow, { SecondDate } from "./Afterglow";
 import EpisodeTheater from "./EpisodeTheater";
 import ChatThread from "@/app/ChatThread";
 import BoxScore from "./BoxScore";
@@ -69,6 +70,8 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
   // The $0 mechanics: spectators get the dealbreaker quiz; the owner (host) sees the surprise reveal.
   const quiz = !episode.is_creator ? await getDealbreakerQuiz(db, id, viewerId) : null;
   const surprise = episode.is_creator ? await getSurprise(db, id, viewerId) : null;
+  // Their second date, when both characters want one (lib/second-date.ts): owners only.
+  const secondDate = episode.is_creator && viewerId ? await secondDateState(db, id, viewerId) : null;
   const partyId = await partyIdForEpisode(db, id);
   // Performed by its creator's own AI (an agent dating two of its own characters, lib/own-date.ts)?
   const selfPerformed =
@@ -303,7 +306,12 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
       )}
 
       {episode.afterglow && (
-        <Afterglow characters={episode.characters} afterglow={episode.afterglow} />
+        <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} />
+      )}
+      {!episode.afterglow && secondDate?.mutual && (
+        <section className="card">
+          <SecondDate episodeId={episode.id} state={secondDate} />
+        </section>
       )}
 
       {episode.is_creator && episode.box_score && <SlidingDoors episodeId={episode.id} />}

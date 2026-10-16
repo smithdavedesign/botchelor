@@ -27,6 +27,7 @@ import {
 import { checkFields } from "@/lib/safety";
 import { seasonCastIds } from "@/lib/season-cast";
 import { seasonAt } from "@/lib/seasons";
+import { checkSecondDate } from "@/lib/second-date";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { type CharacterSheet } from "@/lib/showrunner";
 
@@ -55,6 +56,9 @@ const EpisodeInput = z
     // M16: who can see the date. Defaults public (the feed). 'private' is the creator's alone (tracked,
     // never public, never scored); 'unlisted' is viewable by link only.
     visibility: z.enum(["public", "private", "unlisted"]).optional(),
+    // A second date (lib/second-date.ts): the date whose morning-after plan this is. partner_id is the other
+    // character in it; consent is checked there instead of "house or open to dates".
+    second_date_of: id.optional(),
   })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
     message: "Send either partner_id (a house character or one that's open to dates) or blind: true.",
@@ -151,7 +155,16 @@ export const POST = handle(async (req) => {
   if (!own) return json({ error: "character_not_found" }, 404, sess);
 
   let partner: CharacterRow | undefined;
-  if (input.blind) {
+  let secondDate: { followupOf: string; visibility: "public" | "private" | "unlisted" } | null = null;
+  if (input.second_date_of) {
+    // Both characters wanted it, this is the other one, and its owner has agreed (lib/second-date.ts).
+    if (!input.partner_id) return json({ error: "invalid_request", message: "A second date needs partner_id." }, 400, sess);
+    const check = await checkSecondDate(db, sess.userId, own.id, input.partner_id, input.second_date_of, input.visibility);
+    if (!check.ok) return json({ error: check.error, message: check.message }, check.status, sess);
+    secondDate = { followupOf: check.followupOf, visibility: check.visibility };
+    partner = (await db.query<CharacterRow>(`select ${CHARACTER_COLUMNS} from characters c where c.id = $1`, [input.partner_id])).rows[0];
+    if (!partner) return json({ error: "partner_not_available", message: "That character isn't here any more." }, 422, sess);
+  } else if (input.blind) {
     partner = await blindMatch(db, sess.userId);
   } else {
     // One of this season's house cast (or a premium one, checked below), or someone else's OC that's open
@@ -248,7 +261,7 @@ export const POST = handle(async (req) => {
   }
   const outcome = { saved: false };
   try {
-    return await writeAndSave(db, sess, useFrontier, reservation, own, partner, input, outcome);
+    return await writeAndSave(db, sess, useFrontier, reservation, own, partner, input, outcome, secondDate);
   } finally {
     if (!outcome.saved) {
       await releaseEpisode(db, sess.userId, reservation).catch((err: unknown) => {
@@ -276,6 +289,7 @@ async function writeAndSave(
   partner: CharacterRow,
   input: EpisodeInputData,
   saveState: { saved: boolean },
+  secondDate: { followupOf: string; visibility: "public" | "private" | "unlisted" } | null = null,
 ): Promise<Response> {
   const episodeId = crypto.randomUUID();
   const dateRequest: DateRequest = {
@@ -286,7 +300,10 @@ async function writeAndSave(
     note: input.note ?? null,
     format: input.format ?? DEFAULT_FORMAT,
   };
-  const built = await buildDate(db, episodeId, forDate(own), forDate(partner), dateRequest);
+  const built = await buildDate(db, episodeId, forDate(own), forDate(partner), dateRequest, undefined, undefined, {
+    creatorId: sess.userId,
+    followupOf: secondDate?.followupOf ?? null,
+  });
   const decided = getEngine().decide(built.input, built.seed, built.setup.engine_version);
 
   // Write the episode 'generating' with the engine outcome but placeholder narration; the background job
@@ -295,9 +312,9 @@ async function writeAndSave(
   const saved = await db.query<{ id: string }>(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
                            drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup,
-                           note, self_pick, transcript, status, visibility)
+                           note, self_pick, transcript, status, visibility, followup_of)
      select $1, $2, $3, $4, '', '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, $7, $8, $9::jsonb, $10::jsonb, null,
-            '[]'::jsonb, $11::jsonb, $12, $13, '[]'::jsonb, 'generating', $14
+            '[]'::jsonb, $11::jsonb, $12, $13, '[]'::jsonb, 'generating', $14, $15
       where not exists (
         select 1 from characters pc
           join blocks bl on (bl.blocker_id = $2 and bl.blocked_id = pc.owner_id)
@@ -318,9 +335,17 @@ async function writeAndSave(
       JSON.stringify(built.setup),
       input.note ?? null,
       input.self_pick ?? null,
-      input.visibility ?? "public",
+      secondDate?.visibility ?? input.visibility ?? "public",
+      secondDate?.followupOf ?? null,
     ],
-  );
+  ).catch((err: unknown) => {
+    // Two owners booking the same second date at once: the unique followup_of lets exactly one through.
+    if (secondDate && (err as { code?: string })?.code === "23505") return { rows: [] as { id: string }[], raced: true };
+    throw err;
+  });
+  if (secondDate && "raced" in saved) {
+    return json({ error: "already_planned", message: "Their second date is already booked." }, 409, sess);
+  }
   if (!saved.rows.length) {
     return json(
       { error: "match_unavailable", message: "That match is no longer available. Nothing was saved; try another date." },
@@ -333,7 +358,8 @@ async function writeAndSave(
   // Queue the slow part (narration + conversation). In production it runs after the response (and the
   // cron route re-runs anything after() misses); inline — tests — it runs now so the episode is ready.
   await enqueueGeneration(db, episodeId, useFrontier, sess.userId, reservation);
-  track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: input.blind === true });
+  track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: input.blind === true, second_date: secondDate !== null });
+  if (secondDate) track("second_date_planned", { episode_id: episodeId, followup_of: secondDate.followupOf, planned_venue: built.setup.plan?.length ? built.setup.venue : null });
   if (inlineGenerationEnabled()) {
     // No after() lifecycle here, so run the job now: ready → the full episode; a failure deletes the
     // episode and gives the date back, which we surface as the old fail-closed 502.

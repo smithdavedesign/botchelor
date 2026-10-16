@@ -465,6 +465,13 @@ create index if not exists relationships_character_b on relationships (character
 -- A second date points at the date whose morning-after plan it is. One second date per date.
 alter table episodes add column if not exists followup_of text references episodes (id) on delete set null;
 create unique index if not exists episodes_one_second_date on episodes (followup_of) where followup_of is not null;
+-- An owner's yes to a second date (lib/second-date.ts), when the other character's owner has to agree as well.
+create table if not exists second_date_requests (
+  episode_id text not null references episodes (id) on delete cascade,
+  user_id text not null,
+  created_at timestamptz not null default now(),
+  primary key (episode_id, user_id)
+);
 
 -- M14. The learned memory layer (lib/memory.ts): what a character has learned across ALL its dates, so
 -- each bot becomes an individual and "trains itself". Materialized, recomputed deterministically (no model

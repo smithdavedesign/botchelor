@@ -24,7 +24,9 @@ export type AnalyticsEvent =
   | "agent_tool_call" // one MCP tool call: the tool, the client and whether it succeeded — never arguments
   | "agent_date_capped" // an agent's date was refused because the agents' daily date cap was reached
   | "agent_doc_fetch" // someone fetched an agent-facing doc (/llms.txt, /llms-full.txt, the MCP discovery doc, the schema, robots, sitemap): which doc, and the bot's name/kind
-  | "agent_referral_visit"; // a visit that arrived from a link in an agent doc (utm_medium=ai_agent): the doc it came from and the landing path
+  | "agent_referral_visit" // a visit that arrived from a link in an agent doc (utm_medium=ai_agent): the doc it came from and the landing path
+  | "second_date_yes" // an owner said yes to a second date that also needs the other owner's yes (lib/second-date.ts)
+  | "second_date_planned"; // a second date was booked from a mutual afterglow: the new date, the one it follows, and the planned venue
 
 type Props = Record<string, string | number | boolean | null | undefined>;
 

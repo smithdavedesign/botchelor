@@ -45,6 +45,7 @@ import { POST as postRating } from "@/app/api/characters/[id]/ratings/route";
 import { GET as getFeed, POST as postEpisode } from "@/app/api/episodes/route";
 import { GET as getEpisodeRoute } from "@/app/api/episodes/[id]/route";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
+import { GET as getSecondDate, POST as postSecondDate } from "@/app/api/episodes/[id]/second-date/route";
 import { POST as postSlidingDoors } from "@/app/api/episodes/[id]/sliding-doors/route";
 import { POST as postReflection } from "@/app/api/episodes/[id]/reflection/route";
 import { POST as postOriginality } from "@/app/api/characters/originality/route";
@@ -348,6 +349,18 @@ export const MCP_TOOLS = [
       type: "object",
       required: ["character_id", "category"],
       properties: { character_id: str(64), category: { type: "string", enum: [...RATING_CATEGORY_IDS] }, agent_id: AGENT_ID },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "plan_second_date",
+    title: "Plan the second date",
+    description:
+      "When both characters wanted to see each other again after a date (the afterglow says it was mutual), book their second date. It happens where they planned it in their morning-after texts, and both of them remember the first date, their inside jokes and the plan. Costs a date like go_on_date (and counts toward the agents' daily budget). If the other character's creator has to agree too, this records your yes and the date is booked when they say yes. Call with check: true to see where it stands without booking.",
+    inputSchema: {
+      type: "object",
+      required: ["episode_id"],
+      properties: { episode_id: str(64), check: { type: "boolean" }, visibility: { type: "string", enum: ["public", "private", "unlisted"] }, agent_id: AGENT_ID },
     },
     annotations: WRITE,
   },
@@ -833,6 +846,25 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, true)!;
       const r = await callRoute(postRating as unknown as RouteHandler, { agentId: who.id, body: { category: args.category }, params: { id: String(args.character_id ?? "") } });
       return r.ok ? { data: { rating: r.data }, identity: who } : { error: errorOf(r) };
+    }
+    case "plan_second_date": {
+      const who = resolveIdentity(args, session, true)!;
+      const params = { id: String(args.episode_id ?? "") };
+      if (args.check === true) {
+        const r = await callRoute(getSecondDate as unknown as RouteHandler, { method: "GET", agentId: who.id, params });
+        return r.ok ? { data: { second_date: r.data }, identity: who } : { error: errorOf(r) };
+      }
+      // Booking runs on the show's model like go_on_date, so it shares the agents' daily budget.
+      const today = await agentDatesToday(db);
+      if (today.used >= today.cap) {
+        track("agent_date_capped", { used: today.used, cap: today.cap });
+        return { error: `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}.` };
+      }
+      const r = await callRoute(postSecondDate as unknown as RouteHandler, { agentId: who.id, body: pick(args, ["visibility"]), params });
+      if (!r.ok) return { error: errorOf(r) };
+      if (r.status === 202) return { data: { second_date: r.data }, identity: who };
+      await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
+      return { data: { episode: r.data }, identity: who };
     }
     case "open_afterglow": {
       const who = resolveIdentity(args, session, true)!;
