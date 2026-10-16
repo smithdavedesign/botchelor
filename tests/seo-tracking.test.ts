@@ -63,6 +63,11 @@ describe("tracking config — every tag is opt-in by env", () => {
     });
   });
 
+  it("renders one Search Console tag per comma-separated token (several owners/properties)", () => {
+    expect(trackingConfig({ GOOGLE_SITE_VERIFICATION: "tok-a, tok-b" }).verification).toEqual({ google: ["tok-a", "tok-b"] });
+    expect(trackingConfig({ GOOGLE_SITE_VERIFICATION: " , " }).verification).toBeUndefined();
+  });
+
   it("agentLink tags a page with the doc it came from", () => {
     expect(agentLink(BASE, "/feed", "llms-full.txt")).toBe(`${BASE}/feed?utm_source=llms-full.txt&utm_medium=ai_agent`);
   });
