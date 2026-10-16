@@ -25,8 +25,11 @@ export type Allowance = {
 export type Reservation = { source: "free"; season_id: string } | { source: "pack" };
 
 /** Dates bought: the episodes on the user's paid pack orders. A refunded order stops counting. */
-const PACK_EPISODES_BOUGHT = `(select coalesce(sum(o.episodes), 0)::int from orders o
-                                where o.user_id = $1 and o.kind = 'episode_pack' and o.status = 'paid')`;
+/** Pack dates an account has: its paid packs plus any an admin granted (token_grants). `who` is the user id SQL. */
+export const packDatesSql = (who: string) => `((select coalesce(sum(o.episodes), 0)::int from orders o
+                                where o.user_id = ${who} and o.kind = 'episode_pack' and o.status = 'paid')
+                              + (select coalesce(sum(g.episodes), 0)::int from token_grants g where g.user_id = ${who}))`;
+const PACK_EPISODES_BOUGHT = packDatesSql("$1");
 
 function allowance(now: Date, freeUsed: number, packBought: number, packUsed: number): Allowance {
   const season = seasonAt(now);

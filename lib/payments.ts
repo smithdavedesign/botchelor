@@ -59,7 +59,8 @@ export async function refundOrder(db: Db, orderId: string): Promise<boolean> {
        update pack_episode_usage u
           set used = least(u.used, (select coalesce(sum(o.episodes), 0)::int from orders o
                                      where o.user_id = u.user_id and o.kind = 'episode_pack'
-                                       and o.status = 'paid' and o.id <> $1))
+                                       and o.status = 'paid' and o.id <> $1)
+                                   + (select coalesce(sum(g.episodes), 0)::int from token_grants g where g.user_id = u.user_id))
          from refunded r
         where u.user_id = r.user_id and r.kind = 'episode_pack'
      )
