@@ -1989,6 +1989,50 @@ button.poll-option.chosen {
   color: var(--accent-2);
 }
 
+/* A couple's page (app/couples): two avatars, their stage, and how close they are. */
+.couple-head {
+  text-align: center;
+}
+.couple-avatars {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.couple-timeline li .badge {
+  margin-left: 0.4rem;
+}
+.meter {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 26rem;
+  margin: 0.35rem auto;
+  text-align: left;
+}
+.meter-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.meter-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--soft);
+  overflow: hidden;
+}
+.connections .meter-track.tie {
+  display: block;
+  max-width: 14rem;
+  height: 0.35rem;
+  margin-top: 0.3rem;
+}
+.meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--grad);
+}
+
 /* The second date (lib/second-date.ts): under the afterglow, when they both want one. */
 .second-date {
   margin-top: 1.25rem;

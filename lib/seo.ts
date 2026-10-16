@@ -43,8 +43,14 @@ export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<
       limit 20000`,
     [seasonCastIds()],
   );
+  // Couples whose dates have aired publicly (the relationship graph's public layer).
+  const couples = await db.query<{ a: string; b: string; at: Date | string | null }>(
+    `select character_a as a, character_b as b, public_last_at as at from relationships
+      where public_dates > 0 order by public_last_at desc nulls last limit 5000`,
+  );
   return [
     ...characters.rows.map((r) => ({ url: `${base}/characters/${r.id}`, lastModified: new Date(r.at), changeFrequency: "weekly" as const, priority: 0.6 })),
+    ...couples.rows.map((r) => ({ url: `${base}/couples/${r.a}/${r.b}`, ...(r.at ? { lastModified: new Date(r.at) } : {}), changeFrequency: "weekly" as const, priority: 0.5 })),
     ...episodes.rows.map((r) => ({ url: `${base}/episodes/${r.id}`, lastModified: new Date(r.at), changeFrequency: "monthly" as const, priority: 0.6 })),
   ];
 }

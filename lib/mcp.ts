@@ -54,6 +54,7 @@ import { DELETE as deleteForget, POST as postForget } from "@/app/api/characters
 /** A memory's source date, as agents see it. */
 const fromDate = (s: Source) => ({ episode_id: s.episode_id, with: s.with, aired: s.at.slice(0, 10) });
 import { POST as postPrediction } from "@/app/api/predictions/route";
+import { loadRelationship, relationshipsOf, viewRelationship, type Relationship } from "./relationships";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.0.0" } as const;
@@ -399,6 +400,17 @@ export const MCP_TOOLS = [
       "dates have shaped its temperament, the lines and reflections it carries into new dates, who it remembers and how it left things with " +
       "each of them, its story a week at a time and the milestones it has reached. Read-only: it's learned, not written.",
     inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64), agent_id: AGENT_ID } },
+    annotations: READ,
+  },
+  {
+    name: "get_relationships",
+    title: "A character's relationships",
+    description:
+      "The relationship graph: who a character has dated and where each pairing stands (just met, sparks, dating, going steady, friends, exes, " +
+      "bad blood), how close they are (tie strength, 0..1: how often, how recently, how warm, how mutual), every date between them, their " +
+      "inside jokes and what they've told each other. Pass `with` for one couple. Public dates for anyone; if you own one of the two, also " +
+      "your own private dates and the plans they made in their morning-after texts.",
+    inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64), with: str(64), agent_id: AGENT_ID } },
     annotations: READ,
   },
   {
@@ -846,6 +858,26 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, true)!;
       const r = await callRoute(postRating as unknown as RouteHandler, { agentId: who.id, body: { category: args.category }, params: { id: String(args.character_id ?? "") } });
       return r.ok ? { data: { rating: r.data }, identity: who } : { error: errorOf(r) };
+    }
+    case "get_relationships": {
+      const who = resolveIdentity(args, session, true)!;
+      const id = String(args.character_id ?? "");
+      const withId = typeof args.with === "string" && args.with ? args.with : null;
+      const ids = withId ? [id, withId] : [id];
+      const owner = (await db.query(`select 1 from characters where id = any($1) and owner_id = $2`, [ids, who.id])).rows.length > 0;
+      const edges = withId ? [await loadRelationship(db, id, withId)].filter((r): r is Relationship => r !== null) : await relationshipsOf(db, id);
+      const others = edges.map((r) => (r.lo === id ? r.hi : r.lo));
+      const names = new Map(
+        others.length ? (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [others])).rows.map((r) => [r.id, r.name]) : [],
+      );
+      const relationships = edges.flatMap((rel) => {
+        const view = viewRelationship(rel, { userId: who.id, owner });
+        if (!view) return [];
+        const other = rel.lo === id ? rel.hi : rel.lo;
+        const told = { by_them: view.told[other] ?? [], by_this_character: view.told[id] ?? [] };
+        return [{ with: { id: other, name: names.get(other) ?? null }, couple_page: `/couples/${rel.lo}/${rel.hi}`, ...view, told }];
+      });
+      return { data: { character_id: id, relationships }, identity: who };
     }
     case "plan_second_date": {
       const who = resolveIdentity(args, session, true)!;

@@ -13,6 +13,8 @@ import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { extrasText, type CharacterExtras } from "./extras";
 import { isOnSeasonCast, seasonCastIds } from "./season-cast";
+import { compatibility, loadTraitStats, MIN_EVIDENCE, publicDegrees } from "./compatibility";
+import { relationshipsOf, STAGE_LABELS, viewRelationship, type Stage } from "./relationships";
 
 export type MadeBy = "house" | "agent" | "human";
 
@@ -175,12 +177,24 @@ export function listOpenCharacters(db: Db, viewerId: string | null, limit = 9): 
 
 /* ------------------------------------------------ matches ------------------------------------------------ */
 
-export type Match = DatingProfile & { score: number; why: string[] };
+export type Match = DatingProfile & {
+  score: number;
+  why: string[];
+  /** Where your character already stands with them, when they've met (the relationship graph). */
+  relationship?: { stage: Stage; stage_label: string; dates: number };
+};
+
+/** Stages a suggestion never comes back from: it went badly. */
+const NO_REPEAT: ReadonlySet<Stage> = new Set(["bad_blood", "exes"]);
 
 /**
- * Who one of YOUR characters might like to ask out, best first: shared traits, and whether each one's bio
- * and traits speak to what the other wants. Null if the character isn't yours. Always returns someone
- * (a fresh face) when nobody scores, so an agent never hits a dead end.
+ * Who one of YOUR characters might like to ask out, best first. Three kinds of signal, each with its "why":
+ *  - content: shared traits and hobbies, and whether each one's bio and traits speak to what the other wants;
+ *  - what the show has learned (lib/compatibility.ts): how often characters with these traits ended up on a
+ *    second date, smoothed and evidence-gated;
+ *  - the relationship graph: someone it's already sparking with ranks up, and exes or bad blood never come back.
+ * A small popularity damper keeps everyone from being pointed at the same few characters. Null if the character
+ * isn't yours. Always returns someone (a fresh face) when nobody scores, so an agent never hits a dead end.
  */
 export async function findMatches(
   db: Db,
@@ -198,7 +212,14 @@ export async function findMatches(
   const myWords = keywords(haystack({ ...me, want: "" }));
 
   const pool = (await candidates(db, viewerId, true, true)).map(toProfile);
-  const matches: Match[] = pool.map((p) => {
+  const [stats, degrees, edges] = await Promise.all([loadTraitStats(db), publicDegrees(db, pool.map((p) => p.id)), relationshipsOf(db, me.id)]);
+  const metWith = new Map(
+    edges.flatMap((rel) => {
+      const v = viewRelationship(rel, { userId: viewerId, owner: true });
+      return v?.stage ? [[rel.lo === me.id ? rel.hi : rel.lo, { stage: v.stage, stage_label: STAGE_LABELS[v.stage], dates: v.dates }] as const] : [];
+    }),
+  );
+  const matches: Match[] = pool.filter((p) => !NO_REPEAT.has(metWith.get(p.id)?.stage as Stage)).map((p) => {
     const why: string[] = [];
     let score = 0;
     const shared = p.traits.filter((t) => myTraits.has(t.toLowerCase()));
@@ -223,8 +244,23 @@ export async function findMatches(
       score += youFit.length;
       why.push(`${p.name} wants ${youFit.map((w) => `"${w}"`).join(", ")} — that's in ${me.name}'s profile`);
     }
+    // What the show has learned about these traits together, once enough dates back it.
+    const compat = compatibility(stats, me.traits, p.traits);
+    if (compat.evidence >= MIN_EVIDENCE) score += Math.max(-2, Math.min(3, Math.round((compat.lift - 1) * 4)));
+    if (compat.reason) {
+      const [x, y] = compat.reason.traits;
+      why.push(`${x} × ${y}: ${compat.reason.hits} of ${compat.reason.n} dates on the show became second dates`);
+    }
+    // Already sparking: worth another look. (Exes and bad blood were filtered out above.)
+    const met = metWith.get(p.id);
+    if (met) {
+      if (met.stage === "sparks" || met.stage === "dating" || met.stage === "going_steady") score += 1;
+      why.unshift(`you've met: ${met.stage_label.replace(/^\S+\s/, "").toLowerCase()} (${met.dates === 1 ? "1 date" : `${met.dates} dates`})`);
+    }
+    // Popularity damper: a little less for characters many others are already dating.
+    score -= 0.5 * Math.log2(1 + (degrees.get(p.id) ?? 0));
     if (!why.length) why.push(p.dates === 0 ? "a fresh face, no dates yet" : "an open invitation");
-    return { ...p, score, why };
+    return { ...p, score: Math.round(score * 100) / 100, why, ...(met ? { relationship: met } : {}) };
   });
   matches.sort((a, b) => b.score - a.score || Number(a.made_by === "house") - Number(b.made_by === "house") || a.dates - b.dates);
   return { for: { id: me.id, name: me.name }, matches: matches.slice(0, Math.max(1, Math.min(20, limit))) };

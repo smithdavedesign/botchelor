@@ -115,7 +115,9 @@ export default async function CastPage() {
             {edges.map((e) => (
               <li key={`${e.a}-${e.b}`} className="card">
                 <strong>
-                  {e.a} × {e.b}
+                  <Link href={`/couples/${e.a_id}/${e.b_id}`}>
+                    {e.a} × {e.b}
+                  </Link>
                 </strong>
                 <span className="badge">{e.stage}</span>{" "}
                 <span className="muted">
