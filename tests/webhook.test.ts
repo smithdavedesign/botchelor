@@ -241,7 +241,8 @@ describe("POST /api/webhooks/stripe with a valid signature (Payment Link session
   it("acknowledges unrelated event types without granting anything", async () => {
     const buyer = newUserCookie();
     const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);
-    for (const type of ["checkout.session.expired", "payment_intent.succeeded", "charge.refunded"]) {
+    // charge.refunded is handled now: tests/refunds-and-errors.test.ts.
+    for (const type of ["checkout.session.expired", "payment_intent.succeeded"]) {
       expect((await deliver(paidEvent({}, type))).status).toBe(200);
     }
     await expectNothingGranted(buyer, orderId);

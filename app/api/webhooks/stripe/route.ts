@@ -2,7 +2,7 @@ import { z } from "zod";
 import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
-import { grantOrder } from "@/lib/payments";
+import { grantOrder, refundForPayment } from "@/lib/payments";
 import { verifyStripeSignature } from "@/lib/stripe";
 
 /** Checkout Session events are a few KB; anything this big isn't one. */
@@ -25,6 +25,15 @@ const CheckoutSessionObject = z.object({
   payment_status: z.string(),
   amount_total: z.number().int().nullish(),
   currency: z.string().nullish(),
+  payment_intent: z.string().nullish(),
+});
+
+/** A refund made in the dashboard arrives as the charge, fully refunded or not. */
+const ChargeObject = z.object({
+  id: z.string(),
+  object: z.literal("charge"),
+  payment_intent: z.string().nullish(),
+  refunded: z.boolean(),
 });
 
 const invalidPayload = () => json({ error: "invalid_payload" }, 400);
@@ -68,6 +77,7 @@ export const POST = handle(async (req) => {
         paymentLink: checkout.data.payment_link ?? null,
         amountTotal: checkout.data.amount_total ?? null,
         currency: checkout.data.currency ?? null,
+        paymentIntent: checkout.data.payment_intent ?? null,
       });
       if (outcome === "unknown_order" || outcome === "mismatch") {
         console.warn(`[stripe] ${event.data.type} not granted (${outcome}) for session ${checkout.data.id}`);
@@ -75,6 +85,13 @@ export const POST = handle(async (req) => {
         track("purchase_completed", { outcome, amount_cents: checkout.data.amount_total ?? null });
       }
     }
+  }
+  if (event.data.type === "charge.refunded") {
+    const charge = ChargeObject.safeParse(event.data.data.object);
+    if (!charge.success) return invalidPayload();
+    const outcome = await refundForPayment(await getDb(), { paymentIntent: charge.data.payment_intent ?? null, refunded: charge.data.refunded });
+    if (outcome === "refunded") track("purchase_refunded", {});
+    else console.warn(`[stripe] charge.refunded for ${charge.data.id}: ${outcome} (refund the order by hand if it needs it)`);
   }
   return json({ received: true });
 });

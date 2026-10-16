@@ -14,6 +14,7 @@ export type AnalyticsEvent =
   | "episode_generated" // the unit-economics event: model calls + latency for one date
   | "prediction_submitted"
   | "purchase_completed"
+  | "purchase_refunded" // a full refund made in Stripe took the pack's unused dates back
   | "content_reported"
   | "generation_failed"
   | "conversation_failed" // the best-effort two-agent conversation gave up (the date still airs, with no thread)

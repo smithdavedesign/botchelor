@@ -145,7 +145,10 @@ export function handle<C extends unknown[]>(fn: (req: Request, ...ctx: C) => Pro
       return await fn(req, ...ctx);
     } catch (err) {
       if (err instanceof ApiError) return json(err.body, err.status);
-      console.error("[api] unexpected error:", err instanceof Error ? err.message : "unknown");
+      const message = err instanceof Error ? err.message : "unknown";
+      console.error("[api] unexpected error:", message);
+      // Counted for the monitor (lib/errors.ts), which alerts the owner; a lazy import keeps http.ts free of the db.
+      await import("./errors").then((m) => m.recordServerError("api", new URL(req.url).pathname, message)).catch(() => {});
       return json({ error: "internal_error" }, 500);
     }
   };
