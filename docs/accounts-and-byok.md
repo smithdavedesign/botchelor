@@ -120,10 +120,23 @@ pays, so it's $0 to us — which is what made image generation compatible with t
 - **Storage/serving**: the PNG is a data URL in the ledger, served through **`GET /api/assets/[id]`** (approved
   only) with a long immutable cache, so the bytes never sit inline in a page or an API body. At scale this
   moves to a blob store.
-- Account page has an **image-key** slot; generate a portrait or a clip from a character's card.
+- Account page has an **image-key** slot; generate a portrait from a character's card.
+- **Model:** `gpt-image-2` (2026-10-16). OpenAI retires `gpt-image-1` on 2026-10-23, so a key saved with it (or a
+  `dall-e-*` model) runs `gpt-image-2` instead (`imageModelFor`). A refusal shows OpenAI's own reason, key-shaped
+  text scrubbed (`providerReason`).
 - **`fal` / `replicate`** keys are accepted and stored but not wired (no provider-side moderation story yet).
 
-### Video clips on your own key (`lib/image`, async)
+### Video clips on your own key — retired 2026-10-16
+**OpenAI shut down `sora-2` and `sora-2-pro` on 2026-09-24** (their `/v1/models` entries carry that
+`shutdown_date`), and `/v1/videos` now answers 404, with no successor model. So clips are retired
+(`CLIPS_RETIRED` in `lib/image.ts`):
+- `POST /api/characters/[id]/clip` answers `410 clips_retired` with that reason.
+- A clip left rendering is closed out.
+- The card shows an existing clip's stored poster as a still: the MP4 lived with the provider.
+- The "Generate a clip" button is gone.
+
+Bringing clips back means a new video provider with its own moderation story, which is a product call. What follows is how clips worked, kept for that day.
+
 Same pattern as portraits, through OpenAI's **Sora** video API (`POST /v1/videos` → poll → content), which
 moderates its own generation. The user pays, so it's $0 to us; the prompt is built only from filtered sheet text.
 

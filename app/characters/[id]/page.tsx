@@ -126,10 +126,10 @@ export default async function CharacterPage({ params }: Props) {
 
       {c.clip_asset_id && (
         <section className="card">
-          {/* A BYOK-generated intro clip (owner's own, provider-moderated). Poster is durable; the MP4 proxies. */}
-          <video className="character-clip" controls playsInline preload="none" poster={`/api/assets/${c.clip_asset_id}`}>
-            <source src={`/api/assets/${c.clip_asset_id}/video`} type="video/mp4" />
-          </video>
+          {/* A BYOK intro clip from before OpenAI retired its video model (lib/image.ts CLIPS_RETIRED). The MP4 lived
+              with the provider and is gone; the poster still was stored with us, so it stays as a still. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="character-clip" src={`/api/assets/${c.clip_asset_id}`} alt={`A still from ${c.name}'s intro clip`} />
         </section>
       )}
 

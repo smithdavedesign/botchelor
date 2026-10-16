@@ -4,7 +4,8 @@ import * as videoRoute from "@/app/api/assets/[id]/video/route";
 import * as clipRoute from "@/app/api/characters/[id]/clip/route";
 import { POST as generateRoute } from "@/app/api/characters/[id]/portrait/route";
 import { setDbForTests } from "@/lib/db";
-import { generatePortrait, portraitPrompt } from "@/lib/image";
+import { generatePortrait, imageModelFor, portraitPrompt } from "@/lib/image";
+import { recordAsset, reviewAsset } from "@/lib/assets";
 import { saveUserKey } from "@/lib/keys";
 import { registerAccount } from "@/lib/auth";
 import { BASE_URL, api, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
@@ -70,6 +71,28 @@ describe("generatePortrait (OpenAI image API, injected fetch)", () => {
   it("surfaces a provider refusal (its own moderation) as an error", async () => {
     const fetchImpl = (async () => new Response(JSON.stringify({ error: { message: "content_policy_violation" } }), { status: 400 })) as typeof fetch;
     await expect(generatePortrait(KEY, { name: "X", age: 20, bio: "", traits: ["a", "b", "c"] }, "gpt-image-1", fetchImpl)).rejects.toThrow(/blocked this image/);
+  });
+
+  it("any other refusal says OpenAI's own reason (with anything key-shaped scrubbed)", async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ error: { message: `Your organization must be verified to use this model. Key ${["sk", "proj", "abcdefghijkl"].join("-")} lacks access.` } }), { status: 403 })) as typeof fetch;
+    const err = await generatePortrait(KEY, { name: "X", age: 20, bio: "", traits: ["a", "b", "c"] }, undefined, fetchImpl).catch((e: Error) => e);
+    expect(String((err as Error).message)).toMatch(/OpenAI couldn't make the portrait \(HTTP 403\): Your organization must be verified/);
+    expect(String((err as Error).message)).not.toMatch(/sk-proj-abcdefghijkl/);
+  });
+
+  it("defaults to gpt-image-2, and a key saved with a retiring model uses it too (gpt-image-1 shuts down 2026-10-23)", async () => {
+    let model = "";
+    const fetchImpl = (async (_u: string, init: RequestInit) => {
+      model = JSON.parse(String(init.body)).model;
+      return new Response(JSON.stringify({ data: [{ b64_json: PNG_B64 }] }), { status: 200 });
+    }) as typeof fetch;
+    await generatePortrait(KEY, { name: "X", age: 20, bio: "", traits: ["a", "b", "c"] }, undefined, fetchImpl);
+    expect(model).toBe("gpt-image-2");
+    expect(imageModelFor("gpt-image-1")).toBe("gpt-image-2");
+    expect(imageModelFor("dall-e-3")).toBe("gpt-image-2");
+    expect(imageModelFor(null)).toBe("gpt-image-2");
+    expect(imageModelFor("gpt-image-1.5")).toBe("gpt-image-1.5"); // a chosen current model is respected
   });
 });
 
@@ -149,37 +172,32 @@ describe("BYOK video clip (OpenAI Sora on the user's key)", () => {
   const clipGet = (id: string, cookie: string) =>
     clipRoute.GET(new Request(`${BASE_URL}/api/characters/${id}/clip`, { headers: { cookie } }), params(id));
 
-  it("needs an image key and starts a job, then finishes and serves the clip", async () => {
+  it("is retired: OpenAI shut Sora 2 down, so nothing new starts and the reason is said plainly", async () => {
     const { cookie, character } = await ownerWithKey();
     stubVideo("completed");
-    const started = await clipPost(character.id, cookie);
-    expect(started.status).toBe(202);
-    const { asset_id } = await started.json();
-
-    const ready = await (await clipGet(character.id, cookie)).json(); // polls → completed → thumbnail → approved
-    expect(ready).toMatchObject({ status: "ready", video_path: `/api/assets/${asset_id}/video` });
-
-    // The poster is durable (served by the image route); the MP4 proxies on the owner's key.
-    const poster = await getAsset(new Request(`${BASE_URL}/api/assets/${asset_id}`), params(asset_id));
-    expect(poster.headers.get("content-type")).toBe("image/png");
-    const video = await videoRoute.GET(new Request(`${BASE_URL}/api/assets/${asset_id}/video`), params(asset_id));
-    expect(video.status).toBe(200);
-    expect(video.headers.get("content-type")).toBe("video/mp4");
+    const res = await clipPost(character.id, cookie);
+    expect(res.status).toBe(410);
+    expect((await res.json()).message).toMatch(/OpenAI retired its video model/);
+    expect(await t.count("character_assets")).toBe(0);
     vi.unstubAllGlobals();
   });
 
-  it("rejects a clip the provider fails, and is owner-only / needs a key", async () => {
-    const stranger = newUserCookie();
+  it("a clip from before keeps its poster as a still; one left rendering is closed out", async () => {
     const { cookie, character } = await ownerWithKey();
-    expect((await clipPost(character.id, stranger)).status).toBe(404); // not the owner
-    const noKey = newUserCookie();
-    const ownNoKey = await (await api.createCharacter(validCharacter(), noKey)).json();
-    expect((await clipPost(ownNoKey.id, noKey)).status).toBe(400); // owner, no key
+    const poster = `data:image/png;base64,${PNG_B64}`;
+    const done = await recordAsset(t.db, { character_id: character.id, kind: "clip", source_type: "generated", source_model: "openai:sora-2", url: poster, source_url: "vid_old" });
+    await reviewAsset(t.db, done, "approved", "test");
+    expect((await getAsset(new Request(`${BASE_URL}/api/assets/${done}`), params(done))).headers.get("content-type")).toBe("image/png");
 
-    stubVideo("failed");
-    await clipPost(character.id, cookie);
-    const failed = await (await clipGet(character.id, cookie)).json();
-    expect(failed.status).toBe("failed");
-    vi.unstubAllGlobals();
+    const other = await (await api.createCharacter(validCharacter(), cookie)).json();
+    await recordAsset(t.db, { character_id: other.id, kind: "clip", source_type: "generated", source_model: "openai:sora-2", source_url: "vid_stuck" });
+    const closed = await (await clipGet(other.id, cookie)).json();
+    expect(closed).toMatchObject({ status: "failed" });
+    expect(closed.message).toMatch(/retired/);
+  });
+
+  it("is still owner-only", async () => {
+    const { character } = await ownerWithKey();
+    expect((await clipPost(character.id, newUserCookie())).status).toBe(404); // not the owner
   });
 });

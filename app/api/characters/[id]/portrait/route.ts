@@ -1,7 +1,7 @@
 import { recordAsset, reviewAsset } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import { handle, json, session } from "@/lib/http";
-import { PROMPT_VERSION, generatePortrait } from "@/lib/image";
+import { imageModelFor, PROMPT_VERSION, generatePortrait } from "@/lib/image";
 import { IMAGE_PROVIDERS, userImageKey } from "@/lib/keys";
 import { ownsCharacter } from "@/lib/souls";
 
@@ -32,7 +32,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
 
   let portrait;
   try {
-    portrait = await generatePortrait(key.apiKey, character, key.model ?? undefined);
+    portrait = await generatePortrait(key.apiKey, character, imageModelFor(key.model));
   } catch (err) {
     return json({ error: "generation_failed", message: err instanceof Error ? err.message : "The image couldn't be generated." }, 502, sess);
   }
