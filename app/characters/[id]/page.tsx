@@ -12,6 +12,8 @@ import ProfileDetails from "./ProfileDetails";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { getDb } from "@/lib/db";
 import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
+import { isAdmin } from "@/lib/admins";
+import { CLIP_TOKEN_COST, episodeAllowance } from "@/lib/allowance";
 import { loadCharacter } from "@/lib/character";
 import { thisWeek } from "@/lib/life";
 import { describeTemperament } from "@/lib/temperament";
@@ -54,6 +56,15 @@ export default async function CharacterPage({ params }: Props) {
     getDatingProfile(db, id),
   ]);
   const week = thisWeek(c.id, c.this_week);
+  // The owner's clip panel: admin (no paywall), their bought tokens, and whether they have a Google key.
+  const clip =
+    ratings.is_owner && !c.house && viewerId
+      ? await Promise.all([
+          isAdmin(db, viewerId),
+          episodeAllowance(db, viewerId),
+          db.query("select 1 from user_keys where user_id = $1 and provider = 'google' limit 1", [viewerId]),
+        ]).then(([admin, tokens, key]) => ({ admin, boughtTokens: tokens.pack_left, hasKey: key.rows.length > 0, cost: CLIP_TOKEN_COST }))
+      : null;
   // Owner only: how the engine reads it on a date (its effective temperament, learned drift included).
   const plays = ratings.is_owner && !c.house ? (await loadCharacter(db, id))?.signals ?? null : null;
   const people = connections(memory);
@@ -128,7 +139,7 @@ export default async function CharacterPage({ params }: Props) {
         </div>
       </div>
 
-      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} />}
+      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} clip={clip ?? undefined} />}
       {plays && (
         <p className="muted small owner-temperament">
           🔒 How {c.name.split(" ")[0]} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}
@@ -138,10 +149,23 @@ export default async function CharacterPage({ params }: Props) {
 
       {c.clip_asset_id && (
         <section className="card">
-          {/* A BYOK intro clip from before OpenAI retired its video model (lib/image.ts CLIPS_RETIRED). The MP4 lived
-              with the provider and is gone; the poster still was stored with us, so it stays as a still. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="character-clip" src={`/api/assets/${c.clip_asset_id}`} alt={`A still from ${c.name}'s intro clip`} />
+          {c.clip_is_video ? (
+            // A Veo intro clip on the owner's own Google key (lib/video.ts), stored with us and served with byte ranges.
+            <video
+              className="character-clip"
+              controls
+              playsInline
+              preload="metadata"
+              poster={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : undefined}
+              aria-label={`${c.name}'s intro clip`}
+            >
+              <source src={`/api/assets/${c.clip_asset_id}/video`} type="video/mp4" />
+            </video>
+          ) : (
+            // A clip from the retired Sora era: its MP4 lived with OpenAI and is gone; the still was stored with us.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img className="character-clip" src={`/api/assets/${c.clip_asset_id}`} alt={`A still from ${c.name}'s intro clip`} />
+          )}
         </section>
       )}
 

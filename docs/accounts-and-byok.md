@@ -126,27 +126,28 @@ pays, so it's $0 to us — which is what made image generation compatible with t
   text scrubbed (`providerReason`).
 - **`fal` / `replicate`** keys are accepted and stored but not wired (no provider-side moderation story yet).
 
-### Video clips on your own key — retired 2026-10-16
-**OpenAI shut down `sora-2` and `sora-2-pro` on 2026-09-24** (their `/v1/models` entries carry that
-`shutdown_date`), and `/v1/videos` now answers 404, with no successor model. So clips are retired
-(`CLIPS_RETIRED` in `lib/image.ts`):
-- `POST /api/characters/[id]/clip` answers `410 clips_retired` with that reason.
-- A clip left rendering is closed out.
-- The card shows an existing clip's stored poster as a still: the MP4 lived with the provider.
-- The "Generate a clip" button is gone.
+### Intro clips: Veo 3.1 Lite on your own Google key (2026-10-16)
+OpenAI shut down `sora-2`/`sora-2-pro` (the original clip model) on 2026-09-24. Clips now run on **Google's Veo 3.1
+Lite** through the Gemini API (`lib/video.ts`), on the player's own Google key.
+- **Cost to the player:** $0.05/s at 720p, so a 4-second clip is ~$0.20 on their Google bill. Veo has no free tier; billing must be on.
+- **Cost to us:** $0.
+- **Moderation:** Google's own safety filters, plus a prompt built only from the filtered sheet text.
 
-Bringing clips back means a new video provider with its own moderation story, which is a product call. What follows is how clips worked, kept for that day.
+**How a clip is made:**
+- **Starting frame:** the character's approved portrait, when it has one, so the clip looks like their card. Otherwise it's text-to-video.
+- **Format:** 9:16, 4 seconds, 720p.
+- **Flow:** `POST /api/characters/[id]/clip` starts a `predictLongRunning` job and returns right away (`202`); `GET` polls the operation.
+- **Storage:** when Google finishes, the MP4 (~1–3 MB) is downloaded and stored with us, since Google keeps it only two days. It's capped at 4 MB.
+- **Playback:** `GET /api/assets/[id]/video` serves the MP4 with **byte ranges**, which Safari/iOS need to play it.
+- **Old clips:** a clip from the Sora era kept only a still, so the card shows that still.
 
-Same pattern as portraits, through OpenAI's **Sora** video API (`POST /v1/videos` → poll → content), which
-moderates its own generation. The user pays, so it's $0 to us; the prompt is built only from filtered sheet text.
+**The key:** the player's Google key is a "clip key" in the image/video slot on the account page, or their Google key for dates (`userVideoKey`).
 
-- **`POST /api/characters/[id]/clip`** (owner-only) starts the render and returns right away (`202`), recording
-  a pending `clip` asset with the provider's video id. **`GET /api/characters/[id]/clip`** polls the provider
-  on the owner's key; when it completes it stores the **thumbnail as a durable poster** and approves the asset.
-- **`GET /api/assets/[id]/video`** streams the MP4 by proxying the provider on the **clip owner's** stored key
-  (their content, their key); the durable poster (served by `/api/assets/[id]`) remains if the owner removes
-  their key or the provider expires the content. The contestant card shows a `<video>` with that poster.
-- Owner UI: "Generate a clip with your key" on the character card (it polls while the provider renders).
+**The paywall:** a clip costs `CLIP_TOKEN_COST` (1) **bought** token (`spendBoughtTokens`).
+- **What counts:** only tokens from a pack. The weekly free tokens stay for dates.
+- **No tokens:** answers `402 needs_tokens` with a link to the Tokens page.
+- **Refunds:** a clip Google blocks or fails is refunded exactly once (`character_assets.tokens_spent`).
+- **Admins:** skip it (`lib/admins.ts`). An account becomes admin by entering the admin password once on `/admin` (the same password as the admin tools). An admin's clip still runs on their own Google key.
 
 ### Not yet
 - A blind date between two users where only one has a key: that user's turns use their key; the other's and

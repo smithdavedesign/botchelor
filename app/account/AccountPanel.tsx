@@ -117,6 +117,21 @@ export default function AccountPanel() {
     } else setKeyError(message);
   }
 
+  async function saveClipKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setKeyError(null);
+    const { ok, message } = await requestJson(
+      "/api/me/keys",
+      { provider: "google", kind: "image", key: String(form.get("key") ?? "") },
+      "PUT",
+    ).catch(() => ({ ok: false, message: "Network error." }));
+    if (ok) {
+      (event.target as HTMLFormElement).reset();
+      await load();
+    } else setKeyError(message);
+  }
+
   async function removeKey(provider: string, kind: string) {
     await requestJson("/api/me/keys", { provider, kind }, "DELETE").catch(() => {});
     await load();
@@ -283,10 +298,10 @@ export default function AccountPanel() {
             moderated by the provider and built only from your character&apos;s sheet. Generate from a
             character&apos;s card.
           </p>
-          {keys.filter((k) => k.kind === "image").length > 0 ? (
+          {keys.filter((k) => k.kind === "image" && k.provider === "openai").length > 0 ? (
             <ul className="account-links">
               {keys
-                .filter((k) => k.kind === "image")
+                .filter((k) => k.kind === "image" && k.provider === "openai")
                 .map((k) => (
                   <li key={`img-${k.provider}`}>
                     <strong>OpenAI Images</strong> ····{k.last4}{" "}
@@ -303,6 +318,35 @@ export default function AccountPanel() {
                 <input name="key" type="password" required minLength={8} maxLength={400} autoComplete="off" placeholder="sk-…" />
               </label>
               <button type="submit">Save image key</button>
+            </form>
+          )}
+
+          <h3>Clip key (optional)</h3>
+          <p className="muted small">
+            Intro clips run on Google&apos;s Veo 3.1 Lite on your own Google key (about $0.20 for a 4-second clip, on your
+            Google bill; Veo needs billing turned on in AI Studio). Each clip also costs a bought token. If you already
+            saved a Google key above for dates, that one works too.
+          </p>
+          {keys.filter((k) => k.kind === "image" && k.provider === "google").length > 0 ? (
+            <ul className="account-links">
+              {keys
+                .filter((k) => k.kind === "image" && k.provider === "google")
+                .map((k) => (
+                  <li key="clip-google">
+                    <strong>Google (Veo clips)</strong> ····{k.last4}{" "}
+                    <button type="button" className="link-button danger" onClick={() => removeKey("google", "image")}>
+                      remove
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          ) : (
+            <form onSubmit={saveClipKey}>
+              <label>
+                Google AI Studio key
+                <input name="key" type="password" required minLength={8} maxLength={400} autoComplete="off" placeholder="AIza…" />
+              </label>
+              <button type="submit">Save clip key</button>
             </form>
           )}
           {keyError && <p className="error">{keyError}</p>}

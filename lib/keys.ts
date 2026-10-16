@@ -28,6 +28,8 @@ export const TEXT_PROVIDERS = {
  */
 export const IMAGE_PROVIDERS = {
   openai: { label: "OpenAI Images", generates: true },
+  // Google's key in the image/video slot runs intro clips (Veo, lib/video.ts), not portraits.
+  google: { label: "Google (Veo clips)", generates: false },
   fal: { label: "fal.ai", generates: false },
   replicate: { label: "Replicate", generates: false },
 } as const;
@@ -145,14 +147,30 @@ export async function userImageKey(
   userId: string,
   env: Record<string, string | undefined> = process.env,
 ): Promise<{ provider: string; apiKey: string; model: string | null } | null> {
+  // A user may hold more than one image-slot key (OpenAI for portraits, Google for clips): portraits want OpenAI.
   const { rows } = await db.query<{ provider: string; ciphertext: string; nonce: string; model: string | null }>(
-    `select provider, ciphertext, nonce, model from user_keys where user_id = $1 and kind = 'image' limit 1`,
+    `select provider, ciphertext, nonce, model from user_keys where user_id = $1 and kind = 'image'
+      order by (provider = 'openai') desc limit 1`,
     [userId],
   );
   const row = rows[0];
   if (!row) return null;
   const apiKey = decryptKey({ ciphertext: row.ciphertext, nonce: row.nonce }, env);
   return apiKey ? { provider: row.provider, apiKey, model: row.model } : null;
+}
+
+/**
+ * A user's Google key for intro clips (Veo, lib/video.ts): one saved in the image/video slot if they keep a
+ * separate one, else the Google key they use for dates. Null when they have neither. Veo needs billing on.
+ */
+export async function userVideoKey(db: Db, userId: string, env: Record<string, string | undefined> = process.env): Promise<string | null> {
+  const { rows } = await db.query<{ ciphertext: string; nonce: string }>(
+    `select ciphertext, nonce from user_keys where user_id = $1 and provider = 'google'
+      order by (kind = 'image') desc limit 1`,
+    [userId],
+  );
+  const row = rows[0];
+  return row ? decryptKey({ ciphertext: row.ciphertext, nonce: row.nonce }, env) : null;
 }
 
 /**

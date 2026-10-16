@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { frontierConfigured } from "@/lib/model";
+import AdminClaim from "./AdminClaim";
 import AgentsPanel from "./AgentsPanel";
 import FrontierCompare from "./FrontierCompare";
 
@@ -12,6 +13,7 @@ export default function AdminPage() {
     <article>
       <p className="kicker">Admin</p>
       <h1>Behind the scenes</h1>
+      <AdminClaim />
       <AgentsPanel />
       <h2>Compare a frontier model</h2>
       <p className="muted">

@@ -1,7 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getAsset } from "@/app/api/assets/[id]/route";
-import * as videoRoute from "@/app/api/assets/[id]/video/route";
-import * as clipRoute from "@/app/api/characters/[id]/clip/route";
 import { POST as generateRoute } from "@/app/api/characters/[id]/portrait/route";
 import { setDbForTests } from "@/lib/db";
 import { generatePortrait, imageModelFor, portraitPrompt } from "@/lib/image";
@@ -147,57 +145,3 @@ describe("POST /api/characters/[id]/portrait", () => {
   });
 });
 
-describe("BYOK video clip (OpenAI Sora on the user's key)", () => {
-  const MP4 = Buffer.from("fake-mp4-bytes");
-  /** A global fetch stub that answers OpenAI's video endpoints (create / poll / content). */
-  function stubVideo(status = "completed") {
-    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
-      const u = String(url);
-      if (u.endsWith("/v1/videos") && init?.method === "POST") return new Response(JSON.stringify({ id: "vid_1", status: "queued" }), { status: 200 });
-      if (/\/v1\/videos\/vid_1\/content\?variant=thumbnail/.test(u)) return new Response(Buffer.from(PNG_B64, "base64"), { status: 200, headers: { "content-type": "image/png" } });
-      if (/\/v1\/videos\/vid_1\/content\?variant=video/.test(u)) return new Response(MP4, { status: 200, headers: { "content-type": "video/mp4" } });
-      if (/\/v1\/videos\/vid_1/.test(u)) return new Response(JSON.stringify({ status, progress: 100 }), { status: 200 });
-      return new Response("not found", { status: 404 });
-    });
-  }
-  const ownerWithKey = async () => {
-    const cookie = newUserCookie();
-    const character = await (await api.createCharacter(validCharacter(), cookie)).json();
-    await registerAccount(t.db, userIdOf(cookie), `clipowner${Date.now() % 100000}`, ["a", "good", "password"].join("-"));
-    await saveUserKey(t.db, userIdOf(cookie), "openai", "image", KEY, null, { SESSION_SECRET: SECRET });
-    return { cookie, character };
-  };
-  const clipPost = (id: string, cookie: string) =>
-    clipRoute.POST(new Request(`${BASE_URL}/api/characters/${id}/clip`, { method: "POST", headers: { cookie } }), params(id));
-  const clipGet = (id: string, cookie: string) =>
-    clipRoute.GET(new Request(`${BASE_URL}/api/characters/${id}/clip`, { headers: { cookie } }), params(id));
-
-  it("is retired: OpenAI shut Sora 2 down, so nothing new starts and the reason is said plainly", async () => {
-    const { cookie, character } = await ownerWithKey();
-    stubVideo("completed");
-    const res = await clipPost(character.id, cookie);
-    expect(res.status).toBe(410);
-    expect((await res.json()).message).toMatch(/coming soon.*OpenAI retired the video model/i);
-    expect(await t.count("character_assets")).toBe(0);
-    vi.unstubAllGlobals();
-  });
-
-  it("a clip from before keeps its poster as a still; one left rendering is closed out", async () => {
-    const { cookie, character } = await ownerWithKey();
-    const poster = `data:image/png;base64,${PNG_B64}`;
-    const done = await recordAsset(t.db, { character_id: character.id, kind: "clip", source_type: "generated", source_model: "openai:sora-2", url: poster, source_url: "vid_old" });
-    await reviewAsset(t.db, done, "approved", "test");
-    expect((await getAsset(new Request(`${BASE_URL}/api/assets/${done}`), params(done))).headers.get("content-type")).toBe("image/png");
-
-    const other = await (await api.createCharacter(validCharacter(), cookie)).json();
-    await recordAsset(t.db, { character_id: other.id, kind: "clip", source_type: "generated", source_model: "openai:sora-2", source_url: "vid_stuck" });
-    const closed = await (await clipGet(other.id, cookie)).json();
-    expect(closed).toMatchObject({ status: "failed" });
-    expect(closed.message).toMatch(/coming soon/i);
-  });
-
-  it("is still owner-only", async () => {
-    const { character } = await ownerWithKey();
-    expect((await clipPost(character.id, newUserCookie())).status).toBe(404); // not the owner
-  });
-});

@@ -1,60 +1,91 @@
-import { latestClip, recordAsset, reviewAsset, setAssetMedia } from "@/lib/assets";
-import { getDb } from "@/lib/db";
+import { isAdmin } from "@/lib/admins";
+import { CLIP_TOKEN_COST, episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "@/lib/allowance";
+import { approvedPortraitId, getApprovedAsset, latestClip, recordAsset, reviewAsset, setAssetMedia } from "@/lib/assets";
+import { getDb, type Db } from "@/lib/db";
 import { handle, json, session } from "@/lib/http";
-import { CLIP_PROMPT_VERSION, CLIPS_RETIRED, CLIPS_RETIRED_MESSAGE, createVideoJob, fetchVideoThumbnail, pollVideoJob } from "@/lib/image";
-import { IMAGE_PROVIDERS, userImageKey } from "@/lib/keys";
+import { userVideoKey } from "@/lib/keys";
 import { ownsCharacter } from "@/lib/souls";
+import { CLIP_PROMPT_VERSION_VEO, downloadVeoClip, pollVeoClip, startVeoClip, VideoError } from "@/lib/video";
 
 type Ctx = { params: Promise<{ id: string }> };
 type Row = { name: string; age: number; bio: string; traits: string[]; appearance: string | null; pronouns: string | null };
 
-async function ownerKey(db: Awaited<ReturnType<typeof getDb>>, userId: string) {
-  const key = await userImageKey(db, userId);
-  const generates = key && key.provider in IMAGE_PROVIDERS && IMAGE_PROVIDERS[key.provider as keyof typeof IMAGE_PROVIDERS].generates;
-  return key && generates ? key : null;
+/** Gives a failed clip's tokens back, exactly once. */
+async function refund(db: Db, assetId: string, userId: string): Promise<void> {
+  const { rows } = await db.query<{ tokens_spent: number }>(
+    `update character_assets a set tokens_spent = 0 from (select tokens_spent from character_assets where id = $1) prev
+      where a.id = $1 and a.tokens_spent > 0 returning prev.tokens_spent`,
+    [assetId],
+  );
+  if (rows[0]?.tokens_spent) await refundBoughtTokens(db, userId, rows[0].tokens_spent);
 }
 
 /**
- * Start a short video clip for your own character on your own key (BYOK, M16). Owner-only; needs a saved
- * OpenAI image key (OpenAI generates and moderates video too). The prompt is built only from the character's
- * already content-filtered sheet. The user pays, so it's $0 to us. Returns right away; poll GET for status.
+ * Start a 4-second intro clip for your own character: Veo 3.1 Lite on your own Google key (lib/video.ts), which
+ * pays Google (~$0.20 a clip). It costs CLIP_TOKEN_COST bought token(s) — the clip paywall — except for admins.
+ * The starting frame is the character's approved portrait when it has one. Returns right away; poll GET.
  */
 export const POST = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const sess = session(req);
   const db = await getDb();
   if (!(await ownsCharacter(db, id, sess.userId))) return json({ error: "character_not_found" }, 404, sess);
-  // OpenAI retired Sora 2 (lib/image.ts CLIPS_RETIRED): say so plainly rather than fail at the provider.
-  if (CLIPS_RETIRED) return json({ error: "clips_retired", message: CLIPS_RETIRED_MESSAGE }, 410, sess);
-  const key = await ownerKey(db, sess.userId);
-  if (!key) return json({ error: "no_image_key", message: "Add an OpenAI image key on your account first, then make a clip." }, 400, sess);
+  const apiKey = await userVideoKey(db, sess.userId);
+  if (!apiKey) {
+    return json(
+      { error: "no_video_key", message: "Add a Google key (AI Studio, with billing on) on your account first: clips run on Veo, on your Google bill." },
+      400,
+      sess,
+    );
+  }
 
   const character = (await db.query<Row>(`select name, age, bio, traits, appearance, pronouns from characters where id = $1`, [id])).rows[0];
   if (!character) return json({ error: "character_not_found" }, 404, sess);
 
+  // The paywall: bought tokens, spent before the job starts so two clicks can't share one. Admins skip it.
+  const admin = await isAdmin(db, sess.userId);
+  const cost = admin ? 0 : CLIP_TOKEN_COST;
+  if (cost > 0 && !(await spendBoughtTokens(db, sess.userId, cost))) {
+    const left = (await episodeAllowance(db, sess.userId)).pack_left;
+    return json(
+      {
+        error: "needs_tokens",
+        message: `A clip costs ${cost} bought token${cost === 1 ? "" : "s"} (you have ${left}). Get 5 more on the Tokens page.`,
+        shop: "/shop",
+        bought_tokens: left,
+      },
+      402,
+      sess,
+    );
+  }
+
+  const portraitId = await approvedPortraitId(db, id);
+  const portrait = portraitId ? (await getApprovedAsset(db, portraitId))?.url ?? null : null;
   let job;
   try {
-    job = await createVideoJob(key.apiKey, character);
+    job = await startVeoClip(apiKey, character, portrait);
   } catch (err) {
-    return json({ error: "generation_failed", message: err instanceof Error ? err.message : "The clip couldn't be started." }, 502, sess);
+    if (cost > 0) await refundBoughtTokens(db, sess.userId, cost);
+    return json({ error: "generation_failed", message: err instanceof VideoError ? err.message : "Google couldn't start the clip." }, 502, sess);
   }
-  // Recorded pending (not servable). The video id goes in source_url so the status poll and the proxy find it.
+  // Recorded pending (not servable). The operation name goes in source_url so the status poll finds it.
   const assetId = await recordAsset(db, {
     character_id: id,
     kind: "clip",
     source_type: "generated",
-    source_model: `openai:${job.model}`,
+    source_model: `google:${job.model}`,
     prompt: job.prompt,
-    prompt_version: CLIP_PROMPT_VERSION,
-    source_url: job.id,
+    prompt_version: CLIP_PROMPT_VERSION_VEO,
+    source_url: job.operation,
   });
-  return json({ asset_id: assetId, status: "rendering" }, 202, sess);
+  if (cost > 0) await db.query(`update character_assets set tokens_spent = $2 where id = $1`, [assetId, cost]);
+  return json({ asset_id: assetId, status: "rendering", tokens_spent: cost, admin }, 202, sess);
 });
 
 /**
- * Poll the owner's newest clip. While the provider renders it, returns "rendering"; when it completes, the
- * thumbnail is stored as the durable poster and the asset is approved (provider-moderated), so it shows on
- * the card; a blocked or failed render is rejected.
+ * Poll the owner's newest clip. While Google renders it, "rendering"; when it's done, the MP4 is downloaded and
+ * stored (Google keeps it only two days) and the asset approved (provider-moderated), so it plays on the card.
+ * A blocked or failed clip is rejected and its tokens refunded.
  */
 export const GET = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
@@ -64,35 +95,35 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
 
   const clip = await latestClip(db, id);
   if (!clip) return json({ status: "none" }, 200, sess);
-  if (clip.review_status === "approved") return json({ status: "ready", poster_path: `/api/assets/${clip.id}`, video_path: `/api/assets/${clip.id}/video` }, 200, sess);
-  if (clip.review_status === "rejected") return json({ status: "failed", message: "The provider couldn't make this clip." }, 200, sess);
-  // A clip still "rendering" when the video API was retired never will: close it out.
-  if (CLIPS_RETIRED) {
-    await reviewAsset(db, clip.id, "rejected", "openai video api retired");
-    return json({ status: "failed", message: CLIPS_RETIRED_MESSAGE }, 200, sess);
-  }
+  if (clip.review_status === "approved") return json({ status: "ready", video_path: `/api/assets/${clip.id}/video` }, 200, sess);
+  if (clip.review_status === "rejected") return json({ status: "failed", message: "Google couldn't make this clip." }, 200, sess);
 
-  const key = await ownerKey(db, sess.userId);
-  if (!key || !clip.source_url) return json({ status: "rendering" }, 200, sess);
+  const fail = async (message: string) => {
+    await reviewAsset(db, clip.id, "rejected", message.slice(0, 200));
+    await refund(db, clip.id, sess.userId);
+    return json({ status: "failed", message, refunded: true }, 200, sess);
+  };
+  // A clip started on the old provider (Sora, retired) can never finish.
+  if (!clip.source_url?.startsWith("models/")) return fail("This clip was started on a video model that's since been retired.");
+
+  const apiKey = await userVideoKey(db, sess.userId);
+  if (!apiKey) return json({ status: "rendering" }, 200, sess);
   let state;
   try {
-    state = await pollVideoJob(key.apiKey, clip.source_url);
+    state = await pollVeoClip(apiKey, clip.source_url);
   } catch {
     return json({ status: "rendering" }, 200, sess);
   }
-  if (state.status === "failed") {
-    await reviewAsset(db, clip.id, "rejected", "provider render failed");
-    return json({ status: "failed" }, 200, sess);
-  }
-  if (state.status !== "completed") return json({ status: "rendering", progress: state.progress }, 200, sess);
+  if (state.status === "failed") return fail(state.reason);
+  if (state.status === "rendering") return json({ status: "rendering" }, 200, sess);
 
-  // Completed: store the thumbnail as the durable poster, then approve so it's servable and visible.
   try {
-    const poster = await fetchVideoThumbnail(key.apiKey, clip.source_url);
-    await setAssetMedia(db, clip.id, poster, clip.source_url);
-    await reviewAsset(db, clip.id, "approved", "byok: provider-moderated video from filtered sheet text");
-    return json({ status: "ready", poster_path: `/api/assets/${clip.id}`, video_path: `/api/assets/${clip.id}/video` }, 200, sess);
-  } catch {
-    return json({ status: "rendering" }, 200, sess); // thumbnail not ready yet; poll again
+    const video = await downloadVeoClip(apiKey, state.videoUri);
+    await setAssetMedia(db, clip.id, video);
+    await reviewAsset(db, clip.id, "approved", "byok: Veo (Google-moderated) from filtered sheet text and an approved portrait");
+    return json({ status: "ready", video_path: `/api/assets/${clip.id}/video` }, 200, sess);
+  } catch (err) {
+    if (err instanceof VideoError && /empty|too large|host/i.test(err.message)) return fail(err.message);
+    return json({ status: "rendering" }, 200, sess); // a download blip: poll again
   }
 });

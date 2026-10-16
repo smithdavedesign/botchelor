@@ -1,38 +1,36 @@
-import { approvedAssetWithOwner } from "@/lib/assets";
+import { getApprovedAsset } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
-import { fetchVideoContent } from "@/lib/image";
-import { userImageKey } from "@/lib/keys";
 
 type Ctx = { params: Promise<{ id: string }> };
+const DATA_MP4 = /^data:video\/mp4;base64,/;
 
 /**
- * Streams an APPROVED clip's MP4. The bytes stay with the provider: we fetch them on the clip owner's own
- * stored key (their content, their key) and proxy them to the viewer. If the owner removed their key, or the
- * provider has expired the content, playback 404s — the durable poster (served by /api/assets/[id]) remains.
+ * Serves an APPROVED intro clip's MP4, stored with us (lib/video.ts: Google keeps a Veo video only two days). It
+ * answers byte ranges, which Safari / iOS need to play a <video> at all. A clip from the retired Sora era stored
+ * only a still (its MP4 lived with OpenAI), so it has no video here; the card shows its still instead.
  */
-export const GET = handle(async (_req: Request, ctx: Ctx) => {
+export const GET = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
-  const db = await getDb();
-  const found = await approvedAssetWithOwner(db, id);
-  if (!found || found.asset.kind !== "clip" || !found.asset.source_url || !found.owner_id) {
-    return json({ error: "clip_not_found" }, 404);
-  }
-  const key = await userImageKey(db, found.owner_id);
-  if (!key) return json({ error: "clip_unavailable", message: "This clip's owner has removed their key." }, 404);
+  const asset = await getApprovedAsset(await getDb(), id);
+  if (!asset || asset.kind !== "clip" || !asset.url || !DATA_MP4.test(asset.url)) return json({ error: "clip_not_found" }, 404);
+  const bytes = Buffer.from(asset.url.slice(asset.url.indexOf(",") + 1), "base64");
+  const total = bytes.length;
+  const common = { "content-type": "video/mp4", "accept-ranges": "bytes", "cache-control": "public, max-age=31536000, immutable" };
 
-  let upstream: Response;
-  try {
-    upstream = await fetchVideoContent(key.apiKey, found.asset.source_url);
-  } catch {
-    return json({ error: "clip_unavailable" }, 404);
+  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get("range") ?? "");
+  if (range && (range[1] || range[2])) {
+    let start = range[1] ? Number(range[1]) : total - Number(range[2]);
+    let end = range[1] && range[2] ? Number(range[2]) : total - 1;
+    start = Math.max(0, start);
+    end = Math.min(end, total - 1);
+    if (start > end || start >= total) {
+      return new Response(null, { status: 416, headers: { ...common, "content-range": `bytes */${total}` } });
+    }
+    return new Response(bytes.subarray(start, end + 1), {
+      status: 206,
+      headers: { ...common, "content-range": `bytes ${start}-${end}/${total}`, "content-length": String(end - start + 1) },
+    });
   }
-  if (!upstream.ok || !upstream.body) return json({ error: "clip_unavailable" }, 404);
-  return new Response(upstream.body, {
-    status: 200,
-    headers: {
-      "content-type": upstream.headers.get("content-type") ?? "video/mp4",
-      "cache-control": "public, max-age=86400",
-    },
-  });
+  return new Response(bytes, { status: 200, headers: { ...common, "content-length": String(total) } });
 });

@@ -1,5 +1,5 @@
 import type { CharacterSheet, EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
-import { approvedClipId, approvedPortraitId } from "./assets";
+import { approvedClipId, approvedClipIsVideo, approvedPortraitId } from "./assets";
 import type { Db } from "./db";
 import type { CharacterExtras } from "./extras";
 import { matchmakerHitSql } from "./mechanics";
@@ -573,8 +573,10 @@ export type PublicCharacter = {
   voice: string | null;
   /** A BYOK-generated portrait to render, served from /api/assets/<id>, or null for the drawn avatar. */
   portrait_asset_id: string | null;
-  /** A BYOK-generated video clip (poster at /api/assets/<id>, MP4 at /api/assets/<id>/video), or null. */
+  /** A BYOK intro clip, or null. A Veo clip plays from /api/assets/<id>/video; an old Sora one is only a still. */
   clip_asset_id: string | null;
+  /** Whether that clip is a playable video (Veo) rather than a still (from the retired Sora era). */
+  clip_is_video: boolean;
   /** Optional public details (lib/extras.ts). */
   extras: CharacterExtras;
   /** The creator's own "this week" update as stored (lib/life.ts thisWeek turns it into what's shown). */
@@ -582,7 +584,7 @@ export type PublicCharacter = {
 };
 
 export async function getPublicCharacter(db: Db, id: string): Promise<PublicCharacter | null> {
-  const { rows } = await db.query<Omit<PublicCharacter, "portrait_asset_id" | "clip_asset_id">>(
+  const { rows } = await db.query<Omit<PublicCharacter, "portrait_asset_id" | "clip_asset_id" | "clip_is_video">>(
     `select id, name, age, bio, traits, appearance, want, is_house as house, avatar_hue as hue, pronouns, voice,
             coalesce(extras, '{}'::jsonb) as extras, this_week
        from characters where id = $1`,
@@ -590,7 +592,8 @@ export async function getPublicCharacter(db: Db, id: string): Promise<PublicChar
   );
   if (!rows[0]) return null;
   const [portrait_asset_id, clip_asset_id] = await Promise.all([approvedPortraitId(db, id), approvedClipId(db, id)]);
-  return { ...rows[0], portrait_asset_id, clip_asset_id };
+  const clip_is_video = clip_asset_id ? await approvedClipIsVideo(db, clip_asset_id) : false;
+  return { ...rows[0], portrait_asset_id, clip_asset_id, clip_is_video };
 }
 
 export type CharacterEpisode = { episode_id: string; share_path: string; partner: string; ending: Ending };

@@ -165,6 +165,15 @@ export async function approvedClipId(db: Db, characterId: string): Promise<strin
   return rows[0]?.id ?? null;
 }
 
+/**
+ * Whether a character's newest approved clip is a playable video stored with us (a Veo clip, lib/video.ts) or
+ * only a still (a clip from the retired Sora era, whose MP4 lived with OpenAI).
+ */
+export async function approvedClipIsVideo(db: Db, clipId: string): Promise<boolean> {
+  const { rows } = await db.query<{ video: boolean }>(`select url like 'data:video/mp4;%' as video from character_assets where id = $1`, [clipId]);
+  return Boolean(rows[0]?.video);
+}
+
 /** Sets an asset's servable file + video reference (completing a clip) without changing its review state. */
 export async function setAssetMedia(db: Db, id: string, url: string, sourceUrl?: string | null): Promise<void> {
   await db.query(`update character_assets set url = $2, source_url = coalesce($3, source_url) where id = $1`, [id, url, sourceUrl ?? null]);
