@@ -169,7 +169,30 @@ Every pre-fix rematch opened like a first date ("what made you decide to have po
 **Caveats:**
 - All on small local models; a Gemini run (the eval's own model) follows.
 - The word-overlap `callbacks` count is noisy. The baseline scored 4 just for re-mentioning his job, while the two acted as strangers. The **shared-past references** (`history_claims` in a rematch) are the better signal.
-- Re-run on Gemini with the eval key once it exists.
+- Re-run on Gemini with the eval key: below.
+
+### On Gemini, the production model (2026-10-16, the eval key, $0)
+The same saga on `gemini-3.5-flash-lite` (actor and director), on the separate eval key so the live show's quota was never touched. Runs are paced (one call per 6 s, a per-minute 429 waited out). Two runs before the fixes (`fe36db1`), four after (main). Then the eval key's free daily quota (500 calls) was spent. Files: `docs/eval/saga-gemini-*.json`.
+
+On Gemini the director writes the plan, so the rules plan's rematch beat never runs. Before the fixes, the director already got "play it as a rematch" in its facts. What differs between the arms here is the first-line note and the critic's earlier-date echo check.
+
+| Arm | Rematch opens with recognition | Shared-past claims (mean) | Invented history | Rematch quality index | Question rate | Responsiveness |
+|---|---|---|---|---|---|---|
+| Before the fixes (2 runs) | 1 / 2 ("Good to see you again, Dex"), the other implicit | 0.5 | 0 | 87, 90 (88.5) | 0.35 | 0.84 |
+| After the fixes (4 runs) | **4 / 4** ("Good thing we checked that table leg before we sat down this time") | 0.5 | 0 | 70, 69, 83, 77 (74.8) | 0.23 | 0.58 |
+
+For comparison, the first date (identical code in both arms) scored 84–93 across all six runs.
+
+**What it says:**
+- **Invented history stays 0** in all 18 Gemini steps, as in all 21 local ones.
+- **Recognition:** Gemini mostly reads its memory without help, so the fixes add less here (4/4 against 1–2 of 2) than on the small local models (4/4 against 0/3).
+- **The rematches score lower after the fixes**, mostly because they ask fewer questions: the first line is now a greeting, not a question. Part of that is the metric. The index is built for first dates, where it rewards questions, and three of the four after-fix rematches carry a profile-reading flag that is a false positive: "this place stays open past the hour mark" is a callback to the café that closed last time, and "old route drafts" is Mira's own work. Part of it is real: two of the rematches drift into banter about the other couple instead of each other.
+- **Two of the four after-fix runs lost the second date** (Mira and Nell, strangers) to three bad-JSON replies at one turn (`turn_7_schema`). The only after-fix code on that date is the critic's echo check, and it wasn't involved in those turns (no draft was sent back), so this is the model's JSON flakiness. Worth watching in production.
+
+**Next:**
+- Finish the baseline at four runs once the eval key's quota resets.
+- If the question gap holds, have the rematch beat and first-line note say "pick up from last time, then ask what's new since".
+- Teach `profile_reading` the whole earlier date, not just its remembered lines.
 
 ## Verifying
 - **Tests:** `tests/personality.test.ts`, `story.test.ts`, `grow.test.ts`, `temperament.test.ts`, `house-kits.test.ts`.

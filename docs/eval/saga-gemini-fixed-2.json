@@ -1,0 +1,494 @@
+{
+  "label": "saga-gemini-fixed-2",
+  "ran_at": "2026-10-16T03:13:56.565Z",
+  "base": "free Gemini flash-lite on the eval key, with the rematch fixes (cca6c49)",
+  "saga": "mira-saga",
+  "models": {
+    "steps": [
+      "google/gemini-3.5-flash-lite",
+      "google/gemini-3.5-flash-lite",
+      "google/gemini-3.5-flash-lite"
+    ]
+  },
+  "results": [
+    {
+      "case": "mira-saga-0",
+      "saga": "mira-saga",
+      "step": 0,
+      "partner": "house-dex",
+      "format": "classic",
+      "ending": "Just friends",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Mira Quell",
+        "Dex Okafor"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "I’m Mira. Watch out for the cuffs, I always manage to get ink on the cream here. What brings you to a corner that's about to be swept into the air?",
+          "action": "fidgets with compass chain",
+          "emotion": "curious",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "I'm Dex. It's nice to meet you, Mira. I usually prefer places that are already quiet, but this isn't so bad. What kind of ink are you always getting on things?",
+          "action": "gives a careful handshake",
+          "emotion": "calm",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Oh, just drafting fluid mostly. I map streets that sort of... migrate. You smell like a kiln, by the way. Do you throw pots or sculpt?",
+          "action": "draws a tiny spiral on a napkin",
+          "emotion": "curious",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "I throw pots. Mostly vases that end up slightly lopsided. Streets that migrate sounds like a lot of paperwork.",
+          "action": "brushes clay off his sleeve",
+          "emotion": "calm",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "At least lopsided has character. And paper is just stubborn terrain. See, if you fold this corner over, the kiln moves three blocks east.",
+          "action": "sketches on a napkin",
+          "emotion": "amused",
+          "interest": 0.4
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "That is a very fast way to zone a neighborhood. I used to be a stunt double, so I'm used to things moving faster than they should.",
+          "action": "smiles at the napkin",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "A stunt double? Well, that explains the fiery entrance you just avoided. But honestly, if your life keeps catching fire, you need a better atlas. Here, look, contour lines don't lie.",
+          "action": "sketches a quick map on a napkin",
+          "emotion": "amused",
+          "interest": 0.4
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "If my life had contour lines, they'd all be bunched up near the ovens. It's really nice meeting you, Mira. We should grab coffee as friends sometime.",
+          "action": "steps out into the cool air",
+          "emotion": "calm",
+          "interest": 0.2
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "I'd like that, Dex. I usually spend Tuesdays trying to find a bakery that moved, so coffee as friends sounds much more grounded.",
+          "action": "",
+          "emotion": "warm",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Grounded is good. Have a safe walk home.",
+          "action": "waves goodbye",
+          "emotion": "calm",
+          "interest": 0.5
+        }
+      ],
+      "recap": {
+        "setting": "A cramped corner café that is closing in an hour, with chairs going up around them.",
+        "scenes": [
+          "Mira introduces herself with ink-stained cuffs, asking Dex what brings him to a closing corner, while he gives a careful handshake and notes he usually prefers quiet places.",
+          "Mira sketches a migrating street on a napkin, and Dex admits he used to be a stunt double, prompting Mira to joke that his life needs a better atlas.",
+          "Dex suggests grabbing coffee as friends sometime, and Mira enthusiastically agrees, noting it sounds much more grounded than her usual Tuesday bakery hunts."
+        ],
+        "best_line": "If my life had contour lines, they'd all be bunched up near the ovens."
+      },
+      "plan": {
+        "source": "director",
+        "spine": "Mira Quell and Dex Okafor find an unexpected platonic wavelength in a closing café, realizing they make better lifelong accomplices than romantic partners.",
+        "acts": [
+          {
+            "scene": "Mira and Dex sit knee-to-knee in the cramped corner of the café while the staff loudly flips empty chairs onto surrounding tables. They trade wry observations about their unusual professions, surrounded by the smell of damp clay and old ink.",
+            "a": "You size Dex up across the tiny table, letting your ink-stained cuffs show as you fiddle with the compass on your chain. You want to see if he can effortlessly orient himself to your eccentric world without needing a legend, keeping the mood buoyant while silently watching for signs of stiffness.",
+            "b": "You give Dex a careful, scarred-knuckle handshake and sink slowly into your chair, appreciating the gentle hum of the closing shop. You listen closely to Mira's stories, looking for any sign of erratic energy while gently probing to see if her charming exterior matches her actual grounding."
+          },
+          {
+            "scene": "Amidst the clatter of stacked porcelain, Dex casually shares a funny, self-deprecating story about being on fire that keeps the atmosphere playful and breezy. When Dex asks a direct, vulnerable question about your personal life, you smoothly deflect with a geography pun and a quick napkin sketch.",
+            "a": "You notice how Dex keeps things delightfully light and easy, but when he presses into a real, unscripted question about your past, your instinct to stay guarded takes over and you dodge it with a joke and a quick sketch. You realize you thoroughly enjoy his steady presence, even if the romantic spark is entirely absent.",
+            "b": "You test Mira's openness with a direct question, hoping to see if she means what she says, but you watch her deftly dodge it behind a witty bit and a doodle. The test doesn't quite go your way, but instead of frustration, you find yourself smiling at her clever evasion as the last vestiges of awkwardness melt away."
+          },
+          {
+            "scene": "The café lights flicker off as the baristas usher them toward the exit into the cool night air. They share a warm, platonic laugh over the absurdity of the date and agree to cross paths again strictly as friendly peers.",
+            "a": "You walk out beside Dex into the night, feeling a warm, comfortable kinship that settles easily into friendship. You say goodbye with a casual, non-romantic warmth, entirely content to leave together as good pals.",
+            "b": "You stride out of the café side-by-side with Mira, feeling the relief of a quiet evening successfully navigated. You realize she is a wonderful person to know, and you part ways as lifelong friends without a single flutter of romance."
+          }
+        ]
+      },
+      "metrics": {
+        "turns": 10,
+        "avg_words": 24.7,
+        "length_spread": 6.68,
+        "question_rate": 0.4,
+        "responsiveness": 0.89,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "self_quotes": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "repeated_actions": 0,
+        "name_tics": 0,
+        "voice_breaks": 0,
+        "distinctness": 0.8,
+        "grounding": [
+          0.8,
+          0.4
+        ],
+        "index": 93
+      },
+      "judge": null,
+      "judge_mean": null,
+      "model_calls": 14,
+      "usage": {
+        "calls": 14,
+        "input_tokens": 27062,
+        "cached_input_tokens": 0,
+        "output_tokens": 1523,
+        "thinking_tokens": 0,
+        "cost_usd": 0.011926,
+        "models": [
+          "gemini-3.5-flash-lite"
+        ]
+      },
+      "ms": 79763,
+      "conversation_error": null,
+      "continuity": {
+        "met_before": false,
+        "history_claims": 0,
+        "invented_history": 0,
+        "callbacks": 0,
+        "called_back": false,
+        "repeated_old_lines": 0
+      },
+      "models": {
+        "actor": "google/gemini-3.5-flash-lite",
+        "director": "google/gemini-3.5-flash-lite"
+      }
+    },
+    {
+      "case": "mira-saga-1",
+      "saga": "mira-saga",
+      "step": 1,
+      "partner": "house-nell",
+      "format": "classic",
+      "ending": "A disaster",
+      "wants_another": [
+        false,
+        false
+      ],
+      "characters": [
+        "Mira Quell",
+        "Nell Abiodun"
+      ],
+      "transcript": [],
+      "recap": {
+        "setting": "A cramped karaoke booth booked for a full hour, glowing with purple neon and a pre-queued obscure ballad.",
+        "scenes": [
+          "Mira steps into the neon-lit booth, adjusting her ink-stained cuffs while Nell sits rigidly with her cardigan buttoned tight. They exchange polite, halting greetings as the room hums with heavy anticipation.",
+          "Mira proposes a dare to belt out the pre-queued song without looking at the lyrics, but Nell hesitates, refusing to participate in unmapped spontaneity. The silence stretches awkwardly between them as both refuse to budge.",
+          "Mira abruptly grabs her compass and announces she is leaving first, while Nell sits in silence, entirely relieved to avoid further embarrassment."
+        ],
+        "best_line": "Watch out for the cuffs, I always manage to get ink on the cream here."
+      },
+      "plan": {
+        "source": "director",
+        "spine": "Mira Quell and Nell Abiodun: a first date that ends as a disaster because neither can bridge the gap between precise caution and unmapped spontaneity.",
+        "acts": [
+          {
+            "scene": "Inside the neon-lit karaoke booth, Mira and Nell stare at a heavily technical ballad already queued on the screen while navigating their initial awkward greetings.",
+            "a": "You size up the room and the pre-queued track with ink-stained cuffs, wondering if your companion can handle someone who loves unexpected turns. You wait to see if they can crack a joke that catches you off guard.",
+            "b": "You keep your cardigan pulled tight over your uniform, hesitant to let anyone in too fast while hoping they ask a thoughtful follow-up about anything except your job. You carefully avoid mentioning where you work to keep the conversation light."
+          },
+          {
+            "scene": "Nell proposes a high-stakes karaoke dare to sing the hardest duet on the machine blind, leading to literal flat jokes and an inverted map puzzle where Mira tests for spatial flexibility.",
+            "a": "You test Nell's ability to read an upside-down napkin sketch of a migrating street, but your attempt to find someone who can navigate chaos falls flat. When Nell tries to tell a series of rigid, literal jokes, they miss the mark entirely, and your warmth visibly cools.",
+            "b": "You propose the karaoke dare to see if Mira will ask a real, probing follow-up question about your interests instead of just chatting aimlessly. You try out some dry humor to lighten the mood, but your jokes completely tank, and you feel the distance grow between you."
+          },
+          {
+            "scene": "The atmosphere in the booth turns frigid as both realize the mismatch, ending in a mutual silent standoff until Mira abruptly grabs her coat and walks out first.",
+            "a": "You've had quite enough of a date that lacked any joyful surprises or laughter, and since your hopes were entirely unmet, you stand up without a word and leave first.",
+            "b": "You realize you've both hit an uncrossable boundary as the silence stretches on, and you watch without stopping her as Mira finally gathers her things and heads for the door."
+          }
+        ]
+      },
+      "metrics": {
+        "turns": 0,
+        "avg_words": 0,
+        "length_spread": 0,
+        "question_rate": 0,
+        "responsiveness": 0,
+        "profile_reading": 0,
+        "self_labels": 0,
+        "self_quotes": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "repeated_actions": 0,
+        "name_tics": 0,
+        "voice_breaks": 0,
+        "distinctness": 0,
+        "grounding": [
+          0,
+          0
+        ],
+        "index": 0
+      },
+      "judge": null,
+      "judge_mean": null,
+      "model_calls": 17,
+      "usage": {
+        "calls": 17,
+        "input_tokens": 32880,
+        "cached_input_tokens": 0,
+        "output_tokens": 1456,
+        "thinking_tokens": 0,
+        "cost_usd": 0.013504,
+        "models": [
+          "gemini-3.5-flash-lite"
+        ]
+      },
+      "ms": 97840,
+      "conversation_error": "ConversationError: conversation failed: turn_7_schema, turn_8_schema, turn_8_schema, turn_8_schema",
+      "continuity": {
+        "met_before": false,
+        "history_claims": 0,
+        "invented_history": 0,
+        "callbacks": 0,
+        "called_back": false,
+        "repeated_old_lines": 0
+      },
+      "models": {
+        "actor": "google/gemini-3.5-flash-lite",
+        "director": "google/gemini-3.5-flash-lite"
+      }
+    },
+    {
+      "case": "mira-saga-2",
+      "saga": "mira-saga",
+      "step": 2,
+      "partner": "house-dex",
+      "format": "classic",
+      "ending": "A second date",
+      "wants_another": [
+        true,
+        true
+      ],
+      "characters": [
+        "Mira Quell",
+        "Dex Okafor"
+      ],
+      "transcript": [
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "Dex! Good to see you outside of a pop-up. Did these two drag you into their sentence-finishing vortex too?",
+          "action": "sliding into the corner booth",
+          "emotion": "relieved",
+          "interest": 0.6
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "They really did. Knock on wood they stop doing it before the entrees arrive. Good to see you, Mira.",
+          "action": "tapping the wooden table twice",
+          "emotion": "wary",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 0,
+          "dialogue": "I wouldn't bet on it, they've been passing the same adjectives back and forth since we sat down.",
+          "action": "adjusts ink-stained cuff",
+          "emotion": "amused",
+          "interest": 0.5
+        },
+        {
+          "side": "b",
+          "act": 0,
+          "dialogue": "At least the water glasses are real glass, so we have that going for us.",
+          "action": "adjusts silverware",
+          "emotion": "wary",
+          "interest": 0.5
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "Well, that was louder than a flash-pot. I'd rather stay right here and split a terrible dessert than chase any more explosions.",
+          "action": "pushing silverware away",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 1,
+          "dialogue": "I can definitely agree to the terrible dessert. Though I think I'm officially done with flash-pots for the year.",
+          "action": "wiping palms on a napkin",
+          "emotion": "relieved",
+          "interest": 0.7
+        },
+        {
+          "side": "a",
+          "act": 1,
+          "dialogue": "Good. Let's find out if the pastry chef here has given up on baking things that actually hold their shape.",
+          "action": "picking up the dessert menu",
+          "emotion": "amused",
+          "interest": 0.7
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Sounds like a plan. And no explosions on the way out, I promise.",
+          "action": "standing up and reaching for coat",
+          "emotion": "relieved",
+          "interest": 0.9
+        },
+        {
+          "side": "a",
+          "act": 2,
+          "dialogue": "Good. Meet me at that small bakery on Ninth next Tuesday? The one that actually stays put.",
+          "action": "standing up with coat",
+          "emotion": "warm",
+          "interest": 0.9
+        },
+        {
+          "side": "b",
+          "act": 2,
+          "dialogue": "Next Tuesday at Ninth sounds like a very good plan. Let's get out of here before they come back.",
+          "action": "picking up coat",
+          "emotion": "warm",
+          "interest": 0.9
+        }
+      ],
+      "recap": {
+        "setting": "An awkward corner booth at an awkward double date with a smug couple who finish each other's sentences.",
+        "scenes": [
+          "Mira Quell slides into the corner booth, greeting Dex Okafor with a laugh about their sentence-finishing tablemates while adjusting her ink-stained cuff.",
+          "After a sudden loud noise echoes from the kitchen, Dex Okafor wipes his palms on a napkin and decides he is officially done with flash-pots for the year, while Mira Quell pushes her silverware away.",
+          "Dex Okafor stands up to leave, and Mira Quell proposes they meet next Tuesday at the bakery on Ninth, leading them to walk out together."
+        ],
+        "best_line": "At least the water glasses are real glass, so we have that going for us."
+      },
+      "plan": {
+        "source": "director",
+        "spine": "Mira Quell and Dex Okafor: a rematch that ends \"A second date\".",
+        "acts": [
+          {
+            "scene": "Mira and Dex arrive at the corner booth of a bustling bistro for a double date with a smug, sentence-finishing couple, greeting each other with the easy familiarity of their previous meeting at the short-lived café.",
+            "a": "You remember the ink stains on your cuffs from last time and greet Dex like an old friend, steering clear of any questions about his pottery or past stunts. Watch the way he handles the insufferable couple across the table, secretly looking for someone who can effortlessly orient themselves when plans go sideways without needing to look at a legend.",
+            "b": "You give Dex a warm, careful handshake and settle in across from Mira, secretly hoping tonight remains a calm, predictable evening despite the obnoxious couple. Keep your eyes open for whether Mira has any hidden appetite for a wild detour, testing the waters to see if she's up for a sudden adventure."
+          },
+          {
+            "scene": "Midway through the meal, a former stunt coordinator from Dex's past drops by the table unannounced to loudly recount an old fiery explosion, shattering the room's peace.",
+            "a": "You watch how Dex calmly deflects the noisy interruption without mentioning a word about his old dangerous profession, successfully keeping work completely out of the conversation. When Dex floats a spontaneous, reckless post-dinner idea, you firmly turn it down, proving your preference for grounded consistency.",
+            "b": "You observe how Mira handles the chaotic interruption with her characteristic cool demeanor, noting her rejection of your impulsive post-dinner proposal with a quiet smile. Despite your secret desire for a completely quiet night, you realize her steady refusal and avoidance of work talk charm you completely."
+          },
+          {
+            "scene": "As the smug couple departs early, Mira and Dex linger over the table layout, sharing a clear spark as they make concrete plans to meet up again soon and leave the bistro together.",
+            "a": "You want to see him again and make sure it shows by proposing a quiet coffee meetup for next Tuesday at a bakery that you promise won't move. You leave the restaurant together side by side, letting your actions speak for your growing warmth.",
+            "b": "You want to see her again and readily accept her invitation for a proper coffee date, feeling completely drawn to her steady presence. You gather your coat and leave together with her, letting the evening end on a quiet, promising note."
+          }
+        ]
+      },
+      "metrics": {
+        "turns": 10,
+        "avg_words": 18.5,
+        "length_spread": 2.77,
+        "question_rate": 0.2,
+        "responsiveness": 0.33,
+        "profile_reading": 1,
+        "self_labels": 0,
+        "self_quotes": 0,
+        "misgendered": 0,
+        "abrupt_flips": 0,
+        "repeated_openers": 0,
+        "repeated_actions": 0,
+        "name_tics": 0,
+        "voice_breaks": 0,
+        "distinctness": 0.86,
+        "grounding": [
+          0,
+          0
+        ],
+        "index": 69
+      },
+      "judge": null,
+      "judge_mean": null,
+      "model_calls": 13,
+      "usage": {
+        "calls": 13,
+        "input_tokens": 28261,
+        "cached_input_tokens": 0,
+        "output_tokens": 1338,
+        "thinking_tokens": 0,
+        "cost_usd": 0.011823,
+        "models": [
+          "gemini-3.5-flash-lite"
+        ]
+      },
+      "ms": 73588,
+      "conversation_error": null,
+      "continuity": {
+        "met_before": true,
+        "history_claims": 0,
+        "invented_history": 0,
+        "callbacks": 0,
+        "called_back": false,
+        "repeated_old_lines": 0
+      },
+      "models": {
+        "actor": "google/gemini-3.5-flash-lite",
+        "director": "google/gemini-3.5-flash-lite"
+      }
+    }
+  ],
+  "continuity": [
+    {
+      "met_before": false,
+      "history_claims": 0,
+      "invented_history": 0,
+      "callbacks": 0,
+      "called_back": false,
+      "repeated_old_lines": 0
+    },
+    {
+      "met_before": false,
+      "history_claims": 0,
+      "invented_history": 0,
+      "callbacks": 0,
+      "called_back": false,
+      "repeated_old_lines": 0
+    },
+    {
+      "met_before": true,
+      "history_claims": 0,
+      "invented_history": 0,
+      "callbacks": 0,
+      "called_back": false,
+      "repeated_old_lines": 0
+    }
+  ]
+}
