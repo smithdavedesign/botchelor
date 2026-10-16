@@ -6,7 +6,7 @@
 import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
-import { POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, type Ending } from "./rules";
+import { DELETED_OWNER, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, type Ending } from "./rules";
 import { seasonCastIds } from "./season-cast";
 
 export const DEALBREAKER_OPTIONS = 4;
@@ -161,10 +161,10 @@ export async function listCast(db: Db, limit = 40): Promise<CastMember[]> {
     `select c.id, c.name, c.traits, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait,
             c.created_via = 'mcp' as agent
        from characters c
-      where not c.is_house or (c.premium_sku is null and c.id = any($2))
+      where (not c.is_house and c.owner_id <> $3) or (c.premium_sku is null and c.id = any($2))
       order by c.is_house, c.created_at desc, c.id
       limit $1`,
-    [limit, seasonCastIds()],
+    [limit, seasonCastIds(), DELETED_OWNER],
   );
   return rows;
 }

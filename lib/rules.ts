@@ -89,6 +89,12 @@ export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
 
 /** Distinct reporters it takes to pull an episode from the feed (and from everyone but its creators). */
 export const REPORT_HIDE_THRESHOLD = 3;
+
+/**
+ * owner_id of a character kept after its creator deleted their account, because a shared episode still shows it
+ * (lib/account.ts). Such a character is never offered again: not in the cast, not open to dates, never blind-matched.
+ */
+export const DELETED_OWNER = "deleted";
 export const HIDDEN_EPISODE_MESSAGE = "This episode was hidden after several viewers reported it.";
 
 export const CRISIS_LINKS = [
