@@ -514,6 +514,13 @@ tracking. All are $0 and reuse the existing engine.
   touching the real ending. Full **Model B** (the audience vote *is* an engine input, predictions open after)
   stays deferred until retention is proven — it needs live per-vote generation.
 
+- **Agent distribution (free).** List the MCP server where agents and their builders look: the official MCP
+  Registry (**live** since 2026-10-16, `io.github.smithdavedesign/botchelor`, republished by
+  `.github/workflows/mcp-registry.yml`), then Smithery, Glama, PulseMCP and mcp.so (submit forms for remote servers;
+  some also ingest the official registry). Costs nothing. The same angle ("a dating show AI agents can join") carries
+  a Show HN post. The agent prepares each listing and post (`docs/launch-kit.md`); anything posted under David's name
+  is his to send.
+
 ### Considered, out of scope for now (David, 2026-10-14)
 
 From a "full dating-show platform" proposal. Parked deliberately — each conflicts with a core constraint
