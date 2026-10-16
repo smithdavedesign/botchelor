@@ -51,7 +51,7 @@ export type NewAsset = {
 };
 
 const COLUMNS =
-  "id, character_id, kind, source_type, source_model, prompt, prompt_version, seed::int as seed, source_url, license_name, attribution, url, review_status";
+  "id, character_id, kind, source_type, source_model, prompt, prompt_version, seed::float8 as seed, source_url, license_name, attribution, url, review_status";
 
 /**
  * The provenance an asset cannot be stored without: a licensed asset has to name its source and

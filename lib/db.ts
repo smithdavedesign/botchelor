@@ -9,10 +9,30 @@ export interface Db {
   exec(sql: string): Promise<void>;
 }
 
+/**
+ * A query that died because Neon closed its connection (compute scaled down or restarted: 57P01/57P02/57P03, or
+ * the socket dropped) rather than because of the query. The server rolls such a statement back, so one retry on a
+ * fresh connection is safe; on prod these surfaced as 500s on /, /feed and /characters (2026-10-14/15).
+ */
+export function isDroppedConnection(err: unknown): boolean {
+  const e = err as { code?: unknown; message?: unknown } | null;
+  if (!e || typeof e !== "object") return false;
+  if (typeof e.code === "string" && /^57P0[123]$/.test(e.code)) return true;
+  if (e.code === "ECONNRESET" || e.code === "EPIPE") return true;
+  return typeof e.message === "string" && /Connection terminated|terminating connection/i.test(e.message);
+}
+
 export function pgPoolDb(pool: Pool): Db {
   return {
     async query<T>(sql: string, params: unknown[] = []) {
-      const result = await pool.query(sql, params);
+      let result;
+      try {
+        result = await pool.query(sql, params);
+      } catch (err) {
+        if (!isDroppedConnection(err)) throw err;
+        // The pool has already discarded the dead client, so this runs on a fresh connection.
+        result = await pool.query(sql, params);
+      }
       return { rows: result.rows as T[] };
     },
     async exec(sql: string) {
@@ -657,6 +677,15 @@ const DEFAULT_LOCAL_DATA_DIR = ".data/pglite";
 const POOL_SIZE = 3;
 
 /**
+ * node-postgres already treats sslmode=require/prefer/verify-ca as verify-full (certificate and hostname checked),
+ * but warns on every cold start that pg v9 will weaken them to libpq's meaning (316 warnings a week on prod, burying
+ * real errors). Saying verify-full explicitly keeps today's behaviour and silences it.
+ */
+export function withVerifyFullSsl(url: string): string {
+  return url.replace(/([?&]sslmode=)(require|prefer|verify-ca)(?=&|$)/, "$1verify-full");
+}
+
+/**
  * The Postgres pool for a DATABASE_URL. Neon closes idle connections when its compute scales down or
  * restarts ("terminating connection due to administrator command", 57P01); node-postgres reports that as an
  * "error" event on the pool, and an unhandled "error" event crashes the whole function instance (seen on prod,
@@ -664,7 +693,7 @@ const POOL_SIZE = 3;
  */
 export async function createPool(url: string) {
   const { Pool } = await import("pg");
-  const pool = new Pool({ connectionString: url, max: POOL_SIZE });
+  const pool = new Pool({ connectionString: withVerifyFullSsl(url), max: POOL_SIZE });
   pool.on("error", (err) => console.error(`[db] idle connection closed: ${err.message}`));
   return pool;
 }

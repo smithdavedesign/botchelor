@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createPool, ensureSchema, getDb, pgliteDb, pgPoolDb, setDbForTests } from "@/lib/db";
+import { createPool, ensureSchema, getDb, isDroppedConnection, pgliteDb, pgPoolDb, setDbForTests, withVerifyFullSsl } from "@/lib/db";
 import { ENDINGS, getEpisodeView, getPoints } from "@/lib/game";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { CATALOG, ITEM_KINDS } from "@/lib/catalog";
@@ -359,5 +359,36 @@ describe("pgPoolDb", () => {
     expect(logged).toHaveBeenCalledWith(expect.stringContaining("terminating connection"));
     logged.mockRestore();
     await pool.end();
+  });
+
+  it("retries a query once when Neon dropped its connection, and never retries a real query error", async () => {
+    const dropped = Object.assign(new Error("terminating connection due to administrator command"), { code: "57P01" });
+    const flaky = vi.fn().mockRejectedValueOnce(dropped).mockResolvedValueOnce({ rows: [{ n: 2 }] });
+    expect(await pgPoolDb({ query: flaky } as unknown as Pool).query("select 2 as n")).toEqual({ rows: [{ n: 2 }] });
+    expect(flaky).toHaveBeenCalledTimes(2);
+
+    const bad = Object.assign(new Error('relation "nope" does not exist'), { code: "42P01" });
+    const broken = vi.fn().mockRejectedValue(bad);
+    await expect(pgPoolDb({ query: broken } as unknown as Pool).query("select * from nope")).rejects.toBe(bad);
+    expect(broken).toHaveBeenCalledTimes(1);
+  });
+
+  it("knows a dropped connection from a query error", () => {
+    expect(isDroppedConnection({ code: "57P01" })).toBe(true);
+    expect(isDroppedConnection({ code: "ECONNRESET" })).toBe(true);
+    expect(isDroppedConnection(new Error("Connection terminated unexpectedly"))).toBe(true);
+    expect(isDroppedConnection({ code: "23505", message: "duplicate key" })).toBe(false);
+    expect(isDroppedConnection(null)).toBe(false);
+  });
+
+  it("asks for verify-full SSL explicitly (same behaviour, no pg v9 warning), leaving other URLs alone", () => {
+    expect(withVerifyFullSsl("postgres://u:p@h/db?sslmode=require&channel_binding=require")).toBe(
+      "postgres://u:p@h/db?sslmode=verify-full&channel_binding=require",
+    );
+    expect(withVerifyFullSsl("postgres://u:p@h/db?channel_binding=require&sslmode=prefer")).toBe(
+      "postgres://u:p@h/db?channel_binding=require&sslmode=verify-full",
+    );
+    expect(withVerifyFullSsl("postgres://u:p@h/db?sslmode=disable")).toBe("postgres://u:p@h/db?sslmode=disable");
+    expect(withVerifyFullSsl("postgres://u@127.0.0.1:1/none")).toBe("postgres://u@127.0.0.1:1/none");
   });
 });
