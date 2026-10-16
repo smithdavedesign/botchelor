@@ -272,6 +272,8 @@ describe("premium house characters (off sale; an owned one still dates)", () => 
     try {
       const creator = newUserCookie();
       const own = await (await api.createCharacter(validCharacter(), creator)).json();
+      // Eight dates with the same partner make a couple; more than one keeps them on blind dates (lib/partners.ts).
+      await api.editCharacter(own.id, { partner_style: "open" }, creator);
       for (let i = 0; i < 8; i++) {
         await t.db.query("delete from free_episode_usage where user_id = $1", [userIdOf(creator)]);
         scriptedModel([episodeJson()]);

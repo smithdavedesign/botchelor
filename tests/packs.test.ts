@@ -181,6 +181,8 @@ describe("the weekly free allowance", () => {
 
   it("counts blind dates too", async () => {
     const creator = await newCreator();
+    // Blind draws can repeat a partner until they're a couple; more than one keeps this about the allowance (lib/partners.ts).
+    await api.editCharacter(creator.characterId, { partner_style: "open" }, creator.cookie);
     expect(await sendOnDates(creator, FREE, true)).toEqual(Array(FREE).fill(200));
     expect((await dateRequest(creator)).status).toBe(429);
   });

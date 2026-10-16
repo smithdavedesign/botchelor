@@ -26,6 +26,7 @@ import {
   dateLabel,
 } from "@/lib/rules";
 import { checkFields } from "@/lib/safety";
+import { coupledSql, currentPartners, settleCharacter, takenSql } from "@/lib/partners";
 import { seasonCastIds } from "@/lib/season-cast";
 import { seasonAt } from "@/lib/seasons";
 import { checkSecondDate } from "@/lib/second-date";
@@ -114,6 +115,7 @@ async function blindMatch(db: Db, userId: string): Promise<CharacterRow> {
       `select ${CHARACTER_COLUMNS}
          from characters c
         where not c.is_house and c.owner_id <> $1 and c.owner_id <> $2
+          and not ${takenSql("c")}
           and not exists (
             select 1 from blocks bl
              where (bl.blocker_id = $1 and bl.blocked_id = c.owner_id)
@@ -157,6 +159,24 @@ export const POST = handle(async (req) => {
   ).rows[0];
   if (!own) return json({ error: "character_not_found" }, 404, sess);
 
+  // One partner (lib/partners.ts): a character that's with someone dates only them until it cools off. One left to
+  // decide, and already with someone, decides now.
+  await settleCharacter(db, own.id).catch(() => {});
+  const ownTaken = (
+    await db.query<{ taken: boolean }>(`select ${takenSql("c", "$2")} as taken from characters c where c.id = $1`, [own.id, input.blind ? null : (input.partner_id ?? null)])
+  ).rows[0]?.taken;
+  if (ownTaken) {
+    const [with_] = await currentPartners(db, own.id);
+    return json(
+      {
+        error: "taken",
+        message: `${own.name.split(" ")[0]} is with ${with_?.name ?? "someone"} and wants one partner. Date ${with_?.name.split(" ")[0] ?? "them"}, or set them to more than one on their card.`,
+      },
+      409,
+      sess,
+    );
+  }
+
   let partner: CharacterRow | undefined;
   let secondDate: { followupOf: string; visibility: "public" | "private" | "unlisted"; dateNumber: number } | null = null;
   if (input.second_date_of) {
@@ -171,18 +191,18 @@ export const POST = handle(async (req) => {
     partner = await blindMatch(db, sess.userId);
   } else {
     // One of this season's house cast (or a premium one, checked below), or someone else's OC that's open
-    // to dates — never your own, never across a block.
+    // to dates (or the partner your character is with) — never your own, never across a block.
     partner = (
       await db.query<CharacterRow>(
         `select ${CHARACTER_COLUMNS} from characters c
           where c.id = $1
             and ((c.is_house and (c.premium_sku is not null or c.id = any($3)))
-                 or (c.open_to_dates and c.owner_id <> $2
+                 or ((c.open_to_dates or ${coupledSql("c", "$4")}) and c.owner_id <> $2 and not ${takenSql("c", "$4")}
                      and not exists (
                        select 1 from blocks bl
                         where (bl.blocker_id = $2 and bl.blocked_id = c.owner_id)
                            or (bl.blocker_id = c.owner_id and bl.blocked_id = $2))))`,
-        [input.partner_id, sess.userId, seasonCastIds()],
+        [input.partner_id, sess.userId, seasonCastIds(), own.id],
       )
     ).rows[0];
     if (!partner) {

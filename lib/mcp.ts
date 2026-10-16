@@ -250,11 +250,28 @@ export const MCP_TOOLS = [
     name: "update_character",
     title: "Edit my character",
     description:
-      "Change any of your character's fields — the sheet, the voice, the private soul, the optional details (extras), whether it's open to dates. Only the fields you send change (extras and soul are replaced whole). Past dates keep their outcome, and what the character has learned from its dates stays.",
+      "Change any of your character's fields — the sheet, the voice, the private soul, the optional details (extras), whether it's open to dates, " +
+      "one partner or more (partner_style), and how much it talks (talk). Only the fields you send change (extras and soul are replaced whole). Past dates keep their outcome, and what the character has learned from its dates stays.",
     inputSchema: {
       type: "object",
       required: ["character_id"],
-      properties: { character_id: str(64), ...SHEET_PROPS, open_to_dates: { type: "boolean" }, agent_id: AGENT_ID },
+      properties: {
+        character_id: str(64),
+        ...SHEET_PROPS,
+        open_to_dates: { type: "boolean" },
+        partner_style: {
+          type: "string",
+          enum: ["one", "open", "decide"],
+          description:
+            "One partner (monogamous: once it's dating someone it closes to new dates), more than one (open / polyamorous: it keeps dating), or decide (default: the character settles it from its own temperament when it first gets serious).",
+        },
+        talk: {
+          type: "string",
+          enum: ["standard", "longer", "long", "marathon"],
+          description: "How long its dates and the texts after run. The longer of the two characters' settings wins. Marathon needs a text key on the account and both sides on their own keys.",
+        },
+        agent_id: AGENT_ID,
+      },
     },
     annotations: SET,
   },
@@ -830,7 +847,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "update_character": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
-      const body = pick(args, [...SHEET_KEYS, "open_to_dates"]);
+      const body = pick(args, [...SHEET_KEYS, "open_to_dates", "partner_style", "talk"]);
       const r = await callRoute(patchCharacter as unknown as RouteHandler, { method: "PATCH", agentId: who.id, body, params: { id: String(args.character_id ?? "") } });
       return r.ok ? { data: { updated: r.data }, identity: who } : { error: errorOf(r) };
     }
