@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
+import { approvedPortraitDataUrl } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import { getPublicCharacter } from "@/lib/game";
 
@@ -16,8 +17,11 @@ const ACCENT = "#e5356b";
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let c = null;
+  let portrait: string | null = null;
   try {
-    c = await getPublicCharacter(await getDb(), id);
+    const db = await getDb();
+    c = await getPublicCharacter(db, id);
+    if (c) portrait = await approvedPortraitDataUrl(db, c.id);
   } catch {
     c = null;
   }
@@ -27,9 +31,14 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", padding: 70, background: PAPER, color: INK, borderTop: `24px solid ${ACCENT}`, fontFamily: "sans-serif", alignItems: "center", gap: 56 }}>
-        <div style={{ display: "flex", width: 300, height: 300, borderRadius: 64, background: avatarGradientCss(palette), alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 140, fontWeight: 800, flex: "0 0 auto" }}>
-          {initials(name)}
-        </div>
+        {portrait ? (
+          // eslint-disable-next-line @next/next/no-img-element -- Satori renders a plain <img>, not next/image
+          <img src={portrait} alt="" width={300} height={300} style={{ borderRadius: 64, objectFit: "cover", flex: "0 0 auto" }} />
+        ) : (
+          <div style={{ display: "flex", width: 300, height: 300, borderRadius: 64, background: avatarGradientCss(palette), alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 140, fontWeight: 800, flex: "0 0 auto" }}>
+            {initials(name)}
+          </div>
+        )}
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 30, color: ACCENT, fontWeight: 700 }}>Botchelor · contestant</div>
           <div style={{ fontSize: 72, fontWeight: 800, marginTop: 6 }}>{name}</div>

@@ -49,8 +49,8 @@ export default async function WatchLobbyPage() {
             return (
               <Link href={r.room_path} key={r.id} className="card watch-lobby-card">
                 <div className="watch-lobby-avatars">
-                  <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} size={44} />
-                  <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} size={44} />
+                  <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={44} />
+                  <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={44} />
                 </div>
                 <div className="watch-lobby-meta">
                   <strong>

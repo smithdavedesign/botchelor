@@ -82,8 +82,8 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
       <header className="watch-head">
         <div className="watch-title">
           <div className="watch-avatars">
-            <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} size={40} />
-            <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} size={40} />
+            <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={40} />
+            <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={40} />
           </div>
           <div>
             <p className="kicker">

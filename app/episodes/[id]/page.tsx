@@ -86,9 +86,9 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
         <p className="kicker">Botchelor episode</p>
         <EpisodeNotices />
         <div className="matchup">
-          <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} size={60} />
+          <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={60} />
           <span className="vs">×</span>
-          <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} size={60} />
+          <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={60} />
         </div>
         <h1>
           {a.name} × {b.name}
@@ -134,9 +134,9 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
       <p className="kicker">Botchelor episode</p>
       <EpisodeNotices />
       <div className="matchup">
-        <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} size={60} />
+        <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={60} />
         <span className="vs">×</span>
-        <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} size={60} />
+        <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={60} />
       </div>
       <h1>
         {a.name} × {b.name}

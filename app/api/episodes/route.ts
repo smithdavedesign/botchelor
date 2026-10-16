@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { releaseEpisode, reserveEpisode, type Reservation } from "@/lib/allowance";
+import { portraitPathSql } from "@/lib/assets";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb, type Db } from "@/lib/db";
 import { getEngine } from "@/lib/engine";
@@ -71,12 +72,13 @@ type CharacterRow = {
   premium_sku: string | null;
   appearance: string | null;
   avatar_hue: number | null;
+  portrait: string | null;
   pronouns: string | null;
   voice: string | null;
 };
 
-const CHARACTER_COLUMNS =
-  "c.id, c.name, c.age, c.bio, c.traits, c.want, c.dealbreaker, c.is_house, c.premium_sku, c.appearance, c.avatar_hue, c.pronouns, c.voice";
+const CHARACTER_COLUMNS = `c.id, c.name, c.age, c.bio, c.traits, c.want, c.dealbreaker, c.is_house, c.premium_sku, c.appearance, c.avatar_hue,
+  ${portraitPathSql("c")} as portrait, c.pronouns, c.voice`;
 
 const toSheet = (c: CharacterRow): CharacterSheet => ({
   name: c.name,
@@ -90,7 +92,7 @@ const toSheet = (c: CharacterRow): CharacterSheet => ({
   pronouns: c.pronouns ?? undefined,
   voice: c.voice ?? undefined,
 });
-const toRef = (c: CharacterRow): CharacterRef => ({ id: c.id, name: c.name, house: c.is_house, hue: c.avatar_hue });
+const toRef = (c: CharacterRow): CharacterRef => ({ id: c.id, name: c.name, house: c.is_house, hue: c.avatar_hue, portrait: c.portrait });
 const forDate = (c: CharacterRow): CharacterForDate => ({ id: c.id, sheet: toSheet(c) });
 
 /**

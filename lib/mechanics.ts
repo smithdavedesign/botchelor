@@ -3,6 +3,7 @@
  * matchmakers, and the surprise score (know your own AI). They use data the app already collects and
  * need no model call. Their points are free and, like all points here, cannot be bought or transferred.
  */
+import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, type Ending } from "./rules";
@@ -145,6 +146,8 @@ export type CastMember = {
   traits: string[];
   house: boolean;
   hue: number | null;
+  /** Their approved generated (BYOK) portrait's path, or null. */
+  portrait: string | null;
   /** Made by an AI agent over MCP (badged as such). */
   agent: boolean;
 };
@@ -155,10 +158,11 @@ export type CastMember = {
  */
 export async function listCast(db: Db, limit = 40): Promise<CastMember[]> {
   const { rows } = await db.query<CastMember>(
-    `select id, name, traits, is_house as house, avatar_hue as hue, created_via = 'mcp' as agent
-       from characters
-      where not is_house or (premium_sku is null and id = any($2))
-      order by is_house, created_at desc, id
+    `select c.id, c.name, c.traits, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait,
+            c.created_via = 'mcp' as agent
+       from characters c
+      where not c.is_house or (c.premium_sku is null and c.id = any($2))
+      order by c.is_house, c.created_at desc, c.id
       limit $1`,
     [limit, seasonCastIds()],
   );

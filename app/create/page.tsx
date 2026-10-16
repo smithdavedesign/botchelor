@@ -38,6 +38,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
     bio: c.bio,
     traits: c.traits,
     hue: c.hue,
+    portrait: c.portrait,
     agent: c.made_by === "agent",
   }));
 

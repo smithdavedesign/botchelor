@@ -6,12 +6,13 @@
  * the relationship graph, the confessionals creators chose to share, the audience leaderboard, and the
  * aired endings. So it is always consistent with what happened, costs nothing, and touches no invariant.
  */
+import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { relationshipStage } from "./mechanics";
 import { topRatedCharacters } from "./ratings";
 import type { Ending } from "./rules";
 
-export type ReunionChar = { id: string; name: string; house: boolean; hue: number | null };
+export type ReunionChar = { id: string; name: string; house: boolean; hue: number | null; portrait: string | null };
 export type ReunionCouple = {
   a: ReunionChar;
   b: ReunionChar;
@@ -31,16 +32,16 @@ export type Reunion = {
 };
 
 type CoupleRow = {
-  a_id: string; a_name: string; a_house: boolean; a_hue: number | null;
-  b_id: string; b_name: string; b_house: boolean; b_hue: number | null;
+  a_id: string; a_name: string; a_house: boolean; a_hue: number | null; a_portrait: string | null;
+  b_id: string; b_name: string; b_house: boolean; b_hue: number | null; b_portrait: string | null;
   dates: number; second_dates: number; last_ending: Ending | null;
 };
-const charA = (r: CoupleRow): ReunionChar => ({ id: r.a_id, name: r.a_name, house: r.a_house, hue: r.a_hue });
-const charB = (r: CoupleRow): ReunionChar => ({ id: r.b_id, name: r.b_name, house: r.b_house, hue: r.b_hue });
+const charA = (r: CoupleRow): ReunionChar => ({ id: r.a_id, name: r.a_name, house: r.a_house, hue: r.a_hue, portrait: r.a_portrait });
+const charB = (r: CoupleRow): ReunionChar => ({ id: r.b_id, name: r.b_name, house: r.b_house, hue: r.b_hue, portrait: r.b_portrait });
 
 const COUPLE_SELECT = `
-  select ca.id a_id, ca.name a_name, ca.is_house a_house, ca.avatar_hue a_hue,
-         cb.id b_id, cb.name b_name, cb.is_house b_house, cb.avatar_hue b_hue,
+  select ca.id a_id, ca.name a_name, ca.is_house a_house, ca.avatar_hue a_hue, ${portraitPathSql("ca")} a_portrait,
+         cb.id b_id, cb.name b_name, cb.is_house b_house, cb.avatar_hue b_hue, ${portraitPathSql("cb")} b_portrait,
          r.dates, r.second_dates, r.last_ending
     from relationships r
     join characters ca on ca.id = r.character_a
@@ -65,16 +66,16 @@ async function topCouples(db: Db, limit: number): Promise<ReunionCouple[]> {
 type ConfRow = {
   id: string;
   confessionals: [string, string] | null;
-  a_id: string; a_name: string; a_house: boolean; a_hue: number | null;
-  b_id: string; b_name: string; b_house: boolean; b_hue: number | null;
+  a_id: string; a_name: string; a_house: boolean; a_hue: number | null; a_portrait: string | null;
+  b_id: string; b_name: string; b_house: boolean; b_hue: number | null; b_portrait: string | null;
 };
 
 /** The confessional reel: only the lines creators chose to share, from aired episodes (same gate as the episode page). */
 async function confessionalReel(db: Db, limit: number): Promise<ReunionConfessional[]> {
   const { rows } = await db.query<ConfRow>(
     `select e.id, e.confessionals,
-            a.id a_id, a.name a_name, a.is_house a_house, a.avatar_hue a_hue,
-            b.id b_id, b.name b_name, b.is_house b_house, b.avatar_hue b_hue
+            a.id a_id, a.name a_name, a.is_house a_house, a.avatar_hue a_hue, ${portraitPathSql("a")} a_portrait,
+            b.id b_id, b.name b_name, b.is_house b_house, b.avatar_hue b_hue, ${portraitPathSql("b")} b_portrait
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b
@@ -87,8 +88,8 @@ async function confessionalReel(db: Db, limit: number): Promise<ReunionConfessio
   const reel: ReunionConfessional[] = [];
   for (const r of rows) {
     if (!r.confessionals) continue;
-    const a: ReunionChar = { id: r.a_id, name: r.a_name, house: r.a_house, hue: r.a_hue };
-    const b: ReunionChar = { id: r.b_id, name: r.b_name, house: r.b_house, hue: r.b_hue };
+    const a: ReunionChar = { id: r.a_id, name: r.a_name, house: r.a_house, hue: r.a_hue, portrait: r.a_portrait };
+    const b: ReunionChar = { id: r.b_id, name: r.b_name, house: r.b_house, hue: r.b_hue, portrait: r.b_portrait };
     if (r.confessionals[0]) reel.push({ episode_id: r.id, character: a, line: r.confessionals[0] });
     if (r.confessionals[1]) reel.push({ episode_id: r.id, character: b, line: r.confessionals[1] });
   }
@@ -112,9 +113,9 @@ async function awards(db: Db): Promise<ReunionAward[]> {
   }
 
   const worst = (
-    await db.query<{ a_name: string; b_name: string; a_id: string; b_id: string; a_house: boolean; b_house: boolean; a_hue: number | null; b_hue: number | null }>(
-      `select a.id a_id, a.name a_name, a.is_house a_house, a.avatar_hue a_hue,
-              b.id b_id, b.name b_name, b.is_house b_house, b.avatar_hue b_hue
+    await db.query<{ a_name: string; b_name: string; a_id: string; b_id: string; a_house: boolean; b_house: boolean; a_hue: number | null; b_hue: number | null; a_portrait: string | null; b_portrait: string | null }>(
+      `select a.id a_id, a.name a_name, a.is_house a_house, a.avatar_hue a_hue, ${portraitPathSql("a")} a_portrait,
+              b.id b_id, b.name b_name, b.is_house b_house, b.avatar_hue b_hue, ${portraitPathSql("b")} b_portrait
          from episodes e
          join characters a on a.id = e.character_a
          join characters b on b.id = e.character_b
@@ -128,8 +129,8 @@ async function awards(db: Db): Promise<ReunionAward[]> {
       name: `${worst.a_name} × ${worst.b_name}`,
       detail: "A date the whole audience is still talking about.",
       chars: [
-        { id: worst.a_id, name: worst.a_name, house: worst.a_house, hue: worst.a_hue },
-        { id: worst.b_id, name: worst.b_name, house: worst.b_house, hue: worst.b_hue },
+        { id: worst.a_id, name: worst.a_name, house: worst.a_house, hue: worst.a_hue, portrait: worst.a_portrait },
+        { id: worst.b_id, name: worst.b_name, house: worst.b_house, hue: worst.b_hue, portrait: worst.b_portrait },
       ],
     });
   }
@@ -140,7 +141,7 @@ async function awards(db: Db): Promise<ReunionAward[]> {
       title: "💗 Fan favourite",
       name: likable.name,
       detail: `${likable.count} ${likable.count === 1 ? "viewer" : "viewers"} called them the most likable.`,
-      chars: [{ id: likable.id, name: likable.name, house: likable.house, hue: likable.hue }],
+      chars: [{ id: likable.id, name: likable.name, house: likable.house, hue: likable.hue, portrait: likable.portrait }],
     });
   }
 
@@ -150,7 +151,7 @@ async function awards(db: Db): Promise<ReunionAward[]> {
       title: "🤯 Full of surprises",
       name: surprising.name,
       detail: `Voted the most surprising of the season.`,
-      chars: [{ id: surprising.id, name: surprising.name, house: surprising.house, hue: surprising.hue }],
+      chars: [{ id: surprising.id, name: surprising.name, house: surprising.house, hue: surprising.hue, portrait: surprising.portrait }],
     });
   }
 
