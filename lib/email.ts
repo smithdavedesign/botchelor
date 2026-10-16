@@ -24,6 +24,8 @@ type Env = Record<string, string | undefined>;
 /** Kinds worth an email right away: something is waiting on you. Everything else is in the daily digest. */
 export const IMMEDIATE_KINDS: ReadonlySet<NotificationKind> = new Set(["second_date_yes", "second_date_booked"]);
 export const IMMEDIATE_PER_USER_PER_DAY = 3;
+/** Confirmation emails one account may send a day (each goes to an address nobody has verified yet). */
+export const CONFIRMS_PER_USER_PER_DAY = 3;
 export const DIGEST_ITEMS = 8;
 
 export function emailDailyCap(env: Record<string, string | undefined> = process.env): number {
@@ -164,21 +166,37 @@ export async function startEmailOptIn(db: Db, userId: string, requested: string 
     [userId, email, verified ? "on" : "pending", verified ? new Date(now).toISOString() : null],
   );
   if (verified) return { ok: true, status: "on" };
+  // Confirmation emails go to an address nobody has verified yet, so they're capped: a few per account a day, and
+  // inside the show's daily total, so an account can't turn us into a way to mail strangers.
+  const counts = (await db.query<{ mine: number; all: number }>(
+    `select count(*) filter (where user_id = $1 and kind = 'confirm')::int as mine, count(*)::int as all
+       from email_sends where created_at > now() - interval '1 day'`,
+    [userId],
+  )).rows[0];
+  if ((counts?.mine ?? 0) >= CONFIRMS_PER_USER_PER_DAY || (counts?.all ?? 0) >= emailDailyCap(env)) {
+    return { ok: false, status: 429, error: "too_many_confirmations", message: "That's enough confirmation emails for today. Try again tomorrow." };
+  }
   const token = signEmailToken({ u: userId, e: email, p: "confirm", x: now + 2 * 86_400_000 }, env);
   const config = emailConfig(env)!;
   const base = siteUrl(env);
   const link = `${base}/api/email/confirm?t=${encodeURIComponent(token ?? "")}`;
-  await sender(
-    {
-      from: config.from,
-      to: email,
-      subject: "Confirm your email for Botchelor",
-      html: `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;color:#241022"><p style="font-size:20px;font-weight:700;color:#c82f60">Botchelor</p><p>Click to get emails when your characters text, plan a second date, or move up a stage.</p><p><a href="${esc(link)}" style="color:#b52c59;font-weight:600">Confirm this address</a></p><p style="font-size:13px;color:#6a5a6f">If you didn't ask for this, ignore it: nothing is sent until you confirm.</p></div>`,
-      text: `Confirm your email for Botchelor: ${link}\n\nIf you didn't ask for this, ignore it: nothing is sent until you confirm.`,
-      headers: {},
-    },
-    config,
-  );
+  try {
+    await sender(
+      {
+        from: config.from,
+        to: email,
+        subject: "Confirm your email for Botchelor",
+        html: `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;color:#241022"><p style="font-size:20px;font-weight:700;color:#c82f60">Botchelor</p><p>Click to get emails when your characters text, plan a second date, or move up a stage.</p><p><a href="${esc(link)}" style="color:#b52c59;font-weight:600">Confirm this address</a></p><p style="font-size:13px;color:#6a5a6f">If you didn't ask for this, ignore it: nothing is sent until you confirm.</p></div>`,
+        text: `Confirm your email for Botchelor: ${link}\n\nIf you didn't ask for this, ignore it: nothing is sent until you confirm.`,
+        headers: {},
+      },
+      config,
+    );
+  } catch (err) {
+    // The address stays pending, so trying again later works; the player gets a plain answer, not an error page.
+    console.error("[email] confirmation send failed:", err instanceof Error ? err.message : "unknown");
+    return { ok: false, status: 502, error: "email_failed", message: "Couldn't send the confirmation email right now. Try again in a few minutes." };
+  }
   await db.query(`insert into email_sends (id, user_id, kind) values ($1, $2, 'confirm')`, [crypto.randomUUID(), userId]);
   return { ok: true, status: "pending" };
 }
