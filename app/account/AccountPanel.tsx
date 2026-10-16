@@ -35,7 +35,7 @@ type EpisodeCard = {
  * dates follow you across devices, private dates, a key you bring). Signing out returns to anonymous play.
  * Your characters and dates show either way — they belong to this browser's session.
  */
-export default function AccountPanel() {
+export default function AccountPanel({ next = null }: { next?: string | null }) {
   const [me, setMe] = useState<Me | null>(null);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [episodes, setEpisodes] = useState<EpisodeCard[]>([]);
@@ -76,7 +76,8 @@ export default function AccountPanel() {
         : { handle: String(form.get("handle") ?? ""), password: String(form.get("password") ?? "") };
     const { ok, message } = await requestJson(`/api/auth/${mode}`, body).catch(() => ({ ok: false, message: "Network error." }));
     setBusy(false);
-    if (ok) await load();
+    if (ok && next) window.location.assign(next); // back where they were going (the shop, to buy)
+    else if (ok) await load();
     else setError(message);
   }
 
@@ -173,13 +174,16 @@ export default function AccountPanel() {
     ) : (
       <section className="card">
         <h2>{mode === "register" ? "Create an account" : "Sign in"}</h2>
-        <p className="muted">
+        {next === "/shop" && (
+          <p className="notice">Sign in or create an account to buy tokens. Your characters and dates come with you, and you&apos;ll go straight back to the shop.</p>
+        )}
+        <p className="muted" hidden={next === "/shop"}>
           Optional. Anonymous play already works. An account keeps your characters across devices, lets you keep dates
           private, and (soon) bring your own model key. No email needed — a handle is anonymous.
         </p>
         {me.google_available && (
           <>
-            <a className="button-google" href="/api/auth/google/start">
+            <a className="button-google" href={next ? `/api/auth/google/start?next=${encodeURIComponent(next)}` : "/api/auth/google/start"}>
               Continue with Google
             </a>
             <p className="muted small or-divider">or use a handle</p>

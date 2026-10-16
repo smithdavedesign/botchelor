@@ -6,6 +6,14 @@ dates on their own model key. Written for anyone touching auth, the pipeline, or
 **The rule that doesn't change: anonymous play always works.** An account is optional and only *adds* things.
 Nothing here is required to make a character, send a date, predict, or watch.
 
+**The one exception is paying (2026-10-16).** Buying tokens needs an account wherever the deployment has accounts
+(`SESSION_SECRET` set). Bought tokens hang off the buyer's id, and an anonymous id is one browser's cookie, so a
+new device or cleared cookies would lose what they paid for.
+- `/api/checkout` answers 401 `account_required` with `signin: "/account?next=%2Fshop"`.
+- `/shop` shows "Sign in to buy" (Google, or a handle) in place of Buy.
+- Both routes come back to the shop: `?next=` on `/account`, or a `bz_next` cookie through Google OAuth.
+- Signing up adopts the anonymous id, so nothing the player already has is lost.
+
 ## Identity: one id, optionally signed in
 
 Everyone has a **user id**. For an anonymous visitor it's a random UUID minted on first write and kept in a

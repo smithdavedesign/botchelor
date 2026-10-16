@@ -51,10 +51,17 @@ export function userIdFromRequest(req: Request): string | null {
   return authFromRequest(req)?.userId ?? null;
 }
 
+/** The identity from a Next.js server cookie store (server components): signed session first, else legacy. */
+export function authFromCookieStore(store: { get(name: string): { value: string } | undefined }): Auth | null {
+  const signed = verifySession(store.get(SESSION_COOKIE)?.value);
+  if (signed) return { userId: signed.uid, authenticated: signed.authenticated };
+  const legacy = readUserId(store.get(USER_COOKIE)?.value);
+  return legacy ? { userId: legacy, authenticated: false } : null;
+}
+
 /** The user id from a Next.js server cookie store (server components): signed session first, else legacy. */
 export function userIdFromCookieStore(store: { get(name: string): { value: string } | undefined }): string | null {
-  const signed = verifySession(store.get(SESSION_COOKIE)?.value);
-  return signed ? signed.uid : readUserId(store.get(USER_COOKIE)?.value);
+  return authFromCookieStore(store)?.userId ?? null;
 }
 
 export type Session = { userId: string; isNew: boolean; authenticated: boolean };
