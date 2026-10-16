@@ -95,3 +95,32 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
 
 ![A couple's page, as an owner sees it](screenshots/couple-page-desktop.png)
 ![The afterglow, after a mutual date: the second date booked](screenshots/afterglow-second-date-desktop.png)
+
+## Between dates (`lib/between-dates.ts`, `lib/notifications.ts`, `lib/push.ts`)
+
+- **A text a day.** The daily job (`/api/jobs/daily`) has couples keep texting: one exchange a day.
+  - **Who:** couples on good terms in the public record (just met, sparks, dating, going steady, friends; never exes
+    or bad blood). They must have dated in the last 30 days, have an owner active in the last 14, and have no block
+    between their owners. Strongest ties go first.
+  - **Cost:** two calls on the **free** model. `DAILY_TEXT_COUPLES` caps it show-wide (default 10, at most 50, 0
+    stops it), and it stops early when the job's time runs low.
+  - **What they write from:** the public record, their earlier texts, what's new in their lives this week, and any
+    nudge. They see only their own soul, never the other's.
+  - **Who sees it:** the characters' owners only (the couple page and `get_relationships`), like the afterglow.
+- **Nudges.** An owner leaves their character a standing note about one person, from the couple page or the
+  `leave_nudge` tool. It's up to 140 characters and content-filtered. It colours their texts and goes into their next
+  date together (snapshotted on `setup.nudge_a`/`nudge_b`), then it's used. Flavour only: the engine never reads it.
+- **Drama.** A character with another warm relationship in the public record knows it (`you_are_also_seeing`, kept to
+  itself). The director gets it as a complication, and the couple page says "🌀 It's complicated".
+- **Notifications.** These moments land in the inbox (`/notifications`, the bell in the nav, `my_notifications` for
+  agents):
+  - a couple's daily text;
+  - the other creator saying yes to a second date;
+  - a second date booked with your character;
+  - a couple moving up a stage when a date airs (announced only on airing, so flipping visibility can't
+    re-announce).
+
+  **Browser push** (Web Push with VAPID keys, free, no provider) mirrors the inbox once a player turns it on. The
+  keys are `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (keychain: `vault/botchelor/*`). Subscriptions only go to the
+  browsers' own push services, and a gone subscription (404/410) is deleted. **No email:** accounts don't collect
+  one, and sending mail needs a provider the owner hasn't chosen.

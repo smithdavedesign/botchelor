@@ -211,6 +211,10 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
         "Play it as a rematch: they remember each other, and a callback to last time belongs in act one.",
     );
   }
+  // Drama: either of them is also seeing someone else (the public record).
+  characters.forEach((c, i) => {
+    if (c.alsoSeeing?.length) facts.push(`${names[i]} is also seeing ${c.alsoSeeing.join(" and ")}: a complication ${names[i]} keeps quiet about.`);
+  });
   // The relationship graph (lib/relationships.ts): where they stand, their inside jokes, and a second date's plan.
   // It also knows a date that hasn't aired yet, so a second date booked the morning after is never played cold.
   const pair = characters[0].pair ?? characters[1].pair;

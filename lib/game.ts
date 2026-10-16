@@ -101,6 +101,9 @@ export type DateSetup = {
   /** A second date: the date whose morning-after plan this is, and the plan itself (their texts). Flavour only. */
   followup_of?: string;
   plan?: string[];
+  /** Each owner's standing nudge about the other, as booked (lib/between-dates.ts). Private, flavour only. */
+  nudge_a?: string;
+  nudge_b?: string;
 };
 
 export type BoxScore = Record<DateVariable, VariableArc>;

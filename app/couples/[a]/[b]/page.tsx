@@ -6,7 +6,9 @@ import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
 import { getPublicCharacter, type PublicCharacter } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
+import { activeNudge, alsoSeeing, coupleTexts } from "@/lib/between-dates";
 import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships";
+import NudgeForm from "./NudgeForm";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +20,17 @@ async function load(a: string, b: string) {
   const [ca, cb] = await Promise.all([getPublicCharacter(db, a), getPublicCharacter(db, b)]);
   if (!ca || !cb) return null;
   const viewerId = userIdFromCookieStore(await cookies());
-  const owners = (await db.query<{ owner_id: string | null }>(`select owner_id from characters where id = any($1)`, [[a, b]])).rows;
+  const owners = (await db.query<{ id: string; owner_id: string | null }>(`select id, owner_id from characters where id = any($1)`, [[a, b]])).rows;
   const owner = viewerId !== null && owners.some((o) => o.owner_id === viewerId);
   const rel = await loadRelationship(db, a, b);
   const view = rel ? viewRelationship(rel, { userId: viewerId, owner }) : null;
-  return view ? { ca, cb, view, owner } : null;
+  if (!view) return null;
+  // Between dates (lib/between-dates.ts): who else each is seeing (public), and for owners their texts and nudges.
+  const [seeingA, seeingB] = await Promise.all([alsoSeeing(db, a, b), alsoSeeing(db, b, a)]);
+  const mine = owners.filter((o) => viewerId !== null && o.owner_id === viewerId).map((o) => o.id);
+  const texts = owner ? await coupleTexts(db, a, b, 12) : [];
+  const nudges = owner ? await Promise.all(mine.map(async (id) => ({ id, note: await activeNudge(db, id, id === a ? b : a) }))) : [];
+  return { ca, cb, view, owner, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, texts, nudges };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -48,7 +56,8 @@ export default async function CouplePage({ params }: Props) {
   if (a !== lo) permanentRedirect(`/couples/${lo}/${hi}`);
   const data = await load(lo, hi);
   if (!data) notFound();
-  const { ca, cb, view, owner } = data;
+  const { ca, cb, view, owner, seeing, texts, nudges } = data;
+  const complicated = [ca, cb].filter((c) => seeing[c.id]?.length);
   const nameOf = (id: string) => (id === ca.id ? ca.name : cb.name);
   const first = (c: PublicCharacter) => c.name.split(" ")[0];
 
@@ -75,8 +84,51 @@ export default async function CouplePage({ params }: Props) {
         <Meter label="How close they are" value={view.tie} />
         {view.chemistry !== null && <Meter label="Chemistry" value={view.chemistry / 100} />}
         {view.trust !== null && <Meter label="Trust" value={view.trust / 100} />}
-        {owner && <p className="muted small">You own one of them, so you also see your own private dates and their plans.</p>}
+        {complicated.length > 0 && (
+          <p className="notice">
+            🌀 It&apos;s complicated:{" "}
+            {complicated.map((c, i) => (
+              <span key={c.id}>
+                {i > 0 && "; "}
+                {first(c)} is also seeing {seeing[c.id].join(" and ")}
+              </span>
+            ))}
+            .
+          </p>
+        )}
+        {owner && <p className="muted small">You own one of them, so you also see your own private dates, their plans and their texts.</p>}
       </section>
+
+      {owner && texts.length > 0 && (
+        <section className="card afterglow">
+          <h2>Their texts</h2>
+          <p className="muted small">Between dates they keep texting, about once a day. Only the characters&apos; owners see this.</p>
+          {texts.map((t) => {
+            const c = t.who === "lo" ? ca : cb;
+            return (
+              <div key={`${t.day}-${t.seq}`} className={`turn turn-${t.who === "lo" ? "a" : "b"}`}>
+                <div className="turn-body">
+                  <p className="turn-line">
+                    <strong>{first(c)}</strong> {t.text}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      )}
+
+      {owner &&
+        nudges.map((n) => {
+          const me = n.id === ca.id ? ca : cb;
+          const them = n.id === ca.id ? cb : ca;
+          return (
+            <section key={n.id} className="card">
+              <h2>Nudge {first(me)}</h2>
+              <NudgeForm pair={[ca.id, cb.id]} characterId={me.id} name={me.name} other={them.name} current={n.note} />
+            </section>
+          );
+        })}
 
       <section className="card">
         <h2>Their dates</h2>

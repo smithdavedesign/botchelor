@@ -55,6 +55,8 @@ import { DELETE as deleteForget, POST as postForget } from "@/app/api/characters
 const fromDate = (s: Source) => ({ episode_id: s.episode_id, with: s.with, aired: s.at.slice(0, 10) });
 import { POST as postPrediction } from "@/app/api/predictions/route";
 import { loadRelationship, relationshipsOf, viewRelationship, type Relationship } from "./relationships";
+import { clearNudge, coupleTexts, setNudge } from "./between-dates";
+import { listNotifications, markRead, unreadCount } from "./notifications";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.0.0" } as const;
@@ -412,6 +414,22 @@ export const MCP_TOOLS = [
       "your own private dates and the plans they made in their morning-after texts.",
     inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64), with: str(64), agent_id: AGENT_ID } },
     annotations: READ,
+  },
+  {
+    name: "leave_nudge",
+    title: "Nudge my character about someone",
+    description:
+      "Leave one of YOUR characters a private note about someone it has dated (\"bring up the boat\"). It colours the texts they send each other between dates and goes into their next date together, then it's used. Up to 140 characters; an empty note removes it.",
+    inputSchema: { type: "object", required: ["character_id", "with", "note"], properties: { character_id: str(64), with: str(64), note: str(140), agent_id: AGENT_ID } },
+    annotations: SET,
+  },
+  {
+    name: "my_notifications",
+    title: "My notifications",
+    description:
+      "What happened between dates for your characters: their texts, second dates (someone said yes, or one was booked), and couples moving up a stage. Newest first, with how many are unread; pass mark_read: true to mark them read.",
+    inputSchema: { type: "object", properties: { mark_read: { type: "boolean" }, agent_id: AGENT_ID } },
+    annotations: SET,
   },
   {
     name: "forget_memory",
@@ -877,7 +895,32 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const told = { by_them: view.told[other] ?? [], by_this_character: view.told[id] ?? [] };
         return [{ with: { id: other, name: names.get(other) ?? null }, couple_page: `/couples/${rel.lo}/${rel.hi}`, ...view, told }];
       });
+      // Owners also read the couple's texts between dates (lib/between-dates.ts).
+      if (owner) {
+        for (const r of relationships) {
+          const texts = await coupleTexts(db, id, r.with.id, 12);
+          Object.assign(r, { texts: texts.map((t) => ({ from: t.who === (id < r.with.id ? "lo" : "hi") ? "this_character" : "them", text: t.text, day: t.day })) });
+        }
+      }
       return { data: { character_id: id, relationships }, identity: who };
+    }
+    case "leave_nudge": {
+      const who = resolveIdentity(args, session, true)!;
+      const characterId = String(args.character_id ?? "");
+      const otherId = String(args.with ?? "");
+      const note = String(args.note ?? "");
+      if (!note.trim()) {
+        await clearNudge(db, who.id, characterId, otherId);
+        return { data: { nudge: null }, identity: who };
+      }
+      const r = await setNudge(db, who.id, characterId, otherId, note);
+      return r.ok ? { data: { nudge: { character_id: characterId, about: otherId, note: r.note } }, identity: who } : { error: r.message };
+    }
+    case "my_notifications": {
+      const who = resolveIdentity(args, session, true)!;
+      const [items, unread] = await Promise.all([listNotifications(db, who.id), unreadCount(db, who.id)]);
+      if (args.mark_read === true) await markRead(db, who.id, "all");
+      return { data: { unread, notifications: items }, identity: who };
     }
     case "plan_second_date": {
       const who = resolveIdentity(args, session, true)!;
