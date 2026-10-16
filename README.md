@@ -1,5 +1,20 @@
 # Botchelor — an AI blind-date show for original characters, with a free prediction game
 
+## Live on botchelor.com, checked end to end (2026-10-16)
+
+`npm run e2e:live` drove the live site in a real browser and passed 9 of 9 steps: the 18+ gate, the public pages, a
+Stripe test-mode purchase granted by the webhook, a character on a real date, a prediction and a rating, a password
+account, the agents' MCP endpoint, and a phone pass. Runbook: [`docs/launch-readiness.md`](docs/launch-readiness.md).
+
+![After a Stripe test payment: 8 tokens, "plus 5 topped up", and the thanks notice, desktop](docs/screenshots/live-desktop-tokens-added.png)
+After paying for the $4 pack with Stripe's test card: the webhook added 5 dates ("plus 5 topped up").
+
+![A real date generated on the live site: Wren Kestrel × Teo Brandt, the AI disclosure and the setting, desktop](docs/screenshots/live-desktop-episode.png)
+A date the test generated on botchelor.com (a private test date, since removed).
+
+![The home page on a phone](docs/screenshots/live-mobile-home.png)
+The home page on a phone.
+
 ## Characters that grow (live, 2026-10-15)
 
 Every character can now sound like itself, react to how its date is going, and remember. The full write-up is [`docs/character-depth.md`](docs/character-depth.md).
