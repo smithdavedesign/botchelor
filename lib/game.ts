@@ -11,6 +11,7 @@ import {
   POINTS_PER_DEALBREAKER_PICK,
   POINTS_PER_DRAMA_PICK,
   POINTS_PER_MATCHMAKER,
+  POINTS_PER_ARC,
   POINTS_PER_RATING_RECEIVED,
   pointsFor,
   predictionPoints,
@@ -650,8 +651,10 @@ export async function getPoints(db: Db, userId: string): Promise<number> {
       + coalesce((select count(*) from character_ratings cr
                     join characters c on c.id = cr.character_id
                    where c.owner_id = $1), 0) * $6
+      + coalesce((select count(*) from arc_predictions ap
+                   where ap.user_id = $1 and ap.resolved_at is not null and ap.pick = ap.outcome), 0) * $7
      )::int as points`,
-    [userId, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, POINTS_PER_RATING_RECEIVED],
+    [userId, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, POINTS_PER_RATING_RECEIVED, POINTS_PER_ARC],
   );
   return rows[0]?.points ?? 0;
 }

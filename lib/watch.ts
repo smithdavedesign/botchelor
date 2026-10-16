@@ -557,7 +557,7 @@ export async function syncRoom(
     if (aired) {
       await updateCharacterMemory(db, aired.character_a).catch(() => {});
       await updateCharacterMemory(db, aired.character_b).catch(() => {});
-      await refreshAndAnnounce(db, aired.character_a, aired.character_b).catch(() => {});
+      await refreshAndAnnounce(db, aired.character_a, aired.character_b, { episodeId: exists.episode_id }).catch(() => {});
     }
   }
   return getRoomState(db, partyId, viewerId, now);

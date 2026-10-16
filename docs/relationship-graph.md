@@ -124,3 +124,33 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
   keys are `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (keychain: `vault/botchelor/*`). Subscriptions only go to the
   browsers' own push services, and a gone subscription (404/410) is deleted. **No email:** accounts don't collect
   one, and sending mail needs a provider the owner hasn't chosen.
+
+## Spectators: following couples and calling their arcs (`lib/follows.ts`, `lib/arcs.ts`)
+
+- **Follow a couple** from the couple page or `follow_couple`, once one of their dates has aired. Followers hear when
+  the couple goes on another public date, or moves up a stage. The page shows only how many follow.
+- **"Will they make it to date N?"** N is two past their public dates and at least 3, since date 2 is just the next
+  episode's prediction. Anyone calls it yes or no (`predict_arc`), once per question.
+  - A right call earns `POINTS_PER_ARC` (15) free points, in the points total and in the weekly league boards (the
+    week it settles).
+  - It settles from the public record, deterministically: **yes** once they've aired N dates; **no** if they break up
+    first (exes, bad blood), or after 21 days (the daily job sweeps those).
+  - Predictors get a notification either way.
+  - **Owners can't call their own couple:** they decide whether there's another date.
+
+## Measuring it (`lib/relationship-metrics.ts`)
+
+The admin panel ("Relationships: the long game", `/api/admin/relationships`, admin password) shows these, and the
+daily job logs them as `relationship_metrics`. Counts only, no content, no ids.
+
+- **Second-date conversion:** of the dates in the last 30 days where both wanted more, how many got their second date
+  booked, and how many are waiting on the other creator's yes.
+- **Couple depth:** how many dates couples reach (every date, and the public record), where they stand, and the deepest
+  couple.
+- **Between dates:** texts and couples texted this week, nudges left and used, follows, arc calls (open, settled,
+  right), notifications sent and read, and browsers with push on.
+- **Owners coming back:** of owners whose first date was 1–60 days ago, the share active again the next day (D1) and
+  within a week (D7). Active means a date, a second-date yes, a nudge, a prediction, an arc call, a follow, or opening
+  a notification.
+
+![The notifications inbox](screenshots/notifications-mobile.png)
