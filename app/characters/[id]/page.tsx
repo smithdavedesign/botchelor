@@ -25,6 +25,7 @@ import { ENDING_LABELS } from "@/lib/rules";
 import RatingButtons from "./RatingButtons";
 import OwnerControls from "./OwnerControls";
 import { isTalkLevel, type TalkLevel } from "@/lib/talk";
+import { partnerStyleOf } from "@/lib/partners";
 import LearnedPanel from "./LearnedPanel";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +87,8 @@ export default async function CharacterPage({ params }: Props) {
           db.query("select 1 from user_keys where user_id = $1 and provider = 'google' limit 1", [viewerId]),
         ]).then(([admin, tokens, key]) => ({ admin, boughtTokens: tokens.pack_left, hasKey: key.rows.length > 0, cost: CLIP_TOKEN_COST }))
       : null;
+  // One partner or more (lib/partners.ts): public as a badge, the setting for the owner.
+  const partnerStyle = c.house ? null : await partnerStyleOf(db, id);
   // Owner only: how much they talk (lib/talk.ts), and whether a text key makes marathon possible.
   const talk =
     ratings.is_owner && !c.house && viewerId
@@ -153,6 +156,10 @@ export default async function CharacterPage({ params }: Props) {
             {c.house && dating && !dating.can_ask_out && !PREMIUM_IDS.has(c.id) && <span className="badge">Off this season</span>}
             {dating?.made_by === "agent" && <span className="badge badge-agent">🤖 Agent-made</span>}
             {!c.house && dating?.open_to_dates && <span className="badge badge-open">💌 Open to dates</span>}
+            {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">💍 With {partnerStyle.partners[0].name.split(" ")[0]}</span>}
+            {partnerStyle && !partnerStyle.taken && partnerStyle.effective === "open" && (partnerStyle.choice === "open" || partnerStyle.decided) && (
+              <span className="badge">🌈 Open to more than one</span>
+            )}
           </h1>
           <p className="muted">
             Age {c.age}
@@ -168,7 +175,7 @@ export default async function CharacterPage({ params }: Props) {
         </div>
       </div>
 
-      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} clip={clip ?? undefined} talk={talk ?? undefined} />}
+      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} />}
       {plays && (
         <p className="muted small owner-temperament">
           🔒 How {c.name.split(" ")[0]} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}

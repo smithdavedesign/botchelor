@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TALK_LEVELS } from "@/lib/talk";
+import { PARTNER_STYLES, takenSql } from "@/lib/partners";
 import { deleteCharacter } from "@/lib/account";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
@@ -40,6 +41,8 @@ const CharacterPatch = z
     open_to_dates: z.boolean().optional(),
     // How much they talk on a date and in the texts after (lib/talk.ts). "marathon" needs the owner's own text key.
     talk: z.enum(TALK_LEVELS).nullable().optional(),
+    // One partner or more (lib/partners.ts); "decide" leaves it to the character.
+    partner_style: z.enum(PARTNER_STYLES).optional(),
     // Optional details (lib/extras.ts), replaced wholesale; null or {} clears them.
     extras: ExtrasInput.nullable().optional(),
     // What's new this week (lib/life.ts): a string lasts this season ("" = nothing new this week); null hands it
@@ -89,6 +92,7 @@ const COLUMN: Record<string, (v: Record<string, unknown>) => unknown> = {
   voice: (v) => v.voice ?? null,
   open_to_dates: (v) => v.open_to_dates === true,
   talk: (v) => (v.talk === "standard" ? null : (v.talk ?? null)),
+  partner_style: (v) => v.partner_style,
   extras: (v) => JSON.stringify(normaliseExtras(v.extras as ExtrasInputType | null)),
   this_week: (v) => (v.this_week === null ? null : JSON.stringify(stampThisWeek(v.this_week as string))),
 };
@@ -117,6 +121,20 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
     return json({ error: "content_rejected", reason: verdict.reason, field: verdict.field, message: REJECTION_MESSAGES[verdict.reason] }, 422, sess);
   }
 
+  // A one-partner character in a relationship can't reopen to dates; switching to more than one in the same edit can.
+  if (input.open_to_dates === true) {
+    const after = input.partner_style ?? null;
+    const taken = (
+      await db.query<{ taken: boolean }>(
+        `select ${takenSql("c")} as taken from characters c where c.id = $1`,
+        [id],
+      )
+    ).rows[0]?.taken;
+    if (taken && after !== "open") {
+      return json({ error: "taken", message: "They're with someone and want one partner. Set them to more than one first." }, 409, sess);
+    }
+  }
+
   if (input.talk === "marathon") {
     const key = await db.query(`select 1 from user_keys where user_id = $1 and kind = 'text' limit 1`, [sess.userId]);
     if (!key.rows.length) {
@@ -131,6 +149,10 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
       `update characters set ${sets.join(", ")} where id = $1 and owner_id = $2 and not is_house`,
       [id, sess.userId, ...columns.map((c) => COLUMN[c](input))],
     );
+  }
+  // Set to one partner while already with someone: off the market now, like when they first got together.
+  if (input.partner_style !== undefined) {
+    await db.query(`update characters c set open_to_dates = false where c.id = $1 and c.open_to_dates and ${takenSql("c")}`, [id]);
   }
 
   // The soul is replaced wholesale when present: a filled soul upserts, an empty one clears its text. Its

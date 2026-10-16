@@ -743,6 +743,10 @@ alter table characters add column if not exists open_to_dates boolean not null d
 -- content-filtered, editable any time. They flavour a date's dialogue; the engine never reads them.
 alter table characters add column if not exists extras jsonb not null default '{}'::jsonb;
 create index if not exists characters_open_idx on characters (open_to_dates) where open_to_dates;
+-- One partner or more (lib/partners.ts): the owner's choice ('decide' or null leaves it to the character), and what
+-- the character decided for itself the first time it was in a relationship.
+alter table characters add column if not exists partner_style text check (partner_style in ('one', 'open', 'decide'));
+alter table characters add column if not exists partner_style_decided text check (partner_style_decided in ('one', 'open'));
 -- How much the character talks (lib/talk.ts): the date's length and the texts after. Null is the standard.
 -- Never read by the engine, so it can't change how a date ends.
 alter table characters add column if not exists talk text check (talk in ('standard', 'longer', 'long', 'marathon'));

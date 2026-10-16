@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { requestJson } from "../../request";
 import { TALK, TALK_LEVELS, type TalkLevel } from "@/lib/talk";
+import { PARTNER_STYLE_LABELS, PARTNER_STYLES, type PartnerStyle } from "@/lib/partners-shared";
 
 type Props = {
   id: string;
@@ -15,6 +16,8 @@ type Props = {
   clip?: { admin: boolean; boughtTokens: number; hasKey: boolean; cost: number };
   /** How much they talk (lib/talk.ts), and whether the owner has a text key (marathon runs on it). */
   talk?: { level: TalkLevel; hasTextKey: boolean };
+  /** One partner or more (lib/partners.ts): the owner's choice, what the character decided, and who they're with. */
+  partners?: { choice: PartnerStyle; decided: "one" | "open" | null; taken: boolean; partners: { id: string; name: string }[] };
 };
 
 type Message = { text: string; error?: boolean; link?: { href: string; label: string } };
@@ -54,6 +57,23 @@ export default function OwnerControls(props: Props) {
     } else {
       setTalk(prev);
       setMessage({ text: res.message ?? "Couldn't save that.", error: true, link: next === "marathon" ? { href: "/account", label: "Add a text key" } : undefined });
+    }
+  }
+
+  const [partnerStyle, setPartnerStyle] = useState<PartnerStyle>(props.partners?.choice ?? "decide");
+
+  async function changePartnerStyle(next: PartnerStyle) {
+    const prev = partnerStyle;
+    setPartnerStyle(next);
+    setBusy(true);
+    const res = await requestJson(`/api/characters/${props.id}`, { partner_style: next }, "PATCH").catch(() => ({ ok: false, message: "Network error." }));
+    setBusy(false);
+    if (res.ok) {
+      setMessage(null);
+      router.refresh();
+    } else {
+      setPartnerStyle(prev);
+      setMessage({ text: res.message ?? "Couldn't save that.", error: true });
     }
   }
 
@@ -128,6 +148,28 @@ export default function OwnerControls(props: Props) {
           {openToDates ? "Close to dates" : "Open to dates"}
         </button>
       </p>
+      {props.partners && (
+        <div className="owner-talk">
+          <label htmlFor={`partners-${props.id}`}>One partner or more</label>
+          <select id={`partners-${props.id}`} value={partnerStyle} disabled={busy} onChange={(e) => void changePartnerStyle(e.target.value as PartnerStyle)}>
+            {PARTNER_STYLES.map((s) => (
+              <option key={s} value={s}>
+                {s === "decide" ? `Let ${props.name.split(" ")[0]} decide` : PARTNER_STYLE_LABELS[s]}
+              </option>
+            ))}
+          </select>
+          <p className="muted small">
+            {partnerStyle === "decide" && props.partners.decided
+              ? `${props.name.split(" ")[0]} decided: ${props.partners.decided === "open" ? "more than one" : "one partner"}. `
+              : partnerStyle === "decide"
+                ? `${props.name.split(" ")[0]} settles it from their own temperament the first time they're dating someone. `
+                : ""}
+            {props.partners.taken && props.partners.partners[0]
+              ? `With ${props.partners.partners[0].name} now, so closed to new dates until it cools off.`
+              : "One partner: once they're dating someone, they close to new dates and only see them. More than one: they keep dating."}
+          </p>
+        </div>
+      )}
       {props.talk && (
         <div className="owner-talk">
           <label htmlFor={`talk-${props.id}`}>How much {props.name.split(" ")[0]} talks</label>

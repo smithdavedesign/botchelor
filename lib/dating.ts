@@ -10,6 +10,7 @@
  * ends from the two characters on the night.
  */
 import { portraitPathSql } from "./assets";
+import { takenSql } from "./partners";
 import type { Db } from "./db";
 import { extrasText, type CharacterExtras } from "./extras";
 import { isOnSeasonCast, seasonCastIds } from "./season-cast";
@@ -140,7 +141,7 @@ async function candidates(db: Db, viewerId: string | null, openOnly: boolean, in
     `select ${PUBLIC_COLUMNS}
        from characters c
       where ((c.is_house and c.premium_sku is null and $2::boolean and c.id = any($4))
-             or (not c.is_house and (c.open_to_dates or not $3::boolean)))
+             or (not c.is_house and (c.open_to_dates or not $3::boolean) and not ${takenSql("c")}))
         and ($1::text is null or c.is_house or (c.owner_id <> $1 and ${NOT_BLOCKED}))
       order by c.is_house, c.created_at desc, c.id
       limit 300`,

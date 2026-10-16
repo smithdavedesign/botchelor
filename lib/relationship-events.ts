@@ -3,6 +3,7 @@
  * itself (lib/relationships.ts), which stays a pure, derived record.
  */
 import type { Db } from "./db";
+import { settleCommitment } from "./partners";
 import { resolveArcs } from "./arcs";
 import { followerIds } from "./follows";
 import { notifyAll, ownersOf } from "./notifications";
@@ -50,4 +51,6 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
     }
   }
   await resolveArcs(db, lo, hi).catch(() => 0);
+  // In a relationship now? Each side settles one partner or more, and a one-partner side closes to dates.
+  await settleCommitment(db, lo, hi).catch(() => {});
 }
