@@ -1113,6 +1113,7 @@ button.chosen {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  margin-top: 0.75rem;
 }
 
 .share input {
@@ -3063,8 +3064,10 @@ button.link-button.danger {
   margin-top: 1.25rem;
   flex-wrap: wrap;
 }
-.wizard-actions .button-ghost {
+.wizard-actions .button-ghost,
+.wizard-actions > * {
   margin-top: 0;
+  margin-bottom: 0;
 }
 .wizard-review-row {
   display: grid;

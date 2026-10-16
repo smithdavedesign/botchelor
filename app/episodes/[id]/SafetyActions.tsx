@@ -51,7 +51,7 @@ export default function SafetyActions({ episodeId, canBlock, blocked }: Props) {
         </form>
       )}
       {canBlock && (
-        <p>
+        <div className="safety-block">
           <button
             type="button"
             className="secondary"
@@ -59,13 +59,13 @@ export default function SafetyActions({ episodeId, canBlock, blocked }: Props) {
             onClick={() => run(() => requestJson("/api/blocks", { episode_id: episodeId }, blocked ? "DELETE" : "POST"))}
           >
             {blocked ? "Unblock this episode's creator" : "Block this episode's creator"}
-          </button>{" "}
-          <span className="muted">
+          </button>
+          <p className="muted small">
             {blocked
               ? "Blocked: their character from this episode stays out of your feed, and you won't be matched with them."
               : "Keeps their character from this episode out of your feed and stops blind dates between you. They stay anonymous, and aren't told."}
-          </span>
-        </p>
+          </p>
+        </div>
       )}
       {error && <p className="error">{error}</p>}
     </section>
