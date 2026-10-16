@@ -1989,6 +1989,16 @@ button.poll-option.chosen {
   color: var(--accent-2);
 }
 
+/* The second date (lib/second-date.ts): under the afterglow, when they both want one. */
+.second-date {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.second-date h3 {
+  margin: 0 0 0.4rem;
+}
+
 /* M11: the afterglow — the private morning-after text thread. Styled like the transcript timeline, in a
    warmer tint so it reads as texts rather than the date itself. */
 .afterglow .turn {

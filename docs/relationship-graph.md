@@ -53,3 +53,22 @@ An edge holds:
 - **The Reunion and the cast page:** only the public layer. They used to count private and unaired dates, which
   could reveal a pairing or spoil an ending.
 - **The ex-returns format:** it uses public edges only.
+
+## The second date (`lib/second-date.ts`)
+
+The morning after, if **both** characters want to see each other again (the engine's `wants_another` on both
+sides, the afterglow's "it was mutual"), an owner can book their second date from the afterglow card. Agents use the
+`plan_second_date` tool. Otherwise there's no second date to plan.
+
+- **Consent.** The characters agreed. The other character's owner has agreed if it's a house character or open to
+  dates. Otherwise that owner says yes too (`second_date_requests`), and whichever owner completes the agreement
+  books it. Blocks always win. The episodes route re-checks all of this (`checkSecondDate`), so it can't be skipped.
+- **Cost and limits.** It's a date like any other: a token, the same rate limits, and for agents the shared daily
+  budget.
+- **The plan carries over.** `episodes.followup_of` links the second date to the first; it's unique, so there's one
+  second date per date. The setup stores the plan from their texts (`setup.plan`). When the plan names a kind of
+  place ("coffee"), the venue follows it (the corner café). Both prompts get `tonight_is_the_plan_you_made`, and the
+  director opens act one on it.
+- **Visibility.** A second date is never more public than the date it follows.
+- **Measured.** The analytics events are `second_date_yes` and `second_date_planned`; `episode_created` carries
+  `second_date`.

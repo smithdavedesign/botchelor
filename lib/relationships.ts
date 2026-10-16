@@ -263,10 +263,13 @@ const PLAN_MAX = 200;
 const planWords = (text: string) => [...new Set(contentWords(text, 4))].filter((w) => !["bring", "next", "time", "meet", "works", "deal"].includes(w));
 
 function plansFrom(afterglow: AfterglowLine[], end: (side: "a" | "b") => End, episodeId: string): Plan[] {
-  // The last plan-like text from each side: the latest word on what they agreed.
+  // Each side's most concrete plan-like text: the one with the most to it (a place, a thing to bring), not a bare
+  // "Tuesday then." that only confirms it. Ties go to the later text.
+  const score = (t: string) => planWords(t).length + (venueForPlan([{ text: t }]) ? 3 : 0);
   const out: Plan[] = [];
   for (const side of ["a", "b"] as const) {
-    const line = [...afterglow].reverse().find((l) => l.side === side && PLAN.test(l.text) && checkFields({ line: l.text }).ok);
+    const lines = afterglow.filter((l) => l.side === side && PLAN.test(l.text) && checkFields({ line: l.text }).ok);
+    const line = lines.reduce<AfterglowLine | null>((best, l) => (!best || score(l.text) >= score(best.text) ? l : best), null);
     if (line) out.push({ text: line.text.slice(0, PLAN_MAX), by: end(side), episode_id: episodeId, status: "open", kept_in: null });
   }
   return out;
