@@ -473,7 +473,25 @@ h2 {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
 }
 
-/* ---------------- forms ---------------- */
+/* ---------------- forms ----------------
+   One control system for every field on the site (docs/brand.md, "Forms"). Every text-like input, whatever its
+   type (or none), every select and every textarea gets the same box: --control-h tall, --control-px of padding,
+   a --control-border edge at 3:1 and a --control-radius corner, so a password sits exactly like a handle and a
+   select lines up with the input beside it. Components size a control by setting the tokens, not by restyling
+   it. `npm run e2e:visual` audits every page against these rules. */
+
+:root {
+  /* 44px: the height of every single-line field and every default button (a comfortable touch target). */
+  --control-h: 2.75rem;
+  /* 36px: compact controls (button.small, inline toolbars). */
+  --control-h-sm: 2.25rem;
+  --control-px: 0.85rem;
+  --control-radius: 12px;
+  --control-border: 1.5px;
+  /* The focus halo every control shares, on top of the accent edge. */
+  --control-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
+  --control-ring-bad: 0 0 0 3px color-mix(in srgb, var(--bad) 24%, transparent);
+}
 
 label {
   display: block;
@@ -481,21 +499,58 @@ label {
   margin-top: 0.85rem;
 }
 
-input[type="text"],
-input[type="number"],
-input[type="email"],
+/* Every input that takes typed text: any type but the toggles, pickers and buttons (an untyped input is text). */
+input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="submit"], [type="button"], [type="reset"], [type="image"]),
 textarea,
 select {
   display: block;
   width: 100%;
-  margin-top: 0.3rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--field);
-  border-radius: 12px;
-  background: var(--card);
+  min-height: var(--control-h);
+  margin-top: 0.35rem;
+  padding: 0.5rem var(--control-px);
+  border: var(--control-border) solid var(--field);
+  border-radius: var(--control-radius);
+  background-color: var(--card);
   color: var(--ink);
   font: inherit;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  font-weight: 400;
+  line-height: 1.4;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+textarea {
+  min-height: 6rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+/* A select draws its own chevron (two gradient strokes in a theme token), so it matches the inputs in both
+   themes instead of the platform's grey arrow. */
+select {
+  width: auto;
+  max-width: 100%;
+  padding-right: calc(var(--control-px) + 1.25rem);
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - var(--control-px) - 6px) 50%, calc(100% - var(--control-px) - 1px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+select[multiple] {
+  padding-right: var(--control-px);
+  background-image: none;
+}
+
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]):hover:not(:disabled, :focus),
+textarea:hover:not(:disabled, :focus),
+select:hover:not(:disabled, :focus) {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--field));
 }
 
 input:focus-visible,
@@ -503,20 +558,135 @@ textarea:focus-visible,
 select:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: var(--control-ring);
 }
 
-select {
-  width: auto;
-  max-width: 100%;
+/* Invalid only once the person has interacted (or the app flags it), never on a fresh empty form. */
+input:user-invalid,
+textarea:user-invalid,
+select:user-invalid,
+[aria-invalid="true"] {
+  border-color: var(--bad);
+}
+input:user-invalid:focus-visible,
+textarea:user-invalid:focus-visible,
+select:user-invalid:focus-visible,
+[aria-invalid="true"]:focus-visible {
+  box-shadow: var(--control-ring-bad);
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  background-color: var(--paper-2);
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+input:read-only:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]) {
+  background-color: var(--paper);
+}
+
+/* Browser autofill paints its own yellow/blue fill: keep ours (the inset shadow is the only override Chrome
+   honours), and keep the focus halo when an autofilled field has focus. */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+  box-shadow: 0 0 0 100px var(--card) inset;
+}
+input:-webkit-autofill:focus-visible {
+  box-shadow: 0 0 0 100px var(--card) inset, var(--control-ring);
+}
+
+/* Phones: text under 16px makes iOS Safari zoom the page on focus. */
+@media (max-width: 640px) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* Checkboxes and radios: the native control (it keeps the platform's accessibility), at 18px in the brand
+   colour. A chip that hides its input (.pronoun-chip) overrides this. */
+input[type="checkbox"],
+input[type="radio"] {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0 0.45em 0 0;
+  accent-color: var(--accent-btn);
+  cursor: pointer;
+  vertical-align: -0.2em;
+}
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Sliders: a 24px-tall hit area around the native track, in the brand colour. */
+input[type="range"] {
+  display: block;
+  width: 100%;
+  height: 1.5rem;
+  margin: 0;
+  accent-color: var(--accent-btn);
+  background: transparent;
   cursor: pointer;
 }
+input[type="range"]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
 
+/* File pickers: the "Choose file" button becomes a secondary pill; the file name reads as body text. */
+input[type="file"] {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button {
+  min-height: var(--control-h-sm);
+  margin-right: 0.75rem;
+  padding: 0 1rem;
+  border: var(--control-border) solid var(--accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+input[type="file"]:hover::file-selector-button {
+  background: var(--soft);
+}
+input[type="file"]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+/* A checkbox or radio with its words beside it. The box sits on the first line of a wrapping label. */
 .check {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.6rem;
   align-items: flex-start;
   font-weight: 400;
+  cursor: pointer;
+}
+.check input[type="checkbox"],
+.check input[type="radio"] {
+  margin: calc((1.55em - 1.125rem) / 2) 0 0;
 }
 
 .traits {
@@ -525,9 +695,12 @@ select {
   gap: 0.5rem;
 }
 
+/* min-width: 0 undoes the browser's min-content default, which otherwise lets a fieldset grow past its card on a
+   phone to fit its widest child. */
 fieldset {
+  min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--control-radius);
   margin: 0.75rem 0 0;
   padding: 0.25rem 0.75rem 0.5rem;
 }
@@ -538,12 +711,14 @@ legend {
 
 /* ---------------- buttons ---------------- */
 
-/* The default button is a filled pill. Text-style actions (.link-button) and the variants below reset what they
-   don't use, so no component has to override the base button by hand. */
+/* The default button is a filled pill, exactly --control-h tall on one line (its vertical padding is derived
+   from the token), so a button lines up with the field beside it. Text-style actions (.link-button) and the
+   variants below reset what they don't use, so no component has to override the base button by hand. A
+   component that wants a shorter button sets --control-h on it rather than new padding. */
 button,
 a.button {
   margin-top: 1rem;
-  padding: 0.6rem 1.2rem;
+  padding: calc((var(--control-h) - 1.3em - 2 * var(--btn-border, 0px)) / 2) 1.25rem;
   border: 0;
   border-radius: 999px;
   background: var(--grad);
@@ -556,7 +731,7 @@ a.button {
   display: inline-block;
   cursor: pointer;
   box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--accent-btn) 70%, transparent);
-  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease, background-color 0.12s ease;
 }
 
 button:hover:not(:disabled),
@@ -565,12 +740,18 @@ a.button:hover {
   box-shadow: 0 10px 22px -8px color-mix(in srgb, var(--accent-btn) 75%, transparent);
 }
 
+button:active:not(:disabled),
+a.button:active {
+  transform: translateY(0);
+}
+
 button:focus-visible,
 a.button:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
+/* A disabled button here almost always means "busy" (a request in flight), hence the wait cursor. */
 button:disabled {
   opacity: 0.55;
   cursor: wait;
@@ -578,9 +759,10 @@ button:disabled {
 }
 
 button.secondary {
+  --btn-border: 1.5px;
   background: transparent;
   color: var(--accent-text);
-  border: 1.5px solid var(--accent);
+  border: var(--btn-border) solid var(--accent);
   box-shadow: none;
 }
 
@@ -589,8 +771,9 @@ button.secondary:hover:not(:disabled) {
 }
 
 button.small {
+  --control-h: var(--control-h-sm);
   margin-top: 0;
-  padding: 0.28rem 0.8rem;
+  padding-inline: 0.9rem;
   font-size: var(--text-sm);
 }
 
@@ -873,10 +1056,11 @@ button.chosen {
 
 .share input {
   flex: 1;
+  margin: 0;
 }
 
 .share button {
-  margin-top: 0.25rem;
+  margin: 0;
 }
 
 .report {
@@ -1161,6 +1345,16 @@ details.settings[open] > summary {
 .looks-fields {
   flex: 1;
   min-width: 0;
+}
+/* Phones: the avatar preview sits above the fields so they get the card's full width. */
+@media (max-width: 480px) {
+  .looks {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .looks-fields {
+    width: 100%;
+  }
 }
 
 .swatches {
@@ -1699,15 +1893,12 @@ button.poll-option.chosen {
   display: flex;
   gap: 0.5rem;
 }
+/* The chat box is the one pill-shaped field: it reads as a message composer, not a form. */
 .watch-compose input {
   flex: 1;
   min-width: 0;
-  padding: 0.55rem 0.8rem;
-  border: 1.5px solid var(--field);
+  margin: 0;
   border-radius: 999px;
-  background: var(--card);
-  color: var(--ink);
-  font: inherit;
 }
 .watch-compose button {
   margin: 0;
@@ -2522,6 +2713,7 @@ button.link-button.danger {
 }
 .visibility-pick select {
   width: auto;
+  margin: 0;
 }
 
 .character-clip {
@@ -2870,8 +3062,8 @@ button.link-button.danger {
 }
 button.dice {
   flex: none;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: var(--control-h);
+  height: var(--control-h);
   padding: 0;
   border-radius: 12px;
   background: var(--card);
@@ -2983,10 +3175,11 @@ button.dice:hover:not(:disabled) {
 }
 .learned-list button.link-button,
 .learned-forgotten button.link-button {
-  display: inline;
+  display: inline-flex;
+  vertical-align: baseline;
   padding: 0;
   margin: 0 0 0 0.35rem;
-  min-height: 0;
+  min-height: 1.5rem;
   background: none;
   box-shadow: none;
   border: 0;
@@ -3024,10 +3217,6 @@ button.dice:hover:not(:disabled) {
 }
 .temperament-end:last-child {
   text-align: left;
-}
-.temperament-row input[type="range"] {
-  width: 100%;
-  accent-color: var(--accent);
 }
 @media (max-width: 560px) {
   .temperament-row {

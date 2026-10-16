@@ -99,8 +99,23 @@ All in `globals.css`; reuse the class, don't restyle.
   sentence ("Sign in", "Delete", "Watch again"): no fill, no shadow, no lift, underlined, 24px tap target. Use it
   instead of restyling a button inline. `.danger` makes it red. Every button shows a 3px `--focus` ring on
   `:focus-visible`.
-- **Forms** — labels wrap their control; inputs/selects use `--field` borders (3:1, so the edge is visible) and a focus ring. Settings live
-  in a `<details class="card settings">` so the builder stays uncluttered.
+- **Forms** — one control system for every field; never restyle a control, set its tokens. Labels wrap their
+  control and stack above it.
+  - **Tokens:** `--control-h` (44px, every single-line field *and* default button), `--control-h-sm` (36px,
+    `button.small`), `--control-px`, `--control-radius` (12px), `--control-border` (1.5px `--field`, 3:1),
+    `--control-ring` / `--control-ring-bad` (the focus halo). A component that needs a shorter control sets
+    `--control-h` on it; the button's padding is derived from it, so text stays centred.
+  - **Text fields:** every input that takes text, *whatever its type or none* (text, password, email, url,
+    search, number, untyped), plus `textarea` (6rem, vertical resize) and `select` (same box, a token-coloured
+    chevron, `width: auto` unless a layout widens it). Hover tints the edge, focus adds the ring,
+    `:user-invalid` / `aria-invalid="true"` turns the edge `--bad` (only after the person has interacted),
+    disabled sits on `--paper-2`, autofill keeps the card fill. On phones (≤640px) field text is at least 16px
+    so iOS doesn't zoom on focus.
+  - **Toggles:** checkboxes and radios are the native control at 18px in `--accent-btn` (`accent-color`); put
+    one in `<label class="check">` with its words beside it. Sliders get `accent-color` and a 24px hit area.
+    File pickers render their button as a secondary pill.
+  - `fieldset` has `min-width: 0` so a group never pushes its card wider than a phone. Settings live in a
+    `<details class="card settings">` so the builder stays uncluttered.
 - **`.avatar`** — a pure gradient tile with initials (`app/Avatar.tsx`), seeded by character id so it never
   changes; house characters get a ring. No hosted images (see `docs/image-strategy.md`).
 - **`.transcript` / `.afterglow` timelines** — chat-style turns: avatar + bubble, alternating left (side a)
@@ -128,3 +143,8 @@ All in `globals.css`; reuse the class, don't restyle.
 3. New component? Give it a class here, make it work at phone width with the `--gutter`, and give it a
    `:focus-visible` state if it's interactive.
 4. Keep `body` background explicit and the page free of horizontal scroll on a phone.
+5. Run `npm run e2e:visual` (needs `CHROMIUM_PATH`). It opens every page at desktop and phone size in light and
+   dark, as a spectator, an owner and a signed-in member, and fails on unstyled or short fields, a label and
+   field sharing a line, tap targets under 24px, field text under 16px on a phone, light fields on the dark
+   theme, sideways scroll, controls off the edge, broken images and console errors. Screenshots and a contact
+   sheet land in `.data/visual/index.html`.
