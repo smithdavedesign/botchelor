@@ -45,6 +45,9 @@ export function trackingConfig(env: Record<string, string | undefined> = process
   };
 }
 
+/** Set by ?repohq-notrack=1 on any page (middleware.ts): this browser is the owner's, so app/funnel.ts never counts it. */
+export const NOTRACK_COOKIE = "repohq_notrack";
+
 /**
  * A link handed to AI agents (llms.txt, llms-full.txt, the MCP discovery doc), tagged so a visit that started
  * from an agent reading our docs shows up as its own source in analytics: utm_source=<doc>, utm_medium=ai_agent.

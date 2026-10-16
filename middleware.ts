@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ADULT_COOKIE } from "@/lib/age";
 import { track } from "@/lib/analytics";
 import { detectBot } from "@/lib/bots";
+import { NOTRACK_COOKIE } from "@/lib/tracking";
 import { metric } from "@vercel/functions";
 
 /**
@@ -32,6 +33,16 @@ const section = (path: string) => `/${path.split("/")[1] ?? ""}`;
  * people. Each pass is logged as a `bot_visit` so we can see who's reading the show.
  */
 export function middleware(req: NextRequest): NextResponse {
+  const res = route(req);
+  // ?repohq-notrack=1 marks the owner's browser for RepoHQ's funnel (app/funnel.ts). Set on whatever goes out, the
+  // 18+ gate's redirect included, so it sticks even before the gate is passed. 400 days: the most a browser keeps.
+  if (req.nextUrl.searchParams.get("repohq-notrack") === "1") {
+    res.cookies.set(NOTRACK_COOKIE, "1", { path: "/", maxAge: 60 * 60 * 24 * 400, sameSite: "lax", secure: true });
+  }
+  return res;
+}
+
+function route(req: NextRequest): NextResponse {
   const { pathname, search } = req.nextUrl;
 
   const doc = AGENT_DOCS[pathname];

@@ -34,6 +34,11 @@ The review's own recommendation was a hand-run season, and I agree. Post in r/Ch
 David has no OC community of his own (per the review), so this is cold outreach and may be slow or get removed. Plan for that.
 
 ## Must-haves before charging
+
+**Owner decision, 2026-10-16:** launch now without a lawyer's review ("go live yolo"), accepting the SB 243 and
+terms risk below. What's shipped stands in for it: the AI disclosure, the 18+ gate, the crisis links, the report
+button with owner review (/admin), and paid items that never touch points or rank.
+
 - Checkout.
 - Privacy and terms pages. Both are missing today, and launch checks are at 4/9.
 - 18+ gate, AI disclosure, crisis link and report button (M2).

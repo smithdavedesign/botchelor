@@ -35,11 +35,12 @@ export const NOTRACK_KEY = "repohq:notrack";
 function context(): FunnelContext | null {
   const cfg = (window as FunnelWindow).__bzFunnel;
   if (!cfg) return null;
-  let notrack = false;
+  // The owner's browser: the cookie middleware sets for ?repohq-notrack=1, or the older localStorage mark.
+  let notrack = /(?:^|;\s*)repohq_notrack=1(?:;|$)/.test(document.cookie);
   try {
-    notrack = Boolean(localStorage.getItem(NOTRACK_KEY));
+    notrack ||= Boolean(localStorage.getItem(NOTRACK_KEY));
   } catch {
-    /* storage blocked: still respect the other checks */
+    /* storage blocked: the cookie still counts */
   }
   // A choice made on the banner or the privacy page (lib/consent.ts) wins over the region's default.
   const stored = /(?:^|;\s*)bz_consent=(granted|denied)/.exec(document.cookie)?.[1];

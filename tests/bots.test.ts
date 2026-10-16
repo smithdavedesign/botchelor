@@ -49,6 +49,21 @@ describe("detectBot", () => {
 const request = (path: string, headers: Record<string, string> = {}) => new NextRequest(`http://localhost:3000${path}`, { headers });
 const isPassThrough = (res: Response) => res.headers.get("x-middleware-next") === "1" && !res.headers.get("location");
 
+describe("?repohq-notrack=1 marks the owner's browser for RepoHQ's funnel", () => {
+  const notrack = (res: Response) => res.headers.getSetCookie().find((c) => c.startsWith("repohq_notrack="));
+
+  it("sets the cookie even on the gate's redirect, so it sticks before the gate is passed", () => {
+    const res = middleware(request("/?repohq-notrack=1", { "user-agent": UA.chromeMac }));
+    expect(res.status).toBe(307);
+    expect(notrack(res)).toMatch(/^repohq_notrack=1;.*Max-Age=34560000/i);
+  });
+
+  it("sets it on a page that passes straight through, and nowhere without the parameter", () => {
+    expect(notrack(middleware(request("/feed?repohq-notrack=1", { "user-agent": UA.chromeMac, cookie: "bz_adult=1" })))).toBeTruthy();
+    expect(notrack(middleware(request("/feed", { "user-agent": UA.chromeMac, cookie: "bz_adult=1" })))).toBeUndefined();
+  });
+});
+
 describe("the 18+ gate lets bots through and still gates people", () => {
   it("sends a person without the adult cookie to the gate, remembering where they were going", () => {
     const res = middleware(request("/feed?x=1", { "user-agent": UA.chromeMac }));

@@ -304,6 +304,17 @@ describe("the Payment Link settings", () => {
     }
   });
 
+  it("on the production site a test-mode link means purchases aren't open (a real card would be declined)", () => {
+    const live = "https://buy.stripe.com/aB3cD4eF5gH6";
+    expect(paymentLinkFromEnv({ STRIPE_PAYMENT_LINK: FAKE_PAYMENT_LINK, VERCEL_ENV: "production" })).toBeNull();
+    expect(paymentLinkFromEnv({ STRIPE_PAYMENT_LINK: live, VERCEL_ENV: "production" })?.href).toBe(live);
+    // Previews, local runs and tests keep the test link; a deliberate test-mode run on prod can opt in.
+    expect(paymentLinkFromEnv({ STRIPE_PAYMENT_LINK: FAKE_PAYMENT_LINK, VERCEL_ENV: "preview" })?.href).toBe(FAKE_PAYMENT_LINK);
+    expect(
+      paymentLinkFromEnv({ STRIPE_PAYMENT_LINK: FAKE_PAYMENT_LINK, VERCEL_ENV: "production", STRIPE_ALLOW_TEST_LINK: "1" })?.href,
+    ).toBe(FAKE_PAYMENT_LINK);
+  });
+
   it("adds the order id as client_reference_id without touching the configured link", () => {
     const link = new URL(`${FAKE_PAYMENT_LINK}?prefilled_promo_code=LAUNCH`);
     const orderId = "4f1c2b8e-1111-4222-8333-944455556666";

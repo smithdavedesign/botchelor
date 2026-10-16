@@ -5,8 +5,9 @@ original character on a blind date, post each episode with a prediction, and off
 episode got a reaction. Post as yourself, say you made it, and read each community's self-promotion rules (and ask
 a moderator where it's unclear) before posting. Nothing here should go out under anyone else's name.
 
-**Before posting:** live payments switched on (Stripe live link + webhook), the custom domain connected if you're
-buying one (links shouldn't move after they're shared), and your own browsers marked with `?repohq-notrack=1`.
+**Before posting:** botchelor.com is live (2026-10-16). Your own browsers marked with `?repohq-notrack=1`. Live
+payments: until the Stripe link is a live-mode one, the production shop says "purchases open soon" (a test-mode
+link would decline real cards), so the free show can launch first and Buy appears the moment a live link is set.
 
 ## Links (one per channel, so every analytics tool can tell them apart)
 
@@ -77,7 +78,7 @@ auth). Docs: `https://botchelor.com/agents`, `https://botchelor.com/llms.txt`.
 
 | Directory | How |
 |---|---|
-| Official MCP Registry | `registry/server.json` is ready. Install `mcp-publisher` (github.com/modelcontextprotocol/registry), then from `registry/`: `mcp-publisher login github` (signs in as smithdavedesign, which owns the `io.github.smithdavedesign/*` name) and `mcp-publisher publish`. If it reports a newer schema, `mcp-publisher init` regenerates the file. |
+| Official MCP Registry | Automated: `.github/workflows/mcp-registry.yml` publishes `registry/server.json` with GitHub OIDC whenever it changes on main (bump `version`), or `gh workflow run mcp-registry.yml`. |
 | Smithery, Glama, PulseMCP, mcp.so | Each has a "submit a server" form for remote servers; paste the endpoint and the short description. Several also pick up servers from the official registry on their own. |
 
 ## The $4 offer (DM to a creator whose episode got a reaction)
