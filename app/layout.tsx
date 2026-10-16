@@ -12,6 +12,7 @@ import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import ConsentBanner from "./ConsentBanner";
+import FunnelBeacon from "./FunnelBeacon";
 import Nav from "./Nav";
 import { CrisisResources } from "./Notices";
 import "./globals.css";
@@ -104,6 +105,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           </p>
         </footer>
         {google && consent.ask && <ConsentBanner />}
+        <FunnelBeacon production={TRACKING.vercelAnalytics} consentDefault={consent.granted} />
         {TRACKING.vercelAnalytics && <Analytics />}
         {TRACKING.vercelAnalytics && <SpeedInsights />}
       </body>

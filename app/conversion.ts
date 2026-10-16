@@ -1,4 +1,5 @@
 import { track } from "@vercel/analytics";
+import { sendFunnel } from "./funnel";
 
 /**
  * The show's conversions, sent from the browser to Vercel Web Analytics (custom events), to GA4 as gtag events
@@ -25,4 +26,6 @@ export function trackConversion(name: Conversion, props: Props = {}): void {
   } catch {
     /* ignore */
   }
+  // Starting a date is the core action RepoHQ counts as activation (GROWTH.md); the beacon sends it once per browser.
+  if (name === "date_started") sendFunnel("activate");
 }

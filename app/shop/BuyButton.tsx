@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { sendFunnel } from "@/app/funnel";
 import { requestJson } from "@/app/request";
 
 /**
@@ -15,6 +16,8 @@ export default function BuyButton({ sku, label, disabled }: { sku: string; label
   async function buy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    // Intent to pay, for RepoHQ's funnel (app/funnel.ts): every Buy click, whether or not checkout opens.
+    sendFunnel("checkout");
     setBusy(true);
     setError(null);
     try {
