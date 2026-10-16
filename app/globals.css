@@ -1,24 +1,54 @@
 @import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Inter:wght@400;500;600;700&display=swap");
 
+/*
+ * Design tokens. Every colour pairing below is checked against WCAG 2.2 (see docs/brand.md, "Contrast"):
+ * text tokens clear 4.5:1 on every surface they sit on, control edges and focus rings clear 3:1.
+ * Light is the default; dark follows prefers-color-scheme. Components use tokens, never raw hex.
+ */
 :root {
+  color-scheme: light;
   --ink: #241022;
-  /* Muted text. Darkened from #7a6a7e so even the small meta text (0.78rem) clears WCAG AA (4.5:1) on
-     the paper and card backgrounds. See docs/brand.md. */
+  /* Muted text. Darkened from #7a6a7e so even the small meta text clears WCAG AA (4.5:1) on paper and card. */
   --muted: #6a5a6f;
   --paper: #fdf6f4;
   --paper-2: #fbe9ee;
   --card: #ffffff;
+  /* Brand pink for decoration: outlines, borders, active indicators. Too light for text (see --accent-text). */
   --accent: #e5356b;
-  --accent-2: #8b45e0;
+  /* Brand pink for text and links: 4.5:1 on card, paper, soft and paper-2. */
+  --accent-text: #b52c59;
+  /* Gradient start for filled buttons. White label text clears 4.5:1 on it. */
+  --accent-btn: #c82f60;
+  --accent-2: #7a36c9;
+  /* Text and icons placed on a --grad or --accent-btn fill. */
   --accent-ink: #ffffff;
   --line: #f0dde4;
+  /* Edges of controls (inputs, toggles, chips, reaction buttons): 3:1 against the surface (WCAG 1.4.11). */
+  --field: #9a7d91;
+  /* Keyboard focus ring: 3:1 against paper and card. */
+  --focus: #e5356b;
   --soft: #fde4ec;
   --ok: #16a34a;
+  --ok-text: #166534;
+  --warn: #92400e;
+  /* Fixed pastel chips (medals, cosmetic frames). They keep a light surface and a dark label in both themes. */
+  --medal-gold: #fff3bf;
+  --medal-gold-ink: #8a6100;
+  --medal-silver: #eceff1;
+  --medal-silver-ink: #495057;
+  --medal-bronze: #ffe8cc;
+  --medal-bronze-ink: #a14d00;
+  --frame-rose: #e64980;
+  --frame-rose-bg: #fff0f6;
+  --frame-gold: #e0a100;
+  --frame-gold-bg: #fff9db;
+  --frame-ink: #241022;
   --bad: #dc2626;
+  --bad-text: #b91c1c;
   --radius: 16px;
   --shadow: 0 1px 2px rgba(36, 16, 34, 0.05), 0 10px 30px -16px rgba(36, 16, 34, 0.22);
   --shadow-sm: 0 1px 2px rgba(36, 16, 34, 0.06);
-  --grad: linear-gradient(120deg, var(--accent), var(--accent-2));
+  --grad: linear-gradient(120deg, var(--accent-btn), var(--accent-2));
   /* The spacing scale (docs/brand.md). New and updated components use these so rhythm stays consistent. */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -29,29 +59,61 @@
   --space-8: 3rem;
   /* The page gutter: a 16px minimum side margin on phones, a little more where there's room. */
   --gutter: clamp(1rem, 4vw, 1.25rem);
-  /* The type scale (fluid where it helps). Fraunces for display, Inter for body. */
-  --text-xs: 0.78rem;
-  --text-sm: 0.88rem;
+  /*
+   * The type scale. Every step is fluid: it grows from the phone size (first value) to the desktop size
+   * (last value) with the viewport, so small text never shrinks below a readable size on a phone and
+   * controls keep their proportions in narrow cards. Fraunces for display, Inter for body.
+   */
+  --text-2xs: clamp(0.75rem, 0.73rem + 0.2vw, 0.8rem); /* pills, eyebrow labels */
+  --text-xs: clamp(0.8rem, 0.76rem + 0.2vw, 0.86rem); /* meta, captions, chips */
+  --text-sm: clamp(0.84rem, 0.8rem + 0.2vw, 0.92rem); /* secondary text, compact buttons */
+  --text-btn: clamp(0.92rem, 0.88rem + 0.2vw, 1rem); /* button labels */
   --text-base: 1rem;
-  --text-lg: 1.15rem;
-  --text-xl: clamp(1.3rem, 3vw, 1.6rem);
+  --text-md: clamp(1rem, 0.96rem + 0.2vw, 1.08rem);
+  --text-lg: clamp(1.08rem, 1rem + 0.4vw, 1.2rem);
+  --text-xl: clamp(1.3rem, 1.1rem + 0.9vw, 1.6rem);
+  --text-2xl: clamp(1.5rem, 1.2rem + 1.4vw, 2rem);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
     --ink: #f5e9f0;
     --muted: #b49fbd;
     --paper: #130a16;
     --paper-2: #1d1024;
     --card: #1e1324;
     --accent: #ff5e8c;
+    --accent-text: #ff5e8c;
+    --accent-btn: #ff5e8c;
     --accent-2: #a98bff;
+    /* Dark label on the bright dark-mode gradient: white would fall to 2.9:1 there. */
+    --accent-ink: #130a16;
     --line: #342140;
+    --field: #7a5f93;
+    --focus: #ff5e8c;
     --soft: #2a1730;
     --ok: #3ddc84;
+    --ok-text: #3ddc84;
+    --warn: #fbbf24;
     --bad: #ff6b6b;
+    --bad-text: #ff6b6b;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 40px -18px rgba(0, 0, 0, 0.7);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Users who ask for more contrast get darker secondary text and stronger control edges, in both themes. */
+@media (prefers-contrast: more) {
+  :root {
+    --muted: #4f3f54;
+    --field: #6b5570;
+  }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root {
+    --muted: #d6c6e0;
+    --field: #9d84b3;
   }
 }
 
@@ -101,7 +163,7 @@ body {
   z-index: 100;
   padding: 0.5rem 0.9rem;
   border-radius: 10px;
-  background: var(--accent);
+  background: var(--accent-btn);
   color: var(--accent-ink);
   font-weight: 700;
   text-decoration: none;
@@ -119,8 +181,13 @@ main {
 }
 
 a {
-  color: var(--accent);
+  color: var(--accent-text);
   text-underline-offset: 2px;
+}
+a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 h1,
@@ -167,7 +234,7 @@ h2 {
 
 .logo {
   font-weight: 800;
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
   text-decoration: none;
   background: var(--grad);
   -webkit-background-clip: text;
@@ -177,12 +244,18 @@ h2 {
 
 .tagline {
   color: var(--muted);
-  font-size: 0.95rem;
+  font-size: var(--text-md);
 }
 
 .tagline,
 .muted {
   color: var(--muted);
+}
+
+/* A size helper for secondary text in a paragraph (`<p className="muted small">`). It was referenced in markup
+   but never defined, so that text rendered at body size. */
+.small {
+  font-size: var(--text-sm);
 }
 
 .nav {
@@ -196,7 +269,7 @@ h2 {
   text-decoration: none;
   color: var(--ink);
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: var(--text-sm);
   padding: 0.4rem 0.7rem;
   border-radius: 999px;
   transition: background 0.15s ease, color 0.15s ease;
@@ -204,12 +277,12 @@ h2 {
 
 .nav a:hover {
   background: var(--soft);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .nav a[aria-current="page"] {
   background: var(--soft);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* The token meter (nav): always visible, a pill that doubles as the top-up entry. One token = one date. */
@@ -223,7 +296,7 @@ h2 {
   background: var(--card);
   color: var(--ink);
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   line-height: 1;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
 }
@@ -233,7 +306,7 @@ h2 {
   transform: translateY(-1px);
 }
 .token-pip {
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 1rem;
 }
 .token-count {
@@ -244,10 +317,10 @@ h2 {
   font-weight: 600;
 }
 .nav a.token-pill.low {
-  border-color: color-mix(in srgb, #d97706 70%, var(--line));
+  border-color: color-mix(in srgb, var(--warn) 70%, var(--line));
 }
 .nav a.token-pill.low .token-pip {
-  color: #d97706;
+  color: var(--warn);
 }
 .nav a.token-pill.empty {
   border-color: var(--bad);
@@ -255,7 +328,7 @@ h2 {
 }
 .nav a.token-pill.empty .token-pip,
 .nav a.token-pill.empty .token-count {
-  color: var(--bad);
+  color: var(--bad-text);
 }
 
 /* The hamburger: hidden on desktop, shown on phones. The bars morph to an × when open. */
@@ -267,7 +340,7 @@ h2 {
   height: 2.4rem;
   border-radius: 12px;
   background: var(--card);
-  border: 1.5px solid var(--line);
+  border: 1.5px solid var(--field);
   box-shadow: none;
   cursor: pointer;
   align-items: center;
@@ -357,7 +430,7 @@ h2 {
   padding: 1.5rem 1.25rem 2.5rem;
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 /* ---------------- hero ---------------- */
@@ -417,7 +490,7 @@ select {
   width: 100%;
   margin-top: 0.3rem;
   padding: 0.55rem 0.7rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--field);
   border-radius: 12px;
   background: var(--card);
   color: var(--ink);
@@ -465,6 +538,8 @@ legend {
 
 /* ---------------- buttons ---------------- */
 
+/* The default button is a filled pill. Text-style actions (.link-button) and the variants below reset what they
+   don't use, so no component has to override the base button by hand. */
 button,
 a.button {
   margin-top: 1rem;
@@ -474,23 +549,25 @@ a.button {
   background: var(--grad);
   color: var(--accent-ink);
   font: inherit;
+  font-size: var(--text-btn);
   font-weight: 700;
+  line-height: 1.3;
   text-decoration: none;
   display: inline-block;
   cursor: pointer;
-  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--accent-btn) 70%, transparent);
   transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
 }
 
 button:hover:not(:disabled),
 a.button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 22px -8px color-mix(in srgb, var(--accent) 75%, transparent);
+  box-shadow: 0 10px 22px -8px color-mix(in srgb, var(--accent-btn) 75%, transparent);
 }
 
 button:focus-visible,
 a.button:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -502,8 +579,8 @@ button:disabled {
 
 button.secondary {
   background: transparent;
-  color: var(--accent);
-  border: 1.5px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+  color: var(--accent-text);
+  border: 1.5px solid var(--accent);
   box-shadow: none;
 }
 
@@ -514,7 +591,7 @@ button.secondary:hover:not(:disabled) {
 button.small {
   margin-top: 0;
   padding: 0.28rem 0.8rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 button.chosen {
@@ -565,7 +642,7 @@ button.chosen {
 
 .matchup .vs {
   font-family: "Fraunces", serif;
-  font-size: 1.4rem;
+  font-size: var(--text-xl);
   color: var(--muted);
 }
 
@@ -585,8 +662,8 @@ button.chosen {
   padding: 0.15rem 0.6rem;
   border-radius: 999px;
   background: var(--soft);
-  color: var(--accent);
-  font-size: 0.78rem;
+  color: var(--accent-text);
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 
@@ -596,8 +673,8 @@ button.chosen {
   padding: 0.05rem 0.55rem;
   border-radius: 999px;
   background: var(--soft);
-  color: var(--accent);
-  font-size: 0.72rem;
+  color: var(--accent-text);
+  font-size: var(--text-2xs);
   font-weight: 700;
   vertical-align: middle;
 }
@@ -632,11 +709,11 @@ button.chosen {
   align-items: center;
   gap: 0.4rem;
   padding: 0.25rem 0.6rem 0.25rem 0.3rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--field);
   border-radius: 999px;
   background: var(--card);
   color: inherit;
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   cursor: pointer;
 }
@@ -664,10 +741,10 @@ button.chosen {
   align-items: center;
   margin: 0;
   padding: 0.35rem 0.85rem;
-  border: 1.5px solid var(--line);
+  border: 1.5px solid var(--field);
   border-radius: 999px;
   background: var(--card);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
 }
@@ -677,13 +754,13 @@ button.chosen {
   pointer-events: none;
 }
 .pronoun-chip:has(input:focus-visible) {
-  outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 .pronoun-chip.chosen {
   border-color: var(--accent);
   background: var(--soft);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .voice-picks {
   display: flex;
@@ -702,7 +779,7 @@ button.chosen {
   padding: 0.45rem 0.7rem;
   border-radius: 10px;
   background: color-mix(in srgb, var(--accent-2) 10%, transparent);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 .look-chip.chosen {
@@ -741,38 +818,38 @@ button.chosen {
 /* ---------------- misc text ---------------- */
 
 .error {
-  color: var(--bad);
+  color: var(--bad-text);
   font-weight: 600;
 }
 
 .notice {
-  color: var(--ok);
+  color: var(--ok-text);
   font-weight: 600;
 }
 
 .kicker {
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
   margin-bottom: 0.25rem;
 }
 
 .ending {
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
   font-weight: 800;
 }
 
 .creators {
-  font-size: 1.05rem;
+  font-size: var(--text-md);
 }
 
 .notices {
   border-left: 3px solid var(--accent);
   padding: 0.25rem 0 0.25rem 0.85rem;
   margin: 0.75rem 0;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
 .notices p {
@@ -780,7 +857,7 @@ button.chosen {
 }
 
 .crisis {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -881,23 +958,23 @@ button.chosen {
   min-width: 4.2rem;
   padding: 0 0.45rem;
   border-radius: 999px;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
 .medal-1 {
-  background: #fff3bf;
-  color: #8a6100;
+  background: var(--medal-gold);
+  color: var(--medal-gold-ink);
 }
 
 .medal-2 {
-  background: #eceff1;
-  color: #495057;
+  background: var(--medal-silver);
+  color: var(--medal-silver-ink);
 }
 
 .medal-3 {
-  background: #ffe8cc;
-  color: #a14d00;
+  background: var(--medal-bronze);
+  color: var(--medal-bronze-ink);
 }
 
 /* ---------------- cosmetic frames ---------------- */
@@ -910,13 +987,15 @@ button.chosen {
 }
 
 .frame-rose {
-  border-color: #e64980;
-  background: #fff0f6;
+  border-color: var(--frame-rose);
+  background: var(--frame-rose-bg);
+  color: var(--frame-ink);
 }
 
 .frame-gold {
-  border-color: #e0a100;
-  background: #fff9db;
+  border-color: var(--frame-gold);
+  background: var(--frame-gold-bg);
+  color: var(--frame-ink);
 }
 
 /* ---------------- date settings / box score / quiz ---------------- */
@@ -932,7 +1011,7 @@ details.settings {
 details.settings > summary {
   cursor: pointer;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
   list-style: none;
 }
 
@@ -997,11 +1076,11 @@ details.settings[open] > summary {
 }
 
 .delta.up {
-  color: var(--ok);
+  color: var(--ok-text);
 }
 
 .delta.down {
-  color: var(--bad);
+  color: var(--bad-text);
 }
 
 .delta.flat {
@@ -1011,7 +1090,7 @@ details.settings[open] > summary {
 .bestline {
   margin-top: 0.85rem;
   font-style: italic;
-  font-size: 1.2rem;
+  font-size: var(--text-lg);
   color: var(--ink);
 }
 
@@ -1043,11 +1122,11 @@ details.settings[open] > summary {
 
 .act {
   margin: 1.1rem 0 0.25rem;
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--accent);
+  color: var(--accent-text);
   font-family: "Inter", sans-serif;
 }
 
@@ -1121,7 +1200,7 @@ button.swatch.chosen {
 
 .file-note {
   display: block;
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   margin-top: 0.2rem;
 }
 
@@ -1156,7 +1235,7 @@ button.swatch.chosen {
 }
 
 .lede {
-  font-size: 1.15rem;
+  font-size: var(--text-lg);
   max-width: 44ch;
 }
 
@@ -1178,7 +1257,7 @@ button.swatch.chosen {
   padding: 0.6rem 1.2rem;
   border-radius: 999px;
   border: 1.5px solid color-mix(in srgb, var(--accent) 55%, var(--line));
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 700;
   text-decoration: none;
 }
@@ -1199,7 +1278,7 @@ button.button-ghost:hover:not(:disabled) {
 }
 
 .trust-micro {
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   color: var(--muted);
   margin-top: 0.85rem;
 }
@@ -1226,7 +1305,7 @@ button.button-ghost:hover:not(:disabled) {
 }
 
 .mini-cap {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   text-align: center;
   margin: 0;
 }
@@ -1245,13 +1324,13 @@ button.button-ghost:hover:not(:disabled) {
 .feature h3 {
   margin: 0 0 0.35rem;
   font-family: "Fraunces", Georgia, serif;
-  font-size: 1.15rem;
+  font-size: var(--text-lg);
 }
 
 .proof {
   background: color-mix(in srgb, var(--accent) 6%, var(--card));
   border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
-  font-size: 1.05rem;
+  font-size: var(--text-md);
 }
 
 .faq details {
@@ -1300,7 +1379,7 @@ button.button-ghost:hover:not(:disabled) {
 }
 .watch-title h1 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
 }
 .watch-avatars,
 .watch-lobby-avatars {
@@ -1320,7 +1399,7 @@ button.button-ghost:hover:not(:disabled) {
   align-items: center;
   gap: 0.4rem;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .watch-dot {
   width: 9px;
@@ -1369,8 +1448,8 @@ button.button-ghost:hover:not(:disabled) {
   padding: 0.15rem 0.6rem;
   border-radius: 999px;
   background: var(--soft);
-  color: var(--accent);
-  font-size: 0.82rem;
+  color: var(--accent-text);
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 .watch-goals {
@@ -1407,7 +1486,7 @@ button.button-ghost:hover:not(:disabled) {
   border-radius: 999px;
   background: var(--card);
   color: var(--ink);
-  border: 1.5px solid var(--line);
+  border: 1.5px solid var(--field);
   box-shadow: none;
   font-weight: 600;
 }
@@ -1420,7 +1499,7 @@ button.button-ghost:hover:not(:disabled) {
   background: var(--soft);
 }
 .watch-react-emoji {
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
 }
 
 .watch-poll .choices,
@@ -1462,7 +1541,7 @@ button.button-ghost:hover:not(:disabled) {
 }
 .watch-results li.leading .watch-result-label {
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* Audience polls + predictions: while open, big tappable choices (radio-like) with a live countdown; once
@@ -1483,7 +1562,7 @@ button.button-ghost:hover:not(:disabled) {
   gap: 0.35rem;
   padding: 0.15rem 0.6rem;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1492,7 +1571,7 @@ button.button-ghost:hover:not(:disabled) {
 }
 .poll-status.live {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .poll-status.closed {
   background: var(--paper-2);
@@ -1532,7 +1611,7 @@ button.poll-option.chosen:hover:not(:disabled) {
 button.poll-option.chosen {
   border-color: transparent;
   background: var(--grad);
-  color: #fff;
+  color: var(--accent-ink);
 }
 .poll-dot {
   flex: 0 0 auto;
@@ -1542,8 +1621,8 @@ button.poll-option.chosen {
   border: 2px solid color-mix(in srgb, var(--accent) 60%, var(--line));
 }
 .poll-option.chosen .poll-dot {
-  border-color: #fff;
-  background: #fff;
+  border-color: var(--accent-ink);
+  background: var(--accent-ink);
   box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 80%, #000);
 }
 .poll-label {
@@ -1551,15 +1630,15 @@ button.poll-option.chosen {
 }
 .poll-mine {
   flex: 0 0 auto;
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 .poll-yours {
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .watch-poll.is-closed .watch-bar {
   opacity: 0.75;
@@ -1592,7 +1671,7 @@ button.poll-option.chosen {
 }
 .watch-msg {
   margin: 0;
-  font-size: 0.92rem;
+  font-size: var(--text-sm);
   line-height: 1.4;
   word-break: break-word;
 }
@@ -1601,7 +1680,7 @@ button.poll-option.chosen {
   margin-right: 0.3rem;
 }
 .watch-msg.mine strong {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .watch-report {
   margin: 0 0 0 0.35rem;
@@ -1609,12 +1688,12 @@ button.poll-option.chosen {
   background: none;
   box-shadow: none;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   vertical-align: baseline;
 }
 .watch-report:hover:not(:disabled) {
   transform: none;
-  color: var(--bad);
+  color: var(--bad-text);
 }
 .watch-compose {
   display: flex;
@@ -1624,7 +1703,7 @@ button.poll-option.chosen {
   flex: 1;
   min-width: 0;
   padding: 0.55rem 0.8rem;
-  border: 1.5px solid var(--line);
+  border: 1.5px solid var(--field);
   border-radius: 999px;
   background: var(--card);
   color: var(--ink);
@@ -1634,7 +1713,7 @@ button.poll-option.chosen {
   margin: 0;
 }
 .watch-fineprint {
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   margin: 0;
 }
 
@@ -1664,16 +1743,16 @@ button.poll-option.chosen {
   flex: 1;
 }
 .watch-lobby-meta strong {
-  font-size: 1.05rem;
+  font-size: var(--text-md);
 }
 .watch-lobby-live {
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--muted);
   white-space: nowrap;
 }
 .watch-lobby-live.on {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* A format badge reads as the episode's billing, so it takes the second accent to stand apart from the
@@ -1722,7 +1801,7 @@ button.poll-option.chosen {
   gap: 0.35rem;
   padding: 0.3rem 0.7rem;
   border-radius: 999px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--field);
   background: var(--card);
   color: var(--ink);
   font-size: var(--text-sm);
@@ -1735,7 +1814,7 @@ button.rating-chip:hover {
 .rating-chip.on {
   background: var(--soft);
   border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .rating-chip.is-count {
   cursor: default;
@@ -1781,7 +1860,7 @@ button.rating-chip:hover {
   padding: 0.05rem 0.55rem;
   border-radius: 999px;
   background: var(--soft);
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -1969,7 +2048,7 @@ button.rating-chip:hover {
 .scene-name {
   margin: 0;
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: var(--text-md);
   color: #fff;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
 }
@@ -2015,7 +2094,7 @@ button.rating-chip:hover {
 }
 .theater-id strong {
   font-family: "Fraunces", Georgia, serif;
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
 }
 .theater-tools {
   display: flex;
@@ -2059,7 +2138,7 @@ button.rating-chip:hover {
 }
 .theater-verdict .ending {
   color: #fff;
-  font-size: 1.4rem;
+  font-size: var(--text-xl);
   margin: 0 0 0.3rem;
 }
 .theater-verdict .muted {
@@ -2086,7 +2165,7 @@ button.rating-chip:hover {
   margin: var(--space-4) 0 var(--space-2);
   padding: 0.2rem 0.75rem;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2105,7 +2184,7 @@ button.rating-chip:hover {
   max-width: 34ch;
   margin: 0 auto var(--space-2);
   text-align: center;
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   font-style: italic;
   color: var(--muted);
 }
@@ -2140,9 +2219,9 @@ button.rating-chip:hover {
 }
 .chat-name {
   margin: 0 0.5rem 0.15rem;
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .chat-dark .chat-name {
   color: rgba(255, 255, 255, 0.72);
@@ -2163,7 +2242,7 @@ button.rating-chip:hover {
 .chat-row-b .chat-bubble {
   border-bottom-right-radius: 6px;
   background: var(--grad);
-  color: #fff;
+  color: var(--accent-ink);
 }
 .chat-dark .chat-row-a .chat-bubble {
   background: rgba(255, 255, 255, 0.13);
@@ -2171,7 +2250,7 @@ button.rating-chip:hover {
 }
 .chat-meta {
   margin: 0.15rem 0.5rem 0;
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   color: var(--muted);
 }
 .chat-dark .chat-meta {
@@ -2263,15 +2342,51 @@ button.rating-chip:hover {
   }
 }
 
-/* A button styled as an inline link (the theater's "watch again"). */
-.linklike {
-  background: none;
+/* ---------------- text buttons (.link-button) ----------------
+   An action that reads as a link inside a sentence: "Sign in", "Delete", "Watch again". It resets everything the
+   default button adds (gradient, shadow, lift, top margin) so no halo sits behind the words, and keeps a 24px
+   minimum tap target. `.linklike` is the same atom under its older name, kept so existing markup still works. */
+button.link-button,
+button.linklike {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  margin: 0;
+  padding: 0.125rem 0;
   border: 0;
-  padding: 0;
-  color: var(--accent);
+  border-radius: 4px;
+  background: none;
+  box-shadow: none;
+  color: var(--accent-text);
   font: inherit;
+  font-weight: 600;
+  line-height: inherit;
+  text-align: left;
   text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
   cursor: pointer;
+  transform: none;
+  transition: text-decoration-thickness 0.12s ease;
+}
+button.link-button:hover:not(:disabled),
+button.linklike:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  text-decoration-thickness: 2px;
+}
+button.link-button:focus-visible,
+button.linklike:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+button.link-button:disabled,
+button.linklike:disabled {
+  opacity: 0.55;
+  text-decoration: none;
+}
+button.link-button.danger {
+  color: var(--bad-text);
 }
 .theater-verdict .linklike {
   color: #fff;
@@ -2293,7 +2408,7 @@ button.rating-chip:hover {
   gap: 0.5rem;
 }
 .account-links a {
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
 }
 .account-actions {
@@ -2305,7 +2420,7 @@ button.rating-chip:hover {
   text-align: center;
   padding: 0.7rem 1.2rem;
   border-radius: 999px;
-  border: 1.5px solid var(--line);
+  border: 1.5px solid var(--field);
   background: var(--card);
   color: var(--ink);
   font-weight: 700;
@@ -2319,23 +2434,56 @@ button.rating-chip:hover {
   text-align: center;
   margin: 0.75rem 0;
 }
-.link-button {
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--accent);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: underline;
-  width: auto;
-}
-.link-button:hover {
-  opacity: 0.8;
-}
-
+/* The owner's card. Its action text is sized by the card's own width (cqi), clamped, so a narrow card shrinks the
+   labels a little rather than squeezing a sentence into several cramped lines. */
 .owner-controls {
   border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+  container-type: inline-size;
+}
+.owner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0 0;
+  font-size: clamp(0.84rem, 0.78rem + 1cqi, 0.95rem);
+}
+/* Each action wraps as a unit: a label and its hint never split across a line break. */
+.owner-action-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.owner-action-list li {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.35rem;
+}
+.owner-hint {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+/* Delete sits apart from the generation actions, so a misclick is less likely. */
+.owner-danger {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--line);
+}
+.owner-message {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
+.owner-message:empty {
+  margin: 0;
+}
+.owner-message.error {
+  color: var(--bad-text);
+  font-weight: 600;
 }
 .traits-fields {
   display: flex;
@@ -2352,10 +2500,6 @@ button.rating-chip:hover {
   flex: 1;
   min-width: 0;
 }
-.link-button.danger {
-  color: var(--bad, #b4341f);
-}
-
 .account-dates {
   list-style: none;
   padding: 0;
@@ -2402,8 +2546,8 @@ button.rating-chip:hover {
 .age-gate-card {
   width: 100%;
   max-width: 30rem;
-  background: var(--card, #fff);
-  border: 1.5px solid var(--line, #e7d7dc);
+  background: var(--card);
+  border: 1.5px solid var(--line);
   border-radius: 20px;
   padding: 2rem 1.75rem;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.12);
@@ -2412,15 +2556,15 @@ button.rating-chip:hover {
 .age-gate-brand {
   font-weight: 800;
   letter-spacing: 0.02em;
-  color: var(--accent, #c02a63);
+  color: var(--accent-text);
   margin: 0 0 0.5rem;
 }
 .age-gate-card h1 {
   margin: 0 0 0.75rem;
-  font-size: 1.6rem;
+  font-size: var(--text-xl);
 }
 .age-gate-card p {
-  color: var(--muted, #6a5a6f);
+  color: var(--muted);
 }
 .age-gate-actions {
   display: flex;
@@ -2431,16 +2575,16 @@ button.rating-chip:hover {
 .age-gate-enter {
   width: 100%;
   padding: 0.85rem 1.2rem;
-  font-size: 1.05rem;
+  font-size: var(--text-md);
   font-weight: 700;
 }
 .age-gate-leave {
-  color: var(--muted, #6a5a6f);
+  color: var(--muted);
   font-weight: 600;
   text-decoration: underline;
 }
 .age-gate-fine {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   margin: 0;
 }
 
@@ -2468,12 +2612,12 @@ button.rating-chip:hover {
   height: 2rem;
   border-radius: 999px;
   background: var(--card);
-  border: 1.5px solid var(--line);
+  border: 1.5px solid var(--field);
   color: var(--muted);
   box-shadow: none;
   display: grid;
   place-items: center;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   font-weight: 800;
 }
 .wizard-rail-dot:hover:not(:disabled) {
@@ -2491,18 +2635,18 @@ button.rating-chip:hover {
 }
 .wizard-rail-step.done .wizard-rail-dot {
   background: var(--soft);
-  color: var(--accent);
+  color: var(--accent-text);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
 }
 .wizard-rail-label {
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   font-weight: 600;
   color: var(--muted);
   text-align: center;
   line-height: 1.15;
 }
 .wizard-rail-step.current .wizard-rail-label {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .wizard-preview {
@@ -2520,7 +2664,7 @@ button.rating-chip:hover {
 }
 .wizard-preview-meta strong {
   font-family: "Fraunces", Georgia, serif;
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
 }
 .wizard-preview-meta .chips {
   margin: 0.3rem 0 0;
@@ -2533,7 +2677,7 @@ button.rating-chip:hover {
 }
 .wizard-legend {
   font-family: "Fraunces", Georgia, serif;
-  font-size: 1.25rem;
+  font-size: var(--text-lg);
   font-weight: 700;
   padding: 0;
   margin-bottom: 0.25rem;
@@ -2560,7 +2704,7 @@ button.rating-chip:hover {
 .wizard-review-label {
   font-weight: 700;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .wizard-attest {
   margin-top: 1rem;
@@ -2573,7 +2717,7 @@ button.rating-chip:hover {
   border-radius: 999px;
   background: var(--grad);
   color: var(--accent-ink);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 800;
   letter-spacing: 0.02em;
   vertical-align: middle;
@@ -2583,10 +2727,10 @@ button.rating-chip:hover {
   padding: 0.6rem 0.8rem;
   border-radius: 10px;
   background: color-mix(in srgb, var(--accent-2) 9%, transparent);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 .wizard-pro-card h2 {
-  font-size: 1.2rem;
+  font-size: var(--text-lg);
 }
 
 @media (max-width: 520px) {
@@ -2623,10 +2767,10 @@ button.rating-chip:hover {
   border-radius: 14px;
   border: 1px dashed color-mix(in srgb, var(--accent-2) 45%, var(--line));
   background: color-mix(in srgb, var(--accent-2) 8%, var(--card));
-  font-size: 0.95rem;
+  font-size: var(--text-md);
 }
 .private-teaser-lock {
-  font-size: 1.4rem;
+  font-size: var(--text-xl);
   line-height: 1;
 }
 
@@ -2647,7 +2791,7 @@ button.rating-chip:hover {
 }
 .badge-open {
   background: color-mix(in srgb, var(--accent) 12%, var(--card));
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .wizard-open {
   margin-top: 1rem;
@@ -2669,7 +2813,7 @@ button.rating-chip:hover {
 }
 .agents-stats strong {
   font-family: "Fraunces", Georgia, serif;
-  font-size: 1.8rem;
+  font-size: var(--text-2xl);
   line-height: 1;
 }
 .agents-stats .muted {
@@ -2687,7 +2831,7 @@ button.rating-chip:hover {
   background: var(--paper-2);
   border: 1px solid var(--line);
   overflow-x: auto;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 .code-block code,
@@ -2706,7 +2850,7 @@ button.rating-chip:hover {
 }
 .agents-tools code {
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* ---------------- character details (lib/extras.ts): the builder step, the editor, the profile ---------------- */
@@ -2731,9 +2875,9 @@ button.dice {
   padding: 0;
   border-radius: 12px;
   background: var(--card);
-  border: 1.5px solid var(--line);
+  border: 1.5px solid var(--field);
   box-shadow: none;
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
 }
 button.dice:hover:not(:disabled) {
   transform: rotate(-12deg);
@@ -2750,7 +2894,7 @@ button.dice:hover:not(:disabled) {
   cursor: pointer;
   font-family: "Fraunces", Georgia, serif;
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: var(--text-md);
 }
 .detail-group[open] > summary {
   margin-bottom: 0.2rem;
@@ -2768,14 +2912,25 @@ button.dice:hover:not(:disabled) {
   align-items: center;
   gap: 0.25rem;
 }
+/* The × on a removable chip. A 24px square tap target, no fill and no lift, so it reads as part of the chip. */
 .chip-removable button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
   margin: 0;
-  padding: 0 0.2rem;
+  padding: 0;
+  border-radius: 999px;
   background: none;
   box-shadow: none;
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 800;
   line-height: 1;
+}
+.chip-removable button:hover:not(:disabled) {
+  transform: none;
+  background: var(--soft);
+  box-shadow: none;
 }
 .prompt-edit {
   margin: 0.6rem 0;
@@ -2841,7 +2996,7 @@ button.dice:hover:not(:disabled) {
 .profile-prompt blockquote {
   margin: 0.3rem 0 0;
   font-family: "Fraunces", Georgia, serif;
-  font-size: 1.2rem;
+  font-size: var(--text-lg);
   line-height: 1.3;
 }
 .profile-facts {
@@ -2866,5 +3021,22 @@ button.dice:hover:not(:disabled) {
 @media (max-width: 520px) {
   .detail-pair {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Windows high-contrast mode (forced colors). Last in the file so it overrides the base button and badge rules. */
+@media (forced-colors: active) {
+  button:not(.link-button):not(.linklike),
+  a.button,
+  .button-ghost,
+  .button-google,
+  .badge,
+  .chip,
+  .pro-tag {
+    border: 1px solid ButtonText;
+  }
+  :focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
   }
 }
