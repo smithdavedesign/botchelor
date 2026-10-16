@@ -45,7 +45,7 @@ The repo grew three overlapping competitor docs and a stale stack header:
 - **Updated** `ROADMAP.md`'s "Suggested stack" header, which still said "one showrunner call per episode" (M9 made it turn-by-turn) and named Neon/Turso (the app runs on PGlite/pg).
 - **Added** a "Backlog (from the PRDs)" section to `ROADMAP.md` for the §1 backlog items.
 - **Marked** `REVIEW.md` as the pre-build go/no-go snapshot (score 4/10, written before M1); the product has since shipped M1–M9, so it's kept for history with a dated note pointing to current status.
-- **Two PRDs still coexist:** `PRD.md` (original, with a "what's built today" section) and `Botchelor_PRD_v1.md` (the newer v1.0 commercialization spec, currently uncommitted in the working tree). Recommend committing `Botchelor_PRD_v1.md` as the canonical PRD and reducing `PRD.md` to a pointer, or merging — left for the owner since v1 is actively edited elsewhere.
+- **Two PRDs still coexist** (2026-10-16: both now live in `docs/PRDs/`, with the character memory PRD): `PRD.md` (original, with a "what's built today" section) and `Botchelor_PRD_v1.md` (the newer v1.0 commercialization spec, currently uncommitted in the working tree). Recommend committing `Botchelor_PRD_v1.md` as the canonical PRD and reducing `PRD.md` to a pointer, or merging — left for the owner since v1 is actively edited elsewhere.
 
 ## 4. General audit
 

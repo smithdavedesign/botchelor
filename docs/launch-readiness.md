@@ -3,6 +3,14 @@
 What protects the show once strangers arrive, and how the owner sees trouble. Written 2026-10-16 from the launch
 review; the money, legal and posting steps that only the owner can do are tracked in RepoHQ (Road to revenue).
 
+## Status (2026-10-16)
+
+- **Live on botchelor.com** (www redirects to it; botchelor.vercel.app still serves and points its canonical there).
+- **Verified:** Google sign-in on the live site (David), Search Console linked for botchelor.com, Bing verified, GA4
+  with the consent banner, RepoHQ's funnel beacon (the owner's browsers excluded), the MCP Registry listing, the
+  nightly database backup (ai-stack `bin/db-backup`), health alerts to #team-agents, and `npm run e2e:live` 9/9.
+- **Pending:** Stripe live mode (BUILD.md, "Taking real money"). Until then the shop says "Purchases open soon".
+
 ## Owner decisions (2026-10-16)
 
 - **Launch without a lawyer's review** (REVENUE.md): accepted risk.

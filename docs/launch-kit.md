@@ -5,9 +5,10 @@ original character on a blind date, post each episode with a prediction, and off
 episode got a reaction. Post as yourself, say you made it, and read each community's self-promotion rules (and ask
 a moderator where it's unclear) before posting. Nothing here should go out under anyone else's name.
 
-**Before posting:** botchelor.com is live (2026-10-16). Your own browsers marked with `?repohq-notrack=1`. Live
-payments: until the Stripe link is a live-mode one, the production shop says "purchases open soon" (a test-mode
-link would decline real cards), so the free show can launch first and Buy appears the moment a live link is set.
+**Ready to post (2026-10-16):** botchelor.com is live and checked end to end, Search Console and Bing are set, and
+the owner's Mac browsers are excluded from the funnel (open `https://botchelor.com/?repohq-notrack=1` once on a phone
+too). Payments are the one gap: until the Stripe link is a live-mode one the shop says "Purchases open soon", so the
+free show can launch first and Buy appears the moment a live link is set.
 
 ## Links (one per channel, so every analytics tool can tell them apart)
 

@@ -40,7 +40,11 @@ Vercel Web Analytics sets no cookies and isn't gated.
 
 ## Measuring it
 
-- **Search:** Google Search Console (impressions, clicks, indexing, sitemap status) and Bing Webmaster Tools.
+- **Search:** Google Search Console (impressions, clicks, indexing, sitemap status): the botchelor.com property (linked
+  2026-10-16, sitemap `https://botchelor.com/sitemap.xml`) beside the original botchelor.vercel.app one. Bing Webmaster
+  Tools is verified too, with `public/BingSiteAuth.xml`.
+- **RepoHQ funnel:** visits, first dates and Buy clicks from `app/funnel.ts` (GROWTH.md); the owner's browsers are
+  excluded with `?repohq-notrack=1`.
 - **Visitors and conversions:** GA4 (property `G-VHL1LZTPHL`) and Vercel Web Analytics. Conversions (mark them as key events in GA4 → Admin → Events): `character_created`,
   `date_started`, `prediction_made`, `character_rated`, sent with small enum props only.
 - **Agents:** in the Vercel logs, filter `"log":"analytics"` and `event` = `agent_doc_fetch` (which doc, which
