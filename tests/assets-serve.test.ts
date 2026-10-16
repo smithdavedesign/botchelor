@@ -16,8 +16,8 @@ beforeEach(async () => {
 
 const serve = (id: string) => getAsset(new Request(`http://localhost:3000/api/assets/${id}`), { params: Promise.resolve({ id }) });
 
-async function approved(url: string): Promise<string> {
-  const id = await recordAsset(t.db, { character_id: "house-nell", kind: "portrait", source_type: "generated", source_model: "test-1", prompt: "p", prompt_version: "v3", seed: 1, url });
+async function approved(url: string, seed = 1): Promise<string> {
+  const id = await recordAsset(t.db, { character_id: "house-nell", kind: "portrait", source_type: "generated", source_model: "test-1", prompt: "p", prompt_version: "v3", seed, url });
   await reviewAsset(t.db, id, "approved");
   return id;
 }
@@ -40,5 +40,11 @@ describe("serving an approved asset", () => {
     const res = await serve(await approved(png));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/png");
+  });
+
+  it("a generator's 64-bit seed doesn't break serving (it was read back as a 32-bit int: 'integer out of range' on prod)", async () => {
+    const png = "data:image/png;base64," + Buffer.from("not really a png").toString("base64");
+    const res = await serve(await approved(png, 4_294_967_296_123));
+    expect(res.status).toBe(200);
   });
 });
