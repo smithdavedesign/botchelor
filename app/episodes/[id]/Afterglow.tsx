@@ -6,7 +6,7 @@ import { useState } from "react";
 import Avatar from "@/app/Avatar";
 import { requestJson } from "@/app/request";
 import type { CharacterRef, EpisodeView } from "@/lib/game";
-import { afterglowVerdictKind } from "@/lib/rules";
+import { afterglowVerdictKind, dateLabel } from "@/lib/rules";
 import type { SecondDateState } from "@/lib/second-date";
 
 type Props = {
@@ -79,7 +79,7 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
     const res = await requestJson(`/api/episodes/${episodeId}/second-date`, {}).catch(() => null);
     setBusy(false);
     if (!res) return setMessage({ text: "Network error. Try again.", error: true });
-    if (res.status === 200 && typeof res.data.id === "string") return router.push(`/episodes/${res.data.id}`);
+    if (res.status === 200 && typeof res.data.id === "string") return router.push(`/episodes/${res.data.id}?play=1`);
     if (res.status === 202) {
       setMessage({ text: res.message });
       return router.refresh();
@@ -95,10 +95,11 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
     );
   }
   if (!state.can_plan) return null;
+  const next = dateLabel(state.next_date_number).toLowerCase();
   const waiting = state.needs_their_yes && state.you_asked && !state.they_asked;
   return (
     <div className="second-date">
-      <h3>They both want a second date</h3>
+      <h3>They both want a {next}</h3>
       {state.plan.length > 0 && (
         <p className="muted">
           Their plan: {state.plan.map((p) => `“${p}”`).join(" ")}
@@ -110,7 +111,7 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
         <>
           {state.they_asked && <p className="muted">{first}&apos;s creator already said yes.</p>}
           <button type="button" className="primary" onClick={plan} disabled={busy}>
-            {busy ? "Booking…" : state.they_asked || !state.needs_their_yes ? "Plan the second date" : `Say yes to a second date with ${first}`}
+            {busy ? "Booking…" : state.they_asked || !state.needs_their_yes ? `Plan the ${next}` : `Say yes to a ${next} with ${first}`}
           </button>{" "}
           <span className="muted small">
             {state.needs_their_yes && !state.they_asked ? "Free to say yes; whoever completes it books it with 1 token." : "1 token, like any date. It happens where they planned it."}

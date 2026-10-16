@@ -58,6 +58,8 @@ export type GenerateOptions = {
    * private soul. The plan and recap (which see both souls) always stay on the platform director.
    */
   keyForSide?: (side: "a" | "b") => Model | null;
+  /** How long the date and the texts after run (lib/talk.ts); the format's own length (or the standard) when absent. */
+  talk?: { date: number; texts: number };
 };
 
 export type GeneratedDate = {
@@ -142,7 +144,7 @@ export async function generateDate(
     // A director that is down (a stronger free model at its quota) costs nothing: planDate falls back to rules.
     plan = await planDate(director.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.formatCtx);
     try {
-      transcript = await simulateConversation(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, undefined, opts.formatCtx, plan, keyForSide);
+      transcript = await simulateConversation(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan, keyForSide);
     } catch (err) {
       conversationError = err;
     }
@@ -162,7 +164,7 @@ export async function generateDate(
   let afterglowError: unknown = null;
   if (opts.afterglow) {
     try {
-      afterglow = await simulateAfterglow(actor.model, built.input, outcome, characters, venueId, opts.formatId, undefined, opts.formatCtx, transcript, keyForSide);
+      afterglow = await simulateAfterglow(actor.model, built.input, outcome, characters, venueId, opts.formatId, opts.talk?.texts, opts.formatCtx, transcript, keyForSide);
     } catch (err) {
       afterglowError = err;
     }

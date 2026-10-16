@@ -982,7 +982,7 @@ function SendPhase({ character, partners, openCharacters, tokens, offer, autonom
       });
       if (status === 200) {
         trackConversion("date_started", { mode: partnerId ? "partner" : "blind" });
-        onSend(String(data.share_path));
+        onSend(`${String(data.share_path)}?play=1`);
         return;
       }
       setOutOfTokens(data.error === "episode_limit_reached");

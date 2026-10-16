@@ -24,6 +24,7 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { ENDING_LABELS } from "@/lib/rules";
 import RatingButtons from "./RatingButtons";
 import OwnerControls from "./OwnerControls";
+import { isTalkLevel, type TalkLevel } from "@/lib/talk";
 import LearnedPanel from "./LearnedPanel";
 
 export const dynamic = "force-dynamic";
@@ -84,6 +85,14 @@ export default async function CharacterPage({ params }: Props) {
           episodeAllowance(db, viewerId),
           db.query("select 1 from user_keys where user_id = $1 and provider = 'google' limit 1", [viewerId]),
         ]).then(([admin, tokens, key]) => ({ admin, boughtTokens: tokens.pack_left, hasKey: key.rows.length > 0, cost: CLIP_TOKEN_COST }))
+      : null;
+  // Owner only: how much they talk (lib/talk.ts), and whether a text key makes marathon possible.
+  const talk =
+    ratings.is_owner && !c.house && viewerId
+      ? await Promise.all([
+          db.query<{ talk: string | null }>("select talk from characters where id = $1", [id]),
+          db.query("select 1 from user_keys where user_id = $1 and kind = 'text' limit 1", [viewerId]),
+        ]).then(([t, key]) => ({ level: isTalkLevel(t.rows[0]?.talk) ? t.rows[0].talk as TalkLevel : "standard" as TalkLevel, hasTextKey: key.rows.length > 0 }))
       : null;
   // Owner only: how the engine reads it on a date (its effective temperament, learned drift included).
   const plays = ratings.is_owner && !c.house ? (await loadCharacter(db, id))?.signals ?? null : null;
@@ -159,7 +168,7 @@ export default async function CharacterPage({ params }: Props) {
         </div>
       </div>
 
-      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} clip={clip ?? undefined} />}
+      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} clip={clip ?? undefined} talk={talk ?? undefined} />}
       {plays && (
         <p className="muted small owner-temperament">
           🔒 How {c.name.split(" ")[0]} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}

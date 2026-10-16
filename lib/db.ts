@@ -465,6 +465,16 @@ create index if not exists relationships_character_b on relationships (character
 -- A second date points at the date whose morning-after plan it is. One second date per date.
 alter table episodes add column if not exists followup_of text references episodes (id) on delete set null;
 create unique index if not exists episodes_one_second_date on episodes (followup_of) where followup_of is not null;
+-- Which date a follow-up is for the couple (setup.date_number, lib/rules dateLabel): backfilled once for the
+-- follow-ups booked before it was stored, by walking each chain from its first date. Only rows still missing it.
+with recursive chain (id, n) as (
+  select id, 1 from episodes where followup_of is null
+  union all
+  select e.id, c.n + 1 from episodes e join chain c on e.followup_of = c.id
+)
+update episodes set setup = coalesce(setup, '{}'::jsonb) || jsonb_build_object('date_number', c.n)
+  from chain c
+ where episodes.id = c.id and c.n > 1 and (episodes.setup->>'date_number') is null;
 -- Between dates (lib/between-dates.ts). A couple's daily text exchange: one exchange a day, owners only, like the
 -- afterglow. 'who' is the pair end that sent it ('lo' = the lower character id).
 create table if not exists couple_texts (
@@ -733,6 +743,9 @@ alter table characters add column if not exists open_to_dates boolean not null d
 -- content-filtered, editable any time. They flavour a date's dialogue; the engine never reads them.
 alter table characters add column if not exists extras jsonb not null default '{}'::jsonb;
 create index if not exists characters_open_idx on characters (open_to_dates) where open_to_dates;
+-- How much the character talks (lib/talk.ts): the date's length and the texts after. Null is the standard.
+-- Never read by the engine, so it can't change how a date ends.
+alter table characters add column if not exists talk text check (talk in ('standard', 'longer', 'long', 'marathon'));
 alter table episodes add column if not exists created_via text not null default 'web'
   check (created_via in ('web', 'mcp'));
 create index if not exists episodes_via_idx on episodes (created_via, created_at);

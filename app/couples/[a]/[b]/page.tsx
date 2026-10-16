@@ -12,6 +12,7 @@ import NudgeForm from "./NudgeForm";
 import { ArcCard, FollowButton } from "./CoupleActions";
 import { arcQuestion } from "@/lib/arcs";
 import { followState } from "@/lib/follows";
+import { dateLabel } from "@/lib/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -146,7 +147,7 @@ export default async function CouplePage({ params }: Props) {
             <li key={t.episode_id}>
               <Link href={`/episodes/${t.episode_id}`}>{t.ending_label}</Link> <span className="muted">· {t.venue}</span>{" "}
               <span className="muted small">· {date(t.at)}</span>
-              {t.second_date_of && <span className="badge">second date</span>}
+              {t.date_number && <span className="badge">{dateLabel(t.date_number).toLowerCase()}</span>}
               {!t.aired && <span className="badge">not aired yet</span>}
             </li>
           ))}

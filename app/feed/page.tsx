@@ -10,7 +10,7 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { listMyLeagues } from "@/lib/leagues";
 import { getProfileName, listBlocks } from "@/lib/people";
 import { getReunion } from "@/lib/reunion";
-import { ENDING_LABELS } from "@/lib/rules";
+import { dateLabel, ENDING_LABELS } from "@/lib/rules";
 import { formatLabel } from "@/lib/formats";
 import { listMyBadges, tryCloseDueSeasons, type Badge } from "@/lib/seasons";
 import ReunionPanel from "../ReunionPanel";
@@ -49,7 +49,7 @@ function EpisodeItem({ episode }: { episode: EpisodeView }) {
           </Link>{" "}
           <span className="badge">{status}</span>
           {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
-          {episode.followup_of && <span className="badge">Second date</span>}
+          {episode.followup_of && <span className="badge">{dateLabel(episode.date_number ?? 2)}</span>}
         </div>
       </div>
       <p className="muted">{episode.setting}</p>

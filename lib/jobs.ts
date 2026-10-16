@@ -21,20 +21,29 @@ import { generateDate } from "./pipeline";
 import type { Db } from "./db";
 import { safeEqual } from "./http";
 
-/** The owner ids of a date's two characters (null for a house character), in side order. */
-async function characterOwners(db: Db, aId: string, bId: string): Promise<[string | null, string | null]> {
-  const { rows } = await db.query<{ id: string; owner_id: string | null }>(
-    `select id, owner_id from characters where id = any($1)`,
+/** Each side's owner (null for a house character) and talk setting (lib/talk.ts), in side order. */
+async function sideSettings(
+  db: Db,
+  aId: string,
+  bId: string,
+): Promise<{ owners: [string | null, string | null]; talk: [TalkLevel | null, TalkLevel | null] }> {
+  const { rows } = await db.query<{ id: string; owner_id: string | null; talk: string | null }>(
+    `select id, owner_id, talk from characters where id = any($1)`,
     [[aId, bId]],
   );
-  const owner = (id: string) => rows.find((r) => r.id === id)?.owner_id ?? null;
-  return [owner(aId), owner(bId)];
+  const row = (id: string) => rows.find((r) => r.id === id);
+  const talk = (id: string) => {
+    const t = row(id)?.talk;
+    return isTalkLevel(t) ? t : null;
+  };
+  return { owners: [row(aId)?.owner_id ?? null, row(bId)?.owner_id ?? null], talk: [talk(aId), talk(bId)] };
 }
 import { getEngine, type CharacterSheet } from "./engine";
-import { DEFAULT_FORMAT } from "./formats";
+import { DEFAULT_FORMAT, format as showFormat } from "./formats";
 import { claimPaidDate } from "./limits";
 import { getDirectorModel, getFrontierModel, getModel, paidDefaultOn, roleReasoning } from "./model";
 import { buildKeyForSide } from "./keys";
+import { isTalkLevel, talkFor, type TalkLevel } from "./talk";
 import { soulText } from "./souls";
 import {
   DEFAULT_AUTONOMY,
@@ -196,13 +205,17 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // BYOK: a creator's own saved key runs their side's lines (and a soulless partner's), never the plan or
     // recap (those see both souls). Off on a frontier run (that's the owner-approved paid path already).
     let keyForSide: ((side: "a" | "b") => ReturnType<typeof getModel> | null) | undefined;
+    const sides = await sideSettings(db, row.a_id, row.b_id);
     if (!frontier) {
-      const owners = await characterOwners(db, row.a_id, row.b_id);
+      const owners = sides.owners;
       const reachable = built.characters.map((c) => Boolean(c.soul && !c.soul.local_only && (soulText(c.soul) ?? "").trim())) as [boolean, boolean];
       keyForSide = await buildKeyForSide(db, owners, reachable, roleReasoning("actor"));
     }
+    // How long they talk (lib/talk.ts): the longer owner setting; marathon only with both sides on owners' keys.
+    const talk = talkFor(sides.talk, Boolean(keyForSide?.("a") && keyForSide?.("b")), showFormat(formatId).turns);
     const gen = await generateDate(models, built, decided, {
       formatId,
+      talk,
       formatCtx: fmtCtx,
       conversation: isConversationEnabled(),
       afterglow: isAfterglowEnabled(),

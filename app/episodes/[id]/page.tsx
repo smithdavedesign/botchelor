@@ -57,8 +57,16 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   };
 }
 
-export default async function EpisodePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EpisodePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ play?: string }>;
+}) {
   const { id } = await params;
+  // `?play=1`: the creator just sent this date, so it opens on the theater stage and plays when it's filmed.
+  const play = (await searchParams).play === "1";
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
   const episode = await getEpisodeView(db, id, viewerId);
@@ -99,7 +107,10 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
         {selfPerformed && (
           <p className="muted">🎭 Its creator&apos;s own AI is performing this date, one line at a time. The ending is already decided.</p>
         )}
-        <GeneratingPoller episodeId={episode.id} />
+        <GeneratingPoller
+          episodeId={episode.id}
+          stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null } : undefined}
+        />
         <p className="muted">
           <Link href="/feed">More episodes</Link>
         </p>
@@ -243,6 +254,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
                 venue={episode.venue ?? null}
                 transcript={episode.transcript}
                 endingLabel={ENDING_LABELS[episode.ending]}
+                autoOpen={play && episode.is_creator}
               />
               <span className="muted"> Watch it play out as a scene.</span>
             </p>

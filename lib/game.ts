@@ -102,6 +102,8 @@ export type DateSetup = {
   /** A second date: the date whose morning-after plan this is, and the plan itself (their texts). Flavour only. */
   followup_of?: string;
   plan?: string[];
+  /** Which date this is in the couple's run (2 for the second date, 3 for the third...). Set when one is booked. */
+  date_number?: number;
   /** Each owner's standing nudge about the other, as booked (lib/between-dates.ts). Private, flavour only. */
   nudge_a?: string;
   nudge_b?: string;
@@ -155,6 +157,8 @@ export type EpisodeJson = {
   format?: FormatId;
   /** A second date: the first date it follows (lib/second-date.ts). Shown as a badge; not a spoiler. */
   followup_of?: string;
+  /** Which date this is for the couple (2, 3, ...), with followup_of. Older follow-ups without it are second dates. */
+  date_number?: number;
   // Only present for the creators, or for everyone once the finale has aired.
   scenes?: string[];
   /** The turn-by-turn date "footage" (M9). A spoiler (it reaches the ending), so gated like `scenes`. */
@@ -242,7 +246,10 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
   // The format is the episode's billing (shown from the start), not a spoiler. Classic is the default, so
   // it needs no badge; only a chosen non-classic format is surfaced.
   if (ep.setup?.format && !isDefaultFormat(ep.setup.format)) json.format = ep.setup.format;
-  if (ep.setup?.followup_of) json.followup_of = ep.setup.followup_of;
+  if (ep.setup?.followup_of) {
+    json.followup_of = ep.setup.followup_of;
+    json.date_number = ep.setup.date_number ?? 2;
+  }
   if (opts.full) {
     json.scenes = ep.scenes;
     if (ep.transcript.length) json.transcript = ep.transcript;
