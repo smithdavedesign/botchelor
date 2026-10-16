@@ -102,7 +102,7 @@ export type LineIssues = {
   motif_fixation: string | null;
   /** A phrase from the speaker's own "never says" list that this line uses, if any. */
   never_said: string | null;
-  /** The line repeats one of the speaker's own sample lines (a 4-word run): it should be in that voice, not a copy. */
+  /** The line repeats one of the speaker's own sample lines, or its own line from an earlier date (a 4-word run). */
   sample_echo: boolean;
 };
 
@@ -201,8 +201,11 @@ export function lineIssues(
   const picksUpPrev = contentWords(text, 4).some((w) => prevWords.has(w));
   const motifFixation = overused && !groundsSelf && !picksUpPrev && !text.includes("?") ? overused : null;
 
-  // The voice kit (lib/extras.ts): a sample line is a register to match, not a script to read out.
-  const sampleGrams = new Set(Object.values(self.extras?.lines ?? {}).flatMap((l) => [...ngrams(tokens(l ?? ""), 4)]));
+  // The voice kit (lib/extras.ts): a sample line is a register to match, not a script to read out. The same goes
+  // for its own lines from earlier dates (lib/memory.ts memorable_lines): remembered, not re-performed word for word.
+  const sampleGrams = new Set(
+    [...Object.values(self.extras?.lines ?? {}), ...(self.memory?.memorable_lines ?? [])].flatMap((l) => [...ngrams(tokens(l ?? ""), 4)]),
+  );
   const sampleEcho = sampleGrams.size > 0 && [...ngrams(lineTokens, 4)].some((g) => sampleGrams.has(g));
 
   return {
