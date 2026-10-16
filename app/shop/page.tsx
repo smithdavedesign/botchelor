@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
+import { googleConfigured, sessionsSignable } from "@/lib/auth";
 import { CATALOG, formatPrice, frameClass, ON_SALE, type ItemKind } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
-import { userIdFromCookieStore } from "@/lib/http";
+import { authFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import BuyButton from "./BuyButton";
@@ -29,12 +30,15 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function ShopPage({ searchParams }: { searchParams: SearchParams }) {
   const { checkout } = await searchParams;
-  const viewerId = userIdFromCookieStore(await cookies());
+  const viewer = authFromCookieStore(await cookies());
+  const viewerId = viewer?.userId ?? null;
   const db = viewerId ? await getDb() : null;
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
   const dates = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const open = paymentLinkFromEnv() !== null;
   const ownedOffSale = CATALOG.filter((i) => !ON_SALE.includes(i) && owned.includes(i.sku));
+  // Buying needs an account (app/api/checkout): an anonymous player's tokens would live in one browser's cookie.
+  const signInToBuy = open && sessionsSignable() && !viewer?.authenticated;
 
   return (
     <>
@@ -66,11 +70,15 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
             <strong>{item.name}</strong> <span className="badge">{KIND_LABELS[item.kind]}</span>
             <p>{item.description}</p>
             {owned.includes(item.sku) && <p className="notice">{OWNED_NOTES[item.kind]}</p>}
-            <BuyButton
-              sku={item.sku}
-              label={priceLabelFromEnv(process.env, `Buy ${item.name} for ${formatPrice(item.price_cents)}`)}
-              disabled={!open}
-            />
+            {signInToBuy ? (
+              <SignInToBuy google={googleConfigured()} />
+            ) : (
+              <BuyButton
+                sku={item.sku}
+                label={priceLabelFromEnv(process.env, `Buy ${item.name} for ${formatPrice(item.price_cents)}`)}
+                disabled={!open}
+              />
+            )}
           </li>
         ))}
         {ownedOffSale.map((item) => (
@@ -83,10 +91,38 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
       </ul>
 
       <p className="muted">
-        You pay on Stripe&apos;s own page (a Stripe Payment Link); we never see your card. Botchelor has no accounts
-        yet, so purchases belong to this browser: keep your Stripe receipt, and we can move your tokens to a new
-        browser. Refunds within 14 days, see the <Link href="/terms">terms</Link>.
+        You pay on Stripe&apos;s own page (a Stripe Payment Link); we never see your card. Purchases belong to your
+        account, so your tokens follow you to any device you sign in on. Keep your Stripe receipt. Refunds within 14
+        days, see the <Link href="/terms">terms</Link>.
       </p>
+    </>
+  );
+}
+
+/**
+ * In place of Buy for a visitor who isn't signed in. Signing up keeps everything they already have (the account
+ * adopts their anonymous id), and both ways back land on the shop again.
+ */
+function SignInToBuy({ google }: { google: boolean }) {
+  return (
+    <>
+      <p className="notice">
+        Sign in to buy, so your tokens follow you to any device. Your characters and dates come with you.
+      </p>
+      {google ? (
+        <>
+          <a className="button-google" href="/api/auth/google/start?next=%2Fshop">
+            Continue with Google
+          </a>
+          <p className="muted small or-divider">
+            or <Link href="/account?next=%2Fshop">use a handle</Link>
+          </p>
+        </>
+      ) : (
+        <Link className="button" href="/account?next=%2Fshop">
+          Sign in or create an account
+        </Link>
+      )}
     </>
   );
 }

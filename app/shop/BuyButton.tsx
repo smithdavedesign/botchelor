@@ -12,6 +12,7 @@ import { requestJson } from "@/app/request";
 export default function BuyButton({ sku, label, disabled }: { sku: string; label: string; disabled: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signin, setSignin] = useState<string | null>(null);
 
   async function buy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -20,6 +21,7 @@ export default function BuyButton({ sku, label, disabled }: { sku: string; label
     sendFunnel("checkout");
     setBusy(true);
     setError(null);
+    setSignin(null);
     try {
       const { status, data, message } = await requestJson("/api/checkout", { sku, attest: form.get("attest") === "on" });
       if (status === 200 && typeof data.url === "string") {
@@ -27,6 +29,8 @@ export default function BuyButton({ sku, label, disabled }: { sku: string; label
         return;
       }
       setError(message);
+      // Buying needs an account (the server says so even if this page was loaded signed in and signed out since).
+      if (status === 401 && typeof data.signin === "string") setSignin(data.signin);
     } catch {
       setError("Network error. Try again.");
     }
@@ -44,7 +48,17 @@ export default function BuyButton({ sku, label, disabled }: { sku: string; label
       <button type="submit" disabled={busy || disabled}>
         {busy ? "Opening Stripe…" : label}
       </button>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error">
+          {error}
+          {signin && (
+            <>
+              {" "}
+              <Link href={signin}>Sign in</Link>
+            </>
+          )}
+        </p>
+      )}
     </form>
   );
 }

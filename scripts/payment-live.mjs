@@ -1,10 +1,11 @@
 // Payment proof on the live site: `npm run payment:live` (not part of `npm test`; needs Stripe in test mode).
-// A fresh browser opens the shop, clicks Buy, pays on Stripe's test checkout with card 4242 4242 4242 4242,
+// A fresh browser creates an account (buying needs one), lands back on the shop, clicks Buy, pays on Stripe's
+// test checkout with card 4242 4242 4242 4242,
 // comes back to /shop?checkout=success and waits for the webhook to add the pack's dates. Desktop and phone;
 // screenshots go to docs/screenshots/payment-*.png. SITE overrides the URL; CHROMIUM_PATH the browser.
 import fs from 'node:fs'
 import { chromium, devices } from 'playwright-core'
-const SITE = process.env.SITE || 'https://botchelor.vercel.app'
+const SITE = process.env.SITE || 'https://botchelor.com'
 const OUT = process.argv[2] || 'docs/screenshots'
 fs.mkdirSync(OUT, { recursive: true })
 async function payOnStripe(page, shot) {
@@ -42,7 +43,14 @@ async function payOnStripe(page, shot) {
     const context = await browser.newContext(options)
     const page = await context.newPage()
     const shot = (n) => page.screenshot({ path: `${OUT}/payment-${size}-${n}.png` })
-    await page.goto(`${SITE}/shop`)
+    // Past the 18+ gate, then an account: the shop sends signed-out buyers to /account?next=/shop.
+    await context.addCookies([{ name: 'bz_adult', value: '1', url: SITE }])
+    await page.goto(`${SITE}/account?next=%2Fshop`)
+    await page.locator('input[name="handle"]').fill(`paytest_${Math.random().toString(36).slice(2, 10)}`)
+    await page.locator('input[name="password"]').fill(`pay-test-${Math.random().toString(36).slice(2)}`)
+    await page.locator('input[name="attest"]').check()
+    await page.getByRole('button', { name: /create account/i }).click()
+    await page.waitForURL(/\/shop/, { timeout: 30_000 })
     // Buying needs the 18+ and terms box ticked.
     await page.getByRole('checkbox').first().check()
     const buy = page.getByRole('button', { name: /buy|\$/i }).first()
