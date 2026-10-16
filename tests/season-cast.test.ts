@@ -80,6 +80,8 @@ describe("only this season's house cast can be booked", () => {
   it("a blind date with nobody else around falls back to the season's cast", async () => {
     const creator = newUserCookie();
     const id = (await (await api.createCharacter(validCharacter(), creator)).json()).id;
+    // Blind draws can repeat a partner until they're a couple; more than one keeps them on blind dates (lib/partners.ts).
+    await api.editCharacter(id, { partner_style: "open" }, creator);
     for (let i = 0; i < 3; i++) {
       scriptedModel([episodeJson()]);
       const ep = await (await api.createEpisode({ character_id: id, blind: true }, creator)).json();
