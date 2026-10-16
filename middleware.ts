@@ -95,7 +95,8 @@ function route(req: NextRequest): NextResponse {
     metric("agent.referral_visit", 1, { source, section: section(pathname) });
   }
 
-  if (pathname === "/gate" || req.cookies.get(ADULT_COOKIE)?.value === "1") return NextResponse.next();
+  // The gate itself, and unsubscribing from email (lib/email.ts): leaving must never take a hurdle.
+  if (pathname === "/gate" || pathname.startsWith("/email/") || req.cookies.get(ADULT_COOKIE)?.value === "1") return NextResponse.next();
 
   const bot = detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent"));
   if (bot) {

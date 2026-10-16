@@ -2,6 +2,7 @@ import { track } from "@/lib/analytics";
 import { backfillTranscripts } from "@/lib/backfill";
 import { resolveExpiredArcs } from "@/lib/arcs";
 import { sendDailyTexts } from "@/lib/between-dates";
+import { sendDigests } from "@/lib/email";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { recentPublicUrls, submitIndexNow } from "@/lib/indexnow";
@@ -45,6 +46,8 @@ async function run(req: Request): Promise<Response> {
   const texts = await sendDailyTexts(db, getModel(undefined, false), new Date(), { budgetMs: Math.max(0, 240_000 - (Date.now() - t0)), gapMs: 1500 }).catch(
     () => ({ couples: 0, texts: 0, failed: 0 }),
   );
+  // The daily email digest for players who opted in (lib/email.ts), after today's texts so they're in it.
+  const digests = await sendDigests(db).catch(() => 0);
   // Rate-limit rows only live as long as their longest window (lib/limits.ts).
   await pruneRateHits(db).catch(() => {});
   await pruneServerErrors(db).catch(() => {});
@@ -63,6 +66,7 @@ async function run(req: Request): Promise<Response> {
     indexnow_submitted: indexnow.submitted,
     indexnow_status: indexnow.status,
     texted_couples: texts.couples,
+    email_digests: digests,
     arcs_settled: arcsSettled,
     texts_failed: texts.failed,
   });
