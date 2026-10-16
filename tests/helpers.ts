@@ -79,7 +79,10 @@ type Table =
   | "mcp_sessions"
   | "watch_reactions"
   | "watch_poll_votes"
-  | "watch_presence";
+  | "watch_presence"
+  | "reports_reviewed"
+  | "rate_hits"
+  | "paid_usage";
 
 /** One in-memory Postgres per test file, wired in as the app's database. */
 export async function startTestDb() {
@@ -124,6 +127,9 @@ export async function startTestDb() {
         "leagues",
         "blocks",
         "reports",
+        "reports_reviewed",
+        "rate_hits",
+        "paid_usage",
         "identity_consents",
         "afterglow_consents",
         "profiles",

@@ -638,6 +638,33 @@ create table if not exists mcp_sessions (
 );
 create index if not exists mcp_sessions_agent_idx on mcp_sessions (agent_id);
 create index if not exists mcp_sessions_seen_idx on mcp_sessions (last_seen desc);
+
+-- Launch guards (lib/limits.ts). One row per counted action; key is an HMAC of the client IP, never the IP.
+-- Pruned after two days by the daily job.
+create table if not exists rate_hits (
+  bucket text not null,
+  key text not null,
+  at timestamptz not null default now()
+);
+create index if not exists rate_hits_idx on rate_hits (bucket, key, at);
+-- Dates run on the paid default model, per UTC day, so a flood can't spend past FRONTIER_DAILY_DATE_CAP.
+create table if not exists paid_usage (
+  day date primary key,
+  dates integer not null default 0
+);
+
+-- Reports the owner has reviewed (lib/moderation.ts). Moved out of reports so they stop counting toward
+-- REPORT_HIDE_THRESHOLD: 'cleared' puts the episode back, 'removed' made it private to its creator.
+create table if not exists reports_reviewed (
+  episode_id text not null references episodes (id) on delete cascade,
+  reporter_id text not null,
+  reason text not null,
+  created_at timestamptz not null,
+  reviewed_at timestamptz not null default now(),
+  decision text not null check (decision in ('cleared', 'removed')),
+  primary key (episode_id, reporter_id)
+);
+create index if not exists reports_reviewed_reporter_idx on reports_reviewed (reporter_id);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

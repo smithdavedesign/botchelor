@@ -186,6 +186,7 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from predictions where user_id = $1", [userId]);
   await run("delete from identity_consents where user_id = $1", [userId]);
   await run("delete from reports where reporter_id = $1", [userId]);
+  await run("delete from reports_reviewed where reporter_id = $1", [userId]);
   await run("delete from blocks where blocker_id = $1", [userId]);
   await run("delete from orders where user_id = $1", [userId]);
   await run("delete from badges where user_id = $1", [userId]);

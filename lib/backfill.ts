@@ -21,7 +21,8 @@ import type { CharacterSheet, Outcome, SideOutcome, VariableArc } from "./engine
 import { DEFAULT_FORMAT } from "./formats";
 import type { DateSetup } from "./game";
 import { failureReason } from "./jobs";
-import { getDirectorModel, getModel, type Model } from "./model";
+import { claimPaidDate } from "./limits";
+import { getDirectorModel, getModel, paidDefaultOn, type Model } from "./model";
 import { PROMPT_VERSION, countingModel } from "./pipeline";
 import { summarizeUsage } from "./pricing";
 import { planDate } from "./beats";
@@ -149,8 +150,10 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
 
   for (const r of rows) {
     const t0 = Date.now();
-    const actor = countingModel(getModel());
-    const director = countingModel(getDirectorModel());
+    // Backfills share the paid default's daily cap with everyone's dates (lib/limits.ts).
+    const paid = paidDefaultOn() ? await claimPaidDate(db) : false;
+    const actor = countingModel(getModel(undefined, paid));
+    const director = countingModel(getDirectorModel(process.env, undefined, paid));
     try {
       const transcript = await conversationFor(db, r, actor.model, director.model);
       // The transcript was written later, by these models: recorded beside whatever wrote the rest (lib/pipeline.ts).
