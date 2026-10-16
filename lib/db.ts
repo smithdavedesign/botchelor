@@ -508,6 +508,29 @@ create table if not exists push_subscriptions (
   created_at timestamptz not null default now()
 );
 create index if not exists push_subscriptions_user on push_subscriptions (user_id);
+-- Spectators follow couples (lib/follows.ts): they hear when the couple goes on another public date or moves up.
+create table if not exists couple_follows (
+  user_id text not null,
+  character_lo text not null references characters (id) on delete cascade,
+  character_hi text not null references characters (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, character_lo, character_hi)
+);
+create index if not exists couple_follows_pair on couple_follows (character_lo, character_hi);
+-- Arc predictions (lib/arcs.ts): "will they make it to date N?", resolved from the public record. Free points, never prizes.
+create table if not exists arc_predictions (
+  user_id text not null,
+  character_lo text not null references characters (id) on delete cascade,
+  character_hi text not null references characters (id) on delete cascade,
+  target integer not null,
+  pick boolean not null,
+  created_at timestamptz not null default now(),
+  deadline timestamptz not null,
+  resolved_at timestamptz,
+  outcome boolean,
+  primary key (user_id, character_lo, character_hi, target)
+);
+create index if not exists arc_predictions_open on arc_predictions (character_lo, character_hi) where resolved_at is null;
 -- An owner's yes to a second date (lib/second-date.ts), when the other character's owner has to agree as well.
 create table if not exists second_date_requests (
   episode_id text not null references episodes (id) on delete cascade,

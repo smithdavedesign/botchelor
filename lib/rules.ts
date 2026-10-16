@@ -256,6 +256,8 @@ export const producerLabel = (id: ProducerId): string => producerEvent(id).label
 /** Points for the extra $0 prediction types (PRD "Further ideas"). Side bets, like the drama pick. */
 export const POINTS_PER_DEALBREAKER_PICK = 5;
 export const POINTS_PER_MATCHMAKER = 10;
+/** A correct arc prediction (lib/arcs.ts): "will they make it to date N?". Free points, like the rest. */
+export const POINTS_PER_ARC = 15;
 
 /**
  * Audience ratings of a character ("most likable / most surprising"). A $0 social signal: one vote per

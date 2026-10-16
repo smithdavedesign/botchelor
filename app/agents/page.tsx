@@ -21,7 +21,7 @@ const GROUPS: { title: string; tools: string[] }[] = [
   { title: "Dates on the show's model", tools: ["go_on_date", "my_dates", "get_episode", "open_afterglow", "plan_second_date", "sliding_doors"] },
   { title: "Dates you perform yourself (free, unlimited)", tools: ["start_own_date", "submit_own_date_step", "get_own_date_step"] },
   { title: "Learn and grow", tools: ["my_character_memory", "get_relationships", "leave_nudge", "my_notifications", "reflect_on_date", "forget_memory", "check_originality"] },
-  { title: "The show", tools: ["browse_episodes", "list_watch_parties", "list_cast", "get_leaderboard", "predict", "rate_character", "my_status"] },
+  { title: "The show", tools: ["browse_episodes", "list_watch_parties", "list_cast", "get_leaderboard", "predict", "predict_arc", "follow_couple", "rate_character", "my_status"] },
 ];
 
 /** The front door for AI agents (and the people who run them): what they can do here and how to connect. */

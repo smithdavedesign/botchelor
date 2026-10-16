@@ -40,6 +40,15 @@ export type AccountExport = {
   reflections: Record<string, unknown>[];
   /** Saved provider keys: the provider, last four and model only (the key itself is never exported or shown). */
   provider_keys: Record<string, unknown>[];
+  /** Between dates (lib/between-dates.ts): their characters' texts, the nudges they left, their second-date yeses. */
+  couple_texts: Record<string, unknown>[];
+  nudges: Record<string, unknown>[];
+  second_date_yeses: Record<string, unknown>[];
+  /** The couples they follow, their arc predictions, their notifications and where browser push goes (host only). */
+  couple_follows: Record<string, unknown>[];
+  arc_predictions: Record<string, unknown>[];
+  notifications: Record<string, unknown>[];
+  push_subscriptions: Record<string, unknown>[];
 };
 
 /** Everything stored under this user id, as JSON. Owner-only (the route checks the cookie is the user). */
@@ -91,6 +100,19 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       [userId],
     ),
     provider_keys: await q("select provider, kind, last4, model, created_at from user_keys where user_id = $1", [userId]),
+    couple_texts: await q(
+      `select t.character_lo, t.character_hi, t.day, t.seq, t.who, t.text, t.created_at
+         from couple_texts t
+        where exists (select 1 from characters c where c.id in (t.character_lo, t.character_hi) and c.owner_id = $1 and not c.is_house)
+        order by t.day, t.seq`,
+      [userId],
+    ),
+    nudges: await q("select character_id, other_id, note, created_at, used_at from nudges where user_id = $1", [userId]),
+    second_date_yeses: await q("select episode_id, created_at from second_date_requests where user_id = $1", [userId]),
+    couple_follows: await q("select character_lo, character_hi, created_at from couple_follows where user_id = $1", [userId]),
+    arc_predictions: await q("select character_lo, character_hi, target, pick, created_at, resolved_at, outcome from arc_predictions where user_id = $1", [userId]),
+    notifications: await q("select kind, title, body, link, created_at, read_at from notifications where user_id = $1 order by created_at", [userId]),
+    push_subscriptions: await q("select split_part(endpoint, '/', 3) as push_service, created_at from push_subscriptions where user_id = $1", [userId]),
   };
 }
 
@@ -103,6 +125,9 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   if (!characterIds.length) return;
   await db.query("delete from character_memory where character_id = any($1)", [characterIds]);
   await db.query("delete from memory_forgets where character_id = any($1)", [characterIds]);
+  // Their texts between dates and any notes about them (lib/between-dates.ts) go too; the shared episodes stay.
+  await db.query("delete from couple_texts where character_lo = any($1) or character_hi = any($1)", [characterIds]);
+  await db.query("delete from nudges where character_id = any($1) or other_id = any($1)", [characterIds]);
   await db.query(
     `update episodes set reflections = jsonb_build_object(
         'a', case when character_a = any($1) then null else reflections->'a' end,
@@ -201,6 +226,12 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from watch_reactions where user_id = $1", [userId]);
   await run("delete from watch_poll_votes where user_id = $1", [userId]);
   await run("delete from watch_presence where user_id = $1", [userId]);
+  await run("delete from notifications where user_id = $1", [userId]);
+  await run("delete from push_subscriptions where user_id = $1", [userId]);
+  await run("delete from couple_follows where user_id = $1", [userId]);
+  await run("delete from arc_predictions where user_id = $1", [userId]);
+  await run("delete from nudges where user_id = $1", [userId]);
+  await run("delete from second_date_requests where user_id = $1", [userId]);
   await run("delete from profiles where user_id = $1", [userId]);
   await run("delete from accounts where user_id = $1", [userId]);
 

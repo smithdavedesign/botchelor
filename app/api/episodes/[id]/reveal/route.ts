@@ -55,7 +55,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
   await updateCharacterMemory(db, revealed.character_a).catch(() => {});
   await updateCharacterMemory(db, revealed.character_b).catch(() => {});
   // ...and into the pair's edge: an aired public date joins the public layer of the relationship graph.
-  await refreshAndAnnounce(db, revealed.character_a, revealed.character_b).catch(() => {});
+  await refreshAndAnnounce(db, revealed.character_a, revealed.character_b, { episodeId: id }).catch(() => {});
 
   const tally = (
     await db.query<{ total: number; correct: number }>(

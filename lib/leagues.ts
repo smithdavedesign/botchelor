@@ -1,6 +1,6 @@
 import type { Db } from "./db";
 import { predictionPointsSql } from "./game";
-import { POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "./rules";
+import { POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "./rules";
 import { listLeagueSeasons, seasonAt, UNNAMED_MEMBER, weekWindow, type PastSeason } from "./seasons";
 
 // The week rule moved to lib/seasons.ts with M4 (a season is the leaderboard week); M2 code imports it here.
@@ -35,15 +35,23 @@ export async function getLeague(db: Db, id: string, viewerId: string | null, now
   if (!league) return null;
 
   const { start, end } = weekWindow(now);
-  // Rank and points come only from predictions; the frame is joined beside them and can't move anyone.
+  // Rank and points come only from predictions (episodes, and couples' arcs settled this week: lib/arcs.ts); the
+  // frame is joined beside them and can't move anyone.
   const { rows } = await db.query<Omit<LeaderboardEntry, "frame"> & { frame: string | null }>(
     `with week_points as (
-       select p.user_id, sum(${predictionPointsSql("$5", "$6")})::int as points
-         from predictions p
-         join episodes e on e.id = p.episode_id
-        where e.revealed_at >= $3 and e.revealed_at < $4 and e.visibility = 'public'
-          and p.user_id in (select user_id from league_members where league_id = $1)
-        group by p.user_id
+       select user_id, sum(points)::int as points from (
+         select p.user_id, ${predictionPointsSql("$5", "$6")} as points
+           from predictions p
+           join episodes e on e.id = p.episode_id
+          where e.revealed_at >= $3 and e.revealed_at < $4 and e.visibility = 'public'
+            and p.user_id in (select user_id from league_members where league_id = $1)
+         union all
+         select ap.user_id, case when ap.pick = ap.outcome then $8::int else 0 end as points
+           from arc_predictions ap
+          where ap.resolved_at >= $3 and ap.resolved_at < $4
+            and ap.user_id in (select user_id from league_members where league_id = $1)
+       ) scored
+       group by user_id
      )
      select rank() over (order by coalesce(w.points, 0) desc)::int as rank,
             coalesce(pr.name, $7) as name,
@@ -69,6 +77,7 @@ export async function getLeague(db: Db, id: string, viewerId: string | null, now
       POINTS_PER_CORRECT_PICK,
       POINTS_PER_DRAMA_PICK,
       UNNAMED_MEMBER,
+      POINTS_PER_ARC,
     ],
   );
 

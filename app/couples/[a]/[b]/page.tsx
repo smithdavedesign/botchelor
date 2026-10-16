@@ -9,6 +9,9 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { activeNudge, alsoSeeing, coupleTexts } from "@/lib/between-dates";
 import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships";
 import NudgeForm from "./NudgeForm";
+import { ArcCard, FollowButton } from "./CoupleActions";
+import { arcQuestion } from "@/lib/arcs";
+import { followState } from "@/lib/follows";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +33,10 @@ async function load(a: string, b: string) {
   const mine = owners.filter((o) => viewerId !== null && o.owner_id === viewerId).map((o) => o.id);
   const texts = owner ? await coupleTexts(db, a, b, 12) : [];
   const nudges = owner ? await Promise.all(mine.map(async (id) => ({ id, note: await activeNudge(db, id, id === a ? b : a) }))) : [];
-  return { ca, cb, view, owner, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, texts, nudges };
+  // Spectators: follow the couple, and call their arc (lib/follows.ts, lib/arcs.ts). Public couples only.
+  const listed = rel!.public.dates > 0;
+  const [follow, arc] = listed ? await Promise.all([followState(db, viewerId, a, b), arcQuestion(db, viewerId, a, b)]) : [null, null];
+  return { ca, cb, view, owner, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, texts, nudges, follow, arc };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -56,7 +62,7 @@ export default async function CouplePage({ params }: Props) {
   if (a !== lo) permanentRedirect(`/couples/${lo}/${hi}`);
   const data = await load(lo, hi);
   if (!data) notFound();
-  const { ca, cb, view, owner, seeing, texts, nudges } = data;
+  const { ca, cb, view, owner, seeing, texts, nudges, follow, arc } = data;
   const complicated = [ca, cb].filter((c) => seeing[c.id]?.length);
   const nameOf = (id: string) => (id === ca.id ? ca.name : cb.name);
   const first = (c: PublicCharacter) => c.name.split(" ")[0];
@@ -96,8 +102,11 @@ export default async function CouplePage({ params }: Props) {
             .
           </p>
         )}
+        {follow && <FollowButton pair={[ca.id, cb.id]} following={follow.following} followers={follow.followers} />}
         {owner && <p className="muted small">You own one of them, so you also see your own private dates, their plans and their texts.</p>}
       </section>
+
+      {arc && <ArcCard pair={[ca.id, cb.id]} names={`${first(ca)} and ${first(cb)}`} q={arc} />}
 
       {owner && texts.length > 0 && (
         <section className="card afterglow">

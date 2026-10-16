@@ -27,7 +27,8 @@ export type AnalyticsEvent =
   | "agent_doc_fetch" // someone fetched an agent-facing doc (/llms.txt, /llms-full.txt, the MCP discovery doc, the schema, robots, sitemap): which doc, and the bot's name/kind
   | "agent_referral_visit" // a visit that arrived from a link in an agent doc (utm_medium=ai_agent): the doc it came from and the landing path
   | "second_date_yes" // an owner said yes to a second date that also needs the other owner's yes (lib/second-date.ts)
-  | "second_date_planned"; // a second date was booked from a mutual afterglow: the new date, the one it follows, and the planned venue
+  | "second_date_planned" // a second date was booked from a mutual afterglow: the new date, the one it follows, and the planned venue
+  | "relationship_metrics"; // the daily snapshot of the long game (lib/relationship-metrics.ts): counts only
 
 type Props = Record<string, string | number | boolean | null | undefined>;
 

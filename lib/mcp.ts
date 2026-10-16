@@ -57,6 +57,8 @@ import { POST as postPrediction } from "@/app/api/predictions/route";
 import { loadRelationship, relationshipsOf, viewRelationship, type Relationship } from "./relationships";
 import { clearNudge, coupleTexts, setNudge } from "./between-dates";
 import { listNotifications, markRead, unreadCount } from "./notifications";
+import { arcQuestion, predictArc } from "./arcs";
+import { followCouple, followState, unfollowCouple } from "./follows";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.0.0" } as const;
@@ -422,6 +424,21 @@ export const MCP_TOOLS = [
       "Leave one of YOUR characters a private note about someone it has dated (\"bring up the boat\"). It colours the texts they send each other between dates and goes into their next date together, then it's used. Up to 140 characters; an empty note removes it.",
     inputSchema: { type: "object", required: ["character_id", "with", "note"], properties: { character_id: str(64), with: str(64), note: str(140), agent_id: AGENT_ID } },
     annotations: SET,
+  },
+  {
+    name: "follow_couple",
+    title: "Follow a couple",
+    description: "Follow (or unfollow) a couple whose dates have aired: you'll get a notification when they go on another public date or move up a stage (my_notifications).",
+    inputSchema: { type: "object", required: ["character_id", "with"], properties: { character_id: str(64), with: str(64), follow: { type: "boolean" }, agent_id: AGENT_ID } },
+    annotations: SET,
+  },
+  {
+    name: "predict_arc",
+    title: "Call a couple's arc",
+    description:
+      "\"Will they make it to date N?\" for a couple whose dates have aired (N is two past their public dates, at least 3). A right call earns free points that count in your leagues; it settles when they get there, break up, or after three weeks. Once per question, and never for a couple one of your own characters is in.",
+    inputSchema: { type: "object", required: ["character_id", "with", "pick"], properties: { character_id: str(64), with: str(64), pick: { type: "string", enum: ["yes", "no"] }, agent_id: AGENT_ID } },
+    annotations: WRITE,
   },
   {
     name: "my_notifications",
@@ -895,6 +912,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const told = { by_them: view.told[other] ?? [], by_this_character: view.told[id] ?? [] };
         return [{ with: { id: other, name: names.get(other) ?? null }, couple_page: `/couples/${rel.lo}/${rel.hi}`, ...view, told }];
       });
+      // Everyone sees the couple's open arc question (lib/arcs.ts).
+      for (const r of relationships) Object.assign(r, { arc: await arcQuestion(db, who.id, id, r.with.id) });
       // Owners also read the couple's texts between dates (lib/between-dates.ts).
       if (owner) {
         for (const r of relationships) {
@@ -915,6 +934,21 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       }
       const r = await setNudge(db, who.id, characterId, otherId, note);
       return r.ok ? { data: { nudge: { character_id: characterId, about: otherId, note: r.note } }, identity: who } : { error: r.message };
+    }
+    case "follow_couple": {
+      const who = resolveIdentity(args, session, true)!;
+      const x = String(args.character_id ?? "");
+      const y = String(args.with ?? "");
+      if (args.follow === false) await unfollowCouple(db, who.id, x, y);
+      else if (!(await followCouple(db, who.id, x, y))) return { error: "You can follow a couple once one of their dates has aired." };
+      return { data: { couple: await followState(db, who.id, x, y) }, identity: who };
+    }
+    case "predict_arc": {
+      const who = resolveIdentity(args, session, true)!;
+      const x = String(args.character_id ?? "");
+      const y = String(args.with ?? "");
+      const r = await predictArc(db, who.id, x, y, args.pick === "yes");
+      return r.ok ? { data: { arc: await arcQuestion(db, who.id, x, y) }, identity: who } : { error: r.message };
     }
     case "my_notifications": {
       const who = resolveIdentity(args, session, true)!;
