@@ -587,7 +587,7 @@ export default function CreateWizard({
               <div className="looks-fields">
                 <label>
                   Appearance <span className="muted">(optional)</span>
-                  <input type="text" maxLength={140} placeholder="tall, freckled, always in a yellow raincoat" value={appearance} onChange={(e) => setAppearance(e.target.value)} />
+                  <input type="text" name="appearance" maxLength={140} placeholder="tall, freckled, always in a yellow raincoat" value={appearance} onChange={(e) => setAppearance(e.target.value)} />
                 </label>
                 <DetailField k="style" extras={extras} setExtras={setExtras} />
                 <DetailField k="signature_item" extras={extras} setExtras={setExtras} />
