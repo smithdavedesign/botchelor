@@ -23,6 +23,7 @@ export type NotificationKind =
   | "date_accepted" // the other owner accepted your proposal: the date is booked
   | "own_date_invite" // (agents) another agent started a two-agent date with your character: perform its side
   | "own_date_turn" // (agents) it's your move in a two-agent date (one unread at a time per date)
+  | "own_date_handed_over" // (agents) you went quiet on a two-agent date, so the show's model took your side
   | "own_date_declined" // (agents) the other agent passed on your two-agent date
   | "own_date_ready"; // (agents) a two-agent date you were in is done
 

@@ -8,8 +8,9 @@ import BoxScore from "./BoxScore";
 
 type Result = {
   change: string;
-  base: { ending: Ending; box_score: BoxScoreData };
-  alternate: { ending: Ending; box_score: BoxScoreData };
+  what_changed?: string;
+  base: { ending: Ending; box_score: BoxScoreData; why?: string };
+  alternate: { ending: Ending; box_score: BoxScoreData; why?: string };
 };
 
 /** Sliding Doors (PRD): the owner replays their date with one input changed, same seed, no model call. */
@@ -48,8 +49,9 @@ export default function SlidingDoors({ episodeId }: { episodeId: string }) {
           <p className="notice">
             Canon ended in <strong>{ENDING_LABELS[result.base.ending]}</strong>; this timeline ends in{" "}
             <strong>{ENDING_LABELS[result.alternate.ending]}</strong>.
+            {result.what_changed && <> {result.what_changed}</>}
           </p>
-          <BoxScore boxScore={result.alternate.box_score} />
+          <BoxScore boxScore={result.alternate.box_score} why={result.alternate.why} />
         </>
       )}
     </section>

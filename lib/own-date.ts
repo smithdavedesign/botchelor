@@ -37,7 +37,8 @@ import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
 import { buildReflectionMessages, type Reflections } from "./reflection";
 import { useNudges } from "./between-dates";
 import { audienceAllows, type Audience } from "./audience";
-import { getDirectorModel } from "./model";
+import { getDirectorModel, getModel } from "./model";
+import { agentDatesToday } from "./dating";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { takenSql } from "./partners";
@@ -97,6 +98,9 @@ type Row = {
   note: string | null;
   transcript: Turn[];
   reflections: Reflections | null;
+  created_at: Date | string;
+  last_move_at: Date | string | null;
+  handed_over: "a" | "b" | null;
   a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_appearance: string | null; a_pronouns: string | null; a_voice: string | null;
   b_id: string; b_name: string; b_age: number; b_bio: string; b_traits: string[]; b_want: string; b_dealbreaker: string; b_appearance: string | null; b_pronouns: string | null; b_voice: string | null;
 };
@@ -257,6 +261,7 @@ export async function startOwnDate(
 async function load(db: Db, userId: string, episodeId: string): Promise<Row | null> {
   const { rows } = await db.query<Row>(
     `select e.id, e.creator_id, e.partner_performer, e.status, e.seed::text as seed, e.setup, e.note, e.transcript, e.reflections,
+            e.created_at, e.last_move_at, e.handed_over,
             a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want, a.dealbreaker a_dealbreaker,
             a.appearance a_appearance, a.pronouns a_pronouns, a.voice a_voice,
             b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want, b.dealbreaker b_dealbreaker,
@@ -365,18 +370,38 @@ function reflectStep(
 }
 
 type Performers = { a: string; b: string };
-const performersOf = (row: Pick<Row, "creator_id" | "partner_performer">): Performers => ({ a: row.creator_id, b: row.partner_performer ?? row.creator_id });
+/** Who performs a side once the show's model has taken it over (handOverOwnDate). */
+const SHOW = "show";
+const performersOf = (row: Pick<Row, "creator_id" | "partner_performer"> & { handed_over?: "a" | "b" | null }): Performers => {
+  const p = { a: row.creator_id, b: row.partner_performer ?? row.creator_id };
+  if (row.handed_over) p[row.handed_over] = SHOW;
+  return p;
+};
+
+/** How long the other agent must have been quiet before its side can be handed to the show's model. */
+export const OWN_DATE_HANDOVER_MINUTES = 20;
+const lastMove = (row: Pick<Row, "created_at" | "last_move_at">) => new Date(row.last_move_at ?? row.created_at);
+const minutesSince = (d: Date) => Math.max(0, Math.floor((Date.now() - d.getTime()) / 60_000));
 
 /** The step as this agent sees it: the other agent's turns (and, two-agent, the show's recap) are a wait. */
-function forViewer(step: OwnDateStep, userId: string, performers: Performers, twoAgent: boolean): OwnDateStep {
+function forViewer(step: OwnDateStep, userId: string, performers: Performers, twoAgent: boolean, since?: Date): OwnDateStep {
   if (step.stage === "turn" && performers[step.side] !== userId) {
+    const quiet = since ? minutesSince(since) : 0;
+    const canHandOver = twoAgent && performers[step.side] !== SHOW && quiet >= OWN_DATE_HANDOVER_MINUTES;
     return {
       stage: "waiting",
       episode_id: step.episode_id,
       turn: step.turn,
       of: step.of,
       waiting_for: step.speaker,
-      instructions: `${step.speaker.name}'s agent performs this turn on its own model. Ask again with get_own_date_step in a little while.`,
+      ...(since ? { last_move_at: since.toISOString(), quiet_minutes: quiet, can_hand_over: canHandOver } : {}),
+      instructions:
+        `${step.speaker.name}'s agent performs this turn on its own model` +
+        (since ? `; the last move on this date was ${quiet} minute${quiet === 1 ? "" : "s"} ago. ` : ". ") +
+        "You'll get an own_date_turn notification when it's your move (check my_notifications every minute or two, or ask again with get_own_date_step). " +
+        (canHandOver
+          ? `They've been quiet ${OWN_DATE_HANDOVER_MINUTES}+ minutes: hand_over_own_date lets the show's model finish ${step.speaker.name}'s side (it counts against the agents' daily budget), or decline_own_date to cancel.`
+          : `If they stay quiet ${OWN_DATE_HANDOVER_MINUTES} minutes, you can hand their side to the show's model (hand_over_own_date) or cancel (decline_own_date).`),
     };
   }
   if (step.stage === "recap" && twoAgent) {
@@ -447,7 +472,7 @@ async function doneStep(db: Db, userId: string, row: Row, built: BuiltDate, deci
 /** Where a self-performed date is up to: the next step to run, or done. */
 export async function getOwnDateStep(db: Db, userId: string, episodeId: string): Promise<OwnDateResult> {
   const row = await load(db, userId, episodeId);
-  if (!row) return err(404, "own_date_not_found", "No self-performed date of yours with that id.");
+  if (!row) return notFound(db, userId, episodeId);
   const { built, decided, formatId } = await rebuild(db, row);
   const ids: [string, string] = [row.a_id, row.b_id];
   const transcript = row.transcript ?? [];
@@ -459,7 +484,84 @@ export async function getOwnDateStep(db: Db, userId: string, episodeId: string):
     const fresh = await load(db, userId, episodeId);
     if (fresh?.status === "ready") return { ok: true, step: await doneStep(db, userId, fresh, built, decided, formatId, transcript) };
   }
-  return { ok: true, step: forViewer(step, userId, performersOf(row), twoAgent) };
+  // The show's model has this side (the other agent went quiet): it performs the turn now, then it's someone else's.
+  if (step.stage === "turn" && performersOf(row)[step.side] === SHOW) {
+    const done = await showTurn(db, row, step.side, step.act_index, step.messages, transcript);
+    if (done) return getOwnDateStep(db, userId, episodeId);
+  }
+  return { ok: true, step: forViewer(step, userId, performersOf(row), twoAgent, lastMove(row)) };
+}
+
+/** One turn of a handed-over side, on the show's model (the same parser and filter as every line). */
+async function showTurn(db: Db, row: Row, side: "a" | "b", act: number, messages: ChatMessage[], transcript: Turn[]): Promise<boolean> {
+  const model = getModel();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let raw: string;
+    try {
+      raw = await model.complete(messages, { temperature: 0.9 });
+    } catch {
+      continue;
+    }
+    const parsed = parseTurnResult(raw, side, act);
+    if (!("turn" in parsed)) continue;
+    // Saved, or a request racing this one saved the turn first: either way the date has moved on.
+    await db.query(
+      `update episodes set transcript = $2::jsonb, last_move_at = now()
+        where id = $1 and status = 'generating' and jsonb_array_length(transcript) = $3`,
+      [row.id, JSON.stringify([...transcript, parsed.turn]), transcript.length],
+    );
+    return true;
+  }
+  return false;
+}
+
+/**
+ * The other agent went quiet on a two-agent date: after OWN_DATE_HANDOVER_MINUTES, either agent may hand that side
+ * to the show's model, which performs its remaining turns (on our compute, so it counts as one of the agents' daily
+ * dates). The quiet agent is told; its character's private side is only ever seen by our model, as on any show date.
+ */
+export async function handOverOwnDate(db: Db, userId: string, episodeId: string): Promise<OwnDateResult> {
+  const row = await load(db, userId, episodeId);
+  if (!row) return notFound(db, userId, episodeId);
+  if (row.status === "ready") return err(409, "already_done", "That date is already finished.");
+  if (row.partner_performer === null) return err(409, "not_two_agent", "Only a two-agent date can be handed over: you perform both sides of this one.");
+  if (row.handed_over) return getOwnDateStep(db, userId, episodeId);
+  const { built, decided, formatId } = await rebuild(db, row);
+  const step = stepFor(episodeId, built, decided, formatId, row.transcript ?? [], [row.a_id, row.b_id]);
+  const performers = performersOf(row);
+  if (step.stage !== "turn" || performers[step.side] === userId) {
+    return err(409, "your_move", "It's your move (or the recap's), not theirs: there's nothing to hand over.");
+  }
+  const quiet = minutesSince(lastMove(row));
+  if (quiet < OWN_DATE_HANDOVER_MINUTES) {
+    return err(409, "too_soon", `They moved ${quiet} minute${quiet === 1 ? "" : "s"} ago. Their side can be handed over after ${OWN_DATE_HANDOVER_MINUTES} quiet minutes.`);
+  }
+  const today = await agentDatesToday(db);
+  if (today.used >= today.cap) return err(429, "agent_budget", `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}.`);
+  const taken = await db.query(
+    `update episodes set handed_over = $2, handed_over_at = now() where id = $1 and handed_over is null and status = 'generating' returning id`,
+    [episodeId, step.side],
+  );
+  if (taken.rows.length) {
+    await notify(db, performers[step.side], {
+      kind: "own_date_handed_over",
+      title: `🎬 The show's model took over ${shortName(step.speaker.name)}'s side`,
+      body: `Two-agent date ${episodeId}: you were quiet ${quiet} minutes, so the other agent handed your character's remaining turns to the show's model. It still airs as your character's date.`,
+      link: null,
+    });
+    track("own_date_handed_over", { episode_id: episodeId, quiet_minutes: quiet });
+  }
+  return getOwnDateStep(db, userId, episodeId);
+}
+
+/** A date that isn't there: say if it was declined or cancelled, rather than "no such date". */
+async function notFound(db: Db, userId: string, episodeId: string): Promise<OwnDateResult> {
+  const { rows } = await db.query<{ title: string }>(
+    `select title from notifications where user_id = $1 and kind = 'own_date_declined' and body like $2 order by created_at desc limit 1`,
+    [userId, `%${episodeId}%`],
+  ).catch(() => ({ rows: [] as { title: string }[] }));
+  if (rows[0]) return err(410, "own_date_declined", `That date was called off and removed ("${rows[0].title}"). Nothing was shown or spent.`);
+  return err(404, "own_date_not_found", "No self-performed date of yours with that id.");
 }
 
 const asText = (output: unknown): string => (typeof output === "string" ? output : JSON.stringify(output ?? null));
@@ -467,7 +569,7 @@ const asText = (output: unknown): string => (typeof output === "string" ? output
 /** Hand in the output for the current step; returns the next one (or the same one, refused, with why). */
 export async function submitOwnDateStep(db: Db, userId: string, episodeId: string, output: unknown): Promise<OwnDateResult> {
   const row = await load(db, userId, episodeId);
-  if (!row) return err(404, "own_date_not_found", "No self-performed date of yours with that id.");
+  if (!row) return notFound(db, userId, episodeId);
   if (row.status === "ready") return getOwnDateStep(db, userId, episodeId);
   const { built, decided, formatId } = await rebuild(db, row);
   const transcript = row.transcript ?? [];
@@ -488,7 +590,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     if (problem) return { ok: true, step: current, rejected: problem };
     const next = [...transcript, parsed.turn];
     const saved = await db.query(
-      `update episodes set transcript = $2::jsonb
+      `update episodes set transcript = $2::jsonb, last_move_at = now()
         where id = $1 and status = 'generating' and performed_by = 'agent' and jsonb_array_length(transcript) = $3
         returning id`,
       [episodeId, JSON.stringify(next), transcript.length],
@@ -500,7 +602,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       const upNext = stepFor(episodeId, built, decided, formatId, next, [row.a_id, row.b_id]);
       if (upNext.stage === "turn") {
         const theirs = performersOf(row)[upNext.side];
-        if (theirs !== userId) await tellTheirMove(db, theirs, row, upNext.side, next.length, totalTurns(formatId));
+        if (theirs !== userId && theirs !== SHOW) await tellTheirMove(db, theirs, row, upNext.side, next.length, totalTurns(formatId));
       }
       return getOwnDateStep(db, userId, episodeId);
     }
@@ -550,27 +652,54 @@ async function tellTheirMove(db: Db, to: string, row: Row, side: "a" | "b", done
 }
 
 /** The invited agent says no: the unfinished date is removed (it was never visible) and the asking agent is told. */
+/**
+ * Calls off an unfinished date: the invited agent declines, or the agent that started it cancels (a two-agent date
+ * the other side never got to, or one of its own). It's removed (it was never visible) and the other agent is told.
+ */
 export async function declineOwnDate(db: Db, userId: string, episodeId: string): Promise<boolean> {
-  const { rows } = await db.query<{ creator_id: string; a: string; b: string }>(
+  const { rows } = await db.query<{ creator_id: string; partner_performer: string | null; a: string; b: string }>(
     `delete from episodes e
-      where e.id = $1 and e.partner_performer = $2 and e.status = 'generating' and e.performed_by = 'agent'
-      returning e.creator_id,
+      where e.id = $1 and (e.partner_performer = $2 or e.creator_id = $2) and e.status = 'generating' and e.performed_by = 'agent'
+      returning e.creator_id, e.partner_performer,
                 (select name from characters where id = e.character_a) as a,
                 (select name from characters where id = e.character_b) as b`,
     [episodeId, userId],
   );
   const r = rows[0];
   if (!r) return false;
-  await notify(db, r.creator_id, {
+  const cancelled = r.creator_id === userId;
+  const other = cancelled ? r.partner_performer : r.creator_id;
+  // Tell the other agent; and keep a note for whoever called it off, so a late get_own_date_step says what happened.
+  await notify(db, other, {
     kind: "own_date_declined",
-    title: `${shortName(r.b)}'s agent passed on the date with ${shortName(r.a)}`,
-    body: "Nothing was shown or spent. Try another character that's open to agents, or go_on_date (the show's model).",
+    title: cancelled ? `${shortName(r.a)}'s agent called off the date with ${shortName(r.b)}` : `${shortName(r.b)}'s agent passed on the date with ${shortName(r.a)}`,
+    body: `Date ${episodeId}. Nothing was shown or spent. Try another character that's open to agents, or go_on_date (the show's model).`,
     link: null,
   });
+  if (other) {
+    await db.query(
+      `insert into notifications (id, user_id, kind, title, body, link, read_at) values ($1, $2, 'own_date_declined', $3, $4, null, now())`,
+      [crypto.randomUUID(), userId, `You called off the date between ${shortName(r.a)} and ${shortName(r.b)}`, `Date ${episodeId}.`],
+    ).catch(() => {});
+  }
   return true;
 }
 
-export type OpenOwnDate = { episode_id: string; two_agent: boolean; your_character: { id: string; name: string }; with: { id: string; name: string }; turn: number; of: number; your_move: boolean; started_at: string };
+export type OpenOwnDate = {
+  episode_id: string;
+  two_agent: boolean;
+  your_character: { id: string; name: string };
+  with: { id: string; name: string };
+  turn: number;
+  of: number;
+  your_move: boolean;
+  started_at: string;
+  /** When either side last handed in a turn, and minutes since: how long the other agent has been quiet. */
+  last_move_at: string;
+  quiet_minutes: number;
+  /** The show's model plays this side now (the other agent went quiet and its side was handed over). */
+  show_plays?: { id: string; name: string };
+};
 
 /** This agent's unfinished self-performed dates: the ones it started and the ones it was invited to, and whose move it is. */
 export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[]> {
@@ -586,7 +715,7 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
     const transcript = row.transcript ?? [];
     const step = stepFor(id, built, decided, formatId, transcript, [row.a_id, row.b_id]);
     const performers = performersOf(row);
-    const mineSide: "a" | "b" = performers.a === userId ? "a" : "b";
+    const mineSide: "a" | "b" = row.creator_id === userId ? "a" : "b";
     const other = mineSide === "a" ? "b" : "a";
     out.push({
       episode_id: id,
@@ -596,7 +725,10 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
       turn: transcript.length,
       of: totalTurns(formatId),
       your_move: step.stage === "turn" ? performers[step.side] === userId : row.partner_performer === null,
-      started_at: new Date((await db.query<{ created_at: Date | string }>(`select created_at from episodes where id = $1`, [id])).rows[0].created_at).toISOString(),
+      started_at: new Date(row.created_at).toISOString(),
+      last_move_at: lastMove(row).toISOString(),
+      quiet_minutes: minutesSince(lastMove(row)),
+      ...(row.handed_over ? { show_plays: { id: row[`${row.handed_over}_id`], name: row[`${row.handed_over}_name`] } } : {}),
     });
   }
   return out;

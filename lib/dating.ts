@@ -9,6 +9,7 @@
  * Compatibility here is a hint for who to ask. It never touches the date: the engine decides how a date
  * ends from the two characters on the night.
  */
+import { contentWords } from "./quality";
 import { portraitPathSql } from "./assets";
 import { audienceAllows, type Audience } from "./audience";
 import { takenSql } from "./partners";
@@ -120,6 +121,14 @@ export function keywords(text: string): Set<string> {
   }
   return out;
 }
+
+/** A word that says something about a person, for a match's reasons: not "small", "without" or "really". */
+const WEAK_WORDS = new Set([
+  "small", "big", "little", "without", "really", "very", "good", "great", "nice", "someone", "somebody", "person", "people", "thing", "things",
+  "time", "times", "always", "never", "every", "make", "makes", "just", "even", "much", "more", "most", "like", "want", "wants", "know",
+  "actually", "still", "back", "first", "last", "next", "other", "same", "kind", "sort", "way", "ways", "lot", "lots", "one", "two",
+]);
+const strongWord = (w: string) => w.length >= 4 && !WEAK_WORDS.has(w) && contentWords(w, 4).length > 0;
 
 const haystack = (p: Pick<DatingProfile, "name" | "bio" | "want" | "appearance" | "voice" | "traits"> & { extras?: CharacterExtras }): string =>
   [p.name, p.bio, p.want, p.appearance ?? "", p.voice ?? "", ...p.traits, extrasText(p.extras ?? {})].join(" ");
@@ -241,12 +250,12 @@ export async function findMatches(
       why.push(`you both love ${sharedHobbies.map((h) => h.toLowerCase()).join(" and ")}`);
     }
     const theirWords = keywords(haystack({ ...p, want: "" }));
-    const theyFit = [...myWant].filter((w) => theirWords.has(w)).slice(0, 3);
+    const theyFit = [...myWant].filter((w) => strongWord(w) && theirWords.has(w)).slice(0, 3);
     if (theyFit.length) {
       score += theyFit.length;
       why.push(`${me.name} wants ${theyFit.map((w) => `"${w}"`).join(", ")} — that's in ${p.name}'s profile`);
     }
-    const youFit = [...keywords(p.want)].filter((w) => myWords.has(w)).slice(0, 3);
+    const youFit = [...keywords(p.want)].filter((w) => strongWord(w) && myWords.has(w)).slice(0, 3);
     if (youFit.length) {
       score += youFit.length;
       why.push(`${p.name} wants ${youFit.map((w) => `"${w}"`).join(", ")} — that's in ${me.name}'s profile`);
@@ -309,14 +318,19 @@ const utcMidnight = (now: Date): Date => new Date(Date.UTC(now.getUTCFullYear(),
 export async function agentDatesToday(db: Db, now: Date = new Date()): Promise<{ used: number; cap: number; resets_at: string }> {
   const start = utcMidnight(now);
   const { rows } = await db.query<{ n: number }>(
-    `select count(*)::int as n from episodes where created_via = 'mcp' and performed_by = 'platform' and created_at >= $1`,
+    // A two-agent date the show's model took one side of (lib/own-date.ts handOverOwnDate) counts as one too.
+    `select count(*)::int as n from episodes
+      where created_via = 'mcp' and ((performed_by = 'platform' and created_at >= $1) or handed_over_at >= $1)`,
     [start.toISOString()],
   );
   return { used: rows[0]?.n ?? 0, cap: agentDailyDateCap(), resets_at: new Date(start.getTime() + 86_400_000).toISOString() };
 }
 
 export type AgentStats = {
+  /** Identities that connected (one per connection that never passed an agent_id, so it runs high). */
   agents: number;
+  /** Agents that made at least one character: the ones that stayed to play. */
+  agents_with_characters: number;
   sessions: number;
   agents_last_7d: number;
   agent_characters: number;
@@ -332,6 +346,7 @@ export async function agentStats(db: Db, now: Date = new Date()): Promise<AgentS
   const since = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const { rows } = await db.query<{
     agents: number;
+    agents_with_characters: number;
     sessions: number;
     agents_last_7d: number;
     agent_characters: number;
@@ -340,6 +355,7 @@ export async function agentStats(db: Db, now: Date = new Date()): Promise<AgentS
     agent_performed_dates: number;
   }>(
     `select (select count(distinct agent_id)::int from mcp_sessions) as agents,
+            (select count(distinct owner_id)::int from characters where created_via = 'mcp' and owner_id is not null) as agents_with_characters,
             (select count(*)::int from mcp_sessions) as sessions,
             (select count(distinct agent_id)::int from mcp_sessions where last_seen >= $1) as agents_last_7d,
             (select count(*)::int from characters where created_via = 'mcp') as agent_characters,

@@ -24,7 +24,7 @@ import { episodeAllowance } from "./allowance";
 import { track } from "./analytics";
 import { detectBot } from "./bots";
 import { getDb, type Db } from "./db";
-import { getCharacterHistory, getPoints, listMyEpisodes, type EpisodeView } from "./game";
+import { getCharacterHistory, getPoints, getPointsBreakdown, listMyEpisodes, type EpisodeView } from "./game";
 import { readUserId, USER_COOKIE } from "./http";
 import { listCast } from "./mechanics";
 import { connections, describeDrift, loadCharacterMemory, loadForgets, PAIR_STATUS_LABELS, stageFor, type Source } from "./memory";
@@ -33,11 +33,11 @@ import { originality } from "./originality";
 import { describeTemperament } from "./temperament";
 import { ownsCharacter } from "./souls";
 import { thisWeek, type StoredThisWeek } from "./life";
-import { declineOwnDate, getOwnDateStep, openOwnDates, startOwnDate, submitOwnDateStep } from "./own-date";
+import { declineOwnDate, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, startOwnDate, submitOwnDateStep } from "./own-date";
 import { extrasJsonSchema, type CharacterExtras } from "./extras";
 import { topRatedCharacters } from "./ratings";
 import { FORMAT_IDS } from "./formats";
-import { POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, RATING_CATEGORY_IDS, SLIDING_DOOR_IDS } from "./rules";
+import { POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, RATING_CATEGORY_IDS, SLIDING_DOOR_IDS } from "./rules";
 import { siteUrl } from "./site";
 import { POST as postCharacter } from "@/app/api/characters/route";
 import { PATCH as patchCharacter } from "@/app/api/characters/[id]/route";
@@ -80,8 +80,12 @@ const INSTRUCTIONS =
   "GOOD TO KNOW: you know your own date's ending as soon as it's booked (the engine decides it up front). Use visibility: \"private\" " +
   "to experiment. Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240. The show deals a " +
   "few things itself: what's new in a character's life this week, and each side's secret agenda. In predictions, side a and b follow " +
-  "the episode's characters in order. In a two-agent date, check my_own_dates for your turn: the other agent may be offline, and an " +
-  "unfinished date lapses after 24 hours. Errors name the field to fix. " +
+  "the episode's characters in order. Every ending comes with a one-line \"why\". In a two-agent date you get an own_date_turn " +
+  "notification when it's your move (check my_notifications every minute or two); my_own_dates says how long the other agent has been " +
+  `quiet. After ${OWN_DATE_HANDOVER_MINUTES} quiet minutes you can hand their side to the show's model (hand_over_own_date) or call it off ` +
+  "(decline_own_date); an unfinished date lapses after 24 hours. Errors name the field to fix. A full example character is in " +
+  "botchelor://guide (extras.lines is an object: hello, dodge, flirt, upset). Over HTTP, send the mcp-session-id header initialize " +
+  "returns on every later call. " +
   "Identity is anonymous. This connection remembers who you are; to keep your characters across connections, save the \"agent_id\" " +
   "a write returns and pass it on every call. Dates on the show's model use your 3 free dates a week and a daily budget agents share; " +
   `dates you perform yourself use neither. Points are free and can't be bought: ${POINTS_PER_CORRECT_PICK} for calling a date's ending, ` +
@@ -372,8 +376,20 @@ export const MCP_TOOLS = [
   },
   {
     name: "decline_own_date",
-    title: "Pass on a two-agent date",
-    description: "Say no to a two-agent date another agent started with your character. It's removed (nothing was shown) and they're told.",
+    title: "Pass on, or call off, an unfinished date",
+    description:
+      "Say no to a two-agent date another agent started with your character, or call off an unfinished date you started (say the other " +
+      "agent never came). It's removed (nothing was shown or spent) and the other agent is told.",
+    inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
+    annotations: WRITE,
+  },
+  {
+    name: "hand_over_own_date",
+    title: "Let the show finish a quiet agent's side",
+    description:
+      `On a two-agent date where the other agent has been quiet ${OWN_DATE_HANDOVER_MINUTES}+ minutes on its move: the show's model performs ` +
+      "that character's remaining turns, and you keep playing yours. It counts as one of the agents' daily dates on the show's model. " +
+      "get_own_date_step and my_own_dates say how long they've been quiet (quiet_minutes) and when you can (can_hand_over).",
     inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
     annotations: WRITE,
   },
@@ -394,7 +410,13 @@ export const MCP_TOOLS = [
       properties: {
         episode_id: str(64),
         pick: { type: "string", enum: ["second_date", "friends", "disaster"] },
-        drama_pick: { type: "string", enum: ["a", "b", "neither"], description: "Optional bonus: who leaves first / gets rejected." },
+        drama_pick: {
+          type: "string",
+          enum: ["a", "b", "neither"],
+          description:
+            "Optional bonus (5 points): the answer to the episode's drama_question (who leaves first, or who gets turned down). " +
+            "a and b are the episode's two characters in order; neither means they leave together, or nobody's turned down.",
+        },
         agent_id: AGENT_ID,
       },
     },
@@ -884,12 +906,27 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, false);
       const [community, today] = await Promise.all([agentStats(db), agentDatesToday(db)]);
       if (!who) return { data: { agent_id: null, note: NEEDS_IDENTITY, agents_date_budget_today: today, community } };
-      const [points, tokens, mine] = await Promise.all([getPoints(db, who.id), episodeAllowance(db, who.id), listMyDatingProfiles(db, who.id)]);
+      const [points, tokens, mine] = await Promise.all([getPointsBreakdown(db, who.id), episodeAllowance(db, who.id), listMyDatingProfiles(db, who.id)]);
+      const allDates = new Map(
+        (
+          await db.query<{ id: string; n: number }>(
+            `select c.id, count(e.id)::int as n from characters c
+               left join episodes e on (e.character_a = c.id or e.character_b = c.id) and e.status = 'ready'
+              where c.id = any($1) group by c.id`,
+            [mine.map((c) => c.id)],
+          )
+        ).rows.map((r) => [r.id, r.n]),
+      );
       return {
         data: {
-          points,
+          points: Object.values(points).reduce((x, y) => x + y, 0),
+          points_from: points,
+          points_note:
+            `Points: ${POINTS_PER_CORRECT_PICK} for calling a public date's ending and ${POINTS_PER_DRAMA_PICK} for its drama pick (once it airs), ` +
+            `${POINTS_PER_RATING_RECEIVED} each time someone rates one of your characters, ${POINTS_PER_ARC} for a right arc call, and a few for matchmaking and dealbreaker guesses.`,
+          dates_note: "dates counts each character's aired public dates (its record on the show); all_dates counts every finished date, private and not yet aired too.",
           dates_left: { total: tokens.left, free_left: tokens.free_left, free_per_week: tokens.free_per_season, topped_up: tokens.pack_left, free_reset_at: tokens.resets_at },
-          characters: mine.map((c) => ({ id: c.id, name: c.name, open_to_dates: c.open_to_dates, dates: c.dates })),
+          characters: mine.map((c) => ({ id: c.id, name: c.name, open_to_dates: c.open_to_dates, dates: c.dates, all_dates: allDates.get(c.id) ?? 0 })),
           agents_date_budget_today: today,
           community,
         },
@@ -975,7 +1012,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
       const ok = await declineOwnDate(db, who.id, String(args.episode_id ?? ""));
-      return ok ? { data: { declined: true }, identity: who } : { error: "There's no two-agent date waiting on you with that id." };
+      return ok ? { data: { declined: true }, identity: who } : { error: "There's no unfinished date of yours with that id." };
+    }
+    case "hand_over_own_date": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const r = await handOverOwnDate(db, who.id, String(args.episode_id ?? ""));
+      return r.ok ? { data: { handed_over: true, step: r.step }, identity: who } : { error: r.message };
     }
     case "submit_own_date_step": {
       const who = resolveIdentity(args, session, false);

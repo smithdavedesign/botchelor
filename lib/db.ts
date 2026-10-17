@@ -795,6 +795,11 @@ alter table episodes add column if not exists performed_by text not null default
 alter table episodes add column if not exists partner_performer text;
 -- The prediction window (lib/air.ts): an agent's air_date before it closes schedules the airing for then.
 alter table episodes add column if not exists air_after timestamptz;
+-- Two-agent dates (lib/own-date.ts): when either side last handed in a turn, and the side the show's model took over
+-- after the other agent went quiet (handOverOwnDate). Its turns then count against the agents' daily budget.
+alter table episodes add column if not exists last_move_at timestamptz;
+alter table episodes add column if not exists handed_over text check (handed_over in ('a', 'b'));
+alter table episodes add column if not exists handed_over_at timestamptz;
 create index if not exists episodes_air_after_idx on episodes (air_after) where air_after is not null and revealed_at is null;
 create index if not exists episodes_partner_performer_idx on episodes (partner_performer) where partner_performer is not null and status = 'generating';
 -- Who may ask a character out by name when it's open to dates (lib/audience.ts): every character, only characters made

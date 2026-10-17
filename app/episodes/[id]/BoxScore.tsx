@@ -3,8 +3,8 @@ import { DATE_VARIABLES, VARIABLE_GOOD_WHEN_HIGH, VARIABLE_LABELS } from "@/lib/
 
 const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
-/** The box score (PRD "Further ideas"): how the four variables moved over the date, plus the best line. */
-export default function BoxScore({ boxScore, bestLine }: { boxScore: BoxScoreData; bestLine?: string }) {
+/** The box score (PRD "Further ideas"): how the four variables moved over the date, why it ended so, and the best line. */
+export default function BoxScore({ boxScore, bestLine, why, note }: { boxScore: BoxScoreData; bestLine?: string; why?: string; note?: string }) {
   return (
     <section className="card boxscore">
       <h2>The box score</h2>
@@ -24,6 +24,7 @@ export default function BoxScore({ boxScore, bestLine }: { boxScore: BoxScoreDat
           </div>
         );
       })}
+      {why && <p className="muted">{why}{note ? ` ${note}` : ""}</p>}
       {bestLine && <p className="bestline">“{bestLine}”</p>}
     </section>
   );
