@@ -1,0 +1,2575 @@
+{
+ "run": "2026-10-16, local build of main at 74ab2b1, stub showrunner, 10 pairs x 5 dates",
+ "pairs": [
+  {
+   "pair": "cartographer \u00d7 beekeeper",
+   "dates": [
+    {
+     "n": 1,
+     "date_number": 1,
+     "booked_as": "first",
+     "ending": "friends",
+     "venue": "botanic_park",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 65,
+       "delta": 15
+      },
+      "trust": {
+       "start": 45,
+       "final": 46,
+       "delta": 1
+      },
+      "attraction": {
+       "start": 48,
+       "final": 63,
+       "delta": 15
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 43,
+       "delta": 3
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 2,
+     "date_number": 2,
+     "booked_as": "second_date",
+     "ending": "friends",
+     "venue": "tasting_menu",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 62,
+       "delta": 12
+      },
+      "trust": {
+       "start": 45,
+       "final": 45,
+       "delta": 0
+      },
+      "attraction": {
+       "start": 48,
+       "final": 56,
+       "delta": 8
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 37,
+       "delta": -3
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 3,
+     "date_number": 3,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 72,
+       "delta": 22
+      },
+      "trust": {
+       "start": 45,
+       "final": 54,
+       "delta": 9
+      },
+      "attraction": {
+       "start": 48,
+       "final": 46,
+       "delta": -2
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 28,
+       "delta": -12
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 4,
+     "date_number": 4,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 65,
+       "delta": 15
+      },
+      "trust": {
+       "start": 45,
+       "final": 66,
+       "delta": 21
+      },
+      "attraction": {
+       "start": 48,
+       "final": 57,
+       "delta": 9
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 34,
+       "delta": -6
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 5,
+     "date_number": 5,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 63,
+       "delta": 13
+      },
+      "trust": {
+       "start": 45,
+       "final": 68,
+       "delta": 23
+      },
+      "attraction": {
+       "start": 48,
+       "final": 47,
+       "delta": -1
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 31,
+       "delta": -9
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    }
+   ],
+   "edge_after_each_date": [
+    {
+     "after_date": 1,
+     "stage": "just_met",
+     "chemistry": 65,
+     "trust": 46,
+     "tie": 0.698,
+     "dates": 1,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 2,
+     "stage": "friends",
+     "chemistry": 63.5,
+     "trust": 45.5,
+     "tie": 0.755,
+     "dates": 2,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 3,
+     "stage": "sparks",
+     "chemistry": 67.8,
+     "trust": 49.8,
+     "tie": 0.809,
+     "dates": 3,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 4,
+     "stage": "dating",
+     "chemistry": 66.4,
+     "trust": 57.9,
+     "tie": 0.837,
+     "dates": 4,
+     "second_dates": 2,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 5,
+     "stage": "dating",
+     "chemistry": 64.7,
+     "trust": 62.9,
+     "tie": 0.855,
+     "dates": 5,
+     "second_dates": 3,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    }
+   ]
+  },
+  {
+   "pair": "night-bus driver \u00d7 dessert critic",
+   "dates": [
+    {
+     "n": 1,
+     "date_number": 1,
+     "booked_as": "first",
+     "ending": "friends",
+     "venue": "botanic_park",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 68,
+       "delta": 18
+      },
+      "trust": {
+       "start": 45,
+       "final": 46,
+       "delta": 1
+      },
+      "attraction": {
+       "start": 48,
+       "final": 56,
+       "delta": 8
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 38,
+       "delta": -2
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 2,
+     "date_number": 2,
+     "booked_as": "second_date",
+     "ending": "friends",
+     "venue": "night_beach",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 67,
+       "delta": 17
+      },
+      "trust": {
+       "start": 45,
+       "final": 54,
+       "delta": 9
+      },
+      "attraction": {
+       "start": 48,
+       "final": 49,
+       "delta": 1
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 37,
+       "delta": -3
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 3,
+     "date_number": 3,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "botanic_park",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 62,
+       "delta": 12
+      },
+      "trust": {
+       "start": 45,
+       "final": 52,
+       "delta": 7
+      },
+      "attraction": {
+       "start": 48,
+       "final": 51,
+       "delta": 3
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 26,
+       "delta": -14
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 4,
+     "date_number": 4,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "tasting_menu",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 67,
+       "delta": 17
+      },
+      "trust": {
+       "start": 45,
+       "final": 65,
+       "delta": 20
+      },
+      "attraction": {
+       "start": 48,
+       "final": 62,
+       "delta": 14
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 24,
+       "delta": -16
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 5,
+     "date_number": 5,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "karaoke_booth",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 71,
+       "delta": 21
+      },
+      "trust": {
+       "start": 45,
+       "final": 70,
+       "delta": 25
+      },
+      "attraction": {
+       "start": 48,
+       "final": 61,
+       "delta": 13
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 19,
+       "delta": -21
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    }
+   ],
+   "edge_after_each_date": [
+    {
+     "after_date": 1,
+     "stage": "just_met",
+     "chemistry": 68,
+     "trust": 46,
+     "tie": 0.705,
+     "dates": 1,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 2,
+     "stage": "friends",
+     "chemistry": 67.5,
+     "trust": 50,
+     "tie": 0.765,
+     "dates": 2,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 3,
+     "stage": "sparks",
+     "chemistry": 64.8,
+     "trust": 51,
+     "tie": 0.802,
+     "dates": 3,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 4,
+     "stage": "dating",
+     "chemistry": 65.9,
+     "trust": 58,
+     "tie": 0.836,
+     "dates": 4,
+     "second_dates": 2,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 5,
+     "stage": "dating",
+     "chemistry": 68.4,
+     "trust": 64,
+     "tie": 0.864,
+     "dates": 5,
+     "second_dates": 3,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    }
+   ]
+  },
+  {
+   "pair": "storm chaser \u00d7 organ tuner",
+   "dates": [
+    {
+     "n": 1,
+     "date_number": 1,
+     "booked_as": "first",
+     "ending": "friends",
+     "venue": "botanic_park",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 67,
+       "delta": 17
+      },
+      "trust": {
+       "start": 45,
+       "final": 43,
+       "delta": -2
+      },
+      "attraction": {
+       "start": 48,
+       "final": 51,
+       "delta": 3
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 34,
+       "delta": -6
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 2,
+     "date_number": 2,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "rooftop_bar",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 64,
+       "delta": 14
+      },
+      "trust": {
+       "start": 45,
+       "final": 51,
+       "delta": 6
+      },
+      "attraction": {
+       "start": 48,
+       "final": 62,
+       "delta": 14
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 33,
+       "delta": -7
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 3,
+     "date_number": 3,
+     "booked_as": "second_date",
+     "ending": "friends",
+     "venue": "tasting_menu",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 62,
+       "delta": 12
+      },
+      "trust": {
+       "start": 45,
+       "final": 54,
+       "delta": 9
+      },
+      "attraction": {
+       "start": 48,
+       "final": 52,
+       "delta": 4
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 33,
+       "delta": -7
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 4,
+     "date_number": 4,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "botanic_park",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 67,
+       "delta": 17
+      },
+      "trust": {
+       "start": 45,
+       "final": 54,
+       "delta": 9
+      },
+      "attraction": {
+       "start": 48,
+       "final": 47,
+       "delta": -1
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 30,
+       "delta": -10
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 5,
+     "date_number": 5,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "tasting_menu",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 61,
+       "delta": 11
+      },
+      "trust": {
+       "start": 45,
+       "final": 65,
+       "delta": 20
+      },
+      "attraction": {
+       "start": 48,
+       "final": 52,
+       "delta": 4
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 26,
+       "delta": -14
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    }
+   ],
+   "edge_after_each_date": [
+    {
+     "after_date": 1,
+     "stage": "just_met",
+     "chemistry": 67,
+     "trust": 43,
+     "tie": 0.703,
+     "dates": 1,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 2,
+     "stage": "sparks",
+     "chemistry": 65.5,
+     "trust": 47,
+     "tie": 0.76,
+     "dates": 2,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 3,
+     "stage": "friends",
+     "chemistry": 63.8,
+     "trust": 50.5,
+     "tie": 0.799,
+     "dates": 3,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 4,
+     "stage": "sparks",
+     "chemistry": 65.4,
+     "trust": 52.3,
+     "tie": 0.834,
+     "dates": 4,
+     "second_dates": 2,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 5,
+     "stage": "dating",
+     "chemistry": 63.2,
+     "trust": 58.6,
+     "tie": 0.851,
+     "dates": 5,
+     "second_dates": 3,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    }
+   ]
+  },
+  {
+   "pair": "crossword setter \u00d7 night-market stall",
+   "dates": [
+    {
+     "n": 1,
+     "date_number": 1,
+     "booked_as": "first",
+     "ending": "friends",
+     "venue": "tasting_menu",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 67,
+       "delta": 17
+      },
+      "trust": {
+       "start": 45,
+       "final": 47,
+       "delta": 2
+      },
+      "attraction": {
+       "start": 48,
+       "final": 57,
+       "delta": 9
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 44,
+       "delta": 4
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 2,
+     "date_number": 2,
+     "booked_as": "second_date",
+     "ending": "friends",
+     "venue": "karaoke_booth",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 62,
+       "delta": 12
+      },
+      "trust": {
+       "start": 45,
+       "final": 58,
+       "delta": 13
+      },
+      "attraction": {
+       "start": 48,
+       "final": 50,
+       "delta": 2
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 42,
+       "delta": 2
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 3,
+     "date_number": 3,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "retro_arcade",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 63,
+       "delta": 13
+      },
+      "trust": {
+       "start": 45,
+       "final": 59,
+       "delta": 14
+      },
+      "attraction": {
+       "start": 48,
+       "final": 59,
+       "delta": 11
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 36,
+       "delta": -4
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 4,
+     "date_number": 4,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 65,
+       "delta": 15
+      },
+      "trust": {
+       "start": 45,
+       "final": 65,
+       "delta": 20
+      },
+      "attraction": {
+       "start": 48,
+       "final": 53,
+       "delta": 5
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 34,
+       "delta": -6
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 5,
+     "date_number": 5,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 69,
+       "delta": 19
+      },
+      "trust": {
+       "start": 45,
+       "final": 61,
+       "delta": 16
+      },
+      "attraction": {
+       "start": 48,
+       "final": 62,
+       "delta": 14
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 26,
+       "delta": -14
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    }
+   ],
+   "edge_after_each_date": [
+    {
+     "after_date": 1,
+     "stage": "just_met",
+     "chemistry": 67,
+     "trust": 47,
+     "tie": 0.703,
+     "dates": 1,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 2,
+     "stage": "friends",
+     "chemistry": 64.5,
+     "trust": 52.5,
+     "tie": 0.757,
+     "dates": 2,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 3,
+     "stage": "sparks",
+     "chemistry": 63.8,
+     "trust": 55.8,
+     "tie": 0.799,
+     "dates": 3,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 4,
+     "stage": "dating",
+     "chemistry": 64.4,
+     "trust": 60.4,
+     "tie": 0.832,
+     "dates": 4,
+     "second_dates": 2,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 5,
+     "stage": "dating",
+     "chemistry": 66.7,
+     "trust": 60.7,
+     "tie": 0.86,
+     "dates": 5,
+     "second_dates": 3,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    }
+   ]
+  },
+  {
+   "pair": "opera prompter \u00d7 rooftop cinema",
+   "dates": [
+    {
+     "n": 1,
+     "date_number": 1,
+     "booked_as": "first",
+     "ending": "friends",
+     "venue": "retro_arcade",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 67,
+       "delta": 17
+      },
+      "trust": {
+       "start": 45,
+       "final": 44,
+       "delta": -1
+      },
+      "attraction": {
+       "start": 48,
+       "final": 49,
+       "delta": 1
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 35,
+       "delta": -5
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 2,
+     "date_number": 2,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "night_beach",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 74,
+       "delta": 24
+      },
+      "trust": {
+       "start": 45,
+       "final": 57,
+       "delta": 12
+      },
+      "attraction": {
+       "start": 48,
+       "final": 57,
+       "delta": 9
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 31,
+       "delta": -9
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 3,
+     "date_number": 3,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 67,
+       "delta": 17
+      },
+      "trust": {
+       "start": 45,
+       "final": 62,
+       "delta": 17
+      },
+      "attraction": {
+       "start": 48,
+       "final": 55,
+       "delta": 7
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 35,
+       "delta": -5
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 4,
+     "date_number": 4,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "botanic_park",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 68,
+       "delta": 18
+      },
+      "trust": {
+       "start": 45,
+       "final": 62,
+       "delta": 17
+      },
+      "attraction": {
+       "start": 48,
+       "final": 56,
+       "delta": 8
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 35,
+       "delta": -5
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 5,
+     "date_number": 5,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "karaoke_booth",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 74,
+       "delta": 24
+      },
+      "trust": {
+       "start": 45,
+       "final": 63,
+       "delta": 18
+      },
+      "attraction": {
+       "start": 48,
+       "final": 55,
+       "delta": 7
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 24,
+       "delta": -16
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    }
+   ],
+   "edge_after_each_date": [
+    {
+     "after_date": 1,
+     "stage": "just_met",
+     "chemistry": 67,
+     "trust": 44,
+     "tie": 0.703,
+     "dates": 1,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 2,
+     "stage": "sparks",
+     "chemistry": 70.5,
+     "trust": 50.5,
+     "tie": 0.772,
+     "dates": 2,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 3,
+     "stage": "dating",
+     "chemistry": 68.8,
+     "trust": 56.3,
+     "tie": 0.812,
+     "dates": 3,
+     "second_dates": 2,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 4,
+     "stage": "dating",
+     "chemistry": 68.4,
+     "trust": 59.1,
+     "tie": 0.842,
+     "dates": 4,
+     "second_dates": 3,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 5,
+     "stage": "going_steady",
+     "chemistry": 71.2,
+     "trust": 61.1,
+     "tie": 0.871,
+     "dates": 5,
+     "second_dates": 4,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    }
+   ]
+  },
+  {
+   "pair": "wedding photo restorer \u00d7 lighthouse electrician",
+   "dates": [
+    {
+     "n": 1,
+     "date_number": 1,
+     "booked_as": "first",
+     "ending": "friends",
+     "venue": "karaoke_booth",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 59,
+       "delta": 9
+      },
+      "trust": {
+       "start": 45,
+       "final": 53,
+       "delta": 8
+      },
+      "attraction": {
+       "start": 48,
+       "final": 58,
+       "delta": 10
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 36,
+       "delta": -4
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 2,
+     "date_number": 2,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "rooftop_bar",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 67,
+       "delta": 17
+      },
+      "trust": {
+       "start": 45,
+       "final": 46,
+       "delta": 1
+      },
+      "attraction": {
+       "start": 48,
+       "final": 60,
+       "delta": 12
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 34,
+       "delta": -6
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 3,
+     "date_number": 3,
+     "booked_as": "second_date",
+     "ending": "friends",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 61,
+       "delta": 11
+      },
+      "trust": {
+       "start": 45,
+       "final": 53,
+       "delta": 8
+      },
+      "attraction": {
+       "start": 48,
+       "final": 48,
+       "delta": 0
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 34,
+       "delta": -6
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 4,
+     "date_number": 4,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 69,
+       "delta": 19
+      },
+      "trust": {
+       "start": 45,
+       "final": 55,
+       "delta": 10
+      },
+      "attraction": {
+       "start": 48,
+       "final": 52,
+       "delta": 4
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 34,
+       "delta": -6
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 5,
+     "date_number": 5,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 61,
+       "delta": 11
+      },
+      "trust": {
+       "start": 45,
+       "final": 58,
+       "delta": 13
+      },
+      "attraction": {
+       "start": 48,
+       "final": 63,
+       "delta": 15
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 22,
+       "delta": -18
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    }
+   ],
+   "edge_after_each_date": [
+    {
+     "after_date": 1,
+     "stage": "just_met",
+     "chemistry": 59,
+     "trust": 53,
+     "tie": 0.683,
+     "dates": 1,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 2,
+     "stage": "sparks",
+     "chemistry": 63,
+     "trust": 49.5,
+     "tie": 0.753,
+     "dates": 2,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 3,
+     "stage": "friends",
+     "chemistry": 62,
+     "trust": 51.3,
+     "tie": 0.795,
+     "dates": 3,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 4,
+     "stage": "sparks",
+     "chemistry": 65.5,
+     "trust": 53.1,
+     "tie": 0.835,
+     "dates": 4,
+     "second_dates": 2,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 5,
+     "stage": "dating",
+     "chemistry": 63.3,
+     "trust": 55.6,
+     "tie": 0.852,
+     "dates": 5,
+     "second_dates": 3,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    }
+   ]
+  },
+  {
+   "pair": "midnight librarian \u00d7 ferry mechanic",
+   "dates": [
+    {
+     "n": 1,
+     "date_number": 1,
+     "booked_as": "first",
+     "ending": "friends",
+     "venue": "rooftop_bar",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 63,
+       "delta": 13
+      },
+      "trust": {
+       "start": 45,
+       "final": 46,
+       "delta": 1
+      },
+      "attraction": {
+       "start": 48,
+       "final": 55,
+       "delta": 7
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 41,
+       "delta": 1
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 2,
+     "date_number": 2,
+     "booked_as": "second_date",
+     "ending": "friends",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 66,
+       "delta": 16
+      },
+      "trust": {
+       "start": 45,
+       "final": 45,
+       "delta": 0
+      },
+      "attraction": {
+       "start": 48,
+       "final": 57,
+       "delta": 9
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 37,
+       "delta": -3
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 3,
+     "date_number": 3,
+     "booked_as": "second_date",
+     "ending": "friends",
+     "venue": "karaoke_booth",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 65,
+       "delta": 15
+      },
+      "trust": {
+       "start": 45,
+       "final": 57,
+       "delta": 12
+      },
+      "attraction": {
+       "start": 48,
+       "final": 49,
+       "delta": 1
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 34,
+       "delta": -6
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 4,
+     "date_number": 4,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "rooftop_bar",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 61,
+       "delta": 11
+      },
+      "trust": {
+       "start": 45,
+       "final": 62,
+       "delta": 17
+      },
+      "attraction": {
+       "start": 48,
+       "final": 58,
+       "delta": 10
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 26,
+       "delta": -14
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 5,
+     "date_number": 5,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 61,
+       "delta": 11
+      },
+      "trust": {
+       "start": 45,
+       "final": 64,
+       "delta": 19
+      },
+      "attraction": {
+       "start": 48,
+       "final": 59,
+       "delta": 11
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 32,
+       "delta": -8
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    }
+   ],
+   "edge_after_each_date": [
+    {
+     "after_date": 1,
+     "stage": "just_met",
+     "chemistry": 63,
+     "trust": 46,
+     "tie": 0.693,
+     "dates": 1,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 2,
+     "stage": "friends",
+     "chemistry": 64.5,
+     "trust": 45.5,
+     "tie": 0.757,
+     "dates": 2,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 3,
+     "stage": "friends",
+     "chemistry": 64.8,
+     "trust": 51.3,
+     "tie": 0.802,
+     "dates": 3,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 4,
+     "stage": "sparks",
+     "chemistry": 62.9,
+     "trust": 56.6,
+     "tie": 0.828,
+     "dates": 4,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 5,
+     "stage": "dating",
+     "chemistry": 61.9,
+     "trust": 60.3,
+     "tie": 0.848,
+     "dates": 5,
+     "second_dates": 2,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    }
+   ]
+  },
+  {
+   "pair": "street magician \u00d7 gelato chemist",
+   "dates": [
+    {
+     "n": 1,
+     "date_number": 1,
+     "booked_as": "first",
+     "ending": "second_date",
+     "venue": "tasting_menu",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 72,
+       "delta": 22
+      },
+      "trust": {
+       "start": 45,
+       "final": 48,
+       "delta": 3
+      },
+      "attraction": {
+       "start": 48,
+       "final": 57,
+       "delta": 9
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 38,
+       "delta": -2
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 2,
+     "date_number": 2,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "karaoke_booth",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 74,
+       "delta": 24
+      },
+      "trust": {
+       "start": 45,
+       "final": 53,
+       "delta": 8
+      },
+      "attraction": {
+       "start": 48,
+       "final": 52,
+       "delta": 4
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 29,
+       "delta": -11
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 3,
+     "date_number": 3,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "corner_cafe",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 76,
+       "delta": 26
+      },
+      "trust": {
+       "start": 45,
+       "final": 49,
+       "delta": 4
+      },
+      "attraction": {
+       "start": 48,
+       "final": 65,
+       "delta": 17
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 35,
+       "delta": -5
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 4,
+     "date_number": 4,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "rooftop_bar",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 76,
+       "delta": 26
+      },
+      "trust": {
+       "start": 45,
+       "final": 58,
+       "delta": 13
+      },
+      "attraction": {
+       "start": 48,
+       "final": 60,
+       "delta": 12
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 32,
+       "delta": -8
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 5,
+     "date_number": 5,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "rooftop_bar",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 69,
+       "delta": 19
+      },
+      "trust": {
+       "start": 45,
+       "final": 58,
+       "delta": 13
+      },
+      "attraction": {
+       "start": 48,
+       "final": 48,
+       "delta": 0
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 31,
+       "delta": -9
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    }
+   ],
+   "edge_after_each_date": [
+    {
+     "after_date": 1,
+     "stage": "sparks",
+     "chemistry": 72,
+     "trust": 48,
+     "tie": 0.715,
+     "dates": 1,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 2,
+     "stage": "dating",
+     "chemistry": 73,
+     "trust": 50.5,
+     "tie": 0.778,
+     "dates": 2,
+     "second_dates": 2,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 3,
+     "stage": "dating",
+     "chemistry": 74.5,
+     "trust": 49.8,
+     "tie": 0.826,
+     "dates": 3,
+     "second_dates": 3,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 4,
+     "stage": "going_steady",
+     "chemistry": 75.3,
+     "trust": 53.9,
+     "tie": 0.859,
+     "dates": 4,
+     "second_dates": 4,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 5,
+     "stage": "going_steady",
+     "chemistry": 72.1,
+     "trust": 55.9,
+     "tie": 0.874,
+     "dates": 5,
+     "second_dates": 5,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    }
+   ]
+  },
+  {
+   "pair": "roller-rink DJ \u00d7 bonsai monk",
+   "dates": [
+    {
+     "n": 1,
+     "date_number": 1,
+     "booked_as": "first",
+     "ending": "friends",
+     "venue": "retro_arcade",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 59,
+       "delta": 9
+      },
+      "trust": {
+       "start": 45,
+       "final": 50,
+       "delta": 5
+      },
+      "attraction": {
+       "start": 48,
+       "final": 53,
+       "delta": 5
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 38,
+       "delta": -2
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 2,
+     "date_number": 2,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "night_beach",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 70,
+       "delta": 20
+      },
+      "trust": {
+       "start": 45,
+       "final": 52,
+       "delta": 7
+      },
+      "attraction": {
+       "start": 48,
+       "final": 50,
+       "delta": 2
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 32,
+       "delta": -8
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 3,
+     "date_number": 3,
+     "booked_as": "second_date",
+     "ending": "friends",
+     "venue": "tasting_menu",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 62,
+       "delta": 12
+      },
+      "trust": {
+       "start": 45,
+       "final": 55,
+       "delta": 10
+      },
+      "attraction": {
+       "start": 48,
+       "final": 55,
+       "delta": 7
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 37,
+       "delta": -3
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 4,
+     "date_number": 4,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "karaoke_booth",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 68,
+       "delta": 18
+      },
+      "trust": {
+       "start": 45,
+       "final": 57,
+       "delta": 12
+      },
+      "attraction": {
+       "start": 48,
+       "final": 58,
+       "delta": 10
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 23,
+       "delta": -17
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 5,
+     "date_number": 5,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "karaoke_booth",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 74,
+       "delta": 24
+      },
+      "trust": {
+       "start": 45,
+       "final": 69,
+       "delta": 24
+      },
+      "attraction": {
+       "start": 48,
+       "final": 57,
+       "delta": 9
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 32,
+       "delta": -8
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    }
+   ],
+   "edge_after_each_date": [
+    {
+     "after_date": 1,
+     "stage": "just_met",
+     "chemistry": 59,
+     "trust": 50,
+     "tie": 0.683,
+     "dates": 1,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 2,
+     "stage": "sparks",
+     "chemistry": 64.5,
+     "trust": 51,
+     "tie": 0.757,
+     "dates": 2,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 3,
+     "stage": "friends",
+     "chemistry": 63.3,
+     "trust": 53,
+     "tie": 0.798,
+     "dates": 3,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 4,
+     "stage": "sparks",
+     "chemistry": 65.6,
+     "trust": 55,
+     "tie": 0.835,
+     "dates": 4,
+     "second_dates": 2,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 5,
+     "stage": "dating",
+     "chemistry": 69.8,
+     "trust": 62,
+     "tie": 0.868,
+     "dates": 5,
+     "second_dates": 3,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    }
+   ]
+  },
+  {
+   "pair": "David's OC \u00d7 their current partner",
+   "dates": [
+    {
+     "n": 1,
+     "date_number": 1,
+     "booked_as": "first",
+     "ending": "friends",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 65,
+       "delta": 15
+      },
+      "trust": {
+       "start": 45,
+       "final": 40,
+       "delta": -5
+      },
+      "attraction": {
+       "start": 48,
+       "final": 64,
+       "delta": 16
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 40,
+       "delta": 0
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 2,
+     "date_number": 2,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "tasting_menu",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 74,
+       "delta": 24
+      },
+      "trust": {
+       "start": 45,
+       "final": 50,
+       "delta": 5
+      },
+      "attraction": {
+       "start": 48,
+       "final": 53,
+       "delta": 5
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 39,
+       "delta": -1
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 3,
+     "date_number": 3,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "karaoke_booth",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 75,
+       "delta": 25
+      },
+      "trust": {
+       "start": 45,
+       "final": 58,
+       "delta": 13
+      },
+      "attraction": {
+       "start": 48,
+       "final": 62,
+       "delta": 14
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 29,
+       "delta": -11
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 4,
+     "date_number": 4,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "double_date",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 73,
+       "delta": 23
+      },
+      "trust": {
+       "start": 45,
+       "final": 61,
+       "delta": 16
+      },
+      "attraction": {
+       "start": 48,
+       "final": 51,
+       "delta": 3
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 25,
+       "delta": -15
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    },
+    {
+     "n": 5,
+     "date_number": 5,
+     "booked_as": "second_date",
+     "ending": "second_date",
+     "venue": "retro_arcade",
+     "creator_wants_another": true,
+     "box_score": {
+      "chemistry": {
+       "start": 50,
+       "final": 77,
+       "delta": 27
+      },
+      "trust": {
+       "start": 45,
+       "final": 62,
+       "delta": 17
+      },
+      "attraction": {
+       "start": 48,
+       "final": 61,
+       "delta": 13
+      },
+      "awkwardness": {
+       "start": 40,
+       "final": 24,
+       "delta": -16
+      }
+     },
+     "transcript_turns": 10,
+     "afterglow_turns": 4,
+     "afterglow_verdict": {
+      "a_wants": true,
+      "b_wants": true
+     }
+    }
+   ],
+   "edge_after_each_date": [
+    {
+     "after_date": 1,
+     "stage": "just_met",
+     "chemistry": 65,
+     "trust": 40,
+     "tie": 0.698,
+     "dates": 1,
+     "second_dates": 0,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 2,
+     "stage": "sparks",
+     "chemistry": 69.5,
+     "trust": 45,
+     "tie": 0.77,
+     "dates": 2,
+     "second_dates": 1,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 3,
+     "stage": "dating",
+     "chemistry": 72.3,
+     "trust": 51.5,
+     "tie": 0.82,
+     "dates": 3,
+     "second_dates": 2,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 4,
+     "stage": "dating",
+     "chemistry": 72.6,
+     "trust": 56.3,
+     "tie": 0.852,
+     "dates": 4,
+     "second_dates": 3,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    },
+    {
+     "after_date": 5,
+     "stage": "going_steady",
+     "chemistry": 74.8,
+     "trust": 59.1,
+     "tie": 0.88,
+     "dates": 5,
+     "second_dates": 4,
+     "jokes": 0,
+     "plans": 0,
+     "told_them": 0,
+     "told_this": 0,
+     "texts_between": 0
+    }
+   ]
+  }
+ ]
+}
