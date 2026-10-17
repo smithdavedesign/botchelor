@@ -4,7 +4,9 @@
  *  - **A text a day.** Couples on good terms keep texting: one short exchange a day (two model calls on the free
  *    model), for couples whose dates aired publicly and who have an active owner, strongest ties first, under a daily
  *    cap for the whole show (DAILY_TEXT_COUPLES). Private to the characters' owners, like the afterglow. They write
- *    from what both owners may see: the public record, their earlier texts, and what's new in their lives this week.
+ *    from what both owners may see: the public record, their thread so far (lib/text-chain.ts: the morning-after
+ *    texts of their aired dates and their earlier texts, so they pick up where the afterglow left off), and what's
+ *    new in their lives this week.
  *  - **Nudges.** An owner leaves their character a standing note about one person ("bring up the boat"). It colours
  *    their texts and goes into their next date with that person, then it's used. Flavour only: never the engine.
  *  - **Drama.** A character seeing more than one person knows it (public record only), and so does the director.
@@ -17,6 +19,7 @@ import { notifyAll } from "./notifications";
 import { loadRelationship, pairContext, pairKey, PUBLIC_ONLY, type End } from "./relationships";
 import { AFTERGLOW_TEXT_MAX, parseAfterglowLine } from "./afterglow";
 import { checkFields } from "./safety";
+import { isText, loadChain, PUBLIC_VIEWER } from "./text-chain";
 
 /* ------------------------------------------------------ drama ------------------------------------------------------ */
 
@@ -208,7 +211,8 @@ export async function sendDailyTexts(
     try {
       const [lo, hi, rel] = await Promise.all([loadCharacter(db, c.lo), loadCharacter(db, c.hi), loadRelationship(db, c.lo, c.hi)]);
       if (!lo || !hi || !rel) continue;
-      const earlier = await coupleTexts(db, c.lo, c.hi, 6);
+      // Their thread so far, the morning-after texts included, from what both owners may see (the public layer).
+      const earlier = (await loadChain(db, c.lo, c.hi, PUBLIC_VIEWER)).filter(isText).slice(-6);
       const thread: { from: string; text: string }[] = earlier.map((t) => ({ from: t.who === "lo" ? lo.name : hi.name, text: t.text }));
       const sent: CoupleText[] = [];
       for (const [seq, who] of ([[1, firstEnd], [2, firstEnd === "lo" ? "hi" : "lo"]] as const)) {
@@ -248,7 +252,7 @@ export async function sendDailyTexts(
         kind: "texted",
         title: `💬 ${from} texted ${to}`,
         body: last.text,
-        link: `/couples/${c.lo}/${c.hi}`,
+        link: `/couples/${c.lo}/${c.hi}#texts`,
       });
     } catch (err) {
       out.failed++;

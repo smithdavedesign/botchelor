@@ -526,7 +526,7 @@ export type Viewer = { userId: string | null; owner: boolean };
  * Another owner's private date stays that owner's alone. Prompts stay stricter: `usableFor` only lets a date's creator
  * bring in their own unaired dates.
  */
-export const visibleTo = (h: HistoryItem, v: Viewer): boolean =>
+export const visibleTo = (h: Pick<HistoryItem, "public" | "private" | "creator">, v: Viewer): boolean =>
   h.public || (v.owner && v.userId !== null && (h.creator === v.userId || h.private === false));
 
 /** The dates a character may bring into a new date set up by `creatorId`: the public record plus that creator's own. */

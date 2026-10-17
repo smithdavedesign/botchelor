@@ -4,12 +4,15 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import Avatar from "@/app/Avatar";
+import PhoneFrame from "@/app/PhoneFrame";
 import { getDb } from "@/lib/db";
-import { getPublicCharacter, type PublicCharacter } from "@/lib/game";
+import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
-import { activeNudge, alsoSeeing, coupleTexts } from "@/lib/between-dates";
+import { activeNudge, alsoSeeing, dayOf } from "@/lib/between-dates";
 import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships";
+import { chainPage, loadChain } from "@/lib/text-chain";
 import NudgeForm from "./NudgeForm";
+import TextPhone from "./TextPhone";
 import { ArcCard, CopyLink, FollowButton } from "./CoupleActions";
 import NextDate from "./NextDate";
 import { nextDate } from "@/lib/date-proposals";
@@ -34,7 +37,10 @@ async function load(a: string, b: string) {
   // Between dates (lib/between-dates.ts): who else each is seeing (public), and for owners their texts and nudges.
   const [seeingA, seeingB] = await Promise.all([alsoSeeing(db, a, b), alsoSeeing(db, b, a)]);
   const mine = owners.filter((o) => viewerId !== null && o.owner_id === viewerId).map((o) => o.id);
-  const texts = owner ? await coupleTexts(db, a, b, 12) : [];
+  // Owners: the couple's whole text chain (lib/text-chain.ts), the newest page first. Nobody owns a house couple's
+  // characters, so nobody texts there; anywhere else a spectator learns the texts are the owners'.
+  const chain = owner ? chainPage(await loadChain(db, a, b, { userId: viewerId, owner: true })) : null;
+  const texted = owners.some((o) => o.owner_id !== null);
   const nudges = owner ? await Promise.all(mine.map(async (id) => ({ id, note: await activeNudge(db, id, id === a ? b : a) }))) : [];
   // Spectators: follow the couple, and call their arc (lib/follows.ts, lib/arcs.ts). Public couples only.
   const listed = rel!.public.dates > 0;
@@ -43,8 +49,16 @@ async function load(a: string, b: string) {
   const last = view.timeline.at(-1) ?? null;
   const plan = owner && last ? (view.plans ?? []).filter((p) => p.episode_id === last.episode_id).map((p) => p.text) : [];
   const next = owner ? await nextDate(db, viewerId, a, b, last?.episode_id ?? null, plan) : null;
-  return { ca, cb, view, owner, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, texts, nudges, follow, arc, next };
+  return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, texted, nudges, follow, arc, next };
 }
+
+const refOf = (c: PublicCharacter): CharacterRef => ({
+  id: c.id,
+  name: c.name,
+  house: c.house,
+  hue: c.hue,
+  portrait: c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null,
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { a, b } = await params;
@@ -69,7 +83,7 @@ export default async function CouplePage({ params }: Props) {
   if (a !== lo) permanentRedirect(`/couples/${lo}/${hi}`);
   const data = await load(lo, hi);
   if (!data) notFound();
-  const { ca, cb, view, owner, seeing, texts, nudges, follow, arc, next } = data;
+  const { ca, cb, view, owner, mine, seeing, chain, texted, nudges, follow, arc, next } = data;
   const followedUp = view.timeline.filter((t) => t.second_date_of).length;
   const latest = [...view.timeline].reverse().find((t) => t.aired) ?? view.timeline.at(-1) ?? null;
   const complicated = [ca, cb].filter((c) => seeing[c.id]?.length);
@@ -135,22 +149,38 @@ export default async function CouplePage({ params }: Props) {
 
       {arc && <ArcCard pair={[ca.id, cb.id]} names={`${first(ca)} and ${first(cb)}`} q={arc} />}
 
-      {owner && texts.length > 0 && (
-        <section className="card afterglow">
+      {owner && chain && (
+        <TextPhone
+          pair={[ca.id, cb.id]}
+          characters={{ lo: refOf(ca), hi: refOf(cb) }}
+          mine={mine.includes(ca.id) ? "lo" : "hi"}
+          canFlip={mine.length === 2}
+          stageLabel={view.stage_label}
+          initial={chain}
+          today={dayOf(new Date())}
+        />
+      )}
+
+      {!owner && texted && (
+        <section className="card phone-card">
           <h2>Their texts</h2>
-          <p className="muted small">Between dates they keep texting, about once a day. Only the characters&apos; owners see this.</p>
-          {texts.map((t) => {
-            const c = t.who === "lo" ? ca : cb;
-            return (
-              <div key={`${t.day}-${t.seq}`} className={`turn turn-${t.who === "lo" ? "a" : "b"}`}>
-                <div className="turn-body">
-                  <p className="turn-line">
-                    <strong>{first(c)}</strong> {t.text}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+          <PhoneFrame short>
+            <div className="phone-locked">
+              <span className="phone-lock" aria-hidden="true">
+                🔒
+              </span>
+              <p>
+                <strong>Their texts are private.</strong>
+              </p>
+              <p className="muted small">
+                Only the characters&apos; owners read what {first(ca)} and {first(cb)} text each other after a date. Make your own character, and
+                you&apos;ll read every text it sends.
+              </p>
+              <Link className="button-ghost" href="/create">
+                Make a character
+              </Link>
+            </div>
+          </PhoneFrame>
         </section>
       )}
 

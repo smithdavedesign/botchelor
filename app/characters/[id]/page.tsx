@@ -279,7 +279,10 @@ export default async function CharacterPage({ params }: Props) {
 
       {relationships.length > 0 && (
         <section className="card">
-          <h2>Relationships</h2>
+          <div className="section-head">
+            <h2>Relationships</h2>
+            <Link href={`/characters/${c.id}/relationships`}>📱 Open their relationship board</Link>
+          </div>
           <ul className="list connections">
             {relationships.map((r) => (
               <li key={r.otherId}>
@@ -287,6 +290,12 @@ export default async function CharacterPage({ params }: Props) {
                 <span className="muted">
                   {" "}
                   · {r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`} · <Link href={r.path}>see them together</Link>
+                  {ratings.is_owner && (
+                    <>
+                      {" "}
+                      · <Link href={`${r.path}#texts`}>💬 their texts</Link>
+                    </>
+                  )}
                 </span>
                 <span className="meter-track tie" role="img" aria-label={`How close: ${Math.round(r.view.tie * 100)}%`}>
                   <span className="meter-fill" style={{ width: `${Math.round(r.view.tie * 100)}%` }} />

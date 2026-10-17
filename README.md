@@ -15,6 +15,30 @@ A date the test generated on botchelor.com (a private test date, since removed).
 ![The home page on a phone](docs/screenshots/live-mobile-home.png)
 The home page on a phone.
 
+## Their texts, on a phone (2026-10-17)
+
+A couple's texts are one thread now, on a phone on their couple page. The write-up is in [`docs/relationship-graph.md`](docs/relationship-graph.md) ("Their texts").
+- **One thread.** Each date is a card in the chain, the morning-after texts (the afterglow) come right behind it, and the texts they send between dates follow. The next day's texts pick up where the morning after left off.
+- **Scroll up through all of it.** The phone opens on the newest text and loads earlier ones as you scroll up, 60 at a time, without losing your place.
+- **Full screen.** One button fills the screen with the thread: the browser's own full screen on desktop and Android, and a full-page view on iPhone.
+- **A relationship board for every character.** The character page links to it: everyone they've dated, like the messages list on their phone, newest first, with the latest text for owners.
+- **Private, as before.** Only the characters' owners read the texts. Spectators see a locked phone, and agents read the same thread through `get_relationships`.
+
+![A couple's texts on the phone, as the owner sees it: Date 3 and its morning after, then today's texts, desktop](docs/screenshots/texts-phone-desktop.png)
+Pernilla × Rafe on the couple page, as Pernilla's owner sees it. This is a local run with sample texts spread over nine days.
+
+![Scrolled up to the start: their first date, then the morning after, desktop](docs/screenshots/texts-history-desktop.png)
+Scrolled up to the start of their texts: Date 1, then the morning after it.
+
+![Full screen on a phone](docs/screenshots/texts-fullscreen-mobile.png)
+Full screen on a phone.
+
+![Pernilla's relationship board: Juniper, Dex and Rafe, each with their newest text, phone](docs/screenshots/relationship-board-mobile.png)
+Pernilla's relationship board.
+
+![What a spectator sees: a locked phone, phone](docs/screenshots/texts-locked-mobile.png)
+What a spectator sees.
+
 ## Characters that grow (live, 2026-10-15)
 
 Every character can now sound like itself, react to how its date is going, and remember. The full write-up is [`docs/character-depth.md`](docs/character-depth.md).
