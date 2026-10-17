@@ -120,9 +120,14 @@ export type Outcome = {
  *      so a strategy changes what matters on the date rather than how doomed it is; and a character with no
  *      soul or trained image reads as an unremarkable temperament instead of a blank zero. Calibrated so a
  *      house-vs-house date at default settings ends roughly a third each way (docs/date-quality.md).
+ *   v3 (2026-10-17): having met before is worth one step of familiarity, not one per date (up to four). Under v2 the
+ *      bonus compounded: across 2,000 simulated couples, 93% of follow-up dates ended in another date (~100% by date
+ *      5) and trust rose for 99% of five-date couples, whatever happened on them. Under v3 it's 87% and 82%, with as
+ *      many couples reaching date 5 (tests/engine-arcs.test.ts, docs/relationship-sim-evidence.md). v3 also starts a couple's box score where
+ *      they left off (their running chemistry and trust) instead of a stranger's baseline. First dates are unchanged.
  */
-export type EngineVersion = 1 | 2;
-export const CURRENT_ENGINE_VERSION: EngineVersion = 2;
+export type EngineVersion = 1 | 2 | 3;
+export const CURRENT_ENGINE_VERSION: EngineVersion = 3;
 
 export interface Engine {
   decide(input: DateInput, seed: number, version?: EngineVersion): Outcome;
@@ -325,7 +330,8 @@ export const deterministicEngine: Engine = {
     // Familiarity: repeat dates build trust and ease awkwardness; a past disaster casts a shadow, a
     // past second date glows. First dates have no history and so no effect.
     const hist: DateHistory = input.history ?? { dates: 0, last_ending: null };
-    const familiarity = Math.min(hist.dates, 4);
+    // v3: having met is one step of familiarity; v2 gave one per date (up to four), which made later dates a formality.
+    const familiarity = Math.min(hist.dates, version >= 3 ? 1 : 4);
     // With the running relationship state (lib/relationships.ts), the warmth they've built carries in, bounded to
     // the same ±8 the last-ending rule moves; dates decided before it (no chemistry) replay exactly as they did.
     const histChem =
@@ -350,10 +356,16 @@ export const deterministicEngine: Engine = {
         3 * familiarity + jitter(input.b.autonomy),
     );
 
+    // v3: a couple that has dated before starts tonight where they left off: chemistry and trust carry from the running
+    // relationship (lib/relationships.ts), so the box score and the narration's "rose/fell" read against the last
+    // date, not a stranger's baseline. Display only: no decision reads start or delta.
+    const carry = version >= 3;
+    const chemStart = carry && hist.chemistry !== undefined ? clamp(Math.round(hist.chemistry)) : START.chemistry;
+    const trustStart = carry && hist.trust !== undefined ? clamp(Math.round(hist.trust)) : START.trust;
     const variables: Record<DateVariable, VariableArc> = {
-      chemistry: { start: START.chemistry, delta: chemistry - START.chemistry, final: chemistry },
+      chemistry: { start: chemStart, delta: chemistry - chemStart, final: chemistry },
       attraction: { start: START.attraction, delta: attraction - START.attraction, final: attraction },
-      trust: { start: START.trust, delta: trust - START.trust, final: trust },
+      trust: { start: trustStart, delta: trust - trustStart, final: trust },
       awkwardness: { start: START.awkwardness, delta: awkwardness - START.awkwardness, final: awkwardness },
     };
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { shortName } from "@/lib/names";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -71,7 +72,7 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean; shop?: boolean } | null>(null);
-  const first = state.partner_name.split(" ")[0];
+  const first = shortName(state.partner_name);
 
   async function plan() {
     setBusy(true);
@@ -114,7 +115,11 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
             {busy ? "Booking…" : state.they_asked || !state.needs_their_yes ? `Plan the ${next}` : `Say yes to a ${next} with ${first}`}
           </button>{" "}
           <span className="muted small">
-            {state.needs_their_yes && !state.they_asked ? "Free to say yes; whoever completes it books it with 1 token." : "1 token, like any date. It happens where they planned it."}
+            {state.needs_their_yes && !state.they_asked
+              ? `Free to say yes; whoever completes it books it${state.free ? " (free for you: your second date this week is on the show)" : " with 1 token"}.`
+              : state.free
+                ? "Free: your second date this week is on the show. It happens where they planned it."
+                : "1 token, like any date. It happens where they planned it."}
           </span>
         </>
       )}

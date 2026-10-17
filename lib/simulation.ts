@@ -160,8 +160,12 @@ export function assembleDate(p: DateParts): BuiltDate {
   if (p.nudges?.b) charB.nudge = p.nudges.b;
   if (p.alsoSeeing?.a.length) charA.alsoSeeing = p.alsoSeeing.a;
   if (p.alsoSeeing?.b.length) charB.alsoSeeing = p.alsoSeeing.b;
-  // A second date happens where they planned it, when the plan names a kind of place we have.
+  // A second date happens where they planned it, when the plan names a kind of place we have, unless their last two
+  // dates were both there already: a running joke about tea shouldn't keep a couple in the same café for good.
   const plans = p.followupOf ? (p.relationship?.plans ?? []).filter((x) => x.episode_id === p.followupOf) : [];
+  const planned = venueForPlan(plans);
+  const recentVenues = (p.relationship?.history ?? []).slice(-2).map((h) => h.venue);
+  const plannedVenue = planned && !(recentVenues.length === 2 && recentVenues.every((v) => v === planned)) ? planned : null;
   // The effective engine signals this date runs on: the base soul/image signals nudged by the learned
   // memory's bounded drift (lib/character.ts), so a bot genuinely evolves across its dates. A worker
   // rebuilding a stored date passes the snapshot so it re-decides EXACTLY what POST stored.
@@ -177,7 +181,7 @@ export function assembleDate(p: DateParts): BuiltDate {
     game_budget_a: req.gameBudget,
     game_budget_b: DEFAULT_GAME_BUDGET,
     producer: pickProducer(seedFrom(seed, "producer")),
-    venue: venueForPlan(plans) ?? pickVenue(seedFrom(seed, "venue")),
+    venue: plannedVenue ?? pickVenue(seedFrom(seed, "venue")),
     format: req.format,
     // Snapshot the exact effective signals this date ran on, so a replay reproduces it even after memory drifts.
     signals_a: signalsA,

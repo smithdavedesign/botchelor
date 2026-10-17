@@ -11,6 +11,8 @@ import {
   viewRelationship,
   type RelEpisode,
 } from "@/lib/relationships";
+import { assembleDate, DEFAULT_DATE_REQUEST } from "@/lib/simulation";
+import { evalCharacter } from "@/lib/eval";
 import { getReunion } from "@/lib/reunion";
 import { api, HOUSE_PARTNER_ID, setupEpisode, startTestDb } from "./helpers";
 
@@ -92,6 +94,47 @@ describe("the relationship graph — what they learn about each other", () => {
     expect(rel.jokes.map((j) => j.phrase)).toContain("sugar packets");
   });
 
+  // From the 2026-10-17 paid simulation: whole lines with a question in the middle were kept as facts, and filler
+  // both said ("i'll bring", "checking") was kept as an inside joke.
+  it("keeps only the self-disclosing sentences of a line, never the question asked with them", () => {
+    const d = ep("q1", 10, {
+      transcript: [
+        { side: "a", act: 0, dialogue: "Okay, I'm not moving. Is staying still the right call with bees, or do they take it personally?", action: "", emotion: "", interest: 0.9 },
+        { side: "b", act: 0, dialogue: "Hives, mostly. I'm out there most mornings checking frames and pulling honey. Have you ever been stung?", action: "", emotion: "", interest: 0.8 },
+      ],
+    });
+    const rel = computeRelationship(LO, HI, [d], ["Mira Quell", "Emrys Pine"]);
+    expect(rel.facts.map((f) => f.text)).toEqual(["I'm out there most mornings checking frames and pulling honey."]);
+  });
+
+  it("doesn't count contractions or filler words as inside jokes", () => {
+    const d1 = ep("j1", 10, {
+      transcript: [
+        { side: "a", act: 0, dialogue: "I'll bring the map, I was checking the hive three frames honestly.", action: "", emotion: "", interest: 0.5 },
+        { side: "b", act: 0, dialogue: "I'll bring gloves then. I was checking hive three too, honestly.", action: "", emotion: "", interest: 0.5 },
+      ],
+      afterglow: [{ side: "a", text: "I'll bring the map. Still checking on hive three, honestly." }],
+    });
+    const phrases = computeRelationship(LO, HI, [d1], ["Mira Quell", "Emrys Pine"]).jokes.map((j) => j.phrase);
+    expect(phrases).toContain("hive three");
+    expect(phrases).not.toContain("i'll bring");
+    expect(phrases).not.toContain("checking");
+    expect(phrases).not.toContain("honestly");
+  });
+
+  it("keeps a possessive inside joke (\"sponge's fault\"), not a contraction", () => {
+    const d1 = ep("j2", 10, {
+      transcript: [
+        { side: "a", act: 0, dialogue: "The dry edges? That's the sponge's fault, not mine.", action: "", emotion: "", interest: 0.5 },
+        { side: "b", act: 0, dialogue: "Fine, the sponge's fault. It's always the sponge.", action: "", emotion: "", interest: 0.5 },
+      ],
+      afterglow: [{ side: "b", text: "Still blaming it on the sponge's fault this morning." }],
+    });
+    const phrases = computeRelationship(LO, HI, [d1], ["Pike Alderman", "Pernilla Krause"]).jokes.map((j) => j.phrase);
+    expect(phrases).toContain("sponge's fault");
+    expect(phrases.some((p) => p.includes("it's") || p.includes("that's"))).toBe(false);
+  });
+
   it("keeps the plans from the morning-after texts, and marks one kept when the next date picks it up", () => {
     const open = computeRelationship(LO, HI, [first]);
     const plan = open.plans.find((p) => p.by === "hi")!;
@@ -143,7 +186,7 @@ describe("the relationship graph — who sees what", () => {
     expect(rel.public.mutual_yes).toBe(0); // each side's wish is private
   });
 
-  it("a spectator sees the public dates; an owner also sees their own, never another owner's private date", () => {
+  it("a spectator sees the public dates; an owner sees all the pair's dates, never another owner's private date", () => {
     const spectator = viewRelationship(rel, { userId: "someone", owner: false })!;
     expect(spectator.timeline.map((t) => t.episode_id)).toEqual(["pub"]);
     expect(spectator.plans).toBeUndefined();
@@ -153,8 +196,25 @@ describe("the relationship graph — who sees what", () => {
     expect(owner1.timeline.map((t) => t.episode_id)).toEqual(["pub", "unaired", "hidden"]);
     expect(owner1.plans).toEqual([]);
 
+    // The other owner doesn't wait for user-1 to air a date, but user-1 never sees user-2's private one.
     const owner2 = viewRelationship(rel, { userId: "user-2", owner: true })!;
+    expect(owner2.timeline.map((t) => t.episode_id)).toEqual(["pub", "unaired", "private", "hidden"]);
+  });
+
+  it("an edge stored before dates carried a private flag treats them as private to the other owner", () => {
+    const legacy = { ...rel, history: rel.history.map(({ private: _p, ...h }) => h) };
+    const owner2 = viewRelationship(legacy, { userId: "user-2", owner: true })!;
     expect(owner2.timeline.map((t) => t.episode_id)).toEqual(["pub", "private"]);
+  });
+
+  it("tells the timeline what happened next: friends for now, then another date", () => {
+    const chain = computeRelationship(LO, HI, [
+      ep("d1", 1, { ending: "friends" }),
+      ep("d2", 2, { followup_of: "d1", ending: "second_date" }),
+      ep("d3", 3, { followup_of: "d2", ending: "friends" }),
+    ]);
+    const view = viewRelationship(chain, { userId: "user-1", owner: true })!;
+    expect(view.timeline.map((t) => t.ending_label)).toEqual(["Friends, for now", "Another date", "Just friends"]);
   });
 
   it("a character brings into a date only the public record and the dates of whoever set this one up", () => {
@@ -189,6 +249,19 @@ describe("the engine reads the running relationship", () => {
     expect(deterministicEngine.decide(input({ dates: 2, last_ending: "second_date" }), 7)).toEqual(
       deterministicEngine.decide(input({ dates: 2, last_ending: "second_date", chemistry: undefined }), 7),
     );
+  });
+
+  it("a couple's box score starts where they left off; a first date starts from the blind-date baseline", () => {
+    const first = deterministicEngine.decide(input(), 7);
+    expect(first.variables.chemistry.start).toBe(50);
+    expect(first.variables.trust.start).toBe(45);
+
+    const again = deterministicEngine.decide(input({ dates: 4, last_ending: "second_date", chemistry: 72.6, trust: 56.3 }), 7);
+    expect(again.variables.chemistry.start).toBe(73);
+    expect(again.variables.trust.start).toBe(56);
+    for (const v of ["chemistry", "trust"] as const) {
+      expect(again.variables[v].delta).toBe(again.variables[v].final - again.variables[v].start);
+    }
   });
 });
 
@@ -232,5 +305,31 @@ describe("the relationship graph — stored and refreshed", () => {
     const second = await (await api.createEpisode({ character_id: character.id, partner_id: HOUSE_PARTNER_ID }, creator)).json();
     const stored = (await t.db.query<{ setup: { history?: { dates: number; last_ending: string } } }>(`select setup from episodes where id = $1`, [second.id])).rows[0];
     expect(stored.setup.history).toMatchObject({ dates: 1, last_ending: "second_date" });
+  });
+});
+
+describe("a planned venue doesn't trap a couple", () => {
+  // From the 2026-10-17 paid simulation: a running joke about thermos tea put every one of a couple's five dates in
+  // the same corner café, because each morning-after plan mentioned tea.
+  const a = evalCharacter("house-rafe");
+  const b = evalCharacter("house-juniper");
+  const teaPlan = [{ side: "b" as const, text: "Same café tomorrow? I'll bring the tea, you bring the verdict." }];
+  const build = (eps: RelEpisode[], followupOf: string) => {
+    const [x, y] = [a.forDate.id, b.forDate.id];
+    const rel = computeRelationship(x < y ? x : y, x < y ? y : x, eps.map((e) => ({ ...e, character_a: x, character_b: y })));
+    return assembleDate({
+      episodeId: "next", a: a.forDate, b: b.forDate, req: DEFAULT_DATE_REQUEST, seed: 4,
+      soulA: a.soul, soulB: b.soul, memoryA: null, memoryB: null, history: undefined,
+      relationship: rel, creatorId: "user-1", followupOf,
+    }).setup.venue;
+  };
+
+  it("goes where they planned after one date there", () => {
+    expect(build([ep("c1", 1, { venue: "corner_cafe", afterglow: teaPlan })], "c1")).toBe("corner_cafe");
+  });
+
+  it("goes somewhere new when their last two dates were both at the planned place", () => {
+    const eps = [ep("c1", 1, { venue: "corner_cafe" }), ep("c2", 2, { venue: "corner_cafe", followup_of: "c1", afterglow: teaPlan })];
+    expect(build(eps, "c2")).not.toBe("corner_cafe");
   });
 });

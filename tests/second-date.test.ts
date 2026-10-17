@@ -171,3 +171,41 @@ async function setupPairedEpisodeMutual() {
 }
 // Kept for parity with the helper this mirrors.
 void setupPairedEpisode;
+
+describe("a free second date each week (FREE_WEEKLY_SECOND_DATE)", () => {
+  const usedFree = async (cookie: string) => {
+    const uid = cookie.match(/bz_uid=([^;]+)/)?.[1] ?? "";
+    return (await t.db.query<{ used: number }>(`select coalesce(sum(used), 0)::int as used from free_episode_usage where user_id = $1`, [uid])).rows[0].used;
+  };
+  const book = async (id: string, cookie: string) => {
+    scriptOutcome({ ending: "second_date", sides: [side(true), side(true)] });
+    scriptDate(COFFEE);
+    return plan(id, cookie);
+  };
+
+  it("is off by default: a second date costs a date like any other", async () => {
+    delete process.env.FREE_WEEKLY_SECOND_DATE;
+    const { creator, first } = await mutualHouseDate();
+    expect((await check(first.id, creator)).body.free).toBe(false);
+    expect(await usedFree(creator)).toBe(1);
+    expect((await book(first.id, creator)).status).toBe(200);
+    expect(await usedFree(creator)).toBe(2);
+  });
+
+  it("when on, the first second date this week is free, and the next one costs a date", async () => {
+    process.env.FREE_WEEKLY_SECOND_DATE = "1";
+    try {
+      const { creator, first } = await mutualHouseDate();
+      expect((await check(first.id, creator)).body.free).toBe(true);
+      const second = await book(first.id, creator);
+      expect(second.status).toBe(200);
+      expect(await usedFree(creator)).toBe(1); // only the first date was charged
+
+      expect((await check(second.body.id, creator)).body.free).toBe(false);
+      expect((await book(second.body.id, creator)).status).toBe(200);
+      expect(await usedFree(creator)).toBe(2);
+    } finally {
+      delete process.env.FREE_WEEKLY_SECOND_DATE;
+    }
+  });
+});

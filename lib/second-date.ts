@@ -11,6 +11,7 @@
 import type { Db } from "./db";
 import { loadRelationship } from "./relationships";
 import { DELETED_OWNER } from "./rules";
+import { secondDateFreeNow } from "./allowance";
 
 type DateRow = {
   id: string;
@@ -73,6 +74,8 @@ export type SecondDateState = {
   plan: string[];
   /** Which date the next one would be for the couple (2 after a first date, 3 after a second...). */
   next_date_number: number;
+  /** Booking it costs this owner no date: their free second date this season (FREE_WEEKLY_SECOND_DATE, lib/allowance.ts). */
+  free: boolean;
 };
 
 /** The second-date state of a date, as one of its owners sees it. */
@@ -108,6 +111,7 @@ export async function secondDateState(db: Db, episodeId: string, userId: string)
     partner_name: d[`${theirs}_name`],
     plan: (rel?.plans ?? []).filter((p) => p.episode_id === episodeId).map((p) => p.text),
     next_date_number: d.date_number + 1,
+    free: reason === null && (await secondDateFreeNow(db, userId).catch(() => false)),
   };
 }
 

@@ -46,6 +46,8 @@ export type HistoryItem = {
   trust: number | null;
   /** Aired, public, and not hidden by reports: the only dates the public layer reads. */
   public: boolean;
+  /** A private date: its creator's alone, even from the other character's owner. Missing on edges stored before it existed (then treated as private). */
+  private?: boolean;
   creator: string;
   /** The date this one was the second date of (the plan they made), when it was. */
   followup_of: string | null;
@@ -195,20 +197,41 @@ export function tieNow(s: Summary, now = new Date(), publicLayer = false): numbe
 /* --------------------------------------- what they learn about each other --------------------------------------- */
 
 /** A line where the speaker tells something about themselves: their life, work, people, likes. Not a question. */
-const SELF_DISCLOSURE =
-  /\b(i'm|i am|i've|i have|i work|i worked|i used to|i grew up|i live|i lived|i love|i hate|i can't stand|i never|i always|i spend|i spent|i make|i build|i paint|i teach|i run|i write|i play|my (job|work|family|mum|mom|dad|sister|brother|grand\w*|dog|cat|studio|shop|place|flat|apartment|neighbou?r|boss|friend|knee|back|hands|ex))\b/i;
+const SELF_DISCLOSURE = new RegExp(
+  [
+    // Who they are: "I'm a cartographer", "I'm from Leeds" (not "I'm a bit", "I'm going to").
+    String.raw`\bi(?:'m| am) (?:an? (?!bit\b|little\b|lot\b|fan of you\b)|from\b|allergic\b|terrified of\b|obsessed with\b)`,
+    // Their life: work, history, habits, likes.
+    String.raw`\bi(?:'ve| have) (?:been|never|always|got an?|an? )`,
+    String.raw`\bi (?:work|worked|used to|grew up|live|lived|love|hate|can't stand|never|always|spend|spent|make|build|paint|teach|run|write|play|named|collect|keep)\b`,
+    String.raw`\b(?:every|most) (?:morning|day|night|week|weekend|summer|winter)s?\b`,
+    String.raw`\bmy (?:job|work|family|mum|mom|dad|sister|brother|grand\w*|dog|cat|studio|shop|place|flat|apartment|neighbou?r|boss|friend|knee|back|hands|ex|hives?|bees?|bus|route|stall|kitchen|garden|boat|van)\b`,
+  ].join("|"),
+  "i",
+);
 const FACT_MAX = 160;
+
+/** The sentences of a line that disclose something about the speaker (long enough to say something, not questions), joined; "" if none. */
+function selfSentences(line: string): string {
+  return line
+    .trim()
+    .split(/(?<=[.!?…])\s+/)
+    .filter((s) => s.trim().length >= 28 && SELF_DISCLOSURE.test(s) && !/\?["'’”)]*$/.test(s.trim()))
+    .join(" ")
+    .trim();
+}
 
 function factsFrom(transcript: Turn[], end: (side: "a" | "b") => End, episodeId: string): Fact[] {
   const out: Fact[] = [];
   for (const side of ["a", "b"] as const) {
+    // A fact is the sentences where they tell something about themselves, never the question that came with them.
     const lines = transcript
-      .filter((t) => t.side === side && SELF_DISCLOSURE.test(t.dialogue) && !/\?\s*$/.test(t.dialogue.trim()))
-      .map((t) => ({ text: t.dialogue.trim(), interest: t.interest ?? 0 }))
+      .filter((t) => t.side === side)
+      .map((t) => ({ text: selfSentences(t.dialogue), interest: t.interest ?? 0 }))
       .filter((l) => l.text.length >= 20 && l.text.length <= FACT_MAX && checkFields({ line: l.text }).ok)
       .sort((x, y) => y.interest - x.interest)
       .slice(0, 2);
-    for (const l of lines) out.push({ text: l.text, about: end(side), episode_id: episodeId });
+    for (const l of lines) if (!out.some((f) => f.text === l.text)) out.push({ text: l.text, about: end(side), episode_id: episodeId });
   }
   return out;
 }
@@ -224,13 +247,31 @@ function bigrams(text: string): Set<string> {
   return out;
 }
 
+/** "i'll", "don't", "it's": a contraction, never part of a joke. A possessive ("sponge's fault") can be. */
+const isContraction = (w: string): boolean =>
+  w.includes("'") && (!w.endsWith("'s") || /^(it|that|there|here|what|who|where|let|he|she|how|why|when)'s$/.test(w));
+
+/** Everyday words two people share without it being a joke between them (single-word phrases only). */
+const COMMON_WORDS = new Set(
+  "because somewhere something anything everything nothing everyone someone anyone minutes another tonight morning already whatever together sometimes usually thought through different perfect without instead between against probably actually exactly anyway further whether outside inside forever weekend evening honest proper course monday tuesday wednesday thursday friday saturday sunday".split(" "),
+);
+
+/** Stock two-word phrases anyone says ("next week", "good luck"): never an inside joke on their own. */
+const COMMON_PHRASES = new Set(["good luck", "next week", "last week", "next time", "last time", "right now", "last night", "good night", "thank you", "fair enough", "no idea", "good morning", "next weekend", "this weekend"]);
+
 /**
  * Inside jokes: a phrase (two content words, or one long one) BOTH of them said on a date, that comes back later —
  * in that morning's texts or on a later date. Names and the venue's own words never count.
  */
 function findJokes(dates: { id: string; transcript: Turn[]; afterglow: AfterglowLine[]; venue: VenueId | null }[], names: string[]): Joke[] {
   const banned = new Set(names.flatMap((n) => tokens(n)));
-  const okPhrase = (p: string) => !p.split(" ").some((w) => banned.has(w));
+  // Not a name, not a contraction ("i'll bring"), and a single word must be a thing, not filler ("checking", "honestly").
+  const okPhrase = (p: string) => {
+    const ws = p.split(" ");
+    if (ws.some((w) => banned.has(w) || isContraction(w))) return false;
+    if (ws.length > 1) return !COMMON_PHRASES.has(p);
+    return !/(ing|ly|ed)$/.test(p) && !COMMON_WORDS.has(p);
+  };
   const found = new Map<string, Set<string>>();
   dates.forEach((d, i) => {
     const venueWords = new Set(contentWords(venueOf(d.venue).prompt, 4));
@@ -312,6 +353,7 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
       chemistry: e.box_score?.chemistry?.final ?? null,
       trust: e.box_score?.trust?.final ?? null,
       public: e.revealed_at !== null && e.visibility === "public" && !e.hidden,
+      private: e.visibility === "private",
       creator: e.creator_id,
       followup_of: e.followup_of,
       ...(e.followup_of ? { date_number: e.date_number ?? 2 } : {}),
@@ -478,8 +520,14 @@ export const PUBLIC_ONLY = "";
 /** Who's looking: an owner of either character (and which user), or anyone else. */
 export type Viewer = { userId: string | null; owner: boolean };
 
-/** The dates a viewer may see: public ones for everyone, plus an owner's own (private, unlisted or not yet aired). */
-export const visibleTo = (h: HistoryItem, v: Viewer): boolean => h.public || (v.owner && v.userId !== null && h.creator === v.userId);
+/**
+ * The dates a viewer may see: public ones for everyone. An owner of either character also sees the pair's unaired and
+ * unlisted dates whoever booked them, so they never wait for the other owner to air one, and their own private dates.
+ * Another owner's private date stays that owner's alone. Prompts stay stricter: `usableFor` only lets a date's creator
+ * bring in their own unaired dates.
+ */
+export const visibleTo = (h: HistoryItem, v: Viewer): boolean =>
+  h.public || (v.owner && v.userId !== null && (h.creator === v.userId || h.private === false));
 
 /** The dates a character may bring into a new date set up by `creatorId`: the public record plus that creator's own. */
 export const usableFor = (h: HistoryItem, creatorId: string): boolean => h.public || h.creator === creatorId;
@@ -504,7 +552,18 @@ export type RelationshipView = {
   mutual_yes?: number;
 };
 
-/** What a viewer sees of an edge. Spectators get the public layer only; an owner gets their own dates and the plans. */
+/**
+ * A date's ending as the couple's timeline tells it. The ending is the date's own verdict, but whether they meet again
+ * is the morning after's (both wanted another): a "just friends" date that led to another date was friends *for now*,
+ * and a follow-up date that ended wanting more is "another date", not a second one.
+ */
+export function timelineLabel(h: Pick<HistoryItem, "ending">, ledToAnother: boolean, isFollowUp: boolean): string {
+  if (h.ending === "friends" && ledToAnother) return "Friends, for now";
+  if (h.ending === "second_date" && isFollowUp) return "Another date";
+  return ENDING_LABELS[h.ending];
+}
+
+/** What a viewer sees of an edge. Spectators get the public layer only; an owner gets all the pair's dates and the plans. */
 export function viewRelationship(rel: Relationship, v: Viewer, now = new Date()): RelationshipView | null {
   const seen = rel.history.filter((h) => visibleTo(h, v));
   if (!seen.length) return null;
@@ -514,6 +573,7 @@ export function viewRelationship(rel: Relationship, v: Viewer, now = new Date())
   const idOf = (end: End) => (end === "lo" ? rel.lo : rel.hi);
   const told: Record<string, string[]> = { [rel.lo]: [], [rel.hi]: [] };
   for (const f of rel.facts.filter((f) => ids.has(f.episode_id))) told[idOf(f.about)].push(f.text);
+  const ledOn = new Set(seen.flatMap((h) => (h.followup_of && ids.has(h.followup_of) ? [h.followup_of] : [])));
   return {
     stage: s.stage,
     stage_label: s.stage ? STAGE_LABELS[s.stage] : null,
@@ -528,7 +588,7 @@ export function viewRelationship(rel: Relationship, v: Viewer, now = new Date())
       episode_id: h.episode_id,
       at: h.aired_at ?? h.at,
       ending: h.ending,
-      ending_label: ENDING_LABELS[h.ending],
+      ending_label: timelineLabel(h, ledOn.has(h.episode_id), Boolean(h.followup_of && ids.has(h.followup_of))),
       venue: venueOf(h.venue).name,
       aired: h.aired_at !== null,
       second_date_of: h.followup_of && ids.has(h.followup_of) ? h.followup_of : null,

@@ -22,7 +22,7 @@ export type Allowance = {
   left: number;
 };
 
-export type Reservation = { source: "free"; season_id: string } | { source: "pack" };
+export type Reservation = { source: "free"; season_id: string } | { source: "pack" } | { source: "second_date"; season_id: string };
 
 /** Dates bought: the episodes on the user's paid pack orders. A refunded order stops counting. */
 /** Pack dates an account has: its paid packs plus any an admin granted (token_grants). `who` is the user id SQL. */
@@ -81,8 +81,40 @@ export async function reserveEpisode(db: Db, userId: string, now = new Date()): 
   return pack.rows.length ? { source: "pack" } : null;
 }
 
+/**
+ * A free second date: when FREE_WEEKLY_SECOND_DATE=1, the first second date an owner books each season (week) costs
+ * no date, so a couple that both wanted another can have it (docs/relationship-sim-evidence.md: in 30 days live, 22
+ * dates ended mutual and only 4 second dates were booked). Off by default; it's the owner's pricing call. About 1¢ of
+ * model per free date.
+ */
+export function freeSecondDateOn(env: Record<string, string | undefined> = process.env): boolean {
+  return env.FREE_WEEKLY_SECOND_DATE === "1";
+}
+
+/** Takes this season's free second date, or null when it's off or already used. */
+export async function reserveSecondDate(db: Db, userId: string, now = new Date(), env: Record<string, string | undefined> = process.env): Promise<Reservation | null> {
+  if (!freeSecondDateOn(env)) return null;
+  const season = seasonAt(now).id;
+  const taken = await db.query(
+    `insert into free_second_date_usage (user_id, season_id) values ($1, $2) on conflict (user_id, season_id) do nothing returning user_id`,
+    [userId, season],
+  );
+  return taken.rows.length ? { source: "second_date", season_id: season } : null;
+}
+
+/** Whether this season's free second date is still there for the user (false when the offer is off). */
+export async function secondDateFreeNow(db: Db, userId: string, now = new Date(), env: Record<string, string | undefined> = process.env): Promise<boolean> {
+  if (!freeSecondDateOn(env)) return false;
+  const used = await db.query(`select 1 from free_second_date_usage where user_id = $1 and season_id = $2`, [userId, seasonAt(now).id]);
+  return used.rows.length === 0;
+}
+
 /** Gives back a date reserved for an episode that was never saved. Never goes below zero. */
 export async function releaseEpisode(db: Db, userId: string, reservation: Reservation): Promise<void> {
+  if (reservation.source === "second_date") {
+    await db.query("delete from free_second_date_usage where user_id = $1 and season_id = $2", [userId, reservation.season_id]);
+    return;
+  }
   if (reservation.source === "free") {
     await db.query(
       "update free_episode_usage set used = used - 1 where user_id = $1 and season_id = $2 and used > 0",
