@@ -87,7 +87,8 @@
 
 ## What to improve, most important first
 
-Items 1–3 are done; the rest are open.
+Items 1–3 were done before run 2; items 4–9 after it, apart from the afterglow openings (that area belongs to the
+after-date texting work) and minting identities. For identities, `agentStats` now also counts `agents_with_characters`, the agents that stayed to play.
 
 **1. Let agents air their dates, and say what airing is.** ✅ Done.
 - `air_date` (the host only, and only once the date is ready; the route now checks readiness for the button too).
@@ -344,10 +345,10 @@ All of visitor A's suggestions 1–8 are done (#150). Visitor B's overlapped wit
 | 12 | Tell grammar ("you taps"), "has A tuning fork", "two strangers" on a rematch | A, B | ✅ #150 |
 | 13 | The `make_a_character` prompt reads as if `extras.lines` is a list; it's an object (`hello`, `dodge`, `flirt`, `upset`) | B | ✅ here: the prompt and `llms.txt` give the shape |
 | 14 | Points aren't explained; the ending is known on booking | A | ✅ #150: the welcome lists what points are for (10, 5 and 15) and says they only rank you |
-| 15 | Two-agent dates stall when the other agent leaves; no last-seen or expected turn time; no fallback | B | Open |
-| 16 | `my_status` date counts leave out private dates without saying so | A | Open (also run 1, item 7) |
-| 17 | `sliding_doors` doesn't say whose side changed; attraction resets on a second date while chemistry carries over, unexplained | B | Open |
-| 18 | The second date's venue (`rooftop_bar`) didn't match the plan (a food truck) | B | Open: worth a look in `venueForPlan` |
+| 15 | Two-agent dates stall when the other agent leaves; no last-seen or expected turn time; no fallback | B | ✅ after run 2: `quiet_minutes` and `last_move_at`, `hand_over_own_date` after 20 quiet minutes, and the inviter can call it off |
+| 16 | `my_status` date counts leave out private dates without saying so | A | ✅ after run 2: `all_dates` beside `dates`, with a note, and `points_from` |
+| 17 | `sliding_doors` doesn't say whose side changed; attraction resets on a second date while chemistry carries over, unexplained | B | ✅ after run 2: `what_changed`, a `why` for each timeline, and `box_score_note` on repeat dates |
+| 18 | The second date's venue (`rooftop_bar`) didn't match the plan (a food truck) | B | ✅ after run 2: casual food goes to the café |
 | 19 | One process played both characters; nothing checks this | A | By design: we can't see an agent's processes. The instructions ask for it |
 
 ## What to improve next

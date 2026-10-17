@@ -97,6 +97,19 @@ describe("a date an agent performs itself", () => {
     expect(feed).toContain(episodeId);
   });
 
+  it("a second date between two of your own characters needs only your yes (run 1)", async () => {
+    scriptOutcome({ ending: "second_date", sides: [
+      { wants_another: true, agenda_met: true, satisfied: true, dealbreaker_hit: null, want_met: null, note_followed: null },
+      { wants_another: true, agenda_met: true, satisfied: true, dealbreaker_hit: null, want_met: null, note_followed: null },
+    ] });
+    const { ctx, a, b } = await agentWithPair();
+    const step = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent.step;
+    await performTurns(ctx, step);
+    await call("submit_own_date_step", { episode_id: step.episode_id, output: validEpisodeDraft() }, ctx);
+    const state = (await call("plan_second_date", { episode_id: step.episode_id, check: true }, ctx)).structuredContent.second_date;
+    expect(state).toMatchObject({ mutual: true, needs_their_yes: false, can_plan: true });
+  });
+
   it("costs nothing: no date token and no agents' budget, even with the budget at zero", async () => {
     vi.stubEnv("BOTCHELOR_AGENT_DAILY_DATES", "0");
     scriptOutcome({ ending: "friends" });
@@ -252,9 +265,44 @@ describe("a two-agent date: each agent performs only its own character", () => {
 
     const { ctxA, ctxB, agentA, a, b } = await twoAgents("agents");
     const started = (await call("start_own_date", { character_id: a, partner_id: b }, ctxA)).structuredContent.step;
-    expect((await call("decline_own_date", { episode_id: started.episode_id }, ctxA)).isError).toBe(true); // only the invited agent
+    const stranger = await connect();
+    expect((await call("decline_own_date", { episode_id: started.episode_id }, stranger)).isError).toBe(true); // only its two agents
     expect((await call("decline_own_date", { episode_id: started.episode_id }, ctxB)).structuredContent.declined).toBe(true);
     expect((await t.db.query(`select 1 from episodes where id = $1`, [started.episode_id])).rows).toHaveLength(0);
     expect((await listNotifications(t.db, agentA))[0]).toMatchObject({ kind: "own_date_declined" });
+    // Asking after it's gone says it was called off, not "no such date".
+    expect((await call("get_own_date_step", { episode_id: started.episode_id }, ctxA)).content[0].text).toMatch(/called off/);
+
+    // The agent that asked can call one off too (say the other never came), and the other is told.
+    const again = (await call("start_own_date", { character_id: a, partner_id: b }, ctxA)).structuredContent.step;
+    expect((await call("decline_own_date", { episode_id: again.episode_id }, ctxA)).structuredContent.declined).toBe(true);
+    const { agentB } = { agentB: (await t.db.query<Any>(`select owner_id from characters where id = $1`, [b])).rows[0].owner_id as string };
+    expect((await listNotifications(t.db, agentB))[0]).toMatchObject({ kind: "own_date_declined", title: expect.stringMatching(/called off/) });
+  });
+
+  it("hands a quiet agent's side to the show's model, after a while, on the agents' budget", async () => {
+    const { ctxA, ctxB, agentB, a, b } = await twoAgents();
+    const step = (await call("start_own_date", { character_id: a, partner_id: b }, ctxA)).structuredContent.step;
+    const id: string = step.episode_id;
+    const waiting = (await call("submit_own_date_step", { episode_id: id, output: line(0) }, ctxA)).structuredContent.step;
+    expect(waiting).toMatchObject({ stage: "waiting", can_hand_over: false, quiet_minutes: 0 });
+    expect((await call("hand_over_own_date", { episode_id: id }, ctxA)).content[0].text).toMatch(/after 20 quiet minutes/);
+
+    await t.db.query(`update episodes set last_move_at = now() - interval '25 minutes' where id = $1`, [id]);
+    expect((await call("my_own_dates", {}, ctxA)).structuredContent.dates[0]).toMatchObject({ quiet_minutes: 25 });
+    expect((await call("get_own_date_step", { episode_id: id }, ctxA)).structuredContent.step).toMatchObject({ stage: "waiting", can_hand_over: true });
+    const before = (await agentDatesToday(t.db)).used;
+    scriptedModel([JSON.stringify({ dialogue: "Maps of places that moved. Rivers, mostly.", action: "", emotion: "wry", interest_signal: 0.6 })]);
+    const handed = await call("hand_over_own_date", { episode_id: id }, ctxA);
+    expect(handed.isError).toBeUndefined();
+    // The show played Bo's turn, so it's Ada's move again; Bo's agent is told; it's one of the agents' dates.
+    expect(handed.structuredContent.step).toMatchObject({ stage: "turn", side: "a", turn: 2 });
+    expect((await t.db.query<Any>(`select handed_over, jsonb_array_length(transcript) as n from episodes where id = $1`, [id])).rows[0]).toEqual({ handed_over: "b", n: 2 });
+    expect((await listNotifications(t.db, agentB))[0]).toMatchObject({ kind: "own_date_handed_over" });
+    expect((await agentDatesToday(t.db)).used).toBe(before + 1);
+    // Bo's agent can't hand in Bo's lines any more.
+    scriptedModel([JSON.stringify({ dialogue: "Then draw me one.", action: "", emotion: "warm", interest_signal: 0.7 })]);
+    await call("submit_own_date_step", { episode_id: id, output: line(2) }, ctxA);
+    expect((await call("submit_own_date_step", { episode_id: id, output: line(99) }, ctxB)).structuredContent.rejected).toBe("not_your_turn");
   });
 });

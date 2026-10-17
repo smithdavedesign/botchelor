@@ -668,6 +668,8 @@ const PLAN_VENUES: [RegExp, VenueId][] = [
   [/\b(arcade|pinball|games?|high score)\b/i, "retro_arcade"],
   [/\b(beach|ocean|sea|waves|shore)\b/i, "night_beach"],
   [/\b(park|garden|walk|plants|botanic|greenhouse)\b/i, "botanic_park"],
+  // Casual food has no venue of its own; the café is the nearest kind of place (run 2: a food-truck plan got the rooftop).
+  [/\b(food truck|street food|chill?i|tacos?|noodles?|dumplings?|night market|stall|diner|burgers?|pizza|fries|sandwich(?:es)?)\b/i, "corner_cafe"],
   [/\b(rooftop|cocktails?|drinks|bar)\b/i, "rooftop_bar"],
   [/\b(dinner|restaurant|tasting|courses|chef)\b/i, "tasting_menu"],
 ];

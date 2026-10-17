@@ -88,7 +88,8 @@ export async function secondDateState(db: Db, episodeId: string, userId: string)
   const partnerOwner = d[`${theirs}_owner`];
   const partnerOpen = d[`${theirs}_open`];
   const mutual = Boolean(d.sides?.[0]?.wants_another && d.sides?.[1]?.wants_another);
-  const needsTheirYes = partnerOwner !== null && !partnerOpen;
+  // Both characters yours: your yes is theirs too.
+  const needsTheirYes = partnerOwner !== null && partnerOwner !== userId && !partnerOpen;
   const asks = (await db.query<{ user_id: string }>(`select user_id from second_date_requests where episode_id = $1`, [episodeId])).rows.map((r) => r.user_id);
   const reason =
     d.status !== "ready" ? "not_ready"
@@ -163,7 +164,7 @@ export async function checkSecondDate(
   if (d.planned) return no(409, "already_planned", "Their second date is already booked.");
   if (d.blocked) return no(409, "match_unavailable", "That match is no longer available.");
   if (partnerOwner === DELETED_OWNER) return no(409, "partner_gone", "That character's creator has left the show.");
-  if (partnerOwner !== null && !d[`${theirs}_open`]) {
+  if (partnerOwner !== null && partnerOwner !== userId && !d[`${theirs}_open`]) {
     const yes = (await db.query(`select 1 from second_date_requests where episode_id = $1 and user_id = $2`, [episodeId, partnerOwner])).rows.length > 0;
     if (!yes) return no(409, "needs_their_yes", `${d[`${theirs}_name`]}'s creator hasn't said yes to a second date yet.`);
   }

@@ -4,6 +4,8 @@
  * then getEngine().decide(), then narrateEpisode(). Souls and relationship memory live only here and
  * in the engine; they are never sent to spectators.
  */
+import { endingWhy } from "./why";
+import { shortName } from "./names";
 import type { Db } from "./db";
 import {
   CURRENT_ENGINE_VERSION,
@@ -345,8 +347,18 @@ const toSheet = (r: DoorRow, p: "a" | "b"): CharacterSheet => ({
 
 export type SlidingDoorsResult = {
   change: SlidingDoorChange;
-  base: { ending: Ending; box_score: BoxScore };
-  alternate: { ending: Ending; box_score: BoxScore };
+  /** In words: what was changed, and on whose side (always the side of the character whose owner booked it). */
+  what_changed: string;
+  base: { ending: Ending; box_score: BoxScore; why?: string };
+  alternate: { ending: Ending; box_score: BoxScore; why?: string };
+};
+
+/** What each change does, said plainly (varySetup). */
+const CHANGE_SAYS: Record<SlidingDoorChange, string> = {
+  bolder: "made more unpredictable (its AI may go off-script)",
+  safer: "made more guided (its AI sticks closer to what its owner would want)",
+  bigger_budget: "given the biggest date budget",
+  long_game: "playing for long-term compatibility (the ending is scored on trust most)",
 };
 
 const DOORS_SELECT = `
@@ -399,10 +411,17 @@ async function computeDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pr
     history,
   });
 
-  const toArc = (o: Outcome) => ({ ending: o.ending, box_score: o.variables });
   // Replay under the calibration the date was decided with (v1 for dates from before versioning).
-  const alt = deterministicEngine.decide(build(varySetup(setup, change)), seed, setup.engine_version ?? 1);
-  return { change, base: { ending: row.ending, box_score: row.box_score }, alternate: toArc(alt) };
+  const varied = varySetup(setup, change);
+  const alt = deterministicEngine.decide(build(varied), seed, setup.engine_version ?? 1);
+  const baseWhy = endingWhy(row.ending, row.box_score, null, setup.strategy);
+  const altWhy = endingWhy(alt.ending, alt.variables, alt.sides, varied.strategy);
+  return {
+    change,
+    what_changed: `${shortName(row.a_name)}'s side was ${CHANGE_SAYS[change]}; ${shortName(row.b_name)}'s stayed as it was. Same seed, so nothing else moved.`,
+    base: { ending: row.ending, box_score: row.box_score, ...(baseWhy ? { why: baseWhy } : {}) },
+    alternate: { ending: alt.ending, box_score: alt.variables, ...(altWhy ? { why: altWhy } : {}) },
+  };
 }
 
 /**

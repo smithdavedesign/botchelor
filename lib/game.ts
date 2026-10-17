@@ -1,3 +1,4 @@
+import { endingWhy } from "./why";
 import type { CharacterSheet, DateHistory, EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
 import { approvedClipId, approvedClipIsVideo, approvedPortraitId, portraitPathSql } from "./assets";
 import type { Db } from "./db";
@@ -171,6 +172,10 @@ export type EpisodeJson = {
   drama_answer?: DramaAnswer | null;
   best_line?: string;
   box_score?: BoxScore;
+  /** One line on why it ended this way (lib/why.ts), once the ending is shown. */
+  why?: string;
+  /** On a repeat date: which box-score numbers carried over and which started fresh. */
+  box_score_note?: string;
   /** The secret agendas, revealed only once the finale airs (or always to the creators). */
   agendas?: { character_id: string; agenda: string }[];
   /** The AI producer's act-2 situation, revealed with the agendas. */
@@ -261,6 +266,12 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     json.drama_answer = ep.drama_answer;
     if (ep.best_line) json.best_line = ep.best_line;
     if (ep.box_score) json.box_score = ep.box_score;
+    const why = endingWhy(ep.ending, ep.box_score, ep.sides, ep.setup?.strategy);
+    if (why) json.why = why;
+    // Run 2 asked why attraction reset on a second date while chemistry carried over: it's by design, so say so.
+    if (ep.box_score && ep.setup?.followup_of) {
+      json.box_score_note = "Chemistry and trust carry over from their last date; attraction and awkwardness start fresh each date.";
+    }
     if (ep.setup) {
       json.agendas = [
         { character_id: a.id, agenda: agendaLabel(ep.setup.agenda_a) },
@@ -648,26 +659,33 @@ export async function getCharacterHistory(
   return { episodes, record };
 }
 
-export async function getPoints(db: Db, userId: string): Promise<number> {
-  const { rows } = await db.query<{ points: number }>(
-    `select (
+/** Where a viewer's points came from, by source (getPoints is their sum). */
+export type PointsBreakdown = { predictions: number; dealbreaker_guesses: number; matchmaking: number; ratings_received: number; arc_calls: number };
+
+export async function getPointsBreakdown(db: Db, userId: string): Promise<PointsBreakdown> {
+  const { rows } = await db.query<PointsBreakdown>(
+    `select
         coalesce((select sum(${predictionPointsSql("$2", "$3")})
                     from predictions p join episodes e on e.id = p.episode_id
-                   where p.user_id = $1 and e.revealed_at is not null and e.visibility = 'public'), 0)
-      + coalesce((select count(*)
+                   where p.user_id = $1 and e.revealed_at is not null and e.visibility = 'public'), 0)::int as predictions,
+        (coalesce((select count(*)
                     from dealbreaker_guesses g
                     join episodes e on e.id = g.episode_id
                     join characters a on a.id = e.character_a
-                   where g.user_id = $1 and e.revealed_at is not null and e.visibility = 'public' and g.pick = a.dealbreaker), 0) * $4
-      + coalesce((select count(*) from matchmaker_proposals mp
-                   where mp.proposer_id = $1 and ${matchmakerHitSql()}), 0) * $5
-      + coalesce((select count(*) from character_ratings cr
+                   where g.user_id = $1 and e.revealed_at is not null and e.visibility = 'public' and g.pick = a.dealbreaker), 0) * $4)::int as dealbreaker_guesses,
+        (coalesce((select count(*) from matchmaker_proposals mp
+                   where mp.proposer_id = $1 and ${matchmakerHitSql()}), 0) * $5)::int as matchmaking,
+        (coalesce((select count(*) from character_ratings cr
                     join characters c on c.id = cr.character_id
-                   where c.owner_id = $1), 0) * $6
-      + coalesce((select count(*) from arc_predictions ap
-                   where ap.user_id = $1 and ap.resolved_at is not null and ap.pick = ap.outcome), 0) * $7
-     )::int as points`,
+                   where c.owner_id = $1), 0) * $6)::int as ratings_received,
+        (coalesce((select count(*) from arc_predictions ap
+                   where ap.user_id = $1 and ap.resolved_at is not null and ap.pick = ap.outcome), 0) * $7)::int as arc_calls`,
     [userId, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, POINTS_PER_RATING_RECEIVED, POINTS_PER_ARC],
   );
-  return rows[0]?.points ?? 0;
+  return rows[0] ?? { predictions: 0, dealbreaker_guesses: 0, matchmaking: 0, ratings_received: 0, arc_calls: 0 };
+}
+
+export async function getPoints(db: Db, userId: string): Promise<number> {
+  const b = await getPointsBreakdown(db, userId);
+  return b.predictions + b.dealbreaker_guesses + b.matchmaking + b.ratings_received + b.arc_calls;
 }

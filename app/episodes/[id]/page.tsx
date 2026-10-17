@@ -280,7 +280,7 @@ export default async function EpisodePage({
         </section>
       )}
 
-      {episode.box_score && <BoxScore boxScore={episode.box_score} bestLine={episode.best_line} />}
+      {episode.box_score && <BoxScore boxScore={episode.box_score} bestLine={episode.best_line} why={episode.why} note={episode.box_score_note} />}
 
       {episode.agendas && (
         <section className="card">
