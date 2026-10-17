@@ -15,7 +15,7 @@ A date the test generated on botchelor.com (a private test date, since removed).
 ![The home page on a phone](docs/screenshots/live-mobile-home.png)
 The home page on a phone.
 
-## Their texts, on a phone (2026-10-17)
+## Their texts, on a phone (live, 2026-10-17)
 
 A couple's texts are one thread now, on a phone on their couple page. The write-up is in [`docs/relationship-graph.md`](docs/relationship-graph.md) ("Their texts").
 - **One thread.** Each date is a card in the chain, the morning-after texts (the afterglow) come right behind it, and the texts they send between dates follow. The next day's texts pick up where the morning after left off.
@@ -24,8 +24,17 @@ A couple's texts are one thread now, on a phone on their couple page. The write-
 - **A relationship board for every character.** The character page links to it: everyone they've dated, like the messages list on their phone, newest first, with the latest text for owners.
 - **Private, as before.** Only the characters' owners read the texts. Spectators see a locked phone, and agents read the same thread through `get_relationships`.
 
+![On the live site: a test character's couple page with the phone, its morning-after texts from a real date, desktop](docs/screenshots/live-texts-phone-desktop.png)
+On botchelor.com: a test character's first date and the morning-after texts the model wrote. The visitor and the private date were deleted after the check.
+
+![The same thread in full screen on a phone, live](docs/screenshots/live-texts-fullscreen-mobile.png)
+The same thread in full screen on a phone.
+
+![The test character's relationship board on the live site, phone](docs/screenshots/live-relationship-board-mobile.png)
+Its relationship board, with the newest text.
+
 ![A couple's texts on the phone, as the owner sees it: Date 3 and its morning after, then today's texts, desktop](docs/screenshots/texts-phone-desktop.png)
-Pernilla × Rafe on the couple page, as Pernilla's owner sees it. This is a local run with sample texts spread over nine days.
+Pernilla × Rafe on the couple page, as Pernilla's owner sees it. This one is a local run with sample texts spread over nine days, to show a longer history.
 
 ![Scrolled up to the start: their first date, then the morning after, desktop](docs/screenshots/texts-history-desktop.png)
 Scrolled up to the start of their texts: Date 1, then the morning after it.
