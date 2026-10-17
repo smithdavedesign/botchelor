@@ -578,6 +578,21 @@ create table if not exists arc_predictions (
   primary key (user_id, character_lo, character_hi, target)
 );
 create index if not exists arc_predictions_open on arc_predictions (character_lo, character_hi) where resolved_at is null;
+-- A date one owner proposes to another owner's character (lib/date-proposals.ts) when that character isn't open to
+-- dates: pending until the other owner accepts (which books it) or declines; a pending one lapses after 7 days.
+create table if not exists date_proposals (
+  id text primary key,
+  from_user text not null,
+  from_character text not null references characters (id) on delete cascade,
+  to_character text not null references characters (id) on delete cascade,
+  to_user text not null,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined', 'cancelled', 'expired')),
+  created_at timestamptz not null default now(),
+  decided_at timestamptz,
+  episode_id text
+);
+create unique index if not exists date_proposals_one_pending on date_proposals (from_character, to_character) where status = 'pending';
+create index if not exists date_proposals_to_user on date_proposals (to_user) where status = 'pending';
 -- An owner's yes to a second date (lib/second-date.ts), when the other character's owner has to agree as well.
 create table if not exists second_date_requests (
   episode_id text not null references episodes (id) on delete cascade,

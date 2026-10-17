@@ -17,7 +17,10 @@ export type NotificationKind =
   | "stage_up" // a couple you're part of (or follow) moved up a stage
   | "couple_date" // a couple you follow went on another date
   | "arc_resolved" // a prediction you made about a couple's arc came true (or didn't)
-  | "partner_style"; // your character settled one partner or more, or closed to dates because they're taken
+  | "partner_style" // your character settled one partner or more, or closed to dates because they're taken
+  | "date_proposal" // another owner proposed a date between their character and yours
+  | "date_proposal_declined" // the other owner said not this time to your proposal
+  | "date_accepted"; // the other owner accepted your proposal: the date is booked
 
 export type Notification = {
   id: string;

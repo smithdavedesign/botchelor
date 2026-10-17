@@ -2115,7 +2115,7 @@ button.poll-option.chosen {
 }
 .meter {
   display: grid;
-  grid-template-columns: 9rem 1fr;
+  grid-template-columns: 9rem 1fr 4.5rem;
   align-items: center;
   gap: 0.6rem;
   max-width: 26rem;
@@ -2142,6 +2142,30 @@ button.poll-option.chosen {
   display: block;
   height: 100%;
   background: var(--grad);
+}
+.meter-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.couple-names .badge {
+  margin-left: 0.3rem;
+}
+.couple-links {
+  margin-top: 0.5rem;
+}
+.next-date h2 {
+  margin-bottom: 0.4rem;
+}
+.next-date .second-date {
+  margin-top: 0.5rem;
+  padding-top: 0;
+  border-top: 0;
+}
+@media (max-width: 30rem) {
+  .meter {
+    grid-template-columns: 6.5rem 1fr 3.75rem;
+  }
 }
 
 /* The second date (lib/second-date.ts): under the afterglow, when they both want one. */

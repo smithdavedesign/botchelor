@@ -76,7 +76,8 @@ export async function arcQuestion(db: Db, viewerId: string | null, x: string, y:
     yes: rows[0]?.yes ?? 0,
     no: rows[0]?.no ?? 0,
     my_pick: myPick,
-    can_predict: viewerId !== null && reason === null,
+    // A first-time visitor has no session yet, but answering starts one (the arc route's session()), so they can call it too.
+    can_predict: reason === null,
     reason,
     settled: mine.filter((m) => m.outcome !== null).map((m) => ({ target: m.target, pick: m.pick, outcome: m.outcome!, points: m.pick === m.outcome ? POINTS_PER_ARC : 0 })),
   };
