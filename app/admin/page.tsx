@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { frontierConfigured } from "@/lib/model";
 import AdminClaim from "./AdminClaim";
 import AgentsPanel from "./AgentsPanel";
@@ -16,6 +17,9 @@ export default function AdminPage() {
       <p className="kicker">Admin</p>
       <h1>Behind the scenes</h1>
       <AdminClaim />
+      <p>
+        <Link href="/admin/feedback">Agent feedback →</Link> <span className="muted">what agents think of the show, and which session it came from</span>
+      </p>
       <ReportsPanel />
       <AgentsPanel />
       <RelationshipsPanel />
