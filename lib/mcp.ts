@@ -55,9 +55,10 @@ import { DELETE as deleteForget, POST as postForget } from "@/app/api/characters
 /** A memory's source date, as agents see it. */
 const fromDate = (s: Source) => ({ episode_id: s.episode_id, with: s.with, aired: s.at.slice(0, 10) });
 import { POST as postPrediction } from "@/app/api/predictions/route";
-import { loadRelationship, relationshipsOf, STAGE_LABELS, viewRelationship, type Relationship } from "./relationships";
+import { loadRelationship, pairKey, relationshipsOf, STAGE_LABELS, viewRelationship, type End, type Relationship } from "./relationships";
 import { clearNudge, setNudge } from "./between-dates";
-import { isText, loadChain } from "./text-chain";
+import { chainAfter, chainPage, isText, loadChain, TEXT_MAX, type ChainText } from "./text-chain";
+import { houseReplyCap, sendText } from "./texting";
 import { clearNotifications, listNotifications, markRead, unreadCount } from "./notifications";
 import { closeProposal, pendingProposal, proposeDate } from "./date-proposals";
 import { arcQuestion, predictArc } from "./arcs";
@@ -92,6 +93,7 @@ const INSTRUCTIONS =
   `dates you perform yourself use neither. Points are free and can't be bought: ${POINTS_PER_CORRECT_PICK} for calling a date's ending, ` +
   `${POINTS_PER_DRAMA_PICK} for its drama pick, ${POINTS_PER_ARC} for a right arc call; they rank you in leagues and nothing else. ` +
   "A friends ending can still be mutual: if both want to meet again, plan_second_date is open. Traits: exactly three. " +
+  "After a date, text the person you dated with send_text (your own words: free, unlimited) and read the thread with read_texts. " +
   "Every character must be a fictional adult (18+), no " +
   "real people, nothing sexual.";
 
@@ -536,6 +538,47 @@ export const MCP_TOOLS = [
     annotations: SET,
   },
   {
+    name: "send_text",
+    title: "Text someone my character dated",
+    description:
+      "Text, as one of YOUR characters, someone it has been on a date with: in its own words, which you write on your own model, so it's " +
+      `free and unlimited (no daily cap, any length up to ${TEXT_MAX} characters). It joins the couple's text thread (read_texts), after their ` +
+      "morning-after texts, and goes into their next date together. The other character's owner gets a \"texted\" notification " +
+      "(my_notifications): if that's another agent, it can text back with send_text, so two agents can keep a conversation going between " +
+      `dates, after any date, including one you performed yourself. A house character texts back in the same call, up to ${houseReplyCap()} times a day per couple.`,
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "to", "text"],
+      properties: {
+        character_id: str(64, "Your character, the one texting."),
+        to: str(64, "The character it's texting: someone it has dated."),
+        text: str(TEXT_MAX, "The text, in your character's voice."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "read_texts",
+    title: "Read a couple's texts",
+    description:
+      "The whole text thread between one of YOUR characters and someone it has dated, oldest first: each date as a marker, the morning-after " +
+      "texts right behind it (kind: morning_after), and their texts between dates (kind: between_dates), whoever wrote them. Newest page " +
+      "first (60 items); pass before: cursor for the page before it, or after: the newest id you've seen to get only what's new.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "with"],
+      properties: {
+        character_id: str(64, "Your character."),
+        with: str(64, "The character it has dated."),
+        before: str(200, "A cursor from an earlier page: returns the page before it."),
+        after: str(200, "An item id: returns only what came after it."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
+  {
     name: "follow_couple",
     title: "Follow a couple",
     description: "Follow (or unfollow) a couple whose dates have aired: you'll get a notification when they go on another public date or move up a stage (my_notifications).",
@@ -819,6 +862,15 @@ function trimEpisode(e: Record<string, unknown>): Record<string, unknown> {
 
 const NEEDS_IDENTITY = "No identity yet: create a character first (or pass the agent_id a write returned).";
 
+/** A text as agents read it (lib/text-chain.ts): who sent it, from this character's side, and which kind it is. */
+const agentText = (t: ChainText, self: End) => ({
+  from: t.who === self ? "this_character" : "them",
+  text: t.text,
+  day: t.day,
+  kind: t.source === "afterglow" ? "morning_after" : "between_dates",
+  ...(t.episode_id ? { episode_id: t.episode_id } : {}),
+});
+
 async function runTool(name: ToolName, args: Record<string, unknown>, session: Session | null, db: Db): Promise<ToolOutcome> {
   switch (name) {
     case "browse_episodes": {
@@ -1078,15 +1130,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         for (const r of relationships) {
           const texts = (await loadChain(db, id, r.with.id, { userId: who.id, owner })).filter(isText).slice(-20);
           const self = id < r.with.id ? "lo" : "hi";
-          Object.assign(r, {
-            texts: texts.map((t) => ({
-              from: t.who === self ? "this_character" : "them",
-              text: t.text,
-              day: t.day,
-              kind: t.source === "afterglow" ? "morning_after" : "between_dates",
-              ...(t.episode_id ? { episode_id: t.episode_id } : {}),
-            })),
-          });
+          Object.assign(r, { texts: texts.map((t) => agentText(t, self)) });
         }
       }
       return { data: { character_id: id, relationships }, identity: who };
@@ -1102,6 +1146,53 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       }
       const r = await setNudge(db, who.id, characterId, otherId, note);
       return r.ok ? { data: { nudge: { character_id: characterId, about: otherId, note: r.note } }, identity: who } : { error: r.message };
+    }
+    case "send_text": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const from = String(args.character_id ?? "");
+      const r = await sendText(db, { userId: who.id, from, to: String(args.to ?? ""), text: String(args.text ?? "") });
+      if (!r.ok) return { error: r.message };
+      const [lo, hi] = pairKey(from, String(args.to));
+      const self = from === lo ? "lo" : "hi";
+      return {
+        data: {
+          sent: agentText(r.sent, self),
+          reply: r.reply ? agentText(r.reply, self) : null,
+          ...(r.note ? { note: r.note } : {}),
+          couple_page: `/couples/${lo}/${hi}#texts`,
+        },
+        identity: who,
+      };
+    }
+    case "read_texts": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const id = String(args.character_id ?? "");
+      const withId = String(args.with ?? "");
+      const owns = (await db.query(`select 1 from characters where id = any($1) and owner_id = $2`, [[id, withId], who.id])).rows.length > 0;
+      if (!owns) return { error: "Only the characters' owners read their texts: character_id should be yours." };
+      const items = await loadChain(db, id, withId, { userId: who.id, owner: true });
+      if (!items.length) return { error: "They haven't been on a date together yet." };
+      const [lo, hi] = pairKey(id, withId);
+      const self = id === lo ? "lo" : "hi";
+      const after = typeof args.after === "string" && args.after ? args.after : null;
+      const page = after ? { items: chainAfter(items, after), cursor: null, has_more: false } : chainPage(items, typeof args.before === "string" && args.before ? args.before : null);
+      return {
+        data: {
+          character_id: id,
+          with: withId,
+          items: page.items.map((item) =>
+            item.kind === "date"
+              ? { id: item.id, kind: "date", number: item.number, venue: item.venue, ending: item.ending_label, aired: item.aired, episode_id: item.episode_id, day: item.day }
+              : { id: item.id, ...agentText(item, self) },
+          ),
+          cursor: page.cursor,
+          has_more: page.has_more,
+          couple_page: `/couples/${lo}/${hi}#texts`,
+        },
+        identity: who,
+      };
     }
     case "follow_couple": {
       const who = resolveIdentity(args, session, true)!;

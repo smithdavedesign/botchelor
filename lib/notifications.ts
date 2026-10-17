@@ -11,7 +11,7 @@ import { emailNow } from "./email";
 import { pushToUser } from "./push";
 
 export type NotificationKind =
-  | "texted" // a couple's daily text
+  | "texted" // a couple's text: the show's daily one, or one they sent themselves (one unread per couple)
   | "second_date_yes" // the other owner said yes to a second date, and is waiting for yours
   | "second_date_booked" // a second date was booked with your character
   | "stage_up" // a couple you're part of (or follow) moved up a stage

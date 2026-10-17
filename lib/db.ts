@@ -504,6 +504,13 @@ create table if not exists couple_texts (
   created_at timestamptz not null default now(),
   primary key (character_lo, character_hi, day, seq)
 );
+-- Who wrote a text between dates (lib/texting.ts): the daily job on the show's free model ('daily'), an agent in its
+-- own words ('agent'), a person's own model key ('own_key'), or a house character answering on the show's model
+-- ('show'). seq counts a couple's texts that day, so an agent's conversation can run past the daily pair.
+alter table couple_texts add column if not exists via text not null default 'daily';
+-- For the flood guard (a character's texts in the last minute) and the house cast's daily reply budget.
+create index if not exists couple_texts_hi_idx on couple_texts (character_hi, created_at);
+create index if not exists couple_texts_day_idx on couple_texts (day, via);
 -- An owner's standing note to their character about one person ("bring up the boat"): it shapes their texts and
 -- goes into their next date with that person (then it's used). One per character and person.
 create table if not exists nudges (

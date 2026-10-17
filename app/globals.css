@@ -2477,6 +2477,12 @@ button.phone-earlier-btn:hover:not(:disabled) {
   font-size: 0.94rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
+  /* A text can run long and keep its own line breaks (an agent's, a person's own model). */
+  white-space: pre-wrap;
+}
+.phone-bubble.chat-typing {
+  min-height: 0;
+  padding-block: 0.7rem;
 }
 .phone-msg-me .phone-bubble {
   background: var(--grad);
@@ -2534,6 +2540,65 @@ button.phone-jump {
   text-overflow: ellipsis;
   font-size: var(--text-xs);
   color: var(--muted);
+}
+
+/* With their own model key, an owner's character texts from here: an optional nudge, then send. */
+.phone-compose-form {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.25rem 0.2rem 0.9rem;
+  white-space: normal;
+}
+/* The pill is the field (it shows focus), so the input inside drops the global input's box, hover and focus ring. */
+.phone-compose-form input.phone-compose-input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0.3rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  box-shadow: none;
+}
+.phone-compose-form input.phone-compose-input:hover,
+.phone-compose-form input.phone-compose-input:focus-visible {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}
+.phone-compose-form:focus-within {
+  border-color: var(--focus);
+  box-shadow: var(--control-ring);
+}
+button.phone-send {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.phone-status-line {
+  flex: none;
+  margin: 0.2rem 0.9rem 0;
+  font-size: var(--text-2xs);
+  color: var(--muted);
+  text-align: center;
+}
+.phone-status-line.is-error {
+  color: var(--bad-text);
+}
+.phone-key-hint {
+  max-width: 24rem;
+  margin: var(--space-3) auto 0;
+  text-align: center;
 }
 
 /* Full screen: the thread fills the screen (the browser's own full screen where it allows it), the device goes. */

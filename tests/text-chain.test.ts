@@ -79,8 +79,8 @@ describe("a couple's text chain (lib/text-chain.ts)", () => {
       "date 1",
       "me, afterglow: Last night was fun.",
       "them, afterglow: It really was.",
-      "them, daily: Saw a dog in a raincoat. Thought of you.",
-      "me, daily: Was it judging you? They always are.",
+      "them, between: Saw a dog in a raincoat. Thought of you.",
+      "me, between: Was it judging you? They always are.",
       "date 2",
       "them, afterglow: Round two was better.",
     ]);
@@ -117,7 +117,7 @@ describe("a couple's text chain (lib/text-chain.ts)", () => {
       day: `2026-10-1${i}`,
       who: "lo",
       text: `t${i}`,
-      source: "daily",
+      source: "between",
       episode_id: null,
     }));
     const newest = chainPage(items, null, 3);
