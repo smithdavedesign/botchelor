@@ -25,6 +25,7 @@ import type { SideOutcome, SoulSignals } from "./engine";
 import { ENDING_LABELS, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
 import type { Turn } from "./conversation";
 import { stageOf, type Stage } from "./relationships";
+import { contentWords } from "./quality";
 import { checkFields } from "./safety";
 import { seasonIdAt } from "./season-cast";
 import { venue, type VenueId } from "./venues";
@@ -268,6 +269,10 @@ export function wantCue(phrase: string): string {
   return trimmed.length >= 3 ? trimmed : phrase.trim().toLowerCase();
 }
 
+/** Filler the engine's word match can land on ("thing"): not something a character warms to. */
+const FILLER = new Set(["thing", "things", "stuff", "something", "anything", "everything", "someone", "anyone", "people", "person", "really", "always", "never"]);
+const meaningful = (cue: string) => contentWords(cue, 3).some((w) => !FILLER.has(w));
+
 /** The smallest swing in a character's interest that counts as a moment. */
 const MOMENT_SWING = 0.15;
 const MOMENT_MAX = 70;
@@ -377,13 +382,13 @@ export function computeMemory(
     // Only a date with no such moment (no transcript, or a flat one) falls back to the sheet's own words.
     const meSide0 = r.is_a ? "a" : "b";
     const went = r.ending === "second_date" || r.ending === "friends";
-    if (mine?.want_met) likeCues.push({ cue: mine.want_met, from });
+    if (mine?.want_met && meaningful(mine.want_met)) likeCues.push({ cue: mine.want_met, from });
     else if (went && mine?.wants_another) {
       const moment = momentCue(r.transcript, meSide0, 1);
       if (moment) likeCues.push({ cue: moment, from });
       else if (sheet?.want) likeCues.push({ cue: wantCue(sheet.want), from });
     }
-    if (mine?.dealbreaker_hit) turnoffCues.push({ cue: mine.dealbreaker_hit, from });
+    if (mine?.dealbreaker_hit && meaningful(mine.dealbreaker_hit)) turnoffCues.push({ cue: mine.dealbreaker_hit, from });
     else if (r.ending === "disaster") {
       const moment = momentCue(r.transcript, meSide0, -1);
       if (moment) turnoffCues.push({ cue: moment, from });

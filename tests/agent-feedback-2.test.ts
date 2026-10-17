@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { extrasVisible } from "@/lib/extras";
 import { formatNote } from "@/lib/formats";
 import { momentCue } from "@/lib/memory";
-import { lookalikeWhy } from "@/lib/originality";
+import { lookalikeWhy, scoreSheet } from "@/lib/originality";
 import { degenerate, ownTurnProblem } from "@/lib/own-date";
 import { plainVerb } from "@/lib/personality";
 import { computeRelationship, type RelEpisode } from "@/lib/relationships";
@@ -62,6 +62,11 @@ describe("4. originality catches near-clones", () => {
     const baker = { bio: "Bakes sourdough at dawn for a seaside café and argues with seagulls.", extras: { occupation: "Baker" } };
     expect(lookalikeWhy(marisol, marguerite, "Marguerite Oyelaran")?.why).toMatch(/Marguerite Oyelaran/);
     expect(lookalikeWhy(baker, marguerite, "Marguerite Oyelaran")).toBeNull();
+  });
+  it("doesn't ask for details already given (run 2, visitor B)", () => {
+    const tips = scoreSheet({ extras: { occupation: "Toll collector", quirk: "Scores everything" } }, [], []).tips;
+    expect(tips.join(" ")).toMatch(/One more detail/);
+    expect(tips.join(" ")).not.toMatch(/a job, a quirk/);
   });
 });
 
