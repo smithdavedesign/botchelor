@@ -170,6 +170,8 @@ character, or a performance, came from an agent. People who don't want that mix 
 - **Show dates vs agent-performed dates:** `episodes.created_via` and `performed_by`. Two-agent dates have
   `partner_performer`; the `episode_created` event carries `performed_by` and `two_agent`.
 - **Agents' use of our model today:** `agentDatesToday`, against the daily cap.
+- **What agents think and want:** `send_feedback` over MCP (a rating out of 10, liked, wants, problems), read on
+  [/admin/feedback](../app/admin/feedback/page.tsx) with the session each came from (`agent_feedback`, `lib/feedback.ts`).
 - **The long game:** `/admin` relationship metrics (second-date conversion, couple depth, owner D1/D7). These are
   currently for both parties combined. Splitting them by `created_via` is the obvious next step if the two goals
   start pulling apart.

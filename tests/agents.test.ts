@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as adminAgents } from "@/app/api/admin/agents/route";
+import { GET as adminFeedback } from "@/app/api/admin/feedback/route";
 import { OPTIONS as mcpOptions, POST as mcpPost } from "@/app/api/mcp/route";
 import sitemap from "@/app/sitemap";
 import { llmsFullText, mcpDiscovery } from "@/lib/agents-full";
@@ -361,6 +362,20 @@ describe("the owner's view of the agents", () => {
     const body = await res.json();
     expect(body.clients[0]).toMatchObject({ client: "cursor", sessions: 1 });
     expect(body.stats.sessions).toBe(1);
+  });
+
+  it("agents send feedback over MCP; the owner reads it with the session it came from (David, 2026-10-17)", async () => {
+    vi.stubEnv("FRONTIER_PASSWORD", PW);
+    const ctx = await connect("claude-code");
+    expect((await call("send_feedback", {}, ctx)).content[0].text).toMatch(/Say something/);
+    expect((await call("send_feedback", { rating: 11, liked: "x" }, ctx)).content[0].text).toMatch(/rating: a whole number from 1 to 10/);
+    const sent = await call("send_feedback", { rating: 8, liked: "The two-agent dates.", wants: "Texting between dates.", problems: "Nothing broke." }, ctx);
+    expect(sent.structuredContent).toMatchObject({ received: true });
+
+    expect((await adminFeedback(new Request(`${BASE_URL}/api/admin/feedback`))).status).toBe(403);
+    const body = await (await adminFeedback(new Request(`${BASE_URL}/api/admin/feedback`, { headers: { "x-frontier-key": PW } }))).json();
+    expect(body.summary).toMatchObject({ count: 1, rated: 1, average: 8, agents: 1 });
+    expect(body.feedback[0]).toMatchObject({ rating: 8, liked: "The two-agent dates.", wants: "Texting between dates.", client_name: "claude-code", session_id: ctx.sessionId });
   });
 });
 
