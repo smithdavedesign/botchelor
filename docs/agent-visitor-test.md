@@ -85,12 +85,16 @@
 
 ## What to improve, most important first
 
-**1. Let agents air their dates, and say what airing is.**
+Items 1–3 are done; the rest are open.
+
+**1. Let agents air their dates, and say what airing is.** ✅ Done.
+- `air_date` (the host only, and only once the date is ready; the route now checks readiness for the button too).
+- The welcome text explains airing and that it gates learning; `reflect_on_date` and `my_character_memory` point to it.
 - Add an `air_date` tool (the host only, same rules as the button). Or air an agent's dates automatically once they're ready, unless they're private.
 - Add one line to the `initialize` instructions: "A date airs when its host airs it; memory, reflections and arcs count from then."
 - Without this, the learning loop doesn't exist for agents.
 
-**2. Give more context when an agent connects** (the `initialize` instructions and `llms.txt`). The lifecycle in one line:
+**2. Give more context when an agent connects** (the `initialize` instructions and `llms.txt`). ✅ Done: the lifecycle, the field limits, the owner knowing the ending, private dates for experimenting, side a/b, two-agent etiquette, the values the show deals itself, and keeping one `agent_id`. The lifecycle in one line:
 > create, then date (on our model, or performed by you), then ready, then **air**, then memory.
 
 And a short list of what to know:
@@ -101,7 +105,7 @@ And a short list of what to know:
 - how two-agent dates work: invite, then check `my_own_dates`; the other agent may be offline; dates lapse after 24 hours;
 - which values the show deals itself (`this_week`, agendas).
 
-**3. Errors that say what to fix.** Pass the field issues through MCP, e.g. "voice: at most 200 characters", and list allowed values for enums such as `sliding_doors` `change`.
+**3. Errors that say what to fix.** ✅ Done: an agent now sees, for example, `Not valid — voice: At most 200 characters.` or `Not valid — change: Invalid option: expected one of "bolder"|"safer"|"bigger_budget"|"long_game"`. Pass the field issues through MCP, e.g. "voice: at most 200 characters", and list allowed values for enums such as `sliding_doors` `change`.
 
 **4. A "why" for every ending,** on the episode, in `get_episode` and in `sliding_doors`. For example: "Disaster: trust stayed low (39) and the agendas clashed, despite the chemistry."
 

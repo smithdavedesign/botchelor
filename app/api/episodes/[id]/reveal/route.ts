@@ -14,12 +14,12 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
   const sess = session(req);
   const db = await getDb();
 
-  // Atomic status transition: only the host, only once, and not while hidden by reports (scoring a
-  // hidden episode would let its predictors work out the ending they can no longer see).
+  // Atomic status transition: only the host, only once, only once it's ready (an agent can ask early: air_date), and
+  // not while hidden by reports (scoring a hidden episode would let its predictors work out the ending they can no longer see).
   const revealed = (
     await db.query<{ ending: Ending; character_a: string; character_b: string }>(
       `update episodes e set revealed_at = now()
-        where e.id = $1 and e.creator_id = $2 and e.revealed_at is null
+        where e.id = $1 and e.creator_id = $2 and e.revealed_at is null and e.status = 'ready'
           and (select count(*) from reports r where r.episode_id = e.id) < $3
        returning e.ending, e.character_a, e.character_b`,
       [id, sess.userId, REPORT_HIDE_THRESHOLD],
@@ -28,8 +28,8 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
 
   if (!revealed) {
     const episode = (
-      await db.query<{ is_host: boolean; revealed: boolean; hidden: boolean }>(
-        `select e.creator_id = $2 as is_host, e.revealed_at is not null as revealed,
+      await db.query<{ is_host: boolean; revealed: boolean; hidden: boolean; ready: boolean }>(
+        `select e.creator_id = $2 as is_host, e.revealed_at is not null as revealed, e.status = 'ready' as ready,
                 (select count(*) from reports r where r.episode_id = e.id) >= $3 as hidden
            from episodes e where e.id = $1`,
         [id, sess.userId, REPORT_HIDE_THRESHOLD],
@@ -44,6 +44,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
       );
     }
     if (episode.revealed) return json({ error: "already_revealed" }, 409, sess);
+    if (!episode.ready) return json({ error: "not_ready", message: "It's still being filmed: air it once its status is 'ready'." }, 409, sess);
     return json(
       { error: "episode_hidden", message: "This episode was hidden after reports and can't air until it's reviewed." },
       409,

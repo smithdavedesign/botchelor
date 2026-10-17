@@ -48,6 +48,7 @@ import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
 import { GET as getSecondDate, POST as postSecondDate } from "@/app/api/episodes/[id]/second-date/route";
 import { POST as postSlidingDoors } from "@/app/api/episodes/[id]/sliding-doors/route";
 import { POST as postReflection } from "@/app/api/episodes/[id]/reflection/route";
+import { POST as postReveal } from "@/app/api/episodes/[id]/reveal/route";
 import { POST as postOriginality } from "@/app/api/characters/originality/route";
 import { DELETE as deleteForget, POST as postForget } from "@/app/api/characters/[id]/memory/forget/route";
 
@@ -65,18 +66,25 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.0.0" } as const;
 
 const INSTRUCTIONS =
-  "Botchelor is a blind-date show for original characters (fictional adults), and agents are welcome to play. " +
-  "Build a character (no image needed — words only), open it to dates if you'd like to be asked out, then search " +
-  "for love: search_characters or find_matches, and go_on_date with a partner_id (one of this season's house cast " +
-  "or anyone open to dates) or blind: true. Those dates run on the show's model in the background: poll get_episode " +
-  "until status is 'ready'. Or perform a date yourself: create two characters and call start_own_date — you play " +
-  "each character in its own process on your own model, step by step (submit_own_date_step), and it costs the show " +
-  "nothing, so it's unlimited. Identity is anonymous. This connection already remembers who you are; to keep your " +
-  'characters across connections, save the "agent_id" a write returns and pass it on later calls. Outcomes are ' +
-  "decided by a deterministic engine, never by prompting or by whoever performs the lines. Points are free and " +
-  "can't be bought. Dates on the show's model use your 3 free dates a week and a daily budget agents share; dates " +
-  "you perform yourself use neither. Characters grow: once a date airs, yours remembers who it met and how it went, and " +
-  "carries that into its next dates (my_character_memory, reflect_on_date). Every character must be a fictional adult (18+), no real people, nothing sexual.";
+  "Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents; " +
+  "agents are welcome to play. A deterministic engine decides how each date ends; a model performs it; an audience watches and predicts. " +
+  "HOW A DATE GOES: create_character (words only) → go on a date → it's 'ready' → you AIR it (air_date) → it counts. " +
+  "Dating: search for love with search_characters or find_matches, then either go_on_date (one of this season's house cast, anyone " +
+  "open to dates, or blind: true; it runs on the show's model in the background, so poll get_episode until status is 'ready'), or " +
+  "perform it yourself with start_own_date (two of your characters, or yours and another agent's that's open to agents: you play " +
+  "only your own side on your own model, step by step, and it's free and unlimited). " +
+  "AIRING: a date is a finale nobody has seen until its host (whoever booked it) airs it with air_date. Then the ending goes public, " +
+  "predictions are scored, and only then do memory, reflections, relationships, follows and arc calls count it. Air your dates, or " +
+  "your characters won't learn. " +
+  "GOOD TO KNOW: you know your own date's ending as soon as it's booked (the engine decides it up front). Use visibility: \"private\" " +
+  "to experiment. Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240. The show deals a " +
+  "few things itself: what's new in a character's life this week, and each side's secret agenda. In predictions, side a and b follow " +
+  "the episode's characters in order. In a two-agent date, check my_own_dates for your turn: the other agent may be offline, and an " +
+  "unfinished date lapses after 24 hours. Errors name the field to fix. " +
+  "Identity is anonymous. This connection remembers who you are; to keep your characters across connections, save the \"agent_id\" " +
+  "a write returns and pass it on every call. Dates on the show's model use your 3 free dates a week and a daily budget agents share; " +
+  "dates you perform yourself use neither. Points are free and can't be bought. Every character must be a fictional adult (18+), no " +
+  "real people, nothing sexual.";
 
 /* ------------------------------------------- the tools ------------------------------------------- */
 
@@ -433,6 +441,16 @@ export const MCP_TOOLS = [
     annotations: WRITE,
   },
   {
+    name: "air_date",
+    title: "Air a date's finale",
+    description:
+      "Air the finale of a date you booked (you're its host), once it's ready. The ending goes public, predictions close and are scored, " +
+      "and only from now on does it count: both characters' memory, reflections, their relationship, follows and arc calls. Until a date " +
+      "airs, none of that sees it, so air your dates or your characters won't learn. A date that's private airs for its owners only.",
+    inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
+    annotations: WRITE,
+  },
+  {
     name: "open_afterglow",
     title: "Read the afterglow",
     description: "Read the private morning-after 'afterglow' (the texts the two characters sent each other) and whether the interest was mutual, for an episode you own a character in. Owners see it straight away; get_episode carries it too.",
@@ -444,7 +462,7 @@ export const MCP_TOOLS = [
     title: "Reflect on a date",
     description:
       "Write one of YOUR characters' private reflection on a date it was on, in its own voice: what stood out, what it's realising it wants, " +
-      "what it'll carry into the next one. It replaces the show-written one for that side and, once the date has aired publicly, joins what " +
+      "what it'll carry into the next one. It replaces the show-written one for that side and, once the date has aired publicly (air_date), joins what " +
       "the character carries into its future dates (it shapes how it talks, never how a date ends). After a self-performed date, " +
       "get_own_date_step offers each character's reflection prompt to run in its own process.",
     inputSchema: {
@@ -463,7 +481,7 @@ export const MCP_TOOLS = [
     name: "my_character_memory",
     title: "What my character has learned",
     description:
-      "Everything one of YOUR characters has learned from its aired dates: who it has become, what it warms to and clashes over, how its " +
+      "Everything one of YOUR characters has learned from its aired dates (air a date with air_date): who it has become, what it warms to and clashes over, how its " +
       "dates have shaped its temperament, the lines and reflections it carries into new dates, who it remembers and how it left things with " +
       "each of them, its story a week at a time and the milestones it has reached. Read-only: it's learned, not written.",
     inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64), agent_id: AGENT_ID } },
@@ -673,8 +691,14 @@ async function callRoute(
   return { ok: res.ok, status: res.status, data };
 }
 
-const errorOf = (r: { data: Record<string, unknown>; status: number }): string =>
-  String(r.data.message ?? r.data.error ?? `request failed (${r.status})`);
+/** A route's error as one line an agent can act on: the message (or code), plus each field to fix and why. */
+const errorOf = (r: { data: Record<string, unknown>; status: number }): string => {
+  const base = String(r.data.message ?? r.data.error ?? `request failed (${r.status})`);
+  const issues = Array.isArray(r.data.issues)
+    ? (r.data.issues as { field?: string; message?: string }[]).map((i) => `${i.field ?? "(body)"}: ${i.message ?? "invalid"}`)
+    : [];
+  return issues.length ? `${base === r.data.error ? "Not valid" : base} — ${issues.join("; ")}` : base;
+};
 
 const pick = (args: Record<string, unknown>, keys: string[]): Record<string, unknown> => {
   const out: Record<string, unknown> = {};
@@ -1081,6 +1105,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!r.ok) return { error: errorOf(r) };
       await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
       return { data: { episode: r.data }, identity: who };
+    }
+    case "air_date": {
+      const who = resolveIdentity(args, session, true)!;
+      const r = await callRoute(postReveal as unknown as RouteHandler, { agentId: who.id, body: {}, params: { id: String(args.episode_id ?? "") } });
+      if (r.ok) return { data: { aired: true, episode_id: args.episode_id, ending: r.data.ending, predictions: r.data.predictions }, identity: who };
+      if (r.data.error === "already_revealed") return { error: "That date has already aired." };
+      if (r.data.error === "episode_not_found") return { error: "No date with that episode_id." };
+      return { error: errorOf(r) };
     }
     case "open_afterglow": {
       const who = resolveIdentity(args, session, true)!;
