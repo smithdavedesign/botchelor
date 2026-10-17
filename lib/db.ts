@@ -296,6 +296,13 @@ create table if not exists free_episode_usage (
   used integer not null check (used >= 0),
   primary key (user_id, season_id)
 );
+-- A free second date each season when both characters wanted another (FREE_WEEKLY_SECOND_DATE=1, lib/allowance.ts).
+create table if not exists free_second_date_usage (
+  user_id text not null,
+  season_id text not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, season_id)
+);
 create table if not exists pack_episode_usage (
   user_id text primary key,
   used integer not null check (used >= 0)

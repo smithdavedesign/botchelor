@@ -2,6 +2,7 @@
  * The moments in a relationship worth telling people about (lib/notifications.ts). Kept apart from the graph
  * itself (lib/relationships.ts), which stays a pure, derived record.
  */
+import { shortName } from "./names";
 import type { Db } from "./db";
 import { settleCommitment } from "./partners";
 import { resolveArcs } from "./arcs";
@@ -26,7 +27,7 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
   const rel = await refreshRelationship(db, lo, hi);
   const after = rel?.public.stage ?? null;
   const names = new Map(
-    (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[lo, hi]])).rows.map((r) => [r.id, r.name.split(" ")[0]]),
+    (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[lo, hi]])).rows.map((r) => [r.id, shortName(r.name)]),
   );
   const couple = `${names.get(lo)} & ${names.get(hi)}`;
   const [owners, followers] = await Promise.all([ownersOf(db, [lo, hi]), followerIds(db, lo, hi)]);

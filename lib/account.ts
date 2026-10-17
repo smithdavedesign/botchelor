@@ -226,6 +226,7 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from badges where user_id = $1", [userId]);
   await run("delete from free_episode_usage where user_id = $1", [userId]);
   await run("delete from pack_episode_usage where user_id = $1", [userId]);
+  await run("delete from free_second_date_usage where user_id = $1", [userId]);
   await run("delete from token_grants where user_id = $1", [userId]);
   await run("delete from dealbreaker_guesses where user_id = $1", [userId]);
   await run("delete from matchmaker_proposals where proposer_id = $1", [userId]);

@@ -1,5 +1,6 @@
 "use client";
 
+import { shortName } from "@/lib/names";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
@@ -36,7 +37,7 @@ export default function NudgeForm({ pair, characterId, name, other, current }: {
   return (
     <form onSubmit={save} className="nudge-form">
       <label>
-        A note for {name.split(" ")[0]} about {other.split(" ")[0]}
+        A note for {shortName(name)} about {shortName(other)}
         <input
           type="text"
           name="note"
@@ -47,7 +48,7 @@ export default function NudgeForm({ pair, characterId, name, other, current }: {
         />
       </label>
       <p className="muted small">
-        Private. It shapes their texts and goes into their next date together, then it&apos;s used. {name.split(" ")[0]} never says it outright.
+        Private. It shapes their texts and goes into their next date together, then it&apos;s used. {shortName(name)} never says it outright.
       </p>
       <button type="submit" disabled={busy}>
         {current ? "Change the note" : "Leave the note"}

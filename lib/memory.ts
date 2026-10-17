@@ -19,6 +19,7 @@
  * card, so counting it would leak that date's outcome. Memory is therefore recomputed when a date airs
  * (the reveal route and the watch room's airing), not when it is generated.
  */
+import { shortName } from "./names";
 import type { Db } from "./db";
 import type { SideOutcome, SoulSignals } from "./engine";
 import { ENDING_LABELS, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
@@ -430,7 +431,7 @@ export async function describeForgets(
     );
     for (const r of rows) names.set(r.key, r.name);
   }
-  const first = (id: string) => (names.get(id) ?? "someone").split(" ")[0];
+  const first = (id: string) => shortName(names.get(id) ?? "someone");
   return forgets.map((f) => ({
     ...f,
     label:
@@ -593,7 +594,7 @@ function buildChapters(dated: Dated[]): Chapter[] {
     .sort(([x], [y]) => y.localeCompare(x))
     .slice(0, CHAPTERS_KEPT)
     .map(([season, ds]) => {
-      const parts = ds.slice(0, 3).map((d) => `${ENDING_PHRASE[d.ending]} with ${d.other.name.split(" ")[0]}`);
+      const parts = ds.slice(0, 3).map((d) => `${ENDING_PHRASE[d.ending]} with ${shortName(d.other.name)}`);
       const more = ds.length - parts.length;
       return {
         season,
@@ -663,7 +664,7 @@ export function recentDates(memory: CharacterMemory | null | undefined, excludeI
   return (memory?.people ?? [])
     .filter((p) => p.id !== excludeId)
     .slice(0, n)
-    .map((p) => `With ${p.name.split(" ")[0]} at ${venue(p.last_venue).name.toLowerCase()}: ${ENDING_LABELS[p.last_ending]}.`);
+    .map((p) => `With ${shortName(p.name)} at ${venue(p.last_venue).name.toLowerCase()}: ${ENDING_LABELS[p.last_ending]}.`);
 }
 
 /** Words both sides of a rematch already heard last time: never "profile reading" (lib/quality.ts). */

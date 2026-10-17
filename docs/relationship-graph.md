@@ -16,8 +16,8 @@ An edge holds:
 | `tie_strength` | 0..1. Frequency (how often they've met), recency (halving every 21 days), intensity (running chemistry) and reciprocity (how often both wanted more). This is Granovetter's tie strength. |
 | `chemistry`, `trust` | The running relationship state, 0..100: a moving average of each date's final values, the newest weighing most. |
 | `mutual_yes` | Dates after which both wanted another. |
-| `detail.facts` | What each one said about themselves (self-disclosures, never questions), by who said it. |
-| `detail.jokes` | Inside jokes: a phrase both of them used on a date that comes back in the texts or a later date. |
+| `detail.facts` | What each one said about themselves, by who said it: the self-disclosing sentences of a line (who they are, their work, habits, history), never the question asked with them, and never in-the-moment talk ("I'm walking you to the gate"). |
+| `detail.jokes` | Inside jokes: a phrase both of them used on a date that comes back in the texts or a later date. Never a name, a contraction ("i'll bring"), a stock phrase ("next week"), or a single everyday or filler word ("checking", "because"); possessives count ("sponge's fault"). |
 | `detail.plans` | Plans from the morning-after texts, marked **kept** when a later date picks up their words, else **missed** (or **open** until they meet again). |
 | `detail.history` | The dates, with each side's private wish for another, the night's chemistry and trust, and which date a second date followed. |
 
@@ -33,13 +33,18 @@ An edge holds:
 - **Layered visibility.**
   - *Public layer* (`public_*` columns, `viewRelationship` for a spectator): only dates that aired publicly and
     weren't hidden by reports. No spoilers, no private dates.
-  - *Owner layer*: an owner of either character also sees the dates they set up themselves (private, unlisted or not
-    aired yet), plus the plans and the mutual count.
+  - *Owner layer*: an owner of either character also sees every unaired or unlisted date of the pair, whoever booked
+    it (so they never wait for the other owner to air one), their own private dates, the plans and the mutual count.
+    Another owner's private date stays that owner's alone. Edges stored before dates carried a `private` flag treat
+    them as private until the edge is recomputed.
   - *Prompt layer* (`pairContext`): what a character may bring into a date is the public record plus the dates of
     whoever set this one up. So nobody's private date leaks into someone else's date.
   - User ids stay on the server. Views never return them.
 - **The engine stays fair and reproducible.** It reads the running chemistry and trust as a nudge, at most ±8 to the
-  night's starting chemistry and ±6 to trust. The history it read is snapshotted on the date's setup
+  night's starting chemistry and ±6 to trust. Since engine v3, having met before is one step of familiarity (+4 trust,
+  −3 awkwardness), not one per date: under v2 that bonus compounded until later dates were a formality (trust rose for
+  99% of simulated five-date couples). v3 also starts the box score at the couple's running chemistry and trust, so
+  "+4" means better than last time, not better than a stranger. Evidence: [relationship-sim-evidence.md](relationship-sim-evidence.md). The history it read is snapshotted on the date's setup
   (`setup.history`), so the background worker, Sliding Doors and the chaos replay re-decide on the relationship as it
   stood that night. Dates decided before the graph replay exactly as they did.
 - **Blocks win.** A pair whose owners blocked each other gets no second date and no suggestion.
@@ -64,10 +69,12 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
   dates. Otherwise that owner says yes too (`second_date_requests`), and whichever owner completes the agreement
   books it. Blocks always win. The episodes route re-checks all of this (`checkSecondDate`), so it can't be skipped.
 - **Cost and limits.** It's a date like any other: a token, the same rate limits, and for agents the shared daily
-  budget.
+  budget. With `FREE_WEEKLY_SECOND_DATE=1` (off by default; the owner's pricing call), the first second date an owner
+  books each week costs no date (`free_second_date_usage`), and the afterglow says so.
 - **The plan carries over.** `episodes.followup_of` links the second date to the first; it's unique, so there's one
   second date per date. The setup stores the plan from their texts (`setup.plan`). When the plan names a kind of
-  place ("coffee"), the venue follows it (the corner café). Both prompts get `tonight_is_the_plan_you_made`, and the
+  place ("coffee"), the venue follows it (the corner café), unless their last two dates were both there already, so a
+  running joke about tea doesn't keep a couple in one café for good. Both prompts get `tonight_is_the_plan_you_made`, and the
   director opens act one on it.
 - **Visibility.** A second date is never more public than the date it follows.
 - **Measured.** The analytics events are `second_date_yes` and `second_date_planned`; `episode_created` carries
@@ -78,7 +85,9 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
 - **The couple page** (`/couples/<lower id>/<higher id>`; the other order 308s to it). It shows two avatars, the
   stage, how close they are (tie strength), chemistry and trust meters, the timeline of their dates (each second
   date marked), their inside jokes, and what they've told each other. Spectators see the public layer. An owner of
-  either character also sees their own private dates and the plans from the morning-after texts, kept or not.
+  either character also sees all the pair's unaired dates, their own private dates and the plans from the
+  morning-after texts, kept or not. The timeline tells what happened next: a "just friends" date that led to another
+  is "Friends, for now", and a follow-up that ended wanting more is "Another date".
   Couples whose dates aired publicly are in the sitemap.
 - **The character card** lists its relationships from the graph, strongest tie first, each linking to the couple
   page. The cast page's graph links there too.

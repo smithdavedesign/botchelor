@@ -1,6 +1,7 @@
+import { shortName } from "@/lib/names";
 import { after } from "next/server";
 import { z } from "zod";
-import { releaseEpisode, reserveEpisode, type Reservation } from "@/lib/allowance";
+import { releaseEpisode, reserveEpisode, reserveSecondDate, type Reservation } from "@/lib/allowance";
 import { portraitPathSql } from "@/lib/assets";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb, type Db } from "@/lib/db";
@@ -170,7 +171,7 @@ export const POST = handle(async (req) => {
     return json(
       {
         error: "taken",
-        message: `${own.name.split(" ")[0]} is with ${with_?.name ?? "someone"} and wants one partner. Date ${with_?.name.split(" ")[0] ?? "them"}, or set them to more than one on their card.`,
+        message: `${shortName(own.name)} is with ${with_?.name ?? "someone"} and wants one partner. Date ${shortName(with_?.name) ?? "them"}, or set them to more than one on their card.`,
       },
       409,
       sess,
@@ -269,7 +270,8 @@ export const POST = handle(async (req) => {
   // One of this week's free dates, or a pack date (M4). Taken before the model call, so parallel requests
   // can't write more episodes than the creator has dates; given back below if no episode gets saved
   // (a failed generation costs no date, so it doesn't cap retries: see BUILD.md, "Review").
-  const reservation = await reserveEpisode(db, sess.userId);
+  // A second date may be this season's free one (FREE_WEEKLY_SECOND_DATE); otherwise it costs a date like any other.
+  const reservation = (secondDate ? await reserveSecondDate(db, sess.userId) : null) ?? (await reserveEpisode(db, sess.userId));
   if (!reservation) {
     return json(
       {
@@ -393,7 +395,7 @@ async function writeAndSave(
     if (partnerOwner && partnerOwner !== sess.userId) {
       await notify(db, partnerOwner, {
         kind: "second_date_booked",
-        title: `💞 ${own.name.split(" ")[0]} and ${partner.name.split(" ")[0]} have a ${dateLabel(secondDate.dateNumber).toLowerCase()}`,
+        title: `💞 ${shortName(own.name)} and ${shortName(partner.name)} have a ${dateLabel(secondDate.dateNumber).toLowerCase()}`,
         body: built.setup.plan?.length ? `As planned: “${built.setup.plan[0]}”` : null,
         link: `/episodes/${episodeId}`,
       });

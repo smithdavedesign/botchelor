@@ -10,6 +10,7 @@
  *    prediction at all.
  *  - One call per person per couple per question; it can't be changed.
  */
+import { shortName } from "./names";
 import type { Db } from "./db";
 import { notify } from "./notifications";
 import { pairKey, type Stage } from "./relationships";
@@ -113,7 +114,7 @@ export async function resolveArcs(db: Db, x: string, y: string, now = new Date()
   const [lo, hi] = pairKey(x, y);
   const e = await edge(db, lo, hi);
   const names = new Map(
-    (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[lo, hi]])).rows.map((r) => [r.id, r.name.split(" ")[0]]),
+    (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[lo, hi]])).rows.map((r) => [r.id, shortName(r.name)]),
   );
   const { rows } = await db.query<{ user_id: string; target: number; pick: boolean; deadline: Date | string }>(
     `select user_id, target, pick, deadline from arc_predictions where character_lo = $1 and character_hi = $2 and resolved_at is null`,

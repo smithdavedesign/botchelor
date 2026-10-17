@@ -1,5 +1,6 @@
 "use client";
 
+import { shortName } from "@/lib/names";
 import { useState } from "react";
 import {
   LINE_SUGGESTIONS,
@@ -66,7 +67,7 @@ export default function VoiceStep({
     never: (extras.never_says ?? []).length > 0,
     tells: Object.values(extras.tells ?? {}).some((v) => v?.trim()),
   }));
-  const who = name.trim().split(" ")[0] || "they";
+  const who = shortName(name) || "they";
   const never = extras.never_says ?? [];
 
   const setLine = (id: SampleLineId, v: string) => setExtras((p) => ({ ...p, lines: { ...p.lines, [id]: v } }));

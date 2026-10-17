@@ -1,5 +1,6 @@
 "use client";
 
+import { shortName } from "@/lib/names";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -19,7 +20,7 @@ function From({ from }: { from: Source[] }) {
         <span key={s.episode_id}>
           {i > 0 && ", "}
           <Link href={`/episodes/${s.episode_id}`}>
-            your date with {s.with.split(" ")[0]}, {new Date(s.at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+            your date with {shortName(s.with)}, {new Date(s.at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
           </Link>
         </span>
       ))}
@@ -80,7 +81,7 @@ export default function LearnedPanel({
       <p>
         <em>
           What {name} has learned from its aired dates, and the date each thing came from. You can&apos;t write it — it&apos;s
-          learned — but you can tell {name.split(" ")[0]} to forget something, and it&apos;s gone from every future date. Only you can see this.
+          learned — but you can tell {shortName(name)} to forget something, and it&apos;s gone from every future date. Only you can see this.
         </em>
       </p>
       {sections

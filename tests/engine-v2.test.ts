@@ -41,8 +41,30 @@ function distribution(version: 1 | 2, strategy: Strategy = "genuine_chemistry", 
 }
 
 describe("engine v2 — calibrated endings (versioned)", () => {
-  it("new dates are decided with v2", () => {
-    expect(CURRENT_ENGINE_VERSION).toBe(2);
+  it("new dates are decided with v3", () => {
+    expect(CURRENT_ENGINE_VERSION).toBe(3);
+  });
+
+  it("v3 changes only repeat dates: a first date decides exactly as under v2", () => {
+    const input: DateInput = { a: side(HOUSE_CHARACTERS[0], 3, "agenda-a"), b: side(HOUSE_CHARACTERS[1], 3, "agenda-b") };
+    for (const seed of [1, 2, 3, 4, 5]) expect(deterministicEngine.decide(input, seed, 3)).toEqual(deterministicEngine.decide(input, seed, 2));
+  });
+
+  it("v3: familiarity counts once, and the box score starts where the couple left off; v2 replays as it was", () => {
+    const history = { dates: 4, last_ending: "second_date" as const, chemistry: 72.6, trust: 56.3 };
+    const input: DateInput = { a: side(HOUSE_CHARACTERS[0], 3, "agenda-a"), b: side(HOUSE_CHARACTERS[1], 3, "agenda-b"), history };
+    const v2 = deterministicEngine.decide(input, 9, 2);
+    const v3 = deterministicEngine.decide(input, 9, 3);
+    expect(v2.variables.chemistry.start).toBe(50);
+    expect(v2.variables.trust.start).toBe(45);
+    expect(v3.variables.chemistry.start).toBe(73);
+    expect(v3.variables.trust.start).toBe(56);
+    // Four dates of familiarity under v2 (+16 trust, -12 awkwardness) against one under v3 (+4, -3).
+    expect(v2.variables.trust.final - v3.variables.trust.final).toBe(12);
+    expect(v3.variables.awkwardness.final - v2.variables.awkwardness.final).toBe(9);
+    // One-step familiarity with only one past date: v2 and v3 agree on the outcome.
+    const once = { ...input, history: { ...history, dates: 1 } };
+    expect(deterministicEngine.decide(once, 9, 3).ending).toBe(deterministicEngine.decide(once, 9, 2).ending);
   });
 
   it("v1 is preserved exactly (old dates replay as they were decided), and both versions are deterministic", () => {
