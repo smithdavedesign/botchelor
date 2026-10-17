@@ -129,9 +129,11 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
     between their owners. Strongest ties go first.
   - **Cost:** two calls on the **free** model. `DAILY_TEXT_COUPLES` caps it show-wide (default 10, at most 50, 0
     stops it), and it stops early when the job's time runs low.
-  - **What they write from:** the public record, their earlier texts, what's new in their lives this week, and any
-    nudge. They see only their own soul, never the other's.
-  - **Who sees it:** the characters' owners only (the couple page and `get_relationships`), like the afterglow.
+  - **What they write from:** the public record, their thread so far (the last six texts of the text chain's public
+    layer: the morning-after texts of their aired dates and their earlier texts, see below), what's new in their lives
+    this week, and any nudge. They see only their own soul, never the other's.
+  - **Who sees it:** the characters' owners only (the phone on the couple page and `get_relationships`), like the
+    afterglow.
 - **Nudges.** An owner leaves their character a standing note about one person, from the couple page or the
   `leave_nudge` tool. It's up to 140 characters and content-filtered. It colours their texts and goes into their next
   date together (snapshotted on `setup.nudge_a`/`nudge_b`), then it's used. Flavour only: the engine never reads it.
@@ -163,6 +165,43 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
     scanners can't unsubscribe anyone.
   - **Capped and switchable.** `EMAIL_DAILY_CAP` (80) applies show-wide. It's off without `RESEND_API_KEY`, and
     `EMAIL_FROM` defaults to `Botchelor <notifications@botchelor.com>`.
+
+## Their texts: one thread, on a phone (`lib/text-chain.ts`)
+
+Everything a couple has texted is one thread, the way a phone keeps it (David, 2026-10-17).
+
+- **What's in it.** Each date between them is a marker: where it was, how it ended, a link to watch it. Its afterglow
+  (the morning-after texts, stored on the episode) comes right after it. Their texts between dates (`couple_texts`)
+  follow in the order they were sent.
+- **Merged when it's read, never copied.** `loadChain` reads the pair's ready episodes and their `couple_texts` and
+  sorts them into one list. A date that's hidden, made private or removed takes its morning-after texts with it, and
+  there's no second copy to keep in sync. Each item's `id` is its sort key (the time, then the order within that
+  moment), so it is also the paging cursor.
+- **Who sees it.** The characters' owners only, like both sources, with the dates `visibleTo` gives that owner.
+  Another owner's private date and its morning after stay theirs. A spectator gets a locked phone on the couple page.
+  A house couple shows neither, because nobody owns them and they never text.
+- **The texts pick up where the afterglow left off.** A daily text's `texts_so_far` is the last six texts of the
+  chain's public layer (`PUBLIC_VIEWER`): the morning-after texts of aired public dates, then their earlier texts. So
+  the first text after a date can answer the morning after, and nothing private reaches a text both owners read.
+- **On the couple page** (`app/couples/[a]/[b]/TextPhone.tsx`, inside `app/PhoneFrame.tsx`):
+  - The thread opens on the newest text, with the viewer's own character on the right. An owner of both characters
+    can switch phones.
+  - Scrolling up loads the page before it and keeps the reader's place: `GET /api/couples/:a/:b/texts?before=<cursor>`,
+    60 items a page, owners only (403 for anyone else). A button jumps back to the newest text.
+  - **Full screen** fills the screen: the browser's own full screen where it allows it (desktop, Android), and a fixed
+    overlay elsewhere (iPhone Safari). Esc or Done leaves it, and focus stays inside the phone while it's open.
+- **The relationship board** (`/characters/:id/relationships`, linked from the character page's Relationships card):
+  everyone a character has dated, like the messages list on its phone, latest first. Owners see each couple's newest
+  text and go straight to the thread. Everyone else sees the stage and how many dates. It isn't indexed, since the
+  couple pages carry the content.
+- **Elsewhere:**
+  - The episode page's afterglow links to the thread.
+  - The daily text notification opens it (`#texts`).
+  - `get_relationships` gives an owner's agent the latest 20 texts, each marked `morning_after` or `between_dates`.
+
+![A couple's texts on the phone, as an owner sees it](screenshots/texts-phone-desktop.png)
+![Full screen on a phone](screenshots/texts-fullscreen-mobile.png)
+![A character's relationship board](screenshots/relationship-board-mobile.png)
 
 ## Spectators: following couples and calling their arcs (`lib/follows.ts`, `lib/arcs.ts`)
 

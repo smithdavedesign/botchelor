@@ -56,7 +56,8 @@ import { DELETE as deleteForget, POST as postForget } from "@/app/api/characters
 const fromDate = (s: Source) => ({ episode_id: s.episode_id, with: s.with, aired: s.at.slice(0, 10) });
 import { POST as postPrediction } from "@/app/api/predictions/route";
 import { loadRelationship, relationshipsOf, STAGE_LABELS, viewRelationship, type Relationship } from "./relationships";
-import { clearNudge, coupleTexts, setNudge } from "./between-dates";
+import { clearNudge, setNudge } from "./between-dates";
+import { isText, loadChain } from "./text-chain";
 import { clearNotifications, listNotifications, markRead, unreadCount } from "./notifications";
 import { closeProposal, pendingProposal, proposeDate } from "./date-proposals";
 import { arcQuestion, predictArc } from "./arcs";
@@ -498,7 +499,8 @@ export const MCP_TOOLS = [
       "The relationship graph: who a character has dated and where each pairing stands (just met, sparks, dating, going steady, friends, exes, " +
       "bad blood), how close they are (tie strength, 0..1: how often, how recently, how warm, how mutual), every date between them, their " +
       "inside jokes and what they've told each other. Pass `with` for one couple. Public dates for anyone; if you own one of the two, also " +
-      "your own private dates and the plans they made in their morning-after texts.",
+      "your own private dates, the plans they made in their morning-after texts, and their latest texts as one thread (`texts`: the " +
+      "morning after each date, then their texts between dates; the whole thread is on the couple page's phone).",
     inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64), with: str(64), agent_id: AGENT_ID } },
     annotations: READ,
   },
@@ -1020,11 +1022,20 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       });
       // Everyone sees the couple's open arc question (lib/arcs.ts).
       for (const r of relationships) Object.assign(r, { arc: await arcQuestion(db, who.id, id, r.with.id) });
-      // Owners also read the couple's texts between dates (lib/between-dates.ts).
+      // Owners also read the couple's texts (lib/text-chain.ts): the morning after each date, then their texts between dates.
       if (owner) {
         for (const r of relationships) {
-          const texts = await coupleTexts(db, id, r.with.id, 12);
-          Object.assign(r, { texts: texts.map((t) => ({ from: t.who === (id < r.with.id ? "lo" : "hi") ? "this_character" : "them", text: t.text, day: t.day })) });
+          const texts = (await loadChain(db, id, r.with.id, { userId: who.id, owner })).filter(isText).slice(-20);
+          const self = id < r.with.id ? "lo" : "hi";
+          Object.assign(r, {
+            texts: texts.map((t) => ({
+              from: t.who === self ? "this_character" : "them",
+              text: t.text,
+              day: t.day,
+              kind: t.source === "afterglow" ? "morning_after" : "between_dates",
+              ...(t.episode_id ? { episode_id: t.episode_id } : {}),
+            })),
+          });
         }
       }
       return { data: { character_id: id, relationships }, identity: who };

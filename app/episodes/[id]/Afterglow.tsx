@@ -40,6 +40,8 @@ function verdictLine(verdict: { a_wants: boolean; b_wants: boolean }, names: [st
 export default function Afterglow({ episodeId, characters, afterglow, secondDate }: Props) {
   const [a, b] = characters;
   const names: [string, string] = [a.name, b.name];
+  // These texts open the couple's text chain, which carries on between dates (lib/text-chain.ts).
+  const thread = a.id < b.id ? `/couples/${a.id}/${b.id}#texts` : `/couples/${b.id}/${a.id}#texts`;
 
   return (
     <section className="card afterglow">
@@ -59,6 +61,9 @@ export default function Afterglow({ episodeId, characters, afterglow, secondDate
           </div>
         );
       })}
+      <p className="small">
+        <Link href={thread}>💬 Read all their texts, on their phone</Link>
+      </p>
       {secondDate?.mutual && <SecondDate episodeId={episodeId} state={secondDate} />}
     </section>
   );

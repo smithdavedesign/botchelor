@@ -95,6 +95,23 @@ function genericAfterglow(messages) {
   return { text: AFTERGLOW_LINES[n % AFTERGLOW_LINES.length] };
 }
 
+// One text between dates (lib/between-dates.ts): a "texts_so_far" thread with no "your_feeling" (that's the
+// afterglow). Picks up the thread by its length, so a day's exchange reads as a text and its reply.
+const BETWEEN_DATES_LINES = [
+  "Saw a dog in a tiny raincoat today and thought of you.",
+  "Was it judging you? They always look like they're judging me.",
+  "Okay, settle this: is cereal a soup?",
+  "Absolutely not, and I'm a little worried you asked.",
+  "Free on Saturday? Asking for me.",
+  "I could be persuaded. Bring snacks.",
+];
+function genericBetweenDates(messages) {
+  const user = messages.find((m) => m.role === "user")?.content ?? "";
+  const data = JSON.parse(user.slice(user.indexOf("{")));
+  const n = data.texts_so_far?.length ?? 0;
+  return { text: BETWEEN_DATES_LINES[n % BETWEEN_DATES_LINES.length] };
+}
+
 /** Starts a local OpenAI-compatible endpoint that returns the stub narration (or one agent turn). Returns the http server. */
 export function startShowrunner() {
   const server = createServer((req, res) => {
@@ -105,9 +122,16 @@ export function startShowrunner() {
         const { messages } = JSON.parse(body);
         const user = messages.find((m) => m.role === "user")?.content ?? "";
         const isAfterglow = user.includes('"your_feeling"');
-        const isTurn = !isAfterglow && user.includes('"you"') && user.includes('"them"');
+        const isBetweenDates = !isAfterglow && user.includes('"texts_so_far"');
+        const isTurn = !isAfterglow && !isBetweenDates && user.includes('"you"') && user.includes('"them"');
         const content = JSON.stringify(
-          isAfterglow ? genericAfterglow(messages) : isTurn ? genericTurn(messages) : genericEpisode(messages),
+          isAfterglow
+            ? genericAfterglow(messages)
+            : isBetweenDates
+              ? genericBetweenDates(messages)
+              : isTurn
+                ? genericTurn(messages)
+                : genericEpisode(messages),
         );
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ choices: [{ message: { role: "assistant", content } }] }));
