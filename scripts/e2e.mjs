@@ -43,6 +43,7 @@ const CHAR = {
 };
 
 const results = [];
+const HUMAN_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 /** A date opens in theater mode (unless this browser chose the standard view before): step out to the standard room. */
 async function standardView(p) {
@@ -72,7 +73,7 @@ async function main() {
   rmSync(DATA_DIR, { recursive: true, force: true });
   mkdirSync(DATA_DIR, { recursive: true });
 
-  build();
+  if (!process.env.SKIP_BUILD) build();
   const showrunner = await startShowrunner();
   const port = await freePort();
   const app = await startApp(port, appEnv(showrunner.address().port, DATA_DIR));
@@ -92,7 +93,9 @@ async function main() {
 
   try {
     await step("the 18+ gate blocks the site until you confirm you're an adult", async () => {
-      const visitor = await browser.newContext(); // no cookie: must hit the gate
+      // No cookie: must hit the gate. An ordinary browser's user agent: known bots (HeadlessChrome among them) skip the
+      // gate on purpose (lib/bots.ts), so a headless test browser would never see it.
+      const visitor = await browser.newContext({ userAgent: HUMAN_UA });
       const gatePage = await visitor.newPage();
       await gatePage.goto(`${base}/feed`); // any page redirects to the gate (goto follows it)
       assert(new URL(gatePage.url()).pathname === "/gate", `expected the gate, got ${gatePage.url()}`);
@@ -121,32 +124,44 @@ async function main() {
       assert((await page.locator("#start").count()) > 0, "builder (#start) missing");
     });
 
-    await step("builds a custom character with a soul, appearance and avatar colour", async () => {
-      const form = page.locator("#start");
-      await form.locator('input[name="name"]').fill(CHAR.name);
-      await form.locator('input[name="age"]').fill(CHAR.age);
-      await form.locator('textarea[name="bio"]').fill(CHAR.bio);
-      for (let i = 0; i < 3; i++) await form.locator(`input[name="trait${i + 1}"]`).fill(CHAR.traits[i]);
-      await form.locator('input[name="want"]').fill(CHAR.want);
-      await form.locator('input[name="dealbreaker"]').fill(CHAR.dealbreaker);
-      await form.locator('input[name="appearance"]').fill(CHAR.appearance);
+    await step("builds a custom character in the /create wizard: identity, voice, look, details, a private soul", async () => {
+      await page.goto(`${base}/create`);
+      await page.getByRole("heading", { level: 1, name: "Build your character" }).waitFor();
+      await page.locator('input[name="name"]').fill(CHAR.name);
+      await page.locator('input[name="age"]').fill(CHAR.age);
+      await page.locator('textarea[name="bio"]').fill(CHAR.bio);
+      for (let i = 0; i < 3; i++) await page.locator(`input[name="trait${i + 1}"]`).fill(CHAR.traits[i]);
+      await page.locator('input[name="want"]').fill(CHAR.want);
+      await page.locator('input[name="dealbreaker"]').fill(CHAR.dealbreaker);
       // The live avatar preview should render.
-      assert((await form.locator(".avatar").count()) > 0, "avatar preview missing");
-      await form.getByRole("button", { name: "Violet", exact: true }).click();
-      await form.getByText("Give them a private soul (optional)").click();
-      await form.locator('input[name="soul_values"]').fill("Steady, inventive, allergic to goodbyes.");
-      await form.locator('input[name="attest"]').check();
-      await form.getByRole("button", { name: "Create character" }).click();
+      assert((await page.locator(".avatar").count()) > 0, "avatar preview missing");
+      await page.getByRole("button", { name: "Next: Voice" }).click();
+      await page.getByText("How do they talk?").waitFor();
+      await page.getByRole("button", { name: "Dry & deadpan" }).click();
+      await page.getByRole("button", { name: "Next: Look" }).click();
+      await page.getByText("Give them a look").waitFor();
+      await page.getByRole("button", { name: "Next: Details" }).click();
+      await page.getByText("The details (all optional)").waitFor();
+      await page.locator('input[name="extra_occupation"]').fill("Lighthouse electrician");
+      await page.getByRole("button", { name: "Next: Soul & autonomy" }).click();
+      await page.getByText("The inner life (optional)").waitFor();
+      await page.locator('input[name="soul_values"]').fill("Steady, inventive, allergic to goodbyes.");
+      await page.getByRole("button", { name: "Next: Review" }).click();
+      await page.getByText("Review & create").waitFor();
+      await page.locator('.wizard-attest input[type="checkbox"]').check();
+      await page.getByRole("button", { name: `Create ${CHAR.name}` }).click();
       await page.getByText(`Who should ${CHAR.name} meet?`).waitFor();
     });
 
     await step("sets date settings (incl. a show format) and sends the character on a date", async () => {
       await page.getByText("Date settings (optional)").click();
       await page.getByLabel("Show format").selectOption("meet_the_parents");
-      await page.getByLabel("Autonomy").selectOption("unpredictable");
-      await page.getByRole("button", { name: /Send Nova Pike on a date with/ }).first().click();
-      await page.waitForURL(/\/episodes\/[0-9a-f-]{36}$/);
-      episodeUrl = page.url();
+      await page.getByRole("button", { name: /Send on a date with/ }).first().click();
+      // Sending opens the date straight into the theater (?play=1); keep the plain episode URL for later steps.
+      await page.waitForURL(/\/episodes\/[0-9a-f-]{36}(\?.*)?$/);
+      const sent = new URL(page.url());
+      episodeUrl = `${sent.origin}${sent.pathname}`;
+      await page.goto(episodeUrl);
     });
 
     await step("the episode is a three-act story with avatars, a turn-by-turn transcript, box score, debrief, agendas and an ending", async () => {
@@ -163,9 +178,9 @@ async function main() {
       assert((await page.getByRole("heading", { name: "The afterglow" }).count()) > 0, "the afterglow section is missing for the creator");
     });
 
-    await step("the creator opens the afterglow and reads the morning-after texts", async () => {
-      await page.getByRole("button", { name: "Open the afterglow" }).scrollIntoViewIfNeeded();
-      await page.getByRole("button", { name: "Open the afterglow" }).click();
+    await step("the creator reads the morning-after texts in the afterglow (owners see them straight away)", async () => {
+      await page.goto(episodeUrl);
+      await page.locator(".afterglow .turn").first().scrollIntoViewIfNeeded();
       await page.locator(".afterglow .turn").first().waitFor({ timeout: 10_000 });
       assert((await page.locator(".afterglow .turn").count()) >= 1, "the afterglow thread did not open");
     });
@@ -319,7 +334,44 @@ async function main() {
       assert((await spage.locator(".rating-chip.on").count()) >= 1, "the rating chip did not toggle on");
     });
 
-    await step("the shop sells a pack end to end (checkout, Payment Link, signed webhook)", async () => {
+    await step("an image trains the character's look and traits, entirely in the browser", async () => {
+      await page.goto(`${base}/create`);
+      // Next stays disabled until the first step is complete: a sample fills it, then the image sets the look.
+      await page.getByRole("button", { name: "Use a sample character" }).click();
+      await page.getByRole("button", { name: "Next: Voice" }).click();
+      await page.getByRole("button", { name: "Next: Look" }).click();
+      await page.getByText("Give them a look").waitFor();
+      await page.locator('input[name="appearance"]').fill("");
+      // A generated teal PNG — never saved to disk, never uploaded by the app.
+      await page.locator('input[type="file"]').setInputFiles({ name: "ref.png", mimeType: "image/png", buffer: solidPng(20, 120, 140) });
+      await page.getByText("✓ Trained from your image").waitFor({ timeout: 6000 });
+      await page.waitForFunction(() => (document.querySelector('input[name="appearance"]')?.value || "").includes("teal"), { timeout: 6000 });
+    });
+
+    await step("a sample character fills the whole card for a fast start", async () => {
+      await page.goto(`${base}/create`);
+      await page.getByRole("button", { name: "Use a sample character" }).click();
+      assert((await page.locator('input[name="name"]').inputValue()).length > 0, "sample did not fill the name");
+      assert((await page.locator('input[name="dealbreaker"]').inputValue()).length > 0, "sample did not fill the dealbreaker");
+    });
+
+    // M16: accounts, ownership, BYOK, visibility. This browser's anonymous session already owns the
+    // character and date made above, so an account adopts them.
+    const handle = `mapmaker${Date.now() % 100000}`;
+    const pw = ["e2e", "account", "pass", "99"].join("-"); // built from parts, never a literal secret
+    await step("signs up for an optional account that adopts this browser's characters and dates", async () => {
+      await page.goto(`${base}/account`);
+      await page.locator('input[name="handle"]').fill(handle);
+      await page.locator('input[name="password"]').fill(pw);
+      await page.locator('input[name="attest"]').check();
+      await page.getByRole("button", { name: "Create account" }).click();
+      await page.getByText(`Signed in as ${handle}`).waitFor({ timeout: 10_000 });
+      await page.getByRole("heading", { name: "Your characters" }).waitFor();
+      assert((await page.locator(".account-links a").count()) > 0, "the account shows no characters it should own");
+      assert((await page.locator(".account-dates li").count()) > 0, "the account shows no dates it should own");
+    });
+
+    await step("the shop sells a pack to a signed-in buyer end to end (checkout, Payment Link, signed webhook)", async () => {
       let linkUrl = null;
       await page.route(`${new URL(SAMPLE_PAYMENT_LINK).origin}/**`, (route) => {
         linkUrl = new URL(route.request().url());
@@ -340,48 +392,12 @@ async function main() {
       const res = await fetch(`${base}/api/webhooks/stripe`, { method: "POST", headers: { "content-type": "application/json", "stripe-signature": signature }, body: payload });
       assert(res.status === 200, `webhook → ${res.status}`);
       await page.goto(`${base}/shop?checkout=success`);
-      await page.getByText(`plus ${SAMPLE_PACK.episodes} pack dates`).waitFor({ timeout: 10_000 });
-    });
-
-    await step("an image trains the character's look and traits, entirely in the browser", async () => {
-      await page.goto(base);
-      const form = page.locator("#start");
-      await form.locator('input[name="name"]').fill("Teal Test");
-      // A generated teal PNG — never saved to disk, never uploaded by the app.
-      await form.locator('input[type="file"]').setInputFiles({ name: "ref.png", mimeType: "image/png", buffer: solidPng(20, 120, 140) });
-      await page.waitForFunction(
-        () => (document.querySelector('input[name="appearance"]')?.value || "").includes("palette"),
-        { timeout: 6000 },
-      );
-      assert((await form.locator('input[name="trait1"]').inputValue()).length > 0, "traits were not trained from the image");
-      assert((await form.locator('input[name="appearance"]').inputValue()).includes("teal"), "appearance not trained from the image");
-    });
-
-    await step("a sample character fills the whole card for a fast start", async () => {
-      await page.goto(base);
-      await page.getByRole("button", { name: "Use a sample character" }).click();
-      assert((await page.locator('#start input[name="name"]').inputValue()).length > 0, "sample did not fill the name");
-      assert((await page.locator('#start input[name="dealbreaker"]').inputValue()).length > 0, "sample did not fill the dealbreaker");
-    });
-
-    // M16: accounts, ownership, BYOK, visibility. This browser's anonymous session already owns the
-    // character and date made above, so an account adopts them.
-    const handle = `mapmaker${Date.now() % 100000}`;
-    const pw = ["e2e", "account", "pass", "99"].join("-"); // built from parts, never a literal secret
-    await step("signs up for an optional account that adopts this browser's characters and dates", async () => {
-      await page.goto(`${base}/account`);
-      await page.locator('input[name="handle"]').fill(handle);
-      await page.locator('input[name="password"]').fill(pw);
-      await page.locator('input[name="attest"]').check();
-      await page.getByRole("button", { name: "Create account" }).click();
-      await page.getByText(`Signed in as ${handle}`).waitFor({ timeout: 10_000 });
-      await page.getByRole("heading", { name: "Your characters" }).waitFor();
-      assert((await page.locator(".account-links a").count()) > 0, "the account shows no characters it should own");
-      assert((await page.locator(".account-dates li").count()) > 0, "the account shows no dates it should own");
+      await page.getByText(`plus ${SAMPLE_PACK.episodes} topped up`).waitFor({ timeout: 10_000 });
     });
 
     await step("brings their own model key, shown only by its last four", async () => {
       const apiKey = ["AIza", "e2e", "0".repeat(28), "L4st"].join(""); // fake, built from parts
+      await page.goto(`${base}/account`);
       await page.getByRole("heading", { name: "Your model key (optional)" }).waitFor();
       await page.locator('select[name="provider"]').selectOption("google");
       await page.locator('input[name="key"]').first().fill(apiKey); // the text-key form (an image-key form follows)
@@ -402,12 +418,16 @@ async function main() {
       assert((await page.locator(".account-dates select").first().inputValue()) === "unlisted", "visibility did not persist");
     });
 
-    await step("edits their own character on its card", async () => {
+    await step("edits their own character from its card", async () => {
+      await page.goto(`${base}/account`);
       await page.locator(".account-links a").first().click();
-      await page.getByRole("button", { name: "Edit or delete" }).click();
+      await page.getByRole("link", { name: /Edit / }).first().click();
       const newName = "Edited Contestant";
-      await page.locator('.owner-controls input[name="name"]').fill(newName);
+      await page.locator('input[name="name"]').fill(newName);
       await page.getByRole("button", { name: "Save changes" }).click();
+      await page.getByText("Saved ✓").waitFor({ timeout: 10_000 });
+      await page.goBack();
+      await page.reload();
       await page.getByRole("heading", { name: newName }).waitFor({ timeout: 10_000 });
     });
   } finally {
