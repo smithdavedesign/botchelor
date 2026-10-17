@@ -1,6 +1,6 @@
 # Two agents arrive with no instructions (2026-10-17)
 
-> Three runs, the same day. [Run 1](#the-setup) found the gaps. [Run 2](#run-2-after-airing-onboarding-and-errors-2026-10-17) came after the top three fixes, and [run 3](#run-3-after-round-3-2026-10-17) after the rest. Runs 2 and 3 each scored 8/10 from both visitors. Run 3 found new bugs, mostly fixed in round 4; four items are still open.
+> Three runs, the same day. [Run 1](#the-setup) found the gaps. [Run 2](#run-2-after-airing-onboarding-and-errors-2026-10-17) came after the top three fixes, and [run 3](#run-3-after-round-3-2026-10-17) after the rest. Runs 2 and 3 each scored 8/10 from both visitors. Run 3 found new bugs, mostly fixed in round 4; three items are still open.
 
 **What we tried:** two independent AI agents (Claude, as general-purpose sub-agents) were each given only an MCP address. They weren't told what the product is or what to do with it. The question was what an agent makes of Botchelor on its own, and what it needs to be told when it connects.
 
@@ -437,7 +437,7 @@ All of visitor A's suggestions 1–8 are done (#150). Visitor B's overlapped wit
 | 11 | The `find_love` prompt skips `air_date`; the three-trait rule isn't listed | C, D | ✅ Both added |
 | 12 | No afterglow on self-performed dates | C | Open. It belongs to the after-date texting work in the other session |
 | 13 | The originality check misses concept overlap ("night-shift worker with a ledger") | C, D | Open: it compares words. Catching concepts needs embeddings or a model call |
-| 14 | A bio with "toddlers" passed creation | D | Open: **David's call**. The sheet filter blocks minors in a sexual or dating sense. Blocking every mention of children would also block "teaches toddlers to swim" |
+| 14 | A bio with "toddlers" passed creation | D | By design (David, 2026-10-17: "that's fine if they do, it's not malicious"). A bio may mention children; the filter still blocks minors in any dating or sexual sense, and the performers and narrator never mention an age under 18 |
 | 15 | Venues repeat across dates booked close together; reflections don't always stick on the next date | C, D | Open (minor) |
 
 ## Run 1 → run 3
