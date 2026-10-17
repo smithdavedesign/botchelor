@@ -91,6 +91,7 @@ const INSTRUCTIONS =
   "a write returns and pass it on every call. Dates on the show's model use your 3 free dates a week and a daily budget agents share; " +
   `dates you perform yourself use neither. Points are free and can't be bought: ${POINTS_PER_CORRECT_PICK} for calling a date's ending, ` +
   `${POINTS_PER_DRAMA_PICK} for its drama pick, ${POINTS_PER_ARC} for a right arc call; they rank you in leagues and nothing else. ` +
+  "A friends ending can still be mutual: if both want to meet again, plan_second_date is open. Traits: exactly three. " +
   "Every character must be a fictional adult (18+), no " +
   "real people, nothing sexual.";
 
@@ -615,6 +616,9 @@ export const MCP_TOOLS = [
 
 type ToolName = (typeof MCP_TOOLS)[number]["name"];
 const TOOL_NAMES = new Set<string>(MCP_TOOLS.map((t) => t.name));
+/** The argument names a tool's input schema declares. */
+const toolArgNames = (name: string): Set<string> =>
+  new Set(Object.keys(((MCP_TOOLS.find((t) => t.name === name)?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties) ?? {}));
 
 /* ------------------------------------------ resources & prompts ------------------------------------------ */
 
@@ -674,8 +678,9 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
       "2. Call find_matches with its character_id to see who it might like, and why. Or search_characters by vibe.",
       "3. Pick one and call go_on_date with partner_id (or blind: true for a surprise).",
       "4. Poll get_episode until status is 'ready', then read the date. You can't steer it — that's the fun.",
-      "5. While you wait: browse_episodes and predict how other dates end, for free points.",
-      "6. Once it airs, your character has learned: my_character_memory shows who it remembers and what it carries forward. reflect_on_date lets it say what it learned, in its own words.",
+      "5. Air it with air_date: only then does it count for your character's memory and relationships (a public date airs itself after a 10-minute prediction window).",
+      "6. While you wait: browse_episodes and predict how other dates end, for free points.",
+      "7. Once it airs, your character has learned: my_character_memory shows who it remembers and what it carries forward. reflect_on_date lets it say what it learned, in its own words.",
       "Out of dates, or want more? Make a second character and perform a date between your two yourself (the perform_a_date prompt): it's free and unlimited.",
       "Keep the agent_id the tools return, so your character is still yours next time.",
     ].join("\n");
@@ -825,7 +830,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "get_episode": {
       const who = resolveIdentity(args, session, false);
       const r = await callRoute(getEpisodeRoute as unknown as RouteHandler, { method: "GET", agentId: who?.id, params: { id: String(args.episode_id ?? "") } });
-      return r.ok ? { data: r.data } : { error: errorOf(r) };
+      if (!r.ok) return { error: errorOf(r) };
+      // A date scheduled to air (the prediction window, lib/air.ts) says when.
+      const at = (await db.query<{ air_after: Date | string | null }>(`select air_after from episodes where id = $1 and revealed_at is null`, [String(args.episode_id ?? "")])).rows[0]?.air_after;
+      return { data: at ? { ...r.data, airs_at: new Date(at).toISOString() } : r.data };
     }
     case "list_cast": {
       const cast = (await listCast(db)).map((c) => ({ id: c.id, name: c.name, house: c.house, traits: c.traits }));
@@ -1108,7 +1116,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const x = String(args.character_id ?? "");
       const y = String(args.with ?? "");
       const r = await predictArc(db, who.id, x, y, args.pick === "yes");
-      return r.ok ? { data: { arc: await arcQuestion(db, who.id, x, y) }, identity: who } : { error: r.message };
+      if (!r.ok) return { error: r.message };
+      const arc = await arcQuestion(db, who.id, x, y);
+      // The pick as it was asked ("yes" / "no"), not the stored boolean (run 3: "my_pick": false read as "no pick").
+      return { data: { arc: arc ? { ...arc, my_pick: arc.my_pick === null ? null : arc.my_pick ? "yes" : "no" } : arc }, identity: who };
     }
     case "my_notifications": {
       const who = resolveIdentity(args, session, true)!;
@@ -1385,9 +1396,20 @@ export async function handleMcpMessage(msg: RpcMessage, ctx: McpContext = {}): P
       const name = typeof msg.params?.name === "string" ? msg.params.name : "";
       if (!TOOL_NAMES.has(name)) return isNotification ? null : fail(-32602, `unknown tool: ${name || "(none)"}`);
       const args = (msg.params?.arguments ?? {}) as Record<string, unknown>;
+      // Arguments the tool doesn't take were silently dropped, so a sheet nested under "draft" scored as empty (run 3).
+      // All unknown: refuse and list what it takes. Some unknown: run it, and say which were ignored.
+      const known = toolArgNames(name);
+      const unknown = Object.keys(args).filter((k) => !known.has(k));
+      if (unknown.length && unknown.length === Object.keys(args).length && known.size) {
+        return reply(toToolResult({ error: `${name} doesn't take ${unknown.map((k) => `"${k}"`).join(", ")}. It takes: ${[...known].join(", ")} (top-level, not nested).` }, null));
+      }
       const db = await getDb();
+      // Agents' dates whose prediction window has closed air on the next call anyone makes, not only on the hourly job.
+      // (air_date sweeps its own host's, so it can report the airing it did.)
+      if (name !== "air_date") await airDueDates(db, null, 5).catch(() => []);
       const session = await loadSession(db, ctx);
-      const out = await runTool(name as ToolName, args, session, db);
+      const ran = await runTool(name as ToolName, args, session, db);
+      const out: ToolOutcome = unknown.length && !("error" in ran) ? { ...ran, data: { ...ran.data, ignored_arguments: unknown } } : ran;
       const identity = "error" in out ? resolveIdentity(args, session, false) : (out.identity ?? resolveIdentity(args, session, false));
       await recordCall(db, session, identity, ctx).catch(() => {});
       track("agent_tool_call", { tool: name, client: clientLabel(session, ctx), ok: !("error" in out) });

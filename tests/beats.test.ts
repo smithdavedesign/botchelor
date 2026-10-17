@@ -37,12 +37,15 @@ describe("rulesPlan — the engine's reasons, act by act", () => {
     });
     const plan = rulesPlan(INPUT, o, CHARS, "a_dare", "rooftop_bar");
     expect(plan.source).toBe("rules");
-    // Act 2: Mira's dealbreaker is tripped by Rafe's dramatic side; Rafe is told to let that side show.
-    expect(plan.acts[1].a).toMatch(/"dramatic"/);
-    expect(plan.acts[1].b).toMatch(/Without meaning to, you let your "dramatic" side show/);
-    // Rafe's want is met by Mira's curious side, and Mira is told to let it show.
-    expect(plan.acts[1].b).toMatch(/they're "curious"/);
-    expect(plan.acts[1].a).toMatch(/Let your "curious" side show/);
+    // Act 2: Mira's dealbreaker is tripped (in her own words), and Rafe shows a side that doesn't sit well with her.
+    expect(plan.acts[1].a).toContain(`("${sheetA.dealbreaker}")`);
+    expect(plan.acts[1].b).toMatch(/a side of yourself that doesn't sit well with them/);
+    // Rafe's want is met (his own want, quoted), and Mira's side of it lands well with him.
+    expect(plan.acts[1].b).toContain(`what you were hoping for ("${sheetB.want}")`);
+    expect(plan.acts[1].a).toMatch(/lands well with them/);
+    // The engine's cue words (matches between the two sheets) never cross sides (run 3).
+    expect(plan.acts[1].a).not.toMatch(/"curious"|"dramatic"/);
+    expect(plan.acts[1].b).not.toMatch(/"curious"|"dramatic"/);
     // The ending and the drama (Mira turns Rafe down) land in the last act only.
     expect(plan.acts[0].scene + plan.acts[1].scene).not.toContain(ENDING_LABELS.disaster);
     expect(plan.acts[2].scene).toContain(ENDING_LABELS.disaster);

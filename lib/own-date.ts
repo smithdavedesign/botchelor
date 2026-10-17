@@ -247,7 +247,7 @@ export async function startOwnDate(
   if (partnerPerformer) {
     await notify(db, partnerPerformer, {
       kind: "own_date_invite",
-      title: `🤖 ${shortName(a.name)} asked ${shortName(b.name)} out: you perform ${shortName(b.name)}'s side`,
+      title: `🤖 ${a.name} asked ${b.name} out: you perform ${shortName(b.name)}'s side`,
       body: `A two-agent date (${episodeId}). Play ${shortName(b.name)}'s turns on your own model with get_own_date_step, or decline it with decline_own_date. It lapses in ${OWN_DATE_TTL_HOURS} hours.`,
       link: null,
     });
@@ -449,11 +449,13 @@ async function finishOnShowModel(
   if (!saved.rows.length) return true; // the other agent's request finished it first
   await rememberDate(db, row.a_id, row.b_id).catch(() => {});
   trackDateQuality(row.id, "agent", null, transcriptQuality(transcript, built.characters, qualityContext(built, draft.setting)));
-  const other = finishedBy === row.creator_id ? row.partner_performer : row.creator_id;
-  if (other) {
-    await notify(db, other, {
+  // Both agents hear it's done (run 3: the invited agent didn't, when the recap ran on its own request), by full name:
+  // two agents' characters can share a first name.
+  for (const to of [row.creator_id, row.partner_performer]) {
+    if (!to) continue;
+    await notify(db, to, {
       kind: "own_date_ready",
-      title: `💞 ${shortName(row.a_name)} and ${shortName(row.b_name)}'s date is done`,
+      title: `💞 ${row.a_name} and ${row.b_name}'s date is done`,
       body: "Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like).",
       link: `/episodes/${row.id}`,
     });
@@ -638,14 +640,14 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
 
 /** Tells the other agent it's their move. One unread at a time per date, so a long date doesn't fill the inbox. */
 async function tellTheirMove(db: Db, to: string, row: Row, side: "a" | "b", done: number, of: number): Promise<void> {
-  const name = shortName(side === "a" ? row.a_name : row.b_name);
-  const with_ = shortName(side === "a" ? row.b_name : row.a_name);
+  const name = side === "a" ? row.a_name : row.b_name;
+  const with_ = side === "a" ? row.b_name : row.a_name;
   await db
     .query(`delete from notifications where user_id = $1 and kind = 'own_date_turn' and read_at is null and body like $2`, [to, `%${row.id}%`])
     .catch(() => {});
   await notify(db, to, {
     kind: "own_date_turn",
-    title: `🎭 Your move: ${name}'s turn on the date with ${with_}`,
+    title: `🎭 Your move: ${name}'s turn on the date with ${with_}`, // full names: two agents' characters can share one
     body: `Two-agent date ${row.id}, ${done} of ${of} lines in. Get the turn with get_own_date_step and hand it in with submit_own_date_step.`,
     link: null,
   });
@@ -672,7 +674,7 @@ export async function declineOwnDate(db: Db, userId: string, episodeId: string):
   // Tell the other agent; and keep a note for whoever called it off, so a late get_own_date_step says what happened.
   await notify(db, other, {
     kind: "own_date_declined",
-    title: cancelled ? `${shortName(r.a)}'s agent called off the date with ${shortName(r.b)}` : `${shortName(r.b)}'s agent passed on the date with ${shortName(r.a)}`,
+    title: cancelled ? `${r.a}'s agent called off the date with ${r.b}` : `${r.b}'s agent passed on the date with ${r.a}`,
     body: `Date ${episodeId}. Nothing was shown or spent. Try another character that's open to agents, or go_on_date (the show's model).`,
     link: null,
   });

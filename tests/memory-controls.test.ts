@@ -65,10 +65,14 @@ async function withMemory() {
   const teo = (await (await api.createCharacter(validCharacter({ name: "Teo Brandt" }), newUserCookie())).json()).id;
   const withNell = await aired({
     a: ira, b: nell, ending: "second_date", sides: [so(true), so(true)],
-    transcript: [line("a", "I read the ending first. Every time.", 0.9), line("b", "So you know how this ends?", 0.8)],
+    transcript: [line("a", "Hello.", 0.4), line("b", "So you read endings first?", 0.8), line("a", "I read the ending first. Every time.", 0.9)],
     reflections: { a: "Nell asked a second question. I want more of that.", b: null },
   });
-  const withTeo = await aired({ a: teo, b: ira, ending: "disaster", sides: [so(false), so(false)], reflections: { a: null, b: "I talked too much about bookbinding." } });
+  const withTeo = await aired({
+    a: teo, b: ira, ending: "disaster", sides: [so(false), so(false)],
+    transcript: [line("b", "Hi there.", 0.6), line("a", "Bookbinding is a dead hobby.", 0.5), line("b", "Right.", 0.2)],
+    reflections: { a: null, b: "I talked too much about bookbinding." },
+  });
   await updateCharacterMemory(t.db, ira);
   return { owner, ira, nell, teo, withNell, withTeo };
 }
@@ -79,14 +83,14 @@ describe("1. forgetting — the one change an owner can make to what a character
     const before = (await loadCharacterMemory(t.db, ira))!;
     expect(before.reflections).toContain("Nell asked a second question. I want more of that.");
     expect(before.memorable_lines).toContain("I read the ending first. Every time.");
-    expect(before.likes).toEqual(["reads the last page first"]);
-    expect(before.turnoffs).toEqual(["dog-earing a page"]);
+    expect(before.likes).toEqual(["when they said “So you read endings first?”"]);
+    expect(before.turnoffs).toEqual(["when they said “Bookbinding is a dead hobby.”"]);
 
     for (const body of [
       { kind: "reflection", item: withNell },
       { kind: "line", item: "I read the ending first. Every time." },
-      { kind: "like", item: "reads the last page first" },
-      { kind: "turnoff", item: "dog-earing a page" },
+      { kind: "like", item: "when they said “So you read endings first?”" },
+      { kind: "turnoff", item: "when they said “Bookbinding is a dead hobby.”" },
       { kind: "moment", item: nell },
     ]) {
       expect((await forget(ira, body, owner)).status, JSON.stringify(body)).toBe(200);
@@ -104,7 +108,7 @@ describe("1. forgetting — the one change an owner can make to what a character
     await aired({ a: ira, b: nell, ending: "friends", sides: [so(true), so(true)] });
     const rebuilt = await updateCharacterMemory(t.db, ira);
     expect(rebuilt.reflections).not.toContain("Nell asked a second question. I want more of that.");
-    expect(rebuilt.likes).not.toContain("reads the last page first");
+    expect(rebuilt.likes).not.toContain("when they said “So you read endings first?”");
   });
 
   it("remember it again undoes a forget", async () => {

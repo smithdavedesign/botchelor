@@ -29,24 +29,26 @@ export function endingWhy(ending: Ending, box: Box | null | undefined, sides: re
   const awkward = at(box, "awkwardness");
   const dealbreaker = Boolean(sides?.some((s) => s.dealbreaker_hit));
   const wantMet = Boolean(sides?.some((s) => s.want_met));
+  // Run 3: "scored for genuine chemistry, which leans on chemistry" next to a disaster with chemistry at 72 read as
+  // nonsense. Say what outweighed what instead, and name the strategy only when its lean explains the result.
   const leans = strategy ? LEANS_ON[strategy] : null;
-  const scored = strategy
-    ? ` It was scored for ${STRATEGY_LABELS[strategy].toLowerCase()}, which leans on ${leans === "awkwardness" ? "keeping awkwardness low" : leans}.`
-    : "";
+  const leanNote = (v: DateVariable | null) =>
+    strategy && leans && leans !== "awkwardness" && v === leans ? ` (a date played for ${STRATEGY_LABELS[strategy].toLowerCase()} counts ${leans} most)` : "";
 
   let line: string;
   if (ending === "second_date") {
-    line = `A second date: ${say(box, best)} and ${say(box, goods[1])} carried it${wantMet ? ", and someone's want was met" : ""}${awkward >= 55 ? `, awkwardness (${awkward}) and all` : ""}.`;
+    line = `A second date: ${say(box, best)} and ${say(box, goods[1])} carried it${leanNote(best)}${wantMet ? ", and someone's want was met" : ""}${awkward >= 55 ? `, awkwardness (${awkward}) and all` : ""}.`;
   } else if (ending === "friends") {
-    line = `Just friends: warm enough (${say(box, best)}), but ${say(box, worst)} never got there${dealbreaker ? ", and a dealbreaker tripped" : ""}.`;
+    line = `Just friends: warm enough (${say(box, best)}), but ${say(box, worst)} never got there${leanNote(worst)}${dealbreaker ? ", and a dealbreaker tripped" : ""}.`;
   } else {
     const lows = goods.filter((v) => at(box, v) < 50).reverse().slice(0, 2);
     const reasons = [
       ...(dealbreaker ? ["a dealbreaker tripped"] : []),
-      ...(lows.length ? [`${lows.map((v) => say(box, v)).join(" and ")} finished low`] : []),
+      ...(lows.length ? [`${lows.map((v) => say(box, v)).join(" and ")} finished low${leanNote(lows[0])}`] : []),
       ...(awkward >= 50 ? [`awkwardness finished at ${awkward}`] : []),
     ];
-    line = `A disaster: ${reasons.length ? reasons.join(", ") : `nothing landed hard enough (best was ${say(box, best)})`}.`;
+    const despite = at(box, best) >= 60 ? `, and that outweighed ${say(box, best)}` : "";
+    line = `A disaster: ${reasons.length ? `${reasons.join(", ")}${despite}` : `nothing landed hard enough (best was ${say(box, best)})`}.`;
   }
-  return `${line}${scored} Endings read where the numbers finished, not how far they moved.`;
+  return `${line} Endings read where the numbers finished, not how far they moved.`;
 }

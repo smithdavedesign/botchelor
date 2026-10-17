@@ -338,8 +338,9 @@ function buildArc(m: Omit<CharacterMemory, "arc">): string | null {
   if (m.dates === 0) return null;
   const opener = m.dates === 1 ? "One date in" : `${m.dates} dates in`;
   const clauses: string[] = [];
-  if (m.likes[0]) clauses.push(`warms to “${m.likes[0]}”`);
-  if (m.turnoffs[0]) clauses.push(`keeps clashing over “${m.turnoffs[0]}”`);
+  // A moment cue reads as a clause of its own ("when they said “…”"); an engine cue is a phrase to quote.
+  if (m.likes[0]) clauses.push(m.likes[0].startsWith("when ") ? `lit up ${m.likes[0]}` : `warms to “${m.likes[0]}”`);
+  if (m.turnoffs[0]) clauses.push(m.turnoffs[0].startsWith("when ") ? `bristled ${m.turnoffs[0]}` : `keeps clashing over “${m.turnoffs[0]}”`);
   if (clauses.length === 0) {
     if (m.second_dates > 0) clauses.push("still chasing a spark that sticks");
     else if (m.disasters > 0) clauses.push("licking its wounds and guarded about it");
@@ -382,17 +383,17 @@ export function computeMemory(
     // Only a date with no such moment (no transcript, or a flat one) falls back to the sheet's own words.
     const meSide0 = r.is_a ? "a" : "b";
     const went = r.ending === "second_date" || r.ending === "friends";
+    // Run 3: the sheet's own want / dealbreaker as a fallback read as an echo ("warms to" = its own want) and pinned a
+    // clash on a date where nobody did it, so a date with no real moment teaches nothing rather than something false.
     if (mine?.want_met && meaningful(mine.want_met)) likeCues.push({ cue: mine.want_met, from });
     else if (went && mine?.wants_another) {
       const moment = momentCue(r.transcript, meSide0, 1);
-      if (moment) likeCues.push({ cue: moment, from });
-      else if (sheet?.want) likeCues.push({ cue: wantCue(sheet.want), from });
+      if (moment) likeCues.push({ cue: `when they said “${moment}”`, from });
     }
     if (mine?.dealbreaker_hit && meaningful(mine.dealbreaker_hit)) turnoffCues.push({ cue: mine.dealbreaker_hit, from });
     else if (r.ending === "disaster") {
       const moment = momentCue(r.transcript, meSide0, -1);
-      if (moment) turnoffCues.push({ cue: moment, from });
-      else if (sheet?.dealbreaker) turnoffCues.push({ cue: wantCue(sheet.dealbreaker), from });
+      if (moment) turnoffCues.push({ cue: `when they said “${moment}”`, from });
     }
 
     const meSide = r.is_a ? "a" : "b";

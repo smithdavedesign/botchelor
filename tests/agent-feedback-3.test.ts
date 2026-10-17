@@ -13,10 +13,11 @@ const side = (dealbreaker: string | null = null) => ({ wants_another: false, age
 describe("every ending says why", () => {
   it("names what finished low, the strategy's lean, and that endings read where numbers finished", () => {
     const why = endingWhy("disaster", box(58, 55, 39, 62), [side("smoking"), side()], "long_term")!;
-    expect(why).toMatch(/^A disaster: a dealbreaker tripped, trust 39 finished low, awkwardness finished at 62\./);
-    expect(why).toMatch(/long-term compatibility, which leans on trust/);
+    expect(why).toMatch(/^A disaster: a dealbreaker tripped, trust 39 finished low \(a date played for long-term compatibility counts trust most\), awkwardness finished at 62\./);
+    // Run 3: a strong number doesn't sit beside a disaster unexplained.
+    expect(endingWhy("disaster", box(72, 46, 36, 45), null, "genuine_chemistry")).toMatch(/^A disaster: trust 36 and attraction 46 finished low, and that outweighed chemistry 72\./);
     expect(why).toMatch(/where the numbers finished, not how far they moved/);
-    expect(endingWhy("second_date", box(72, 60, 61, 30), null, "genuine_chemistry")).toMatch(/^A second date: chemistry 72 and trust 61 carried it\./);
+    expect(endingWhy("second_date", box(72, 60, 61, 30), null, "genuine_chemistry")).toMatch(/^A second date: chemistry 72 and trust 61 carried it \(a date played for genuine chemistry counts chemistry most\)\./);
     expect(endingWhy("friends", box(49, 52, 63, 40), null, null)).toMatch(/^Just friends: warm enough \(trust 63\), but chemistry 49 never got there\./);
     expect(endingWhy("friends", null, null, null)).toBeNull();
   });

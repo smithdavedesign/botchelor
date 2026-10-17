@@ -79,7 +79,7 @@ Rules:
 - Keep the shown episode (setting, goals, scenes, twist, finale) under ${PROMPT_WORD_TARGET} words.
 - The date happens at the place given in "date_location". Your "setting" must put them there; do not move them somewhere else.
 - "show_format" sets the format this date is filmed in. Honour its framing throughout; it changes only the flavour, never who likes whom or how it ends.
-- If "the_date_as_it_happened" is given, that IS the date: the two characters already played it out line by line. Your scenes must faithfully recap what was actually said and done in each act (quote a few words where it helps), your twist and finale must match it, "best_line" must be copied exactly from one of its lines, and the confessionals must reflect real moments from it. Refer to each character with their pronouns.
+- If "the_date_as_it_happened" is given, that IS the date: the two characters already played it out line by line. Your scenes must faithfully recap what was actually said and done in each act (quote a few words where it helps), your twist and finale must match it, "best_line" must be copied exactly from one of its lines, and the confessionals must reflect real moments from it. Keep who said and did what exactly as it happened: who asked whom, whose story is whose, who said the line. Refer to each character with their pronouns.
 
 Write the date as three acts, one scene each, a few sentences per scene:
   1. ${DATE_ACTS[0]}: they meet and size each other up.
@@ -89,7 +89,7 @@ Write the date as three acts, one scene each, a few sentences per scene:
 Reply with only a JSON object (no markdown) with exactly these keys:
 {
   "setting": "where and when the date happens, 1-2 sentences",
-  "goals": ["what character_a is after on this date", "what character_b is after on this date"],
+  "goals": ["what character_a is after on this date, as the audience sees it (never their secret agenda)", "what character_b is after, the same way"],
   "scenes": ["act 1: ${DATE_ACTS[0]}", "act 2: ${DATE_ACTS[1]}", "act 3: ${DATE_ACTS[2]}"],
   "twist": "one surprising turn, 1-2 sentences",
   "finale": "how the date ends, 1-3 sentences, matching the decided ending and who leaves/rejects whom",
