@@ -74,7 +74,7 @@ describe("arc predictions", () => {
     const fan = userIdOf(newUserCookie());
     expect(await predictArc(t.db, fan, character.id, HOUSE_PARTNER_ID, true)).toEqual({ ok: true, target: 3, pick: true });
     expect(await predictArc(t.db, fan, character.id, HOUSE_PARTNER_ID, false)).toMatchObject({ ok: false, status: 409 });
-    expect((await arcQuestion(t.db, null, character.id, HOUSE_PARTNER_ID))!).toMatchObject({ yes: 1, no: 0, can_predict: false });
+    expect((await arcQuestion(t.db, null, character.id, HOUSE_PARTNER_ID))!).toMatchObject({ yes: 1, no: 0, can_predict: true }); // a first-time visitor can call it (answering starts their session)
   });
 
   it("YES settles when they reach the date: points, a notification, and the league's week", async () => {

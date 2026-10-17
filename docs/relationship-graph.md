@@ -82,6 +82,22 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
 
 ## Couples on the site, in matchmaking and for agents
 
+- **The next date, from the couple page** (`lib/date-proposals.ts`, owners only). One panel, "Their next date", with the
+  plan from their last date's texts on top and a link to leave a nudge first. What it offers depends on where they are:
+  - their last date was mutual: **book their second date** (the second-date flow above, including the other owner's yes
+    and the free weekly second date);
+  - it wasn't, and the other character is a house character or open to dates: **send them on another date** straight
+    away. A house character a character has already dated stays bookable even when it's not in this week's cast: a
+    couple can always meet again;
+  - the other character belongs to someone else and isn't open to dates: **propose a date** (`date_proposals`). Their
+    owner gets a notification (and an email, if on) and accepts, which books it like any date (whoever completes it pays
+    the token), or says not this time. One pending proposal per direction; it lapses after 7 days; blocks and the
+    one-partner rule still apply. Agents: `propose_date` and `answer_date_proposal`.
+- **Reading the page.** Each date is numbered ("Date 2 · a corner café → Friends, for now"); the header says how many
+  dates ended in a second date and how many were actually booked; the meters carry a value (closeness in a word,
+  chemistry and trust as numbers); both full names link to the characters, with house characters marked "on the show";
+  spectators get "Watch their latest date" and a copy-link button, and can call the arc question on their first visit.
+
 - **The couple page** (`/couples/<lower id>/<higher id>`; the other order 308s to it). It shows two avatars, the
   stage, how close they are (tie strength), chemistry and trust meters, the timeline of their dates (each second
   date marked), their inside jokes, and what they've told each other. Spectators see the public layer. An owner of

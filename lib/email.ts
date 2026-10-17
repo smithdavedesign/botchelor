@@ -22,7 +22,7 @@ import { siteUrl } from "./site";
 type Env = Record<string, string | undefined>;
 
 /** Kinds worth an email right away: something is waiting on you. Everything else is in the daily digest. */
-export const IMMEDIATE_KINDS: ReadonlySet<NotificationKind> = new Set(["second_date_yes", "second_date_booked"]);
+export const IMMEDIATE_KINDS: ReadonlySet<NotificationKind> = new Set(["second_date_yes", "second_date_booked", "date_proposal", "date_accepted"]);
 export const IMMEDIATE_PER_USER_PER_DAY = 3;
 /** Confirmation emails one account may send a day (each goes to an address nobody has verified yet). */
 export const CONFIRMS_PER_USER_PER_DAY = 3;

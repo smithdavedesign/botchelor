@@ -57,6 +57,7 @@ import { POST as postPrediction } from "@/app/api/predictions/route";
 import { loadRelationship, relationshipsOf, viewRelationship, type Relationship } from "./relationships";
 import { clearNudge, coupleTexts, setNudge } from "./between-dates";
 import { clearNotifications, listNotifications, markRead, unreadCount } from "./notifications";
+import { closeProposal, pendingProposal, proposeDate } from "./date-proposals";
 import { arcQuestion, predictArc } from "./arcs";
 import { followCouple, followState, unfollowCouple } from "./follows";
 
@@ -383,6 +384,26 @@ export const MCP_TOOLS = [
       type: "object",
       required: ["episode_id"],
       properties: { episode_id: str(64), check: { type: "boolean" }, visibility: { type: "string", enum: ["public", "private", "unlisted"] }, agent_id: AGENT_ID },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "propose_date",
+    title: "Propose a date",
+    description:
+      "Propose a date between your character (character_id) and another creator's character (with) that isn't open to dates. Their creator accepts (which books it, and they pay its date) or says not this time; a proposal lapses after 7 days. For a house character or one that's open to dates, just book with go_on_date.",
+    inputSchema: { type: "object", required: ["character_id", "with"], properties: { character_id: str(64), with: str(64), agent_id: AGENT_ID } },
+    annotations: WRITE,
+  },
+  {
+    name: "answer_date_proposal",
+    title: "Answer a date proposal",
+    description:
+      "Answer a date another creator proposed between their character (with) and yours (character_id): accept: true books it (a date, like go_on_date, and it counts toward the agents' daily budget), accept: false says not this time. With accept: false on a proposal you sent, it takes yours back.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "with", "accept"],
+      properties: { character_id: str(64), with: str(64), accept: { type: "boolean" }, agent_id: AGENT_ID },
     },
     annotations: WRITE,
   },
@@ -993,6 +1014,34 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await callRoute(postSecondDate as unknown as RouteHandler, { agentId: who.id, body: pick(args, ["visibility"]), params });
       if (!r.ok) return { error: errorOf(r) };
       if (r.status === 202) return { data: { second_date: r.data }, identity: who };
+      await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
+      return { data: { episode: r.data }, identity: who };
+    }
+    case "propose_date": {
+      const who = resolveIdentity(args, session, true)!;
+      const r = await proposeDate(db, who.id, String(args.character_id ?? ""), String(args.with ?? ""));
+      return r.ok ? { data: { proposal: { id: r.proposal.id, status: "pending", created_at: r.proposal.created_at } }, identity: who } : { error: r.message };
+    }
+    case "answer_date_proposal": {
+      const who = resolveIdentity(args, session, true)!;
+      const mine = String(args.character_id ?? "");
+      const theirs = String(args.with ?? "");
+      const received = await pendingProposal(db, theirs, mine);
+      const receivedByMe = received && received.to_user === who.id ? received : null;
+      if (args.accept !== true) {
+        const sent = await pendingProposal(db, mine, theirs);
+        const id = receivedByMe?.id ?? (sent && sent.from_user === who.id ? sent.id : null);
+        const status = id ? await closeProposal(db, who.id, id) : null;
+        return status ? { data: { proposal: { status } }, identity: who } : { error: "There's no open proposal between those two characters for you to answer." };
+      }
+      if (!receivedByMe) return { error: "There's no open proposal from that character to yours to accept." };
+      const today = await agentDatesToday(db);
+      if (today.used >= today.cap) {
+        track("agent_date_capped", { used: today.used, cap: today.cap });
+        return { error: `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}.` };
+      }
+      const r = await callRoute(postEpisode, { agentId: who.id, body: { character_id: mine, partner_id: theirs, proposal_id: receivedByMe.id } });
+      if (!r.ok) return { error: errorOf(r) };
       await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
       return { data: { episode: r.data }, identity: who };
     }

@@ -87,3 +87,22 @@ export function ArcCard({ pair, names, q }: { pair: [string, string]; names: str
     </section>
   );
 }
+
+/** Copy the couple page's link (or share it, where the browser can). */
+export function CopyLink({ path, title }: { path: string; title: string }) {
+  const [done, setDone] = useState(false);
+  async function share() {
+    const url = new URL(path, window.location.origin).toString();
+    if (navigator.share) {
+      await navigator.share({ title, url }).catch(() => null);
+      return;
+    }
+    const ok = await navigator.clipboard.writeText(url).then(() => true).catch(() => false);
+    setDone(ok);
+  }
+  return (
+    <button type="button" className="link-button" onClick={() => void share()}>
+      {done ? "Link copied ✓" : "Copy link"}
+    </button>
+  );
+}

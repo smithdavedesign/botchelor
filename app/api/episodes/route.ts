@@ -31,6 +31,7 @@ import { coupledSql, currentPartners, settleCharacter, takenSql } from "@/lib/pa
 import { seasonCastIds } from "@/lib/season-cast";
 import { seasonAt } from "@/lib/seasons";
 import { checkSecondDate } from "@/lib/second-date";
+import { acceptableProposal, markAccepted } from "@/lib/date-proposals";
 import { useNudges } from "@/lib/between-dates";
 import { notify } from "@/lib/notifications";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
@@ -64,6 +65,9 @@ const EpisodeInput = z
     // A second date (lib/second-date.ts): the date whose morning-after plan this is. partner_id is the other
     // character in it; consent is checked there instead of "house or open to dates".
     second_date_of: id.optional(),
+    // Accepting another owner's date proposal (lib/date-proposals.ts): partner_id is their character; their proposal
+    // is the consent, in place of "house or open to dates".
+    proposal_id: id.optional(),
   })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
     message: "Send either partner_id (a house character or one that's open to dates) or blind: true.",
@@ -191,19 +195,25 @@ export const POST = handle(async (req) => {
   } else if (input.blind) {
     partner = await blindMatch(db, sess.userId);
   } else {
-    // One of this season's house cast (or a premium one, checked below), or someone else's OC that's open
-    // to dates (or the partner your character is with) — never your own, never across a block.
+    if (input.proposal_id && !(await acceptableProposal(db, sess.userId, input.proposal_id, own.id, input.partner_id ?? ""))) {
+      return json({ error: "proposal_unavailable", message: "That proposal isn't open any more." }, 409, sess);
+    }
+    // One of this season's house cast (or a premium one, checked below, or one this character has dated before: a
+    // couple can always meet again), or someone else's OC that's open to dates (or the partner your character is
+    // with, or whose owner proposed this date) — never your own, never across a block.
     partner = (
       await db.query<CharacterRow>(
         `select ${CHARACTER_COLUMNS} from characters c
           where c.id = $1
-            and ((c.is_house and (c.premium_sku is not null or c.id = any($3)))
-                 or ((c.open_to_dates or ${coupledSql("c", "$4")}) and c.owner_id <> $2 and not ${takenSql("c", "$4")}
+            and ((c.is_house and (c.premium_sku is not null or c.id = any($3)
+                   or exists (select 1 from relationships r
+                               where r.dates > 0 and ((r.character_a = c.id and r.character_b = $4) or (r.character_a = $4 and r.character_b = c.id)))))
+                 or ((c.open_to_dates or ${coupledSql("c", "$4")} or c.id = $5::text) and c.owner_id <> $2 and not ${takenSql("c", "$4")}
                      and not exists (
                        select 1 from blocks bl
                         where (bl.blocker_id = $2 and bl.blocked_id = c.owner_id)
                            or (bl.blocker_id = c.owner_id and bl.blocked_id = $2))))`,
-        [input.partner_id, sess.userId, seasonCastIds(), own.id],
+        [input.partner_id, sess.userId, seasonCastIds(), own.id, input.proposal_id ? (input.partner_id ?? null) : null],
       )
     ).rows[0];
     if (!partner) {
@@ -400,6 +410,10 @@ async function writeAndSave(
         link: `/episodes/${episodeId}`,
       });
     }
+  }
+  if (input.proposal_id) {
+    const proposal = await acceptableProposal(db, sess.userId, input.proposal_id, own.id, partner.id);
+    if (proposal) await markAccepted(db, proposal, episodeId);
   }
   if (inlineGenerationEnabled()) {
     // No after() lifecycle here, so run the job now: ready → the full episode; a failure deletes the

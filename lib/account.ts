@@ -44,6 +44,8 @@ export type AccountExport = {
   couple_texts: Record<string, unknown>[];
   nudges: Record<string, unknown>[];
   second_date_yeses: Record<string, unknown>[];
+  /** Dates they proposed to another owner's character, or were proposed (lib/date-proposals.ts). */
+  date_proposals: Record<string, unknown>[];
   /** The couples they follow, their arc predictions, their notifications and where browser push goes (host only). */
   couple_follows: Record<string, unknown>[];
   arc_predictions: Record<string, unknown>[];
@@ -111,6 +113,10 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
     ),
     nudges: await q("select character_id, other_id, note, created_at, used_at from nudges where user_id = $1", [userId]),
     second_date_yeses: await q("select episode_id, created_at from second_date_requests where user_id = $1", [userId]),
+    date_proposals: await q(
+      "select from_character, to_character, status, created_at, decided_at, case when from_user = $1 then 'sent' else 'received' end as direction from date_proposals where from_user = $1 or to_user = $1 order by created_at",
+      [userId],
+    ),
     couple_follows: await q("select character_lo, character_hi, created_at from couple_follows where user_id = $1", [userId]),
     arc_predictions: await q("select character_lo, character_hi, target, pick, created_at, resolved_at, outcome from arc_predictions where user_id = $1", [userId]),
     notifications: await q("select kind, title, body, link, created_at, read_at from notifications where user_id = $1 order by created_at", [userId]),
@@ -243,6 +249,7 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from arc_predictions where user_id = $1", [userId]);
   await run("delete from nudges where user_id = $1", [userId]);
   await run("delete from second_date_requests where user_id = $1", [userId]);
+  await run("delete from date_proposals where from_user = $1 or to_user = $1", [userId]);
   await run("delete from profiles where user_id = $1", [userId]);
   await run("delete from accounts where user_id = $1", [userId]);
 
