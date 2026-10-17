@@ -24,6 +24,8 @@ import type { Db } from "./db";
 import type { SideOutcome, SoulSignals } from "./engine";
 import { ENDING_LABELS, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
 import type { Turn } from "./conversation";
+import { stageOf, type Stage } from "./relationships";
+import { contentWords } from "./quality";
 import { checkFields } from "./safety";
 import { seasonIdAt } from "./season-cast";
 import { venue, type VenueId } from "./venues";
@@ -109,9 +111,10 @@ export type Forgets = ReadonlySet<string>;
 export const forgetKey = (kind: ForgetKind, item: string): string => `${kind}:${item}`;
 
 /** How two characters stand, from the public record of their aired dates together. */
-export type PairStatus = "seeing" | "exes" | "friends" | "bad_blood";
+export type PairStatus = "seeing" | "exes" | "friends" | "just_met" | "bad_blood";
 export const PAIR_STATUS_LABELS: Record<PairStatus, string> = {
   seeing: "💞 Seeing each other",
+  just_met: "👋 Just met",
   exes: "💔 Exes",
   friends: "🤝 Friends",
   bad_blood: "🔥 Bad blood",
@@ -125,6 +128,8 @@ export type PersonMemory = {
   dates: number;
   /** Public: from the endings of their aired dates. */
   status: PairStatus;
+  /** The same reading as the couple's stage in the relationship graph (lib/relationships.ts stageOf), so the two agree. */
+  stage?: Stage;
   last_ending: Ending;
   last_venue: VenueId | null;
   /** When their last date aired (ISO), and which date that was (where the memory comes from). */
@@ -264,6 +269,41 @@ export function wantCue(phrase: string): string {
   return trimmed.length >= 3 ? trimmed : phrase.trim().toLowerCase();
 }
 
+/** Filler the engine's word match can land on ("thing"): not something a character warms to. */
+const FILLER = new Set(["thing", "things", "stuff", "something", "anything", "everything", "someone", "anyone", "people", "person", "really", "always", "never"]);
+const meaningful = (cue: string) => contentWords(cue, 3).some((w) => !FILLER.has(w));
+
+/** The smallest swing in a character's interest that counts as a moment. */
+const MOMENT_SWING = 0.15;
+const MOMENT_MAX = 70;
+
+/**
+ * The other's line that moved this character most, as a short cue: `dir` 1 for the biggest rise in its interest
+ * (its next line's interest_signal over its last), -1 for the biggest drop. Null when nothing moved it that much.
+ */
+export function momentCue(transcript: readonly Turn[] | null | undefined, me: "a" | "b", dir: 1 | -1): string | null {
+  const lines = transcript ?? [];
+  let prev: number | null = null;
+  let best: { swing: number; line: string } | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i];
+    if (t.side !== me) continue;
+    const interest = typeof t.interest === "number" ? t.interest : null;
+    if (interest === null) continue;
+    const theirs = [...lines.slice(0, i)].reverse().find((x) => x.side !== me && x.dialogue);
+    if (prev !== null && theirs) {
+      const swing = (interest - prev) * dir;
+      if (swing >= MOMENT_SWING && (!best || swing > best.swing)) best = { swing, line: theirs.dialogue };
+    }
+    prev = interest;
+  }
+  if (!best || !checkFields({ line: best.line }).ok) return null;
+  const text = best.line.trim().replace(/\s+/g, " ");
+  if (text.length <= MOMENT_MAX) return text;
+  const cut = text.slice(0, MOMENT_MAX);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 40)).replace(/[,;:.!?-]+$/, "")}…`;
+}
+
 /** Counts items and returns the top `k` by frequency, ties broken by first appearance (deterministic). */
 function topByFrequency(items: string[], k: number): string[] {
   const count = new Map<string, number>();
@@ -338,10 +378,22 @@ export function computeMemory(
     // follow-up question") rarely match a static sheet, so the cue is usually null and this layer stayed empty.
     // Fallback: when the date clearly went the character's way, credit its OWN want; when it clearly didn't,
     // credit its OWN dealbreaker — so a bot still learns what it keeps warming to / clashing over.
-    if (mine?.want_met) likeCues.push({ cue: mine.want_met, from });
-    else if (sheet?.want && (r.ending === "second_date" || r.ending === "friends") && mine?.wants_another) likeCues.push({ cue: wantCue(sheet.want), from });
-    if (mine?.dealbreaker_hit) turnoffCues.push({ cue: mine.dealbreaker_hit, from });
-    else if (sheet?.dealbreaker && r.ending === "disaster") turnoffCues.push({ cue: wantCue(sheet.dealbreaker), from });
+    // Before the sheet, what actually happened: the line of theirs this character's interest jumped (or fell) after.
+    // Only a date with no such moment (no transcript, or a flat one) falls back to the sheet's own words.
+    const meSide0 = r.is_a ? "a" : "b";
+    const went = r.ending === "second_date" || r.ending === "friends";
+    if (mine?.want_met && meaningful(mine.want_met)) likeCues.push({ cue: mine.want_met, from });
+    else if (went && mine?.wants_another) {
+      const moment = momentCue(r.transcript, meSide0, 1);
+      if (moment) likeCues.push({ cue: moment, from });
+      else if (sheet?.want) likeCues.push({ cue: wantCue(sheet.want), from });
+    }
+    if (mine?.dealbreaker_hit && meaningful(mine.dealbreaker_hit)) turnoffCues.push({ cue: mine.dealbreaker_hit, from });
+    else if (r.ending === "disaster") {
+      const moment = momentCue(r.transcript, meSide0, -1);
+      if (moment) turnoffCues.push({ cue: moment, from });
+      else if (sheet?.dealbreaker) turnoffCues.push({ cue: wantCue(sheet.dealbreaker), from });
+    }
 
     const meSide = r.is_a ? "a" : "b";
     for (const t of r.transcript ?? []) {
@@ -543,10 +595,12 @@ function toDated(r: MemoryEpisode): Dated {
 
 /** How a pair stands after its aired dates (oldest first): the latest ending, coloured by what came before. */
 export function pairStatus(endings: Ending[]): PairStatus {
+  // One friendly date is "just met", not friends yet, as on the couple's stage (lib/relationships.ts stageOf).
   const last = endings[endings.length - 1];
   if (last === "second_date") return "seeing";
   if (endings.includes("second_date")) return "exes";
-  return last === "friends" ? "friends" : "bad_blood";
+  if (last === "friends") return endings.length === 1 ? "just_met" : "friends";
+  return "bad_blood";
 }
 
 /** Everyone the character has dated, most recent first, capped. A forgotten moment keeps the public status only. */
@@ -563,6 +617,7 @@ function rememberPeople(dated: Dated[], forgets: Forgets = new Set()): PersonMem
         house: last.other.house,
         dates: ds.length,
         status: pairStatus(ds.map((d) => d.ending)),
+        ...(stageOf(ds.map((d) => d.ending)) ? { stage: stageOf(ds.map((d) => d.ending))! } : {}),
         last_ending: last.ending,
         last_venue: last.venue,
         last_at: last.at.toISOString(),
@@ -638,6 +693,7 @@ const STANDING: Record<PairStatus, string> = {
   seeing: "You've been seeing each other.",
   exes: "You had something once; it didn't last.",
   friends: "You're friends.",
+  just_met: "You met once; it was friendly, nothing more yet.",
   bad_blood: "Last time went badly.",
 };
 

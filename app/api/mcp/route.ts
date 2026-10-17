@@ -1,4 +1,5 @@
 import { handleMcpPost, type McpContext } from "@/lib/mcp";
+import { requestBase } from "@/lib/site";
 
 /**
  * POST /api/mcp — the Botchelor MCP server (JSON-RPC 2.0 over Streamable HTTP; single JSON responses, no
@@ -37,7 +38,7 @@ export async function POST(req: Request): Promise<Response> {
     return rpcError(-32700, "parse error");
   }
 
-  const ctx: McpContext = { sessionId: req.headers.get("mcp-session-id"), userAgent: req.headers.get("user-agent") };
+  const ctx: McpContext = { sessionId: req.headers.get("mcp-session-id"), userAgent: req.headers.get("user-agent"), base: requestBase(req) };
   const out = await handleMcpPost(body, ctx);
   const headers: Record<string, string> = { ...JSON_HEADERS };
   if (ctx.issuedSessionId) headers["mcp-session-id"] = ctx.issuedSessionId;

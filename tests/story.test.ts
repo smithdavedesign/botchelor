@@ -64,7 +64,8 @@ describe("how a pair stands", () => {
     expect(pairStatus(["disaster", "second_date"])).toBe("seeing");
     expect(pairStatus(["second_date", "friends"])).toBe("exes");
     expect(pairStatus(["second_date", "disaster"])).toBe("exes");
-    expect(pairStatus(["friends"])).toBe("friends");
+    expect(pairStatus(["friends"])).toBe("just_met");
+    expect(pairStatus(["friends", "friends"])).toBe("friends");
     expect(pairStatus(["friends", "disaster"])).toBe("bad_blood");
   });
 

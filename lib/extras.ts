@@ -201,7 +201,7 @@ export function voiceExamples(e: CharacterExtras): string[] {
 
 /** What the other character can see at a glance: only the visible details. */
 export function extrasVisible(e: CharacterExtras): string[] {
-  return [e.style ? `dressed: ${e.style}` : null, e.signature_item ? `has ${e.signature_item}` : null].filter((s): s is string => Boolean(s));
+  return [e.style ? `dressed: ${e.style}` : null, e.signature_item ? `has ${e.signature_item.replace(/^(A|An|The)\b/, (w) => w.toLowerCase())}` : null].filter((s): s is string => Boolean(s));
 }
 
 /** Text worth searching (lib/dating.ts): everything public. */

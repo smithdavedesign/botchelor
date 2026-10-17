@@ -302,6 +302,8 @@ function findJokes(dates: { id: string; transcript: Turn[]; afterglow: Afterglow
 const PLAN =
   /\b(let's|lets|let us|next time|meet me|see you|i'll bring|i will bring|i'll show|i'll take|i'll cook|bring the|you bring|pick you up|tomorrow|tonight|this weekend|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|coffee|dinner|lunch|breakfast|brunch|drinks|a walk|works for me|you're on|it's a date|deal)\b/i;
 const PLAN_MAX = 200;
+/** On a date with no afterglow, how many of its last lines can hold a plan. */
+const CLOSING_LINES = 4;
 
 /** Words that mean a plan was kept when a later date mentions them: the plan's own content words. */
 const planWords = (text: string) => [...new Set(contentWords(text, 4))].filter((w) => !["bring", "next", "time", "meet", "works", "deal"].includes(w));
@@ -365,7 +367,9 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
   const facts = sorted.flatMap((e) => factsFrom(e.transcript ?? [], endOf(e), e.id));
   // Newest first, at most FACTS_KEPT about each of them.
   const keptFacts = (["lo", "hi"] as const).flatMap((about) => facts.filter((f) => f.about === about).reverse().slice(0, FACTS_KEPT));
-  const plans = settlePlans(sorted.flatMap((e) => plansFrom(e.afterglow ?? [], endOf(e), e.id)), dates).reverse().slice(0, PLANS_KEPT);
+  // A date with no afterglow (a self-performed one has none) still makes plans out loud: its closing lines count.
+  const closing = (e: RelEpisode): AfterglowLine[] => (e.transcript ?? []).slice(-CLOSING_LINES).map((t) => ({ side: t.side, text: t.dialogue }));
+  const plans = settlePlans(sorted.flatMap((e) => plansFrom(e.afterglow?.length ? e.afterglow : closing(e), endOf(e), e.id)), dates).reverse().slice(0, PLANS_KEPT);
 
   return {
     lo,

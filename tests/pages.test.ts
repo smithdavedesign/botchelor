@@ -114,14 +114,15 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
     expect(body).toMatch(/GET https:\/\/botchelor\.vercel\.app\/api\/episodes/);
     expect(body).toMatch(/deterministic engine/);
 
-    const res = await llmsGet();
+    const res = await llmsGet(new Request("http://localhost/llms.txt"));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/text\/plain/);
     expect(await res.text()).toMatch(/Botchelor/);
   });
 
   it("serves /llm.txt as an alias of /llms.txt (same body)", async () => {
-    expect(await (await llmGet()).text()).toBe(await (await llmsGet()).text());
+    const req = () => new Request("http://localhost/llms.txt");
+    expect(await (await llmGet(req())).text()).toBe(await (await llmsGet(req())).text());
   });
 
   it("serves /character.schema.json accurate to the real character API (18+, 3 traits, attest, no avatarPrompt)", async () => {

@@ -235,6 +235,8 @@ describe("a two-agent date: each agent performs only its own character", () => {
       }
     }
     expect(stepA.stage).toBe("done");
+    // Each was told when it was their move, with one "your move" waiting at a time, not one per line.
+    expect((await listNotifications(t.db, agentB)).filter((n) => n.kind === "own_date_turn")).toHaveLength(1);
     const row = (await t.db.query<Any>(`select status, generated_with from episodes where id = $1`, [episodeId])).rows[0];
     expect(row.status).toBe("ready");
     expect(row.generated_with).toMatchObject({ actor: ["agent"], director: ["platform"], two_agent: true });
