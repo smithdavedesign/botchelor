@@ -246,14 +246,16 @@ function rulesBeat(input: DateInput, outcome: Outcome, s: Side, act: number, wan
   if (act === 1) {
     const parts: string[] = [];
     const theirCause = AGENDA_CAUSES[sides[other(s)].agendaId];
-    if (mine.want_met) parts.push(`Somewhere in this act you find out they're "${mine.want_met}" in exactly the way you'd hoped. Let it land.`);
+    // Only this side's own sheet goes into its beat: the engine's cue words are matches between the two sheets, so
+    // quoting one would hint at what the OTHER character wants or can't stand (run 3 caught "keep" crossing over).
+    if (mine.want_met) parts.push(`Somewhere in this act they turn out to be what you were hoping for ("${want}"), in a way you can see. Let it land.`);
     else parts.push(`You're quietly weighing whether they're "${want}" — the thing you're really hoping for in someone — by what you ask them and how they answer.`);
-    if (theirs.want_met) parts.push(`Let your "${theirs.want_met}" side show this act, without naming it.`);
-    if (mine.dealbreaker_hit) parts.push(`Something in them — the "${mine.dealbreaker_hit}" in them — rubs against the one thing you can't stand. It shows before you say a word.`);
-    if (theirs.dealbreaker_hit) parts.push(`Without meaning to, you let your "${theirs.dealbreaker_hit}" side show.`);
+    if (theirs.want_met) parts.push("Something true about you comes out this act, and it lands well with them. Don't push it; just be yourself.");
+    if (mine.dealbreaker_hit) parts.push(`Something in them rubs against the one thing you can't stand ("${me.sheet.dealbreaker}"). It shows before you say a word.`);
+    if (theirs.dealbreaker_hit) parts.push("Without meaning to, you show a side of yourself that doesn't sit well with them.");
     // The other side's secret goal turns on something YOU do: play that moment (you're never told why it matters).
     parts.push(`At some point this act, you ${theirs.agenda_met ? theirCause.met : theirCause.missed}.`);
-    parts.push(mine.agenda_met ? "What you came to find out, you find out — and it goes your way." : "What you came to find out doesn't go your way, and it shows on your face.");
+    parts.push(mine.agenda_met ? "Your secret agenda for tonight goes your way." : "Your secret agenda for tonight doesn't go your way, and it shows on your face.");
     if (mine.note_followed === true) parts.push("Your creator's advice comes back to you here, and you act on it (never say so).");
     if (mine.note_followed === false) parts.push("You remember your creator's advice — and decide to ignore it.");
     parts.push(actTwoFeeling(outcome, s));

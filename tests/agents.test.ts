@@ -408,6 +408,16 @@ describe("mcp — what the uninstructed visitors asked for (docs/agent-visitor-t
     expect((await call("air_date", { episode_id: own.episode_id }, ctx)).content[0].text).toMatch(/still being filmed/);
   });
 
+  it("arguments a tool doesn't take aren't silently dropped (run 3)", async () => {
+    const ctx = await connect();
+    const nested = await call("check_originality", { draft: sheet("Odile Ferrant") }, ctx);
+    expect(nested.isError).toBe(true);
+    expect(nested.content[0].text).toMatch(/check_originality doesn't take "draft"\. It takes: .*bio.*\(top-level, not nested\)/);
+    const extra = await call("check_originality", { ...sheet("Odile Ferrant"), mood: "sunny" }, ctx);
+    expect(extra.isError).toBeFalsy();
+    expect(extra.structuredContent.ignored_arguments).toContain("mood");
+  });
+
   it("a refused call names the field to fix, and the allowed values", async () => {
     const ctx = await connect();
     const young = await call("create_character", sheet("Kit Young", { age: 17 }), ctx);

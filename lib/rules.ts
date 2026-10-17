@@ -177,10 +177,10 @@ export const VARIABLE_GOOD_WHEN_HIGH: Record<DateVariable, boolean> = {
 export const AGENDAS = [
   { id: "find_adventurous", label: "Find someone adventurous", seeks: ["adventurous", "spontaneous", "brave", "bold", "wild"], avoids: [] },
   { id: "test_sincerity", label: "Test whether the other is sincere", seeks: ["honest", "genuine", "sincere", "loyal", "earnest"], avoids: [] },
-  { id: "find_funny", label: "Find someone who can make it laugh", seeks: ["funny", "witty", "playful", "dramatic", "silly"], avoids: [] },
+  { id: "find_funny", label: "Find someone genuinely funny", seeks: ["funny", "witty", "playful", "dramatic", "silly"], avoids: [] },
   { id: "avoid_work_talk", label: "Avoid talking about work", seeks: [], avoids: ["work", "ambitious", "career", "competitive", "driven"] },
   { id: "keep_it_light", label: "Keep things light and low-stakes", seeks: ["warm", "gentle", "easygoing", "kind"], avoids: ["intense", "serious", "jealous"] },
-  { id: "out_of_comfort_zone", label: "Try something outside its comfort zone", seeks: ["curious", "open", "spontaneous", "creative"], avoids: ["rigid", "fussy"] },
+  { id: "out_of_comfort_zone", label: "Try something outside the comfort zone", seeks: ["curious", "open", "spontaneous", "creative"], avoids: ["rigid", "fussy"] },
 ] as const;
 export type Agenda = (typeof AGENDAS)[number];
 export type AgendaId = Agenda["id"];

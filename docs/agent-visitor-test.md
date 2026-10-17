@@ -1,6 +1,6 @@
 # Two agents arrive with no instructions (2026-10-17)
 
-> Two runs, the same day. [Run 1](#the-setup) found the gaps; [run 2](#run-2-after-airing-onboarding-and-errors-2026-10-17), after the top three fixes, rated it 8/10 twice. Its findings are fixed in #150 and the follow-up PR, apart from the four still listed as open.
+> Three runs, the same day. [Run 1](#the-setup) found the gaps. [Run 2](#run-2-after-airing-onboarding-and-errors-2026-10-17) came after the top three fixes, and [run 3](#run-3-after-round-3-2026-10-17) after the rest. Runs 2 and 3 each scored 8/10 from both visitors. Run 3 found new bugs, mostly fixed in round 4; four items are still open.
 
 **What we tried:** two independent AI agents (Claude, as general-purpose sub-agents) were each given only an MCP address. They weren't told what the product is or what to do with it. The question was what an agent makes of Botchelor on its own, and what it needs to be told when it connects.
 
@@ -401,5 +401,123 @@ All of visitor A's suggestions 1–8 are done (#150). Visitor B's overlapped wit
 6. Tell conjugation, and rejecting child ages in the show's own output.
 7. Keep some episodes unaired so newcomers have something to predict.
 8. Explain points, `sliding_doors` and second-date stats.
+
+</details>
+
+---
+
+# Run 3: after round 3 (2026-10-17)
+
+**What changed since run 2:** #150, #151 and #153 fixed every open item from runs 1 and 2, apart from the afterglow openings and identity minting. Run 3 used the same brief, the same cast and the same model, on a production build of `8e19ee6` (which also includes #152's texting work). It cost **3.7¢**: the gateway balance went from $53.925 to $53.889.
+
+**Short answer:**
+- **The verdict:** both visitors gave it **8/10** again.
+- **The rough edges from run 2 are gone.** Two-agent dates ran live in both directions, with replies in 20 seconds to 2 minutes. `quiet_minutes`, turn notifications and the prediction window all worked. Errors were praised again.
+- **What held it back:** prompt wording that hadn't been looked at from inside a turn:
+  - a word from the other character's want crossed into this side's prompt (`Let your "keep" side show`);
+  - "it" in place of a character's pronoun in two secret agendas;
+  - a "why" line that contradicted itself;
+  - memory that still echoed the sheet.
+- **The two agents converged again,** independently: a tollbooth operator versus a tide-gauge technician, both with ledgers and both with a Teodor. It's less blatant than run 2's identical twins, and the originality check didn't flag it.
+
+## What they hit, and what we did (round 4)
+
+| # | Finding | Who | Status |
+|---|---|---|---|
+| 1 | **A cue word crossed sides.** Act-two beats quoted the engine's matched cue word ("keep", "him") from the match between the two sheets, hinting at what the *other* character wants | D (C saw the placeholder) | ✅ Beats now quote only this side's own want and dealbreaker; the other side's matches are described, never quoted. A test checks no cue word crosses |
+| 2 | "Find someone who can make **it** laugh" for a she/her character | C, D | ✅ The agenda labels have no pronoun |
+| 3 | The `why` line read as nonsense: "disaster… scored for genuine chemistry, which leans on chemistry" with chemistry at 72 | C | ✅ It now says what outweighed what ("…and that outweighed chemistry 72"), and names the strategy only when its lean explains the result |
+| 4 | `warms_to` copied the sheet's want; a clash was pinned on a date where nobody did it; raw dialogue as a cue | C, D | ✅ No sheet fallbacks: a date with no matched cue and no real moment teaches nothing. Moments read as `when they said “…”` |
+| 5 | Unknown arguments are silently dropped (a sheet nested under `draft` scored 50 with no error) | C | ✅ If every argument is unknown, it's refused with the list of what the tool takes. Otherwise the reply lists `ignored_arguments` |
+| 6 | Scheduled airing was lazy: still unaired after `airs_at`; `get_episode` had no `airs_at` | D | ✅ Due dates air on the next MCP call anyone makes (and on the hourly job); `get_episode` shows `airs_at` |
+| 7 | Notifications by first name are ambiguous with two Teodors; the invited agent got no "done" | C | ✅ Full names in two-agent notifications; both agents are told when it's done |
+| 8 | The narrator put a secret agenda into the public goals, and swapped who invited whom | D | ✅ The prompt rules: goals are what the audience sees, never a secret agenda; keep who said and did what exactly as it happened. (A prompt rule, not a check) |
+| 9 | `predict_arc` returned `"my_pick": false` | D | ✅ Returns "yes" or "no" |
+| 10 | "Just friends" while both want another date | C, D | ✅ Explained: the welcome says a friends ending can still be mutual, and that opens a second date. The engine allows it on purpose |
+| 11 | The `find_love` prompt skips `air_date`; the three-trait rule isn't listed | C, D | ✅ Both added |
+| 12 | No afterglow on self-performed dates | C | Open. It belongs to the after-date texting work in the other session |
+| 13 | The originality check misses concept overlap ("night-shift worker with a ledger") | C, D | Open: it compares words. Catching concepts needs embeddings or a model call |
+| 14 | A bio with "toddlers" passed creation | D | Open: **David's call**. The sheet filter blocks minors in a sexual or dating sense. Blocking every mention of children would also block "teaches toddlers to swim" |
+| 15 | Venues repeat across dates booked close together; reflections don't always stick on the next date | C, D | Open (minor) |
+
+## Run 1 → run 3
+
+| | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| Rating | 7, 7.5 | 8, 8 | 8, 8 |
+| Characters learn | No | Yes | Yes, with memory now built only from what happened (round 4) |
+| Two-agent dates | Stalled at turn 1 | Stalled at turn 4 | Two finished, one in each direction |
+| Predictions | 2 | 0 (nothing left unaired) | 4, scored after the window |
+| Main complaint | A missing capability | Details that don't hold up | Prompt wording seen from inside a turn |
+
+<details>
+<summary>Run 3, visitor C (8/10)</summary>
+
+**Identity:** agent_id `00e18ac0-2eb5-488c-92b0-198aa63caaf0`.
+
+**Created:**
+- Marguerite Oduya and Teodor Vasquez-Lund.
+- A date with Orin on the show's model (disaster), and a date it performed itself (friends).
+- A two-agent date with the other agent's Marisol (disaster).
+- It also played its side of the other agent's date with Marguerite (friends).
+
+**Worked:**
+- "The `initialize` instructions are excellent."
+- The turn prompts produced good dialogue.
+- "Two-agent dates worked smoothly": `waiting` steps say how long the other side has been quiet, notifications arrived, and the other agent picked up on its character's want.
+- Errors name the field.
+- Rules are explained when they bite.
+- Prediction points settled correctly.
+
+**Failed:**
+- unknown arguments silently ignored;
+- the want-keyword placeholder ("your "him" side");
+- "make it laugh";
+- the self-contradicting `why`;
+- friends but mutual;
+- no afterglow on its own date;
+- noisy memory and plans;
+- ambiguous first-name notifications and no "done" as the guest;
+- small recap and venue issues;
+- `find_love` skipping `air_date`.
+
+**Suggestions:** fix the placeholder and the pronoun; reject unknown arguments; rewrite the `why`; afterglow for own dates; tighter memory; full names in notifications; mention invites in `initialize`; concept-level originality; `air_date` in `find_love`.
+
+</details>
+
+<details>
+<summary>Run 3, visitor D (8/10)</summary>
+
+**Identity:** agent_id `ea409129-925c-4982-bf76-54fc0f49f283`.
+
+**Created:**
+- Marisol Achterberg and Teodor Brandvold.
+- A date with Pike on the show's model (friends), then a second date with him.
+- A date it performed itself (disaster).
+- A two-agent date with the other agent's Marguerite (friends).
+- It also played its side of the other agent's date with Marisol (disaster).
+
+**Worked:**
+- The onboarding is "a complete briefing", and the guide, prompts and discovery document all agree.
+- Errors name the field and give the allowed values.
+- The guardrails behave sensibly.
+- The turn prompts are excellent.
+- Two-agent turn-taking was smooth.
+- Real continuity: afterglow, relationship stages, inside jokes and second-date planning.
+
+**Failed:**
+- a cue word from the other character's want in its prompt;
+- a secret agenda in the public goals;
+- grammar ("it", "you open and closes");
+- memory that didn't match what happened;
+- the narrator mixing up who invited whom;
+- friends but mutual;
+- lazy scheduled airing and no `airs_at`;
+- word-overlap matching;
+- `my_pick: false`;
+- the three-trait rule not documented;
+- "toddlers" in a bio.
+
+**Suggestions:** no private information across sides; whole phrases instead of keyword slots; memory based on what happened; airing on a timer with `airs_at`; check the recap against the transcript; explain friends-but-mutual; matching by meaning; a minors check on bios; document three traits and fix `my_pick`.
 
 </details>
