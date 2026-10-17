@@ -81,8 +81,13 @@ export function findCliches(sheet: SheetDraft): Cliche[] {
 
 /** The words that make a sheet what it is, for comparing two characters. */
 function fingerprint(sheet: SheetDraft): Set<string> {
-  return new Set(contentWords([sheet.bio ?? "", (sheet.traits ?? []).join(" "), sheet.want ?? "", sheet.voice ?? ""].join(" "), 4));
+  const e = sheet.extras ?? {};
+  return new Set(contentWords([sheet.bio ?? "", (sheet.traits ?? []).join(" "), sheet.want ?? "", sheet.voice ?? "", e.occupation ?? "", e.quirk ?? ""].join(" "), 4));
 }
+
+/** What they do for a living, as words: the occupation detail, else the bio (where most sheets say it). */
+const workWords = (sheet: SheetDraft) => new Set(contentWords(sheet.extras?.occupation || "", 4));
+const bioWords = (sheet: SheetDraft) => new Set(contentWords(sheet.bio ?? "", 4));
 
 function jaccard(x: Set<string>, y: Set<string>): number {
   if (!x.size || !y.size) return 0;
@@ -98,11 +103,27 @@ export function likeness(a: SheetDraft, b: SheetDraft): number {
 
 /** Above this, two characters read as near-twins. Unrelated sheets sit well under 0.1. */
 export const LOOKALIKE_AT = 0.3;
+/** Two bios alone sharing this much read as the same person (the whole-sheet score is diluted by voice and want). */
+const BIO_LOOKALIKE_AT = 0.22;
+/** Same line of work and bios that overlap this much: a near-clone with the names changed. */
+const SAME_JOB_BIO_AT = 0.1;
+
+/** Why two sheets read as near-twins, or null. Pure. */
+export function lookalikeWhy(a: SheetDraft, b: SheetDraft, bName: string): { why: string; score: number } | null {
+  const whole = likeness(a, b);
+  if (whole >= LOOKALIKE_AT) return { why: `${bName} reads a lot like this one.`, score: whole };
+  const bio = jaccard(bioWords(a), bioWords(b));
+  if (bio >= BIO_LOOKALIKE_AT) return { why: `${bName}'s bio is close to this one's.`, score: bio };
+  const jobA = workWords(a), jobB = workWords(b);
+  const sharedJob = [...jobA].some((w) => jobB.has(w) || bioWords(b).has(w)) || [...jobB].some((w) => bioWords(a).has(w));
+  if (sharedJob && bio >= SAME_JOB_BIO_AT) return { why: `${bName} does the same kind of work and has a similar story.`, score: bio + 0.1 };
+  return null;
+}
 
 /** Characters already on the show that read almost the same (or share the name). Excludes `excludeId` (the one being edited). */
 export async function findLookalikes(db: Db, sheet: SheetDraft, excludeId: string | null = null, limit = 3): Promise<Lookalike[]> {
-  const { rows } = await db.query<{ id: string; name: string; bio: string; traits: string[]; want: string; voice: string | null }>(
-    `select id, name, bio, traits, want, voice from characters
+  const { rows } = await db.query<{ id: string; name: string; bio: string; traits: string[]; want: string; voice: string | null; extras: CharacterExtras | null }>(
+    `select id, name, bio, traits, want, voice, extras from characters
       where ($1::text is null or id <> $1)
       order by is_house desc, created_at desc
       limit 500`,
@@ -115,8 +136,8 @@ export async function findLookalikes(db: Db, sheet: SheetDraft, excludeId: strin
       found.push({ id: r.id, name: r.name, why: `There's already a ${r.name} on the show.`, score: 2 });
       continue;
     }
-    const score = likeness(sheet, r);
-    if (score >= LOOKALIKE_AT) found.push({ id: r.id, name: r.name, why: `${r.name} reads a lot like this one.`, score });
+    const alike = lookalikeWhy(sheet, r, r.name);
+    if (alike) found.push({ id: r.id, name: r.name, ...alike });
   }
   return found.sort((x, y) => y.score - x.score).slice(0, limit).map(({ score: _s, ...l }) => l);
 }

@@ -31,8 +31,8 @@ import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from 
 import { getEpisodeView, type DateSetup, type EpisodeView } from "./game";
 import type { ChatMessage } from "./model";
 import { PROMPT_VERSION, qualityContext } from "./pipeline";
-import { transcriptQuality } from "./quality";
-import { CONVERSATION_TURNS, DATE_ACTS, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
+import { neverSaid, transcriptQuality } from "./quality";
+import { CONVERSATION_TURNS, DATE_ACTS, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
 import { buildReflectionMessages, type Reflections } from "./reflection";
 import { useNudges } from "./between-dates";
@@ -483,6 +483,9 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
   if (current.stage === "turn") {
     const parsed = parseTurnResult(raw, current.side, current.act_index);
     if (!("turn" in parsed)) return { ok: true, step: current, rejected: TURN_REJECTIONS[parsed.rejected] };
+    const speaker = built.characters[current.side === "a" ? 0 : 1];
+    const problem = ownTurnProblem(raw, parsed.turn, speaker.extras?.never_says, transcript);
+    if (problem) return { ok: true, step: current, rejected: problem };
     const next = [...transcript, parsed.turn];
     const saved = await db.query(
       `update episodes set transcript = $2::jsonb
@@ -493,7 +496,14 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     // Someone else handed in this turn first (a retry racing itself): offer whatever step is current now.
     if (!saved.rows.length) return getOwnDateStep(db, userId, episodeId);
     // Two-agent: the next step may be the other agent's turn, or the show's recap (getOwnDateStep runs it).
-    if (twoAgent) return getOwnDateStep(db, userId, episodeId);
+    if (twoAgent) {
+      const upNext = stepFor(episodeId, built, decided, formatId, next, [row.a_id, row.b_id]);
+      if (upNext.stage === "turn") {
+        const theirs = performersOf(row)[upNext.side];
+        if (theirs !== userId) await tellTheirMove(db, theirs, row, upNext.side, next.length, totalTurns(formatId));
+      }
+      return getOwnDateStep(db, userId, episodeId);
+    }
     return { ok: true, step: stepFor(episodeId, built, decided, formatId, next, [row.a_id, row.b_id]) };
   }
 
@@ -523,6 +533,21 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
 }
 
 /* --------------------------------------------- two-agent dates --------------------------------------------- */
+
+/** Tells the other agent it's their move. One unread at a time per date, so a long date doesn't fill the inbox. */
+async function tellTheirMove(db: Db, to: string, row: Row, side: "a" | "b", done: number, of: number): Promise<void> {
+  const name = shortName(side === "a" ? row.a_name : row.b_name);
+  const with_ = shortName(side === "a" ? row.b_name : row.a_name);
+  await db
+    .query(`delete from notifications where user_id = $1 and kind = 'own_date_turn' and read_at is null and body like $2`, [to, `%${row.id}%`])
+    .catch(() => {});
+  await notify(db, to, {
+    kind: "own_date_turn",
+    title: `🎭 Your move: ${name}'s turn on the date with ${with_}`,
+    body: `Two-agent date ${row.id}, ${done} of ${of} lines in. Get the turn with get_own_date_step and hand it in with submit_own_date_step.`,
+    link: null,
+  });
+}
 
 /** The invited agent says no: the unfinished date is removed (it was never visible) and the asking agent is told. */
 export async function declineOwnDate(db: Db, userId: string, episodeId: string): Promise<boolean> {
@@ -582,6 +607,50 @@ const TURN_REJECTIONS: Record<string, string> = {
   schema: 'The reply needs a non-empty "dialogue" string (plus optional action, emotion, interest_signal).',
   filtered: "That line broke the show's content rules (no minors, no sexual content, no real people). Run the turn again.",
 };
+/**
+ * Our model's lines are trimmed and rewritten by the turn critic; an agent's are its own, so the rules the sheet sets
+ * are checked here and a line that breaks one goes back: over the length limit, a phrase the character never says,
+ * or a line that's degenerated (one word over and over, or the same line as before).
+ */
+export function ownTurnProblem(raw: string, turn: Turn, never: readonly string[] | undefined, before: Turn[]): string | null {
+  const said = spokenLength(raw);
+  if (said > TURN_DIALOGUE_MAX) return `That line is ${said} characters; a spoken line is at most ${TURN_DIALOGUE_MAX}. Say it shorter.`;
+  const phrase = neverSaid(turn.dialogue, never);
+  if (phrase) return `This character never says "${phrase}" (their sheet's never_says). Run the turn again without it.`;
+  if (degenerate(turn.dialogue)) return "That line repeats itself. Run the turn again: one natural spoken line.";
+  const plain = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (before.some((t) => t.side === turn.side && plain(t.dialogue) === plain(turn.dialogue))) {
+    return "That's word for word a line this character already said on this date. Say something new.";
+  }
+  return null;
+}
+
+/** The untrimmed dialogue's length (parseTurnResult trims to the limit, which hides an over-long line). */
+function spokenLength(raw: string): number {
+  try {
+    const unfenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(raw.trim())?.[1] ?? raw.trim();
+    const d = (JSON.parse(unfenced) as { dialogue?: unknown }).dialogue;
+    return typeof d === "string" ? d.trim().length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** One word making up most of a long line, or the same three words three times over. */
+export function degenerate(text: string): boolean {
+  const words = text.toLowerCase().match(/[a-z0-9']+/g) ?? [];
+  if (words.length < 8) return false;
+  const counts = new Map<string, number>();
+  for (const w of words) counts.set(w, (counts.get(w) ?? 0) + 1);
+  if (Math.max(...counts.values()) / words.length > 0.4) return true;
+  const grams = new Map<string, number>();
+  for (let i = 0; i + 3 <= words.length; i++) {
+    const g = words.slice(i, i + 3).join(" ");
+    grams.set(g, (grams.get(g) ?? 0) + 1);
+  }
+  return Math.max(...grams.values()) >= 3;
+}
+
 const RECAP_REJECTIONS: Record<string, string> = {
   invalid_json: "That wasn't a JSON object. Reply with exactly the JSON in reply_format.",
   schema: "The recap needs every key in reply_format: setting, two goals, three scenes, twist, finale, best_line and two confessionals.",

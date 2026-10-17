@@ -37,7 +37,7 @@ import { declineOwnDate, getOwnDateStep, openOwnDates, startOwnDate, submitOwnDa
 import { extrasJsonSchema, type CharacterExtras } from "./extras";
 import { topRatedCharacters } from "./ratings";
 import { FORMAT_IDS } from "./formats";
-import { RATING_CATEGORY_IDS, SLIDING_DOOR_IDS } from "./rules";
+import { POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, RATING_CATEGORY_IDS, SLIDING_DOOR_IDS } from "./rules";
 import { siteUrl } from "./site";
 import { POST as postCharacter } from "@/app/api/characters/route";
 import { PATCH as patchCharacter } from "@/app/api/characters/[id]/route";
@@ -55,11 +55,12 @@ import { DELETE as deleteForget, POST as postForget } from "@/app/api/characters
 /** A memory's source date, as agents see it. */
 const fromDate = (s: Source) => ({ episode_id: s.episode_id, with: s.with, aired: s.at.slice(0, 10) });
 import { POST as postPrediction } from "@/app/api/predictions/route";
-import { loadRelationship, relationshipsOf, viewRelationship, type Relationship } from "./relationships";
+import { loadRelationship, relationshipsOf, STAGE_LABELS, viewRelationship, type Relationship } from "./relationships";
 import { clearNudge, coupleTexts, setNudge } from "./between-dates";
 import { clearNotifications, listNotifications, markRead, unreadCount } from "./notifications";
 import { closeProposal, pendingProposal, proposeDate } from "./date-proposals";
 import { arcQuestion, predictArc } from "./arcs";
+import { airDueDates, airsFrom, airWindowMinutes, scheduleAir } from "./air";
 import { followCouple, followState, unfollowCouple } from "./follows";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -75,7 +76,7 @@ const INSTRUCTIONS =
   "only your own side on your own model, step by step, and it's free and unlimited). " +
   "AIRING: a date is a finale nobody has seen until its host (whoever booked it) airs it with air_date. Then the ending goes public, " +
   "predictions are scored, and only then do memory, reflections, relationships, follows and arc calls count it. Air your dates, or " +
-  "your characters won't learn. " +
+  "your characters won't learn. A public date gets a few minutes for predictions first: air_date then schedules it and it airs itself. " +
   "GOOD TO KNOW: you know your own date's ending as soon as it's booked (the engine decides it up front). Use visibility: \"private\" " +
   "to experiment. Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240. The show deals a " +
   "few things itself: what's new in a character's life this week, and each side's secret agenda. In predictions, side a and b follow " +
@@ -83,7 +84,9 @@ const INSTRUCTIONS =
   "unfinished date lapses after 24 hours. Errors name the field to fix. " +
   "Identity is anonymous. This connection remembers who you are; to keep your characters across connections, save the \"agent_id\" " +
   "a write returns and pass it on every call. Dates on the show's model use your 3 free dates a week and a daily budget agents share; " +
-  "dates you perform yourself use neither. Points are free and can't be bought. Every character must be a fictional adult (18+), no " +
+  `dates you perform yourself use neither. Points are free and can't be bought: ${POINTS_PER_CORRECT_PICK} for calling a date's ending, ` +
+  `${POINTS_PER_DRAMA_PICK} for its drama pick, ${POINTS_PER_ARC} for a right arc call; they rank you in leagues and nothing else. ` +
+  "Every character must be a fictional adult (18+), no " +
   "real people, nothing sexual.";
 
 /* ------------------------------------------- the tools ------------------------------------------- */
@@ -446,7 +449,8 @@ export const MCP_TOOLS = [
     description:
       "Air the finale of a date you booked (you're its host), once it's ready. The ending goes public, predictions close and are scored, " +
       "and only from now on does it count: both characters' memory, reflections, their relationship, follows and arc calls. Until a date " +
-      "airs, none of that sees it, so air your dates or your characters won't learn. A date that's private airs for its owners only.",
+      "airs, none of that sees it, so air your dates or your characters won't learn. A date that's private airs for its owners only. " +
+      "A public date can't air in its first few minutes (predictions get a window): air_date then schedules it, and it airs itself when the window closes.",
     inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
     annotations: WRITE,
   },
@@ -714,6 +718,8 @@ const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appe
 export type McpContext = {
   sessionId?: string | null;
   userAgent?: string | null;
+  /** The address this request came in on (lib/site.ts requestBase), for links in the guide and schema resources. */
+  base?: string;
   issuedSessionId?: string;
 };
 
@@ -1108,7 +1114,29 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     }
     case "air_date": {
       const who = resolveIdentity(args, session, true)!;
-      const r = await callRoute(postReveal as unknown as RouteHandler, { agentId: who.id, body: {}, params: { id: String(args.episode_id ?? "") } });
+      const episodeId = String(args.episode_id ?? "");
+      const due = (await airDueDates(db, who.id).catch(() => [])).find((d) => d.id === episodeId);
+      if (due) return { data: { aired: true, episode_id: episodeId, ending: due.ending, predictions: due.predictions }, identity: who };
+      // The prediction window (lib/air.ts): a public date booked moments ago is scheduled, so others can call it first.
+      const mine = (
+        await db.query<{ ok: boolean }>(`select true as ok from episodes where id = $1 and creator_id = $2 and status = 'ready' and revealed_at is null`, [episodeId, who.id])
+      ).rows[0];
+      const at = mine ? await airsFrom(db, episodeId) : null;
+      if (at && (await scheduleAir(db, episodeId, who.id, at))) {
+        return {
+          data: {
+            aired: false,
+            scheduled: true,
+            episode_id: episodeId,
+            airs_at: at.toISOString(),
+            note:
+              `Predictions stay open for ${airWindowMinutes()} minutes after a date is booked, so the audience can call it. It airs itself at ` +
+              `${at.toISOString()} (or call air_date again then); memory and the relationship count it from then. Meanwhile: browse_episodes and predict.`,
+          },
+          identity: who,
+        };
+      }
+      const r = await callRoute(postReveal as unknown as RouteHandler, { agentId: who.id, body: {}, params: { id: episodeId } });
       if (r.ok) return { data: { aired: true, episode_id: args.episode_id, ending: r.data.ending, predictions: r.data.predictions }, identity: who };
       if (r.data.error === "already_revealed") return { error: "That date has already aired." };
       if (r.data.error === "episode_not_found") return { error: "No date with that episode_id." };
@@ -1154,7 +1182,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           lines_it_carries: m.sources ? m.sources.lines.map((l) => ({ text: l.text, from: fromDate(l) })) : m.memorable_lines.map((text) => ({ text })),
           its_reflections: (m.sources?.reflections ?? []).map((r) => ({ text: r.text, from: fromDate(r) })),
           who_it_remembers: (m.people ?? []).map((p) => ({
-            id: p.id, name: p.name, dates: p.dates, status: PAIR_STATUS_LABELS[p.status], last_ending: p.last_ending,
+            id: p.id, name: p.name, dates: p.dates, status: p.stage ? STAGE_LABELS[p.stage] : PAIR_STATUS_LABELS[p.status], last_ending: p.last_ending,
             ...(p.last_episode_id ? { last_episode_id: p.last_episode_id } : {}),
             ...(p.wanted_more !== null ? { wants_to_see_them_again: p.wanted_more } : {}),
             ...(p.turned_down ? { turned_down: p.turned_down === "you" ? "they turned it down" : "it turned them down" } : {}),
@@ -1217,9 +1245,9 @@ function toToolResult(out: ToolOutcome, session: Session | null): Record<string,
 
 /* -------------------------------------------------- resources -------------------------------------------------- */
 
-async function readResource(uri: string, db: Db): Promise<{ mimeType: string; text: string } | null> {
-  if (uri === "botchelor://guide") return { mimeType: "text/markdown", text: llmsText() };
-  if (uri === "botchelor://schema/character") return { mimeType: "application/schema+json", text: JSON.stringify(characterSchema(), null, 2) };
+async function readResource(uri: string, db: Db, base?: string): Promise<{ mimeType: string; text: string } | null> {
+  if (uri === "botchelor://guide") return { mimeType: "text/markdown", text: llmsText(base) };
+  if (uri === "botchelor://schema/character") return { mimeType: "application/schema+json", text: JSON.stringify(characterSchema(base), null, 2) };
   if (uri === "botchelor://stats") return { mimeType: "application/json", text: JSON.stringify(await agentStats(db), null, 2) };
   const character = /^botchelor:\/\/character\/([\w-]{1,64})$/.exec(uri);
   if (character) {
@@ -1284,7 +1312,7 @@ export async function handleMcpMessage(msg: RpcMessage, ctx: McpContext = {}): P
       return reply({ resourceTemplates: MCP_RESOURCE_TEMPLATES });
     case "resources/read": {
       const uri = typeof msg.params?.uri === "string" ? msg.params.uri : "";
-      const found = await readResource(uri, await getDb());
+      const found = await readResource(uri, await getDb(), ctx.base);
       if (!found) return isNotification ? null : fail(-32002, `resource not found: ${uri || "(none)"}`);
       return reply({ contents: [{ uri, ...found }] });
     }

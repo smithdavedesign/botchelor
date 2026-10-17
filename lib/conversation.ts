@@ -33,7 +33,7 @@ import { metBefore, recentDates, sharedHistory } from "./memory";
 import { currentTell } from "./personality";
 import { lineIssues } from "./quality";
 import { actForTurn, agenda, CONVERSATION_TURNS, DATE_ACTS, TURN_DIALOGUE_MAX, type ProducerId } from "./rules";
-import { checkFields } from "./safety";
+import { checkShowText } from "./safety";
 import { venue, type VenueId } from "./venues";
 
 /** One line of the date. `side` is "a"/"b"; `act` indexes DATE_ACTS. emotion/interest are flavour only. */
@@ -176,7 +176,7 @@ export function buildTurnMessages(
     you: characterSelfView(meChar, dateContext(me)),
     them: characterBlindView(themChar),
     where: venue(venueId).prompt,
-    the_show_format: formatNote(formatId, formatCtx),
+    the_show_format: formatNote(formatId, { ...formatCtx, metBefore: Boolean(history) || Number((together as { times_together?: number } | null)?.times_together ?? 0) > 0 }),
     act: { name: DATE_ACTS[act], what_happens: beat.scene },
     what_you_want_in_someone: meChar.persona.want,
     ...(meChar.memory?.reflections?.length ? { what_your_past_dates_taught_you: meChar.memory.reflections } : {}),
@@ -231,7 +231,7 @@ export function parseTurnResult(raw: string, side: "a" | "b", act: number): { tu
   const dialogue = trimTo(parsed.data.dialogue, TURN_DIALOGUE_MAX);
   const action = trimTo(parsed.data.action ?? "", ACTION_MAX);
   const emotion = trimTo(parsed.data.emotion ?? "", EMOTION_MAX);
-  if (!checkFields({ dialogue, action, emotion }).ok) return { rejected: "filtered" };
+  if (!checkShowText({ dialogue, action, emotion }).ok) return { rejected: "filtered" };
   return { turn: { side, act, dialogue, action, emotion, interest: clamp01(parsed.data.interest_signal ?? 0.5) } };
 }
 

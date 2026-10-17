@@ -81,8 +81,8 @@ export const FORMATS: readonly ShowFormat[] = [
   },
 ] as const;
 
-/** Names pulled from real data to fill a format's note (lib/simulation.ts computes them per date). */
-export type FormatContext = { chaperone?: string; ex?: string };
+/** Names pulled from real data to fill a format's note (lib/simulation.ts computes them per date), and whether the two have dated before (a rematch isn't "two strangers"). */
+export type FormatContext = { chaperone?: string; ex?: string; metBefore?: boolean };
 
 /**
  * A format's note with any real names filled in — a named house regular as the meet-the-parents chaperone,
@@ -91,6 +91,7 @@ export type FormatContext = { chaperone?: string; ex?: string };
  */
 export function formatNote(id: FormatId | null | undefined, ctx: FormatContext = {}): string {
   return format(id).note
+    .replace("two strangers meeting for the first time", ctx.metBefore ? "two people who have dated before, meeting again" : "two strangers meeting for the first time")
     .replace("{chaperone}", ctx.chaperone ? `A protective house regular, ${ctx.chaperone},` : "A protective older house regular")
     .replace("{ex}", ctx.ex ? `${ctx.ex}, an ex of one of the characters,` : "an ex of one of the characters");
 }
