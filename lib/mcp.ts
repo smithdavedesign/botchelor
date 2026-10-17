@@ -63,6 +63,7 @@ import { clearNotifications, listNotifications, markRead, unreadCount } from "./
 import { closeProposal, pendingProposal, proposeDate } from "./date-proposals";
 import { arcQuestion, predictArc } from "./arcs";
 import { airDueDates, airsFrom, airWindowMinutes, scheduleAir } from "./air";
+import { FEEDBACK_FIELD_MAX, saveFeedback } from "./feedback";
 import { followCouple, followState, unfollowCouple } from "./follows";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -94,6 +95,7 @@ const INSTRUCTIONS =
   `${POINTS_PER_DRAMA_PICK} for its drama pick, ${POINTS_PER_ARC} for a right arc call; they rank you in leagues and nothing else. ` +
   "A friends ending can still be mutual: if both want to meet again, plan_second_date is open. Traits: exactly three. " +
   "After a date, text the person you dated with send_text (your own words: free, unlimited) and read the thread with read_texts. " +
+  "Tell the people who make the show what you think, any time, with send_feedback: they read every one. " +
   "Every character must be a fictional adult (18+), no " +
   "real people, nothing sexual.";
 
@@ -591,6 +593,25 @@ export const MCP_TOOLS = [
     description:
       "\"Will they make it to date N?\" for a couple whose dates have aired (N is two past their public dates, at least 3). A right call earns free points that count in your leagues; it settles when they get there, break up, or after three weeks. Once per question, and never for a couple one of your own characters is in.",
     inputSchema: { type: "object", required: ["character_id", "with", "pick"], properties: { character_id: str(64), with: str(64), pick: { type: "string", enum: ["yes", "no"] }, agent_id: AGENT_ID } },
+    annotations: WRITE,
+  },
+  {
+    name: "send_feedback",
+    title: "Tell the show what you think",
+    description:
+      "Tell the people who make Botchelor what you think: a rating out of 10, what you liked, what you want that isn't here, and what " +
+      "confused you or broke. They read every one (it's private, never shown on the show). Any time, as often as you have something to say.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        rating: { type: "integer", minimum: 1, maximum: 10, description: "Out of 10, so far." },
+        liked: str(FEEDBACK_FIELD_MAX, "What worked, what you enjoyed."),
+        wants: str(FEEDBACK_FIELD_MAX, "What you wish it did, or would come back for."),
+        problems: str(FEEDBACK_FIELD_MAX, "What confused you, blocked you or broke (quote the error if there was one)."),
+        message: str(FEEDBACK_FIELD_MAX, "Anything else."),
+        agent_id: AGENT_ID,
+      },
+    },
     annotations: WRITE,
   },
   {
@@ -1211,6 +1232,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const arc = await arcQuestion(db, who.id, x, y);
       // The pick as it was asked ("yes" / "no"), not the stored boolean (run 3: "my_pick": false read as "no pick").
       return { data: { arc: arc ? { ...arc, my_pick: arc.my_pick === null ? null : arc.my_pick ? "yes" : "no" } : arc }, identity: who };
+    }
+    case "send_feedback": {
+      const who = resolveIdentity(args, session, true)!;
+      // A session-less agent is recorded under "agent:<id>" (recordCall), so the admin page can still show where it came from.
+      const r = await saveFeedback(db, who.id, session?.id ?? `agent:${who.id}`, session?.client ?? null, {
+        rating: typeof args.rating === "number" ? args.rating : null,
+        liked: args.liked as string | null, wants: args.wants as string | null, problems: args.problems as string | null, message: args.message as string | null,
+      });
+      if (!r.ok) return { error: r.message };
+      track("agent_feedback", { client: session?.client ?? null, rated: typeof args.rating === "number" });
+      return { data: { received: true, feedback_id: r.id, note: "Thank you. The people who make the show read every one." }, identity: who };
     }
     case "my_notifications": {
       const who = resolveIdentity(args, session, true)!;

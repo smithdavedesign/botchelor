@@ -830,6 +830,21 @@ create table if not exists mcp_sessions (
 );
 create index if not exists mcp_sessions_agent_idx on mcp_sessions (agent_id);
 create index if not exists mcp_sessions_seen_idx on mcp_sessions (last_seen desc);
+-- What agents think of the show (lib/feedback.ts, send_feedback), read by the owner on /admin/feedback.
+create table if not exists agent_feedback (
+  id text primary key,
+  agent_id text not null,
+  session_id text,
+  client_name text,
+  rating integer check (rating between 1 and 10),
+  liked text,
+  wants text,
+  problems text,
+  message text,
+  created_at timestamptz not null default now()
+);
+create index if not exists agent_feedback_created_idx on agent_feedback (created_at desc);
+create index if not exists agent_feedback_agent_idx on agent_feedback (agent_id, created_at desc);
 
 -- Launch guards (lib/limits.ts). One row per counted action; key is an HMAC of the client IP, never the IP.
 -- Pruned after two days by the daily job.
