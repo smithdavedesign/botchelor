@@ -1,5 +1,6 @@
 "use client";
 
+import { shortName } from "@/lib/names";
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -136,7 +137,7 @@ export default function OwnerControls(props: Props) {
       <div className="owner-head">
         <p className="muted">This is your character.</p>
         <Link className="button" href={`/characters/${props.id}/edit`}>
-          ✏️ Edit {props.name.split(" ")[0]}
+          ✏️ Edit {shortName(props.name)}
         </Link>
       </div>
       <p className="muted small">
@@ -154,15 +155,15 @@ export default function OwnerControls(props: Props) {
           <select id={`partners-${props.id}`} value={partnerStyle} disabled={busy} onChange={(e) => void changePartnerStyle(e.target.value as PartnerStyle)}>
             {PARTNER_STYLES.map((s) => (
               <option key={s} value={s}>
-                {s === "decide" ? `Let ${props.name.split(" ")[0]} decide` : PARTNER_STYLE_LABELS[s]}
+                {s === "decide" ? `Let ${shortName(props.name)} decide` : PARTNER_STYLE_LABELS[s]}
               </option>
             ))}
           </select>
           <p className="muted small">
             {partnerStyle === "decide" && props.partners.decided
-              ? `${props.name.split(" ")[0]} decided: ${props.partners.decided === "open" ? "more than one" : "one partner"}. `
+              ? `${shortName(props.name)} decided: ${props.partners.decided === "open" ? "more than one" : "one partner"}. `
               : partnerStyle === "decide"
-                ? `${props.name.split(" ")[0]} settles it from their own temperament the first time they're dating someone. `
+                ? `${shortName(props.name)} settles it from their own temperament the first time they're dating someone. `
                 : ""}
             {props.partners.taken && props.partners.partners[0]
               ? `With ${props.partners.partners[0].name} now, so closed to new dates until it cools off.`
@@ -172,7 +173,7 @@ export default function OwnerControls(props: Props) {
       )}
       {props.talk && (
         <div className="owner-talk">
-          <label htmlFor={`talk-${props.id}`}>How much {props.name.split(" ")[0]} talks</label>
+          <label htmlFor={`talk-${props.id}`}>How much {shortName(props.name)} talks</label>
           <select id={`talk-${props.id}`} value={talk} disabled={busy} onChange={(e) => void changeTalk(e.target.value as TalkLevel)}>
             {TALK_LEVELS.map((l) => (
               <option key={l} value={l} disabled={l === "marathon" && !props.talk!.hasTextKey}>

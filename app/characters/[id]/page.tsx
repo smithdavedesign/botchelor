@@ -1,3 +1,4 @@
+import { shortName } from "@/lib/names";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -156,7 +157,7 @@ export default async function CharacterPage({ params }: Props) {
             {c.house && dating && !dating.can_ask_out && !PREMIUM_IDS.has(c.id) && <span className="badge">Off this season</span>}
             {dating?.made_by === "agent" && <span className="badge badge-agent">🤖 Agent-made</span>}
             {!c.house && dating?.open_to_dates && <span className="badge badge-open">💌 Open to dates</span>}
-            {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">💍 With {partnerStyle.partners[0].name.split(" ")[0]}</span>}
+            {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">💍 With {shortName(partnerStyle.partners[0].name)}</span>}
             {partnerStyle && !partnerStyle.taken && partnerStyle.effective === "open" && (partnerStyle.choice === "open" || partnerStyle.decided) && (
               <span className="badge">🌈 Open to more than one</span>
             )}
@@ -178,7 +179,7 @@ export default async function CharacterPage({ params }: Props) {
       {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} />}
       {plays && (
         <p className="muted small owner-temperament">
-          🔒 How {c.name.split(" ")[0]} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}
+          🔒 How {shortName(c.name)} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}
           <Link href={`/characters/${c.id}/edit`}>Soul step</Link>.
         </p>
       )}

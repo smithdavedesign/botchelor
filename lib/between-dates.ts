@@ -9,6 +9,7 @@
  *    their texts and goes into their next date with that person, then it's used. Flavour only: never the engine.
  *  - **Drama.** A character seeing more than one person knows it (public record only), and so does the director.
  */
+import { shortName } from "./names";
 import { characterBlindView, characterSelfView, loadCharacter, type Character } from "./character";
 import type { Db } from "./db";
 import { ModelError, type ChatMessage, type Model } from "./model";
@@ -241,8 +242,8 @@ export async function sendDailyTexts(
       out.couples++;
       out.texts += sent.length;
       const last = sent[sent.length - 1];
-      const from = (last.who === "lo" ? lo : hi).name.split(" ")[0];
-      const to = (last.who === "lo" ? hi : lo).name.split(" ")[0];
+      const from = shortName((last.who === "lo" ? lo : hi).name);
+      const to = shortName((last.who === "lo" ? hi : lo).name);
       await notifyAll(db, [c.lo_owner, c.hi_owner], {
         kind: "texted",
         title: `💬 ${from} texted ${to}`,

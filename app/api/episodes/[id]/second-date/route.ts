@@ -1,3 +1,4 @@
+import { shortName } from "@/lib/names";
 import { z } from "zod";
 import { dateLabel } from "@/lib/rules";
 import { POST as createEpisode } from "@/app/api/episodes/route";
@@ -55,7 +56,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       const mine = (await db.query<{ name: string }>(`select name from characters where id = $1`, [state.my_character_id])).rows[0]?.name ?? "Their date";
       await notify(db, owners.get(state.partner_character_id), {
         kind: "second_date_yes",
-        title: `💌 ${mine.split(" ")[0]} wants a ${dateLabel(state.next_date_number).toLowerCase()} with ${state.partner_name.split(" ")[0]}`,
+        title: `💌 ${shortName(mine)} wants a ${dateLabel(state.next_date_number).toLowerCase()} with ${shortName(state.partner_name)}`,
         body: "Their creator said yes. Say yes too and it's booked.",
         link: `/episodes/${id}`,
       });

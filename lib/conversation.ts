@@ -22,6 +22,7 @@
  * already decided the outcome (lib/engine.ts); the emotion/interest fields are flavour only and never feed the
  * engine, the box score or prediction scoring. Best-effort: a failed conversation leaves an empty transcript.
  */
+import { shortName } from "./names";
 import { z } from "zod";
 import { rulesPlan, type DatePlan } from "./beats";
 import { characterBlindView, characterSelfView, type Character } from "./character";
@@ -268,8 +269,8 @@ export function critiqueTurn(
   if (issues.misgendered) notes.push(`refer to ${them.name} as ${them.pronouns ?? "they/them"}, or by name`);
   if (issues.repeated_opener) notes.push(`you started the same way as an earlier line ("${issues.repeated_opener}…") — say it differently`);
   if (issues.repeated_action) notes.push(`"${issues.repeated_action}" has already happened tonight — do something different, or nothing ("action": "")`);
-  if (issues.name_tic) notes.push(`you said ${them.name.split(" ")[0]}'s name last time too — people don't say it every line`);
-  if (issues.motif_fixation) notes.push(`you keep circling "${issues.motif_fixation}" — drop that image and either say something real about your own life or ask ${them.name.split(" ")[0]} a genuine question`);
+  if (issues.name_tic) notes.push(`you said ${shortName(them.name)}'s name last time too — people don't say it every line`);
+  if (issues.motif_fixation) notes.push(`you keep circling "${issues.motif_fixation}" — drop that image and either say something real about your own life or ask ${shortName(them.name)} a genuine question`);
   if (issues.never_said) notes.push(`you'd never say "${issues.never_said}" — put it your own way`);
   if (issues.sample_echo) notes.push("that repeats one of your example lines or something you said on an earlier date, word for word — say something new in that same voice");
   return notes.length ? notes.join("; ") : null;

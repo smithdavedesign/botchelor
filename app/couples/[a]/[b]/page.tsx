@@ -1,3 +1,4 @@
+import { shortName } from "@/lib/names";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -66,7 +67,7 @@ export default async function CouplePage({ params }: Props) {
   const { ca, cb, view, owner, seeing, texts, nudges, follow, arc } = data;
   const complicated = [ca, cb].filter((c) => seeing[c.id]?.length);
   const nameOf = (id: string) => (id === ca.id ? ca.name : cb.name);
-  const first = (c: PublicCharacter) => c.name.split(" ")[0];
+  const first = (c: PublicCharacter) => shortName(c.name);
 
   return (
     <>
@@ -192,7 +193,7 @@ export default async function CouplePage({ params }: Props) {
           <ul className="list">
             {view.plans.map((p) => (
               <li key={`${p.episode_id}-${p.by}`}>
-                <strong>{nameOf(p.by).split(" ")[0]}:</strong> “{p.text}”{" "}
+                <strong>{shortName(nameOf(p.by))}:</strong> “{p.text}”{" "}
                 <span className="badge">{p.status === "kept" ? "✅ kept" : p.status === "missed" ? "missed" : "still to do"}</span>
               </li>
             ))}

@@ -8,6 +8,7 @@
  * dates its partner until the relationship cools. An open character stays on the market. House characters are the
  * season's shared cast, so they're never taken.
  */
+import { shortName } from "./names";
 import type { Db } from "./db";
 import { loadCharacter } from "./character";
 import { notify } from "./notifications";
@@ -97,7 +98,7 @@ export async function settleCommitment(db: Db, lo: string, hi: string): Promise<
   );
   for (const c of rows) {
     if (c.is_house) continue;
-    const partner = rows.find((r) => r.id !== c.id)?.name.split(" ")[0] ?? "someone";
+    const partner = shortName(rows.find((r) => r.id !== c.id)?.name) || "someone";
     let style: DecidedStyle | null = c.partner_style === "one" || c.partner_style === "open" ? c.partner_style : c.partner_style_decided;
     const decidedNow = !style;
     if (!style) {
@@ -105,7 +106,7 @@ export async function settleCommitment(db: Db, lo: string, hi: string): Promise<
       style = loaded ? decideFromTemperament(loaded.signals) : "one";
       await db.query(`update characters set partner_style_decided = $2 where id = $1`, [c.id, style]);
     }
-    const first = c.name.split(" ")[0];
+    const first = shortName(c.name);
     const closing = style === "one" && c.open_to_dates;
     if (closing) await db.query(`update characters set open_to_dates = false where id = $1`, [c.id]);
     if (!decidedNow && !closing) continue;

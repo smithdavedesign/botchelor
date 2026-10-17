@@ -1,5 +1,6 @@
 "use client";
 
+import { shortName } from "@/lib/names";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -842,7 +843,7 @@ function ReviewRow({ label, children }: { label: string; children: ReactNode }) 
  */
 function PortraitPanel({ id, name, portrait, onPortrait }: { id: string; name: string; portrait: string | null; onPortrait: (src: string) => void }) {
   const [state, setState] = useState<null | "working" | "no_key" | { error: string }>(null);
-  const first = name.split(" ")[0];
+  const first = shortName(name);
 
   async function generate() {
     setState("working");
@@ -1132,7 +1133,7 @@ function SendPhase({ character, partners, openCharacters, tokens, offer, autonom
                   ))}
                 </ul>
                 <button type="button" disabled={busy !== null} onClick={() => sendOnDate(o.id)}>
-                  Ask {o.name.split(" ")[0]} out
+                  Ask {shortName(o.name)} out
                 </button>
               </li>
             ))}
@@ -1167,7 +1168,7 @@ function SendPhase({ character, partners, openCharacters, tokens, offer, autonom
               ))}
             </ul>
             <button type="button" disabled={busy !== null} onClick={() => sendOnDate(p.id)}>
-              Send on a date with {p.premium ? p.name : p.name.split(" ")[0]}
+              Send on a date with {p.premium ? p.name : shortName(p.name)}
             </button>
           </li>
         ))}
