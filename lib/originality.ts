@@ -164,7 +164,8 @@ export function scoreSheet(sheet: SheetDraft, cliches: Cliche[], similar: Lookal
   if (tells >= 2) score += 5;
   else tips.push("Give them a tell or two: what they do when they're nervous, or smitten.");
   if (details >= 3) score += 5;
-  else tips.push("A few details (a job, a quirk, a profile prompt) give their dates something real to talk about.");
+  else if (details === 0) tips.push("A few details (a job, a quirk, a profile prompt) give their dates something real to talk about.");
+  else tips.push(`${3 - details === 1 ? "One more detail" : "Two more details"} (a hometown, a hidden talent, a profile prompt) would give their dates more to talk about.`);
   score += (e.never_says?.length ? 5 : 0) + (words(sheet.want) >= 6 ? 5 : 0);
   score -= Math.min(30, cliches.length * 10);
   if (similar.length) score -= 20;
