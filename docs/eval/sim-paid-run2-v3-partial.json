@@ -1,0 +1,313 @@
+{
+  "model": "paid",
+  "dates": 5,
+  "results": [
+    {
+      "label": "cartographer × beekeeper",
+      "dates": [
+        {
+          "n": 1,
+          "episode_id": "1509d0f3-58d1-406b-98bf-db09ab1f0236",
+          "booked_as": "first",
+          "date_number": 1,
+          "ending": "second_date",
+          "venue": "corner_cafe",
+          "wants_another_creator": true,
+          "afterglow_verdict": {
+            "a_wants": true,
+            "b_wants": true
+          },
+          "box_score": {
+            "chemistry": {
+              "delta": 15,
+              "final": 65,
+              "start": 50
+            },
+            "trust": {
+              "delta": 3,
+              "final": 48,
+              "start": 45
+            },
+            "attraction": {
+              "delta": 5,
+              "final": 53,
+              "start": 48
+            },
+            "awkwardness": {
+              "delta": -8,
+              "final": 32,
+              "start": 40
+            }
+          },
+          "transcript_turns": 10,
+          "distinct_lines": 10,
+          "afterglow_turns": 4,
+          "texted_couples": 1,
+          "ms": 120774
+        },
+        {
+          "n": 2,
+          "episode_id": "65e4400b-fc9c-4a2b-a517-c443ad6adfe5",
+          "booked_as": "second_date",
+          "date_number": 2,
+          "ending": "second_date",
+          "venue": "tasting_menu",
+          "wants_another_creator": true,
+          "afterglow_verdict": {
+            "a_wants": true,
+            "b_wants": true
+          },
+          "box_score": {
+            "chemistry": {
+              "delta": 5,
+              "final": 70,
+              "start": 65
+            },
+            "trust": {
+              "delta": 8,
+              "final": 56,
+              "start": 48
+            },
+            "attraction": {
+              "delta": 11,
+              "final": 59,
+              "start": 48
+            },
+            "awkwardness": {
+              "delta": -5,
+              "final": 35,
+              "start": 40
+            }
+          },
+          "transcript_turns": 10,
+          "distinct_lines": 10,
+          "afterglow_turns": 4,
+          "texted_couples": 0,
+          "ms": 50363
+        },
+        {
+          "n": 3,
+          "episode_id": "29a8786a-def9-4577-b4d6-9ed130c18027",
+          "booked_as": "second_date",
+          "date_number": 3,
+          "ending": "friends",
+          "venue": "corner_cafe",
+          "wants_another_creator": true,
+          "afterglow_verdict": {
+            "a_wants": true,
+            "b_wants": true
+          },
+          "box_score": {
+            "chemistry": {
+              "delta": -4,
+              "final": 64,
+              "start": 68
+            },
+            "trust": {
+              "delta": -3,
+              "final": 49,
+              "start": 52
+            },
+            "attraction": {
+              "delta": 3,
+              "final": 51,
+              "start": 48
+            },
+            "awkwardness": {
+              "delta": -9,
+              "final": 31,
+              "start": 40
+            }
+          },
+          "transcript_turns": 10,
+          "distinct_lines": 10,
+          "afterglow_turns": 4,
+          "texted_couples": 0,
+          "ms": 65473
+        },
+        {
+          "n": 4,
+          "episode_id": "000b9c79-d524-4552-90c4-138826067ea1",
+          "booked_as": "second_date",
+          "date_number": 4,
+          "ending": "friends",
+          "venue": "corner_cafe",
+          "wants_another_creator": true,
+          "afterglow_verdict": {
+            "a_wants": true,
+            "b_wants": true
+          },
+          "box_score": {
+            "chemistry": {
+              "delta": -1,
+              "final": 65,
+              "start": 66
+            },
+            "trust": {
+              "delta": -3,
+              "final": 48,
+              "start": 51
+            },
+            "attraction": {
+              "delta": 10,
+              "final": 58,
+              "start": 48
+            },
+            "awkwardness": {
+              "delta": -1,
+              "final": 39,
+              "start": 40
+            }
+          },
+          "transcript_turns": 10,
+          "distinct_lines": 10,
+          "afterglow_turns": 4,
+          "texted_couples": 0,
+          "ms": 73149
+        },
+        {
+          "n": 5,
+          "episode_id": "6dd6e7fd-0359-44a2-9803-afbfdddb2e2e",
+          "booked_as": "second_date",
+          "date_number": 5,
+          "ending": "friends",
+          "venue": "rooftop_bar",
+          "wants_another_creator": true,
+          "afterglow_verdict": {
+            "a_wants": true,
+            "b_wants": true
+          },
+          "box_score": {
+            "chemistry": {
+              "delta": 3,
+              "final": 68,
+              "start": 65
+            },
+            "trust": {
+              "delta": -3,
+              "final": 46,
+              "start": 49
+            },
+            "attraction": {
+              "delta": -2,
+              "final": 46,
+              "start": 48
+            },
+            "awkwardness": {
+              "delta": -10,
+              "final": 30,
+              "start": 40
+            }
+          },
+          "transcript_turns": 10,
+          "distinct_lines": 10,
+          "afterglow_turns": 4,
+          "texted_couples": 0,
+          "ms": 70462
+        }
+      ],
+      "edges": [
+        {
+          "after_date": 1,
+          "stage": "sparks",
+          "chemistry": 65,
+          "trust": 48,
+          "tie": 0.698,
+          "dates": 1,
+          "second_dates": 1,
+          "dates_seen_by_other_owner": 1,
+          "jokes": 0,
+          "told": 3,
+          "plans": 0,
+          "plans_kept": 0,
+          "texts": 2,
+          "labels": [
+            "A second date"
+          ]
+        },
+        {
+          "after_date": 2,
+          "stage": "dating",
+          "chemistry": 67.5,
+          "trust": 52,
+          "tie": 0.765,
+          "dates": 2,
+          "second_dates": 2,
+          "dates_seen_by_other_owner": 2,
+          "jokes": 1,
+          "told": 5,
+          "plans": 2,
+          "plans_kept": 0,
+          "texts": 2,
+          "labels": [
+            "A second date",
+            "Another date"
+          ]
+        },
+        {
+          "after_date": 3,
+          "stage": "friends",
+          "chemistry": 65.8,
+          "trust": 50.5,
+          "tie": 0.804,
+          "dates": 3,
+          "second_dates": 2,
+          "dates_seen_by_other_owner": 3,
+          "jokes": 3,
+          "told": 6,
+          "plans": 4,
+          "plans_kept": 2,
+          "texts": 2,
+          "labels": [
+            "A second date",
+            "Another date",
+            "Just friends"
+          ]
+        },
+        {
+          "after_date": 4,
+          "stage": "friends",
+          "chemistry": 65.4,
+          "trust": 49.3,
+          "tie": 0.834,
+          "dates": 4,
+          "second_dates": 2,
+          "dates_seen_by_other_owner": 4,
+          "jokes": 5,
+          "told": 6,
+          "plans": 6,
+          "plans_kept": 4,
+          "texts": 2,
+          "labels": [
+            "A second date",
+            "Another date",
+            "Friends, for now",
+            "Just friends"
+          ]
+        },
+        {
+          "after_date": 5,
+          "stage": "friends",
+          "chemistry": 66.7,
+          "trust": 47.6,
+          "tie": 0.86,
+          "dates": 5,
+          "second_dates": 2,
+          "dates_seen_by_other_owner": 5,
+          "jokes": 5,
+          "told": 7,
+          "plans": 6,
+          "plans_kept": 4,
+          "texts": 2,
+          "labels": [
+            "A second date",
+            "Another date",
+            "Friends, for now",
+            "Friends, for now",
+            "Just friends"
+          ]
+        }
+      ]
+    }
+  ]
+}

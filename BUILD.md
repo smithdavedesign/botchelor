@@ -979,6 +979,7 @@ A competitor-driven polish pass (docs/competitive-analysis.md), all $0.
 ```bash
 npm run seed   # fills .data/pglite (the dev DB) with a demo season; export DATABASE_URL to seed a remote DB
 npm run e2e    # full end-to-end test in a real browser (needs CHROMIUM_PATH); 10 steps, build + stub showrunner
+npm run sim:relationships   # ten fixed couples, five dates each: does a couple hold together and grow? (--model stub|paid, --pairs, --dates; docs/relationship-sim-evidence.md)
 ```
 
 - `scripts/harness.mjs` is the shared app/showrunner lifecycle used by `e2e.mjs` and `seed.mjs`; the stub showrunner returns a valid three-act narration matching the engine's decided ending.
