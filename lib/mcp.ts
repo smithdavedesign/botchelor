@@ -56,7 +56,7 @@ const fromDate = (s: Source) => ({ episode_id: s.episode_id, with: s.with, aired
 import { POST as postPrediction } from "@/app/api/predictions/route";
 import { loadRelationship, relationshipsOf, viewRelationship, type Relationship } from "./relationships";
 import { clearNudge, coupleTexts, setNudge } from "./between-dates";
-import { listNotifications, markRead, unreadCount } from "./notifications";
+import { clearNotifications, listNotifications, markRead, unreadCount } from "./notifications";
 import { arcQuestion, predictArc } from "./arcs";
 import { followCouple, followState, unfollowCouple } from "./follows";
 
@@ -461,8 +461,8 @@ export const MCP_TOOLS = [
     name: "my_notifications",
     title: "My notifications",
     description:
-      "What happened between dates for your characters: their texts, second dates (someone said yes, or one was booked), and couples moving up a stage. Newest first, with how many are unread; pass mark_read: true to mark them read.",
-    inputSchema: { type: "object", properties: { mark_read: { type: "boolean" }, agent_id: AGENT_ID } },
+      "What happened between dates for your characters: their texts, second dates (someone said yes, or one was booked), and couples moving up a stage. Newest first, with how many are unread; pass mark_read: true to mark them read, or clear: true to clear them all (after this answer).",
+    inputSchema: { type: "object", properties: { mark_read: { type: "boolean" }, clear: { type: "boolean" }, agent_id: AGENT_ID } },
     annotations: SET,
   },
   {
@@ -971,6 +971,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, true)!;
       const [items, unread] = await Promise.all([listNotifications(db, who.id), unreadCount(db, who.id)]);
       if (args.mark_read === true) await markRead(db, who.id, "all");
+      if (args.clear === true) {
+        const cleared = await clearNotifications(db, who.id, "all");
+        return { data: { unread, notifications: items, cleared }, identity: who };
+      }
       return { data: { unread, notifications: items }, identity: who };
     }
     case "plan_second_date": {

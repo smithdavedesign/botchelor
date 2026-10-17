@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { GET as getNotifications, POST as markNotifications } from "@/app/api/notifications/route";
+import { DELETE as clearNotificationsRoute, GET as getNotifications, POST as markNotifications } from "@/app/api/notifications/route";
 import { POST as pushSubscribe } from "@/app/api/push/route";
 import { POST as postSecondDate } from "@/app/api/episodes/[id]/second-date/route";
 import { activeNudge, alsoSeeing, coupleTexts, couplesToText, dailyTextCap, sendDailyTexts, setNudge } from "@/lib/between-dates";
@@ -180,6 +180,29 @@ describe("notifications", () => {
     expect(list.unread).toBe(1);
     await markNotifications(new Request(`${BASE_URL}/api/notifications`, { method: "POST", headers: { cookie: me, "content-type": "application/json" }, body: JSON.stringify({ all: true }) }));
     expect((await (await getNotifications(new Request(`${BASE_URL}/api/notifications`, { headers: { cookie: me } }))).json()).unread).toBe(0);
+  });
+
+  it("the inbox API clears one notification or all of yours, never anyone else's", async () => {
+    const me = newUserCookie();
+    const someone = newUserCookie();
+    for (const title of ["💬 One", "💬 Two", "💬 Three"]) await notify(t.db, userIdOf(me), { kind: "texted", title });
+    await notify(t.db, userIdOf(someone), { kind: "texted", title: "💬 Theirs" });
+    const del = (cookie: string, body: unknown) =>
+      clearNotificationsRoute(new Request(`${BASE_URL}/api/notifications`, { method: "DELETE", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify(body) }));
+
+    const mine = await listNotifications(t.db, userIdOf(me));
+    const theirs = await listNotifications(t.db, userIdOf(someone));
+    // Clearing someone else's id from my session does nothing.
+    expect((await (await del(me, { ids: [theirs[0].id] })).json()).cleared).toBe(0);
+
+    const one = await (await del(me, { ids: [mine[0].id] })).json();
+    expect(one).toMatchObject({ cleared: 1, unread: 2 });
+    expect((await listNotifications(t.db, userIdOf(me))).map((n) => n.title)).not.toContain(mine[0].title);
+
+    expect((await (await del(me, { all: true })).json())).toMatchObject({ cleared: 2, unread: 0 });
+    expect(await listNotifications(t.db, userIdOf(me))).toEqual([]);
+    expect(await listNotifications(t.db, userIdOf(someone))).toHaveLength(1);
+    expect((await del(me, {})).status).toBe(422);
   });
 
   it("push goes to a subscribed browser when keys are set; a gone subscription is dropped; only real push services", async () => {

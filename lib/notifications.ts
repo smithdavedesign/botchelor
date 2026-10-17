@@ -78,6 +78,15 @@ export async function unreadCount(db: Db, userId: string): Promise<number> {
   return rows[0]?.n ?? 0;
 }
 
+/** Clears (deletes) some, or all, of a person's notifications. Only ever their own. Returns how many went. */
+export async function clearNotifications(db: Db, userId: string, ids: string[] | "all"): Promise<number> {
+  const { rows } =
+    ids === "all"
+      ? await db.query(`delete from notifications where user_id = $1 returning id`, [userId])
+      : await db.query(`delete from notifications where user_id = $1 and id = any($2) returning id`, [userId, ids]);
+  return rows.length;
+}
+
 /** Marks some (or all) of a person's notifications read. */
 export async function markRead(db: Db, userId: string, ids: string[] | "all"): Promise<number> {
   const { rows } =

@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { userIdFromCookieStore } from "@/lib/http";
 import { listNotifications, markRead } from "@/lib/notifications";
 import { pushKeys } from "@/lib/push";
+import ClearNotifications from "./ClearNotifications";
 import PushToggle from "./PushToggle";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export const metadata: Metadata = { title: "Notifications · Botchelor", robots:
 const when = (iso: string) =>
   new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) + " UTC";
 
-/** What happened between dates (lib/notifications.ts). Opening the page marks everything read. */
+/** What happened between dates (lib/notifications.ts). Opening the page marks everything read; each can be cleared, or all at once. */
 export default async function NotificationsPage() {
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
@@ -38,15 +39,22 @@ export default async function NotificationsPage() {
             <Link href="/create">Make a character</Link>
           </p>
         ) : (
+          <>
+          <p className="notification-actions">
+            <ClearNotifications />
+          </p>
           <ul className="list" aria-label="Notifications">
             {items.map((n) => (
               <li key={n.id} className={`notification${n.read ? "" : " unread"}`}>
                 <strong>{n.link ? <Link href={n.link}>{n.title}</Link> : n.title}</strong>
                 {n.body && <span className="muted">“{n.body}”</span>}
-                <span className="muted small">{when(n.created_at)}</span>
+                <span className="muted small">
+                  {when(n.created_at)} · <ClearNotifications id={n.id} />
+                </span>
               </li>
             ))}
           </ul>
+          </>
         )}
       </section>
     </>
