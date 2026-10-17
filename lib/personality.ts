@@ -26,7 +26,27 @@ export function tellMoment(outcome: Outcome, side: 0 | 1, act: number): TellId {
 export function currentTell(c: Character, outcome: Outcome, side: 0 | 1, act: number): string | null {
   const id = tellMoment(outcome, side, act);
   const does = c.extras.tells?.[id]?.trim();
-  return does ? `${secondPerson(tellLabel(id))} ${ownPronounsToYou(does, c.pronouns)}` : null;
+  return does ? `${secondPerson(tellLabel(id))} ${plainVerb(ownPronounsToYou(does, c.pronouns))}` : null;
+}
+
+/**
+ * Creators often write a tell as "she does it" ("taps her pencil"); after "you" the verb needs its plain form
+ * ("you tap your pencil"). Only the first word, and only when it reads as a third-person-singular verb.
+ */
+export function plainVerb(phrase: string): string {
+  const m = /^(\s*)([A-Za-z]+)(.*)$/s.exec(phrase);
+  if (!m) return phrase;
+  const [, lead, word, rest] = m;
+  const lower = word.toLowerCase();
+  const irregular: Record<string, string> = { has: "have", is: "are", does: "do", goes: "go", was: "were" };
+  let base = irregular[lower];
+  if (!base) {
+    if (/[^aeiou]ies$/.test(lower)) base = lower.slice(0, -3) + "y";
+    else if (/(ches|shes|sses|xes|zes)$/.test(lower)) base = lower.slice(0, -2);
+    else if (/[^s]s$/.test(lower) && !/(ss|us|is)$/.test(lower) && lower.length > 3) base = lower.slice(0, -1);
+    else return phrase;
+  }
+  return `${lead}${word[0] === word[0].toUpperCase() ? base[0].toUpperCase() + base.slice(1) : base}${rest}`;
 }
 
 /**

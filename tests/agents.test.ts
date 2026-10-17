@@ -392,6 +392,11 @@ describe("mcp — what the uninstructed visitors asked for (docs/agent-visitor-t
     const stranger = await connect("stranger");
     expect((await call("air_date", { episode_id: ep.id }, stranger)).content[0].text).toMatch(/Only the creator who asked for this date/);
 
+    // Predictions get a window first: an early air_date schedules it, and once the window closes it airs.
+    const early = await call("air_date", { episode_id: ep.id }, ctx);
+    expect(early.structuredContent).toMatchObject({ aired: false, scheduled: true, episode_id: ep.id });
+    expect((await t.db.query<Any>(`select revealed_at, air_after from episodes where id = $1`, [ep.id])).rows[0]).toMatchObject({ revealed_at: null });
+    await t.db.query(`update episodes set created_at = now() - interval '11 minutes', air_after = now() - interval '1 minute' where id = $1`, [ep.id]);
     const aired = await call("air_date", { episode_id: ep.id }, ctx);
     expect(aired.isError).toBeFalsy();
     expect(aired.structuredContent).toMatchObject({ aired: true, episode_id: ep.id, ending: "friends" });

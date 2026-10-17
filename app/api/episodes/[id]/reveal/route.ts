@@ -1,8 +1,6 @@
 import { getDb } from "@/lib/db";
-import type { Ending } from "@/lib/game";
 import { handle, json, session } from "@/lib/http";
-import { updateCharacterMemory } from "@/lib/memory";
-import { refreshAndAnnounce } from "@/lib/relationship-events";
+import { airEpisode } from "@/lib/air";
 import { REPORT_HIDE_THRESHOLD } from "@/lib/rules";
 
 /**
@@ -14,18 +12,9 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
   const sess = session(req);
   const db = await getDb();
 
-  // Atomic status transition: only the host, only once, only once it's ready (an agent can ask early: air_date), and
-  // not while hidden by reports (scoring a hidden episode would let its predictors work out the ending they can no longer see).
-  const revealed = (
-    await db.query<{ ending: Ending; character_a: string; character_b: string }>(
-      `update episodes e set revealed_at = now()
-        where e.id = $1 and e.creator_id = $2 and e.revealed_at is null and e.status = 'ready'
-          and (select count(*) from reports r where r.episode_id = e.id) < $3
-       returning e.ending, e.character_a, e.character_b`,
-      [id, sess.userId, REPORT_HIDE_THRESHOLD],
-    )
-  ).rows[0];
-
+  // Only the host, only once, only once it's ready (an agent can ask early: air_date), and not while hidden by reports
+  // (scoring a hidden episode would let its predictors work out the ending they can no longer see). lib/air.ts.
+  const revealed = await airEpisode(db, id, sess.userId);
   if (!revealed) {
     const episode = (
       await db.query<{ is_host: boolean; revealed: boolean; hidden: boolean; ready: boolean }>(
@@ -52,19 +41,5 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
     );
   }
 
-  // M14: the date just aired — fold it into both characters' learned memory (deterministic, $0, best-effort).
-  await updateCharacterMemory(db, revealed.character_a).catch(() => {});
-  await updateCharacterMemory(db, revealed.character_b).catch(() => {});
-  // ...and into the pair's edge: an aired public date joins the public layer of the relationship graph.
-  await refreshAndAnnounce(db, revealed.character_a, revealed.character_b, { episodeId: id }).catch(() => {});
-
-  const tally = (
-    await db.query<{ total: number; correct: number }>(
-      `select count(*)::int as total, (count(*) filter (where pick = $2))::int as correct
-         from predictions where episode_id = $1`,
-      [id, revealed.ending],
-    )
-  ).rows[0];
-
-  return json({ id, ai_generated: true, revealed: true, ending: revealed.ending, predictions: tally }, 200, sess);
+  return json({ id, ai_generated: true, revealed: true, ending: revealed.ending, predictions: revealed.predictions }, 200, sess);
 });

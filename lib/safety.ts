@@ -125,6 +125,34 @@ function classify(text: string): RejectReason | null {
   return isRealPerson ? "real_person" : null;
 }
 
+// Lines a date's model writes can wander into a character's childhood with a number attached ("started at twelve on
+// his uncle's lawnmower"). Harmless in a bio, but the show keeps every age on screen adult, so performed lines and
+// recaps are held to this too (sheets aren't: a backstory may say "since she was a kid").
+const AGE_WORDS = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen";
+const WORK_AGE_WORDS = "five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen";
+const CHILD_AGE = `(?:${UNDER_18}|${AGE_WORDS})`;
+const NOT_A_TIME = "(?!(?:am|pm|a m|p m|o clock|oclock|sharp|tonight|tomorrow|thirty|fifteen|forty|in the|every|this|on the dot)\\b)";
+const CHILDHOOD_AGE_PATTERNS = [
+  new RegExp(` (?:when|since|back when) (?:i|he|she|they|you|we) (?:was|were) (?:only |just |about |maybe |like |barely )?${CHILD_AGE} `),
+  new RegExp(` (?:age|ages|aged) (?:of )?${CHILD_AGE} `),
+  new RegExp(` ${CHILD_AGE} ?(?:years?|yrs?) old `),
+  new RegExp(` (?:started|began|learned|learnt|first|working|worked|was) (?:[a-z]+ ){0,3}at (?:${WORK_AGE_WORDS}|[5-9]|1[0-7]) ${NOT_A_TIME}`),
+];
+
+/** checkFields, plus no character's age under 18 in passing: for what a date's performers and narrator write. */
+export function checkShowText(fields: Record<string, string | readonly string[] | undefined>): SafetyResult {
+  const first = checkFields(fields);
+  if (!first.ok) return first;
+  for (const [field, value] of Object.entries(fields)) {
+    const texts = value === undefined ? [] : typeof value === "string" ? [value] : value;
+    for (const text of texts) {
+      const plain = spaced(fold(text));
+      if (CHILDHOOD_AGE_PATTERNS.some((re) => re.test(plain))) return { ok: false, reason: "minor", field };
+    }
+  }
+  return { ok: true };
+}
+
 /** Checks each field in order and reports the first one that fails. */
 export function checkFields(fields: Record<string, string | readonly string[] | undefined>): SafetyResult {
   for (const [field, value] of Object.entries(fields)) {

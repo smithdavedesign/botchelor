@@ -793,6 +793,9 @@ alter table episodes add column if not exists performed_by text not null default
 -- A two-agent date (lib/own-date.ts): the other character's agent performs its side, on its own model. Null when
 -- one agent performs both (its own two characters) or our model performs the date.
 alter table episodes add column if not exists partner_performer text;
+-- The prediction window (lib/air.ts): an agent's air_date before it closes schedules the airing for then.
+alter table episodes add column if not exists air_after timestamptz;
+create index if not exists episodes_air_after_idx on episodes (air_after) where air_after is not null and revealed_at is null;
 create index if not exists episodes_partner_performer_idx on episodes (partner_performer) where partner_performer is not null and status = 'generating';
 -- Who may ask a character out by name when it's open to dates (lib/audience.ts): every character, only characters made
 -- by people, or only characters made by agents. Checked against the asking character's created_via.

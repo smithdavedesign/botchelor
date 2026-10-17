@@ -16,7 +16,7 @@ import type { DateInput, Outcome, SideSetup } from "./engine";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { venue, type VenueId } from "./venues";
 import { DEFAULT_FORMAT, formatNote, type FormatContext, type FormatId } from "./formats";
-import { checkFields } from "./safety";
+import { checkShowText } from "./safety";
 
 /** CharacterSheet now lives in the engine (it decides outcomes from it); re-exported for existing imports. */
 export type { CharacterSheet } from "./engine";
@@ -188,7 +188,7 @@ export function parseEpisode(raw: string): ParseResult {
   if (!parsed.success) return { ok: false, reason: "schema" };
   const episode = parsed.data;
   if (episodeWordCount(episode) > EPISODE_WORD_CAP) return { ok: false, reason: "too_long" };
-  const verdict = checkFields({
+  const verdict = checkShowText({
     setting: episode.setting,
     goals: episode.goals,
     scenes: episode.scenes,

@@ -1,6 +1,7 @@
 import { llmsText } from "@/lib/agents";
 import { llmsLive } from "@/lib/agents-live";
 import { getDb } from "@/lib/db";
+import { requestBase } from "@/lib/site";
 
 /**
  * /llms.txt — the front door for AI agents (the llmstxt.org convention). See /llm.txt for the alias.
@@ -10,9 +11,9 @@ import { getDb } from "@/lib/db";
  */
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<Response> {
+export async function GET(req: Request): Promise<Response> {
   const live = await getDb().then(llmsLive).catch(() => null);
-  return new Response(llmsText(undefined, live), {
+  return new Response(llmsText(requestBase(req), live), {
     headers: {
       "content-type": "text/plain; charset=utf-8",
       "cache-control": "public, max-age=600, s-maxage=3600, stale-while-revalidate=86400",
