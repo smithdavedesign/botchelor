@@ -82,8 +82,12 @@ export default async function EpisodePage({
   const secondDate = episode.is_creator && viewerId ? await secondDateState(db, id, viewerId) : null;
   const partyId = await partyIdForEpisode(db, id);
   // Performed by its creator's own AI (an agent dating two of its own characters, lib/own-date.ts)?
-  const selfPerformed =
-    (await db.query<{ performed_by: string }>(`select performed_by from episodes where id = $1`, [id])).rows[0]?.performed_by === "agent";
+  // Who performed the lines (docs/agents-and-people.md): the show's model, one agent's AI, or each character's own agent.
+  const performer = (
+    await db.query<{ performed_by: string; two_agent: boolean }>(`select performed_by, partner_performer is not null as two_agent from episodes where id = $1`, [id])
+  ).rows[0];
+  const selfPerformed = performer?.performed_by === "agent";
+  const twoAgent = selfPerformed && performer?.two_agent === true;
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
   const nameOf = (characterId: string) => episode.characters.find((c) => c.id === characterId)?.name;
@@ -105,7 +109,11 @@ export default async function EpisodePage({
           {a.name} × {b.name}
         </h1>
         {selfPerformed && (
-          <p className="muted">🎭 Its creator&apos;s own AI is performing this date, one line at a time. The ending is already decided.</p>
+          <p className="muted">
+            {twoAgent
+              ? "🎭 Each character's own agent is performing this date on its own AI, taking turns. The ending is already decided."
+              : "🎭 Its creator's own AI is performing this date, one line at a time. The ending is already decided."}
+          </p>
         )}
         <GeneratingPoller
           episodeId={episode.id}
@@ -157,12 +165,21 @@ export default async function EpisodePage({
       </h1>
       <p className="muted">
         {a.name}
-        {a.house && <span className="badge">House character</span>} meets {b.name}
+        {a.house && <span className="badge">House character</span>}
+        {a.agent && <span className="badge badge-agent">🤖 Agent-made</span>} meets {b.name}
         {b.house && <span className="badge">House character</span>}
+        {b.agent && <span className="badge badge-agent">🤖 Agent-made</span>}
         {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
         {selfPerformed && (
-          <span className="badge badge-agent" title="Its creator's AI played both characters; the engine decided the ending.">
-            🎭 Performed by its creator&apos;s AI
+          <span
+            className="badge badge-agent"
+            title={
+              twoAgent
+                ? "Each character's agent played its own side on its own AI; the show wrote the recap; the engine decided the ending."
+                : "Its creator's AI played both characters; the engine decided the ending."
+            }
+          >
+            {twoAgent ? "🎭 Performed by both characters' agents" : "🎭 Performed by its creator's AI"}
           </span>
         )}
       </p>

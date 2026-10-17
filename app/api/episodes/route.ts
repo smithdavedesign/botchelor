@@ -32,6 +32,7 @@ import { seasonCastIds } from "@/lib/season-cast";
 import { seasonAt } from "@/lib/seasons";
 import { checkSecondDate } from "@/lib/second-date";
 import { acceptableProposal, markAccepted } from "@/lib/date-proposals";
+import { audienceAllowsSql } from "@/lib/audience";
 import { useNudges } from "@/lib/between-dates";
 import { notify } from "@/lib/notifications";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
@@ -114,20 +115,21 @@ const forDate = (c: CharacterRow): CharacterForDate => ({ id: c.id, sheet: toShe
  * other and any character whose creator deleted their account; a random free house character when there is
  * nobody (yet). Never fails, never premium.
  */
-async function blindMatch(db: Db, userId: string): Promise<CharacterRow> {
+async function blindMatch(db: Db, userId: string, ownId: string): Promise<CharacterRow> {
   const other = (
     await db.query<CharacterRow>(
       `select ${CHARACTER_COLUMNS}
          from characters c
         where not c.is_house and c.owner_id <> $1 and c.owner_id <> $2
           and not ${takenSql("c")}
+          and ${audienceAllowsSql("c", "(select o.created_via from characters o where o.id = $3)")}
           and not exists (
             select 1 from blocks bl
              where (bl.blocker_id = $1 and bl.blocked_id = c.owner_id)
                 or (bl.blocker_id = c.owner_id and bl.blocked_id = $1))
         order by random()
         limit 1`,
-      [userId, DELETED_OWNER],
+      [userId, DELETED_OWNER, ownId],
     )
   ).rows[0];
   if (other) return other;
@@ -193,7 +195,7 @@ export const POST = handle(async (req) => {
     partner = (await db.query<CharacterRow>(`select ${CHARACTER_COLUMNS} from characters c where c.id = $1`, [input.partner_id])).rows[0];
     if (!partner) return json({ error: "partner_not_available", message: "That character isn't here any more." }, 422, sess);
   } else if (input.blind) {
-    partner = await blindMatch(db, sess.userId);
+    partner = await blindMatch(db, sess.userId, own.id);
   } else {
     if (input.proposal_id && !(await acceptableProposal(db, sess.userId, input.proposal_id, own.id, input.partner_id ?? ""))) {
       return json({ error: "proposal_unavailable", message: "That proposal isn't open any more." }, 409, sess);
@@ -208,7 +210,8 @@ export const POST = handle(async (req) => {
             and ((c.is_house and (c.premium_sku is not null or c.id = any($3)
                    or exists (select 1 from relationships r
                                where r.dates > 0 and ((r.character_a = c.id and r.character_b = $4) or (r.character_a = $4 and r.character_b = c.id)))))
-                 or ((c.open_to_dates or ${coupledSql("c", "$4")} or c.id = $5::text) and c.owner_id <> $2 and not ${takenSql("c", "$4")}
+                 or (((c.open_to_dates and ${audienceAllowsSql("c", "(select o.created_via from characters o where o.id = $4)")})
+                      or ${coupledSql("c", "$4")} or c.id = $5::text) and c.owner_id <> $2 and not ${takenSql("c", "$4")}
                      and not exists (
                        select 1 from blocks bl
                         where (bl.blocker_id = $2 and bl.blocked_id = c.owner_id)
@@ -221,7 +224,7 @@ export const POST = handle(async (req) => {
         {
           error: "partner_not_available",
           message:
-            "That character can't be asked out: pick one of this season's house cast or a character that's open to dates, or ask for a blind date with blind: true.",
+            "That character can't be asked out: pick one of this season's house cast or a character that's open to dates (and to characters like yours: some are open only to people's characters, some only to agents'), or ask for a blind date with blind: true.",
         },
         422,
         sess,

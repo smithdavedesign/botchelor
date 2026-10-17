@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { agentDatesToday } from "@/lib/dating";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { clearStaleOwnDates, OWN_DATE_MAX_OPEN, submitOwnDateStep } from "@/lib/own-date";
-import { api, HOUSE_PARTNER_ID, newUserCookie, scriptOutcome, startTestDb, validCharacter, validEpisodeDraft } from "./helpers";
+import { api, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter, validEpisodeDraft } from "./helpers";
+import { listNotifications } from "@/lib/notifications";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
@@ -140,11 +141,11 @@ describe("a date an agent performs itself", () => {
     expect((await call("submit_own_date_step", { episode_id: recap.episode_id, output: validEpisodeDraft() }, ctx)).structuredContent.step.stage).toBe("done");
   });
 
-  it("only with two of your own characters", async () => {
+  it("only your own characters, or another agent's: never a person's character (people don't perform)", async () => {
     const { ctx, a } = await agentWithPair();
     const other = newUserCookie();
     const theirs = (await (await api.createCharacter(validCharacter({ name: "Not Yours", open_to_dates: true }), other)).json()).id;
-    expect((await call("start_own_date", { character_id: a, partner_id: theirs }, ctx)).content[0].text).toMatch(/Both characters must be yours/);
+    expect((await call("start_own_date", { character_id: a, partner_id: theirs }, ctx)).content[0].text).toMatch(/made by a person.*go_on_date/);
     expect((await call("start_own_date", { character_id: a, partner_id: HOUSE_PARTNER_ID }, ctx)).isError).toBe(true);
     expect((await call("start_own_date", { character_id: a, partner_id: a }, ctx)).isError).toBe(true);
   });
@@ -186,5 +187,72 @@ describe("a date an agent performs itself", () => {
     const step = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent.step;
     const feed = (await (await api.feed(newUserCookie())).json()).episodes.map((e: Any) => e.id);
     expect(feed).not.toContain(step.episode_id);
+  });
+});
+
+describe("a two-agent date: each agent performs only its own character", () => {
+  /** Two agents, one character each; Bo's is open to dates (to `audience`). */
+  async function twoAgents(audience = "everyone") {
+    const ctxA = await connect();
+    const ctxB = await connect();
+    const a = (await call("create_character", validCharacter({ name: "Ada Lumen", soul: { values: "secret-alpha-values" } }), ctxA)).structuredContent;
+    const b = (await call("create_character", validCharacter({ name: "Bo Quill", soul: { values: "secret-bravo-values" }, open_to_dates: true, open_audience: audience }), ctxB)).structuredContent;
+    return { ctxA, ctxB, agentA: a.agent_id as string, agentB: b.agent_id as string, a: a.character.id as string, b: b.character.id as string };
+  }
+
+  it("turns alternate between the agents, each sees only its own soul, and the show writes the recap", async () => {
+    scriptOutcome({ ending: "second_date" });
+    const { ctxA, ctxB, agentB, a, b } = await twoAgents();
+    const started = await call("start_own_date", { character_id: a, partner_id: b }, ctxA);
+    expect(started.isError).toBeUndefined();
+    const episodeId: string = started.structuredContent.step.episode_id;
+    expect((await t.db.query<Any>(`select partner_performer, status from episodes where id = $1`, [episodeId])).rows[0]).toEqual({ partner_performer: agentB, status: "generating" });
+    expect((await listNotifications(t.db, agentB))[0]).toMatchObject({ kind: "own_date_invite" });
+    expect((await call("my_own_dates", {}, ctxB)).structuredContent.dates[0]).toMatchObject({ episode_id: episodeId, two_agent: true, your_character: { id: b } });
+
+    let i = 0;
+    let stepA = started.structuredContent.step;
+    let stepB = (await call("get_own_date_step", { episode_id: episodeId }, ctxB)).structuredContent.step;
+    let rounds = 0;
+    while (stepA.stage !== "done" && rounds++ < 40) {
+      if (stepA.stage === "turn") {
+        expect(stepA.speaker.id).toBe(a);
+        expect(JSON.stringify(stepA.messages)).not.toContain("secret-bravo-values");
+        // The other agent can't hand in Ada's turn.
+        expect((await call("submit_own_date_step", { episode_id: episodeId, output: line(99) }, ctxB)).structuredContent.rejected).toBe("not_your_turn");
+        stepA = (await call("submit_own_date_step", { episode_id: episodeId, output: line(i++) }, ctxA)).structuredContent.step;
+      } else {
+        stepB = (await call("get_own_date_step", { episode_id: episodeId }, ctxB)).structuredContent.step;
+        if (stepB.stage === "turn") {
+          expect(stepB.speaker.id).toBe(b);
+          expect(JSON.stringify(stepB.messages)).not.toContain("secret-alpha-values");
+          // The last turn's hand-in triggers the show's recap.
+          if (stepB.turn + 1 === stepB.of) scriptedModel([episodeJson()]);
+          stepB = (await call("submit_own_date_step", { episode_id: episodeId, output: line(i++) }, ctxB)).structuredContent.step;
+        }
+        stepA = (await call("get_own_date_step", { episode_id: episodeId }, ctxA)).structuredContent.step;
+        if (stepA.stage === "waiting" && stepA.waiting_for !== "recap") expect(stepA.waiting_for.id).toBe(b);
+      }
+    }
+    expect(stepA.stage).toBe("done");
+    const row = (await t.db.query<Any>(`select status, generated_with from episodes where id = $1`, [episodeId])).rows[0];
+    expect(row.status).toBe("ready");
+    expect(row.generated_with).toMatchObject({ actor: ["agent"], director: ["platform"], two_agent: true });
+    // Each agent reflects only for its own character.
+    expect(stepA.reflect.prompts.map((p: Any) => p.character_id)).toEqual([a]);
+    const doneB = (await call("get_own_date_step", { episode_id: episodeId }, ctxB)).structuredContent.step;
+    expect(doneB.reflect.prompts.map((p: Any) => p.character_id)).toEqual([b]);
+  });
+
+  it("respects the audience, and the invited agent can decline", async () => {
+    const people = await twoAgents("people");
+    expect((await call("start_own_date", { character_id: people.a, partner_id: people.b }, people.ctxA)).content[0].text).toMatch(/isn't open to a date with a character like yours/);
+
+    const { ctxA, ctxB, agentA, a, b } = await twoAgents("agents");
+    const started = (await call("start_own_date", { character_id: a, partner_id: b }, ctxA)).structuredContent.step;
+    expect((await call("decline_own_date", { episode_id: started.episode_id }, ctxA)).isError).toBe(true); // only the invited agent
+    expect((await call("decline_own_date", { episode_id: started.episode_id }, ctxB)).structuredContent.declined).toBe(true);
+    expect((await t.db.query(`select 1 from episodes where id = $1`, [started.episode_id])).rows).toHaveLength(0);
+    expect((await listNotifications(t.db, agentA))[0]).toMatchObject({ kind: "own_date_declined" });
   });
 });

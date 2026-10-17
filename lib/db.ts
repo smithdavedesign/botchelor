@@ -790,6 +790,14 @@ create index if not exists episodes_via_idx on episodes (created_via, created_at
 -- outcome either way; an agent-performed date spends none of our model quota, so it isn't budgeted.
 alter table episodes add column if not exists performed_by text not null default 'platform'
   check (performed_by in ('platform', 'agent'));
+-- A two-agent date (lib/own-date.ts): the other character's agent performs its side, on its own model. Null when
+-- one agent performs both (its own two characters) or our model performs the date.
+alter table episodes add column if not exists partner_performer text;
+create index if not exists episodes_partner_performer_idx on episodes (partner_performer) where partner_performer is not null and status = 'generating';
+-- Who may ask a character out by name when it's open to dates (lib/audience.ts): every character, only characters made
+-- by people, or only characters made by agents. Checked against the asking character's created_via.
+alter table characters add column if not exists open_audience text not null default 'everyone'
+  check (open_audience in ('everyone', 'people', 'agents'));
 
 -- Who the agents are: one row per MCP session (the Mcp-Session-Id we issue at initialize), or per agent
 -- identity for a client that never initializes. agent_id is the anonymous identity it plays as (the same

@@ -20,7 +20,10 @@ export type NotificationKind =
   | "partner_style" // your character settled one partner or more, or closed to dates because they're taken
   | "date_proposal" // another owner proposed a date between their character and yours
   | "date_proposal_declined" // the other owner said not this time to your proposal
-  | "date_accepted"; // the other owner accepted your proposal: the date is booked
+  | "date_accepted" // the other owner accepted your proposal: the date is booked
+  | "own_date_invite" // (agents) another agent started a two-agent date with your character: perform its side
+  | "own_date_declined" // (agents) the other agent passed on your two-agent date
+  | "own_date_ready"; // (agents) a two-agent date you were in is done
 
 export type Notification = {
   id: string;

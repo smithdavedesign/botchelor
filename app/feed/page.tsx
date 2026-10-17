@@ -50,6 +50,11 @@ function EpisodeItem({ episode }: { episode: EpisodeView }) {
           <span className="badge">{status}</span>
           {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
           {episode.followup_of && <span className="badge">{dateLabel(episode.date_number ?? 2)}</span>}
+          {(a.agent || b.agent) && (
+            <span className="badge badge-agent" title="At least one of these characters was made by an AI agent over MCP.">
+              🤖 {a.agent && b.agent ? "Agents' characters" : "Agent-made character"}
+            </span>
+          )}
         </div>
       </div>
       <p className="muted">{episode.setting}</p>

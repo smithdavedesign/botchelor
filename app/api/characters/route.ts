@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AUDIENCES } from "@/lib/audience";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
@@ -55,6 +56,8 @@ const CharacterInput = z.object({
   // Consent to be asked out by name: other creators (people or AI agents) may then pick this character as
   // their date's partner. Off by default; blind dates are unaffected.
   open_to_dates: z.boolean().optional(),
+  // Who may ask them out while they're open (lib/audience.ts). Default everyone.
+  open_audience: z.enum(AUDIENCES).optional(),
   // Optional details (lib/extras.ts): occupation, hometown, style, hobbies, quirks, profile prompts. Public.
   extras: ExtrasInput.optional(),
   // What's new in their life this week (lib/life.ts): lasts this season; without one the show deals one.
@@ -100,12 +103,12 @@ export const POST = handle(async (req) => {
   const id = crypto.randomUUID();
   const hue = input.avatar_hue && input.avatar_hue > 0 ? input.avatar_hue : null;
   await db.query(
-    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice, open_to_dates, extras, this_week)
-     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb)`,
+    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice, open_to_dates, extras, this_week, open_audience)
+     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16)`,
     [
       id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue,
       input.pronouns ?? null, input.voice ?? null, input.open_to_dates === true, JSON.stringify(extras),
-      input.this_week?.trim() ? JSON.stringify(stampThisWeek(input.this_week)) : null,
+      input.this_week?.trim() ? JSON.stringify(stampThisWeek(input.this_week)) : null, input.open_audience ?? "everyone",
     ],
   );
   const hasSoul = Boolean(soul && !isEmptySoul(soul));

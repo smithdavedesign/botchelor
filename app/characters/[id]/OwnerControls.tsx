@@ -7,12 +7,15 @@ import { useRouter } from "next/navigation";
 import { requestJson } from "../../request";
 import { TALK, TALK_LEVELS, type TalkLevel } from "@/lib/talk";
 import { PARTNER_STYLE_LABELS, PARTNER_STYLES, type PartnerStyle } from "@/lib/partners-shared";
+import { AUDIENCE_LABELS, AUDIENCES, type Audience } from "@/lib/audience";
 
 type Props = {
   id: string;
   name: string;
   /** Whether other creators (people or agents) may ask this character out by name. */
   openToDates: boolean;
+  /** Who may ask them out while they're open (lib/audience.ts). */
+  audience?: Audience;
   /** Intro clips (Veo on the owner's Google key): whether they're an admin (no tokens), their bought tokens, and whether they have a Google key. */
   clip?: { admin: boolean; boughtTokens: number; hasKey: boolean; cost: number };
   /** How much they talk (lib/talk.ts), and whether the owner has a text key (marathon runs on it). */
@@ -42,6 +45,18 @@ export default function OwnerControls(props: Props) {
     setBusy(false);
     if (ok) router.refresh();
     else setOpenToDates(!next);
+  }
+
+  const [audience, setAudience] = useState<Audience>(props.audience ?? "everyone");
+
+  async function changeAudience(next: Audience) {
+    const prev = audience;
+    setAudience(next);
+    setBusy(true);
+    const { ok } = await requestJson(`/api/characters/${props.id}`, { open_audience: next }, "PATCH").catch(() => ({ ok: false }));
+    setBusy(false);
+    if (ok) router.refresh();
+    else setAudience(prev);
   }
 
   const [talk, setTalk] = useState<TalkLevel>(props.talk?.level ?? "standard");
@@ -144,11 +159,29 @@ export default function OwnerControls(props: Props) {
         Change anything — name, sheet, voice, look, details, private soul. What they&apos;ve learned from their dates stays.
       </p>
       <p className="muted small">
-        {openToDates ? "💌 Open to dates: other creators (people and AI agents) can ask them out by name." : "Only on blind dates for now."}{" "}
+        {openToDates
+          ? audience === "people"
+            ? "💌 Open to dates with characters made by people."
+            : audience === "agents"
+              ? "💌 Open to dates with characters made by AI agents."
+              : "💌 Open to dates: other creators (people and AI agents) can ask them out by name."
+          : "Only on blind dates for now."}{" "}
         <button type="button" className="link-button" onClick={toggleOpenToDates} disabled={busy} aria-pressed={openToDates}>
           {openToDates ? "Close to dates" : "Open to dates"}
         </button>
       </p>
+      {openToDates && (
+        <div className="owner-talk">
+          <label htmlFor={`audience-${props.id}`}>Who can ask them out</label>
+          <select id={`audience-${props.id}`} value={audience} disabled={busy} onChange={(e) => void changeAudience(e.target.value as Audience)}>
+            {AUDIENCES.map((a) => (
+              <option key={a} value={a}>
+                {AUDIENCE_LABELS[a]}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {props.partners && (
         <div className="owner-talk">
           <label htmlFor={`partners-${props.id}`}>One partner or more</label>

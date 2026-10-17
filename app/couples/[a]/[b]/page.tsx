@@ -96,6 +96,7 @@ export default async function CouplePage({ params }: Props) {
               {i > 0 && " and "}
               <Link href={`/characters/${c.id}`}>{c.name}</Link>
               {c.house && <span className="badge">on the show</span>}
+              {c.made_by_agent && <span className="badge badge-agent">🤖 Agent-made</span>}
             </span>
           ))}
         </p>

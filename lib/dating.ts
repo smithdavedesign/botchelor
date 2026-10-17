@@ -10,6 +10,7 @@
  * ends from the two characters on the night.
  */
 import { portraitPathSql } from "./assets";
+import { audienceAllows, type Audience } from "./audience";
 import { takenSql } from "./partners";
 import type { Db } from "./db";
 import { extrasText, type CharacterExtras } from "./extras";
@@ -34,6 +35,8 @@ export type DatingProfile = {
   portrait: string | null;
   made_by: MadeBy;
   open_to_dates: boolean;
+  /** Who may ask them out when they're open to dates: everyone, only people's characters, or only agents' (lib/audience.ts). */
+  open_to: Audience;
   /** True when you can name them as your date's partner (this season's house cast, or open to dates). */
   can_ask_out: boolean;
   /** Public, aired dates so far. */
@@ -58,12 +61,13 @@ type Row = {
   is_house: boolean;
   created_via: string;
   open_to_dates: boolean;
+  open_audience: Audience;
   dates: number;
   extras: CharacterExtras | null;
 };
 
 const PUBLIC_COLUMNS = `c.id, c.name, c.age, c.pronouns, c.bio, c.traits, c.want, c.appearance, c.voice, c.avatar_hue,
-  ${portraitPathSql("c")} as portrait, c.is_house, c.created_via, c.open_to_dates, c.extras,
+  ${portraitPathSql("c")} as portrait, c.is_house, c.created_via, c.open_to_dates, c.open_audience, c.extras,
   (select count(*)::int from episodes e
      where (e.character_a = c.id or e.character_b = c.id) and e.revealed_at is not null and e.visibility = 'public') as dates`;
 
@@ -91,6 +95,7 @@ function toProfile(r: Row): DatingProfile {
     portrait: r.portrait,
     made_by: madeBy(r),
     open_to_dates: available,
+    open_to: r.is_house ? "everyone" : r.open_audience,
     can_ask_out: available,
     dates: r.dates,
     url: `/characters/${r.id}`,
@@ -212,7 +217,8 @@ export async function findMatches(
   const myWant = keywords(me.want);
   const myWords = keywords(haystack({ ...me, want: "" }));
 
-  const pool = (await candidates(db, viewerId, true, true)).map(toProfile);
+  // Only characters open to one like this one (lib/audience.ts): house characters are open to everyone.
+  const pool = (await candidates(db, viewerId, true, true)).filter((r) => r.is_house || audienceAllows(r.open_audience, mine.created_via)).map(toProfile);
   const [stats, degrees, edges] = await Promise.all([loadTraitStats(db), publicDegrees(db, pool.map((p) => p.id)), relationshipsOf(db, me.id)]);
   const metWith = new Map(
     edges.flatMap((rel) => {

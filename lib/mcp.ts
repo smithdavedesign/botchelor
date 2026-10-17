@@ -33,7 +33,7 @@ import { originality } from "./originality";
 import { describeTemperament } from "./temperament";
 import { ownsCharacter } from "./souls";
 import { thisWeek, type StoredThisWeek } from "./life";
-import { getOwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
+import { declineOwnDate, getOwnDateStep, openOwnDates, startOwnDate, submitOwnDateStep } from "./own-date";
 import { extrasJsonSchema, type CharacterExtras } from "./extras";
 import { topRatedCharacters } from "./ratings";
 import { FORMAT_IDS } from "./formats";
@@ -241,6 +241,7 @@ export const MCP_TOOLS = [
       properties: {
         ...SHEET_PROPS,
         open_to_dates: { type: "boolean", description: "Let others ask this character out by name (default false). Change it any time with set_open_to_dates." },
+        open_audience: { type: "string", enum: ["everyone", "people", "agents"], description: "Who may ask it out while it's open: everyone (default), only people's characters, or only agents'." },
         attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
         agent_id: AGENT_ID,
       },
@@ -260,6 +261,7 @@ export const MCP_TOOLS = [
         character_id: str(64),
         ...SHEET_PROPS,
         open_to_dates: { type: "boolean" },
+        open_audience: { type: "string", enum: ["everyone", "people", "agents"] },
         partner_style: {
           type: "string",
           enum: ["one", "open", "decide"],
@@ -279,8 +281,13 @@ export const MCP_TOOLS = [
   {
     name: "set_open_to_dates",
     title: "Open my character to dates",
-    description: "Offer your character up for dates (open: true) so others can ask it out by name, or close it again (open: false). Blind dates are unaffected.",
-    inputSchema: { type: "object", required: ["character_id", "open"], properties: { character_id: str(64), open: { type: "boolean" }, agent_id: AGENT_ID } },
+    description:
+      "Offer your character up for dates (open: true) so others can ask it out by name, or close it again (open: false). audience says who may: everyone (default), people (only characters made by people on the website) or agents (only characters made by agents over MCP, which can also perform their own side with start_own_date). Blind dates respect the audience too.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "open"],
+      properties: { character_id: str(64), open: { type: "boolean" }, audience: { type: "string", enum: ["everyone", "people", "agents"] }, agent_id: AGENT_ID },
+    },
     annotations: SET,
   },
   {
@@ -308,16 +315,19 @@ export const MCP_TOOLS = [
     name: "start_own_date",
     title: "Perform a date yourself",
     description:
-      "Date two of YOUR characters and perform it yourself, on your own model: free and unlimited (no date tokens, no daily budget). " +
-      "The engine deals the date and decides the outcome now; you get back the first step — one character's turn prompt. Run each " +
-      "character in its own process (a separate model instance or sub-agent that sees only its own prompts), hand each reply to " +
-      "submit_own_date_step, and repeat until the recap. Every reply passes the show's content rules.",
+      "Perform a date yourself, on your own model: free and unlimited (no date tokens, no daily budget). Two kinds: " +
+      "two of YOUR characters (you play both, each in its own process, and run the recap), or your character and ANOTHER " +
+      "AGENT's character that's open to dates and to characters like yours (a two-agent date: each agent plays only its own " +
+      "side on its own model, the other agent is notified and can decline, and the show writes the recap on its model because " +
+      "the narrator sees both characters). The engine deals the date and decides the outcome now; you get back the first step: " +
+      "a turn prompt for your character, or 'waiting' while the other side speaks. Hand each reply to submit_own_date_step and " +
+      "repeat; my_own_dates shows whose move it is. Every reply passes the show's content rules.",
     inputSchema: {
       type: "object",
       required: ["character_id", "partner_id"],
       properties: {
         character_id: str(64, "One of your characters."),
-        partner_id: str(64, "Another of your characters."),
+        partner_id: str(64, "Another of your characters, or another agent's character that's open to agents."),
         format: { type: "string", enum: [...FORMAT_IDS], description: "Optional show format." },
         visibility: { type: "string", enum: ["public", "unlisted", "private"], description: "Who can watch it once it's done (default public)." },
         agent_id: AGENT_ID,
@@ -339,6 +349,21 @@ export const MCP_TOOLS = [
         agent_id: AGENT_ID,
       },
     },
+    annotations: WRITE,
+  },
+  {
+    name: "my_own_dates",
+    title: "My dates in progress",
+    description:
+      "The dates you're performing that aren't finished: the ones you started and the two-agent dates other agents invited your characters to, with whose move it is. Use get_own_date_step to take your turn.",
+    inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
+    annotations: READ,
+  },
+  {
+    name: "decline_own_date",
+    title: "Pass on a two-agent date",
+    description: "Say no to a two-agent date another agent started with your character. It's removed (nothing was shown) and they're told.",
+    inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
     annotations: WRITE,
   },
   {
@@ -853,7 +878,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     }
     case "create_character": {
       const who = resolveIdentity(args, session, true)!;
-      const body = { ...pick(args, [...SHEET_KEYS, "open_to_dates"]), attest: args.attest === true };
+      const body = { ...pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience"]), attest: args.attest === true };
       const r = await callRoute(postCharacter, { agentId: who.id, body });
       if (!r.ok) return { error: errorOf(r) };
       await db.query(`update characters set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
@@ -868,7 +893,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "update_character": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
-      const body = pick(args, [...SHEET_KEYS, "open_to_dates", "partner_style", "talk"]);
+      const body = pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience", "partner_style", "talk"]);
       const r = await callRoute(patchCharacter as unknown as RouteHandler, { method: "PATCH", agentId: who.id, body, params: { id: String(args.character_id ?? "") } });
       return r.ok ? { data: { updated: r.data }, identity: who } : { error: errorOf(r) };
     }
@@ -876,8 +901,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
       const open = args.open === true;
-      const r = await callRoute(patchCharacter as unknown as RouteHandler, { method: "PATCH", agentId: who.id, body: { open_to_dates: open }, params: { id: String(args.character_id ?? "") } });
-      return r.ok ? { data: { character_id: args.character_id, open_to_dates: open }, identity: who } : { error: errorOf(r) };
+      const body = { open_to_dates: open, ...(typeof args.audience === "string" ? { open_audience: args.audience } : {}) };
+      const r = await callRoute(patchCharacter as unknown as RouteHandler, { method: "PATCH", agentId: who.id, body, params: { id: String(args.character_id ?? "") } });
+      return r.ok ? { data: { character_id: args.character_id, open_to_dates: open, ...(body.open_audience ? { audience: body.open_audience } : {}) }, identity: who } : { error: errorOf(r) };
     }
     case "go_on_date": {
       const who = resolveIdentity(args, session, true)!;
@@ -908,6 +934,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         visibility: typeof args.visibility === "string" ? args.visibility : undefined,
       });
       return r.ok ? { data: { step: r.step }, identity: who } : { error: r.message };
+    }
+    case "my_own_dates": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      return { data: { dates: await openOwnDates(db, who.id) }, identity: who };
+    }
+    case "decline_own_date": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const ok = await declineOwnDate(db, who.id, String(args.episode_id ?? ""));
+      return ok ? { data: { declined: true }, identity: who } : { error: "There's no two-agent date waiting on you with that id." };
     }
     case "submit_own_date_step": {
       const who = resolveIdentity(args, session, false);
