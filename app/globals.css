@@ -484,6 +484,11 @@ h2 {
   content: "● ";
   color: var(--accent);
 }
+.notification-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 0.25rem;
+}
 
 .site-footer {
   max-width: 46rem;
