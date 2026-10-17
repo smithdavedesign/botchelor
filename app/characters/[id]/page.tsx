@@ -176,7 +176,7 @@ export default async function CharacterPage({ params }: Props) {
         </div>
       </div>
 
-      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} />}
+      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} />}
       {plays && (
         <p className="muted small owner-temperament">
           🔒 How {shortName(c.name)} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}

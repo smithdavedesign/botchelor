@@ -45,6 +45,8 @@ export type CharacterRef = {
   hue: number | null;
   /** Their approved generated (BYOK) portrait's path, /api/assets/<id> (lib/assets.ts portraitPathSql), or null. */
   portrait: string | null;
+  /** Made by an AI agent over MCP rather than by a person on the website (characters.created_via). */
+  agent?: boolean;
 };
 export type CreatorRef = { character_id: string; name: string };
 
@@ -302,11 +304,13 @@ type EpisodeRow = {
   a_house: boolean;
   a_hue: number | null;
   a_portrait: string | null;
+  a_agent: boolean;
   b_id: string;
   b_name: string;
   b_house: boolean;
   b_hue: number | null;
   b_portrait: string | null;
+  b_agent: boolean;
   is_creator: boolean;
   is_host: boolean;
   visibility: "public" | "private" | "unlisted";
@@ -332,8 +336,8 @@ const EPISODE_SELECT = `
 select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_question, e.drama_answer,
        e.revealed_at is not null as revealed,
        e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.afterglow, e.status,
-       a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait,
-       b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait,
+       a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait, a.created_via = 'mcp' as a_agent,
+       b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait, b.created_via = 'mcp' as b_agent,
        coalesce($1::text in (a.owner_id, b.owner_id), false) as is_creator,
        coalesce(e.creator_id = $1::text, false) as is_host,
        e.visibility,
@@ -371,8 +375,8 @@ function debriefFrom(side: SideOutcome, setup: DateSetup | null, mySide: 0 | 1):
 
 function toView(row: EpisodeRow): EpisodeView {
   const characters: [CharacterRef, CharacterRef] = [
-    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait },
-    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait },
+    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait, agent: row.a_agent },
+    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait, agent: row.b_agent },
   ];
   const identityRevealed = row.needed > 0 && row.consents >= row.needed;
   const creators = identityRevealed
@@ -586,6 +590,8 @@ export type PublicCharacter = {
   voice: string | null;
   /** A BYOK-generated portrait to render, served from /api/assets/<id>, or null for the drawn avatar. */
   portrait_asset_id: string | null;
+  /** Made by an AI agent over MCP rather than by a person on the website (characters.created_via). */
+  made_by_agent: boolean;
   /** A BYOK intro clip, or null. A Veo clip plays from /api/assets/<id>/video; an old Sora one is only a still. */
   clip_asset_id: string | null;
   /** Whether that clip is a playable video (Veo) rather than a still (from the retired Sora era). */
@@ -599,7 +605,7 @@ export type PublicCharacter = {
 export async function getPublicCharacter(db: Db, id: string): Promise<PublicCharacter | null> {
   const { rows } = await db.query<Omit<PublicCharacter, "portrait_asset_id" | "clip_asset_id" | "clip_is_video">>(
     `select id, name, age, bio, traits, appearance, want, is_house as house, avatar_hue as hue, pronouns, voice,
-            coalesce(extras, '{}'::jsonb) as extras, this_week
+            coalesce(extras, '{}'::jsonb) as extras, this_week, created_via = 'mcp' as made_by_agent
        from characters where id = $1`,
     [id],
   );
