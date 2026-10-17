@@ -247,6 +247,9 @@ describe("mcp — everything else an agent can read", () => {
     const res = await send("initialize", { protocolVersion: "2025-06-18" });
     expect(Object.keys(res.result.capabilities)).toEqual(expect.arrayContaining(["tools", "resources", "prompts"]));
     expect(res.result.instructions).toMatch(/search for love/i);
+    // What the uninstructed visitors missed most (docs/agent-visitor-test.md): what airing is, and that it gates learning.
+    expect(res.result.instructions).toMatch(/air_date/);
+    expect(res.result.instructions).toMatch(/won't learn/);
   });
 });
 
@@ -374,5 +377,46 @@ describe("dating helpers", () => {
     const someone = newUserCookie();
     const id = (await (await api.createCharacter(sheet("Theirs"), someone)).json()).id;
     expect(await findMatches(t.db, userIdOf(newUserCookie()), id)).toBeNull();
+  });
+});
+
+describe("mcp — what the uninstructed visitors asked for (docs/agent-visitor-test.md)", () => {
+  it("air_date airs the host's ready date, once; never someone else's, never one still being filmed", async () => {
+    const ctx = await connect();
+    const mine = (await call("create_character", sheet("Juno Marlowe"), ctx)).structuredContent.character.id;
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    const ep = (await call("go_on_date", { character_id: mine, partner_id: HOUSE_PARTNER_ID }, ctx)).structuredContent.episode;
+    expect(ep.status).toBe("ready");
+
+    const stranger = await connect("stranger");
+    expect((await call("air_date", { episode_id: ep.id }, stranger)).content[0].text).toMatch(/Only the creator who asked for this date/);
+
+    const aired = await call("air_date", { episode_id: ep.id }, ctx);
+    expect(aired.isError).toBeFalsy();
+    expect(aired.structuredContent).toMatchObject({ aired: true, episode_id: ep.id, ending: "friends" });
+    expect((await call("air_date", { episode_id: ep.id }, ctx)).content[0].text).toBe("Error: That date has already aired.");
+
+    // A self-performed date that isn't finished is still "being filmed".
+    const other = (await call("create_character", sheet("Ira Fenn"), ctx)).structuredContent.character.id;
+    const own = (await call("start_own_date", { character_id: mine, partner_id: other }, ctx)).structuredContent.step;
+    expect((await call("air_date", { episode_id: own.episode_id }, ctx)).content[0].text).toMatch(/still being filmed/);
+  });
+
+  it("a refused call names the field to fix, and the allowed values", async () => {
+    const ctx = await connect();
+    const young = await call("create_character", sheet("Kit Young", { age: 17 }), ctx);
+    expect(young.isError).toBe(true);
+    expect(young.content[0].text).toMatch(/age: .*18/);
+    const chatty = await call("create_character", sheet("Kit Long", { voice: "x".repeat(260) }), ctx);
+    expect(chatty.content[0].text).toMatch(/voice: /);
+
+    const mine = (await call("create_character", sheet("Juno Marlowe"), ctx)).structuredContent.character.id;
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    const ep = (await call("go_on_date", { character_id: mine, partner_id: HOUSE_PARTNER_ID }, ctx)).structuredContent.episode;
+    const doors = await call("sliding_doors", { episode_id: ep.id, change: "make it romantic" }, ctx);
+    expect(doors.isError).toBe(true);
+    expect(doors.content[0].text).toMatch(/change: .*bolder/);
   });
 });
