@@ -13,6 +13,7 @@
     "e2e:live": "node scripts/e2e-live.mjs",
     "seed": "node scripts/seed.mjs",
     "sim:relationships": "node scripts/sim-relationships.mjs",
+    "sim:visitors": "zsh scripts/loop/run-now.sh",
     "screenshots": "node scripts/screenshots.mjs",
     "portraits": "node scripts/portraits.mjs",
     "payment:live": "node scripts/payment-live.mjs",
