@@ -153,6 +153,26 @@ describe("the relationship graph — what they learn about each other", () => {
     expect(later.history[1].followup_of).toBe("d1");
   });
 
+  it("a plan settled by text after the morning after wins over it, for the date before the texts", () => {
+    const at = (day: number, hour: number) => new Date(Date.UTC(2026, 9, day, hour)).toISOString();
+    const texts = [
+      { who: "hi" as const, text: "Can't wait to see you Friday. Let's get coffee.", at: at(9, 12) }, // before their first date: a match's chat
+      { who: "hi" as const, text: "Actually, let's do the botanic park on Thursday instead.", at: at(10, 20) },
+      { who: "hi" as const, text: "Deal.", at: at(10, 21) }, // a bare yes doesn't replace the plan it confirms
+      { who: "lo" as const, text: "Thursday then. The 12:03 platform, front carriage.", at: at(10, 22) },
+    ];
+    const rel = computeRelationship(LO, HI, [first], ["", ""], texts);
+    expect(rel.plans.find((p) => p.by === "hi")).toMatchObject({ text: "Actually, let's do the botanic park on Thursday instead.", episode_id: "d1", status: "open" });
+    expect(rel.plans.find((p) => p.by === "lo")).toMatchObject({ text: "Thursday then. The 12:03 platform, front carriage.", episode_id: "d1" });
+    expect(venueForPlan(rel.plans.filter((p) => p.episode_id === "d1"))).toBe("botanic_park");
+    // Without the texts, the morning after's plan stands; texts after a later date belong to that one.
+    expect(computeRelationship(LO, HI, [first]).plans.find((p) => p.by === "hi")!.text).toMatch(/Coffee works/);
+    const second = ep("d2", 12, { transcript: [{ side: "a", act: 0, dialogue: "The botanic park, as promised, on a Thursday.", action: "", emotion: "", interest: 0.8 }] });
+    const both = computeRelationship(LO, HI, [first, second], ["", ""], [...texts, { who: "lo", text: "Next time: karaoke, and I'm choosing the duet.", at: at(12, 20) }]);
+    expect(both.plans.find((p) => p.episode_id === "d1" && p.by === "hi")).toMatchObject({ status: "kept", kept_in: "d2" });
+    expect(both.plans.find((p) => p.episode_id === "d2")).toMatchObject({ by: "lo", text: /karaoke/ });
+  });
+
   it("maps each side's wish for another date to the right person, whichever side they sat on", () => {
     const flipped = ep("d3", 14, { sides: [side(true), side(false)] }, "hi"); // Ira on side a wants more, Cass doesn't
     const rel = computeRelationship(LO, HI, [flipped]);

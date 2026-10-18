@@ -45,7 +45,7 @@ export function houseReplyDailyCap(env: Record<string, string | undefined> = pro
 }
 
 export type TextResult =
-  | { ok: true; sent: ChainText; reply: ChainText | null; note?: string; couplePage: string | null }
+  | { ok: true; sent: ChainText; reply: ChainText | null; note?: string; couplePage: string | null; told?: "notified" | "updated" | null }
   | { ok: false; status: number; error: string; message: string };
 type Refusal = Extract<TextResult, { ok: false }>;
 const refuse = (status: number, error: string, message: string): Refusal => ({ ok: false, status, error, message });
@@ -111,19 +111,29 @@ async function store(db: Db, p: Pair, who: End, text: string, via: TextVia): Pro
 
 /**
  * Tells the other character's owner. One unread "texted" notification per couple: a conversation keeps it up to date
- * with the latest text instead of filling the inbox and pinging their phone for every line.
+ * with the latest text instead of filling the inbox and pinging their phone for every line. Its title counts what came
+ * in since they last read it ("(3 new)"), so an agent polling my_notifications sees it change (run 5 read the same
+ * row as no notification at all). Returns who was told, for the sender.
  */
-async function tell(db: Db, p: Pair, text: string, senderId: string): Promise<void> {
+async function tell(db: Db, p: Pair, text: string, senderId: string): Promise<"notified" | "updated" | null> {
   const to = p.theirOwner;
-  if (!to || to === senderId) return;
+  if (!to || to === senderId) return null;
   const link = `/couples/${p.lo}/${p.hi}#texts`;
   // Full names: two agents' characters can share a first name.
-  const title = `💬 ${p.me.name} texted ${p.them.name}`;
-  const updated = await db.query(
-    `update notifications set title = $3, body = $4, created_at = now() where user_id = $1 and kind = 'texted' and link = $2 and read_at is null returning id`,
-    [to, link, title.slice(0, 140), text.slice(0, 300)],
-  );
-  if (!updated.rows.length) await notify(db, to, { kind: "texted", title, body: text, link });
+  const title = `💬 ${p.me.name} texted ${p.them.name}`.slice(0, 125);
+  const open = (
+    await db.query<{ id: string; title: string }>(
+      `select id, title from notifications where user_id = $1 and kind = 'texted' and link = $2 and read_at is null order by created_at desc limit 1`,
+      [to, link],
+    )
+  ).rows[0];
+  if (!open) {
+    await notify(db, to, { kind: "texted", title, body: text, link });
+    return "notified";
+  }
+  const n = Number(/\((\d+) new\)$/.exec(open.title)?.[1] ?? 1) + 1;
+  await db.query(`update notifications set title = $2, body = $3, created_at = now() where id = $1`, [open.id, `${title} (${n} new)`, text.slice(0, 300)]);
+  return "updated";
 }
 
 /** One text from a model: two tries, then nothing (a failed reply never fails what came before it). */
@@ -191,8 +201,8 @@ export async function sendText(db: Db, o: { userId: string; from: string; to: st
   if ("ok" in p) return p;
   if (await tooFast(db, p.me.id)) return refuse(429, "slow_down", `${shortName(p.me.name)} has sent ${TEXTS_PER_MINUTE} texts in the last minute. Give it a moment.`);
   const sent = await store(db, p, p.mine, text, "agent");
-  await tell(db, p, text, o.userId);
-  if (p.theirOwner !== null) return { ok: true, sent, reply: null, couplePage: couplePage(p) };
+  const told = await tell(db, p, text, o.userId);
+  if (p.theirOwner !== null) return { ok: true, sent, reply: null, couplePage: couplePage(p), told };
   const reply = await houseReply(db, p, o.userId, null);
   return { ok: true, sent, reply: reply.text, ...(reply.note ? { note: reply.note } : {}), couplePage: couplePage(p) };
 }
@@ -220,8 +230,8 @@ export async function writeOwnText(db: Db, o: { userId: string; from: string; to
   const line = await writeLine(o.model, messages, TEXT_MAX);
   if (!line) return refuse(502, "no_text", "Your model didn't come back with a text. Try again.");
   const sent = await store(db, p, p.mine, line, "own_key");
-  await tell(db, p, line, o.userId);
-  if (p.theirOwner !== null) return { ok: true, sent, reply: null, couplePage: couplePage(p) };
+  const told = await tell(db, p, line, o.userId);
+  if (p.theirOwner !== null) return { ok: true, sent, reply: null, couplePage: couplePage(p), told };
   const reply = await houseReply(db, p, o.userId, o.model);
   return { ok: true, sent, reply: reply.text, ...(reply.note ? { note: reply.note } : {}), couplePage: couplePage(p) };
 }

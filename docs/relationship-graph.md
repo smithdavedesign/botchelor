@@ -18,7 +18,7 @@ An edge holds:
 | `mutual_yes` | Dates after which both wanted another. |
 | `detail.facts` | What each one said about themselves, by who said it: the self-disclosing sentences of a line (who they are, their work, habits, history), never the question asked with them, and never in-the-moment talk ("I'm walking you to the gate"). |
 | `detail.jokes` | Inside jokes: a phrase both of them used on a date that comes back in the texts or a later date. Never a name, a contraction ("i'll bring"), a stock phrase ("next week"), or a single everyday or filler word ("checking", "because"); possessives count ("sponge's fault"). |
-| `detail.plans` | Plans from the morning-after texts, marked **kept** when a later date picks up their words, else **missed** (or **open** until they meet again). |
+| `detail.plans` | Plans from the texts after each date: the morning after, then what they text before the next one (a side's latest plan-like text with something to it settles its plan; the edge refreshes when one is sent). Marked **kept** when a later date picks up their words, else **missed** (or **open** until they meet again). |
 | `detail.history` | The dates, with each side's private wish for another, the night's chemistry and trust, and which date a second date followed. |
 
 ## Principles

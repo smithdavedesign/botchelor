@@ -61,8 +61,10 @@ export type HistoryItem = {
 export type Fact = { text: string; about: End; episode_id: string };
 /** A phrase both of them used and came back to: in their texts the morning after, or on a later date. */
 export type Joke = { phrase: string; episode_ids: string[] };
-/** A plan made in the morning-after texts, and whether a later date kept it. */
+/** A plan made after a date (its morning-after texts, or their texts before the next one), and whether a later date kept it. */
 export type Plan = { text: string; by: End; episode_id: string; status: "open" | "kept" | "missed"; kept_in: string | null };
+/** A text between dates (couple_texts), as the graph reads it: which end sent it, and when. */
+export type RelText = { who: End; text: string; at: string };
 
 export type Stage = "just_met" | "sparks" | "dating" | "going_steady" | "friends" | "exes" | "bad_blood";
 export const STAGE_LABELS: Record<Stage, string> = {
@@ -312,15 +314,25 @@ const CLOSING_LINES = 4;
 /** Words that mean a plan was kept when a later date mentions them: the plan's own content words. */
 const planWords = (text: string) => [...new Set(contentWords(text, 4))].filter((w) => !["bring", "next", "time", "meet", "works", "deal"].includes(w));
 
-function plansFrom(afterglow: AfterglowLine[], end: (side: "a" | "b") => End, episodeId: string): Plan[] {
-  // Each side's most concrete plan-like text: the one with the most to it (a place, a thing to bring), not a bare
-  // "Tuesday then." that only confirms it. Ties go to the later text.
-  const score = (t: string) => planWords(t).length + (venueForPlan([{ text: t }]) ? 3 : 0);
+/** True when a text reads like a plan (a time, a place, a promise): one sent between dates updates the couple's plans. */
+export const textMakesPlan = (text: string): boolean => PLAN.test(text.slice(0, PLAN_MAX));
+
+/**
+ * Each side's plan after one date. From the morning after: its most concrete plan-like text, the one with the most to
+ * it (a place, a thing to bring), not a bare "Tuesday then." that only confirms it (ties go to the later text). Their
+ * texts before the next date come later and settle it (run 5: "Thursday" and "the 12:03 platform" were agreed by text),
+ * so a side's latest plan-like text with something to it wins over its morning after.
+ */
+function plansFrom(morningAfter: AfterglowLine[], textsAfter: RelText[], end: (side: "a" | "b") => End, episodeId: string): Plan[] {
+  const score = (t: string) => planWords(t.slice(0, PLAN_MAX)).length + (venueForPlan([{ text: t.slice(0, PLAN_MAX) }]) ? 3 : 0);
+  const plannable = (t: string) => textMakesPlan(t) && checkFields({ line: t.slice(0, PLAN_MAX) }).ok;
   const out: Plan[] = [];
   for (const side of ["a", "b"] as const) {
-    const lines = afterglow.filter((l) => l.side === side && PLAN.test(l.text) && checkFields({ line: l.text }).ok);
-    const line = lines.reduce<AfterglowLine | null>((best, l) => (!best || score(l.text) >= score(best.text) ? l : best), null);
-    if (line) out.push({ text: line.text.slice(0, PLAN_MAX), by: end(side), episode_id: episodeId, status: "open", kept_in: null });
+    const by = end(side);
+    const texted = textsAfter.filter((t) => t.who === by && plannable(t.text) && score(t.text) > 0).at(-1)?.text;
+    const lines = morningAfter.filter((l) => l.side === side && plannable(l.text));
+    const text = texted ?? lines.reduce<AfterglowLine | null>((best, l) => (!best || score(l.text) >= score(best.text) ? l : best), null)?.text;
+    if (text) out.push({ text: text.slice(0, PLAN_MAX), by, episode_id: episodeId, status: "open", kept_in: null });
   }
   return out;
 }
@@ -342,9 +354,10 @@ function settlePlans(plans: Plan[], dates: { id: string; transcript: Turn[] }[])
 
 /**
  * Rebuilds a pair's edge from every stored date between them (any order in; oldest first out). Pure: the same
- * dates always give the same edge. `names` (lo, hi) keep the characters' own names out of the inside jokes.
+ * dates (and texts) always give the same edge. `names` (lo, hi) keep the characters' own names out of the inside
+ * jokes. `texts` are their texts between dates (couple_texts): a plan they make by text counts for the date before it.
  */
-export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], names: [string, string] = ["", ""]): Relationship {
+export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], names: [string, string] = ["", ""], texts: RelText[] = []): Relationship {
   const sorted = [...eps].sort((x, y) => new Date(x.created_at).getTime() - new Date(y.created_at).getTime() || x.id.localeCompare(y.id));
   const history: HistoryItem[] = sorted.map((e) => {
     const loIsA = e.character_a === lo;
@@ -374,7 +387,13 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
   const keptFacts = (["lo", "hi"] as const).flatMap((about) => facts.filter((f) => f.about === about).reverse().slice(0, FACTS_KEPT));
   // A date with no afterglow (a self-performed one has none) still makes plans out loud: its closing lines count.
   const closing = (e: RelEpisode): AfterglowLine[] => (e.transcript ?? []).slice(-CLOSING_LINES).map((t) => ({ side: t.side, text: t.dialogue }));
-  const plans = settlePlans(sorted.flatMap((e) => plansFrom(e.afterglow?.length ? e.afterglow : closing(e), endOf(e), e.id)), dates).reverse().slice(0, PLANS_KEPT);
+  // What they texted after each date and before the next one (texts before their first date, a match's chat, aren't after any).
+  const ms = (at: string | Date) => new Date(at).getTime();
+  const byTime = [...texts].sort((x, y) => ms(x.at) - ms(y.at));
+  const textsAfter = (i: number) => byTime.filter((t) => ms(t.at) > ms(sorted[i].created_at) && (i + 1 >= sorted.length || ms(t.at) < ms(sorted[i + 1].created_at)));
+  const plans = settlePlans(sorted.flatMap((e, i) => plansFrom(e.afterglow?.length ? e.afterglow : closing(e), textsAfter(i), endOf(e), e.id)), dates)
+    .reverse()
+    .slice(0, PLANS_KEPT);
 
   return {
     lo,
@@ -406,16 +425,22 @@ const REL_EPISODES = `
 export async function refreshRelationship(db: Db, x: string, y: string): Promise<Relationship | null> {
   if (x === y) return null;
   const [lo, hi] = pairKey(x, y);
-  const [{ rows }, nameRows] = await Promise.all([
+  const [{ rows }, nameRows, textRows] = await Promise.all([
     db.query<RelEpisode>(REL_EPISODES, [lo, hi, REPORT_HIDE_THRESHOLD]),
     db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[lo, hi]]),
+    // Their texts between dates, for the plans: only the start of each (a plan is at most PLAN_MAX characters), newest 2000.
+    db.query<{ who: End; text: string; created_at: string | Date }>(
+      `select who, left(text, ${PLAN_MAX}) as text, created_at from couple_texts where character_lo = $1 and character_hi = $2 order by created_at desc limit 2000`,
+      [lo, hi],
+    ),
   ]);
   if (!rows.length) {
     await db.query(`delete from relationships where character_a = $1 and character_b = $2`, [lo, hi]);
     return null;
   }
   const name = (id: string) => nameRows.rows.find((r) => r.id === id)?.name ?? "";
-  const rel = computeRelationship(lo, hi, rows, [name(lo), name(hi)]);
+  const texts = textRows.rows.map((t) => ({ who: t.who, text: t.text, at: new Date(t.created_at).toISOString() }));
+  const rel = computeRelationship(lo, hi, rows, [name(lo), name(hi)], texts);
   const a = rel.all;
   const p = rel.public;
   await db.query(
