@@ -184,7 +184,7 @@ export async function swipe(db: Db, userId: string, characterId: string, targetI
     return refuse(404, "not_in_deck", "They're not in your deck: they may be matched or dated already, taken, out of the deck, or not open to characters like yours.");
   }
   const stored = await db.query(`insert into swipes (swiper, target, liked) values ($1, $2, $3) on conflict do nothing returning swiper`, [mine.id, target.id, liked]);
-  if (!stored.rows.length) return refuse(409, "already_swiped", `${shortName(mine.name)} already swiped on ${shortName(target.name)}.`);
+  if (!stored.rows.length) return refuse(409, "already_swiped", `${shortName(mine.name)} already swiped on ${shortName(target.name)}, and swipes are final (#221): a like can't be taken back.`);
   if (!liked) return { ok: true, liked: false, match: null };
   const likesBack = target.is_house || (await db.query(`select 1 from swipes where swiper = $1 and target = $2 and liked`, [target.id, mine.id])).rows.length > 0;
   return { ok: true, liked: true, match: likesBack ? await createMatch(db, mine.id, target.id) : null };

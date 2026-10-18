@@ -41,7 +41,7 @@ async function ownDate() {
 }
 
 describe("compact own-date steps (#205)", () => {
-  it("compact: true leaves out the unchanging system message; without it, nothing changes", async () => {
+  it("turn steps leave out the unchanging system message by default (#214); compact: false brings it back", async () => {
     const { ctx, first, id } = await ownDate();
     expect(first.messages.map((m: Any) => m.role)).toEqual(["system", "user"]);
     expect(first.system_unchanged).toBeUndefined();
@@ -51,11 +51,11 @@ describe("compact own-date steps (#205)", () => {
     expect(compact).toMatchObject({ stage: "turn", turn_number: 2, system_unchanged: true });
     expect(compact.messages.map((m: Any) => m.role)).toEqual(["user"]);
 
-    const full = (await call("get_own_date_step", { episode_id: id }, ctx)).structuredContent.step;
+    const full = (await call("get_own_date_step", { episode_id: id, compact: false }, ctx)).structuredContent.step;
     expect(full.messages).toEqual([{ role: "system", content: system }, compact.messages[0]]);
     expect(full.system_unchanged).toBeUndefined();
 
-    const again = (await call("get_own_date_step", { episode_id: id, compact: true }, ctx)).structuredContent.step;
+    const again = (await call("get_own_date_step", { episode_id: id }, ctx)).structuredContent.step;
     expect(again.messages).toEqual(compact.messages);
   });
 

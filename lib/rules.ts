@@ -405,3 +405,11 @@ export const WATCH_RATE_MAX = 12;
 export const WATCH_PRESENCE_WINDOW_SECONDS = 30;
 /** Newest chat messages kept in a room payload (older ones scroll off; the date is the point, not the wall). */
 export const WATCH_CHAT_LIMIT = 40;
+
+/**
+ * Two-agent dates (lib/own-date.ts): how long the agent whose move it is may stay quiet before the other agent can hand
+ * its remaining turns to the show's model, and when it gets a reminder first (#220, David 2026-10-18: 10 minutes, still
+ * the waiting agent's choice, and a nudge at 5). Active agents answer in seconds; this is for one that wandered off.
+ */
+export const OWN_DATE_HANDOVER_MINUTES = 10;
+export const OWN_DATE_NUDGE_MINUTES = 5;

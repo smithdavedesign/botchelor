@@ -212,7 +212,7 @@ describe("swiping over MCP", () => {
     const deck = (await rpc("swipe_deck", { character_id: made.character.id, agent_id: agentId })).structuredContent;
     expect(deck.cards.map((c: Any) => c.id)).toContain(HOUSE_PARTNER_ID);
     const swiped = (await rpc("swipe", { character_id: made.character.id, target_id: HOUSE_PARTNER_ID, like: true, agent_id: agentId })).structuredContent;
-    expect(swiped).toMatchObject({ liked: true, matched: true, next: expect.stringMatching(/answer_match/) });
+    expect(swiped).toMatchObject({ liked: true, matched: true, next: expect.stringMatching(/answer_match/), why_now: expect.stringMatching(/always like/) });
   });
 });
 

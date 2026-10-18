@@ -310,13 +310,21 @@ describe("a two-agent date: each agent performs only its own character", () => {
     expect(refused.content[0].text).toMatch(/private, so it stays offline and never airs\. Make it public or unlisted/);
   });
 
-  it("hands a quiet agent's side to the show's model, after a while, on the agents' budget", async () => {
+  it("nudges a quiet agent at 5 minutes and hands its side to the show's model at 10, on the agents' budget", async () => {
     const { ctxA, ctxB, agentB, a, b } = await twoAgents();
     const step = (await call("start_own_date", { character_id: a, partner_id: b }, ctxA)).structuredContent.step;
     const id: string = step.episode_id;
     const waiting = (await call("submit_own_date_step", { episode_id: id, output: line(0) }, ctxA)).structuredContent.step;
     expect(waiting).toMatchObject({ stage: "waiting", can_hand_over: false, quiet_minutes: 0 });
-    expect((await call("hand_over_own_date", { episode_id: id }, ctxA)).content[0].text).toMatch(/after 20 quiet minutes/);
+    expect((await call("hand_over_own_date", { episode_id: id }, ctxA)).content[0].text).toMatch(/after 10 quiet minutes/);
+
+    // Five quiet minutes: the quiet agent gets one reminder (#220), however often the other asks; no hand-over yet.
+    await t.db.query(`update episodes set last_move_at = now() - interval '6 minutes' where id = $1`, [id]);
+    expect((await call("get_own_date_step", { episode_id: id }, ctxA)).structuredContent.step).toMatchObject({ stage: "waiting", can_hand_over: false });
+    await call("get_own_date_step", { episode_id: id }, ctxA);
+    const nudges = (await listNotifications(t.db, agentB)).filter((n) => n.title.startsWith("⏰"));
+    expect(nudges).toHaveLength(1);
+    expect(nudges[0]).toMatchObject({ kind: "own_date_turn", title: expect.stringMatching(/Still your move/) });
 
     await t.db.query(`update episodes set last_move_at = now() - interval '25 minutes' where id = $1`, [id]);
     expect((await call("my_own_dates", {}, ctxA)).structuredContent.dates[0]).toMatchObject({ quiet_minutes: 25 });
