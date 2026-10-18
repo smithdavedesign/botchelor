@@ -4923,13 +4923,14 @@ a.phone-head-btn {
    and ⓘ on the right, so nothing takes a row of its own (David, 2026-10-18). */
 .phone-header.is-page {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.5rem;
   padding-bottom: 0.5rem;
 }
 .phone-header.is-page .phone-contact {
-  flex: 1;
+  flex: 0 1 auto;
+  min-width: 0;
   flex-direction: row;
   align-items: center;
   gap: 0.6rem;
@@ -4945,16 +4946,42 @@ a.phone-head-btn {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-left: auto;
 }
 .phone-head-actions:empty {
-  display: none;
+  flex: 1;
 }
 .phone-head-actions > *,
 .phone-header.is-page .phone-head-btn {
   margin: 0;
 }
+/* The chat switcher: a ▾ beside the name, with the native drop-down laid over it (still a real select). */
+.thread-switcher {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  color: var(--accent-text);
+  font-size: 1.1rem;
+}
+.thread-switcher:hover,
+.thread-switcher:focus-within {
+  background: var(--soft);
+}
 .thread-switcher select {
-  max-width: 11rem;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 .thread-action {
   position: relative;
@@ -4975,11 +5002,14 @@ a.phone-head-btn {
   font-size: var(--text-sm);
   white-space: normal;
 }
-/* A phone: ‹, the name and ⓘ on the first line; the switcher and the action under them, still in the header. */
+/* A phone: still one line; the name gives way (ellipsis) before the button does. */
 @media (max-width: 720px) {
-  .phone-header.is-page .phone-head-actions {
-    order: 10;
-    flex-basis: 100%;
-    justify-content: flex-end;
+  .phone-header.is-page {
+    gap: 0.25rem;
+  }
+  .phone-header.is-page .phone-contact-stage {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }

@@ -385,7 +385,7 @@ async function main() {
       assert((await page.locator("#texts .phone-date").count()) === 1, "the thread should open with their date");
       assert((await page.locator("#texts .phone-msg").count()) >= 1, "the morning-after texts should follow the date");
       // What's next, where the texts are: their date, to watch.
-      assert(await page.locator(".phone-header .thread-action", { hasText: "Watch last date" }).isVisible(), "the thread should lead to their date");
+      assert(await page.locator(".phone-header .thread-action", { hasText: "Last date" }).isVisible(), "the thread should lead to their date");
       // A spectator: the page is public now the finale has aired, but the texts are the owners' alone.
       const res = await spage.goto(`${base}${couplePath}`);
       assert(res?.status() === 200, `the couple page should be public once a date airs (${res?.status()})`);

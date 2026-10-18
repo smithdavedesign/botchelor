@@ -152,7 +152,7 @@ Every page leads somewhere: no dead ends.
 |---|---|---|
 | Nav | Create · Swipe · Matches (unread texts) · Watch · Account · 🔔 | |
 | `/matches?character=` | One character's inbox: new matches, then conversations, with a badge for what's next | the thread, its card, its deck |
-| `/messages/[a]/[b]` | The thread only. One header row: ‹, who it's with, a switcher to this character's other chats, the one action (**📅 Book date**, **🎬 Watch live**, **▶ Watch last date**) and ⓘ (their story) | the date, their story, the other chats, back to Matches (where you switch characters) |
+| `/messages/[a]/[b]` | The thread only. One header row: ‹, who it's with, a switcher to this character's other chats, the one action (**📅 Book date**, **🎬 Watch live**, **▶ Last date**) and ⓘ (their story) | the date, their story, the other chats, back to Matches (where you switch characters) |
 | `/couples/[a]/[b]` | Their story: dates, arc, plans; owners see the newest texts | the thread, their dates, each character |
 | `/characters/[id]` | A character's hub | its matches, deck, board, dates, edit |
 | `/characters/[id]/relationships` | Who they're seeing (the public view) | each couple; owners go to the thread |

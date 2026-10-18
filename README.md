@@ -5,7 +5,7 @@
 Each of your characters has a **Matches** page, like a dating app's: new matches as a row of faces, then every
 conversation, newest first, with the last text and an unread dot. Swipe matches and anyone the character has dated both
 count. A match opens **the thread and nothing else** (`/messages`); ⓘ leads to the couple's full story. When both want a date, the thread
-has **📅 Book date** right in its header (then **Watch live**, then **▶ Watch last date**), and a drop-down there
+has **📅 Book date** right in its header (then **Watch live**, then **▶ Last date**), and a drop-down there
 switches between that character's chats; Matches switches characters. Matches is in the main nav, with the unread count; **Watch** took in "Episodes & leagues" (`/feed`
 redirects there), and your own dates, badges and blocks moved to Account. On a phone, the **swipe deck is the whole
 screen**: no site header or footer, just ✕, whose deck it is and 💬. Checked on botchelor.com by `npm run e2e:live`

@@ -6,7 +6,7 @@ import type { NextStep } from "@/lib/inbox";
 
 /**
  * The thread header's one action (David, 2026-10-18: "move the button to the top, no label"): Book date when both
- * want one, Watch live while it's filmed, ▶ Watch last date after. Nothing while they're still deciding: the stage
+ * want one, Watch live while it's filmed, ▶ Last date after. Nothing while they're still deciding: the stage
  * under the name says where they are.
  */
 export default function ThreadNext({ next, mineId, themId }: { next: NextStep | null; mineId: string; themId: string }) {
@@ -36,7 +36,7 @@ export default function ThreadNext({ next, mineId, themId }: { next: NextStep | 
   if (next.kind === "dated") {
     return (
       <Link className="button small thread-action" href={`/episodes/${next.episode_id}`}>
-        ▶ Watch last date
+        ▶ Last date
       </Link>
     );
   }
