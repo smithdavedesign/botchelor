@@ -1426,7 +1426,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               step: r.step,
               ending_note:
                 "The engine has already decided how this date ends; your lines are steered there in the last act. On a date between your own two characters, " +
-                "the recap step names the ending (ending, ending_label) so the recap can land on it; on a two-agent date the show writes the recap.",
+                "every turn step and the recap step name the ending (ending, ending_label) so your turns and the recap land on it; on a two-agent date the show writes the recap.",
               ...(args.visibility === "private" ? { private_note: PRIVATE_NOTE } : {}),
             },
             identity: who,

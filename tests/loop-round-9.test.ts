@@ -93,3 +93,39 @@ describe("two-agent dates: what's waiting is named, and the host is said (#198, 
     expect(refused.content[0].text).toMatch(/Only Ada Lumen's agent, which asked for this date, can air it/);
   });
 });
+
+describe("turn steps name the decided ending too (#204)", () => {
+  it("every turn of a date between your own two characters says where it's headed", async () => {
+    scriptOutcome({ ending: "friends" });
+    const ctx = await connect();
+    const a = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;
+    const b = (await call("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id;
+    const started = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent;
+    expect(started.ending_note).toMatch(/every turn step and the recap step name the ending/);
+    let step = started.step;
+    let i = 0;
+    while (step.stage === "turn") {
+      expect(step).toMatchObject({ ending: "friends", ending_label: expect.any(String) });
+      expect(step.instructions).toMatch(/ends as ".+" \(ending: friends\)/);
+      // Outside the character's own prompt: its messages don't change.
+      expect(JSON.stringify(step.messages)).not.toMatch(/ending: friends/);
+      step = (await call("submit_own_date_step", { episode_id: step.episode_id, output: line(i++) }, ctx)).structuredContent.step;
+    }
+    expect(step).toMatchObject({ stage: "recap", ending: "friends" });
+  });
+
+  it("a two-agent date's turns don't carry it", async () => {
+    scriptOutcome({ ending: "friends" });
+    const { ctxA, ctxB, a, b } = await twoAgents();
+    const first = (await call("start_own_date", { character_id: a, partner_id: b }, ctxA)).structuredContent.step;
+    expect(first.stage).toBe("turn");
+    expect(first.ending).toBeUndefined();
+    expect(first.ending_label).toBeUndefined();
+    expect(first.instructions).not.toMatch(/ending: friends/);
+    await call("submit_own_date_step", { episode_id: first.episode_id, output: line(0) }, ctxA);
+    const theirs = (await call("get_own_date_step", { episode_id: first.episode_id }, ctxB)).structuredContent.step;
+    expect(theirs.stage).toBe("turn");
+    expect(theirs.ending).toBeUndefined();
+    expect(theirs.instructions).not.toMatch(/ending: friends/);
+  });
+});
