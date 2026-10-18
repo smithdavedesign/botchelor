@@ -211,6 +211,13 @@ export const actName = (act: number, metBefore: boolean): string =>
  */
 export const CONVERSATION_TURNS = 12; // dialogue turns total, 4+4+4 across the three acts; the actor may close early in act 3 with "done": true (lib/conversation.ts). 16 → 12 2026-10-18 (David, after Cass×Dex ten dates: shorter and able to end naturally beats a forced length).
 export const TURN_DIALOGUE_MAX = 280; // characters per spoken line
+/**
+ * Moves (lib/moves.ts, David 2026-10-18): the most times two characters can agree to take a date somewhere else ("2
+ * scenes at most"; one constant if that should mean two places in all), and the lines each move gives them there ("reset
+ * the convo limits so they can continue the discussion there"), at most the date's own length.
+ */
+export const MAX_MOVES = 2;
+export const MOVE_SEGMENT_LINES = 12;
 
 /**
  * The afterglow (PRD core feature #2): the short private text thread the two AIs exchange the morning

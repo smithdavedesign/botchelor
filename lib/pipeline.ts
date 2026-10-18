@@ -35,7 +35,7 @@ import { venue } from "./venues";
  * is handed). Recorded on every generated date with the models that wrote it, so a change in quality can be traced
  * to a prompt or a model. Bump it whenever a prompt or its data changes.
  */
-export const PROMPT_VERSION = "2026-10-18.texted-plans";
+export const PROMPT_VERSION = "2026-10-18.date-moves";
 
 /** Which models wrote a date, by role (whichever actually answered, fallbacks included), and with which prompts. */
 export type GeneratedWith = { actor: string[]; director: string[]; byok: string[]; prompts: string };
@@ -62,6 +62,11 @@ export type GenerateOptions = {
   onTurn?: (transcript: Turn[]) => void | Promise<void>;
   /** How long the date and the texts after run (lib/talk.ts); the format's own length (or the standard) when absent. */
   talk?: { date: number; texts: number };
+  /** The date can move when both characters agree (lib/moves.ts); off unless the booking said so (setup.moves). */
+  moves?: boolean;
+  /** Epoch ms: no new move after `moveCutoff`, and the date wraps up by `deadline` (lib/conversation.ts). */
+  moveCutoff?: number;
+  deadline?: number;
 };
 
 export type GeneratedDate = {
@@ -146,7 +151,11 @@ export async function generateDate(
     // A director that is down (a stronger free model at its quota) costs nothing: planDate falls back to rules.
     plan = await planDate(director.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.formatCtx);
     try {
-      transcript = await simulateConversation(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan, keyForSide, opts.onTurn);
+      transcript = await simulateConversation(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan, keyForSide, opts.onTurn, {
+        moves: opts.moves,
+        moveCutoff: opts.moveCutoff,
+        deadline: opts.deadline,
+      });
     } catch (err) {
       conversationError = err;
     }

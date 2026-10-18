@@ -44,18 +44,26 @@ const SPECIFIC: [RegExp, VenueId][] = [
   [/\b(climbing|bouldering|climb)\b/i, "climbing_wall"],
 ];
 
-/** Kinds of place the library has a set for: they win over a place it hasn't (a bakery is near enough the café). */
-const KINDS: [RegExp, VenueId][] = [
-  [/\b(coffee|caf[eé]|espresso|latte|pastr\w*|croissant)\b/i, "corner_cafe"],
+/**
+ * Kinds of place the library has a set for, in order. Most are that place ("coffee" is the café). The `near` ones are
+ * only something like it: casual food has no venue of its own, so the café is the nearest kind of place (run 2: a
+ * food-truck plan got the rooftop), and any bar is the rooftop's. A near one can set a date that names nowhere in
+ * particular, but never stands in for a place they named: "the night market" stays the night market (a 2026-10-18 move
+ * landed two characters "at a corner café that closes in an hour" while they talked about the market).
+ */
+const KINDS: [RegExp, VenueId, "near"?][] = [
+  // No \b after "é": JavaScript's \b is ASCII-only, so "café" never matched (a 2026-10-18 move to "the corner café").
+  [/\b(coffee|caf[eé](?![a-z])|espresso|latte|pastr\w*|croissant)(?![a-z])/i, "corner_cafe"],
   [/\b(karaoke)\b/i, "karaoke_booth"],
   [/\b(arcade|pinball)\b/i, "retro_arcade"],
   [/\b(beach|ocean|shore)\b/i, "night_beach"],
   [/\b(park|garden|botanic|greenhouse|picnic)\b/i, "botanic_park"],
-  // Casual food has no venue of its own; the café is the nearest kind of place (run 2: a food-truck plan got the rooftop).
-  [/\b(food truck|street food|chill?i|tacos?|noodles?|ramen|dumplings?|night market|stall|diner|burgers?|pizza|fries|sandwich(?:es)?|brunch|breakfast|bagels?)\b/i, "corner_cafe"],
-  [/\b(rooftop|cocktails?|bar)\b/i, "rooftop_bar"],
+  [/\b(food truck|street food|chill?i|tacos?|noodles?|ramen|dumplings?|night market|stall|diner|burgers?|pizza|fries|sandwich(?:es)?|brunch|breakfast|bagels?)\b/i, "corner_cafe", "near"],
+  [/\b(rooftop|cocktails?)\b/i, "rooftop_bar"],
+  [/\b(bar)\b/i, "rooftop_bar", "near"],
   [/\b(restaurant|tasting menu)\b/i, "tasting_menu"],
 ];
+const kind = (t: string, near: boolean): VenueId | undefined => KINDS.find(([re, , n]) => Boolean(n) === near && re.test(t))?.[1];
 
 /**
  * Things to do that the library has no set for yet: they become the placeholder with a name ("elsewhere@the cinema"),
@@ -95,7 +103,7 @@ const HINTS: [RegExp, VenueId][] = [
 ];
 
 /** Every keyword in the order it's tried: the old PLAN_VENUES order, so a plan that named a venue before still does. */
-export const PLACE_KEYWORDS: readonly [RegExp, VenueId][] = [...SPECIFIC, ...KINDS, ...HINTS];
+export const PLACE_KEYWORDS: readonly [RegExp, VenueId][] = [...SPECIFIC, ...KINDS.map(([re, v]): [RegExp, VenueId] => [re, v]), ...HINTS];
 
 /** The library venue a text names, or null (lib/relationships.ts venueForPlan reads plans with it). */
 export function venueFor(text: string): VenueId | null {
@@ -111,7 +119,7 @@ const PLACE_NOUNS = new Set(
   (
     "observatory planetarium gallery library bookshop bookstore market garden gardens pier harbour harbor lake river riverbank " +
     "canal bridge tower station platform cinema theatre theater studio bakery bistro brasserie trattoria pub bar café cafe " +
-    "restaurant terrace hill hilltop forest woods trail path wing hall museum zoo aquarium rink pool lido court club stadium " +
+    "restaurant diner terrace hill hilltop forest woods trail path wing hall museum zoo aquarium rink pool lido court club stadium " +
     "field farm orchard vineyard winery brewery distillery chapel castle palace ruins island boat ferry train tram plaza " +
     "square street alley corner shop store mall spa sauna track canyon cave waterfall mountain summit cliff cliffs lighthouse " +
     "dock docks marina port lobby lounge booth stall truck stand place spot joint conservatory fair funfair carnival circus " +
@@ -144,6 +152,32 @@ export function namedPlace(text: string): string | null {
 }
 
 /**
+ * Where a character on a date proposes moving to, from its own few words ("move": "my place", "the night market",
+ * "somewhere quieter"): one of their homes, a library venue, or else the placeholder with their words for a name. Null
+ * when the words can't name a place on the show (too long, a link, not PG, or filtered).
+ */
+export function movePlace(say: string, from: string, to: string): PlaceId | null {
+  const text = say.trim().replace(/\s+/g, " ").replace(/[.!?]+$/, "");
+  if (!text || text.length > 80) return null;
+  if (/^(?:mine|my (?:place|flat|apartment|house|home))$/i.test(text)) return `home@${shortName(from)}'s place`;
+  if (/^(?:yours|your (?:place|flat|apartment|house|home))$/i.test(text)) return `home@${shortName(to)}'s place`;
+  if (MY_HOME.test(text)) return `home@${shortName(from)}'s place`;
+  if (YOUR_HOME.test(text)) return `home@${shortName(to)}'s place`;
+  // "Dex Okafor's place" (a 2026-10-18 move): one of their homes by name, which waits for the end of the night like any.
+  const owner = /^(.+?)['’]s (?:place|flat|apartment|house|home|kitchen|balcony)$/i.exec(text.replace(/^(?:to|at|back to)\s+/i, ""))?.[1].toLowerCase();
+  if (owner) {
+    const whose = [from, to].find((n) => owner === n.toLowerCase() || owner === shortName(n).toLowerCase());
+    if (whose) return `home@${shortName(whose)}'s place`;
+  }
+  // A library venue only when it IS the place; something merely like it keeps their own words, on the placeholder.
+  const known = SPECIFIC.find(([re]) => re.test(text))?.[1] ?? kind(text, false);
+  if (known) return known;
+  const label = text.replace(/^(?:to|at|into|over to)\s+/i, "");
+  if (label.length > PLACE_LABEL_MAX || LINKISH.test(label) || NOT_A_VENUE.test(label) || !checkShowText({ label }).ok) return null;
+  return `elsewhere@${label}`;
+}
+
+/**
  * Where a text proposes going, as a place: one of their homes, a library venue, or a place the library doesn't have
  * yet (the placeholder). `from` is the sender's name and `to` the other's, for "home@Chud's place". Null when the text
  * names nowhere in particular.
@@ -152,9 +186,9 @@ export function placeFor(text: string, from: string, to: string): PlaceId | null
   const t = text.slice(0, 300);
   if (MY_HOME.test(t)) return `home@${shortName(from)}'s place`;
   if (YOUR_HOME.test(t)) return `home@${shortName(to)}'s place`;
-  const specific = SPECIFIC.find(([re]) => re.test(t))?.[1] ?? KINDS.find(([re]) => re.test(t))?.[1];
+  const specific = SPECIFIC.find(([re]) => re.test(t))?.[1] ?? kind(t, false);
   if (specific) return specific;
   const named = namedPlace(t) ?? ACTIVITIES.find(([re]) => re.test(t))?.[1];
   if (named) return `elsewhere@${named}`;
-  return HINTS.find(([re]) => re.test(t))?.[1] ?? null;
+  return kind(t, true) ?? HINTS.find(([re]) => re.test(t))?.[1] ?? null;
 }

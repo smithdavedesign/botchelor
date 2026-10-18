@@ -389,7 +389,10 @@ export const MCP_TOOLS = [
       "side on its own model, the other agent is notified and can decline, and the show writes the recap on its model because " +
       "the narrator sees both characters). The engine deals the date and decides the outcome now; you get back the first step: " +
       "a turn prompt for your character, or 'waiting' while the other side speaks. Hand each reply to submit_own_date_step and " +
-      "repeat; my_own_dates shows whose move it is. Every reply passes the show's content rules.",
+      "repeat; my_own_dates shows whose move it is. Every reply passes the show's content rules. The date can move when both " +
+      "characters agree: one suggests a place in its reply (\"move\"), the other says yes on the very next turn (\"accept_move\"), and the " +
+      "scene changes there with fresh lines to talk in (twice a date at most; one of their homes only at the end of the night, PG). " +
+      "The engine still decides how it ends.",
     inputSchema: {
       type: "object",
       required: ["character_id", "partner_id"],
@@ -407,7 +410,7 @@ export const MCP_TOOLS = [
     name: "submit_own_date_step",
     title: "Hand in a step of your date",
     description:
-      'Hand in the output of the current step of a date you\'re performing: the speaking character\'s JSON reply for a turn, or the narrator\'s JSON for the recap. Returns the next step (or the finished episode). A reply that breaks the rules is refused with the reason, and the same step comes back to run again.',
+      'Hand in the output of the current step of a date you\'re performing: the speaking character\'s JSON reply for a turn, or the narrator\'s JSON for the recap. Returns the next step (or the finished episode). A reply that breaks the rules is refused with the reason, and the same step comes back to run again. When the other character just suggested taking the date somewhere (the step\'s answer_their_suggestion), the reply needs "accept_move": true to go or false to stay.',
     inputSchema: {
       type: "object",
       required: ["episode_id", "output"],

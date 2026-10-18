@@ -24,7 +24,8 @@ import { metBefore } from "./memory";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { agenda, ENDING_LABELS } from "./rules";
 import { checkFields } from "./safety";
-import { venue, type PlaceId } from "./venues";
+import { whereItHappened } from "./moves";
+import type { PlaceId } from "./venues";
 
 /** Each side's reflection about this date, or null when it couldn't be produced. Stored on episodes.reflections. */
 export type Reflections = { a: string | null; b: string | null };
@@ -97,7 +98,7 @@ export function buildReflectionMessages(
   const data = {
     you: characterSelfView(meChar, dateContext(me)),
     them: characterBlindView(themChar),
-    the_date_was_at: venue(venueId).prompt,
+    the_date_was_at: whereItHappened(date, venueId),
     the_show_format: formatNote(formatId, formatCtx),
     what_you_want_in_someone: meChar.persona.want,
     ...(history ? { you_had_met_them_before: history } : {}),
