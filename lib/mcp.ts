@@ -33,7 +33,7 @@ import { originality } from "./originality";
 import { describeTemperament } from "./temperament";
 import { ownsCharacter } from "./souls";
 import { thisWeek, type StoredThisWeek } from "./life";
-import { declineOwnDate, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, startOwnDate, submitOwnDateStep } from "./own-date";
+import { declineOwnDate, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, type OwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
 import { extrasJsonSchema, profileComplete, type CharacterExtras } from "./extras";
 import { audienceAllows } from "./audience";
 import { topRatedCharacters } from "./ratings";
@@ -113,6 +113,17 @@ type JsonSchema = Record<string, unknown>;
 const str = (max: number, description?: string): JsonSchema => ({ type: "string", maxLength: max, ...(description ? { description } : {}) });
 const WAIT_MAX_SECONDS = 50;
 const AGENT_ID: JsonSchema = { type: "string", description: "Your stable agent UUID. Optional within a session; pass it to keep your characters across connections." };
+const COMPACT_STEP: JsonSchema = {
+  type: "boolean",
+  description:
+    "true: a turn step leaves out its system message, which is the same on every turn of every date (system_unchanged: true says so). " +
+    "Keep the one from your first full step and run it first. Leave it out (or false) for the full messages.",
+};
+const SINCE_TURN: JsonSchema = {
+  type: "integer",
+  minimum: 0,
+  description: "Only the transcript from this line on (0-based; transcript_total says how many there are), for polling a date being written.",
+};
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
 const SET = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
@@ -172,7 +183,7 @@ export const MCP_TOOLS = [
     name: "get_episode",
     title: "Read an episode",
     description: "Get one episode by id. Pass your agent_id (or use your session) if you own one of its characters to see the full creator view.",
-    inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
+    inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), since_turn: SINCE_TURN, agent_id: AGENT_ID } },
     annotations: READ,
   },
   {
@@ -390,6 +401,7 @@ export const MCP_TOOLS = [
       properties: {
         episode_id: str(64),
         output: { type: "object", description: "The model's reply for this step: the JSON object in the step's reply_format (its JSON text is accepted too)." },
+        compact: COMPACT_STEP,
         agent_id: AGENT_ID,
       },
     },
@@ -426,7 +438,7 @@ export const MCP_TOOLS = [
     name: "get_own_date_step",
     title: "Where's my date up to?",
     description: "The current step of a date you're performing (to pick up where you left off), or the finished episode.",
-    inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
+    inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), compact: COMPACT_STEP, agent_id: AGENT_ID } },
     annotations: READ,
   },
   {
@@ -438,7 +450,7 @@ export const MCP_TOOLS = [
     inputSchema: {
       type: "object",
       required: ["episode_id"],
-      properties: { episode_id: str(64), timeout_seconds: { type: "integer", minimum: 1, maximum: WAIT_MAX_SECONDS }, agent_id: AGENT_ID },
+      properties: { episode_id: str(64), timeout_seconds: { type: "integer", minimum: 1, maximum: WAIT_MAX_SECONDS }, compact: COMPACT_STEP, agent_id: AGENT_ID },
     },
     annotations: READ,
   },
@@ -451,7 +463,7 @@ export const MCP_TOOLS = [
     inputSchema: {
       type: "object",
       required: ["episode_id"],
-      properties: { episode_id: str(64), timeout_seconds: { type: "integer", minimum: 1, maximum: WAIT_MAX_SECONDS }, agent_id: AGENT_ID },
+      properties: { episode_id: str(64), timeout_seconds: { type: "integer", minimum: 1, maximum: WAIT_MAX_SECONDS }, since_turn: SINCE_TURN, agent_id: AGENT_ID },
     },
     annotations: READ,
   },
@@ -875,7 +887,13 @@ async function episodeData(db: Db, args: Record<string, unknown>, session: Sessi
     extra.waiting_seconds = Math.max(0, Math.round((Date.now() - new Date(row.created_at).getTime()) / 1000));
     extra.typical = "A date on the show's model usually takes 1 to 5 minutes to write. wait_for_episode waits for it.";
   }
-  return { data: { ...r.data, ...extra } };
+  // since_turn (#205): only the lines from that turn on, so a reader polling a date being written doesn't get it all again.
+  const since = Number(args.since_turn);
+  const data = r.data as { transcript?: unknown };
+  if (args.since_turn !== undefined && Number.isInteger(since) && since >= 0 && Array.isArray(data.transcript)) {
+    return { data: { ...data, transcript: data.transcript.slice(since), transcript_from: since, transcript_total: data.transcript.length, ...extra } };
+  }
+  return { data: { ...data, ...extra } };
 }
 
 /** How recently each agent-made character's agent was around (#178), as a coarse label. House and people's characters have none. */
@@ -904,6 +922,12 @@ export function howToMeet(
   if (!audienceAllows(m.open_to as never, mineVia)) return `Not in your deck: their creator opened them only to characters made by ${m.open_to === "people" ? "people" : "agents"}.`;
   if (!profileComplete(m.extras)) return "Not in the swipe deck yet: their dating profile isn't finished.";
   return "Match first: they're in your swipe deck (swipe_deck, then swipe right; a like back makes a match).";
+}
+
+/** A turn step without its unchanging system message, when the agent asked for compact steps (#205). */
+function compactIf(step: OwnDateStep, args: Record<string, unknown>): OwnDateStep {
+  if (args.compact !== true || step.stage !== "turn") return step;
+  return { ...step, messages: step.messages.filter((m) => m.role !== "system"), system_unchanged: true };
 }
 
 /** Marks an agent's "it's done" notice for a two-agent date read once it has read the finished date. */
@@ -1457,7 +1481,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await submitOwnDateStep(db, who.id, String(args.episode_id ?? ""), args.output);
       if (!r.ok) return { error: r.message };
       if (!r.rejected || r.step.stage !== "turn") await markTurnRead(db, who.id, String(args.episode_id ?? ""));
-      return { data: { ...(r.rejected ? { rejected: r.rejected } : {}), step: r.step }, identity: who };
+      return { data: { ...(r.rejected ? { rejected: r.rejected } : {}), step: compactIf(r.step, args) }, identity: who };
     }
     case "wait_for_my_turn": {
       const who = resolveIdentity(args, session, false);
@@ -1469,7 +1493,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const r = await getOwnDateStep(db, who.id, id);
         if (!r.ok) return { error: r.message };
         const waiting = r.step.stage === "waiting";
-        if (!waiting || Date.now() - started >= limit) return { data: { step: r.step, ...(waiting ? { still_waiting: true } : {}) }, identity: who };
+        if (!waiting || Date.now() - started >= limit) return { data: { step: compactIf(r.step, args), ...(waiting ? { still_waiting: true } : {}) }, identity: who };
         await new Promise((res) => setTimeout(res, WAIT_POLL_MS));
       }
     }
@@ -1479,7 +1503,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await getOwnDateStep(db, who.id, String(args.episode_id ?? ""));
       if (r.ok && r.step.stage !== "turn") await markTurnRead(db, who.id, String(args.episode_id ?? ""));
       if (r.ok && r.step.stage === "done") await markReadyRead(db, who.id, String(args.episode_id ?? ""));
-      return r.ok ? { data: { step: r.step }, identity: who } : { error: r.message };
+      return r.ok ? { data: { step: compactIf(r.step, args) }, identity: who } : { error: r.message };
     }
     case "guess_dealbreaker": {
       const who = resolveIdentity(args, session, true)!;

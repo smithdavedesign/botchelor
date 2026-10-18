@@ -78,8 +78,12 @@ export type OwnDateStep =
        */
       ending?: Ending;
       ending_label?: string;
+      /** The last couple of lines said, as plain text (#205). Both sides have heard them. */
+      last_lines?: string[];
       instructions: string;
       messages: ChatMessage[];
+      /** compact: true (lib/mcp.ts): messages leave out the system message, the same on every turn (#205). */
+      system_unchanged?: true;
       reply_format: string;
     }
   | {
@@ -374,6 +378,7 @@ function stepFor(
       act_index: act,
       ending: decided.ending,
       ending_label: ENDING_LABELS[decided.ending],
+      ...(turn ? { last_lines: transcript.slice(-2).map((t) => `${built.characters[t.side === "a" ? 0 : 1].name}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`) } : {}),
       instructions:
         `Turn ${turn + 1} of ${of}: ${speaker.name} speaks. Run these messages in ${speaker.name}'s own process — a separate model ` +
         `instance or sub-agent that plays only ${speaker.name} — and send its raw JSON reply back as "output". Don't show it the other ` +
