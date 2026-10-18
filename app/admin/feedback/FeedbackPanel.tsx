@@ -31,24 +31,40 @@ const FIELDS = [
 export default function FeedbackPanel() {
   const [data, setData] = useState<{ summary: Summary; feedback: Row[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
+  const [needsPassword, setNeedsPassword] = useState(false);
 
-  async function load() {
+  async function load(typed?: string) {
     setError(null);
-    let key = "";
-    try {
-      key = localStorage.getItem("bz_frontier") ?? "";
-    } catch {
-      /* private mode */
-    }
+    let key = typed ?? "";
     if (!key) {
-      setError("Not signed in. Enter the admin password in the frontier tool on the Admin page first.");
+      try {
+        key = localStorage.getItem("bz_frontier") ?? "";
+      } catch {
+        /* private mode */
+      }
+    }
+    // No saved password: ask for it here (it used to need the frontier tool on /admin first).
+    if (!key) {
+      setNeedsPassword(true);
       return;
     }
     try {
       const res = await fetch("/api/admin/feedback", { headers: { "x-frontier-key": key } });
       const body = await res.json();
-      if (res.ok) setData(body);
-      else setError(body.message ?? "Not authorized.");
+      if (res.ok) {
+        setData(body);
+        setNeedsPassword(false);
+        // Saved the same way the other admin panels read it, so one sign-in covers them all.
+        try {
+          localStorage.setItem("bz_frontier", key);
+        } catch {
+          /* private mode */
+        }
+      } else {
+        setNeedsPassword(true);
+        setError(body.message ?? "Not authorized.");
+      }
     } catch {
       setError("Network error.");
     }
@@ -62,9 +78,24 @@ export default function FeedbackPanel() {
 
   return (
     <section className="card">
-      <button type="button" className="secondary small" onClick={load}>
-        Refresh
-      </button>
+      {needsPassword ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void load(password.trim());
+          }}
+        >
+          <label htmlFor="admin-password">Admin password</label>
+          <input id="admin-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <button type="submit" className="small" disabled={!password.trim()}>
+            Sign in
+          </button>
+        </form>
+      ) : (
+        <button type="button" className="secondary small" onClick={() => void load()}>
+          Refresh
+        </button>
+      )}
       {error && <p className="error">{error}</p>}
       {data && (
         <>
