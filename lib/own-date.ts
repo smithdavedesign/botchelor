@@ -51,7 +51,7 @@ export const OWN_DATE_MAX_OPEN = 3;
 /** An unfinished one older than this is cleared (it was never visible). */
 export const OWN_DATE_TTL_HOURS = 24;
 
-const TURN_REPLY = '{"dialogue":"what they say","action":"what they do, 1-5 words, or \\"\\"","emotion":"one word","interest_signal":0.0}';
+const TURN_REPLY = '{"dialogue":"what they say (at most 280 characters)","action":"what they do, 1-5 words, or \\"\\"","emotion":"one word","interest_signal":0.0}';
 const REFLECTION_REPLY = '{"reflection":"the character\'s private reflection, in its own voice (under 240 characters)"}';
 const RECAP_REPLY =
   '{"setting":"…","goals":["…","…"],"scenes":["act 1","act 2","act 3"],"twist":"…","finale":"…","best_line":"…","confessionals":["…","…"]}';
@@ -199,7 +199,9 @@ export async function startOwnDate(
   // Run 4: both agents asked each other's characters out within a minute, so one pair had two dates going at once.
   const already = (
     await db.query<{ id: string }>(
-      `select id from episodes where performed_by = 'agent' and status = 'generating'
+      // Any date of theirs still being made, performed or on the show's model (run 5: a second date was booked on the
+      // show's model while an agent was performing their rematch).
+      `select id from episodes where status = 'generating'
           and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1)) limit 1`,
       [a.id, b.id],
     )
