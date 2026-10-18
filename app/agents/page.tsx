@@ -17,6 +17,7 @@ export const metadata: Metadata = {
 
 const GROUPS: { title: string; tools: string[] }[] = [
   { title: "Search for love", tools: ["search_characters", "find_matches", "get_character"] },
+  { title: "Swipe and match", tools: ["swipe_deck", "swipe", "my_matches", "answer_match"] },
   { title: "Your character", tools: ["create_character", "update_character", "set_open_to_dates", "my_characters"] },
   { title: "Dates on the show's model", tools: ["go_on_date", "my_dates", "get_episode", "air_date", "open_afterglow", "plan_second_date", "propose_date", "answer_date_proposal", "sliding_doors"] },
   { title: "Dates you perform yourself (free, unlimited)", tools: ["start_own_date", "submit_own_date_step", "get_own_date_step", "my_own_dates", "decline_own_date"] },

@@ -47,7 +47,7 @@ export type DatingProfile = {
   extras: CharacterExtras;
 };
 
-type Row = {
+export type ProfileRow = {
   id: string;
   name: string;
   age: number;
@@ -67,7 +67,8 @@ type Row = {
   extras: CharacterExtras | null;
 };
 
-const PUBLIC_COLUMNS = `c.id, c.name, c.age, c.pronouns, c.bio, c.traits, c.want, c.appearance, c.voice, c.avatar_hue,
+/** The public columns of a character (`c`) as a ProfileRow. */
+export const PUBLIC_COLUMNS = `c.id, c.name, c.age, c.pronouns, c.bio, c.traits, c.want, c.appearance, c.voice, c.avatar_hue,
   ${portraitPathSql("c")} as portrait, c.is_house, c.created_via, c.open_to_dates, c.open_audience, c.extras,
   (select count(*)::int from episodes e
      where (e.character_a = c.id or e.character_b = c.id) and e.revealed_at is not null and e.visibility = 'public') as dates`;
@@ -77,9 +78,9 @@ const NOT_BLOCKED = `not exists (
   select 1 from blocks bl
    where (bl.blocker_id = $1 and bl.blocked_id = c.owner_id) or (bl.blocker_id = c.owner_id and bl.blocked_id = $1))`;
 
-const madeBy = (r: Pick<Row, "is_house" | "created_via">): MadeBy => (r.is_house ? "house" : r.created_via === "mcp" ? "agent" : "human");
+const madeBy = (r: Pick<ProfileRow, "is_house" | "created_via">): MadeBy => (r.is_house ? "house" : r.created_via === "mcp" ? "agent" : "human");
 
-function toProfile(r: Row): DatingProfile {
+export function toProfile(r: ProfileRow): DatingProfile {
   // A house character is available only while it's on this season's cast; an OC, while it's open to dates.
   const available = r.is_house ? isOnSeasonCast(r.id) : r.open_to_dates;
   return {
@@ -150,8 +151,8 @@ export type SearchOptions = {
 };
 
 /** The candidate pool, newest first, bounded so a search stays cheap however big the cast grows. */
-async function candidates(db: Db, viewerId: string | null, openOnly: boolean, includeHouse: boolean): Promise<Row[]> {
-  const { rows } = await db.query<Row>(
+async function candidates(db: Db, viewerId: string | null, openOnly: boolean, includeHouse: boolean): Promise<ProfileRow[]> {
+  const { rows } = await db.query<ProfileRow>(
     `select ${PUBLIC_COLUMNS}
        from characters c
       where ((c.is_house and c.premium_sku is null and $2::boolean and c.id = any($4))
@@ -218,16 +219,26 @@ export async function findMatches(
   limit = 5,
 ): Promise<{ for: { id: string; name: string }; matches: Match[] } | null> {
   const mine = (
-    await db.query<Row>(`select ${PUBLIC_COLUMNS} from characters c where c.id = $1 and c.owner_id = $2 and not c.is_house`, [characterId, viewerId])
+    await db.query<ProfileRow>(`select ${PUBLIC_COLUMNS} from characters c where c.id = $1 and c.owner_id = $2 and not c.is_house`, [characterId, viewerId])
   ).rows[0];
   if (!mine) return null;
   const me = toProfile(mine);
+  // Only characters open to one like this one (lib/audience.ts): house characters are open to everyone.
+  const pool = (await candidates(db, viewerId, true, true)).filter((r) => r.is_house || audienceAllows(r.open_audience, mine.created_via)).map(toProfile);
+  const matches = await rankFor(db, viewerId, me, pool);
+  return { for: { id: me.id, name: me.name }, matches: matches.slice(0, Math.max(1, Math.min(20, limit))) };
+}
+
+/**
+ * What one of your characters makes of a pool of others, best first, each with a score and its reasons: shared traits
+ * and interests, what each wants, what the show has learned about these traits (lib/compatibility.ts), where they
+ * already stand, and a popularity damper. Exes and bad blood never come back. Used by find_matches and the swipe deck
+ * (lib/swipes.ts).
+ */
+export async function rankFor(db: Db, viewerId: string, me: DatingProfile, pool: DatingProfile[]): Promise<Match[]> {
   const myTraits = new Set(me.traits.map((t) => t.toLowerCase()));
   const myWant = keywords(me.want);
   const myWords = keywords(haystack({ ...me, want: "" }));
-
-  // Only characters open to one like this one (lib/audience.ts): house characters are open to everyone.
-  const pool = (await candidates(db, viewerId, true, true)).filter((r) => r.is_house || audienceAllows(r.open_audience, mine.created_via)).map(toProfile);
   const [stats, degrees, edges] = await Promise.all([loadTraitStats(db), publicDegrees(db, pool.map((p) => p.id)), relationshipsOf(db, me.id)]);
   const metWith = new Map(
     edges.flatMap((rel) => {
@@ -281,19 +292,19 @@ export async function findMatches(
     return { ...p, score: Math.round(score * 100) / 100, why, ...(met ? { relationship: met } : {}) };
   });
   matches.sort((a, b) => b.score - a.score || Number(a.made_by === "house") - Number(b.made_by === "house") || a.dates - b.dates);
-  return { for: { id: me.id, name: me.name }, matches: matches.slice(0, Math.max(1, Math.min(20, limit))) };
+  return matches;
 }
 
 /* ---------------------------------------------- one profile ---------------------------------------------- */
 
 export async function getDatingProfile(db: Db, id: string): Promise<DatingProfile | null> {
-  const row = (await db.query<Row>(`select ${PUBLIC_COLUMNS} from characters c where c.id = $1`, [id])).rows[0];
+  const row = (await db.query<ProfileRow>(`select ${PUBLIC_COLUMNS} from characters c where c.id = $1`, [id])).rows[0];
   return row ? toProfile(row) : null;
 }
 
 /** Your own characters, with whether each is open to dates and its public record. */
 export async function listMyDatingProfiles(db: Db, userId: string): Promise<DatingProfile[]> {
-  const { rows } = await db.query<Row>(
+  const { rows } = await db.query<ProfileRow>(
     `select ${PUBLIC_COLUMNS} from characters c where c.owner_id = $1 and not c.is_house order by c.created_at desc, c.id limit 50`,
     [userId],
   );

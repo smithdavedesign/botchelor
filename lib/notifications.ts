@@ -12,6 +12,8 @@ import { pushToUser } from "./push";
 
 export type NotificationKind =
   | "texted" // a couple's text: the show's daily one, or one they sent themselves (one unread per couple)
+  | "matched" // your character matched someone in the swipe deck (lib/swipes.ts)
+  | "date_agreed" // a match where both characters said yes to a date: book it
   | "second_date_yes" // the other owner said yes to a second date, and is waiting for yours
   | "second_date_booked" // a second date was booked with your character
   | "stage_up" // a couple you're part of (or follow) moved up a stage

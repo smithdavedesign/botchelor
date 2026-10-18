@@ -32,6 +32,7 @@ import { seasonCastIds } from "@/lib/season-cast";
 import { seasonAt } from "@/lib/seasons";
 import { checkSecondDate } from "@/lib/second-date";
 import { acceptableProposal, markAccepted } from "@/lib/date-proposals";
+import { agreedMatchSql } from "@/lib/swipes";
 import { audienceAllowsSql } from "@/lib/audience";
 import { useNudges } from "@/lib/between-dates";
 import { notify } from "@/lib/notifications";
@@ -207,11 +208,11 @@ export const POST = handle(async (req) => {
       await db.query<CharacterRow>(
         `select ${CHARACTER_COLUMNS} from characters c
           where c.id = $1
-            and ((c.is_house and (c.premium_sku is not null or c.id = any($3)
+            and ((c.is_house and (c.premium_sku is not null or c.id = any($3) or ${agreedMatchSql("c", "$4")}
                    or exists (select 1 from relationships r
                                where r.dates > 0 and ((r.character_a = c.id and r.character_b = $4) or (r.character_a = $4 and r.character_b = c.id)))))
                  or (((c.open_to_dates and ${audienceAllowsSql("c", "(select o.created_via from characters o where o.id = $4)")})
-                      or ${coupledSql("c", "$4")} or c.id = $5::text) and c.owner_id <> $2 and not ${takenSql("c", "$4")}
+                      or ${coupledSql("c", "$4")} or c.id = $5::text or ${agreedMatchSql("c", "$4")}) and c.owner_id <> $2 and not ${takenSql("c", "$4")}
                      and not exists (
                        select 1 from blocks bl
                         where (bl.blocker_id = $2 and bl.blocked_id = c.owner_id)

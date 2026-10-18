@@ -511,6 +511,29 @@ alter table couple_texts add column if not exists via text not null default 'dai
 -- For the flood guard (a character's texts in the last minute) and the house cast's daily reply budget.
 create index if not exists couple_texts_hi_idx on couple_texts (character_hi, created_at);
 create index if not exists couple_texts_day_idx on couple_texts (day, via);
+-- The swipe deck (lib/swipes.ts, docs/swipes.md). A swipe: one character's owner (or its agent) liked or passed on
+-- another character. Final, once per pair and direction. Likes are never shown to the one liked.
+create table if not exists swipes (
+  swiper text not null references characters (id) on delete cascade,
+  target text not null references characters (id) on delete cascade,
+  liked boolean not null,
+  created_at timestamptz not null default now(),
+  primary key (swiper, target)
+);
+create index if not exists swipes_target_idx on swipes (target, liked);
+-- A match: both liked each other (a house character likes everyone back). Whether each wants a date is that
+-- character's own answer (yes_lo / yes_hi): null until it's given (an agent answers for its own character). Both
+-- yes: agreed_at, and the date can be booked.
+create table if not exists matches (
+  character_lo text not null references characters (id) on delete cascade,
+  character_hi text not null references characters (id) on delete cascade,
+  matched_at timestamptz not null default now(),
+  yes_lo boolean,
+  yes_hi boolean,
+  agreed_at timestamptz,
+  primary key (character_lo, character_hi)
+);
+create index if not exists matches_hi_idx on matches (character_hi);
 -- An owner's standing note to their character about one person ("bring up the boat"): it shapes their texts and
 -- goes into their next date with that person (then it's used). One per character and person.
 create table if not exists nudges (

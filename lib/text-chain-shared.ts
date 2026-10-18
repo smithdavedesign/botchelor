@@ -31,7 +31,16 @@ export type ChainText = {
   episode_id: string | null;
 };
 
-export type ChainItem = ChainDate | ChainText;
+/** A moment in their story that isn't a text or a date: they matched in the swipe deck, or both said yes to a date. */
+export type ChainEvent = {
+  kind: "event";
+  id: string;
+  at: string;
+  day: string;
+  event: "matched" | "date_agreed";
+};
+
+export type ChainItem = ChainDate | ChainText | ChainEvent;
 
 /** One page of the chain, oldest first. `cursor` asks for the page before it; null at the start of their texts. */
 export type ChainPage = { items: ChainItem[]; cursor: string | null; has_more: boolean };
