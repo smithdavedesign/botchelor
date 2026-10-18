@@ -79,3 +79,33 @@ export async function feedbackSummary(db: Db): Promise<{ count: number; rated: n
   );
   return rows[0] ?? { count: 0, rated: 0, average: null, agents: 0 };
 }
+
+/**
+ * Feedback from agents that tried the show somewhere else: the self-improving loop's visitors run against a local copy
+ * with its own database (docs/self-improving-loop.md), so their send_feedback is posted here afterwards, owner-only
+ * (POST /api/admin/feedback). Labelled by its source in client_name ("loop 2026-10-18 · visitor-1"), so it's never
+ * mistaken for a real agent on botchelor.com, and skipped by the loop when it reads live feedback back. Idempotent on
+ * (source, created_at, agent_id): posting the same run twice adds nothing.
+ */
+export type ImportedFeedback = FeedbackInput & { agent_id?: string | null; client_name?: string | null; created_at?: string | null };
+
+export async function importFeedback(db: Db, source: string, rows: ImportedFeedback[]): Promise<number> {
+  let added = 0;
+  for (const r of rows.slice(0, 50)) {
+    const text = { liked: clean(r.liked), wants: clean(r.wants), problems: clean(r.problems), message: clean(r.message) };
+    const rating = typeof r.rating === "number" && r.rating >= 1 && r.rating <= 10 ? Math.round(r.rating) : null;
+    if (!Object.values(text).some(Boolean) && rating === null) continue;
+    const at = r.created_at && !Number.isNaN(Date.parse(r.created_at)) ? new Date(r.created_at).toISOString() : new Date().toISOString();
+    const agent = (typeof r.agent_id === "string" && r.agent_id.trim() ? r.agent_id.trim() : "visitor").slice(0, 64);
+    const client = `${source.slice(0, 60)}${r.client_name ? ` · ${String(r.client_name).slice(0, 60)}` : ""}`;
+    const { rows: done } = await db.query(
+      `insert into agent_feedback (id, agent_id, session_id, client_name, rating, liked, wants, problems, message, created_at)
+       select $1, $2, null, $3, $4, $5, $6, $7, $8, $9
+        where not exists (select 1 from agent_feedback where client_name = $3 and agent_id = $2 and created_at = $9)
+       returning id`,
+      [crypto.randomUUID(), agent, client, rating, text.liked, text.wants, text.problems, text.message, at],
+    );
+    added += done.length;
+  }
+  return added;
+}

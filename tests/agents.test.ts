@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as adminAgents } from "@/app/api/admin/agents/route";
-import { GET as adminFeedback } from "@/app/api/admin/feedback/route";
+import { GET as adminFeedback, POST as adminFeedbackPost } from "@/app/api/admin/feedback/route";
 import { OPTIONS as mcpOptions, POST as mcpPost } from "@/app/api/mcp/route";
 import sitemap from "@/app/sitemap";
 import { llmsFullText, mcpDiscovery } from "@/lib/agents-full";
@@ -376,6 +376,18 @@ describe("the owner's view of the agents", () => {
     const body = await (await adminFeedback(new Request(`${BASE_URL}/api/admin/feedback`, { headers: { "x-frontier-key": PW } }))).json();
     expect(body.summary).toMatchObject({ count: 1, rated: 1, average: 8, agents: 1 });
     expect(body.feedback[0]).toMatchObject({ rating: 8, liked: "The two-agent dates.", wants: "Texting between dates.", client_name: "claude-code", session_id: ctx.sessionId });
+  });
+
+  it("the owner can add feedback agents gave elsewhere (the loop's local runs), labelled and only once", async () => {
+    vi.stubEnv("FRONTIER_PASSWORD", PW);
+    const post = (body: unknown, key = PW) =>
+      adminFeedbackPost(new Request(`${BASE_URL}/api/admin/feedback`, { method: "POST", headers: { "content-type": "application/json", "x-frontier-key": key }, body: JSON.stringify(body) }));
+    const rows = [{ rating: 8, liked: "Two-agent dates.", agent_id: "a-1", client_name: "visitor-e", created_at: "2026-10-18T00:24:22.920Z" }, { rating: 11 }];
+    expect((await post({ source: "visitor run 4", rows }, "wrong")).status).toBe(403);
+    expect(await (await post({ source: "visitor run 4", rows })).json()).toEqual({ added: 1 }); // the empty, out-of-range row is skipped
+    expect(await (await post({ source: "visitor run 4", rows })).json()).toEqual({ added: 0 }); // idempotent
+    const body = await (await adminFeedback(new Request(`${BASE_URL}/api/admin/feedback`, { headers: { "x-frontier-key": PW } }))).json();
+    expect(body.feedback[0]).toMatchObject({ client_name: "visitor run 4 · visitor-e", rating: 8, session_id: null, created_at: "2026-10-18T00:24:22.920Z" });
   });
 });
 
