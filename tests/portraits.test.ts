@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { characterPortrait, HOUSE_PORTRAIT_IDS, venueBackdrop, VENUES_WITH_BACKDROPS } from "@/lib/portraits";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
-import { VENUE_IDS } from "@/lib/venues";
+import { EXTRA_VENUES, VENUE_IDS } from "@/lib/venues";
 
 const CAST_DIR = join(process.cwd(), "public", "cast");
 const files = new Set(readdirSync(CAST_DIR));
@@ -40,9 +40,10 @@ describe("portraits — in sync with the cast, the venues and the files", () => 
     for (const id of VENUE_IDS) expect(VENUES_WITH_BACKDROPS.has(id)).toBe(true);
   });
 
-  it("every venue listed with a backdrop has its image on disk, and each is a real venue", () => {
+  it("every venue listed with a backdrop has its image on disk, and each is a real venue or extra place", () => {
+    const real = new Set<string>([...VENUE_IDS, ...EXTRA_VENUES.map((v) => v.id)]);
     for (const id of VENUES_WITH_BACKDROPS) {
-      expect(VENUE_IDS).toContain(id);
+      expect(real.has(id)).toBe(true);
       expect(files.has(`venue-${id}-v2.webp`)).toBe(true);
     }
   });

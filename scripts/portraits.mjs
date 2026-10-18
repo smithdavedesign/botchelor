@@ -45,7 +45,8 @@ const only = process.argv.slice(2).find((a) => a.startsWith("--only="))?.slice(7
 
 async function loadBatch() {
   const [house, venues] = await Promise.all([import("../lib/house.ts"), import("../lib/venues.ts")]);
-  return buildBatch({ house: house.ALL_HOUSE_CHARACTERS, venues: venues.DATE_VENUES });
+  // The dealt venues, plus the "phase two" places a move or a plan goes to: their homes and the generic placeholder (lib/venues.ts EXTRA_VENUES).
+  return buildBatch({ house: house.ALL_HOUSE_CHARACTERS, venues: [...venues.DATE_VENUES, ...venues.EXTRA_VENUES] });
 }
 
 /** The same database the app uses: the configured one, or the local PGlite file. */
