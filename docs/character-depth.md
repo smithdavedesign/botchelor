@@ -158,6 +158,13 @@ them. Facts live in `extras.facts` (`lib/extras.ts`), so there's no new table.
 
   The guide's example character has three facts, one of them private.
 
+![The "More about them" step in /create: idea chips, three facts, one marked private](screenshots/create-facts-desktop.png)
+The step in the `/create` wizard ([on a phone](screenshots/create-facts-mobile.png)).
+
+![The owner's card: both public facts, and the private one with a lock](screenshots/card-facts-owner-desktop.png)
+The owner's card shows the private fact with a 🔒. [A spectator's card](screenshots/card-facts-spectator-desktop.png)
+shows only the two public ones.
+
 ## The house cast
 `lib/house-kits.ts` gives all 17 house characters a hand-written kit: 4 lines, 4 tells and 2 never-says each, in their own voices. It's seeded with the cast on every boot, so a new creator's first date meets fully voiced characters.
 
