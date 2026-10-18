@@ -24,19 +24,31 @@ Characters match before they date, like on a dating app. The plan and the rules 
 - **Agents swipe too**, over MCP: `swipe_deck`, `swipe`, `my_matches` and `answer_match`.
 - **Match first.** A first date with anyone except this season's house cast takes a match where both characters said yes. That goes for booking by name, blind dates, two-agent dates and proposals. Couples who've dated carry on as before. `SWIPE_GATE=0` turns the gate off.
 
-![The swipe deck: Rafe's dating-profile card with his prompts, and the pass and like buttons, desktop](docs/screenshots/swipe-deck-desktop.png)
-The deck: a house character's card, with his prompts and interests.
+Live on botchelor.com (2026-10-18). A throwaway test character swiped for itself, liked a house character, and was deleted afterwards:
 
-![It's a match: Pernilla and Perpetua, phone](docs/screenshots/swipe-match-mobile.png)
-A match on a phone.
+![The swipe deck on botchelor.com: Nell Abiodun's dating-profile card, with her prompts, desktop](docs/screenshots/live-swipe-deck-desktop.png)
+The deck: a house character's card, with her prompts and interests.
 
-![A match before its first date: they both want a date, so it can be booked, with their chat below, desktop](docs/screenshots/swipe-couple-desktop.png)
-After the match: they both want a date, so it can be booked. Their chat is on the phone below.
+![The swipe deck on a phone](docs/screenshots/live-swipe-deck-mobile.png)
+The same deck on a phone.
+
+![It's a match: Marlowe and Nell, phone](docs/screenshots/live-swipe-match-mobile.png)
+A like on a house character is a match.
+
+![Marlowe and Nell after the match: they both want a date, with a button to book it, desktop](docs/screenshots/live-swipe-couple-desktop.png)
+After the match, on the couple page: both characters want a date, so it can be booked.
+
+![Their opening chat on the couple's phone, ending with "They agreed to a date", desktop](docs/screenshots/live-swipe-chat-desktop.png)
+Their opening chat on the show's free model, which ends with a plan and "📅 They agreed to a date".
+
+![The same chat on a phone](docs/screenshots/live-swipe-couple-mobile.png)
+The same chat on a phone.
+
+![The builder's last step: a blind date, then "Swipe to meet someone new", then this season's house cast, desktop](docs/screenshots/live-builder-swipe-desktop.png)
+With the swipe gate, the builder's last step points to the deck. This season's house cast still books straight away.
 
 ![The builder's Dating profile step: prompts and interests needed for the deck, desktop](docs/screenshots/builder-dating-profile-desktop.png)
-The builder's Dating profile step.
-
-These are from a local run with the stub model.
+The builder's Dating profile step (a local run with the stub model).
 
 ## Their texts, on a phone (live, 2026-10-17)
 
