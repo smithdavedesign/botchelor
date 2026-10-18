@@ -12,7 +12,7 @@ function Face({ c, size = 34 }: { c: ReunionChar; size?: number }) {
 }
 
 /**
- * The reunion special, folded into the feed (Episodes & leagues): the season's awards, the couples board and
+ * The reunion special, at the bottom of Watch: the season's awards, the couples board and
  * the shared confessional reel. Renders nothing until there's aired history to assemble, so an empty season
  * stays quiet. Data comes from lib/reunion.ts (getReunion).
  */

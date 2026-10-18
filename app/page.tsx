@@ -76,7 +76,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             <Link className="button" href="/create">
               Make your character
             </Link>
-            <Link className="button-ghost" href="/feed">
+            <Link className="button-ghost" href="/watch">
               Watch episodes
             </Link>
           </p>

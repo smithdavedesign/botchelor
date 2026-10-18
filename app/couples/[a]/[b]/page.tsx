@@ -16,7 +16,7 @@ import TextPhone from "./TextPhone";
 import { ArcCard, CopyLink, FollowButton } from "./CoupleActions";
 import NextDate from "./NextDate";
 import MatchHeader from "./MatchHeader";
-import { matchView } from "@/lib/swipes";
+import { loadThread } from "@/lib/inbox";
 import { nextDate } from "@/lib/date-proposals";
 import { arcQuestion } from "@/lib/arcs";
 import { followState } from "@/lib/follows";
@@ -58,17 +58,9 @@ async function load(a: string, b: string) {
 
 /** A swipe-deck match that hasn't dated yet (lib/swipes.ts): only its owners see it, with their chat and the yes or no. */
 async function loadMatch(a: string, b: string) {
-  const db = await getDb();
-  const viewerId = userIdFromCookieStore(await cookies());
-  if (!viewerId) return null;
-  const owners = (await db.query<{ id: string; owner_id: string | null }>(`select id, owner_id from characters where id = any($1)`, [[a, b]])).rows;
-  const mine = owners.filter((o) => o.owner_id === viewerId).map((o) => o.id);
-  if (!mine.length) return null;
-  const [ca, cb, match] = await Promise.all([getPublicCharacter(db, a), getPublicCharacter(db, b), matchView(db, a, b)]);
-  if (!ca || !cb || !match) return null;
-  const chain = chainPage(await loadChain(db, a, b, { userId: viewerId, owner: true }));
-  const ownKey = (await db.query("select 1 from user_keys where user_id = $1 and kind = 'text' limit 1", [viewerId])).rows.length > 0;
-  return { ca, cb, mine, match, chain, ownKey };
+  const t = await loadThread(await getDb(), userIdFromCookieStore(await cookies()), a, b);
+  if (!t?.match) return null;
+  return { ca: t.ca, cb: t.cb, mine: t.mine, match: t.match, chain: t.chain, ownKey: t.ownKey };
 }
 
 const refOf = (c: PublicCharacter): CharacterRef => ({

@@ -254,9 +254,8 @@ async function main() {
 
     // Each route: who opens it, and an optional walk through its states (each state is audited separately).
     const routes = [
-      { name: "gate", path: "/feed", as: "visitor" },
+      { name: "gate", path: "/watch", as: "visitor" },
       { name: "home", path: "/" },
-      { name: "feed", path: "/feed" },
       { name: "cast", path: "/cast" },
       { name: "watch-lobby", path: "/watch" },
       { name: "watch-room", path: `/watch/${data.templates[0]}` },
@@ -286,6 +285,9 @@ async function main() {
       { name: "create-send", path: `/create?character=${myChar}`, as: "owner" },
       { name: "swipe", path: `/swipe?character=${swiper.id}`, as: "owner" },
       { name: "swipe-match", path: matchPath, as: "owner" },
+      { name: "matches-none", path: "/matches" },
+      { name: "matches", path: `/matches?character=${swiper.id}`, as: "owner" },
+      { name: "messages", path: `/messages/${[swiper.id, houseCard.id].sort().join("/")}?as=${swiper.id}`, as: "owner" },
       { name: "couple-owner", path: couplePath, as: "owner" },
       { name: "couple-spectator", path: couplePath },
       { name: "board-owner", path: `/characters/${myChar}/relationships`, as: "owner" },

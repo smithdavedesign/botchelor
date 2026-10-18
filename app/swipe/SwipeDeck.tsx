@@ -4,12 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import Avatar from "@/app/Avatar";
 import { shortName } from "@/lib/names";
-import type { DeckCard, MatchView, MyMatch } from "@/lib/swipes";
+import type { DeckCard, MatchView } from "@/lib/swipes";
 
 type Props = {
   character: { id: string; name: string; hue: number | null; portrait: string | null };
   initial: DeckCard[];
-  matches: MyMatch[];
 };
 
 /** How far a card has to be dragged to count as a swipe. */
@@ -19,12 +18,11 @@ const REFILL_AT = 3;
 
 /**
  * The swipe deck (lib/swipes.ts): one card at a time, the next peeking behind it. Drag it right to like, left to pass,
- * or use the buttons or the arrow keys. A match shows "It's a match!" and joins the matches below, each opening the
- * couple's chat. The characters decide about a date themselves.
+ * or use the buttons or the arrow keys. A match shows "It's a match!" and opens their thread; every match is on
+ * /matches. The characters decide about a date themselves.
  */
-export default function SwipeDeck({ character, initial, matches: firstMatches }: Props) {
+export default function SwipeDeck({ character, initial }: Props) {
   const [cards, setCards] = useState(initial);
-  const [matches, setMatches] = useState(firstMatches);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [leaving, setLeaving] = useState<"left" | "right" | null>(null);
@@ -88,22 +86,9 @@ export default function SwipeDeck({ character, initial, matches: firstMatches }:
           setError(data.message ?? "That swipe didn't go through.");
         } else if (data.match) {
           const m = data.match;
-          const mineLo = m.lo === character.id;
-          const page = `/couples/${m.lo}/${m.hi}`;
           setMatched(card);
-          setMatchPage(page);
+          setMatchPage(`/messages/${m.lo}/${m.hi}?as=${encodeURIComponent(character.id)}`);
           setStatus(`It's a match: ${first} and ${card.name}.`);
-          setMatches((list) => [
-            {
-              with: { id: card.id, name: card.name, house: card.house, made_by: card.made_by, portrait: card.portrait, hue: card.hue },
-              matched_at: m.matched_at,
-              you: mineLo ? m.yes_lo : m.yes_hi,
-              them: mineLo ? m.yes_hi : m.yes_lo,
-              agreed: m.agreed,
-              couple_page: page,
-            },
-            ...list.filter((x) => x.with.id !== card.id),
-          ]);
         }
       } catch {
         setError("Network error. Try again.");
@@ -187,7 +172,9 @@ export default function SwipeDeck({ character, initial, matches: firstMatches }:
             <p>
               <strong>That&apos;s everyone for now.</strong>
             </p>
-            <p className="muted small">New characters join the deck every day. Your matches are below.</p>
+            <p className="muted small">
+              New characters join the deck every day. <Link href={`/matches?character=${encodeURIComponent(character.id)}`}>See {first}&apos;s matches</Link>.
+            </p>
           </div>
         )}
         {top && (
@@ -210,25 +197,6 @@ export default function SwipeDeck({ character, initial, matches: firstMatches }:
         )}
       </div>
 
-      {matches.length > 0 && (
-        <section className="card swipe-matches">
-          <h2>{first}&apos;s matches</h2>
-          <ul className="swipe-match-list">
-            {matches.map((m) => (
-              <li key={m.with.id}>
-                <Link href={`${m.couple_page}#texts`} className="swipe-match">
-                  <Avatar seed={m.with.id} name={m.with.name} hue={m.with.hue} house={m.with.house} portraitSrc={m.with.portrait} size={56} />
-                  <span className="swipe-match-name">{shortName(m.with.name)}</span>
-                  <span className="swipe-match-state">
-                    {m.agreed ? "📅 Date agreed" : m.you === false || m.them === false ? "Not this time" : "Texting"}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
       {matched && (
         <div className="swipe-match-overlay" role="dialog" aria-modal="true" aria-labelledby="its-a-match">
           <div className="swipe-match-card">
@@ -241,7 +209,7 @@ export default function SwipeDeck({ character, initial, matches: firstMatches }:
               {first} and {shortName(matched.name)} are texting now. If they both want a date, you&apos;ll be able to book it.
             </p>
             <p className="swipe-match-buttons">
-              <Link className="button" href={`${matchPage}#texts`}>
+              <Link className="button" href={matchPage}>
                 Read their chat
               </Link>
               <button ref={keep} type="button" className="button-ghost" onClick={() => setMatched(null)}>

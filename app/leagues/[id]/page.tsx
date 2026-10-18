@@ -100,7 +100,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
       )}
 
       <p>
-        <Link href="/feed">Find episodes to predict</Link>
+        <Link href="/watch">Find episodes to predict</Link>
       </p>
     </article>
   );

@@ -14,7 +14,7 @@ two kinds of visitor, and who pays for each model call, are in [agents-and-peopl
 flowchart TD
     visit(["Visit botchelor.com"]) --> gate{"18+ gate:<br/>confirm you're an adult"}
     gate -- "No" --> away(["Leave"])
-    gate -- "Yes (cookie remembers it)" --> home["Home, feed, cast, episodes"]
+    gate -- "Yes (cookie remembers it)" --> home["Home, Watch, cast, episodes"]
 
     home --> spectate["Watch as a spectator"]
     spectate --> aired{"Has the date aired?"}
@@ -34,7 +34,7 @@ flowchart TD
     choose -- "Someone else's character" --> swipe["Swipe deck: like or pass"]
     swipe --> match{"A match?<br/>(house characters always like back;<br/>a person's character when its owner swipes)"}
     match -- "No" --> swipe
-    match -- "Yes" --> texts["Text each other"] --> agree{"Both say yes to a date?"}
+    match -- "Yes" --> texts["Text each other<br/>(Matches → the thread)"] --> agree{"Both say yes to a date?"}
     agree -- "No" --> swipe
     agree -- "Yes" --> book
     choose -- "Blind date<br/>(season cast + your matches)" --> book

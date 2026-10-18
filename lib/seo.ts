@@ -10,7 +10,7 @@ import { REPORT_HIDE_THRESHOLD } from "./rules";
 import { seasonCastIds } from "./season-cast";
 import { PUBLIC_PATHS, siteUrl } from "./site";
 
-const PRIORITY: Record<string, number> = { "/": 1, "/create": 0.9, "/feed": 0.9, "/watch": 0.8, "/agents": 0.8, "/cast": 0.7 };
+const PRIORITY: Record<string, number> = { "/": 1, "/create": 0.9, "/watch": 0.9, "/agents": 0.8, "/cast": 0.7 };
 
 export function staticSitemap(base: string = siteUrl()): MetadataRoute.Sitemap {
   return PUBLIC_PATHS.map((path) => ({

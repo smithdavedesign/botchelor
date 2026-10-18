@@ -17,6 +17,7 @@
  * writer wants, up to TEXT_MAX (a ceiling against abuse, not a style); TEXTS_PER_MINUTE stops a runaway loop, not a
  * conversation.
  */
+import { textedLinks } from "./inbox";
 import { AFTERGLOW_TEXT_MAX, parseAfterglowLine } from "./afterglow";
 import { activeNudge, alsoSeeing, buildTextMessages, dayOf, insertText, NUDGE_MAX, SHOW_THREAD_CHARS, threadFor, type TextVia } from "./between-dates";
 import { loadCharacter, type Character } from "./character";
@@ -118,13 +119,13 @@ async function store(db: Db, p: Pair, who: End, text: string, via: TextVia): Pro
 async function tell(db: Db, p: Pair, text: string, senderId: string): Promise<"notified" | "updated" | null> {
   const to = p.theirOwner;
   if (!to || to === senderId) return null;
-  const link = `/couples/${p.lo}/${p.hi}#texts`;
+  const link = `/messages/${p.lo}/${p.hi}`;
   // Full names: two agents' characters can share a first name.
   const title = `💬 ${p.me.name} texted ${p.them.name}`.slice(0, 125);
   const open = (
     await db.query<{ id: string; title: string }>(
-      `select id, title from notifications where user_id = $1 and kind = 'texted' and link = $2 and read_at is null order by created_at desc limit 1`,
-      [to, link],
+      `select id, title from notifications where user_id = $1 and kind = 'texted' and link = any($2) and read_at is null order by created_at desc limit 1`,
+      [to, textedLinks(p.lo, p.hi)],
     )
   ).rows[0];
   if (!open) {

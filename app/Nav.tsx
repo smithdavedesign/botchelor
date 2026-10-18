@@ -8,8 +8,8 @@ import { useEffect, useState } from "react";
 const LINKS = [
   { href: "/create", label: "Create" },
   { href: "/swipe", label: "Swipe" },
+  { href: "/matches", label: "Matches" },
   { href: "/watch", label: "Watch" },
-  { href: "/feed", label: "Episodes & leagues" },
   { href: "/account", label: "Account" },
 ] as const;
 
@@ -18,7 +18,7 @@ const LINKS = [
  * the links themselves (a row on desktop, a drop-down panel on mobile). "Tokens" are this viewer's dates
  * left — one token sends a character on one date — so the meter doubles as the entry to top up (M4 packs).
  */
-export default function Nav({ tokens, unread = 0 }: { tokens: number; unread?: number }) {
+export default function Nav({ tokens, unread = 0, texts = 0 }: { tokens: number; unread?: number; texts?: number }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -50,12 +50,17 @@ export default function Nav({ tokens, unread = 0 }: { tokens: number; unread?: n
         onClick={() => setOpen((v) => !v)}
       >
         <span className="nav-toggle-bars" aria-hidden="true" data-open={open} />
-        {unread > 0 && !open && <span className="nav-dot" aria-label={`${unread} unread notifications`} />}
+        {unread + texts > 0 && !open && <span className="nav-dot" aria-label={`${unread + texts} unread`} />}
       </button>
       <div id="nav-menu" className="nav-links" data-open={open}>
         {LINKS.map((l) => (
-          <Link key={l.href} href={l.href} aria-current={pathname === l.href ? "page" : undefined}>
+          <Link key={l.href} href={l.href} aria-current={pathname === l.href || pathname.startsWith(`${l.href}/`) ? "page" : undefined}>
             {l.label}
+            {l.href === "/matches" && texts > 0 && (
+              <span className="nav-count" aria-label={`${texts} unread texts`}>
+                {texts > 99 ? "99+" : texts}
+              </span>
+            )}
           </Link>
         ))}
         <Link href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">

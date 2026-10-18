@@ -705,10 +705,9 @@ async function capture(base, leagueId, viewer) {
       await becameHeading.scrollIntoViewIfNeeded();
       await shot(castPage, "contestant-memory");
 
-      // 6. The Reunion, now folded into the feed (Episodes & leagues): the season awards, the couples board
-      // and the confessional reel assemble at the bottom of the feed.
+      // 6. The Reunion, on Watch: the season awards, the couples board and the confessional reel at the bottom.
       const reunionPage = await member.newPage();
-      await reunionPage.goto(`${base}/feed`);
+      await reunionPage.goto(`${base}/watch`);
       await reunionPage.getByRole("heading", { name: "The Reunion" }).waitFor();
       await reunionPage.locator(".reunion-panel").scrollIntoViewIfNeeded();
       await shot(reunionPage, "reunion", { full: true });

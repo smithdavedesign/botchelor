@@ -2757,21 +2757,6 @@ html.phone-open body {
 
 /* ---------------- Swipes: the deck (lib/swipes.ts, docs/swipes.md) ---------------- */
 
-.swipe-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin: var(--space-3) 0;
-}
-.swipe-picker .chip {
-  text-decoration: none;
-  color: inherit;
-}
-.swipe-picker .chip[aria-current="page"] {
-  border-color: var(--accent);
-  background: var(--soft);
-  font-weight: 700;
-}
 .swipe-deck {
   position: relative;
   max-width: 24rem;
@@ -2947,34 +2932,6 @@ button.swipe-btn-nope:hover:not(:disabled) {
 }
 .swipe-empty-icon {
   font-size: 2.4rem;
-}
-.swipe-matches h2 {
-  margin-top: 0.2rem;
-}
-.swipe-match-list {
-  display: flex;
-  gap: 0.9rem;
-  margin: 0;
-  padding: 0.2rem 0 0.4rem;
-  overflow-x: auto;
-  list-style: none;
-}
-.swipe-match {
-  display: grid;
-  justify-items: center;
-  gap: 0.2rem;
-  width: 5.5rem;
-  text-align: center;
-  text-decoration: none;
-  color: inherit;
-}
-.swipe-match-name {
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-.swipe-match-state {
-  font-size: var(--text-2xs);
-  color: var(--muted);
 }
 .swipe-match-overlay {
   position: fixed;
@@ -4637,4 +4594,265 @@ main:has(> .admin-wide) {
   padding-left: 1.1rem;
   font-size: var(--text-sm);
   color: var(--muted);
+}
+
+/* ---------------- Matches, Messages (lib/inbox.ts; David, 2026-10-18) ---------------- */
+
+/* Whose matches: a drop-down of the viewer's characters (app/CharacterPicker.tsx). */
+.character-picker select {
+  width: auto;
+  font-weight: 700;
+}
+.matches-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+.matches-head h1 {
+  margin: 0;
+}
+.matches-page {
+  max-width: 40rem;
+  margin-inline: auto;
+}
+.matches-label {
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+/* New matches, no texts yet: a row of faces that scrolls sideways. */
+.matches-faces {
+  display: flex;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0.2rem 0 0.5rem;
+  overflow-x: auto;
+  list-style: none;
+  scroll-snap-type: x proximity;
+}
+.matches-face {
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  width: 4.75rem;
+  color: inherit;
+  text-decoration: none;
+  scroll-snap-align: start;
+}
+.matches-face-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.matches-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.matches-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.7rem 0.4rem;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+.matches-row:hover {
+  background: var(--soft);
+}
+.matches-row-body {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 0.15rem;
+}
+.matches-row-top {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.matches-row-top .badge {
+  margin: 0;
+}
+.matches-row-time {
+  margin-left: auto;
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.matches-row-preview {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.matches-row.is-unread .matches-row-name,
+.matches-row.is-unread .matches-row-preview {
+  color: var(--ink);
+  font-weight: 700;
+}
+.matches-dot {
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: var(--accent-btn);
+}
+.matches-empty {
+  padding: var(--space-4) 0;
+}
+
+/* A thread and nothing else: the bare phone at full height, with whose matches above it. */
+.messages-fullscreen {
+  display: flex;
+  flex-direction: column;
+  max-width: 46rem;
+  margin-inline: auto;
+}
+.thread-bar {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 0;
+}
+.thread-bar:empty {
+  display: none;
+}
+.phone-stage.is-page {
+  display: flex;
+  height: calc(100dvh - 9rem);
+  min-height: 26rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background: var(--card);
+}
+
+/* Swipe: the slim bar is the phone's; the intro is the desktop's. */
+.swipe-topbar {
+  display: none;
+}
+.swipe-topbar-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border-radius: 999px;
+  color: inherit;
+  font-size: 1.25rem;
+  text-decoration: none;
+}
+.swipe-topbar-btn .nav-count {
+  position: absolute;
+  top: 0.1rem;
+  right: -0.2rem;
+}
+.swipe-topbar-name {
+  font-weight: 800;
+}
+
+/* On a phone, the deck and a thread are the whole screen, like a dating app: no site header or footer. */
+@media (max-width: 720px) {
+  body:has(.swipe-fullscreen) .site-header,
+  body:has(.swipe-fullscreen) .site-footer,
+  body:has(.messages-fullscreen) .site-header,
+  body:has(.messages-fullscreen) .site-footer {
+    display: none;
+  }
+  body:has(.swipe-fullscreen),
+  body:has(.messages-fullscreen) {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  .swipe-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: max(0.25rem, env(safe-area-inset-top)) 0.75rem max(0.75rem, env(safe-area-inset-bottom));
+    background: var(--paper);
+  }
+  .swipe-fullscreen .swipe-intro {
+    display: none;
+  }
+  .swipe-topbar {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .swipe-fullscreen .swipe-deck {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    width: 100%;
+    max-width: 30rem;
+    min-height: 0;
+    margin: 0.25rem auto 0;
+  }
+  .swipe-fullscreen .swipe-stack {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+  }
+  .swipe-fullscreen .swipe-actions {
+    flex: none;
+    margin-top: 0.75rem;
+  }
+  .swipe-fullscreen .swipe-empty {
+    margin: auto 0;
+  }
+  .swipe-fullscreen > .card {
+    overflow-y: auto;
+  }
+  .messages-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    max-width: none;
+    margin: 0;
+    background: var(--card);
+  }
+  .thread-bar {
+    flex: none;
+    padding: max(0.4rem, env(safe-area-inset-top)) 0.75rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .thread-bar:not(:empty) + .thread-page .phone-header {
+    padding-top: 0.5rem;
+  }
+  .messages-fullscreen .thread-page {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+  .phone-stage.is-page {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+  }
+}
+/* ⓘ on a thread: a header button that happens to be a link. */
+a.phone-head-btn {
+  color: inherit;
+  font-size: 1.15rem;
+  text-decoration: none;
 }

@@ -298,7 +298,7 @@ export async function sendDailyTexts(
         kind: "texted",
         title: `💬 ${from} texted ${to}`,
         body: last.text,
-        link: `/couples/${c.lo}/${c.hi}#texts`,
+        link: `/messages/${c.lo}/${c.hi}`,
       });
     } catch (err) {
       out.failed++;

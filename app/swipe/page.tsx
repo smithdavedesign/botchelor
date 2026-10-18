@@ -5,7 +5,9 @@ import { getDb } from "@/lib/db";
 import { listMyDatingProfiles } from "@/lib/dating";
 import { userIdFromCookieStore } from "@/lib/http";
 import { shortName } from "@/lib/names";
-import { deckFor, myMatches } from "@/lib/swipes";
+import CharacterPicker from "@/app/CharacterPicker";
+import { unreadTexts } from "@/lib/inbox";
+import { deckFor } from "@/lib/swipes";
 import SwipeDeck from "./SwipeDeck";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +22,8 @@ type Props = { searchParams: Promise<{ character?: string }> };
 
 /**
  * The swipe deck (lib/swipes.ts, docs/swipes.md): you swipe for one of your characters; a match opens its chat, and
- * the characters decide about the date themselves.
+ * the characters decide about the date themselves. On a phone it's the whole screen, like a dating app (David,
+ * 2026-10-18): no site header or footer, a slim bar with ✕, whose deck it is and 💬 Matches.
  */
 export default async function SwipePage({ searchParams }: Props) {
   const { character } = await searchParams;
@@ -42,32 +45,38 @@ export default async function SwipePage({ searchParams }: Props) {
     );
   }
   const me = mine.find((c) => c.id === character) ?? mine[0];
-  const [deck, matches] = await Promise.all([deckFor(db, viewerId, me.id), myMatches(db, viewerId, me.id)]);
+  const [deck, texts] = await Promise.all([deckFor(db, viewerId, me.id), unreadTexts(db, viewerId).catch(() => 0)]);
   const first = shortName(me.name);
+  const matchesHref = `/matches?character=${encodeURIComponent(me.id)}`;
 
   return (
-    <article className="swipe-page">
-      <p className="kicker">Swipe</p>
-      <h1>Who should {first} meet?</h1>
-      <p className="muted">
-        You swipe for {first}. A like both ways is a match: the two of them start texting, and each decides whether they want a date. If both
-        do, you book it. This season&apos;s house characters are always in the deck.
-      </p>
-      {mine.length > 1 && (
-        <nav className="swipe-picker" aria-label="Swipe for">
-          {mine.map((c) => (
-            <Link key={c.id} href={`/swipe?character=${c.id}`} aria-current={c.id === me.id ? "page" : undefined} className="chip">
-              {shortName(c.name)}
-            </Link>
-          ))}
-        </nav>
-      )}
+    <article className="swipe-page swipe-fullscreen">
+      <div className="swipe-topbar">
+        <Link href="/" className="swipe-topbar-btn" aria-label="Close the deck">
+          ✕
+        </Link>
+        {mine.length > 1 ? (
+          <CharacterPicker characters={mine} current={me.id} href="/swipe?character=" label="Swipe for" />
+        ) : (
+          <span className="swipe-topbar-name">{first}</span>
+        )}
+        <Link href={matchesHref} className="swipe-topbar-btn" aria-label={texts ? `Matches, ${texts} unread texts` : "Matches"}>
+          💬{texts > 0 && <span className="nav-count">{texts > 99 ? "99+" : texts}</span>}
+        </Link>
+      </div>
+      <div className="swipe-intro">
+        <p className="kicker">Swipe</p>
+        <div className="matches-head">
+          <h1>Who should {first} meet?</h1>
+          <CharacterPicker characters={mine} current={me.id} href="/swipe?character=" label="Swipe for" />
+        </div>
+        <p className="muted">
+          You swipe for {first}. A like both ways is a match: the two of them start texting, and each decides whether they want a date. If both
+          do, you book it. This season&apos;s house characters are always in the deck. <Link href={matchesHref}>{first}&apos;s matches</Link>
+        </p>
+      </div>
       {deck.ok ? (
-        <SwipeDeck
-          character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }}
-          initial={deck.cards}
-          matches={matches ?? []}
-        />
+        <SwipeDeck character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={deck.cards} />
       ) : (
         <section className="card">
           <h2>{deck.error === "profile_incomplete" ? `Finish ${first}'s dating profile` : `${first} can't swipe right now`}</h2>
