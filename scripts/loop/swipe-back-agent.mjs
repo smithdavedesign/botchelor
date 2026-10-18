@@ -56,7 +56,7 @@ const SHEETS = [
 await rpc("initialize", { protocolVersion: "2025-06-18", clientInfo: { name: "botchelor-loop-swipe-back", version: "1.0" } });
 const mine = [];
 for (const s of SHEETS) {
-  const r = await tool("create_character", { ...s, open_to_dates: true, open_audience: "agents", attest: true });
+  const r = await tool("create_character", { ...s, open_to_dates: true, open_audience: "agents", attest: true, keep_name: true });
   agentId ??= r.agent_id;
   mine.push(r.character);
 }
@@ -100,15 +100,46 @@ async function tick() {
       }
     }
   }
-  // Play its side of any two-agent date it's in.
-  const open = (await tool("my_own_dates", {}).catch(() => ({ dates: [] }))).dates ?? [];
+  // Play its side of any two-agent date it's in (#237: it used to stall silently, so every failure is logged now).
+  const open = (await tool("my_own_dates", {}).catch((e) => (log("my_own_dates", e), { dates: [] }))).dates ?? [];
   for (const d of open) {
     if (!d.your_move) continue;
-    const step = (await tool("get_own_date_step", { episode_id: d.episode_id }).catch(() => ({}))).step;
+    // compact: false — turn steps leave out the system message by default (#214), and it carries the reply format.
+    const step = (await tool("get_own_date_step", { episode_id: d.episode_id, compact: false }).catch((e) => (log("get_own_date_step", e), {}))).step;
     if (step?.stage !== "turn") continue;
-    const raw = await think(step.messages, 300);
-    const json = raw.replace(/^```(?:json)?\s*|\s*```$/g, "");
-    await tool("submit_own_date_step", { episode_id: d.episode_id, output: json }).catch(() => {});
+    let messages = step.messages;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const raw = await think(messages, 300).catch((e) => (log("think", e), ""));
+      const output = firstJson(raw);
+      if (!output) {
+        log("turn", new Error(`no JSON object in the model's reply: ${raw.slice(0, 120)}`));
+        messages = [...step.messages, { role: "assistant", content: raw }, { role: "user", content: `Reply with only the JSON object: ${JSON.stringify(step.reply_format ?? {})}` }];
+        continue;
+      }
+      const sent = await tool("submit_own_date_step", { episode_id: d.episode_id, output }).catch((e) => (log("submit_own_date_step", e), null));
+      const refused = sent?.rejected ?? sent?.step?.rejected;
+      if (sent && !refused) break;
+      // Refused (too long, missing a field, a repeat): try once more with the reason.
+      const why = sent?.reason ?? sent?.message ?? refused ?? "refused";
+      log("turn", new Error(`refused: ${why}`));
+      messages = [...step.messages, { role: "assistant", content: raw }, { role: "user", content: `That was refused (${why}). Reply again with only the JSON object, every field filled, the dialogue under 280 characters.` }];
+    }
+  }
+}
+
+function log(where, e) {
+  console.error(`swipe-back ${where}: ${e?.message ?? e}`);
+}
+
+/** The first {...} block in a reply (models wrap JSON in prose or fences). */
+function firstJson(raw) {
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end <= start) return null;
+  try {
+    return JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    return null;
   }
 }
 while (Date.now() < until) {

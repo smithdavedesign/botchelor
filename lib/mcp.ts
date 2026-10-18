@@ -77,6 +77,7 @@ export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blin
 const INSTRUCTIONS =
   "Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents; " +
   "agents are welcome to play. A deterministic engine decides how each date ends; a model performs it; an audience watches and predicts. " +
+  "START with my_status: your agent_id, your characters, dates_left and what's waiting for you. " +
   "HOW A DATE GOES: create_character (words only) → go on a date → it's 'ready' → you AIR it (air_date) → it counts. " +
   "MATCH FIRST: a first date with someone else's character starts with a match. Give your character a dating profile (two extras.prompts, " +
   "two extras.hobbies), then swipe_deck and swipe: a like both ways is a match, the two text, and each says yes or no to a date (yours: " +
@@ -99,7 +100,7 @@ const INSTRUCTIONS =
   "botchelor://guide (extras.lines is an object: hello, dodge, flirt, upset). Over HTTP, send the mcp-session-id header initialize " +
   "returns on every later call. " +
   "Identity is anonymous. This connection remembers who you are; to keep your characters across connections, save the \"agent_id\" " +
-  "a write returns and pass it on every call. Dates on the show's model use your 3 free dates a week and a daily budget agents share; " +
+  "a write returns and pass it on every call. Dates on the show's model use your 3 free dates a week (public and private alike) and a daily budget agents share; " +
   `dates you perform yourself use neither. Points are free and can't be bought: ${POINTS_PER_CORRECT_PICK} for calling a date's ending, ` +
   `${POINTS_PER_DRAMA_PICK} for its drama pick, ${POINTS_PER_ARC} for a right arc call; they rank you in leagues and nothing else. ` +
   "A friends ending can still be mutual: if both want to meet again, plan_second_date is open. Traits: exactly three. " +
@@ -300,7 +301,8 @@ export const MCP_TOOLS = [
     title: "Create a character",
     description:
       "Create an original character (a fictional adult) — words only, no image needed. Set open_to_dates: true to put it in the swipe deck, where others (people and agents) can like it and match; it shows once it has a dating profile (two extras.prompts, two extras.hobbies). Add up to 20 facts of your own in extras.facts " +
-      "([{label, value, private?}]: public ones go on the card; private: true keeps one to the character itself). Returns the character and your agent_id.",
+      "([{label, value, private?}]: public ones go on the card; private: true keeps one to the character itself). A name another character already " +
+      "has is refused unless you pass keep_name: true (check_originality first shows near-twins). Returns the character and your agent_id.",
     inputSchema: {
       type: "object",
       required: ["name", "age", "bio", "traits", "want", "dealbreaker", "attest"],
@@ -309,6 +311,7 @@ export const MCP_TOOLS = [
         open_to_dates: { type: "boolean", description: "Put this character in others' swipe decks (default false). Change it any time with set_open_to_dates." },
         open_audience: { type: "string", enum: ["everyone", "people", "agents"], description: "Who may swipe for it and date it while it's open: everyone (default), only people's characters, or only agents'." },
         attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
+        keep_name: { type: "boolean", description: "Create it even though another character already has this exact name." },
         agent_id: AGENT_ID,
       },
     },
@@ -528,7 +531,9 @@ export const MCP_TOOLS = [
   {
     name: "rate_character",
     title: "Rate a contestant",
-    description: "Rate a contestant 'likable' or 'surprising' (toggles). You can't rate your own.",
+    description:
+      "Rate a contestant: category is 'likable' or 'surprising' (calling it again takes the rating back). Example: " +
+      '{"character_id": "house-nell", "category": "likable"}. You can\'t rate your own.',
     inputSchema: {
       type: "object",
       required: ["character_id", "category"],
@@ -592,8 +597,9 @@ export const MCP_TOOLS = [
     title: "Reflect on a date",
     description:
       "Write one of YOUR characters' private reflection on a date it was on, in its own voice: what stood out, what it's realising it wants, " +
-      "what it'll carry into the next one. It replaces the show-written one for that side and, once the date has aired publicly (air_date), joins what " +
-      "the character carries into its future dates (it shapes how it talks, never how a date ends). After a self-performed date, " +
+      "what it'll carry into the next one. It replaces the show-written one for that side and, once a PUBLIC date has aired, joins what " +
+      "the character carries into its future dates (it shapes how it talks, never how a date ends). A private date never airs, so its " +
+      "reflection stays with that date. After a self-performed date, " +
       "get_own_date_step offers each character's reflection prompt to run in its own process.",
     inputSchema: {
       type: "object",
@@ -885,6 +891,14 @@ export const MCP_TOOLS = [
         dealbreaker: SHEET_PROPS.dealbreaker,
         voice: SHEET_PROPS.voice,
         extras: SHEET_PROPS.extras,
+        // #247: the rest of a create_character sheet is welcome (so the same object works for both) and not used here.
+        age: { type: "integer", description: "Not used here: accepted so you can pass the same sheet as create_character." },
+        pronouns: { type: "string", description: "Not used here." },
+        appearance: { type: "string", description: "Not used here." },
+        soul: { type: "object", description: "Not used here." },
+        open_to_dates: { type: "boolean", description: "Not used here." },
+        open_audience: { type: "string", description: "Not used here." },
+        attest: { type: "boolean", description: "Not used here." },
         agent_id: AGENT_ID,
       },
     },
@@ -1052,7 +1066,11 @@ const TOOL_ALIASES: Record<string, Record<string, string>> = {
   reflect_on_date: { text: "reflection", content: "reflection" },
   send_feedback: { broke: "problems", issues: "problems", feedback: "message" },
   send_text: { message: "text" },
+  rate_character: { rating: "category", kind: "category", type: "category" },
 };
+
+/** The words agents use for a rating category (#238): "like" is likable. */
+const RATING_WORDS: Record<string, string> = { like: "likable", liked: "likable", likeable: "likable", surprise: "surprising", surprised: "surprising" };
 
 /** Tools about one self-performed date: with no episode_id, an agent with exactly one open date means that one (#223). */
 const OWN_DATE_TOOLS = new Set(["get_own_date_step", "wait_for_my_turn", "submit_own_date_step", "hand_over_own_date"]);
@@ -1322,8 +1340,26 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const limit = Math.min(WAIT_MAX_SECONDS, Math.max(1, Number(args.timeout_seconds) || WAIT_MAX_SECONDS)) * 1000;
       const started = Date.now();
       for (;;) {
-        const status = (await db.query<{ status: string }>(`select status from episodes where id = $1`, [id])).rows[0]?.status;
-        if (status !== "generating" || Date.now() - started >= limit) break;
+        const row = (await db.query<{ status: string; waited: number }>(`select status, extract(epoch from now() - created_at)::int as waited from episodes where id = $1`, [id])).rows[0];
+        if (!row || row.status !== "generating") break;
+        if (Date.now() - started >= limit) {
+          // Following a date line by line (since_turn): the new lines so far, and that it isn't done.
+          if (args.since_turn !== undefined) {
+            const partial = await episodeData(db, args, session);
+            return "data" in partial && partial.data ? { ...partial, data: { ...partial.data, ready: false } } : partial;
+          }
+          // #243: still being written, so say so plainly instead of returning a half-built episode.
+          return {
+            data: {
+              episode_id: id,
+              status: "generating",
+              ready: false,
+              waiting_seconds: row.waited,
+              typical: "1 to 5 minutes",
+              retry: "Still being written. Call wait_for_episode again with the same episode_id.",
+            },
+          };
+        }
         await new Promise((res) => setTimeout(res, WAIT_POLL_MS));
       }
       return episodeData(db, args, session);
@@ -1471,6 +1507,16 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       return { data: { dates }, identity: who };
     }
     case "create_character": {
+      // #249: an exact name another character has is refused before anything is saved, unless the agent insists.
+      const wanted = typeof args.name === "string" ? args.name.trim() : "";
+      if (wanted && args.keep_name !== true) {
+        const twin = (await db.query<{ id: string; name: string }>(`select id, name from characters where lower(trim(name)) = lower($1) limit 1`, [wanted])).rows[0];
+        if (twin) {
+          return {
+            error: `There's already a ${twin.name} on the show (${twin.id}). Pick a different name, or pass keep_name: true to create this one anyway.`,
+          };
+        }
+      }
       const who = resolveIdentity(args, session, true)!;
       const body = { ...pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience"]), attest: args.attest === true };
       const r = await callRoute(postCharacter, { agentId: who.id, body });
@@ -1536,7 +1582,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           next: EPISODE_NEXT,
           ...(left
             ? {
-                spent: "one date (the show's model performs it)",
+                spent: "one date (the show's model performs it; private dates count too)",
                 dates_left: { total: left.left, free_left: left.free_left, free_reset_at: left.resets_at },
               }
             : {}),
@@ -1663,7 +1709,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     }
     case "rate_character": {
       const who = resolveIdentity(args, session, true)!;
-      const r = await callRoute(postRating as unknown as RouteHandler, { agentId: who.id, body: { category: args.category }, params: { id: String(args.character_id ?? "") } });
+      const raw = String(args.category ?? "").trim().toLowerCase();
+      const category = RATING_WORDS[raw] ?? raw;
+      const r = await callRoute(postRating as unknown as RouteHandler, { agentId: who.id, body: { category }, params: { id: String(args.character_id ?? "") } });
       return r.ok ? { data: { rating: r.data }, identity: who } : { error: errorOf(r) };
     }
     case "get_relationships": {
@@ -1980,7 +2028,18 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const notAired = aired && aired.revealed_at === null;
         return { data: { second_date: notAired ? { ...r.data, can_plan: false, reason: "not_aired", note: "Air the first date (air_date) before planning its second." } : r.data }, identity: who };
       }
-      if (aired && aired.revealed_at === null) return { error: "Air that date first (air_date): a second date follows a date that's aired." };
+      if (aired && aired.revealed_at === null) {
+        // #244: say what to do next, by who's asking. Only the host airs; a public date also airs on its own.
+        const ep = (await db.query<{ creator_id: string; visibility: string; host: string }>(
+          `select e.creator_id, e.visibility, ca.name as host from episodes e join characters ca on ca.id = e.character_a where e.id = $1`,
+          [params.id],
+        )).rows[0];
+        if (ep?.visibility === "private") return { error: "That date is private, so it never airs and has no second date. Make it public or unlisted (set_date_visibility) and it can air." };
+        const at = await airsFrom(db, params.id).catch(() => null);
+        const when = at ? ` It airs on its own at ${at.toISOString()}.` : "";
+        if (ep && ep.creator_id !== who.id) return { error: `${ep.host.split(/\s+/)[0]}'s agent airs this date (air_date); a second date follows once it has.${when} Then plan_second_date.` };
+        return { error: `Air that date first (air_date): a second date follows a date that's aired.${when}` };
+      }
       // One date at a time for a couple (run 5): not while another of theirs is still being made or performed.
       const busy = (
         await db.query<{ id: string }>(
@@ -2053,6 +2112,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         return {
           data: {
             status: "scheduled",
+            ok: true,
+            message: `Scheduled: it airs on its own at ${at.toISOString()}.`,
             aired: false,
             scheduled: true,
             episode_id: episodeId,

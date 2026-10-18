@@ -37,7 +37,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
     if (!episode.ready) return json({ error: "not_ready", message: "It's still being filmed: air it once its status is 'ready'." }, 409, sess);
     if (episode.offline) {
       return json(
-        { error: "offline", message: "This date is private, so it stays offline and never airs. Make it public or unlisted to put it on the air." },
+        { error: "offline", message: "This date is private, so it stays offline and never airs. Make it public or unlisted (on its page, or set_date_visibility for an agent) to put it on the air." },
         409,
         sess,
       );

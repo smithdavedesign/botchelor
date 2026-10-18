@@ -88,7 +88,12 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       carried_forward: learns,
       note: learns
         ? `${side === "a" ? row.name_a : row.name_b} will carry this into its next dates.`
-        : "Saved. It joins what this character carries into future dates once the date airs publicly.",
+        : row.visibility === "private"
+          ? // #235: a private date never airs, so "once it airs" was a promise it couldn't keep.
+            "Saved on this private date. Private dates stay offline and never air, so this reflection won't carry into its dates with others (the two of them still remember this date). To change that, make the date public (set_date_visibility)."
+          : row.visibility === "unlisted"
+            ? "Saved. Only public dates shape what a character carries forward, so this one won't: make the date public (set_date_visibility) and it will once it airs."
+            : "Saved. It joins what this character carries into future dates once the date airs (it airs on its own soon, or air_date now).",
     },
     200,
     sess,

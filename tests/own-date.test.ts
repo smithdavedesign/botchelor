@@ -218,8 +218,9 @@ describe("a two-agent date: each agent performs only its own character", () => {
   async function twoAgents(audience = "everyone") {
     const ctxA = await connect();
     const ctxB = await connect();
-    const a = (await call("create_character", validCharacter({ name: "Ada Lumen", soul: { values: "secret-alpha-values" } }), ctxA)).structuredContent;
-    const b = (await call("create_character", validCharacter({ name: "Bo Quill", soul: { values: "secret-bravo-values" }, open_to_dates: true, open_audience: audience }), ctxB)).structuredContent;
+    // keep_name: a test may set up two pairs with the same names (#249 refuses an exact twin otherwise).
+    const a = (await call("create_character", validCharacter({ name: "Ada Lumen", keep_name: true, soul: { values: "secret-alpha-values" } }), ctxA)).structuredContent;
+    const b = (await call("create_character", validCharacter({ name: "Bo Quill", keep_name: true, soul: { values: "secret-bravo-values" }, open_to_dates: true, open_audience: audience }), ctxB)).structuredContent;
     return { ctxA, ctxB, agentA: a.agent_id as string, agentB: b.agent_id as string, a: a.character.id as string, b: b.character.id as string };
   }
 
