@@ -276,8 +276,8 @@ export async function settleAgreement(db: Db, x: string, y: string): Promise<boo
       await notify(db, owner, {
         kind: "date_agreed",
         title: `📅 ${pair[0].name} and ${pair[1].name} want to go on a date`,
-        body: "Book it from their page.",
-        link: `/couples/${lo}/${hi}`,
+        body: "Book it from their chat: 📅 Book date, at the top.",
+        link: `/messages/${lo}/${hi}`,
       });
     }
   }

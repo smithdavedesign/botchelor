@@ -26,10 +26,11 @@ type Props = {
   /** The line under the heading, when it's not the usual (a swipe-deck match before its first date). */
   intro?: string;
   /**
-   * The thread-only page (/messages): just the phone, filling the screen, with ‹ back to the matches list, ⓘ to the
-   * couple page when they have one, and the action bar (what's next) under the header.
+   * The thread-only page (/messages): just the phone, filling the screen. One header row: ‹ back to the matches list,
+   * who it's with, then on the right the switch to another of this character's chats, the one thing to do next (book,
+   * watch) and ⓘ, their story (the couple page) when they have one.
    */
-  page?: { back: string; info: string | null; bar?: ReactNode };
+  page?: { back: string; info: string | null; switcher?: ReactNode; action?: ReactNode };
 };
 
 /** Within this of the newest text, the reader is "at the newest" and stays there as the phone resizes. */
@@ -299,36 +300,60 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
       onKeyDown={full ? trap : undefined}
     >
       <PhoneFrame chrome={!full && !page}>
-        <header className="phone-header">
-          <Link
-            className="phone-back"
-            href={page ? page.back : `/characters/${self.id}/relationships`}
-            aria-label={page ? `Back to ${shortName(self.name)}'s matches` : `Back to ${shortName(self.name)}'s relationships`}
-          >
-            ‹
-          </Link>
-          <Link className="phone-contact" href={`/characters/${other.id}`}>
-            <Avatar seed={other.id} name={other.name} hue={other.hue} house={other.house} portraitSrc={other.portrait} size={38} />
-            <span className="phone-contact-name">{shortName(other.name)}</span>
-            {stageLabel && <span className="phone-contact-stage">{stageLabel}</span>}
-          </Link>
-          {page && !canFlip && page.info ? (
-            <Link className="phone-head-btn" href={page.info} aria-label={`${shortName(self.name)} and ${shortName(other.name)}: their dates and story`} title="Their dates and story">
-              ⓘ
+        {page ? (
+          <header className="phone-header is-page">
+            <Link className="phone-back" href={page.back} aria-label={`Back to ${shortName(self.name)}'s matches`}>
+              ‹
             </Link>
-          ) : full ? (
-            <button ref={done} type="button" className="phone-head-btn" onClick={leave}>
-              Done
-            </button>
-          ) : canFlip ? (
-            <button type="button" className="phone-head-btn" onClick={() => setMe(them)} aria-label={`See it on ${shortName(other.name)}'s phone`} title={`See it on ${shortName(other.name)}'s phone`}>
-              ⇄
-            </button>
-          ) : (
-            <span aria-hidden="true" />
-          )}
-        </header>
-        {page?.bar}
+            <Link className="phone-contact" href={`/characters/${other.id}`}>
+              <Avatar seed={other.id} name={other.name} hue={other.hue} house={other.house} portraitSrc={other.portrait} size={38} />
+              <span className="phone-contact-text">
+                <span className="phone-contact-name">{shortName(other.name)}</span>
+                {stageLabel && <span className="phone-contact-stage">{stageLabel}</span>}
+              </span>
+            </Link>
+            <span className="phone-head-actions">
+              {page.switcher}
+              {page.action}
+            </span>
+            {canFlip && (
+              <button type="button" className="phone-head-btn" onClick={() => setMe(them)} aria-label={`See it on ${shortName(other.name)}'s phone`} title={`See it on ${shortName(other.name)}'s phone`}>
+                ⇄
+              </button>
+            )}
+            {page.info && (
+              <Link className="phone-head-btn" href={page.info} aria-label={`${shortName(self.name)} and ${shortName(other.name)}: their dates and story`} title="Their dates and story">
+                ⓘ
+              </Link>
+            )}
+          </header>
+        ) : (
+          <header className="phone-header">
+            <Link
+              className="phone-back"
+              href={`/characters/${self.id}/relationships`}
+              aria-label={`Back to ${shortName(self.name)}'s relationships`}
+            >
+              ‹
+            </Link>
+            <Link className="phone-contact" href={`/characters/${other.id}`}>
+              <Avatar seed={other.id} name={other.name} hue={other.hue} house={other.house} portraitSrc={other.portrait} size={38} />
+              <span className="phone-contact-name">{shortName(other.name)}</span>
+              {stageLabel && <span className="phone-contact-stage">{stageLabel}</span>}
+            </Link>
+            {full ? (
+              <button ref={done} type="button" className="phone-head-btn" onClick={leave}>
+                Done
+              </button>
+            ) : canFlip ? (
+              <button type="button" className="phone-head-btn" onClick={() => setMe(them)} aria-label={`See it on ${shortName(other.name)}'s phone`} title={`See it on ${shortName(other.name)}'s phone`}>
+                ⇄
+              </button>
+            ) : (
+              <span aria-hidden="true" />
+            )}
+          </header>
+        )}
         <div ref={box} className="phone-messages" role="region" aria-label={`Texts between ${names}`} tabIndex={0}>
           {hasMore ? (
             <div ref={top} className="phone-earlier">
@@ -470,7 +495,7 @@ function Thread({ items, me, characters, today }: { items: ChainItem[]; me: End;
     out.push(
       <div key={item.id} className={`phone-msg ${mineSide ? "phone-msg-me" : "phone-msg-them"}${starts ? " starts" : ""}${ends ? " ends" : ""}`}>
         {!mineSide &&
-          (ends ? <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={26} /> : <span className="phone-avatar-gap" aria-hidden="true" />)}
+          <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={26} />}
         <p className="phone-bubble">
           <span className="sr-only">{shortName(c.name)}: </span>
           {item.text}

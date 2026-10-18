@@ -4720,14 +4720,6 @@ main:has(> .admin-wide) {
   max-width: 46rem;
   margin-inline: auto;
 }
-.thread-bar {
-  display: flex;
-  justify-content: flex-end;
-  min-height: 0;
-}
-.thread-bar:empty {
-  display: none;
-}
 .phone-stage.is-page {
   display: flex;
   height: calc(100dvh - 9rem);
@@ -4829,10 +4821,6 @@ main:has(> .admin-wide) {
     margin: 0;
     background: var(--card);
   }
-  /* The thread starts at the top of the screen; switching characters is on Matches, one tap back (‹). */
-  .messages-fullscreen .thread-bar {
-    display: none;
-  }
   .messages-fullscreen .thread-page {
     display: flex;
     flex: 1;
@@ -4864,33 +4852,6 @@ a.phone-head-btn {
   font-size: var(--text-2xs);
   white-space: normal;
   text-align: center;
-}
-
-/* The thread's action bar (app/messages/[a]/[b]/ThreadNext.tsx): the one thing to do next, under the header. */
-.thread-next {
-  display: flex;
-  flex: none;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-  padding: 0.6rem max(0.9rem, calc((100% - 46rem) / 2));
-  border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--soft) 70%, var(--card));
-}
-.thread-next-text {
-  font-weight: 700;
-}
-.thread-next > .button,
-.thread-next > button {
-  margin: 0;
-}
-.thread-next-link {
-  margin-left: auto;
-  font-size: var(--text-sm);
-}
-.thread-next-error {
-  flex-basis: 100%;
-  margin: 0;
 }
 
 /* The couple page's texts: the newest few, and the way into the thread. */
@@ -4956,4 +4917,69 @@ a.phone-head-btn {
   flex-wrap: wrap;
   gap: 0.25rem 0.9rem;
   font-size: var(--text-sm);
+}
+
+/* The thread page's header (TextPhone page mode): one row. ‹, who it's with, then the chat switcher, the one action
+   and ⓘ on the right, so nothing takes a row of its own (David, 2026-10-18). */
+.phone-header.is-page {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+.phone-header.is-page .phone-contact {
+  flex: 1;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+}
+.phone-contact-text {
+  display: grid;
+  min-width: 0;
+}
+.phone-header.is-page .phone-contact-name {
+  font-size: var(--text-md);
+}
+.phone-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.phone-head-actions:empty {
+  display: none;
+}
+.phone-head-actions > *,
+.phone-header.is-page .phone-head-btn {
+  margin: 0;
+}
+.thread-switcher select {
+  max-width: 11rem;
+}
+.thread-action {
+  position: relative;
+  white-space: nowrap;
+}
+.thread-action-error {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 3;
+  width: max-content;
+  max-width: 18rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.6rem;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--bad-text);
+  font-size: var(--text-sm);
+  white-space: normal;
+}
+/* A phone: ‹, the name and ⓘ on the first line; the switcher and the action under them, still in the header. */
+@media (max-width: 720px) {
+  .phone-header.is-page .phone-head-actions {
+    order: 10;
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
 }

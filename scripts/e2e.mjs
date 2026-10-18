@@ -385,7 +385,7 @@ async function main() {
       assert((await page.locator("#texts .phone-date").count()) === 1, "the thread should open with their date");
       assert((await page.locator("#texts .phone-msg").count()) >= 1, "the morning-after texts should follow the date");
       // What's next, where the texts are: their date, to watch.
-      assert(await page.locator(".thread-next", { hasText: "Watch it" }).isVisible(), "the thread should lead to their date");
+      assert(await page.locator(".phone-header .thread-action", { hasText: "Watch last date" }).isVisible(), "the thread should lead to their date");
       // A spectator: the page is public now the finale has aired, but the texts are the owners' alone.
       const res = await spage.goto(`${base}${couplePath}`);
       assert(res?.status() === 200, `the couple page should be public once a date airs (${res?.status()})`);
@@ -433,15 +433,14 @@ async function main() {
         assert((await page.locator(".couple-head, .phone-card h2").count()) === 0, "the thread page should show the thread only");
         matchPath = new URL(page.url()).pathname.replace("/messages/", "/couples/");
         // The action bar says where they stand: both want a date (book it right here), or one said not this time.
-        await page.locator(".thread-next").waitFor({ timeout: 10_000 });
-        agreed = (await page.locator(".thread-next").getByRole("button", { name: "Book it" }).count()) > 0;
-        if (!agreed) assert(await page.locator(".thread-next", { hasText: "Not this time" }).isVisible(), "no book button, so one of them said not this time");
+        agreed = (await page.locator(".phone-header").getByRole("button", { name: "📅 Book date" }).count()) > 0;
+        if (!agreed) assert(await page.locator(".phone-header", { hasText: "Not this time" }).isVisible(), "no book button, so one of them said not this time");
       }
       assert(agreed, "no agreed date after six matches");
       assert(await page.locator("#texts .phone-event", { hasText: "agreed to a date" }).isVisible(), "the chain should mark the agreed date");
       // ⓘ leads to their story; the couple page books too.
       assert((await page.locator(".phone-header a[href^='/couples/']").count()) === 1, "the thread should link to their story");
-      await page.locator(".thread-next").getByRole("button", { name: "Book it" }).click();
+      await page.locator(".phone-header").getByRole("button", { name: "📅 Book date" }).click();
       await page.waitForURL(/\/episodes\/[0-9a-f-]{36}/, { timeout: 30_000 });
       await page.locator(".theater").waitFor({ timeout: 10_000 });
     });

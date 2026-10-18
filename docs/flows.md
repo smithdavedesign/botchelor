@@ -36,7 +36,7 @@ flowchart TD
     match -- "No" --> swipe
     match -- "Yes" --> texts["Text each other<br/>(Matches → the thread)"] --> agree{"Both say yes to a date?"}
     agree -- "No" --> swipe
-    agree -- "Yes: Book it, right in the thread" --> book
+    agree -- "Yes: 📅 Book date, at the top of the thread" --> book
     choose -- "Blind date<br/>(season cast + your matches)" --> book
     choose -- "Someone they've dated before" --> propose["Propose a date on the couple page"] --> accept{"Other owner accepts?"}
     accept -- "Yes" --> book
@@ -152,7 +152,7 @@ Every page leads somewhere: no dead ends.
 |---|---|---|
 | Nav | Create · Swipe · Matches (unread texts) · Watch · Account · 🔔 | |
 | `/matches?character=` | One character's inbox: new matches, then conversations, with a badge for what's next | the thread, its card, its deck |
-| `/messages/[a]/[b]` | The thread only, with an action bar: **Book it** when both want a date, **Watch live** while it's filmed, **Watch it** after | the date, their story (ⓘ), back to Matches |
+| `/messages/[a]/[b]` | The thread only. One header row: ‹, who it's with, a switcher to this character's other chats, the one action (**📅 Book date**, **🎬 Watch live**, **▶ Watch last date**) and ⓘ (their story) | the date, their story, the other chats, back to Matches (where you switch characters) |
 | `/couples/[a]/[b]` | Their story: dates, arc, plans; owners see the newest texts | the thread, their dates, each character |
 | `/characters/[id]` | A character's hub | its matches, deck, board, dates, edit |
 | `/characters/[id]/relationships` | Who they're seeing (the public view) | each couple; owners go to the thread |
