@@ -9,8 +9,24 @@ import { GET as lobbyJob } from "@/app/api/jobs/lobby/route";
 import { createTemplateParty, FRESH_ROOMS_PER_DAY, listLobby, refreshLobby } from "@/lib/watch";
 import { BASE_URL, episodeJson, planJson, scriptedModel, scriptOutcome, setupEpisode, startTestDb } from "./helpers";
 
+// Varied openers and no repeated distinctive content words — so the critics (opener, catchphrase, motif, near-
+// duplicate, profile) don't force revisions and the scripted model doesn't run out of outputs.
+const TURN_LINES = [
+  "Hmm.",
+  "Mm?",
+  "Oh.",
+  "Hah.",
+  "Yes?",
+  "Sure.",
+  "Oh?",
+  "Mm.",
+  "Hmm?",
+  "Yes.",
+  "OK.",
+  "Hah?",
+];
 const turnJson = (i: number) =>
-  JSON.stringify({ dialogue: `Line ${i}: a safe, friendly thing to say.`, action: "asks", emotion: "curious", interest_signal: 0.5 });
+  JSON.stringify({ dialogue: TURN_LINES[i % TURN_LINES.length], action: "asks", emotion: "curious", interest_signal: 0.5 });
 const turns = (n: number) => Array.from({ length: n }, (_, i) => turnJson(i));
 const userText = (messages: { role: string; content: string }[]) => messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
 
@@ -66,11 +82,7 @@ describe("the showcase bar (template rooms are the shop window)", () => {
     "Then we'll practise somewhere gull-free. Where's the quietest place you know?",
     "A bandstand in the park after midnight. Nobody goes there but the night bus drivers on their break.",
     "Do they ever request anything?",
-    "One asked for a lullaby once. The driver was asleep before the chorus, which I took as a review.",
-    "Honestly the best review there is. I'd pay to hear that version.",
-    "Free admission. You just have to promise not to fall asleep.",
-    "I'll stay awake for the whole set. Even the encore.",
-  ].map(line);
+  ].slice(0, CONVERSATION_TURNS).map(line);
 
   it("a date under the bar gets one more take — same outcome — and the better take airs", async () => {
     setConversationEnabledForTests(true);

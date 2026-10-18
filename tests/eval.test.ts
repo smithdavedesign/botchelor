@@ -8,8 +8,10 @@ import { CONVERSATION_TURNS } from "@/lib/rules";
 import { BASE_URL, episodeJson, planJson, scriptedModel } from "./helpers";
 import type { Model } from "@/lib/model";
 
+// Neutral stopword-only filler so the critic (opener, catchphrase, motif) doesn't force revisions.
+const EVAL_TURN_LINES = ["Hmm.", "Mm?", "Oh.", "Hah.", "Yes?", "Sure.", "Oh?", "Mm.", "Hmm?", "Yes.", "OK.", "Hah?"];
 const turnJson = (i: number) =>
-  JSON.stringify({ dialogue: `Line ${i}: is that a compass, or are you just planning to get lost?`, action: "asks", emotion: "curious", interest_signal: 0.6 });
+  JSON.stringify({ dialogue: EVAL_TURN_LINES[i % EVAL_TURN_LINES.length], action: "asks", emotion: "curious", interest_signal: 0.6 });
 const judgeJson = JSON.stringify({
   in_character_a: 4, in_character_b: 3, natural: 4, motivated: 3, specific: 4, distinct: 4, engaging: 4,
   profile_reading: false, misgendering: false, abrupt_turn: false, note: "Good rhythm; the ending is thinly set up.",

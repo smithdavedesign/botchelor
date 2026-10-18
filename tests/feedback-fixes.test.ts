@@ -94,9 +94,11 @@ describe("on a date, the sheet is a sketch, not a script (David, 2026-10-18)", (
     const chars: [Character, Character] = [assembleCharacter({ id: "mira", sheet: input.a.sheet, soul: null, memory: null }), assembleCharacter({ id: "rafe", sheet: input.b.sheet, soul: null, memory: null })];
     const outcome = fixedEngine({ ending: "friends", sides: [outcomeSide(), outcomeSide()] }).decide(input, 1);
     const system = buildTurnMessages(input, outcome, chars, "a_hard_question", pickVenue(1), [], 0).messages[0].content;
-    expect(system).toMatch(/Your sheet is a sketch of who you are, not a script/);
-    expect(system).toMatch(/Invent fresh specifics that fit you/);
-    expect(system).toMatch(/at least one line tonight that nobody else on this show would say/);
+    // The purpose-first prompt (David 2026-10-18) keeps the "sheet is a sketch" spirit and the originality nudge;
+    // the rest of the rules moved to the critic (lib/quality.ts).
+    expect(system).toMatch(/It is a sketch of who you are, not a script/);
+    expect(system).toMatch(/Say the truer, odder or funnier thing a real person like you would/);
+    expect(system).toMatch(/nobody else on this show would say/);
   });
 });
 

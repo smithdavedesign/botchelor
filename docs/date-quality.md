@@ -445,3 +445,46 @@ back to (7 of 15); their goals were the same "quiet night" all fifteen times; an
   (lib/air.ts `DUE`): on the next open of the episode, any MCP call, or the hourly job. Private is "offline": it never
   airs. The host's card says when it airs and offers "Air it now" and "Keep it offline"; after airing, "Take it offline".
   Watch-party premieres still air live in their rooms.
+
+## Round: more purpose, less rules; always paid; cut the memory snowball (2026-10-18)
+
+The round before (deeper dates) added good things on the structural side: varied endings, deepening goals, pair
+memory, dates airing by default. But the local Cass×Dex ten-date run on a weak model showed the writing had
+gone the other way: by date 7, 15 of 16 lines started with "Knock, knock" and circled "Gerald" and "a quiet
+hike this weekend". David's call: more context on the goal of finding love and being original, fewer rules; and
+no free model for a show date, which was quietly degrading the writing when the daily cap was hit.
+
+- **Actor prompt (lib/conversation.ts `SYSTEM_PROMPT`): purpose-first, not prohibition-first.** The sections
+  now are *Purpose* ("You're here to find out whether this person could matter to you"), *Who you are*, *What
+  you hope for in them*, *Where this act takes you* (the engine's pull as a feeling), *How to listen*, *What
+  they see and what they don't*, *Context blocks*, *Hard rules*, *JSON*. The old monolithic rules dump
+  (self_label, self_quote, repeated_opener, name_tic, motif, never_say, sample_echo, profile_reading) moved to
+  the critic. The engine still decides the ending so predictions remain fair; the actor's `your_intention`
+  carries the ending-pull without a separate rule.
+- **One memory block (lib/memory.ts `remembered`, new).** `metBefore` + `char.pair` are merged into
+  `what_you_remember_about_them` with caps: 2 things told (was 4), 1 inside joke (was 5), 1 line each said.
+  The old separate keys (`you_have_met_them_before`, `your_relationship_with_them`,
+  `what_your_past_dates_taught_you`, `your_recent_dates`, `your_mood_so_far`,
+  `you.private.memory.lines_said_before`) are gone from the actor's data. That's the cut that stops one old
+  joke snowballing through every later prompt.
+- **Three new critic checks (lib/quality.ts `lineIssues`), nudges not rejections.**
+  - `near_duplicate` — a 4+ consecutive content-word run shared with any of this speaker's last 6 lines
+    this date.
+  - `catchphrase` — a 2-distinctive-word phrase (filters stopwords AND everyday words like "line",
+    "friendly") this speaker has already said in 2+ earlier lines this date. First and second uses are free;
+    the third is flagged. Covers Dex's "knock on wood" tic.
+  - `mirrored_other` — a 4+ consecutive content-word run shared with the OTHER speaker's immediately
+    previous line. Covers "Pots or people? People every time." / "Pots or people? People, if it's a craft."
+  Each is a critic nudge (one revision; keep the draft if it fails to parse). `transcriptQuality` counts
+  them as `near_duplicates`, `catchphrases`, `mirrored` so the eval sweep notices regressions.
+- **Shorter and able to close early (lib/rules.ts, lib/conversation.ts, lib/talk.ts).**
+  `CONVERSATION_TURNS` is 12 (was 16). The TurnOutput schema accepts an optional `"done": true`; the loop in
+  `simulateConversation` respects it only in the final act, closing the date at the next slot. The engine
+  (lib/engine.ts) ignores turn count, so predictions aren't recalibrated. The talk ladder rescales: longer
+  16, long 20, marathon 28.
+- **Always paid for show-model dates (lib/jobs.ts).** When `FRONTIER_LLM_*` is configured, every show-model
+  date runs on the frontier for both actor and director. The daily cap (`FRONTIER_DAILY_DATE_CAP`,
+  `claimPaidDate`) still ticks for the admin's spend view but no longer gates the switch, so a busy day
+  never silently drops into the free model. When the frontier isn't configured (local dev, visitor sims),
+  the free model is still used; `track("show_date_free")` fires so prod can alert. BYOK still applies on
+  this path — an owner's key still reduces the show's spend on that side.

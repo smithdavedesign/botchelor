@@ -129,6 +129,12 @@ export type LineIssues = {
   never_said: string | null;
   /** The line repeats one of the speaker's own sample lines, or its own line from an earlier date (a 4-word run). */
   sample_echo: boolean;
+  /** A 4+ consecutive content-word run shared with one of this speaker's own recent lines (Cass×Dex loop). */
+  near_duplicate: string | null;
+  /** A 3-token phrase this speaker has already used in 2+ earlier lines this date — the "Knock, knock" tic. */
+  catchphrase: string | null;
+  /** A 4+ consecutive content-word run shared with the OTHER speaker's immediately previous line — mirroring. */
+  mirrored_other: string | null;
 };
 
 /** The never-say phrase a line uses, matched on whole words (case-insensitive), or null. */
@@ -233,6 +239,46 @@ export function lineIssues(
   );
   const sampleEcho = sampleGrams.size > 0 && [...ngrams(lineTokens, 4)].some((g) => sampleGrams.has(g));
 
+  // Near-duplicate: a 4+ consecutive content-word run shared with any of the same speaker's own last 6 lines
+  // this date (Cass×Dex, 2026-10-18: "Knock, knock. Gerald's been growing. Any quiet night ideas…" appeared
+  // nearly verbatim across lines). Openers *and* mid-line. First match wins; the critic names it.
+  const myLineContent = contentWords(text, 3);
+  const myGrams = [...ngrams(myLineContent, 4)];
+  let nearDuplicate: string | null = null;
+  if (myGrams.length) {
+    for (const earlier of mine.slice(-6)) {
+      const earlierGrams = ngrams(contentWords(earlier.dialogue, 3), 4);
+      const hit = myGrams.find((g) => earlierGrams.has(g));
+      if (hit) { nearDuplicate = hit; break; }
+    }
+  }
+
+  // Catchphrase: a 2-distinctive-word phrase this speaker has already said in 2+ earlier lines this date.
+  // Covers Dex's "Knock on wood" / "Knock, knock" tic (10+ of 16 lines on later Cass×Dex dates). First and
+  // second uses are free; the third is flagged. "Distinctive" filters stopwords AND everyday words ("line",
+  // "friendly"), so natural chatter doesn't flag; characterful tics like "knock gerald's" or "quiet hike" do.
+  let catchphrase: string | null = null;
+  const distinctiveWords = (text: string) => contentWords(text, 4).filter((w) => !EVERYDAY_WORDS.has(w));
+  const myDistinctive = distinctiveWords(line.dialogue);
+  if (myDistinctive.length >= 2) {
+    const earlierDistinctive = mine.map((t) => ngrams(distinctiveWords(t.dialogue), 2));
+    for (const g of ngrams(myDistinctive, 2)) {
+      const hits = earlierDistinctive.reduce((n, s) => n + (s.has(g) ? 1 : 0), 0);
+      if (hits >= 2) { catchphrase = g; break; }
+    }
+  }
+
+  // Mirrored other: a 4+ consecutive content-word run shared with the OTHER speaker's immediately previous
+  // line (Cass×Dex: Cass "Pots or people? People every time. Your hands…" / Dex "Pots or people? People, if
+  // it's a craft. Your hands…"). Only flags the single previous line, so sincere callbacks stay fine.
+  let mirroredOther: string | null = null;
+  const prevOther = before.at(-1);
+  if (prevOther && prevOther.side !== line.side) {
+    const prevGrams = ngrams(contentWords(prevOther.dialogue, 3), 4);
+    const hit = myGrams.find((g) => prevGrams.has(g));
+    if (hit) mirroredOther = hit;
+  }
+
   return {
     profile_reading: leakedWord || leakedGram || labelled,
     self_label: selfLabel,
@@ -244,6 +290,9 @@ export function lineIssues(
     motif_fixation: motifFixation,
     never_said: neverSaid(text, self.extras?.never_says),
     sample_echo: sampleEcho,
+    near_duplicate: nearDuplicate,
+    catchphrase,
+    mirrored_other: mirroredOther,
   };
 }
 
@@ -264,6 +313,12 @@ export type QualityMetrics = {
   name_tics: number;
   /** Lines that used a phrase the speaker would never say, or read out one of its own sample lines. */
   voice_breaks: number;
+  /** Lines that near-duplicated the same speaker's own earlier line this date. */
+  near_duplicates: number;
+  /** Lines that re-used a catchphrase the speaker already said 2+ times earlier this date. */
+  catchphrases: number;
+  /** Lines that mirrored the other speaker's immediately previous line (4+ shared content-word run). */
+  mirrored: number;
   distinctness: number;
   grounding: [number, number];
   /** 0..100: one headline number combining the above (higher is more genuine). */
@@ -278,6 +333,7 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
   const spread = n ? Math.sqrt(wordsPerLine.reduce((x, w) => x + (w - avg) ** 2, 0) / n) : 0;
 
   let profileReading = 0, selfLabels = 0, selfQuotes = 0, misgendered = 0, abrupt = 0, repeated = 0, repeatedActions = 0, nameTics = 0, voiceBreaks = 0;
+  let nearDuplicates = 0, catchphrases = 0, mirrored = 0;
   let responsive = 0, replies = 0;
   const lastInterest: [number | null, number | null] = [null, null];
   const sideWords: [Set<string>, Set<string>] = [new Set(), new Set()];
@@ -296,6 +352,9 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
     if (issues.repeated_action) repeatedActions++;
     if (issues.name_tic) nameTics++;
     if (issues.never_said || issues.sample_echo) voiceBreaks++;
+    if (issues.near_duplicate) nearDuplicates++;
+    if (issues.catchphrase) catchphrases++;
+    if (issues.mirrored_other) mirrored++;
 
     const content = new Set(contentWords(t.dialogue));
     linesBy[s]++;
@@ -328,6 +387,8 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
         misgendered ? 0 : 1,
         1 - Math.min(1, abrupt / 2),
         1 - Math.min(1, ((repeated + repeatedActions + nameTics) / n) * 3),
+        // The new David 2026-10-18 checks (Cass×Dex): a tic that fills a date tanks the score harder than one slip.
+        1 - Math.min(1, ((nearDuplicates + catchphrases + mirrored) / n) * 2),
         Math.min(1, questionRate / 0.35),
         responsiveness,
         distinctness,
@@ -353,6 +414,9 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
     repeated_actions: repeatedActions,
     name_tics: nameTics,
     voice_breaks: voiceBreaks,
+    near_duplicates: nearDuplicates,
+    catchphrases,
+    mirrored,
     distinctness: r2(distinctness),
     grounding: [r2(grounding[0]), r2(grounding[1])],
     index,

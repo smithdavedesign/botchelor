@@ -150,13 +150,14 @@ describe("a rematch remembers last time", () => {
     const data = (i: number): Any =>
       JSON.parse(buildTurnMessages(built.input, outcome, built.characters, "a_hard_question", "rooftop_bar", [], i, "classic", {}, { totalTurns: 6 }).messages[1].content.replace(/^[^\n]*\n/, ""));
 
-    const iraSees = data(0).you_have_met_them_before;
-    expect(iraSees).toMatchObject({ times: 1, where_you_stand: "You've been seeing each other.", how_you_left_it: "You wanted to see them again.", something_they_said: "It's soup. It's always soup." });
-    expect(iraSees.last_time).toMatch(/cold beach at night/);
-    const nellSees = data(1).you_have_met_them_before;
+    // What each remembers about the OTHER lands under one merged block (David 2026-10-18: cut the memory snowball).
+    const iraSees = data(0).what_you_remember_about_them;
+    expect(iraSees).toMatchObject({ times: 1, where_you_stand: "You've been seeing each other.", how_you_left_it: "You wanted to see them again.", one_line_they_said: "It's soup. It's always soup." });
+    expect(iraSees.how_it_ended_last_time).toMatch(/cold beach at night/);
+    const nellSees = data(1).what_you_remember_about_them;
     expect(nellSees.how_you_left_it).toBe("You didn't want to see them again.");
-    // Ira's prompt also has the rest of its dating life (Teo), but not Nell twice.
-    expect(data(0).your_recent_dates).toEqual([expect.stringMatching(/^With Teo at .*: A disaster\.$/)]);
+    // your_recent_dates was dropped (duplicated the sheet's own life + extras); the character still carries its own context.
+    expect(data(0).your_recent_dates).toBeUndefined();
 
     // The director plans it as a rematch; the reflection knows it too.
     const director = buildDirectorMessages(built.input, outcome, built.characters, "a_hard_question", "rooftop_bar", "classic", {})[1].content;

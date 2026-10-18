@@ -209,7 +209,7 @@ export const actName = (act: number, metBefore: boolean): string =>
  * other's actual last line (not one model narrating both). The engine still decides the outcome
  * (predictions stay fair); the conversation performs it. Bounded so a date stays short and cheap.
  */
-export const CONVERSATION_TURNS = 16; // dialogue turns total, alternating, character A opens (16 since 2026-10-18, David: "allow more lines"; 10 from M15)
+export const CONVERSATION_TURNS = 12; // dialogue turns total, 4+4+4 across the three acts; the actor may close early in act 3 with "done": true (lib/conversation.ts). 16 → 12 2026-10-18 (David, after Cass×Dex ten dates: shorter and able to end naturally beats a forced length).
 export const TURN_DIALOGUE_MAX = 280; // characters per spoken line
 
 /**
