@@ -22,13 +22,14 @@ import { AFTERGLOW_TEXT_MAX, parseAfterglowLine } from "./afterglow";
 import { activeNudge, alsoSeeing, buildTextMessages, dayOf, insertText, NUDGE_MAX, SHOW_THREAD_CHARS, threadFor, type TextVia } from "./between-dates";
 import { loadCharacter, type Character } from "./character";
 import type { Db } from "./db";
-import { getModel, ModelError, type ChatMessage, type Model } from "./model";
+import { getModel, type ChatMessage, type Model } from "./model";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { loadRelationship, pairContext, pairKey, viewRelationship, type End, type Relationship } from "./relationships";
 import { checkFields } from "./safety";
 import { matchView } from "./swipes";
 import { betweenText, dateTextsBudget, loadChain, TEXT_MAX, type ChainText } from "./text-chain";
+import { critiqueText, writeCritiquedText, type ThreadText } from "./text-critic";
 
 /** A runaway-loop guard, not a quota: one character's texts in a minute. */
 export const TEXTS_PER_MINUTE = 30;
@@ -137,17 +138,12 @@ async function tell(db: Db, p: Pair, text: string, senderId: string): Promise<"n
   return "updated";
 }
 
-/** One text from a model: two tries, then nothing (a failed reply never fails what came before it). */
-async function writeLine(model: Model, messages: ChatMessage[], max: number): Promise<string | null> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const line = parseAfterglowLine(await model.complete(messages, { temperature: 0.9 }), "a", max);
-      if (line) return line.text;
-    } catch (err) {
-      if (!(err instanceof ModelError)) console.error("[texting] model call failed:", err instanceof Error ? err.message : "unknown");
-    }
-  }
-  return null;
+/**
+ * One text from a model, critiqued for repetition (lib/text-critic.ts): two tries, then nothing (a failed reply never
+ * fails what came before it). `me` writes it to `them`; `thread` is everything before it.
+ */
+function writeLine(model: Model, messages: ChatMessage[], max: number, me: Character, them: Character, thread: ThreadText[]): Promise<string | null> {
+  return writeCritiquedText(model, messages, (raw) => parseAfterglowLine(raw, "a", max)?.text ?? null, (text) => critiqueText(thread, text, me, them), "texting");
 }
 
 /** How many replies a house character has left today on the show's model: for this couple, and show-wide. */
@@ -183,7 +179,7 @@ async function houseReply(db: Db, p: Pair, creatorId: string, ownModel: Model | 
     // from the house character's week, with nothing in the thread behind it).
     reply: true,
   });
-  const line = await writeLine(ownModel ?? getModel(undefined, false), messages, ownModel ? TEXT_MAX : AFTERGLOW_TEXT_MAX);
+  const line = await writeLine(ownModel ?? getModel(undefined, false), messages, ownModel ? TEXT_MAX : AFTERGLOW_TEXT_MAX, house, p.me, thread);
   if (!line) return { text: null, note: `${name} didn't text back this time.` };
   return { text: await store(db, p, p.theirs, line, ownModel ? "own_key" : "show") };
 }
@@ -223,12 +219,13 @@ export async function writeOwnText(db: Db, o: { userId: string; from: string; to
   // Their whole thread (the newest that fit, when it's very long), from the dates this owner can bring in.
   const chain = await loadChain(db, p.lo, p.hi, { usableBy: o.userId });
   const names = p.mine === "lo" ? [p.me.name, p.them.name] : [p.them.name, p.me.name];
-  const messages = buildTextMessages(p.me, p.them, pairContext(p.rel, p.me.id, o.userId, null), threadFor(chain, names[0], names[1], dateTextsBudget()), {
+  const thread = threadFor(chain, names[0], names[1], dateTextsBudget());
+  const messages = buildTextMessages(p.me, p.them, pairContext(p.rel, p.me.id, o.userId, null), thread, {
     nudge: hint || (await activeNudge(db, p.me.id, p.them.id)),
     alsoSeeing: await alsoSeeing(db, p.me.id, p.them.id),
     open: true,
   });
-  const line = await writeLine(o.model, messages, TEXT_MAX);
+  const line = await writeLine(o.model, messages, TEXT_MAX, p.me, p.them, thread);
   if (!line) return refuse(502, "no_text", "Your model didn't come back with a text. Try again.");
   const sent = await store(db, p, p.mine, line, "own_key");
   const told = await tell(db, p, line, o.userId);
