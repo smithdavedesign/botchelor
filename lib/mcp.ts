@@ -58,7 +58,7 @@ import { POST as postPrediction } from "@/app/api/predictions/route";
 import { loadRelationship, pairKey, relationshipsOf, STAGE_LABELS, viewRelationship, type End, type Relationship } from "./relationships";
 import { clearNudge, setNudge } from "./between-dates";
 import { chainAfter, chainPage, isText, loadChain, TEXT_MAX, type ChainText } from "./text-chain";
-import { houseReplyCap, sendText } from "./texting";
+import { couplePageFor, houseReplyCap, sendText } from "./texting";
 import { clearNotifications, listNotifications, markRead, unreadCount } from "./notifications";
 import { closeProposal, pendingProposal, proposeDate } from "./date-proposals";
 import { arcQuestion, predictArc } from "./arcs";
@@ -883,6 +883,10 @@ function trimEpisode(e: Record<string, unknown>): Record<string, unknown> {
 
 const NEEDS_IDENTITY = "No identity yet: create a character first (or pass the agent_id a write returned).";
 
+/** A couple page link only once it opens for anyone (lib/texting.ts couplePageFor), and why not until then. */
+const pageLink = (page: string | null, anchor = "") =>
+  page ? { couple_page: `${page}${anchor}` } : { couple_page: null, couple_page_note: "The couple page opens once one of their dates has aired (air_date)." };
+
 /** A text as agents read it (lib/text-chain.ts): who sent it, from this character's side, and which kind it is. */
 const agentText = (t: ChainText, self: End) => ({
   from: t.who === self ? "this_character" : "them",
@@ -1142,7 +1146,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         if (!view) return [];
         const other = rel.lo === id ? rel.hi : rel.lo;
         const told = { by_them: view.told[other] ?? [], by_this_character: view.told[id] ?? [] };
-        return [{ with: { id: other, name: names.get(other) ?? null }, couple_page: `/couples/${rel.lo}/${rel.hi}`, ...view, told }];
+        return [{ with: { id: other, name: names.get(other) ?? null }, ...pageLink(couplePageFor(rel)), ...view, told }];
       });
       // Everyone sees the couple's open arc question (lib/arcs.ts).
       for (const r of relationships) Object.assign(r, { arc: await arcQuestion(db, who.id, id, r.with.id) });
@@ -1174,14 +1178,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const from = String(args.character_id ?? "");
       const r = await sendText(db, { userId: who.id, from, to: String(args.to ?? ""), text: String(args.text ?? "") });
       if (!r.ok) return { error: r.message };
-      const [lo, hi] = pairKey(from, String(args.to));
+      const [lo] = pairKey(from, String(args.to));
       const self = from === lo ? "lo" : "hi";
       return {
         data: {
           sent: agentText(r.sent, self),
           reply: r.reply ? agentText(r.reply, self) : null,
           ...(r.note ? { note: r.note } : {}),
-          couple_page: `/couples/${lo}/${hi}#texts`,
+          ...pageLink(r.couplePage, "#texts"),
         },
         identity: who,
       };
@@ -1195,8 +1199,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!owns) return { error: "Only the characters' owners read their texts: character_id should be yours." };
       const items = await loadChain(db, id, withId, { userId: who.id, owner: true });
       if (!items.length) return { error: "They haven't been on a date together yet." };
-      const [lo, hi] = pairKey(id, withId);
+      const [lo] = pairKey(id, withId);
       const self = id === lo ? "lo" : "hi";
+      const rel = await loadRelationship(db, id, withId);
       const after = typeof args.after === "string" && args.after ? args.after : null;
       const page = after ? { items: chainAfter(items, after), cursor: null, has_more: false } : chainPage(items, typeof args.before === "string" && args.before ? args.before : null);
       return {
@@ -1210,7 +1215,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ),
           cursor: page.cursor,
           has_more: page.has_more,
-          couple_page: `/couples/${lo}/${hi}#texts`,
+          ...pageLink(rel ? couplePageFor(rel) : null, "#texts"),
         },
         identity: who,
       };

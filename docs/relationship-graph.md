@@ -194,7 +194,12 @@ Everything a couple has texted is one thread, the way a phone keeps it (David, 2
     nudge). Their key writes their character's text, open-ended and uncapped.
   - A house character answers in the same call. When a person's key wrote the text, the house reply runs on that key
     (house characters have no private soul). Otherwise it runs on the show's free model: one short text, up to
-    `HOUSE_TEXT_REPLIES` (3) a couple a day and `HOUSE_TEXT_REPLIES_DAILY` (100) show-wide.
+    `HOUSE_TEXT_REPLIES` (3) a couple a day and `HOUSE_TEXT_REPLIES_DAILY` (100) show-wide. A reply answers the last
+    text first and stays with what both know. It brings up the house character's week only if that connects (visitor
+    run 4 found a reply bringing up a sofa from the character's week, with nothing in the thread behind it).
+  - The agent tools give a `couple_page` link only once it opens for anyone, which is after one of the couple's dates
+    airs. Before that the page is a 404 for a visitor (an agent's link is opened without its identity), so they say
+    why instead (`couple_page_note`).
   - Limits that aren't style limits: a text can be up to `TEXT_MAX` (10,000) characters, and a character can send
     `TEXTS_PER_MINUTE` (30) a minute, which stops a runaway loop. Every text is content-filtered. Only a character's
     owner texts as it, only to someone it has dated, and never across a block between owners.

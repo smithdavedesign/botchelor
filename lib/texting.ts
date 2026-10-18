@@ -44,7 +44,7 @@ export function houseReplyDailyCap(env: Record<string, string | undefined> = pro
 }
 
 export type TextResult =
-  | { ok: true; sent: ChainText; reply: ChainText | null; note?: string }
+  | { ok: true; sent: ChainText; reply: ChainText | null; note?: string; couplePage: string | null }
   | { ok: false; status: number; error: string; message: string };
 type Refusal = Extract<TextResult, { ok: false }>;
 const refuse = (status: number, error: string, message: string): Refusal => ({ ok: false, status, error, message });
@@ -77,6 +77,13 @@ async function pairFor(db: Db, userId: string, from: string, to: string): Promis
   const mine: End = from === lo ? "lo" : "hi";
   return { me, them, rel, lo, hi, mine, theirs: mine === "lo" ? "hi" : "lo", theirOwner: toRow.owner_id };
 }
+
+/**
+ * The couple's page, once anyone can open it: a couple page shows only aired public dates to a visitor (an agent's link
+ * is opened without its identity), so before the first one airs it's a 404 and there's no link to give.
+ */
+export const couplePageFor = (rel: Relationship): string | null => (rel.public.dates > 0 ? `/couples/${rel.lo}/${rel.hi}` : null);
+const couplePage = (p: Pair) => couplePageFor(p.rel);
 
 /** True when this character has sent TEXTS_PER_MINUTE texts in the last minute. */
 async function tooFast(db: Db, characterId: string): Promise<boolean> {
@@ -152,6 +159,9 @@ async function houseReply(db: Db, p: Pair, creatorId: string, ownModel: Model | 
     nudge: null,
     alsoSeeing: await alsoSeeing(db, house.id, p.me.id),
     open: Boolean(ownModel),
+    // An answer to what was just said, grounded in what they both know (visitor run 4: a reply that brought up a sofa
+    // from the house character's week, with nothing in the thread behind it).
+    reply: true,
   });
   const line = await writeLine(ownModel ?? getModel(undefined, false), messages, ownModel ? TEXT_MAX : AFTERGLOW_TEXT_MAX);
   if (!line) return { text: null, note: `${name} didn't text back this time.` };
@@ -173,9 +183,9 @@ export async function sendText(db: Db, o: { userId: string; from: string; to: st
   if (await tooFast(db, p.me.id)) return refuse(429, "slow_down", `${shortName(p.me.name)} has sent ${TEXTS_PER_MINUTE} texts in the last minute. Give it a moment.`);
   const sent = await store(db, p, p.mine, text, "agent");
   await tell(db, p, text, o.userId);
-  if (p.theirOwner !== null) return { ok: true, sent, reply: null };
+  if (p.theirOwner !== null) return { ok: true, sent, reply: null, couplePage: couplePage(p) };
   const reply = await houseReply(db, p, o.userId, null);
-  return { ok: true, sent, reply: reply.text, ...(reply.note ? { note: reply.note } : {}) };
+  return { ok: true, sent, reply: reply.text, ...(reply.note ? { note: reply.note } : {}), couplePage: couplePage(p) };
 }
 
 /**
@@ -202,7 +212,7 @@ export async function writeOwnText(db: Db, o: { userId: string; from: string; to
   if (!line) return refuse(502, "no_text", "Your model didn't come back with a text. Try again.");
   const sent = await store(db, p, p.mine, line, "own_key");
   await tell(db, p, line, o.userId);
-  if (p.theirOwner !== null) return { ok: true, sent, reply: null };
+  if (p.theirOwner !== null) return { ok: true, sent, reply: null, couplePage: couplePage(p) };
   const reply = await houseReply(db, p, o.userId, o.model);
-  return { ok: true, sent, reply: reply.text, ...(reply.note ? { note: reply.note } : {}) };
+  return { ok: true, sent, reply: reply.text, ...(reply.note ? { note: reply.note } : {}), couplePage: couplePage(p) };
 }
