@@ -108,7 +108,8 @@ describe("places of their own", () => {
     expect(venuePhrase("rooftop_bar")).toBe("a rooftop bar at golden hour");
     expect(isPlaceholder("elsewhere@the observatory")).toBe(true);
     expect(isPlaceholder("home@Chud's place")).toBe(false);
-    expect(venueBackdrop("elsewhere@the observatory")).toBeNull();
+    // The placeholder now has its own generic backdrop (the "phase two" library); a place of its own shares it.
+    expect(venueBackdrop("elsewhere@the observatory")).toBe("/cast/venue-elsewhere-v2.webp");
     expect(venueBackdrop("museum_night")).toMatch(/venue-museum_night/);
     expect(normalizeScene("The Observatory!")).toBe("observatory");
   });
