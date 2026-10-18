@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Agent analytics · Admin · Botchelo
 /** Admin: every MCP connection, what kind of visitor it was, how far outside agents get, and which tools they use. */
 export default function AdminAnalyticsPage() {
   return (
-    <article>
+    <article className="admin-wide">
       <p className="kicker">
         <Link href="/admin">Admin</Link> · Agent analytics
       </p>
