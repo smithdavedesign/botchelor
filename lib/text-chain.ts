@@ -22,7 +22,7 @@ import { REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 import { CHAIN_PAGE, isText, type ChainItem, type ChainPage, type ChainText } from "./text-chain-shared";
 import { venueName, type VenueId } from "./venues";
 
-export { CHAIN_PAGE, isText, TEXT_MAX, type ChainDate, type ChainItem, type ChainPage, type ChainText } from "./text-chain-shared";
+export { CHAIN_PAGE, isText, TEXT_MAX, type ChainDate, type ChainEvent, type ChainItem, type ChainPage, type ChainText } from "./text-chain-shared";
 
 /** Anyone who isn't an owner: the public layer (aired, public, unhidden dates). */
 export const PUBLIC_VIEWER: Viewer = { userId: null, owner: false };
@@ -69,12 +69,13 @@ const CHAIN_EPISODES = `
  */
 export async function loadChain(db: Db, x: string, y: string, layer: ChainLayer): Promise<ChainItem[]> {
   const [lo, hi] = pairKey(x, y);
-  const [eps, texts] = await Promise.all([
+  const [eps, texts, match] = await Promise.all([
     db.query<ChainEpisode>(CHAIN_EPISODES, [lo, hi, REPORT_HIDE_THRESHOLD]),
     db.query<{ who: End; text: string; day: string; seq: number; created_at: string | Date }>(
       `select who, text, to_char(day, 'YYYY-MM-DD') as day, seq, created_at from couple_texts where character_lo = $1 and character_hi = $2`,
       [lo, hi],
     ),
+    db.query<{ matched_at: string | Date; agreed_at: string | Date | null }>(`select matched_at, agreed_at from matches where character_lo = $1 and character_hi = $2`, [lo, hi]),
   ]);
   const allowed = (e: ChainEpisode) => {
     const h = {
@@ -113,6 +114,16 @@ export async function loadChain(db: Db, x: string, y: string, layer: ChainLayer)
     });
   });
   for (const t of texts.rows) items.push(betweenText(t));
+  // How they met, when it was the swipe deck (lib/swipes.ts): the match, and when both said yes to a date.
+  const m = match.rows[0];
+  if (m) {
+    const at = iso(m.matched_at);
+    items.push({ kind: "event", id: chainId(at, 0, "m:matched"), at, day: at.slice(0, 10), event: "matched" });
+    if (m.agreed_at) {
+      const agreed = iso(m.agreed_at);
+      items.push({ kind: "event", id: chainId(agreed, 999, "m:agreed"), at: agreed, day: agreed.slice(0, 10), event: "date_agreed" });
+    }
+  }
   return items.sort((p, q) => (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
 }
 

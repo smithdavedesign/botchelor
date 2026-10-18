@@ -42,6 +42,7 @@ import { USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { setConversationEnabledForTests } from "@/lib/conversation";
 import { setAfterglowEnabledForTests } from "@/lib/afterglow";
+import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setReflectionEnabledForTests } from "@/lib/reflection";
 import { setInlineGenerationForTests } from "@/lib/jobs";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
@@ -97,6 +98,8 @@ export async function startTestDb() {
   // M11 afterglow is off in tests by default too (same reason: episode tests script only the narration
   // model). The afterglow module is tested directly in tests/afterglow.test.ts.
   setAfterglowEnabledForTests(false);
+  // A new match's opening chat (lib/swipes.ts) is the swipe tests' to drive, with their own model.
+  setMatchChatEnabledForTests(false);
   // The post-date reflection path is off in tests by default too (same reason). The reflection module is
   // tested directly in tests/reflection.test.ts.
   setReflectionEnabledForTests(false);

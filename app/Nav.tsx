@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 /** The primary nav links (the token meter and the logo sit outside this list). */
 const LINKS = [
   { href: "/create", label: "Create" },
+  { href: "/swipe", label: "Swipe" },
   { href: "/watch", label: "Watch" },
   { href: "/feed", label: "Episodes & leagues" },
   { href: "/account", label: "Account" },

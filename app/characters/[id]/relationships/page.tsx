@@ -11,6 +11,7 @@ import { getDb } from "@/lib/db";
 import { getPublicCharacter } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
 import { relationshipsOf, viewRelationship, type End } from "@/lib/relationships";
+import { myMatches } from "@/lib/swipes";
 import { isText, loadChain } from "@/lib/text-chain";
 import { dayLabel } from "@/lib/text-chain-shared";
 
@@ -70,8 +71,24 @@ export default async function RelationshipBoard({ params }: Props) {
       }),
     )
   )
-    .filter((r) => r !== null)
-    .sort((x, y) => (y.at ?? "").localeCompare(x.at ?? ""));
+    .filter((r) => r !== null);
+  // Its owner also sees its swipe-deck matches that haven't dated yet (lib/swipes.ts): private until a date airs.
+  const dated = new Set(rows.map((r) => r.other.id));
+  const matched = owns(id) && viewerId ? ((await myMatches(db, viewerId, id)) ?? []).filter((m) => !dated.has(m.with.id)) : [];
+  for (const m of matched) {
+    const last = (await loadChain(db, id, m.with.id, { userId: viewerId, owner: true })).filter(isText).at(-1) ?? null;
+    const end: End = id < m.with.id ? "lo" : "hi";
+    rows.push({
+      other: { id: m.with.id, name: m.with.name, house: m.with.house, hue: m.with.hue, portrait: m.with.portrait, owner_id: null },
+      view: { stage_label: m.agreed ? "📅 Date agreed" : "💘 Matched", dates: 0 } as (typeof rows)[number]["view"],
+      owner: true,
+      last,
+      sentByThem: last !== null && last.who !== end,
+      at: [last?.at ?? null, m.matched_at].filter((x): x is string => x !== null).sort().at(-1) ?? null,
+      path: m.couple_page,
+    });
+  }
+  rows.sort((x, y) => (y.at ?? "").localeCompare(x.at ?? ""));
   const first = shortName(c.name);
   const today = dayOf(new Date());
 
@@ -103,7 +120,8 @@ export default async function RelationshipBoard({ params }: Props) {
                       {r.at && <span className="phone-row-day">{dayLabel(r.at.slice(0, 10), today)}</span>}
                     </span>
                     <span className="phone-row-stage">
-                      {r.view.stage_label ?? "Dated"} · {r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`}
+                      {r.view.stage_label ?? "Dated"}
+                      {r.view.dates > 0 && ` · ${r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`}`}
                     </span>
                     {r.owner && <span className="phone-row-preview">{r.last ? `${r.sentByThem ? "" : "You: "}${r.last.text}` : "No texts yet"}</span>}
                   </span>

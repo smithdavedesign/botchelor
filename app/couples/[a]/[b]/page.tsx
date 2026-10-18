@@ -15,6 +15,8 @@ import NudgeForm from "./NudgeForm";
 import TextPhone from "./TextPhone";
 import { ArcCard, CopyLink, FollowButton } from "./CoupleActions";
 import NextDate from "./NextDate";
+import MatchHeader from "./MatchHeader";
+import { matchView } from "@/lib/swipes";
 import { nextDate } from "@/lib/date-proposals";
 import { arcQuestion } from "@/lib/arcs";
 import { followState } from "@/lib/follows";
@@ -54,6 +56,21 @@ async function load(a: string, b: string) {
   return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, ownKey, texted, nudges, follow, arc, next };
 }
 
+/** A swipe-deck match that hasn't dated yet (lib/swipes.ts): only its owners see it, with their chat and the yes or no. */
+async function loadMatch(a: string, b: string) {
+  const db = await getDb();
+  const viewerId = userIdFromCookieStore(await cookies());
+  if (!viewerId) return null;
+  const owners = (await db.query<{ id: string; owner_id: string | null }>(`select id, owner_id from characters where id = any($1)`, [[a, b]])).rows;
+  const mine = owners.filter((o) => o.owner_id === viewerId).map((o) => o.id);
+  if (!mine.length) return null;
+  const [ca, cb, match] = await Promise.all([getPublicCharacter(db, a), getPublicCharacter(db, b), matchView(db, a, b)]);
+  if (!ca || !cb || !match) return null;
+  const chain = chainPage(await loadChain(db, a, b, { userId: viewerId, owner: true }));
+  const ownKey = (await db.query("select 1 from user_keys where user_id = $1 and kind = 'text' limit 1", [viewerId])).rows.length > 0;
+  return { ca, cb, mine, match, chain, ownKey };
+}
+
 const refOf = (c: PublicCharacter): CharacterRef => ({
   id: c.id,
   name: c.name,
@@ -84,7 +101,11 @@ export default async function CouplePage({ params }: Props) {
   const [lo, hi] = pairKey(a, b);
   if (a !== lo) permanentRedirect(`/couples/${lo}/${hi}`);
   const data = await load(lo, hi);
-  if (!data) notFound();
+  if (!data) {
+    const match = await loadMatch(lo, hi);
+    if (!match) notFound();
+    return <MatchPage {...match} />;
+  }
   const { ca, cb, view, owner, mine, seeing, chain, ownKey, texted, nudges, follow, arc, next } = data;
   const followedUp = view.timeline.filter((t) => t.second_date_of).length;
   const latest = [...view.timeline].reverse().find((t) => t.aired) ?? view.timeline.at(-1) ?? null;
@@ -280,3 +301,44 @@ function Meter({ label, value, word }: { label: string; value: number; word: str
   );
 }
 
+/** A match before its first date: who matched, where the yes stands (and the booking once both want it), and their chat. */
+function MatchPage({ ca, cb, mine, match, chain, ownKey }: NonNullable<Awaited<ReturnType<typeof loadMatch>>>) {
+  const mineLo = mine.includes(ca.id);
+  const me = mineLo ? ca : cb;
+  const them = mineLo ? cb : ca;
+  return (
+    <>
+      <section className="card couple-head">
+        <div className="couple-avatars">
+          {[ca, cb].map((c) => (
+            <Link key={c.id} href={`/characters/${c.id}`}>
+              <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={72} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} />
+            </Link>
+          ))}
+        </div>
+        <h1>
+          {shortName(ca.name)} × {shortName(cb.name)}
+        </h1>
+        <p className="ending">💘 Matched {date(match.matched_at)}</p>
+        <MatchHeader
+          mine={{ id: me.id, name: me.name }}
+          them={{ id: them.id, name: them.name }}
+          mineYes={mineLo ? match.yes_lo : match.yes_hi}
+          themYes={mineLo ? match.yes_hi : match.yes_lo}
+        />
+        <p className="muted small">They matched in the swipe deck. Only the characters&apos; owners see this until one of their dates airs.</p>
+      </section>
+      <TextPhone
+        pair={[ca.id, cb.id]}
+        characters={{ lo: refOf(ca), hi: refOf(cb) }}
+        mine={mineLo ? "lo" : "hi"}
+        canFlip={mine.length === 2}
+        stageLabel="💘 Matched"
+        initial={chain}
+        today={dayOf(new Date())}
+        ownKey={ownKey}
+        intro="Every text since they matched. They decide about the date themselves; you book it once they both want it."
+      />
+    </>
+  );
+}

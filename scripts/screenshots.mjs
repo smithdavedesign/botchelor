@@ -569,9 +569,11 @@ async function capture(base, leagueId, viewer) {
       // Step 3 — Look.
       await home.getByText("Give them a look").waitFor();
       await home.locator('input[name="extra_style"]').fill("Sharp blazer, sneakers, zero regrets");
-      await home.getByRole("button", { name: "Next: Details" }).click();
+      await home.getByRole("button", { name: "Next: Dating profile" }).click();
       // Step 4 — the optional details (occupation, hobbies, quirks, profile prompts).
-      await home.getByText("The details (all optional)").waitFor();
+      await home.getByText("Their dating profile").waitFor();
+      // The swipe deck shows a dating profile: two answered prompts and two interests are needed to create a character.
+      await home.getByRole("button", { name: /Surprise me/ }).click();
       await home.locator('input[name="extra_occupation"]').fill("Crossword constructor");
       await home.locator('input[name="extra_hometown"]').fill("a canal town full of bicycles");
       await home.getByText("Life & loves").click(); // the groups past "The basics" start folded

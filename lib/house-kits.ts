@@ -8,8 +8,9 @@
  * card and "When you're nervous, you …" in the character's own prompt (lib/personality.ts).
  */
 import type { CharacterExtras } from "./extras";
+import { HOUSE_PROFILES } from "./house-profiles";
 
-export const HOUSE_KITS: Record<string, CharacterExtras> = {
+const VOICE_KITS: Record<string, CharacterExtras> = {
   "house-rafe": {
     lines: {
       hello: "Well! You've arrived, and the room's gone from a seven to a solid nine.",
@@ -266,3 +267,8 @@ export const HOUSE_KITS: Record<string, CharacterExtras> = {
     never_says: ["I'm seasick", "whatever you say"],
   },
 };
+
+/** Each house character's public details: its voice kit, and its dating profile for the swipe deck (lib/house-profiles.ts). */
+export const HOUSE_KITS: Record<string, CharacterExtras> = Object.fromEntries(
+  Object.entries(VOICE_KITS).map(([id, kit]) => [id, { ...HOUSE_PROFILES[id], ...kit }]),
+);

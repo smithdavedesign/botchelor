@@ -173,7 +173,8 @@ Everything a couple has texted is one thread, the way a phone keeps it (David, 2
 
 - **What's in it.** Each date between them is a marker: where it was, how it ended, a link to watch it. Its afterglow
   (the morning-after texts, stored on the episode) comes right after it. Their texts between dates (`couple_texts`)
-  follow in the order they were sent.
+  follow in the order they were sent. A couple who met in the swipe deck (`lib/swipes.ts`, docs/swipes.md) also has
+  "💘 It's a match" at the start and "📅 They agreed to a date" once both said yes, with their opening chat between them.
 - **Merged when it's read, never copied.** `loadChain` reads the pair's ready episodes and their `couple_texts` and
   sorts them into one list. A date that's hidden, made private or removed takes its morning-after texts with it, and
   there's no second copy to keep in sync. Each item's `id` is its sort key (the time, then the order within that

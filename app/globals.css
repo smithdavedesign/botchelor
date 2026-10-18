@@ -2755,6 +2755,286 @@ html.phone-open body {
   }
 }
 
+/* ---------------- Swipes: the deck (lib/swipes.ts, docs/swipes.md) ---------------- */
+
+.swipe-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+.swipe-picker .chip {
+  text-decoration: none;
+  color: inherit;
+}
+.swipe-picker .chip[aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--soft);
+  font-weight: 700;
+}
+.swipe-deck {
+  position: relative;
+  max-width: 24rem;
+  margin: var(--space-4) auto 0;
+  border-radius: 1.6rem;
+}
+.swipe-deck:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 6px;
+}
+.swipe-stack {
+  position: relative;
+  height: clamp(30rem, 68vh, 38rem);
+  height: clamp(30rem, 68dvh, 38rem);
+}
+/* A dating-profile card. It scrolls inside, so a phone can read it all; a sideways drag swipes it. */
+.swipe-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  user-select: none;
+  touch-action: pan-y;
+}
+.swipe-top {
+  z-index: 2;
+  cursor: grab;
+  transition: transform 0.22s ease;
+}
+/* A portrait is an <img>: without this, dragging the card starts the browser's own image drag and the swipe is lost. */
+.swipe-card img {
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+.swipe-top.is-dragging {
+  cursor: grabbing;
+  transition: none;
+}
+.swipe-next {
+  z-index: 1;
+  transform: scale(0.95) translateY(12px);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.swipe-photo {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  padding: 1rem 0 0.6rem;
+  background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--accent-2) 16%, transparent), transparent 70%), var(--soft);
+}
+.swipe-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.6rem 1.1rem 1.1rem;
+}
+.swipe-name {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+.swipe-age {
+  font-weight: 600;
+  color: var(--muted);
+}
+.swipe-job {
+  margin: 0.15rem 0 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.swipe-badges {
+  margin: 0.35rem 0 0;
+}
+.swipe-badges:empty {
+  display: none;
+}
+.swipe-bio {
+  margin: 0.6rem 0;
+}
+.swipe-prompt {
+  margin: 0.5rem 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--soft) 60%, var(--card));
+}
+.swipe-prompt p {
+  margin: 0;
+}
+.swipe-prompt-q {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--accent-text);
+}
+.swipe-prompt-a {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-md);
+  line-height: 1.35;
+}
+.swipe-interests {
+  margin: 0.6rem 0;
+}
+.swipe-looking {
+  margin: 0.4rem 0;
+  font-size: var(--text-sm);
+}
+.swipe-why {
+  margin: 0.4rem 0 0;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+/* "Like" and "Nope" fade in as the card leans that way. */
+.swipe-stamp {
+  position: absolute;
+  top: 1.2rem;
+  z-index: 3;
+  padding: 0.15rem 0.7rem;
+  border: 3px solid;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.swipe-stamp-like {
+  left: 1.2rem;
+  border-color: var(--ok);
+  color: var(--ok-text);
+  transform: rotate(-12deg);
+}
+.swipe-stamp-nope {
+  right: 1.2rem;
+  border-color: var(--bad);
+  color: var(--bad-text);
+  transform: rotate(12deg);
+}
+.swipe-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: var(--space-4);
+}
+button.swipe-btn {
+  width: 3.75rem;
+  height: 3.75rem;
+  margin: 0;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 1.6rem;
+  line-height: 1;
+  box-shadow: var(--shadow);
+}
+button.swipe-btn-nope {
+  border: 2px solid color-mix(in srgb, var(--bad) 55%, var(--line));
+  background: var(--card);
+  color: var(--bad-text);
+}
+button.swipe-btn-nope:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bad) 8%, var(--card));
+}
+.swipe-empty {
+  padding: 2rem 1.25rem;
+  text-align: center;
+}
+.swipe-empty p {
+  margin: 0.3rem 0;
+}
+.swipe-empty-icon {
+  font-size: 2.4rem;
+}
+.swipe-matches h2 {
+  margin-top: 0.2rem;
+}
+.swipe-match-list {
+  display: flex;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0.2rem 0 0.4rem;
+  overflow-x: auto;
+  list-style: none;
+}
+.swipe-match {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  width: 5.5rem;
+  text-align: center;
+  text-decoration: none;
+  color: inherit;
+}
+.swipe-match-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.swipe-match-state {
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+.swipe-match-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gutter);
+  background: rgba(12, 8, 16, 0.72);
+}
+.swipe-match-card {
+  max-width: 24rem;
+  padding: 1.6rem 1.4rem;
+  border-radius: 1.5rem;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.swipe-match-avatars {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+}
+.swipe-match-card h2 {
+  margin: 0.8rem 0 0.3rem;
+  font-size: var(--text-2xl);
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.swipe-match-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+}
+.swipe-match-buttons > * {
+  margin-top: 0;
+}
+/* Where a match stands on its couple page: the yes (or why not), then the booking. */
+.match-state {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  margin: 0.3rem 0 0.5rem;
+}
+.match-state .ending {
+  margin: 0;
+}
+.match-state button {
+  margin-top: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .swipe-top {
+    transition: none;
+  }
+}
+
 /* Audience ratings (lib/ratings.ts): the toggle chips on a contestant card and the cast leaderboard. */
 .ratings {
   display: flex;

@@ -89,6 +89,12 @@ a text pays for it:
 - Every text goes into the couple's next date as shared history (`your_texts_with_them`), on whichever model performs
   it.
 
+**Swiping** (`lib/swipes.ts`, docs/swipes.md). The deck, swipes and matches cost no model call. A match's opening chat
+(up to 4 texts) runs on our free model for the sides the show writes (a house character or a person's character), capped
+at `MATCH_CHATS_DAILY` (50) matches a day. An agent writes its own side with `send_text` and answers for its character
+with `answer_match`. Whether a person's character wants a date is decided from how well the two suit each other, seeded,
+with no model call.
+
 **The rule behind the table:** a prompt that contains a character's private soul only runs on:
 - that character's owner's own model (their key, or their agent's process);
 - or ours.

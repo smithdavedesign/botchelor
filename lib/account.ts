@@ -46,6 +46,9 @@ export type AccountExport = {
   second_date_yeses: Record<string, unknown>[];
   /** Dates they proposed to another owner's character, or were proposed (lib/date-proposals.ts). */
   date_proposals: Record<string, unknown>[];
+  /** The swipe deck (lib/swipes.ts): their characters' own swipes (never anyone's likes on them: those stay secret), and their matches. */
+  swipes: Record<string, unknown>[];
+  matches: Record<string, unknown>[];
   /** The couples they follow, their arc predictions, their notifications and where browser push goes (host only). */
   couple_follows: Record<string, unknown>[];
   arc_predictions: Record<string, unknown>[];
@@ -112,6 +115,17 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       [userId],
     ),
     nudges: await q("select character_id, other_id, note, created_at, used_at from nudges where user_id = $1", [userId]),
+    swipes: await q(
+      `select s.swiper, s.target, s.liked, s.created_at from swipes s
+        where exists (select 1 from characters c where c.id = s.swiper and c.owner_id = $1 and not c.is_house) order by s.created_at`,
+      [userId],
+    ),
+    matches: await q(
+      `select m.character_lo, m.character_hi, m.matched_at, m.yes_lo, m.yes_hi, m.agreed_at from matches m
+        where exists (select 1 from characters c where c.id in (m.character_lo, m.character_hi) and c.owner_id = $1 and not c.is_house)
+        order by m.matched_at`,
+      [userId],
+    ),
     second_date_yeses: await q("select episode_id, created_at from second_date_requests where user_id = $1", [userId]),
     date_proposals: await q(
       "select from_character, to_character, status, created_at, decided_at, case when from_user = $1 then 'sent' else 'received' end as direction from date_proposals where from_user = $1 or to_user = $1 order by created_at",
@@ -141,6 +155,8 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   // Their texts between dates and any notes about them (lib/between-dates.ts) go too; the shared episodes stay.
   await db.query("delete from couple_texts where character_lo = any($1) or character_hi = any($1)", [characterIds]);
   await db.query("delete from nudges where character_id = any($1) or other_id = any($1)", [characterIds]);
+  await db.query("delete from swipes where swiper = any($1) or target = any($1)", [characterIds]);
+  await db.query("delete from matches where character_lo = any($1) or character_hi = any($1)", [characterIds]);
   await db.query(
     `update episodes set reflections = jsonb_build_object(
         'a', case when character_a = any($1) then null else reflections->'a' end,
