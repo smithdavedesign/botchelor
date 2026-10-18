@@ -4,7 +4,7 @@ Rules:
 - Use only that server (and any web pages it serves on {{BASE}}). Don't read any source code on this machine and don't use the web.
 - Keep all your scratch files (scripts, notes, outputs) in your own folder, the current directory: {{DIR}}. Never anywhere else, and never read other folders.
 - Don't change anything else on the machine.
-- Take your time; spend up to about {{MINUTES}} minutes.
+- Take your time: spend about {{MINUTES}} minutes, and try more than one thing before you write the report.
 
 When you're done, write a report with these sections:
 1. What you thought it was when you arrived, and what you think it is now.

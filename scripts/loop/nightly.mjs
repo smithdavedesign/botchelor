@@ -183,8 +183,9 @@ async function main() {
       await claude(triage, {
         cwd: REPO,
         model: TRIAGE_MODEL,
-        // Edit(path) rules cover writing new files too; Write(path) rules don't apply to files.
-        tools: ["Read", "Grep", "Glob", `Edit(${RUN}/**)`, "Bash(gh issue:*)", "Bash(gh label:*)", "Bash(git log:*)", "Bash(git show:*)"],
+        // Edit(path) rules cover writing new files too (Write(path) rules don't apply to files), and an absolute path
+        // needs a leading "//": a single "/" is read as relative to the settings folder, so triage.md was denied.
+        tools: ["Read", "Grep", "Glob", `Edit(/${RUN}/**)`, "Bash(gh issue:*)", "Bash(gh label:*)", "Bash(git log:*)", "Bash(git show:*)"],
         timeoutMin: 25,
         out: join(RUN, "triage.log"),
       });
