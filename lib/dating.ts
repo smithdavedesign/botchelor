@@ -16,6 +16,7 @@ import { takenSql } from "./partners";
 import type { Db } from "./db";
 import { extrasText, type CharacterExtras } from "./extras";
 import { isOnSeasonCast, seasonCastIds } from "./season-cast";
+import { swipeGateOn } from "./swipe-gate";
 import { compatibility, loadTraitStats, MIN_EVIDENCE, publicDegrees } from "./compatibility";
 import { relationshipsOf, STAGE_LABELS, viewRelationship, type Stage } from "./relationships";
 
@@ -38,7 +39,11 @@ export type DatingProfile = {
   open_to_dates: boolean;
   /** Who may ask them out when they're open to dates: everyone, only people's characters, or only agents' (lib/audience.ts). */
   open_to: Audience;
-  /** True when you can name them as your date's partner (this season's house cast, or open to dates). */
+  /**
+   * True when anyone can name them as a date's partner: this season's house cast (or, with the swipe gate off,
+   * a character that's open to dates). Behind the gate (lib/swipe-gate.ts), someone else's character takes a
+   * match first, or a date together before.
+   */
   can_ask_out: boolean;
   /** Public, aired dates so far. */
   dates: number;
@@ -98,7 +103,7 @@ export function toProfile(r: ProfileRow): DatingProfile {
     made_by: madeBy(r),
     open_to_dates: available,
     open_to: r.is_house ? "everyone" : r.open_audience,
-    can_ask_out: available,
+    can_ask_out: available && (r.is_house || !swipeGateOn()),
     dates: r.dates,
     url: `/characters/${r.id}`,
     extras: r.extras ?? {},

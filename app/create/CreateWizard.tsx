@@ -132,6 +132,7 @@ const NO_TOKENS: Tokens = { free_left: 0, free_per_season: 0, pack_left: 0, left
 export default function CreateWizard({
   partners = [],
   openCharacters = [],
+  swipeGate = false,
   tokens = NO_TOKENS,
   offer = null,
   myCharacters = [],
@@ -141,6 +142,8 @@ export default function CreateWizard({
 }: {
   partners?: Partner[];
   openCharacters?: OpenCharacter[];
+  /** The swipe gate is on (lib/swipe-gate.ts): another creator's character takes a match first, so point to /swipe. */
+  swipeGate?: boolean;
   tokens?: Tokens;
   offer?: string | null;
   myCharacters?: { id: string; name: string }[];
@@ -451,6 +454,7 @@ export default function CreateWizard({
         character={created}
         partners={partners}
         openCharacters={openCharacters.filter((o) => !myCharacters.some((m) => m.id === o.id) && o.id !== created.id)}
+        swipeGate={swipeGate}
         tokens={tokens}
         offer={offer}
         autonomy={autonomy}
@@ -917,6 +921,7 @@ type SendProps = {
   character: { id: string; name: string };
   partners: Partner[];
   openCharacters: OpenCharacter[];
+  swipeGate: boolean;
   tokens: Tokens;
   offer: string | null;
   autonomy: Autonomy;
@@ -929,7 +934,7 @@ type SendProps = {
   onSend: (sharePath: string) => void;
 };
 
-function SendPhase({ character, partners, openCharacters, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend }: SendProps) {
+function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
   const [strategy, setStrategy] = useState<Strategy>("genuine_chemistry");
   const [budget, setBudget] = useState<GameBudget>(25);
@@ -1100,15 +1105,36 @@ function SendPhase({ character, partners, openCharacters, tokens, offer, autonom
       <div className="card">
         <strong>A blind date</strong>
         <p>
-          The show picks another creator&apos;s character (or a house character if nobody&apos;s around). You stay
-          anonymous to each other unless you both agree to reveal yourselves.
+          {swipeGate ? (
+            <>
+              The show picks one of {shortName(character.name)}&apos;s matches where both said yes to a date, or one of this
+              season&apos;s house cast.
+            </>
+          ) : (
+            <>The show picks another creator&apos;s character (or a house character if nobody&apos;s around).</>
+          )}{" "}
+          You stay anonymous to each other unless you both agree to reveal yourselves.
         </p>
         <button type="button" disabled={busy !== null} onClick={() => sendOnDate(null)}>
           Send {character.name} on a blind date
         </button>
       </div>
 
-      {openCharacters.length > 0 && (
+      {swipeGate && (
+        <div className="card">
+          <strong>💘 Swipe to meet someone new</strong>
+          <p>
+            A first date with another creator&apos;s character (a person&apos;s or an AI agent&apos;s) starts with a match.
+            Swipe for {shortName(character.name)}: a like both ways is a match, the two of them text, and each decides
+            whether they want a date. If both do, you book it.
+          </p>
+          <Link className="button" href={`/swipe?character=${character.id}`}>
+            Swipe for {shortName(character.name)}
+          </Link>
+        </div>
+      )}
+
+      {!swipeGate && openCharacters.length > 0 && (
         <>
           <h2>Open to dates</h2>
           <p className="muted">
@@ -1145,8 +1171,9 @@ function SendPhase({ character, partners, openCharacters, tokens, offer, autonom
       )}
 
       <p className="muted">
-        Or one of this season&apos;s house cast — a handful the show fields each week. Either way, you can&apos;t steer the
-        date.
+        {swipeGate
+          ? "Or date one of this season's house cast now, no match needed: a handful the show fields each week. Either way, you can't steer the date."
+          : "Or one of this season's house cast — a handful the show fields each week. Either way, you can't steer the date."}
       </p>
       <ul className="gallery">
         {partners.map((p) => (

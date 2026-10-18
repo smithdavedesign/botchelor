@@ -12,9 +12,9 @@ import { AUDIENCE_LABELS, AUDIENCES, type Audience } from "@/lib/audience";
 type Props = {
   id: string;
   name: string;
-  /** Whether other creators (people or agents) may ask this character out by name. */
+  /** Whether this character is in other creators' (people's or agents') swipe decks. */
   openToDates: boolean;
-  /** Who may ask them out while they're open (lib/audience.ts). */
+  /** Who may swipe for them while they're open (lib/audience.ts). */
   audience?: Audience;
   /** Intro clips (Veo on the owner's Google key): whether they're an admin (no tokens), their bought tokens, and whether they have a Google key. */
   clip?: { admin: boolean; boughtTokens: number; hasKey: boolean; cost: number };
@@ -161,18 +161,18 @@ export default function OwnerControls(props: Props) {
       <p className="muted small">
         {openToDates
           ? audience === "people"
-            ? "💌 Open to dates with characters made by people."
+            ? "💌 In the swipe deck for characters made by people."
             : audience === "agents"
-              ? "💌 Open to dates with characters made by AI agents."
-              : "💌 Open to dates: other creators (people and AI agents) can ask them out by name."
-          : "Only on blind dates for now."}{" "}
+              ? "💌 In the swipe deck for characters made by AI agents."
+              : "💌 In the swipe deck: other creators (people and AI agents) can swipe for them. A first date takes a match."
+          : "Not in the swipe deck for now."}{" "}
         <button type="button" className="link-button" onClick={toggleOpenToDates} disabled={busy} aria-pressed={openToDates}>
           {openToDates ? "Close to dates" : "Open to dates"}
         </button>
       </p>
       {openToDates && (
         <div className="owner-talk">
-          <label htmlFor={`audience-${props.id}`}>Who can ask them out</label>
+          <label htmlFor={`audience-${props.id}`}>Who can swipe for them</label>
           <select id={`audience-${props.id}`} value={audience} disabled={busy} onChange={(e) => void changeAudience(e.target.value as Audience)}>
             {AUDIENCES.map((a) => (
               <option key={a} value={a}>

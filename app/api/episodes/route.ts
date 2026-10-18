@@ -32,6 +32,7 @@ import { seasonCastIds } from "@/lib/season-cast";
 import { seasonAt } from "@/lib/seasons";
 import { checkSecondDate } from "@/lib/second-date";
 import { acceptableProposal, markAccepted } from "@/lib/date-proposals";
+import { datedSql, MATCH_FIRST, swipeGateOn } from "@/lib/swipe-gate";
 import { agreedMatchSql } from "@/lib/swipes";
 import { audienceAllowsSql } from "@/lib/audience";
 import { useNudges } from "@/lib/between-dates";
@@ -117,6 +118,28 @@ const forDate = (c: CharacterRow): CharacterForDate => ({ id: c.id, sheet: toShe
  * nobody (yet). Never fails, never premium.
  */
 async function blindMatch(db: Db, userId: string, ownId: string): Promise<CharacterRow> {
+  // Behind the swipe gate (lib/swipe-gate.ts), a blind date is one of your agreed matches, or one of this season's
+  // house cast: never a stranger.
+  if (swipeGateOn()) {
+    const matched = (
+      await db.query<CharacterRow>(
+        `select ${CHARACTER_COLUMNS} from characters c
+          where not c.is_house and c.owner_id <> $1 and c.owner_id <> $3 and ${agreedMatchSql("c", "$2")} and not ${takenSql("c", "$2")}
+            and not exists (
+              select 1 from blocks bl
+               where (bl.blocker_id = $1 and bl.blocked_id = c.owner_id)
+                  or (bl.blocker_id = c.owner_id and bl.blocked_id = $1))
+          order by random() limit 1`,
+        [userId, ownId, DELETED_OWNER],
+      )
+    ).rows[0];
+    if (matched) return matched;
+    const { rows } = await db.query<CharacterRow>(
+      `select ${CHARACTER_COLUMNS} from characters c where c.is_house and c.premium_sku is null and c.id = any($1) order by random() limit 1`,
+      [seasonCastIds()],
+    );
+    return rows[0];
+  }
   const other = (
     await db.query<CharacterRow>(
       `select ${CHARACTER_COLUMNS}
@@ -203,29 +226,31 @@ export const POST = handle(async (req) => {
     }
     // One of this season's house cast (or a premium one, checked below, or one this character has dated before: a
     // couple can always meet again), or someone else's OC that's open to dates (or the partner your character is
-    // with, or whose owner proposed this date) — never your own, never across a block.
+    // with, or whose owner proposed this date, or one it matched with where both said yes) — never your own, never
+    // across a block. Behind the swipe gate (lib/swipe-gate.ts, $6), open to dates is enough only for a couple that's
+    // dated before: a first date with someone else's character takes a match.
     partner = (
       await db.query<CharacterRow>(
         `select ${CHARACTER_COLUMNS} from characters c
           where c.id = $1
-            and ((c.is_house and (c.premium_sku is not null or c.id = any($3) or ${agreedMatchSql("c", "$4")}
-                   or exists (select 1 from relationships r
-                               where r.dates > 0 and ((r.character_a = c.id and r.character_b = $4) or (r.character_a = $4 and r.character_b = c.id)))))
-                 or (((c.open_to_dates and ${audienceAllowsSql("c", "(select o.created_via from characters o where o.id = $4)")})
+            and ((c.is_house and (c.premium_sku is not null or c.id = any($3) or ${agreedMatchSql("c", "$4")} or ${datedSql("c", "$4")}))
+                 or (((c.open_to_dates and ${audienceAllowsSql("c", "(select o.created_via from characters o where o.id = $4)")}
+                       and (not $6::boolean or ${datedSql("c", "$4")}))
                       or ${coupledSql("c", "$4")} or c.id = $5::text or ${agreedMatchSql("c", "$4")}) and c.owner_id <> $2 and not ${takenSql("c", "$4")}
                      and not exists (
                        select 1 from blocks bl
                         where (bl.blocker_id = $2 and bl.blocked_id = c.owner_id)
                            or (bl.blocker_id = c.owner_id and bl.blocked_id = $2))))`,
-        [input.partner_id, sess.userId, seasonCastIds(), own.id, input.proposal_id ? (input.partner_id ?? null) : null],
+        [input.partner_id, sess.userId, seasonCastIds(), own.id, input.proposal_id ? (input.partner_id ?? null) : null, swipeGateOn()],
       )
     ).rows[0];
     if (!partner) {
       return json(
         {
           error: "partner_not_available",
-          message:
-            "That character can't be asked out: pick one of this season's house cast or a character that's open to dates (and to characters like yours: some are open only to people's characters, some only to agents'), or ask for a blind date with blind: true.",
+          message: swipeGateOn()
+            ? `That character can't be asked out yet. ${MATCH_FIRST}`
+            : "That character can't be asked out: pick one of this season's house cast or a character that's open to dates (and to characters like yours: some are open only to people's characters, some only to agents'), or ask for a blind date with blind: true.",
         },
         422,
         sess,

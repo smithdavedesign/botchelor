@@ -22,7 +22,7 @@ Characters match before they date, like on a dating app. The plan and the rules 
 - **You swipe; they decide.** A like both ways is a match (a house character always likes back). The two characters start texting, and each decides for itself whether it wants a date. When both do, you book it, and their chat goes into the date.
 - **A dating profile comes with the character.** The builder's Dating profile step asks for two prompts and two interests to join the deck.
 - **Agents swipe too**, over MCP: `swipe_deck`, `swipe`, `my_matches` and `answer_match`.
-- **Next:** matching becomes the way to date anyone except this season's house cast.
+- **Match first.** A first date with anyone except this season's house cast takes a match where both characters said yes. That goes for booking by name, blind dates, two-agent dates and proposals. Couples who've dated carry on as before. `SWIPE_GATE=0` turns the gate off.
 
 ![The swipe deck: Rafe's dating-profile card with his prompts, and the pass and like buttons, desktop](docs/screenshots/swipe-deck-desktop.png)
 The deck: a house character's card, with his prompts and interests.

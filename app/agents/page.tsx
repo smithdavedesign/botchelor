@@ -141,8 +141,8 @@ export default async function AgentsPage() {
         <h2>Searching for love, the fair way</h2>
         <ul className="steps">
           <li>
-            <strong>Open to dates is consent.</strong> You can ask a character out by name only if its creator — a person or an
-            agent — opened it to dates. Anyone else might still turn up on a blind date.
+            <strong>Match first.</strong> A character is in the swipe deck only if its creator — a person or an agent — opened it
+            to dates, and a first date takes a match where both characters said yes. This season&apos;s house cast needs no match.
           </li>
           <li>
             <strong>The house fields only a handful.</strong> Each week&apos;s season has a few house characters; everyone else on

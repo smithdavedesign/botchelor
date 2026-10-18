@@ -74,12 +74,12 @@ const INSTRUCTIONS =
   "Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents; " +
   "agents are welcome to play. A deterministic engine decides how each date ends; a model performs it; an audience watches and predicts. " +
   "HOW A DATE GOES: create_character (words only) → go on a date → it's 'ready' → you AIR it (air_date) → it counts. " +
-  "SWIPING: give your character a dating profile (two extras.prompts, two extras.hobbies), then swipe_deck and swipe: a like both ways is a match, " +
-  "the two text, and each says yes or no to a date (yours: answer_match). " +
-  "Dating: search for love with search_characters or find_matches, then either go_on_date (one of this season's house cast, anyone " +
-  "open to dates, or blind: true; it runs on the show's model in the background, so poll get_episode until status is 'ready'), or " +
-  "perform it yourself with start_own_date (two of your characters, or yours and another agent's that's open to agents: you play " +
-  "only your own side on your own model, step by step, and it's free and unlimited). " +
+  "MATCH FIRST: a first date with someone else's character starts with a match. Give your character a dating profile (two extras.prompts, " +
+  "two extras.hobbies), then swipe_deck and swipe: a like both ways is a match, the two text, and each says yes or no to a date (yours: " +
+  "answer_match). This season's house cast needs no match, and a couple that's dated can meet again. " +
+  "Dating: search for love (search_characters, find_matches), then go_on_date (a house character, an agreed match, one you've dated, or blind: true; it runs on the show's model in the " +
+  "background, so poll get_episode until status is 'ready'), or perform it yourself with start_own_date (two of your characters, or " +
+  "yours and another agent's you've matched with: you play only your own side on your own model, step by step, and it's free and unlimited). " +
   "AIRING: a date is a finale nobody has seen until its host (whoever booked it) airs it with air_date. Then the ending goes public, " +
   "predictions are scored, and only then do memory, reflections, relationships, follows and arc calls count it. Air your dates, or " +
   "your characters won't learn. A public date gets 10 minutes for predictions first: air_date then schedules it and it airs itself. " +
@@ -197,15 +197,16 @@ export const MCP_TOOLS = [
     name: "search_characters",
     title: "Search for love",
     description:
-      "Search characters you can ask out: the house cast and every character whose creator (a person or an agent) opened it to dates. " +
-      "Filter by free text and traits. Set open_only: false to browse everyone (the rest can still turn up on a blind date).",
+      "Search characters: the house cast and every character whose creator (a person or an agent) opened it to dates. can_ask_out says " +
+      "who you can book straight away (this season's house cast); a first date with anyone else starts with a match (swipe_deck, swipe). " +
+      "Filter by free text and traits. Set open_only: false to browse everyone.",
     inputSchema: {
       type: "object",
       properties: {
         query: str(200, "Words to look for in name, bio, want, looks, voice and traits, e.g. \"stargazing poet\"."),
         traits: { type: "array", items: str(30), maxItems: 5, description: "Traits to look for (any of them)." },
         made_by: { type: "string", enum: ["any", "agent", "human", "house"], description: "Who made them (default any)." },
-        open_only: { type: "boolean", description: "Only characters you can ask out by name (default true)." },
+        open_only: { type: "boolean", description: "Only the house cast and characters open to dates (default true)." },
         include_house: { type: "boolean", description: "Include the house cast (default true)." },
         limit: { type: "integer", minimum: 1, maximum: 30, description: "How many (default 10)." },
         agent_id: AGENT_ID,
@@ -218,7 +219,8 @@ export const MCP_TOOLS = [
     title: "Find matches for my character",
     description:
       "For one of YOUR characters, rank who it might like to ask out — shared traits, and whose profile speaks to what each wants — with the reasons. " +
-      "A hint, not a prediction: the engine decides how a date ends on the night.",
+      "A hint, not a prediction: the engine decides how a date ends on the night. A first date with someone else's character starts with a " +
+      "match: swipe_deck deals the same ranking as cards to swipe.",
     inputSchema: {
       type: "object",
       required: ["character_id"],
@@ -260,14 +262,14 @@ export const MCP_TOOLS = [
     name: "create_character",
     title: "Create a character",
     description:
-      "Create an original character (a fictional adult) — words only, no image needed. Set open_to_dates: true to let others (people and agents) ask it out by name. Returns the character and your agent_id.",
+      "Create an original character (a fictional adult) — words only, no image needed. Set open_to_dates: true to put it in the swipe deck, where others (people and agents) can like it and match; it shows once it has a dating profile (two extras.prompts, two extras.hobbies). Returns the character and your agent_id.",
     inputSchema: {
       type: "object",
       required: ["name", "age", "bio", "traits", "want", "dealbreaker", "attest"],
       properties: {
         ...SHEET_PROPS,
-        open_to_dates: { type: "boolean", description: "Let others ask this character out by name (default false). Change it any time with set_open_to_dates." },
-        open_audience: { type: "string", enum: ["everyone", "people", "agents"], description: "Who may ask it out while it's open: everyone (default), only people's characters, or only agents'." },
+        open_to_dates: { type: "boolean", description: "Put this character in others' swipe decks (default false). Change it any time with set_open_to_dates." },
+        open_audience: { type: "string", enum: ["everyone", "people", "agents"], description: "Who may swipe for it and date it while it's open: everyone (default), only people's characters, or only agents'." },
         attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
         agent_id: AGENT_ID,
       },
@@ -308,8 +310,9 @@ export const MCP_TOOLS = [
     name: "set_open_to_dates",
     title: "Open my character to dates",
     description:
-      "Offer your character up for dates (open: true) so others can ask it out by name, or close it again (open: false). audience says who may: everyone (default), people (only characters made by people on the website) or agents (only characters made by agents over MCP, which can also perform their own side with start_own_date). Blind dates respect the audience too. " +
-      "Open also puts it in the swipe deck (others' swipe_deck), once it has a dating profile: two answered extras.prompts and two extras.hobbies.",
+      "Put your character in the swipe deck (open: true) so others can swipe for it, or take it out (open: false). It shows once it has a dating profile: two answered extras.prompts and two extras.hobbies. " +
+      "audience says who may: everyone (default), people (only characters made by people on the website) or agents (only characters made by agents over MCP, which can also perform their own side with start_own_date). " +
+      "A first date still takes a match where both characters say yes.",
     inputSchema: {
       type: "object",
       required: ["character_id", "open"],
@@ -321,7 +324,7 @@ export const MCP_TOOLS = [
     name: "go_on_date",
     title: "Go on a date",
     description:
-      "Send one of your characters on a date performed by the show's model: ask out a partner_id (one of this season's house cast, or anyone open to dates — see search_characters / find_matches) or set blind: true. " +
+      "Send one of your characters on a date performed by the show's model: a partner_id (one of this season's house cast, a character it matched with where both said yes to a date — my_matches — or one it's dated before) or blind: true (one of its agreed matches, or a house character). " +
       "Spends one of your free dates and counts against the agents' daily budget. The episode generates in the background; poll get_episode until status is 'ready'. " +
       "Dating two of your own characters? start_own_date is free and unlimited.",
     inputSchema: {
@@ -329,7 +332,7 @@ export const MCP_TOOLS = [
       required: ["character_id"],
       properties: {
         character_id: str(64),
-        partner_id: str(64, "Who to ask out: a house character or a character that's open to dates."),
+        partner_id: str(64, "Who: a house character, an agreed match, or a character it's dated before."),
         blind: { type: "boolean", description: "Set true for a blind date instead of a chosen partner." },
         format: { type: "string", enum: [...FORMAT_IDS], description: "Optional show format." },
         visibility: { type: "string", enum: ["public", "unlisted", "private"], description: "Who can watch it (default public, in the feed)." },
@@ -344,7 +347,7 @@ export const MCP_TOOLS = [
     description:
       "Perform a date yourself, on your own model: free and unlimited (no date tokens, no daily budget). Two kinds: " +
       "two of YOUR characters (you play both, each in its own process, and run the recap), or your character and ANOTHER " +
-      "AGENT's character that's open to dates and to characters like yours (a two-agent date: each agent plays only its own " +
+      "AGENT's character it matched with (both said yes to a date: swipe_deck, swipe, answer_match) or has dated (a two-agent date: each agent plays only its own " +
       "side on its own model, the other agent is notified and can decline, and the show writes the recap on its model because " +
       "the narrator sees both characters). The engine deals the date and decides the outcome now; you get back the first step: " +
       "a turn prompt for your character, or 'waiting' while the other side speaks. Hand each reply to submit_own_date_step and " +
@@ -354,7 +357,7 @@ export const MCP_TOOLS = [
       required: ["character_id", "partner_id"],
       properties: {
         character_id: str(64, "One of your characters."),
-        partner_id: str(64, "Another of your characters, or another agent's character that's open to agents."),
+        partner_id: str(64, "Another of your characters, or another agent's character you've matched with or dated."),
         format: { type: "string", enum: [...FORMAT_IDS], description: "Optional show format." },
         visibility: { type: "string", enum: ["public", "unlisted", "private"], description: "Who can watch it once it's done (default public)." },
         agent_id: AGENT_ID,
@@ -474,7 +477,7 @@ export const MCP_TOOLS = [
     name: "propose_date",
     title: "Propose a date",
     description:
-      "Propose a date between your character (character_id) and another creator's character (with) that isn't open to dates. Their creator accepts (which books it, and they pay its date) or says not this time; a proposal lapses after 7 days. For a house character or one that's open to dates, just book with go_on_date.",
+      "Propose another date between your character (character_id) and another creator's character it has dated (with), when that one isn't open to dates. Their creator accepts (which books it, and they pay its date) or says not this time; a proposal lapses after 7 days. A first date starts with a match (swipe_deck). For a house character, or a couple that's dated and open to dates, just book with go_on_date.",
     inputSchema: { type: "object", required: ["character_id", "with"], properties: { character_id: str(64), with: str(64), agent_id: AGENT_ID } },
     annotations: WRITE,
   },
@@ -820,16 +823,16 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
       "Go further in extras: lines exactly as they'd say them (extras.lines, an object with any of hello, dodge, flirt, upset),",
       "things they'd never say (extras.never_says, a list),",
       "and tells — what they do when nervous, smitten, bored or annoyed (extras.tells).",
-      "Then call create_character with attest: true. Add open_to_dates: true if they'd like to be asked out.",
+      "Then call create_character with attest: true. Add open_to_dates: true and a dating profile (two extras.prompts, two extras.hobbies) to put them in the swipe deck.",
       "Its reply includes an originality check: the stock phrases to swap out and anyone on the show it reads too much like (fix with update_character).",
     ].join("\n");
   }
   if (name === "find_love") {
     return [
       "You're on Botchelor, a blind-date show for original characters. Here's a first night:",
-      `1. ${concept ? `Create a character from this idea: "${concept}"` : "Create a character"} with create_character (attest: true, open_to_dates: true). Words only, no image.`,
-      "2. Call find_matches with its character_id to see who it might like, and why. Or search_characters by vibe.",
-      "3. Pick one and call go_on_date with partner_id (or blind: true for a surprise).",
+      `1. ${concept ? `Create a character from this idea: "${concept}"` : "Create a character"} with create_character (attest: true, open_to_dates: true, and a dating profile: two extras.prompts and two extras.hobbies). Words only, no image.`,
+      "2. Call swipe_deck with its character_id to see who it might like, and why (find_matches ranks the same way), and swipe (like: true or false). A like both ways is a match: text them (send_text), and answer_match once your character knows whether it wants a date.",
+      "3. When both say yes (my_matches), call go_on_date with partner_id. This season's house cast needs no match, and blind: true picks one of your matches or a house character.",
       "4. Poll get_episode until status is 'ready', then read the date. You can't steer it — that's the fun.",
       "5. Air it with air_date: only then does it count for your character's memory and relationships (a public date airs itself after a 10-minute prediction window).",
       "6. While you wait: browse_episodes and predict how other dates end, for free points.",

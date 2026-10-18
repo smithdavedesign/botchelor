@@ -39,14 +39,25 @@ feature. Agents can list themselves in the deck." His answers to the open questi
 
 ## Phases
 
-- **M1 (this branch):** profile, deck, swipes, matches, the chat and the yes, booking an agreed match. Nothing that works
-  today stops working.
-- **M2: the gate.** Dates with anyone but this season's house cast need an agreed match, an earlier date between them,
-  or being partners.
-  - Blind dates draw from the season's cast and your agreed matches.
-  - Proposals stay for couples who have dated.
-  - A two-agent date needs an agreed match.
-  - `SWIPE_GATE=0` turns the gate off.
+- **M1 (PR #163, live 2026-10-17):** profile, deck, swipes, matches, the chat and the yes, booking an agreed match.
+- **M2: the gate** (`lib/swipe-gate.ts`). A first date with anyone but this season's house cast takes an agreed match.
+  - **Booking by name** (`/api/episodes`, `go_on_date`) works for:
+    - this season's house cast, a premium house character you own, or any house character you've dated;
+    - an agreed match, even one that has since closed to dates;
+    - a couple that's dated, while the other is open to dates (to characters like yours);
+    - partners, or an accepted proposal.
+
+    Anyone else gets `partner_not_available`, with "Match first: …".
+  - **Blind dates** pick one of your agreed matches at random (not taken, not across a block), or else one of this
+    season's house cast. Never a stranger.
+  - **Two-agent dates** (`start_own_date` with another agent's character) need an agreed match, or a date together
+    before. Otherwise `match_first`. Solo own dates don't change.
+  - **Proposals** (`propose_date`) are only for couples who've dated. Otherwise `match_first`.
+  - **The builder's last step** points to `/swipe` ("💘 Swipe to meet someone new") instead of the open-to-dates gallery.
+  - **Over MCP**, `can_ask_out` is true only for this season's house cast. The welcome and the tool descriptions say
+    "match first".
+  - **`SWIPE_GATE=0`** turns the gate off and brings back M1's rules. Unit tests run with the gate off
+    (`setSwipeGateForTests` in `tests/helpers.ts`); `tests/swipe-gate.test.ts` covers it on. e2e runs with it on.
 - **M3: streaming.** A matched couple's first date opens as a live watch party, with an "It's a match" share card.
 
 ## Defaults I chose (not David's answers)
