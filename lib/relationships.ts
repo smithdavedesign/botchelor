@@ -49,6 +49,8 @@ export type HistoryItem = {
   /** A private date: its creator's alone, even from the other character's owner. Missing on edges stored before it existed (then treated as private). */
   private?: boolean;
   creator: string;
+  /** A two-agent date's other agent (episodes.partner_performer): it performed the date too, so it's theirs as much as the creator's. */
+  performer?: string;
   /** The date this one was the second date of (the plan they made), when it was. */
   followup_of: string | null;
   /** Which date this was for the couple (2, 3, ...) when it followed another; absent on a first date. */
@@ -111,6 +113,8 @@ export type RelEpisode = {
   visibility: string;
   hidden: boolean;
   creator_id: string;
+  /** A two-agent date's other agent, or null. */
+  partner_performer?: string | null;
   character_a: string;
   character_b: string;
   ending: Ending;
@@ -357,6 +361,7 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
       public: e.revealed_at !== null && e.visibility === "public" && !e.hidden,
       private: e.visibility === "private",
       creator: e.creator_id,
+      ...(e.partner_performer ? { performer: e.partner_performer } : {}),
       followup_of: e.followup_of,
       ...(e.followup_of ? { date_number: e.date_number ?? 2 } : {}),
     };
@@ -386,7 +391,7 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
 /* ---------------------------------------------------- storage ---------------------------------------------------- */
 
 const REL_EPISODES = `
-  select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.character_a, e.character_b, e.ending,
+  select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.partner_performer, e.character_a, e.character_b, e.ending,
          e.sides, e.box_score, e.transcript, e.afterglow, e.setup->>'venue' as venue, e.followup_of,
          (e.setup->>'date_number')::int as date_number,
          (select count(*)::int from reports r where r.episode_id = e.id) >= $3 as hidden
@@ -527,14 +532,15 @@ export type Viewer = { userId: string | null; owner: boolean };
 /**
  * The dates a viewer may see: public ones for everyone. An owner of either character also sees the pair's unaired and
  * unlisted dates whoever booked them, so they never wait for the other owner to air one, and their own private dates.
- * Another owner's private date stays that owner's alone. Prompts stay stricter: `usableFor` only lets a date's creator
- * bring in their own unaired dates.
+ * Another owner's private date stays that owner's alone, unless it was a two-agent date they performed too (`performer`).
+ * Prompts stay stricter: `usableFor` only lets a date's creator (or its other performer) bring in their own unaired dates.
  */
-export const visibleTo = (h: Pick<HistoryItem, "public" | "private" | "creator">, v: Viewer): boolean =>
-  h.public || (v.owner && v.userId !== null && (h.creator === v.userId || h.private === false));
+export const visibleTo = (h: Pick<HistoryItem, "public" | "private" | "creator" | "performer">, v: Viewer): boolean =>
+  h.public || (v.owner && v.userId !== null && (h.creator === v.userId || h.performer === v.userId || h.private === false));
 
 /** The dates a character may bring into a new date set up by `creatorId`: the public record plus that creator's own. */
-export const usableFor = (h: Pick<HistoryItem, "public" | "creator">, creatorId: string): boolean => h.public || h.creator === creatorId;
+export const usableFor = (h: Pick<HistoryItem, "public" | "creator" | "performer">, creatorId: string): boolean =>
+  h.public || h.creator === creatorId || (h.performer !== undefined && h.performer === creatorId);
 
 export type RelationshipView = {
   stage: Stage | null;

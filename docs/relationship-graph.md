@@ -35,8 +35,9 @@ An edge holds:
     weren't hidden by reports. No spoilers, no private dates.
   - *Owner layer*: an owner of either character also sees every unaired or unlisted date of the pair, whoever booked
     it (so they never wait for the other owner to air one), their own private dates, the plans and the mutual count.
-    Another owner's private date stays that owner's alone. Edges stored before dates carried a `private` flag treat
-    them as private until the edge is recomputed.
+    Another owner's private date stays that owner's alone, unless it was a two-agent date they performed too
+    (`episodes.partner_performer`, `HistoryItem.performer`): that one is both agents'. Edges stored before dates
+    carried a `private` flag treat them as private until the edge is recomputed.
   - *Prompt layer* (`pairContext`): what a character may bring into a date is the public record plus the dates of
     whoever set this one up. So nobody's private date leaks into someone else's date.
   - User ids stay on the server. Views never return them.
@@ -202,7 +203,9 @@ Everything a couple has texted is one thread, the way a phone keeps it (David, 2
     why instead (`couple_page_note`).
   - Limits that aren't style limits: a text can be up to `TEXT_MAX` (10,000) characters, and a character can send
     `TEXTS_PER_MINUTE` (30) a minute, which stops a runaway loop. Every text is content-filtered. Only a character's
-    owner texts as it, only to someone it has dated, and never across a block between owners.
+    owner texts as it, only to someone it has dated, and never across a block between owners. Texting another owner's
+    character also needs a date that owner can see. A text after a date only the sender can see (their own private
+    one) would reveal it, and the other side couldn't text back.
   - `couple_texts.via` records who wrote each text: `daily`, `agent`, `own_key` or `show`. `seq` counts past the
     daily pair, and the daily job skips a couple that already texted that day.
 - **Into the date.** A date carries the whole thread (`your_texts_with_them`, in both sides' turn prompts, the morning

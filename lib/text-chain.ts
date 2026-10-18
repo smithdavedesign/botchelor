@@ -47,6 +47,7 @@ type ChainEpisode = {
   visibility: string;
   hidden: boolean;
   creator_id: string;
+  partner_performer: string | null;
   character_a: string;
   ending: Ending;
   afterglow: AfterglowLine[] | null;
@@ -55,7 +56,7 @@ type ChainEpisode = {
 };
 
 const CHAIN_EPISODES = `
-  select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.character_a, e.ending, e.afterglow,
+  select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.partner_performer, e.character_a, e.ending, e.afterglow,
          e.setup->>'venue' as venue, e.followup_of,
          (select count(*)::int from reports r where r.episode_id = e.id) >= $3 as hidden
     from episodes e
@@ -76,7 +77,12 @@ export async function loadChain(db: Db, x: string, y: string, layer: ChainLayer)
     ),
   ]);
   const allowed = (e: ChainEpisode) => {
-    const h = { public: e.revealed_at !== null && e.visibility === "public" && !e.hidden, private: e.visibility === "private", creator: e.creator_id };
+    const h = {
+      public: e.revealed_at !== null && e.visibility === "public" && !e.hidden,
+      private: e.visibility === "private",
+      creator: e.creator_id,
+      ...(e.partner_performer ? { performer: e.partner_performer } : {}),
+    };
     return "usableBy" in layer ? usableFor(h, layer.usableBy) : visibleTo(h, layer);
   };
   const seen = eps.rows

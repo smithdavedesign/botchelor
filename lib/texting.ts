@@ -65,6 +65,11 @@ async function pairFor(db: Db, userId: string, from: string, to: string): Promis
     return refuse(404, "not_a_couple", "They haven't been on a date together yet. Text someone your character has dated.");
   }
   if (toRow.owner_id && toRow.owner_id !== userId) {
+    // Their owner must know about a date between them too: a text after a date only the sender can see (their own
+    // private one) would tell the other owner it happened, and they couldn't text back.
+    if (!viewRelationship(rel, { userId: toRow.owner_id, owner: true })) {
+      return refuse(409, "private_date", "Their owner can't see a date between them: it's private. Air it, or make it unlisted, and they can text.");
+    }
     const blocked = await db.query(
       `select 1 from blocks where (blocker_id = $1 and blocked_id = $2) or (blocker_id = $2 and blocked_id = $1) limit 1`,
       [userId, toRow.owner_id],
