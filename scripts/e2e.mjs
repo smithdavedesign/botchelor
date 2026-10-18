@@ -140,8 +140,10 @@ async function main() {
       await page.getByRole("button", { name: "Dry & deadpan" }).click();
       await page.getByRole("button", { name: "Next: Look" }).click();
       await page.getByText("Give them a look").waitFor();
-      await page.getByRole("button", { name: "Next: Details" }).click();
-      await page.getByText("The details (all optional)").waitFor();
+      await page.getByRole("button", { name: "Next: Dating profile" }).click();
+      await page.getByText("Their dating profile").waitFor();
+      // The swipe deck shows a dating profile: two answered prompts and two interests are needed to create a character.
+      await page.getByRole("button", { name: /Surprise me/ }).click();
       await page.locator('input[name="extra_occupation"]').fill("Lighthouse electrician");
       await page.getByRole("button", { name: "Next: Soul & autonomy" }).click();
       await page.getByText("The inner life (optional)").waitFor();

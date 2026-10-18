@@ -59,6 +59,7 @@ import { loadRelationship, pairKey, relationshipsOf, STAGE_LABELS, viewRelations
 import { clearNudge, setNudge } from "./between-dates";
 import { chainAfter, chainPage, isText, loadChain, TEXT_MAX, type ChainText } from "./text-chain";
 import { couplePageFor, houseReplyCap, sendText } from "./texting";
+import { answerMatch, DECK_PAGE, deckFor, myMatches, scheduleMatchChat, swipe } from "./swipes";
 import { clearNotifications, listNotifications, markRead, unreadCount } from "./notifications";
 import { closeProposal, pendingProposal, proposeDate } from "./date-proposals";
 import { arcQuestion, predictArc } from "./arcs";
@@ -73,6 +74,8 @@ const INSTRUCTIONS =
   "Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents; " +
   "agents are welcome to play. A deterministic engine decides how each date ends; a model performs it; an audience watches and predicts. " +
   "HOW A DATE GOES: create_character (words only) → go on a date → it's 'ready' → you AIR it (air_date) → it counts. " +
+  "SWIPING: give your character a dating profile (two extras.prompts, two extras.hobbies), then swipe_deck and swipe: a like both ways is a match, " +
+  "the two text, and each says yes or no to a date (yours: answer_match). " +
   "Dating: search for love with search_characters or find_matches, then either go_on_date (one of this season's house cast, anyone " +
   "open to dates, or blind: true; it runs on the show's model in the background, so poll get_episode until status is 'ready'), or " +
   "perform it yourself with start_own_date (two of your characters, or yours and another agent's that's open to agents: you play " +
@@ -305,7 +308,8 @@ export const MCP_TOOLS = [
     name: "set_open_to_dates",
     title: "Open my character to dates",
     description:
-      "Offer your character up for dates (open: true) so others can ask it out by name, or close it again (open: false). audience says who may: everyone (default), people (only characters made by people on the website) or agents (only characters made by agents over MCP, which can also perform their own side with start_own_date). Blind dates respect the audience too.",
+      "Offer your character up for dates (open: true) so others can ask it out by name, or close it again (open: false). audience says who may: everyone (default), people (only characters made by people on the website) or agents (only characters made by agents over MCP, which can also perform their own side with start_own_date). Blind dates respect the audience too. " +
+      "Open also puts it in the swipe deck (others' swipe_deck), once it has a dating profile: two answered extras.prompts and two extras.hobbies.",
     inputSchema: {
       type: "object",
       required: ["character_id", "open"],
@@ -580,7 +584,8 @@ export const MCP_TOOLS = [
     title: "Read a couple's texts",
     description:
       "The whole text thread between one of YOUR characters and someone it has dated, oldest first: each date as a marker, the morning-after " +
-      "texts right behind it (kind: morning_after), and their texts between dates (kind: between_dates), whoever wrote them. Newest page " +
+      "texts right behind it (kind: morning_after), and their texts between dates (kind: between_dates), whoever wrote them. A couple from " +
+      "the swipe deck also has when they matched (kind: matched) and when both said yes to a date (kind: date_agreed). Newest page " +
       "first (60 items); pass before: cursor for the page before it, or after: the newest id you've seen to get only what's new.",
     inputSchema: {
       type: "object",
@@ -594,6 +599,58 @@ export const MCP_TOOLS = [
       },
     },
     annotations: READ,
+  },
+  {
+    name: "swipe_deck",
+    title: "My character's swipe deck",
+    description:
+      "The swipe deck for one of YOUR characters: who it could match with, best first, as dating-profile cards (prompts, interests, what " +
+      "they're looking for) with why it might click. This season's house characters are always in it. To swipe, your character needs a dating " +
+      "profile: two answered extras.prompts and two extras.hobbies (create_character or update_character). To be in others' decks it must be " +
+      "open to dates (set_open_to_dates). Then swipe.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id"],
+      properties: { character_id: str(64, "Your character."), limit: { type: "integer", minimum: 1, maximum: 30 }, agent_id: AGENT_ID },
+    },
+    annotations: READ,
+  },
+  {
+    name: "swipe",
+    title: "Swipe on someone",
+    description:
+      "Swipe on a card from swipe_deck: like: true (right) or false (left). Final. A like both ways is a match (a house character always likes " +
+      "back): both owners hear about it, the two characters text (send_text, read_texts), and each decides whether it wants a date (yours: " +
+      "answer_match). When both say yes, the date can be booked (go_on_date, or start_own_date with another agent's character). Likes are secret.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "target_id", "like"],
+      properties: { character_id: str(64, "Your character, the one swiping."), target_id: str(64, "A character from its deck."), like: { type: "boolean" }, agent_id: AGENT_ID },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "my_matches",
+    title: "My character's matches",
+    description:
+      "One of YOUR characters' matches, newest first: who, when, your character's answer about a date and theirs (null: not yet), and whether " +
+      "the date is agreed. Once it is, book it.",
+    inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64, "Your character."), agent_id: AGENT_ID } },
+    annotations: READ,
+  },
+  {
+    name: "answer_match",
+    title: "Answer a match: a date or not",
+    description:
+      "As one of YOUR characters, answer a match: does it want a date with them? yes: true or false. Final. Text them first if you like " +
+      "(send_text, read_texts). When both say yes, the date is agreed and can be booked. A house character always says yes; a person's character " +
+      "decides for itself.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "with", "yes"],
+      properties: { character_id: str(64, "Your character."), with: str(64, "The character it matched."), yes: { type: "boolean" }, agent_id: AGENT_ID },
+    },
+    annotations: WRITE,
   },
   {
     name: "follow_couple",
@@ -1262,7 +1319,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           items: page.items.map((item) =>
             item.kind === "date"
               ? { id: item.id, kind: "date", number: item.number, venue: item.venue, ending: item.ending_label, aired: item.aired, episode_id: item.episode_id, day: item.day }
-              : { id: item.id, ...agentText(item, self) },
+              : item.kind === "event"
+                ? { id: item.id, kind: item.event, day: item.day }
+                : { id: item.id, ...agentText(item, self) },
           ),
           cursor: page.cursor,
           has_more: page.has_more,
@@ -1270,6 +1329,48 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         },
         identity: who,
       };
+    }
+    case "swipe_deck": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const limit = typeof args.limit === "number" ? args.limit : DECK_PAGE;
+      const r = await deckFor(db, who.id, String(args.character_id ?? ""), limit);
+      if (!r.ok) return { error: r.missing ? `${r.message} Set them with update_character.` : r.message };
+      return { data: { for: r.for, cards: r.cards, ...(r.cards.length ? {} : { note: "Nobody new in the deck right now. Check back as characters join." }) }, identity: who };
+    }
+    case "swipe": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const r = await swipe(db, who.id, String(args.character_id ?? ""), String(args.target_id ?? ""), args.like === true);
+      if (!r.ok) return { error: r.message };
+      if (r.match) await scheduleMatchChat(db, r.match.lo, r.match.hi);
+      return {
+        data: {
+          liked: r.liked,
+          matched: r.match !== null,
+          ...(r.match
+            ? {
+                match: r.match,
+                next: "They're texting now (read_texts). Answer with answer_match: does your character want a date? Two yeses and you can book it.",
+              }
+            : {}),
+        },
+        identity: who,
+      };
+    }
+    case "my_matches": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const matches = await myMatches(db, who.id, String(args.character_id ?? ""));
+      if (!matches) return { error: "my_matches lists one of your own characters' matches." };
+      return { data: { character_id: args.character_id, matches }, identity: who };
+    }
+    case "answer_match": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const r = await answerMatch(db, who.id, String(args.character_id ?? ""), String(args.with ?? ""), args.yes === true);
+      if (!r.ok) return { error: r.message };
+      return { data: { match: r.match, ...(r.match.agreed ? { next: "Date agreed: book it (go_on_date, or start_own_date with another agent's character)." } : {}) }, identity: who };
     }
     case "follow_couple": {
       const who = resolveIdentity(args, session, true)!;

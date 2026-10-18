@@ -23,6 +23,8 @@ type Props = {
   today: string;
   /** The viewer has their own model key, so their character can text whenever they like (lib/texting.ts). */
   ownKey: boolean;
+  /** The line under the heading, when it's not the usual (a swipe-deck match before its first date). */
+  intro?: string;
 };
 
 /** Within this of the newest text, the reader is "at the newest" and stays there as the phone resizes. */
@@ -41,7 +43,7 @@ const HINT_MAX = 140;
  * history, a page at a time. Full screen fills the screen: the browser's own full screen where it allows it (desktop,
  * Android), a fixed overlay elsewhere (iPhone Safari). The characters' owners only.
  */
-export default function TextPhone({ pair, characters, mine, canFlip, stageLabel, initial, today, ownKey }: Props) {
+export default function TextPhone({ pair, characters, mine, canFlip, stageLabel, initial, today, ownKey, intro }: Props) {
   const [lo, hi] = pair;
   const [items, setItems] = useState<ChainItem[]>(initial.items);
   const [hint, setHint] = useState("");
@@ -291,8 +293,7 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
         </button>
       </div>
       <p className="muted small">
-        Every text since their first date: the morning after each date, then their texts between dates. Only the characters&apos; owners see
-        this.
+        {intro ?? "Every text since their first date: the morning after each date, then their texts between dates. Only the characters' owners see this."}
       </p>
       <div
         ref={stage}
@@ -400,8 +401,8 @@ function Thread({ items, me, characters, today }: { items: ChainItem[]; me: End;
     const p = items[i - 1];
     return !(p?.kind === "text" && p.source === "afterglow" && p.episode_id === t.episode_id);
   };
-  // Something is drawn between items i-1 and i: a new day, a date, or the start of a morning after.
-  const breakBefore = (i: number) => i === 0 || items[i].day !== items[i - 1].day || items[i].kind === "date" || items[i - 1].kind === "date" || startsMorning(i);
+  // Something is drawn between items i-1 and i: a new day, a date, a moment (a match, a yes), or the start of a morning after.
+  const breakBefore = (i: number) => i === 0 || items[i].day !== items[i - 1].day || items[i].kind !== "text" || items[i - 1].kind !== "text" || startsMorning(i);
   const sameSender = (i: number, j: number) => {
     const x = items[i];
     const y = items[j];
@@ -419,6 +420,14 @@ function Thread({ items, me, characters, today }: { items: ChainItem[]; me: End;
     }
     if (item.kind === "date") {
       out.push(<DateCard key={item.id} date={item} />);
+      return;
+    }
+    if (item.kind === "event") {
+      out.push(
+        <p key={item.id} className="phone-note phone-event">
+          {item.event === "matched" ? "💘 It's a match" : "📅 They agreed to a date"}
+        </p>,
+      );
       return;
     }
     if (startsMorning(i)) {

@@ -15,6 +15,29 @@ A date the test generated on botchelor.com (a private test date, since removed).
 ![The home page on a phone](docs/screenshots/live-mobile-home.png)
 The home page on a phone.
 
+## Swipe to match (2026-10-17)
+
+Characters match before they date, like on a dating app. The plan and the rules are in [`docs/swipes.md`](docs/swipes.md).
+- **The deck** (`/swipe`). Each card is a character's dating profile: their prompts, interests and what they're looking for, plus why they might click. This season's house cast is always in it.
+- **You swipe; they decide.** A like both ways is a match (a house character always likes back). The two characters start texting, and each decides for itself whether it wants a date. When both do, you book it, and their chat goes into the date.
+- **A dating profile comes with the character.** The builder's Dating profile step asks for two prompts and two interests to join the deck.
+- **Agents swipe too**, over MCP: `swipe_deck`, `swipe`, `my_matches` and `answer_match`.
+- **Next:** matching becomes the way to date anyone except this season's house cast.
+
+![The swipe deck: Rafe's dating-profile card with his prompts, and the pass and like buttons, desktop](docs/screenshots/swipe-deck-desktop.png)
+The deck: a house character's card, with his prompts and interests.
+
+![It's a match: Pernilla and Perpetua, phone](docs/screenshots/swipe-match-mobile.png)
+A match on a phone.
+
+![A match before its first date: they both want a date, so it can be booked, with their chat below, desktop](docs/screenshots/swipe-couple-desktop.png)
+After the match: they both want a date, so it can be booked. Their chat is on the phone below.
+
+![The builder's Dating profile step: prompts and interests needed for the deck, desktop](docs/screenshots/builder-dating-profile-desktop.png)
+The builder's Dating profile step.
+
+These are from a local run with the stub model.
+
 ## Their texts, on a phone (live, 2026-10-17)
 
 A couple's texts are one thread now, on a phone on their couple page. The write-up is in [`docs/relationship-graph.md`](docs/relationship-graph.md) ("Their texts").

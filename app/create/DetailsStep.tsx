@@ -5,7 +5,10 @@ import {
   LOVE_LANGUAGES,
   MAX_HOBBIES,
   MAX_PROMPTS,
+  PROFILE_MIN_INTERESTS,
+  PROFILE_MIN_PROMPTS,
   PROFILE_PROMPTS,
+  PROMPT_IDEAS,
   STAR_SIGNS,
   SUGGESTIONS,
   TEXT_DETAILS,
@@ -70,7 +73,7 @@ const filledOf = (e: CharacterExtras, keys: (keyof CharacterExtras)[]) =>
     return Array.isArray(v) ? v.length > 0 : Boolean(typeof v === "string" ? v.trim() : v);
   }).length;
 
-/** Fills every blank text detail (and empty hobbies) with an idea; never touches what's already written. */
+/** Fills every blank text detail (and empty hobbies, and enough prompts for a dating profile) with an idea; never touches what's already written. */
 export function surpriseFill(e: CharacterExtras): CharacterExtras {
   const out: CharacterExtras = { ...e };
   for (const k of Object.keys(TEXT_DETAILS) as TextDetail[]) if (!out[k]?.trim() && SUGGESTIONS[k]) out[k] = suggest(k);
@@ -79,6 +82,16 @@ export function surpriseFill(e: CharacterExtras): CharacterExtras {
     while (picks.size < 3) picks.add(suggest("hobbies"));
     out.hobbies = [...picks];
   }
+  // The swipe deck needs two answered prompts: start any that are missing from the ideas (lib/extras.ts PROMPT_IDEAS).
+  const answered = (out.prompts ?? []).filter((p) => p.answer.trim());
+  const used = new Set(answered.map((p) => p.id));
+  const ideas = (Object.keys(PROMPT_IDEAS) as PromptId[]).filter((id) => !used.has(id));
+  while (answered.length < PROFILE_MIN_PROMPTS && ideas.length) {
+    const id = ideas.splice(Math.floor(Math.random() * ideas.length), 1)[0];
+    const options = PROMPT_IDEAS[id] ?? [];
+    answered.push({ id, answer: options[Math.floor(Math.random() * options.length)] ?? "" });
+  }
+  out.prompts = answered;
   return out;
 }
 
@@ -91,6 +104,7 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
   const hobbies = extras.hobbies ?? [];
   const prompts = extras.prompts ?? [];
   const usedPrompts = new Set(prompts.map((p) => p.id));
+  const answeredPrompts = prompts.filter((p) => p.answer.trim()).length;
 
   function addHobby(h: string) {
     const v = h.trim().slice(0, 30);
@@ -109,10 +123,20 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
 
   return (
     <fieldset className="wizard-fields">
-      <legend className="wizard-legend">The details (all optional)</legend>
+      <legend className="wizard-legend">Their dating profile</legend>
       <p className="muted">
-        What makes a date specific: a job {name || "they"} would mention, a quirk that slips out, a prompt answered in
-        their voice. It all shows on their card and shapes how they talk — never how a date ends.
+        This is what the swipe deck shows, like any dating app. {name || "They"} need{name ? "s" : ""} {PROFILE_MIN_PROMPTS} answered prompts and{" "}
+        {PROFILE_MIN_INTERESTS} interests; everything else is optional. It all shows on their card and shapes how they talk — never how a date ends.
+      </p>
+      <p className="small profile-progress" role="status">
+        {answeredPrompts >= PROFILE_MIN_PROMPTS && hobbies.length >= PROFILE_MIN_INTERESTS ? (
+          "✓ Ready for the swipe deck"
+        ) : (
+          <>
+            For the swipe deck: <strong>{Math.min(answeredPrompts, PROFILE_MIN_PROMPTS)}/{PROFILE_MIN_PROMPTS}</strong> prompts answered ·{" "}
+            <strong>{Math.min(hobbies.length, PROFILE_MIN_INTERESTS)}/{PROFILE_MIN_INTERESTS}</strong> interests
+          </>
+        )}
       </p>
       <p>
         <button type="button" className="secondary small" onClick={() => setExtras(surpriseFill)}>
@@ -153,9 +177,9 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
         </div>
       </Group>
 
-      <Group title="Life & loves" filled={filledOf(extras, ["hobbies", "go_to_order", "walk_on_music"])}>
+      <Group title="Interests & loves" filled={filledOf(extras, ["hobbies", "go_to_order", "walk_on_music"])} open>
         <label htmlFor="hobby-input">
-          Hobbies <span className="muted">(up to {MAX_HOBBIES})</span>
+          Interests <span className="muted">(at least {PROFILE_MIN_INTERESTS}, up to {MAX_HOBBIES})</span>
         </label>
         {hobbies.length > 0 && (
           <ul className="chips">
@@ -218,8 +242,10 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
         <DetailField k="red_flag" extras={extras} setExtras={setExtras} />
       </Group>
 
-      <Group title="Profile prompts" filled={prompts.length}>
-        <p className="muted small">Answer up to {MAX_PROMPTS} in their voice — they show on the card like a dating profile.</p>
+      <Group title="Profile prompts" filled={prompts.length} open>
+        <p className="muted small">
+          Answer at least {PROFILE_MIN_PROMPTS} (up to {MAX_PROMPTS}) in their voice: they&apos;re the heart of their card in the swipe deck.
+        </p>
         {prompts.map((p, i) => (
           <div key={i} className="prompt-edit">
             <label>

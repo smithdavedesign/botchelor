@@ -8,7 +8,7 @@ import JsonLd from "@/app/JsonLd";
 import { breadcrumbJsonLd, characterJsonLd } from "@/lib/seo";
 import ShareLink from "@/app/ShareLink";
 import { getDatingProfile } from "@/lib/dating";
-import { hasExtras } from "@/lib/extras";
+import { hasExtras, profileComplete, profileMissing } from "@/lib/extras";
 import ProfileDetails from "./ProfileDetails";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { getDb } from "@/lib/db";
@@ -176,6 +176,22 @@ export default async function CharacterPage({ params }: Props) {
         </div>
       </div>
 
+      {ratings.is_owner && !c.house && (
+        // The swipe deck (lib/swipes.ts): a complete dating profile to swipe; open to dates to be in others' decks.
+        <p className="notice swipe-cta">
+          {profileComplete(c.extras) ? (
+            <>
+              💘 <Link href={`/swipe?character=${c.id}`}>Swipe for {shortName(c.name)}</Link>
+              {dating?.open_to_dates ? " · they're in the swipe deck too" : " · open them to dates to be in others' decks"}
+            </>
+          ) : (
+            <>
+              💘 Finish {shortName(c.name)}&apos;s dating profile to swipe: {profileMissing(c.extras).map((m) => m.replace(/ \(extras\.\w+\)$/, "")).join(", ")}.{" "}
+              <Link href={`/characters/${c.id}/edit`}>Fill it in</Link>
+            </>
+          )}
+        </p>
+      )}
       {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} />}
       {plays && (
         <p className="muted small owner-temperament">

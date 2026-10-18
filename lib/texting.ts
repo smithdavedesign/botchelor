@@ -26,6 +26,7 @@ import { shortName } from "./names";
 import { notify } from "./notifications";
 import { loadRelationship, pairContext, pairKey, viewRelationship, type End, type Relationship } from "./relationships";
 import { checkFields } from "./safety";
+import { matchView } from "./swipes";
 import { betweenText, dateTextsBudget, loadChain, TEXT_MAX, type ChainText } from "./text-chain";
 
 /** A runaway-loop guard, not a quota: one character's texts in a minute. */
@@ -49,8 +50,8 @@ export type TextResult =
 type Refusal = Extract<TextResult, { ok: false }>;
 const refuse = (status: number, error: string, message: string): Refusal => ({ ok: false, status, error, message });
 
-/** The two characters of a couple, from the sender's side. */
-type Pair = { me: Character; them: Character; rel: Relationship; lo: string; hi: string; mine: End; theirs: End; theirOwner: string | null };
+/** The two characters of a couple, from the sender's side. `rel` is null for a match that hasn't dated yet. */
+type Pair = { me: Character; them: Character; rel: Relationship | null; lo: string; hi: string; mine: End; theirs: End; theirOwner: string | null };
 
 /** Whether `userId` may text as `from` to `to`: owns it, they've dated (a date this owner can see), and no block. */
 async function pairFor(db: Db, userId: string, from: string, to: string): Promise<Pair | Refusal> {
@@ -61,13 +62,16 @@ async function pairFor(db: Db, userId: string, from: string, to: string): Promis
   if (!fromRow || !toRow) return refuse(404, "not_found", "No such character.");
   if (fromRow.owner_id !== userId) return refuse(403, "not_your_character", "You can only text as your own character.");
   const rel = await loadRelationship(db, from, to);
-  if (!rel || !viewRelationship(rel, { userId, owner: true })) {
-    return refuse(404, "not_a_couple", "They haven't been on a date together yet. Text someone your character has dated.");
+  const dated = rel !== null && viewRelationship(rel, { userId, owner: true }) !== null;
+  // A match in the swipe deck (lib/swipes.ts) is a couple too: they text before their first date. Both owners know of it.
+  const matched = !dated && (await matchView(db, from, to)) !== null;
+  if (!dated && !matched) {
+    return refuse(404, "not_a_couple", "They haven't matched or been on a date together yet. Text someone your character has matched (swipe) or dated.");
   }
   if (toRow.owner_id && toRow.owner_id !== userId) {
     // Their owner must know about a date between them too: a text after a date only the sender can see (their own
     // private one) would tell the other owner it happened, and they couldn't text back.
-    if (!viewRelationship(rel, { userId: toRow.owner_id, owner: true })) {
+    if (dated && !viewRelationship(rel!, { userId: toRow.owner_id, owner: true }) && !(await matchView(db, from, to))) {
       return refuse(409, "private_date", "Their owner can't see a date between them: it's private. Air it, or make it unlisted, and they can text.");
     }
     const blocked = await db.query(
@@ -87,7 +91,7 @@ async function pairFor(db: Db, userId: string, from: string, to: string): Promis
  * The couple's page, once anyone can open it: a couple page shows only aired public dates to a visitor (an agent's link
  * is opened without its identity), so before the first one airs it's a 404 and there's no link to give.
  */
-export const couplePageFor = (rel: Relationship): string | null => (rel.public.dates > 0 ? `/couples/${rel.lo}/${rel.hi}` : null);
+export const couplePageFor = (rel: Relationship | null): string | null => (rel && rel.public.dates > 0 ? `/couples/${rel.lo}/${rel.hi}` : null);
 const couplePage = (p: Pair) => couplePageFor(p.rel);
 
 /** True when this character has sent TEXTS_PER_MINUTE texts in the last minute. */

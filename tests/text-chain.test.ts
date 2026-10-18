@@ -75,7 +75,7 @@ describe("a couple's text chain (lib/text-chain.ts)", () => {
     const second = await date(creator, character.id, "2026-10-12T19:00:00Z", [{ side: "b", text: "Round two was better." }]);
 
     const chain = await loadChain(t.db, character.id, HOUSE_PARTNER_ID, { userId, owner: true });
-    expect(chain.map((i) => (i.kind === "date" ? `date ${i.number}` : `${i.who === me ? "me" : "them"}, ${i.source}: ${i.text}`))).toEqual([
+    expect(chain.map((i) => (i.kind === "date" ? `date ${i.number}` : i.kind === "event" ? i.event : `${i.who === me ? "me" : "them"}, ${i.source}: ${i.text}`))).toEqual([
       "date 1",
       "me, afterglow: Last night was fun.",
       "them, afterglow: It really was.",

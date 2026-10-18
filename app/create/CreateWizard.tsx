@@ -14,7 +14,7 @@ import { sheetSignals } from "@/lib/temperament";
 import VoiceStep from "./VoiceStep";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
-import { hasExtras, LOVE_LANGUAGES, normaliseExtras, promptLabel, sampleLineLabel, tellLabel, TEXT_DETAILS, type CharacterExtras } from "@/lib/extras";
+import { hasExtras, LOVE_LANGUAGES, normaliseExtras, promptLabel, sampleLineLabel, tellLabel, TEXT_DETAILS, type CharacterExtras, profileComplete } from "@/lib/extras";
 import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
 import { DEFAULT_FORMAT, FORMATS, type FormatId } from "@/lib/formats";
 import { trackConversion } from "@/app/conversion";
@@ -84,18 +84,18 @@ export type EditInitial = {
 const EMPTY_SHEET: Sheet = { name: "", age: "", bio: "", want: "", dealbreaker: "" };
 const EMPTY_SOUL: Soul = { values: "", insecurities: "", humor: "", boundaries: "", romantic: "", communication: "", local_only: false };
 
-const SAMPLES = [
-  { name: "Juno Marlowe", age: "28", bio: "A tarot reader who only predicts the weather, and is weirdly accurate.", traits: ["mystic", "cheeky", "kind"], want: "Someone who'll dance in the rain she forecast", dealbreaker: "People who check their phone for the forecast", appearance: "a cool violet palette, soft and vivid", hue: 275, pronouns: "she/her", voice: "Cheeky and cryptic: answers questions with forecasts, teases gently, then says something unexpectedly sincere.", extras: { lines: { hello: "Clear skies, light breeze, and you. My forecast was right.", dodge: "Ask me again when the fog lifts." }, tells: { nervous: "check the sky through the nearest window", smitten: "forecast the other person's week instead of the sky" }, never_says: ["no worries"] } },
-  { name: "Cass Vega", age: "33", bio: "A demolition expert turned florist. Still flinches at loud bouquets.", traits: ["bold", "gentle", "precise"], want: "A quiet evening that doesn't blow up", dealbreaker: "Surprise fireworks", appearance: "a warm amber palette, bright and bold", hue: 30, pronouns: "she/her", voice: "Calm and exact: short sentences, a quiet laugh, explains flowers like explosives and explosives like flowers.", extras: { lines: { hello: "Hi. You're on time. I like that.", upset: "Okay. Nobody move. It's fine." }, tells: { nervous: "straighten everything on the table to right angles", annoyed: "go very still and very quiet" } } },
-  { name: "Ira Fenn", age: "26", bio: "Runs a 24-hour library for insomniac poets. Knows which books are sleeping.", traits: ["bookish", "warm", "stubborn"], want: "Someone who reads the last page first, bravely", dealbreaker: "Dog-earing a page", appearance: "a cool teal palette, soft and balanced", hue: 160, pronouns: "they/them", voice: "Soft-spoken and bookish: quotes half a line then trails off, asks what you're reading, gets fierce about bad habits with books.", extras: { lines: { hello: "Hello. Sorry. I was in the middle of a chapter. Hi.", flirt: "You'd be a good bookmark. That's a compliment." }, tells: { nervous: "quote half a line and trail off", bored: "read the menu like it's a novel" } } },
-  { name: "Dorian Sol", age: "31", bio: "A retired game-show host who still announces his own breakfast.", traits: ["dramatic", "generous", "loud"], want: "An audience of one who claps anyway", dealbreaker: "Silence during the big reveal", appearance: "a warm red palette, bright and vivid", hue: 340, pronouns: "he/him", voice: "Booming game-show patter: narrates his own life, counts down to everything, and keeps checking if you're having fun.", extras: { lines: { hello: "And here they are, folks! Give it up for my date!", upset: "Ladies and gentlemen, a brief technical difficulty." }, tells: { nervous: "count down to things that don't need counting", smitten: "drop to an actual human volume" }, never_says: ["no comment"] } },
+const SAMPLES: { name: string; age: string; bio: string; traits: string[]; want: string; dealbreaker: string; appearance: string; hue: number; pronouns: string; voice: string; extras: CharacterExtras }[] = [
+  { name: "Juno Marlowe", age: "28", bio: "A tarot reader who only predicts the weather, and is weirdly accurate.", traits: ["mystic", "cheeky", "kind"], want: "Someone who'll dance in the rain she forecast", dealbreaker: "People who check their phone for the forecast", appearance: "a cool violet palette, soft and vivid", hue: 275, pronouns: "she/her", voice: "Cheeky and cryptic: answers questions with forecasts, teases gently, then says something unexpectedly sincere.", extras: { prompts: [{ id: "geek_out", answer: "Cloud types, old almanacs, and why the forecast is always wrong on Tuesdays." }, { id: "together_we_could", answer: "Dance in the rain I predicted. Bring a coat you don't mind ruining." }], hobbies: ["Tarot", "Weather watching", "Dancing in the rain"], lines: { hello: "Clear skies, light breeze, and you. My forecast was right.", dodge: "Ask me again when the fog lifts." }, tells: { nervous: "check the sky through the nearest window", smitten: "forecast the other person's week instead of the sky" }, never_says: ["no worries"] } },
+  { name: "Cass Vega", age: "33", bio: "A demolition expert turned florist. Still flinches at loud bouquets.", traits: ["bold", "gentle", "precise"], want: "A quiet evening that doesn't blow up", dealbreaker: "Surprise fireworks", appearance: "a warm amber palette, bright and bold", hue: 30, pronouns: "she/her", voice: "Calm and exact: short sentences, a quiet laugh, explains flowers like explosives and explosives like flowers.", extras: { prompts: [{ id: "simple_pleasures", answer: "A bouquet that stays exactly where I put it." }, { id: "irrational_fear", answer: "Party poppers. Small, unpredictable, loud." }], hobbies: ["Flower arranging", "Quiet evenings", "Puzzles"], lines: { hello: "Hi. You're on time. I like that.", upset: "Okay. Nobody move. It's fine." }, tells: { nervous: "straighten everything on the table to right angles", annoyed: "go very still and very quiet" } } },
+  { name: "Ira Fenn", age: "26", bio: "Runs a 24-hour library for insomniac poets. Knows which books are sleeping.", traits: ["bookish", "warm", "stubborn"], want: "Someone who reads the last page first, bravely", dealbreaker: "Dog-earing a page", appearance: "a cool teal palette, soft and balanced", hue: 160, pronouns: "they/them", voice: "Soft-spoken and bookish: quotes half a line then trails off, asks what you're reading, gets fierce about bad habits with books.", extras: { prompts: [{ id: "fall_for_you", answer: "You read the last page first, and you tell me how it ends." }, { id: "unpopular_opinion", answer: "A library at 3am is the best party in town." }], hobbies: ["Reading", "Night walks", "Poetry"], lines: { hello: "Hello. Sorry. I was in the middle of a chapter. Hi.", flirt: "You'd be a good bookmark. That's a compliment." }, tells: { nervous: "quote half a line and trail off", bored: "read the menu like it's a novel" } } },
+  { name: "Dorian Sol", age: "31", bio: "A retired game-show host who still announces his own breakfast.", traits: ["dramatic", "generous", "loud"], want: "An audience of one who claps anyway", dealbreaker: "Silence during the big reveal", appearance: "a warm red palette, bright and vivid", hue: 340, pronouns: "he/him", voice: "Booming game-show patter: narrates his own life, counts down to everything, and keeps checking if you're having fun.", extras: { prompts: [{ id: "dating_me_is_like", answer: "A game show where everyone wins a little and I narrate it all." }, { id: "win_me_over", answer: "Clap at the reveal. Even if the reveal is breakfast." }], hobbies: ["Game shows", "Karaoke", "Applause"], lines: { hello: "And here they are, folks! Give it up for my date!", upset: "Ladies and gentlemen, a brief technical difficulty." }, tells: { nervous: "count down to things that don't need counting", smitten: "drop to an actual human volume" }, never_says: ["no comment"] } },
 ];
 
 
 /** The steps, by name, so their order can change without renumbering every check. */
 const S = { identity: 0, voice: 1, look: 2, details: 3, soul: 4, review: 5 } as const;
-const STEPS = ["Identity", "Voice", "Look", "Details", "Soul & autonomy", "Review"] as const;
-const EDIT_STEPS = ["Identity", "Voice", "Look", "Details", "Soul", "Review"] as const;
+const STEPS = ["Identity", "Voice", "Look", "Dating profile", "Soul & autonomy", "Review"] as const;
+const EDIT_STEPS = ["Identity", "Voice", "Look", "Dating profile", "Soul", "Review"] as const;
 const DRAFT_KEY = "botchelor:create-draft:v1";
 
 function words(s: string): number {
@@ -173,7 +173,8 @@ export default function CreateWizard({
   const setExtras = useCallback((update: (prev: CharacterExtras) => CharacterExtras) => setExtrasState(update), []);
   const [autonomy, setAutonomy] = useState<Autonomy>("balanced");
   const [attest, setAttest] = useState(false);
-  const [openToDates, setOpenToDates] = useState(init?.openToDates ?? false);
+  // A new character fills in its dating profile, so it joins the swipe deck unless its creator says not to.
+  const [openToDates, setOpenToDates] = useState(init?.openToDates ?? !edit);
   const [saved, setSaved] = useState(false);
   const [portrait, setPortrait] = useState<string | null>(init?.portrait ?? null);
   const [week, setWeek] = useState(init?.thisWeek ?? "");
@@ -298,7 +299,9 @@ export default function CreateWizard({
     traits.every((t) => t.trim().length > 0) &&
     sheet.want.trim().length > 0 &&
     sheet.dealbreaker.trim().length > 0;
-  const canAdvance = step === S.identity ? identityOk : true;
+  // A new character needs its dating profile to be created (the swipe deck shows it); an edit can save without one.
+  const profileOk = edit ? true : profileComplete(normaliseExtras(extras));
+  const canAdvance = step === S.identity ? identityOk : step === S.details ? profileOk : true;
 
   function next() {
     if (!canAdvance) return;
@@ -765,7 +768,7 @@ export default function CreateWizard({
             <label className="check wizard-open">
               <input type="checkbox" checked={openToDates} onChange={(e) => setOpenToDates(e.target.checked)} />
               <span>
-                💌 Open to dates — let other creators, people and AI agents alike, ask {sheet.name || "them"} out by name.
+                💘 In the swipe deck: people and AI agents can swipe on {sheet.name || "them"} (and ask them out by name).
                 {!edit && " Change it any time on their card."}
               </span>
             </label>
@@ -816,7 +819,7 @@ export default function CreateWizard({
               Next: {labels[step + 1]}
             </button>
           ) : (
-            <button type="submit" disabled={busy !== null || !attest || !identityOk}>
+            <button type="submit" disabled={busy !== null || !attest || !identityOk || !profileOk}>
               {busy === "character" ? "Creating…" : `Create ${sheet.name || "character"}`}
             </button>
           )}

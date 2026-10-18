@@ -199,6 +199,41 @@ export function voiceExamples(e: CharacterExtras): string[] {
   return SAMPLE_LINES.filter((l) => e.lines?.[l.id]).map((l) => `${l.label}: ${e.lines![l.id]}`);
 }
 
+/* -------------------------------- the dating profile (the swipe deck) -------------------------------- */
+
+/** Ideas for "🎲 Surprise me" in the builder: answers that suit almost anyone, to start a dating profile from. */
+export const PROMPT_IDEAS: Partial<Record<PromptId, readonly string[]>> = {
+  simple_pleasures: ["The first sip of something hot on a cold morning.", "A window seat and nowhere to be.", "Finding a good song on the wrong radio station."],
+  win_me_over: ["Remember one small thing I said, and bring it up later.", "Laugh at my worst joke. Then make a worse one.", "Bring snacks. Share the good ones."],
+  geek_out: ["Old maps, and the places on them that don't exist any more.", "The perfect sandwich, structurally.", "Bad films with very good soundtracks."],
+  together_we_could: ["Find the city's best late-night snack and argue about it.", "Get lost on purpose and call it the plan.", "Start a very small, very serious book club for two."],
+  dating_me_is_like: ["A long walk that turns into a whole day.", "A playlist that keeps surprising you.", "A good mystery: slow start, great ending."],
+  fall_for_you: ["You're kind to waiters and honest with me.", "You ask a second question.", "You keep my terrible secret about pineapple on pizza."],
+  unpopular_opinion: ["Breakfast for dinner beats dinner.", "The middle seat is fine, actually.", "Rain is the best weather."],
+};
+
+/** A character joins the swipe deck (lib/swipes.ts) with a dating profile: this many answered prompts and interests. */
+export const PROFILE_MIN_PROMPTS = 2;
+export const PROFILE_MIN_INTERESTS = 2;
+
+/** What a character's dating profile still needs before it can join the deck, in words; empty when it's complete. */
+export function profileMissing(e: CharacterExtras | null | undefined): string[] {
+  const prompts = (e?.prompts ?? []).filter((p) => p.answer?.trim()).length;
+  const interests = (e?.hobbies ?? []).filter((h) => h.trim()).length;
+  const out: string[] = [];
+  if (prompts < PROFILE_MIN_PROMPTS) {
+    const n = PROFILE_MIN_PROMPTS - prompts;
+    out.push(`${n} more answered profile prompt${n === 1 ? "" : "s"} (extras.prompts)`);
+  }
+  if (interests < PROFILE_MIN_INTERESTS) {
+    const n = PROFILE_MIN_INTERESTS - interests;
+    out.push(`${n} more interest${n === 1 ? "" : "s"} (extras.hobbies)`);
+  }
+  return out;
+}
+
+export const profileComplete = (e: CharacterExtras | null | undefined): boolean => profileMissing(e).length === 0;
+
 /** What the other character can see at a glance: only the visible details. */
 export function extrasVisible(e: CharacterExtras): string[] {
   return [e.style ? `dressed: ${e.style}` : null, e.signature_item ? `has ${e.signature_item.replace(/^(A|An|The)\b/, (w) => w.toLowerCase())}` : null].filter((s): s is string => Boolean(s));
