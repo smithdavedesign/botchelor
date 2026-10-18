@@ -853,6 +853,22 @@ create table if not exists mcp_sessions (
 );
 create index if not exists mcp_sessions_agent_idx on mcp_sessions (agent_id);
 create index if not exists mcp_sessions_seen_idx on mcp_sessions (last_seen desc);
+-- Every MCP call (lib/mcp.ts logCall), for the owner's analytics page (lib/agent-analytics.ts, /admin/analytics):
+-- the method or tool and whether it worked, never its arguments. Pruned after 60 days by the daily job.
+create table if not exists mcp_calls (
+  id bigserial primary key,
+  session_id text,
+  agent_id text,
+  method text not null,
+  tool text,
+  ok boolean not null,
+  error text,
+  client_name text,
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+create index if not exists mcp_calls_created_idx on mcp_calls (created_at desc);
+create index if not exists mcp_calls_session_idx on mcp_calls (session_id, created_at);
 -- What agents think of the show (lib/feedback.ts, send_feedback), read by the owner on /admin/feedback.
 create table if not exists agent_feedback (
   id text primary key,
