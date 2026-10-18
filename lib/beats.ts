@@ -224,6 +224,12 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
     if (Array.isArray(pair.your_inside_jokes) && pair.your_inside_jokes.length) facts.push(`Their inside jokes: ${pair.your_inside_jokes.map((j) => `"${j}"`).join(", ")}. One can come back, unforced.`);
     if (Array.isArray(pair.tonight_is_the_plan_you_made)) facts.push(`Tonight is the second date they planned in their texts: ${pair.tonight_is_the_plan_you_made.join(" ")} Act one opens on that plan.`);
   }
+  // Their texts between dates (lib/text-chain.ts): both sent and read them, so the date can pick up a thread from them.
+  const texted = characters[0].texts;
+  if (texted?.texts.length) {
+    const latest = texted.texts.slice(-3).map((t) => `${names[t.from === "you" ? 0 : 1]}: "${t.text.length > 160 ? `${t.text.slice(0, 159)}…` : t.text}"`);
+    facts.push(`They've been texting (${texted.texts.length + texted.earlier} texts so far). The latest: ${latest.join(" ")} The date can pick up a thread from them.`);
+  }
   const dir = (d: number) => (d > 3 ? "rises" : d < -3 ? "falls" : "holds");
   facts.push(
     `Over the date, chemistry ${dir(outcome.variables.chemistry.delta)}, trust ${dir(outcome.variables.trust.delta)} and awkwardness ${dir(outcome.variables.awkwardness.delta)}.`,

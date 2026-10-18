@@ -27,7 +27,7 @@ export type ChainText = {
   who: End;
   text: string;
   /** The morning after a date (the afterglow, `episode_id` is that date), or a text between dates. */
-  source: "afterglow" | "daily";
+  source: "afterglow" | "between";
   episode_id: string | null;
 };
 
@@ -35,6 +35,9 @@ export type ChainItem = ChainDate | ChainText;
 
 /** One page of the chain, oldest first. `cursor` asks for the page before it; null at the start of their texts. */
 export type ChainPage = { items: ChainItem[]; cursor: string | null; has_more: boolean };
+
+/** How long one text may be: open-ended (a text is as long as its writer wants), with a ceiling only against abuse. */
+export const TEXT_MAX = 10_000;
 
 /** How many items a page holds: the newest page first, then earlier ones as the reader scrolls up. */
 export const CHAIN_PAGE = 60;

@@ -26,8 +26,9 @@ import type { CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { loadCharacterMemory, type CharacterMemory } from "./memory";
 import { activeNudge, alsoSeeing } from "./between-dates";
-import { engineHistory, loadRelationship, pairContext, pairSharedWords, refreshRelationship, venueForPlan, type Relationship } from "./relationships";
+import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, refreshRelationship, venueForPlan, type Relationship } from "./relationships";
 import { loadSoul, type StoredSoul } from "./souls";
+import { isText, loadChain, promptTexts, type PromptTexts } from "./text-chain";
 import {
   AGENDA_IDS,
   DEFAULT_AUTONOMY,
@@ -141,6 +142,8 @@ export type DateParts = {
   /** Each owner's standing nudge about the other, and who else each is seeing (public). Flavour only. */
   nudges?: { a: string | null; b: string | null };
   alsoSeeing?: { a: string[]; b: string[] };
+  /** Every text they've sent each other, as each side sees it (lib/text-chain.ts promptTexts). Flavour only. */
+  texts?: { a: PromptTexts; b: PromptTexts };
 };
 
 /**
@@ -157,6 +160,14 @@ export function assembleDate(p: DateParts): BuiltDate {
     charA.pair = pairContext(p.relationship, a.id, p.creatorId, p.followupOf ?? null);
     charB.pair = pairContext(p.relationship, b.id, p.creatorId, p.followupOf ?? null);
     charA.pairShared = charB.pairShared = pairSharedWords(p.relationship, p.creatorId);
+  }
+  // Their texts go into the date (David: "the full text history going into the date"). Both of them sent and read every
+  // one, so each side carries the whole thread, and its words are things both already know.
+  if (p.texts) {
+    if (p.texts.a.texts.length) charA.texts = p.texts.a;
+    if (p.texts.b.texts.length) charB.texts = p.texts.b;
+    const said = p.texts.a.texts.map((t) => t.text).join(" ");
+    if (said) charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${said}`.trim();
   }
   if (p.nudges?.a) charA.nudge = p.nudges.a;
   if (p.nudges?.b) charB.nudge = p.nudges.b;
@@ -275,6 +286,10 @@ export async function buildDate(
     alsoSeeing(db, a.id, b.id).catch(() => []),
     alsoSeeing(db, b.id, a.id).catch(() => []),
   ]);
+  // The texts this date's creator may bring in: every text between dates, and the morning afters of the dates they can use.
+  const chain = opts.creatorId !== undefined ? await loadChain(db, a.id, b.id, { usableBy: opts.creatorId }) : [];
+  const [lo] = pairKey(a.id, b.id);
+  const texts = chain.some(isText) ? { a: promptTexts(chain, a.id === lo ? "lo" : "hi"), b: promptTexts(chain, b.id === lo ? "lo" : "hi") } : undefined;
   const rowOf = (id: string) => extras.rows.find((r) => r.id === id);
   // A worker re-deciding a stored date passes its snapshot; a date stored before snapshots ran on dates + last ending.
   const current = engineHistory(relationship);
@@ -290,7 +305,7 @@ export async function buildDate(
     episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId),
     soulA, soulB, memoryA, memoryB, history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
-    nudges, alsoSeeing: { a: seeingA, b: seeingB },
+    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),
   });

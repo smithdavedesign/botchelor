@@ -534,7 +534,7 @@ export const visibleTo = (h: Pick<HistoryItem, "public" | "private" | "creator">
   h.public || (v.owner && v.userId !== null && (h.creator === v.userId || h.private === false));
 
 /** The dates a character may bring into a new date set up by `creatorId`: the public record plus that creator's own. */
-export const usableFor = (h: HistoryItem, creatorId: string): boolean => h.public || h.creator === creatorId;
+export const usableFor = (h: Pick<HistoryItem, "public" | "creator">, creatorId: string): boolean => h.public || h.creator === creatorId;
 
 export type RelationshipView = {
   stage: Stage | null;

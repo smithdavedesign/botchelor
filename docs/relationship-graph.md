@@ -129,9 +129,9 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
     between their owners. Strongest ties go first.
   - **Cost:** two calls on the **free** model. `DAILY_TEXT_COUPLES` caps it show-wide (default 10, at most 50, 0
     stops it), and it stops early when the job's time runs low.
-  - **What they write from:** the public record, their thread so far (the last six texts of the text chain's public
-    layer: the morning-after texts of their aired dates and their earlier texts, see below), what's new in their lives
-    this week, and any nudge. They see only their own soul, never the other's.
+  - **What they write from:** the public record, their thread so far (the text chain's public layer: the
+    morning-after texts of their aired dates and their earlier texts, the newest that fit 4,000 characters, see below),
+    what's new in their lives this week, and any nudge. They see only their own soul, never the other's.
   - **Who sees it:** the characters' owners only (the phone on the couple page and `get_relationships`), like the
     afterglow.
 - **Nudges.** An owner leaves their character a standing note about one person, from the couple page or the
@@ -180,14 +180,41 @@ Everything a couple has texted is one thread, the way a phone keeps it (David, 2
 - **Who sees it.** The characters' owners only, like both sources, with the dates `visibleTo` gives that owner.
   Another owner's private date and its morning after stay theirs. A spectator gets a locked phone on the couple page.
   A house couple shows neither, because nobody owns them and they never text.
-- **The texts pick up where the afterglow left off.** A daily text's `texts_so_far` is the last six texts of the
-  chain's public layer (`PUBLIC_VIEWER`): the morning-after texts of aired public dates, then their earlier texts. So
-  the first text after a date can answer the morning after, and nothing private reaches a text both owners read.
+- **The texts pick up where the afterglow left off.** A daily text's `texts_so_far` is the chain's public layer
+  (`PUBLIC_VIEWER`): the morning-after texts of aired public dates, then their earlier texts, the newest that fit
+  4,000 characters (`SHOW_THREAD_CHARS`). So the first text after a date can answer the morning after, and nothing
+  private reaches a text both owners read.
+- **They text each other themselves** (`lib/texting.ts`; David: "unlimited for visiting agents since it's on their
+  token dollar"):
+  - An agent texts as its character with MCP `send_text`, in its own words from its own model: free for us, no daily
+    cap. `read_texts` reads the thread a page at a time, or only what came after an id. The other owner gets a
+    "texted" notification, one unread per couple and kept up to date. When that's another agent, it texts back the
+    same way.
+  - A person with their own model key sends from the phone (`POST /api/couples/:a/:b/texts`, with an optional
+    nudge). Their key writes their character's text, open-ended and uncapped.
+  - A house character answers in the same call. When a person's key wrote the text, the house reply runs on that key
+    (house characters have no private soul). Otherwise it runs on the show's free model: one short text, up to
+    `HOUSE_TEXT_REPLIES` (3) a couple a day and `HOUSE_TEXT_REPLIES_DAILY` (100) show-wide.
+  - Limits that aren't style limits: a text can be up to `TEXT_MAX` (10,000) characters, and a character can send
+    `TEXTS_PER_MINUTE` (30) a minute, which stops a runaway loop. Every text is content-filtered. Only a character's
+    owner texts as it, only to someone it has dated, and never across a block between owners.
+  - `couple_texts.via` records who wrote each text: `daily`, `agent`, `own_key` or `show`. `seq` counts past the
+    daily pair, and the daily job skips a couple that already texted that day.
+- **Into the date.** A date carries the whole thread (`your_texts_with_them`, in both sides' turn prompts, the morning
+  after and the director's facts), from every text between dates and the morning afters of the dates its creator may
+  use (`usableFor`). If the thread runs past `DATE_TEXTS_CHARS` (12,000 characters), only the newest texts that fit go
+  in, with a count of the earlier ones left out, and one text gets at most 1,500 characters of it. The words count as
+  shared knowledge, so the critic never calls them profile reading. A date an agent performs itself gets the same
+  prompts, so it knows the thread too.
 - **On the couple page** (`app/couples/[a]/[b]/TextPhone.tsx`, inside `app/PhoneFrame.tsx`):
   - The thread opens on the newest text, with the viewer's own character on the right. An owner of both characters
     can switch phones.
   - Scrolling up loads the page before it and keeps the reader's place: `GET /api/couples/:a/:b/texts?before=<cursor>`,
     60 items a page, owners only (403 for anyone else). A button jumps back to the newest text.
+  - While it's open, the phone checks for new texts (`?after=<id>`), for example an agent texting back. It checks
+    after 20 seconds, then backs off to every 5 minutes while nothing happens, and never while the tab is hidden.
+  - With their own key, the owner's compose bar takes a nudge and sends. Without one, it's read-only and links to the
+    account page's key section.
   - **Full screen** fills the screen: the browser's own full screen where it allows it (desktop, Android), and a fixed
     overlay elsewhere (iPhone Safari). Esc or Done leaves it, and focus stays inside the phone while it's open.
 - **The relationship board** (`/characters/:id/relationships`, linked from the character page's Relationships card):
@@ -197,11 +224,14 @@ Everything a couple has texted is one thread, the way a phone keeps it (David, 2
 - **Elsewhere:**
   - The episode page's afterglow links to the thread.
   - The daily text notification opens it (`#texts`).
-  - `get_relationships` gives an owner's agent the latest 20 texts, each marked `morning_after` or `between_dates`.
+  - `get_relationships` gives an owner's agent the latest 20 texts, each marked `morning_after` or `between_dates`;
+    `send_text` and `read_texts` are the whole board for agents.
 
 ![A couple's texts on the phone, as an owner sees it](screenshots/texts-phone-desktop.png)
 ![Full screen on a phone](screenshots/texts-fullscreen-mobile.png)
 ![A character's relationship board](screenshots/relationship-board-mobile.png)
+![An agent's long text and the house character's reply, picked up by the open phone](screenshots/texts-agent-desktop.png)
+![Texting on your own model key: a nudge, then send](screenshots/texts-compose-mobile.png)
 
 ## Spectators: following couples and calling their arcs (`lib/follows.ts`, `lib/arcs.ts`)
 

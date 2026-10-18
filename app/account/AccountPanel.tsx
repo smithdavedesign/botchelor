@@ -253,13 +253,17 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
       </section>
 
       {me.authenticated && (
-        <section className="card">
+        <section className="card" id="model-key">
           <h2>Your model key (optional)</h2>
           <p className="muted">
             Bring your own key and your dates run on your quota and your chosen model instead of the free tier. The
             engine still decides every outcome, so a stronger model can&apos;t buy a result. Your key runs only your own
             character&apos;s lines (and a house partner&apos;s) — never another player&apos;s private character. Stored
             encrypted; we only ever show the last four characters.
+          </p>
+          <p className="muted">
+            It also lets your characters text the people they&apos;ve dated whenever you like, as much as you like: on their
+            couple page, tap send on the phone.
           </p>
           {keys.filter((k) => k.kind === "text").length > 0 && (
             <ul className="account-links">

@@ -25,6 +25,7 @@ import { getCharacterHistory, type CharacterRecord } from "./game";
 import { extrasForPrompt, extrasVisible, hasExtras, voiceExamples, type CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { baseSignals, sheetSignals } from "./temperament";
+import type { PromptTexts } from "./text-chain";
 
 const ZERO_RECORD: CharacterRecord = { dates: 0, second_dates: 0, friends: 0, disasters: 0 };
 
@@ -64,6 +65,12 @@ export type Character = {
    */
   pair?: Record<string, unknown> | null;
   pairShared?: string;
+  /**
+   * Set only on a date's characters: every text the two have sent each other (lib/text-chain.ts promptTexts), from
+   * this side ("you"/"them"), oldest first; the newest that fit when there are very many. Shared by both, so either
+   * side may carry it.
+   */
+  texts?: PromptTexts;
   /** Set only on a date's characters: its owner's standing nudge about this person (lib/between-dates.ts). Private. */
   nudge?: string | null;
   /** Set only on a date's characters: who else it's seeing, from the public record (lib/between-dates.ts). */

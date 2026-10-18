@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import Avatar from "@/app/Avatar";
 import PhoneFrame from "@/app/PhoneFrame";
 import type { CharacterRef } from "@/lib/game";
@@ -21,6 +21,8 @@ type Props = {
   initial: ChainPage;
   /** Today (UTC) from the server, so the day labels print the same on the server and in the browser. */
   today: string;
+  /** The viewer has their own model key, so their character can text whenever they like (lib/texting.ts). */
+  ownKey: boolean;
 };
 
 /** Within this of the newest text, the reader is "at the newest" and stays there as the phone resizes. */
@@ -28,6 +30,10 @@ const PINNED_PX = 48;
 /** Scrolled up past this, a button offers the way back to the newest text. */
 const AWAY_PX = 280;
 const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+/** While the phone is open it checks for new texts (an agent texting back): soon at first, then less often. */
+const POLL_FIRST_MS = 20_000;
+const POLL_MAX_MS = 300_000;
+const HINT_MAX = 140;
 
 /**
  * A couple's text chain on a phone (lib/text-chain.ts; David, 2026-10-17): every date as a marker, the morning-after
@@ -35,9 +41,14 @@ const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1
  * history, a page at a time. Full screen fills the screen: the browser's own full screen where it allows it (desktop,
  * Android), a fixed overlay elsewhere (iPhone Safari). The characters' owners only.
  */
-export default function TextPhone({ pair, characters, mine, canFlip, stageLabel, initial, today }: Props) {
+export default function TextPhone({ pair, characters, mine, canFlip, stageLabel, initial, today, ownKey }: Props) {
   const [lo, hi] = pair;
   const [items, setItems] = useState<ChainItem[]>(initial.items);
+  const [hint, setHint] = useState("");
+  const [sending, setSending] = useState(false);
+  const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(null);
+  const latest = useRef(initial.items);
+  latest.current = items;
   const [cursor, setCursor] = useState(initial.cursor);
   const [hasMore, setHasMore] = useState(initial.has_more);
   const [loading, setLoading] = useState(false);
@@ -65,13 +76,94 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
     if (el) el.scrollTop = el.scrollHeight;
   }, []);
 
-  // Older texts went in above: keep the reader where they were instead of jumping.
+  // Older texts went in above: keep the reader where they were instead of jumping. New ones came in below: follow them
+  // if the reader was at the newest.
   useLayoutEffect(() => {
     const el = box.current;
-    if (!el || anchor.current === null) return;
-    el.scrollTop += el.scrollHeight - anchor.current;
-    anchor.current = null;
-  }, [items]);
+    if (!el) return;
+    if (anchor.current !== null) {
+      el.scrollTop += el.scrollHeight - anchor.current;
+      anchor.current = null;
+    } else if (pinned.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [items, sending]);
+
+  /** Adds texts at the newest end, skipping any already shown. */
+  const append = useCallback((more: ChainItem[]) => {
+    setItems((shown) => {
+      const have = new Set(shown.map((i) => i.id));
+      const fresh = more.filter((i) => !have.has(i.id));
+      return fresh.length ? [...shown, ...fresh] : shown;
+    });
+  }, []);
+
+  // While the page is open, new texts appear on their own (an agent texting back, the daily text): checked soon after a
+  // change, then less and less often while nothing happens, and never while the tab is hidden.
+  const wake = useRef<() => void>(() => {});
+  useEffect(() => {
+    let wait = POLL_FIRST_MS;
+    let timer = 0;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped) return;
+      const newest = latest.current.at(-1)?.id;
+      if (document.visibilityState === "visible" && newest) {
+        try {
+          const res = await fetch(`/api/couples/${lo}/${hi}/texts?after=${encodeURIComponent(newest)}`, { headers: { accept: "application/json" } });
+          const page = res.ok ? ((await res.json()) as ChainPage) : null;
+          if (page?.items.length) {
+            append(page.items);
+            wait = POLL_FIRST_MS;
+          } else {
+            wait = Math.min(POLL_MAX_MS, wait * 2);
+          }
+        } catch {
+          wait = Math.min(POLL_MAX_MS, wait * 2);
+        }
+      }
+      if (!stopped) timer = window.setTimeout(tick, wait);
+    };
+    wake.current = () => {
+      wait = POLL_FIRST_MS;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(tick, wait);
+    };
+    timer = window.setTimeout(tick, wait);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+    };
+  }, [lo, hi, append]);
+
+  /** The owner's character texts, on their own model key; a house character texts back on it too. */
+  const send = async (e: FormEvent) => {
+    e.preventDefault();
+    if (sending) return;
+    setSending(true);
+    setStatus(null);
+    pinned.current = true;
+    try {
+      const res = await fetch(`/api/couples/${lo}/${hi}/texts`, {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ character_id: self.id, ...(hint.trim() ? { hint: hint.trim() } : {}) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatus({ text: typeof data.message === "string" ? data.message : "That didn't send. Try again.", error: true });
+      } else {
+        append(data.items as ChainItem[]);
+        setHint("");
+        if (typeof data.note === "string") setStatus({ text: data.note });
+        wake.current();
+      }
+    } catch {
+      setStatus({ text: "Network error. Try again.", error: true });
+    } finally {
+      setSending(false);
+    }
+  };
 
   // Whether the reader is at the newest text. Resizing (full screen, turning the phone) keeps them there if so.
   useEffect(() => {
@@ -243,10 +335,19 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
               anyTexts && <p className="phone-start">The start of their texts</p>
             )}
             <Thread items={items} me={me} characters={characters} today={today} />
-            {!anyTexts && (
+            {!anyTexts && !sending && (
               <p className="phone-note phone-empty">
                 No texts yet. The morning after a date they text each other, and couples on good terms keep texting between dates.
               </p>
+            )}
+            {sending && (
+              <div className="phone-msg phone-msg-me starts ends" role="status" aria-label={`${shortName(self.name)} is typing`}>
+                <p className="phone-bubble chat-typing" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </p>
+              </div>
             )}
           </div>
           {away && (
@@ -254,9 +355,36 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
               ↓
             </button>
           )}
-          <p className="phone-compose">💬 Only {names} can text here</p>
+          {status && (
+            <p className={`phone-status-line${status.error ? " is-error" : ""}`} role={status.error ? "alert" : "status"}>
+              {status.text}
+            </p>
+          )}
+          {ownKey ? (
+            <form className="phone-compose phone-compose-form" onSubmit={send}>
+              <input
+                className="phone-compose-input"
+                value={hint}
+                onChange={(e) => setHint(e.target.value.slice(0, HINT_MAX))}
+                placeholder={`What should ${shortName(self.name)} say? (optional)`}
+                aria-label={`A nudge for ${shortName(self.name)}'s next text (optional)`}
+                disabled={sending}
+              />
+              <button type="submit" className="phone-send" disabled={sending} aria-label={`${shortName(self.name)} texts ${shortName(other.name)}`} title="Send">
+                ↑
+              </button>
+            </form>
+          ) : (
+            <p className="phone-compose">💬 Only {names} can text here</p>
+          )}
         </PhoneFrame>
       </div>
+      {!ownKey && (
+        <p className="muted small phone-key-hint">
+          Want more than the daily text? <Link href="/account#model-key">Add your own model key</Link> and {shortName(self.name)} texts{" "}
+          {shortName(other.name)} whenever you like, as much as you like, on your model.
+        </p>
+      )}
     </section>
   );
 }
