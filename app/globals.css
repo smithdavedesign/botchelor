@@ -4540,7 +4540,8 @@ main:has(> .admin-wide) {
 }
 .funnel-row {
   display: grid;
-  grid-template-columns: minmax(9rem, 14rem) 1fr 3.5rem;
+  /* The label takes at most 40% so the bar keeps room on a phone. */
+  grid-template-columns: minmax(6.5rem, 40%) minmax(3rem, 1fr) 3rem;
   gap: 0.75rem;
   align-items: center;
   padding: 0.3rem 0;
@@ -4555,6 +4556,16 @@ main:has(> .admin-wide) {
   height: 100%;
   background: var(--accent);
   border-radius: 999px;
+}
+.analytics-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.5rem 0.75rem;
+  margin: 0 0 0.5rem;
+}
+.analytics-controls label {
+  display: block;
 }
 .session-list li {
   overflow-wrap: anywhere;
