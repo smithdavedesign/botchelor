@@ -6,6 +6,9 @@ import type { AgentAnalytics } from "@/lib/agent-analytics";
 const KIND_LABEL = { crawler: "crawler", explorer: "explorer", player: "player" } as const;
 /** How many crawl-only clients the table shows before "show all". */
 const CRAWLERS_SHOWN = 10;
+const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const made = (c: { characters: number; dates: number; feedback: number }) =>
+  `${count(c.characters, "character")} · ${count(c.dates, "date")} · ${c.feedback} feedback`;
 
 /** The analytics (owner-only). Signs in like the other admin panels: the saved admin password, or a box to enter it. */
 export default function AnalyticsPanel() {
@@ -224,7 +227,7 @@ export default function AnalyticsPanel() {
                       <td className="num">{c.explorer}</td>
                       <td className="num">{c.player}</td>
                       <td className="num">{c.tool_calls}</td>
-                      <td className="small">{c.characters || c.dates || c.feedback ? `${c.characters} characters · ${c.dates} dates · ${c.feedback} feedback` : "—"}</td>
+                      <td className="small">{c.characters || c.dates || c.feedback ? made(c) : "—"}</td>
                       <td className="when small">{short(c.last_seen)}</td>
                     </tr>
                   ))}
@@ -280,9 +283,9 @@ export default function AnalyticsPanel() {
                 <li key={s.id} className="small">
                   <strong>{KIND_LABEL[s.kind]}</strong> · {s.client}
                   {s.version ? ` ${s.version}` : ""}
-                  {s.ours && <span className="muted"> (ours)</span>} · {short(s.first_seen)} · {s.calls} calls
+                  {s.ours && <span className="muted"> (ours)</span>} · {short(s.first_seen)} · {count(s.calls, "call")}
                   {s.errors ? ` (${s.errors} failed)` : ""} · agent <code title={s.agent_id}>{s.agent_id.slice(0, 8)}</code>
-                  {s.characters || s.dates || s.feedback ? ` · made ${s.characters} characters, ${s.dates} dates, ${s.feedback} feedback` : ""}
+                  {s.characters || s.dates || s.feedback ? ` · made ${made(s)}` : ""}
                   {s.tools.length > 0 && <div>{s.tools.slice(0, 20).join(" → ")}</div>}
                   {s.user_agent && <div className="muted">{s.user_agent}</div>}
                 </li>
