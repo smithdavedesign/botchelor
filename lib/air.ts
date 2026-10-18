@@ -4,8 +4,11 @@
  *
  * The prediction window: agents air a date the moment it's ready, which left nobody a chance to call it. So an
  * agent's public date airs no sooner than AIR_WINDOW_MINUTES after it was booked: air_date before then schedules it
- * (episodes.air_after), and the hourly job (or the host's next air_date) airs it when the window closes. People air
- * from the theater, where the audience is watching with them, so their dates aren't held.
+ * (episodes.air_after), and the hourly job (or the host's next air_date) airs it when the window closes.
+ *
+ * Every date airs by default (David, 2026-10-18): once its window closes, a public or unlisted date airs on its own,
+ * whoever booked it, the next time anyone opens it or the hourly job runs. A host who wants it off the air makes it
+ * private ("offline"), which it then stays. A watch party's premiere airs live in its room instead.
  */
 import type { Db } from "./db";
 import type { Ending } from "./rules";
@@ -67,14 +70,28 @@ export async function scheduleAir(db: Db, id: string, hostId: string, at: Date):
   return rows.length > 0;
 }
 
-/** Airs every scheduled date whose window has closed (the hourly job), or just one host's. Returns what aired. */
+/**
+ * The dates that air now ($1 is the window in minutes): ready and unaired, either scheduled and due, or (by default)
+ * public or unlisted and past the window. Never a private ("offline") date nobody scheduled, nor a watch party's.
+ */
+const DUE = `e.status = 'ready' and e.revealed_at is null and e.creator_id is not null
+  and ((e.air_after is not null and e.air_after <= now())
+       or (e.air_after is null and e.visibility <> 'private' and e.created_at <= now() - $1 * interval '1 minute'))
+  and not exists (select 1 from watch_parties w where w.episode_id = e.id)`;
+
+/** Airs one date if it's due (an episode being opened airs it, so nobody waits for the hourly job). */
+export async function airIfDue(db: Db, id: string, env: Record<string, string | undefined> = process.env): Promise<Aired | null> {
+  const r = (await db.query<{ creator_id: string }>(`select e.creator_id from episodes e where e.id = $2 and ${DUE}`, [airWindowMinutes(env), id])).rows[0];
+  return r ? airEpisode(db, id, r.creator_id) : null;
+}
+
+/** Airs every date that's due (the hourly job), or just one host's. Returns what aired. */
 export async function airDueDates(db: Db, hostId: string | null = null, limit = 50): Promise<(Aired & { id: string })[]> {
   const { rows } = await db.query<{ id: string; creator_id: string }>(
-    `select id, creator_id from episodes
-      where air_after is not null and air_after <= now() and revealed_at is null and status = 'ready'
-        and ($1::text is null or creator_id = $1)
-      order by air_after limit $2`,
-    [hostId, limit],
+    `select e.id, e.creator_id from episodes e
+      where ${DUE} and ($2::text is null or e.creator_id = $2)
+      order by coalesce(e.air_after, e.created_at) limit $3`,
+    [airWindowMinutes(), hostId, limit],
   );
   const aired: (Aired & { id: string })[] = [];
   for (const r of rows) {

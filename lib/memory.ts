@@ -520,7 +520,8 @@ export async function pendingReflections(db: Db, characterId: string, creatorId:
   const { rows } = await db.query<{ text: string | null }>(
     `select case when e.character_a = $1 then e.reflections->>'a' else e.reflections->>'b' end as text
        from episodes e
-      where (e.character_a = $1 or e.character_b = $1) and e.status = 'ready' and e.revealed_at is null and e.visibility = 'public'
+      where (e.character_a = $1 or e.character_b = $1) and e.status = 'ready'
+        and (e.revealed_at is null or e.visibility <> 'public')
         and (e.creator_id = $2 or e.partner_performer = $2) and ($3::text is null or e.id <> $3)
         and not exists (select 1 from memory_forgets f where f.character_id = $1 and f.kind = 'reflection' and f.item = e.id)
       order by e.created_at desc
@@ -535,6 +536,36 @@ export function withPendingReflections(memory: CharacterMemory | null, pending: 
   if (!pending.length) return memory;
   const base = memory ?? NO_MEMORY;
   return { ...base, reflections: [...new Set([...pending, ...base.reflections])].slice(0, REFLECTIONS_KEPT) };
+}
+
+/**
+ * What a character remembers about ONE partner, from every date between them that this date's creator may use: the
+ * public record, plus that creator's own unaired and private dates (David, 2026-10-18: "they should gain memory on any
+ * private date, text, or anything that has data between the two of them"). Only for the date's prompt: the stored
+ * memory, which the public card shows, keeps to aired public dates. Null when they've never met.
+ */
+export async function pairMemory(db: Db, selfId: string, otherId: string, creatorId: string): Promise<PersonMemory | null> {
+  const { rows } = await db.query<MemoryEpisode>(
+    `select e.id, e.ending, e.sides, e.transcript, e.reflections, (e.character_a = $1) as is_a,
+            coalesce(e.revealed_at, e.created_at) as revealed_at, e.drama_question, e.drama_answer, e.setup->>'venue' as venue,
+            o.id as other_id, o.name as other_name, o.is_house as other_house
+       from episodes e
+       join characters o on o.id = $2
+      where ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1))
+        and e.status = 'ready' and e.ending is not null
+        and ((e.revealed_at is not null and e.visibility = 'public') or e.creator_id = $3 or e.partner_performer = $3)
+      order by coalesce(e.revealed_at, e.created_at), e.id`,
+    [selfId, otherId, creatorId],
+  );
+  if (!rows.length) return null;
+  return (computeMemory(rows, undefined).people ?? []).find((p) => p.id === otherId) ?? null;
+}
+
+/** The memory a date's character carries, with what it remembers about tonight's partner from all their dates. */
+export function withPairMemory(memory: CharacterMemory | null, person: PersonMemory | null): CharacterMemory | null {
+  if (!person) return memory;
+  const base = memory ?? NO_MEMORY;
+  return { ...base, people: [person, ...(base.people ?? []).filter((p) => p.id !== person.id)] };
 }
 
 export async function updateCharacterMemory(db: Db, characterId: string): Promise<CharacterMemory> {
@@ -603,9 +634,16 @@ type Dated = {
   you_said: string | null;
 };
 
+/**
+ * A line that's only logistics ("Tuesday at seven, then"): never the line that sticks from a date. Remembering it made
+ * a couple book "same time next Tuesday" date after date (Cass and Dex, 2026-10-18).
+ */
+export const isLogistics = (line: string): boolean =>
+  /\b(mon|tues|wednes|thurs|fri|satur|sun)day\b|\bnext week\b|\bsame time\b|\b(at|by) (\d{1,2}(:\d\d)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b|\bpick you up\b/i.test(line);
+
 /** A side's most-interested line of a date that still passes the content filter, or null. */
 function standout(transcript: Turn[] | null, side: "a" | "b"): string | null {
-  const lines = (transcript ?? []).filter((t) => t.side === side && t.dialogue);
+  const lines = (transcript ?? []).filter((t) => t.side === side && t.dialogue && !isLogistics(t.dialogue));
   const best = [...lines].sort((x, y) => (y.interest ?? 0) - (x.interest ?? 0))[0];
   return best && checkFields({ line: best.dialogue }).ok ? best.dialogue : null;
 }

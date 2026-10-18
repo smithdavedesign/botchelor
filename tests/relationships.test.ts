@@ -344,8 +344,9 @@ describe("a planned venue doesn't trap a couple", () => {
     }).setup.venue;
   };
 
-  it("goes where they planned after one date there", () => {
-    expect(build([ep("c1", 1, { venue: "corner_cafe", afterglow: teaPlan })], "c1")).toBe("corner_cafe");
+  it("goes where they planned, but never to the same place twice in a row (Cass and Dex, 2026-10-18)", () => {
+    expect(build([ep("c1", 1, { venue: "rooftop_bar", afterglow: teaPlan })], "c1")).toBe("corner_cafe");
+    expect(build([ep("c1", 1, { venue: "corner_cafe", afterglow: teaPlan })], "c1")).not.toBe("corner_cafe");
   });
 
   it("goes somewhere new when their last two dates were both at the planned place", () => {

@@ -140,7 +140,7 @@ describe("with the database", () => {
     expect(why("Harbour Pilot")).toMatch(/wants "high water" — that's in Harbour Pilot's profile/);
   });
 
-  it("a character's own reflection on a public date still waiting to air reaches its next date; a private one and another creator's don't", async () => {
+  it("a character's own reflections on its creator's unaired and private dates reach its next date; another creator's don't", async () => {
     const cookie = newUserCookie();
     const userId = userIdOf(cookie);
     const me = (await (await api.createCharacter(validCharacter({ name: "Wren Kestrel" }), cookie)).json()).id as string;
@@ -150,7 +150,8 @@ describe("with the database", () => {
     const hidden = await book(cookie, me, "house-sable");
     await t.db.query(`update episodes set visibility = 'private', reflections = jsonb_build_object($2::text, 'A private lesson.') where id = $1`, [hidden.id, side(hidden)]);
     const built = await buildDate(t.db, "ep-next", await forDate(me), await forDate("house-teo"), DEFAULT_DATE_REQUEST, undefined, undefined, { creatorId: userId });
-    expect(built.characters[0].memory?.reflections).toEqual(["Ask the second question, then listen."]);
+    // David (2026-10-18): a private date counts between the characters too, so its lesson comes along.
+    expect([...(built.characters[0].memory?.reflections ?? [])].sort()).toEqual(["A private lesson.", "Ask the second question, then listen."]);
     // Booked by someone else, the pending lesson stays out (it's that creator's own unaired date).
     const theirs = await buildDate(t.db, "ep-theirs", await forDate(me), await forDate("house-teo"), DEFAULT_DATE_REQUEST, undefined, undefined, { creatorId: "someone-else" });
     expect(theirs.characters[0].memory?.reflections ?? []).toEqual([]);

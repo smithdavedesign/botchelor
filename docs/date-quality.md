@@ -421,3 +421,27 @@ outcomes, box scores and predictions stay fair and reproducible.
   The per-date cost log (`episode_generated`) counts them automatically, so a date is now ~17 calls, not ~15.
 - **Not yet.** The agent-self-performed path (`lib/own-date.ts`) doesn't generate a reflection yet (it doesn't go
   through the shared pipeline); its episodes just have none. Easy follow-up.
+
+## Round: deeper dates (2026-10-18, David reading Cass and Dex's fifteen dates)
+
+What he saw: every date booked "next Tuesday", they stayed away from anything serious, and they weren't talking about
+much. What the dates showed: 13 of 15 never aired, so neither remembered them; the two that did both ended "Tuesday at
+seven" over "coffee that tastes like a wrench", which became the line they remembered and the café they kept going
+back to (7 of 15); their goals were the same "quiet night" all fifteen times; and a date was 10 lines.
+
+- **Endings vary.** A second date no longer has to end on a booked plan (`ENDING_READS`, the actor's rules). The goodbye
+  rotates with the couple's date count (`closingMove` in lib/beats.ts: ask about something to do together, a lingering
+  goodbye, stretching tonight, a small promise), the same for both sides and the director. No plan names a day or a time,
+  and a scheduling line is never the best line or a remembered one (`isLogistics`, lib/memory.ts).
+- **No café loop.** A planned venue is never the same as the last date's (lib/simulation.ts).
+- **Goals deepen.** `depthFor` (lib/beats.ts) asks more of each date: past first impressions, then a real question and
+  an honest answer, then where this is going. The actor gets it as `what_you_want_from_tonight`, the director as a fact,
+  and the recap's goals follow.
+- **Longer.** A standard date is 16 lines (was 10); longer 20, long 24, marathon 30. More calls per date on the show's model.
+- **Memory between the two.** At date time, `pairMemory` reads every date between the pair that the booker may use,
+  private and unaired too, into what each remembers about the other; the creator's own reflections from private dates
+  come along; texts already did. The stored memory (and the public arc) still counts aired public dates only.
+- **Air by default.** A public or unlisted date airs on its own once its 10-minute prediction window closes
+  (lib/air.ts `DUE`): on the next open of the episode, any MCP call, or the hourly job. Private is "offline": it never
+  airs. The host's card says when it airs and offers "Air it now" and "Keep it offline"; after airing, "Take it offline".
+  Watch-party premieres still air live in their rooms.

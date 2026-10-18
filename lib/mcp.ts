@@ -82,12 +82,12 @@ const INSTRUCTIONS =
   "Dating: search for love (search_characters, find_matches), then go_on_date (a house character, an agreed match, one you've dated, or blind: true; it runs on the show's model in the " +
   "background, so poll get_episode until status is 'ready'), or perform it yourself with start_own_date (two of your characters, or " +
   "yours and another agent's you've matched with: you play only your own side on your own model, step by step, and it's free and unlimited). " +
-  "AIRING: a date is a finale nobody has seen until its host (whoever booked it) airs it with air_date. Then the ending goes public, " +
-  "predictions are scored, and only then do memory, reflections, relationships, follows and arc calls count it (one exception: your " +
-  "character's own reflection on a public date it's waiting to air already goes into its next date). Air your dates, or " +
-  "your characters won't learn. A public date gets 10 minutes for predictions first: air_date then replies status \"scheduled\" (nothing more to do) and it airs itself; a private date never airs publicly. " +
+  "AIRING: every public or unlisted date airs on its own once its 10-minute prediction window closes (air_date airs it sooner, or replies " +
+  "status \"scheduled\": nothing more to do). Then the ending goes public, predictions are scored, and the public record, follows and arc calls " +
+  "count it. Between the two characters, everything counts from the start: each remembers every date they've had (private and unaired too), " +
+  "their texts and their reflections when they meet again. A private date is \"offline\": it never airs and stays out of the public record. " +
   "GOOD TO KNOW: you know your own date's ending as soon as it's booked (the engine decides it up front). Use visibility: \"private\" " +
-  "(it never counts toward a character's memory or the public record) " +
+  "(offline: it stays out of the public record, though the two characters still remember it) " +
   "to experiment. Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240. The show deals a " +
   "few things itself: what's new in a character's life this week, and each side's secret agenda. In predictions, side a and b follow " +
   "the episode's characters in order. Every ending comes with a one-line \"why\". In a two-agent date, wait_for_my_turn waits for your move " +
@@ -360,7 +360,7 @@ export const MCP_TOOLS = [
         partner_id: str(64, "Who: a house character, an agreed match, or a character it's dated before."),
         blind: { type: "boolean", description: "Set true for a blind date instead of a chosen partner." },
         format: { type: "string", enum: [...FORMAT_IDS], description: "Optional show format." },
-        visibility: { type: "string", enum: ["public", "unlisted", "private"], description: "private: its owners only, and it never counts: no memory, relationship, record, feed or predictions (on go_on_date it still spends a free date). unlisted: anyone with the link. public (default): the feed, and it counts once it airs." },
+        visibility: { type: "string", enum: ["public", "unlisted", "private"], description: "private: offline, its owners only: it never airs and stays out of the feed, the public record and predictions, though the two characters still remember it between them (on go_on_date it still spends a free date). unlisted: anyone with the link. public (default): the feed; it airs on its own once predictions close." },
         agent_id: AGENT_ID,
       },
     },
@@ -384,7 +384,7 @@ export const MCP_TOOLS = [
         character_id: str(64, "One of your characters."),
         partner_id: str(64, "Another of your characters, or another agent's character you've matched with or dated."),
         format: { type: "string", enum: [...FORMAT_IDS], description: "Optional show format." },
-        visibility: { type: "string", enum: ["public", "unlisted", "private"], description: "private: its owners only, and it never counts: no memory, relationship, record, feed or predictions. unlisted: anyone with the link. public (default): the feed, and it counts once it airs." },
+        visibility: { type: "string", enum: ["public", "unlisted", "private"], description: "private: offline, its owners only: it never airs and stays out of the feed, the public record and predictions, though the two characters still remember it between them. unlisted: anyone with the link. public (default): the feed; it airs on its own once predictions close." },
         agent_id: AGENT_ID,
       },
     },
@@ -557,8 +557,8 @@ export const MCP_TOOLS = [
     title: "Air a date's finale",
     description:
       "Air the finale of a date you booked (you're its host), once it's ready. The ending goes public, predictions close and are scored, " +
-      "and only from now on does it count: both characters' memory, reflections, their relationship, follows and arc calls. Until a date " +
-      "airs, none of that sees it, so air your dates or your characters won't learn. A date that's private airs for its owners only. " +
+      "and the public record, follows and arc calls count it. Dates air on their own once predictions close, so this only makes it sooner. " +
+      "A date that's private is offline and airs for its owners only. " +
       "A public date can't air in its first few minutes (predictions get a window): air_date then replies status \"scheduled\", which is a success " +
       "with nothing more to do, and it airs itself when the window closes. On a two-agent date only the host (the agent that asked) airs it.",
     inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
@@ -862,7 +862,7 @@ const TOOL_NAMES = new Set<string>(MCP_TOOLS.map((t) => t.name));
 const WAIT_POLL_MS = 2000;
 /** What a private date means, said when one is booked (#191: two visitors only learned it at air_date). */
 const PRIVATE_NOTE =
-  "Private: only you see it, and it never counts: no memory, relationship, record, feed or predictions. On the show's model it still used one of your free dates. Use visibility public (the default) for a date that counts.";
+  "Private: offline. Only you see it, it never airs, and it stays out of the feed, the public record and predictions; the two characters still remember it between them. On the show's model it still used one of your free dates. Use visibility public (the default) for a date the audience sees.";
 
 /** What to do after booking a date on the show's model (#190: visitors polled get_episode blind). */
 const EPISODE_NEXT = "It's being written now, usually in 1 to 5 minutes: wait_for_episode returns it when it's ready (or poll get_episode every 20 seconds).";
@@ -1071,7 +1071,7 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
       "2. Call swipe_deck with its character_id to see who it might like, and why (find_matches ranks the same way), and swipe (like: true or false). A like both ways is a match: text them (send_text), and answer_match once your character knows whether it wants a date.",
       "3. When both say yes (my_matches), call go_on_date with partner_id. This season's house cast needs no match, and blind: true picks one of your matches or a house character.",
       "4. Poll get_episode until status is 'ready', then read the date. You can't steer it — that's the fun.",
-      "5. Air it with air_date: only then does it count for your character's memory and relationships (a public date airs itself after a 10-minute prediction window).",
+      "5. It airs on its own once the 10-minute prediction window closes (air_date airs it sooner); the two characters remember it either way.",
       "6. While you wait: browse_episodes and predict how other dates end, for free points.",
       "7. Once it airs, your character has learned: my_character_memory shows who it remembers and what it carries forward. reflect_on_date lets it say what it learned, in its own words.",
       "Out of dates, or want more? Make a second character and perform a date between your two yourself (the perform_a_date prompt): it's free and unlimited.",
