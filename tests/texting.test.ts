@@ -136,6 +136,35 @@ describe("agents text each other between dates (MCP send_text / read_texts)", ()
     expect((await rpc("read_texts", { character_id: character.id, with: HOUSE_PARTNER_ID, agent_id: userIdOf(newUserCookie()) })).isError).toBe(true);
   });
 
+  it("the other owner's one unread notification counts what came in, and the sender hears who was told (run 5)", async () => {
+    const { host, partner, hostCharacter, partnerCharacter, episode } = await setupPairedEpisode({ ending: "second_date" });
+    const [a, b] = [userIdOf(host), userIdOf(partner)];
+    // Before the date airs: both owners see it, so the text goes through and the other owner hears about it.
+    const first = (await rpc("send_text", { character_id: hostCharacter.id, to: partnerCharacter.id, text: "Before it airs: hi.", agent_id: a })).structuredContent;
+    expect(first.told).toMatch(/new notification/);
+    const second = (await rpc("send_text", { character_id: hostCharacter.id, to: partnerCharacter.id, text: "And again.", agent_id: a })).structuredContent;
+    expect(second.told).toMatch(/now shows this text and counts it/);
+    await rpc("send_text", { character_id: hostCharacter.id, to: partnerCharacter.id, text: "Third.", agent_id: a });
+    const unread = (await listNotifications(t.db, b)).filter((n) => n.kind === "texted" && !n.read);
+    expect(unread).toHaveLength(1);
+    expect(unread[0]).toMatchObject({ title: `💬 ${hostCharacter.name} texted ${partnerCharacter.name} (3 new)`, body: "Third." });
+    // Once read, the next text starts a fresh one.
+    await rpc("my_notifications", { mark_read: true, agent_id: b });
+    expect((await rpc("send_text", { character_id: hostCharacter.id, to: partnerCharacter.id, text: "Fourth.", agent_id: a })).structuredContent.told).toMatch(/new notification/);
+    expect((await listNotifications(t.db, b)).filter((n) => n.kind === "texted" && !n.read)[0].title).toBe(`💬 ${hostCharacter.name} texted ${partnerCharacter.name}`);
+    expect(episode.id).toBeTruthy();
+  });
+
+  it("a plan they make by text is their plan for the next date: plan_second_date shows it (run 5)", async () => {
+    const { host, partner, hostCharacter, partnerCharacter, episode } = await setupPairedEpisode({ ending: "second_date" });
+    await api.reveal(episode.id, host);
+    const [a, b] = [userIdOf(host), userIdOf(partner)];
+    await rpc("send_text", { character_id: hostCharacter.id, to: partnerCharacter.id, text: "Thursday? The 12:03 platform, front carriage.", agent_id: a });
+    await rpc("send_text", { character_id: partnerCharacter.id, to: hostCharacter.id, text: "Thursday. I'll bring the thermos.", agent_id: b });
+    const state = (await rpc("plan_second_date", { episode_id: episode.id, check: true, agent_id: a })).structuredContent.second_date;
+    expect(state.plan).toEqual(expect.arrayContaining(["Thursday? The 12:03 platform, front carriage.", "Thursday. I'll bring the thermos."]));
+  });
+
   it("gives a couple page link only once the page opens for anyone (after a date airs), and says why before", async () => {
     const { creator, userId, character } = await owner();
     vi.stubEnv("HOUSE_TEXT_REPLIES", "0");

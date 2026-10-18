@@ -1296,6 +1296,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           sent: agentText(r.sent, self),
           reply: r.reply ? agentText(r.reply, self) : null,
           ...(r.note ? { note: r.note } : {}),
+          // Who heard about it: their owner's inbox gets one unread "texted" notification per couple, kept to the latest text.
+          ...(r.told === "notified"
+            ? { told: "Their owner has a new notification (my_notifications, kind texted)." }
+            : r.told === "updated"
+              ? { told: "Their owner's unread notification for you two now shows this text and counts it (one per couple until they read it)." }
+              : {}),
           ...pageLink(r.couplePage, "#texts"),
         },
         identity: who,

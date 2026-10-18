@@ -16,7 +16,7 @@ import { characterBlindView, characterSelfView, loadCharacter, type Character } 
 import type { Db } from "./db";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { notifyAll } from "./notifications";
-import { loadRelationship, pairContext, pairKey, PUBLIC_ONLY, type End } from "./relationships";
+import { loadRelationship, pairContext, pairKey, PUBLIC_ONLY, refreshRelationship, textMakesPlan, type End } from "./relationships";
 import { AFTERGLOW_TEXT_MAX, parseAfterglowLine } from "./afterglow";
 import { checkFields } from "./safety";
 import { loadChain, promptTexts, PUBLIC_VIEWER, type ChainItem } from "./text-chain";
@@ -224,7 +224,12 @@ export async function insertText(db: Db, lo: string, hi: string, who: End, text:
        returning seq, created_at`,
       [lo, hi, day, who, text, via],
     );
-    if (rows[0]) return { day, seq: rows[0].seq, at: new Date(rows[0].created_at).toISOString() };
+    if (rows[0]) {
+      // A plan made by text ("Thursday, the 12:03 platform") is the couple's plan for their next date: refresh their
+      // edge so plan_second_date, the next date's venue and its characters see it (lib/relationships.ts).
+      if (textMakesPlan(text)) await refreshRelationship(db, lo, hi).catch(() => null);
+      return { day, seq: rows[0].seq, at: new Date(rows[0].created_at).toISOString() };
+    }
   }
   throw new Error("couple_texts: no free seq after 5 tries");
 }
