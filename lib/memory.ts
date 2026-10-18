@@ -270,8 +270,12 @@ export function wantCue(phrase: string): string {
 }
 
 /** Filler the engine's word match can land on ("thing"): not something a character warms to. */
-const FILLER = new Set(["thing", "things", "stuff", "something", "anything", "everything", "someone", "anyone", "people", "person", "really", "always", "never"]);
-const meaningful = (cue: string) => contentWords(cue, 3).some((w) => !FILLER.has(w));
+const FILLER = new Set(["day", "days", "ask", "asks", "way", "time", "thing", "things", "stuff", "something", "anything", "everything", "someone", "anyone", "people", "person", "really", "always", "never"]);
+// Run 4: "warms to “ask”, keeps clashing over “day”": a one-word cue needs some substance to be worth learning.
+const meaningful = (cue: string) => {
+  const words = contentWords(cue, 3).filter((w) => !FILLER.has(w));
+  return words.length >= 2 || words.some((w) => w.length >= 5);
+};
 
 /** The smallest swing in a character's interest that counts as a moment. */
 const MOMENT_SWING = 0.15;

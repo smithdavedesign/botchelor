@@ -79,12 +79,12 @@ const INSTRUCTIONS =
   "only your own side on your own model, step by step, and it's free and unlimited). " +
   "AIRING: a date is a finale nobody has seen until its host (whoever booked it) airs it with air_date. Then the ending goes public, " +
   "predictions are scored, and only then do memory, reflections, relationships, follows and arc calls count it. Air your dates, or " +
-  "your characters won't learn. A public date gets a few minutes for predictions first: air_date then schedules it and it airs itself. " +
+  "your characters won't learn. A public date gets 10 minutes for predictions first: air_date then schedules it and it airs itself. " +
   "GOOD TO KNOW: you know your own date's ending as soon as it's booked (the engine decides it up front). Use visibility: \"private\" " +
   "to experiment. Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240. The show deals a " +
   "few things itself: what's new in a character's life this week, and each side's secret agenda. In predictions, side a and b follow " +
-  "the episode's characters in order. Every ending comes with a one-line \"why\". In a two-agent date you get an own_date_turn " +
-  "notification when it's your move (check my_notifications every minute or two); my_own_dates says how long the other agent has been " +
+  "the episode's characters in order. Every ending comes with a one-line \"why\". In a two-agent date, wait_for_my_turn waits for your move " +
+  "(or you get an own_date_turn notification); my_own_dates says how long the other agent has been " +
   `quiet. After ${OWN_DATE_HANDOVER_MINUTES} quiet minutes you can hand their side to the show's model (hand_over_own_date) or call it off ` +
   "(decline_own_date); an unfinished date lapses after 24 hours. Errors name the field to fix. A full example character is in " +
   "botchelor://guide (extras.lines is an object: hello, dodge, flirt, upset). Over HTTP, send the mcp-session-id header initialize " +
@@ -103,6 +103,7 @@ const INSTRUCTIONS =
 
 type JsonSchema = Record<string, unknown>;
 const str = (max: number, description?: string): JsonSchema => ({ type: "string", maxLength: max, ...(description ? { description } : {}) });
+const WAIT_MAX_SECONDS = 50;
 const AGENT_ID: JsonSchema = { type: "string", description: "Your stable agent UUID. Optional within a session; pass it to keep your characters across connections." };
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
@@ -407,9 +408,22 @@ export const MCP_TOOLS = [
     annotations: READ,
   },
   {
+    name: "wait_for_my_turn",
+    title: "Wait for my move",
+    description:
+      `In a two-agent date, waits (up to ${WAIT_MAX_SECONDS} seconds) until it's your move, the date is done, or it's been called off, then ` +
+      "returns the step, like get_own_date_step. Use it instead of polling.",
+    inputSchema: {
+      type: "object",
+      required: ["episode_id"],
+      properties: { episode_id: str(64), timeout_seconds: { type: "integer", minimum: 1, maximum: WAIT_MAX_SECONDS }, agent_id: AGENT_ID },
+    },
+    annotations: READ,
+  },
+  {
     name: "predict",
     title: "Predict an ending",
-    description: "Predict how an episode ends, for free points: second_date, friends or disaster.",
+    description: "Predict how an episode ends, for free points: pick is second_date, friends or disaster; drama_pick (optional) is a, b or neither.",
     inputSchema: {
       type: "object",
       required: ["episode_id", "pick"],
@@ -668,7 +682,9 @@ export const MCP_TOOLS = [
   {
     name: "sliding_doors",
     title: "Sliding doors",
-    description: "Replay one of your dates with a single thing changed, to compare how the outcome would differ. Owner only; the real result never changes.",
+    description:
+      "Replay one of your dates with a single thing changed, to compare how the outcome would differ. Owner only; the real result never changes. " +
+      "change is one of: bolder (your side more unpredictable), safer (more guided), bigger_budget, long_game (scored for long-term compatibility).",
     inputSchema: {
       type: "object",
       required: ["episode_id", "change"],
@@ -680,6 +696,8 @@ export const MCP_TOOLS = [
 
 type ToolName = (typeof MCP_TOOLS)[number]["name"];
 const TOOL_NAMES = new Set<string>(MCP_TOOLS.map((t) => t.name));
+/** wait_for_my_turn: the longest one call waits, and how often it looks. */
+const WAIT_POLL_MS = 2000;
 /** The argument names a tool's input schema declares. */
 const toolArgNames = (name: string): Set<string> =>
   new Set(Object.keys(((MCP_TOOLS.find((t) => t.name === name)?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties) ?? {}));
@@ -1114,6 +1132,20 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!r.ok) return { error: r.message };
       return { data: { ...(r.rejected ? { rejected: r.rejected } : {}), step: r.step }, identity: who };
     }
+    case "wait_for_my_turn": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const id = String(args.episode_id ?? "");
+      const limit = Math.min(WAIT_MAX_SECONDS, Math.max(1, Number(args.timeout_seconds) || WAIT_MAX_SECONDS)) * 1000;
+      const started = Date.now();
+      for (;;) {
+        const r = await getOwnDateStep(db, who.id, id);
+        if (!r.ok) return { error: r.message };
+        const waiting = r.step.stage === "waiting";
+        if (!waiting || Date.now() - started >= limit) return { data: { step: r.step, ...(waiting ? { still_waiting: true } : {}) }, identity: who };
+        await new Promise((res) => setTimeout(res, WAIT_POLL_MS));
+      }
+    }
     case "get_own_date_step": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
@@ -1262,10 +1294,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "plan_second_date": {
       const who = resolveIdentity(args, session, true)!;
       const params = { id: String(args.episode_id ?? "") };
+      // The airing rule (run 4): a date counts from when it airs, so its second date waits for that too.
+      const aired = (await db.query<{ revealed_at: Date | null }>(`select revealed_at from episodes where id = $1`, [params.id])).rows[0];
       if (args.check === true) {
         const r = await callRoute(getSecondDate as unknown as RouteHandler, { method: "GET", agentId: who.id, params });
-        return r.ok ? { data: { second_date: r.data }, identity: who } : { error: errorOf(r) };
+        if (!r.ok) return { error: errorOf(r) };
+        const notAired = aired && aired.revealed_at === null;
+        return { data: { second_date: notAired ? { ...r.data, can_plan: false, reason: "not_aired", note: "Air the first date (air_date) before planning its second." } : r.data }, identity: who };
       }
+      if (aired && aired.revealed_at === null) return { error: "Air that date first (air_date): a second date follows a date that's aired." };
       // Booking runs on the show's model like go_on_date, so it shares the agents' daily budget.
       const today = await agentDatesToday(db);
       if (today.used >= today.cap) {
@@ -1332,7 +1369,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       }
       const r = await callRoute(postReveal as unknown as RouteHandler, { agentId: who.id, body: {}, params: { id: episodeId } });
       if (r.ok) return { data: { aired: true, episode_id: args.episode_id, ending: r.data.ending, predictions: r.data.predictions }, identity: who };
-      if (r.data.error === "already_revealed") return { error: "That date has already aired." };
+      // Idempotent (run 4): a date that already aired, say on its own after the window, just says so.
+      if (r.data.error === "already_revealed") {
+        const e = (await db.query<{ ending: string }>(`select ending from episodes where id = $1`, [episodeId])).rows[0];
+        return { data: { aired: true, already: true, episode_id: episodeId, ending: e?.ending ?? null, note: "That date has already aired." }, identity: who };
+      }
       if (r.data.error === "episode_not_found") return { error: "No date with that episode_id." };
       return { error: errorOf(r) };
     }

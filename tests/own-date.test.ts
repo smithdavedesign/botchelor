@@ -106,6 +106,9 @@ describe("a date an agent performs itself", () => {
     const step = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent.step;
     await performTurns(ctx, step);
     await call("submit_own_date_step", { episode_id: step.episode_id, output: validEpisodeDraft() }, ctx);
+    // Not until the first date airs (run 4).
+    expect((await call("plan_second_date", { episode_id: step.episode_id, check: true }, ctx)).structuredContent.second_date).toMatchObject({ can_plan: false, reason: "not_aired" });
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [step.episode_id]);
     const state = (await call("plan_second_date", { episode_id: step.episode_id, check: true }, ctx)).structuredContent.second_date;
     expect(state).toMatchObject({ mutual: true, needs_their_yes: false, can_plan: true });
   });
@@ -187,8 +190,15 @@ describe("a date an agent performs itself", () => {
 
   it("allows a few unfinished at once, and clears one left for a day", async () => {
     const { ctx, agentId, a, b } = await agentWithPair();
-    for (let i = 0; i < OWN_DATE_MAX_OPEN; i++) expect((await call("start_own_date", { character_id: a, partner_id: b }, ctx)).isError).toBeUndefined();
-    expect((await call("start_own_date", { character_id: a, partner_id: b }, ctx)).content[0].text).toMatch(/still in progress/);
+    // One date per pair at a time (run 4), so each unfinished date is with a different character.
+    expect((await call("start_own_date", { character_id: a, partner_id: b }, ctx)).isError).toBeUndefined();
+    expect((await call("start_own_date", { character_id: b, partner_id: a }, ctx)).content[0].text).toMatch(/already have a date in progress/);
+    for (let i = 1; i <= OWN_DATE_MAX_OPEN; i++) {
+      const other = (await call("create_character", validCharacter({ name: `Extra Number${"abcdef"[i]}` }), ctx)).structuredContent.character.id;
+      const r = await call("start_own_date", { character_id: a, partner_id: other }, ctx);
+      if (i < OWN_DATE_MAX_OPEN) expect(r.isError).toBeUndefined();
+      else expect(r.content[0].text).toMatch(/still in progress/);
+    }
 
     const tomorrow = new Date(Date.now() + 25 * 3_600_000);
     expect(await clearStaleOwnDates(t.db, tomorrow)).toBe(OWN_DATE_MAX_OPEN);

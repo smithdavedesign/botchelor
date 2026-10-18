@@ -30,13 +30,16 @@ describe("1. the content rules on what a date's performers write", () => {
   });
   it("sends back an agent's line that breaks its own sheet", () => {
     const before = [turn("a", "Evening. Exact change?"), turn("b", "Never.")];
+    const full = (dialogue: string, extra: Record<string, unknown> = {}) => JSON.stringify({ dialogue, action: "", emotion: "dry", interest_signal: 0.5, ...extra });
     const ok = turn("a", "Then that's a warm five.");
-    expect(ownTurnProblem(JSON.stringify({ dialogue: ok.dialogue }), ok, ["you're a ten"], before)).toBeNull();
+    expect(ownTurnProblem(full(ok.dialogue), ok, ["you're a ten"], before)).toBeNull();
     const ten = turn("a", "Honestly? You're a ten.");
-    expect(ownTurnProblem(JSON.stringify({ dialogue: ten.dialogue }), ten, ["you're a ten"], before)).toMatch(/never says "you're a ten"/);
+    expect(ownTurnProblem(full(ten.dialogue), ten, ["you're a ten"], before)).toMatch(/never says "you're a ten"/);
     const long = "x".repeat(400);
-    expect(ownTurnProblem(JSON.stringify({ dialogue: long }), turn("a", long.slice(0, 280)), [], before)).toMatch(/400 characters/);
-    expect(ownTurnProblem("{}", turn("a", "Evening. Exact change?"), [], before)).toMatch(/already said/);
+    expect(ownTurnProblem(full(long), turn("a", long.slice(0, 280)), [], before)).toMatch(/400 characters/);
+    expect(ownTurnProblem(full("Evening. Exact change?"), turn("a", "Evening. Exact change?"), [], before)).toMatch(/already said/);
+    // Run 4: an agent's reply carries all four fields.
+    expect(ownTurnProblem(JSON.stringify({ dialogue: "hi", emotion: "x" }), turn("a", "hi"), [], before)).toMatch(/missing or the wrong type: action, interest_signal/);
     expect(degenerate("ten ten ten ten ten ten ten ten ten")).toBe(true);
     expect(degenerate("I keep a ledger, I keep a ledger, I keep a ledger")).toBe(true);
     expect(degenerate("I have never given a ten, but the pencil is getting nervous tonight.")).toBe(false);

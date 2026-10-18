@@ -1,6 +1,6 @@
 # Two agents arrive with no instructions (2026-10-17)
 
-> Three runs, the same day. [Run 1](#the-setup) found the gaps. [Run 2](#run-2-after-airing-onboarding-and-errors-2026-10-17) came after the top three fixes, and [run 3](#run-3-after-round-3-2026-10-17) after the rest. Runs 2 and 3 each scored 8/10 from both visitors. Run 3 found new bugs, mostly fixed in round 4; three items are still open.
+> Four runs, the same day. [Run 1](#the-setup) found the gaps. Runs [2](#run-2-after-airing-onboarding-and-errors-2026-10-17), [3](#run-3-after-round-3-2026-10-17) and [4](#run-4-with-agent-texting-2026-10-17) each followed a round of fixes, and each scored 8/10 from both visitors. Run 4 was the first with agents texting each other, and the first where they sent their feedback through `send_feedback`.
 
 **What we tried:** two independent AI agents (Claude, as general-purpose sub-agents) were each given only an MCP address. They weren't told what the product is or what to do with it. The question was what an agent makes of Botchelor on its own, and what it needs to be told when it connects.
 
@@ -521,3 +521,61 @@ All of visitor A's suggestions 1–8 are done (#150). Visitor B's overlapped wit
 **Suggestions:** no private information across sides; whole phrases instead of keyword slots; memory based on what happened; airing on a timer with `airs_at`; check the recap against the transcript; explain friends-but-mutual; matching by meaning; a minors check on bios; document three traits and fix `my_pick`.
 
 </details>
+
+---
+
+# Run 4: with agent texting (2026-10-17)
+
+**What changed since run 3:**
+- #155 fixed run 3's findings.
+- #157 added `send_feedback` and `/admin/feedback`.
+- #158 (the other session) let agents text each other at any point with `send_text` and `read_texts`.
+
+**The run:** same brief, cast and model, on a production build of `436cbda`. It cost **6.8¢**, from $53.883 to $53.815: more dates than before, plus house characters replying to texts.
+
+**Short answer:**
+- **The verdict:** both visitors gave it **8/10**.
+- **Texting worked from the first try:**
+  - house characters (Nell, Rafe) replied in character;
+  - the two agents texted each other (tide readings for star ratings) and settled on "Thursday, booth two";
+  - a second date picked up details from the texts ("Thursday", "high water 10.52").
+- **Feedback worked end to end.** Both visitors used `send_feedback` unprompted. The two rows below came with their session (client name, user agent, 108 and 144 calls); in production they show on `/admin/feedback`.
+- **The two agents converged a third time:** Bertrand Okonkwo-Laine and Marguerite Okonkwo-Lind, both 44, both on night shifts, both keeping a ledger. They also asked each other's characters out within a minute, so one pair had two dates going at once.
+
+## What they sent through `send_feedback`
+
+| Visitor | Rating | Liked | Wants |
+|---|---|---|---|
+| E | 8 | "Instructions on initialize are excellent… refusals name the problem… two-agent dates with another agent worked smoothly and quickly; second date and texts carry continuity" | To see the other agent's turn without polling; a warning on a duplicate two-agent date; the allowed values in tool descriptions |
+| F | 8 | "The initialize instructions alone were enough… Two-agent dates worked end to end… Continuity is real… sliding_doors and the box-score 'why' make the engine legible" | A wait or long-poll tool; a duplicate-date warning; originality checked against agent-made characters |
+
+## What they hit, and what we did
+
+| # | Finding | Who | Status |
+|---|---|---|---|
+| 1 | `submit_own_date_step` accepted `{"dialogue":"hi","emotion":"x"}` | E | ✅ Round 5: an agent's turn needs all four fields, with `interest_signal` from 0 to 1 |
+| 2 | Polling `my_own_dates` for your move | E, F | ✅ Round 5: `wait_for_my_turn` waits up to 50 seconds |
+| 3 | Two two-agent dates between one pair at once | E, F | ✅ Round 5: refused, naming the date already in progress |
+| 4 | `plan_second_date` said `can_plan: true` before the first date aired | E | ✅ Round 5, for agents: the check says `not_aired`, and booking asks you to air it first |
+| 5 | "a wristwatch you isn't wearing" | E | ✅ Round 5: verb agreement after "you" (isn't→aren't, has→have…) |
+| 6 | `air_date` on a date that had aired by itself returned an error | F | ✅ Round 5: returns `aired: true, already: true` with the ending |
+| 7 | The invited agent isn't told who airs the date | F | ✅ Round 5: its "done" notification says the asking agent airs it, or it airs itself after 10 minutes |
+| 8 | Act one of a second date was still called "First impressions" | E, F | ✅ Round 5: "Picking up where they left off" |
+| 9 | Memory cues of one word ("ask", "day", "bridge"); match reasons of one short word ("keep") | E, F | ✅ Round 5: a cue needs two words or one with some length; so does a match reason |
+| 10 | Allowed values for `drama_pick` and `sliding_doors.change` were only in the schema | E | ✅ Round 5: in the descriptions too |
+| 11 | Wrong pronouns, and a role swapped, in show-written confessionals | E, F | ✅ Round 5 (prompt): each confessional is about the *other* character, with their pronouns |
+| 12 | `send_text` returned a couple-page link that gave a 404 before the date aired | F | ✅ #159 (texting session): the link comes back only once the page is open |
+| 13 | Rafe's reply text mentioned a sofa out of nowhere | E | ✅ #159: it came from his dealt "this week"; replies answer the last text and stay with what both characters know |
+| 14 | `get_relationships` showed a stage before any date aired | E | Open: the owner's relationship view includes their own unaired dates by design, but nothing says so |
+| 15 | Originality misses concept twins (a third time) | E, F | Open: needs embeddings or a model call |
+| 16 | The same double-date venue on two dates booked close together | F | Open (minor) |
+| 17 | Agents played both of their characters in one process | E | By design: we can't see an agent's processes |
+
+## Run 1 → run 4
+
+| | Run 1 | Run 2 | Run 3 | Run 4 |
+|---|---|---|---|---|
+| Rating | 7, 7.5 | 8, 8 | 8, 8 | 8, 8 |
+| Two-agent dates | Stalled | Stalled | Both ways, finished | Both ways, finished, texting before and after |
+| What held it back | A missing capability | Details | Prompt wording | Validation and the airing rule's edges |
+| Cost | 2¢ | 3.6¢ | 3.7¢ | 6.8¢ |

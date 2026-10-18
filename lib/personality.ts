@@ -26,7 +26,13 @@ export function tellMoment(outcome: Outcome, side: 0 | 1, act: number): TellId {
 export function currentTell(c: Character, outcome: Outcome, side: 0 | 1, act: number): string | null {
   const id = tellMoment(outcome, side, act);
   const does = c.extras.tells?.[id]?.trim();
-  return does ? `${secondPerson(tellLabel(id))} ${plainVerb(ownPronounsToYou(does, c.pronouns))}` : null;
+  return does ? `${secondPerson(tellLabel(id))} ${youAgree(plainVerb(ownPronounsToYou(does, c.pronouns)))}` : null;
+}
+
+/** After "she" became "you": "you isn't" → "you aren't", "you has" → "you have" (run 4: "a wristwatch you isn't wearing"). */
+export function youAgree(text: string): string {
+  const fix: Record<string, string> = { "is": "are", "isn't": "aren't", "was": "were", "wasn't": "weren't", "has": "have", "hasn't": "haven't", "does": "do", "doesn't": "don't" };
+  return text.replace(/\byou (is|isn't|was|wasn't|has|hasn't|does|doesn't)\b/gi, (_m, v: string) => `you ${fix[v.toLowerCase()]}`);
 }
 
 /**

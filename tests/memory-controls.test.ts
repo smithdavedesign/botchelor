@@ -244,7 +244,7 @@ describe("3. which models wrote each date", () => {
     const b = (await call("create_character", validCharacter({ name: "Bo Quill" }))).character.id;
     let step = (await call("start_own_date", { character_id: a, partner_id: b })).step;
     let i = 0;
-    while (step.stage === "turn") step = (await call("submit_own_date_step", { episode_id: step.episode_id, output: { dialogue: `Line ${i++}: hello?` } })).step;
+    while (step.stage === "turn") step = (await call("submit_own_date_step", { episode_id: step.episode_id, output: { dialogue: `Line ${i++}: hello?`, action: "", emotion: "curious", interest_signal: 0.5 } })).step;
     await call("submit_own_date_step", { episode_id: step.episode_id, output: validEpisodeDraft() });
     const own = (await t.db.query<Any>(`select generated_with from episodes where id = $1`, [step.episode_id])).rows[0];
     expect(own.generated_with).toEqual({ actor: ["agent"], director: ["agent"], byok: [], prompts: PROMPT_VERSION });

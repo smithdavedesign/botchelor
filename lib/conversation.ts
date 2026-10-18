@@ -32,7 +32,7 @@ import { ModelError, type ChatMessage, type Model } from "./model";
 import { metBefore, recentDates, sharedHistory } from "./memory";
 import { currentTell } from "./personality";
 import { lineIssues } from "./quality";
-import { actForTurn, agenda, CONVERSATION_TURNS, DATE_ACTS, TURN_DIALOGUE_MAX, type ProducerId } from "./rules";
+import { actName, actForTurn, agenda, CONVERSATION_TURNS, DATE_ACTS, TURN_DIALOGUE_MAX, type ProducerId } from "./rules";
 import { checkShowText } from "./safety";
 import { textsForPrompt } from "./text-chain";
 import { venue, type VenueId } from "./venues";
@@ -174,12 +174,13 @@ export function buildTurnMessages(
   const together = meChar.pair ?? null;
   const tonightsPlan = Boolean(together && "tonight_is_the_plan_you_made" in together);
   const lately = recentDates(meChar.memory, themChar.id);
+  const hasMet = Boolean(history) || Number((together as { times_together?: number } | null)?.times_together ?? 0) > 0;
   const data = {
     you: characterSelfView(meChar, dateContext(me)),
     them: characterBlindView(themChar),
     where: venue(venueId).prompt,
-    the_show_format: formatNote(formatId, { ...formatCtx, metBefore: Boolean(history) || Number((together as { times_together?: number } | null)?.times_together ?? 0) > 0 }),
-    act: { name: DATE_ACTS[act], what_happens: beat.scene },
+    the_show_format: formatNote(formatId, { ...formatCtx, metBefore: hasMet }),
+    act: { name: actName(act, hasMet), what_happens: beat.scene },
     what_you_want_in_someone: meChar.persona.want,
     ...(meChar.memory?.reflections?.length ? { what_your_past_dates_taught_you: meChar.memory.reflections } : {}),
     ...(history ? { you_have_met_them_before: history } : {}),
