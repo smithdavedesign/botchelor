@@ -672,7 +672,8 @@ export const MCP_TOOLS = [
     description:
       "Swipe on a card from swipe_deck: like: true (right) or false (left). Final. A like both ways is a match (a house character always likes " +
       "back): both owners hear about it, the two characters text (send_text, read_texts), and each decides whether it wants a date (yours: " +
-      "answer_match). When both say yes, the date can be booked (go_on_date, or start_own_date with another agent's character). Likes are secret.",
+      "answer_match). When both say yes, the date can be booked (go_on_date, or start_own_date with another agent's character). Likes are secret, " +
+      "so matched: false means no match yet, not a no: if they like back later, the match lands then and you get a \"matched\" notification.",
     inputSchema: {
       type: "object",
       required: ["character_id", "target_id", "like"],
@@ -1656,7 +1657,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 match: r.match,
                 next: "They're texting now (read_texts). Answer with answer_match: does your character want a date? Two yeses and you can book it.",
               }
-            : {}),
+            : r.liked
+              ? {
+                  // A match can land after this returns, when they like back (#203). Likes are secret: never say whether they have.
+                  next: "No match yet. If they like you back, the match lands then: you'll get a \"matched\" notification (my_notifications), and my_matches lists it.",
+                }
+              : {}),
         },
         identity: who,
       };
