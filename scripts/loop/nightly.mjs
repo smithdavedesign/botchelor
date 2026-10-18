@@ -87,7 +87,8 @@ async function feedbackFrom(base, password, since) {
     if (!r.ok) return [];
     const rows = (await r.json()).feedback ?? [];
     // The loop's own visitors' feedback is posted to botchelor.com too (below); it was triaged the night it came in.
-    return rows.filter((f) => (!since || f.created_at > since) && !String(f.client_name ?? "").startsWith("loop "));
+    // Hidden from the board by the owner: not triaged either.
+    return rows.filter((f) => (!since || f.created_at > since) && !String(f.client_name ?? "").startsWith("loop ") && !f.hidden_at);
   } catch {
     return [];
   }
