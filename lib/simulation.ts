@@ -146,6 +146,8 @@ export type DateParts = {
   texts?: { a: PromptTexts; b: PromptTexts };
   /** Venues to deal past: where either person's character had its last dates (buildDate snapshots them). */
   avoidVenues?: VenueId[];
+  /** A stored date's venue, kept as booked: the library can grow, and a plan can change, after a date is booked. */
+  venueOverride?: VenueId;
 };
 
 /**
@@ -196,7 +198,7 @@ export function assembleDate(p: DateParts): BuiltDate {
     game_budget_a: req.gameBudget,
     game_budget_b: DEFAULT_GAME_BUDGET,
     producer: pickProducer(seedFrom(seed, "producer")),
-    venue: plannedVenue ?? pickVenueAvoiding(seedFrom(seed, "venue"), p.avoidVenues ?? []),
+    venue: p.venueOverride ?? plannedVenue ?? pickVenueAvoiding(seedFrom(seed, "venue"), p.avoidVenues ?? []),
     ...(p.avoidVenues?.length ? { avoid_venues: p.avoidVenues } : {}),
     format: req.format,
     // Snapshot the exact effective signals this date ran on, so a replay reproduces it even after memory drifts.
@@ -274,6 +276,8 @@ export async function buildDate(
      * dates. A rebuild of a stored date passes the setup's snapshot (or [] for one from before), so the venue holds.
      */
     avoidVenues?: VenueId[];
+    /** A rebuild of a stored date passes its venue (DateSetup.venue), so it's written where it was booked. */
+    venueOverride?: VenueId;
   } = {},
 ): Promise<BuiltDate> {
   const [soulA, soulB, memoryA, memoryB, relationship, ex, extras, nudges, seeingA, seeingB] = await Promise.all([
@@ -316,7 +320,7 @@ export async function buildDate(
           : current;
   const avoidVenues = opts.avoidVenues ?? (await recentVenues(db, [a.id, b.id], episodeId));
   return assembleDate({
-    episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues,
+    episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues, venueOverride: opts.venueOverride,
     soulA, soulB, memoryA: withPendingReflections(memoryA, pendingA), memoryB: withPendingReflections(memoryB, pendingB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts,

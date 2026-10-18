@@ -313,6 +313,7 @@ async function rebuild(db: Db, row: Row) {
     historyOverride: row.setup?.history ?? null,
     nudges: { a: row.setup?.nudge_a ?? null, b: row.setup?.nudge_b ?? null },
     avoidVenues: row.setup?.avoid_venues ?? [],
+    venueOverride: row.setup?.venue,
   });
   const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
   return { built, decided, formatId };

@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { seedFrom } from "@/lib/engine";
 import { checkFields } from "@/lib/safety";
+import { venueForPlan } from "@/lib/relationships";
+import { assembleDate, DEFAULT_DATE_REQUEST } from "@/lib/simulation";
 import { DATE_VENUES, pickVenue, venue, venueBackdropCss, venueName, VENUE_IDS } from "@/lib/venues";
 import {
   api,
@@ -13,9 +15,8 @@ import {
 } from "./helpers";
 
 describe("the date venue library", () => {
-  it("offers 6-10 reusable locations with distinct ids and names", () => {
-    expect(DATE_VENUES.length).toBeGreaterThanOrEqual(6);
-    expect(DATE_VENUES.length).toBeLessThanOrEqual(10);
+  it("offers a big library of reusable locations with distinct ids and names (33 since 2026-10-18)", () => {
+    expect(DATE_VENUES.length).toBeGreaterThanOrEqual(33);
     expect(new Set(DATE_VENUES.map((v) => v.id)).size).toBe(DATE_VENUES.length);
     expect(new Set(DATE_VENUES.map((v) => v.name)).size).toBe(DATE_VENUES.length);
   });
@@ -108,5 +109,54 @@ describe("a date happens at a venue", () => {
     }
     // Six dates, each with its own id: they should not all land in the same place.
     expect(dealt.size).toBeGreaterThan(1);
+  });
+});
+
+describe("the 2026-10-18 venues: the extreme ones, and twenty with their own small trouble", () => {
+  const ids = new Set<string>(VENUE_IDS);
+
+  it("has the five David asked for, and keeps the original eight first (their order never changes old deals' backdrops)", () => {
+    for (const id of ["skydive", "surf_lesson", "dive_bar", "nightclub", "safari"]) expect(ids.has(id)).toBe(true);
+    expect(VENUE_IDS.slice(0, 8)).toEqual(["rooftop_bar", "corner_cafe", "retro_arcade", "botanic_park", "tasting_menu", "night_beach", "double_date", "karaoke_booth"]);
+  });
+
+  it("never mentions anyone under 18, and keeps people out of every backdrop plate", () => {
+    for (const v of DATE_VENUES) {
+      expect(`${v.name} ${v.prompt} ${v.plate}`, v.id).not.toMatch(/\b(child|children|kid|kids|teen\w*|school|student|baby)\b/i);
+      expect(v.plate, v.id).not.toMatch(/\b(couple|waiter|instructor|guide|host|pilot|chef|dj|actor|crowd|people|person|man|woman|teacher|retiree)\b/i);
+    }
+  });
+
+  it("a plan made in their texts finds its new venue, and the old ones still find theirs", () => {
+    const cases: [string, string][] = [
+      ["Let's go skydiving next weekend, I dare you", "skydive"],
+      ["Surfing lesson Saturday? I'll bring a spare wetsuit", "surf_lesson"],
+      ["Pub quiz Thursday, our team needs a name", "dive_bar"],
+      ["Dancing at that nightclub with the terrible DJ", "nightclub"],
+      ["A safari, so we can finally see a giraffe", "safari"],
+      ["An escape room. We'll lose, but beautifully.", "escape_room"],
+      ["Bowling, loser buys the chips", "bowling_alley"],
+      ["Ice skating — I'll hold the barrier, you hold me", "ice_rink"],
+      ["Goat yoga on Sunday", "goat_yoga"],
+      ["A ghost tour of the old manor", "haunted_house"],
+      ["The museum's late opening, under the dinosaur", "museum_night"],
+      ["Paintball with your cousins", "paintball"],
+      ["Comedy open mic, front row, no fear", "comedy_club"],
+      ["Coffee works. Bring the anthology story.", "corner_cafe"],
+      ["Next time: karaoke, and I'm choosing the duet.", "karaoke_booth"],
+      ["Let's do the botanic park on Thursday instead.", "botanic_park"],
+    ];
+    for (const [text, venueId] of cases) expect(venueForPlan([{ text }]), text).toBe(venueId);
+  });
+
+  it("a booked date's venue holds through a rebuild, whatever the dealer would deal now", () => {
+    const sheet = { name: "Mira", age: 27, bio: "a cartographer", traits: ["curious", "warm", "dry"], want: "a map reader", dealbreaker: "liars", house: false };
+    const parts = {
+      episodeId: "ep-venue", a: { id: "mira", sheet }, b: { id: "rafe", sheet: { ...sheet, name: "Rafe", house: true } }, req: DEFAULT_DATE_REQUEST,
+      seed: 12345, soulA: null, soulB: null, memoryA: null, memoryB: null, history: undefined,
+    };
+    const dealt = assembleDate(parts).setup.venue;
+    const other = VENUE_IDS.find((v) => v !== dealt)!;
+    expect(assembleDate({ ...parts, venueOverride: other }).setup.venue).toBe(other);
   });
 });

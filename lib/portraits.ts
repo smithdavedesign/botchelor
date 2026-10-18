@@ -10,7 +10,7 @@
  * Client-safe: pure constants and functions, no server imports, so `app/Avatar.tsx` can use it on both the
  * server and the client, and a visitor's own OC (not in these sets) simply keeps its gradient avatar.
  */
-import { VENUE_IDS, type VenueId } from "./venues";
+import type { VenueId } from "./venues";
 
 const PORTRAIT_VERSION = "v3";
 const BACKDROP_VERSION = "v2";
@@ -34,9 +34,16 @@ export function characterPortrait(characterId: string | null | undefined): strin
     : null;
 }
 
-/** The backdrop image path for a venue (every venue in the library has one), or null for an unknown id. */
+/**
+ * The venues with a reviewed backdrop photo (the first eight). Listed explicitly, like the portraits, so a venue
+ * without a committed, reviewed image paints its gradient instead of a broken background: the twenty-five added on
+ * 2026-10-18 do, until theirs are made and reviewed. `tests/portraits.test.ts` checks the files are on disk.
+ */
+export const VENUES_WITH_BACKDROPS: ReadonlySet<string> = new Set([
+  "rooftop_bar", "corner_cafe", "retro_arcade", "botanic_park", "tasting_menu", "night_beach", "double_date", "karaoke_booth",
+]);
+
+/** The backdrop image path for a venue, or null when it has none yet (it paints its gradient) or isn't a venue. */
 export function venueBackdrop(id: VenueId | null | undefined): string | null {
-  return id && (VENUE_IDS as readonly string[]).includes(id)
-    ? `/cast/venue-${id}-${BACKDROP_VERSION}.webp`
-    : null;
+  return id && VENUES_WITH_BACKDROPS.has(id) ? `/cast/venue-${id}-${BACKDROP_VERSION}.webp` : null;
 }
