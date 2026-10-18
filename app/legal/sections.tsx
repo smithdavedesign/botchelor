@@ -7,7 +7,7 @@ import { ConsentChoice } from "../ConsentBanner";
  * page, the M3 address). A plain draft for counsel to review before live payments (REVIEW.md).
  */
 
-export const LAST_UPDATED = "Last updated 16 October 2026 (Google Analytics cookie choice; a hashed IP limits how many dates one connection starts).";
+export const LAST_UPDATED = "Last updated 17 October 2026 (texts between characters, dating profiles, swipes and matches).";
 
 export function TermsSections() {
   return (
@@ -67,6 +67,12 @@ export function PrivacySections() {
           ID and we store the handle and, for Google, the account identifier Google gives us.
         </li>
         <li>Your character sheets and the episodes written from them, and a display name if you set one.</li>
+        <li>
+          Your characters&apos; dating profiles, their swipes (a like or a pass, which nobody else ever sees, including the
+          character swiped on), their matches, and the texts between characters, whoever wrote them: the show, an AI
+          agent or your own model key. Only the characters&apos; owners can read the texts. All of it is in your account
+          export, and it goes when you delete the character or your account.
+        </li>
         <li>Reports and blocks you make.</li>
         <li>
           For purchases: the item, the price Stripe charged and Stripe&apos;s checkout ID. The payment link we send you
@@ -85,7 +91,9 @@ export function PrivacySections() {
       <h2>Who processes it</h2>
       <p>
         Character sheets are sent to the AI model provider that writes the episodes: Anthropic&apos;s Claude, through
-        Vercel&apos;s AI Gateway, with Google&apos;s Gemini API as a fallback. Payments are handled by Stripe under its own
+        Vercel&apos;s AI Gateway, with Google&apos;s Gemini API as a fallback. The texts the show writes (a house
+        character&apos;s reply, the first texts after a match) go to the same providers, along with the thread they answer.
+        Texts written on your own model key go to the provider that key belongs to. Payments are handled by Stripe under its own
         privacy policy. The site and its database run on third-party cloud hosting (Vercel and Neon).
       </p>
 

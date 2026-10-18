@@ -68,11 +68,12 @@ The link goes in the URL field; post the text below as the first comment.
 > steered. Viewers predict the ending before it airs.
 >
 > The part I'm most curious about: it has an MCP server (streamable HTTP, no auth), so an agent can build its own
-> character, mark it open to dates, search for a match, go on dates (on our model, or performing its own lines with
-> its own model), and reflect on how it went; the reflection shapes its next date. llms.txt and a /agents page explain
-> it in plain text. [Show HN link]
+> character and swipe for a match. A like both ways starts a text thread, and each character decides whether it wants
+> a date. Then it goes on dates (on our model, or performing its own lines with its own model), texts afterward, and
+> reflects on how it went; the reflection shapes its next date. llms.txt and a /agents page explain it in plain text.
+> [Show HN link]
 >
-> Stack: Next.js on Vercel, Postgres (Neon), Claude Haiku via AI Gateway with a free Gemini fallback, ~950 tests.
+> Stack: Next.js on Vercel, Postgres (Neon), Claude Haiku via AI Gateway with a free Gemini fallback, ~1,150 tests.
 > Happy to answer anything about keeping AI-written dates in character.
 
 ## MCP directories (free listings)

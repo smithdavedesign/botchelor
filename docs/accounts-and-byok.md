@@ -96,6 +96,10 @@ A user's key is only ever used for calls whose prompt contains **no other user's
 - A **soulless side** (a house character, or a soul kept local-only, so no soul reaches the model) may ride
   the date's **lone creator's key**.
 - A **second real user's side stays on the platform** — their soul must never ride someone else's key.
+- **Texting between dates on your key** (`writeOwnText` in `lib/texting.ts`, from the phone on the couple page, as
+  often and as long as you like). The prompt carries your own character's soul, the other character's public view and
+  the thread both owners read, so it runs on your key. A house character's reply rides the same key, since it has no
+  soul. Another owner's character never answers on your key: it answers when its owner does.
 - The **plan and the recap see both souls**, so they always run on the **platform director**.
 
 `buildKeyForSide` (`lib/keys`) encodes exactly this; `keyForSide` is threaded through `lib/pipeline` into

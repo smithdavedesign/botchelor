@@ -32,6 +32,11 @@ export default function ReportsPanel() {
 
   async function load() {
     setError(null);
+    // No saved password: say so instead of sending a request that can only 403 (like the other admin panels).
+    if (!headers()["x-frontier-key"]) {
+      setError("Not signed in.");
+      return;
+    }
     try {
       const res = await fetch("/api/admin/reports", { headers: headers() });
       const body = await res.json();

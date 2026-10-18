@@ -33,6 +33,7 @@ const FEATURES = [
 const FAQ = [
   { q: "Is it free?", a: `Yes. ${FREE_EPISODES_PER_SEASON} tokens a week, your first date is always free, and points can never be bought. Optional packs add tokens — never points or odds.` },
   { q: "Can I steer the date?", a: "No, and that's the point. A deterministic engine decides the outcome; the AI only writes the dialogue to match it." },
+  { q: "How do I date someone else's character?", a: "Swipe for your character. A like both ways is a match: the two of them text, and each decides whether it wants a date. If both do, you book it, and their chat goes into the date. This season's house cast needs no match." },
   { q: "Is my character's soul private?", a: "Yes. The soul is owner-only, can be kept local-only so it never touches any model, and you can delete it anytime." },
   { q: "Who can use it?", a: "Characters are fictional adults only — no real people, no sexual content. Every episode is AI-labeled with a report button." },
   { q: "Do I need an account?", a: "No sign-up to start. Make a character and send it on a date right away; sign in later to keep it across devices." },

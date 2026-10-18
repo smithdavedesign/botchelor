@@ -150,6 +150,8 @@ function auditPage({ phone, dark, width }) {
 
   for (const el of document.body.querySelectorAll("*")) {
     if (!visible(el) || el.childElementCount > 2) continue;
+    // Visually hidden text (.sr-only and the like: a 1px box that clips on purpose) is for screen readers, not clipped.
+    if (el.clientWidth <= 1 || el.clientHeight <= 1) continue;
     const ownText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
     if (!ownText) continue;
     const cs = getComputedStyle(el);
@@ -196,6 +198,38 @@ async function main() {
     const myChar = data.chars[0].id;
     const aired = data.episodes[0].id;
     const unaired = data.episodes[11].id;
+    // Texts, boards and swipes (2026-10-17). The first seeded date (the owner's character and Teo) has aired, so its
+    // couple page has a phone for the owner and a locked one for everyone else. A second character of the owner's
+    // swipes into a match with a house character, for the deck and a match's couple page.
+    const couplePath = `/couples/${[myChar, "house-teo"].sort().join("/")}`;
+    const asOwner = async (path, body) => {
+      const res = await fetch(base + path, {
+        method: body === undefined ? "GET" : "POST",
+        headers: { "content-type": "application/json", cookie: `bz_uid=${owner}`, origin: base },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      if (!res.ok) throw new Error(`${path} → ${res.status}`);
+      return res.json();
+    };
+    const swiper = await asOwner("/api/characters", {
+      name: "Marlowe Finch",
+      age: 33,
+      bio: "Restores old radios and narrates the weather to them while they warm up.",
+      traits: ["wry", "patient", "romantic"],
+      want: "Someone who listens to the static with me",
+      dealbreaker: "Talking over the forecast",
+      attest: true,
+      extras: {
+        hobbies: ["Shortwave radio", "Night walks"],
+        prompts: [
+          { id: "simple_pleasures", answer: "A valve radio warming up, and the first crackle of a far-off station." },
+          { id: "win_me_over", answer: "Sit through the whole shipping forecast with me." },
+        ],
+      },
+    });
+    const houseCard = (await asOwner(`/api/swipes?character_id=${swiper.id}`)).cards.find((c) => c.house);
+    await asOwner("/api/swipes", { character_id: swiper.id, target_id: houseCard.id, like: true });
+    const matchPath = `/couples/${[swiper.id, houseCard.id].sort().join("/")}`;
 
     // Each route: who opens it, and an optional walk through its states (each state is audited separately).
     const routes = [
@@ -229,6 +263,13 @@ async function main() {
       { name: "character-owner", path: `/characters/${myChar}`, as: "owner" },
       { name: "character-edit", path: `/characters/${myChar}/edit`, as: "owner", walk: "wizard" },
       { name: "create-send", path: `/create?character=${myChar}`, as: "owner" },
+      { name: "swipe", path: `/swipe?character=${swiper.id}`, as: "owner" },
+      { name: "swipe-match", path: matchPath, as: "owner" },
+      { name: "couple-owner", path: couplePath, as: "owner" },
+      { name: "couple-spectator", path: couplePath },
+      { name: "board-owner", path: `/characters/${myChar}/relationships`, as: "owner" },
+      { name: "board", path: `/characters/${myChar}/relationships` },
+      { name: "admin-feedback", path: "/admin/feedback" },
       { name: "account-signed-in", path: "/account", as: "member" },
     ].filter((r) => !only.length || only.some((o) => r.name.includes(o)));
 

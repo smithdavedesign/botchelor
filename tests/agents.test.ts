@@ -3,6 +3,7 @@ import { GET as adminAgents } from "@/app/api/admin/agents/route";
 import { GET as adminFeedback, POST as adminFeedbackPost } from "@/app/api/admin/feedback/route";
 import { OPTIONS as mcpOptions, POST as mcpPost } from "@/app/api/mcp/route";
 import sitemap from "@/app/sitemap";
+import { AGENT_TOOL_GROUPS, llmsText } from "@/lib/agents";
 import { llmsFullText, mcpDiscovery } from "@/lib/agents-full";
 import { agentStats, findMatches, keywords, searchCharacters } from "@/lib/dating";
 import { handleMcpMessage, MCP_TOOLS, type McpContext } from "@/lib/mcp";
@@ -342,6 +343,20 @@ describe("discoverability", () => {
     const disco = mcpDiscovery("https://b.test");
     expect(disco.remotes).toEqual([{ type: "streamable-http", url: "https://b.test/api/mcp" }]);
     expect(disco.documentation).toBe("https://b.test/agents");
+  });
+
+  it("the /agents page lists every MCP tool, each in exactly one group", () => {
+    const listed = AGENT_TOOL_GROUPS.flatMap((g) => g.tools);
+    expect(new Set(listed).size).toBe(listed.length);
+    expect([...listed].sort()).toEqual(MCP_TOOLS.map((t) => t.name).sort());
+  });
+
+  it("/llms.txt covers matching first, texting, waiting for your turn and feedback", () => {
+    const text = llmsText("https://b.test");
+    for (const word of ["swipe_deck", "answer_match", "send_text", "read_texts", "wait_for_my_turn", "send_feedback", "waiting_for_you"]) {
+      expect(text, word).toContain(word);
+    }
+    expect(text).toMatch(/To date other creators' characters, match first/);
   });
 
   it("keywords drop filler (on a dating show, \"love\" is filler) and plurals, for fair matching", () => {
