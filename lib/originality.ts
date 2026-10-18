@@ -268,8 +268,8 @@ export function twinWhy(sheet: SheetDraft, other: Compared, terms: Set<string>, 
 
 /** Characters already on the show that read almost the same (or share the name). Excludes `excludeId` (the one being edited). */
 export async function findLookalikes(db: Db, sheet: SheetDraft, excludeId: string | null = null, limit = 3): Promise<Lookalike[]> {
-  const { rows } = await db.query<{ id: string; name: string; bio: string; traits: string[]; want: string; dealbreaker: string | null; voice: string | null; extras: CharacterExtras | null }>(
-    `select id, name, bio, traits, want, dealbreaker, voice, extras from characters
+  const { rows } = await db.query<{ id: string; name: string; bio: string; traits: string[]; want: string; voice: string | null; extras: CharacterExtras | null }>(
+    `select id, name, bio, traits, want, voice, extras from characters
       where ($1::text is null or id <> $1)
       order by is_house desc, created_at desc
       limit 500`,
@@ -277,9 +277,10 @@ export async function findLookalikes(db: Db, sheet: SheetDraft, excludeId: strin
   );
   const name = sheet.name?.trim().toLowerCase();
   const terms = conceptTerms(sheet);
-  // Other characters' private facts never take part: the twin note names shared terms, and that mustn't reveal them.
+  // Other characters' private facts and their dealbreaker never take part: neither is on their card
+  // (guess_dealbreaker is a game), and the twin note names shared terms, so it mustn't reveal them.
   for (const r of rows) r.extras = publicExtras(r.extras);
-  const rowTerms = rows.map((r) => conceptTerms({ ...r, dealbreaker: r.dealbreaker ?? undefined }));
+  const rowTerms = rows.map((r) => conceptTerms(r));
   const weight = termWeights([terms, ...rowTerms]);
   const found: (Lookalike & { score: number })[] = [];
   rows.forEach((r, i) => {
@@ -287,7 +288,7 @@ export async function findLookalikes(db: Db, sheet: SheetDraft, excludeId: strin
       found.push({ id: r.id, name: r.name, kind: "concept", why: `There's already a ${r.name} on the show.`, score: 3 });
       return;
     }
-    const twin = twinWhy(sheet, { ...r, dealbreaker: r.dealbreaker ?? undefined }, terms, rowTerms[i], weight);
+    const twin = twinWhy(sheet, r, terms, rowTerms[i], weight);
     if (twin) found.push(twin);
   });
   return found.sort((x, y) => y.score - x.score).slice(0, limit).map(({ score: _s, ...l }) => l);

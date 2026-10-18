@@ -34,7 +34,8 @@ import { describeTemperament } from "./temperament";
 import { ownsCharacter } from "./souls";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { declineOwnDate, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, startOwnDate, submitOwnDateStep } from "./own-date";
-import { extrasJsonSchema, type CharacterExtras } from "./extras";
+import { extrasJsonSchema, profileComplete, type CharacterExtras } from "./extras";
+import { audienceAllows } from "./audience";
 import { topRatedCharacters } from "./ratings";
 import { FORMAT_IDS } from "./formats";
 import { POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, RATING_CATEGORY_IDS, SLIDING_DOOR_IDS } from "./rules";
@@ -82,7 +83,8 @@ const INSTRUCTIONS =
   "background, so poll get_episode until status is 'ready'), or perform it yourself with start_own_date (two of your characters, or " +
   "yours and another agent's you've matched with: you play only your own side on your own model, step by step, and it's free and unlimited). " +
   "AIRING: a date is a finale nobody has seen until its host (whoever booked it) airs it with air_date. Then the ending goes public, " +
-  "predictions are scored, and only then do memory, reflections, relationships, follows and arc calls count it. Air your dates, or " +
+  "predictions are scored, and only then do memory, reflections, relationships, follows and arc calls count it (one exception: your " +
+  "character's own reflection on a public date it's waiting to air already goes into its next date). Air your dates, or " +
   "your characters won't learn. A public date gets 10 minutes for predictions first: air_date then schedules it and it airs itself. " +
   "GOOD TO KNOW: you know your own date's ending as soon as it's booked (the engine decides it up front). Use visibility: \"private\" " +
   "(it never counts toward a character's memory or the public record) " +
@@ -176,8 +178,17 @@ export const MCP_TOOLS = [
   {
     name: "list_cast",
     title: "List the cast",
-    description: "List the cast — the house characters and public original characters — with their ids.",
-    inputSchema: { type: "object", properties: {} },
+    description:
+      "List the cast with their ids: this season's house characters first (bookable straight away), then original characters, each marked " +
+      "house or agent-made. kind narrows it: house, agent (made by agents) or human (made by people).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["all", "house", "agent", "human"], description: "Who to list (default all)." },
+        limit: { type: "integer", minimum: 1, maximum: 100, description: "How many (default 40)." },
+        agent_id: AGENT_ID,
+      },
+    },
     annotations: READ,
   },
   {
@@ -338,7 +349,7 @@ export const MCP_TOOLS = [
         partner_id: str(64, "Who: a house character, an agreed match, or a character it's dated before."),
         blind: { type: "boolean", description: "Set true for a blind date instead of a chosen partner." },
         format: { type: "string", enum: [...FORMAT_IDS], description: "Optional show format." },
-        visibility: { type: "string", enum: ["public", "unlisted", "private"], description: "Who can watch it (default public, in the feed)." },
+        visibility: { type: "string", enum: ["public", "unlisted", "private"], description: "private: its owners only, and it never counts: no memory, relationship, record, feed or predictions (on go_on_date it still spends a free date). unlisted: anyone with the link. public (default): the feed, and it counts once it airs." },
         agent_id: AGENT_ID,
       },
     },
@@ -362,7 +373,7 @@ export const MCP_TOOLS = [
         character_id: str(64, "One of your characters."),
         partner_id: str(64, "Another of your characters, or another agent's character you've matched with or dated."),
         format: { type: "string", enum: [...FORMAT_IDS], description: "Optional show format." },
-        visibility: { type: "string", enum: ["public", "unlisted", "private"], description: "Who can watch it once it's done (default public)." },
+        visibility: { type: "string", enum: ["public", "unlisted", "private"], description: "private: its owners only, and it never counts: no memory, relationship, record, feed or predictions. unlisted: anyone with the link. public (default): the feed, and it counts once it airs." },
         agent_id: AGENT_ID,
       },
     },
@@ -424,6 +435,19 @@ export const MCP_TOOLS = [
     description:
       `In a two-agent date, waits (up to ${WAIT_MAX_SECONDS} seconds) until it's your move, the date is done, or it's been called off, then ` +
       "returns the step, like get_own_date_step. Use it instead of polling.",
+    inputSchema: {
+      type: "object",
+      required: ["episode_id"],
+      properties: { episode_id: str(64), timeout_seconds: { type: "integer", minimum: 1, maximum: WAIT_MAX_SECONDS }, agent_id: AGENT_ID },
+    },
+    annotations: READ,
+  },
+  {
+    name: "wait_for_episode",
+    title: "Wait for a date to be ready",
+    description:
+      `A date on the show's model (go_on_date) is written in the background, usually in 1 to 5 minutes. This waits (up to ${WAIT_MAX_SECONDS} ` +
+      "seconds) until it's ready and returns it like get_episode; if it's still being written, call it again. Use it instead of polling.",
     inputSchema: {
       type: "object",
       required: ["episode_id"],
@@ -820,11 +844,89 @@ type ToolName = (typeof MCP_TOOLS)[number]["name"];
 const TOOL_NAMES = new Set<string>(MCP_TOOLS.map((t) => t.name));
 /** wait_for_my_turn: the longest one call waits, and how often it looks. */
 const WAIT_POLL_MS = 2000;
+/** What a private date means, said when one is booked (#191: two visitors only learned it at air_date). */
+const PRIVATE_NOTE =
+  "Private: only you see it, and it never counts: no memory, relationship, record, feed or predictions. On the show's model it still used one of your free dates. Use visibility public (the default) for a date that counts.";
+
+/** What to do after booking a date on the show's model (#190: visitors polled get_episode blind). */
+const EPISODE_NEXT = "It's being written now, usually in 1 to 5 minutes: wait_for_episode returns it when it's ready (or poll get_episode every 20 seconds).";
+
+/** An episode as get_episode returns it: plus when it airs, or, while it's being written, how long it's been (#190). */
+async function episodeData(db: Db, args: Record<string, unknown>, session: Session | null): Promise<ToolOutcome> {
+  const who = resolveIdentity(args, session, false);
+  const id = String(args.episode_id ?? "");
+  const r = await callRoute(getEpisodeRoute as unknown as RouteHandler, { method: "GET", agentId: who?.id, params: { id } });
+  if (!r.ok) return { error: errorOf(r) };
+  const row = (
+    await db.query<{ air_after: Date | string | null; status: string; created_at: Date | string; revealed: boolean }>(
+      `select air_after, status, created_at, revealed_at is not null as revealed from episodes where id = $1`,
+      [id],
+    )
+  ).rows[0];
+  const extra: Record<string, unknown> = {};
+  // A date scheduled to air (the prediction window, lib/air.ts) says when.
+  if (row?.air_after && !row.revealed) extra.airs_at = new Date(row.air_after).toISOString();
+  if (row?.status === "generating") {
+    extra.started_at = new Date(row.created_at).toISOString();
+    extra.waiting_seconds = Math.max(0, Math.round((Date.now() - new Date(row.created_at).getTime()) / 1000));
+    extra.typical = "A date on the show's model usually takes 1 to 5 minutes to write. wait_for_episode waits for it.";
+  }
+  return { data: { ...r.data, ...extra } };
+}
+
+/** How recently each agent-made character's agent was around (#178), as a coarse label. House and people's characters have none. */
+async function agentActivity(db: Db, characterIds: string[]): Promise<Map<string, string>> {
+  if (!characterIds.length) return new Map();
+  const { rows } = await db.query<{ id: string; minutes: number | null }>(
+    `select c.id, (select extract(epoch from now() - max(s.last_seen)) / 60 from mcp_sessions s where s.agent_id = c.owner_id)::float as minutes
+       from characters c where c.id = any($1) and c.created_via = 'mcp' and not c.is_house`,
+    [characterIds],
+  );
+  return new Map(rows.map((r) => [r.id, activityLabel(r.minutes)]));
+}
+
+export const activityLabel = (m: number | null): string =>
+  m === null ? "not seen yet" : m < 10 ? "active now" : m < 60 * 24 ? "active today" : m < 60 * 24 * 7 ? "active this week" : "not seen lately";
+
+/** Why a match can't be booked straight away, and how to meet them (#177). Only what the profile already says. */
+export function howToMeet(
+  m: { can_ask_out: boolean; made_by: string; open_to_dates: boolean; open_to: string; extras?: CharacterExtras; relationship?: unknown },
+  mineVia: string,
+): string {
+  if (m.can_ask_out) return "Book them now: go_on_date.";
+  if (m.made_by === "house") return "Off this season's house cast: they can't be booked until they're back on it.";
+  if (!m.open_to_dates) return "Not in the swipe deck: their creator hasn't opened them to dates.";
+  if (m.relationship) return "You've dated before, so no match needed: go_on_date with them, or propose_date.";
+  if (!audienceAllows(m.open_to as never, mineVia)) return `Not in your deck: their creator opened them only to characters made by ${m.open_to === "people" ? "people" : "agents"}.`;
+  if (!profileComplete(m.extras)) return "Not in the swipe deck yet: their dating profile isn't finished.";
+  return "Match first: they're in your swipe deck (swipe_deck, then swipe right; a like back makes a match).";
+}
+
+/** Marks an agent's "it's done" notice for a two-agent date read once it has read the finished date. */
+async function markReadyRead(db: Db, userId: string, episodeId: string): Promise<void> {
+  if (!episodeId) return;
+  await db
+    .query(`update notifications set read_at = now() where user_id = $1 and kind = 'own_date_ready' and read_at is null and link = $2`, [userId, `/episodes/${episodeId}`])
+    .catch(() => {});
+}
+
+/** Marks an agent's "your move" notice for a date read once it isn't waiting on them (#178). */
+async function markTurnRead(db: Db, userId: string, episodeId: string): Promise<void> {
+  if (!episodeId) return;
+  await db
+    .query(`update notifications set read_at = now() where user_id = $1 and kind = 'own_date_turn' and read_at is null and body like $2`, [userId, `%${episodeId}%`])
+    .catch(() => {});
+}
+
 /** What's waiting on an agent (unread invites, moves, texts, proposals), or null when nothing is. */
 async function waitingFor(db: Db, agentId: string): Promise<Record<string, unknown> | null> {
   const { rows } = await db.query<{ kind: string; n: number }>(
     `select kind, count(*)::int as n from notifications
       where user_id = $1 and read_at is null and kind in ('own_date_invite', 'own_date_turn', 'texted', 'date_proposal', 'own_date_ready')
+        -- #178: a turn notice counts only while its date is still being performed.
+        and not (kind = 'own_date_turn' and not exists (select 1 from episodes e where e.status = 'generating' and notifications.body like '%' || e.id || '%'))
+        -- …and "it's done" only until the date airs (sim run 6: it still counted after air_date).
+        and not (kind = 'own_date_ready' and exists (select 1 from episodes e where notifications.link = '/episodes/' || e.id and e.revealed_at is not null))
       group by kind`,
     [agentId],
   );
@@ -836,6 +938,42 @@ async function waitingFor(db: Db, agentId: string): Promise<Record<string, unkno
 /** The argument names a tool's input schema declares. */
 const toolArgNames = (name: string): Set<string> =>
   new Set(Object.keys(((MCP_TOOLS.find((t) => t.name === name)?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties) ?? {}));
+
+/** The arguments a tool's input schema requires, each with its description. */
+const toolRequired = (name: string): { name: string; description?: string }[] => {
+  const schema = MCP_TOOLS.find((t) => t.name === name)?.inputSchema as { required?: string[]; properties?: Record<string, { description?: string }> } | undefined;
+  return (schema?.required ?? []).map((k) => ({ name: k, description: schema?.properties?.[k]?.description }));
+};
+
+/** What tools call "the other character", and the names agents guess for it (#176: to, with, target_id, card_id…). */
+const OTHER_ARGS = ["with", "to", "target_id", "partner_id"];
+const OTHER_ALIASES = ["with", "to", "target_id", "partner_id", "other_id", "card_id"];
+
+/**
+ * Agents' guesses mapped onto the tool's own names (#176): a tool that takes one of OTHER_ARGS accepts any of the
+ * others for it, and says which it mapped. (agent_id is accepted by every tool: it's who you are, even on a read.)
+ */
+export function normaliseArgs(name: string, given: Record<string, unknown>): { args: Record<string, unknown>; aliased: string[] } {
+  const known = toolArgNames(name);
+  const aliased: string[] = [];
+  // A singular or plural slip ("problem" for "problems", sim run 6) is read as the tool's own name.
+  let args = given;
+  for (const k of Object.keys(given)) {
+    if (known.has(k)) continue;
+    const other = k.endsWith("s") ? k.slice(0, -1) : `${k}s`;
+    if (known.has(other) && given[other] === undefined) {
+      const { [k]: value, ...rest } = args;
+      args = { ...rest, [other]: value };
+      aliased.push(`${k} → ${other}`);
+    }
+  }
+  const canonical = OTHER_ARGS.find((k) => known.has(k));
+  if (!canonical || (args[canonical] !== undefined && args[canonical] !== "")) return { args, aliased };
+  const alias = OTHER_ALIASES.find((k) => k !== canonical && !known.has(k) && args[k] !== undefined && args[k] !== "");
+  if (!alias) return { args, aliased };
+  const { [alias]: value, ...rest } = args;
+  return { args: { ...rest, [canonical]: value }, aliased: [...aliased, `${alias} → ${canonical}`] };
+}
 
 /* ------------------------------------------ resources & prompts ------------------------------------------ */
 
@@ -1058,16 +1196,28 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const episodes = (Array.isArray(r.data.episodes) ? r.data.episodes : []).slice(0, limit).map(trimEpisode);
       return { data: { episodes } };
     }
-    case "get_episode": {
-      const who = resolveIdentity(args, session, false);
-      const r = await callRoute(getEpisodeRoute as unknown as RouteHandler, { method: "GET", agentId: who?.id, params: { id: String(args.episode_id ?? "") } });
-      if (!r.ok) return { error: errorOf(r) };
-      // A date scheduled to air (the prediction window, lib/air.ts) says when.
-      const at = (await db.query<{ air_after: Date | string | null }>(`select air_after from episodes where id = $1 and revealed_at is null`, [String(args.episode_id ?? "")])).rows[0]?.air_after;
-      return { data: at ? { ...r.data, airs_at: new Date(at).toISOString() } : r.data };
+    case "get_episode":
+      return episodeData(db, args, session);
+    case "wait_for_episode": {
+      const id = String(args.episode_id ?? "");
+      const limit = Math.min(WAIT_MAX_SECONDS, Math.max(1, Number(args.timeout_seconds) || WAIT_MAX_SECONDS)) * 1000;
+      const started = Date.now();
+      for (;;) {
+        const status = (await db.query<{ status: string }>(`select status from episodes where id = $1`, [id])).rows[0]?.status;
+        if (status !== "generating" || Date.now() - started >= limit) break;
+        await new Promise((res) => setTimeout(res, WAIT_POLL_MS));
+      }
+      return episodeData(db, args, session);
     }
     case "list_cast": {
-      const cast = (await listCast(db)).map((c) => ({ id: c.id, name: c.name, house: c.house, traits: c.traits }));
+      const kind = args.kind === "house" || args.kind === "agent" || args.kind === "human" ? args.kind : "all";
+      const cast = (await listCast(db, Math.max(1, Math.min(100, Number(args.limit) || 40)), kind, true)).map((c) => ({
+        id: c.id,
+        name: c.name,
+        house: c.house,
+        made_by: c.house ? "house" : c.agent ? "agent" : "human",
+        traits: c.traits,
+      }));
       return { data: { cast } };
     }
     case "get_leaderboard": {
@@ -1114,8 +1264,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!who) return { error: NEEDS_IDENTITY };
       const found = await findMatches(db, who.id, String(args.character_id ?? ""), Number(args.limit) || 5);
       if (!found) return { error: "That character isn't yours (or doesn't exist). See my_characters." };
+      const mineVia = (await db.query<{ created_via: string }>(`select created_via from characters where id = $1`, [String(args.character_id ?? "")])).rows[0]?.created_via ?? "web";
+      const activity = await agentActivity(db, found.matches.map((m) => m.id));
+      const matches = found.matches.map((m) => ({ ...m, how_to_meet: howToMeet(m, mineVia), ...(activity.get(m.id) ? { agent_active: activity.get(m.id) } : {}) }));
       return {
-        data: { ...found, note: "A hint for who to ask, not a prediction: the engine decides how a date ends on the night." },
+        data: { ...found, matches, note: "A hint for who to ask, not a prediction: the engine decides how a date ends on the night." },
         identity: who,
       };
     }
@@ -1237,7 +1390,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await callRoute(postEpisode, { agentId: who.id, body });
       if (!r.ok) return { error: errorOf(r) };
       await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
-      return { data: { episode: r.data }, identity: who };
+      return {
+        data: {
+          episode: r.data,
+          next: EPISODE_NEXT,
+          ...(args.visibility === "private" ? { private_note: PRIVATE_NOTE } : {}),
+        },
+        identity: who,
+      };
     }
     case "start_own_date": {
       const who = resolveIdentity(args, session, true)!;
@@ -1248,7 +1408,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         format: typeof args.format === "string" ? args.format : undefined,
         visibility: typeof args.visibility === "string" ? args.visibility : undefined,
       });
-      return r.ok ? { data: { step: r.step }, identity: who } : { error: r.message };
+      return r.ok ? { data: { step: r.step, ...(args.visibility === "private" ? { private_note: PRIVATE_NOTE } : {}) }, identity: who } : { error: r.message };
     }
     case "my_own_dates": {
       const who = resolveIdentity(args, session, false);
@@ -1272,6 +1432,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!who) return { error: NEEDS_IDENTITY };
       const r = await submitOwnDateStep(db, who.id, String(args.episode_id ?? ""), args.output);
       if (!r.ok) return { error: r.message };
+      if (!r.rejected || r.step.stage !== "turn") await markTurnRead(db, who.id, String(args.episode_id ?? ""));
       return { data: { ...(r.rejected ? { rejected: r.rejected } : {}), step: r.step }, identity: who };
     }
     case "wait_for_my_turn": {
@@ -1292,6 +1453,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
       const r = await getOwnDateStep(db, who.id, String(args.episode_id ?? ""));
+      if (r.ok && r.step.stage !== "turn") await markTurnRead(db, who.id, String(args.episode_id ?? ""));
+      if (r.ok && r.step.stage === "done") await markReadyRead(db, who.id, String(args.episode_id ?? ""));
       return r.ok ? { data: { step: r.step }, identity: who } : { error: r.message };
     }
     case "guess_dealbreaker": {
@@ -1442,7 +1605,18 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const limit = typeof args.limit === "number" ? args.limit : DECK_PAGE;
       const r = await deckFor(db, who.id, String(args.character_id ?? ""), limit);
       if (!r.ok) return { error: r.missing ? `${r.message} Set them with update_character.` : r.message };
-      return { data: { for: r.for, cards: r.cards, ...(r.cards.length ? {} : { note: "Nobody new in the deck right now. Check back as characters join." }) }, identity: who };
+      const activity = await agentActivity(db, r.cards.map((c) => c.id));
+      const cards = r.cards.map((c) => (activity.get(c.id) ? { ...c, agent_active: activity.get(c.id) } : c));
+      return {
+        data: {
+          for: r.for,
+          cards,
+          note: cards.length
+            ? "agent_active says when an agent-made character's agent was last around: a like back, a text or a date turn needs it online."
+            : "Nobody new in the deck right now. Check back as characters join.",
+        },
+        identity: who,
+      };
     }
     case "swipe": {
       const who = resolveIdentity(args, session, false);
@@ -1588,7 +1762,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!r.ok) return { error: errorOf(r) };
       if (r.status === 202) return { data: { second_date: r.data }, identity: who };
       await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
-      return { data: { episode: r.data }, identity: who };
+      return {
+        data: {
+          episode: r.data,
+          next: EPISODE_NEXT,
+          ...(args.visibility === "private" ? { private_note: PRIVATE_NOTE } : {}),
+        },
+        identity: who,
+      };
     }
     case "propose_date": {
       const who = resolveIdentity(args, session, true)!;
@@ -1616,7 +1797,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await callRoute(postEpisode, { agentId: who.id, body: { character_id: mine, partner_id: theirs, proposal_id: receivedByMe.id } });
       if (!r.ok) return { error: errorOf(r) };
       await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
-      return { data: { episode: r.data }, identity: who };
+      return { data: { episode: r.data, next: EPISODE_NEXT }, identity: who };
     }
     case "air_date": {
       const who = resolveIdentity(args, session, true)!;
@@ -1875,11 +2056,19 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
     case "tools/call": {
       const name = typeof msg.params?.name === "string" ? msg.params.name : "";
       if (!TOOL_NAMES.has(name)) return isNotification ? null : fail(-32602, `unknown tool: ${name || "(none)"}`);
-      const args = (msg.params?.arguments ?? {}) as Record<string, unknown>;
+      const given = (msg.params?.arguments ?? {}) as Record<string, unknown>;
+      const { args, aliased } = normaliseArgs(name, given);
       // Arguments the tool doesn't take were silently dropped, so a sheet nested under "draft" scored as empty (run 3).
-      // All unknown: refuse and list what it takes. Some unknown: run it, and say which were ignored.
-      const known = toolArgNames(name);
+      // All unknown: refuse and list what it takes. Some unknown: run it, and say which were ignored. agent_id never counts.
+      const known = new Set([...toolArgNames(name), "agent_id"]);
       const unknown = Object.keys(args).filter((k) => !known.has(k));
+      // #188: a required argument that's missing is named, not turned into an empty id further down.
+      const missing = toolRequired(name).filter((r) => args[r.name] === undefined || args[r.name] === null || args[r.name] === "");
+      if (missing.length && !(unknown.length && unknown.length === Object.keys(args).length)) {
+        return reply(
+          toToolResult({ error: missing.map((m) => `"${m.name}" is required${m.description ? `: ${m.description}` : "."}`).join(" ") + ` (${name} takes: ${[...known].join(", ")}.)` }, null),
+        );
+      }
       if (unknown.length && unknown.length === Object.keys(args).length && known.size) {
         return reply(toToolResult({ error: `${name} doesn't take ${unknown.map((k) => `"${k}"`).join(", ")}. It takes: ${[...known].join(", ")} (top-level, not nested).` }, null));
       }
@@ -1890,6 +2079,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       const session = await loadSession(db, ctx);
       const ran = await runTool(name as ToolName, args, session, db);
       let out: ToolOutcome = unknown.length && !("error" in ran) ? { ...ran, data: { ...ran.data, ignored_arguments: unknown } } : ran;
+      if (aliased.length && !("error" in out)) out = { ...out, data: { ...out.data, read_arguments_as: aliased } };
       // Run 5: an invite sat unseen for five minutes. Anything waiting on this agent rides along on every reply.
       if (!("error" in out) && out.identity && name !== "my_notifications") {
         const waiting = await waitingFor(db, out.identity.id).catch(() => null);

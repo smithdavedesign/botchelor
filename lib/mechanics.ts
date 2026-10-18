@@ -157,15 +157,28 @@ export type CastMember = {
  * The cast a spectator can matchmake from: the characters people and agents made, newest first, then this
  * season's handful of house characters (lib/season-cast.ts). Off-season and premium house characters sit out.
  */
-export async function listCast(db: Db, limit = 40): Promise<CastMember[]> {
+/**
+ * The cast: original characters, newest first, then this season's house characters (the /cast page leads with the
+ * living cast). `houseFirst` flips that for agents (#189: sorted last, the house cast fell off the end of list_cast
+ * once 40 original characters existed, and they're the partners anyone can always book). `kind` narrows it to the
+ * house cast, agents' characters or people's.
+ */
+export async function listCast(
+  db: Db,
+  limit = 40,
+  kind: "all" | "house" | "agent" | "human" = "all",
+  houseFirst = false,
+): Promise<CastMember[]> {
   const { rows } = await db.query<CastMember>(
     `select c.id, c.name, c.traits, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait,
             c.created_via = 'mcp' as agent
        from characters c
-      where (not c.is_house and c.owner_id <> $3) or (c.premium_sku is null and c.id = any($2))
-      order by c.is_house, c.created_at desc, c.id
+      where ((not c.is_house and c.owner_id <> $3) or (c.premium_sku is null and c.id = any($2)))
+        and ($4 = 'all' or ($4 = 'house' and c.is_house) or ($4 = 'agent' and not c.is_house and c.created_via = 'mcp')
+             or ($4 = 'human' and not c.is_house and c.created_via <> 'mcp'))
+      order by case when $5 then not c.is_house else c.is_house end, c.created_at desc, c.id
       limit $1`,
-    [limit, seasonCastIds(), DELETED_OWNER],
+    [limit, seasonCastIds(), DELETED_OWNER, kind, houseFirst],
   );
   return rows;
 }
