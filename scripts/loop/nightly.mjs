@@ -90,7 +90,8 @@ async function feedbackFrom(base, password, since) {
     const rows = (await r.json()).feedback ?? [];
     // The loop's own visitors' feedback is posted to botchelor.com too (below); it was triaged the night it came in.
     // Hidden from the board by the owner: not triaged either.
-    return rows.filter((f) => (!since || f.created_at > since) && !String(f.client_name ?? "").startsWith("loop ") && !f.hidden_at);
+    // Imported feedback (POST /api/admin/feedback: the loop's own and hand-run visitor tests, no session) isn't live.
+    return rows.filter((f) => (!since || f.created_at > since) && !(f.session_id === null && /^(loop |visitor run )/.test(String(f.client_name ?? ""))) && !f.hidden_at);
   } catch {
     return [];
   }
@@ -182,7 +183,8 @@ async function main() {
       await claude(triage, {
         cwd: REPO,
         model: TRIAGE_MODEL,
-        tools: ["Read", "Grep", "Glob", `Write(${RUN}/**)`, "Bash(gh issue:*)", "Bash(gh label:*)", "Bash(git log:*)", "Bash(git show:*)"],
+        // Edit(path) rules cover writing new files too; Write(path) rules don't apply to files.
+        tools: ["Read", "Grep", "Glob", `Edit(${RUN}/**)`, "Bash(gh issue:*)", "Bash(gh label:*)", "Bash(git log:*)", "Bash(git show:*)"],
         timeoutMin: 25,
         out: join(RUN, "triage.log"),
       });
