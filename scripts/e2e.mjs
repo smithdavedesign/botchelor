@@ -16,7 +16,7 @@
  */
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { chromium, devices } from "playwright-core";
 import {
   appEnv,
   build,
@@ -104,11 +104,11 @@ async function main() {
       // gate on purpose (lib/bots.ts), so a headless test browser would never see it.
       const visitor = await browser.newContext({ userAgent: HUMAN_UA });
       const gatePage = await visitor.newPage();
-      await gatePage.goto(`${base}/feed`); // any page redirects to the gate (goto follows it)
+      await gatePage.goto(`${base}/watch`); // any page redirects to the gate (goto follows it)
       assert(new URL(gatePage.url()).pathname === "/gate", `expected the gate, got ${gatePage.url()}`);
       assert((await gatePage.getByText("Are you 18 or older?").count()) > 0, "age gate did not show");
-      assert((await gatePage.getByRole("heading", { name: "Now showing" }).count()) === 0, "page content leaked behind the gate");
-      const back = gatePage.waitForURL((url) => url.pathname === "/feed");
+      assert((await gatePage.getByRole("heading", { name: "Watch a date" }).count()) === 0, "page content leaked behind the gate");
+      const back = gatePage.waitForURL((url) => url.pathname === "/watch");
       await gatePage.getByRole("button", { name: /I.m 18 or older/ }).click();
       await back; // confirming drops us back where we were headed, and remembers it
       assert((await gatePage.getByText("Are you 18 or older?").count()) === 0, "gate still blocking after confirming");
@@ -424,11 +424,16 @@ async function main() {
         await page.locator(".swipe-match-overlay").waitFor({ timeout: 10_000 });
         assert(await page.getByRole("heading", { name: "It's a match!" }).isVisible(), "the match overlay should say so");
         await page.getByRole("link", { name: "Read their chat" }).click();
-        await page.waitForURL(/\/couples\/.+#texts$/);
-        matchPath = new URL(page.url()).pathname;
+        // The thread and nothing else (/messages): no couple header, arc or booking on this page.
+        await page.waitForURL(/\/messages\/[^/]+\/[^/?]+\?as=/);
         await page.locator("#texts .phone-messages").waitFor({ timeout: 10_000 });
         assert(await page.locator("#texts .phone-event", { hasText: "It's a match" }).isVisible(), "the phone should open with the match");
         assert((await page.locator("#texts .phone-msg").count()) >= 2, "the two should have started texting");
+        assert((await page.locator(".couple-head, .phone-card h2").count()) === 0, "the thread page should show the thread only");
+        // ⓘ is the way to their story: the couple page, where the date is booked.
+        await page.locator(".phone-header a[href^='/couples/']").click();
+        await page.waitForURL(/\/couples\/[^/]+\/[^/?#]+$/);
+        matchPath = new URL(page.url()).pathname;
         agreed = (await page.getByRole("button", { name: /^Book / }).count()) > 0;
         if (!agreed) assert(await page.locator(".match-state", { hasText: "Not this time" }).isVisible(), "no book button, so one of them said not this time");
       }
@@ -437,6 +442,26 @@ async function main() {
       await page.getByRole("button", { name: /^Book / }).click();
       await page.waitForURL(/\/episodes\/[0-9a-f-]{36}/, { timeout: 30_000 });
       await page.locator(".theater").waitFor({ timeout: 10_000 });
+    });
+
+    await step("Matches lists the character's matches and dates; one opens its thread; on a phone the deck is the whole screen", async () => {
+      await page.goto(`${base}/matches?character=${mine}`);
+      const row = page.locator(".matches-row, .matches-face").first();
+      await row.waitFor({ timeout: 10_000 });
+      await row.click();
+      await page.waitForURL(/\/messages\//);
+      await page.locator("#texts .phone-messages").waitFor({ timeout: 10_000 });
+      // "Episodes & leagues" is part of Watch now.
+      await page.goto(`${base}/feed`);
+      assert(new URL(page.url()).pathname === "/watch", `/feed should redirect to /watch, got ${page.url()}`);
+      assert(await page.getByRole("heading", { name: "Latest episodes" }).isVisible(), "Watch should list the latest episodes");
+      const phone = await browser.newContext({ ...devices["iPhone 13"], storageState: await page.context().storageState() });
+      const ppage = await phone.newPage();
+      await ppage.goto(`${base}/swipe?character=${mine}`);
+      await ppage.locator(".swipe-topbar").waitFor();
+      assert(!(await ppage.locator(".site-header").isVisible()), "the phone deck should hide the site header");
+      assert(!(await ppage.locator(".site-footer").isVisible()), "the phone deck should hide the site footer");
+      await phone.close();
     });
 
     await step("a match stays private: a spectator can't open their couple page before a date of theirs airs", async () => {

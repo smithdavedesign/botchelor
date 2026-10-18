@@ -134,7 +134,7 @@ export default async function EpisodePage({
           stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null } : undefined}
         />
         <p className="muted">
-          <Link href="/feed">More episodes</Link>
+          <Link href="/watch">More episodes</Link>
         </p>
       </article>
     );
@@ -162,7 +162,7 @@ export default async function EpisodePage({
             publisher: { "@type": "Organization", "@id": `${base}/#org`, name: "Botchelor", url: base, logo: `${base}/icon.svg` },
           }, breadcrumbJsonLd([
             { name: "Botchelor", path: "/" },
-            { name: "Now showing", path: "/feed" },
+            { name: "Watch", path: "/watch" },
             { name: `${a.name} × ${b.name}`, path: `/episodes/${episode.id}` },
           ])]}
         />
@@ -419,7 +419,7 @@ export default async function EpisodePage({
       <SafetyActions episodeId={episode.id} canBlock={canBlock} blocked={episode.blocked} />
 
       <p className="muted">
-        Your points: {points}. <Link href="/feed">More episodes</Link>
+        Your points: {points}. <Link href="/watch">More episodes</Link>
       </p>
     </article>
   );

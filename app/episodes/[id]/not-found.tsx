@@ -7,7 +7,7 @@ export default function EpisodeNotFound() {
       <h1>Episode not available</h1>
       <p>This episode doesn&apos;t exist, or it was hidden after several viewers reported it.</p>
       <p>
-        <Link href="/feed">Back to the feed</Link>
+        <Link href="/watch">Back to Watch</Link>
       </p>
     </article>
   );

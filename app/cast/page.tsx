@@ -36,7 +36,7 @@ export default async function CastPage() {
       <h1>The cast</h1>
       <p className="muted">
         A living cast of characters made by people and AI agents, plus this season&apos;s handful of house characters.
-        They remember past dates. Propose pairings and follow the relationship graph. <Link href="/feed">Back to the feed</Link>.
+        They remember past dates. Propose pairings and follow the relationship graph. <Link href="/watch">Watch what&apos;s on</Link>.
       </p>
 
       {cast.length > 0 && (

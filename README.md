@@ -271,7 +271,7 @@ Every character has a **shareable contestant card** (public persona only, with i
 ![The learned arc on a phone](docs/screenshots/contestant-memory-mobile.png)
 
 ![The Reunion, folded into the feed: season awards, the couples board and the confessional reel, desktop](docs/screenshots/reunion-desktop.png)
-**The Reunion** now assembles at the bottom of the feed (Episodes & leagues), a season-special built **at $0** from what already happened — the season awards (fan favourite, biggest disaster, …), the couples board from the relationship graph, and a reel of the confessionals creators chose to share. No new generation, no model call. (`/reunion` 308-redirects here.)
+**The Reunion** now assembles at the bottom of Watch (which took in "Episodes & leagues" on 2026-10-18), a season-special built **at $0** from what already happened — the season awards (fan favourite, biggest disaster, …), the couples board from the relationship graph, and a reel of the confessionals creators chose to share. No new generation, no model call. (`/reunion` and `/feed` 308-redirect there.)
 
 For adults who make original characters and the friends who watch, it turns two character sheets into a short blind-date episode that creators can't steer and spectators predict for free points.
 

@@ -25,6 +25,8 @@ type Props = {
   ownKey: boolean;
   /** The line under the heading, when it's not the usual (a swipe-deck match before its first date). */
   intro?: string;
+  /** The thread-only page (/messages): just the phone, filling the screen, with ‹ back to the matches list. */
+  page?: { back: string; info: string };
 };
 
 /** Within this of the newest text, the reader is "at the newest" and stays there as the phone resizes. */
@@ -43,7 +45,7 @@ const HINT_MAX = 140;
  * history, a page at a time. Full screen fills the screen: the browser's own full screen where it allows it (desktop,
  * Android), a fixed overlay elsewhere (iPhone Safari). The characters' owners only.
  */
-export default function TextPhone({ pair, characters, mine, canFlip, stageLabel, initial, today, ownKey, intro }: Props) {
+export default function TextPhone({ pair, characters, mine, canFlip, stageLabel, initial, today, ownKey, intro, page }: Props) {
   const [lo, hi] = pair;
   const [items, setItems] = useState<ChainItem[]>(initial.items);
   const [hint, setHint] = useState("");
@@ -284,6 +286,110 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
 
   const anyTexts = items.some(isText);
 
+  const phone = (
+    <div
+      ref={stage}
+      className={`phone-stage${full ? " is-full" : ""}${page ? " is-page" : ""}`}
+      role={full ? "dialog" : undefined}
+      aria-modal={full ? true : undefined}
+      aria-label={full ? `Texts between ${names}` : undefined}
+      onKeyDown={full ? trap : undefined}
+    >
+      <PhoneFrame chrome={!full && !page}>
+        <header className="phone-header">
+          <Link
+            className="phone-back"
+            href={page ? page.back : `/characters/${self.id}/relationships`}
+            aria-label={page ? `Back to ${shortName(self.name)}'s matches` : `Back to ${shortName(self.name)}'s relationships`}
+          >
+            ‹
+          </Link>
+          <Link className="phone-contact" href={`/characters/${other.id}`}>
+            <Avatar seed={other.id} name={other.name} hue={other.hue} house={other.house} portraitSrc={other.portrait} size={38} />
+            <span className="phone-contact-name">{shortName(other.name)}</span>
+            {stageLabel && <span className="phone-contact-stage">{stageLabel}</span>}
+          </Link>
+          {page && !canFlip ? (
+            <Link className="phone-head-btn" href={page.info} aria-label={`${shortName(self.name)} and ${shortName(other.name)}: their dates and story`} title="Their dates and story">
+              ⓘ
+            </Link>
+          ) : full ? (
+            <button ref={done} type="button" className="phone-head-btn" onClick={leave}>
+              Done
+            </button>
+          ) : canFlip ? (
+            <button type="button" className="phone-head-btn" onClick={() => setMe(them)} aria-label={`See it on ${shortName(other.name)}'s phone`} title={`See it on ${shortName(other.name)}'s phone`}>
+              ⇄
+            </button>
+          ) : (
+            <span aria-hidden="true" />
+          )}
+        </header>
+        <div ref={box} className="phone-messages" role="region" aria-label={`Texts between ${names}`} tabIndex={0}>
+          {hasMore ? (
+            <div ref={top} className="phone-earlier">
+              <button type="button" className="phone-earlier-btn" onClick={() => void loadEarlier()} disabled={loading}>
+                {loading ? "Loading…" : failed ? "Couldn't load them. Try again" : "Load earlier texts"}
+              </button>
+            </div>
+          ) : (
+            anyTexts && <p className="phone-start">The start of their texts</p>
+          )}
+          <Thread items={items} me={me} characters={characters} today={today} />
+          {!anyTexts && !sending && (
+            <p className="phone-note phone-empty">
+              No texts yet. The morning after a date they text each other, and couples on good terms keep texting between dates.
+            </p>
+          )}
+          {sending && (
+            <div className="phone-msg phone-msg-me starts ends" role="status" aria-label={`${shortName(self.name)} is typing`}>
+              <p className="phone-bubble chat-typing" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </p>
+            </div>
+          )}
+        </div>
+        {away && (
+          <button type="button" className="phone-jump" onClick={toNewest} aria-label="Jump to the newest text">
+            ↓
+          </button>
+        )}
+        {status && (
+          <p className={`phone-status-line${status.error ? " is-error" : ""}`} role={status.error ? "alert" : "status"}>
+            {status.text}
+          </p>
+        )}
+        {ownKey ? (
+          <form className="phone-compose phone-compose-form" onSubmit={send}>
+            <input
+              className="phone-compose-input"
+              value={hint}
+              onChange={(e) => setHint(e.target.value.slice(0, HINT_MAX))}
+              placeholder={`What should ${shortName(self.name)} say? (optional)`}
+              aria-label={`A nudge for ${shortName(self.name)}'s next text (optional)`}
+              disabled={sending}
+            />
+            <button type="submit" className="phone-send" disabled={sending} aria-label={`${shortName(self.name)} texts ${shortName(other.name)}`} title="Send">
+              ↑
+            </button>
+          </form>
+        ) : (
+          <p className="phone-compose">💬 Only {names} can text here</p>
+        )}
+      </PhoneFrame>
+    </div>
+  );
+
+  if (page) {
+    return (
+      <section className="thread-page" id="texts" aria-label={`Texts between ${names}`}>
+        {phone}
+      </section>
+    );
+  }
+
   return (
     <section className="card phone-card" id="texts" aria-labelledby="texts-title">
       <div className="section-head">
@@ -295,91 +401,7 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
       <p className="muted small">
         {intro ?? "Every text since their first date: the morning after each date, then their texts between dates. Only the characters' owners see this."}
       </p>
-      <div
-        ref={stage}
-        className={`phone-stage${full ? " is-full" : ""}`}
-        role={full ? "dialog" : undefined}
-        aria-modal={full ? true : undefined}
-        aria-label={full ? `Texts between ${names}` : undefined}
-        onKeyDown={full ? trap : undefined}
-      >
-        <PhoneFrame chrome={!full}>
-          <header className="phone-header">
-            <Link className="phone-back" href={`/characters/${self.id}/relationships`} aria-label={`Back to ${shortName(self.name)}'s relationships`}>
-              ‹
-            </Link>
-            <Link className="phone-contact" href={`/characters/${other.id}`}>
-              <Avatar seed={other.id} name={other.name} hue={other.hue} house={other.house} portraitSrc={other.portrait} size={38} />
-              <span className="phone-contact-name">{shortName(other.name)}</span>
-              {stageLabel && <span className="phone-contact-stage">{stageLabel}</span>}
-            </Link>
-            {full ? (
-              <button ref={done} type="button" className="phone-head-btn" onClick={leave}>
-                Done
-              </button>
-            ) : canFlip ? (
-              <button type="button" className="phone-head-btn" onClick={() => setMe(them)} aria-label={`See it on ${shortName(other.name)}'s phone`} title={`See it on ${shortName(other.name)}'s phone`}>
-                ⇄
-              </button>
-            ) : (
-              <span aria-hidden="true" />
-            )}
-          </header>
-          <div ref={box} className="phone-messages" role="region" aria-label={`Texts between ${names}`} tabIndex={0}>
-            {hasMore ? (
-              <div ref={top} className="phone-earlier">
-                <button type="button" className="phone-earlier-btn" onClick={() => void loadEarlier()} disabled={loading}>
-                  {loading ? "Loading…" : failed ? "Couldn't load them. Try again" : "Load earlier texts"}
-                </button>
-              </div>
-            ) : (
-              anyTexts && <p className="phone-start">The start of their texts</p>
-            )}
-            <Thread items={items} me={me} characters={characters} today={today} />
-            {!anyTexts && !sending && (
-              <p className="phone-note phone-empty">
-                No texts yet. The morning after a date they text each other, and couples on good terms keep texting between dates.
-              </p>
-            )}
-            {sending && (
-              <div className="phone-msg phone-msg-me starts ends" role="status" aria-label={`${shortName(self.name)} is typing`}>
-                <p className="phone-bubble chat-typing" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </p>
-              </div>
-            )}
-          </div>
-          {away && (
-            <button type="button" className="phone-jump" onClick={toNewest} aria-label="Jump to the newest text">
-              ↓
-            </button>
-          )}
-          {status && (
-            <p className={`phone-status-line${status.error ? " is-error" : ""}`} role={status.error ? "alert" : "status"}>
-              {status.text}
-            </p>
-          )}
-          {ownKey ? (
-            <form className="phone-compose phone-compose-form" onSubmit={send}>
-              <input
-                className="phone-compose-input"
-                value={hint}
-                onChange={(e) => setHint(e.target.value.slice(0, HINT_MAX))}
-                placeholder={`What should ${shortName(self.name)} say? (optional)`}
-                aria-label={`A nudge for ${shortName(self.name)}'s next text (optional)`}
-                disabled={sending}
-              />
-              <button type="submit" className="phone-send" disabled={sending} aria-label={`${shortName(self.name)} texts ${shortName(other.name)}`} title="Send">
-                ↑
-              </button>
-            </form>
-          ) : (
-            <p className="phone-compose">💬 Only {names} can text here</p>
-          )}
-        </PhoneFrame>
-      </div>
+      {phone}
       {!ownKey && (
         <p className="muted small phone-key-hint">
           Want more than the daily text? <Link href="/account#model-key">Add your own model key</Link> and {shortName(self.name)} texts{" "}

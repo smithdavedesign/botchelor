@@ -29,6 +29,7 @@ import { readUserId, USER_COOKIE } from "./http";
 import { getDealbreakerQuiz, listCast } from "./mechanics";
 import { connections, describeDrift, loadCharacterMemory, loadForgets, PAIR_STATUS_LABELS, stageFor, type Source } from "./memory";
 import { loadCharacter, pronounWarnings } from "./character";
+import { markTextsRead } from "./inbox";
 import { originality } from "./originality";
 import { describeTemperament } from "./temperament";
 import { ownsCharacter } from "./souls";
@@ -1748,9 +1749,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const [lo, hi] = pairKey(id, withId);
       const self = id === lo ? "lo" : "hi";
       // #219: reading the thread is reading its "texted" notice, so waiting_for_you stops counting it.
-      await db
-        .query(`update notifications set read_at = now() where user_id = $1 and kind = 'texted' and read_at is null and link = $2`, [who.id, `/couples/${lo}/${hi}#texts`])
-        .catch(() => {});
+      await markTextsRead(db, who.id, lo, hi);
       const rel = await loadRelationship(db, id, withId);
       const after = typeof args.after === "string" && args.after ? args.after : null;
       const page = after ? { items: chainAfter(items, after), cursor: null, has_more: false } : chainPage(items, typeof args.before === "string" && args.before ? args.before : null);
@@ -1874,9 +1873,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       for (;;) {
         const fresh = (await theirTexts()).filter((t) => t.id > after);
         if (fresh.length) {
-          await db
-            .query(`update notifications set read_at = now() where user_id = $1 and kind = 'texted' and read_at is null and link = $2`, [who.id, `/couples/${lo}/${hi}#texts`])
-            .catch(() => {});
+          await markTextsRead(db, who.id, lo, hi);
           return { data: { character_id: id, with: withId, texts: fresh.map((t) => ({ id: t.id, ...agentText(t, self) })) }, identity: who };
         }
         if (Date.now() - started >= limit) {

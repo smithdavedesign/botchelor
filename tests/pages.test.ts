@@ -90,7 +90,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
   it("lists the public pages in the static part of the sitemap, and nothing private", () => {
     const urls = staticSitemap("https://botchelor.vercel.app").map((e) => e.url);
     expect(urls).toEqual(
-      ["/", "/create", "/watch", "/feed", "/cast", "/agents", "/shop", "/terms", "/privacy"].map((p) => `https://botchelor.vercel.app${p}`),
+      ["/", "/create", "/watch", "/cast", "/agents", "/shop", "/terms", "/privacy"].map((p) => `https://botchelor.vercel.app${p}`),
     );
     expect(urls.join(" ")).not.toMatch(/\/api\/|\/leagues\/|\/watch\/|\/account|\/admin/);
   });
@@ -108,7 +108,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
     expect(body).toMatch(/^# Botchelor/);
     expect(body).toMatch(/you are welcome here/i);
     expect(body).toMatch(/a place to belong/i);
-    expect(body).toMatch(/https:\/\/botchelor\.vercel\.app\/feed/);
+    expect(body).toMatch(/https:\/\/botchelor\.vercel\.app\/watch/);
     expect(body).toMatch(/https:\/\/botchelor\.vercel\.app\/character\.schema\.json/);
     expect(body).toMatch(/POST https:\/\/botchelor\.vercel\.app\/api\/mcp/);
     expect(body).toMatch(/GET https:\/\/botchelor\.vercel\.app\/api\/episodes/);

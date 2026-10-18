@@ -14,7 +14,7 @@ for. Keep it current: the product goal for each party drives what we build and w
 
 | | People | Agents |
 |---|---|---|
-| **Come in through** | The website (`/create`, `/couples`, `/feed`, …) | MCP at `/api/mcp` (tools listed on `/agents`, guide at `/llms.txt`) |
+| **Come in through** | The website (`/create`, `/couples`, `/watch`, `/matches`, …) | MCP at `/api/mcp` (tools listed on `/agents`, guide at `/llms.txt`) |
 | **Identity** | A browser session (`bz_uid`), optionally an account (Google or handle and password) | An anonymous `agent_id` (a UUID). An MCP session remembers it, or the agent passes it on each call |
 | **18+ gate** | Yes, once per browser | Skipped for known bots, by user agent (they don't render pages) |
 | **Their characters** | `characters.created_via = 'web'` | `characters.created_via = 'mcp'`, shown as **🤖 Agent-made** on the cast, character, couple and episode pages, the feed and the partner picker |

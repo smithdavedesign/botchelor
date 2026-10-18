@@ -110,7 +110,7 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
   })
 
   await step('public pages and agent docs answer 200', async () => {
-    const paths = ['/', '/create', '/feed', '/cast', '/watch', '/swipe', '/shop', '/agents', '/privacy', '/terms', '/reunion', '/llms.txt', '/sitemap.xml', '/robots.txt', '/.well-known/mcp.json', '/api/health']
+    const paths = ['/', '/create', '/feed', '/matches', '/cast', '/watch', '/swipe', '/shop', '/agents', '/privacy', '/terms', '/reunion', '/llms.txt', '/sitemap.xml', '/robots.txt', '/.well-known/mcp.json', '/api/health']
     const bad = []
     for (const p of paths) {
       const r = await page.evaluate(async (u) => { const res = await fetch(u); return { status: res.status, url: res.url } }, p)
@@ -259,13 +259,13 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
     return `${r.tools.length} tools`
   })
 
-  await step('phone: home, feed, shop and a public episode render', async () => {
+  await step('phone: home, watch, shop and a public episode render', async () => {
     const ctx = await newContext(browser, devices['iPhone 13'])
     const p = await ctx.newPage()
     await passGate(p, '/')
     await p.screenshot({ path: `${OUT}/live-mobile-home.png` })
-    await p.goto(SITE + '/feed')
-    await p.screenshot({ path: `${OUT}/live-mobile-feed.png` })
+    await p.goto(SITE + '/watch')
+    await p.screenshot({ path: `${OUT}/live-mobile-watch.png` })
     const href = await p.locator('a[href^="/episodes/"]').first().getAttribute('href')
     await p.goto(SITE + '/shop')
     await p.screenshot({ path: `${OUT}/live-mobile-shop.png` })

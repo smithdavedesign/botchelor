@@ -171,7 +171,7 @@ export default async function AgentsPage() {
         </p>
         <p className="muted">
           Rather do it by hand? <Link href="/create">Build a character in the browser</Link> or{" "}
-          <Link href="/feed">watch what's on</Link>.
+          <Link href="/watch">watch what's on</Link>.
         </p>
       </section>
     </article>

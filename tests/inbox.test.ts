@@ -1,0 +1,107 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { listThreads, loadThread, markTextsRead, textedLinks, unreadTexts } from "@/lib/inbox";
+import { pairKey } from "@/lib/relationships";
+import { api, HOUSE_PARTNER_ID, newUserCookie, setupEpisode, startTestDb, userIdOf, validCharacter } from "./helpers";
+
+// Matches and Messages (lib/inbox.ts; David, 2026-10-18).
+let t: Awaited<ReturnType<typeof startTestDb>>;
+beforeAll(async () => {
+  t = await startTestDb();
+});
+afterAll(async () => {
+  await t.close();
+});
+beforeEach(async () => {
+  await t.reset();
+  vi.spyOn(console, "log").mockImplementation(() => {});
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+async function character(name: string, cookie = newUserCookie()) {
+  const c = await (await api.createCharacter(validCharacter({ name }), cookie)).json();
+  return { id: c.id as string, cookie, userId: userIdOf(cookie) };
+}
+
+async function text(x: string, y: string, from: string, body: string, minutesAgo = 0) {
+  const [lo, hi] = pairKey(x, y);
+  const seq = (await t.db.query<{ n: number }>(`select count(*)::int as n from couple_texts where character_lo = $1 and character_hi = $2`, [lo, hi])).rows[0].n + 1;
+  await t.db.query(
+    `insert into couple_texts (character_lo, character_hi, day, seq, who, text, via, created_at)
+     values ($1, $2, current_date, $3, $4, $5, 'agent', now() - make_interval(mins => $6))`,
+    [lo, hi, seq, from === lo ? "lo" : "hi", body, minutesAgo],
+  );
+}
+
+describe("listThreads", () => {
+  it("someone it dated is a thread: new until they text, then a conversation with the last text", async () => {
+    const { creator, character: me } = await setupEpisode();
+    const userId = userIdOf(creator);
+    const before = (await listThreads(t.db, userId, me.id))!;
+    expect(before.fresh.map((x) => x.with.id)).toEqual([HOUSE_PARTNER_ID]);
+    expect(before.fresh[0]).toMatchObject({ dates: 1, last: null, match: null, link: expect.stringMatching(/^\/messages\//) });
+
+    await text(me.id, HOUSE_PARTNER_ID, HOUSE_PARTNER_ID, "Same time next week?");
+    const after = (await listThreads(t.db, userId, me.id))!;
+    expect(after.fresh).toEqual([]);
+    expect(after.conversations[0]).toMatchObject({ with: { id: HOUSE_PARTNER_ID }, last: { text: "Same time next week?", mine: false } });
+  });
+
+  it("a swipe match carries where the date stands; a pair that only texts counts too; newest first", async () => {
+    const me = await character("Ada Lumen");
+    const bo = await character("Bo Quill");
+    const cy = await character("Cy Marr");
+    const dee = await character("Dee Holt");
+    const [lo, hi] = pairKey(me.id, bo.id);
+    await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi) values ($1, $2, $3, $4)`, [lo, hi, true, true]);
+    await text(me.id, cy.id, me.id, "Older one.", 30);
+    await text(me.id, dee.id, dee.id, "Newer one.", 5);
+
+    const inbox = (await listThreads(t.db, me.userId, me.id))!;
+    expect(inbox.fresh.map((x) => x.with.id)).toEqual([bo.id]);
+    expect(inbox.fresh[0].match).toMatchObject({ agreed: true, you: true, them: true });
+    expect(inbox.conversations.map((x) => x.with.id)).toEqual([dee.id, cy.id]);
+    expect(inbox.conversations[1].last).toMatchObject({ text: "Older one.", mine: true });
+  });
+
+  it("counts unread texts by either link, and opening the thread clears them", async () => {
+    const me = await character("Ada Lumen");
+    const bo = await character("Bo Quill");
+    await text(me.id, bo.id, bo.id, "Hey you.");
+    const [lo, hi] = pairKey(me.id, bo.id);
+    for (const link of textedLinks(lo, hi)) {
+      await t.db.query(`insert into notifications (id, user_id, kind, title, link) values (gen_random_uuid()::text, $1, 'texted', 'Bo texted', $2)`, [me.userId, link]);
+    }
+    expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(2);
+    expect(await unreadTexts(t.db, me.userId)).toBe(2);
+    await markTextsRead(t.db, me.userId, lo, hi);
+    expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(0);
+    expect(await unreadTexts(t.db, me.userId)).toBe(0);
+  });
+
+  it("someone else's character has no inbox for you", async () => {
+    const me = await character("Ada Lumen");
+    expect(await listThreads(t.db, userIdOf(newUserCookie()), me.id)).toBeNull();
+  });
+});
+
+describe("loadThread", () => {
+  it("opens for an owner of either character, never for anyone else", async () => {
+    const me = await character("Ada Lumen");
+    const bo = await character("Bo Quill");
+    await text(me.id, bo.id, bo.id, "Hey you.");
+    const mine = await loadThread(t.db, me.userId, bo.id, me.id);
+    expect(mine).toMatchObject({ mine: [me.id], ownKey: false });
+    expect(mine!.chain.items.map((i) => (i.kind === "text" ? i.text : i.kind))).toEqual(["Hey you."]);
+    expect(await loadThread(t.db, bo.userId, me.id, bo.id)).toMatchObject({ mine: [bo.id] });
+    expect(await loadThread(t.db, userIdOf(newUserCookie()), me.id, bo.id)).toBeNull();
+    expect(await loadThread(t.db, null, me.id, bo.id)).toBeNull();
+  });
+
+  it("a pair with nothing between them isn't a thread", async () => {
+    const me = await character("Ada Lumen");
+    const bo = await character("Bo Quill");
+    expect(await loadThread(t.db, me.userId, me.id, bo.id)).toBeNull();
+  });
+});

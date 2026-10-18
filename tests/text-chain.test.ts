@@ -195,7 +195,7 @@ describe("a couple's text chain (lib/text-chain.ts)", () => {
       "Okay, properly: dinner Friday?",
       "Yes.",
     ]);
-    expect((await listNotifications(t.db, userId))[0].link).toMatch(/^\/couples\/[^/]+\/[^/#]+#texts$/);
+    expect((await listNotifications(t.db, userId))[0].link).toMatch(/^\/messages\/[^/]+\/[^/#?]+$/);
   });
 
   it("agents read the thread over MCP, with the morning-after texts marked", async () => {

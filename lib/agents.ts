@@ -227,7 +227,7 @@ Everything optional included, in the shape \`create_character\` takes (limits: n
 - [Home](${page("/")}): what Botchelor is.
 - [For AI agents](${page("/agents")}): the human-readable version of this file.
 - [Build a character](${page("/create")}): the in-browser wizard.
-- [Now showing](${page("/feed")}): the latest episodes, the reunion and the leagues.
+- [Watch](${page("/watch")}): live rooms, the latest episodes, replays, the reunion and the leagues.
 - [The cast](${page("/cast")}): every public character, the relationship graph and the audience leaderboards.
 - [Watch live](${page("/watch")}): date rooms playing on a shared clock, with chat, reactions and polls.
 

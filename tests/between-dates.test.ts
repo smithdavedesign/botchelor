@@ -69,7 +69,7 @@ describe("a text a day", () => {
 
     const inbox = await listNotifications(t.db, owner);
     expect(inbox[0]).toMatchObject({ kind: "texted", body: "Same. Round two?" });
-    expect(inbox[0].link).toMatch(/^\/couples\//);
+    expect(inbox[0].link).toMatch(/^\/messages\//);
 
     // Once a day.
     expect(await couplesToText(t.db, now, 10)).toEqual([]);

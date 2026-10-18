@@ -1,14 +1,26 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
+import EpisodeItem from "@/app/EpisodeItem";
+import JsonLd from "@/app/JsonLd";
+import ReunionPanel from "@/app/ReunionPanel";
 import { getDb } from "@/lib/db";
+import { listFeed } from "@/lib/game";
+import { userIdFromCookieStore } from "@/lib/http";
+import { listMyLeagues } from "@/lib/leagues";
+import { getProfileName } from "@/lib/people";
+import { getReunion } from "@/lib/reunion";
+import { itemListJsonLd } from "@/lib/seo";
 import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch";
 import { dateLabel } from "@/lib/rules";
+import { CreateLeagueForm } from "./WatchActions";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Watch a date · Botchelor",
-  description: "Watch an AI blind date with the room: chat, react, and call the ending before the characters do. Live rooms and replays.",
+  title: "Watch AI blind dates: live rooms, episodes and leagues · Botchelor",
+  description:
+    "Watch AI blind dates between original characters, human-made and agent-made: live rooms with chat and reactions, the latest episodes, replays, and friend leagues where you call the ending before the finale airs.",
   alternates: { canonical: "/watch" },
 };
 
@@ -42,13 +54,24 @@ function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
 }
 
 /**
- * The watch page, honest about what's playing: live rooms (join in), open rooms nobody has started (the first visitor
- * starts the clock for everyone who joins in the next few minutes; the hourly job keeps one ready), premieres with a
- * set start, and replays of rooms that have ended.
+ * Everything to watch, on one page (David, 2026-10-18: Watch and "Episodes & leagues" merged; /feed redirects here):
+ * live rooms (join in), open rooms nobody has started (the first visitor starts the clock for everyone who joins in the
+ * next few minutes; the hourly job keeps one ready), premieres with a set start, the latest episodes, replays, and
+ * friend leagues. A viewer's own dates, badges and blocks are on their account page.
  */
 export default async function WatchLobbyPage() {
   const db = await getDb();
-  const [rooms, privateDates] = await Promise.all([listLobby(db), countRecentPrivateDates(db)]);
+  const viewerId = userIdFromCookieStore(await cookies());
+  const [rooms, privateDates, all, leagues, profileName, reunion] = await Promise.all([
+    listLobby(db),
+    countRecentPrivateDates(db),
+    listFeed(db, viewerId),
+    viewerId ? listMyLeagues(db, viewerId) : Promise.resolve([]),
+    getProfileName(db, viewerId),
+    getReunion(db),
+  ]);
+  // The viewer's own dates are on their account page, so the public list skips them.
+  const feed = all.filter((episode) => !episode.is_creator);
   const now = Date.now();
   const live = rooms.filter((r) => r.status === "live");
   const ready = rooms.filter((r) => r.status === "ready");
@@ -57,6 +80,12 @@ export default async function WatchLobbyPage() {
 
   return (
     <article className="watch-page">
+      <JsonLd
+        data={itemListJsonLd(
+          "Latest Botchelor episodes",
+          feed.map((e) => ({ name: `${e.characters[0].name} × ${e.characters[1].name}`, path: e.share_path })),
+        )}
+      />
       <p className="kicker">The Botchelor · watch</p>
       <h1>Watch a date</h1>
       <p className="lede">
@@ -134,6 +163,25 @@ export default async function WatchLobbyPage() {
       )}
 
       <section className="watch-section">
+        <h2>Latest episodes</h2>
+        <p className="muted small">
+          The whole date to read at your pace. Guess the ending before the finale airs. Creators stay anonymous unless they both agree to reveal
+          themselves. See <Link href="/cast">the cast &amp; matchmaking</Link>.
+        </p>
+        {feed.length ? (
+          <ul className="list">
+            {feed.map((episode) => (
+              <EpisodeItem key={episode.id} episode={episode} />
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">
+            Nothing on yet. <Link href="/create">Send a character on a date</Link>.
+          </p>
+        )}
+      </section>
+
+      <section className="watch-section">
         <h2>Replays</h2>
         {replays.length ? (
           <div className="watch-lobby">
@@ -146,8 +194,30 @@ export default async function WatchLobbyPage() {
         )}
       </section>
 
+      <section className="watch-section" id="leagues">
+        <h2>Leagues</h2>
+        <p className="muted small">Call endings with friends: the top 3 in each league earn a badge when a season closes.</p>
+        {leagues.length > 0 && (
+          <ul className="list">
+            {leagues.map((league) => (
+              <li key={league.id} className="card">
+                <Link href={league.invite_path}>
+                  <strong>{league.name}</strong>
+                </Link>{" "}
+                <span className="muted">
+                  {league.members} {league.members === 1 ? "player" : "players"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <CreateLeagueForm hasName={profileName !== null} />
+      </section>
+
+      <ReunionPanel reunion={reunion} />
+
       <p className="muted small">
-        Premiere your own date: open it from <Link href="/feed">your dates</Link> and press &ldquo;Start the
+        Premiere your own date: open it from <Link href="/account#your-dates">your dates</Link> and press &ldquo;Start the
         premiere&rdquo;. Or <Link href="/create">send a character on one</Link>.
       </p>
     </article>

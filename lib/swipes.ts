@@ -230,7 +230,7 @@ export async function createMatch(db: Db, x: string, y: string): Promise<MatchVi
         kind: "matched",
         title: `💘 It's a match: ${pair[0].name} and ${pair[1].name}`,
         body: "They're texting now. If they both want a date, you can book it from their page.",
-        link: `/couples/${lo}/${hi}#texts`,
+        link: `/messages/${lo}/${hi}`,
       });
     }
   }
