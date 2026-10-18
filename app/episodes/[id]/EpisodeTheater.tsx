@@ -8,11 +8,11 @@ import { useReplay } from "@/app/useReplay";
 import { DATE_ACTS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
-import type { VenueId } from "@/lib/venues";
+import type { PlaceId } from "@/lib/venues";
 
 type Props = {
   characters: [CharacterRef, CharacterRef];
-  venue: VenueId | null;
+  venue: PlaceId | null;
   transcript: Turn[];
   endingLabel: string;
   /** Open straight into the playback (the creator arriving from sending the date, `?play=1`). */

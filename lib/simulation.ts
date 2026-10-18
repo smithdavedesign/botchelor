@@ -26,9 +26,11 @@ import type { CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { loadCharacterMemory, pairMemory, pendingReflections, withPairMemory, withPendingReflections, type CharacterMemory } from "./memory";
 import { activeNudge, alsoSeeing } from "./between-dates";
-import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, venueForPlan, type Relationship } from "./relationships";
+import { agreedPlan, planLines, type AgreedPlan, type PlanText } from "./plans";
+import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, venueForPlan, type End, type Relationship } from "./relationships";
 import { loadSoul, type StoredSoul } from "./souls";
-import { isText, loadChain, promptTexts, type PromptTexts } from "./text-chain";
+import { isText, loadChain, promptTexts, type ChainItem, type PromptTexts } from "./text-chain";
+import type { Turn } from "./conversation";
 import {
   AGENDA_IDS,
   DEFAULT_AUTONOMY,
@@ -43,7 +45,7 @@ import {
   type SlidingDoorChange,
   type Strategy,
 } from "./rules";
-import { pickVenueAvoiding, type VenueId } from "./venues";
+import { pickVenueAvoiding, type PlaceId } from "./venues";
 import { DEFAULT_FORMAT, type FormatId } from "./formats";
 import { HOUSE_CHARACTERS } from "./house";
 
@@ -104,8 +106,8 @@ export type BuiltDate = {
   input: DateInput;
   /** The two fully-assembled characters (identity + soul + learned memory): what the LLM prompts consume. */
   characters: [Character, Character];
-  /** Always carries the dealt venue: DateSetup.venue is only optional for episodes stored before it existed. */
-  setup: DateSetup & { venue: VenueId };
+  /** Always carries the venue: DateSetup.venue is only optional for episodes stored before it existed. */
+  setup: DateSetup & { venue: PlaceId };
   seed: number;
 };
 
@@ -145,9 +147,11 @@ export type DateParts = {
   /** Every text they've sent each other, as each side sees it (lib/text-chain.ts promptTexts). Flavour only. */
   texts?: { a: PromptTexts; b: PromptTexts };
   /** Venues to deal past: where either person's character had its last dates (buildDate snapshots them). */
-  avoidVenues?: VenueId[];
+  avoidVenues?: PlaceId[];
   /** A stored date's venue, kept as booked: the library can grow, and a plan can change, after a date is booked. */
-  venueOverride?: VenueId;
+  venueOverride?: PlaceId;
+  /** The plan the two agreed to by text that tonight is (lib/plans.ts): where it happens, and each side knows it. */
+  agreedPlan?: AgreedPlan | null;
 };
 
 /**
@@ -159,12 +163,24 @@ export function assembleDate(p: DateParts): BuiltDate {
   const { a, b, req, seed } = p;
   const charA = assembleCharacter({ id: a.id, sheet: a.sheet, soul: p.soulA, memory: p.memoryA, extras: p.extrasA, thisWeek: p.thisWeekA });
   const charB = assembleCharacter({ id: b.id, sheet: b.sheet, soul: p.soulB, memory: p.memoryB, extras: p.extrasB, thisWeek: p.thisWeekB });
+  // The plan they agreed to by text is tonight (David, 2026-10-18: "honoring their discussion in the texting"): it's
+  // where the date happens, and each side knows it kept the plan. One plan per date: with it, a second date's older
+  // plan (from its morning after) stays out of the prompts, so the venue and the premise can't come from two plans.
+  const agreed = p.agreedPlan ?? null;
+  const [lo] = pairKey(a.id, b.id);
+  const endOf = (id: string): End => (id === lo ? "lo" : "hi");
+  if (agreed) {
+    charA.tonightsPlan = planLines(agreed, endOf(a.id));
+    charB.tonightsPlan = planLines(agreed, endOf(b.id));
+  }
   // Each side's own view of the relationship (never the other's private wish), and the words both already know.
   if (p.relationship && p.creatorId !== undefined) {
-    charA.pair = pairContext(p.relationship, a.id, p.creatorId, p.followupOf ?? null);
-    charB.pair = pairContext(p.relationship, b.id, p.creatorId, p.followupOf ?? null);
+    const followup = agreed ? null : (p.followupOf ?? null);
+    charA.pair = pairContext(p.relationship, a.id, p.creatorId, followup);
+    charB.pair = pairContext(p.relationship, b.id, p.creatorId, followup);
     charA.pairShared = charB.pairShared = pairSharedWords(p.relationship, p.creatorId);
   }
+  if (agreed) charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${agreed.texts.map((t) => t.text).join(" ")}`.trim();
   // Their texts go into the date (David: "the full text history going into the date"). Both of them sent and read every
   // one, so each side carries the whole thread, and its words are things both already know.
   if (p.texts) {
@@ -177,12 +193,13 @@ export function assembleDate(p: DateParts): BuiltDate {
   if (p.nudges?.b) charB.nudge = p.nudges.b;
   if (p.alsoSeeing?.a.length) charA.alsoSeeing = p.alsoSeeing.a;
   if (p.alsoSeeing?.b.length) charB.alsoSeeing = p.alsoSeeing.b;
-  // A second date happens where they planned it, when the plan names a kind of place we have, but never the same place
-  // twice in a row: a running joke about coffee kept Cass and Dex in the same café for 7 of 15 dates.
-  const plans = p.followupOf ? (p.relationship?.plans ?? []).filter((x) => x.episode_id === p.followupOf) : [];
+  // Without one, a second date happens where its morning after planned it, when the plan names a kind of place we have,
+  // but never the same place twice in a row: a running joke about coffee kept Cass and Dex in the same café for 7 of
+  // 15 dates. An agreed plan has no such rule: it takes a proposal and a yes, and that's what they asked for.
+  const plans = !agreed && p.followupOf ? (p.relationship?.plans ?? []).filter((x) => x.episode_id === p.followupOf) : [];
   const planned = venueForPlan(plans);
   const recentVenues = (p.relationship?.history ?? []).slice(-2).map((h) => h.venue);
-  const plannedVenue = planned && recentVenues[recentVenues.length - 1] !== planned ? planned : null;
+  const plannedVenue: PlaceId | null = agreed?.place ?? (planned && recentVenues[recentVenues.length - 1] !== planned ? planned : null);
   // The effective engine signals this date runs on: the base soul/image signals nudged by the learned
   // memory's bounded drift (lib/character.ts), so a bot genuinely evolves across its dates. A worker
   // rebuilding a stored date passes the snapshot so it re-decides EXACTLY what POST stored.
@@ -190,7 +207,7 @@ export function assembleDate(p: DateParts): BuiltDate {
   const signalsB = p.signalsOverride?.b ?? charB.signals;
   const agendaA = req.agendaId ?? pickAgenda(seedFrom(seed, "agenda-a"));
   const agendaB = pickAgenda(seedFrom(seed, "agenda-b"));
-  const setup: DateSetup & { venue: VenueId } = {
+  const setup: DateSetup & { venue: PlaceId } = {
     autonomy: req.autonomy,
     strategy: req.strategy,
     agenda_a: agendaA,
@@ -211,7 +228,8 @@ export function assembleDate(p: DateParts): BuiltDate {
     engine_version: CURRENT_ENGINE_VERSION,
     // ...and the pair's history as the engine read it, so a replay sees the relationship as it stood that night.
     ...(p.history ? { history: p.history } : {}),
-    ...(p.followupOf ? { followup_of: p.followupOf, plan: plans.map((x) => x.text) } : {}),
+    ...(agreed ? { agreed_plan: agreed } : {}),
+    ...(p.followupOf ? { followup_of: p.followupOf, plan: agreed ? agreed.texts.map((t) => t.text) : plans.map((x) => x.text) } : {}),
     ...(p.nudges?.a ? { nudge_a: p.nudges.a } : {}),
     ...(p.nudges?.b ? { nudge_b: p.nudges.b } : {}),
   };
@@ -275,9 +293,15 @@ export async function buildDate(
      * Venues to deal past. Left out when a date is booked: then it's where either person's character had its last two
      * dates. A rebuild of a stored date passes the setup's snapshot (or [] for one from before), so the venue holds.
      */
-    avoidVenues?: VenueId[];
+    avoidVenues?: PlaceId[];
     /** A rebuild of a stored date passes its venue (DateSetup.venue), so it's written where it was booked. */
-    venueOverride?: VenueId;
+    venueOverride?: PlaceId;
+    /**
+     * The plan they agreed to by text (lib/plans.ts). Left out when a date is booked: then it's read from their texts.
+     * A rebuild of a stored date passes the setup's snapshot, or null for none: a rebuild never reads the texts again,
+     * so a text sent while an agent is playing the date can't turn it into a different one halfway through.
+     */
+    agreedPlan?: AgreedPlan | null;
   } = {},
 ): Promise<BuiltDate> {
   const [soulA, soulB, memoryA, memoryB, relationship, ex, extras, nudges, seeingA, seeingB] = await Promise.all([
@@ -312,6 +336,8 @@ export async function buildDate(
       : [null, null];
   const [lo] = pairKey(a.id, b.id);
   const texts = chain.some(isText) ? { a: promptTexts(chain, a.id === lo ? "lo" : "hi"), b: promptTexts(chain, b.id === lo ? "lo" : "hi") } : undefined;
+  const names: Record<End, string> = a.id === lo ? { lo: a.sheet.name, hi: b.sheet.name } : { lo: b.sheet.name, hi: a.sheet.name };
+  const agreed = opts.agreedPlan !== undefined ? opts.agreedPlan : await planFromChain(db, chain, lo, names).catch(() => null);
   const rowOf = (id: string) => extras.rows.find((r) => r.id === id);
   // A worker re-deciding a stored date passes its snapshot; a date stored before snapshots ran on dates + last ending.
   const current = engineHistory(relationship);
@@ -325,7 +351,7 @@ export async function buildDate(
           : current;
   const avoidVenues = opts.avoidVenues ?? (await recentVenues(db, [a.id, b.id], episodeId));
   return assembleDate({
-    episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues, venueOverride: opts.venueOverride,
+    episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues, venueOverride: opts.venueOverride, agreedPlan: agreed,
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts,
@@ -334,11 +360,31 @@ export async function buildDate(
   });
 }
 
+/** How many of a date's last lines can make a plan, when it had no morning after (an agent's own date has none). */
+const CLOSING_LINES = 4;
+
+/**
+ * The plan they agreed to by text since their last date (lib/plans.ts): its morning after and the texts after it, or
+ * the date's closing lines and the texts after it when it had no morning after. With no date yet, their whole chat (a
+ * match's first texts plan the first date).
+ */
+export async function planFromChain(db: Db, chain: ChainItem[], lo: string, names: Record<End, string>): Promise<AgreedPlan | null> {
+  const last = chain.reduce((at, item, i) => (item.kind === "date" ? i : at), -1);
+  const since = (last < 0 ? chain : chain.slice(last + 1)).filter(isText);
+  const date = last < 0 ? null : chain[last];
+  let closing: PlanText[] = [];
+  if (date?.kind === "date" && !since.some((t) => t.source === "afterglow")) {
+    const row = (await db.query<{ transcript: Turn[] | null; character_a: string }>(`select transcript, character_a from episodes where id = $1`, [date.episode_id])).rows[0];
+    closing = (row?.transcript ?? []).slice(-CLOSING_LINES).map((t) => ({ who: (t.side === "a") === (row!.character_a === lo) ? "lo" : "hi", text: t.dialogue }));
+  }
+  return agreedPlan([...closing, ...since.map((t) => ({ who: t.who, text: t.text }))], names);
+}
+
 /** The venues of each person's character's last two dates (house characters date everyone, so theirs don't count). */
-async function recentVenues(db: Db, ids: string[], excludeEpisodeId: string): Promise<VenueId[]> {
-  const found = new Set<VenueId>();
+async function recentVenues(db: Db, ids: string[], excludeEpisodeId: string): Promise<PlaceId[]> {
+  const found = new Set<PlaceId>();
   for (const id of ids) {
-    const { rows } = await db.query<{ venue: VenueId }>(
+    const { rows } = await db.query<{ venue: PlaceId }>(
       `select e.setup->>'venue' as venue
          from episodes e join characters c on c.id = $1 and not c.is_house
         where (e.character_a = $1 or e.character_b = $1) and e.id <> $2 and e.setup->>'venue' is not null

@@ -85,7 +85,8 @@ type Table =
   | "reports_reviewed"
   | "rate_hits"
   | "paid_usage"
-  | "server_errors";
+  | "server_errors"
+  | "scene_requests";
 
 /** One in-memory Postgres per test file, wired in as the app's database. */
 export async function startTestDb() {
@@ -119,6 +120,7 @@ export async function startTestDb() {
       for (const table of [
         "agent_feedback",
         "mcp_calls",
+        "scene_requests",
         "watch_message_reports",
         "watch_poll_votes",
         "watch_reactions",

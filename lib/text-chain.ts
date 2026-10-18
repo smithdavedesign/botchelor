@@ -20,7 +20,7 @@ import type { Db } from "./db";
 import { pairKey, timelineLabel, usableFor, visibleTo, type End, type Viewer } from "./relationships";
 import { REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 import { CHAIN_PAGE, isText, type ChainItem, type ChainPage, type ChainText } from "./text-chain-shared";
-import { venueName, type VenueId } from "./venues";
+import { venueName, type PlaceId } from "./venues";
 
 export { CHAIN_PAGE, isText, TEXT_MAX, type ChainDate, type ChainEvent, type ChainItem, type ChainPage, type ChainText } from "./text-chain-shared";
 
@@ -51,7 +51,7 @@ type ChainEpisode = {
   character_a: string;
   ending: Ending;
   afterglow: AfterglowLine[] | null;
-  venue: VenueId | null;
+  venue: PlaceId | null;
   followup_of: string | null;
 };
 

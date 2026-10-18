@@ -73,10 +73,11 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
   budget. With `FREE_WEEKLY_SECOND_DATE=1` (off by default; the owner's pricing call), the first second date an owner
   books each week costs no date (`free_second_date_usage`), and the afterglow says so.
 - **The plan carries over.** `episodes.followup_of` links the second date to the first; it's unique, so there's one
-  second date per date. The setup stores the plan from their texts (`setup.plan`). When the plan names a kind of
-  place ("coffee"), the venue follows it (the corner café), unless their last two dates were both there already, so a
-  running joke about tea doesn't keep a couple in one café for good. Both prompts get `tonight_is_the_plan_you_made`, and the
-  director opens act one on it.
+  second date per date. The setup stores the plan from their texts (`setup.plan`). A plan they **agreed** to by text
+  (below) sets the venue and the premise. Without one, when the morning-after plan names a kind of place ("coffee"),
+  the venue follows it (the corner café), unless their last date was already there, so a running joke about tea
+  doesn't keep a couple in one café for good. Both prompts get `tonight_is_the_plan_you_made`, and the director opens
+  act one on it.
 - **Visibility.** A second date is never more public than the date it follows.
 - **Measured.** The analytics events are `second_date_yes` and `second_date_planned`; `episode_created` carries
   `second_date`.
@@ -222,8 +223,20 @@ Everything a couple has texted is one thread, the way a phone keeps it (David, 2
   shared knowledge, so the critic never calls them profile reading. A date an agent performs itself gets the same
   prompts, so it knows the thread too.
 - **Plans made by text.** The texts after a date count toward that date's plans (`detail.plans`). A side's latest
-  plan-like text that has something to it beats its morning-after plan, and the edge refreshes when one is sent. So
-  `plan_second_date`, the next date's venue (`venueForPlan`) and `tonight_is_the_plan_you_made` all see it.
+  plan-like text that has something to it beats its morning-after plan, and the edge refreshes when one is sent.
+- **A plan they agreed to sets up the next date** (`lib/plans.ts`, David 2026-10-18: "right now it comes out random").
+  One proposes somewhere and the other says yes ("how about the observatory?" / "I'm in"); newest first, so a
+  counter-proposal wins, and a refusal or a goodbye isn't a yes. It reads what they sent since their last date (its
+  morning after, or its closing lines when it had none), or their whole chat before a first date. **Every booking** uses
+  it: the website, `go_on_date`, an agent's own date, a second date. The place (`lib/places.ts`) is a library venue
+  ("coffee" → the corner café, "the east wing" → the museum), one of their homes ("my place" → `home@Chud's place`,
+  a living room and a kitchen, PG), or a place the library has no set for (`elsewhere@the observatory`): a generic
+  set with its name. The plan is snapshotted on `setup.agreed_plan`, so a rebuild (the worker, an agent's next step)
+  never reads the texts again. Each side gets `tonight_is_the_plan_you_made` (its own field, not the relationship: a
+  first date planned in a match chat is still a first date), and the couple page says where the next date will be.
+- **Scenes people ask for** (`lib/scenes.ts`). A finished date at a place with no set logs a `scene_requests` row (one
+  per date and place) and a `scene_requested` event. `/admin` lists them by how often they're asked for: the next
+  backdrops to make.
 - **On the couple page** (`app/couples/[a]/[b]/TextPhone.tsx`, inside `app/PhoneFrame.tsx`):
   - The thread opens on the newest text, with the viewer's own character on the right. An owner of both characters
     can switch phones.

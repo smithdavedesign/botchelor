@@ -24,7 +24,8 @@ import type { AfterglowLine } from "./afterglow";
 import { contentWords, tokens } from "./quality";
 import { ENDING_LABELS, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 import { checkFields } from "./safety";
-import { venue as venueOf, type VenueId } from "./venues";
+import { venueFor } from "./places";
+import { venue as venueOf, type PlaceId, type VenueId } from "./venues";
 
 /** The canonical (sorted) key for a pair: one unordered pair is one edge. */
 export const pairKey = (x: string, y: string): [string, string] => (x < y ? [x, y] : [y, x]);
@@ -38,7 +39,7 @@ export type HistoryItem = {
   at: string;
   aired_at: string | null;
   ending: Ending;
-  venue: VenueId | null;
+  venue: PlaceId | null;
   /** Whether each end wanted another date (lo, hi). PRIVATE: owners and the engine only. */
   wants: [boolean, boolean] | null;
   /** The engine's final chemistry and trust that night, 0..100. */
@@ -124,7 +125,7 @@ export type RelEpisode = {
   box_score: { chemistry?: VariableArc; trust?: VariableArc } | null;
   transcript: Turn[] | null;
   afterglow: AfterglowLine[] | null;
-  venue: VenueId | null;
+  venue: PlaceId | null;
   followup_of: string | null;
   date_number?: number | null;
 };
@@ -269,7 +270,7 @@ const COMMON_PHRASES = new Set(["good luck", "next week", "last week", "next tim
  * Inside jokes: a phrase (two content words, or one long one) BOTH of them said on a date, that comes back later —
  * in that morning's texts or on a later date. Names and the venue's own words never count.
  */
-function findJokes(dates: { id: string; transcript: Turn[]; afterglow: AfterglowLine[]; venue: VenueId | null }[], names: string[]): Joke[] {
+function findJokes(dates: { id: string; transcript: Turn[]; afterglow: AfterglowLine[]; venue: PlaceId | null }[], names: string[]): Joke[] {
   const banned = new Set(names.flatMap((n) => tokens(n)));
   // Not a name, not a contraction ("i'll bring"), and a single word must be a thing, not filler ("checking", "honestly").
   const okPhrase = (p: string) => {
@@ -692,45 +693,7 @@ export function pairSharedWords(rel: Relationship | null, creatorId: string): st
   ].join(" ");
 }
 
-/** Where a plan points, when it names a kind of place we have: "coffee" → the corner café. Else null. */
-const PLAN_VENUES: [RegExp, VenueId][] = [
-  // The specific places first (2026-10-18), so "surfing" isn't just the beach and "a pub quiz" isn't the rooftop.
-  [/\b(sky ?div\w*|parachut\w*|free ?fall)\b/i, "skydive"],
-  [/\b(surf\w*|wetsuits?)\b/i, "surf_lesson"],
-  [/\b(safari|lions?|giraffes?|zebras?|savann?ah?)\b/i, "safari"],
-  [/\b(hot air balloon|balloon ride)\b/i, "hot_air_balloon"],
-  [/\b(silent disco)\b/i, "silent_disco"],
-  [/\b(night ?club|clubbing|dance ?floor|dj)\b/i, "nightclub"],
-  [/\b(dive bar|pub|trivia|quiz night|pints?)\b/i, "dive_bar"],
-  [/\b(escape room)\b/i, "escape_room"],
-  [/\b(flat-?pack|furniture (?:shop|store)|showroom)\b/i, "flat_pack"],
-  [/\b(pottery|ceramics?|potter'?s wheel)\b/i, "pottery_class"],
-  [/\b(bowling|ten-?pin)\b/i, "bowling_alley"],
-  [/\b(laundromat|laundrette|laundry)\b/i, "laundromat"],
-  [/\b(ice ?skat\w*|skating|ice rink)\b/i, "ice_rink"],
-  [/\b(cooking class|cook(?:ing)? together)\b/i, "cooking_class"],
-  [/\b(haunted|ghost tour|ghosts?)\b/i, "haunted_house"],
-  [/\b(museum|dinosaurs?|fossils?)\b/i, "museum_night"],
-  [/\b(camping|campsite|tent|campfire)\b/i, "rainy_campsite"],
-  [/\b(yoga|goats?)\b/i, "goat_yoga"],
-  [/\b(pedalo|pedal ?boat|swan boat|rowing boat|boating lake)\b/i, "swan_pedalo"],
-  [/\b(murder mystery|whodunn?it)\b/i, "murder_mystery"],
-  [/\b(ballroom|waltz|tango|foxtrot)\b/i, "ballroom_lesson"],
-  [/\b(paintball)\b/i, "paintball"],
-  [/\b(horse ?back|horse ?riding|trail ride|horses?)\b/i, "trail_ride"],
-  [/\b(comedy|stand-?up|open mic)\b/i, "comedy_club"],
-  [/\b(climbing|bouldering|climb)\b/i, "climbing_wall"],
-  [/\b(coffee|caf[eé]|espresso|latte|tea|pastr\w*|croissant)\b/i, "corner_cafe"],
-  [/\b(karaoke|sing|song|duet)\b/i, "karaoke_booth"],
-  [/\b(arcade|pinball|games?|high score)\b/i, "retro_arcade"],
-  [/\b(beach|ocean|sea|waves|shore)\b/i, "night_beach"],
-  [/\b(park|garden|walk|plants|botanic|greenhouse)\b/i, "botanic_park"],
-  // Casual food has no venue of its own; the café is the nearest kind of place (run 2: a food-truck plan got the rooftop).
-  [/\b(food truck|street food|chill?i|tacos?|noodles?|dumplings?|night market|stall|diner|burgers?|pizza|fries|sandwich(?:es)?)\b/i, "corner_cafe"],
-  [/\b(rooftop|cocktails?|drinks|bar)\b/i, "rooftop_bar"],
-  [/\b(dinner|restaurant|tasting|courses|chef)\b/i, "tasting_menu"],
-];
+/** Where a plan points, when it names a kind of place we have: "coffee" → the corner café. Else null (lib/places.ts). */
 export function venueForPlan(plans: { text: string }[]): VenueId | null {
-  const text = plans.map((p) => p.text).join(" ");
-  return PLAN_VENUES.find(([re]) => re.test(text))?.[1] ?? null;
+  return venueFor(plans.map((p) => p.text).join(" "));
 }

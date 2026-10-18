@@ -60,7 +60,7 @@ import { updateCharacterMemory } from "./memory";
 import { ShowrunnerError, type CharacterSheet } from "./showrunner";
 import { isConversationEnabled, type Turn } from "./conversation";
 import { generationPaused, PAUSED_MESSAGE } from "./compute";
-import { venueName, type VenueId } from "./venues";
+import { venueName, type PlaceId } from "./venues";
 
 /** House-vs-house template episodes have no human creator: this fixed id never matches a real user's. */
 export const SYSTEM_CREATOR_ID = "system";
@@ -213,7 +213,7 @@ export type RoomState = {
   watching: number;
   characters: [CharacterRef, CharacterRef];
   setting: string;
-  venue: VenueId | null;
+  venue: PlaceId | null;
   venue_name: string | null;
   goals: { character_id: string; goal: string }[];
   /** The producer's act-2 situation, in the room's own words; shown from the challenge on (never a spoiler). */

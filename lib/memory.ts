@@ -28,7 +28,7 @@ import { stageOf, type Stage } from "./relationships";
 import { contentWords, EVERYDAY_WORDS } from "./quality";
 import { checkFields } from "./safety";
 import { seasonIdAt } from "./season-cast";
-import { venue, type VenueId } from "./venues";
+import { venue, venuePhrase, type PlaceId } from "./venues";
 
 /** Max learned drift per signal axis. Small on purpose: a character evolves, it does not transform. */
 export const MEMORY_SIGNAL_CAP = 0.15;
@@ -131,7 +131,7 @@ export type PersonMemory = {
   /** The same reading as the couple's stage in the relationship graph (lib/relationships.ts stageOf), so the two agree. */
   stage?: Stage;
   last_ending: Ending;
-  last_venue: VenueId | null;
+  last_venue: PlaceId | null;
   /** When their last date aired (ISO), and which date that was (where the memory comes from). */
   last_at: string;
   last_episode_id?: string;
@@ -242,7 +242,7 @@ export type MemoryEpisode = {
   revealed_at: string | Date;
   drama_question: DramaQuestion | null;
   drama_answer: DramaAnswer | null;
-  venue: VenueId | null;
+  venue: PlaceId | null;
   other_id: string;
   other_name: string;
   other_house: boolean;
@@ -626,7 +626,7 @@ type Dated = {
   ending: Ending;
   at: Date;
   season: string;
-  venue: VenueId | null;
+  venue: PlaceId | null;
   other: { id: string; name: string; house: boolean };
   wanted_more: boolean | null;
   turned_down: "you" | "them" | null;
@@ -780,7 +780,7 @@ export function metBefore(memory: CharacterMemory | null | undefined, otherId: s
   if (!p) return null;
   return {
     times: p.dates,
-    last_time: `${venue(p.last_venue).name.toLowerCase()}; it ended: ${ENDING_LABELS[p.last_ending]}`,
+    last_time: `${venuePhrase(p.last_venue)}; it ended: ${ENDING_LABELS[p.last_ending]}`,
     where_you_stand: STANDING[p.status],
     ...(p.turned_down === "you" ? { how_it_ended_for_you: "They turned you down." } : p.turned_down === "them" ? { how_it_ended_for_you: "You turned them down." } : {}),
     ...(p.wanted_more !== null ? { how_you_left_it: p.wanted_more ? "You wanted to see them again." : "You didn't want to see them again." } : {}),
@@ -794,7 +794,7 @@ export function recentDates(memory: CharacterMemory | null | undefined, excludeI
   return (memory?.people ?? [])
     .filter((p) => p.id !== excludeId)
     .slice(0, n)
-    .map((p) => `With ${shortName(p.name)} at ${venue(p.last_venue).name.toLowerCase()}: ${ENDING_LABELS[p.last_ending]}.`);
+    .map((p) => `With ${shortName(p.name)} at ${venuePhrase(p.last_venue)}: ${ENDING_LABELS[p.last_ending]}.`);
 }
 
 /**

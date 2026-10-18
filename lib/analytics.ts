@@ -31,6 +31,7 @@ export type AnalyticsEvent =
   | "second_date_yes" // an owner said yes to a second date that also needs the other owner's yes (lib/second-date.ts)
   | "second_date_planned" // a second date was booked from a mutual afterglow: the new date, the one it follows, and the planned venue
   | "show_date_free" // a show-model date fell through to the free model (the frontier wasn't configured): the episode, and whether that's unexpected
+  | "scene_requested" // a finished date went somewhere the library has no set for (lib/scenes.ts): the place, normalized, and how (plan or move)
   | "relationship_metrics"; // the daily snapshot of the long game (lib/relationship-metrics.ts): counts only
 
 type Props = Record<string, string | number | boolean | null | undefined>;

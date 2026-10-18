@@ -9,7 +9,7 @@ import { useReplay } from "@/app/useReplay";
 import { DATE_ACTS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
-import type { VenueId } from "@/lib/venues";
+import type { PlaceId } from "@/lib/venues";
 
 function lastLine(turns: Turn[], side: "a" | "b"): string | null {
   for (let i = turns.length - 1; i >= 0; i--) if (turns[i].side === side) return turns[i].dialogue;
@@ -17,7 +17,7 @@ function lastLine(turns: Turn[], side: "a" | "b"): string | null {
 }
 
 /** The creator who just sent the date: wait on the theater stage itself, and play the date the moment it's filmed. */
-type Stage = { characters: [CharacterRef, CharacterRef]; venue: VenueId | null };
+type Stage = { characters: [CharacterRef, CharacterRef]; venue: PlaceId | null };
 
 /**
  * M10 part 2: while an episode is 'generating', poll its status and refresh the page the moment the

@@ -1,10 +1,10 @@
 import Avatar from "./Avatar";
 import { venueBackdrop } from "@/lib/portraits";
-import { venueBackdropCss, venueName, type VenueId } from "@/lib/venues";
+import { placeLabel, venueBackdropCss, venueName, type PlaceId } from "@/lib/venues";
 import type { CharacterRef } from "@/lib/game";
 
 /** The full-bleed backdrop for the scene: a dark scrim over the venue photo, with the gradient as fallback. */
-export function sceneBackground(venue: VenueId | null): string {
+export function sceneBackground(venue: PlaceId | null): string {
   return [
     "linear-gradient(rgba(12,8,16,0.42), rgba(12,8,16,0.66))",
     venueBackdrop(venue) ? `url(${venueBackdrop(venue)})` : null,
@@ -16,7 +16,7 @@ export function sceneBackground(venue: VenueId | null): string {
 
 type SceneProps = {
   characters: [CharacterRef, CharacterRef];
-  venue: VenueId | null;
+  venue: PlaceId | null;
   /** The latest line each character has spoken; its bubble stays up until they speak again. */
   lineA: string | null;
   lineB: string | null;
@@ -35,8 +35,9 @@ export default function Scene({ characters, venue, lineA, lineB, actLabel, place
   return (
     <div className="scene" style={{ backgroundImage: sceneBackground(venue) }}>
       {actLabel && <p className="scene-act">{actLabel}</p>}
-      {/* A venue still waiting for its reviewed backdrop paints only its gradient: name the place, so the stage reads as somewhere. */}
-      {venue && !venueBackdrop(venue) && <p className="scene-venue">📍 {venueName(venue)}</p>}
+      {/* A venue still waiting for its reviewed backdrop paints only its gradient, and a place of their own (one of their
+          homes, somewhere the library has no set for yet) shares a generic one: name the place, so the stage reads as somewhere. */}
+      {venue && (!venueBackdrop(venue) || placeLabel(venue)) && <p className="scene-venue">📍 {venueName(venue)}</p>}
       {placeholder && !lineA && !lineB && <p className="scene-placeholder">{placeholder}</p>}
       <div className="scene-cast">
         <figure className="scene-char scene-char-a">

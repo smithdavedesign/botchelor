@@ -29,7 +29,7 @@ import { allTells } from "./personality";
 import { contentWords } from "./quality";
 import { agenda, DATE_ACTS, dramaAnswerLabel, ENDING_LABELS, producerEvent, type AgendaId, type ProducerId } from "./rules";
 import { checkFields } from "./safety";
-import { venue, type VenueId } from "./venues";
+import { venue, venuePhrase, type PlaceId } from "./venues";
 
 export type ActBeat = {
   /** What happens in this act — public stage direction, given to both characters. */
@@ -206,7 +206,7 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
   const met = characters[0].memory?.people?.find((p) => p.id === characters[1].id) ?? characters[1].memory?.people?.find((p) => p.id === characters[0].id);
   if (met) {
     facts.push(
-      `${names[0]} and ${names[1]} have met before (${met.dates === 1 ? "one date" : `${met.dates} dates`}; last time ${venue(met.last_venue).name.toLowerCase()}, ` +
+      `${names[0]} and ${names[1]} have met before (${met.dates === 1 ? "one date" : `${met.dates} dates`}; last time ${venuePhrase(met.last_venue)}, ` +
         `which ended "${ENDING_LABELS[met.last_ending]}"; now: ${PAIR_STATUS_LABELS[met.status].replace(/^\S+\s/, "").toLowerCase()}). ` +
         "Play it as a rematch: they remember each other, and a callback to last time belongs in act one.",
     );
@@ -223,6 +223,16 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
     if (typeof pair.where_you_stand_now === "string") facts.push(`Where they stand: ${pair.where_you_stand_now.toLowerCase()}.`);
     if (Array.isArray(pair.your_inside_jokes) && pair.your_inside_jokes.length) facts.push(`Their inside jokes: ${pair.your_inside_jokes.map((j) => `"${j}"`).join(", ")}. One can come back, unforced.`);
     if (Array.isArray(pair.tonight_is_the_plan_you_made)) facts.push(`Tonight is the second date they planned in their texts: ${pair.tonight_is_the_plan_you_made.join(" ")} Act one opens on that plan.`);
+  }
+  // The plan they agreed to by text (lib/plans.ts): tonight is it, even on a first date planned in a match chat.
+  const planned = characters[0].tonightsPlan;
+  if (planned?.length) {
+    const said = planned.map((l) => l.replace(/^You:/, `${names[0]}:`).replace(/^They:/, `${names[1]}:`)).join(" ");
+    facts.push(
+      met || pair
+        ? `Tonight is the date they planned in their texts: ${said} Act one opens on that plan.`
+        : `Tonight is their first date, and it's the plan they made in their texts: ${said} They've only texted until now. Act one opens on that plan.`,
+    );
   }
   // Their texts between dates (lib/text-chain.ts): both sent and read them, so the date can pick up a thread from them.
   const texted = characters[0].texts;
@@ -330,7 +340,7 @@ export function rulesPlan(
   outcome: Outcome,
   characters: [Character, Character],
   producer: ProducerId,
-  venueId: VenueId,
+  venueId: PlaceId,
 ): DatePlan {
   const v = venue(venueId);
   // A rematch (the pair has aired a date before) opens as two people who remember each other, not strangers.
@@ -340,9 +350,13 @@ export function rulesPlan(
       characters[0].pair ||
       characters[1].pair,
   );
+  // A date they planned by text opens on the plan (lib/plans.ts).
+  const planned = Boolean(characters[0].tonightsPlan?.length || characters[1].tonightsPlan?.length);
   const scene0 = rematch
-    ? `They meet again at ${v.prompt}. They remember each other and last time, and tonight picks up from there.`
-    : `They meet at ${v.prompt}. First impressions: they size each other up and start finding out who the other is.`;
+    ? `They meet again at ${v.prompt}${planned ? ", the plan they made in their texts" : ""}. They remember each other and last time, and tonight picks up from there.`
+    : planned
+      ? `They meet at ${v.prompt}, the date they planned in their texts. They've only texted until now: first impressions in person, and finding out whether they're who they seemed.`
+      : `They meet at ${v.prompt}. First impressions: they size each other up and start finding out who the other is.`;
   // Act two already leans toward the ending (a spark, easy company, or the start of a clash).
   const lean = { second_date: ", and pulls them closer", friends: ", and they find they get on", disaster: ", and starts to pull them apart" }[outcome.ending];
   const scene1 = `${capitalize(producerEvent(producer).prompt)} — it shows who each of them really is${lean}.`;
@@ -410,7 +424,7 @@ export function buildDirectorMessages(
   outcome: Outcome,
   characters: [Character, Character],
   producer: ProducerId,
-  venueId: VenueId,
+  venueId: PlaceId,
   formatId: FormatId,
   formatCtx: FormatContext,
 ): ChatMessage[] {
@@ -459,7 +473,7 @@ export function parsePlan(
   outcome: Outcome,
   characters: [Character, Character],
   producer: ProducerId,
-  venueId: VenueId,
+  venueId: PlaceId,
 ): DatePlan | null {
   const trimmed = raw.trim();
   const unfenced = CODE_FENCE.exec(trimmed)?.[1] ?? trimmed;
@@ -502,7 +516,7 @@ export async function planDate(
   outcome: Outcome,
   characters: [Character, Character],
   producer: ProducerId,
-  venueId: VenueId,
+  venueId: PlaceId,
   formatId: FormatId,
   formatCtx: FormatContext,
 ): Promise<DatePlan> {

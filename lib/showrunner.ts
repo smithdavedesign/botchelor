@@ -14,7 +14,7 @@ import { characterSelfView, type Character } from "./character";
 import { bestLine, type Turn } from "./conversation";
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { ModelError, type ChatMessage, type Model } from "./model";
-import { venue, type VenueId } from "./venues";
+import { venue, type PlaceId } from "./venues";
 import { DEFAULT_FORMAT, formatNote, type FormatContext, type FormatId } from "./formats";
 import { checkShowText } from "./safety";
 
@@ -142,7 +142,7 @@ export function buildMessages(
   outcome: Outcome,
   characters: [Character, Character],
   producer: ProducerId,
-  venueId: VenueId,
+  venueId: PlaceId,
   formatId: FormatId = DEFAULT_FORMAT,
   formatCtx: FormatContext = {},
   story?: DateStory,
@@ -227,7 +227,7 @@ export async function narrateEpisode(
   outcome: Outcome,
   characters: [Character, Character],
   producer: ProducerId,
-  venueId: VenueId,
+  venueId: PlaceId,
   formatId: FormatId = DEFAULT_FORMAT,
   formatCtx: FormatContext = {},
   story?: DateStory,

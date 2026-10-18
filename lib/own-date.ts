@@ -46,6 +46,7 @@ import { haveDated, MATCH_FIRST, swipeGateOn } from "./swipe-gate";
 import { agreedMatch } from "./swipes";
 import { DELETED_OWNER } from "./rules";
 import { narrateEpisode } from "./showrunner";
+import { logSceneRequests } from "./scenes";
 import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
 
 /** How many unfinished self-performed dates one identity may have at once. */
@@ -349,6 +350,7 @@ async function rebuild(db: Db, row: Row) {
     nudges: { a: row.setup?.nudge_a ?? null, b: row.setup?.nudge_b ?? null },
     avoidVenues: row.setup?.avoid_venues ?? [],
     venueOverride: row.setup?.venue,
+    agreedPlan: row.setup?.agreed_plan ?? null,
   });
   const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
   return { built, decided, formatId };
@@ -525,6 +527,7 @@ async function finishOnShowModel(
   );
   if (!saved.rows.length) return true; // the other agent's request finished it first
   await rememberDate(db, row.a_id, row.b_id).catch(() => {});
+  await logSceneRequests(db, row.id, built.setup);
   trackDateQuality(row.id, "agent", null, transcriptQuality(transcript, built.characters, qualityContext(built, draft.setting)));
   // Both agents hear it's done (run 3: the invited agent didn't, when the recap ran on its own request), by full name:
   // two agents' characters can share a first name.
@@ -729,6 +732,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     );
     if (saved.rows.length) {
       await rememberDate(db, row.a_id, row.b_id).catch(() => {});
+      await logSceneRequests(db, episodeId, built.setup);
       if (transcript.length) {
         trackDateQuality(episodeId, "agent", null, transcriptQuality(transcript, built.characters, qualityContext(built, draft.setting)));
       }

@@ -75,11 +75,65 @@ export type VenueId = (typeof DATE_VENUES)[number]["id"];
 
 export const VENUE_IDS = DATE_VENUES.map((v) => v.id) as [VenueId, ...VenueId[]];
 
-/** The venue for an id; falls back to the first one so an episode stored before the library still renders. */
-export const venue = (id: VenueId | null | undefined): Venue =>
-  DATE_VENUES.find((v) => v.id === id) ?? DATE_VENUES[0];
+/**
+ * Places a date can be at but is never dealt (David, 2026-10-18): places the two of them chose themselves, in their
+ * texts. `home` is one of their places: the living room and the kitchen, never a bedroom (the show stays PG).
+ * `elsewhere` stands in for a place the library has no set for yet: a generic background with the place's own name,
+ * and the request is logged (lib/scenes.ts) so the library grows where people actually want to go.
+ */
+export const EXTRA_VENUES = [
+  { id: "home", name: "Their place", prompt: "one of their homes: the living room and the kitchen, a lamp on, something on the stove", hues: [28, 340], plate: "an empty cosy flat at night, a small kitchen with a pan on the stove, a sofa with cushions and a folded blanket, a lamp on, plants on the windowsill, warm light" },
+  { id: "elsewhere", name: "Somewhere new", prompt: "a place they picked themselves", hues: [235, 290], plate: "an empty city street at dusk, soft out-of-focus lights, a bench under a tree, no lettering on any sign" },
+] as const satisfies readonly Venue[];
 
-export const venueName = (id: VenueId | null | undefined): string => venue(id).name;
+export type ExtraVenueId = (typeof EXTRA_VENUES)[number]["id"];
+export type AnyVenueId = VenueId | ExtraVenueId;
+/**
+ * Where a date is, as stored (DateSetup.venue): a venue's id, or a venue with a name of its own after an "@" —
+ * "home@Chud's place", "elsewhere@the observatory". `venue()` reads either, so every caller that takes an id takes these.
+ */
+export type PlaceId = AnyVenueId | `${AnyVenueId}@${string}`;
+
+/** The longest name a place of their own can have. */
+export const PLACE_LABEL_MAX = 40;
+
+const ALL_VENUES: readonly Venue[] = [...DATE_VENUES, ...EXTRA_VENUES];
+
+/** A place's venue id and its own name ("elsewhere@the observatory" → elsewhere, "the observatory"). */
+export function placeParts(id: string | null | undefined): { id: string | null; label: string | null } {
+  if (!id) return { id: null, label: null };
+  const at = id.indexOf("@");
+  if (at < 0) return { id, label: null };
+  const label = id.slice(at + 1).trim().slice(0, PLACE_LABEL_MAX);
+  return { id: id.slice(0, at), label: label || null };
+}
+
+/** A place of their own's name, or null for a venue from the library. */
+export const placeLabel = (id: string | null | undefined): string | null => placeParts(id).label;
+
+/** True for a place the library has no set for yet: it shows the generic background, and the request is logged. */
+export const isPlaceholder = (id: string | null | undefined): boolean => placeParts(id).id === "elsewhere";
+
+/**
+ * The venue for an id or a place; falls back to the first venue so an episode stored before the library still renders.
+ * A place with its own name takes that name, and the showrunner and the actors are told where they are by it.
+ */
+export const venue = (id: PlaceId | string | null | undefined): Venue => {
+  const { id: base, label } = placeParts(id);
+  const v = ALL_VENUES.find((x) => x.id === base) ?? DATE_VENUES[0];
+  if (!label) return v;
+  return { ...v, name: label.charAt(0).toUpperCase() + label.slice(1), prompt: v.id === "home" ? `${label}: ${v.prompt.replace(/^one of their homes: /, "")}` : label };
+};
+
+export const venueName = (id: PlaceId | string | null | undefined): string => venue(id).name;
+
+/** The place, written to sit mid-sentence ("last time at the observatory", "at Chud's place"). */
+export const venuePhrase = (id: PlaceId | string | null | undefined): string => {
+  const label = placeLabel(id);
+  if (label) return label;
+  const name = venue(id).name;
+  return name.charAt(0).toLowerCase() + name.slice(1);
+};
 
 /** Deals a venue from a seed, the way the producer's situation is dealt: bounded, reproducible, free. */
 export const pickVenue = (seed: number): VenueId => VENUE_IDS[seed % VENUE_IDS.length];
@@ -88,7 +142,7 @@ export const pickVenue = (seed: number): VenueId => VENUE_IDS[seed % VENUE_IDS.l
  * Deals a venue from a seed, stepping past any in `avoid` (the venues a character was just at: run 4 got the same
  * double date twice in a row). With nothing to avoid it's exactly pickVenue, so a stored date replays the same.
  */
-export function pickVenueAvoiding(seed: number, avoid: readonly VenueId[] = []): VenueId {
+export function pickVenueAvoiding(seed: number, avoid: readonly string[] = []): VenueId {
   const start = seed % VENUE_IDS.length;
   for (let i = 0; i < VENUE_IDS.length; i++) {
     const v = VENUE_IDS[(start + i) % VENUE_IDS.length];
@@ -98,7 +152,7 @@ export function pickVenueAvoiding(seed: number, avoid: readonly VenueId[] = []):
 }
 
 /** The backdrop gradient for a venue, for the episode page and the share card. */
-export const venueBackdropCss = (id: VenueId | null | undefined): string => {
+export const venueBackdropCss = (id: PlaceId | string | null | undefined): string => {
   const [from, to] = venue(id).hues;
   return `linear-gradient(135deg, hsl(${from} 58% 24%), hsl(${to} 52% 16%))`;
 };

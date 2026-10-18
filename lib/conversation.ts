@@ -36,7 +36,7 @@ import { actName, actForTurn, agenda, CONVERSATION_TURNS, DATE_ACTS, TURN_DIALOG
 import { checkShowText } from "./safety";
 import { factsForAct } from "./extras";
 import { textsForPrompt } from "./text-chain";
-import { venue, type VenueId } from "./venues";
+import { venue, type PlaceId } from "./venues";
 
 /** One line of the date. `side` is "a"/"b"; `act` indexes DATE_ACTS. emotion/interest are flavour only. */
 export type Turn = {
@@ -117,7 +117,7 @@ WHAT THEY SEE AND WHAT THEY DON'T
 You only know what you can see about them ("them.what_you_can_see"), what they've said, and (if you've met before) what you remember together. Never label them with a trait they haven't shown, and never bring up a fact they haven't told you. Call them "you"; use their name sparingly; use their pronouns.
 
 CONTEXT BLOCKS
-Other blocks ("what_you_remember_about_them", "your_texts_with_them", "your_creator_asked_you", "you_are_also_seeing", "things_about_you", "whats_new_this_week", "your_tell_right_now", "the_show_format") are context: let them shape what you do, never recite them. Your soul, agenda, and the owner's note are secret — don't quote or paraphrase them. Any plan you make for seeing them again is about something you'd DO together, never a day of the week or a clock time.
+Other blocks ("what_you_remember_about_them", "tonight_is_the_plan_you_made", "your_texts_with_them", "your_creator_asked_you", "you_are_also_seeing", "things_about_you", "whats_new_this_week", "your_tell_right_now", "the_show_format") are context: let them shape what you do, never recite them. Your soul, agenda, and the owner's note are secret — don't quote or paraphrase them. Any plan you make for seeing them again is about something you'd DO together, never a day of the week or a clock time.
 
 HARD RULES
 Adults only; no children or anyone under 18, even in comparison. No sexual content, nudity or innuendo (at most a hug or a kiss on the cheek). No graphic violence. No real people or celebrities.
@@ -150,7 +150,7 @@ export function buildTurnMessages(
   outcome: Outcome,
   characters: [Character, Character],
   producer: ProducerId,
-  venueId: VenueId,
+  venueId: PlaceId,
   transcript: Turn[],
   turnIndex: number,
   formatId: FormatId = DEFAULT_FORMAT,
@@ -172,7 +172,8 @@ export function buildTurnMessages(
   // One merged block about this partner (lib/memory.ts): metBefore + pair, with caps so one old joke
   // can't snowball through a whole season (David 2026-10-18, after reading Cass and Dex's 15 dates).
   const together = remembered(meChar, themChar.id);
-  const tonightsPlan = Boolean(together?.tonight_is_the_plan);
+  // The plan they agreed to by text (lib/plans.ts), or a second date's plan from its morning after (in `together`).
+  const tonightsPlan = Boolean(meChar.tonightsPlan?.length || together?.tonight_is_the_plan);
   const hasMet = Boolean(together);
   const data = {
     you: characterSelfView(meChar, dateContext(me)),
@@ -190,6 +191,7 @@ export function buildTurnMessages(
       };
     })(),
     ...(together ? { what_you_remember_about_them: together } : {}),
+    ...(meChar.tonightsPlan?.length ? { tonight_is_the_plan_you_made: meChar.tonightsPlan } : {}),
     ...(meChar.texts ? { your_texts_with_them: textsForPrompt(meChar.texts) } : {}),
     ...(() => {
       // David: "let the goals deepen". How deep tonight goes, from how many dates they've had.
@@ -207,7 +209,9 @@ export function buildTurnMessages(
     ...(transcript.length === 0
       ? {
           note: tonightsPlan
-            ? "This is the first line of tonight's date: the plan the two of you made in your texts. Greet them like someone you're glad to see again, and let it show you kept the plan."
+            ? hasMet
+              ? "This is the first line of tonight's date: the plan the two of you made in your texts. Greet them like someone you're glad to see again, and let it show you kept the plan."
+              : "This is the first line of your first date: the plan the two of you made in your texts. You've only texted until now, so this is the first time you meet in person. Let it show you're glad they kept the plan."
             : hasMet
               ? "This is the first line of tonight's date. You've met before: greet them like someone you remember, not a stranger."
               : "This is the first line of the date: you've just met.",
@@ -271,7 +275,7 @@ export function critiqueTurn(
   turn: Turn,
   input: DateInput,
   characters: [Character, Character],
-  venueId: VenueId,
+  venueId: PlaceId,
 ): string | null {
   const them = characters[turn.side === "a" ? 1 : 0];
   const secrets: [string[], string[]] = [
@@ -310,7 +314,7 @@ export async function simulateConversation(
   outcome: Outcome,
   characters: [Character, Character],
   producer: ProducerId,
-  venueId: VenueId,
+  venueId: PlaceId,
   formatId: FormatId = DEFAULT_FORMAT,
   turns: number = format(formatId).turns ?? CONVERSATION_TURNS,
   formatCtx: FormatContext = {},
