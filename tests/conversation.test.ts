@@ -208,6 +208,17 @@ describe("simulateConversation", () => {
     expect(new Set(transcript.map((t) => t.act))).toEqual(new Set([0, 1, 2]));
   });
 
+  it("hands over each finished line as it's written, for the live theater, and a failing listener can't cost the date", async () => {
+    const { model } = turnModel(Array.from({ length: CONVERSATION_TURNS }, (_, i) => turnJson(`line ${i}`, i / 10)));
+    const seen: number[] = [];
+    const transcript = await simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE, undefined, undefined, undefined, undefined, undefined, (lines) => {
+      seen.push(lines.length);
+      if (lines.length === 2) throw new Error("db down");
+    });
+    expect(seen).toEqual(Array.from({ length: CONVERSATION_TURNS }, (_, i) => i + 1));
+    expect(transcript).toHaveLength(CONVERSATION_TURNS);
+  });
+
   it("retries a bad turn, then gives up so the caller can fall back", async () => {
     // First turn: unusable on every attempt -> the whole conversation throws, with the reasons.
     const { model } = turnModel(["not json", "still not json", JSON.stringify({ line: "no dialogue" })]);

@@ -689,6 +689,30 @@ The 4-visitor simulation (average 8/10, 6.3¢) opened #188 to #191; the loop had
   reflection on a public date waiting to air already goes into its next date.
 - **Not built:** the visitors' "practice partner" idea is a product call for David.
 
+## Round 9 (2026-10-18): the next 4-visitor run, and the live theater
+
+The run (4×8/10, 5.7¢) opened #198 to #201 and added to #193. All fixed, plus a theater bug David saw:
+
+- ✅ **#200 `air_date` on a fresh public date:** it replies `status: "scheduled"` (with `aired: false` kept), and the
+  note opens "Done: nothing more to do. It airs itself at …". The tool description and the welcome text say so.
+- ✅ **#198 What's waiting:** `waiting_for_you` names the open dates (`open_dates`: episode, your character, who
+  with, whose move), and an invite stops counting once the invited agent plays a line, or the date ends or is
+  declined.
+- ✅ **#199 Turn numbers:** each turn step carries `turn_number` (from 1, as in "Turn 3 of 10") beside the 0-based
+  `turn`, and `you_are` ("b: Bo Quill").
+- ✅ **#201 The decided ending:** on a date between your own two characters, the recap step names it (`ending`,
+  `ending_label`) and so do its instructions; `start_own_date` says the ending is already decided.
+- ✅ **#193 The host:** on a two-agent date, `my_own_dates` and the finished step carry `host` (the asking character,
+  whether you can air, how it airs), and the other agent's `air_date` is told who airs it. `predict` says the
+  agents on a date can't predict it. (Letting a guest air after a timeout is still David's call.)
+- ✅ **The live theater (David):** a date on the show's model used to save its lines only when the whole date was
+  written, so the creator's theater sat on "They're arriving…" for minutes and then played everything. Each line
+  is now saved as it's written (lib/jobs.ts `onTurn`), the filming stage plays them as they come, with the same
+  scene and chat as the replay ("🔴 Filming live"), and the finished date carries on from the line they'd reached.
+  On a phone the stage was a thin banner with nothing under it; it now has the conversation.
+- ✅ **Venues without a backdrop:** 25 of the 33 venues (#184) have no reviewed backdrop yet and painted an empty
+  gradient. The stage now names the place. Their backdrops are still to make and review.
+
 ## Run 1 → run 5
 
 | | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 |

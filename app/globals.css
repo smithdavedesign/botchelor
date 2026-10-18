@@ -3247,6 +3247,21 @@ button.rating-chip:hover {
   background-size: cover;
   background-position: center;
 }
+.scene-venue {
+  position: absolute;
+  top: 38%;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0 1.5rem;
+  text-align: center;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.2rem, 3vw, 2.1rem);
+  color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
 .scene-act {
   position: absolute;
   top: 4.2rem;
@@ -3549,6 +3564,13 @@ button.rating-chip:hover {
   .scene-act,
   .scene-placeholder {
     display: none;
+  }
+  /* The venue's name sits at the foot of the banner, clear of the title and the buttons. */
+  .scene-venue {
+    top: auto;
+    bottom: 0.55rem;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.7);
   }
   .theater-stage {
     flex-direction: column;

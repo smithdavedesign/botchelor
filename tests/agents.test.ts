@@ -436,12 +436,14 @@ describe("mcp — what the uninstructed visitors asked for (docs/agent-visitor-t
 
     // Predictions get a window first: an early air_date schedules it, and once the window closes it airs.
     const early = await call("air_date", { episode_id: ep.id }, ctx);
-    expect(early.structuredContent).toMatchObject({ aired: false, scheduled: true, episode_id: ep.id });
+    // #200: a scheduled date is a success with nothing more to do, and says so first.
+    expect(early.structuredContent).toMatchObject({ status: "scheduled", aired: false, scheduled: true, episode_id: ep.id });
+    expect(early.structuredContent.note).toMatch(/^Done: nothing more to do\. It airs itself at /);
     expect((await t.db.query<Any>(`select revealed_at, air_after from episodes where id = $1`, [ep.id])).rows[0]).toMatchObject({ revealed_at: null });
     await t.db.query(`update episodes set created_at = now() - interval '11 minutes', air_after = now() - interval '1 minute' where id = $1`, [ep.id]);
     const aired = await call("air_date", { episode_id: ep.id }, ctx);
     expect(aired.isError).toBeFalsy();
-    expect(aired.structuredContent).toMatchObject({ aired: true, episode_id: ep.id, ending: "friends" });
+    expect(aired.structuredContent).toMatchObject({ status: "aired", aired: true, episode_id: ep.id, ending: "friends" });
     expect((await call("air_date", { episode_id: ep.id }, ctx)).structuredContent).toMatchObject({ aired: true, already: true, ending: "friends" });
 
     // A self-performed date that isn't finished is still "being filmed".

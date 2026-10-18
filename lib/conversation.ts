@@ -321,6 +321,8 @@ export async function simulateConversation(
    * another user's private soul (lib/keys, lib/pipeline keyForSide).
    */
   actorForSide?: (side: "a" | "b") => Model | null,
+  /** Each finished line, as it's written (the creator's theater plays the date while it's filmed). Never throws into the date. */
+  onTurn?: (transcript: Turn[]) => void | Promise<void>,
 ): Promise<Turn[]> {
   const transcript: Turn[] = [];
   const reasons: string[] = [];
@@ -360,6 +362,7 @@ export async function simulateConversation(
     turn ??= draft;
     if (!turn) throw new ConversationError(reasons);
     transcript.push(turn);
+    if (onTurn) await Promise.resolve().then(() => onTurn([...transcript])).catch(() => {});
   }
   return transcript;
 }

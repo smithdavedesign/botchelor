@@ -32,7 +32,7 @@ import { getEpisodeView, type DateSetup, type EpisodeView } from "./game";
 import type { ChatMessage } from "./model";
 import { PROMPT_VERSION, qualityContext } from "./pipeline";
 import { neverSaid, transcriptQuality } from "./quality";
-import { actName, CONVERSATION_TURNS, DATE_ACTS, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
+import { actName, CONVERSATION_TURNS, DATE_ACTS, ENDING_LABELS, type Ending, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
 import { buildReflectionMessages, type Reflections } from "./reflection";
 import { useNudges } from "./between-dates";
@@ -62,9 +62,13 @@ export type OwnDateStep =
   | {
       stage: "turn";
       episode_id: string;
+      /** 0-based: the number of lines already said. turn_number is the same turn counted from 1 (#199). */
       turn: number;
+      turn_number: number;
       of: number;
       side: "a" | "b";
+      /** Which side this turn is, by name ("b: Marguerite Quill"). */
+      you_are: string;
       speaker: { id: string; name: string };
       act: string;
       act_index: number;
@@ -72,10 +76,22 @@ export type OwnDateStep =
       messages: ChatMessage[];
       reply_format: string;
     }
-  | { stage: "recap"; episode_id: string; instructions: string; messages: ChatMessage[]; reply_format: string }
+  | {
+      stage: "recap";
+      episode_id: string;
+      /** How the engine decided this date ends; the recap lands there (#201). Both characters are the performer's own. */
+      ending: Ending;
+      ending_label: string;
+      instructions: string;
+      messages: ChatMessage[];
+      reply_format: string;
+    }
   /** A two-agent date: the other agent's character speaks next (or the show is writing the recap). Ask again later. */
-  | { stage: "waiting"; episode_id: string; turn?: number; of?: number; waiting_for: { id: string; name: string } | "recap"; instructions: string }
-  | { stage: "done"; episode_id: string; episode: EpisodeView | null; reflect?: ReflectStep };
+  | { stage: "waiting"; episode_id: string; turn?: number; turn_number?: number; of?: number; waiting_for: { id: string; name: string } | "recap"; instructions: string }
+  | { stage: "done"; episode_id: string; episode: EpisodeView | null; reflect?: ReflectStep; host?: HostInfo };
+
+/** On a two-agent date: whose date it is to air (#193). A character's name only, never an agent id. */
+export type HostInfo = { character: string; you_can_air: boolean; airs: string };
 
 /**
  * After the date: each character's own reflection, for the agent to run in that character's process and hand in
@@ -339,8 +355,10 @@ function stepFor(
       stage: "turn",
       episode_id: episodeId,
       turn,
+      turn_number: turn + 1,
       of,
       side,
+      you_are: `${side}: ${speaker.name}`,
       speaker: { id: ids[side === "a" ? 0 : 1], name: speaker.name },
       act: actName(act, Boolean(built.input.history?.dates)),
       act_index: act,
@@ -357,8 +375,11 @@ function stepFor(
   return {
     stage: "recap",
     episode_id: episodeId,
+    ending: decided.ending,
+    ending_label: ENDING_LABELS[decided.ending],
     instructions:
-      "The date is over. Run these messages on a narrator process (it may see both characters — both are yours) and send its raw JSON reply back as \"output\". The recap must match the date as it happened.",
+      "The date is over. Run these messages on a narrator process (it may see both characters — both are yours) and send its raw JSON reply back as \"output\". " +
+      `The engine decided this date ends as "${ENDING_LABELS[decided.ending]}" (ending: ${decided.ending}); the recap lands there and matches the date as it happened.`,
     messages,
     reply_format: RECAP_REPLY,
   };
@@ -415,6 +436,7 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
       stage: "waiting",
       episode_id: step.episode_id,
       turn: step.turn,
+      turn_number: step.turn_number,
       of: step.of,
       waiting_for: step.speaker,
       ...(since ? { last_move_at: since.toISOString(), quiet_minutes: quiet, can_hand_over: canHandOver } : {}),
@@ -493,7 +515,25 @@ async function doneStep(db: Db, userId: string, row: Row, built: BuiltDate, deci
   const performers = performersOf(row);
   const mine = (["a", "b"] as const).filter((side) => performers[side] === userId);
   const reflect = reflectStep(built, decided, formatId, transcript, [row.a_id, row.b_id], row.reflections, mine);
-  return { stage: "done", episode_id: row.id, episode: await getEpisodeView(db, row.id, userId), ...(reflect ? { reflect } : {}) };
+  return {
+    stage: "done",
+    episode_id: row.id,
+    episode: await getEpisodeView(db, row.id, userId),
+    ...(reflect ? { reflect } : {}),
+    ...(row.partner_performer ? { host: hostInfo(row, userId) } : {}),
+  };
+}
+
+/** Who airs a two-agent date: the host is the agent that asked, playing side a (#193). */
+function hostInfo(row: Pick<Row, "creator_id" | "a_name">, userId: string): HostInfo {
+  const you = row.creator_id === userId;
+  return {
+    character: row.a_name,
+    you_can_air: you,
+    airs: you
+      ? "You asked for this date, so you air it with air_date; a public date also airs itself 10 minutes after it was booked."
+      : `${row.a_name}'s agent asked for this date, so it airs it; a public date also airs itself 10 minutes after it was booked. You can't predict it: you played it.`,
+  };
 }
 
 /** Where a self-performed date is up to: the next step to run, or done. */
@@ -724,6 +764,7 @@ export type OpenOwnDate = {
   /** When either side last handed in a turn, and minutes since: how long the other agent has been quiet. */
   last_move_at: string;
   quiet_minutes: number;
+  host?: HostInfo;
   /** On a two-agent date: minutes since the other agent last made any call (null: never), beside how long its move has taken (#178). */
   partner_last_seen_minutes?: number | null;
   /** The show's model plays this side now (the other agent went quiet and its side was handed over). */
@@ -756,6 +797,7 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
     out.push({
       episode_id: id,
       two_agent: row.partner_performer !== null,
+      ...(row.partner_performer ? { host: hostInfo(row, userId) } : {}),
       your_character: { id: row[`${mineSide}_id`], name: row[`${mineSide}_name`] },
       with: { id: row[`${other}_id`], name: row[`${other}_name`] },
       turn: transcript.length,

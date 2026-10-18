@@ -1,6 +1,6 @@
 import Avatar from "./Avatar";
 import { venueBackdrop } from "@/lib/portraits";
-import { venueBackdropCss, type VenueId } from "@/lib/venues";
+import { venueBackdropCss, venueName, type VenueId } from "@/lib/venues";
 import type { CharacterRef } from "@/lib/game";
 
 /** The full-bleed backdrop for the scene: a dark scrim over the venue photo, with the gradient as fallback. */
@@ -35,6 +35,8 @@ export default function Scene({ characters, venue, lineA, lineB, actLabel, place
   return (
     <div className="scene" style={{ backgroundImage: sceneBackground(venue) }}>
       {actLabel && <p className="scene-act">{actLabel}</p>}
+      {/* A venue still waiting for its reviewed backdrop paints only its gradient: name the place, so the stage reads as somewhere. */}
+      {venue && !venueBackdrop(venue) && <p className="scene-venue">📍 {venueName(venue)}</p>}
       {placeholder && !lineA && !lineB && <p className="scene-placeholder">{placeholder}</p>}
       <div className="scene-cast">
         <figure className="scene-char scene-char-a">

@@ -1,11 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Scene from "@/app/Scene";
+import ChatThread from "@/app/ChatThread";
+import { useReplay } from "@/app/useReplay";
+import { DATE_ACTS } from "@/lib/rules";
+import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import type { VenueId } from "@/lib/venues";
+
+function lastLine(turns: Turn[], side: "a" | "b"): string | null {
+  for (let i = turns.length - 1; i >= 0; i--) if (turns[i].side === side) return turns[i].dialogue;
+  return null;
+}
 
 /** The creator who just sent the date: wait on the theater stage itself, and play the date the moment it's filmed. */
 type Stage = { characters: [CharacterRef, CharacterRef]; venue: VenueId | null };
@@ -14,10 +23,19 @@ type Stage = { characters: [CharacterRef, CharacterRef]; venue: VenueId | null }
  * M10 part 2: while an episode is 'generating', poll its status and refresh the page the moment the
  * background worker finishes. If the episode disappears (404), generation failed terminally — the date
  * was given back — so offer another try. No websockets; a light poll, like the watch room.
+ *
+ * On the stage (the creator who just sent it), the date plays while it's filmed: the worker saves each line
+ * as it's written (lib/jobs.ts), the poll brings them in, and they play on the scene at the replay's pace. When
+ * it's done, the finished date picks up from the line they'd reached instead of starting over.
  */
 export default function GeneratingPoller({ episodeId, stage }: { episodeId: string; stage?: Stage }) {
   const router = useRouter();
   const [failed, setFailed] = useState(false);
+  const [lines, setLines] = useState<Turn[]>([]);
+  const replay = useReplay(lines, true, { live: true });
+  // The poll reads how far playback got when the date finishes, without re-arming on every line.
+  const reached = useRef(0);
+  reached.current = replay.shown.length;
 
   useEffect(() => {
     if (failed) return;
@@ -31,20 +49,24 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
           return;
         }
         if (res.ok) {
-          const data = (await res.json()) as { status?: string };
+          const data = (await res.json()) as { status?: string; transcript?: Turn[] };
           if (data.status && data.status !== "generating") {
-            // On the stage, go straight into the playback; otherwise just show the finished episode.
-            if (stage) router.replace(`/episodes/${episodeId}?play=1`);
+            // On the stage, go straight into the playback (from the line they'd reached); otherwise show the finished episode.
+            if (stage) router.replace(`/episodes/${episodeId}?play=1${reached.current ? `&from=${reached.current}` : ""}`);
             else router.refresh();
             return;
+          }
+          if (stage && Array.isArray(data.transcript)) {
+            const next = data.transcript;
+            setLines((prev) => (next.length === prev.length ? prev : next));
           }
         }
       } catch {
         /* a dropped poll is harmless; the next one catches up */
       }
-      if (active) timer = setTimeout(tick, 2500);
+      if (active) timer = setTimeout(tick, stage ? 2000 : 2500);
     };
-    timer = setTimeout(tick, 2500);
+    timer = setTimeout(tick, stage ? 1000 : 2500);
     return () => {
       active = false;
       clearTimeout(timer);
@@ -68,18 +90,41 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
 
   if (stage) {
     const [a, b] = stage.characters;
+    const shown = replay.shown;
+    const caughtUp = shown.length >= lines.length;
+    // Caught up with the writing: whoever speaks next is "typing" (sides alternate; Act 1 opens on a).
+    const last = shown[shown.length - 1];
+    const typing = caughtUp ? (lines.length ? (last?.side === "a" ? "b" : "a") : null) : replay.typing;
+    const actLabel = last ? DATE_ACTS[last.act] ?? null : null;
     return (
       <div className="theater theater-clean theater-filming">
-        <div className="theater-stage">
+        <div className="theater-stage with-convo">
           <div className="theater-scene-area">
-            <Scene characters={stage.characters} venue={stage.venue} lineA={null} lineB={null} actLabel={null} placeholder="They're arriving…" />
+            <Scene
+              characters={stage.characters}
+              venue={stage.venue}
+              lineA={lastLine(shown, "a")}
+              lineB={lastLine(shown, "b")}
+              actLabel={actLabel}
+              placeholder="They're arriving…"
+            />
+          </div>
+          <div className="theater-convo">
+            <ChatThread
+              characters={stage.characters}
+              turns={shown}
+              typing={typing}
+              tone="dark"
+              follow
+              empty="They're arriving. The conversation appears here as it's filmed."
+            />
           </div>
           <header className="theater-hud">
             <div className="theater-id">
               <strong>
                 {a.name} <span className="vs">×</span> {b.name}
               </strong>
-              <span className="chip">🎬 Filming</span>
+              <span className="chip">🔴 Filming live</span>
             </div>
             <div className="theater-tools">
               <Link href={`/episodes/${episodeId}`} className="button secondary small">
@@ -87,10 +132,12 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
               </Link>
             </div>
           </header>
-          <div className="theater-verdict" role="status" aria-live="polite">
-            <p className="ending">Filming the date…</p>
-            <p className="muted">It starts playing here the moment it&apos;s ready, usually under a minute.</p>
-          </div>
+          {!shown.length && (
+            <div className="theater-verdict" role="status" aria-live="polite">
+              <p className="ending">Filming the date…</p>
+              <p className="muted">The first lines appear here as they&apos;re filmed, usually within a minute.</p>
+            </div>
+          )}
         </div>
       </div>
     );
