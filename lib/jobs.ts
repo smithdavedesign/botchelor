@@ -223,6 +223,10 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       afterglow: isAfterglowEnabled(),
       reflection: isReflectionEnabled(),
       keyForSide,
+      // The creator's theater plays the date while it's filmed: each line is saved as it's written (only the
+      // creator sees a transcript before it airs, lib/game.ts), and the finished date overwrites it below.
+      onTurn: (lines) =>
+        db.query(`update episodes set transcript = $2::jsonb where id = $1 and status = 'generating'`, [episodeId, JSON.stringify(lines)]).then(() => {}),
     });
     if (gen.conversationError) {
       track("conversation_failed", { episode_id: episodeId, where: "job", reason: failureReason(gen.conversationError) });

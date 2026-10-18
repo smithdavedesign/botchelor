@@ -17,6 +17,8 @@ type Props = {
   endingLabel: string;
   /** Open straight into the playback (the creator arriving from sending the date, `?play=1`). */
   autoOpen?: boolean;
+  /** Lines the creator already watched live while it was filmed (`?from=`): playback carries on from there. */
+  startAt?: number;
 };
 
 function lastOf(turns: Turn[], side: "a" | "b"): string | null {
@@ -52,8 +54,8 @@ export default function EpisodeTheater(props: Props) {
   );
 }
 
-function Playback({ characters, venue, transcript, endingLabel, autoOpen, onExit }: Props & { onExit: () => void }) {
-  const replay = useReplay(transcript, true);
+function Playback({ characters, venue, transcript, endingLabel, autoOpen, startAt, onExit }: Props & { onExit: () => void }) {
+  const replay = useReplay(transcript, true, { startAt });
   const [convo, setConvo] = useState(true);
   const shown = replay.shown;
   const [a, b] = characters;

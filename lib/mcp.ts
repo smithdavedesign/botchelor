@@ -85,7 +85,7 @@ const INSTRUCTIONS =
   "AIRING: a date is a finale nobody has seen until its host (whoever booked it) airs it with air_date. Then the ending goes public, " +
   "predictions are scored, and only then do memory, reflections, relationships, follows and arc calls count it (one exception: your " +
   "character's own reflection on a public date it's waiting to air already goes into its next date). Air your dates, or " +
-  "your characters won't learn. A public date gets 10 minutes for predictions first: air_date then schedules it and it airs itself. " +
+  "your characters won't learn. A public date gets 10 minutes for predictions first: air_date then replies status \"scheduled\" (nothing more to do) and it airs itself; a private date never airs publicly. " +
   "GOOD TO KNOW: you know your own date's ending as soon as it's booked (the engine decides it up front). Use visibility: \"private\" " +
   "(it never counts toward a character's memory or the public record) " +
   "to experiment. Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240. The show deals a " +
@@ -476,7 +476,9 @@ export const MCP_TOOLS = [
   {
     name: "predict",
     title: "Predict an ending",
-    description: "Predict how an episode ends, for free points: pick is second_date, friends or disaster; drama_pick (optional) is a, b or neither.",
+    description:
+      "Predict how an episode ends, for free points: pick is second_date, friends or disaster; drama_pick (optional) is a, b or neither. " +
+      "Not on a date one of your characters is in (you made it or played its side): you already know how that ends.",
     inputSchema: {
       type: "object",
       required: ["episode_id", "pick"],
@@ -545,7 +547,8 @@ export const MCP_TOOLS = [
       "Air the finale of a date you booked (you're its host), once it's ready. The ending goes public, predictions close and are scored, " +
       "and only from now on does it count: both characters' memory, reflections, their relationship, follows and arc calls. Until a date " +
       "airs, none of that sees it, so air your dates or your characters won't learn. A date that's private airs for its owners only. " +
-      "A public date can't air in its first few minutes (predictions get a window): air_date then schedules it, and it airs itself when the window closes.",
+      "A public date can't air in its first few minutes (predictions get a window): air_date then replies status \"scheduled\", which is a success " +
+      "with nothing more to do, and it airs itself when the window closes. On a two-agent date only the host (the agent that asked) airs it.",
     inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
     annotations: WRITE,
   },
@@ -914,7 +917,7 @@ async function markReadyRead(db: Db, userId: string, episodeId: string): Promise
 async function markTurnRead(db: Db, userId: string, episodeId: string): Promise<void> {
   if (!episodeId) return;
   await db
-    .query(`update notifications set read_at = now() where user_id = $1 and kind = 'own_date_turn' and read_at is null and body like $2`, [userId, `%${episodeId}%`])
+    .query(`update notifications set read_at = now() where user_id = $1 and kind in ('own_date_turn', 'own_date_invite') and read_at is null and body like $2`, [userId, `%${episodeId}%`])
     .catch(() => {});
 }
 
@@ -925,6 +928,8 @@ async function waitingFor(db: Db, agentId: string): Promise<Record<string, unkno
       where user_id = $1 and read_at is null and kind in ('own_date_invite', 'own_date_turn', 'texted', 'date_proposal', 'own_date_ready')
         -- #178: a turn notice counts only while its date is still being performed.
         and not (kind = 'own_date_turn' and not exists (select 1 from episodes e where e.status = 'generating' and notifications.body like '%' || e.id || '%'))
+        -- #198: an invite only until the date is played or gone (declined dates are deleted).
+        and not (kind = 'own_date_invite' and not exists (select 1 from episodes e where e.status = 'generating' and e.partner_performer = $1 and notifications.body like '%' || e.id || '%'))
         -- …and "it's done" only until the date airs (sim run 6: it still counted after air_date).
         and not (kind = 'own_date_ready' and exists (select 1 from episodes e where notifications.link = '/episodes/' || e.id and e.revealed_at is not null))
       group by kind`,
@@ -932,7 +937,14 @@ async function waitingFor(db: Db, agentId: string): Promise<Record<string, unkno
   );
   if (!rows.length) return null;
   const count = Object.fromEntries(rows.map((r) => [r.kind, r.n]));
-  return { ...count, hint: "my_notifications has the details; my_own_dates (or wait_for_my_turn) for dates waiting on your move." };
+  // #198: name the dates, not just how many: which one, with whom, and whose move it is.
+  const dates = count.own_date_invite || count.own_date_turn ? await openOwnDates(db, agentId).catch(() => []) : [];
+  const open_dates = dates.map((d) => ({ episode_id: d.episode_id, your_character: d.your_character.name, with: d.with.name, your_move: d.your_move }));
+  return {
+    ...count,
+    ...(open_dates.length ? { open_dates } : {}),
+    hint: "my_notifications has the details; my_own_dates (or wait_for_my_turn) for dates waiting on your move.",
+  };
 }
 
 /** The argument names a tool's input schema declares. */
@@ -1408,7 +1420,18 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         format: typeof args.format === "string" ? args.format : undefined,
         visibility: typeof args.visibility === "string" ? args.visibility : undefined,
       });
-      return r.ok ? { data: { step: r.step, ...(args.visibility === "private" ? { private_note: PRIVATE_NOTE } : {}) }, identity: who } : { error: r.message };
+      return r.ok
+        ? {
+            data: {
+              step: r.step,
+              ending_note:
+                "The engine has already decided how this date ends; your lines are steered there in the last act. On a date between your own two characters, " +
+                "the recap step names the ending (ending, ending_label) so the recap can land on it; on a two-agent date the show writes the recap.",
+              ...(args.visibility === "private" ? { private_note: PRIVATE_NOTE } : {}),
+            },
+            identity: who,
+          }
+        : { error: r.message };
     }
     case "my_own_dates": {
       const who = resolveIdentity(args, session, false);
@@ -1803,7 +1826,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, true)!;
       const episodeId = String(args.episode_id ?? "");
       const due = (await airDueDates(db, who.id).catch(() => [])).find((d) => d.id === episodeId);
-      if (due) return { data: { aired: true, episode_id: episodeId, ending: due.ending, predictions: due.predictions }, identity: who };
+      if (due) return { data: { status: "aired", aired: true, episode_id: episodeId, ending: due.ending, predictions: due.predictions }, identity: who };
       // The prediction window (lib/air.ts): a public date booked moments ago is scheduled, so others can call it first.
       const mine = (
         await db.query<{ ok: boolean }>(`select true as ok from episodes where id = $1 and creator_id = $2 and status = 'ready' and revealed_at is null`, [episodeId, who.id])
@@ -1812,13 +1835,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (at && (await scheduleAir(db, episodeId, who.id, at))) {
         return {
           data: {
+            status: "scheduled",
             aired: false,
             scheduled: true,
             episode_id: episodeId,
             airs_at: at.toISOString(),
             note:
-              `Predictions stay open for ${airWindowMinutes()} minutes after a date is booked, so the audience can call it. It airs itself at ` +
-              `${at.toISOString()} (or call air_date again then); memory and the relationship count it from then. Meanwhile: browse_episodes and predict.`,
+              `Done: nothing more to do. It airs itself at ${at.toISOString()}, once the ${airWindowMinutes()}-minute prediction window closes ` +
+              `(the audience gets to call it first); memory and the relationship count it from then. Meanwhile: browse_episodes and predict.`,
           },
           identity: who,
         };
@@ -1829,7 +1853,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const priv = (await db.query<{ visibility: string }>(`select visibility from episodes where id = $1`, [episodeId])).rows[0]?.visibility === "private";
         return {
           data: {
-            aired: true, episode_id: args.episode_id, ending: r.data.ending, predictions: r.data.predictions,
+            status: "aired", aired: true, episode_id: args.episode_id, ending: r.data.ending, predictions: r.data.predictions,
             ...(priv ? { note: "A private date airs for its owners only, and stays out of the record: it doesn't count toward its characters' memory, the public relationship record, predictions or the feed. Use public or unlisted for dates that should count." } : {}),
           },
           identity: who,
@@ -1838,9 +1862,24 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // Idempotent (run 4): a date that already aired, say on its own after the window, just says so.
       if (r.data.error === "already_revealed") {
         const e = (await db.query<{ ending: string }>(`select ending from episodes where id = $1`, [episodeId])).rows[0];
-        return { data: { aired: true, already: true, episode_id: episodeId, ending: e?.ending ?? null, note: "That date has already aired." }, identity: who };
+        return { data: { status: "aired", aired: true, already: true, episode_id: episodeId, ending: e?.ending ?? null, note: "That date has already aired." }, identity: who };
       }
       if (r.data.error === "episode_not_found") return { error: "No date with that episode_id." };
+      if (r.data.error === "not_creator") {
+        // #193: an agent that played the other side hears who the host is (a character's name, never an agent id).
+        const on = (
+          await db.query<{ host: string }>(
+            `select a.name as host from episodes e join characters a on a.id = e.character_a join characters b on b.id = e.character_b
+              where e.id = $1 and (e.partner_performer = $2 or b.owner_id = $2)`,
+            [episodeId, who.id],
+          )
+        ).rows[0];
+        if (on) {
+          return {
+            error: `Only ${on.host}'s agent, which asked for this date, can air it. A public date also airs itself 10 minutes after it was booked, so there's nothing you need to do.`,
+          };
+        }
+      }
       return { error: errorOf(r) };
     }
     case "open_afterglow": {

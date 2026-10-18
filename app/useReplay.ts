@@ -36,10 +36,20 @@ export type Replay = {
  * Plays a recorded transcript back on a timer: the episode replay and a finished watch room both use it, so
  * a date that already happened plays out line by line exactly like a live one.
  */
-export function useReplay(transcript: Turn[], autoplay = true): Replay {
-  const [pos, setPos] = useState(0);
+export function useReplay(
+  transcript: Turn[],
+  autoplay = true,
+  /**
+   * `live`: the transcript is still being written (a date being filmed). Playback never finishes; it waits at
+   * the newest line and carries on as more arrive. `startAt`: open with that many lines already shown (the
+   * creator watched them live, so the finished date picks up where they were).
+   */
+  opts: { live?: boolean; startAt?: number } = {},
+): Replay {
+  const live = opts.live ?? false;
+  const [pos, setPos] = useState(() => Math.max(0, Math.min(opts.startAt ?? 0, transcript.length)));
   const [playing, setPlaying] = useState(autoplay);
-  const done = pos >= transcript.length;
+  const done = !live && pos >= transcript.length;
 
   // Keyed on the length, not the array: a live room hands us a fresh (identical) array on every poll, and
   // re-arming the timer each time would stall playback at the longer act breaks.
@@ -49,12 +59,12 @@ export function useReplay(transcript: Turn[], autoplay = true): Replay {
   useEffect(() => {
     if (!playing) return;
     if (pos >= total) {
-      setPlaying(false);
+      if (!live) setPlaying(false);
       return;
     }
     const timer = setTimeout(() => setPos((p) => p + 1), delayBefore(latest.current, pos));
     return () => clearTimeout(timer);
-  }, [playing, pos, total]);
+  }, [playing, pos, total, live]);
 
   const next = transcript[pos];
   const prev = transcript[pos - 1];

@@ -58,6 +58,8 @@ export type GenerateOptions = {
    * private soul. The plan and recap (which see both souls) always stay on the platform director.
    */
   keyForSide?: (side: "a" | "b") => Model | null;
+  /** Each finished conversation line as it's written, for the live theater (lib/jobs.ts saves them). */
+  onTurn?: (transcript: Turn[]) => void | Promise<void>;
   /** How long the date and the texts after run (lib/talk.ts); the format's own length (or the standard) when absent. */
   talk?: { date: number; texts: number };
 };
@@ -144,7 +146,7 @@ export async function generateDate(
     // A director that is down (a stronger free model at its quota) costs nothing: planDate falls back to rules.
     plan = await planDate(director.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.formatCtx);
     try {
-      transcript = await simulateConversation(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan, keyForSide);
+      transcript = await simulateConversation(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan, keyForSide, opts.onTurn);
     } catch (err) {
       conversationError = err;
     }
