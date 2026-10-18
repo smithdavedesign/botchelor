@@ -96,12 +96,13 @@ describe("the per-side routing rule (a key never sees another user's soul)", () 
       b: { sheet: sheetB, signals: { warmth: 0.6, openness: 0.5, guardedness: 0.3, humor: 0.6 }, autonomy: "balanced", strategy: "genuine_chemistry", agendaId: "test_sincerity", note: null, gameBudget: 25 },
     };
     const outcome = fixedEngine({ ending: "friends" }).decide(input, 1);
-    // Vary each line so the free critic never sends one back (which would add calls and muddy the counts).
-    const openers = ["What", "Tell me", "How", "When", "Where", "Why", "Who", "Really", "Honestly perhaps", "Say"];
+    // Each line is a single stopword-only token so the free critic (catchphrase, opener, motif, near-duplicate)
+    // never sends one back, which would add calls and muddy the counts.
+    const neutral = ["Hmm.", "Mm?", "Oh.", "Hah.", "Yes?", "Sure.", "Oh?", "Mm.", "Hmm?", "Yes."];
     const record = (into: ChatMessage[][]): Model => ({
       async complete(m) {
         into.push(m);
-        return JSON.stringify({ dialogue: `${openers[into.length % openers.length]} did you end up here tonight, friend number ${into.length}?`, action: "", emotion: "warm", interest_signal: 0.5 });
+        return JSON.stringify({ dialogue: neutral[into.length % neutral.length], action: "", emotion: "warm", interest_signal: 0.5 });
       },
     });
     const aSaw: ChatMessage[][] = [];

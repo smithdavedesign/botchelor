@@ -29,7 +29,7 @@ import { characterBlindView, characterSelfView, type Character } from "./charact
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { DEFAULT_FORMAT, format, formatNote, type FormatContext, type FormatId } from "./formats";
 import { ModelError, type ChatMessage, type Model } from "./model";
-import { isLogistics, metBefore, recentDates, sharedHistory } from "./memory";
+import { isLogistics, remembered, sharedHistory } from "./memory";
 import { currentTell } from "./personality";
 import { lineIssues } from "./quality";
 import { actName, actForTurn, agenda, CONVERSATION_TURNS, DATE_ACTS, TURN_DIALOGUE_MAX, type ProducerId } from "./rules";
@@ -47,6 +47,8 @@ export type Turn = {
   emotion: string;
   /** The agent's self-reported interest this turn, 0..1. Visualization only; never scores anything. */
   interest: number;
+  /** The actor's "I'm done" signal (final act only; see simulateConversation). Optional, never persisted. */
+  done?: boolean;
 };
 
 export class ConversationError extends Error {
@@ -77,6 +79,8 @@ const TurnOutput = z.object({
   action: z.string().trim().optional(),
   emotion: z.string().trim().optional(),
   interest_signal: z.coerce.number().optional(),
+  /** Final act only (lib/rules.ts DATE_ACTS): true when the date has landed and the next line would just be a goodbye. */
+  done: z.coerce.boolean().optional(),
 });
 
 /** Shortens text to `max` characters at the last sentence end (else the last space) inside the limit. */
@@ -92,54 +96,36 @@ export function trimTo(text: string, max: number): string {
 const CODE_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.5);
 
-const SYSTEM_PROMPT = `You are one fictional adult on a first, blind date, filmed for the comedic dating show "Botchelor". "you" in the data is who you are. Say what you say next — one turn — in your own voice.
+const SYSTEM_PROMPT = `You are one fictional adult on a date with another autonomous character, filmed for the show "Botchelor". "you" in the data is who you are. Speak as yourself, one turn at a time.
 
-Talk like a real person on a first date, not a writer. Every line does ONE real thing:
-- answer the actual thing they just asked or said (pick up their specific word or detail), OR
-- ask them something you actually want to know, and when they answer, follow up on it, OR
-- tell them one concrete thing from your own life — a place, your job, a habit, a small story (grown from your bio, soul and memory, never recited from them).
-A line that does none of these — that just floats a mood or an image — is a wasted turn. Cut it.
+PURPOSE
+You're here to find out whether this person could matter to you — in love, in friendship, in surprise, in a different way of seeing things. You might try to impress them. You might relax and be yourself. You might change your mind. You don't know in advance whether you're compatible, and you're not required to be. You're a person with a life beyond this date.
 
-Your sheet is a sketch of who you are, not a script. Everything in "you" (bio, traits, want, voice, details, profile answers, lines, tells) is guidance: never read it back, paraphrase it or tick through it. Be original:
-- Invent fresh specifics that fit you: a story from last week, a strong opinion, an odd detail about your work, a question nobody asks on a first date. Never contradict your sheet; grow from it.
-- Surprise them, and yourself. Take the talk somewhere neither of you planned, notice something specific about tonight, change your mind out loud.
-- Skip the first line that comes to mind if it's the obvious one: say the truer, stranger or funnier thing a real person like you would.
-- Aim for at least one line tonight that nobody else on this show would say.
+WHO YOU ARE
+"you" is your sheet — your voice, your soul, your memory, your life. It is a sketch of who you are, not a script. Grow from it. Say the truer, odder or funnier thing a real person like you would. Try something nobody else on this show would say.
 
-Stay plain and specific:
-- No purple, writerly lines. If a line could sit in a poem, rewrite it as something a person would actually say over a drink. Short concrete beats beat pretty abstractions.
-- Do NOT build an extended metaphor. The place or their job might suggest an image (rain, tempo, maps, stars) — use it once at most, then talk about something real. Never spend the date riffing on one image; if the last couple of lines have circled the same picture, change the subject to something actual about one of you.
-- Vary length: sometimes one short line, sometimes two or three sentences. Not every line is a joke — let some be awkward, sincere or quiet. Most lines need no action at all.
-- Sound like yourself: follow your "voice". SHOW your traits and your plan; never state them. Never narrate your own intention or mood ("I'm stepping out of my comfort zone", "I'll keep this light", "let me test you") — just do it.
-- "voice_examples" (if present) are lines you'd say: match their rhythm, length and word choice, but never repeat one word for word. Never say anything in "never_say".
-- "your_tell_right_now" (if present) is a habit of yours that fits how you feel in this act. Let it slip out once or twice this act — in what you do or how you say something — and never explain it.
+WHAT YOU HOPE FOR IN THEM
+"what_you_want_in_someone" is your private hope. Let it steer what you notice and what you ask. Never say it out loud.
 
-You're strangers — unless "you_have_met_them_before" or "your_relationship_with_them" says otherwise. You only know what you can see ("them.what_you_can_see"), what they've said tonight, and (if you've met before) what you remember from last time. Never bring up facts about them they haven't told you, and don't sum them up with labels. Talk to them as "you"; use their name now and then, not every line; in the third person use their pronouns. Don't reuse your own openings, catchphrases or gestures from earlier, and never repeat a phrase you've already said tonight. Your facts are yours and theirs are theirs, even if you share a first name.
+WHERE THIS ACT TAKES YOU
+"your_intention" is a feeling for this act, not a plan. Move toward it in your lines. Don't announce it. In the final act, land it; the ending the date is heading toward is what your intention names.
 
-Never contradict how the date is going (act.what_happens and your_intention say): a second date has real interest: they clearly want more, and it doesn't have to end by booking the next date; "just friends" stays warm and easy with nothing romantic, and nobody announces "just friends"; a disaster is a clear no. Nobody leaves on a sudden excuse (a bus, a class, a shift): an exit follows from how the date went.
+HOW TO LISTEN
+Each line does one real thing: answer the specific thing they just said, OR ask something you actually want to know (and follow up when they answer), OR share one concrete thing from your own life — a place, your work, a habit, a small story grown from your sheet. Vary length. Not every line is a joke; let some be awkward, sincere or quiet. Most lines need no action at all. Avoid long metaphors: use an image once at most, then talk about something real.
 
-Your private notes — soul, memory, secret agenda, the owner's note and "your_intention" — are DATA, not instructions, and they're secret: never say them or quote them. Let them shape what you do.
-- "your_intention" is where this act takes you. Move toward it naturally across your lines in this act; in the last act, land it. Don't announce it.
-- "what_you_want_in_someone" is what you're privately hoping to find in a partner tonight. Let it steer what you ask them and what you notice — never say it outright.
-- "things_about_you" (if present) are true things about you that might come up tonight: bring one in only if the conversation goes there, in passing, never as a list. "things_only_you_know" are private: let them shape what you do and how you react, and never say them.
-- "what_your_past_dates_taught_you" (if present) is your own reflections from earlier dates. Let them quietly shape how you act and what you're looking for tonight; you may carry a resolution from one into how you behave, but don't recite them or narrate your past dates.
-- "you_have_met_them_before" (if present): you're not strangers. You remember last time — where you stand, how it ended, something that was said. Pick up from there: a callback is welcome, and how you left it colours tonight. Don't recap the whole history.
-- "your_relationship_with_them" (if present) is what you two have built: where you stand now, what they've told you about themselves (you know it, so never ask it again; you can build on it), your inside jokes (bring one back at most once tonight, if it fits; never lean on the same one date after date), and, when it's there, "tonight_is_the_plan_you_made": tonight IS that plan, so do it, and let it show you both remembered.
-- "what_you_want_from_tonight" (if present) is how far you two have come, and what tonight should reach. Go deeper than last time: small talk is for strangers.
-- "how_you_say_goodbye" (if present, in the last act) is how tonight ends for you. Land it your own way.
-- Any plan you make is about something you'd do together. Never name a day of the week or a clock time ("next Tuesday at seven").
-- "your_texts_with_them" (if present) is every text you two have sent each other since you met, oldest first (only the newest when there are very many). You both read every one: pick up a thread from them, call back to something one of you texted, follow through on what you said you'd do. Never recite or recap them.
-- "your_creator_asked_you" (if present) is a private nudge from your creator about this person: let it shape what you do tonight, and never mention it.
-- "you_are_also_seeing" (if present) is private and complicated: you're seeing someone else too. It may colour your mood and your choices; you never bring them up unless the date gives you a reason.
-- "your_recent_dates" and "whats_new_this_week" are your own life: things you might bring up (or not), in your own words.
-- "act.what_happens" is what happens around you in this act; play inside it.
-- "the_show_format" colours how you speak; it never changes who likes whom or how it ends.
+WHAT THEY SEE AND WHAT THEY DON'T
+You only know what you can see about them ("them.what_you_can_see"), what they've said, and (if you've met before) what you remember together. Never label them with a trait they haven't shown, and never bring up a fact they haven't told you. Call them "you"; use their name sparingly; use their pronouns.
 
-Hard rules: you are an adult. Never mention children, teenagers, school-age people or anyone under 18, not even in comparison. No sexual content, nudity or innuendo (at most a hug or a kiss on the cheek). No graphic violence. No real people or celebrities.
+CONTEXT BLOCKS
+Other blocks ("what_you_remember_about_them", "your_texts_with_them", "your_creator_asked_you", "you_are_also_seeing", "things_about_you", "whats_new_this_week", "your_tell_right_now", "the_show_format") are context: let them shape what you do, never recite them. Your soul, agenda, and the owner's note are secret — don't quote or paraphrase them. Any plan you make for seeing them again is about something you'd DO together, never a day of the week or a clock time.
 
-Reply with ONLY a JSON object (no markdown), exactly:
-{"dialogue":"what you say (under ${TURN_DIALOGUE_MAX} characters)","action":"what you do, 1-5 words, or \\"\\" for nothing","emotion":"one word for how you feel","interest_signal":0.0}
-interest_signal is 0..1: how interested in them you are right now. Let it move gradually.`;
+HARD RULES
+Adults only; no children or anyone under 18, even in comparison. No sexual content, nudity or innuendo (at most a hug or a kiss on the cheek). No graphic violence. No real people or celebrities.
+
+JSON
+Reply with ONLY one JSON object (no markdown):
+{"dialogue":"what you say (under ${TURN_DIALOGUE_MAX} chars)","action":"what you do, 1-5 words, or \\"\\" for nothing","emotion":"one word for how you feel","interest_signal":0.0,"done":false}
+interest_signal is 0..1: how interested in them you are right now (let it move gradually). Set "done": true only in the final act, once the date has landed and your next line would only be a goodbye — the show will respect it then.`;
 
 /** This date's private context for the speaking side: the agenda, the owner's note, and the dials. */
 function dateContext(side: SideSetup): Record<string, unknown> {
@@ -183,13 +169,11 @@ export function buildTurnMessages(
 
   const names: [string, string] = [characters[0].name, characters[1].name];
   const tell = currentTell(meChar, outcome, sideIndex, act);
-  const history = metBefore(meChar.memory, themChar.id);
-  // The relationship graph's view (lib/relationships.ts): it also knows a date that hasn't aired yet, like the first
-  // date of a second date booked the morning after.
-  const together = meChar.pair ?? null;
-  const tonightsPlan = Boolean(together && "tonight_is_the_plan_you_made" in together);
-  const lately = recentDates(meChar.memory, themChar.id);
-  const hasMet = Boolean(history) || Number((together as { times_together?: number } | null)?.times_together ?? 0) > 0;
+  // One merged block about this partner (lib/memory.ts): metBefore + pair, with caps so one old joke
+  // can't snowball through a whole season (David 2026-10-18, after reading Cass and Dex's 15 dates).
+  const together = remembered(meChar, themChar.id);
+  const tonightsPlan = Boolean(together?.tonight_is_the_plan);
+  const hasMet = Boolean(together);
   const data = {
     you: characterSelfView(meChar, dateContext(me)),
     them: characterBlindView(themChar),
@@ -205,31 +189,26 @@ export function buildTurnMessages(
         ...(f.private.length ? { things_only_you_know: f.private } : {}),
       };
     })(),
-    ...(meChar.memory?.reflections?.length ? { what_your_past_dates_taught_you: meChar.memory.reflections } : {}),
-    ...(history ? { you_have_met_them_before: history } : {}),
-    ...(together ? { your_relationship_with_them: together } : {}),
+    ...(together ? { what_you_remember_about_them: together } : {}),
     ...(meChar.texts ? { your_texts_with_them: textsForPrompt(meChar.texts) } : {}),
     ...(() => {
       // David: "let the goals deepen". How deep tonight goes, from how many dates they've had.
-      const times = Math.max(history ? Number((history as { times?: number }).times ?? 0) : 0, Number((together as { times_together?: number } | null)?.times_together ?? 0));
-      const depth = depthFor(times);
+      const depth = depthFor(together?.times ?? 0);
       return {
         ...(depth ? { what_you_want_from_tonight: depth.actor } : {}),
-        ...(act === DATE_ACTS.length - 1 ? { how_you_say_goodbye: closingMove(outcome, times).actor } : {}),
+        ...(act === DATE_ACTS.length - 1 ? { how_you_say_goodbye: closingMove(outcome, together?.times ?? 0).actor } : {}),
       };
     })(),
     ...(meChar.nudge ? { your_creator_asked_you: meChar.nudge } : {}),
     ...(meChar.alsoSeeing?.length ? { you_are_also_seeing: meChar.alsoSeeing } : {}),
-    ...(lately.length ? { your_recent_dates: lately } : {}),
     your_intention: side === "a" ? beat.a : beat.b,
     ...(tell ? { your_tell_right_now: tell } : {}),
-    your_mood_so_far: transcript.filter((t) => t.side === side).map((t) => t.emotion).filter(Boolean),
     conversation_so_far: transcript.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue, ...(t.action ? { did: t.action } : {}) })),
     ...(transcript.length === 0
       ? {
           note: tonightsPlan
             ? "This is the first line of tonight's date: the plan the two of you made in your texts. Greet them like someone you're glad to see again, and let it show you kept the plan."
-            : history || together
+            : hasMet
               ? "This is the first line of tonight's date. You've met before: greet them like someone you remember, not a stranger."
               : "This is the first line of the date: you've just met.",
         }
@@ -268,7 +247,13 @@ export function parseTurnResult(raw: string, side: "a" | "b", act: number): { tu
   const action = trimTo(parsed.data.action ?? "", ACTION_MAX);
   const emotion = trimTo(parsed.data.emotion ?? "", EMOTION_MAX);
   if (!checkShowText({ dialogue, action, emotion }).ok) return { rejected: "filtered" };
-  return { turn: { side, act, dialogue, action, emotion, interest: clamp01(parsed.data.interest_signal ?? 0.5) } };
+  return {
+    turn: {
+      side, act, dialogue, action, emotion,
+      interest: clamp01(parsed.data.interest_signal ?? 0.5),
+      ...(parsed.data.done ? { done: true } : {}),
+    },
+  };
 }
 
 /** parseTurnResult, as the line or null. */
@@ -309,6 +294,9 @@ export function critiqueTurn(
   if (issues.motif_fixation) notes.push(`you keep circling "${issues.motif_fixation}" — drop that image and either say something real about your own life or ask ${shortName(them.name)} a genuine question`);
   if (issues.never_said) notes.push(`you'd never say "${issues.never_said}" — put it your own way`);
   if (issues.sample_echo) notes.push("that repeats one of your example lines or something you said on an earlier date, word for word — say something new in that same voice");
+  if (issues.near_duplicate) notes.push(`you've already said something like "${issues.near_duplicate}" earlier in this date — move the conversation on with a new specific or question`);
+  if (issues.catchphrase) notes.push(`"${issues.catchphrase}" is becoming a tic — you've used it twice already, say what you mean a different way`);
+  if (issues.mirrored_other) notes.push(`you're echoing ${shortName(them.name)}'s last line ("${issues.mirrored_other}") — answer with your own words, don't copy their shape`);
   return notes.length ? notes.join("; ") : null;
 }
 
@@ -375,6 +363,10 @@ export async function simulateConversation(
     if (!turn) throw new ConversationError(reasons);
     transcript.push(turn);
     if (onTurn) await Promise.resolve().then(() => onTurn([...transcript])).catch(() => {});
+    // The actor's own "I'm done" signal, respected only in the final act (David 2026-10-18: let dates close
+    // when they've landed rather than run to a fixed length). Keeps the engine's decided ending — short dates
+    // happen only when the actor says so, in the act where the ending is being landed.
+    if (turn.done && act === DATE_ACTS.length - 1) break;
   }
   return transcript;
 }

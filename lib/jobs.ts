@@ -41,7 +41,7 @@ async function sideSettings(
 import { getEngine, type CharacterSheet } from "./engine";
 import { DEFAULT_FORMAT, format as showFormat } from "./formats";
 import { claimPaidDate } from "./limits";
-import { getDirectorModel, getFrontierModel, getModel, paidDefaultOn, roleReasoning } from "./model";
+import { frontierConfigured, getDirectorModel, getFrontierModel, getModel, roleReasoning } from "./model";
 import { buildKeyForSide } from "./keys";
 import { isTalkLevel, talkFor, type TalkLevel } from "./talk";
 import { soulText } from "./souls";
@@ -195,20 +195,27 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // Re-decide under the calibration POST stored (a deploy between POST and this worker can't change it).
     const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
 
-    // The owner-approved frontier model runs every role; otherwise the free actor model, plus the director
-    // model (LLM_DIRECTOR_MODEL, defaulting to the same free model) for the plan and the recap.
-    const frontier = row.use_frontier ? getFrontierModel() : null;
-    // The paid default (FRONTIER_DEFAULT) only while today's cap lasts (lib/limits.ts); past it, the free model.
-    const paid = !frontier && paidDefaultOn() ? await claimPaidDate(db) : false;
+    // Dates on the show's model always use the frontier when it's configured (David 2026-10-18, after
+    // Cass×Dex's ten dates: no free model for a show date — the show always uses a capable paid model). The
+    // daily cap stays as a stat (claimPaidDate still ticks for the admin's spend view) but no longer gates the
+    // switch, so a busy day never silently drops into the free model. If the frontier isn't configured
+    // (local dev, visitor sims), free is still used — the alternative is the show breaking everywhere a paid
+    // key isn't set up — and the fall-through logs show_date_free so prod can alert.
+    const useFrontier = Boolean(row.use_frontier) || frontierConfigured();
+    const frontier = useFrontier ? getFrontierModel() : null;
+    if (frontier && !row.use_frontier) await claimPaidDate(db).catch(() => false);
     const models = frontier
       ? { actor: frontier, director: frontier }
-      : { actor: getModel(undefined, paid), director: getDirectorModel(process.env, undefined, paid) };
+      : { actor: getModel(undefined, false), director: getDirectorModel(process.env, undefined, false) };
+    if (!frontier) track("show_date_free", { episode_id: episodeId, configured: frontierConfigured() });
     const fmtCtx = { chaperone: built.setup.chaperone, ex: built.setup.ex };
     // BYOK: a creator's own saved key runs their side's lines (and a soulless partner's), never the plan or
-    // recap (those see both souls). Off on a frontier run (that's the owner-approved paid path already).
+    // recap (those see both souls). Off on an admin-approved A/B run (`row.use_frontier`) because that run
+    // isolates the frontier model, but on by default on the show's regular frontier path — the owner's key
+    // still reduces the show's spend on that side.
     let keyForSide: ((side: "a" | "b") => ReturnType<typeof getModel> | null) | undefined;
     const sides = await sideSettings(db, row.a_id, row.b_id);
-    if (!frontier) {
+    if (!row.use_frontier) {
       const owners = sides.owners;
       const reachable = built.characters.map((c) => Boolean(c.soul && !c.soul.local_only && (soulText(c.soul) ?? "").trim())) as [boolean, boolean];
       keyForSide = await buildKeyForSide(db, owners, reachable, roleReasoning("actor"));

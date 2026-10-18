@@ -797,6 +797,45 @@ export function recentDates(memory: CharacterMemory | null | undefined, excludeI
     .map((p) => `With ${shortName(p.name)} at ${venue(p.last_venue).name.toLowerCase()}: ${ENDING_LABELS[p.last_ending]}.`);
 }
 
+/**
+ * One capped block about the person you're meeting again: `metBefore` (aired record) + `char.pair` (relationship
+ * graph, which also knows unaired and private dates between you two), merged, with caps so one old joke can't
+ * snowball through a whole season (Cass×Dex, 2026-10-18: "knock on wood" and "Gerald" filled 15 lines of 16 by
+ * date 7 because the same joke and the same shared line were in multiple blocks of every later prompt).
+ *
+ * Keeps: times, where you stand, how it ended for you, how it's been (chemistry), up to 2 things they told you,
+ * one inside joke, one line each said, tonight's plan when it exists. Null when you've never met.
+ */
+export function remembered(
+  char: { memory?: CharacterMemory | null; pair?: Record<string, unknown> | null },
+  otherId: string,
+): (Record<string, unknown> & { times: number; tonight_is_the_plan?: string[] }) | null {
+  const met = metBefore(char.memory, otherId); // aired-only, from this side
+  const pair = (char.pair ?? null) as (Record<string, unknown> & { times_together?: number }) | null;
+  if (!met && !pair) return null;
+  const times = Math.max(
+    typeof met?.times === "number" ? (met.times as number) : 0,
+    typeof pair?.times_together === "number" ? pair.times_together : 0,
+  );
+  const told = Array.isArray(pair?.things_they_have_told_you) ? (pair.things_they_have_told_you as string[]).slice(0, 2) : [];
+  const jokesAll = Array.isArray(pair?.your_inside_jokes) ? (pair.your_inside_jokes as string[]) : [];
+  const joke = jokesAll[0]; // the first (most recent in pairContext order)
+  const plan = Array.isArray(pair?.tonight_is_the_plan_you_made) ? (pair.tonight_is_the_plan_you_made as string[]) : [];
+  return {
+    times,
+    ...(met?.where_you_stand ? { where_you_stand: met.where_you_stand } : pair?.where_you_stand_now ? { where_you_stand: pair.where_you_stand_now } : {}),
+    ...(met?.last_time ? { how_it_ended_last_time: met.last_time } : {}),
+    ...(met?.how_it_ended_for_you ? { how_it_ended_for_you: met.how_it_ended_for_you } : {}),
+    ...(met?.how_you_left_it ? { how_you_left_it: met.how_you_left_it } : {}),
+    ...(pair?.how_its_been ? { how_its_been: pair.how_its_been } : {}),
+    ...(told.length ? { things_they_have_told_you: told } : {}),
+    ...(joke ? { an_inside_joke: joke } : {}),
+    ...(met?.something_they_said ? { one_line_they_said: met.something_they_said } : {}),
+    ...(met?.something_you_said ? { one_line_you_said: met.something_you_said } : {}),
+    ...(plan.length ? { tonight_is_the_plan: plan } : {}),
+  };
+}
+
 /** Words both sides of a rematch already heard last time: never "profile reading" (lib/quality.ts). */
 export function sharedHistory(memory: CharacterMemory | null | undefined, otherId: string): string {
   const p = memory?.people?.find((x) => x.id === otherId);

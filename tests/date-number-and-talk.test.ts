@@ -85,11 +85,11 @@ describe("which date it is", () => {
 
 describe("how much they talk", () => {
   it("the longer setting wins, never below standard; a format's own length stays; marathon only on both keys", () => {
-    expect(talkFor([null, null], false)).toEqual({ level: "standard", date: 16, texts: 4 });
-    expect(talkFor(["longer", null], false)).toMatchObject({ level: "longer", date: 20, texts: 6 });
-    expect(talkFor(["longer", "long"], false)).toMatchObject({ level: "long", date: 24, texts: 8 });
+    expect(talkFor([null, null], false)).toEqual({ level: "standard", date: 12, texts: 4 });
+    expect(talkFor(["longer", null], false)).toMatchObject({ level: "longer", date: 16, texts: 6 });
+    expect(talkFor(["longer", "long"], false)).toMatchObject({ level: "long", date: 20, texts: 8 });
     expect(talkFor(["marathon", null], false)).toMatchObject({ level: "long" });
-    expect(talkFor(["marathon", null], true)).toMatchObject({ level: "marathon", date: 30, texts: 16 });
+    expect(talkFor(["marathon", null], true)).toMatchObject({ level: "marathon", date: 28, texts: 16 });
     expect(talkFor(["long", null], false, 6)).toMatchObject({ date: 6, texts: 8 }); // the speed date stays short
   });
 

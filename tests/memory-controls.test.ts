@@ -344,7 +344,10 @@ describe("5. continuity: one character's run of dates", () => {
     expect((await post({ saga: "nope", step: 0 })).status).toBe(400);
     expect((await post({ saga: "mira-saga", step: 2, prior: [] })).status).toBe(400); // step 2 needs two earlier transcripts
 
-    const turn = (i: number) => JSON.stringify({ dialogue: `Line ${i}: so, the thermos — still soup?`, action: "", emotion: "curious", interest_signal: 0.6 });
+    // Mostly neutral filler so the critic doesn't force revisions, but with one side-a callback to a prior-date
+    // word (Mira recalls Dex's "thermos" standout) so continuity.called_back fires (what this test measures).
+    const TURN_LINES = ["Hmm.", "Mm?", "A thermos again?", "Oh.", "Yes?", "Sure.", "Oh?", "Mm.", "Hmm?", "Yes.", "OK.", "Hah?"];
+    const turn = (i: number) => JSON.stringify({ dialogue: TURN_LINES[i % TURN_LINES.length], action: "", emotion: "curious", interest_signal: 0.6 });
     const outputs = [planJson(), ...Array.from({ length: TURNS }, (_, i) => turn(i)), episodeJson()];
     setModelForTests({ async complete() { const next = outputs.shift(); if (!next) throw new Error("out"); return next; } });
     const prior = [[line("a", "Hi.", 0.5), line("b", "It's soup. It's always soup in the thermos.", 0.9)], [line("a", "Museums at night?", 0.5)]];

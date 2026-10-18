@@ -51,8 +51,8 @@ describe("goals deepen", () => {
     expect(levels[2]).toMatch(/where this is going/);
   });
 
-  it("a date is longer by default", () => {
-    expect(CONVERSATION_TURNS).toBe(16);
+  it("a date is 12 lines by default (4+4+4), down from 16 (David 2026-10-18: let dates close when they land)", () => {
+    expect(CONVERSATION_TURNS).toBe(12);
   });
 });
 
