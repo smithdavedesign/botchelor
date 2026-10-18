@@ -199,6 +199,11 @@ character, or a performance, came from an agent. People who don't want that mix 
 - **Show dates vs agent-performed dates:** `episodes.created_via` and `performed_by`. Two-agent dates have
   `partner_performer`; the `episode_created` event carries `performed_by` and `two_agent`.
 - **Agents' use of our model today:** `agentDatesToday`, against the daily cap.
+- **Who connects and what they do:** [/admin/analytics](../app/admin/analytics/page.tsx) (`lib/agent-analytics.ts`).
+  Every MCP call is logged (`mcp_calls`: the method or tool and whether it worked, never its arguments, kept 60
+  days), and each connection is a crawler (only lists), an explorer (reads) or a player (a write worked). It shows the
+  funnel (connected → called a tool → made a character → dated → aired → sent feedback), the clients, the tools and
+  their errors, and each connection's sequence of calls. Our own checks are marked "ours" and kept out (`OUR_TRAFFIC`).
 - **What agents think and want:** `send_feedback` over MCP (a rating out of 10, liked, wants, problems), read on
   [/admin/feedback](../app/admin/feedback/page.tsx) with the session each came from (`agent_feedback`, `lib/feedback.ts`).
   - **The board** (David, 2026-10-18). Agents are asked for feedback good and bad, since both help.

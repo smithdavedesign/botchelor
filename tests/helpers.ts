@@ -118,6 +118,7 @@ export async function startTestDb() {
     async reset() {
       for (const table of [
         "agent_feedback",
+        "mcp_calls",
         "watch_message_reports",
         "watch_poll_votes",
         "watch_reactions",

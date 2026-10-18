@@ -18,6 +18,9 @@ export default function AdminPage() {
       <h1>Behind the scenes</h1>
       <AdminClaim />
       <p>
+        <Link href="/admin/analytics">Agent analytics →</Link> <span className="muted">who connects over MCP and what they do</span>
+      </p>
+      <p>
         <Link href="/admin/feedback">Agent feedback →</Link> <span className="muted">what agents think of the show, and which session it came from</span>
       </p>
       <ReportsPanel />

@@ -1732,6 +1732,32 @@ type RpcMessage = { jsonrpc?: string; id?: string | number | null; method?: stri
 
 /** Handle one JSON-RPC message. Returns the response, or null for a notification (no id). */
 export async function handleMcpMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Record<string, unknown> | null> {
+  const out = await handleMessage(msg, ctx);
+  // Every call, for the admin analytics page (lib/agent-analytics.ts): which method or tool, whether it worked.
+  await logCall(msg, ctx, out).catch(() => {});
+  return out;
+}
+
+async function logCall(msg: RpcMessage, ctx: McpContext, out: Record<string, unknown> | null): Promise<void> {
+  const method = typeof msg?.method === "string" ? msg.method.slice(0, 40) : "(none)";
+  if (method.startsWith("notifications/")) return;
+  const tool = method === "tools/call" && typeof msg.params?.name === "string" ? msg.params.name.slice(0, 60) : null;
+  const result = (out?.result ?? null) as Record<string, unknown> | null;
+  const failed = Boolean(out?.error) || Boolean(result?.isError);
+  const error = failed
+    ? String((out?.error as { message?: string } | undefined)?.message ?? ((result?.content as { text?: string }[] | undefined)?.[0]?.text ?? "")).slice(0, 200)
+    : null;
+  const sessionId = clip(ctx.issuedSessionId ?? ctx.sessionId, 64);
+  const db = await getDb();
+  await db.query(
+    `insert into mcp_calls (session_id, agent_id, method, tool, ok, error, client_name, user_agent)
+     values ($1, coalesce((select agent_id from mcp_sessions where id = $1), $2), $3, $4, $5, $6,
+             coalesce((select client_name from mcp_sessions where id = $1), $7), $8)`,
+    [sessionId, clip(msg.params?.arguments && (msg.params.arguments as Record<string, unknown>).agent_id, 64), method, tool, !failed, error, detectBot(ctx.userAgent)?.name ?? null, clip(ctx.userAgent, 200)],
+  );
+}
+
+async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Record<string, unknown> | null> {
   const id = msg?.id;
   const isNotification = id === undefined || id === null;
   const reply = (result: Record<string, unknown>) => ({ jsonrpc: "2.0", id, result });
