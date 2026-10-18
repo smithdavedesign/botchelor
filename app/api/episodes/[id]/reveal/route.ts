@@ -17,8 +17,9 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
   const revealed = await airEpisode(db, id, sess.userId);
   if (!revealed) {
     const episode = (
-      await db.query<{ is_host: boolean; revealed: boolean; hidden: boolean; ready: boolean }>(
+      await db.query<{ is_host: boolean; revealed: boolean; hidden: boolean; ready: boolean; offline: boolean }>(
         `select e.creator_id = $2 as is_host, e.revealed_at is not null as revealed, e.status = 'ready' as ready,
+                e.visibility = 'private' as offline,
                 (select count(*) from reports r where r.episode_id = e.id) >= $3 as hidden
            from episodes e where e.id = $1`,
         [id, sess.userId, REPORT_HIDE_THRESHOLD],
@@ -34,6 +35,13 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
     }
     if (episode.revealed) return json({ error: "already_revealed" }, 409, sess);
     if (!episode.ready) return json({ error: "not_ready", message: "It's still being filmed: air it once its status is 'ready'." }, 409, sess);
+    if (episode.offline) {
+      return json(
+        { error: "offline", message: "This date is private, so it stays offline and never airs. Make it public or unlisted to put it on the air." },
+        409,
+        sess,
+      );
+    }
     return json(
       { error: "episode_hidden", message: "This episode was hidden after reports and can't air until it's reviewed." },
       409,
