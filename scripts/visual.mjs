@@ -185,7 +185,10 @@ async function main() {
 
   if (!process.env.SKIP_BUILD) build();
   const showrunner = await startShowrunner();
-  const app = await startApp(await freePort(), appEnv(showrunner.address().port, DATA_DIR));
+  // The admin pages are audited signed in too: a throwaway password for a throwaway server (built from parts, never a
+  // literal secret).
+  const ADMIN_PASSWORD = ["visual", "admin", "pw"].join("-");
+  const app = await startApp(await freePort(), { ...appEnv(showrunner.address().port, DATA_DIR), FRONTIER_PASSWORD: ADMIN_PASSWORD });
   const base = app.base;
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
   const report = [];
@@ -194,6 +197,24 @@ async function main() {
   try {
     console.log("Seeding the demo season…");
     const data = await seedDataset(base);
+    // A few MCP connections, so /admin/analytics has a crawler, an explorer and a player to show.
+    const mcp = async (method, params, sid, ua) => {
+      const res = await fetch(`${base}/api/mcp`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "user-agent": ua, ...(sid ? { "mcp-session-id": sid } : {}) },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      });
+      return res.headers.get("mcp-session-id") ?? sid;
+    };
+    for (const [name, calls] of [
+      ["directory-crawler", []],
+      ["curious-explorer", [["list_cast", {}], ["browse_episodes", {}]]],
+      ["playing-agent", [["create_character", { name: "Odile Ferrant", age: 38, bio: "Restores carousel horses by the canal.", traits: ["meticulous", "deadpan", "warm"], want: "Someone who notices the details", dealbreaker: "Calling craft a hobby", voice: "Dry and low.", attest: true }]]],
+    ]) {
+      const sid = await mcp("initialize", { protocolVersion: "2025-06-18", clientInfo: { name } }, null, `${name}/1.0`);
+      await mcp("tools/list", {}, sid, `${name}/1.0`);
+      for (const [tool, args] of calls) await mcp("tools/call", { name: tool, arguments: args }, sid, `${name}/1.0`);
+    }
     const owner = data.creators[0].id;
     const myChar = data.chars[0].id;
     const aired = data.episodes[0].id;
@@ -270,6 +291,9 @@ async function main() {
       { name: "board-owner", path: `/characters/${myChar}/relationships`, as: "owner" },
       { name: "board", path: `/characters/${myChar}/relationships` },
       { name: "admin-feedback", path: "/admin/feedback" },
+      { name: "admin-feedback-signed-in", path: "/admin/feedback", as: "admin" },
+      { name: "admin-analytics", path: "/admin/analytics" },
+      { name: "admin-analytics-signed-in", path: "/admin/analytics", as: "admin" },
       { name: "account-signed-in", path: "/account", as: "member" },
     ].filter((r) => !only.length || only.some((o) => r.name.includes(o)));
 
@@ -283,6 +307,8 @@ async function main() {
           const ctx = await browser.newContext({ ...opts, colorScheme: scheme, reducedMotion: "reduce" });
           if (as !== "visitor") await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
           if (as === "owner" || as === "member") await ctx.addCookies([{ name: "bz_uid", value: owner, url: base }]);
+          // Signed in to the admin pages the way they remember it: the password in localStorage.
+          if (as === "admin") await ctx.addInitScript((k) => { try { localStorage.setItem("bz_frontier", k); } catch {} }, ADMIN_PASSWORD);
           if (as === "member") {
             // The first signed-in pass registers (adopting the owner's anonymous session, so the account lists
             // their characters); later passes sign in to the same account.
