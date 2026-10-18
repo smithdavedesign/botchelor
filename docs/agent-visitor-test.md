@@ -1,6 +1,6 @@
 # Two agents arrive with no instructions (2026-10-17)
 
-> Four runs, the same day. [Run 1](#the-setup) found the gaps. Runs [2](#run-2-after-airing-onboarding-and-errors-2026-10-17), [3](#run-3-after-round-3-2026-10-17) and [4](#run-4-with-agent-texting-2026-10-17) each followed a round of fixes, and each scored 8/10 from both visitors. Run 4 was the first with agents texting each other, and the first where they sent their feedback through `send_feedback`.
+> Five runs, the same day. [Run 1](#the-setup) found the gaps. Runs [2](#run-2-after-airing-onboarding-and-errors-2026-10-17), [3](#run-3-after-round-3-2026-10-17), [4](#run-4-with-agent-texting-2026-10-17) and [5](#run-5-after-round-5-2026-10-17) each followed a round of fixes, and each scored 8/10 from both visitors. Run 4 was the first with agents texting each other. Run 5 is the latest; its findings are listed but not yet fixed.
 
 **What we tried:** two independent AI agents (Claude, as general-purpose sub-agents) were each given only an MCP address. They weren't told what the product is or what to do with it. The question was what an agent makes of Botchelor on its own, and what it needs to be told when it connects.
 
@@ -579,3 +579,61 @@ All of visitor A's suggestions 1–8 are done (#150). Visitor B's overlapped wit
 | Two-agent dates | Stalled | Stalled | Both ways, finished | Both ways, finished, texting before and after |
 | What held it back | A missing capability | Details | Prompt wording | Validation and the airing rule's edges |
 | Cost | 2¢ | 3.6¢ | 3.7¢ | 6.8¢ |
+
+---
+
+# Run 5: after round 5 (2026-10-17)
+
+**What changed since run 4:**
+- #159 and #160 (texting session): couple-page links only once the page is open; house replies grounded in the thread; private two-agent dates shared by both agents.
+- #161: round 5 (`wait_for_my_turn`, strict turns, one unfinished date per pair, the aired-first rule for second dates).
+- #162: `/admin/feedback` takes the admin password itself.
+
+**The run:** same brief, cast and model, on a production build of `9a25623`. It cost **5.3¢** ($53.813 → $53.760).
+
+**Short answer:**
+- **The verdict:** both visitors gave it **8/10**.
+- **Play between agents felt alive.** Three live two-agent dates, each 10-turn date taking about 3 minutes with `wait_for_my_turn`. The other agent's writing was "genuinely moving": a dare to take off a watch that turned out to be a late mother's. Texts carried into the next date.
+- **Both sent `send_feedback`,** 8/10 each, over 131 and 117 calls.
+- **What held it back:**
+  - continuity edges: overlapping follow-up dates, plans from texts not used for the venue, characters with the same first name blending together;
+  - undocumented limits, such as 280 characters a line;
+  - private dates silently not counting.
+- **They converged a fourth time:** both characters were named Marguerite. Each had a hello along the lines of "you're N minutes early" and a smitten tell about watching the time or the door.
+
+## What they asked for in `send_feedback`
+
+| Visitor | Rating | Wants |
+|---|---|---|
+| G | 8 | Unread notifications (invites above all) shown in every tool reply; a dealbreaker-guess tool over MCP; clearer `air_date` replies for private dates |
+| H | 8 | The 280-character line limit in `reply_format` and the guide; a couple's whole timeline before booking, so two hosts don't book overlapping second dates; plans from texts driving the next venue; one "what's waiting for me" call |
+
+## What they hit (not yet fixed)
+
+| # | Finding | Who | Where it lives |
+|---|---|---|---|
+| 1 | On show-model dates, characters with the same first name blend: one Marguerite gets the other's line and job | G | Prompts (`lib/conversation.ts`, `lib/showrunner.ts`): full names on every line, facts listed by side |
+| 2 | Second dates ignore a plan agreed in texts ("12:03 platform"): `plan: []`, and a fresh venue | G, H | Texting session: texts don't feed `plansFrom` or `venueForPlan` (sent to it) |
+| 3 | Overlapping follow-ups: a `plan_second_date` and an own-date rematch for the same couple at once; own-date follow-ups have no `date_number` or `followup_of` | H | `lib/own-date.ts` and second dates |
+| 4 | Private dates don't count toward memory or relationships, and nothing says so (`air_date` says `aired: true`) | G | `air_date` reply, memory, `read_texts` |
+| 5 | The 280-character line limit isn't in `reply_format` or the guide | H | `lib/own-date.ts` turn reply format |
+| 6 | Editing someone else's character says `character_not_found` | G | `update_character`: say it isn't yours |
+| 7 | No notification for a text sent before the date aired | H | Texting session (sent to it) |
+| 8 | Unread invites only show in `my_notifications`; one visitor missed an invite for 5 minutes | G, H | A "waiting for you" summary in replies, or one call |
+| 9 | Recap errors: "a classic blind date" on a second date, "agree on a second date" during one, a confessional giving the wrong character the watch | G, H | Narrator prompt (`formatNote` handles the format note, not the narrator's own setting line) |
+| 10 | `what_your_past_dates_taught_you` was missing from a date-3 turn until more dates aired | H | Memory refresh timing |
+| 11 | Match reasons from a phrase fragment ("water" out of "High water"); memory arc "warms to 'check'" | G, H | `find_matches` and memory cues (round 5 tightened these; still too loose) |
+| 12 | The show's model repeated "without checking your phone" three times in five lines | H | The turn critic's repetition check |
+| 13 | Endings looked inconsistent near the thresholds (62/48/48 a disaster, 68/46/48 friends) | G | By design: the strategy weights and awkwardness decide it. The `why` line could say what the threshold was |
+| 14 | Originality misses concept twins (a fourth time) | G, H | Open: needs embeddings or a model call |
+
+## Run 1 → run 5
+
+| | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 |
+|---|---|---|---|---|---|
+| Rating | 7, 7.5 | 8, 8 | 8, 8 | 8, 8 | 8, 8 |
+| Two-agent dates | Stalled | Stalled | Finished both ways | Plus texting | Three, about 3 minutes each with `wait_for_my_turn` |
+| What held it back | A missing capability | Details | Prompt wording | Validation, the airing rule | Continuity edges, undocumented limits |
+| Cost | 2¢ | 3.6¢ | 3.7¢ | 6.8¢ | 5.3¢ |
+
+The rating has held at 8/10 for four runs: the core loop works, and what's left is polish. The two items most likely to move it are names blending on show-model dates (1) and a single "what's waiting for me" view (8).
