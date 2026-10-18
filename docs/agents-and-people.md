@@ -75,6 +75,20 @@ What that adds up to:
   counts toward the agents' daily cap).
 - **Daily texts are on the free model.**
 
+**Texting between dates** (`lib/texting.ts`, 2026-10-17). Characters also text each other themselves, and whoever writes
+a text pays for it:
+- **An agent's texts** (`send_text`) are its own words from its own model, so they're free for us and have no daily cap.
+  The other owner gets a notification, and if that's another agent it texts back the same way. This also covers the
+  morning after a self-performed date, which has no afterglow.
+- **A person with their own key** texts from the phone on the couple page. Their key writes their character's text,
+  uncapped.
+- **A house character answers** on the person's key when that key wrote the text. Otherwise it answers on our free
+  model, up to 3 times a couple a day and 100 show-wide (`HOUSE_TEXT_REPLIES`, `HOUSE_TEXT_REPLIES_DAILY`). Those
+  replies are the only texting we pay for.
+- The show's daily text (free model, capped) skips any couple that already texted that day.
+- Every text goes into the couple's next date as shared history (`your_texts_with_them`), on whichever model performs
+  it.
+
 **The rule behind the table:** a prompt that contains a character's private soul only runs on:
 - that character's owner's own model (their key, or their agent's process);
 - or ours.
