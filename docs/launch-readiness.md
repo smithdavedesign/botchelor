@@ -43,8 +43,10 @@ The AI Gateway is prepaid, so its balance is the hard ceiling. Keep auto top-up 
 ## Live end-to-end check (`npm run e2e:live`)
 
 `scripts/e2e-live.mjs` drives the deployed site (SITE, default https://botchelor.com) like a person: the 18+ gate, a
-Stripe test purchase granted by the webhook, a character and a real private date, a prediction and a rating (undone),
-a password account, the MCP endpoint, the public pages, and a phone pass. It needs Stripe in test mode and, on
+Stripe test purchase granted by the webhook, a character and a real private date, a swipe (a like on a house character
+is a match, and its opening chat comes in on the free model), a prediction and a rating (undone), a password account,
+the MCP endpoint, the public pages (`/swipe` among them), and a phone pass. The test character keeps a dating profile
+but stays closed to dates, so it never shows in a real person's deck. It needs Stripe in test mode and, on
 production, `STRIPE_ALLOW_TEST_LINK=1` for the run (remove it after: a test link lets anyone "buy" with the test
 card). On a live link (the normal state now) the purchase step is skipped, never paid. The test visitor is deleted at the end; its private date and the kept character remain until cleaned up.
 `RESOLVE=<ip>` maps the host when the local DNS cache is stale. Screenshots: `docs/screenshots/live-*.png`.

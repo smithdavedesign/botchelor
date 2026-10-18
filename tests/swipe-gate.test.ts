@@ -68,7 +68,8 @@ async function agree(x: { userId: string; id: string }, y: { userId: string; id:
 
 async function haveDated(x: string, y: string) {
   const [lo, hi] = x < y ? [x, y] : [y, x];
-  await t.db.query(`insert into relationships (character_a, character_b, dates, stage) values ($1, $2, 1, 'met')`, [lo, hi]);
+  // computed_at set, so the graph doesn't recompute this hand-made edge from (no) episodes.
+  await t.db.query(`insert into relationships (character_a, character_b, dates, stage, computed_at) values ($1, $2, 1, 'just_met', now())`, [lo, hi]);
 }
 
 const partnerOf = async (episodeId: string) =>

@@ -8,7 +8,9 @@
  *   with avatars, box score, debrief, agendas and the producer → Sliding Doors → a spectator predicts
  *   and guesses the dealbreaker → a live watch party (host premiere + a viewer who reacts, chats and
  *   predicts, plus an always-on template room joined from the lobby) → the host airs the finale → the
- *   spectator is scored → the cast gallery and matchmaker → a shop purchase end to end.
+ *   spectator is scored (with the box score's why) → their texts on the couple page's phone and the
+ *   relationship board → the swipe deck, a match, its chat and the agreed date → the cast gallery and
+ *   matchmaker → a shop purchase end to end → the admin's agent-feedback page.
  *
  * Exits non-zero if any step fails. No model key, no real payments, no network beyond localhost.
  */
@@ -76,7 +78,11 @@ async function main() {
   if (!process.env.SKIP_BUILD) build();
   const showrunner = await startShowrunner();
   const port = await freePort();
-  const app = await startApp(port, appEnv(showrunner.address().port, DATA_DIR));
+  const env = appEnv(showrunner.address().port, DATA_DIR);
+  // An admin password for this run only, so the admin pages can be signed in to (built from parts, never a real secret).
+  const ADMIN_PASSWORD = ["e2e", "admin", Math.random().toString(36).slice(2)].join("-");
+  env.FRONTIER_PASSWORD = ADMIN_PASSWORD;
+  const app = await startApp(port, env);
   const base = app.base;
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
   // Always-on template date rooms, so the /watch lobby has something to drop into.
@@ -153,6 +159,14 @@ async function main() {
       await page.locator('.wizard-attest input[type="checkbox"]').check();
       await page.getByRole("button", { name: `Create ${CHAR.name}` }).click();
       await page.getByText(`Who should ${CHAR.name} meet?`).waitFor();
+    });
+
+    await step("the builder's last step points to the swipe deck: a first date with someone else's character starts with a match", async () => {
+      await page.getByText("💘 Swipe to meet someone new").waitFor();
+      const swipeLink = page.getByRole("link", { name: `Swipe for ${CHAR.name.split(" ")[0]}` });
+      assert((await swipeLink.getAttribute("href"))?.startsWith("/swipe?character="), "the swipe link should open this character's deck");
+      assert((await page.getByRole("heading", { name: "Open to dates" }).count()) === 0, "the open-to-dates gallery should be gone behind the gate");
+      assert((await page.getByRole("button", { name: /Send on a date with/ }).count()) > 0, "this season's house cast should still book straight away");
     });
 
     await step("sets date settings (incl. a show format) and sends the character on a date", async () => {
@@ -313,6 +327,88 @@ async function main() {
       assert((await spage.getByText(/points\./).count()) > 0, "no scored result shown to the spectator");
     });
 
+    await step("the aired box score says why it ended that way", async () => {
+      const why = spage.locator(".boxscore p.muted").filter({ hasText: /^(A second date|Just friends|A disaster):/ });
+      assert((await why.count()) === 1, "the why line under the box score is missing");
+    });
+
+    // Their texts (lib/text-chain.ts): one thread on a phone on the couple page, and each character's relationship board.
+    let mine = "";
+    let couplePath = "";
+    await step("the couple page keeps their date and its morning after on a phone, in full screen too; a spectator sees it locked", async () => {
+      await page.bringToFront();
+      const episodeId = new URL(episodeUrl).pathname.split("/").pop();
+      const ep = await page.evaluate(async (id) => (await fetch(`/api/episodes/${id}`)).json(), episodeId);
+      mine = ep.characters[0].id;
+      const partner = ep.characters[1].id;
+      couplePath = mine < partner ? `/couples/${mine}/${partner}` : `/couples/${partner}/${mine}`;
+      await page.goto(`${base}${couplePath}#texts`);
+      await page.locator("#texts .phone-messages").waitFor({ timeout: 10_000 });
+      assert((await page.locator("#texts .phone-date").count()) === 1, "the thread should open with their date");
+      assert((await page.locator("#texts .phone-msg").count()) >= 1, "the morning-after texts should follow the date");
+      await page.getByRole("button", { name: "⤢ Full screen" }).click();
+      await page.locator(".phone-stage.is-full").waitFor({ timeout: 10_000 });
+      await page.keyboard.press("Escape");
+      await page.locator(".phone-stage.is-full").waitFor({ state: "detached", timeout: 10_000 });
+      // A spectator: the page is public now the finale has aired, but the texts are the owners' alone.
+      const res = await spage.goto(`${base}${couplePath}`);
+      assert(res?.status() === 200, `the couple page should be public once a date airs (${res?.status()})`);
+      assert(await spage.locator(".phone-locked").isVisible(), "a spectator should see a locked phone");
+      assert((await spage.locator(".phone-messages").count()) === 0, "a spectator should see no texts");
+      const texts = await spage.evaluate(async (path) => (await fetch(`/api${path}/texts`)).status, couplePath);
+      assert(texts === 403, `the texts route should refuse a spectator (${texts})`);
+    });
+
+    await step("each character has a relationship board, linked from its page", async () => {
+      await page.goto(`${base}/characters/${mine}`);
+      await page.getByRole("link", { name: "📱 Open their relationship board" }).click();
+      await page.waitForURL(/\/characters\/[^/]+\/relationships$/);
+      assert((await page.locator(".phone-row").count()) >= 1, "the board should list their date");
+      assert((await page.locator(".phone-row-preview").count()) >= 1, "an owner should see the newest text");
+    });
+
+    // The swipe deck (lib/swipes.ts): match first, the characters text and decide, then the owner books the date.
+    let matchPath = "";
+    await step("the swipe deck: a like on a house character is a match, the two text, and an agreed date books into the theater", async () => {
+      await page.goto(`${base}/swipe?character=${mine}`);
+      await page.locator(".swipe-top").waitFor();
+      assert((await page.locator(".swipe-top .swipe-prompt").count()) >= 2, "a card should show its dating-profile prompts");
+      // The left arrow passes on the top card.
+      const first = await page.locator(".swipe-top .swipe-name").innerText();
+      await page.locator(".swipe-deck").focus();
+      await page.keyboard.press("ArrowLeft");
+      await page.waitForFunction((name) => document.querySelector(".swipe-top .swipe-name")?.textContent !== name, first, { timeout: 10_000 });
+      // Each character decides for itself; a "not this time" sends us back to the deck for the next one.
+      let agreed = false;
+      for (let attempt = 0; attempt < 6 && !agreed; attempt++) {
+        if (attempt) {
+          await page.goto(`${base}/swipe?character=${mine}`);
+          await page.locator(".swipe-top").waitFor();
+        }
+        await page.getByRole("button", { name: /^Like / }).click();
+        await page.locator(".swipe-match-overlay").waitFor({ timeout: 10_000 });
+        assert(await page.getByRole("heading", { name: "It's a match!" }).isVisible(), "the match overlay should say so");
+        await page.getByRole("link", { name: "Read their chat" }).click();
+        await page.waitForURL(/\/couples\/.+#texts$/);
+        matchPath = new URL(page.url()).pathname;
+        await page.locator("#texts .phone-messages").waitFor({ timeout: 10_000 });
+        assert(await page.locator("#texts .phone-event", { hasText: "It's a match" }).isVisible(), "the phone should open with the match");
+        assert((await page.locator("#texts .phone-msg").count()) >= 2, "the two should have started texting");
+        agreed = (await page.getByRole("button", { name: /^Book / }).count()) > 0;
+        if (!agreed) assert(await page.locator(".match-state", { hasText: "Not this time" }).isVisible(), "no book button, so one of them said not this time");
+      }
+      assert(agreed, "no agreed date after six matches");
+      assert(await page.locator("#texts .phone-event", { hasText: "agreed to a date" }).isVisible(), "the chain should mark the agreed date");
+      await page.getByRole("button", { name: /^Book / }).click();
+      await page.waitForURL(/\/episodes\/[0-9a-f-]{36}/, { timeout: 30_000 });
+      await page.locator(".theater").waitFor({ timeout: 10_000 });
+    });
+
+    await step("a match stays private: a spectator can't open their couple page before a date of theirs airs", async () => {
+      const res = await spage.goto(`${base}${matchPath}`);
+      assert(res?.status() === 404, `a spectator should get a 404 for an unaired match (${res?.status()})`);
+    });
+
     await step("the cast gallery lists characters and a matchmaker proposal can be made", async () => {
       await spage.goto(`${base}/cast`);
       await spage.getByRole("heading", { name: "The cast" }).waitFor();
@@ -431,6 +527,29 @@ async function main() {
       await page.goBack();
       await page.reload();
       await page.getByRole("heading", { name: newName }).waitFor({ timeout: 10_000 });
+    });
+
+    await step("the admin's feedback page asks for the password, then lists what agents sent with send_feedback", async () => {
+      const sent = await (
+        await fetch(`${base}/api/mcp`, {
+          method: "POST",
+          headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "send_feedback", arguments: { rating: 8, liked: "The swipe deck felt like a real dating app." } } }),
+        })
+      ).json();
+      assert(sent.result && !sent.result.isError, `send_feedback failed: ${JSON.stringify(sent).slice(0, 200)}`);
+      const admin = await adultContext();
+      const apage = await admin.newPage();
+      try {
+        await apage.goto(`${base}/admin/feedback`);
+        await apage.getByLabel("Admin password").fill(ADMIN_PASSWORD);
+        await apage.getByRole("button", { name: "Sign in" }).click();
+        await apage.getByText("The swipe deck felt like a real dating app.").waitFor({ timeout: 10_000 });
+        assert((await apage.getByText("8/10").count()) >= 1, "the rating should show");
+        assert((await apage.evaluate(() => localStorage.getItem("bz_frontier"))) === ADMIN_PASSWORD, "the password should be saved for the other admin panels");
+      } finally {
+        await admin.close();
+      }
     });
   } finally {
     await browser.close();

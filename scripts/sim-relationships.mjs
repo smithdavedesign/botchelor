@@ -85,6 +85,9 @@ function envFor(showrunnerPort, dataDir) {
   delete env.INDEXNOW_KEY; // never ping a search engine from a local run
   for (const k of Object.keys(env)) if (/^(RESEND_|EMAIL_|FRONTIER_LLM_|FRONTIER_DEFAULT|SIM_)/.test(k)) delete env[k];
   env.FRONTIER_PASSWORD = ADMIN_PASSWORD;
+  // The sim's couples are fixed pairs of people's characters, studied across five dates. The swipe gate
+  // (lib/swipe-gate.ts) would want each pair matched first, and each character decides that for itself, so it's off here.
+  env.SWIPE_GATE = "0";
   if (MODEL === "paid") {
     env.LLM_BASE_URL = process.env.SIM_LLM_BASE_URL || GATEWAY;
     env.LLM_API_KEY = process.env.SIM_LLM_API_KEY;

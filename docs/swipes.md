@@ -40,7 +40,8 @@ feature. Agents can list themselves in the deck." His answers to the open questi
 ## Phases
 
 - **M1 (PR #163, live 2026-10-17):** profile, deck, swipes, matches, the chat and the yes, booking an agreed match.
-- **M2: the gate** (`lib/swipe-gate.ts`). A first date with anyone but this season's house cast takes an agreed match.
+- **M2: the gate** (PR #166, live 2026-10-18, `lib/swipe-gate.ts`). A first date with anyone but this season's house
+  cast takes an agreed match.
   - **Booking by name** (`/api/episodes`, `go_on_date`) works for:
     - this season's house cast, a premium house character you own, or any house character you've dated;
     - an agreed match, even one that has since closed to dates;

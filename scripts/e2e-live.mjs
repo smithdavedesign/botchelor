@@ -2,6 +2,7 @@
 // What a real visitor does, in a real browser: the 18+ gate, a Stripe TEST purchase paid with the test card and
 // granted by the webhook, a character and a real date (one paid-model date, a few cents), a prediction and a
 // rating (undone), a password account, the agent (MCP) endpoint and the public pages. Desktop, plus a phone pass.
+// The test character also swipes: a like on a house character is a match, and its chat comes in on the free model.
 //
 // The purchase needs Stripe in test mode, and on production STRIPE_ALLOW_TEST_LINK=1 (lib/stripe.ts hides a test-mode
 // link from real buyers there). On a live link it stops at Stripe's page and never pays: the step is skipped. Analytics requests are blocked so the run doesn't count as traffic, the test date is private,
@@ -97,6 +98,7 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
   const shot = (n) => page.screenshot({ path: `${OUT}/live-desktop-${n}.png` })
   let episodeId = null
   let houseIds = []
+  let characterId = null
 
   await step('18+ gate, then the page you asked for', async () => {
     await page.goto(SITE + '/shop')
@@ -108,7 +110,7 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
   })
 
   await step('public pages and agent docs answer 200', async () => {
-    const paths = ['/', '/create', '/feed', '/cast', '/watch', '/shop', '/agents', '/privacy', '/terms', '/reunion', '/llms.txt', '/sitemap.xml', '/robots.txt', '/.well-known/mcp.json', '/api/health']
+    const paths = ['/', '/create', '/feed', '/cast', '/watch', '/swipe', '/shop', '/agents', '/privacy', '/terms', '/reunion', '/llms.txt', '/sitemap.xml', '/robots.txt', '/.well-known/mcp.json', '/api/health']
     const bad = []
     for (const p of paths) {
       const r = await page.evaluate(async (u) => { const res = await fetch(u); return { status: res.status, url: res.url } }, p)
@@ -121,6 +123,13 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
 
   await step('Stripe test purchase: pay with the test card, the webhook adds 5 dates', async () => {
     await page.goto(SITE + '/shop')
+    // Buying needs an account (since 2026-10-15): the test visitor makes a throwaway one, deleted with it at the end.
+    if (await page.getByText('Sign in to buy').count()) {
+      const handle = `e2e${randomBytes(4).toString('hex')}`
+      const reg = await api(page, 'POST', '/api/auth/register', { handle, password: ['e2e', 'live', randomBytes(6).toString('hex')].join('-'), attest: true })
+      must(ok(reg.status), `register ${reg.status} ${JSON.stringify(reg.data)?.slice(0, 160)}`)
+      await page.goto(SITE + '/shop')
+    }
     const before = await toppedUp(page)
     await page.locator('input[name="attest"]').check()
     const buy = page.getByRole('button', { name: /buy/i }).first()
@@ -152,6 +161,11 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
     const made = await api(page, 'POST', '/api/characters', {
       name: 'Wren Kestrel', age: 31, bio: 'A lighthouse keeper who collects other people\'s postcards.',
       traits: ['dry', 'patient', 'curious'], want: 'Someone who writes back', dealbreaker: 'People who never ask questions', attest: true,
+      // A dating profile, so it can swipe (closed to dates, so it never shows in a real person's deck).
+      extras: {
+        hobbies: ['Postcards', 'Night walks'],
+        prompts: [{ id: 'simple_pleasures', answer: 'A postcard from someone I have never met.' }, { id: 'win_me_over', answer: 'Write back. Any length.' }],
+      },
     })
     must(ok(made.status), `create character: ${made.status} ${JSON.stringify(made.data)?.slice(0, 200)}`)
     let started = null
@@ -161,6 +175,7 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
     }
     must(started && ok(started.status), `start date: ${started?.status} ${JSON.stringify(started?.data)?.slice(0, 200)}`)
     episodeId = started.data.id
+    characterId = made.data.id
     console.log(`  test character ${made.data.id}, test date ${episodeId} (private)`)
     let ep = started.data
     for (let i = 0; i < 60 && ep.status !== 'ready'; i++) {
@@ -171,6 +186,28 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
     await page.goto(`${SITE}/episodes/${episodeId}`)
     await shot('episode')
     return `${made.data.name} × ${ep.characters?.[1]?.name ?? 'house'}: ${ep.ending ?? 'ready'}, ${ep.transcript?.length ?? 0} lines`
+  })
+
+  await step('swipe: a like on a house character is a match, and the two start texting (free model)', async () => {
+    must(characterId, 'no test character (the date step failed)')
+    const deck = await api(page, 'GET', `/api/swipes?character_id=${characterId}`)
+    must(deck.status === 200, `deck ${deck.status} ${JSON.stringify(deck.data)?.slice(0, 160)}`)
+    const house = deck.data.cards.find((c) => c.house)
+    must(house, `no house character in the deck (${deck.data.cards.length} cards)`)
+    const liked = await api(page, 'POST', '/api/swipes', { character_id: characterId, target_id: house.id, like: true })
+    must(liked.status === 200 && liked.data?.match, `swipe ${liked.status} ${JSON.stringify(liked.data)?.slice(0, 160)}`)
+    const pair = [characterId, house.id].sort().join('/')
+    let items = []
+    for (let i = 0; i < 20 && !items.some((x) => x.kind === 'text'); i++) {
+      await page.waitForTimeout(3000)
+      items = (await api(page, 'GET', `/api/couples/${pair}/texts`)).data?.items ?? []
+    }
+    must(items[0]?.kind === 'event' && items[0]?.event === 'matched', `the thread should open with the match (${items.map((x) => x.event ?? x.kind).join(',')})`)
+    must(items.some((x) => x.kind === 'text'), 'the opening chat never came in')
+    await page.goto(`${SITE}/couples/${pair}`)
+    await page.locator('.match-state').waitFor({ timeout: 15_000 })
+    await shot('swipe-match')
+    return `${house.name}: ${items.map((x) => x.event ?? x.kind).join(', ')}`
   })
 
   await step('predict a public date and rate a character (rating undone)', async () => {

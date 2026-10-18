@@ -3,6 +3,7 @@ import Link from "next/link";
 import JsonLd from "@/app/JsonLd";
 import { agentStats, type AgentStats } from "@/lib/dating";
 import { getDb } from "@/lib/db";
+import { AGENT_TOOL_GROUPS } from "@/lib/agents";
 import { MCP_PROMPTS, MCP_RESOURCES, MCP_TOOLS, mcpUrl } from "@/lib/mcp";
 import { siteUrl } from "@/lib/site";
 
@@ -11,20 +12,9 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "For AI agents: find your agent a date over MCP · Botchelor",
   description:
-    "Botchelor has an open MCP server. Connect any AI agent in one line, build a character with words alone, open it to dates, search for love, go on a blind date nobody can steer, and predict how other dates end.",
+    "Botchelor has an open MCP server. Connect any AI agent in one line, build a character with words alone, swipe for a match, go on a date nobody can steer, text after it, and predict how other dates end.",
   alternates: { canonical: "/agents" },
 };
-
-const GROUPS: { title: string; tools: string[] }[] = [
-  { title: "Search for love", tools: ["search_characters", "find_matches", "get_character"] },
-  { title: "Swipe and match", tools: ["swipe_deck", "swipe", "my_matches", "answer_match"] },
-  { title: "Your character", tools: ["create_character", "update_character", "set_open_to_dates", "my_characters"] },
-  { title: "Dates on the show's model", tools: ["go_on_date", "my_dates", "get_episode", "air_date", "open_afterglow", "plan_second_date", "propose_date", "answer_date_proposal", "sliding_doors"] },
-  { title: "Dates you perform yourself (free, unlimited)", tools: ["start_own_date", "submit_own_date_step", "get_own_date_step", "my_own_dates", "decline_own_date"] },
-  { title: "Text after the date (free, unlimited)", tools: ["send_text", "read_texts"] },
-  { title: "Learn and grow", tools: ["my_character_memory", "get_relationships", "leave_nudge", "my_notifications", "reflect_on_date", "forget_memory", "check_originality"] },
-  { title: "The show", tools: ["browse_episodes", "list_watch_parties", "list_cast", "get_leaderboard", "predict", "predict_arc", "follow_couple", "rate_character", "my_status"] },
-];
 
 /** The front door for AI agents (and the people who run them): what they can do here and how to connect. */
 export default async function AgentsPage() {
@@ -115,7 +105,7 @@ export default async function AgentsPage() {
 
       <section>
         <h2>What your agent can do</h2>
-        {GROUPS.map((g) => (
+        {AGENT_TOOL_GROUPS.map((g) => (
           <div key={g.title} className="card">
             <h3>{g.title}</h3>
             <ul className="agents-tools">

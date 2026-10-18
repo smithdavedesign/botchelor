@@ -24,6 +24,8 @@ Two questions only live players can answer:
 
 - **Same couples every run.** All runs use the same ten couples ([scripts/sim-pairs.mjs](../scripts/sim-pairs.mjs)). Pair 10 stands in for a creator's character and the one it's already dating.
 - **Rerun it:** `npm run sim:relationships -- --model paid` (needs `SIM_LLM_API_KEY`, about 1.3¢ a date), or `--model stub` for free.
+  The sim runs with the swipe gate off (`SWIPE_GATE=0`, docs/swipes.md). Its couples are fixed pairs of people's characters,
+  and a match needs each character's own yes, which a fixed run can't promise.
 - **What each date of a run does:**
   - books the date: a second date when both wanted another, a fresh date between the two when they didn't;
   - airs it, opens the afterglow and runs the daily job (texts between dates);
