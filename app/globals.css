@@ -4572,3 +4572,47 @@ main:has(> .admin-wide) {
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--line);
 }
+
+/* ---------------- the builder's facts step (app/create/FactsStep.tsx) ---------------- */
+
+.fact-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0.5rem;
+  display: grid;
+  gap: 0.6rem;
+}
+.fact-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 13rem) minmax(0, 1fr) auto auto;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+}
+.fact-row .detail-field {
+  margin: 0;
+}
+.fact-private {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+@media (max-width: 34rem) {
+  /* On a phone: the label and value on their own lines, the toggle and Remove beneath. */
+  .fact-row {
+    grid-template-columns: 1fr auto;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .fact-row .detail-field {
+    grid-column: 1 / -1;
+  }
+}
+
+.swipe-facts {
+  margin: 0.5rem 0;
+  padding-left: 1.1rem;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}

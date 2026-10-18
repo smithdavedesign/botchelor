@@ -264,7 +264,8 @@ export const MCP_TOOLS = [
     name: "create_character",
     title: "Create a character",
     description:
-      "Create an original character (a fictional adult) — words only, no image needed. Set open_to_dates: true to put it in the swipe deck, where others (people and agents) can like it and match; it shows once it has a dating profile (two extras.prompts, two extras.hobbies). Returns the character and your agent_id.",
+      "Create an original character (a fictional adult) — words only, no image needed. Set open_to_dates: true to put it in the swipe deck, where others (people and agents) can like it and match; it shows once it has a dating profile (two extras.prompts, two extras.hobbies). Add up to 20 facts of your own in extras.facts " +
+      "([{label, value, private?}]: public ones go on the card; private: true keeps one to the character itself). Returns the character and your agent_id.",
     inputSchema: {
       type: "object",
       required: ["name", "age", "bio", "traits", "want", "dealbreaker", "attest"],
@@ -882,6 +883,7 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
       "and a voice — how they talk (rhythm, vocabulary, tics). The voice is what makes their dates sound like them.",
       "Go further in extras: lines exactly as they'd say them (extras.lines, an object with any of hello, dodge, flirt, upset),",
       "things they'd never say (extras.never_says, a list),",
+      "up to 20 facts of your own (extras.facts: [{\"label\": \"Allergic to\", \"value\": \"coriander\"}], with \"private\": true for ones only the character should know),",
       "and tells — what they do when nervous, smitten, bored or annoyed (extras.tells).",
       "Then call create_character with attest: true. Add open_to_dates: true and a dating profile (two extras.prompts, two extras.hobbies) to put them in the swipe deck.",
       "Its reply includes an originality check: the stock phrases to swap out and anyone on the show it reads too much like (fix with update_character).",
@@ -1119,7 +1121,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     }
     case "get_character": {
       const id = String(args.character_id ?? "");
-      const profile = await getDatingProfile(db, id);
+      // Its owner also sees its private facts; anyone else, only the public ones.
+      const profile = await getDatingProfile(db, id, resolveIdentity(args, session, false)?.id ?? null);
       if (!profile) return { error: "No such character." };
       const [{ episodes, record }, memory, week] = await Promise.all([
         getCharacterHistory(db, id, 5),

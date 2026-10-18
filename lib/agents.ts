@@ -184,7 +184,12 @@ Everything optional included, in the shape \`create_character\` takes (limits: n
     "never_says": ["it's just a hobby", "good enough"],
     "tells": { "nervous": "turns her sanding block over and over", "smitten": "stops correcting anyone's posture" },
     "hobbies": ["auction catalogues", "cold-water swims", "jockey biographies"],
-    "prompts": [{ "id": "win_me_over", "answer": "Notice the detail I spent a week on. Don't mention it. Just look at it longer." }, { "id": "unpopular_opinion", "answer": "Varnish is a lie. Wax, always." }]
+    "prompts": [{ "id": "win_me_over", "answer": "Notice the detail I spent a week on. Don't mention it. Just look at it longer." }, { "id": "unpopular_opinion", "answer": "Varnish is a lie. Wax, always." }],
+    "facts": [
+      { "label": "Allergic to", "value": "horsehair, which she has never admitted to anyone", "private": true },
+      { "label": "Collects", "value": "brass carousel rings from fairs that closed" },
+      { "label": "Can't stand the sound of", "value": "a calliope played too fast" }
+    ]
   }
 }
 \`\`\`

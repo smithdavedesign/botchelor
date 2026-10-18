@@ -306,6 +306,14 @@ function Card({ card, className, style, children, ...pointer }: CardProps) {
             ))}
           </ul>
         )}
+        {(card.facts ?? []).length > 0 && (
+          // A few of the creator's public facts: colour, not the deciding thing (the look and the messages are).
+          <ul className="swipe-facts">
+            {card.facts.slice(0, 3).map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        )}
         <p className="swipe-looking">
           <strong>Looking for:</strong> {card.looking_for}
         </p>

@@ -12,6 +12,7 @@ import TemperamentSliders, { type TemperamentSource } from "./TemperamentSliders
 import { deriveSoulSignals, type SoulSignals } from "@/lib/engine";
 import { sheetSignals } from "@/lib/temperament";
 import VoiceStep from "./VoiceStep";
+import FactsStep from "./FactsStep";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
 import { hasExtras, LOVE_LANGUAGES, normaliseExtras, promptLabel, sampleLineLabel, tellLabel, TEXT_DETAILS, type CharacterExtras, profileComplete } from "@/lib/extras";
@@ -93,9 +94,9 @@ const SAMPLES: { name: string; age: string; bio: string; traits: string[]; want:
 
 
 /** The steps, by name, so their order can change without renumbering every check. */
-const S = { identity: 0, voice: 1, look: 2, details: 3, soul: 4, review: 5 } as const;
-const STEPS = ["Identity", "Voice", "Look", "Dating profile", "Soul & autonomy", "Review"] as const;
-const EDIT_STEPS = ["Identity", "Voice", "Look", "Dating profile", "Soul", "Review"] as const;
+const S = { identity: 0, voice: 1, look: 2, details: 3, facts: 4, soul: 5, review: 6 } as const;
+const STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Soul & autonomy", "Review"] as const;
+const EDIT_STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Soul", "Review"] as const;
 const DRAFT_KEY = "botchelor:create-draft:v1";
 
 function words(s: string): number {
@@ -682,6 +683,8 @@ export default function CreateWizard({
           </>
         )}
 
+        {step === S.facts && <FactsStep extras={extras} setExtras={setExtras} name={sheet.name} />}
+
         {step === S.soul && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">The inner life (optional)</legend>
@@ -904,6 +907,7 @@ function ReviewExtras({ extras }: { extras: CharacterExtras }) {
   for (const [id, line] of Object.entries(e.lines ?? {})) rows.push([sampleLineLabel(id), `“${line}”`]);
   if (e.never_says?.length) rows.push(["Would never say", e.never_says.map((x) => `“${x}”`).join(", ")]);
   for (const [id, does] of Object.entries(e.tells ?? {})) rows.push([tellLabel(id).replace(/…$/, ""), `${does}`]);
+  for (const f of e.facts ?? []) rows.push([`${f.private ? "🔒 " : ""}${f.label}`, f.value]);
   return (
     <>
       {rows.map(([label, value]) => (

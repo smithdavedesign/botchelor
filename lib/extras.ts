@@ -1,8 +1,10 @@
 /**
  * A character's optional details — the dating-profile layer on top of the sheet: what they do, where they're
  * from, their style, hobbies, quirks, what a good date looks like to them, a few Hinge-style profile prompts,
- * and the voice kit (sample lines in their voice, things they'd never say, and their tells). All optional, all
- * public (shown on the contestant card), all content-filtered like the sheet.
+ * the voice kit (sample lines in their voice, things they'd never say, and their tells), and up to 20 facts of
+ * the creator's own ("Allergic to: coriander"). All optional and content-filtered like the sheet. Everything is
+ * public (shown on the contestant card) except a fact marked private: that one only ever reaches its own
+ * character's prompts and its owner (publicExtras strips it everywhere else).
  *
  * They reach the date's models as the character's own knowledge of itself (lib/character.ts), and what's
  * visible at a glance (style, a signature item) is what the other character "can see". They flavour the
@@ -86,6 +88,25 @@ export const TELLS = [
 export type TellId = (typeof TELLS)[number]["id"];
 export const TELL_MAX = 100;
 
+/**
+ * Facts: anything else the creator wants the character to have, as a label and a value ("Secretly collects:
+ * hotel soap"). Up to MAX_FACTS. Public ones are on the card (and in search and the swipe deck); a private one
+ * shapes the character on its dates without ever being shown or said outright, like the soul. A date hands each
+ * act only a few (factsForAct), so twenty facts never turn a character into a recited list, and different dates
+ * bring out different sides of them. They never touch the engine: how a date ends is never decided by a fact.
+ */
+export const MAX_FACTS = 20;
+export const FACT_LABEL_MAX = 40;
+export const FACT_VALUE_MAX = 140;
+/** How many facts reach one act of a date. */
+export const FACTS_PER_ACT = 3;
+export type CharacterFact = { label: string; value: string; private?: true };
+/** One-tap starting points for a fact's label in the builder. */
+export const FACT_IDEAS = [
+  "A fear", "A guilty pleasure", "Their worst habit", "A secret", "Collects", "Can't cook", "Always carries", "Allergic to",
+  "Best memory", "Biggest regret", "Would never", "Lucky number", "Childhood nickname", "Hates the sound of", "Dream job",
+] as const;
+
 /** Words or phrases the character would never say: the critic sends a line that uses one back. */
 export const MAX_NEVER_SAYS = 5;
 export const NEVER_SAY_MAX = 40;
@@ -109,6 +130,18 @@ export const ExtrasInput = z
     lines: keyed(SAMPLE_LINE_IDS, SAMPLE_LINE_MAX).optional(),
     tells: keyed(TELL_IDS, TELL_MAX).optional(),
     never_says: z.array(z.string().trim().min(1).max(NEVER_SAY_MAX)).max(MAX_NEVER_SAYS, `At most ${MAX_NEVER_SAYS}.`).optional(),
+    facts: z
+      .array(
+        z
+          .object({
+            label: z.string().trim().min(1, "Give the fact a label.").max(FACT_LABEL_MAX, `At most ${FACT_LABEL_MAX} characters.`),
+            value: z.string().trim().min(1, "Give the fact a value.").max(FACT_VALUE_MAX, `At most ${FACT_VALUE_MAX} characters.`),
+            private: z.boolean().optional(),
+          })
+          .strict(),
+      )
+      .max(MAX_FACTS, `At most ${MAX_FACTS} facts.`)
+      .optional(),
   })
   .strict();
 export type ExtrasInputType = z.infer<typeof ExtrasInput>;
@@ -124,6 +157,8 @@ export type CharacterExtras = Partial<Record<TextDetail, string>> & {
   /** Their tells (see TELLS). */
   tells?: Partial<Record<TellId, string>>;
   never_says?: string[];
+  /** The creator's own facts (see MAX_FACTS); `private: true` keeps one off the card. */
+  facts?: CharacterFact[];
 };
 
 /** Keeps only the filled entries of a keyed group; undefined when none are. */
@@ -158,7 +193,43 @@ export function normaliseExtras(input: ExtrasInputType | null | undefined): Char
   const lower = new Set<string>();
   const never = (input.never_says ?? []).map((s) => s.trim()).filter((s) => s && !lower.has(s.toLowerCase()) && lower.add(s.toLowerCase()));
   if (never.length) out.never_says = never;
+  const factKeys = new Set<string>();
+  const facts = (input.facts ?? [])
+    .map((f) => ({ label: f.label.trim(), value: f.value.trim(), ...(f.private ? { private: true as const } : {}) }))
+    .filter((f) => f.label && f.value && !factKeys.has(`${f.label}|${f.value}`.toLowerCase()) && factKeys.add(`${f.label}|${f.value}`.toLowerCase()))
+    .slice(0, MAX_FACTS);
+  if (facts.length) out.facts = facts;
   return out;
+}
+
+/** A fact as one line: "Allergic to: coriander". */
+export const factLine = (f: Pick<CharacterFact, "label" | "value">): string => `${f.label}: ${f.value}`;
+
+/**
+ * The details anyone but the owner may see: everything except private facts. Every view of a character that
+ * isn't its owner's (the card, search, the swipe deck, MCP get_character, the other side of a date) goes
+ * through this.
+ */
+export function publicExtras(e: CharacterExtras | null | undefined): CharacterExtras {
+  if (!e) return {};
+  if (!e.facts?.some((f) => f.private)) return e;
+  const { facts, ...rest } = e;
+  const shown = facts!.filter((f) => !f.private);
+  return shown.length ? { ...rest, facts: shown } : rest;
+}
+
+/**
+ * The few facts one act of a date hands the character: FACTS_PER_ACT of them, a different few each act, picked
+ * from the date's seed so a replay is identical and the next date brings out other ones. Public facts it may
+ * bring up; private ones shape what it does and never come out in so many words.
+ */
+export function factsForAct(e: CharacterExtras | null | undefined, seed: number, act: number): { share: string[]; private: string[] } {
+  const facts = e?.facts ?? [];
+  if (!facts.length) return { share: [], private: [] };
+  const n = Math.min(FACTS_PER_ACT, facts.length);
+  const start = (Math.abs(Math.trunc(seed)) + act * n) % facts.length;
+  const picked = Array.from({ length: n }, (_, i) => facts[(start + i) % facts.length]);
+  return { share: picked.filter((f) => !f.private).map(factLine), private: picked.filter((f) => f.private).map(factLine) };
 }
 
 export const hasExtras = (e: CharacterExtras | null | undefined): boolean => Boolean(e && Object.keys(e).length);
@@ -172,6 +243,7 @@ export function extrasFields(e: CharacterExtras): Record<string, string | readon
     lines: e.lines ? Object.values(e.lines) : undefined,
     tells: e.tells ? Object.values(e.tells) : undefined,
     never_says: e.never_says,
+    facts: e.facts?.flatMap((f) => [f.label, f.value]),
   };
 }
 
@@ -239,9 +311,10 @@ export function extrasVisible(e: CharacterExtras): string[] {
   return [e.style ? `dressed: ${e.style}` : null, e.signature_item ? `has ${e.signature_item.replace(/^(A|An|The)\b/, (w) => w.toLowerCase())}` : null].filter((s): s is string => Boolean(s));
 }
 
-/** Text worth searching (lib/dating.ts): everything public. */
+/** Text worth searching (lib/dating.ts): everything public (private facts never). */
 export function extrasText(e: CharacterExtras): string {
   return [
+    ...(publicExtras(e).facts ?? []).map(factLine),
     ...TEXT_DETAIL_KEYS.map((k) => e[k] ?? ""),
     ...(e.hobbies ?? []),
     ...(e.prompts ?? []).map((p) => p.answer),
@@ -256,7 +329,7 @@ export function extrasJsonSchema(): Record<string, unknown> {
     type: "object",
     additionalProperties: false,
     description:
-      "Optional public details that make a date specific: what they do, where they're from, how they dress, hobbies, quirks, and up to three profile prompts. All optional. They shape the dialogue, never the outcome.",
+      "Optional details that make a date specific: what they do, where they're from, how they dress, hobbies, quirks, up to three profile prompts, the voice kit and up to 20 facts. All optional and public, except facts marked private. They shape the dialogue, never the outcome.",
     properties: {
       ...Object.fromEntries(TEXT_DETAIL_KEYS.map((k) => [k, { type: "string", maxLength: TEXT_DETAILS[k].max, description: TEXT_DETAILS[k].label }])),
       star_sign: { type: "string", enum: [...STAR_SIGNS] },
@@ -292,6 +365,24 @@ export function extrasJsonSchema(): Record<string, unknown> {
         maxItems: MAX_NEVER_SAYS,
         items: { type: "string", maxLength: NEVER_SAY_MAX },
         description: "Words or phrases they'd never say. A line that uses one is sent back for a rewrite.",
+      },
+      facts: {
+        type: "array",
+        maxItems: MAX_FACTS,
+        description:
+          `Up to ${MAX_FACTS} facts of your own, each a label and a value ("Allergic to" / "coriander", "Secretly collects" / "hotel soap"). ` +
+          "Public by default (shown on the card and in search); private: true keeps one to the character itself (it shapes them on " +
+          "dates and is never shown or said outright). A date brings out a few per act, never all at once. They never change how a date ends.",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["label", "value"],
+          properties: {
+            label: { type: "string", maxLength: FACT_LABEL_MAX },
+            value: { type: "string", maxLength: FACT_VALUE_MAX },
+            private: { type: "boolean", description: "true: only the character and its owner ever see it." },
+          },
+        },
       },
     },
   };

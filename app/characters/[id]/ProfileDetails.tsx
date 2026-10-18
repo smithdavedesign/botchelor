@@ -21,7 +21,8 @@ function Facts({ rows }: { rows: [string, string | undefined][] }) {
 }
 
 /** A character's optional details, laid out like a dating profile (lib/extras.ts). Only what was filled in. */
-export default function ProfileDetails({ extras: e }: { extras: CharacterExtras }) {
+export default function ProfileDetails({ extras: e, owner = false }: { extras: CharacterExtras; owner?: boolean }) {
+  const facts = (e.facts ?? []).filter((f) => owner || !f.private);
   const chips = [
     e.star_sign ? `${STAR_GLYPH[e.star_sign] ?? "✦"} ${e.star_sign}` : null,
     e.love_language ? `💬 ${e.love_language}` : null,
@@ -89,6 +90,29 @@ export default function ProfileDetails({ extras: e }: { extras: CharacterExtras 
         <>
           <h3 className="section">Their tells</h3>
           <Facts rows={TELLS.map((t) => [t.label.replace(/…$/, ""), e.tells?.[t.id]] as [string, string | undefined])} />
+        </>
+      )}
+
+      {facts.length > 0 && (
+        <>
+          <h3 className="section">More about them</h3>
+          <dl className="profile-facts">
+            {facts.map((f, i) => (
+              <div key={`${f.label}-${i}`}>
+                <dt>
+                  {f.label}
+                  {f.private && (
+                    <span className="muted" title="Private: only you see this. It shapes them on dates and is never shown or said outright.">
+                      {" "}
+                      🔒
+                    </span>
+                  )}
+                </dt>
+                <dd>{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+          {owner && facts.some((f) => f.private) && <p className="muted small">🔒 Private facts are yours alone: they shape your character on dates and never appear on the card.</p>}
         </>
       )}
 

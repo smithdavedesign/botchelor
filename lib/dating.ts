@@ -14,7 +14,7 @@ import { portraitPathSql } from "./assets";
 import { audienceAllows, type Audience } from "./audience";
 import { takenSql } from "./partners";
 import type { Db } from "./db";
-import { extrasText, type CharacterExtras } from "./extras";
+import { extrasText, publicExtras, type CharacterExtras, type CharacterFact } from "./extras";
 import { isOnSeasonCast, seasonCastIds } from "./season-cast";
 import { swipeGateOn } from "./swipe-gate";
 import { compatibility, loadTraitStats, MIN_EVIDENCE, publicDegrees } from "./compatibility";
@@ -85,7 +85,8 @@ const NOT_BLOCKED = `not exists (
 
 const madeBy = (r: Pick<ProfileRow, "is_house" | "created_via">): MadeBy => (r.is_house ? "house" : r.created_via === "mcp" ? "agent" : "human");
 
-export function toProfile(r: ProfileRow): DatingProfile {
+/** A character as anyone may see it; `owner` keeps its private facts (only ever for the owner's own view). */
+export function toProfile(r: ProfileRow, owner = false): DatingProfile {
   // A house character is available only while it's on this season's cast; an OC, while it's open to dates.
   const available = r.is_house ? isOnSeasonCast(r.id) : r.open_to_dates;
   return {
@@ -106,7 +107,7 @@ export function toProfile(r: ProfileRow): DatingProfile {
     can_ask_out: available && (r.is_house || !swipeGateOn()),
     dates: r.dates,
     url: `/characters/${r.id}`,
-    extras: r.extras ?? {},
+    extras: owner ? (r.extras ?? {}) : publicExtras(r.extras),
   };
 }
 
@@ -126,6 +127,26 @@ export function keywords(text: string): Set<string> {
     if (w.length >= 3 && !STOPWORDS.has(w)) out.add(w);
   }
   return out;
+}
+
+/**
+ * The first public fact two characters share, in words ("Collects: vinyl"), or null: the same value, or the same
+ * label with a value that shares a real word ("Allergic to: cats" and "Allergic to: cats and dust"). Private facts
+ * never reach here (both profiles came through toProfile's public view).
+ */
+export function sharedFact(mine: readonly CharacterFact[], theirs: readonly CharacterFact[]): string | null {
+  const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  const words = (t: string) => new Set(contentWords(t, 4).filter(strongWord));
+  for (const a of mine) {
+    if (a.private) continue;
+    for (const b of theirs) {
+      if (b.private) continue;
+      const sameValue = norm(a.value) === norm(b.value);
+      const sameLabel = norm(a.label) === norm(b.label);
+      if (sameValue || (sameLabel && [...words(a.value)].some((w) => words(b.value).has(w)))) return `${b.label.toLowerCase()} ${b.value}`;
+    }
+  }
+  return null;
 }
 
 /** A word that says something about a person, for a match's reasons: not "small", "without" or "really". */
@@ -207,7 +228,7 @@ async function candidates(db: Db, viewerId: string | null, openOnly: boolean, in
 
 export async function searchCharacters(db: Db, opts: SearchOptions): Promise<DatingProfile[]> {
   const limit = Math.max(1, Math.min(30, opts.limit ?? 10));
-  const pool = (await candidates(db, opts.viewerId, opts.openOnly ?? true, opts.includeHouse ?? true)).map(toProfile);
+  const pool = (await candidates(db, opts.viewerId, opts.openOnly ?? true, opts.includeHouse ?? true)).map((r) => toProfile(r));
   const terms = [...keywords(opts.query ?? "")];
   const wanted = (opts.traits ?? []).map((t) => t.trim().toLowerCase()).filter(Boolean);
   const filtering = terms.length > 0 || wanted.length > 0;
@@ -264,7 +285,7 @@ export async function findMatches(
   if (!mine) return null;
   const me = toProfile(mine);
   // Only characters open to one like this one (lib/audience.ts): house characters are open to everyone.
-  const pool = (await candidates(db, viewerId, true, true)).filter((r) => r.is_house || audienceAllows(r.open_audience, mine.created_via)).map(toProfile);
+  const pool = (await candidates(db, viewerId, true, true)).filter((r) => r.is_house || audienceAllows(r.open_audience, mine.created_via)).map((r) => toProfile(r));
   const matches = await rankFor(db, viewerId, me, pool);
   return { for: { id: me.id, name: me.name }, matches: matches.slice(0, Math.max(1, Math.min(20, limit))) };
 }
@@ -300,6 +321,13 @@ export async function rankFor(db: Db, viewerId: string, me: DatingProfile, pool:
     if (sharedHobbies.length) {
       score += 2 * sharedHobbies.length;
       why.push(`you both love ${sharedHobbies.map((h) => h.toLowerCase()).join(" and ")}`);
+    }
+    // Public facts in common (lib/extras.ts): a light hint, never the decider. People date off the messages and the
+    // look (David, 2026-10-18), so a shared fact is worth one point at most, a third of one shared trait.
+    const together = sharedFact(me.extras.facts ?? [], p.extras.facts ?? []);
+    if (together) {
+      score += 1;
+      why.push(`you both: ${together}`);
     }
     const theirWords = keywords(haystack({ ...p, want: "" }));
     const theirText = asWords(haystack({ ...p, want: "" }));
@@ -339,9 +367,12 @@ export async function rankFor(db: Db, viewerId: string, me: DatingProfile, pool:
 
 /* ---------------------------------------------- one profile ---------------------------------------------- */
 
-export async function getDatingProfile(db: Db, id: string): Promise<DatingProfile | null> {
-  const row = (await db.query<ProfileRow>(`select ${PUBLIC_COLUMNS} from characters c where c.id = $1`, [id])).rows[0];
-  return row ? toProfile(row) : null;
+/** One character; its private facts too when `viewerId` owns it. */
+export async function getDatingProfile(db: Db, id: string, viewerId: string | null = null): Promise<DatingProfile | null> {
+  const row = (await db.query<ProfileRow & { owner_id: string | null }>(`select ${PUBLIC_COLUMNS}, c.owner_id from characters c where c.id = $1`, [id])).rows[0];
+  if (!row) return null;
+  const { owner_id, ...profile } = row;
+  return toProfile(profile, Boolean(viewerId) && owner_id === viewerId);
 }
 
 /** Your own characters, with whether each is open to dates and its public record. */
@@ -350,7 +381,7 @@ export async function listMyDatingProfiles(db: Db, userId: string): Promise<Dati
     `select ${PUBLIC_COLUMNS} from characters c where c.owner_id = $1 and not c.is_house order by c.created_at desc, c.id limit 50`,
     [userId],
   );
-  return rows.map(toProfile);
+  return rows.map((r) => toProfile(r, true));
 }
 
 /* --------------------------------------------- the agents --------------------------------------------- */

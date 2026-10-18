@@ -88,6 +88,7 @@ async function main() {
   // Always-on template date rooms, so the /watch lobby has something to drop into.
   await seedTemplateRooms(base);
   let episodeUrl = "";
+  let characterId = "";
   let roomUrl = "";
 
   // A fresh browser context that has already passed the 18+ gate (so a step can get straight to the feature).
@@ -151,6 +152,16 @@ async function main() {
       // The swipe deck shows a dating profile: two answered prompts and two interests are needed to create a character.
       await page.getByRole("button", { name: /Surprise me/ }).click();
       await page.locator('input[name="extra_occupation"]').fill("Lighthouse electrician");
+      // More about them: one public fact from an idea chip, one private fact typed in.
+      await page.getByRole("button", { name: "Next: More about them" }).click();
+      await page.getByText(/More about .* \(optional\)/).waitFor();
+      await page.getByRole("button", { name: "+ A fear" }).click();
+      await page.locator('input[name="fact_value_0"]').fill("Heights, despite the job");
+      await page.getByRole("button", { name: "+ Add a fact" }).click();
+      await page.locator('input[name="fact_label_1"]').fill("Secretly collects");
+      await page.locator('input[name="fact_value_1"]').fill("hotel soap");
+      await page.locator('input[name="fact_private_1"]').check();
+      await page.getByText("2 of 20").waitFor();
       await page.getByRole("button", { name: "Next: Soul & autonomy" }).click();
       await page.getByText("The inner life (optional)").waitFor();
       await page.locator('input[name="soul_values"]').fill("Steady, inventive, allergic to goodbyes.");
@@ -164,7 +175,9 @@ async function main() {
     await step("the builder's last step points to the swipe deck: a first date with someone else's character starts with a match", async () => {
       await page.getByText("💘 Swipe to meet someone new").waitFor();
       const swipeLink = page.getByRole("link", { name: `Swipe for ${CHAR.name.split(" ")[0]}` });
-      assert((await swipeLink.getAttribute("href"))?.startsWith("/swipe?character="), "the swipe link should open this character's deck");
+      const swipeHref = (await swipeLink.getAttribute("href")) ?? "";
+      assert(swipeHref.startsWith("/swipe?character="), "the swipe link should open this character's deck");
+      characterId = new URL(swipeHref, base).searchParams.get("character") ?? "";
       assert((await page.getByRole("heading", { name: "Open to dates" }).count()) === 0, "the open-to-dates gallery should be gone behind the gate");
       assert((await page.getByRole("button", { name: /Send on a date with/ }).count()) > 0, "this season's house cast should still book straight away");
     });
@@ -225,6 +238,25 @@ async function main() {
     // A spectator, in a separate browser session.
     const spectator = await adultContext();
     const spage = await spectator.newPage();
+
+    await step("facts: the owner sees the public and the 🔒 private one on the card; a spectator sees only the public one", async () => {
+      await page.goto(`${base}/characters/${characterId}`);
+      await page.getByRole("heading", { name: "More about them" }).waitFor();
+      assert((await page.getByText("Heights, despite the job").count()) > 0, "the public fact is missing for the owner");
+      assert((await page.getByText("hotel soap").count()) > 0, "the owner should see their private fact");
+      assert((await page.getByText(/Private facts are yours alone/).count()) > 0, "the private-fact note is missing for the owner");
+      await spage.goto(`${base}/characters/${characterId}`);
+      await spage.getByRole("heading", { name: "More about them" }).waitFor();
+      assert((await spage.getByText("Heights, despite the job").count()) > 0, "a spectator should see the public fact");
+      assert((await spage.getByText("hotel soap").count()) === 0, "a spectator must never see a private fact");
+      // Nor does an agent that isn't its owner, over MCP.
+      const mcp = await spectator.request.post(`${base}/api/mcp`, {
+        headers: { "content-type": "application/json" },
+        data: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_character", arguments: { character_id: characterId } } },
+      });
+      const text = await mcp.text();
+      assert(text.includes("Heights, despite the job") && !text.includes("hotel soap"), "get_character must show public facts only to someone who isn't the owner");
+    });
 
     await step("a spectator sees a teaser, predicts the ending and guesses the dealbreaker", async () => {
       await spage.goto(episodeUrl);
