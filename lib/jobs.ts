@@ -50,7 +50,7 @@ import {
   DEFAULT_GAME_BUDGET,
   DEFAULT_STRATEGY,
 } from "./rules";
-import { logSceneRequests } from "./scenes";
+import { logSceneRequests, trackMoves } from "./scenes";
 import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { ShowrunnerError } from "./showrunner";
 import type { DateSetup } from "./game";
@@ -281,6 +281,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     if (saved.rows.length) {
       await rememberDate(db, row.a_id, row.b_id).catch(() => {});
       await logSceneRequests(db, episodeId, built.setup, transcript);
+      trackMoves(episodeId, transcript, "show");
       // M14: learned memory is recomputed when a date AIRS (the reveal route / the watch room), not here —
       // a generated date is not yet revealed, and its arc is public, so counting it would spoil predictions.
       await db.query(`update generation_jobs set status = 'succeeded', error = null, updated_at = now() where episode_id = $1`, [episodeId]);

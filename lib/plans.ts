@@ -27,7 +27,7 @@ const PLAN_TEXT_MAX = 200;
 const YES_REACH = 2;
 
 const PROPOSE =
-  /\b(let's|lets|let us|how about|what about|we should|we could|wanna|want to|fancy|shall we|come with me|come over|come round|come back to|meet me|join me|i'll take you|take you to|next time|would you like|do you want|up for|i'll cook|i'll show you|you should come|back to mine|back to yours)\b/i;
+  /\b(let's|lets|let us|how about|what about|we should|we could|wanna|want to|fancy|shall we|come with me|come over|come round|come back to|meet me|join me|i'll take you|take you to|next time|would you like|do you want|up for|i'll cook|i'll show you|i'll bring|i will bring|you bring|bring the|you should come|back to mine|back to yours)\b/i;
 const NOT_A_PROPOSAL = /\b(let's not|lets not|let us not)\b/i;
 const YES =
   /\b(yes|yeah|yep|yup|yess+|sure|deal|i'm in|im in|count me in|sounds (?:good|great|perfect|fun|lovely|amazing|like a plan)|it's a date|its a date|you're on|youre on|absolutely|definitely|love that|love to|i'd love|i would love|i'd like that|id like that|let's do it|let's do that|lets do it|works for me|see you there|i'll be there|can't wait|cant wait|ok|okay|alright|all right|why not|bring your|perfect|great idea|good idea|go on then|you got it)\b/i;
@@ -36,6 +36,8 @@ const NO =
 
 const proposes = (text: string): boolean => (PROPOSE.test(text) || /\?/.test(text)) && !NOT_A_PROPOSAL.test(text);
 const saysYes = (text: string): boolean => YES.test(text) && !NO.test(text);
+/** A refusal ("no thanks", "I'd rather not", "another time"): a yes in the JSON with this in the line isn't a yes (lib/moves.ts). */
+export const saysNo = (text: string): boolean => NO.test(text);
 
 /**
  * The plan they agreed on, or null. `names` (by end) name a home ("home@Chud's place"). A question only counts as a

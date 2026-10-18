@@ -37,6 +37,12 @@ export function scenePlaces(setup: Pick<DateSetup, "venue"> | null | undefined, 
   return out;
 }
 
+/** A finished date that moved (lib/moves.ts): one event with how many times, so the admin can see moves get used. */
+export function trackMoves(episodeId: string, transcript: readonly Turn[], performedBy: "show" | "agent"): void {
+  const moves = transcript.filter((t) => t.moved_to).length;
+  if (moves) track("date_moved", { episode_id: episodeId, moves, performed_by: performedBy });
+}
+
 /** Logs a finished date's places the library has no set for. Never throws: a log must not cost a date. */
 export async function logSceneRequests(
   db: Db,

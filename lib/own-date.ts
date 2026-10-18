@@ -46,7 +46,7 @@ import { haveDated, MATCH_FIRST, swipeGateOn } from "./swipe-gate";
 import { agreedMatch } from "./swipes";
 import { DELETED_OWNER } from "./rules";
 import { narrateEpisode } from "./showrunner";
-import { logSceneRequests } from "./scenes";
+import { logSceneRequests, trackMoves } from "./scenes";
 import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { dateShape, moveProblem, segmentBudget, settleLine, type DateShape } from "./moves";
 import { venueName, venuePhrase } from "./venues";
@@ -556,6 +556,7 @@ async function finishOnShowModel(
   if (!saved.rows.length) return true; // the other agent's request finished it first
   await rememberDate(db, row.a_id, row.b_id).catch(() => {});
   await logSceneRequests(db, row.id, built.setup, transcript);
+  trackMoves(row.id, transcript, "agent");
   trackDateQuality(row.id, "agent", null, transcriptQuality(transcript, built.characters, qualityContext(built, draft.setting)));
   // Both agents hear it's done (run 3: the invited agent didn't, when the recap ran on its own request), by full name:
   // two agents' characters can share a first name.
@@ -738,7 +739,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     // A move (lib/moves.ts): a suggestion must be answered, and a new one has to fit where the date stands.
     const shape = shapeFor(built, formatId, transcript);
     const names = namesFor(built, current.side);
-    const moveNote = moveProblem(parsed.reply, shape, names, shortName(names.other));
+    const moveNote = moveProblem(parsed.reply, shape, names, shortName(names.other), parsed.turn.dialogue, true);
     if (moveNote) return { ok: true, step: current, rejected: `${moveNote.charAt(0).toUpperCase()}${moveNote.slice(1)}.` };
     const next = [...transcript, settleLine(parsed.turn, parsed.reply, shape, names)];
     const saved = await db.query(
@@ -777,6 +778,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     if (saved.rows.length) {
       await rememberDate(db, row.a_id, row.b_id).catch(() => {});
       await logSceneRequests(db, episodeId, built.setup, transcript);
+      trackMoves(episodeId, transcript, "agent");
       if (transcript.length) {
         trackDateQuality(episodeId, "agent", null, transcriptQuality(transcript, built.characters, qualityContext(built, draft.setting)));
       }

@@ -67,6 +67,15 @@ describe("agreedPlan: a proposal and the other's yes", () => {
     });
   });
 
+  it("hears \"I'll bring…\" as a plan: the second-date test's coffee (its first date at the café made it flake)", () => {
+    const plan = agreedPlan(
+      [lo("Morning. Still thinking about the sugar packets."), hi("Coffee works. Bring the anthology story and I'll bring dried apricots."), lo("You're on."), hi("Tuesday then.")],
+      NAMES,
+    );
+    expect(plan?.place).toBe("corner_cafe");
+    expect(plan?.texts.map((t) => t.text)).toEqual(["Coffee works. Bring the anthology story and I'll bring dried apricots.", "You're on."]);
+  });
+
   it("takes the counter-proposal the other said yes to", () => {
     expect(agreedPlan([lo("Karaoke?"), hi("How about the observatory?"), lo("Deal.")], NAMES)?.place).toBe("elsewhere@the observatory");
   });

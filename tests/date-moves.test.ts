@@ -98,18 +98,29 @@ describe("settleLine: a move takes a proposal and a yes", () => {
     expect(settleLine(line("b", 2), { accept: false }, s, NELL).moved_to).toBeUndefined();
     expect(settleLine(line("b", 2), {}, s, NELL).moved_to).toBeUndefined();
     // Declined with somewhere else in mind: that's a new proposal.
-    expect(settleLine(line("b", 2), { accept: false, move: "the karaoke booth" }, s, NELL).move).toEqual({ say: "the karaoke booth", to: "karaoke_booth" });
+    expect(settleLine(line("b", 2, { dialogue: "Not yet. Karaoke first?" }), { accept: false, move: "the karaoke booth" }, s, NELL).move).toEqual({ say: "the karaoke booth", to: "karaoke_booth" });
+    // A yes in the JSON with a no in the line isn't a yes.
+    expect(settleLine(line("b", 2, { dialogue: "No thanks, I'd rather stay out." }), { accept: true }, s, NELL).moved_to).toBeUndefined();
+  });
+
+  it("counts only a move the line actually says (a model can fill every field)", () => {
+    const early = shapeAfter(played(2, 12));
+    expect(settleLine(line("a", 0, { dialogue: "Imagine hot chocolate in July." }), { move: "rainy alley" }, early, CHUD).move).toBeUndefined();
+    expect(settleLine(line("a", 0, { dialogue: "There's a rainy alley with the best dumplings. Shall we?" }), { move: "rainy alley" }, early, CHUD).move?.to).toBe("elsewhere@rainy alley");
+    // Something the library only has something like keeps their words: the night market isn't the corner café.
+    expect(settleLine(line("a", 0, { dialogue: "How about we try the night market?" }), { move: "the night market" }, early, CHUD).move?.to).toBe("elsewhere@the night market");
+    expect(settleLine(line("a", 0, { dialogue: "Coffee somewhere quieter?" }), { move: "coffee" }, early, CHUD).move?.to).toBe("corner_cafe");
   });
 
   it("ignores a move to where they are, one of their homes before the end of the night, and a third move", () => {
     const early = shapeAfter(played(2, 12));
-    expect(settleLine(line("a", 0), { move: "the rooftop" }, early, CHUD).move).toBeUndefined();
-    expect(settleLine(line("a", 0), { move: "my place" }, early, CHUD).move).toBeUndefined();
-    expect(settleLine(line("a", 0), { move: "the arcade" }, early, CHUD).move).toEqual({ say: "the arcade", to: "retro_arcade" });
+    expect(settleLine(line("a", 0, { dialogue: "Up on the rooftop, then?" }), { move: "the rooftop" }, early, CHUD).move).toBeUndefined();
+    expect(settleLine(line("a", 0, { dialogue: "Come back to mine?" }), { move: "my place" }, early, CHUD).move).toBeUndefined();
+    expect(settleLine(line("a", 0, { dialogue: "Let's find an arcade." }), { move: "the arcade" }, early, CHUD).move).toEqual({ say: "the arcade", to: "retro_arcade" });
     const late = shapeAfter(played(8, 12));
-    expect(settleLine(line("a", 2), { move: "my place" }, late, CHUD).move?.to).toBe("home@Chud's place");
+    expect(settleLine(line("a", 2, { dialogue: "Come back to mine for a nightcap?" }), { move: "my place" }, late, CHUD).move?.to).toBe("home@Chud's place");
     const two = shapeAfter(played(8, 12, { 1: { move: { say: "a", to: "retro_arcade" } }, 2: { moved_to: "retro_arcade" }, 4: { move: { say: "b", to: "night_beach" } }, 5: { moved_to: "night_beach" } }));
-    expect(settleLine(line("a", 1), { move: "the café" }, two, CHUD).move).toBeUndefined();
+    expect(settleLine(line("a", 1, { dialogue: "Café after this?" }), { move: "the café" }, two, CHUD).move).toBeUndefined();
   });
 
   it("drops done on a line that moves, and does nothing on a date that can't move", () => {
@@ -121,10 +132,14 @@ describe("settleLine: a move takes a proposal and a yes", () => {
 
   it("says what's wrong with a move, for a rewrite or an agent's refusal", () => {
     const t = [...played(8, 12), proposal("home@Chud's place")];
-    expect(moveProblem({}, shapeAfter(t), NELL, "Chud")).toMatch(/Chud suggested taking the date to Chud's place: answer it.*"accept_move"/);
-    expect(moveProblem({ move: "my place" }, shapeAfter(played(2, 12)), CHUD, "Nell")).toMatch(/waits for the end of the night/);
-    expect(moveProblem({ move: "the beach" }, shapeAfter(played(11, 12)), NELL, "Chud")).toMatch(/no more moving tonight/);
-    expect(moveProblem({ move: "the beach" }, shapeAfter(played(2, 12)), CHUD, "Nell")).toBeNull();
+    expect(moveProblem({}, shapeAfter(t), NELL, "Chud", "Mm.")).toMatch(/Chud suggested taking the date to Chud's place: answer it.*"accept_move"/);
+    expect(moveProblem({ accept: true }, shapeAfter(t), NELL, "Chud", "No thanks.")).toMatch(/says no but "accept_move" is true/);
+    expect(moveProblem({ move: "my place" }, shapeAfter(played(2, 12)), CHUD, "Nell", "Come back to mine?")).toMatch(/waits for the end of the night/);
+    expect(moveProblem({ move: "the beach" }, shapeAfter(played(11, 12)), NELL, "Chud", "Down to the beach?", true)).toMatch(/no more moving tonight/);
+    expect(moveProblem({ move: "the beach" }, shapeAfter(played(11, 12)), NELL, "Chud", "Down to the beach?")).toBeNull();
+    expect(moveProblem({ move: "rainy alley" }, shapeAfter(played(2, 12)), CHUD, "Nell", "Hot chocolate in July.", true)).toMatch(/doesn't suggest going to rainy alley/);
+    expect(moveProblem({ move: "rainy alley" }, shapeAfter(played(2, 12)), CHUD, "Nell", "Hot chocolate in July.")).toBeNull();
+    expect(moveProblem({ move: "the beach" }, shapeAfter(played(2, 12)), CHUD, "Nell", "Shall we walk down to the beach?")).toBeNull();
   });
 });
 
@@ -143,7 +158,12 @@ describe("the reply fields", () => {
     expect(movePlace("my place", CHUD.self, CHUD.other)).toBe("home@Chud's place");
     expect(movePlace("yours", NELL.self, NELL.other)).toBe("home@Chud's place");
     expect(movePlace("my bedroom", CHUD.self, CHUD.other)).toBe("home@Chud's place");
-    expect(movePlace("the night market", CHUD.self, CHUD.other)).toBe("corner_cafe");
+    // Near isn't the same: the café stands in for coffee, never for a market they named.
+    expect(movePlace("the night market", CHUD.self, CHUD.other)).toBe("elsewhere@the night market");
+    expect(movePlace("coffee", CHUD.self, CHUD.other)).toBe("corner_cafe");
+    expect(movePlace("the corner café", CHUD.self, CHUD.other)).toBe("corner_cafe");
+    expect(movePlace("Nell Abiodun's place", CHUD.self, CHUD.other)).toBe("home@Nell's place");
+    expect(movePlace("Chud's flat", CHUD.self, CHUD.other)).toBe("home@Chud's place");
     expect(movePlace("somewhere quieter", CHUD.self, CHUD.other)).toBe("elsewhere@somewhere quieter");
     expect(movePlace("a hotel room", CHUD.self, CHUD.other)).toBeNull();
     expect(movePlace("www.example.com", CHUD.self, CHUD.other)).toBeNull();
@@ -183,7 +203,7 @@ function fake(moves: (i: number, data: Any) => Record<string, unknown> = () => (
 
 describe("simulateConversation: a date that moves", () => {
   it("goes to Chud's place when Nell says yes, and talks on there", async () => {
-    const m = fake((i, data) => (i === 10 ? { move: "my place" } : data.their_suggestion ? { accept_move: true } : {}));
+    const m = fake((i, data) => (i === 10 ? { dialogue: "Come back to mine for a nightcap?", move: "my place" } : data.their_suggestion ? { accept_move: true } : {}));
     const t = await simulateConversation(m.model, built.input, outcome, built.characters, built.setup.producer, START, "classic", 12, {}, undefined, undefined, undefined, { moves: true });
     expect(t[10].move).toEqual({ say: "my place", to: "home@Chud's place" });
     expect(t[11].moved_to).toBe("home@Chud's place");
@@ -200,7 +220,7 @@ describe("simulateConversation: a date that moves", () => {
   it("an unanswered suggestion goes back once for an answer", async () => {
     let asked = 0;
     const m = fake((i, data) => {
-      if (i === 10) return { move: "the karaoke booth" };
+      if (i === 10) return { dialogue: "Karaoke booth down the road, fancy it?", move: "the karaoke booth" };
       if (data.their_suggestion) return asked++ === 0 ? {} : { accept_move: false };
       return {};
     });
@@ -305,7 +325,12 @@ describe("an agent's own date can move", () => {
     // Somewhere the date wasn't dealt (a move to where they already are is ignored).
     const [go, goName] = first.where === "A loud retro arcade" ? ["the beach", "A cold beach at night"] : ["the arcade", "A loud retro arcade"];
     let step = first;
-    for (let i = 0; i < 2; i++) step = (await call("submit_own_date_step", { episode_id: step.episode_id, output: say(i, i === 1 ? { move: go } : {}) })).structuredContent.step;
+    const suggest = { dialogue: `Shall we head to ${go === "the beach" ? "the beach" : "an arcade"}?`, move: go };
+    // An agent's "move" its line never says is refused, so it learns.
+    const unsaid = (await call("submit_own_date_step", { episode_id: step.episode_id, output: say(0) })).structuredContent.step;
+    const refusedMove = (await call("submit_own_date_step", { episode_id: unsaid.episode_id, output: say(1, { move: go }) })).structuredContent;
+    expect(refusedMove.rejected).toMatch(/doesn't suggest going to/);
+    step = (await call("submit_own_date_step", { episode_id: unsaid.episode_id, output: say(1, suggest) })).structuredContent.step;
     expect(step.answer_their_suggestion).toMatch(new RegExp(`Bo Quill suggested taking the date to ${goName.toLowerCase()}`));
     const refused = (await call("submit_own_date_step", { episode_id: step.episode_id, output: say(2) })).structuredContent;
     expect(refused.rejected).toMatch(/accept_move/);

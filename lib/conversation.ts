@@ -159,7 +159,7 @@ Most dates stay where they started. If the two of you would really take it somew
 JSON
 Reply with ONLY one JSON object (no markdown):
 {"dialogue":"what you say (under ${TURN_DIALOGUE_MAX} chars)","action":"what you do, 1-5 words, or \\"\\" for nothing","emotion":"one word for how you feel","interest_signal":0.0,"done":false,"move":"","accept_move":false}
-interest_signal is 0..1: how interested in them you are right now (let it move gradually). "move" is a place only on the line where you suggest going ("" otherwise); "accept_move" only counts when they've just suggested a move. Set "done": true only once the date has landed and your next line would only be a goodbye ("how_you_say_goodbye" is there by then) — the show will respect it then.`;
+interest_signal is 0..1: how interested in them you are right now (let it move gradually). "move" stays "" on almost every line: it's a place only on the line where you say you want to go there; "accept_move" only counts when they've just suggested a move. Set "done": true only once the date has landed and your next line would only be a goodbye ("how_you_say_goodbye" is there by then) — the show will respect it then.`;
 
 /** This date's private context for the speaking side: the agenda, the owner's note, and the dials. */
 function dateContext(side: SideSetup): Record<string, unknown> {
@@ -278,16 +278,18 @@ export function buildTurnMessages(
   };
 }
 
-/** What a date that can move tells the speaker about moving now: a proposal to answer, whether it can suggest one, or not. */
+/**
+ * What a date that can move tells the speaker about moving now: a proposal to answer, or that it can't. Nothing when a
+ * move is simply possible: the system prompt says how, and a hint on every line read as an invitation (a 2026-10-18
+ * local run proposed a move on almost every line).
+ */
 function movesNote(shape: DateShape, they: string): Record<string, string> {
   if (shape.pending) {
     return { their_suggestion: `${they} wants to take the date to ${venuePhrase(shape.pending.to)}. Answer it in your line, and set "accept_move": true to go or false to stay.` };
   }
   if (shape.wrapping) return { the_night_is_ending: "Time's nearly up: say goodbye in this line or the next." };
-  if (shape.movesLeft > 0) {
-    return { you_can_suggest_going_somewhere: shape.homeOk ? "if you'd really go: somewhere out, or one of your places" : "if you'd really go: somewhere out (one of your places waits for the end of the night)" };
-  }
-  return { staying_here: "No more moving tonight: the rest of the date happens here." };
+  if (shape.movesLeft === 0) return { staying_here: "No more moving tonight: the rest of the date happens here." };
+  return {};
 }
 
 /** Why a reply couldn't be used (content-free; for the logs). */
@@ -440,7 +442,7 @@ export async function simulateConversation(
         continue;
       }
       // The critic, and whether its move fields fit where the date stands (an unanswered proposal, a move home too early).
-      const notes = draft ? [] : [critiqueTurn(transcript, parsed.turn, input, characters, venueId), moveProblem(parsed.reply, shape, names, shortName(names.other))].filter(Boolean);
+      const notes = draft ? [] : [critiqueTurn(transcript, parsed.turn, input, characters, venueId), moveProblem(parsed.reply, shape, names, shortName(names.other), parsed.turn.dialogue)].filter(Boolean);
       if (notes.length && attempt + 1 < TURN_ATTEMPTS) {
         draft = parsed;
         prompt = [...messages, { role: "assistant", content: raw }, { role: "user", content: `Revise that line: ${notes.join("; ")}. Reply with the JSON again.` }];

@@ -11,7 +11,8 @@
  * steps and every rebuild agree on where a date is, and a date with no moves maps its acts exactly as before.
  */
 import type { Turn } from "./conversation";
-import { movePlace } from "./places";
+import { movePlace, placeFor } from "./places";
+import { saysNo } from "./plans";
 import { actForTurn, DATE_ACTS, MAX_MOVES, MOVE_SEGMENT_LINES } from "./rules";
 import { placeParts, venue, venuePhrase, type PlaceId } from "./venues";
 
@@ -80,20 +81,48 @@ const proposed = (reply: MoveReply, names: { self: string; other: string }): Pla
 
 const isHome = (place: PlaceId | null): boolean => placeParts(place).id === "home";
 
+/** Words that go home: a move to one of their places has to say one ("come back to mine?"). */
+const HOME_CUE = /\b(mine|yours|my (?:place|flat|apartment|house|home|kitchen|balcony|sofa)|your (?:place|flat|apartment|house|home|kitchen|balcony)|come (?:over|round|back|up)|back to|nightcap|home)\b/i;
+const FILLER = new Set(["the", "a", "an", "to", "at", "my", "your", "our", "some", "that", "this", "of", "in", "on", "by", "for"]);
+
+/**
+ * Whether a line actually suggests going where its "move" says. A model can fill every field (a 2026-10-18 local run
+ * proposed "rainy alley" on a line about hot chocolate), and a proposal nobody spoke would move a date nobody chose:
+ * the line has to say the place's own word ("market" for "the night market"), name the same venue in its own words
+ * ("karaoke?" for the karaoke booth), or, for one of their homes, say going home.
+ */
+export function voiced(dialogue: string, say: string, to: PlaceId, names: { self: string; other: string }): boolean {
+  if (isHome(to)) return HOME_CUE.test(dialogue);
+  if (placeFor(dialogue, names.self, names.other) === to) return true;
+  const words = (say.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []).filter((w) => !FILLER.has(w));
+  const head = words[words.length - 1];
+  return Boolean(head) && new RegExp(`(^|[^\\p{L}])${head.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "iu").test(dialogue);
+}
+
 /**
  * Why a reply's move fields don't work where the date stands, as a note for a rewrite (the show's critic) or a refusal
  * (an agent's turn); null when they're fine. `they` is the other character's short name.
  */
-export function moveProblem(reply: MoveReply, shape: DateShape, names: { self: string; other: string }, they: string): string | null {
+export function moveProblem(
+  reply: MoveReply,
+  shape: DateShape,
+  names: { self: string; other: string },
+  they: string,
+  dialogue: string,
+  /** An agent's turn: a "move" its line never says is refused, so it learns; the show's model just has it dropped. */
+  agent = false,
+): string | null {
   if (!shape.enabled) return null;
   if (shape.pending && reply.accept === undefined) {
     return `${they} suggested taking the date to ${venuePhrase(shape.pending.to)}: answer it in your line, and set "accept_move" to true to go or false to stay`;
   }
+  if (shape.pending && reply.accept === true && saysNo(dialogue)) return 'your line says no but "accept_move" is true: make them agree';
   if (!reply.move || (shape.pending && reply.accept === true)) return null;
-  if (shape.movesLeft === 0) return 'no more moving tonight: the rest of the date happens here, so leave "move" empty';
+  if (shape.movesLeft === 0) return agent ? 'no more moving tonight: the rest of the date happens here, so leave "move" empty' : null;
   const to = proposed(reply, names);
   if (!to) return 'say where in a few words ("move": a place, like "the night market" or "my place")';
-  if (to === shape.place) return `you're already at ${venuePhrase(to)}: leave "move" empty`;
+  if (to === shape.place) return agent ? `you're already at ${venuePhrase(to)}: leave "move" empty` : null;
+  if (!voiced(dialogue, reply.move, to, names)) return agent ? `your line doesn't suggest going to ${venuePhrase(to)}: say it in the line, or leave "move" empty` : null;
   if (isHome(to) && !shape.homeOk) return "going back to one of your places waits for the end of the night: suggest somewhere out, or stay";
   return null;
 }
@@ -108,11 +137,11 @@ export function settleLine(turn: Turn, reply: MoveReply, shape: DateShape, names
   delete out.move;
   delete out.moved_to;
   if (!shape.enabled) return out;
-  if (shape.pending && reply.accept === true && shape.pending.by !== turn.side) {
+  if (shape.pending && reply.accept === true && shape.pending.by !== turn.side && !saysNo(turn.dialogue)) {
     out.moved_to = shape.pending.to;
   } else if (reply.move && shape.movesLeft > 0) {
     const to = proposed(reply, names);
-    if (to && to !== shape.place && (shape.homeOk || !isHome(to))) out.move = { say: reply.move.trim().slice(0, 80), to };
+    if (to && to !== shape.place && (shape.homeOk || !isHome(to)) && voiced(turn.dialogue, reply.move, to, names)) out.move = { say: reply.move.trim().slice(0, 80), to };
   }
   if (out.move || out.moved_to) delete out.done;
   return out;
