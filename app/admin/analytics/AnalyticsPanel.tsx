@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import type { AgentAnalytics } from "@/lib/agent-analytics";
 
 const KIND_LABEL = { crawler: "crawler", explorer: "explorer", player: "player" } as const;
+/** How many crawl-only clients the table shows before "show all". */
+const CRAWLERS_SHOWN = 10;
 
 /** The analytics (owner-only). Signs in like the other admin panels: the saved admin password, or a box to enter it. */
 export default function AnalyticsPanel() {
@@ -14,6 +16,7 @@ export default function AnalyticsPanel() {
   const [days, setDays] = useState(7);
   const [showOurs, setShowOurs] = useState(false);
   const [showCrawlers, setShowCrawlers] = useState(false);
+  const [allClients, setAllClients] = useState(false);
 
   async function load(typed?: string, window = days) {
     setError(null);
@@ -57,6 +60,12 @@ export default function AnalyticsPanel() {
   // "Oct 17, 10:31 PM": a table cell, not a sentence.
   const short = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   const f = data?.funnel;
+  // Most clients are directories that connected once or twice: show the ones that called tools, and the busiest
+  // crawlers; the rest behind "show all", so the page stays readable.
+  const pool = (data?.clients ?? []).filter((c) => showOurs || !c.ours);
+  const activeClients = pool.filter((c) => c.explorer + c.player > 0);
+  const crawlerClients = pool.filter((c) => c.explorer + c.player === 0).sort((a, b) => b.sessions - a.sessions);
+  const shownClients = [...activeClients, ...(allClients ? crawlerClients : crawlerClients.slice(0, CRAWLERS_SHOWN))];
 
   return (
     <section className="card">
@@ -176,6 +185,11 @@ export default function AnalyticsPanel() {
 
           <h2>Clients</h2>
           <p className="small">
+            {activeClients.length} clients called tools; {crawlerClients.length} only crawled
+            {!allClients && crawlerClients.length > CRAWLERS_SHOWN ? ` (the ${CRAWLERS_SHOWN} busiest shown)` : ""}.{" "}
+            <label>
+              <input type="checkbox" checked={allClients} onChange={(e) => setAllClients(e.target.checked)} /> show all {pool.length}
+            </label>{" "}
             <label>
               <input type="checkbox" checked={showOurs} onChange={(e) => setShowOurs(e.target.checked)} /> show ours
             </label>
@@ -195,9 +209,7 @@ export default function AnalyticsPanel() {
                 </tr>
               </thead>
               <tbody>
-                {data.clients
-                  .filter((c) => showOurs || !c.ours)
-                  .map((c) => (
+                {shownClients.map((c) => (
                     <tr key={`${c.client}${c.ours}`}>
                       <td className="wrap" title={c.user_agent ?? ""}>
                         <strong>{c.client}</strong>
