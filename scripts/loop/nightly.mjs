@@ -28,8 +28,10 @@ const VISITOR_MODEL = env("LOOP_VISITOR_MODEL", "sonnet");
 const TRIAGE_MODEL = env("LOOP_TRIAGE_MODEL", "sonnet");
 const FIX_MODEL = env("LOOP_FIX_MODEL", "opus");
 const PORT = Number(env("LOOP_PORT", "4420"));
-const day = new Date().toISOString().slice(0, 10);
-const RUN = join(HOME_DIR, "runs", day);
+// Local date and time: an on-demand run and the morning one get their own folders.
+const stamp = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16).replace("T", "-").replace(":", "");
+const day = stamp.slice(0, 10);
+const RUN = join(HOME_DIR, "runs", stamp);
 const STATE = join(HOME_DIR, "state.json");
 const LOCK = join(HOME_DIR, "lock");
 

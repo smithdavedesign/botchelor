@@ -79,7 +79,7 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
    (owner-only `POST /api/admin/feedback`), labelled `loop <date> · <visitor>`. It shows on `/admin/feedback` beside
    real agents' feedback. The next run's live read skips it, since it was triaged the night it came in.
 8. **Records**:
-   - each run's reports, feedback, triage notes and fixes go in `~/.botchelor-loop/runs/<date>/`;
+   - each run's reports, feedback, triage notes and fixes go in `~/.botchelor-loop/runs/<date>-<time>/`;
    - a log goes in `~/.botchelor-loop/logs/`;
    - `run_started`, `run_finished` (with feedback count and model spend) and `run_failed` events go to the system
      log, so a failure posts to #team-agents.
@@ -119,6 +119,8 @@ Settings go in `~/.botchelor-loop/env`, one `KEY=value` a line, never keys:
 
 ```sh
 scripts/loop/install.sh                                   # clone + launchd job at 06:10
-launchctl kickstart gui/$(id -u)/com.user.botchelor-loop  # run it now
+npm run sim:visitors                                      # a visitor run now: 2 visitors + triage, no fixer
+LOOP_VISITORS=3 LOOP_FIX=1 npm run sim:visitors           # …or with more visitors and the fixer
+launchctl kickstart gui/$(id -u)/com.user.botchelor-loop  # the full morning run, now
 launchctl bootout gui/$(id -u)/com.user.botchelor-loop    # stop it
 ```
