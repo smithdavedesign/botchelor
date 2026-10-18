@@ -312,10 +312,8 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
                 {stageLabel && <span className="phone-contact-stage">{stageLabel}</span>}
               </span>
             </Link>
-            <span className="phone-head-actions">
-              {page.switcher}
-              {page.action}
-            </span>
+            {page.switcher}
+            <span className="phone-head-actions">{page.action}</span>
             {canFlip && (
               <button type="button" className="phone-head-btn" onClick={() => setMe(them)} aria-label={`See it on ${shortName(other.name)}'s phone`} title={`See it on ${shortName(other.name)}'s phone`}>
                 ⇄
