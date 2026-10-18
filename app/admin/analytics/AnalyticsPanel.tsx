@@ -83,9 +83,10 @@ export default function AnalyticsPanel() {
           </button>
         </form>
       ) : (
-        <p>
-          <label htmlFor="window">Window</label>{" "}
-          <select
+        <div className="analytics-controls">
+          <div>
+            <label htmlFor="window">Window</label>
+            <select
             id="window"
             value={days}
             onChange={(e) => {
@@ -99,11 +100,12 @@ export default function AnalyticsPanel() {
                 {d === 1 ? "last day" : `last ${d} days`}
               </option>
             ))}
-          </select>{" "}
+            </select>
+          </div>
           <button type="button" className="secondary small" onClick={() => void load()}>
             Refresh
           </button>
-        </p>
+        </div>
       )}
       {error && <p className="error">{error}</p>}
       {data && f && (
