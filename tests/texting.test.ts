@@ -9,7 +9,7 @@ import { fixedEngine, type SideOutcome } from "@/lib/engine";
 import { handleMcpMessage } from "@/lib/mcp";
 import { setModelForTests, type ChatMessage, type Model } from "@/lib/model";
 import { listNotifications } from "@/lib/notifications";
-import { pairKey, type End } from "@/lib/relationships";
+import { pairKey, refreshRelationship, usableFor, visibleTo, type End } from "@/lib/relationships";
 import { buildDate, DEFAULT_DATE_REQUEST } from "@/lib/simulation";
 import { TEXT_MAX } from "@/lib/text-chain";
 import { sendText, TEXTS_PER_MINUTE, writeOwnText } from "@/lib/texting";
@@ -149,6 +149,24 @@ describe("agents text each other between dates (MCP send_text / read_texts)", ()
     expect(after.couple_page_note).toBeUndefined();
   });
 
+  it("after a private date, texts go only where both owners can see a date: a two-agent date is both agents'", async () => {
+    const { host, partner, hostCharacter, partnerCharacter, episode } = await setupPairedEpisode({ ending: "second_date" });
+    const [a, b] = [userIdOf(host), userIdOf(partner)];
+    expect((await api.setVisibility(episode.id, "private", host)).status).toBe(200);
+    // A private show date is its creator's alone: a text would tell the other owner it happened, so it isn't sent.
+    expect(await sendText(t.db, { userId: a, from: hostCharacter.id, to: partnerCharacter.id, text: "Psst." })).toMatchObject({ ok: false, error: "private_date" });
+    expect(await sendText(t.db, { userId: b, from: partnerCharacter.id, to: hostCharacter.id, text: "Hi?" })).toMatchObject({ ok: false, error: "not_a_couple" });
+    expect((await listNotifications(t.db, b)).filter((n) => n.kind === "texted")).toEqual([]);
+
+    // The same date performed by two agents (each played its own side) belongs to both: either can text and read it.
+    await t.db.query(`update episodes set partner_performer = $2 where id = $1`, [episode.id, b]);
+    await refreshRelationship(t.db, hostCharacter.id, partnerCharacter.id);
+    expect(await sendText(t.db, { userId: a, from: hostCharacter.id, to: partnerCharacter.id, text: "Same time Thursday?" })).toMatchObject({ ok: true });
+    expect(await sendText(t.db, { userId: b, from: partnerCharacter.id, to: hostCharacter.id, text: "Thursday." })).toMatchObject({ ok: true });
+    const theirs = (await rpc("read_texts", { character_id: partnerCharacter.id, with: hostCharacter.id, agent_id: b })).structuredContent;
+    expect(theirs.items.map((x: Any) => x.kind)).toEqual(["date", "between_dates", "between_dates"]);
+  });
+
   it("never across a block between the owners", async () => {
     const { host, partner, hostCharacter, partnerCharacter, episode } = await setupPairedEpisode({ ending: "second_date" });
     await t.db.query(`insert into blocks (blocker_id, via_episode_id, blocked_id) values ($1, $2, $3)`, [userIdOf(partner), episode.id, userIdOf(host)]);
@@ -184,6 +202,17 @@ describe("agents text each other between dates (MCP send_text / read_texts)", ()
     expect(none.ok && none.note).toMatch(/used up today's texts/);
     const via = (await t.db.query<{ via: string; n: number }>(`select via, count(*)::int as n from couple_texts group by via order by via`)).rows;
     expect(via).toEqual([{ via: "agent", n: 5 }, { via: "show", n: 3 }]);
+  });
+});
+
+describe("whose a two-agent date is (lib/relationships.ts)", () => {
+  it("its other performer sees it and may bring it into a date, like its creator; nobody else", () => {
+    const h = { public: false, private: true, creator: "agent-x", performer: "agent-y" };
+    expect(visibleTo(h, { userId: "agent-y", owner: true })).toBe(true);
+    expect(visibleTo(h, { userId: "agent-z", owner: true })).toBe(false);
+    expect(usableFor(h, "agent-y")).toBe(true);
+    expect(usableFor(h, "agent-z")).toBe(false);
+    expect(usableFor({ public: false, creator: "agent-x" }, "")).toBe(false);
   });
 });
 
