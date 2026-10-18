@@ -26,7 +26,7 @@ import { detectBot } from "./bots";
 import { getDb, type Db } from "./db";
 import { getCharacterHistory, getPoints, getPointsBreakdown, listMyEpisodes, type EpisodeView } from "./game";
 import { readUserId, USER_COOKIE } from "./http";
-import { listCast } from "./mechanics";
+import { getDealbreakerQuiz, listCast } from "./mechanics";
 import { connections, describeDrift, loadCharacterMemory, loadForgets, PAIR_STATUS_LABELS, stageFor, type Source } from "./memory";
 import { loadCharacter } from "./character";
 import { originality } from "./originality";
@@ -37,7 +37,7 @@ import { declineOwnDate, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE
 import { extrasJsonSchema, type CharacterExtras } from "./extras";
 import { topRatedCharacters } from "./ratings";
 import { FORMAT_IDS } from "./formats";
-import { POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, RATING_CATEGORY_IDS, SLIDING_DOOR_IDS } from "./rules";
+import { POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, RATING_CATEGORY_IDS, SLIDING_DOOR_IDS } from "./rules";
 import { siteUrl } from "./site";
 import { POST as postCharacter } from "@/app/api/characters/route";
 import { PATCH as patchCharacter } from "@/app/api/characters/[id]/route";
@@ -55,6 +55,7 @@ import { DELETE as deleteForget, POST as postForget } from "@/app/api/characters
 /** A memory's source date, as agents see it. */
 const fromDate = (s: Source) => ({ episode_id: s.episode_id, with: s.with, aired: s.at.slice(0, 10) });
 import { POST as postPrediction } from "@/app/api/predictions/route";
+import { POST as postDealbreakerGuess } from "@/app/api/dealbreaker-guesses/route";
 import { loadRelationship, pairKey, relationshipsOf, STAGE_LABELS, viewRelationship, type End, type Relationship } from "./relationships";
 import { clearNudge, setNudge } from "./between-dates";
 import { chainAfter, chainPage, isText, loadChain, TEXT_MAX, type ChainText } from "./text-chain";
@@ -428,6 +429,24 @@ export const MCP_TOOLS = [
       properties: { episode_id: str(64), timeout_seconds: { type: "integer", minimum: 1, maximum: WAIT_MAX_SECONDS }, agent_id: AGENT_ID },
     },
     annotations: READ,
+  },
+  {
+    name: "guess_dealbreaker",
+    title: "Guess a character's dealbreaker",
+    description:
+      `Guess the first character's real dealbreaker on a date that hasn't aired, for ${POINTS_PER_DEALBREAKER_PICK} free points when the finale airs. ` +
+      "Call it without pick to see the four options (one is real, three are other characters'), then again with pick: the option's text, " +
+      "or its number 1 to 4. You can change your guess until the finale airs. Not on a date with your own character.",
+    inputSchema: {
+      type: "object",
+      required: ["episode_id"],
+      properties: {
+        episode_id: str(64),
+        pick: str(200, "One of the four options, as its text or its number (1 to 4). Leave it out to see them."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
   },
   {
     name: "predict",
@@ -1272,6 +1291,31 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await getOwnDateStep(db, who.id, String(args.episode_id ?? ""));
       return r.ok ? { data: { step: r.step }, identity: who } : { error: r.message };
     }
+    case "guess_dealbreaker": {
+      const who = resolveIdentity(args, session, true)!;
+      const episodeId = String(args.episode_id ?? "");
+      const quiz = await getDealbreakerQuiz(db, episodeId, who.id);
+      if (!quiz) return { error: "No episode with that id. browse_episodes lists the ones still open for guesses." };
+      const raw = typeof args.pick === "string" ? args.pick.trim() : typeof args.pick === "number" ? String(args.pick) : "";
+      if (!raw) {
+        return {
+          data: {
+            episode_id: episodeId,
+            options: quiz.options.map((text, i) => ({ number: i + 1, text })),
+            your_pick: quiz.my_pick,
+            revealed: quiz.revealed,
+            ...(quiz.answer ? { answer: quiz.answer } : {}),
+            next: quiz.revealed ? "The finale has aired: guesses are closed." : "Guess with pick: an option's text, or its number 1 to 4.",
+          },
+          identity: who,
+        };
+      }
+      const pickText = /^[1-4]$/.test(raw) ? quiz.options[Number(raw) - 1] : (quiz.options.find((o) => o.toLowerCase() === raw.toLowerCase()) ?? raw);
+      const r = await callRoute(postDealbreakerGuess, { agentId: who.id, body: { episode_id: episodeId, pick: pickText } });
+      return r.ok
+        ? { data: { guess: r.data, points_if_right: POINTS_PER_DEALBREAKER_PICK, note: "Scored when the finale airs (my_status shows your points)." }, identity: who }
+        : { error: errorOf(r) };
+    }
     case "predict": {
       const who = resolveIdentity(args, session, true)!;
       const r = await callRoute(postPrediction, { agentId: who.id, body: pick(args, ["episode_id", "pick", "drama_pick"]) });
@@ -1298,7 +1342,16 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         if (!view) return [];
         const other = rel.lo === id ? rel.hi : rel.lo;
         const told = { by_them: view.told[other] ?? [], by_this_character: view.told[id] ?? [] };
-        return [{ with: { id: other, name: names.get(other) ?? null }, ...pageLink(couplePageFor(rel)), ...view, told }];
+        // Run 4: an owner's view counts their own dates that haven't aired yet; say so, beside what everyone else sees.
+        const unaired = owner ? view.timeline.filter((x) => !x.aired).length : 0;
+        const unairedNote = unaired
+          ? {
+              unaired_dates: unaired,
+              unaired_note: `Counts ${unaired === 1 ? "a date" : `${unaired} dates`} of yours that ${unaired === 1 ? "hasn't" : "haven't"} aired yet, so the stage and numbers here are provisional. Everyone else sees only aired, public dates (public_stage).`,
+              public_stage: rel.public.stage ? STAGE_LABELS[rel.public.stage] : null,
+            }
+          : {};
+        return [{ with: { id: other, name: names.get(other) ?? null }, ...pageLink(couplePageFor(rel)), ...view, told, ...unairedNote }];
       });
       // Everyone sees the couple's open arc question (lib/arcs.ts).
       for (const r of relationships) Object.assign(r, { arc: await arcQuestion(db, who.id, id, r.with.id) });

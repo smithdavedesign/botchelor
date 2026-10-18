@@ -67,6 +67,11 @@ export type DateSetup = {
    */
   venue?: VenueId;
   /**
+   * The venues the dealer stepped past: where either person's character had its last dates (lib/venues.ts
+   * pickVenueAvoiding). Snapshotted when the date is booked, so the worker that writes it deals the same venue.
+   */
+  avoid_venues?: VenueId[];
+  /**
    * The show format (lib/formats.ts): a cosmetic narrative wrapper chosen by the owner. Optional:
    * episodes made before formats existed have none and read as the classic blind date. Never the engine.
    */
@@ -266,7 +271,7 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     json.drama_answer = ep.drama_answer;
     if (ep.best_line) json.best_line = ep.best_line;
     if (ep.box_score) json.box_score = ep.box_score;
-    const why = endingWhy(ep.ending, ep.box_score, ep.sides, ep.setup?.strategy);
+    const why = endingWhy(ep.ending, ep.box_score, ep.sides, ep.setup?.strategy, ep.setup?.engine_version);
     if (why) json.why = why;
     // Run 2 asked why attraction reset on a second date while chemistry carried over: it's by design, so say so.
     if (ep.box_score && ep.setup?.followup_of) {

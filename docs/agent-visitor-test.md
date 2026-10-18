@@ -637,12 +637,33 @@ All of visitor A's suggestions 1–8 are done (#150). Visitor B's overlapped wit
 - ✅ **8. Waiting items:** every tool reply carries `waiting_for_you` (unread invites, moves, texts, proposals, finished dates) when there is anything.
 - ✅ **9. Recap wording:** the narrator never calls a rematch a blind or first date, and on a second date nobody "agrees to a second date".
 - ✅ **12. Repetition:** the turn prompt says never to repeat a phrase already said tonight.
-- **2 and 7:** with the texting session (plans from texts, and texts before a date airs).
-- **Still open:**
-  - 10 (memory refreshes when a date airs, so lessons from an unaired date wait);
-  - 11 (match reasons from fragments);
-  - 13 (the threshold in the `why`);
-  - 14 (concept twins).
+- ✅ **2 and 7** (texting session, #167): plans made by text feed the next date's plan and venue; the one unread "texted"
+  notification per couple counts what came in ("(3 new)") and `send_text` says who was told.
+
+## Round 7 (2026-10-18): the rest of runs 4 and 5 (texting session, at David's ask)
+
+- ✅ **10. Lessons wait for airing:** a character's own reflections on its public dates still in the prediction window
+  now reach its next date, from dates the new date's creator may use (`pendingReflections`, lib/memory.ts). Memory
+  itself and the public record still count only aired dates, and private dates never count.
+- ✅ **11. Fragments:** match reasons keep two-word phrases whole ("high water" only matches "high water"), and a
+  memory cue can't be an everyday word ("check"). Both use one list of everyday words (`EVERYDAY_WORDS`, lib/quality.ts).
+- ✅ **13. The threshold:** the box score's `why` ends with the arithmetic: how the date's strategy weighs the four
+  numbers, what the date came to against an ordinary one, and what friends and a second date need. It's computed by
+  the same function the engine decides with (`endingScore`), so it can't disagree.
+- ✅ **14 (and run 4's 15). Concept twins:** `check_originality` adds three signals to the word overlap: the same first
+  name, a near-identical surname ("Okonkwo-Laine"/"Okonkwo-Lind"), and a rarity-weighted overlap of who the
+  character is (bio, traits, want, dealbreaker, job), with the runs' recurring tropes counted as one (night shift,
+  ledger, punctual). Calibrated so no two house characters flag, while every pair of the runs' twins does
+  (tests/originality-twins.test.ts). No model call, still free.
+- ✅ **G's dealbreaker tool:** `guess_dealbreaker` shows the four options and takes a guess by text or number.
+- ✅ **Run 4's 14:** `get_relationships` says when an owner's view counts unaired dates (`unaired_dates`,
+  `unaired_note`, `public_stage`).
+- ✅ **Run 4's 16:** a new date steps past the venues of either person's character's last two dates
+  (`pickVenueAvoiding`, snapshotted as `setup.avoid_venues` so the worker deals the same one).
+- Also from David: dates are more original. The sheet is a sketch, not a script (the actor's prompt asks for fresh
+  specifics and at least one line nobody else on the show would say), turns run at temperature 1.0 (was 0.9), and the
+  director plans at 0.85 (was 0.7) with a rule against stock date beats.
+- **Still open:** nothing from runs 1 to 5. #176 to #178 (from the 2026-10-18 sim run) are the loop's.
 
 ## Run 1 → run 5
 

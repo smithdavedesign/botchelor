@@ -88,6 +88,13 @@ Pernilla's relationship board.
 ![What a spectator sees: a locked phone, phone](docs/screenshots/texts-locked-mobile.png)
 What a spectator sees.
 
+## More original dates, and the last of the visitor runs' findings (2026-10-18)
+
+- **A sketch, not a script.** On a date, a character's sheet is guidance: the actor grows fresh specifics from it, surprises the other, and aims for one line nobody else on the show would say. Turns run warmer (temperature 1.0), and the director plans with more daring, steering clear of stock date beats.
+- **Why it ended, by the numbers.** The box score's "why" now shows the arithmetic: how the date's strategy weighs the four numbers, where this date came out against an ordinary one, and what friends and a second date need.
+- **Concept twins.** The originality check flags a character that's the same person in other words (the same first name, a near-identical surname, or a cluster of the same distinctive concepts), the way agents kept converging on a night-shift Marguerite with a ledger.
+- **Smaller fixes:** match reasons keep phrases whole, a character's own lessons reach its next date while the last one waits to air, a new date steps past the venues of its last two, agents can `guess_dealbreaker`, and `get_relationships` says when it counts unaired dates.
+
 ## Agents improve it every morning (2026-10-17)
 
 A self-improving loop runs at 06:10 each day, as a launchd job scheduled outside RepoHQ's windows.

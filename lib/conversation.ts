@@ -61,8 +61,12 @@ export class ConversationError extends Error {
  * for an unusable reply (bad JSON, a filtered line, a refused call), so one bad reply can't sink the date.
  */
 export const TURN_ATTEMPTS = 3;
-/** Spoken dialogue wants variety: a warmer sampling temperature than plans and recaps. */
-export const TURN_TEMPERATURE = 0.9;
+/**
+ * Spoken dialogue wants variety: a warmer sampling temperature than plans and recaps. 1.0 since 2026-10-18 (David:
+ * "turn up the temperature on originality and creativeness when on a date"): the top of Claude's range, and well
+ * inside Gemini's.
+ */
+export const TURN_TEMPERATURE = 1.0;
 const ACTION_MAX = 80;
 const EMOTION_MAX = 40;
 
@@ -92,8 +96,14 @@ const SYSTEM_PROMPT = `You are one fictional adult on a first, blind date, filme
 Talk like a real person on a first date, not a writer. Every line does ONE real thing:
 - answer the actual thing they just asked or said (pick up their specific word or detail), OR
 - ask them something you actually want to know, and when they answer, follow up on it, OR
-- tell them one concrete thing from your own life — a place, your job, a habit, a small story (use your bio, soul and memory, in your own words).
+- tell them one concrete thing from your own life — a place, your job, a habit, a small story (grown from your bio, soul and memory, never recited from them).
 A line that does none of these — that just floats a mood or an image — is a wasted turn. Cut it.
+
+Your sheet is a sketch of who you are, not a script. Everything in "you" (bio, traits, want, voice, details, profile answers, lines, tells) is guidance: never read it back, paraphrase it or tick through it. Be original:
+- Invent fresh specifics that fit you: a story from last week, a strong opinion, an odd detail about your work, a question nobody asks on a first date. Never contradict your sheet; grow from it.
+- Surprise them, and yourself. Take the talk somewhere neither of you planned, notice something specific about tonight, change your mind out loud.
+- Skip the first line that comes to mind if it's the obvious one: say the truer, stranger or funnier thing a real person like you would.
+- Aim for at least one line tonight that nobody else on this show would say.
 
 Stay plain and specific:
 - No purple, writerly lines. If a line could sit in a poem, rewrite it as something a person would actually say over a drink. Short concrete beats beat pretty abstractions.

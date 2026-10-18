@@ -53,6 +53,19 @@ export const venueName = (id: VenueId | null | undefined): string => venue(id).n
 /** Deals a venue from a seed, the way the producer's situation is dealt: bounded, reproducible, free. */
 export const pickVenue = (seed: number): VenueId => VENUE_IDS[seed % VENUE_IDS.length];
 
+/**
+ * Deals a venue from a seed, stepping past any in `avoid` (the venues a character was just at: run 4 got the same
+ * double date twice in a row). With nothing to avoid it's exactly pickVenue, so a stored date replays the same.
+ */
+export function pickVenueAvoiding(seed: number, avoid: readonly VenueId[] = []): VenueId {
+  const start = seed % VENUE_IDS.length;
+  for (let i = 0; i < VENUE_IDS.length; i++) {
+    const v = VENUE_IDS[(start + i) % VENUE_IDS.length];
+    if (!avoid.includes(v)) return v;
+  }
+  return VENUE_IDS[start];
+}
+
 /** The backdrop gradient for a venue, for the episode page and the share card. */
 export const venueBackdropCss = (id: VenueId | null | undefined): string => {
   const [from, to] = venue(id).hues;
