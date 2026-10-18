@@ -35,12 +35,16 @@ export function characterPortrait(characterId: string | null | undefined): strin
 }
 
 /**
- * The venues with a reviewed backdrop photo (the first eight). Listed explicitly, like the portraits, so a venue
- * without a committed, reviewed image paints its gradient instead of a broken background: the twenty-five added on
- * 2026-10-18 do, until theirs are made and reviewed. `tests/portraits.test.ts` checks the files are on disk.
+ * The venues with a reviewed backdrop photo: all thirty-three (the first eight on 2026-10-13, the twenty-five added
+ * with them on 2026-10-18). Listed explicitly, like the portraits, so a venue added later without a committed, reviewed
+ * image paints its gradient (and the stage names it) instead of a broken background. `tests/portraits.test.ts` checks
+ * the files are on disk.
  */
 export const VENUES_WITH_BACKDROPS: ReadonlySet<string> = new Set([
   "rooftop_bar", "corner_cafe", "retro_arcade", "botanic_park", "tasting_menu", "night_beach", "double_date", "karaoke_booth",
+  "skydive", "surf_lesson", "dive_bar", "nightclub", "safari", "escape_room", "flat_pack", "pottery_class", "hot_air_balloon",
+  "bowling_alley", "laundromat", "ice_rink", "cooking_class", "haunted_house", "silent_disco", "museum_night", "rainy_campsite",
+  "goat_yoga", "swan_pedalo", "murder_mystery", "ballroom_lesson", "paintball", "trail_ride", "comedy_club", "climbing_wall",
 ]);
 
 /** The backdrop image path for a venue, or null when it has none yet (it paints its gradient) or isn't a venue. */

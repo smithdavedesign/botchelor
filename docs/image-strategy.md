@@ -172,3 +172,11 @@ every output is reviewed before approval — which is what `review_status` is fo
 - Fictional adults only. No real people, no real-person likeness, no named franchise characters.
 - A creator uploading art must confirm they hold the rights to it and to the uses in the terms.
 - Every asset is deletable, and deleting a character deletes its assets.
+
+### backdrop-v2, the other twenty-five (2026-10-18)
+
+The twenty-five venues added on 2026-10-18 were generated with the same `backdrop-v2` prompt on the local model (z-image-turbo,
+4-bit, 8 steps), at $0. Claude checked each (no people, no lettering, full-bleed) before David approved the set from the contact
+sheet. Four needed a second pass: the bowling alley came out photographic and the comedy club inside a white border (both
+regenerated at a new seed), the flat-pack showroom read as a floor-plan sketch and the haunted house kept framing itself (their
+plates were reworded; the haunted house's last border was cropped). All thirty-three venues now show a backdrop.

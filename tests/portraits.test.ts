@@ -17,7 +17,7 @@ describe("portraits — mapping", () => {
 
   it("maps a venue to its backdrop; a venue without one yet, or an unknown id, to none", () => {
     expect(venueBackdrop("rooftop_bar")).toBe("/cast/venue-rooftop_bar-v2.webp");
-    expect(venueBackdrop("skydive")).toBeNull(); // paints its gradient until its plate is made and reviewed
+    expect(venueBackdrop("skydive")).toBe("/cast/venue-skydive-v2.webp"); // the twenty-five added 2026-10-18 have theirs now
     expect(venueBackdrop("not_a_venue" as never)).toBeNull();
     expect(venueBackdrop(null)).toBeNull();
   });
@@ -34,6 +34,10 @@ describe("portraits — in sync with the cast, the venues and the files", () => 
   it("every listed portrait id is a real house character (no orphans)", () => {
     const castIds = new Set([...HOUSE_CHARACTERS, ...PREMIUM_HOUSE_CHARACTERS].map((c) => c.id));
     for (const id of HOUSE_PORTRAIT_IDS) expect(castIds.has(id)).toBe(true);
+  });
+
+  it("every venue has a reviewed backdrop (2026-10-18)", () => {
+    for (const id of VENUE_IDS) expect(VENUES_WITH_BACKDROPS.has(id)).toBe(true);
   });
 
   it("every venue listed with a backdrop has its image on disk, and each is a real venue", () => {
