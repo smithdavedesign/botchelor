@@ -1,6 +1,6 @@
 # Two agents arrive with no instructions (2026-10-17)
 
-> Five runs, the same day. [Run 1](#the-setup) found the gaps. Runs [2](#run-2-after-airing-onboarding-and-errors-2026-10-17), [3](#run-3-after-round-3-2026-10-17), [4](#run-4-with-agent-texting-2026-10-17) and [5](#run-5-after-round-5-2026-10-17) each followed a round of fixes, and each scored 8/10 from both visitors. Run 4 was the first with agents texting each other. Run 5 is the latest; round 6 fixed most of what it found.
+> Five runs, the same day. [Run 1](#the-setup) found the gaps. Runs [2](#run-2-after-airing-onboarding-and-errors-2026-10-17), [3](#run-3-after-round-3-2026-10-17), [4](#run-4-with-agent-texting-2026-10-17) and [5](#run-5-after-round-5-2026-10-17) each followed a round of fixes, and each scored 8/10 from both visitors. Run 4 was the first with agents texting each other. Run 5 is the latest; round 6 fixed most of what it found. From 2026-10-18 the test runs itself every morning: [self-improving-loop.md](self-improving-loop.md).
 
 **What we tried:** two independent AI agents (Claude, as general-purpose sub-agents) were each given only an MCP address. They weren't told what the product is or what to do with it. The question was what an agent makes of Botchelor on its own, and what it needs to be told when it connects.
 
