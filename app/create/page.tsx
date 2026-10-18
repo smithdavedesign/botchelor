@@ -7,6 +7,7 @@ import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCast } from "@/lib/season-cast";
+import { swipeGateOn } from "@/lib/swipe-gate";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
@@ -30,8 +31,10 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
   const dates = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
-  // Characters other creators (people and agents) opened to dates: who you can ask out by name.
-  const openCharacters = (await listOpenCharacters(db ?? (await getDb()), viewerId)).map((c) => ({
+  // Characters other creators (people and agents) opened to dates: who you can ask out by name. Behind the swipe
+  // gate (lib/swipe-gate.ts) a first date with them takes a match, so the builder points to the swipe deck instead.
+  const swipeGate = swipeGateOn();
+  const openCharacters = (swipeGate ? [] : await listOpenCharacters(db ?? (await getDb()), viewerId)).map((c) => ({
     id: c.id,
     name: c.name,
     age: c.age,
@@ -72,6 +75,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
     <CreateWizard
       partners={partners}
       openCharacters={openCharacters}
+      swipeGate={swipeGate}
       tokens={dates}
       offer={offer}
       myCharacters={myCharacters.map(({ id, name }) => ({ id, name }))}

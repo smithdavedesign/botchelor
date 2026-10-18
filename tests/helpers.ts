@@ -43,6 +43,7 @@ import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { setConversationEnabledForTests } from "@/lib/conversation";
 import { setAfterglowEnabledForTests } from "@/lib/afterglow";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
+import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setReflectionEnabledForTests } from "@/lib/reflection";
 import { setInlineGenerationForTests } from "@/lib/jobs";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
@@ -100,6 +101,9 @@ export async function startTestDb() {
   setAfterglowEnabledForTests(false);
   // A new match's opening chat (lib/swipes.ts) is the swipe tests' to drive, with their own model.
   setMatchChatEnabledForTests(false);
+  // The swipe gate (lib/swipe-gate.ts) is off in tests by default, so the suites written before it keep asking
+  // characters out by name. tests/swipe-gate.test.ts turns it on.
+  setSwipeGateForTests(false);
   // The post-date reflection path is off in tests by default too (same reason). The reflection module is
   // tested directly in tests/reflection.test.ts.
   setReflectionEnabledForTests(false);

@@ -15,6 +15,7 @@ import type { Db } from "./db";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { takenSql } from "./partners";
+import { haveDated, MATCH_FIRST, swipeGateOn } from "./swipe-gate";
 import { DELETED_OWNER } from "./rules";
 import { secondDateState, type SecondDateState } from "./second-date";
 
@@ -66,6 +67,10 @@ export async function proposeDate(db: Db, userId: string, fromId: string, toId: 
   const to = cs.get(toId);
   if (!from || from.owner_id !== userId || from.is_house) return no(404, "character_not_found", "Pick one of your own characters.");
   if (!to) return no(404, "partner_not_found", "That character isn't here any more.");
+  // Behind the swipe gate (lib/swipe-gate.ts), a proposal is for a couple who've dated: a first date starts with a match.
+  if (!to.is_house && swipeGateOn() && !(await haveDated(db, fromId, toId))) {
+    return no(409, "match_first", `${shortName(from.name)} and ${shortName(to.name)} haven't dated yet. ${MATCH_FIRST}`);
+  }
   if (to.is_house || to.open_to_dates) return no(409, "just_book", `${shortName(to.name)} is open to dates: you can book one straight away.`);
   if (!to.owner_id || to.owner_id === DELETED_OWNER) return no(409, "partner_gone", "That character's creator has left the show.");
   if (to.owner_id === userId) return no(409, "your_own", "Both characters are yours: there's no one to ask.");

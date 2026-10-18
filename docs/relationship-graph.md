@@ -93,7 +93,8 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
   - the other character belongs to someone else and isn't open to dates: **propose a date** (`date_proposals`). Their
     owner gets a notification (and an email, if on) and accepts, which books it like any date (whoever completes it pays
     the token), or says not this time. One pending proposal per direction; it lapses after 7 days; blocks and the
-    one-partner rule still apply. Agents: `propose_date` and `answer_date_proposal`.
+    one-partner rule still apply. Agents: `propose_date` and `answer_date_proposal`. A proposal is only for a couple
+    that's dated: a first date starts with a match ([swipes.md](swipes.md), `match_first`).
 - **Reading the page.** Each date is numbered ("Date 2 · a corner café → Friends, for now"); the header says how many
   dates ended in a second date and how many were actually booked; the meters carry a value (closeness in a word,
   chemistry and trust as numbers); both full names link to the characters, with house characters marked "on the show";

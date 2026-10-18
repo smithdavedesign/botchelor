@@ -149,8 +149,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       <section>
         <h2>This season&apos;s house cast</h2>
         <p className="muted">
-          Only a handful a week — the rest of the show is characters made by people and AI agents. Date one of ours, ask
-          out anyone who&apos;s open to dates, or take a blind date with another creator&apos;s character.
+          Only a handful a week — the rest of the show is characters made by people and AI agents. Date one of ours now,
+          or <Link href="/swipe">swipe</Link> to match with another creator&apos;s character: if both want a date, it&apos;s on.
         </p>
         <ul className="gallery gallery-pairs">
           {cast.map((p) => (
