@@ -9,7 +9,7 @@ import { useReplay } from "@/app/useReplay";
 import { DATE_ACTS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
-import type { PlaceId } from "@/lib/venues";
+import { placeAt, type PlaceId } from "@/lib/venues";
 
 function lastLine(turns: Turn[], side: "a" | "b"): string | null {
   for (let i = turns.length - 1; i >= 0; i--) if (turns[i].side === side) return turns[i].dialogue;
@@ -102,7 +102,7 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
           <div className="theater-scene-area">
             <Scene
               characters={stage.characters}
-              venue={stage.venue}
+              venue={placeAt(shown, stage.venue)}
               lineA={lastLine(shown, "a")}
               lineB={lastLine(shown, "b")}
               actLabel={actLabel}

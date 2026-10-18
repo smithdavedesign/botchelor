@@ -127,6 +127,15 @@ export const venue = (id: PlaceId | string | null | undefined): Venue => {
 
 export const venueName = (id: PlaceId | string | null | undefined): string => venue(id).name;
 
+/** Where a date is after these lines: the last place they moved to (lib/moves.ts stamps `moved_to`), else where it started. */
+export function placeAt<P extends string>(turns: readonly { moved_to?: P }[], start: P | null): P | null {
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const to = turns[i].moved_to;
+    if (to) return to;
+  }
+  return start;
+}
+
 /** The place, written to sit mid-sentence ("last time at the observatory", "at Chud's place"). */
 export const venuePhrase = (id: PlaceId | string | null | undefined): string => {
   const label = placeLabel(id);

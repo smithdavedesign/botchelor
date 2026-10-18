@@ -27,6 +27,8 @@ export type ShowFormat = {
   note: string;
   /** Optional conversation length override, for pacing (a speed date is snappier). Cosmetic only. */
   turns?: number;
+  /** False when the format keeps the date where it started (a speed date is one table against the clock): no moves. */
+  moves?: false;
   /**
    * When set, this format is a paid cosmetic pack: the owner must own this SKU to pick it (gated like a
    * premium house character, before any model call). null = free. Every format is free today; the seam
@@ -53,6 +55,7 @@ export const FORMATS: readonly ShowFormat[] = [
       "This is a SPEED DATE: a countdown is running and there is very little time. Keep every scene fast, " +
       "clipped and high-pressure; the characters talk quickly and cut straight to what matters.",
     turns: 6,
+    moves: false,
     premiumSku: null,
   },
   {

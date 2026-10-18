@@ -14,7 +14,7 @@ import { characterSelfView, type Character } from "./character";
 import { bestLine, type Turn } from "./conversation";
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { ModelError, type ChatMessage, type Model } from "./model";
-import { venue, type PlaceId } from "./venues";
+import { venue, venuePhrase, type PlaceId } from "./venues";
 import { DEFAULT_FORMAT, formatNote, type FormatContext, type FormatId } from "./formats";
 import { checkShowText } from "./safety";
 
@@ -80,7 +80,7 @@ Rules:
 - Keep the two characters apart: never give one the other's job, story or line. They may share a first name; use full names wherever it could be unclear.
 - If they have dated before, this is not a blind or first date: never call it one, and on a second date nobody "agrees to a second date" (they can plan another). Their goals grow with them: never the same goal as a first date.
 - Never put a day of the week or a clock time on a plan for another date, and never choose a line about scheduling as "best_line".
-- The date happens at the place given in "date_location". Your "setting" must put them there; do not move them somewhere else.
+- The date starts at the place given in "date_location", and your "setting" names only that place (it's shown before the date airs, so it never gives away where they end up). If "the_date_as_it_happened" shows them going somewhere else ("— They go to … —"), the scenes follow them there; otherwise never move them.
 - "show_format" sets the format this date is filmed in. Honour its framing throughout; it changes only the flavour, never who likes whom or how it ends.
 - If "the_date_as_it_happened" is given, that IS the date: the two characters already played it out line by line. Your scenes must faithfully recap what was actually said and done in each act (quote a few words where it helps), your twist and finale must match it, "best_line" must be copied exactly from one of its lines, and the confessionals must reflect real moments from it. Keep who said and did what exactly as it happened: who asked whom, whose story is whose, who said the line. Refer to each character with their pronouns, in the confessionals too: each confessional is that character speaking about the OTHER one, with the other's pronouns.
 
@@ -163,9 +163,11 @@ export function buildMessages(
     ...(story?.plan ? { what_this_date_is_about: story.plan.spine } : {}),
     ...(story && story.transcript.length
       ? {
-          the_date_as_it_happened: story.transcript.map(
-            (t) => `[${DATE_ACTS[t.act] ?? `Act ${t.act + 1}`}] ${characters[t.side === "a" ? 0 : 1].name}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`,
-          ),
+          // A move they both agreed to (lib/moves.ts) is a line of its own here, so the recap follows them there.
+          the_date_as_it_happened: story.transcript.flatMap((t) => [
+            `[${DATE_ACTS[t.act] ?? `Act ${t.act + 1}`}] ${characters[t.side === "a" ? 0 : 1].name}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`,
+            ...(t.moved_to ? [`— They go to ${venuePhrase(t.moved_to)} —`] : []),
+          ]),
         }
       : {}),
   };

@@ -60,7 +60,7 @@ import { updateCharacterMemory } from "./memory";
 import { ShowrunnerError, type CharacterSheet } from "./showrunner";
 import { isConversationEnabled, type Turn } from "./conversation";
 import { generationPaused, PAUSED_MESSAGE } from "./compute";
-import { venueName, type PlaceId } from "./venues";
+import { placeAt, venueName, type PlaceId } from "./venues";
 
 /** House-vs-house template episodes have no human creator: this fixed id never matches a real user's. */
 export const SYSTEM_CREATOR_ID = "system";
@@ -126,11 +126,18 @@ export function turnSchedule(transcript: Turn[]): number[] {
     const window = ACT_WINDOWS[act];
     if (!window) continue; // an act the room has no window for never airs
     const [start, end] = window;
-    const step = (end - start) / indices.length;
+    // A move in the final act (lib/moves.ts) can add a dozen lines: they run on past the aftermath's start, a few
+    // seconds apart, rather than crowd its 45 seconds.
+    const step = act === ACT_WINDOWS.length - 1 ? Math.max(FINAL_ACT_MIN_GAP, (end - start) / indices.length) : (end - start) / indices.length;
     indices.forEach((turnIndex, k) => (at[turnIndex] = Math.floor(start + k * step)));
   }
+  // Never out of order: a line goes live no earlier than the one before it.
+  for (let i = 1; i < at.length; i++) if (at[i] < at[i - 1]) at[i] = at[i - 1];
   return at;
 }
+
+/** The fewest seconds between two final-act lines in a watch room. */
+const FINAL_ACT_MIN_GAP = 3;
 
 /* ----------------------------------------- the clock ----------------------------------------- */
 
@@ -215,6 +222,9 @@ export type RoomState = {
   setting: string;
   venue: PlaceId | null;
   venue_name: string | null;
+  /** Where the date is as of the lines shown so far: the venue, or where they've moved to (lib/moves.ts). */
+  place: PlaceId | null;
+  place_name: string | null;
   goals: { character_id: string; goal: string }[];
   /** The producer's act-2 situation, in the room's own words; shown from the challenge on (never a spoiler). */
   challenge: string | null;
@@ -439,16 +449,19 @@ export async function getRoomState(
   // M9: the turn-by-turn conversation, unlocked on the same clock as the scenes (act 2 only at the decision).
   const transcript = (row.transcript ?? []) as Turn[];
   const schedule = turnSchedule(transcript);
-  const turns = transcript.filter((_, i) => clock.started && clock.elapsed >= schedule[i]);
+  // Once the clock has run out the room is a replay: every line is in (a long final act may run past the aftermath).
+  const turns = clock.ended ? transcript : transcript.filter((_, i) => clock.started && clock.elapsed >= schedule[i]);
   // The next line is "being typed" only while its act's window is open (so a pause between acts stays quiet).
   const nextIndex = turns.length < transcript.length ? turns.length : -1;
   const nextWindow = nextIndex >= 0 ? ACT_WINDOWS[transcript[nextIndex].act] : undefined;
   const next_speaker =
-    clock.started && !clock.ended && nextWindow && clock.elapsed >= nextWindow[0] && clock.elapsed < nextWindow[1]
+    clock.started && !clock.ended && nextWindow && clock.elapsed >= nextWindow[0] && clock.elapsed < Math.max(nextWindow[1], schedule[nextIndex])
       ? transcript[nextIndex].side
       : null;
 
   const venue = row.setup?.venue ?? null;
+  // Where they are now, from the lines shown so far only: a move later in the date isn't given away early.
+  const place = placeAt(turns, venue);
   const challenge =
     idx >= ACT2_INDEX && row.setup ? capitalize(producerEvent(row.setup.producer).prompt) + "." : null;
 
@@ -471,6 +484,8 @@ export async function getRoomState(
     setting: row.setting,
     venue,
     venue_name: venue ? venueName(venue) : null,
+    place,
+    place_name: place ? venueName(place) : null,
     goals: [
       { character_id: row.a_id, goal: row.goals[0] },
       { character_id: row.b_id, goal: row.goals[1] },

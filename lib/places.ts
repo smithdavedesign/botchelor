@@ -144,6 +144,23 @@ export function namedPlace(text: string): string | null {
 }
 
 /**
+ * Where a character on a date proposes moving to, from its own few words ("move": "my place", "the night market",
+ * "somewhere quieter"): one of their homes, a library venue, or else the placeholder with their words for a name. Null
+ * when the words can't name a place on the show (too long, a link, not PG, or filtered).
+ */
+export function movePlace(say: string, from: string, to: string): PlaceId | null {
+  const text = say.trim().replace(/\s+/g, " ").replace(/[.!?]+$/, "");
+  if (!text || text.length > 80) return null;
+  if (/^(?:mine|my (?:place|flat|apartment|house|home))$/i.test(text)) return `home@${shortName(from)}'s place`;
+  if (/^(?:yours|your (?:place|flat|apartment|house|home))$/i.test(text)) return `home@${shortName(to)}'s place`;
+  const known = placeFor(text, from, to);
+  if (known) return known;
+  const label = text.replace(/^(?:to|at|into|over to)\s+/i, "");
+  if (label.length > PLACE_LABEL_MAX || LINKISH.test(label) || NOT_A_VENUE.test(label) || !checkShowText({ label }).ok) return null;
+  return `elsewhere@${label}`;
+}
+
+/**
  * Where a text proposes going, as a place: one of their homes, a library venue, or a place the library doesn't have
  * yet (the placeholder). `from` is the sender's name and `to` the other's, for "home@Chud's place". Null when the text
  * names nowhere in particular.

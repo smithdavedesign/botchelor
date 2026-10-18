@@ -10,6 +10,9 @@ import { sayYesToSecondDate, secondDateState } from "@/lib/second-date";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+// Booking it runs the episodes route in-process, and its after() worker films the whole date here: the same budget.
+export const maxDuration = 300;
+
 const REASONS: Record<string, string> = {
   not_ready: "Their first date is still being filmed.",
   not_mutual: "A second date happens only when they both want one, and this time they didn't.",

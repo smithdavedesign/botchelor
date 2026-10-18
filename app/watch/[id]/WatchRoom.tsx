@@ -10,6 +10,7 @@ import { requestJson } from "@/app/request";
 import { DATE_ACTS, DATE_VARIABLES, ENDING_LABELS, ENDINGS, VARIABLE_LABELS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { RoomState } from "@/lib/watch";
+import { placeAt } from "@/lib/venues";
 import { trackConversion } from "@/app/conversion";
 
 /** Where to go once the date is decided, so a finished room is never a dead end (David, 2026-10-18). */
@@ -211,7 +212,7 @@ function Theater({ state, sync, onExit }: { state: RoomState; sync: () => void; 
         <div className="theater-scene-area">
           <Scene
             characters={state.characters}
-            venue={state.venue}
+            venue={placeAt(turns, state.venue)}
             lineA={lastLine(turns, "a")}
             lineB={lastLine(turns, "b")}
             actLabel={actLabel}
@@ -361,7 +362,7 @@ function Stage({ state, onPredict }: { state: RoomState; onPredict: () => void }
   return (
     <>
       <section className="card watch-set">
-        {state.venue_name && <p className="venue-chip">📍 {state.venue_name}</p>}
+        {(state.place_name ?? state.venue_name) && <p className="venue-chip">📍 {state.place_name ?? state.venue_name}</p>}
         <p>{state.setting}</p>
         <ul className="watch-goals">
           {state.goals.map((g) => (

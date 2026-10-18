@@ -22,7 +22,8 @@ import { ModelError, type ChatMessage, type Model } from "./model";
 import { AFTERGLOW_TURNS, agenda, ENDING_LABELS } from "./rules";
 import { checkFields } from "./safety";
 import { textsForPrompt } from "./text-chain";
-import { venue, type PlaceId } from "./venues";
+import { whereItHappened } from "./moves";
+import type { PlaceId } from "./venues";
 import { critiqueText, planAlreadyMade } from "./text-critic";
 
 /** One text in the morning-after thread. `side` is "a"/"b". A spoiler-free list; no act/score fields. */
@@ -112,7 +113,7 @@ export function buildAfterglowMessages(
   const data = {
     you: characterSelfView(meChar, dateContext(me)),
     them: characterBlindView(themChar),
-    the_date_was_at: venue(venueId).prompt,
+    the_date_was_at: whereItHappened(date, venueId),
     the_show_format: formatNote(formatId, formatCtx),
     // M15: the morning after, both of them remember the date — what was said, and how it ended.
     ...(date.length ? { the_date: date.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue })) } : {}),

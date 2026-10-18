@@ -70,7 +70,14 @@ export function inlineGenerationEnabled(): boolean {
 }
 
 /** How long a worker holds a job before another may retake it (generation is ~20s; a margin on top). */
-export const JOB_LEASE_SECONDS = 120;
+export const JOB_LEASE_SECONDS = 330;
+/**
+ * A date has to finish inside one function run (maxDuration 300s) with time left for the recap, the morning after and
+ * the reflections: its conversation wraps up by DATE_DEADLINE_MS after the job starts, and no new move is proposed after
+ * MOVE_CUTOFF_MS (a move adds up to a dozen lines). The lease outlasts the run, so a slow date is never run twice.
+ */
+export const DATE_DEADLINE_MS = 210_000;
+export const MOVE_CUTOFF_MS = 150_000;
 /** How many times a failed job is retried before it is marked failed for good. */
 export const MAX_JOB_ATTEMPTS = 3;
 
@@ -194,6 +201,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       venueOverride: row.setup?.venue,
       agreedPlan: row.setup?.agreed_plan ?? null,
     });
+    // Moves as booked: a date stored before them (no flag) runs without, like the format that keeps one table.
+    built.setup.moves = row.setup?.moves === true;
     // Re-decide under the calibration POST stored (a deploy between POST and this worker can't change it).
     const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
 
@@ -232,6 +241,9 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       afterglow: isAfterglowEnabled(),
       reflection: isReflectionEnabled(),
       keyForSide,
+      moves: built.setup.moves,
+      moveCutoff: t0 + MOVE_CUTOFF_MS,
+      deadline: t0 + DATE_DEADLINE_MS,
       // The creator's theater plays the date while it's filmed: each line is saved as it's written (only the
       // creator sees a transcript before it airs, lib/game.ts), and the finished date overwrites it below.
       onTurn: (lines) =>
@@ -268,7 +280,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     );
     if (saved.rows.length) {
       await rememberDate(db, row.a_id, row.b_id).catch(() => {});
-      await logSceneRequests(db, episodeId, built.setup);
+      await logSceneRequests(db, episodeId, built.setup, transcript);
       // M14: learned memory is recomputed when a date AIRS (the reveal route / the watch room), not here —
       // a generated date is not yet revealed, and its arc is public, so counting it would spoil predictions.
       await db.query(`update generation_jobs set status = 'succeeded', error = null, updated_at = now() where episode_id = $1`, [episodeId]);

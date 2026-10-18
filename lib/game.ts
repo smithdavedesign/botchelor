@@ -117,6 +117,11 @@ export type DateSetup = {
    * worker, an agent's next step) never reads the texts again, so a text sent mid-date can't change tonight. Flavour only.
    */
   agreed_plan?: AgreedPlan;
+  /**
+   * The date can move when both characters agree (lib/moves.ts), set when it's booked. Absent on dates from before
+   * moves, so an agent's date already being played keeps its length and prompts when this ships.
+   */
+  moves?: boolean;
   /** Which date this is in the couple's run (2 for the second date, 3 for the third...). Set when one is booked. */
   date_number?: number;
   /** Each owner's standing nudge about the other, as booked (lib/between-dates.ts). Private, flavour only. */

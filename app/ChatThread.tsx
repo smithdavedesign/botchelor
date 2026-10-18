@@ -5,6 +5,7 @@ import Avatar from "./Avatar";
 import { DATE_ACTS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
+import { venuePhrase } from "@/lib/venues";
 
 type Props = {
   characters: [CharacterRef, CharacterRef];
@@ -77,6 +78,8 @@ export default function ChatThread({ characters, turns, typing = null, challenge
                 {caption && <span className="chat-meta">{caption}</span>}
               </div>
             </div>
+            {/* Both said yes to going somewhere else (lib/moves.ts): the date moves there after this line. */}
+            {t.moved_to && <p className="chat-note chat-move">📍 They head to {venuePhrase(t.moved_to)}</p>}
           </div>
         );
       })}

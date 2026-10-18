@@ -8,7 +8,7 @@ import { useReplay } from "@/app/useReplay";
 import { DATE_ACTS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
-import type { PlaceId } from "@/lib/venues";
+import { placeAt, type PlaceId } from "@/lib/venues";
 
 type Props = {
   characters: [CharacterRef, CharacterRef];
@@ -67,7 +67,7 @@ function Playback({ characters, venue, transcript, endingLabel, autoOpen, startA
         <div className="theater-scene-area">
           <Scene
             characters={characters}
-            venue={venue}
+            venue={placeAt(shown, venue)}
             lineA={lastOf(shown, "a")}
             lineB={lastOf(shown, "b")}
             actLabel={actLabel}

@@ -508,3 +508,39 @@ looking", Nell answered each with a status report on an archway, a stopwatch or 
 - **Purpose-first text prompts.** The morning-after and between-dates prompts open with why the character is texting
   (keep something alive, ask the thing you didn't get to, a story from your day) instead of a list of rules, like the
   date prompt in #230. The hard rules and the JSON contract are unchanged.
+
+## Round: dates that move, and texted plans that set up the next one (2026-10-18, Chud × Nell)
+
+David, after Chud × Nell: "if Chud says come back to my place and Nell says ok, we should change the scene and move the
+date into another phase… as long as it's mutual agreement", and "if they are texting about an idea for a date we should
+use that for setting up the next date. right now it comes out random". His decisions: the engine stays the referee of
+the ending (a move changes where, never how); PG for now (an ungated version with a non-Stripe payment system comes
+later); an unknown place plays on a placeholder background and is logged as a scene to make; "2 scenes at most", and
+each move resets the line budget so they can keep talking there.
+
+- **Texted plans (#241, `lib/plans.ts`, `lib/places.ts`).** A proposal and the other's yes since their last date (or in
+  a match chat before the first) sets up the next date on every booking path: a library venue, one of their homes
+  (`home@Chud's place`, a living room and a kitchen) or a placeholder (`elsewhere@the observatory`). Snapshotted on
+  `setup.agreed_plan`; each side gets `tonight_is_the_plan_you_made`. See docs/relationship-graph.md.
+- **Moves (`lib/moves.ts`).** One character puts a place in `"move"`; the other answers on the very next line with
+  `"accept_move"`. A yes stamps `moved_to` on that line and the date goes there with a fresh stretch of
+  `min(base, MOVE_SEGMENT_LINES = 12)` lines, up to `MAX_MOVES = 2` a date. The proposal resolves to a place once, on its
+  own line, so a later resolver change can't move an old date.
+  - **Acts never go back.** `dateShape` projects each line's act over the date's current length and never lowers it
+    (the watch room plays lines by act). A date with no moves maps acts exactly as before.
+  - **The goodbye moves with them.** `how_you_say_goodbye` and `"done"` count only in the closing stretch: the final act
+    and the last third of the current place's lines. An act-three "come back to mine?" no longer means twelve goodbyes.
+  - **Guards.** No proposal on a place's last line; one of their homes only in the final act (it airs with the
+    decision, so it can't tip predictions); same place, a third move or a filtered place is dropped. `done` and
+    `accept_move` are read strictly: `z.coerce.boolean("false")` was `true`.
+  - **Time.** A show date wraps up by `DATE_DEADLINE_MS` (210 s) after the job starts and takes no new move after
+    `MOVE_CUTOFF_MS` (150 s), so the recap, the morning after and the reflections still fit in the 300 s run. The job
+    lease is 330 s, longer than the run, so a slow date is never filmed twice.
+  - **Off** for the speed date (one table against the clock), template rooms and backfill, and for an agent's date that
+    was already being played when this shipped (`setup.moves` is set at booking).
+- **Where it shows.** The theater's backdrop follows the line on screen, and the thread marks "📍 They head to …". The
+  watch room shows the place only from the lines already shown, and a long final act runs a few seconds per line past
+  the aftermath rather than out of order. The recap follows them ("— They go to … —" in its input) while `setting`
+  names only the start (it's public before the date airs). The morning after and the reflections know where it went.
+- **Scenes people ask for (`lib/scenes.ts`).** A finished date that planned or moved somewhere with no set logs one
+  `scene_requests` row per place (`scene_requested` event); `/admin` lists them, most asked-for first.

@@ -32,7 +32,7 @@ import { getEpisodeView, type DateSetup, type EpisodeView } from "./game";
 import type { ChatMessage } from "./model";
 import { PROMPT_VERSION, qualityContext } from "./pipeline";
 import { neverSaid, transcriptQuality } from "./quality";
-import { actName, CONVERSATION_TURNS, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, DATE_ACTS, ENDING_LABELS, type Ending, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
+import { actName, CONVERSATION_TURNS, MAX_MOVES, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, DATE_ACTS, ENDING_LABELS, type Ending, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
 import { buildReflectionMessages, type Reflections } from "./reflection";
 import { useNudges } from "./between-dates";
@@ -48,6 +48,8 @@ import { DELETED_OWNER } from "./rules";
 import { narrateEpisode } from "./showrunner";
 import { logSceneRequests } from "./scenes";
 import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
+import { dateShape, moveProblem, segmentBudget, settleLine, type DateShape } from "./moves";
+import { venueName, venuePhrase } from "./venues";
 
 /** How many unfinished self-performed dates one identity may have at once. */
 export const OWN_DATE_MAX_OPEN = 3;
@@ -55,6 +57,9 @@ export const OWN_DATE_MAX_OPEN = 3;
 export const OWN_DATE_TTL_HOURS = 24;
 
 const TURN_REPLY = '{"dialogue":"what they say (at most 280 characters)","action":"what they do, 1-5 words, or \\"\\"","emotion":"one word","interest_signal":0.0}';
+/** On a date that can move (lib/moves.ts): the same, plus suggesting a place to go, and answering the other's suggestion. */
+const TURN_REPLY_MOVES =
+  '{"dialogue":"what they say (at most 280 characters)","action":"what they do, 1-5 words, or \\"\\"","emotion":"one word","interest_signal":0.0,"move":"a place to take the date, only on a line that suggests going (else \\"\\")","accept_move":"true or false, only when the other just suggested a move"}';
 const REFLECTION_REPLY = '{"reflection":"the character\'s private reflection, in its own voice (under 240 characters)"}';
 const RECAP_REPLY =
   '{"setting":"…","goals":["…","…"],"scenes":["act 1","act 2","act 3"],"twist":"…","finale":"…","best_line":"…","confessionals":["…","…"]}';
@@ -81,6 +86,9 @@ export type OwnDateStep =
       ending_label?: string;
       /** The last couple of lines said, as plain text (#205). Both sides have heard them. */
       last_lines?: string[];
+      /** Where the date is now (it can move when both agree: lib/moves.ts), and a suggestion this turn must answer. */
+      where?: string;
+      answer_their_suggestion?: string;
       instructions: string;
       messages: ChatMessage[];
       /** compact: true (lib/mcp.ts): messages leave out the system message, the same on every turn (#205). */
@@ -352,6 +360,8 @@ async function rebuild(db: Db, row: Row) {
     venueOverride: row.setup?.venue,
     agreedPlan: row.setup?.agreed_plan ?? null,
   });
+  // Moves as booked: a date already being played when they shipped (no flag) keeps its length and its prompts.
+  built.setup.moves = row.setup?.moves === true;
   const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
   return { built, decided, formatId };
 }
@@ -362,6 +372,14 @@ const endingLine = (ending: Ending) =>
 
 const totalTurns = (formatId: FormatId): number => showFormat(formatId).turns ?? CONVERSATION_TURNS;
 
+/** Where an agent's date stands (lib/moves.ts): its length grows with each move, and its acts follow. */
+const shapeFor = (built: BuiltDate, formatId: FormatId, transcript: readonly Turn[]): DateShape =>
+  dateShape(transcript, built.setup.venue, totalTurns(formatId), { moves: built.setup.moves === true && showFormat(formatId).moves !== false });
+
+/** The speaker's own name and the other's, for a move to "my place" (lib/places.ts movePlace). */
+const namesFor = (built: BuiltDate, side: "a" | "b") =>
+  side === "a" ? { self: built.characters[0].name, other: built.characters[1].name } : { self: built.characters[1].name, other: built.characters[0].name };
+
 function stepFor(
   episodeId: string,
   built: BuiltDate,
@@ -371,11 +389,16 @@ function stepFor(
   ids: [string, string],
 ): OwnDateStep {
   const fmtCtx = { chaperone: built.setup.chaperone, ex: built.setup.ex };
-  const of = totalTurns(formatId);
+  const shape = shapeFor(built, formatId, transcript);
+  const of = shape.total;
   if (transcript.length < of) {
     const turn = transcript.length;
-    const { messages, side, act } = buildTurnMessages(built.input, decided, built.characters, built.setup.producer, built.setup.venue, transcript, turn, formatId, fmtCtx, { totalTurns: of });
+    const { messages, side, act } = buildTurnMessages(built.input, decided, built.characters, built.setup.producer, built.setup.venue, transcript, turn, formatId, fmtCtx, {
+      totalTurns: totalTurns(formatId),
+      shape,
+    });
     const speaker = built.characters[side === "a" ? 0 : 1];
+    const other = built.characters[side === "a" ? 1 : 0];
     return {
       stage: "turn",
       episode_id: episodeId,
@@ -390,14 +413,19 @@ function stepFor(
       ending: decided.ending,
       ending_label: ENDING_LABELS[decided.ending],
       ...(turn ? { last_lines: transcript.slice(-2).map((t) => `${built.characters[t.side === "a" ? 0 : 1].name}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`) } : {}),
+      ...(shape.enabled ? { where: venueName(shape.place) } : {}),
+      ...(shape.pending ? { answer_their_suggestion: `${other.name} suggested taking the date to ${venuePhrase(shape.pending.to)}: this reply needs "accept_move" (true to go, false to stay).` } : {}),
       instructions:
         `Turn ${turn + 1} of ${of}: ${speaker.name} speaks. Run these messages in ${speaker.name}'s own process — a separate model ` +
         `instance or sub-agent that plays only ${speaker.name} — and send its raw JSON reply back as "output". Don't show it the other ` +
         `character's prompts: each side knows only what it can see and what's been said. Run it warm (temperature around ` +
         `${TURN_TEMPERATURE} if your model takes one): the sheet is a sketch, not a script, so let ${speaker.name} improvise. ` +
+        (shape.enabled
+          ? `The date can move: if both characters want to take it somewhere else, one suggests it ("move") and the other says yes on the very next turn ("accept_move"); the scene changes and they get ${segmentBudget(totalTurns(formatId))} more lines there (at most ${MAX_MOVES === 2 ? "twice" : `${MAX_MOVES} times`} a date). `
+          : "") +
         endingLine(decided.ending),
       messages,
-      reply_format: TURN_REPLY,
+      reply_format: shape.enabled ? TURN_REPLY_MOVES : TURN_REPLY,
     };
   }
   const messages = buildMessages(built.input, decided, built.characters, built.setup.producer, built.setup.venue, formatId, fmtCtx, { transcript, plan: null });
@@ -527,7 +555,7 @@ async function finishOnShowModel(
   );
   if (!saved.rows.length) return true; // the other agent's request finished it first
   await rememberDate(db, row.a_id, row.b_id).catch(() => {});
-  await logSceneRequests(db, row.id, built.setup);
+  await logSceneRequests(db, row.id, built.setup, transcript);
   trackDateQuality(row.id, "agent", null, transcriptQuality(transcript, built.characters, qualityContext(built, draft.setting)));
   // Both agents hear it's done (run 3: the invited agent didn't, when the recap ran on its own request), by full name:
   // two agents' characters can share a first name.
@@ -588,7 +616,7 @@ export async function getOwnDateStep(db: Db, userId: string, episodeId: string):
   }
   // The show's model has this side (the other agent went quiet): it performs the turn now, then it's someone else's.
   if (step.stage === "turn" && performersOf(row)[step.side] === SHOW) {
-    const done = await showTurn(db, row, step.side, step.act_index, step.messages, transcript);
+    const done = await showTurn(db, row, step.side, step.act_index, step.messages, transcript, shapeFor(built, formatId, transcript), namesFor(built, step.side));
     if (done) return getOwnDateStep(db, userId, episodeId);
   }
   if (twoAgent && step.stage === "turn") {
@@ -601,7 +629,16 @@ export async function getOwnDateStep(db: Db, userId: string, episodeId: string):
 }
 
 /** One turn of a handed-over side, on the show's model (the same parser and filter as every line). */
-async function showTurn(db: Db, row: Row, side: "a" | "b", act: number, messages: ChatMessage[], transcript: Turn[]): Promise<boolean> {
+async function showTurn(
+  db: Db,
+  row: Row,
+  side: "a" | "b",
+  act: number,
+  messages: ChatMessage[],
+  transcript: Turn[],
+  shape: DateShape,
+  names: { self: string; other: string },
+): Promise<boolean> {
   const model = getModel();
   for (let attempt = 0; attempt < 3; attempt++) {
     let raw: string;
@@ -612,11 +649,13 @@ async function showTurn(db: Db, row: Row, side: "a" | "b", act: number, messages
     }
     const parsed = parseTurnResult(raw, side, act);
     if (!("turn" in parsed)) continue;
+    // The same move rules as the agent's side (lib/moves.ts): an unanswered suggestion is a no.
+    const turn = settleLine(parsed.turn, parsed.reply, shape, names);
     // Saved, or a request racing this one saved the turn first: either way the date has moved on.
     await db.query(
       `update episodes set transcript = $2::jsonb, last_move_at = now()
         where id = $1 and status = 'generating' and jsonb_array_length(transcript) = $3`,
-      [row.id, JSON.stringify([...transcript, parsed.turn]), transcript.length],
+      [row.id, JSON.stringify([...transcript, turn]), transcript.length],
     );
     return true;
   }
@@ -696,7 +735,12 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     const speaker = built.characters[current.side === "a" ? 0 : 1];
     const problem = ownTurnProblem(raw, parsed.turn, speaker.extras?.never_says, transcript);
     if (problem) return { ok: true, step: current, rejected: problem };
-    const next = [...transcript, parsed.turn];
+    // A move (lib/moves.ts): a suggestion must be answered, and a new one has to fit where the date stands.
+    const shape = shapeFor(built, formatId, transcript);
+    const names = namesFor(built, current.side);
+    const moveNote = moveProblem(parsed.reply, shape, names, shortName(names.other));
+    if (moveNote) return { ok: true, step: current, rejected: `${moveNote.charAt(0).toUpperCase()}${moveNote.slice(1)}.` };
+    const next = [...transcript, settleLine(parsed.turn, parsed.reply, shape, names)];
     const saved = await db.query(
       `update episodes set transcript = $2::jsonb, last_move_at = now()
         where id = $1 and status = 'generating' and performed_by = 'agent' and jsonb_array_length(transcript) = $3
@@ -710,7 +754,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       const upNext = stepFor(episodeId, built, decided, formatId, next, [row.a_id, row.b_id]);
       if (upNext.stage === "turn") {
         const theirs = performersOf(row)[upNext.side];
-        if (theirs !== userId && theirs !== SHOW) await tellTheirMove(db, theirs, row, upNext.side, next.length, totalTurns(formatId));
+        if (theirs !== userId && theirs !== SHOW) await tellTheirMove(db, theirs, row, upNext.side, next.length, upNext.of);
       }
       return getOwnDateStep(db, userId, episodeId);
     }
@@ -732,7 +776,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     );
     if (saved.rows.length) {
       await rememberDate(db, row.a_id, row.b_id).catch(() => {});
-      await logSceneRequests(db, episodeId, built.setup);
+      await logSceneRequests(db, episodeId, built.setup, transcript);
       if (transcript.length) {
         trackDateQuality(episodeId, "agent", null, transcriptQuality(transcript, built.characters, qualityContext(built, draft.setting)));
       }
@@ -862,7 +906,7 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
       your_character: { id: row[`${mineSide}_id`], name: row[`${mineSide}_name`] },
       with: { id: row[`${other}_id`], name: row[`${other}_name`] },
       turn: transcript.length,
-      of: totalTurns(formatId),
+      of: shapeFor(built, formatId, transcript).total,
       your_move: step.stage === "turn" ? performers[step.side] === userId : row.partner_performer === null,
       started_at: new Date(row.created_at).toISOString(),
       last_move_at: lastMove(row).toISOString(),

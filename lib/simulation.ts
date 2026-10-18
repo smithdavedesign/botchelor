@@ -46,7 +46,7 @@ import {
   type Strategy,
 } from "./rules";
 import { pickVenueAvoiding, type PlaceId } from "./venues";
-import { DEFAULT_FORMAT, type FormatId } from "./formats";
+import { DEFAULT_FORMAT, format as showFormat, type FormatId } from "./formats";
 import { HOUSE_CHARACTERS } from "./house";
 
 export type CharacterForDate = { id: string; sheet: CharacterSheet };
@@ -218,6 +218,8 @@ export function assembleDate(p: DateParts): BuiltDate {
     venue: p.venueOverride ?? plannedVenue ?? pickVenueAvoiding(seedFrom(seed, "venue"), p.avoidVenues ?? []),
     ...(p.avoidVenues?.length ? { avoid_venues: p.avoidVenues } : {}),
     format: req.format,
+    // Moves (lib/moves.ts): on for every date booked from now, unless the format keeps one table (the speed date).
+    ...(showFormat(req.format).moves !== false ? { moves: true } : {}),
     // Snapshot the exact effective signals this date ran on, so a replay reproduces it even after memory drifts.
     signals_a: signalsA,
     signals_b: signalsB,

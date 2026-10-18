@@ -6,6 +6,7 @@
  * The admin page lists them by how often they're asked for (GET /api/admin/scenes): the order to make new sets in.
  */
 import { track } from "./analytics";
+import type { Turn } from "./conversation";
 import type { Db } from "./db";
 import type { DateSetup } from "./game";
 import { isPlaceholder, placeLabel } from "./venues";
@@ -21,18 +22,30 @@ export const normalizeScene = (label: string): string =>
     .replace(/\s+/g, " ")
     .trim();
 
-/** The places a finished date went that the library has no set for: where it was booked (a texted plan's place). */
-export function scenePlaces(setup: Pick<DateSetup, "venue"> | null | undefined): { label: string; kind: SceneKind }[] {
+/**
+ * The places a finished date went that the library has no set for: where it was booked (a texted plan's place), and
+ * where they moved to on the date (lib/moves.ts).
+ */
+export function scenePlaces(setup: Pick<DateSetup, "venue"> | null | undefined, transcript: readonly Turn[] = []): { label: string; kind: SceneKind }[] {
   const out: { label: string; kind: SceneKind }[] = [];
-  const label = placeLabel(setup?.venue);
-  if (label && isPlaceholder(setup?.venue)) out.push({ label, kind: "plan" });
+  const add = (place: string | null | undefined, kind: SceneKind) => {
+    const label = placeLabel(place);
+    if (label && isPlaceholder(place)) out.push({ label, kind });
+  };
+  add(setup?.venue, "plan");
+  for (const t of transcript) add(t.moved_to, "move");
   return out;
 }
 
 /** Logs a finished date's places the library has no set for. Never throws: a log must not cost a date. */
-export async function logSceneRequests(db: Db, episodeId: string, setup: Pick<DateSetup, "venue"> | null | undefined): Promise<number> {
+export async function logSceneRequests(
+  db: Db,
+  episodeId: string,
+  setup: Pick<DateSetup, "venue"> | null | undefined,
+  transcript: readonly Turn[] = [],
+): Promise<number> {
   let logged = 0;
-  for (const { label, kind } of scenePlaces(setup)) {
+  for (const { label, kind } of scenePlaces(setup, transcript)) {
     const normalized = normalizeScene(label);
     if (!normalized) continue;
     try {
