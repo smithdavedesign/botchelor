@@ -12,7 +12,7 @@
  */
 import type { Turn } from "./conversation";
 import { movePlace, placeFor } from "./places";
-import { saysNo } from "./plans";
+import { agrees, saysNo } from "./plans";
 import { actForTurn, DATE_ACTS, MAX_MOVES, MOVE_SEGMENT_LINES } from "./rules";
 import { placeParts, venue, venuePhrase, type PlaceId } from "./venues";
 
@@ -100,6 +100,13 @@ export function voiced(dialogue: string, say: string, to: PlaceId, names: { self
 }
 
 /**
+ * Whether a line says yes to the pending move: agreeing words, or naming the place ("The night market? Perfect."). A
+ * 2026-10-18 local run set "accept_move": true on "Do ghosts whisper, Rafe?", which moved a date nobody agreed to out loud.
+ */
+const saidYes = (dialogue: string, pending: NonNullable<DateShape["pending"]>, names: { self: string; other: string }): boolean =>
+  !saysNo(dialogue) && (agrees(dialogue) || voiced(dialogue, pending.say, pending.to, { self: names.other, other: names.self }));
+
+/**
  * Why a reply's move fields don't work where the date stands, as a note for a rewrite (the show's critic) or a refusal
  * (an agent's turn); null when they're fine. `they` is the other character's short name.
  */
@@ -117,6 +124,9 @@ export function moveProblem(
     return `${they} suggested taking the date to ${venuePhrase(shape.pending.to)}: answer it in your line, and set "accept_move" to true to go or false to stay`;
   }
   if (shape.pending && reply.accept === true && saysNo(dialogue)) return 'your line says no but "accept_move" is true: make them agree';
+  if (shape.pending && reply.accept === true && !saidYes(dialogue, shape.pending, names)) {
+    return `your line doesn't say yes to ${venuePhrase(shape.pending.to)}: say it, or set "accept_move" to false`;
+  }
   if (!reply.move || (shape.pending && reply.accept === true)) return null;
   if (shape.movesLeft === 0) return agent ? 'no more moving tonight: the rest of the date happens here, so leave "move" empty' : null;
   const to = proposed(reply, names);
@@ -137,7 +147,7 @@ export function settleLine(turn: Turn, reply: MoveReply, shape: DateShape, names
   delete out.move;
   delete out.moved_to;
   if (!shape.enabled) return out;
-  if (shape.pending && reply.accept === true && shape.pending.by !== turn.side && !saysNo(turn.dialogue)) {
+  if (shape.pending && reply.accept === true && shape.pending.by !== turn.side && saidYes(turn.dialogue, shape.pending, names)) {
     out.moved_to = shape.pending.to;
   } else if (reply.move && shape.movesLeft > 0) {
     const to = proposed(reply, names);

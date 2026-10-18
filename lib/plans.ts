@@ -38,6 +38,10 @@ const proposes = (text: string): boolean => (PROPOSE.test(text) || /\?/.test(tex
 const saysYes = (text: string): boolean => YES.test(text) && !NO.test(text);
 /** A refusal ("no thanks", "I'd rather not", "another time"): a yes in the JSON with this in the line isn't a yes (lib/moves.ts). */
 export const saysNo = (text: string): boolean => NO.test(text);
+/** Going along with a suggestion out loud: a yes, or "lead the way", "after you", "get my coat". */
+const GOES = /\b(lead the way|let's go|lets go|after you|show me|take me|grab my coat|get my coat|i'm game|im game|i'm down|why not|you had me at)\b/i;
+/** A line that agrees to go (lib/moves.ts): a yes in the JSON needs one, or the line naming the place. */
+export const agrees = (text: string): boolean => (YES.test(text) || GOES.test(text)) && !NO.test(text);
 
 /**
  * The plan they agreed on, or null. `names` (by end) name a home ("home@Chud's place"). A question only counts as a

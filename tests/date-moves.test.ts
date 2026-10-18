@@ -94,9 +94,15 @@ describe("settleLine: a move takes a proposal and a yes", () => {
     const t = [...played(8, 12), proposal("home@Chud's place")];
     const s = shapeAfter(t);
     expect(s.pending).toEqual({ say: "x", to: "home@Chud's place", by: "a" });
-    expect(settleLine(line("b", 2), { accept: true }, s, NELL).moved_to).toBe("home@Chud's place");
-    expect(settleLine(line("b", 2), { accept: false }, s, NELL).moved_to).toBeUndefined();
-    expect(settleLine(line("b", 2), {}, s, NELL).moved_to).toBeUndefined();
+    const yes = line("b", 2, { dialogue: "Yes. Lead the way." });
+    expect(settleLine(yes, { accept: true }, s, NELL).moved_to).toBe("home@Chud's place");
+    expect(settleLine(yes, { accept: false }, s, NELL).moved_to).toBeUndefined();
+    expect(settleLine(yes, {}, s, NELL).moved_to).toBeUndefined();
+    // A yes in the JSON that the line never says isn't a yes (a local run: "Do ghosts whisper, Rafe?").
+    expect(settleLine(line("b", 2, { dialogue: "Do ghosts whisper, Chud?" }), { accept: true }, s, NELL).moved_to).toBeUndefined();
+    expect(moveProblem({ accept: true }, s, NELL, "Chud", "Do ghosts whisper, Chud?")).toMatch(/doesn't say yes to Chud's place/);
+    // Naming the place is going along with it.
+    expect(settleLine(line("b", 2, { dialogue: "Your place? Fine, but I'm choosing the music." }), { accept: true }, s, NELL).moved_to).toBe("home@Chud's place");
     // Declined with somewhere else in mind: that's a new proposal.
     expect(settleLine(line("b", 2, { dialogue: "Not yet. Karaoke first?" }), { accept: false, move: "the karaoke booth" }, s, NELL).move).toEqual({ say: "the karaoke booth", to: "karaoke_booth" });
     // A yes in the JSON with a no in the line isn't a yes.
@@ -125,9 +131,9 @@ describe("settleLine: a move takes a proposal and a yes", () => {
 
   it("drops done on a line that moves, and does nothing on a date that can't move", () => {
     const t = [...played(8, 12), proposal("corner_cafe")];
-    expect(settleLine(line("b", 2, { done: true }), { accept: true }, shapeAfter(t), NELL).done).toBeUndefined();
+    expect(settleLine(line("b", 2, { done: true, dialogue: "Sure, coffee." }), { accept: true }, shapeAfter(t), NELL).done).toBeUndefined();
     const off = dateShape(t, START, 12, { moves: false });
-    expect(settleLine(line("b", 2), { accept: true }, off, NELL)).toEqual(line("b", 2));
+    expect(settleLine(line("b", 2, { dialogue: "Sure, coffee." }), { accept: true }, off, NELL)).toEqual(line("b", 2, { dialogue: "Sure, coffee." }));
   });
 
   it("says what's wrong with a move, for a rewrite or an agent's refusal", () => {
@@ -334,7 +340,7 @@ describe("an agent's own date can move", () => {
     expect(step.answer_their_suggestion).toMatch(new RegExp(`Bo Quill suggested taking the date to ${goName.toLowerCase()}`));
     const refused = (await call("submit_own_date_step", { episode_id: step.episode_id, output: say(2) })).structuredContent;
     expect(refused.rejected).toMatch(/accept_move/);
-    step = (await call("submit_own_date_step", { episode_id: step.episode_id, output: say(2, { accept_move: true }) })).structuredContent.step;
+    step = (await call("submit_own_date_step", { episode_id: step.episode_id, output: say(2, { dialogue: "Yes, lead the way.", accept_move: true }) })).structuredContent.step;
     expect(step).toMatchObject({ turn: 3, of: 15, where: goName });
   });
 
