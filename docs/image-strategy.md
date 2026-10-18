@@ -38,9 +38,13 @@ No image file is hosted, uploaded or generated anywhere in the product. The visu
   mapping (`traitsFromPalette`), so they land in the same place.
 - **The house cast** — fifteen free characters plus two premium ones (`lib/house.ts`), each with an
   archetype, an appearance line and a curated hue. This is the report's "house cast of 12-20".
-- **Reusable date venues** — eight locations (`lib/venues.ts`), dealt to a date by its seed, each with
+- **Reusable date venues** — thirty-three locations (`lib/venues.ts`; eight until 2026-10-18), dealt to a date by its seed, each with
   a two-hue backdrop painted behind the episode's setting. The report's "reuse a library of date
   settings", with the composite drawn rather than rendered from bitmaps.
+  The first eight show a reviewed backdrop photo (`VENUES_WITH_BACKDROPS`, lib/portraits.ts). The twenty-five added
+  on 2026-10-18 (a tandem skydive, a surf lesson, a safari jeep, goat yoga…) paint their two-hue gradient until
+  theirs are generated from their `plate` (scripts/prompts.mjs already builds the jobs) and pass review; each
+  is then added to that list.
 
 ## The provenance ledger
 
