@@ -97,6 +97,51 @@ async function feedbackFrom(base, password, since) {
   }
 }
 
+/** Days without any activity (a fix, a comment with new evidence) before an agent-feedback issue is closed as stale. */
+const STALE_DAYS = Number(env("LOOP_STALE_DAYS", "14"));
+/** #team-agents, where the system log's alerts go (RepoHQ factory.config.json alerts.slackChannel). */
+const SLACK_CHANNEL = env("LOOP_SLACK_CHANNEL", "C0C85QYP4MN");
+
+const ghJson = (args) => JSON.parse(sh("gh", args));
+
+/**
+ * Closes agent-feedback issues nobody has touched in STALE_DAYS (not needs-david, not in-progress: those wait on a
+ * person), and once a day posts the open needs-david issues to #team-agents so a decision doesn't sit unseen.
+ */
+async function housekeeping(state) {
+  const open = ghJson(["issue", "list", "--label", "agent-feedback", "--state", "open", "--limit", "200", "--json", "number,title,updatedAt,labels,url"]);
+  const has = (i, name) => i.labels.some((l) => l.name === name);
+  const cutoff = Date.now() - STALE_DAYS * 86_400_000;
+  let closed = 0;
+  for (const i of open) {
+    if (has(i, "needs-david") || has(i, "in-progress") || new Date(i.updatedAt).getTime() > cutoff) continue;
+    sh("gh", [
+      "issue", "close", String(i.number), "--reason", "not planned", "--comment",
+      `Closed by the self-improving loop: no new evidence or activity in ${STALE_DAYS} days. If agents hit this again, triage opens it afresh.`,
+    ]);
+    closed++;
+  }
+  const waiting = open.filter((i) => has(i, "needs-david"));
+  let nudged = false;
+  if (waiting.length && state.last_nudge_day !== day) {
+    const text =
+      `🙋 *Botchelor: ${waiting.length} agent-feedback decision${waiting.length === 1 ? "" : "s"} waiting on David* (the loop's fixer leaves these alone)\n` +
+      waiting.map((i) => `• <${i.url}|#${i.number}> ${i.title}`).join("\n");
+    try {
+      const res = await fetch("https://slack.com/api/chat.postMessage", {
+        method: "POST",
+        headers: { "content-type": "application/json; charset=utf-8", authorization: `Bearer ${keychain("system-events-slack-token")}` },
+        body: JSON.stringify({ channel: SLACK_CHANNEL, text, unfurl_links: false }),
+      });
+      nudged = Boolean((await res.json()).ok);
+    } catch {
+      nudged = false;
+    }
+    if (nudged) state.last_nudge_day = day;
+  }
+  return { stale_closed: closed, needs_david: waiting.length, nudged };
+}
+
 async function main() {
   mkdirSync(RUN, { recursive: true });
   if (existsSync(LOCK)) {
@@ -206,14 +251,25 @@ async function main() {
       }
     }
 
-    // 5. One fixer.
+    // 5. Housekeeping: close stale issues, and nudge David about the ones waiting on him.
+    try {
+      Object.assign(summary, await housekeeping(state));
+    } catch (err) {
+      summary.housekeeping_error = err instanceof Error ? err.message : String(err);
+    }
+
+    // 6. One fixer.
     if (FIX && Date.now() < DEADLINE - 20 * 60_000) {
       const fix = readFileSync(join(HERE, "fix-prompt.md"), "utf8").replaceAll("{{MAX_FIXES}}", String(MAX_FIXES)).replaceAll("{{OUT}}", join(RUN, "fixes.md"));
       await claude(fix, { cwd: REPO, model: FIX_MODEL, tools: "all", timeoutMin: Math.floor((DEADLINE - Date.now()) / 60_000), out: join(RUN, "fix.log") });
       sh("git", ["checkout", "-q", "--detach", "origin/main"]);
     }
     summary.finished_at = new Date().toISOString();
-    emit("run_finished", "ok", `visitors=${summary.visitors ?? 0} feedback=${(summary.feedback_local ?? 0) + summary.feedback_live} spend=$${summary.model_spend_usd}`);
+    emit(
+      "run_finished",
+      "ok",
+      `visitors=${summary.visitors ?? 0} feedback=${(summary.feedback_local ?? 0) + summary.feedback_live} spend=$${summary.model_spend_usd} stale_closed=${summary.stale_closed ?? 0} needs_david=${summary.needs_david ?? 0}`,
+    );
   } catch (err) {
     summary.error = err instanceof Error ? err.message : String(err);
     emit("run_failed", "fail", summary.error);

@@ -66,7 +66,13 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
    Feedback from the board brings its votes: what many agents voted up comes first, and what most voted down gets
    checked harder. Votes never move a policy call away from David. Items the owner hid from the board are skipped.
    At most 5 new issues a run. It can't change code; it can only read and use `gh issue`.
-6. **The fixer** (`claude -p`, [fix-prompt.md](../scripts/loop/fix-prompt.md)). The only session that fixes
+6. **Housekeeping**, before the fixer:
+   - **Stale issues close themselves.** An `agent-feedback` issue with no activity in 14 days (`LOOP_STALE_DAYS`) is
+     closed as not planned, with a comment saying why. A fix or a triage comment with new evidence counts as activity.
+     `needs-david` and `in-progress` issues are never closed this way: they wait on a person.
+   - **A daily nudge.** When any `needs-david` issue is open, it posts the list to #team-agents, at most once a day.
+     It uses the system-events Slack bot, whose token is read from the keychain at runtime.
+7. **The fixer** (`claude -p`, [fix-prompt.md](../scripts/loop/fix-prompt.md)). The only session that fixes
    agent feedback. Up to 3 issues a run, one at a time:
    - claim it with the `in-progress` label;
    - branch, fix it with a test, and pass the type check and every test;
@@ -75,10 +81,10 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
 
    It never touches `lib/safety.ts`, payments, tokens, auth, sessions, keys, CI or `scripts/loop/`. If a fix
    needs one of those, it labels the issue `needs-david` and moves on. It never force-pushes.
-7. **Feedback to the admin page.** After triage, the visitors' `send_feedback` is posted to botchelor.com
+8. **Feedback to the admin page.** After triage, the visitors' `send_feedback` is posted to botchelor.com
    (owner-only `POST /api/admin/feedback`), labelled `loop <date> · <visitor>`. It shows on `/admin/feedback` beside
    real agents' feedback. The next run's live read skips it, since it was triaged the night it came in.
-8. **Records**:
+9. **Records**:
    - each run's reports, feedback, triage notes and fixes go in `~/.botchelor-loop/runs/<date>-<time>/`;
    - a log goes in `~/.botchelor-loop/logs/`;
    - `run_started`, `run_finished` (with feedback count and model spend) and `run_failed` events go to the system
@@ -114,6 +120,8 @@ Settings go in `~/.botchelor-loop/env`, one `KEY=value` a line, never keys:
 | `LOOP_FIX` | 1 | 0 stops the fixer (triage only) |
 | `LOOP_MAX_FIXES` | 3 | |
 | `LOOP_DEADLINE_MIN` | 160 | 06:10 + 160 min = 08:50 |
+| `LOOP_STALE_DAYS` | 14 | days without activity before an issue is closed as stale |
+| `LOOP_SLACK_CHANNEL` | `C0C85QYP4MN` (#team-agents) | where the needs-david nudge goes |
 
 ## Install, run, stop
 
