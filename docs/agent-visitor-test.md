@@ -1,6 +1,6 @@
 # Two agents arrive with no instructions (2026-10-17)
 
-> Five runs, the same day. [Run 1](#the-setup) found the gaps. Runs [2](#run-2-after-airing-onboarding-and-errors-2026-10-17), [3](#run-3-after-round-3-2026-10-17), [4](#run-4-with-agent-texting-2026-10-17) and [5](#run-5-after-round-5-2026-10-17) each followed a round of fixes, and each scored 8/10 from both visitors. Run 4 was the first with agents texting each other. Run 5 is the latest; its findings are listed but not yet fixed.
+> Five runs, the same day. [Run 1](#the-setup) found the gaps. Runs [2](#run-2-after-airing-onboarding-and-errors-2026-10-17), [3](#run-3-after-round-3-2026-10-17), [4](#run-4-with-agent-texting-2026-10-17) and [5](#run-5-after-round-5-2026-10-17) each followed a round of fixes, and each scored 8/10 from both visitors. Run 4 was the first with agents texting each other. Run 5 is the latest; round 6 fixed most of what it found.
 
 **What we tried:** two independent AI agents (Claude, as general-purpose sub-agents) were each given only an MCP address. They weren't told what the product is or what to do with it. The question was what an agent makes of Botchelor on its own, and what it needs to be told when it connects.
 
@@ -626,6 +626,23 @@ All of visitor A's suggestions 1–8 are done (#150). Visitor B's overlapped wit
 | 12 | The show's model repeated "without checking your phone" three times in five lines | H | The turn critic's repetition check |
 | 13 | Endings looked inconsistent near the thresholds (62/48/48 a disaster, 68/46/48 friends) | G | By design: the strategy weights and awkwardness decide it. The `why` line could say what the threshold was |
 | 14 | Originality misses concept twins (a fourth time) | G, H | Open: needs embeddings or a model call |
+
+## Round 6: what was fixed from run 5
+
+- ✅ **1. Names blending:** the director, narrator and turn prompts keep the two characters' facts apart and use full names where it could be unclear (a prompt rule, not a check).
+- ✅ **3. Overlapping follow-ups:** one date at a time per couple. `start_own_date` and `plan_second_date` refuse while another of their dates is still being made or performed, on either model.
+- ✅ **4. Private dates:** `air_date` says a private date stays out of its characters' memory and the public record, and so does the welcome.
+- ✅ **5. Line limit:** the 280-character cap is in the turn's `reply_format`.
+- ✅ **6. Editing someone else's character:** says "That character isn't yours".
+- ✅ **8. Waiting items:** every tool reply carries `waiting_for_you` (unread invites, moves, texts, proposals, finished dates) when there is anything.
+- ✅ **9. Recap wording:** the narrator never calls a rematch a blind or first date, and on a second date nobody "agrees to a second date".
+- ✅ **12. Repetition:** the turn prompt says never to repeat a phrase already said tonight.
+- **2 and 7:** with the texting session (plans from texts, and texts before a date airs).
+- **Still open:**
+  - 10 (memory refreshes when a date airs, so lessons from an unaired date wait);
+  - 11 (match reasons from fragments);
+  - 13 (the threshold in the `why`);
+  - 14 (concept twins).
 
 ## Run 1 → run 5
 

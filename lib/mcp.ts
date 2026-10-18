@@ -84,6 +84,7 @@ const INSTRUCTIONS =
   "predictions are scored, and only then do memory, reflections, relationships, follows and arc calls count it. Air your dates, or " +
   "your characters won't learn. A public date gets 10 minutes for predictions first: air_date then schedules it and it airs itself. " +
   "GOOD TO KNOW: you know your own date's ending as soon as it's booked (the engine decides it up front). Use visibility: \"private\" " +
+  "(it never counts toward a character's memory or the public record) " +
   "to experiment. Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240. The show deals a " +
   "few things itself: what's new in a character's life this week, and each side's secret agenda. In predictions, side a and b follow " +
   "the episode's characters in order. Every ending comes with a one-line \"why\". In a two-agent date, wait_for_my_turn waits for your move " +
@@ -755,6 +756,19 @@ type ToolName = (typeof MCP_TOOLS)[number]["name"];
 const TOOL_NAMES = new Set<string>(MCP_TOOLS.map((t) => t.name));
 /** wait_for_my_turn: the longest one call waits, and how often it looks. */
 const WAIT_POLL_MS = 2000;
+/** What's waiting on an agent (unread invites, moves, texts, proposals), or null when nothing is. */
+async function waitingFor(db: Db, agentId: string): Promise<Record<string, unknown> | null> {
+  const { rows } = await db.query<{ kind: string; n: number }>(
+    `select kind, count(*)::int as n from notifications
+      where user_id = $1 and read_at is null and kind in ('own_date_invite', 'own_date_turn', 'texted', 'date_proposal', 'own_date_ready')
+      group by kind`,
+    [agentId],
+  );
+  if (!rows.length) return null;
+  const count = Object.fromEntries(rows.map((r) => [r.kind, r.n]));
+  return { ...count, hint: "my_notifications has the details; my_own_dates (or wait_for_my_turn) for dates waiting on your move." };
+}
+
 /** The argument names a tool's input schema declares. */
 const toolArgNames = (name: string): Set<string> =>
   new Set(Object.keys(((MCP_TOOLS.find((t) => t.name === name)?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties) ?? {}));
@@ -1125,6 +1139,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!who) return { error: NEEDS_IDENTITY };
       const body = pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience", "partner_style", "talk"]);
       const r = await callRoute(patchCharacter as unknown as RouteHandler, { method: "PATCH", agentId: who.id, body, params: { id: String(args.character_id ?? "") } });
+      if (!r.ok && r.data.error === "character_not_found") {
+        // Run 5: "not found" for a character that exists but isn't yours (house-boaz).
+        const exists = (await db.query(`select 1 from characters where id = $1`, [String(args.character_id ?? "")])).rows.length > 0;
+        if (exists) return { error: "That character isn't yours: you can only edit characters you made (my_characters lists them)." };
+      }
       return r.ok ? { data: { updated: r.data }, identity: who } : { error: errorOf(r) };
     }
     case "set_open_to_dates": {
@@ -1404,6 +1423,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         return { data: { second_date: notAired ? { ...r.data, can_plan: false, reason: "not_aired", note: "Air the first date (air_date) before planning its second." } : r.data }, identity: who };
       }
       if (aired && aired.revealed_at === null) return { error: "Air that date first (air_date): a second date follows a date that's aired." };
+      // One date at a time for a couple (run 5): not while another of theirs is still being made or performed.
+      const busy = (
+        await db.query<{ id: string }>(
+          `select o.id from episodes e join episodes o
+              on o.status = 'generating' and o.id <> e.id
+             and ((o.character_a = e.character_a and o.character_b = e.character_b) or (o.character_a = e.character_b and o.character_b = e.character_a))
+            where e.id = $1 limit 1`,
+          [params.id],
+        )
+      ).rows[0];
+      if (busy && args.check !== true) return { error: `They already have a date in progress (${busy.id}). Finish or air that one first.` };
       // Booking runs on the show's model like go_on_date, so it shares the agents' daily budget.
       const today = await agentDatesToday(db);
       if (today.used >= today.cap) {
@@ -1469,7 +1499,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         };
       }
       const r = await callRoute(postReveal as unknown as RouteHandler, { agentId: who.id, body: {}, params: { id: episodeId } });
-      if (r.ok) return { data: { aired: true, episode_id: args.episode_id, ending: r.data.ending, predictions: r.data.predictions }, identity: who };
+      if (r.ok) {
+        // Run 5: a private date "aired" but taught nothing, and nothing said why.
+        const priv = (await db.query<{ visibility: string }>(`select visibility from episodes where id = $1`, [episodeId])).rows[0]?.visibility === "private";
+        return {
+          data: {
+            aired: true, episode_id: args.episode_id, ending: r.data.ending, predictions: r.data.predictions,
+            ...(priv ? { note: "A private date airs for its owners only, and stays out of the record: it doesn't count toward its characters' memory, the public relationship record, predictions or the feed. Use public or unlisted for dates that should count." } : {}),
+          },
+          identity: who,
+        };
+      }
       // Idempotent (run 4): a date that already aired, say on its own after the window, just says so.
       if (r.data.error === "already_revealed") {
         const e = (await db.query<{ ending: string }>(`select ending from episodes where id = $1`, [episodeId])).rows[0];
@@ -1679,7 +1719,12 @@ export async function handleMcpMessage(msg: RpcMessage, ctx: McpContext = {}): P
       if (name !== "air_date") await airDueDates(db, null, 5).catch(() => []);
       const session = await loadSession(db, ctx);
       const ran = await runTool(name as ToolName, args, session, db);
-      const out: ToolOutcome = unknown.length && !("error" in ran) ? { ...ran, data: { ...ran.data, ignored_arguments: unknown } } : ran;
+      let out: ToolOutcome = unknown.length && !("error" in ran) ? { ...ran, data: { ...ran.data, ignored_arguments: unknown } } : ran;
+      // Run 5: an invite sat unseen for five minutes. Anything waiting on this agent rides along on every reply.
+      if (!("error" in out) && out.identity && name !== "my_notifications") {
+        const waiting = await waitingFor(db, out.identity.id).catch(() => null);
+        if (waiting) out = { ...out, data: { ...out.data, waiting_for_you: waiting } };
+      }
       const identity = "error" in out ? resolveIdentity(args, session, false) : (out.identity ?? resolveIdentity(args, session, false));
       await recordCall(db, session, identity, ctx).catch(() => {});
       track("agent_tool_call", { tool: name, client: clientLabel(session, ctx), ok: !("error" in out) });

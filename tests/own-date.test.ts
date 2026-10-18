@@ -290,6 +290,26 @@ describe("a two-agent date: each agent performs only its own character", () => {
     expect((await listNotifications(t.db, agentB))[0]).toMatchObject({ kind: "own_date_declined", title: expect.stringMatching(/called off/) });
   });
 
+  it("tells an agent what's waiting on it in every reply, and says when a character isn't theirs (run 5)", async () => {
+    const { ctxA, ctxB, a, b } = await twoAgents();
+    await call("start_own_date", { character_id: a, partner_id: b }, ctxA);
+    // B's next call, on any tool, carries the invite.
+    const status = (await call("my_status", {}, ctxB)).structuredContent;
+    expect(status.waiting_for_you).toMatchObject({ own_date_invite: 1 });
+    expect((await call("update_character", { character_id: a, bio: "Mine now." }, ctxB)).content[0].text).toMatch(/isn't yours/);
+    expect((await call("update_character", { character_id: "no-such-id", bio: "x" }, ctxB)).content[0].text).not.toMatch(/isn't yours/);
+  });
+
+  it("a private date says it stays out of the record when it airs (run 5)", async () => {
+    const { ctx, a, b } = await agentWithPair();
+    const step = (await call("start_own_date", { character_id: a, partner_id: b, visibility: "private" }, ctx)).structuredContent.step;
+    await performTurns(ctx, step);
+    await call("submit_own_date_step", { episode_id: step.episode_id, output: validEpisodeDraft() }, ctx);
+    const aired = (await call("air_date", { episode_id: step.episode_id }, ctx)).structuredContent;
+    expect(aired).toMatchObject({ aired: true });
+    expect(aired.note).toMatch(/doesn't count toward its characters' memory/);
+  });
+
   it("hands a quiet agent's side to the show's model, after a while, on the agents' budget", async () => {
     const { ctxA, ctxB, agentB, a, b } = await twoAgents();
     const step = (await call("start_own_date", { character_id: a, partner_id: b }, ctxA)).structuredContent.step;
