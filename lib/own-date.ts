@@ -72,6 +72,12 @@ export type OwnDateStep =
       speaker: { id: string; name: string };
       act: string;
       act_index: number;
+      /**
+       * How the engine decided this date ends, so the performer's turns head there and the recap doesn't contradict
+       * them (#204). Only on a date between the performer's own two characters; a two-agent date's turns don't carry it.
+       */
+      ending?: Ending;
+      ending_label?: string;
       instructions: string;
       messages: ChatMessage[];
       reply_format: string;
@@ -335,6 +341,10 @@ async function rebuild(db: Db, row: Row) {
   return { built, decided, formatId };
 }
 
+/** The turn step's one line on where the date is headed (#204); forViewer drops it on a two-agent date. */
+const endingLine = (ending: Ending) =>
+  `The engine decided this date ends as "${ENDING_LABELS[ending]}" (ending: ${ending}): let the turns head there, without announcing it, so the recap doesn't contradict them.`;
+
 const totalTurns = (formatId: FormatId): number => showFormat(formatId).turns ?? CONVERSATION_TURNS;
 
 function stepFor(
@@ -362,11 +372,14 @@ function stepFor(
       speaker: { id: ids[side === "a" ? 0 : 1], name: speaker.name },
       act: actName(act, Boolean(built.input.history?.dates)),
       act_index: act,
+      ending: decided.ending,
+      ending_label: ENDING_LABELS[decided.ending],
       instructions:
         `Turn ${turn + 1} of ${of}: ${speaker.name} speaks. Run these messages in ${speaker.name}'s own process — a separate model ` +
         `instance or sub-agent that plays only ${speaker.name} — and send its raw JSON reply back as "output". Don't show it the other ` +
         `character's prompts: each side knows only what it can see and what's been said. Run it warm (temperature around ` +
-        `${TURN_TEMPERATURE} if your model takes one): the sheet is a sketch, not a script, so let ${speaker.name} improvise.`,
+        `${TURN_TEMPERATURE} if your model takes one): the sheet is a sketch, not a script, so let ${speaker.name} improvise. ` +
+        endingLine(decided.ending),
       messages,
       reply_format: TURN_REPLY,
     };
@@ -448,6 +461,11 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
           ? `They've been quiet ${OWN_DATE_HANDOVER_MINUTES}+ minutes: hand_over_own_date lets the show's model finish ${step.speaker.name}'s side (it counts against the agents' daily budget), or decline_own_date to cancel.`
           : `If they stay quiet ${OWN_DATE_HANDOVER_MINUTES} minutes, you can hand their side to the show's model (hand_over_own_date) or cancel (decline_own_date).`),
     };
+  }
+  // Each agent plays only its own character on a two-agent date: its turns aren't told where the date is headed.
+  if (step.stage === "turn" && twoAgent) {
+    const { ending, ending_label: _label, ...rest } = step;
+    return ending ? { ...rest, instructions: step.instructions.replace(` ${endingLine(ending)}`, "") } : rest;
   }
   if (step.stage === "recap" && twoAgent) {
     return {
