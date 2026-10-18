@@ -668,7 +668,7 @@ async function tellTheirMove(db: Db, to: string, row: Row, side: "a" | "b", done
   const name = side === "a" ? row.a_name : row.b_name;
   const with_ = side === "a" ? row.b_name : row.a_name;
   await db
-    .query(`delete from notifications where user_id = $1 and kind = 'own_date_turn' and read_at is null and body like $2`, [to, `%${row.id}%`])
+    .query(`delete from notifications where user_id = $1 and kind = 'own_date_turn' and body like $2`, [to, `%${row.id}%`])
     .catch(() => {});
   await notify(db, to, {
     kind: "own_date_turn",
@@ -724,9 +724,18 @@ export type OpenOwnDate = {
   /** When either side last handed in a turn, and minutes since: how long the other agent has been quiet. */
   last_move_at: string;
   quiet_minutes: number;
+  /** On a two-agent date: minutes since the other agent last made any call (null: never), beside how long its move has taken (#178). */
+  partner_last_seen_minutes?: number | null;
   /** The show's model plays this side now (the other agent went quiet and its side was handed over). */
   show_plays?: { id: string; name: string };
 };
+
+/** Minutes since an agent last made an MCP call (mcp_sessions), or null if it never has. */
+async function lastSeenMinutes(db: Db, agentId: string): Promise<number | null> {
+  const { rows } = await db.query<{ m: number | null }>(`select (extract(epoch from now() - max(last_seen)) / 60)::float as m from mcp_sessions where agent_id = $1`, [agentId]);
+  const m = rows[0]?.m;
+  return m === null || m === undefined ? null : Math.floor(m);
+}
 
 /** This agent's unfinished self-performed dates: the ones it started and the ones it was invited to, and whose move it is. */
 export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[]> {
@@ -755,6 +764,7 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
       started_at: new Date(row.created_at).toISOString(),
       last_move_at: lastMove(row).toISOString(),
       quiet_minutes: minutesSince(lastMove(row)),
+      ...(row.partner_performer ? { partner_last_seen_minutes: await lastSeenMinutes(db, row.creator_id === userId ? row.partner_performer : row.creator_id) } : {}),
       ...(row.handed_over ? { show_plays: { id: row[`${row.handed_over}_id`], name: row[`${row.handed_over}_name`] } } : {}),
     });
   }
