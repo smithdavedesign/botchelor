@@ -10,6 +10,7 @@ import type { CharacterRef, PublicCharacter } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
 import { loadThread, markTextsRead } from "@/lib/inbox";
 import { pairKey } from "@/lib/relationships";
+import ThreadNext from "./ThreadNext";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,11 @@ export default async function MessagesPage({ params, searchParams }: Props) {
   const self = as && t.mine.includes(as) ? as : t.mine[0];
   // Opening the thread is reading it: its "texted" notifications stop counting.
   await markTextsRead(db, viewerId, lo, hi);
-  const mine = await listMyDatingProfiles(db, viewerId);
+  const [mine, next] = await Promise.all([listMyDatingProfiles(db, viewerId), t.nextFor(self)]);
+  const me = self === lo ? t.ca : t.cb;
+  const them = self === lo ? t.cb : t.ca;
+  const back = `/matches?character=${encodeURIComponent(self)}`;
+  const story = t.hasStory ? `/couples/${lo}/${hi}` : null;
 
   return (
     <div className="messages-fullscreen">
@@ -61,7 +66,11 @@ export default async function MessagesPage({ params, searchParams }: Props) {
         initial={t.chain}
         today={dayOf(new Date())}
         ownKey={t.ownKey}
-        page={{ back: `/matches?character=${encodeURIComponent(self)}`, info: `/couples/${lo}/${hi}` }}
+        page={{
+          back,
+          info: story,
+          bar: <ThreadNext next={next} mine={{ id: me.id, name: me.name }} them={{ id: them.id, name: them.name }} story={story} back={back} />,
+        }}
       />
     </div>
   );

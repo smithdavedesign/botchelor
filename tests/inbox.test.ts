@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { listThreads, loadThread, markTextsRead, textedLinks, unreadTexts } from "@/lib/inbox";
+import { listThreads, loadThread, markTextsRead, nextStep, textedLinks, unreadTexts } from "@/lib/inbox";
 import { pairKey } from "@/lib/relationships";
 import { api, HOUSE_PARTNER_ID, newUserCookie, setupEpisode, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -103,5 +103,51 @@ describe("loadThread", () => {
     const me = await character("Ada Lumen");
     const bo = await character("Bo Quill");
     expect(await loadThread(t.db, me.userId, me.id, bo.id)).toBeNull();
+  });
+});
+
+describe("what's next for a pair (the thread's action bar)", () => {
+  const match = (you: boolean | null, them: boolean | null) => ({ matched_at: "2026-10-18T10:00:00.000Z", you, them });
+  const date = (status: string, at: string, revealed: string | null = null) => ({ id: "ep1", status, created_at: at, revealed_at: revealed });
+
+  it("both want a date: book it; a no or a wait says whose", () => {
+    expect(nextStep(match(true, true), null)).toEqual({ kind: "book" });
+    expect(nextStep(match(true, false), null)).toEqual({ kind: "declined", by: "them" });
+    expect(nextStep(match(false, true), null)).toEqual({ kind: "declined", by: "you" });
+    expect(nextStep(match(true, null), null)).toEqual({ kind: "waiting", on: "them" });
+    expect(nextStep(null, null)).toBeNull();
+  });
+
+  it("a date since they matched wins: being filmed, then there to watch", () => {
+    expect(nextStep(match(true, true), date("generating", "2026-10-18T11:00:00.000Z"))).toEqual({ kind: "filming", episode_id: "ep1" });
+    expect(nextStep(match(true, true), date("ready", "2026-10-18T11:00:00.000Z", "2026-10-18T12:00:00.000Z"))).toEqual({ kind: "dated", episode_id: "ep1", aired: true });
+    // A date from before they matched doesn't count against a new yes.
+    expect(nextStep(match(true, true), date("ready", "2026-10-17T11:00:00.000Z"))).toEqual({ kind: "book" });
+    expect(nextStep(null, date("ready", "2026-10-17T11:00:00.000Z"))).toEqual({ kind: "dated", episode_id: "ep1", aired: false });
+  });
+
+  it("listThreads and loadThread carry it; a pair that only texted has no story page", async () => {
+    const me = await character("Ada Lumen");
+    const bo = await character("Bo Quill");
+    const cy = await character("Cy Marr");
+    const [lo, hi] = pairKey(me.id, bo.id);
+    await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi) values ($1, $2, true, true)`, [lo, hi]);
+    await text(me.id, cy.id, cy.id, "Hi.");
+    const inbox = (await listThreads(t.db, me.userId, me.id))!;
+    expect(inbox.fresh.find((x) => x.with.id === bo.id)?.next).toEqual({ kind: "book" });
+    const withBo = (await loadThread(t.db, me.userId, me.id, bo.id))!;
+    expect(withBo.hasStory).toBe(true);
+    expect(await withBo.nextFor(me.id)).toEqual({ kind: "book" });
+    const withCy = (await loadThread(t.db, me.userId, me.id, cy.id))!;
+    expect(withCy.hasStory).toBe(false);
+    expect(await withCy.nextFor(me.id)).toBeNull();
+  });
+
+  it("someone else's private date with your character isn't offered", async () => {
+    const { creator, character: mine, episode } = await setupEpisode();
+    await t.db.query(`update episodes set visibility = 'private', creator_id = 'someone-else' where id = $1`, [episode.id]);
+    const inbox = await listThreads(t.db, userIdOf(creator), mine.id);
+    const thread = [...(inbox?.fresh ?? []), ...(inbox?.conversations ?? [])].find((x) => x.with.id === HOUSE_PARTNER_ID);
+    expect(thread?.next ?? null).toBeNull();
   });
 });

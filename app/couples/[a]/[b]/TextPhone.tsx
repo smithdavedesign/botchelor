@@ -25,8 +25,11 @@ type Props = {
   ownKey: boolean;
   /** The line under the heading, when it's not the usual (a swipe-deck match before its first date). */
   intro?: string;
-  /** The thread-only page (/messages): just the phone, filling the screen, with ‹ back to the matches list. */
-  page?: { back: string; info: string };
+  /**
+   * The thread-only page (/messages): just the phone, filling the screen, with ‹ back to the matches list, ⓘ to the
+   * couple page when they have one, and the action bar (what's next) under the header.
+   */
+  page?: { back: string; info: string | null; bar?: ReactNode };
 };
 
 /** Within this of the newest text, the reader is "at the newest" and stays there as the phone resizes. */
@@ -309,7 +312,7 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
             <span className="phone-contact-name">{shortName(other.name)}</span>
             {stageLabel && <span className="phone-contact-stage">{stageLabel}</span>}
           </Link>
-          {page && !canFlip ? (
+          {page && !canFlip && page.info ? (
             <Link className="phone-head-btn" href={page.info} aria-label={`${shortName(self.name)} and ${shortName(other.name)}: their dates and story`} title="Their dates and story">
               ⓘ
             </Link>
@@ -325,6 +328,7 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
             <span aria-hidden="true" />
           )}
         </header>
+        {page?.bar}
         <div ref={box} className="phone-messages" role="region" aria-label={`Texts between ${names}`} tabIndex={0}>
           {hasMore ? (
             <div ref={top} className="phone-earlier">

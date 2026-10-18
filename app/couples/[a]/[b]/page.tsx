@@ -8,11 +8,11 @@ import PhoneFrame from "@/app/PhoneFrame";
 import { getDb } from "@/lib/db";
 import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
-import { activeNudge, alsoSeeing, dayOf } from "@/lib/between-dates";
+import { activeNudge, alsoSeeing } from "@/lib/between-dates";
 import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships";
 import { chainPage, loadChain } from "@/lib/text-chain";
 import NudgeForm from "./NudgeForm";
-import TextPhone from "./TextPhone";
+import ThreadPreview from "./ThreadPreview";
 import { ArcCard, CopyLink, FollowButton } from "./CoupleActions";
 import NextDate from "./NextDate";
 import MatchHeader from "./MatchHeader";
@@ -42,8 +42,6 @@ async function load(a: string, b: string) {
   // Owners: the couple's whole text chain (lib/text-chain.ts), the newest page first. Nobody owns a house couple's
   // characters, so nobody texts there; anywhere else a spectator learns the texts are the owners'.
   const chain = owner ? chainPage(await loadChain(db, a, b, { userId: viewerId, owner: true })) : null;
-  // With their own model key, an owner's character texts whenever they like (lib/texting.ts).
-  const ownKey = owner ? (await db.query("select 1 from user_keys where user_id = $1 and kind = 'text' limit 1", [viewerId])).rows.length > 0 : false;
   const texted = owners.some((o) => o.owner_id !== null);
   const nudges = owner ? await Promise.all(mine.map(async (id) => ({ id, note: await activeNudge(db, id, id === a ? b : a) }))) : [];
   // Spectators: follow the couple, and call their arc (lib/follows.ts, lib/arcs.ts). Public couples only.
@@ -53,14 +51,14 @@ async function load(a: string, b: string) {
   const last = view.timeline.at(-1) ?? null;
   const plan = owner && last ? (view.plans ?? []).filter((p) => p.episode_id === last.episode_id).map((p) => p.text) : [];
   const next = owner ? await nextDate(db, viewerId, a, b, last?.episode_id ?? null, plan) : null;
-  return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, ownKey, texted, nudges, follow, arc, next };
+  return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, texted, nudges, follow, arc, next };
 }
 
 /** A swipe-deck match that hasn't dated yet (lib/swipes.ts): only its owners see it, with their chat and the yes or no. */
 async function loadMatch(a: string, b: string) {
   const t = await loadThread(await getDb(), userIdFromCookieStore(await cookies()), a, b);
   if (!t?.match) return null;
-  return { ca: t.ca, cb: t.cb, mine: t.mine, match: t.match, chain: t.chain, ownKey: t.ownKey };
+  return { ca: t.ca, cb: t.cb, mine: t.mine, match: t.match, chain: t.chain };
 }
 
 const refOf = (c: PublicCharacter): CharacterRef => ({
@@ -98,7 +96,7 @@ export default async function CouplePage({ params }: Props) {
     if (!match) notFound();
     return <MatchPage {...match} />;
   }
-  const { ca, cb, view, owner, mine, seeing, chain, ownKey, texted, nudges, follow, arc, next } = data;
+  const { ca, cb, view, owner, mine, seeing, chain, texted, nudges, follow, arc, next } = data;
   const followedUp = view.timeline.filter((t) => t.second_date_of).length;
   const latest = [...view.timeline].reverse().find((t) => t.aired) ?? view.timeline.at(-1) ?? null;
   const complicated = [ca, cb].filter((c) => seeing[c.id]?.length);
@@ -165,15 +163,11 @@ export default async function CouplePage({ params }: Props) {
       {arc && <ArcCard pair={[ca.id, cb.id]} names={`${first(ca)} and ${first(cb)}`} q={arc} />}
 
       {owner && chain && (
-        <TextPhone
-          pair={[ca.id, cb.id]}
+        <ThreadPreview
+          items={chain.items}
           characters={{ lo: refOf(ca), hi: refOf(cb) }}
           mine={mine.includes(ca.id) ? "lo" : "hi"}
-          canFlip={mine.length === 2}
-          stageLabel={view.stage_label}
-          initial={chain}
-          today={dayOf(new Date())}
-          ownKey={ownKey}
+          thread={`/messages/${ca.id}/${cb.id}?as=${encodeURIComponent(mine[0])}`}
         />
       )}
 
@@ -294,7 +288,7 @@ function Meter({ label, value, word }: { label: string; value: number; word: str
 }
 
 /** A match before its first date: who matched, where the yes stands (and the booking once both want it), and their chat. */
-function MatchPage({ ca, cb, mine, match, chain, ownKey }: NonNullable<Awaited<ReturnType<typeof loadMatch>>>) {
+function MatchPage({ ca, cb, mine, match, chain }: NonNullable<Awaited<ReturnType<typeof loadMatch>>>) {
   const mineLo = mine.includes(ca.id);
   const me = mineLo ? ca : cb;
   const them = mineLo ? cb : ca;
@@ -320,16 +314,11 @@ function MatchPage({ ca, cb, mine, match, chain, ownKey }: NonNullable<Awaited<R
         />
         <p className="muted small">They matched in the swipe deck. Only the characters&apos; owners see this until one of their dates airs.</p>
       </section>
-      <TextPhone
-        pair={[ca.id, cb.id]}
+      <ThreadPreview
+        items={chain.items}
         characters={{ lo: refOf(ca), hi: refOf(cb) }}
         mine={mineLo ? "lo" : "hi"}
-        canFlip={mine.length === 2}
-        stageLabel="💘 Matched"
-        initial={chain}
-        today={dayOf(new Date())}
-        ownKey={ownKey}
-        intro="Every text since they matched. They decide about the date themselves; you book it once they both want it."
+        thread={`/messages/${ca.id}/${cb.id}?as=${encodeURIComponent(me.id)}`}
       />
     </>
   );

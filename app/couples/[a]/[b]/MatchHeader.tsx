@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { requestJson } from "@/app/request";
 import { shortName } from "@/lib/names";
+import { useBookDate } from "./useBookDate";
 
 type Props = {
   /** The viewer's character and the one it matched. */
@@ -20,21 +18,9 @@ type Props = {
  * one isn't feeling it, or one hasn't answered yet. The characters decide; the owner books.
  */
 export default function MatchHeader({ mine, them, mineYes, themYes }: Props) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; shop?: boolean } | null>(null);
+  const { book, busy, message } = useBookDate(mine.id, them.id);
   const a = shortName(mine.name);
   const b = shortName(them.name);
-
-  async function book() {
-    setBusy(true);
-    setMessage(null);
-    const res = await requestJson("/api/episodes", { character_id: mine.id, partner_id: them.id }).catch(() => null);
-    setBusy(false);
-    if (!res) return setMessage({ text: "Network error. Try again." });
-    if (res.ok && typeof res.data.id === "string") return router.push(`/episodes/${res.data.id}?play=1`);
-    setMessage({ text: res.message, shop: res.status === 402 || res.status === 429 });
-  }
 
   if (mineYes === true && themYes === true) {
     return (

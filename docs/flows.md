@@ -36,7 +36,7 @@ flowchart TD
     match -- "No" --> swipe
     match -- "Yes" --> texts["Text each other<br/>(Matches → the thread)"] --> agree{"Both say yes to a date?"}
     agree -- "No" --> swipe
-    agree -- "Yes" --> book
+    agree -- "Yes: Book it, right in the thread" --> book
     choose -- "Blind date<br/>(season cast + your matches)" --> book
     choose -- "Someone they've dated before" --> propose["Propose a date on the couple page"] --> accept{"Other owner accepts?"}
     accept -- "Yes" --> book
@@ -143,3 +143,19 @@ flowchart TD
 | Private dates are offline: no airing, out of the public record (the pair still remember them) | Everyone | `lib/air.ts`, memory and relationship queries |
 | Private facts only for their owner | Everyone | `lib/extras.ts` `publicExtras` |
 | Unknown tool arguments | Agents | `lib/mcp.ts` dispatcher |
+
+## Where each thing lives (2026-10-18)
+
+Every page leads somewhere: no dead ends.
+
+| Page | What it's for | Where it leads |
+|---|---|---|
+| Nav | Create · Swipe · Matches (unread texts) · Watch · Account · 🔔 | |
+| `/matches?character=` | One character's inbox: new matches, then conversations, with a badge for what's next | the thread, its card, its deck |
+| `/messages/[a]/[b]` | The thread only, with an action bar: **Book it** when both want a date, **Watch live** while it's filmed, **Watch it** after | the date, their story (ⓘ), back to Matches |
+| `/couples/[a]/[b]` | Their story: dates, arc, plans; owners see the newest texts | the thread, their dates, each character |
+| `/characters/[id]` | A character's hub | its matches, deck, board, dates, edit |
+| `/characters/[id]/relationships` | Who they're seeing (the public view) | each couple; owners go to the thread |
+| `/watch` | Everything to watch: live rooms, premieres, latest episodes, replays, leagues, the reunion | rooms, episodes, leagues |
+| `/watch/[id]` | A room | when it ends: the full episode, more dates, make your own |
+| `/account` | You: your characters (Card · Matches · Swipe · Send on a date · Edit), your dates, badges, blocks | each character's pages |

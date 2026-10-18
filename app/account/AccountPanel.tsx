@@ -239,15 +239,26 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
         <h2>Your characters</h2>
         {characters.length === 0 ? (
           <p className="muted">
-            None yet. <Link href="/">Make one</Link> — it&apos;s yours to edit any time.
+            None yet. <Link href="/create">Make one</Link> — it&apos;s yours to edit any time.
           </p>
         ) : (
-          <ul className="account-links">
-            {characters.map((c) => (
-              <li key={c.id}>
-                <Link href={`/characters/${c.id}`}>{c.name}</Link> <span className="muted small">edit on its card</span>
-              </li>
-            ))}
+          <ul className="account-characters">
+            {characters.map((c) => {
+              const id = encodeURIComponent(c.id);
+              return (
+                <li key={c.id} className="account-character">
+                  <Link className="account-character-name" href={`/characters/${c.id}`}>
+                    {c.name}
+                  </Link>
+                  <span className="account-character-links">
+                    <Link href={`/matches?character=${id}`}>💬 Matches</Link>
+                    <Link href={`/swipe?character=${id}`}>Swipe</Link>
+                    <Link href={`/create?character=${id}`}>Send on a date</Link>
+                    <Link href={`/characters/${c.id}/edit`}>Edit</Link>
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -363,7 +374,7 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
         </section>
       )}
 
-      <section className="card">
+      <section className="card" id="your-dates">
         <h2>Your dates</h2>
         {episodes.length === 0 ? (
           <p className="muted">No dates yet.</p>

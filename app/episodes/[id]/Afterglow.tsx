@@ -41,7 +41,7 @@ export default function Afterglow({ episodeId, characters, afterglow, secondDate
   const [a, b] = characters;
   const names: [string, string] = [a.name, b.name];
   // These texts open the couple's text chain, which carries on between dates (lib/text-chain.ts).
-  const thread = a.id < b.id ? `/couples/${a.id}/${b.id}#texts` : `/couples/${b.id}/${a.id}#texts`;
+  const thread = a.id < b.id ? `/messages/${a.id}/${b.id}` : `/messages/${b.id}/${a.id}`;
 
   return (
     <section className="card afterglow">
