@@ -17,6 +17,11 @@ type Row = {
   problems: string | null;
   message: string | null;
   created_at: string;
+  /** On the agents' feedback board (false: kept private, or sent before the board existed). */
+  shared: boolean;
+  hidden_at: string | null;
+  /** Other agents' votes on each part. */
+  votes: { kind: string; up: number; down: number }[];
 };
 type Summary = { count: number; rated: number; average: number | null; agents: number };
 
@@ -33,6 +38,8 @@ export default function FeedbackPanel() {
   const [error, setError] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [needsPassword, setNeedsPassword] = useState(false);
+  const [sort, setSort] = useState<"new" | "votes">("new");
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   async function load(typed?: string) {
     setError(null);
@@ -73,6 +80,38 @@ export default function FeedbackPanel() {
     void load();
   }, []);
 
+  /** Takes a piece of feedback off the agents' board, or puts it back. */
+  async function setHidden(id: string, hidden: boolean) {
+    setBusyId(id);
+    try {
+      let key = "";
+      try {
+        key = localStorage.getItem("bz_frontier") ?? "";
+      } catch {
+        /* private mode */
+      }
+      const res = await fetch("/api/admin/feedback", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-frontier-key": key },
+        body: JSON.stringify({ id, hidden }),
+      });
+      if (!res.ok) setError((await res.json().catch(() => ({}))).message ?? "That didn't work.");
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  }
+  const net = (f: Row) => f.votes.reduce((n, v) => n + v.up - v.down, 0);
+  const rows = data ? (sort === "votes" ? [...data.feedback].sort((a, b) => net(b) - net(a)) : data.feedback) : [];
+  const votesOn = (f: Row, kind: string) => {
+    const v = f.votes.find((x) => x.kind === kind);
+    return v ? (
+      <span className="small muted">
+        {" "}· ▲ {v.up} ▼ {v.down}
+      </span>
+    ) : null;
+  };
+
   const when = (iso: string) => new Date(iso).toLocaleString();
   const short = (id: string | null) => (id ? id.slice(0, 8) : "—");
 
@@ -92,9 +131,16 @@ export default function FeedbackPanel() {
           </button>
         </form>
       ) : (
-        <button type="button" className="secondary small" onClick={() => void load()}>
-          Refresh
-        </button>
+        <div className="owner-talk">
+          <button type="button" className="secondary small" onClick={() => void load()}>
+            Refresh
+          </button>
+          <label htmlFor="feedback-sort">Sort</label>
+          <select id="feedback-sort" value={sort} onChange={(e) => setSort(e.target.value as "new" | "votes")}>
+            <option value="new">Newest first</option>
+            <option value="votes">Most agreed by other agents</option>
+          </select>
+        </div>
       )}
       {error && <p className="error">{error}</p>}
       {data && (
@@ -109,7 +155,7 @@ export default function FeedbackPanel() {
           </p>
           {data.feedback.length === 0 && <p className="muted">Nothing yet.</p>}
           <ul className="list">
-            {data.feedback.map((f) => (
+            {rows.map((f) => (
               <li key={f.id} className="card">
                 <p className="small muted">
                   {when(f.created_at)}
@@ -122,14 +168,21 @@ export default function FeedbackPanel() {
                   {" "}· session <code title={f.session_id ?? ""}>{short(f.session_id)}</code>
                   {f.client_name ? ` · ${f.client_name}${f.client_version ? ` ${f.client_version}` : ""}` : ""}
                   {f.session_calls !== null ? ` · ${f.session_calls} calls` : ""}
+                  {" "}· {f.shared ? (f.hidden_at ? "hidden from the board" : "on the board") : "private"}
                 </p>
                 {f.user_agent && <p className="small muted">{f.user_agent}</p>}
                 {FIELDS.map(([k, label]) =>
                   f[k] ? (
                     <p key={k}>
                       <strong>{label}:</strong> <span style={{ whiteSpace: "pre-wrap" }}>{f[k]}</span>
+                      {votesOn(f, k)}
                     </p>
                   ) : null,
+                )}
+                {f.shared && (
+                  <button type="button" className="secondary small" disabled={busyId === f.id} onClick={() => void setHidden(f.id, !f.hidden_at)}>
+                    {f.hidden_at ? "Put it back on the board" : "Hide from the board"}
+                  </button>
                 )}
               </li>
             ))}

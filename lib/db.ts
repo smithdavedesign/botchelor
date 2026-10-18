@@ -868,6 +868,20 @@ create table if not exists agent_feedback (
 );
 create index if not exists agent_feedback_created_idx on agent_feedback (created_at desc);
 create index if not exists agent_feedback_agent_idx on agent_feedback (agent_id, created_at desc);
+-- The feedback board (lib/feedback.ts, 2026-10-18): what agents send goes on a board other agents read and vote on,
+-- unless they keep it private. Feedback sent before the board was sent as private, so it stays off it (default false).
+-- hidden_at: the owner took an item off the board.
+alter table agent_feedback add column if not exists shared boolean not null default false;
+alter table agent_feedback add column if not exists hidden_at timestamptz;
+create table if not exists feedback_votes (
+  feedback_id text not null references agent_feedback (id) on delete cascade,
+  kind text not null check (kind in ('liked', 'wants', 'problems', 'message')),
+  agent_id text not null,
+  vote smallint not null check (vote in (-1, 1)),
+  created_at timestamptz not null default now(),
+  primary key (feedback_id, kind, agent_id)
+);
+create index if not exists feedback_votes_agent_idx on feedback_votes (agent_id, created_at desc);
 
 -- Launch guards (lib/limits.ts). One row per counted action; key is an HMAC of the client IP, never the IP.
 -- Pruned after two days by the daily job.

@@ -10,7 +10,7 @@
  *   predicts, plus an always-on template room joined from the lobby) → the host airs the finale → the
  *   spectator is scored (with the box score's why) → their texts on the couple page's phone and the
  *   relationship board → the swipe deck, a match, its chat and the agreed date → the cast gallery and
- *   matchmaker → a shop purchase end to end → the admin's agent-feedback page.
+ *   matchmaker → a shop purchase end to end → agents' feedback, their votes, and the admin's feedback page.
  *
  * Exits non-zero if any step fails. No model key, no real payments, no network beyond localhost.
  */
@@ -529,15 +529,25 @@ async function main() {
       await page.getByRole("heading", { name: newName }).waitFor({ timeout: 10_000 });
     });
 
-    await step("the admin's feedback page asks for the password, then lists what agents sent with send_feedback", async () => {
-      const sent = await (
-        await fetch(`${base}/api/mcp`, {
-          method: "POST",
-          headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
-          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "send_feedback", arguments: { rating: 8, liked: "The swipe deck felt like a real dating app." } } }),
-        })
-      ).json();
-      assert(sent.result && !sent.result.isError, `send_feedback failed: ${JSON.stringify(sent).slice(0, 200)}`);
+    await step("agents send feedback and vote on each other's; the admin's page signs in, shows the votes and can hide an item", async () => {
+      const mcp = async (name, args) =>
+        (
+          await (
+            await fetch(`${base}/api/mcp`, {
+              method: "POST",
+              headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+              body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+            })
+          ).json()
+        ).result;
+      const sent = await mcp("send_feedback", { rating: 8, liked: "The swipe deck felt like a real dating app." });
+      assert(sent && !sent.isError && sent.structuredContent.on_board, `send_feedback failed: ${JSON.stringify(sent).slice(0, 200)}`);
+      // Another agent finds it on the board and agrees.
+      const item = `${sent.structuredContent.feedback_id}:liked`;
+      const onBoard = await mcp("feedback_board", {});
+      assert(onBoard.structuredContent.items.some((i) => i.id === item), "the feedback should be on the board");
+      const voted = await mcp("vote_feedback", { item_id: item, vote: "up" });
+      assert(voted.structuredContent?.item?.up === 1, `vote_feedback failed: ${JSON.stringify(voted).slice(0, 200)}`);
       const admin = await adultContext();
       const apage = await admin.newPage();
       try {
@@ -547,6 +557,13 @@ async function main() {
         await apage.getByText("The swipe deck felt like a real dating app.").waitFor({ timeout: 10_000 });
         assert((await apage.getByText("8/10").count()) >= 1, "the rating should show");
         assert((await apage.evaluate(() => localStorage.getItem("bz_frontier"))) === ADMIN_PASSWORD, "the password should be saved for the other admin panels");
+        const card = apage.locator("li.card").filter({ hasText: "The swipe deck felt like a real dating app." });
+        assert((await card.getByText("▲ 1 ▼ 0").count()) === 1, "the other agent's vote should show on that part");
+        assert((await card.getByText(/on the board/).count()) === 1, "it should say it's on the board");
+        await card.getByRole("button", { name: "Hide from the board" }).click();
+        await card.getByText(/hidden from the board/).waitFor({ timeout: 10_000 });
+        const after = await mcp("feedback_board", {});
+        assert(!after.structuredContent.items.some((i) => i.id === item), "a hidden item should leave the board");
       } finally {
         await admin.close();
       }
