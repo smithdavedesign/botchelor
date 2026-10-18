@@ -27,6 +27,7 @@ import ConfessionalShare from "./ConfessionalShare";
 import CreatorReveal from "./CreatorReveal";
 import DealbreakerQuiz from "./DealbreakerQuiz";
 import EpisodeActions from "./EpisodeActions";
+import { airIfDue, airWindowMinutes } from "@/lib/air";
 import SafetyActions from "./SafetyActions";
 import SlidingDoors from "./SlidingDoors";
 import WatchPartyLaunch from "./WatchPartyLaunch";
@@ -72,7 +73,17 @@ export default async function EpisodePage({
   const from = Math.max(0, Math.floor(Number(query.from) || 0));
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
+  // Dates air by default once their prediction window closes (lib/air.ts): opening one that's due airs it.
+  await airIfDue(db, id).catch(() => null);
   const episode = await getEpisodeView(db, id, viewerId);
+  // When an unaired date airs on its own (its booking plus the prediction window), for the host's controls.
+  const airsAt =
+    episode && !episode.revealed && episode.is_host
+      ? await db
+          .query<{ at: Date | string }>(`select coalesce(air_after, created_at + $2 * interval '1 minute') as at from episodes where id = $1`, [id, airWindowMinutes()])
+          .then((r) => (r.rows[0] ? new Date(r.rows[0].at).toISOString() : null))
+          .catch(() => null)
+      : null;
   // Hidden after reports: a 404 for everyone except its creators (see ./not-found.tsx).
   if (!episode || (episode.hidden && !episode.is_creator)) notFound();
 
@@ -387,6 +398,8 @@ export default async function EpisodePage({
         dramaQuestion={episode.drama_question}
         myPick={episode.my_pick}
         myDramaPick={episode.my_drama_pick}
+        visibility={episode.visibility}
+        airsAt={airsAt}
       />
 
       {episode.identity && (

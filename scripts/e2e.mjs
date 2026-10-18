@@ -349,7 +349,10 @@ async function main() {
     await step("the host airs the finale", async () => {
       await page.bringToFront();
       await page.goto(episodeUrl);
-      await page.getByRole("button", { name: "Air the finale" }).click();
+      // Dates air on their own once predictions close (lib/air.ts); the host can air sooner, or keep it offline.
+      await page.getByText(/It airs on its own at/).waitFor();
+      assert((await page.getByRole("button", { name: "Keep it offline" }).count()) === 1, "no way to keep the date offline");
+      await page.getByRole("button", { name: "Air it now" }).click();
       await page.getByText("The finale has aired").waitFor({ timeout: 10_000 });
     });
 

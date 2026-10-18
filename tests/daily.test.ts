@@ -63,7 +63,13 @@ describe("the showcase bar (template rooms are the shop window)", () => {
     "That's oddly beautiful. Would you sing one now?",
     "Maybe after another round. You'd have to join the chorus.",
     "Deal, though I warn you my voice frightens seagulls.",
-    "Then we'll practise somewhere gull-free. Same time next week?",
+    "Then we'll practise somewhere gull-free. Where's the quietest place you know?",
+    "A bandstand in the park after midnight. Nobody goes there but the night bus drivers on their break.",
+    "Do they ever request anything?",
+    "One asked for a lullaby once. The driver was asleep before the chorus, which I took as a review.",
+    "Honestly the best review there is. I'd pay to hear that version.",
+    "Free admission. You just have to promise not to fall asleep.",
+    "I'll stay awake for the whole set. Even the encore.",
   ].map(line);
 
   it("a date under the bar gets one more take — same outcome — and the better take airs", async () => {

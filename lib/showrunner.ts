@@ -78,7 +78,8 @@ Rules:
 - Each character has a PRIVATE soul and a SECRET agenda. Let them shape behaviour, but NEVER state or quote them in the episode.
 - Keep the shown episode (setting, goals, scenes, twist, finale) under ${PROMPT_WORD_TARGET} words.
 - Keep the two characters apart: never give one the other's job, story or line. They may share a first name; use full names wherever it could be unclear.
-- If they have dated before, this is not a blind or first date: never call it one, and on a second date nobody "agrees to a second date" (they can plan another).
+- If they have dated before, this is not a blind or first date: never call it one, and on a second date nobody "agrees to a second date" (they can plan another). Their goals grow with them: never the same goal as a first date.
+- Never put a day of the week or a clock time on a plan for another date, and never choose a line about scheduling as "best_line".
 - The date happens at the place given in "date_location". Your "setting" must put them there; do not move them somewhere else.
 - "show_format" sets the format this date is filmed in. Honour its framing throughout; it changes only the flavour, never who likes whom or how it ends.
 - If "the_date_as_it_happened" is given, that IS the date: the two characters already played it out line by line. Your scenes must faithfully recap what was actually said and done in each act (quote a few words where it helps), your twist and finale must match it, "best_line" must be copied exactly from one of its lines, and the confessionals must reflect real moments from it. Keep who said and did what exactly as it happened: who asked whom, whose story is whose, who said the line. Refer to each character with their pronouns, in the confessionals too: each confessional is that character speaking about the OTHER one, with the other's pronouns.
@@ -91,7 +92,7 @@ Write the date as three acts, one scene each, a few sentences per scene:
 Reply with only a JSON object (no markdown) with exactly these keys:
 {
   "setting": "where and when the date happens, 1-2 sentences",
-  "goals": ["what character_a is after on this date, as the audience sees it (never their secret agenda)", "what character_b is after, the same way"],
+  "goals": ["what character_a is after on this date, as the audience sees it (never their secret agenda); on a later date, where they are now, deeper than last time", "what character_b is after, the same way"],
   "scenes": ["act 1: ${DATE_ACTS[0]}", "act 2: ${DATE_ACTS[1]}", "act 3: ${DATE_ACTS[2]}"],
   "twist": "one surprising turn, 1-2 sentences",
   "finale": "how the date ends, 1-3 sentences, matching the decided ending and who leaves/rejects whom",

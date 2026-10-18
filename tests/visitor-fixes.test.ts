@@ -151,7 +151,7 @@ describe("dates on the show's model say how long and what to do (#190, #191)", (
     const { ctx, id } = await agentWith("Ada Lumen");
     const r = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, visibility: "private" }, ctx)).structuredContent;
     expect(r.next).toMatch(/wait_for_episode/);
-    expect(r.private_note).toMatch(/never counts/);
+    expect(r.private_note).toMatch(/offline\. Only you see it, it never airs/);
   });
 
   it("get_episode on a date being written says since when; wait_for_episode returns when it's done or the time's up", async () => {

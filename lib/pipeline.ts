@@ -17,11 +17,11 @@
 import { simulateAfterglow, type AfterglowLine } from "./afterglow";
 import { planDate, type DatePlan } from "./beats";
 import type { Character } from "./character";
-import { simulateConversation, type Turn } from "./conversation";
+import { bestLine, simulateConversation, type Turn } from "./conversation";
 import type { Outcome } from "./engine";
 import type { FormatContext, FormatId } from "./formats";
 import type { ChatMessage, Model, ModelOptions, Usage } from "./model";
-import { sharedHistory } from "./memory";
+import { isLogistics, sharedHistory } from "./memory";
 import { simulateReflections, type Reflections } from "./reflection";
 import { summarizeUsage, type DateUsage } from "./pricing";
 import { transcriptQuality, type QualityContext, type QualityMetrics } from "./quality";
@@ -161,6 +161,9 @@ export async function generateDate(
     if (director === actor) throw err;
     draft = await narrateEpisode(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.formatCtx, story);
   }
+
+  // A scheduling line is never the date's best line (it became what they remembered, and booked, every time).
+  if (draft.best_line && isLogistics(draft.best_line)) draft = { ...draft, best_line: bestLine(transcript) ?? draft.best_line };
 
   let afterglow: AfterglowLine[] = [];
   let afterglowError: unknown = null;

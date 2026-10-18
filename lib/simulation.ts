@@ -24,7 +24,7 @@ import type { BoxScore, DateSetup } from "./game";
 import { assembleCharacter, type Character } from "./character";
 import type { CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
-import { loadCharacterMemory, pendingReflections, withPendingReflections, type CharacterMemory } from "./memory";
+import { loadCharacterMemory, pairMemory, pendingReflections, withPairMemory, withPendingReflections, type CharacterMemory } from "./memory";
 import { activeNudge, alsoSeeing } from "./between-dates";
 import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, venueForPlan, type Relationship } from "./relationships";
 import { loadSoul, type StoredSoul } from "./souls";
@@ -177,12 +177,12 @@ export function assembleDate(p: DateParts): BuiltDate {
   if (p.nudges?.b) charB.nudge = p.nudges.b;
   if (p.alsoSeeing?.a.length) charA.alsoSeeing = p.alsoSeeing.a;
   if (p.alsoSeeing?.b.length) charB.alsoSeeing = p.alsoSeeing.b;
-  // A second date happens where they planned it, when the plan names a kind of place we have, unless their last two
-  // dates were both there already: a running joke about tea shouldn't keep a couple in the same café for good.
+  // A second date happens where they planned it, when the plan names a kind of place we have, but never the same place
+  // twice in a row: a running joke about coffee kept Cass and Dex in the same café for 7 of 15 dates.
   const plans = p.followupOf ? (p.relationship?.plans ?? []).filter((x) => x.episode_id === p.followupOf) : [];
   const planned = venueForPlan(plans);
   const recentVenues = (p.relationship?.history ?? []).slice(-2).map((h) => h.venue);
-  const plannedVenue = planned && !(recentVenues.length === 2 && recentVenues.every((v) => v === planned)) ? planned : null;
+  const plannedVenue = planned && recentVenues[recentVenues.length - 1] !== planned ? planned : null;
   // The effective engine signals this date runs on: the base soul/image signals nudged by the learned
   // memory's bounded drift (lib/character.ts), so a bot genuinely evolves across its dates. A worker
   // rebuilding a stored date passes the snapshot so it re-decides EXACTLY what POST stored.
@@ -305,6 +305,11 @@ export async function buildDate(
     opts.creatorId !== undefined && opts.creatorId !== PUBLIC_ONLY
       ? await Promise.all([pendingReflections(db, a.id, opts.creatorId, episodeId), pendingReflections(db, b.id, opts.creatorId, episodeId)])
       : [[], []];
+  // What each remembers about the other from every date between them this creator may use, private and unaired too.
+  const [pairA, pairB] =
+    opts.creatorId !== undefined && opts.creatorId !== PUBLIC_ONLY
+      ? await Promise.all([pairMemory(db, a.id, b.id, opts.creatorId), pairMemory(db, b.id, a.id, opts.creatorId)]).catch(() => [null, null])
+      : [null, null];
   const [lo] = pairKey(a.id, b.id);
   const texts = chain.some(isText) ? { a: promptTexts(chain, a.id === lo ? "lo" : "hi"), b: promptTexts(chain, b.id === lo ? "lo" : "hi") } : undefined;
   const rowOf = (id: string) => extras.rows.find((r) => r.id === id);
@@ -321,7 +326,7 @@ export async function buildDate(
   const avoidVenues = opts.avoidVenues ?? (await recentVenues(db, [a.id, b.id], episodeId));
   return assembleDate({
     episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues, venueOverride: opts.venueOverride,
-    soulA, soulB, memoryA: withPendingReflections(memoryA, pendingA), memoryB: withPendingReflections(memoryB, pendingB), history, ex, signalsOverride,
+    soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,

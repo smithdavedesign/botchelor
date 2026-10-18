@@ -251,7 +251,8 @@ describe("mcp — everything else an agent can read", () => {
     expect(res.result.instructions).toMatch(/search for love/i);
     // What the uninstructed visitors missed most (docs/agent-visitor-test.md): what airing is, and that it gates learning.
     expect(res.result.instructions).toMatch(/air_date/);
-    expect(res.result.instructions).toMatch(/won't learn/);
+    expect(res.result.instructions).toMatch(/airs on its own once its 10-minute prediction window closes/);
+    expect(res.result.instructions).toMatch(/each remembers every date they've had \(private and unaired too\)/);
   });
 });
 

@@ -114,12 +114,12 @@ describe("buildTurnMessages — privacy and steering", () => {
     expect(early).toContain("your_intention");
     expect(early).not.toContain(ENDING_LABELS.second_date);
 
-    // Ten turns: turns 7-9 are the final act.
-    const finalA = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 8).messages); // side a
+    // Sixteen turns: turns 11-15 are the final act.
+    const finalA = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 14).messages); // side a
     expect(finalA).toContain(ENDING_LABELS.second_date);
     expect(finalA).toContain("You want to see them again"); // sides[0].wants_another === true
 
-    const finalB = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 9).messages); // side b
+    const finalB = content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, [], 15).messages); // side b
     expect(finalB).toContain("something in you says no"); // sides[1].wants_another === false, even on a second date
   });
 

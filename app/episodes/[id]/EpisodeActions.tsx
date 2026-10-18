@@ -28,10 +28,23 @@ type Props = {
   dramaQuestion: DramaQuestion | null;
   myPick: Ending | null;
   myDramaPick: DramaAnswer | null;
+  /** public / unlisted / private. Private is "offline": it never airs on its own. */
+  visibility?: string;
+  /** When an unaired date airs on its own (ISO), for its host. */
+  airsAt?: string | null;
 };
 
+/** The host takes a date offline (private) or puts it back on the air (public). */
+function setVisibility(episodeId: string, visibility: "public" | "private") {
+  return requestJson(`/api/episodes/${episodeId}/visibility`, { visibility }, "PATCH").then((r) => {
+    if (r.ok) window.location.reload();
+    return r;
+  });
+}
+
 export default function EpisodeActions(props: Props) {
-  const { episodeId, sharePath, isCreator, isHost, revealed, names, dramaQuestion, myPick, myDramaPick } = props;
+  const { episodeId, sharePath, isCreator, isHost, revealed, names, dramaQuestion, myPick, myDramaPick, visibility, airsAt } = props;
+  const offline = visibility === "private";
   const { busy, error, setError, run } = useAction();
 
   function predict(event: FormEvent<HTMLFormElement>) {
@@ -51,8 +64,14 @@ export default function EpisodeActions(props: Props) {
   if (revealed) {
     return (
       <section className="card">
-        <p>The finale has aired. Share it anyway:</p>
-        <ShareLink path={sharePath} label="Episode link" />
+        <p>{offline ? "The finale aired, and the date is offline now: only its owners see it." : "The finale has aired. Share it anyway:"}</p>
+        {!offline && <ShareLink path={sharePath} label="Episode link" />}
+        {isHost && (
+          <button type="button" className="secondary small" disabled={busy} onClick={() => run(() => setVisibility(episodeId, offline ? "public" : "private"))}>
+            {offline ? "Put it back on the air" : "Take it offline"}
+          </button>
+        )}
+        {error && <p className="error">{error}</p>}
       </section>
     );
   }
@@ -62,15 +81,29 @@ export default function EpisodeActions(props: Props) {
       <section className="card">
         <h2>Your episode</h2>
         <p>
-          You can&apos;t steer or predict your own date. Share the link so friends can guess the ending
-          {isHost ? ", then air the finale to score their picks." : ". The creator who asked for the date airs the finale."}
+          You can&apos;t steer or predict your own date. Share the link so friends can guess the ending before it airs.
         </p>
-        <ShareLink path={sharePath} label="Episode link" />
-        {isHost && (
-          <button type="button" disabled={busy} onClick={() => run(() => requestJson(`/api/episodes/${episodeId}/reveal`))}>
-            Air the finale
-          </button>
+        {isHost && offline && <p className="notice">This date is offline: it won&apos;t air, and only you see it. It still counts between the two of them.</p>}
+        {isHost && !offline && airsAt && (
+          <p className="notice">
+            It airs on its own at {new Date(airsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, once predictions close. Then it
+            counts for both characters.
+          </p>
         )}
+        {!offline && <ShareLink path={sharePath} label="Episode link" />}
+        {isHost && (
+          <div className="row">
+            {!offline && (
+              <button type="button" disabled={busy} onClick={() => run(() => requestJson(`/api/episodes/${episodeId}/reveal`))}>
+                Air it now
+              </button>
+            )}
+            <button type="button" className="secondary" disabled={busy} onClick={() => run(() => setVisibility(episodeId, offline ? "public" : "private"))}>
+              {offline ? "Put it back on the air" : "Keep it offline"}
+            </button>
+          </div>
+        )}
+        {!isHost && <p className="muted">It airs on its own once predictions close.</p>}
         {error && <p className="error">{error}</p>}
       </section>
     );

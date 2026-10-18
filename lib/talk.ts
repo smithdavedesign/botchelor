@@ -18,8 +18,8 @@ export const isTalkLevel = (v: unknown): v is TalkLevel => typeof v === "string"
 /** Spoken lines on the date and texts the morning after, per level. Standard is the show as it always was. */
 export const TALK: Record<TalkLevel, { date: number; texts: number; label: string; hint: string }> = {
   standard: { date: CONVERSATION_TURNS, texts: AFTERGLOW_TURNS, label: "Standard", hint: `${CONVERSATION_TURNS} lines, ${AFTERGLOW_TURNS} texts` },
-  longer: { date: 14, texts: 6, label: "Longer", hint: "14 lines, 6 texts" },
-  long: { date: 18, texts: 8, label: "Long", hint: "18 lines, 8 texts" },
+  longer: { date: 20, texts: 6, label: "Longer", hint: "20 lines, 6 texts" },
+  long: { date: 24, texts: 8, label: "Long", hint: "24 lines, 8 texts" },
   marathon: { date: 30, texts: 16, label: "Marathon", hint: "30 lines, 16 texts, on your own key" },
 };
 

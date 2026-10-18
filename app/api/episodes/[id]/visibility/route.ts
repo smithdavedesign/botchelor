@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { updateCharacterMemory } from "@/lib/memory";
 import { refreshEpisodePair } from "@/lib/relationships";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -35,5 +36,8 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   if (!rows.length) return json({ error: "not_host", message: "Only the person who set up this date can change who sees it." }, 404, sess);
   // The relationship graph's public layer counts only public dates.
   await refreshEpisodePair(db, id).catch(() => {});
+  // The stored memory (and the public arc it shows) counts aired public dates: taking one offline takes it out.
+  const pair = (await db.query<{ a: string; b: string }>(`select character_a as a, character_b as b from episodes where id = $1`, [id])).rows[0];
+  if (pair) await Promise.all([updateCharacterMemory(db, pair.a), updateCharacterMemory(db, pair.b)]).catch(() => {});
   return json({ id, visibility }, 200, sess);
 });

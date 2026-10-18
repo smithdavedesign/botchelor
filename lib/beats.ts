@@ -81,7 +81,7 @@ const thirdPerson = (cause: string) => cause.replace(/^(\w+)/, "$1s");
 
 /** How each ending reads to a viewer, so what's said never contradicts the decided result. */
 export const ENDING_READS: Record<Outcome["ending"], string> = {
-  second_date: "a spark, and a plan to meet again",
+  second_date: "a spark: both of them clearly want more",
   friends: "warm, easy company with no romance",
   disaster: "a clear no, for a reason everyone saw",
 };
@@ -146,7 +146,7 @@ function finalFeeling(outcome: Outcome, s: Side): string {
   const wants = outcome.sides[s].wants_another;
   switch (outcome.ending) {
     case "second_date":
-      return wants ? "You want to see them again, and it shows: you ask, or you say yes." : "The night is lovely, and still something in you says no.";
+      return wants ? "You want to see them again, and it shows." : "The night is lovely, and still something in you says no.";
     case "friends":
       return wants
         ? "You like them as a friend: you'd hang out again, and nothing about your goodbye is romantic. Let it show; don't announce it."
@@ -230,11 +230,65 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
     const latest = texted.texts.slice(-3).map((t) => `${names[t.from === "you" ? 0 : 1]}: "${t.text.length > 160 ? `${t.text.slice(0, 159)}…` : t.text}"`);
     facts.push(`They've been texting (${texted.texts.length + texted.earlier} texts so far). The latest: ${latest.join(" ")} The date can pick up a thread from them.`);
   }
+  // How deep tonight goes, from how many dates they've had (David: "let the goals deepen").
+  const times = Math.max(met?.dates ?? 0, Number((pair as { times_together?: number } | null)?.times_together ?? 0));
+  const depth = depthFor(times);
+  if (depth) facts.push(`This is date ${times + 1} for them: ${depth.director}`);
+  // How it ends, varied date to date (David: every date ended booking "next Tuesday").
+  facts.push(`The goodbye: ${closingMove(outcome, times).director}`);
   const dir = (d: number) => (d > 3 ? "rises" : d < -3 ? "falls" : "holds");
   facts.push(
     `Over the date, chemistry ${dir(outcome.variables.chemistry.delta)}, trust ${dir(outcome.variables.trust.delta)} and awkwardness ${dir(outcome.variables.awkwardness.delta)}.`,
   );
   return facts;
+}
+
+/**
+ * How deep a date goes, by how many the pair has had before it. Small talk is for strangers: each date asks a little
+ * more of them, so a couple's fifth date isn't their first again. Null for a first meeting.
+ */
+export function depthFor(timesBefore: number): { director: string; actor: string } | null {
+  if (timesBefore <= 0) return null;
+  if (timesBefore === 1)
+    return {
+      director: "they're past first impressions, so act two gets one of them to tell the other something real that the first date didn't reach.",
+      actor: "You're past first impressions. Find out something real about them that last time didn't get to, and let them learn something true about you.",
+    };
+  if (timesBefore <= 3)
+    return {
+      director: "small talk is behind them. Act two turns on a real question about something that matters to one of them, and an honest answer.",
+      actor: "Small talk is behind you two. Ask about something that matters to them, and answer honestly when they ask you back: a worry, a hope, a story you don't tell everyone.",
+    };
+  return {
+    director: "they know each other now. The date gets to what's between them: where this is going, something one of them has been holding back, or a fear about it.",
+    actor: "You know each other now. Talk about the two of you: where this is going, something you've been holding back, or what scares you about it. Not every line, but the date should get there.",
+  };
+}
+
+/**
+ * The last act's goodbye, varied by how many dates the pair has had, so a couple doesn't end every date the same way
+ * (the "same time next Tuesday" loop). Every move fits the decided ending; none names a day or a time.
+ */
+const CLOSING_MOVES: Record<Outcome["ending"], { director: string; actor: string }[]> = {
+  second_date: [
+    { director: "one of them asks to see the other again, about something they'd do together (never a day or a time).", actor: "If you want more, ask for it, about something you'd do together. Never a day of the week or a time." },
+    { director: "no plan gets made; a goodbye that lingers says it instead.", actor: "Don't make a plan tonight. Let the goodbye linger, and let what you don't say carry it." },
+    { director: "they don't want the night to end, and one of them suggests stretching it a little (a walk, one more stop).", actor: "If it's going well, you don't want it to end yet: suggest stretching tonight a little, rather than booking another night." },
+    { director: "one gives the other something small to keep, or a promise about something specific that came up tonight.", actor: "Leave them with something: a small promise about something that came up tonight, or something to keep. No dates or times." },
+  ],
+  friends: [
+    { director: "they part as friends, easily, with no plan pinned down.", actor: "Part easily, like friends. No plan needs pinning down." },
+    { director: "one suggests a casual group thing or a favour, nothing romantic.", actor: "If you'd hang out again, say it casually: a favour, something with friends. Nothing romantic." },
+  ],
+  disaster: [
+    { director: "it ends where act two left it: one of them calls it, plainly and without a scene.", actor: "End it plainly, for the reason that came out tonight. No excuses, no scene." },
+    { director: "it ends awkwardly and quickly, both relieved, nobody pretending otherwise.", actor: "Let it end quickly and a bit awkwardly. Don't pretend it went well." },
+  ],
+};
+
+export function closingMove(outcome: Pick<Outcome, "ending">, timesBefore: number, seed = 0): { director: string; actor: string } {
+  const moves = CLOSING_MOVES[outcome.ending];
+  return moves[(timesBefore + seed) % moves.length];
 }
 
 /** One side's private beat for an act, from the engine's facts only. `want` is this side's own want phrase. */
