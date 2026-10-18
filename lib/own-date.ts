@@ -32,7 +32,7 @@ import { getEpisodeView, type DateSetup, type EpisodeView } from "./game";
 import type { ChatMessage } from "./model";
 import { PROMPT_VERSION, qualityContext } from "./pipeline";
 import { neverSaid, transcriptQuality } from "./quality";
-import { CONVERSATION_TURNS, DATE_ACTS, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
+import { actName, CONVERSATION_TURNS, DATE_ACTS, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
 import { buildReflectionMessages, type Reflections } from "./reflection";
 import { useNudges } from "./between-dates";
@@ -196,6 +196,17 @@ export async function startOwnDate(
   }
 
   await clearStaleOwnDates(db, now, userId);
+  // Run 4: both agents asked each other's characters out within a minute, so one pair had two dates going at once.
+  const already = (
+    await db.query<{ id: string }>(
+      `select id from episodes where performed_by = 'agent' and status = 'generating'
+          and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1)) limit 1`,
+      [a.id, b.id],
+    )
+  ).rows[0];
+  if (already) {
+    return err(409, "date_in_progress", `${shortName(a.name)} and ${shortName(b.name)} already have a date in progress (${already.id}). Play that one: get_own_date_step with its episode_id.`);
+  }
   const open = (
     await db.query<{ n: number }>(
       `select count(*)::int as n from episodes where creator_id = $1 and performed_by = 'agent' and status = 'generating'`,
@@ -320,7 +331,7 @@ function stepFor(
       of,
       side,
       speaker: { id: ids[side === "a" ? 0 : 1], name: speaker.name },
-      act: DATE_ACTS[act] ?? `Act ${act + 1}`,
+      act: actName(act, Boolean(built.input.history?.dates)),
       act_index: act,
       instructions:
         `Turn ${turn + 1} of ${of}: ${speaker.name} speaks. Run these messages in ${speaker.name}'s own process — a separate model ` +
@@ -456,7 +467,9 @@ async function finishOnShowModel(
     await notify(db, to, {
       kind: "own_date_ready",
       title: `💞 ${row.a_name} and ${row.b_name}'s date is done`,
-      body: "Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like).",
+      body: to === row.creator_id
+        ? "Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like), then air it with air_date."
+        : "Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like). The agent that asked airs it; a public date airs itself 10 minutes after it was booked.",
       link: `/episodes/${row.id}`,
     });
   }
@@ -747,6 +760,9 @@ const TURN_REJECTIONS: Record<string, string> = {
  * or a line that's degenerated (one word over and over, or the same line as before).
  */
 export function ownTurnProblem(raw: string, turn: Turn, never: readonly string[] | undefined, before: Turn[]): string | null {
+  // Run 4: {"dialogue":"hi","emotion":"x"} was accepted. Our model's lines get defaults; an agent's carry all four.
+  const missing = missingTurnFields(raw);
+  if (missing.length) return `The reply needs all four fields in reply_format; missing or the wrong type: ${missing.join(", ")}. interest_signal is a number from 0 to 1.`;
   const said = spokenLength(raw);
   if (said > TURN_DIALOGUE_MAX) return `That line is ${said} characters; a spoken line is at most ${TURN_DIALOGUE_MAX}. Say it shorter.`;
   const phrase = neverSaid(turn.dialogue, never);
@@ -757,6 +773,24 @@ export function ownTurnProblem(raw: string, turn: Turn, never: readonly string[]
     return "That's word for word a line this character already said on this date. Say something new.";
   }
   return null;
+}
+
+/** Which of the four turn fields are missing or mistyped in an agent's raw reply. */
+function missingTurnFields(raw: string): string[] {
+  let j: Record<string, unknown>;
+  try {
+    const unfenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(raw.trim())?.[1] ?? raw.trim();
+    j = JSON.parse(unfenced) as Record<string, unknown>;
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  if (typeof j.dialogue !== "string") out.push("dialogue");
+  if (typeof j.action !== "string") out.push("action");
+  if (typeof j.emotion !== "string") out.push("emotion");
+  const n = typeof j.interest_signal === "number" ? j.interest_signal : typeof j.interest_signal === "string" ? Number(j.interest_signal) : NaN;
+  if (!Number.isFinite(n) || n < 0 || n > 1) out.push("interest_signal");
+  return out;
 }
 
 /** The untrimmed dialogue's length (parseTurnResult trims to the limit, which hides an over-long line). */

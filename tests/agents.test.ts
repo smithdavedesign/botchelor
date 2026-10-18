@@ -415,7 +415,7 @@ describe("mcp — what the uninstructed visitors asked for (docs/agent-visitor-t
     const aired = await call("air_date", { episode_id: ep.id }, ctx);
     expect(aired.isError).toBeFalsy();
     expect(aired.structuredContent).toMatchObject({ aired: true, episode_id: ep.id, ending: "friends" });
-    expect((await call("air_date", { episode_id: ep.id }, ctx)).content[0].text).toBe("Error: That date has already aired.");
+    expect((await call("air_date", { episode_id: ep.id }, ctx)).structuredContent).toMatchObject({ aired: true, already: true, ending: "friends" });
 
     // A self-performed date that isn't finished is still "being filmed".
     const other = (await call("create_character", sheet("Ira Fenn"), ctx)).structuredContent.character.id;

@@ -200,6 +200,9 @@ export const VOICE_MAX = 200;
  * challenge comes from the AI producer below.
  */
 export const DATE_ACTS = ["First impressions", "The challenge", "The decision"] as const;
+/** A pair that has met before doesn't have "first impressions" (run 4): act one is picking up where they left off. */
+export const actName = (act: number, metBefore: boolean): string =>
+  act === 0 && metBefore ? "Picking up where they left off" : (DATE_ACTS[act] ?? `Act ${act + 1}`);
 
 /**
  * M9 — the turn-by-turn two-agent conversation. Each character is its own agent that reacts to the

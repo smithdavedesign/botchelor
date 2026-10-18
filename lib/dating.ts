@@ -251,13 +251,15 @@ export async function findMatches(
     }
     const theirWords = keywords(haystack({ ...p, want: "" }));
     const theyFit = [...myWant].filter((w) => strongWord(w) && theirWords.has(w)).slice(0, 3);
-    if (theyFit.length) {
-      score += theyFit.length;
+    if (theyFit.length) score += theyFit.length;
+    // A reason needs two shared words, or one with some length to it (run 4: "wants “keep”" isn't a reason); a short
+    // single word still scores.
+    if (theyFit.length >= 2 || theyFit.some((w) => w.length >= 5)) {
       why.push(`${me.name} wants ${theyFit.map((w) => `"${w}"`).join(", ")} — that's in ${p.name}'s profile`);
     }
     const youFit = [...keywords(p.want)].filter((w) => strongWord(w) && myWords.has(w)).slice(0, 3);
-    if (youFit.length) {
-      score += youFit.length;
+    if (youFit.length) score += youFit.length;
+    if (youFit.length >= 2 || youFit.some((w) => w.length >= 5)) {
       why.push(`${p.name} wants ${youFit.map((w) => `"${w}"`).join(", ")} — that's in ${me.name}'s profile`);
     }
     // What the show has learned about these traits together, once enough dates back it.
