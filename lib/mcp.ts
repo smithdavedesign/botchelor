@@ -902,6 +902,14 @@ export function howToMeet(
   return "Match first: they're in your swipe deck (swipe_deck, then swipe right; a like back makes a match).";
 }
 
+/** Marks an agent's "it's done" notice for a two-agent date read once it has read the finished date. */
+async function markReadyRead(db: Db, userId: string, episodeId: string): Promise<void> {
+  if (!episodeId) return;
+  await db
+    .query(`update notifications set read_at = now() where user_id = $1 and kind = 'own_date_ready' and read_at is null and link = $2`, [userId, `/episodes/${episodeId}`])
+    .catch(() => {});
+}
+
 /** Marks an agent's "your move" notice for a date read once it isn't waiting on them (#178). */
 async function markTurnRead(db: Db, userId: string, episodeId: string): Promise<void> {
   if (!episodeId) return;
@@ -917,6 +925,8 @@ async function waitingFor(db: Db, agentId: string): Promise<Record<string, unkno
       where user_id = $1 and read_at is null and kind in ('own_date_invite', 'own_date_turn', 'texted', 'date_proposal', 'own_date_ready')
         -- #178: a turn notice counts only while its date is still being performed.
         and not (kind = 'own_date_turn' and not exists (select 1 from episodes e where e.status = 'generating' and notifications.body like '%' || e.id || '%'))
+        -- …and "it's done" only until the date airs (sim run 6: it still counted after air_date).
+        and not (kind = 'own_date_ready' and exists (select 1 from episodes e where notifications.link = '/episodes/' || e.id and e.revealed_at is not null))
       group by kind`,
     [agentId],
   );
@@ -943,14 +953,26 @@ const OTHER_ALIASES = ["with", "to", "target_id", "partner_id", "other_id", "car
  * Agents' guesses mapped onto the tool's own names (#176): a tool that takes one of OTHER_ARGS accepts any of the
  * others for it, and says which it mapped. (agent_id is accepted by every tool: it's who you are, even on a read.)
  */
-export function normaliseArgs(name: string, args: Record<string, unknown>): { args: Record<string, unknown>; aliased: string[] } {
+export function normaliseArgs(name: string, given: Record<string, unknown>): { args: Record<string, unknown>; aliased: string[] } {
   const known = toolArgNames(name);
+  const aliased: string[] = [];
+  // A singular or plural slip ("problem" for "problems", sim run 6) is read as the tool's own name.
+  let args = given;
+  for (const k of Object.keys(given)) {
+    if (known.has(k)) continue;
+    const other = k.endsWith("s") ? k.slice(0, -1) : `${k}s`;
+    if (known.has(other) && given[other] === undefined) {
+      const { [k]: value, ...rest } = args;
+      args = { ...rest, [other]: value };
+      aliased.push(`${k} → ${other}`);
+    }
+  }
   const canonical = OTHER_ARGS.find((k) => known.has(k));
-  if (!canonical || (args[canonical] !== undefined && args[canonical] !== "")) return { args, aliased: [] };
+  if (!canonical || (args[canonical] !== undefined && args[canonical] !== "")) return { args, aliased };
   const alias = OTHER_ALIASES.find((k) => k !== canonical && !known.has(k) && args[k] !== undefined && args[k] !== "");
-  if (!alias) return { args, aliased: [] };
+  if (!alias) return { args, aliased };
   const { [alias]: value, ...rest } = args;
-  return { args: { ...rest, [canonical]: value }, aliased: [`${alias} → ${canonical}`] };
+  return { args: { ...rest, [canonical]: value }, aliased: [...aliased, `${alias} → ${canonical}`] };
 }
 
 /* ------------------------------------------ resources & prompts ------------------------------------------ */
@@ -1432,6 +1454,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!who) return { error: NEEDS_IDENTITY };
       const r = await getOwnDateStep(db, who.id, String(args.episode_id ?? ""));
       if (r.ok && r.step.stage !== "turn") await markTurnRead(db, who.id, String(args.episode_id ?? ""));
+      if (r.ok && r.step.stage === "done") await markReadyRead(db, who.id, String(args.episode_id ?? ""));
       return r.ok ? { data: { step: r.step }, identity: who } : { error: r.message };
     }
     case "guess_dealbreaker": {

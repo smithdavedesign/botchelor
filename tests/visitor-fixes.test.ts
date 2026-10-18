@@ -54,6 +54,8 @@ describe("arguments (#176, #188)", () => {
     // The tool's own name wins, and a tool without another character is left alone.
     expect(normaliseArgs("go_on_date", { partner_id: "x", with: "b" }).aliased).toEqual([]);
     expect(normaliseArgs("list_cast", { with: "b" }).aliased).toEqual([]);
+    // A singular or plural slip (sim run 6: "problem" on send_feedback).
+    expect(normaliseArgs("send_feedback", { problem: "x" })).toEqual({ args: { problems: "x" }, aliased: ["problem → problems"] });
   });
 
   it("an aliased call runs, and agent_id is never an ignored argument", async () => {
@@ -119,6 +121,26 @@ describe("agent activity (#178)", () => {
     expect((await call("my_characters", {}, ctx)).structuredContent.waiting_for_you).toBeUndefined();
     await t.db.query(`update episodes set status = 'generating' where id = $1`, [ep.id]);
     expect((await call("my_characters", {}, ctx)).structuredContent.waiting_for_you).toMatchObject({ own_date_turn: 1 });
+  });
+
+  it("'it's done' stops counting once the date airs", async () => {
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    const { ctx, agentId, id } = await agentWith("Ada Lumen");
+    const ep = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx)).structuredContent.episode;
+    await t.db.query(`update episodes set revealed_at = null where id = $1`, [ep.id]);
+    await t.db.query(
+      `insert into notifications (id, user_id, kind, title, body, link) values (gen_random_uuid()::text, $1, 'own_date_ready', 'Done', 'x', $2)`,
+      [agentId, `/episodes/${ep.id}`],
+    );
+    expect((await call("my_characters", {}, ctx)).structuredContent.waiting_for_you).toMatchObject({ own_date_ready: 1 });
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [ep.id]);
+    expect((await call("my_characters", {}, ctx)).structuredContent.waiting_for_you).toBeUndefined();
+  });
+
+  it("wait_for_my_turn without an episode says it's required (sim run 6)", async () => {
+    const { ctx } = await agentWith("Ada Lumen");
+    expect((await call("wait_for_my_turn", {}, ctx)).content[0].text).toMatch(/"episode_id" is required/);
   });
 });
 
