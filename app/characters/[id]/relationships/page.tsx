@@ -100,7 +100,7 @@ export default async function RelationshipBoard({ params }: Props) {
         {rows.length === 0
           ? `${first} hasn't been on a date yet.`
           : owns(id)
-            ? `Everyone ${first} has dated, latest first, with their newest text. Open one to read their whole thread.`
+            ? `Everyone ${first} has dated or matched, latest first, with their newest text. Open one to read their whole thread.`
             : `Everyone ${first} has dated, and where they stand. Their texts are private to the characters' owners.`}
       </p>
       <PhoneFrame>
@@ -112,7 +112,10 @@ export default async function RelationshipBoard({ params }: Props) {
           <ul className="phone-inbox">
             {rows.map((r) => (
               <li key={r.other.id}>
-                <Link className="phone-row" href={r.owner ? `${r.path}#texts` : r.path}>
+                <Link
+                  className="phone-row"
+                  href={r.owner ? `${r.path.replace("/couples/", "/messages/")}?as=${encodeURIComponent(owns(id) ? id : r.other.id)}` : r.path}
+                >
                   <Avatar seed={r.other.id} name={r.other.name} hue={r.other.hue} house={r.other.house} portraitSrc={r.other.portrait} size={46} />
                   <span className="phone-row-main">
                     <span className="phone-row-top">

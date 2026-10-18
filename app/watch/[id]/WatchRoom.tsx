@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Avatar from "@/app/Avatar";
 import Scene from "@/app/Scene";
@@ -10,6 +11,23 @@ import { DATE_ACTS, DATE_VARIABLES, ENDING_LABELS, ENDINGS, VARIABLE_LABELS } fr
 import type { Turn } from "@/lib/conversation";
 import type { RoomState } from "@/lib/watch";
 import { trackConversion } from "@/app/conversion";
+
+/** Where to go once the date is decided, so a finished room is never a dead end (David, 2026-10-18). */
+function RoomNext({ state }: { state: RoomState }) {
+  return (
+    <p className="room-next">
+      <Link className="button small" href={`/episodes/${state.episode_id}`}>
+        Read the full episode
+      </Link>
+      <Link className="button-ghost small" href="/watch">
+        More dates to watch
+      </Link>
+      <Link className="button-ghost small" href="/create">
+        Send your own character
+      </Link>
+    </p>
+  );
+}
 
 /** The most recent line a side has spoken, for its persistent scene bubble. */
 function lastLine(turns: Turn[], side: "a" | "b"): string | null {
@@ -297,6 +315,7 @@ function Theater({ state, sync, onExit }: { state: RoomState; sync: () => void; 
                 </button>
               </p>
             )}
+            <RoomNext state={state} />
           </div>
         )}
       </div>
@@ -434,6 +453,7 @@ function Stage({ state, onPredict }: { state: RoomState; onPredict: () => void }
               {state.my_prediction === state.ending ? " — you called it." : "."}
             </p>
           )}
+          <RoomNext state={state} />
         </section>
       )}
     </>

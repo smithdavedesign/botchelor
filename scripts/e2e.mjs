@@ -370,21 +370,22 @@ async function main() {
     // Their texts (lib/text-chain.ts): one thread on a phone on the couple page, and each character's relationship board.
     let mine = "";
     let couplePath = "";
-    await step("the couple page keeps their date and its morning after on a phone, in full screen too; a spectator sees it locked", async () => {
+    await step("the couple page previews their texts and opens the thread: their date, the morning after, and what's next; a spectator sees it locked", async () => {
       await page.bringToFront();
       const episodeId = new URL(episodeUrl).pathname.split("/").pop();
       const ep = await page.evaluate(async (id) => (await fetch(`/api/episodes/${id}`)).json(), episodeId);
       mine = ep.characters[0].id;
       const partner = ep.characters[1].id;
       couplePath = mine < partner ? `/couples/${mine}/${partner}` : `/couples/${partner}/${mine}`;
-      await page.goto(`${base}${couplePath}#texts`);
+      await page.goto(`${base}${couplePath}`);
+      assert((await page.locator(".thread-preview-msg").count()) >= 1, "an owner should see their newest texts on the couple page");
+      await page.getByRole("link", { name: "💬 Open the thread" }).click();
+      await page.waitForURL(/\/messages\//);
       await page.locator("#texts .phone-messages").waitFor({ timeout: 10_000 });
       assert((await page.locator("#texts .phone-date").count()) === 1, "the thread should open with their date");
       assert((await page.locator("#texts .phone-msg").count()) >= 1, "the morning-after texts should follow the date");
-      await page.getByRole("button", { name: "⤢ Full screen" }).click();
-      await page.locator(".phone-stage.is-full").waitFor({ timeout: 10_000 });
-      await page.keyboard.press("Escape");
-      await page.locator(".phone-stage.is-full").waitFor({ state: "detached", timeout: 10_000 });
+      // What's next, where the texts are: their date, to watch.
+      assert(await page.locator(".thread-next", { hasText: "Watch it" }).isVisible(), "the thread should lead to their date");
       // A spectator: the page is public now the finale has aired, but the texts are the owners' alone.
       const res = await spage.goto(`${base}${couplePath}`);
       assert(res?.status() === 200, `the couple page should be public once a date airs (${res?.status()})`);
@@ -430,16 +431,17 @@ async function main() {
         assert(await page.locator("#texts .phone-event", { hasText: "It's a match" }).isVisible(), "the phone should open with the match");
         assert((await page.locator("#texts .phone-msg").count()) >= 2, "the two should have started texting");
         assert((await page.locator(".couple-head, .phone-card h2").count()) === 0, "the thread page should show the thread only");
-        // ⓘ is the way to their story: the couple page, where the date is booked.
-        await page.locator(".phone-header a[href^='/couples/']").click();
-        await page.waitForURL(/\/couples\/[^/]+\/[^/?#]+$/);
-        matchPath = new URL(page.url()).pathname;
-        agreed = (await page.getByRole("button", { name: /^Book / }).count()) > 0;
-        if (!agreed) assert(await page.locator(".match-state", { hasText: "Not this time" }).isVisible(), "no book button, so one of them said not this time");
+        matchPath = new URL(page.url()).pathname.replace("/messages/", "/couples/");
+        // The action bar says where they stand: both want a date (book it right here), or one said not this time.
+        await page.locator(".thread-next").waitFor({ timeout: 10_000 });
+        agreed = (await page.locator(".thread-next").getByRole("button", { name: "Book it" }).count()) > 0;
+        if (!agreed) assert(await page.locator(".thread-next", { hasText: "Not this time" }).isVisible(), "no book button, so one of them said not this time");
       }
       assert(agreed, "no agreed date after six matches");
       assert(await page.locator("#texts .phone-event", { hasText: "agreed to a date" }).isVisible(), "the chain should mark the agreed date");
-      await page.getByRole("button", { name: /^Book / }).click();
+      // ⓘ leads to their story; the couple page books too.
+      assert((await page.locator(".phone-header a[href^='/couples/']").count()) === 1, "the thread should link to their story");
+      await page.locator(".thread-next").getByRole("button", { name: "Book it" }).click();
       await page.waitForURL(/\/episodes\/[0-9a-f-]{36}/, { timeout: 30_000 });
       await page.locator(".theater").waitFor({ timeout: 10_000 });
     });
@@ -525,7 +527,7 @@ async function main() {
       await page.getByRole("button", { name: "Create account" }).click();
       await page.getByText(`Signed in as ${handle}`).waitFor({ timeout: 10_000 });
       await page.getByRole("heading", { name: "Your characters" }).waitFor();
-      assert((await page.locator(".account-links a").count()) > 0, "the account shows no characters it should own");
+      assert((await page.locator(".account-character-name").count()) > 0, "the account shows no characters it should own");
       assert((await page.locator(".account-dates li").count()) > 0, "the account shows no dates it should own");
     });
 
@@ -578,7 +580,7 @@ async function main() {
 
     await step("edits their own character from its card", async () => {
       await page.goto(`${base}/account`);
-      await page.locator(".account-links a").first().click();
+      await page.locator(".account-character-name").first().click();
       await page.getByRole("link", { name: /Edit / }).first().click();
       const newName = "Edited Contestant";
       await page.locator('input[name="name"]').fill(newName);

@@ -30,12 +30,20 @@ function ago(iso: string, now: number): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-/** Where the date stands, from the swipe deck's yes or no: theirs to decide, yours, or on. */
+/** The next step as a badge, for the ones worth acting on (the thread's action bar has the button). */
 function dateBadge(t: Thread): string | null {
-  if (!t.match) return null;
-  if (t.match.agreed) return "📅 Date agreed";
-  if (t.match.you === null) return "Your call";
-  return null;
+  switch (t.next?.kind) {
+    case "book":
+      return "📅 Book their date";
+    case "filming":
+      return "🎬 On now";
+    case "dated":
+      return t.next.aired ? null : "🎬 Date ready";
+    case "declined":
+      return "Not this time";
+    default:
+      return null;
+  }
 }
 
 /**
@@ -73,6 +81,10 @@ export default async function MatchesPage({ searchParams }: Props) {
         <h1>{mine.length > 1 ? "Matches" : `${first}'s matches`}</h1>
         <CharacterPicker characters={mine} current={me.id} href="/matches?character=" label="Whose matches" />
       </header>
+      <p className="matches-sub">
+        <Link href={`/characters/${encodeURIComponent(me.id)}`}>{first}&apos;s card</Link> ·{" "}
+        <Link href={`/swipe?character=${encodeURIComponent(me.id)}`}>Swipe for {first}</Link>
+      </p>
 
       {inbox.fresh.length > 0 && (
         <section className="matches-fresh" aria-labelledby="fresh-title">
@@ -85,6 +97,7 @@ export default async function MatchesPage({ searchParams }: Props) {
                 <Link href={thread(t)} className="matches-face">
                   <Avatar seed={t.with.id} name={t.with.name} hue={t.with.hue} house={t.with.house} portraitSrc={t.with.portrait} size={68} />
                   <span className="matches-face-name">{shortName(t.with.name)}</span>
+                  {dateBadge(t) && <span className="badge matches-face-badge">{dateBadge(t)}</span>}
                 </Link>
               </li>
             ))}

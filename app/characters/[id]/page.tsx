@@ -186,7 +186,8 @@ export default async function CharacterPage({ params }: Props) {
         <p className="notice swipe-cta">
           {profileComplete(c.extras) ? (
             <>
-              💘 <Link href={`/swipe?character=${c.id}`}>Swipe for {shortName(c.name)}</Link>
+              💘 <Link href={`/swipe?character=${c.id}`}>Swipe for {shortName(c.name)}</Link> ·{" "}
+              <Link href={`/matches?character=${c.id}`}>💬 {shortName(c.name)}&apos;s matches</Link>
               {dating?.open_to_dates ? " · they're in the swipe deck too" : " · open them to dates to be in others' decks"}
             </>
           ) : (
@@ -314,7 +315,7 @@ export default async function CharacterPage({ params }: Props) {
                   {ratings.is_owner && (
                     <>
                       {" "}
-                      · <Link href={`${r.path}#texts`}>💬 their texts</Link>
+                      · <Link href={`${r.path.replace("/couples/", "/messages/")}?as=${encodeURIComponent(c.id)}`}>💬 their texts</Link>
                     </>
                   )}
                 </span>

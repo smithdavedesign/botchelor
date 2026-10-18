@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { BadgeList } from "@/app/Badges";
-import EpisodeItem from "@/app/EpisodeItem";
 import { UnblockButton } from "@/app/watch/WatchActions";
 import { safeFrom } from "@/lib/age";
 import { getDb } from "@/lib/db";
-import { listMyEpisodes } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
 import { listMyLeagues } from "@/lib/leagues";
 import { listBlocks } from "@/lib/people";
@@ -25,13 +23,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
   // Back from an email confirmation link (app/api/email/confirm).
   const emailConfirmed = params.email === "confirmed" || params.email === "invalid" ? params.email : null;
   const next = typeof raw === "string" && safeFrom(raw) !== "/" ? safeFrom(raw) : null;
-  // What used to sit on "Episodes & leagues" and is only this viewer's (David, 2026-10-18): their characters' dates,
-  // their league badges and the creators they blocked. Everything public moved to Watch.
+  // What used to sit on "Episodes & leagues" and is only this viewer's (David, 2026-10-18): their league badges and the
+  // creators they blocked (their dates were already here, in AccountPanel). Everything public moved to Watch.
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
-  const [mine, leagues, blocks] = viewerId
-    ? await Promise.all([listMyEpisodes(db, viewerId), listMyLeagues(db, viewerId), listBlocks(db, viewerId)])
-    : [[], [], []];
+  const [leagues, blocks] = viewerId ? await Promise.all([listMyLeagues(db, viewerId), listBlocks(db, viewerId)]) : [[], []];
   // A season that ended since anyone last looked is closed here, so the viewer's new badges show (M4).
   let badges: Badge[] = [];
   if (viewerId && leagues.length) {
@@ -42,17 +38,6 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
     <>
       <h1>Your account</h1>
       <AccountPanel next={next} emailConfirmed={emailConfirmed} />
-
-      {mine.length > 0 && (
-        <section id="your-dates">
-          <h2>Your dates</h2>
-          <ul className="list">
-            {mine.map((episode) => (
-              <EpisodeItem key={episode.id} episode={episode} />
-            ))}
-          </ul>
-        </section>
-      )}
 
       {badges.length > 0 && (
         <section>

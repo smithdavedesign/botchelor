@@ -4856,3 +4856,108 @@ a.phone-head-btn {
   font-size: 1.15rem;
   text-decoration: none;
 }
+
+/* Under the Matches heading: the character's card and its deck, so the page always leads somewhere. */
+.matches-sub {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
+.matches-face-badge {
+  max-width: 100%;
+  margin: 0;
+  font-size: var(--text-2xs);
+  white-space: normal;
+  text-align: center;
+}
+
+/* The thread's action bar (app/messages/[a]/[b]/ThreadNext.tsx): the one thing to do next, under the header. */
+.thread-next {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.6rem max(0.9rem, calc((100% - 46rem) / 2));
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--soft) 70%, var(--card));
+}
+.thread-next-text {
+  font-weight: 700;
+}
+.thread-next > .button,
+.thread-next > button {
+  margin: 0;
+}
+.thread-next-link {
+  margin-left: auto;
+  font-size: var(--text-sm);
+}
+.thread-next-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* The couple page's texts: the newest few, and the way into the thread. */
+.thread-preview-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+.thread-preview-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.thread-preview-msg p {
+  margin: 0;
+  padding: 0.45rem 0.75rem;
+  border-radius: 1rem;
+  background: var(--soft);
+}
+.thread-preview-msg.is-mine {
+  flex-direction: row-reverse;
+}
+.thread-preview-msg.is-mine p {
+  background: color-mix(in srgb, var(--accent) 14%, var(--card));
+}
+
+/* A finished watch room's way out. */
+.room-next {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: var(--space-3) 0 0;
+}
+.room-next > * {
+  margin: 0;
+}
+
+/* Account: each character with its quick links. */
+.account-characters {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.account-character {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.account-character-name {
+  font-weight: 700;
+}
+.account-character-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  font-size: var(--text-sm);
+}
