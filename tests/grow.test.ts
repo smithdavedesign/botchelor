@@ -81,7 +81,7 @@ describe("the originality check", () => {
     const owner = newUserCookie();
     const id = (await (await api.createCharacter(validCharacter(SPECIFIC), owner)).json()).id;
     const twin = await (await check({ ...SPECIFIC, name: "Iris Fen" })).json();
-    expect(twin.similar).toEqual([{ id, name: "Ira Fenn", why: "Ira Fenn reads a lot like this one." }]);
+    expect(twin.similar).toEqual([{ id, name: "Ira Fenn", kind: "concept", why: expect.stringMatching(/^Ira Fenn reads a lot like this one/) }]);
     expect(twin.tips[0]).toMatch(/What makes yours different\?/);
     expect((await (await check({ name: "ira fenn", bio: "Something else entirely." })).json()).similar[0].why).toBe("There's already a Ira Fenn on the show.");
     expect((await (await check({ ...SPECIFIC, character_id: id }, owner)).json()).similar).toEqual([]);

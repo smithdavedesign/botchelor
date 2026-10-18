@@ -25,7 +25,7 @@ import type { SideOutcome, SoulSignals } from "./engine";
 import { ENDING_LABELS, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
 import type { Turn } from "./conversation";
 import { stageOf, type Stage } from "./relationships";
-import { contentWords } from "./quality";
+import { contentWords, EVERYDAY_WORDS } from "./quality";
 import { checkFields } from "./safety";
 import { seasonIdAt } from "./season-cast";
 import { venue, type VenueId } from "./venues";
@@ -272,8 +272,9 @@ export function wantCue(phrase: string): string {
 /** Filler the engine's word match can land on ("thing"): not something a character warms to. */
 const FILLER = new Set(["day", "days", "ask", "asks", "way", "time", "thing", "things", "stuff", "something", "anything", "everything", "someone", "anyone", "people", "person", "really", "always", "never"]);
 // Run 4: "warms to “ask”, keeps clashing over “day”": a one-word cue needs some substance to be worth learning.
+// Run 5: "warms to “check”": nor an everyday word (EVERYDAY_WORDS, lib/quality.ts).
 const meaningful = (cue: string) => {
-  const words = contentWords(cue, 3).filter((w) => !FILLER.has(w));
+  const words = contentWords(cue, 3).filter((w) => !FILLER.has(w) && !EVERYDAY_WORDS.has(w));
   return words.length >= 2 || words.some((w) => w.length >= 5);
 };
 
@@ -506,6 +507,36 @@ export async function describeForgets(
  * told it to forget. Call it when a date airs (the reveal route and the watch room's airing), for both
  * characters, and after a forget. Returns the fresh memory.
  */
+/** A character with no memory yet: what a pending reflection rides on before its first date airs. */
+const NO_MEMORY: CharacterMemory = { dates: 0, second_dates: 0, friends: 0, disasters: 0, likes: [], turnoffs: [], signal_delta: {}, memorable_lines: [], reflections: [], arc: null };
+
+/**
+ * A character's own reflections on its public dates that are still waiting to air (the prediction window), from the
+ * dates the new date's creator may use (theirs, or a two-agent date they performed). Memory folds them in when those
+ * dates air, but its very next date shouldn't wait: visitor run 5 started date three inside the window and its lessons
+ * were missing. Private dates never count, as in memory. Newest first, content-filtered, at most REFLECTIONS_KEPT.
+ */
+export async function pendingReflections(db: Db, characterId: string, creatorId: string, excludeEpisodeId: string | null = null): Promise<string[]> {
+  const { rows } = await db.query<{ text: string | null }>(
+    `select case when e.character_a = $1 then e.reflections->>'a' else e.reflections->>'b' end as text
+       from episodes e
+      where (e.character_a = $1 or e.character_b = $1) and e.status = 'ready' and e.revealed_at is null and e.visibility = 'public'
+        and (e.creator_id = $2 or e.partner_performer = $2) and ($3::text is null or e.id <> $3)
+        and not exists (select 1 from memory_forgets f where f.character_id = $1 and f.kind = 'reflection' and f.item = e.id)
+      order by e.created_at desc
+      limit $4`,
+    [characterId, creatorId, excludeEpisodeId, REFLECTIONS_KEPT],
+  );
+  return rows.flatMap((r) => (r.text && checkFields({ text: r.text }).ok ? [r.text] : []));
+}
+
+/** The memory a new date's character carries: what it has learned, with its own pending reflections first. */
+export function withPendingReflections(memory: CharacterMemory | null, pending: readonly string[]): CharacterMemory | null {
+  if (!pending.length) return memory;
+  const base = memory ?? NO_MEMORY;
+  return { ...base, reflections: [...new Set([...pending, ...base.reflections])].slice(0, REFLECTIONS_KEPT) };
+}
+
 export async function updateCharacterMemory(db: Db, characterId: string): Promise<CharacterMemory> {
   const [{ rows }, sheetRows, forgotten] = await Promise.all([
     db.query<MemoryEpisode>(

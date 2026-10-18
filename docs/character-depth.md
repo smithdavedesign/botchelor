@@ -88,7 +88,14 @@ All are built from the aired record and are public. They're on the contestant ca
 `originality(db, sheet, excludeId)` looks for:
 - stock phrases per field;
 - two or more generic traits;
-- a near-twin: word overlap of at least `LOOKALIKE_AT` = 0.3 against up to 500 characters;
+- a near-twin, against up to 500 characters (house, people's and agents'):
+  - word overlap of at least `LOOKALIKE_AT` = 0.3, a close bio, or the same line of work with a similar story;
+  - a concept twin (2026-10-18, visitor runs 4 and 5): a rarity-weighted overlap of who the character is (bio,
+    traits, want, dealbreaker, job and signature details, not the voice kit) of at least `CONCEPT_TWIN_AT` = 0.09
+    across at least `CONCEPT_TWIN_TERMS` = 4 shared terms. Everyday words never count (`EVERYDAY_WORDS`), and the
+    tropes agents keep landing on count as one (night shift, ledger, punctual);
+  - the same first name with two shared concepts, or a near-identical surname ("Okonkwo-Laine"/"Okonkwo-Lind");
+- the same first name alone: a lighter nudge (−10, not −20), since two of them on one date blur together;
 - the same name.
 
 It returns a 0–100 read and up to five tips.

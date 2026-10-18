@@ -189,6 +189,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       followupOf: row.setup?.followup_of ?? null,
       historyOverride: row.setup?.history ?? null,
       nudges: { a: row.setup?.nudge_a ?? null, b: row.setup?.nudge_b ?? null },
+      avoidVenues: row.setup?.avoid_venues ?? [],
     });
     // Re-decide under the calibration POST stored (a deploy between POST and this worker can't change it).
     const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);

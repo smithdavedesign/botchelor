@@ -24,7 +24,7 @@
  * unfinished at once; one left unfinished for a day is cleared.
  */
 import { track, trackDateQuality } from "./analytics";
-import { buildTurnMessages, parseTurnResult, type Turn } from "./conversation";
+import { buildTurnMessages, parseTurnResult, TURN_TEMPERATURE, type Turn } from "./conversation";
 import type { Db } from "./db";
 import { getEngine, type CharacterSheet } from "./engine";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "./formats";
@@ -312,6 +312,7 @@ async function rebuild(db: Db, row: Row) {
     creatorId: row.creator_id,
     historyOverride: row.setup?.history ?? null,
     nudges: { a: row.setup?.nudge_a ?? null, b: row.setup?.nudge_b ?? null },
+    avoidVenues: row.setup?.avoid_venues ?? [],
   });
   const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
   return { built, decided, formatId };
@@ -345,7 +346,8 @@ function stepFor(
       instructions:
         `Turn ${turn + 1} of ${of}: ${speaker.name} speaks. Run these messages in ${speaker.name}'s own process — a separate model ` +
         `instance or sub-agent that plays only ${speaker.name} — and send its raw JSON reply back as "output". Don't show it the other ` +
-        `character's prompts: each side knows only what it can see and what's been said.`,
+        `character's prompts: each side knows only what it can see and what's been said. Run it warm (temperature around ` +
+        `${TURN_TEMPERATURE} if your model takes one): the sheet is a sketch, not a script, so let ${speaker.name} improvise.`,
       messages,
       reply_format: TURN_REPLY,
     };
@@ -522,7 +524,7 @@ async function showTurn(db: Db, row: Row, side: "a" | "b", act: number, messages
   for (let attempt = 0; attempt < 3; attempt++) {
     let raw: string;
     try {
-      raw = await model.complete(messages, { temperature: 0.9 });
+      raw = await model.complete(messages, { temperature: TURN_TEMPERATURE });
     } catch {
       continue;
     }

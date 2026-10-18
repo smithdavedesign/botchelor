@@ -24,9 +24,9 @@ import type { BoxScore, DateSetup } from "./game";
 import { assembleCharacter, type Character } from "./character";
 import type { CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
-import { loadCharacterMemory, type CharacterMemory } from "./memory";
+import { loadCharacterMemory, pendingReflections, withPendingReflections, type CharacterMemory } from "./memory";
 import { activeNudge, alsoSeeing } from "./between-dates";
-import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, refreshRelationship, venueForPlan, type Relationship } from "./relationships";
+import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, venueForPlan, type Relationship } from "./relationships";
 import { loadSoul, type StoredSoul } from "./souls";
 import { isText, loadChain, promptTexts, type PromptTexts } from "./text-chain";
 import {
@@ -43,7 +43,7 @@ import {
   type SlidingDoorChange,
   type Strategy,
 } from "./rules";
-import { pickVenue, type VenueId } from "./venues";
+import { pickVenueAvoiding, type VenueId } from "./venues";
 import { DEFAULT_FORMAT, type FormatId } from "./formats";
 import { HOUSE_CHARACTERS } from "./house";
 
@@ -144,6 +144,8 @@ export type DateParts = {
   alsoSeeing?: { a: string[]; b: string[] };
   /** Every text they've sent each other, as each side sees it (lib/text-chain.ts promptTexts). Flavour only. */
   texts?: { a: PromptTexts; b: PromptTexts };
+  /** Venues to deal past: where either person's character had its last dates (buildDate snapshots them). */
+  avoidVenues?: VenueId[];
 };
 
 /**
@@ -194,7 +196,8 @@ export function assembleDate(p: DateParts): BuiltDate {
     game_budget_a: req.gameBudget,
     game_budget_b: DEFAULT_GAME_BUDGET,
     producer: pickProducer(seedFrom(seed, "producer")),
-    venue: plannedVenue ?? pickVenue(seedFrom(seed, "venue")),
+    venue: plannedVenue ?? pickVenueAvoiding(seedFrom(seed, "venue"), p.avoidVenues ?? []),
+    ...(p.avoidVenues?.length ? { avoid_venues: p.avoidVenues } : {}),
     format: req.format,
     // Snapshot the exact effective signals this date ran on, so a replay reproduces it even after memory drifts.
     signals_a: signalsA,
@@ -266,6 +269,11 @@ export async function buildDate(
     legacyHistory?: boolean;
     /** The nudges as booked (the worker passes the setup's snapshot: by then they've been used). */
     nudges?: { a: string | null; b: string | null };
+    /**
+     * Venues to deal past. Left out when a date is booked: then it's where either person's character had its last two
+     * dates. A rebuild of a stored date passes the setup's snapshot (or [] for one from before), so the venue holds.
+     */
+    avoidVenues?: VenueId[];
   } = {},
 ): Promise<BuiltDate> {
   const [soulA, soulB, memoryA, memoryB, relationship, ex, extras, nudges, seeingA, seeingB] = await Promise.all([
@@ -288,6 +296,11 @@ export async function buildDate(
   ]);
   // The texts this date's creator may bring in: every text between dates, and the morning afters of the dates they can use.
   const chain = opts.creatorId !== undefined ? await loadChain(db, a.id, b.id, { usableBy: opts.creatorId }) : [];
+  // Each side's own reflections on public dates still waiting to air, from that creator's dates (lib/memory.ts).
+  const [pendingA, pendingB] =
+    opts.creatorId !== undefined && opts.creatorId !== PUBLIC_ONLY
+      ? await Promise.all([pendingReflections(db, a.id, opts.creatorId, episodeId), pendingReflections(db, b.id, opts.creatorId, episodeId)])
+      : [[], []];
   const [lo] = pairKey(a.id, b.id);
   const texts = chain.some(isText) ? { a: promptTexts(chain, a.id === lo ? "lo" : "hi"), b: promptTexts(chain, b.id === lo ? "lo" : "hi") } : undefined;
   const rowOf = (id: string) => extras.rows.find((r) => r.id === id);
@@ -301,14 +314,32 @@ export async function buildDate(
         : opts.legacyHistory && current
           ? { dates: current.dates, last_ending: current.last_ending }
           : current;
+  const avoidVenues = opts.avoidVenues ?? (await recentVenues(db, [a.id, b.id], episodeId));
   return assembleDate({
-    episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId),
-    soulA, soulB, memoryA, memoryB, history, ex, signalsOverride,
+    episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues,
+    soulA, soulB, memoryA: withPendingReflections(memoryA, pendingA), memoryB: withPendingReflections(memoryB, pendingB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),
   });
+}
+
+/** The venues of each person's character's last two dates (house characters date everyone, so theirs don't count). */
+async function recentVenues(db: Db, ids: string[], excludeEpisodeId: string): Promise<VenueId[]> {
+  const found = new Set<VenueId>();
+  for (const id of ids) {
+    const { rows } = await db.query<{ venue: VenueId }>(
+      `select e.setup->>'venue' as venue
+         from episodes e join characters c on c.id = $1 and not c.is_house
+        where (e.character_a = $1 or e.character_b = $1) and e.id <> $2 and e.setup->>'venue' is not null
+        order by e.created_at desc
+        limit 2`,
+      [id, excludeEpisodeId],
+    );
+    for (const r of rows) found.add(r.venue);
+  }
+  return [...found];
 }
 
 /* ------------------------------------- Sliding Doors ------------------------------------- */
@@ -430,7 +461,7 @@ async function computeDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pr
   const varied = varySetup(setup, change);
   const alt = deterministicEngine.decide(build(varied), seed, setup.engine_version ?? 1);
   const baseWhy = endingWhy(row.ending, row.box_score, null, setup.strategy);
-  const altWhy = endingWhy(alt.ending, alt.variables, alt.sides, varied.strategy);
+  const altWhy = endingWhy(alt.ending, alt.variables, alt.sides, varied.strategy, setup.engine_version);
   return {
     change,
     what_changed: `${shortName(row.a_name)}'s side was ${CHANGE_SAYS[change]}; ${shortName(row.b_name)}'s stayed as it was. Same seed, so nothing else moved.`,

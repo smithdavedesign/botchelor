@@ -50,6 +50,31 @@ export function tokens(text: string): string[] {
 }
 
 /** Meaningful words: not stopwords, at least `min` letters. */
+/**
+ * Everyday words that say nothing about who someone is: on a show of a few dozen characters, rarity alone can't tell
+ * "while" or "asking" from "ledger". They never count toward an originality twin (lib/originality.ts), a match's
+ * reason (lib/dating.ts) or a one-word memory cue (lib/memory.ts).
+ */
+export const EVERYDAY_WORDS: ReadonlySet<string> = new Set(
+  (
+    "about above across actually after again against ahead almost alone along already also although always among another answer anyone " +
+    "anything anyway anywhere around asking aside away back badly because become becomes been before begin behind being believe below " +
+    "beside best better between beyond both bring brings call calls came cannot care careful carry case cause certain change check checks " +
+    "checking clear close come comes coming could couldn't course does doesn't doing done don't down during each early easy either else " +
+    "enough even ever every everyone everything exactly fact fair fall feel feels felt find fine first follow follows found from full gets " +
+    "getting give gives given goes going gone good great half hand hands happen hard have having head hear heard help here high hold home " +
+    "hope hour hours idea into isn't itself just keep keeps kind knew know knows last late later least leave less let's life light like " +
+    "likes line lines little live long look looks lose lost made make makes making many maybe mean means might mind minute minutes more " +
+    "most move much must myself near need needs never next nice night nobody none nothing notice notices often once only open other others " +
+    "over part people perhaps person place plan plans planning play point quite rather read ready real really reason right room runs said " +
+    "same save saying says seem seems seen sense should show shows side since small some someone something sometimes soon sort start starts " +
+    "still stop stops sure take takes talk talks tell tells than that their them then there these they thing things think this those " +
+    "though thought through time times told took toward tried tries true turn turns under until upon used very wait walk walks want wants " +
+    "watch watching week well went were what when where whether which while whole will with without won't word words work works would " +
+    "wouldn't year years yes yet your yours"
+  ).split(" "),
+);
+
 export function contentWords(text: string, min = 4): string[] {
   return tokens(text).filter((w) => w.length >= min && !STOPWORDS.has(w));
 }

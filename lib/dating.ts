@@ -9,7 +9,7 @@
  * Compatibility here is a hint for who to ask. It never touches the date: the engine decides how a date
  * ends from the two characters on the night.
  */
-import { contentWords } from "./quality";
+import { contentWords, EVERYDAY_WORDS } from "./quality";
 import { portraitPathSql } from "./assets";
 import { audienceAllows, type Audience } from "./audience";
 import { takenSql } from "./partners";
@@ -133,8 +133,43 @@ const WEAK_WORDS = new Set([
   "small", "big", "little", "without", "really", "very", "good", "great", "nice", "someone", "somebody", "person", "people", "thing", "things",
   "time", "times", "always", "never", "every", "make", "makes", "just", "even", "much", "more", "most", "like", "want", "wants", "know",
   "actually", "still", "back", "first", "last", "next", "other", "same", "kind", "sort", "way", "ways", "lot", "lots", "one", "two",
+  // How a want is phrased, not what it's for: "loves maps" is about maps.
+  "love", "loves", "loved", "adore", "adores", "enjoy", "enjoys", "hope", "hopes", "need", "needs", "wish", "wishes",
 ]);
-const strongWord = (w: string) => w.length >= 4 && !WEAK_WORDS.has(w) && contentWords(w, 4).length > 0;
+const strongWord = (w: string) => w.length >= 4 && !WEAK_WORDS.has(w) && !EVERYDAY_WORDS.has(w) && contentWords(w, 4).length > 0;
+
+/**
+ * What a want can be matched on: its telling words, with a two-word phrase kept whole. In "knows when it's high
+ * water", "water" means something only as "high water" (run 5: "wants “water” — that's in their profile", from a
+ * profile that mentioned water). Stray words in a phrase never make a reason.
+ */
+export function wantTerms(text: string): string[] {
+  const tokens = text.toLowerCase().split(/[^a-z0-9']+/).filter(Boolean).map((t) => t.replace(/'s$/, ""));
+  const strong = tokens.map((t) => strongWord(t));
+  const out = new Set<string>();
+  // Left to right: a modifier binds to the word after it first ("night market regular": "night market", "regular").
+  for (let i = 0; i < tokens.length; i++) {
+    if (!strong[i]) continue;
+    if (i > 0 && MODIFIERS.has(tokens[i - 1])) out.add(`${tokens[i - 1]} ${tokens[i]}`);
+    else if (strong[i + 1]) out.add(`${tokens[i]} ${tokens[++i]}`);
+    else out.add(tokens[i]);
+  }
+  return [...out];
+}
+
+/** Words that make a compound with the next one ("high water", "night market", "small talk"), so it's matched whole. */
+const MODIFIERS = new Set([
+  "high", "low", "deep", "small", "big", "little", "early", "late", "old", "new", "cold", "hot", "warm", "short", "long", "fast", "slow",
+  "dry", "wet", "hard", "soft", "dark", "light", "full", "half", "open", "free", "night", "day", "morning", "evening", "weekend", "real",
+]);
+
+/** A profile's text as single-spaced lowercase words, padded, for finding a two-word phrase in it. */
+const asWords = (text: string) => ` ${text.toLowerCase().split(/[^a-z0-9']+/).filter(Boolean).join(" ")} `;
+/** How a matched term reads in a reason: a word as its keyword ("puzzle"), a phrase whole ("high water"). */
+const shown = (term: string) => (term.includes(" ") ? term : ([...keywords(term)][0] ?? term));
+/** Whether a term from wantTerms is in a profile: a word among its keywords, or a phrase among its words (a plural allowed). */
+const inProfile = (term: string, words: Set<string>, text: string) =>
+  term.includes(" ") ? text.includes(` ${term} `) || text.includes(` ${term}s `) : [...keywords(term)].some((k) => words.has(k));
 
 const haystack = (p: Pick<DatingProfile, "name" | "bio" | "want" | "appearance" | "voice" | "traits"> & { extras?: CharacterExtras }): string =>
   [p.name, p.bio, p.want, p.appearance ?? "", p.voice ?? "", ...p.traits, extrasText(p.extras ?? {})].join(" ");
@@ -242,8 +277,9 @@ export async function findMatches(
  */
 export async function rankFor(db: Db, viewerId: string, me: DatingProfile, pool: DatingProfile[]): Promise<Match[]> {
   const myTraits = new Set(me.traits.map((t) => t.toLowerCase()));
-  const myWant = keywords(me.want);
+  const myWant = wantTerms(me.want);
   const myWords = keywords(haystack({ ...me, want: "" }));
+  const myText = asWords(haystack({ ...me, want: "" }));
   const [stats, degrees, edges] = await Promise.all([loadTraitStats(db), publicDegrees(db, pool.map((p) => p.id)), relationshipsOf(db, me.id)]);
   const metWith = new Map(
     edges.flatMap((rel) => {
@@ -266,14 +302,15 @@ export async function rankFor(db: Db, viewerId: string, me: DatingProfile, pool:
       why.push(`you both love ${sharedHobbies.map((h) => h.toLowerCase()).join(" and ")}`);
     }
     const theirWords = keywords(haystack({ ...p, want: "" }));
-    const theyFit = [...myWant].filter((w) => strongWord(w) && theirWords.has(w)).slice(0, 3);
+    const theirText = asWords(haystack({ ...p, want: "" }));
+    const theyFit = myWant.filter((t) => inProfile(t, theirWords, theirText)).slice(0, 3).map(shown);
     if (theyFit.length) score += theyFit.length;
     // A reason needs two shared words, or one with some length to it (run 4: "wants “keep”" isn't a reason); a short
     // single word still scores.
     if (theyFit.length >= 2 || theyFit.some((w) => w.length >= 5)) {
       why.push(`${me.name} wants ${theyFit.map((w) => `"${w}"`).join(", ")} — that's in ${p.name}'s profile`);
     }
-    const youFit = [...keywords(p.want)].filter((w) => strongWord(w) && myWords.has(w)).slice(0, 3);
+    const youFit = wantTerms(p.want).filter((t) => inProfile(t, myWords, myText)).slice(0, 3).map(shown);
     if (youFit.length) score += youFit.length;
     if (youFit.length >= 2 || youFit.some((w) => w.length >= 5)) {
       why.push(`${p.name} wants ${youFit.map((w) => `"${w}"`).join(", ")} — that's in ${me.name}'s profile`);

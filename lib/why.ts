@@ -5,8 +5,8 @@
  * finished, not how far they moved. Deterministic, free, and no spoiler beyond the ending it explains (it never says
  * which side wanted more, or whose dealbreaker it was).
  */
-import type { SideOutcome } from "./engine";
-import { STRATEGY_LABELS, type DateVariable, type Ending, type Strategy } from "./rules";
+import { DEALBREAKER_PENALTY, endingScore, type SideOutcome } from "./engine";
+import { DATE_VARIABLES, STRATEGY_LABELS, type DateVariable, type Ending, type Strategy } from "./rules";
 
 type Box = Partial<Record<DateVariable, { final: number }>>;
 
@@ -22,7 +22,35 @@ const GOOD: DateVariable[] = ["chemistry", "attraction", "trust"];
 const at = (box: Box, v: DateVariable) => Math.round(box[v]?.final ?? 50);
 const say = (box: Box, v: DateVariable) => `${v} ${at(box, v)}`;
 
-export function endingWhy(ending: Ending, box: Box | null | undefined, sides: readonly SideOutcome[] | null | undefined, strategy: Strategy | null | undefined): string | null {
+const pct = (n: number) => `${Math.round(n * 100)}%`;
+const signed = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(1)}`;
+
+/**
+ * The arithmetic behind the ending (run 5: "chemistry 62 was a disaster and 68 was friends?"): how the date's strategy
+ * weighs the four numbers, what the date came to against an ordinary one, and the marks for friends and a second date.
+ * Only where it can be reproduced exactly: an engine v2+ date, its strategy known, and its sides (for the dealbreakers).
+ */
+export function endingNumbers(box: Box | null | undefined, sides: readonly SideOutcome[] | null | undefined, strategy: Strategy | null | undefined, version: number | null | undefined): string | null {
+  if (!box || !sides || !strategy || (version ?? 1) < 2 || !DATE_VARIABLES.every((v) => box[v])) return null;
+  const dealbreakers = sides.filter((s) => s.dealbreaker_hit).length;
+  const finals = Object.fromEntries(DATE_VARIABLES.map((v) => [v, box[v]!.final])) as Record<DateVariable, number>;
+  const s = endingScore(strategy, finals, dealbreakers);
+  const w = s.weights;
+  return (
+    `By the numbers: a date played for ${STRATEGY_LABELS[strategy].toLowerCase()} counts chemistry ${pct(w.chemistry)}, attraction ` +
+    `${pct(w.attraction)} and trust ${pct(w.trust)}, minus ${pct(w.awkwardness)} of awkwardness` +
+    `${dealbreakers ? ` and ${DEALBREAKER_PENALTY} for ${dealbreakers === 1 ? "the tripped dealbreaker" : "each tripped dealbreaker"}` : ""}. ` +
+    `This one came out ${signed(s.rel)} against an ordinary date: friends needs ${signed(s.friendsAt)}, a second date ${signed(s.secondDateAt)}.`
+  );
+}
+
+export function endingWhy(
+  ending: Ending,
+  box: Box | null | undefined,
+  sides: readonly SideOutcome[] | null | undefined,
+  strategy: Strategy | null | undefined,
+  version?: number | null,
+): string | null {
   if (!box || !GOOD.some((v) => box[v])) return null;
   const goods = [...GOOD].sort((x, y) => at(box, y) - at(box, x));
   const [best, , worst] = goods;
@@ -50,5 +78,6 @@ export function endingWhy(ending: Ending, box: Box | null | undefined, sides: re
     const despite = at(box, best) >= 60 ? `, and that outweighed ${say(box, best)}` : "";
     line = `A disaster: ${reasons.length ? `${reasons.join(", ")}${despite}` : `nothing landed hard enough (best was ${say(box, best)})`}.`;
   }
-  return `${line} Endings read where the numbers finished, not how far they moved.`;
+  const numbers = endingNumbers(box, sides, strategy, version);
+  return `${line} Endings read where the numbers finished, not how far they moved.${numbers ? ` ${numbers}` : ""}`;
 }

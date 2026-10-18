@@ -10,7 +10,7 @@
  */
 import type { Db } from "./db";
 import type { CharacterExtras } from "./extras";
-import { contentWords } from "./quality";
+import { contentWords, EVERYDAY_WORDS } from "./quality";
 
 export type SheetDraft = {
   name?: string;
@@ -23,7 +23,8 @@ export type SheetDraft = {
 };
 
 export type Cliche = { field: "bio" | "traits" | "want" | "dealbreaker"; phrase: string; tip: string };
-export type Lookalike = { id: string; name: string; why: string };
+/** `kind`: "concept" reads like the same character; "name" only shares a first name (a lighter nudge). */
+export type Lookalike = { id: string; name: string; why: string; kind?: "concept" | "name" };
 export type OriginalityReport = { score: number; cliches: Cliche[]; similar: Lookalike[]; tips: string[] };
 
 /** Stock phrases, by field: matched on whole words, case-insensitive. Each comes with a nudge toward something specific. */
@@ -85,8 +86,8 @@ function fingerprint(sheet: SheetDraft): Set<string> {
   return new Set(contentWords([sheet.bio ?? "", (sheet.traits ?? []).join(" "), sheet.want ?? "", sheet.voice ?? "", e.occupation ?? "", e.quirk ?? ""].join(" "), 4));
 }
 
-/** What they do for a living, as words: the occupation detail, else the bio (where most sheets say it). */
-const workWords = (sheet: SheetDraft) => new Set(contentWords(sheet.extras?.occupation || "", 4));
+/** What they do for a living, as words: the occupation detail, minus everyday words ("runs a soup window" and "runs a bakery" aren't one job). */
+const workWords = (sheet: SheetDraft) => new Set(contentWords(sheet.extras?.occupation || "", 4).filter((w) => !EVERYDAY_WORDS.has(w) && !EVERYDAY_WORDS.has(stem(w))));
 const bioWords = (sheet: SheetDraft) => new Set(contentWords(sheet.bio ?? "", 4));
 
 function jaccard(x: Set<string>, y: Set<string>): number {
@@ -120,25 +121,171 @@ export function lookalikeWhy(a: SheetDraft, b: SheetDraft, bName: string): { why
   return null;
 }
 
+/* ------------------------------------------- concept twins ------------------------------------------- */
+/*
+ * Agents keep converging on the same character (visitor runs 1-5): a Marguerite, an Okonkwo-L… or Vasquez-L…
+ * surname, a night shift, a ledger, exact about time. The word overlap above misses them when the wording differs, so
+ * three more signals: the same first name, a near-identical surname, and a concept score over every field (lines and
+ * tells included), where a word counts by how rare it is on the show and a few recurring tropes count as one.
+ */
+
+/** A light stem, so "ledgers" meets "ledger" and "diaries" meets "diary". */
+const stem = (w: string) => (w.length > 4 && w.endsWith("ies") ? `${w.slice(0, -3)}y` : w.length > 4 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w);
+
+/** Words that count as one concept here: the tropes agents keep landing on, worded differently each time. */
+const SAME_AS: Record<string, string> = {
+  night: "night", overnight: "night", graveyard: "night", nightshift: "night", nocturnal: "night", midnight: "night",
+  notebook: "ledger", logbook: "ledger", journal: "ledger", tally: "ledger", ledger: "ledger",
+  wristwatch: "clock", watch: "clock", clock: "clock", timepiece: "clock", stopwatch: "clock",
+  punctual: "punctual", punctuality: "punctual", prompt: "punctual", timekeeping: "punctual", early: "punctual", late: "punctual",
+  lateness: "punctual", latecomer: "punctual", tardy: "punctual",
+  tollbooth: "toll", toll: "toll",
+};
+
+
+/**
+ * The concept terms of a sheet: distinctive words and two-word phrases from who the character IS (bio, traits, want,
+ * dealbreaker, job and signature details). Not the voice kit: long kits of lines and tells share everyday words
+ * ("question", "hello", "story") between characters who have nothing else in common.
+ */
+export function conceptTerms(sheet: SheetDraft): Set<string> {
+  const e = sheet.extras ?? {};
+  const details = [e.occupation, e.quirk, e.signature_item, e.hidden_talent, e.pet_peeve, e.guilty_pleasure].filter(Boolean).join(". ");
+  const text = [sheet.bio ?? "", (sheet.traits ?? []).join(". "), sheet.want ?? "", sheet.dealbreaker ?? "", details].join(". ");
+  const out = new Set<string>();
+  for (const part of text.toLowerCase().split(/[.!?;,:()"“”\n]+/)) {
+    let prev: string | null = null;
+    for (const raw of part.replace(/[-–—/]/g, " ").split(/[^a-z']+/)) {
+      const word = raw.replace(/'s$/, "");
+      const mapped = SAME_AS[word] ?? SAME_AS[stem(word)];
+      if (!mapped && (word.length < 4 || EVERYDAY_WORDS.has(word) || EVERYDAY_WORDS.has(stem(word)) || !contentWords(word, 4).length)) {
+        prev = null;
+        continue;
+      }
+      const term = mapped ?? stem(word);
+      out.add(term);
+      if (prev && prev !== term) out.add(`${prev} ${term}`);
+      prev = term;
+    }
+  }
+  return out;
+}
+
+/** How rare each term is among `docs` (the sheets compared against): a word everyone uses counts for little. */
+export function termWeights(docs: Set<string>[]): (term: string) => number {
+  const df = new Map<string, number>();
+  for (const d of docs) for (const t of d) df.set(t, (df.get(t) ?? 0) + 1);
+  const n = Math.max(1, docs.length);
+  return (t) => Math.log(1 + n / (df.get(t) ?? 1));
+}
+
+/** Rarity-weighted overlap of two sheets' concept terms, 0..1 (a weighted cosine), how many they share, and the rarest. */
+export function conceptSimilarity(a: Set<string>, b: Set<string>, weight: (term: string) => number): { score: number; count: number; shared: string[] } {
+  let both = 0;
+  let wa = 0;
+  let wb = 0;
+  const shared: string[] = [];
+  for (const t of a) {
+    const w = weight(t) ** 2;
+    wa += w;
+    if (b.has(t)) {
+      both += w;
+      shared.push(t);
+    }
+  }
+  for (const t of b) wb += weight(t) ** 2;
+  const score = wa && wb ? both / Math.sqrt(wa * wb) : 0;
+  // The rarest first; a phrase stands in for the words inside it.
+  const named = shared.sort((x, y) => weight(y) - weight(x)).filter((t, i, all) => !all.slice(0, i).some((u) => u.split(" ").includes(t)));
+  return { score, count: shared.length, shared: named.slice(0, 3) };
+}
+
+/**
+ * Two sheets read like one character when they share a cluster of distinctive concepts: at least this weighted
+ * overlap AND this many shared terms (calibrated on the house cast, whose most alike pair scores 0.079 with 3 terms,
+ * against the visitor runs' twins at 0.10 to 0.15 with 5 or 6; tests/originality-twins.test.ts).
+ */
+export const CONCEPT_TWIN_AT = 0.09;
+export const CONCEPT_TWIN_TERMS = 4;
+/** With a shared first name or a near-identical surname, two shared concepts are enough. */
+const NAMED_TWIN_TERMS = 2;
+
+const nameParts = (name: string | undefined) => (name ?? "").toLowerCase().replace(/[^a-z\s'-]/g, " ").trim().split(/\s+/).filter(Boolean);
+const firstName = (name: string | undefined) => nameParts(name)[0] ?? "";
+const surname = (name: string | undefined) => nameParts(name).slice(1).join(" ");
+
+/** Levenshtein distance, for near-identical surnames. */
+function editDistance(x: string, y: string): number {
+  const row = Array.from({ length: y.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= x.length; i++) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= y.length; j++) {
+      const keep = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (x[i - 1] === y[j - 1] ? 0 : 1));
+      prev = keep;
+    }
+  }
+  return row[y.length];
+}
+
+/** "Okonkwo-Laine" and "Okonkwo-Lind", "Vasquez-Lind" and "Vasquez-Lund": one part in common, or a letter or two apart. */
+export function surnamesClose(a: string | undefined, b: string | undefined): boolean {
+  const x = surname(a);
+  const y = surname(b);
+  if (x.length < 4 || y.length < 4) return false;
+  const parts = (s: string) => s.split(/[\s-]+/).filter((p) => p.length >= 4);
+  if (parts(x).some((p) => parts(y).includes(p))) return true;
+  return Math.min(x.length, y.length) >= 6 && editDistance(x, y) <= 2;
+}
+
+type Compared = { id: string; name: string } & SheetDraft;
+
+/** Why `sheet` reads like `other`, from every signal, with a score for ordering; or null. Pure, given the term weights. */
+export function twinWhy(sheet: SheetDraft, other: Compared, terms: Set<string>, otherTerms: Set<string>, weight: (term: string) => number): (Lookalike & { score: number }) | null {
+  const base = { id: other.id, name: other.name };
+  const concept = conceptSimilarity(terms, otherTerms, weight);
+  const both = concept.shared.length ? ` (both: ${concept.shared.join(", ")})` : "";
+  if (concept.score >= CONCEPT_TWIN_AT && concept.count >= CONCEPT_TWIN_TERMS) {
+    return { ...base, kind: "concept", why: `${other.name} reads a lot like this one${both}.`, score: 1 + concept.score };
+  }
+  const alike = lookalikeWhy(sheet, other, other.name);
+  if (alike) return { ...base, kind: "concept", why: alike.why, score: 1 + alike.score };
+  const first = firstName(sheet.name);
+  const sameFirst = first.length >= 3 && first === firstName(other.name);
+  const closeSurname = surnamesClose(sheet.name, other.name);
+  if ((sameFirst || closeSurname) && concept.count >= NAMED_TWIN_TERMS) {
+    return { ...base, kind: "concept", why: `${other.name} has a name and a story close to this one's${both}.`, score: 1 + concept.score };
+  }
+  if (sameFirst) {
+    const cap = first[0].toUpperCase() + first.slice(1);
+    return { ...base, kind: "name", why: `There's already a ${cap} on the show (${other.name}). Two on one date blur together: a different first name keeps them apart.`, score: 0.5 };
+  }
+  return null;
+}
+
 /** Characters already on the show that read almost the same (or share the name). Excludes `excludeId` (the one being edited). */
 export async function findLookalikes(db: Db, sheet: SheetDraft, excludeId: string | null = null, limit = 3): Promise<Lookalike[]> {
-  const { rows } = await db.query<{ id: string; name: string; bio: string; traits: string[]; want: string; voice: string | null; extras: CharacterExtras | null }>(
-    `select id, name, bio, traits, want, voice, extras from characters
+  const { rows } = await db.query<{ id: string; name: string; bio: string; traits: string[]; want: string; dealbreaker: string | null; voice: string | null; extras: CharacterExtras | null }>(
+    `select id, name, bio, traits, want, dealbreaker, voice, extras from characters
       where ($1::text is null or id <> $1)
       order by is_house desc, created_at desc
       limit 500`,
     [excludeId],
   );
   const name = sheet.name?.trim().toLowerCase();
+  const terms = conceptTerms(sheet);
+  const rowTerms = rows.map((r) => conceptTerms({ ...r, dealbreaker: r.dealbreaker ?? undefined }));
+  const weight = termWeights([terms, ...rowTerms]);
   const found: (Lookalike & { score: number })[] = [];
-  for (const r of rows) {
+  rows.forEach((r, i) => {
     if (name && r.name.trim().toLowerCase() === name) {
-      found.push({ id: r.id, name: r.name, why: `There's already a ${r.name} on the show.`, score: 2 });
-      continue;
+      found.push({ id: r.id, name: r.name, kind: "concept", why: `There's already a ${r.name} on the show.`, score: 3 });
+      return;
     }
-    const alike = lookalikeWhy(sheet, r, r.name);
-    if (alike) found.push({ id: r.id, name: r.name, ...alike });
-  }
+    const twin = twinWhy(sheet, { ...r, dealbreaker: r.dealbreaker ?? undefined }, terms, rowTerms[i], weight);
+    if (twin) found.push(twin);
+  });
   return found.sort((x, y) => y.score - x.score).slice(0, limit).map(({ score: _s, ...l }) => l);
 }
 
@@ -168,9 +315,11 @@ export function scoreSheet(sheet: SheetDraft, cliches: Cliche[], similar: Lookal
   else tips.push(`${3 - details === 1 ? "One more detail" : "Two more details"} (a hometown, a hidden talent, a profile prompt) would give their dates more to talk about.`);
   score += (e.never_says?.length ? 5 : 0) + (words(sheet.want) >= 6 ? 5 : 0);
   score -= Math.min(30, cliches.length * 10);
-  if (similar.length) score -= 20;
+  // A character that reads like another costs more than one that only shares a first name.
+  if (similar.some((s) => s.kind !== "name")) score -= 20;
+  else if (similar.length) score -= 10;
   for (const c of cliches) tips.unshift(c.tip);
-  for (const s of similar) tips.unshift(`${s.why} What makes yours different?`);
+  for (const s of similar) tips.unshift(s.kind === "name" ? s.why : `${s.why} What makes yours different?`);
   return { score: Math.max(0, Math.min(100, score)), cliches, similar, tips: [...new Set(tips)].slice(0, 5) };
 }
 

@@ -255,6 +255,30 @@ function neutralScore(strategy: Strategy): number {
   return wc * START.chemistry + wa * START.attraction + wt * START.trust - wk * START.awkwardness;
 }
 
+/** What a tripped dealbreaker takes off a date's score. */
+export const DEALBREAKER_PENALTY = 11;
+
+/**
+ * The number a v2+ ending is decided on, from where the four variables finished: the initiating side's
+ * strategy-weighted score, minus the penalty for each tripped dealbreaker, measured against a perfectly ordinary date
+ * under the same strategy (`rel`), with the marks it had to clear. decide() uses it, and so does the box score's
+ * "why" (lib/why.ts), so the explanation can never drift from the decision.
+ */
+export function endingScore(
+  strategy: Strategy,
+  finals: Record<DateVariable, number>,
+  dealbreakers: number,
+): { rel: number; friendsAt: number; secondDateAt: number; weights: Record<DateVariable, number> } {
+  const [wc, wa, wt, wk] = STRATEGY_WEIGHTS[strategy];
+  const score = wc * finals.chemistry + wa * finals.attraction + wt * finals.trust - wk * finals.awkwardness - DEALBREAKER_PENALTY * dealbreakers;
+  return {
+    rel: score - neutralScore(strategy),
+    friendsAt: V2_FRIENDS_REL,
+    secondDateAt: V2_SECOND_DATE_REL,
+    weights: { chemistry: wc, attraction: wa, trust: wt, awkwardness: wk },
+  };
+}
+
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 /** n held within ±limit. */
 const bounded = (n: number, limit: number) => Math.max(-limit, Math.min(limit, n));
@@ -371,8 +395,8 @@ export const deterministicEngine: Engine = {
 
     // Ending: the initiating side's strategy decides which variables matter. A tripped dealbreaker hurts.
     const [wc, wa, wt, wk] = STRATEGY_WEIGHTS[input.a.strategy];
-    const score = wc * chemistry + wa * attraction + wt * trust - wk * awkwardness - 11 * dealbreakers;
-    const rel = score - neutralScore(input.a.strategy);
+    const score = wc * chemistry + wa * attraction + wt * trust - wk * awkwardness - DEALBREAKER_PENALTY * dealbreakers;
+    const { rel } = endingScore(input.a.strategy, { chemistry, attraction, trust, awkwardness }, dealbreakers);
     let ending: Ending;
     if (v2) {
       ending = rel >= V2_SECOND_DATE_REL ? ENDINGS[0] : rel >= V2_FRIENDS_REL ? ENDINGS[1] : ENDINGS[2];

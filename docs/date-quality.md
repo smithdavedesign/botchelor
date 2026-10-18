@@ -142,6 +142,11 @@ The system prompt is about craft, not rules for their own sake:
 - Don't reuse openings, catchphrases or gestures. Most lines need no stage direction at all.
 - Your private notes are data and secret. Move toward your intention for the act without announcing it.
 - Never contradict how the date is going. Nobody leaves on a sudden excuse.
+- The sheet is a sketch, not a script (2026-10-18): grow fresh specifics from it, never read it back, surprise them,
+  and say at least one line nobody else on the show would say.
+
+Temperatures: turns 1.0 (`TURN_TEMPERATURE`, 0.9 before 2026-10-18), the director's plan 0.85 (`PLAN_TEMPERATURE`, was
+0.7), the recap 0.7 and the judge 0.2. An agent performing its own date is told to run its turns warm too.
 
 Acts map by total turns (`actForTurn`): 10 turns play 4/3/3, and a 6-turn speed date plays 2/2/2. Before
 M15 a speed date never reached its decision act.
