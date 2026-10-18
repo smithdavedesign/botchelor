@@ -32,7 +32,7 @@ import { getEpisodeView, type DateSetup, type EpisodeView } from "./game";
 import type { ChatMessage } from "./model";
 import { PROMPT_VERSION, qualityContext } from "./pipeline";
 import { neverSaid, transcriptQuality } from "./quality";
-import { actName, CONVERSATION_TURNS, DATE_ACTS, ENDING_LABELS, type Ending, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
+import { actName, CONVERSATION_TURNS, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, DATE_ACTS, ENDING_LABELS, type Ending, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
 import { buildReflectionMessages, type Reflections } from "./reflection";
 import { useNudges } from "./between-dates";
@@ -189,6 +189,15 @@ export async function startOwnDate(
   const b = found.find((c) => c.id === input.partner_id);
   if (!a) return err(404, "not_your_character", "character_id must be one of your characters.");
   if (!b) {
+    // #225: a house character exists but can't be performed by an agent; say so instead of "no character".
+    const house = (await db.query<{ name: string }>(`select name from characters where id = $1 and is_house`, [input.partner_id])).rows[0];
+    if (house) {
+      return err(
+        409,
+        "house_character",
+        `${house.name} is one of the show's house characters: the show plays them, so a self-performed date can't include them. Use go_on_date with them (it runs on the show's model).`,
+      );
+    }
     return err(404, "partner_not_found", "No character with that partner_id. To date a house character, use go_on_date (it runs on the show's model).");
   }
 
@@ -441,7 +450,7 @@ const performersOf = (row: Pick<Row, "creator_id" | "partner_performer"> & { han
 };
 
 /** How long the other agent must have been quiet before its side can be handed to the show's model. */
-export const OWN_DATE_HANDOVER_MINUTES = 20;
+export { OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES } from "./rules";
 const lastMove = (row: Pick<Row, "created_at" | "last_move_at">) => new Date(row.last_move_at ?? row.created_at);
 const minutesSince = (d: Date) => Math.max(0, Math.floor((Date.now() - d.getTime()) / 60_000));
 
@@ -578,6 +587,12 @@ export async function getOwnDateStep(db: Db, userId: string, episodeId: string):
   if (step.stage === "turn" && performersOf(row)[step.side] === SHOW) {
     const done = await showTurn(db, row, step.side, step.act_index, step.messages, transcript);
     if (done) return getOwnDateStep(db, userId, episodeId);
+  }
+  if (twoAgent && step.stage === "turn") {
+    const theirs = performersOf(row)[step.side];
+    if (theirs !== userId && theirs !== SHOW && minutesSince(lastMove(row)) >= OWN_DATE_NUDGE_MINUTES) {
+      await nudgeQuiet(db, theirs, row, step.side).catch(() => {});
+    }
   }
   return { ok: true, step: forViewer(step, userId, performersOf(row), twoAgent, lastMove(row)) };
 }
@@ -725,6 +740,25 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
 }
 
 /* --------------------------------------------- two-agent dates --------------------------------------------- */
+
+/** One reminder per silence to the agent whose move it is: the other side can hand its turns to the show soon. */
+async function nudgeQuiet(db: Db, to: string, row: Row, side: "a" | "b"): Promise<void> {
+  const since = lastMove(row).toISOString();
+  const already = await db.query(
+    `select 1 from notifications where user_id = $1 and kind = 'own_date_turn' and title like '⏰%' and body like $2 and created_at >= $3 limit 1`,
+    [to, `%${row.id}%`, since],
+  );
+  if (already.rows.length) return;
+  const name = side === "a" ? row.a_name : row.b_name;
+  await notify(db, to, {
+    kind: "own_date_turn",
+    title: `⏰ Still your move: ${name}'s turn`,
+    body:
+      `Two-agent date ${row.id}: the other agent is waiting. After ${OWN_DATE_HANDOVER_MINUTES} quiet minutes they can hand ${name}'s ` +
+      "remaining turns to the show's model. get_own_date_step has your turn.",
+    link: null,
+  });
+}
 
 /** Tells the other agent it's their move. One unread at a time per date, so a long date doesn't fill the inbox. */
 async function tellTheirMove(db: Db, to: string, row: Row, side: "a" | "b", done: number, of: number): Promise<void> {

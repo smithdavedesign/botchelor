@@ -169,6 +169,7 @@ Rules:
 - "your_creator_asked_you" (if present) is a private nudge: let it shape what you text, without ever mentioning it.
 - "you_are_also_seeing" (if present) is private and complicated: it may colour your mood, but you never mention the other person to them.
 - Don't repeat your earlier texts.
+- If you make a plan, make it about something you'd do together. Never name a day of the week or a clock time ("Saturday at 10am"): the show sets when they meet.
 
 Reply with ONLY a JSON object (no markdown), exactly:
 {"text":"your single text message"}`;

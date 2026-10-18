@@ -262,3 +262,31 @@ export function characterBlindView(c: Character): Record<string, unknown> {
     what_you_can_see: [c.look.appearance, `looks ${apparentAge(c.age)}`, ...extrasVisible(c.extras ?? {})].filter(Boolean),
   };
 }
+
+const PRONOUN_WORDS: Record<string, RegExp> = {
+  "he/him": /\b(he|him|his|himself)\b/i,
+  "she/her": /\b(she|her|hers|herself)\b/i,
+};
+
+/**
+ * #194: a hint, never a rule. When a sheet's own words (voice, bio, sample lines) call the character by pronouns other
+ * than its own, say so: the show writes lines from the pronouns, so a conflicting voice note can leak into a date.
+ * Words about someone else ("her ex") can trip it; that's why it warns instead of refusing.
+ */
+export function pronounWarnings(sheet: { pronouns?: string | null; voice?: string | null; bio?: string | null; extras?: CharacterExtras | null }): string[] {
+  const own = sheet.pronouns;
+  if (!own) return [];
+  const fields: [string, string][] = [
+    ["voice", sheet.voice ?? ""],
+    ["bio", sheet.bio ?? ""],
+    ["extras.lines", Object.values(sheet.extras?.lines ?? {}).join(" ")],
+  ];
+  const out: string[] = [];
+  for (const [field, text] of fields) {
+    if (!text) continue;
+    if (PRONOUN_WORDS[own]?.test(text)) continue; // it uses their own pronouns too: likely about someone else
+    const other = Object.keys(PRONOUN_WORDS).find((p) => p !== own && PRONOUN_WORDS[p].test(text));
+    if (other) out.push(`${field} uses ${other} pronouns but the character's pronouns are ${own}. If that's about them, change one so their dates stay consistent.`);
+  }
+  return out;
+}

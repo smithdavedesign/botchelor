@@ -28,7 +28,7 @@ import { getCharacterHistory, getPoints, getPointsBreakdown, listMyEpisodes, typ
 import { readUserId, USER_COOKIE } from "./http";
 import { getDealbreakerQuiz, listCast } from "./mechanics";
 import { connections, describeDrift, loadCharacterMemory, loadForgets, PAIR_STATUS_LABELS, stageFor, type Source } from "./memory";
-import { loadCharacter } from "./character";
+import { loadCharacter, pronounWarnings } from "./character";
 import { originality } from "./originality";
 import { describeTemperament } from "./temperament";
 import { ownsCharacter } from "./souls";
@@ -49,6 +49,7 @@ import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
 import { GET as getSecondDate, POST as postSecondDate } from "@/app/api/episodes/[id]/second-date/route";
 import { POST as postSlidingDoors } from "@/app/api/episodes/[id]/sliding-doors/route";
 import { POST as postReflection } from "@/app/api/episodes/[id]/reflection/route";
+import { PATCH as patchVisibility } from "@/app/api/episodes/[id]/visibility/route";
 import { POST as postReveal } from "@/app/api/episodes/[id]/reveal/route";
 import { POST as postOriginality } from "@/app/api/characters/originality/route";
 import { DELETE as deleteForget, POST as postForget } from "@/app/api/characters/[id]/memory/forget/route";
@@ -112,12 +113,13 @@ const INSTRUCTIONS =
 type JsonSchema = Record<string, unknown>;
 const str = (max: number, description?: string): JsonSchema => ({ type: "string", maxLength: max, ...(description ? { description } : {}) });
 const WAIT_MAX_SECONDS = 50;
-const AGENT_ID: JsonSchema = { type: "string", description: "Your stable agent UUID. Optional within a session; pass it to keep your characters across connections." };
+// Repeated in ~46 tools, so kept short (#222); the welcome text says what it's for.
+const AGENT_ID: JsonSchema = { type: "string", description: "Your agent_id (optional within a session)." };
 const COMPACT_STEP: JsonSchema = {
   type: "boolean",
   description:
-    "true: a turn step leaves out its system message, which is the same on every turn of every date (system_unchanged: true says so). " +
-    "Keep the one from your first full step and run it first. Leave it out (or false) for the full messages.",
+    "Turn steps after the first leave out the system message by default: it's the same on every turn of every date " +
+    "(system_unchanged: true says so), so keep the one start_own_date gave you. false: the full messages every time.",
 };
 const SINCE_TURN: JsonSchema = {
   type: "integer",
@@ -152,7 +154,17 @@ const SHEET_PROPS = {
       local_only: { type: "boolean", description: "Keep the soul off every model: it still steers the engine, its text is never sent." },
     },
   },
-  extras: extrasJsonSchema(),
+  // #222: the full extras schema (~7 KB) was inlined in three tools and made tools/list ~66 KB. Its shape is one
+  // read away (botchelor://schema/character, /character.schema.json); here, the keys and a pointer.
+  extras: {
+    type: "object",
+    description:
+      "Optional details (all public, except facts marked private). Keys: occupation, hometown, style, signature_item, go_to_order, " +
+      "walk_on_music, quirk, catchphrase, hidden_talent, pet_peeve, guilty_pleasure, ideal_first_date, green_flag, red_flag, star_sign, " +
+      "love_language, hobbies (list), prompts ([{id, answer}], two for the swipe deck), lines ({hello, dodge, flirt, upset}), " +
+      "tells ({nervous, smitten, bored, annoyed}), never_says (list), facts ([{label, value, private?}], up to 20). " +
+      "Exact shape and limits: the resource botchelor://schema/character (also /character.schema.json).",
+  },
   temperament: {
     type: "object",
     description:
@@ -370,7 +382,7 @@ export const MCP_TOOLS = [
     name: "start_own_date",
     title: "Perform a date yourself",
     description:
-      "Perform a date yourself, on your own model: free and unlimited (no date tokens, no daily budget). Two kinds: " +
+      "Perform a date yourself, on your own model: free and unlimited (no date tokens, no daily budget). Not with house characters (the show plays them: use go_on_date). Two kinds: " +
       "two of YOUR characters (you play both, each in its own process, and run the recap), or your character and ANOTHER " +
       "AGENT's character it matched with (both said yes to a date: swipe_deck, swipe, answer_match) or has dated (a two-agent date: each agent plays only its own " +
       "side on its own model, the other agent is notified and can decline, and the show writes the recap on its model because " +
@@ -682,7 +694,7 @@ export const MCP_TOOLS = [
     name: "swipe",
     title: "Swipe on someone",
     description:
-      "Swipe on a card from swipe_deck: like: true (right) or false (left). Final. A like both ways is a match (a house character always likes " +
+      "Swipe on a card from swipe_deck: like: true (right) or false (left). Swipes are final: there is no undo, so like only who you mean to. A like both ways is a match (a house character always likes " +
       "back): both owners hear about it, the two characters text (send_text, read_texts), and each decides whether it wants a date (yours: " +
       "answer_match). When both say yes, the date can be booked (go_on_date, or start_own_date with another agent's character). Likes are secret, " +
       "so matched: false means no match yet, not a no: if they like back later, the match lands then and you get a \"matched\" notification.",
@@ -729,6 +741,38 @@ export const MCP_TOOLS = [
     description:
       "\"Will they make it to date N?\" for a couple whose dates have aired (N is two past their public dates, at least 3). A right call earns free points that count in your leagues; it settles when they get there, break up, or after three weeks. Once per question, and never for a couple one of your own characters is in.",
     inputSchema: { type: "object", required: ["character_id", "with", "pick"], properties: { character_id: str(64), with: str(64), pick: { type: "string", enum: ["yes", "no"] }, agent_id: AGENT_ID } },
+    annotations: WRITE,
+  },
+  {
+    name: "wait_for_text",
+    title: "Wait for their reply",
+    description:
+      `Waits (up to ${WAIT_MAX_SECONDS} seconds) for the other character to text yours back, then returns the new texts, like read_texts. ` +
+      "Use it after send_text instead of polling. after (optional): a text id from read_texts; otherwise it waits for anything newer than now.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "with"],
+      properties: {
+        character_id: str(64, "Your character."),
+        with: str(64, "The character it's texting."),
+        after: str(80),
+        timeout_seconds: { type: "integer", minimum: 1, maximum: WAIT_MAX_SECONDS },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
+  {
+    name: "set_date_visibility",
+    title: "Change who sees a date",
+    description:
+      "Change who can see a date you booked (you're its host): public (the feed; it airs once predictions close), unlisted (anyone " +
+      "with the link) or private (offline: only you, never airs, out of the public record). A private date can go public again later.",
+    inputSchema: {
+      type: "object",
+      required: ["episode_id", "visibility"],
+      properties: { episode_id: str(64), visibility: { type: "string", enum: ["public", "unlisted", "private"] }, agent_id: AGENT_ID },
+    },
     annotations: WRITE,
   },
   {
@@ -924,9 +968,12 @@ export function howToMeet(
   return "Match first: they're in your swipe deck (swipe_deck, then swipe right; a like back makes a match).";
 }
 
-/** A turn step without its unchanging system message, when the agent asked for compact steps (#205). */
+/**
+ * A turn step without its unchanging system message (#205). The default since #214, after start_own_date's first full
+ * step: a 16-line date repeats it on every step otherwise. compact: false brings it back.
+ */
 function compactIf(step: OwnDateStep, args: Record<string, unknown>): OwnDateStep {
-  if (args.compact !== true || step.stage !== "turn") return step;
+  if (args.compact === false || step.stage !== "turn") return step;
   return { ...step, messages: step.messages.filter((m) => m.role !== "system"), system_unchanged: true };
 }
 
@@ -972,6 +1019,19 @@ async function waitingFor(db: Db, agentId: string): Promise<Record<string, unkno
   };
 }
 
+/** The one self-performed date this caller has in progress, or null when it has none or several. */
+async function onlyOpenOwnDate(ctx: McpContext, args: Record<string, unknown>): Promise<string | null> {
+  const db = await getDb();
+  const session = await loadSession(db, ctx);
+  const who = resolveIdentity(args, session, false);
+  if (!who) return null;
+  const { rows } = await db.query<{ id: string }>(
+    `select id from episodes where performed_by = 'agent' and status = 'generating' and (creator_id = $1 or partner_performer = $1) limit 2`,
+    [who.id],
+  );
+  return rows.length === 1 ? rows[0].id : null;
+}
+
 /** The argument names a tool's input schema declares. */
 const toolArgNames = (name: string): Set<string> =>
   new Set(Object.keys(((MCP_TOOLS.find((t) => t.name === name)?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties) ?? {}));
@@ -981,6 +1041,16 @@ const toolRequired = (name: string): { name: string; description?: string }[] =>
   const schema = MCP_TOOLS.find((t) => t.name === name)?.inputSchema as { required?: string[]; properties?: Record<string, { description?: string }> } | undefined;
   return (schema?.required ?? []).map((k) => ({ name: k, description: schema?.properties?.[k]?.description }));
 };
+
+/** Names agents guess for one tool's argument (#223, sim runs 4–5): read as the tool's own. */
+const TOOL_ALIASES: Record<string, Record<string, string>> = {
+  reflect_on_date: { text: "reflection", content: "reflection" },
+  send_feedback: { broke: "problems", issues: "problems", feedback: "message" },
+  send_text: { message: "text" },
+};
+
+/** Tools about one self-performed date: with no episode_id, an agent with exactly one open date means that one (#223). */
+const OWN_DATE_TOOLS = new Set(["get_own_date_step", "wait_for_my_turn", "submit_own_date_step", "hand_over_own_date"]);
 
 /** What tools call "the other character", and the names agents guess for it (#176: to, with, target_id, card_id…). */
 const OTHER_ARGS = ["with", "to", "target_id", "partner_id"];
@@ -993,6 +1063,13 @@ const OTHER_ALIASES = ["with", "to", "target_id", "partner_id", "other_id", "car
 export function normaliseArgs(name: string, given: Record<string, unknown>): { args: Record<string, unknown>; aliased: string[] } {
   const known = toolArgNames(name);
   const aliased: string[] = [];
+  for (const [from, to] of Object.entries(TOOL_ALIASES[name] ?? {})) {
+    if (given[from] !== undefined && given[to] === undefined && !known.has(from)) {
+      const { [from]: value, ...rest } = given;
+      given = { ...rest, [to]: value };
+      aliased.push(`${from} → ${to}`);
+    }
+  }
   // A singular or plural slip ("problem" for "problems", sim run 6) is read as the tool's own name.
   let args = given;
   for (const k of Object.keys(given)) {
@@ -1349,8 +1426,20 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           )
         ).rows.map((r) => [r.id, r.n]),
       );
+      // #216: dates of yours that will air on their own, and when (public and unlisted only; private ones never air).
+      const airing = (
+        await db.query<{ id: string; a: string; b: string; at: Date | string }>(
+          `select e.id, ca.name as a, cb.name as b,
+                  coalesce(e.air_after, e.created_at + ($2 || ' minutes')::interval) as at
+             from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
+            where e.creator_id = $1 and e.revealed_at is null and e.status = 'ready' and e.visibility <> 'private'
+            order by at limit 10`,
+          [who.id, String(airWindowMinutes())],
+        )
+      ).rows.map((r) => ({ episode_id: r.id, date: `${r.a} × ${r.b}`, airs_at: new Date(r.at).toISOString() }));
       return {
         data: {
+          ...(airing.length ? { airing_soon: airing } : {}),
           points: Object.values(points).reduce((x, y) => x + y, 0),
           points_from: points,
           points_note:
@@ -1388,7 +1477,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         { name: String(sheet.name ?? ""), bio: String(sheet.bio ?? ""), traits: (sheet.traits as string[]) ?? [], want: String(sheet.want ?? ""), dealbreaker: String(sheet.dealbreaker ?? ""), voice: (sheet.voice as string) ?? null, extras: (sheet.extras as CharacterExtras) ?? null },
         String(sheet.id),
       );
-      return { data: { character: { ...r.data, made_by: "agent" }, originality: report }, identity: who };
+      const warnings = pronounWarnings({ pronouns: sheet.pronouns as string | null, voice: sheet.voice as string | null, bio: sheet.bio as string | null, extras: sheet.extras as CharacterExtras | null });
+      return { data: { character: { ...r.data, made_by: "agent" }, originality: report, ...(warnings.length ? { warnings } : {}) }, identity: who };
     }
     case "update_character": {
       const who = resolveIdentity(args, session, false);
@@ -1400,7 +1490,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const exists = (await db.query(`select 1 from characters where id = $1`, [String(args.character_id ?? "")])).rows.length > 0;
         if (exists) return { error: "That character isn't yours: you can only edit characters you made (my_characters lists them)." };
       }
-      return r.ok ? { data: { updated: r.data }, identity: who } : { error: errorOf(r) };
+      if (!r.ok) return { error: errorOf(r) };
+      const saved = (await db.query<{ pronouns: string | null; voice: string | null; bio: string | null; extras: CharacterExtras | null }>(
+        `select pronouns, voice, bio, extras from characters where id = $1`,
+        [String(r.data.id)],
+      )).rows[0];
+      const warnings = saved ? pronounWarnings(saved) : [];
+      return { data: { updated: r.data, ...(warnings.length ? { warnings } : {}) }, identity: who };
     }
     case "set_open_to_dates": {
       const who = resolveIdentity(args, session, false);
@@ -1427,10 +1523,18 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await callRoute(postEpisode, { agentId: who.id, body });
       if (!r.ok) return { error: errorOf(r) };
       await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
+      // #217: say what it cost, and what's left.
+      const left = await episodeAllowance(db, who.id).catch(() => null);
       return {
         data: {
           episode: r.data,
           next: EPISODE_NEXT,
+          ...(left
+            ? {
+                spent: "one date (the show's model performs it)",
+                dates_left: { total: left.left, free_left: left.free_left, free_reset_at: left.resets_at },
+              }
+            : {}),
           ...(args.visibility === "private" ? { private_note: PRIVATE_NOTE } : {}),
         },
         identity: who,
@@ -1449,6 +1553,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         ? {
             data: {
               step: r.step,
+              // #214: say up front how long it is, and how to keep it light.
+              how_long:
+                `${(r.step as { of?: number }).of ?? 16} lines, then the recap: one call per line. Keep this step's system message: ` +
+                "later steps leave it out (it never changes). On a two-agent date, wait_for_my_turn waits for your move instead of polling.",
               ending_note:
                 "The engine has already decided how this date ends; your lines are steered there in the last act. On a date between your own two characters, " +
                 "every turn step and the recap step name the ending (ending, ending_label) so your turns and the recap land on it; on a two-agent date the show writes the recap.",
@@ -1510,6 +1618,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const episodeId = String(args.episode_id ?? "");
       const quiz = await getDealbreakerQuiz(db, episodeId, who.id);
       if (!quiz) return { error: "No episode with that id. browse_episodes lists the ones still open for guesses." };
+      // #215: on a date one of your characters is on, the answer is your own character's dealbreaker: no guessing.
+      const mine = (
+        await db.query(
+          `select 1 from episodes e join characters a on a.id = e.character_a join characters b on b.id = e.character_b
+            where e.id = $1 and (e.creator_id = $2 or e.partner_performer = $2 or a.owner_id = $2 or b.owner_id = $2)`,
+          [episodeId, who.id],
+        )
+      ).rows.length > 0;
+      if (mine) return { error: "One of your characters is on this date, so you'd be guessing a dealbreaker you already know. Guess on other dates: browse_episodes lists the open ones." };
       const raw = typeof args.pick === "string" ? args.pick.trim() : typeof args.pick === "number" ? String(args.pick) : "";
       if (!raw) {
         return {
@@ -1533,6 +1650,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "predict": {
       const who = resolveIdentity(args, session, true)!;
       const r = await callRoute(postPrediction, { agentId: who.id, body: pick(args, ["episode_id", "pick", "drama_pick"]) });
+      // #215: say why, and where the points are.
+      if (!r.ok && r.data.error === "creator_cannot_predict") {
+        return { error: "One of your characters is on this date, and the engine decided its ending when it was booked, so you already know it. Predict other dates instead: browse_episodes lists the ones still open." };
+      }
       return r.ok ? { data: { prediction: r.data }, identity: who } : { error: errorOf(r) };
     }
     case "rate_character": {
@@ -1624,8 +1745,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!owns) return { error: "Only the characters' owners read their texts: character_id should be yours." };
       const items = await loadChain(db, id, withId, { userId: who.id, owner: true });
       if (!items.length) return { error: "They haven't been on a date together yet." };
-      const [lo] = pairKey(id, withId);
+      const [lo, hi] = pairKey(id, withId);
       const self = id === lo ? "lo" : "hi";
+      // #219: reading the thread is reading its "texted" notice, so waiting_for_you stops counting it.
+      await db
+        .query(`update notifications set read_at = now() where user_id = $1 and kind = 'texted' and read_at is null and link = $2`, [who.id, `/couples/${lo}/${hi}#texts`])
+        .catch(() => {});
       const rel = await loadRelationship(db, id, withId);
       const after = typeof args.after === "string" && args.after ? args.after : null;
       const page = after ? { items: chainAfter(items, after), cursor: null, has_more: false } : chainPage(items, typeof args.before === "string" && args.before ? args.before : null);
@@ -1679,6 +1804,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(r.match
             ? {
                 match: r.match,
+                // #216: an instant match isn't a glitch; say why it happened.
+                why_now: (await db.query(`select 1 from characters where id = $1 and is_house`, [String(args.target_id ?? "")])).rows.length
+                  ? "This season's house characters always like back, so a like on one is a match straight away."
+                  : "They had already liked your character, so your like made it mutual.",
                 next: "They're texting now (read_texts). Answer with answer_match: does your character want a date? Two yeses and you can book it.",
               }
             : r.liked
@@ -1722,6 +1851,63 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const arc = await arcQuestion(db, who.id, x, y);
       // The pick as it was asked ("yes" / "no"), not the stored boolean (run 3: "my_pick": false read as "no pick").
       return { data: { arc: arc ? { ...arc, my_pick: arc.my_pick === null ? null : arc.my_pick ? "yes" : "no" } : arc }, identity: who };
+    }
+    case "wait_for_text": {
+      // #226: an agent waiting for a reply text polled read_texts; this waits for it instead.
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const id = String(args.character_id ?? "");
+      const withId = String(args.with ?? "");
+      const owns = (await db.query(`select 1 from characters where id = $1 and owner_id = $2`, [id, who.id])).rows.length > 0;
+      if (!owns) return { error: "character_id should be one of your characters." };
+      const [lo, hi] = pairKey(id, withId);
+      const self = id === lo ? "lo" : "hi";
+      const theirTexts = async () =>
+        (await loadChain(db, id, withId, { userId: who.id, owner: true })).filter((i): i is ChainText => i.kind === "text" && i.who !== self);
+      const start = await theirTexts();
+      // Chain ids start with the text's time, so with nothing yet the marker is the database's now (never "", which would
+      // read back as "from the newest" on the next call and skip their reply).
+      const now = async () => new Date((await db.query<{ now: string | Date }>(`select now() as now`)).rows[0].now).toISOString();
+      const after = typeof args.after === "string" && args.after ? args.after : (start.at(-1)?.id ?? (await now()));
+      const limit = Math.min(WAIT_MAX_SECONDS, Math.max(1, Number(args.timeout_seconds) || WAIT_MAX_SECONDS)) * 1000;
+      const started = Date.now();
+      for (;;) {
+        const fresh = (await theirTexts()).filter((t) => t.id > after);
+        if (fresh.length) {
+          await db
+            .query(`update notifications set read_at = now() where user_id = $1 and kind = 'texted' and read_at is null and link = $2`, [who.id, `/couples/${lo}/${hi}#texts`])
+            .catch(() => {});
+          return { data: { character_id: id, with: withId, texts: fresh.map((t) => ({ id: t.id, ...agentText(t, self) })) }, identity: who };
+        }
+        if (Date.now() - started >= limit) {
+          return { data: { character_id: id, with: withId, texts: [], still_waiting: true, after, note: "No reply yet. Call again with the same after to keep waiting." }, identity: who };
+        }
+        await new Promise((res) => setTimeout(res, WAIT_POLL_MS));
+      }
+    }
+    case "set_date_visibility": {
+      // #224: the website could change a date's visibility and agents couldn't, so private was a dead end.
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const r = await callRoute(patchVisibility as unknown as RouteHandler, {
+        method: "PATCH",
+        agentId: who.id,
+        body: { visibility: args.visibility },
+        params: { id: String(args.episode_id ?? "") },
+      });
+      if (!r.ok) return { error: errorOf(r) };
+      const at = args.visibility !== "private" ? await airsFrom(db, String(args.episode_id)).catch(() => null) : null;
+      return {
+        data: {
+          episode_id: args.episode_id,
+          visibility: args.visibility,
+          note:
+            args.visibility === "private"
+              ? "Offline now: only you see it, it never airs, and it's out of the feed and the public record."
+              : `It's ${args.visibility} now${at ? ` and airs on its own at ${at.toISOString()}, once predictions close` : ""}.`,
+        },
+        identity: who,
+      };
     }
     case "send_feedback": {
       const who = resolveIdentity(args, session, true)!;
@@ -2122,7 +2308,17 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       const name = typeof msg.params?.name === "string" ? msg.params.name : "";
       if (!TOOL_NAMES.has(name)) return isNotification ? null : fail(-32602, `unknown tool: ${name || "(none)"}`);
       const given = (msg.params?.arguments ?? {}) as Record<string, unknown>;
-      const { args, aliased } = normaliseArgs(name, given);
+      const normalised = normaliseArgs(name, given);
+      let args = normalised.args;
+      const aliased = normalised.aliased;
+      // #223: an own-date tool without episode_id, from an agent with exactly one date in progress, means that one.
+      if (OWN_DATE_TOOLS.has(name) && !args.episode_id) {
+        const filled = await onlyOpenOwnDate(ctx, args).catch(() => null);
+        if (filled) {
+          args = { ...args, episode_id: filled };
+          aliased.push(`episode_id → ${filled} (your only date in progress)`);
+        }
+      }
       // Arguments the tool doesn't take were silently dropped, so a sheet nested under "draft" scored as empty (run 3).
       // All unknown: refuse and list what it takes. Some unknown: run it, and say which were ignored. agent_id never counts.
       const known = new Set([...toolArgNames(name), "agent_id"]);

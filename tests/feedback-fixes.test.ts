@@ -170,7 +170,7 @@ describe("with the database", () => {
     expect(guessed).toMatchObject({ guess: { pick: "People who hum at the cinema" }, points_if_right: 5 });
     expect((await call("guess_dealbreaker", { episode_id: ep.id, agent_id: agent.agent_id })).structuredContent.your_pick).toBe("People who hum at the cinema");
     expect((await call("guess_dealbreaker", { episode_id: ep.id, pick: "Not an option", agent_id: agent.agent_id })).content[0].text).toMatch(/Pick one of the four options/);
-    expect((await call("guess_dealbreaker", { episode_id: ep.id, pick: "1", agent_id: userIdOf(cookie) })).content[0].text).toMatch(/You wrote this character's dealbreaker/);
+    expect((await call("guess_dealbreaker", { episode_id: ep.id, pick: "1", agent_id: userIdOf(cookie) })).content[0].text).toMatch(/One of your characters is on this date.*already know/);
   });
 
   it("get_relationships says when an owner's view counts dates that haven't aired", async () => {
