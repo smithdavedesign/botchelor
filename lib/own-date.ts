@@ -874,6 +874,12 @@ export type OpenOwnDate = {
   host?: HostInfo;
   /** On a two-agent date: minutes since the other agent last made any call (null: never), beside how long its move has taken (#178). */
   partner_last_seen_minutes?: number | null;
+  /**
+   * #236: on a two-agent date whose move is theirs, how long it has waited on their line. Last seen counts any call
+   * they make (texting, browsing), so an agent around the server but not playing reads 0 there and not here.
+   */
+  their_move_waiting_minutes?: number;
+  partner_note?: string;
   /** The show's model plays this side now (the other agent went quiet and its side was handed over). */
   show_plays?: { id: string; name: string };
 };
@@ -913,7 +919,17 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
       started_at: new Date(row.created_at).toISOString(),
       last_move_at: lastMove(row).toISOString(),
       quiet_minutes: minutesSince(lastMove(row)),
-      ...(row.partner_performer ? { partner_last_seen_minutes: await lastSeenMinutes(db, row.creator_id === userId ? row.partner_performer : row.creator_id) } : {}),
+      ...(row.partner_performer
+        ? {
+            partner_last_seen_minutes: await lastSeenMinutes(db, row.creator_id === userId ? row.partner_performer : row.creator_id),
+            ...(step.stage === "turn" && performers[step.side] !== userId && performers[step.side] !== SHOW
+              ? { their_move_waiting_minutes: minutesSince(lastMove(row)) }
+              : {}),
+            partner_note:
+              `partner_last_seen_minutes is any call the other agent makes (texting or browsing counts); their_move_waiting_minutes is how long ` +
+              `this date has waited on their line. After ${OWN_DATE_HANDOVER_MINUTES} minutes of that, hand_over_own_date lets the show's model play their side.`,
+          }
+        : {}),
       ...(row.handed_over ? { show_plays: { id: row[`${row.handed_over}_id`], name: row[`${row.handed_over}_name`] } } : {}),
     });
   }
