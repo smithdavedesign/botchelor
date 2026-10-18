@@ -488,3 +488,23 @@ no free model for a show date, which was quietly degrading the writing when the 
   never silently drops into the free model. When the frontier isn't configured (local dev, visitor sims),
   the free model is still used; `track("show_date_free")` fires so prod can alert. BYOK still applies on
   this path — an owner's key still reduces the show's spend on that side.
+
+## Round: the texts get the same critic as the dates (2026-10-18, Chud × Nell)
+
+David's new character Chud had a good first date with Nell: one "Hello good looking" to open, then a real conversation
+that earned its second-date invitation. The texts after it fell apart: Chud opened 11 of 12 texts with "Hello good
+looking", Nell answered each with a status report on an archway, a stopwatch or a shift log, and the two re-proposed
+"meet me by the east wing" in ten texts running. The date conversation had the critic; texts never did.
+
+- **One text critic for every path (lib/text-critic.ts).** `critiqueText` runs the repetition checks from
+  `lineIssues` on a text against its thread: `repeated_opener`, `catchphrase`, `near_duplicate`, `mirrored_other`,
+  `sample_echo`, `never_said`. (Not the profile checks: two characters who text have met.) `writeCritiquedText` is the
+  shared write: two tries for a usable text, one revision when flagged, the draft kept if the revision fails. Wired into
+  the morning after (lib/afterglow.ts), the daily texts (lib/between-dates.ts), the phone and a house character's reply
+  (lib/texting.ts), and a new match's first texts (lib/swipes.ts).
+- **A settled plan stays settled.** `planAlreadyMade` reads the last 8 texts: when both sides have talked about meeting
+  (the relationship graph's plan words, plus confirmations like "bring your…", "I can meet you"), the latest one goes
+  into the prompt as `you_already_made_a_plan`, and the prompt says not to propose or confirm it again.
+- **Purpose-first text prompts.** The morning-after and between-dates prompts open with why the character is texting
+  (keep something alive, ask the thing you didn't get to, a story from your day) instead of a list of rules, like the
+  date prompt in #230. The hard rules and the JSON contract are unchanged.

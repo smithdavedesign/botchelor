@@ -15,19 +15,20 @@
 import { AFTERGLOW_TEXT_MAX, parseAfterglowLine } from "./afterglow";
 import { audienceAllows } from "./audience";
 import { buildTextMessages, dayOf, insertText, SHOW_THREAD_CHARS, threadFor } from "./between-dates";
-import { loadCharacter } from "./character";
+import { loadCharacter, type Character } from "./character";
 import { PUBLIC_COLUMNS, rankFor, toProfile, type DatingProfile, type MadeBy, type ProfileRow } from "./dating";
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { factLine, PROFILE_PROMPTS, profileComplete, profileMissing } from "./extras";
 import { inlineGenerationEnabled } from "./jobs";
-import { getModel, ModelError, type ChatMessage, type Model } from "./model";
+import { getModel, type ChatMessage, type Model } from "./model";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { takenSql } from "./partners";
 import { pairKey, type End } from "./relationships";
 import { seasonCastIds } from "./season-cast";
 import { loadChain, PUBLIC_VIEWER } from "./text-chain";
+import { critiqueText, writeCritiquedText, type ThreadText } from "./text-critic";
 
 /** How many cards the deck deals at a time. */
 export const DECK_PAGE = 10;
@@ -317,16 +318,9 @@ function answerNote(yes: boolean, last: boolean): string {
   return last ? "You're not feeling it. Wind it down kindly, and don't agree to a date." : "You're not feeling it. Stay friendly and light.";
 }
 
-async function writeLine(model: Model, messages: ChatMessage[]): Promise<string | null> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const line = parseAfterglowLine(await model.complete(messages, { temperature: 0.9 }), "a", AFTERGLOW_TEXT_MAX);
-      if (line) return line.text;
-    } catch (err) {
-      if (!(err instanceof ModelError)) console.error("[swipes] model call failed:", err instanceof Error ? err.message : "unknown");
-    }
-  }
-  return null;
+/** One opening-chat text, critiqued for repetition (lib/text-critic.ts) like every other text. */
+function writeLine(model: Model, messages: ChatMessage[], me: Character, them: Character, thread: ThreadText[]): Promise<string | null> {
+  return writeCritiquedText(model, messages, (raw) => parseAfterglowLine(raw, "a", AFTERGLOW_TEXT_MAX)?.text ?? null, (text) => critiqueText(thread, text, me, them), "swipes");
 }
 
 /**
@@ -364,7 +358,7 @@ export async function startMatchChat(db: Db, x: string, y: string, model: Model 
       const last = !order.slice(i + 1).includes(who);
       const thread = threadFor(await loadChain(db, lo, hi, PUBLIC_VIEWER), a.name, b.name, SHOW_THREAD_CHARS);
       const messages = buildTextMessages(me, them, null, thread, { nudge: null, alsoSeeing: [], matched: true, reply: thread.length > 0, answer: answerNote(yes, last) });
-      const line = await writeLine(model, messages);
+      const line = await writeLine(model, messages, me, them, thread);
       if (!line) break;
       await insertText(db, lo, hi, who, line, "match", now);
       sent++;

@@ -12,7 +12,15 @@ type Any = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 const side = (wants: boolean): SideOutcome => ({ wants_another: wants, agenda_met: true, satisfied: wants, dealbreaker_hit: null, want_met: null, note_followed: null });
 const text = (t: string) => JSON.stringify({ text: t });
 /** One date in the harness (conversation off): the recap, then `texts` morning-after texts. */
-const scriptDate = (texts = 4) => scriptedModel([episodeJson(), ...Array.from({ length: texts }, (_, i) => text(`Text number ${i + 1}, about coffee.`))]);
+// Varied texts: identical openers would trip the text critic (lib/text-critic.ts) and spend scripted outputs on revisions.
+const MORNING_TEXTS = [
+  "Still laughing about the goose.", "Okay but who brings soup to a picnic?", "My shoes have recovered. Mostly.",
+  "You never told me how the lighthouse story ends.", "Found a pebble in my pocket. Yours?", "Sleep well? I didn't, in a good way.",
+  "That waiter deserves a medal.", "Be honest: did you plan the rain?", "My cat is judging me for smiling at my phone.",
+  "Ten out of ten, would get soaked again.", "Is it weird that I miss the umbrella?", "Coffee tasted better than usual today.",
+  "I told my sister about you. She has questions.", "Still thinking about your accordion theory.", "Morning, troublemaker.", "Last one, I promise.",
+];
+const scriptDate = (texts = 4) => scriptedModel([episodeJson(), ...Array.from({ length: texts }, (_, i) => text(MORNING_TEXTS[i % MORNING_TEXTS.length]))]);
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 const planNext = async (id: string, cookie: string) => {
   const res = await postSecondDate(

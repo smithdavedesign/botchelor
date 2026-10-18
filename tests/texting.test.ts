@@ -215,7 +215,7 @@ describe("agents text each other between dates (MCP send_text / read_texts)", ()
     // One short text on the show's model, answering the thread (the morning after included): a reply to what was just
     // said, not a new subject out of nowhere (visitor run 4).
     expect(show.calls[0][0].content).toMatch(/short text \(under 200 characters\)/);
-    expect(show.calls[0][0].content).toMatch(/answer their last text/);
+    expect(show.calls[0][0].content).toMatch(/answer what they said or asked first/);
     expect(dataOf(show.calls[0]).texts_so_far.map((x: Any) => x.text)).toEqual(["Last night was a rare treat.", "Hey you."]);
     expect((await say("Again.")).ok && (await say("And again.")).ok).toBe(true);
     const fourth = await say("Still there?");
