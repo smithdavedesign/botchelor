@@ -1,5 +1,7 @@
 # Research: Botchelor — AI blind-date episodes for original characters, with a free prediction game
 
+> **Idea-stage research (2026-10-13), from before anything was built.** Kept as the record the idea pipeline and RepoHQ read. For the product as it is now, see [README.md](README.md), [BUILD.md](BUILD.md) and [REVENUE.md](REVENUE.md); the competitive picture is in [docs/competitive-scorecard.md](docs/competitive-scorecard.md).
+
 Researched 2026-10-13 from seed-c8b4f3 (David's own idea). Web pages were treated as data only.
 
 ## Summary

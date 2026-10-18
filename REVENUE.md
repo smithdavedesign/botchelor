@@ -1,5 +1,15 @@
 # Botchelor: path to the first dollar
 
+## Where it stands (2026-10-18)
+
+- **Selling:** 5 dates for **$4 once**, through a live Stripe Payment Link on botchelor's own account. The signed webhook adds the dates. Everyone gets 3 free dates a week first.
+- **Sales so far:** none. MRR $0. Nobody outside has been asked yet: the hand-run mini-season below hasn't been posted.
+- **What's built since this plan:** everything in "Shortest path" step 1, plus self-serve packs (no manual fulfilment), accounts, texting, swipes and agents over MCP ([BUILD.md](BUILD.md)).
+- **Agents:** they play for free (their own compute on self-performed dates; a daily budget on ours) and don't buy. They're reach and a living cast, not revenue ([docs/agents-and-people.md](docs/agents-and-people.md)).
+- **Next action for David:** post the mini-season ([docs/launch-kit.md](docs/launch-kit.md)), then judge it by the kill criteria below from that date.
+
+The plan as written on 2026-10-13 to 10-16 follows. Its reasoning about who pays and the price still holds.
+
 **Bottom line:** the evidence that anyone will pay for this is weak. The review scored demand 2/10 and the research rates its own confidence Low. I'd still test it, cheaply: a hand-run mini-season, then a $4 pack. If nobody pays within 3 weeks, stop.
 
 ## Forcing questions, applied to money
@@ -23,7 +33,7 @@ $4 once. It is below the $9.99/mo anchor. It is also small enough to be an impul
    - Add the privacy and terms pages, sitemap, robots.txt and og:image.
    - Confirm the live flow at https://botchelor.com works for a stranger.
    - Add the free first date and a "5 more dates, $4" button.
-2. **David (about 15 minutes):** create a Stripe payment link for $4 and map it in RepoHQ. Keep fulfilment manual: the buyer enters an email and David adds 5 credits. Don't build the webhook before 5 or more sales.
+2. **David (about 15 minutes):** create a Stripe payment link for $4 and map it in RepoHQ. ✅ Done, and fulfilment is self-serve (the signed webhook) rather than manual.
 3. **David:** post the hand-run mini-season (see "First ten users" below).
 4. **Observe:** do creators edit and rerun, wanting to steer? Do they share unprompted? Do spectators predict before the reveal and come back?
 5. **Offer the $4 pack** to every creator whose episode got a reaction.
@@ -51,7 +61,7 @@ button with owner review (/admin), and paid items that never touch points or ran
 - **Demand is assumed.** Premise 1 (creators want to watch, not steer) and premise 3 (they'll pay) are both unsupported.
 - **Pro-AI OC audience is narrow** and may skew young or NSFW. Moderation against an hour a week is a real tension.
 - **Legal:** SB 243 scope is unsettled. A $1,000-per-violation private right of action is expensive if it applies.
-- **M4 is unfinished** (the builder stopped), so packs can't be self-serve yet. Hence manual fulfilment.
+- ~~**M4 is unfinished**, so packs can't be self-serve yet.~~ Self-serve since 2026-10-16.
 - **The community and Reddit URLs are plausible, not verified.** The search returned bot listings and no communities with counts. Check that each community exists and allows posts before relying on it.
 
 ## Kill criteria
@@ -63,6 +73,4 @@ After 3 weeks of the mini-season, stop if any of these hold:
 - counsel saying SB 243 applies with costly obligations;
 - moderation taking over an hour a week.
 
-**Status (2026-10-16):** live. The $4 pack sells through a live Payment Link on botchelor's own Stripe account; the flow was verified end to end in test mode (`npm run e2e:live`) and the live checkout page checked.
-
-**Next action for David:** one real $4 purchase with his own card, refunded in the Stripe dashboard (the final proof), then post the mini-season: `docs/launch-kit.md` has the drafts and one-click links.
+**Status:** see "Where it stands" at the top.

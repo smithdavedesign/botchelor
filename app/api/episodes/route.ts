@@ -308,7 +308,7 @@ export const POST = handle(async (req) => {
 
   // One of this week's free dates, or a pack date (M4). Taken before the model call, so parallel requests
   // can't write more episodes than the creator has dates; given back below if no episode gets saved
-  // (a failed generation costs no date, so it doesn't cap retries: see BUILD.md, "Review").
+  // (a failed generation costs no date, so it doesn't cap retries: see docs/history/build-log-2026-10-13-to-16.md, "Review").
   // A second date may be this season's free one (FREE_WEEKLY_SECOND_DATE); otherwise it costs a date like any other.
   const reservation = (secondDate ? await reserveSecondDate(db, sess.userId) : null) ?? (await reserveEpisode(db, sess.userId));
   if (!reservation) {
