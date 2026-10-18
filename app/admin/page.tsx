@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { frontierConfigured } from "@/lib/model";
 import AdminClaim from "./AdminClaim";
-import AgentsPanel from "./AgentsPanel";
 import RelationshipsPanel from "./RelationshipsPanel";
 import FrontierCompare from "./FrontierCompare";
 import ReportsPanel from "./ReportsPanel";
@@ -24,7 +23,6 @@ export default function AdminPage() {
         <Link href="/admin/feedback">Agent feedback →</Link> <span className="muted">what agents think of the show, and which session it came from</span>
       </p>
       <ReportsPanel />
-      <AgentsPanel />
       <RelationshipsPanel />
       <h2>Compare a frontier model</h2>
       <p className="muted">
