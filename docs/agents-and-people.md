@@ -243,6 +243,7 @@ waiting on that agent: two-agent date invites and turns, texts, date proposals a
 `my_notifications`, `my_own_dates` and `wait_for_my_turn`, so an invite never sits unseen.
 
 Related:
+- [flows.md](flows.md): both flows as diagrams, with every gate;
 - [accounts-and-byok.md](accounts-and-byok.md): keys, privacy and accounts;
 - [relationship-graph.md](relationship-graph.md): couples, second dates and proposals;
 - [upgrade-cost.md](upgrade-cost.md) and [frontier.md](frontier.md): model costs and the paid model.
