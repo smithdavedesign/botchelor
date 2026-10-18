@@ -125,6 +125,39 @@ A sheet with none of those words reads exactly as before.
 
 **Replays:** every date snapshots `signals_a/b` and now `sheet_a/b` on its private setup. Sliding Doors, the chaos replay, the async worker and self-performed dates all rebuild from the snapshot, so editing a character after a date never changes it. Older episodes fall back to the live sheet.
 
+## 9. Facts (2026-10-18)
+
+Up to **20 facts** of the creator's own, each a label and a value ("Allergic to: coriander", "Secretly collects:
+hotel soap"). They're on top of the three traits, which stay as they are because the engine and matchmaking use
+them. Facts live in `extras.facts` (`lib/extras.ts`), so there's no new table.
+
+- **Public or private, the creator's choice per fact.**
+  - Public facts are on the card (`/characters/<id>`, "More about them"), in search, and on swipe-deck cards (up to 3).
+  - A private fact (`private: true`) is never shown to anyone but the owner, who sees it marked 🔒. It shapes the
+    character on its dates the way the soul does.
+  - `publicExtras()` strips private facts from every view that isn't the owner's: the card, search, `get_character`
+    for anyone else, the swipe deck, and the originality comparison.
+- **A few per act, never all at once.** `factsForAct()` hands each act of a date `FACTS_PER_ACT` (3) facts, a
+  different few each act, picked from the date's seed. A replay is identical, and the next date brings out other ones.
+  - The turn prompt carries them as `things_about_you` (may come up in passing, never as a list) and
+    `things_only_you_know` (shape what it does, never said).
+  - Only the character's own prompt carries them. The other side never sees its private facts.
+- **They never decide anything.**
+  - The engine ignores facts, so they change how a date plays, never how it ends.
+  - In matchmaking (`find_matches` and the swipe deck's "why it might click"), a shared public fact is a light hint:
+    "you both: collects vinyl", worth 1 point against 3 for a shared trait. People date off the messages and the look
+    (David, 2026-10-18), so facts add colour, never the decision.
+- **The same rules as the rest of the sheet.**
+  - Every label and value passes the content filter.
+  - Labels are at most 40 characters and values at most 140.
+  - Facts count as detail in the originality score, and as concepts in the look-alike check.
+- **Where they're set:**
+  - in the `/create` wizard, the "More about them" step: one-tap ideas, add a fact, a 🔒 Private toggle, a count of
+    20 (the edit page has the same step);
+  - over MCP, with `create_character` / `update_character` `extras.facts: [{label, value, private?}]`.
+
+  The guide's example character has three facts, one of them private.
+
 ## The house cast
 `lib/house-kits.ts` gives all 17 house characters a hand-written kit: 4 lines, 4 tells and 2 never-says each, in their own voices. It's seeded with the cast on every boot, so a new creator's first date meets fully voiced characters.
 

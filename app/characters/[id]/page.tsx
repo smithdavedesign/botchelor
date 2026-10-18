@@ -8,7 +8,7 @@ import JsonLd from "@/app/JsonLd";
 import { breadcrumbJsonLd, characterJsonLd } from "@/lib/seo";
 import ShareLink from "@/app/ShareLink";
 import { getDatingProfile } from "@/lib/dating";
-import { hasExtras, profileComplete, profileMissing } from "@/lib/extras";
+import { hasExtras, profileComplete, profileMissing, type CharacterExtras } from "@/lib/extras";
 import ProfileDetails from "./ProfileDetails";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { getDb } from "@/lib/db";
@@ -60,6 +60,11 @@ export default async function CharacterPage({ params }: Props) {
     getDatingProfile(db, id),
   ]);
   const week = thisWeek(c.id, c.this_week);
+  // The owner also sees its private facts (marked as theirs alone); everyone else gets the public card.
+  const shownExtras =
+    ratings.is_owner && viewerId
+      ? ((await db.query<{ extras: CharacterExtras | null }>(`select extras from characters where id = $1 and owner_id = $2`, [id, viewerId])).rows[0]?.extras ?? c.extras)
+      : c.extras;
   // Its relationships in the graph (lib/relationships.ts), as this viewer may see them: the public layer, or the
   // owner's (with their own private dates). Strongest tie first.
   const relationships = await (async () => {
@@ -251,7 +256,7 @@ export default async function CharacterPage({ params }: Props) {
         )}
       </section>
 
-      {hasExtras(c.extras) && <ProfileDetails extras={c.extras} />}
+      {hasExtras(shownExtras) && <ProfileDetails extras={shownExtras} owner={ratings.is_owner} />}
 
       <section className="card">
         <h2>Audience rating</h2>

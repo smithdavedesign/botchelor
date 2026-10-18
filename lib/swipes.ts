@@ -19,7 +19,7 @@ import { loadCharacter } from "./character";
 import { PUBLIC_COLUMNS, rankFor, toProfile, type DatingProfile, type MadeBy, type ProfileRow } from "./dating";
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
-import { PROFILE_PROMPTS, profileComplete, profileMissing } from "./extras";
+import { factLine, PROFILE_PROMPTS, profileComplete, profileMissing } from "./extras";
 import { inlineGenerationEnabled } from "./jobs";
 import { getModel, ModelError, type ChatMessage, type Model } from "./model";
 import { shortName } from "./names";
@@ -52,6 +52,8 @@ export type DeckCard = {
   hometown: string | null;
   prompts: { prompt: string; answer: string }[];
   interests: string[];
+  /** Its creator's public facts, as "Label: value". */
+  facts: string[];
   portrait: string | null;
   hue: number | null;
   house: boolean;
@@ -92,6 +94,7 @@ function toCard(p: DatingProfile, why: string[]): DeckCard {
     hometown: p.extras.hometown ?? null,
     prompts: (p.extras.prompts ?? []).map((q) => ({ prompt: promptLabel.get(q.id) ?? q.id, answer: q.answer })),
     interests: p.extras.hobbies ?? [],
+    facts: (p.extras.facts ?? []).map(factLine), // public only: the profile came through toProfile
     portrait: p.portrait,
     hue: p.hue,
     house: p.made_by === "house",
@@ -155,7 +158,7 @@ export async function deckFor(db: Db, userId: string, characterId: string, limit
   const mine = await loadMine(db, userId, characterId);
   const no = cantSwipe(mine);
   if (no || !mine) return no!;
-  const pool = (await deckPool(db, userId, mine)).map(toProfile);
+  const pool = (await deckPool(db, userId, mine)).map((r) => toProfile(r));
   if (!pool.length) return { ok: true, for: { id: mine.id, name: mine.name }, cards: [] };
   const [ranked, likers] = await Promise.all([
     rankFor(db, userId, toProfile(mine), pool),

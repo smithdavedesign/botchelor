@@ -9,7 +9,7 @@
  * never touches the engine, matchmaking or anything public.
  */
 import type { Db } from "./db";
-import type { CharacterExtras } from "./extras";
+import { publicExtras, type CharacterExtras } from "./extras";
 import { contentWords, EVERYDAY_WORDS } from "./quality";
 
 export type SheetDraft = {
@@ -83,7 +83,9 @@ export function findCliches(sheet: SheetDraft): Cliche[] {
 /** The words that make a sheet what it is, for comparing two characters. */
 function fingerprint(sheet: SheetDraft): Set<string> {
   const e = sheet.extras ?? {};
-  return new Set(contentWords([sheet.bio ?? "", (sheet.traits ?? []).join(" "), sheet.want ?? "", sheet.voice ?? "", e.occupation ?? "", e.quirk ?? ""].join(" "), 4));
+  return new Set(
+    contentWords([sheet.bio ?? "", (sheet.traits ?? []).join(" "), sheet.want ?? "", sheet.voice ?? "", e.occupation ?? "", e.quirk ?? "", ...(e.facts ?? []).map((f) => f.value)].join(" "), 4),
+  );
 }
 
 /** What they do for a living, as words: the occupation detail, minus everyday words ("runs a soup window" and "runs a bakery" aren't one job). */
@@ -150,7 +152,7 @@ const SAME_AS: Record<string, string> = {
  */
 export function conceptTerms(sheet: SheetDraft): Set<string> {
   const e = sheet.extras ?? {};
-  const details = [e.occupation, e.quirk, e.signature_item, e.hidden_talent, e.pet_peeve, e.guilty_pleasure].filter(Boolean).join(". ");
+  const details = [e.occupation, e.quirk, e.signature_item, e.hidden_talent, e.pet_peeve, e.guilty_pleasure, ...(e.facts ?? []).map((f) => f.value)].filter(Boolean).join(". ");
   const text = [sheet.bio ?? "", (sheet.traits ?? []).join(". "), sheet.want ?? "", sheet.dealbreaker ?? "", details].join(". ");
   const out = new Set<string>();
   for (const part of text.toLowerCase().split(/[.!?;,:()"“”\n]+/)) {
@@ -275,6 +277,8 @@ export async function findLookalikes(db: Db, sheet: SheetDraft, excludeId: strin
   );
   const name = sheet.name?.trim().toLowerCase();
   const terms = conceptTerms(sheet);
+  // Other characters' private facts never take part: the twin note names shared terms, and that mustn't reveal them.
+  for (const r of rows) r.extras = publicExtras(r.extras);
   const rowTerms = rows.map((r) => conceptTerms({ ...r, dealbreaker: r.dealbreaker ?? undefined }));
   const weight = termWeights([terms, ...rowTerms]);
   const found: (Lookalike & { score: number })[] = [];
@@ -298,7 +302,7 @@ export function scoreSheet(sheet: SheetDraft, cliches: Cliche[], similar: Lookal
   const tells = Object.values(e.tells ?? {}).filter(Boolean).length;
   const details = ["occupation", "hometown", "quirk", "catchphrase", "hidden_talent", "pet_peeve", "guilty_pleasure", "ideal_first_date"].filter(
     (k) => (e as Record<string, unknown>)[k],
-  ).length + (e.prompts?.length ?? 0) + (e.hobbies?.length ? 1 : 0);
+  ).length + (e.prompts?.length ?? 0) + (e.hobbies?.length ? 1 : 0) + Math.min(3, e.facts?.length ?? 0);
 
   let score = 50;
   const tips: string[] = [];

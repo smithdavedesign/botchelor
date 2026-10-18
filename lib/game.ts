@@ -2,7 +2,7 @@ import { endingWhy } from "./why";
 import type { CharacterSheet, DateHistory, EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
 import { approvedClipId, approvedClipIsVideo, approvedPortraitId, portraitPathSql } from "./assets";
 import type { Db } from "./db";
-import type { CharacterExtras } from "./extras";
+import { publicExtras, type CharacterExtras } from "./extras";
 import { matchmakerHitSql } from "./mechanics";
 import {
   agendaLabel,
@@ -618,6 +618,7 @@ export type PublicCharacter = {
   this_week: { text: string; season: string } | null;
 };
 
+/** A character's public persona. Its private facts are stripped (lib/extras.ts publicExtras): the owner's page reads them itself. */
 export async function getPublicCharacter(db: Db, id: string): Promise<PublicCharacter | null> {
   const { rows } = await db.query<Omit<PublicCharacter, "portrait_asset_id" | "clip_asset_id" | "clip_is_video">>(
     `select id, name, age, bio, traits, appearance, want, is_house as house, avatar_hue as hue, pronouns, voice,
@@ -628,7 +629,7 @@ export async function getPublicCharacter(db: Db, id: string): Promise<PublicChar
   if (!rows[0]) return null;
   const [portrait_asset_id, clip_asset_id] = await Promise.all([approvedPortraitId(db, id), approvedClipId(db, id)]);
   const clip_is_video = clip_asset_id ? await approvedClipIsVideo(db, clip_asset_id) : false;
-  return { ...rows[0], portrait_asset_id, clip_asset_id, clip_is_video };
+  return { ...rows[0], extras: publicExtras(rows[0].extras), portrait_asset_id, clip_asset_id, clip_is_video };
 }
 
 export type CharacterEpisode = { episode_id: string; share_path: string; partner: string; ending: Ending };
