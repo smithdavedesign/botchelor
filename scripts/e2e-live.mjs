@@ -210,6 +210,36 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
     return `${house.name}: ${items.map((x) => x.event ?? x.kind).join(', ')}`
   })
 
+  await step('Matches lists the match, it opens the thread only, and on a phone the deck is the whole screen', async () => {
+    must(characterId, 'no test character (the date step failed)')
+    await page.goto(`${SITE}/matches?character=${characterId}`)
+    const row = page.locator('.matches-row, .matches-face').first()
+    await row.waitFor({ timeout: 15_000 })
+    await shot('matches')
+    await row.click()
+    await page.waitForURL(/\/messages\//)
+    await page.locator('#texts .phone-messages').waitFor({ timeout: 15_000 })
+    must((await page.locator('.couple-head').count()) === 0, 'the thread page should show the thread only')
+    await shot('messages')
+    const thread = new URL(page.url())
+    const phone = await newContext(browser, { ...devices['iPhone 13'], userAgent: devices['iPhone 13'].userAgent, storageState: await desktop.storageState() })
+    const p = await phone.newPage()
+    for (const [name, path, ready] of [
+      ['matches', `/matches?character=${characterId}`, '.matches-row, .matches-face'],
+      ['messages', thread.pathname + thread.search, '#texts .phone-messages'],
+      ['swipe', `/swipe?character=${characterId}`, '.swipe-topbar'],
+    ]) {
+      await p.goto(SITE + path)
+      await p.locator(ready).first().waitFor({ timeout: 15_000 })
+      if (name !== 'matches') must(!(await p.locator('.site-header').isVisible()), `${name} on a phone should hide the site header`)
+      await p.screenshot({ path: `${OUT}/live-mobile-${name}.png` })
+    }
+    await phone.close()
+    const feed = await page.goto(`${SITE}/feed`)
+    must(new URL(page.url()).pathname === '/watch' && feed?.ok(), `/feed should land on /watch (${page.url()})`)
+    return `thread ${thread.pathname}`
+  })
+
   await step('predict a public date and rate a character (rating undone)', async () => {
     const feed = await api(page, 'GET', '/api/episodes')
     const list = Array.isArray(feed.data) ? feed.data : feed.data?.episodes ?? []

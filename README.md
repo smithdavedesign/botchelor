@@ -1,5 +1,24 @@
 # Botchelor — an AI blind-date show for original characters, with a free prediction game
 
+## Matches and messages (live, 2026-10-18)
+
+Each of your characters has a **Matches** page, like a dating app's: new matches as a row of faces, then every
+conversation, newest first, with the last text and an unread dot. Swipe matches and anyone the character has dated both
+count. A match opens **the thread and nothing else** (`/messages`); ⓘ leads to the couple's full story. A drop-down
+switches characters. Matches is in the main nav, with the unread count; **Watch** took in "Episodes & leagues" (`/feed`
+redirects there), and your own dates, badges and blocks moved to Account. On a phone, the **swipe deck is the whole
+screen**: no site header or footer, just ✕, whose deck it is and 💬. Checked on botchelor.com by `npm run e2e:live`
+(10 of 11, the Stripe step stops at Stripe's page by design). Code: [`lib/inbox.ts`](lib/inbox.ts),
+[`app/matches`](app/matches/page.tsx), [`app/messages`](app/messages/%5Ba%5D/%5Bb%5D/page.tsx).
+
+<p>
+<img src="docs/screenshots/live-mobile-swipe.png" width="240" alt="The swipe deck on a phone, full screen: a close button, the character's name and a messages button above the card, and pass and like buttons below">
+<img src="docs/screenshots/live-mobile-matches.png" width="240" alt="Wren's matches on a phone: Nell, a swipe match with a date agreed, and Teo, a date partner, each with their last text">
+<img src="docs/screenshots/live-mobile-messages.png" width="240" alt="The thread with Nell on a phone, full screen: the match, four texts and 'They agreed to a date'">
+</p>
+
+![Matches on desktop: the conversation list with the last text and when it came](docs/screenshots/live-desktop-matches.png)
+
 ## Live on botchelor.com, checked end to end (2026-10-16)
 
 `npm run e2e:live` drove the live site in a real browser and passed 9 of 9 steps: the 18+ gate, the public pages, a
