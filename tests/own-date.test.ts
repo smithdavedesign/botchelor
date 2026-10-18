@@ -300,14 +300,14 @@ describe("a two-agent date: each agent performs only its own character", () => {
     expect((await call("update_character", { character_id: "no-such-id", bio: "x" }, ctxB)).content[0].text).not.toMatch(/isn't yours/);
   });
 
-  it("a private date says it stays out of the record when it airs (run 5)", async () => {
+  it("a private date stays offline: air_date refuses it and says how to put it on (run 5, David 2026-10-18)", async () => {
     const { ctx, a, b } = await agentWithPair();
     const step = (await call("start_own_date", { character_id: a, partner_id: b, visibility: "private" }, ctx)).structuredContent.step;
     await performTurns(ctx, step);
     await call("submit_own_date_step", { episode_id: step.episode_id, output: validEpisodeDraft() }, ctx);
-    const aired = (await call("air_date", { episode_id: step.episode_id }, ctx)).structuredContent;
-    expect(aired).toMatchObject({ aired: true });
-    expect(aired.note).toMatch(/doesn't count toward its characters' memory/);
+    const refused = await call("air_date", { episode_id: step.episode_id }, ctx);
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0].text).toMatch(/private, so it stays offline and never airs\. Make it public or unlisted/);
   });
 
   it("hands a quiet agent's side to the show's model, after a while, on the agents' budget", async () => {

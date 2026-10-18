@@ -24,12 +24,15 @@ export const airWindowMinutes = (env: Record<string, string | undefined> = proce
 
 export type Aired = { ending: Ending; predictions: { total: number; correct: number } };
 
-/** Airs one ready date for its host, once. Null when it can't (not the host's, not ready, aired, or hidden by reports). */
+/**
+ * Airs one ready date for its host, once. Null when it can't (not the host's, not ready, aired, private, or hidden by
+ * reports). A private date is offline (David, 2026-10-18): it never airs; making it public or unlisted puts it on.
+ */
 export async function airEpisode(db: Db, id: string, hostId: string): Promise<Aired | null> {
   const revealed = (
     await db.query<{ ending: Ending; character_a: string; character_b: string }>(
       `update episodes e set revealed_at = now(), air_after = null
-        where e.id = $1 and e.creator_id = $2 and e.revealed_at is null and e.status = 'ready'
+        where e.id = $1 and e.creator_id = $2 and e.revealed_at is null and e.status = 'ready' and e.visibility <> 'private'
           and (select count(*) from reports r where r.episode_id = e.id) < $3
        returning e.ending, e.character_a, e.character_b`,
       [id, hostId, REPORT_HIDE_THRESHOLD],

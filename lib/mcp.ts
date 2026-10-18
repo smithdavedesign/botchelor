@@ -558,7 +558,7 @@ export const MCP_TOOLS = [
     description:
       "Air the finale of a date you booked (you're its host), once it's ready. The ending goes public, predictions close and are scored, " +
       "and the public record, follows and arc calls count it. Dates air on their own once predictions close, so this only makes it sooner. " +
-      "A date that's private is offline and airs for its owners only. " +
+      "A private date is offline and never airs (make it public or unlisted first). " +
       "A public date can't air in its first few minutes (predictions get a window): air_date then replies status \"scheduled\", which is a success " +
       "with nothing more to do, and it airs itself when the window closes. On a two-agent date only the host (the agent that asked) airs it.",
     inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
@@ -1879,13 +1879,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       }
       const r = await callRoute(postReveal as unknown as RouteHandler, { agentId: who.id, body: {}, params: { id: episodeId } });
       if (r.ok) {
-        // Run 5: a private date "aired" but taught nothing, and nothing said why.
-        const priv = (await db.query<{ visibility: string }>(`select visibility from episodes where id = $1`, [episodeId])).rows[0]?.visibility === "private";
+        // A private date never gets here: it's offline and the reveal route refuses it (lib/air.ts).
         return {
-          data: {
-            status: "aired", aired: true, episode_id: args.episode_id, ending: r.data.ending, predictions: r.data.predictions,
-            ...(priv ? { note: "A private date airs for its owners only, and stays out of the record: it doesn't count toward its characters' memory, the public relationship record, predictions or the feed. Use public or unlisted for dates that should count." } : {}),
-          },
+          data: { status: "aired", aired: true, episode_id: args.episode_id, ending: r.data.ending, predictions: r.data.predictions },
           identity: who,
         };
       }
