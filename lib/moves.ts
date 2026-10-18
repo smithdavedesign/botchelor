@@ -35,7 +35,7 @@ export type DateShape = {
   closing: boolean;
   /** How many more moves the next line may propose (0 on a segment's last line, past the cutoff or after MAX_MOVES). */
   movesLeft: number;
-  /** Whether a move to one of their homes is allowed now: the final act only (it's hidden until the decision airs). */
+  /** Whether a move to one of their homes is allowed now: once they're past first impressions (act one keeps the premise). */
   homeOk: boolean;
   /** A proposal the next line answers: the other side's, on the line just before. */
   pending: { say: string; to: PlaceId; by: "a" | "b" } | null;
@@ -69,7 +69,7 @@ export function dateShape(transcript: readonly Turn[], start: PlaceId, base: num
   const last = next ? transcript[next - 1] : null;
   const pending = opts.moves && !wrapping && last?.move && !last.moved_to ? { ...last.move, by: last.side } : null;
   const movesLeft = opts.moves && !wrapping && !opts.noNewMoves && next < total - 1 ? Math.max(0, MAX_MOVES - (segments.length - 1)) : 0;
-  return { enabled: opts.moves, segments, total, next, act, place: seg.place, closing, movesLeft, homeOk: act === FINAL_ACT, pending, wrapping };
+  return { enabled: opts.moves, segments, total, next, act, place: seg.place, closing, movesLeft, homeOk: act >= 1, pending, wrapping };
 }
 
 /** What an actor's reply says about moving, before it's settled (lib/conversation.ts parseTurnResult). */
@@ -133,7 +133,7 @@ export function moveProblem(
   if (!to) return 'say where in a few words ("move": a place, like "the night market" or "my place")';
   if (to === shape.place) return agent ? `you're already at ${venuePhrase(to)}: leave "move" empty` : null;
   if (!voiced(dialogue, reply.move, to, names)) return agent ? `your line doesn't suggest going to ${venuePhrase(to)}: say it in the line, or leave "move" empty` : null;
-  if (isHome(to) && !shape.homeOk) return "going back to one of your places waits for the end of the night: suggest somewhere out, or stay";
+  if (isHome(to) && !shape.homeOk) return "it's too early to go back to one of your places: get to know each other here first, then suggest it, or go somewhere out";
   return null;
 }
 

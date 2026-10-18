@@ -123,6 +123,10 @@ describe("settleLine: a move takes a proposal and a yes", () => {
     expect(settleLine(line("a", 0, { dialogue: "Up on the rooftop, then?" }), { move: "the rooftop" }, early, CHUD).move).toBeUndefined();
     expect(settleLine(line("a", 0, { dialogue: "Come back to mine?" }), { move: "my place" }, early, CHUD).move).toBeUndefined();
     expect(settleLine(line("a", 0, { dialogue: "Let's find an arcade." }), { move: "the arcade" }, early, CHUD).move).toEqual({ say: "the arcade", to: "retro_arcade" });
+    // Home is allowed from act one (past first impressions), not only the final act: more power to the bots.
+    const act1 = shapeAfter(played(4, 12));
+    expect(act1.act).toBe(1);
+    expect(settleLine(line("a", 1, { dialogue: "Come back to mine for a nightcap?" }), { move: "my place" }, act1, CHUD).move?.to).toBe("home@Chud's place");
     const late = shapeAfter(played(8, 12));
     expect(settleLine(line("a", 2, { dialogue: "Come back to mine for a nightcap?" }), { move: "my place" }, late, CHUD).move?.to).toBe("home@Chud's place");
     const two = shapeAfter(played(8, 12, { 1: { move: { say: "a", to: "retro_arcade" } }, 2: { moved_to: "retro_arcade" }, 4: { move: { say: "b", to: "night_beach" } }, 5: { moved_to: "night_beach" } }));
@@ -140,7 +144,7 @@ describe("settleLine: a move takes a proposal and a yes", () => {
     const t = [...played(8, 12), proposal("home@Chud's place")];
     expect(moveProblem({}, shapeAfter(t), NELL, "Chud", "Mm.")).toMatch(/Chud suggested taking the date to Chud's place: answer it.*"accept_move"/);
     expect(moveProblem({ accept: true }, shapeAfter(t), NELL, "Chud", "No thanks.")).toMatch(/says no but "accept_move" is true/);
-    expect(moveProblem({ move: "my place" }, shapeAfter(played(2, 12)), CHUD, "Nell", "Come back to mine?")).toMatch(/waits for the end of the night/);
+    expect(moveProblem({ move: "my place" }, shapeAfter(played(2, 12)), CHUD, "Nell", "Come back to mine?")).toMatch(/too early to go back to one of your places/);
     expect(moveProblem({ move: "the beach" }, shapeAfter(played(11, 12)), NELL, "Chud", "Down to the beach?", true)).toMatch(/no more moving tonight/);
     expect(moveProblem({ move: "the beach" }, shapeAfter(played(11, 12)), NELL, "Chud", "Down to the beach?")).toBeNull();
     expect(moveProblem({ move: "rainy alley" }, shapeAfter(played(2, 12)), CHUD, "Nell", "Hot chocolate in July.", true)).toMatch(/doesn't suggest going to rainy alley/);

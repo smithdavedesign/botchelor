@@ -19,7 +19,7 @@ export type PlanText = { who: End; text: string };
 /** What they agreed: the proposal and the yes, oldest first, and where it points. */
 export type AgreedPlan = { texts: PlanText[]; place: PlaceId };
 
-/** How many of their latest texts can hold the plan. */
+/** How many of their latest texts can hold the plan (a text thread; a date's own lines are scanned whole). */
 export const PLAN_LOOKBACK = 12;
 /** How long a plan's text can be, as stored and as the prompts quote it. */
 const PLAN_TEXT_MAX = 200;
@@ -47,8 +47,8 @@ export const agrees = (text: string): boolean => (YES.test(text) || GOES.test(te
  * The plan they agreed on, or null. `names` (by end) name a home ("home@Chud's place"). A question only counts as a
  * proposal when it names somewhere ("karaoke?"), so "how was your day?" / "good!" isn't a plan.
  */
-export function agreedPlan(texts: readonly PlanText[], names: Record<End, string>): AgreedPlan | null {
-  const recent = texts.slice(-PLAN_LOOKBACK);
+export function agreedPlan(texts: readonly PlanText[], names: Record<End, string>, lookback = PLAN_LOOKBACK): AgreedPlan | null {
+  const recent = texts.slice(-lookback);
   const other = (who: End): End => (who === "lo" ? "hi" : "lo");
   const where = (t: PlanText) => placeFor(t.text, names[t.who], names[other(t.who)]);
   for (let j = recent.length - 1; j > 0; j--) {

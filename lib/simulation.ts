@@ -362,24 +362,24 @@ export async function buildDate(
   });
 }
 
-/** How many of a date's last lines can make a plan, when it had no morning after (an agent's own date has none). */
-const CLOSING_LINES = 4;
-
 /**
- * The plan they agreed to by text since their last date (lib/plans.ts): its morning after and the texts after it, or
- * the date's closing lines and the texts after it when it had no morning after. With no date yet, their whole chat (a
- * match's first texts plan the first date).
+ * The plan they agreed to since their last date (lib/plans.ts, David 2026-10-18: "their plan could be an agreement
+ * earlier in the conversation… if one agrees to do something, make it the plan"): the whole of the last date's own
+ * conversation, then its morning after, then the texts after it. With no date yet, their whole chat (a match's first
+ * texts plan the first date). Read newest first, so a later agreement wins, but an agreement made ON the date counts —
+ * two characters who agree in act one to go back to someone's place no longer land somewhere random next time.
  */
 export async function planFromChain(db: Db, chain: ChainItem[], lo: string, names: Record<End, string>): Promise<AgreedPlan | null> {
   const last = chain.reduce((at, item, i) => (item.kind === "date" ? i : at), -1);
-  const since = (last < 0 ? chain : chain.slice(last + 1)).filter(isText);
+  const since = (last < 0 ? chain : chain.slice(last + 1)).filter(isText).map((t) => ({ who: t.who, text: t.text }));
   const date = last < 0 ? null : chain[last];
-  let closing: PlanText[] = [];
-  if (date?.kind === "date" && !since.some((t) => t.source === "afterglow")) {
+  let said: PlanText[] = [];
+  if (date?.kind === "date") {
     const row = (await db.query<{ transcript: Turn[] | null; character_a: string }>(`select transcript, character_a from episodes where id = $1`, [date.episode_id])).rows[0];
-    closing = (row?.transcript ?? []).slice(-CLOSING_LINES).map((t) => ({ who: (t.side === "a") === (row!.character_a === lo) ? "lo" : "hi", text: t.dialogue }));
+    said = (row?.transcript ?? []).map((t) => ({ who: ((t.side === "a") === (row!.character_a === lo) ? "lo" : "hi") as End, text: t.dialogue }));
   }
-  return agreedPlan([...closing, ...since.map((t) => ({ who: t.who, text: t.text }))], names);
+  const conversation = [...said, ...since];
+  return agreedPlan(conversation, names, conversation.length);
 }
 
 /** The venues of each person's character's last two dates (house characters date everyone, so theirs don't count). */

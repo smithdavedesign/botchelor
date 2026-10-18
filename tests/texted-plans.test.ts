@@ -207,6 +207,30 @@ describe("booking honours the plan they agreed to by text", () => {
     expect(await listSceneRequests(t.db)).toEqual([expect.objectContaining({ label: "the observatory", normalized: "observatory", requests: 1, plans: 1, moves: 0, episode_id: date.id })]);
   });
 
+  it("honours an agreement made on the date itself, anywhere in the conversation (Chud × Sable, 2026-10-18)", async () => {
+    // Episode 5c1aac6c: they agreed in act one to go back to Chud's place ("back to my place" / "Deal!"), but the next
+    // date was dealt goat yoga at random. The agreement is in the transcript, not the texts.
+    const { creator, character } = await owner();
+    const first = await book(creator, character.id);
+    const L = (side: "a" | "b", act: number, dialogue: string) => ({ side, act, dialogue, action: "", emotion: "warm", interest: 0.7 });
+    await t.db.query(`update episodes set created_at = $2, afterglow = '[]'::jsonb, transcript = $3::jsonb where id = $1`, [
+      first.id,
+      daysAgo(1),
+      JSON.stringify([
+        L("a", 0, "Race you to that fence!"),
+        L("b", 0, "You're on, slowpoke!"),
+        L("a", 0, "Let's take this back to my place after we win."),
+        L("b", 0, "Your place?! Deal, but only if you cook from the floor."),
+        L("a", 1, "Floor cooking it is."),
+        L("b", 2, "I own forty-one hats and zero dining tables. Let's go change that."),
+      ]),
+    ]);
+    const next = await book(creator, character.id);
+    // The next date opens at one of their places, not a random venue.
+    expect(next.setup.venue).toMatch(/^home@/);
+    expect(next.setup.agreed_plan.texts.map((x: PlanText) => x.text)).toEqual(["Let's take this back to my place after we win.", "Your place?! Deal, but only if you cook from the floor."]);
+  });
+
   it("a plan from their morning after sets up the next date, even when it isn't a second date", async () => {
     const { creator, character } = await owner();
     const first = await book(creator, character.id);
