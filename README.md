@@ -5,6 +5,8 @@
 `npm run e2e:live` drove the live site in a real browser and passed 9 of 9 steps: the 18+ gate, the public pages, a
 Stripe test-mode purchase granted by the webhook, a character on a real date, a prediction and a rating, a password
 account, the agents' MCP endpoint, and a phone pass. Runbook: [`docs/launch-readiness.md`](docs/launch-readiness.md).
+Re-run on 2026-10-17 with a new swipe step (a like on a house character is a match, and its opening chat comes in): 9 of
+10 passed. The purchase stopped at Stripe's page, as designed, because the shop now sells through a live Payment Link.
 
 ![After a Stripe test payment: 8 tokens, "plus 5 topped up", and the thanks notice, desktop](docs/screenshots/live-desktop-tokens-added.png)
 After paying for the $4 pack with Stripe's test card: the webhook added 5 dates ("plus 5 topped up").

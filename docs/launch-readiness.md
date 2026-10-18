@@ -8,7 +8,8 @@ review; the money, legal and posting steps that only the owner can do are tracke
 - **Live on botchelor.com** (www redirects to it; botchelor.vercel.app still serves and points its canonical there).
 - **Verified:** Google sign-in on the live site (David), Search Console linked for botchelor.com, Bing verified, GA4
   with the consent banner, RepoHQ's funnel beacon (the owner's browsers excluded), the MCP Registry listing, the
-  nightly database backup (ai-stack `bin/db-backup`), health alerts to #team-agents, and `npm run e2e:live` 9/9.
+  nightly database backup (ai-stack `bin/db-backup`), health alerts to #team-agents, and `npm run e2e:live` (9/9 on 2026-10-16; 9 of 10 on 2026-10-17 with the new swipe step,
+  the purchase skipped on the live link).
 - **Payments are live** on botchelor's own Stripe account (BUILD.md, "Taking real money"). `npm run e2e:live` never pays a live
   link: it stops at Stripe's page and reports the purchase step as skipped.
 
