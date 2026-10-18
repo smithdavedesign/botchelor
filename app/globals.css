@@ -3565,6 +3565,13 @@ button.rating-chip:hover {
   .scene-placeholder {
     display: none;
   }
+  /* The venue's name sits at the foot of the banner, clear of the title and the buttons. */
+  .scene-venue {
+    top: auto;
+    bottom: 0.55rem;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.7);
+  }
   .theater-stage {
     flex-direction: column;
     min-height: 0;
