@@ -42,7 +42,14 @@ export default function NextDate({ pair, next, hasNudge }: { pair: [string, stri
       <h2 id="next-date-title">Their next date</h2>
       {next.plan.length > 0 && o.kind !== "second_date" && (
         <p className="muted">
-          Their plan from last time: {next.plan.map((p) => `“${p}”`).join(" ")}
+          {next.plan_place ? "They agreed by text: " : "Their plan from last time: "}
+          {next.plan.map((p) => `“${p}”`).join(" ")}
+          {next.plan_place && (
+            <>
+              {" "}
+              Their next date happens there: <strong>{next.plan_place}</strong>.
+            </>
+          )}
         </p>
       )}
 

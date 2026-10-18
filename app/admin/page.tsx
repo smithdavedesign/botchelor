@@ -5,6 +5,7 @@ import AdminClaim from "./AdminClaim";
 import RelationshipsPanel from "./RelationshipsPanel";
 import FrontierCompare from "./FrontierCompare";
 import ReportsPanel from "./ReportsPanel";
+import ScenesPanel from "./ScenesPanel";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Admin · Botchelor", robots: { index: false, follow: false } };
@@ -24,6 +25,7 @@ export default function AdminPage() {
       </p>
       <ReportsPanel />
       <RelationshipsPanel />
+      <ScenesPanel />
       <h2>Compare a frontier model</h2>
       <p className="muted">
         Gated by a password, so the frontier (paid) model only runs on your approval — a handful of examples at a time.

@@ -75,6 +75,11 @@ export type Character = {
   nudge?: string | null;
   /** Set only on a date's characters: who else it's seeing, from the public record (lib/between-dates.ts). */
   alsoSeeing?: string[];
+  /**
+   * Set only on a date's characters: the plan the two agreed to by text, which tonight is (lib/plans.ts), from this
+   * side ("You: “…”", "They: “…”"). Its own field, not `pair`: a first date they planned in a match chat is still a first date.
+   */
+  tonightsPlan?: string[];
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));

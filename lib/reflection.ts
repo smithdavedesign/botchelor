@@ -24,7 +24,7 @@ import { metBefore } from "./memory";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { agenda, ENDING_LABELS } from "./rules";
 import { checkFields } from "./safety";
-import { venue, type VenueId } from "./venues";
+import { venue, type PlaceId } from "./venues";
 
 /** Each side's reflection about this date, or null when it couldn't be produced. Stored on episodes.reflections. */
 export type Reflections = { a: string | null; b: string | null };
@@ -82,7 +82,7 @@ export function buildReflectionMessages(
   input: DateInput,
   outcome: Outcome,
   characters: [Character, Character],
-  venueId: VenueId,
+  venueId: PlaceId,
   formatId: FormatId,
   side: "a" | "b",
   formatCtx: FormatContext = {},
@@ -133,7 +133,7 @@ async function reflectOne(
   input: DateInput,
   outcome: Outcome,
   characters: [Character, Character],
-  venueId: VenueId,
+  venueId: PlaceId,
   formatId: FormatId,
   side: "a" | "b",
   formatCtx: FormatContext,
@@ -164,7 +164,7 @@ export async function simulateReflections(
   input: DateInput,
   outcome: Outcome,
   characters: [Character, Character],
-  venueId: VenueId,
+  venueId: PlaceId,
   formatId: FormatId = "classic",
   formatCtx: FormatContext = {},
   date: Turn[] = [],

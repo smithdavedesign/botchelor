@@ -23,7 +23,7 @@ import { transcriptQuality, type QualityMetrics } from "./quality";
 import { ENDING_LABELS } from "./rules";
 import { assembleDate, DEFAULT_DATE_REQUEST, type BuiltDate, type CharacterForDate } from "./simulation";
 import type { StoredSoul } from "./souls";
-import { venue, type VenueId } from "./venues";
+import { venue, type PlaceId } from "./venues";
 
 type EvalCharacter = { forDate: CharacterForDate; soul: StoredSoul | null };
 
@@ -232,7 +232,7 @@ export const EVAL_SAGAS: readonly EvalSaga[] = [
 /** Step 0 of every saga airs on this Monday evening; each later step a day after. */
 const SAGA_START = Date.UTC(2026, 0, 5, 20);
 
-type Aired = { id: string; a: string; b: string; outcome: Outcome; transcript: Turn[]; venue: VenueId; at: string };
+type Aired = { id: string; a: string; b: string; outcome: Outcome; transcript: Turn[]; venue: PlaceId; at: string };
 
 /** One character's memory of a saga's aired steps (as lib/memory.ts would compute it from the database). */
 function sagaMemory(characterId: string, aired: Aired[]): CharacterMemory | null {

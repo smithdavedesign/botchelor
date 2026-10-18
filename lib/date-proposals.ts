@@ -149,6 +149,8 @@ export type NextDate = {
   /** The latest date of theirs the viewer can see, and the plan they made after it (both sides' plan-like texts). */
   last_episode_id: string | null;
   plan: string[];
+  /** Where their next date will be, when the plan is one they agreed to by text (lib/plans.ts): booking it goes there. */
+  plan_place: string | null;
   option:
     | { kind: "second_date"; state: SecondDateState }
     | { kind: "planned"; episode_id: string }
@@ -161,7 +163,15 @@ export type NextDate = {
  * What an owner can do next for this couple, from their page. Null for a viewer who owns neither character.
  * `lastEpisodeId`/`plan` come from the viewer's view of the relationship (their latest visible date).
  */
-export async function nextDate(db: Db, viewerId: string | null, x: string, y: string, lastEpisodeId: string | null, plan: string[]): Promise<NextDate | null> {
+export async function nextDate(
+  db: Db,
+  viewerId: string | null,
+  x: string,
+  y: string,
+  lastEpisodeId: string | null,
+  plan: string[],
+  planPlace: string | null = null,
+): Promise<NextDate | null> {
   if (!viewerId) return null;
   const cs = await chars(db, [x, y]);
   const [cx, cy] = [cs.get(x), cs.get(y)];
@@ -169,7 +179,7 @@ export async function nextDate(db: Db, viewerId: string | null, x: string, y: st
   const mine = cx.owner_id === viewerId && !cx.is_house ? cx : cy.owner_id === viewerId && !cy.is_house ? cy : null;
   if (!mine) return null;
   const them = mine === cx ? cy : cx;
-  const base = { mine: { id: mine.id, name: mine.name }, them: { id: them.id, name: them.name, house: them.is_house }, last_episode_id: lastEpisodeId, plan };
+  const base = { mine: { id: mine.id, name: mine.name }, them: { id: them.id, name: them.name, house: them.is_house }, last_episode_id: lastEpisodeId, plan, plan_place: planPlace };
 
   // A proposal from them waiting on this owner comes first: that's the thing to answer.
   const theirs = await pendingProposal(db, them.id, mine.id);

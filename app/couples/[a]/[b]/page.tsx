@@ -10,6 +10,8 @@ import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/l
 import { userIdFromCookieStore } from "@/lib/http";
 import { activeNudge, alsoSeeing } from "@/lib/between-dates";
 import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships";
+import { planFromChain } from "@/lib/simulation";
+import { venueName } from "@/lib/venues";
 import { chainPage, loadChain } from "@/lib/text-chain";
 import NudgeForm from "./NudgeForm";
 import ThreadPreview from "./ThreadPreview";
@@ -41,16 +43,24 @@ async function load(a: string, b: string) {
   const mine = owners.filter((o) => viewerId !== null && o.owner_id === viewerId).map((o) => o.id);
   // Owners: the couple's whole text chain (lib/text-chain.ts), the newest page first. Nobody owns a house couple's
   // characters, so nobody texts there; anywhere else a spectator learns the texts are the owners'.
-  const chain = owner ? chainPage(await loadChain(db, a, b, { userId: viewerId, owner: true })) : null;
+  const fullChain = owner ? await loadChain(db, a, b, { userId: viewerId, owner: true }) : null;
+  const chain = fullChain ? chainPage(fullChain) : null;
   const texted = owners.some((o) => o.owner_id !== null);
   const nudges = owner ? await Promise.all(mine.map(async (id) => ({ id, note: await activeNudge(db, id, id === a ? b : a) }))) : [];
   // Spectators: follow the couple, and call their arc (lib/follows.ts, lib/arcs.ts). Public couples only.
   const listed = rel!.public.dates > 0;
   const [follow, arc] = listed ? await Promise.all([followState(db, viewerId, a, b), arcQuestion(db, viewerId, a, b)]) : [null, null];
-  // Owners: what they can do next for this couple, with the plan from their latest date (lib/date-proposals.ts).
+  // Owners: what they can do next for this couple (lib/date-proposals.ts), with the plan they agreed to by text since
+  // their last date, which is where the next date will happen (lib/plans.ts), or else the plan from their latest date.
   const last = view.timeline.at(-1) ?? null;
-  const plan = owner && last ? (view.plans ?? []).filter((p) => p.episode_id === last.episode_id).map((p) => p.text) : [];
-  const next = owner ? await nextDate(db, viewerId, a, b, last?.episode_id ?? null, plan) : null;
+  const [lo] = pairKey(a, b);
+  const agreed = fullChain ? await planFromChain(db, fullChain, lo, a === lo ? { lo: ca.name, hi: cb.name } : { lo: cb.name, hi: ca.name }).catch(() => null) : null;
+  const plan = agreed
+    ? agreed.texts.map((t) => t.text)
+    : owner && last
+      ? (view.plans ?? []).filter((p) => p.episode_id === last.episode_id).map((p) => p.text)
+      : [];
+  const next = owner ? await nextDate(db, viewerId, a, b, last?.episode_id ?? null, plan, agreed ? venueName(agreed.place) : null) : null;
   return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, texted, nudges, follow, arc, next };
 }
 

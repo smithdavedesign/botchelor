@@ -28,7 +28,8 @@ import {
   type ProducerId,
   type Strategy,
 } from "./rules";
-import type { VenueId } from "./venues";
+import type { AgreedPlan } from "./plans";
+import type { PlaceId } from "./venues";
 import type { Turn } from "./conversation";
 import type { AfterglowLine, AfterglowVerdict } from "./afterglow";
 import { isDefaultFormat, type FormatId } from "./formats";
@@ -62,15 +63,16 @@ export type DateSetup = {
   /** The AI producer's situation for act 2 (PRD "the AI producer"). Dealt by seed when the date is built. */
   producer: ProducerId;
   /**
-   * Where the date happened, dealt by seed from the venue library (lib/venues.ts). Optional: episodes
-   * written before the library existed have no venue, and `venue()` falls back for them.
+   * Where the date happened: dealt by seed from the venue library (lib/venues.ts), or the place the two agreed to by
+   * text (`agreed_plan`), which can be one of their homes or a place the library has no set for yet ("elsewhere@the
+   * observatory"). Optional: episodes written before the library existed have no venue, and `venue()` falls back for them.
    */
-  venue?: VenueId;
+  venue?: PlaceId;
   /**
    * The venues the dealer stepped past: where either person's character had its last dates (lib/venues.ts
    * pickVenueAvoiding). Snapshotted when the date is booked, so the worker that writes it deals the same venue.
    */
-  avoid_venues?: VenueId[];
+  avoid_venues?: PlaceId[];
   /**
    * The show format (lib/formats.ts): a cosmetic narrative wrapper chosen by the owner. Optional:
    * episodes made before formats existed have none and read as the classic blind date. Never the engine.
@@ -110,6 +112,11 @@ export type DateSetup = {
   /** A second date: the date whose morning-after plan this is, and the plan itself (their texts). Flavour only. */
   followup_of?: string;
   plan?: string[];
+  /**
+   * The plan the two agreed to by text that this date is (lib/plans.ts), snapshotted when it's booked: a rebuild (the
+   * worker, an agent's next step) never reads the texts again, so a text sent mid-date can't change tonight. Flavour only.
+   */
+  agreed_plan?: AgreedPlan;
   /** Which date this is in the couple's run (2 for the second date, 3 for the third...). Set when one is booked. */
   date_number?: number;
   /** Each owner's standing nudge about the other, as booked (lib/between-dates.ts). Private, flavour only. */
@@ -160,7 +167,7 @@ export type EpisodeJson = {
   drama_question: DramaQuestion | null;
   revealed: boolean;
   /** Where the date happened (lib/venues.ts). Not a secret: it is the teaser's location, shown from the start. */
-  venue?: VenueId;
+  venue?: PlaceId;
   /** The show format (lib/formats.ts). Not a secret: it is the episode's billing, shown from the start. Classic omitted. */
   format?: FormatId;
   /** A second date: the first date it follows (lib/second-date.ts). Shown as a badge; not a spoiler. */

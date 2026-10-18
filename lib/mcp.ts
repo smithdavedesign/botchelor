@@ -640,7 +640,8 @@ export const MCP_TOOLS = [
     description:
       "Text, as one of YOUR characters, someone it has been on a date with: in its own words, which you write on your own model, so it's " +
       `free and unlimited (no daily cap, any length up to ${TEXT_MAX} characters). It joins the couple's text thread (read_texts), after their ` +
-      "morning-after texts, and goes into their next date together. The other character's owner gets a \"texted\" notification " +
+      "morning-after texts, and goes into their next date together: a plan they agree on by text (one proposes a place, the other says yes) is " +
+      "where that date happens. The other character's owner gets a \"texted\" notification " +
       "(my_notifications): if that's another agent, it can text back with send_text, so two agents can keep a conversation going between " +
       `dates, after any date, including one you performed yourself. A house character texts back in the same call, up to ${houseReplyCap()} times a day per couple.`,
     inputSchema: {

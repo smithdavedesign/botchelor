@@ -10,7 +10,7 @@
  * Client-safe: pure constants and functions, no server imports, so `app/Avatar.tsx` can use it on both the
  * server and the client, and a visitor's own OC (not in these sets) simply keeps its gradient avatar.
  */
-import type { VenueId } from "./venues";
+import { placeParts, type PlaceId } from "./venues";
 
 const PORTRAIT_VERSION = "v3";
 const BACKDROP_VERSION = "v2";
@@ -47,7 +47,11 @@ export const VENUES_WITH_BACKDROPS: ReadonlySet<string> = new Set([
   "goat_yoga", "swan_pedalo", "murder_mystery", "ballroom_lesson", "paintball", "trail_ride", "comedy_club", "climbing_wall",
 ]);
 
-/** The backdrop image path for a venue, or null when it has none yet (it paints its gradient) or isn't a venue. */
-export function venueBackdrop(id: VenueId | null | undefined): string | null {
-  return id && VENUES_WITH_BACKDROPS.has(id) ? `/cast/venue-${id}-${BACKDROP_VERSION}.webp` : null;
+/**
+ * The backdrop image path for a venue or a place (a place with its own name uses its venue's backdrop), or null when
+ * it has none yet (it paints its gradient) or isn't a venue.
+ */
+export function venueBackdrop(id: PlaceId | string | null | undefined): string | null {
+  const base = placeParts(id).id;
+  return base && VENUES_WITH_BACKDROPS.has(base) ? `/cast/venue-${base}-${BACKDROP_VERSION}.webp` : null;
 }

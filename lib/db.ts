@@ -941,6 +941,19 @@ create table if not exists server_errors (
 );
 create index if not exists server_errors_at_idx on server_errors (at);
 
+-- Places a date went that the library has no set for yet (lib/scenes.ts): a plan two characters agreed to by text, or a
+-- move on the date. The date shows a generic background with the place's name; this tells the owner which sets to make
+-- next. One row per date and place, logged when the date is finished.
+create table if not exists scene_requests (
+  episode_id text not null references episodes (id) on delete cascade,
+  normalized text not null,
+  label text not null,
+  kind text not null check (kind in ('plan', 'move')),
+  created_at timestamptz not null default now(),
+  primary key (episode_id, normalized)
+);
+create index if not exists scene_requests_normalized_idx on scene_requests (normalized);
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (
