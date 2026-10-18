@@ -144,7 +144,7 @@ describe("after a match: the chat, each character's yes, and the date", () => {
     expect(dataOf(model.asked[3]).your_answer_about_a_date).toMatch(/suggest something specific|say yes to their idea/);
     const chain = await loadChain(t.db, a.id, HOUSE_PARTNER_ID, { userId: a.userId, owner: true });
     expect(chain.map((i) => (i.kind === "event" ? i.event : i.kind === "text" ? "text" : "date"))).toEqual(["matched", "text", "text", "text", "text", "date_agreed"]);
-    expect((await listNotifications(t.db, a.userId))[0]).toMatchObject({ kind: "date_agreed", link: `/couples/${lo}/${lo === a.id ? HOUSE_PARTNER_ID : a.id}` });
+    expect((await listNotifications(t.db, a.userId))[0]).toMatchObject({ kind: "date_agreed", link: `/messages/${lo}/${lo === a.id ? HOUSE_PARTNER_ID : a.id}` });
     // Once only.
     expect(await startMatchChat(t.db, a.id, HOUSE_PARTNER_ID, model)).toBe(0);
   });

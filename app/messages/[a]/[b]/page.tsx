@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
-import CharacterPicker from "@/app/CharacterPicker";
 import TextPhone from "@/app/couples/[a]/[b]/TextPhone";
 import { dayOf } from "@/lib/between-dates";
 import { getDb } from "@/lib/db";
-import { listMyDatingProfiles } from "@/lib/dating";
 import type { CharacterRef, PublicCharacter } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
-import { loadThread, markTextsRead } from "@/lib/inbox";
+import { listThreads, loadThread, markTextsRead } from "@/lib/inbox";
+import { shortName } from "@/lib/names";
 import { pairKey } from "@/lib/relationships";
 import ThreadNext from "./ThreadNext";
+import ThreadSwitcher from "./ThreadSwitcher";
 
 export const dynamic = "force-dynamic";
 
@@ -46,30 +46,35 @@ export default async function MessagesPage({ params, searchParams }: Props) {
   const self = as && t.mine.includes(as) ? as : t.mine[0];
   // Opening the thread is reading it: its "texted" notifications stop counting.
   await markTextsRead(db, viewerId, lo, hi);
-  const [mine, next] = await Promise.all([listMyDatingProfiles(db, viewerId), t.nextFor(self)]);
   const me = self === lo ? t.ca : t.cb;
   const them = self === lo ? t.cb : t.ca;
+  const [inbox, next] = await Promise.all([listThreads(db, viewerId, self), t.nextFor(self)]);
+  // This character's other chats, newest first, for the switcher (switching characters is back on Matches).
+  const here = `/messages/${lo}/${hi}?as=${encodeURIComponent(self)}`;
+  const chats = [...(inbox?.conversations ?? []), ...(inbox?.fresh ?? [])].map((c) => ({ href: `${c.link}?as=${encodeURIComponent(self)}`, name: shortName(c.with.name) }));
+  if (!chats.some((c) => c.href === here)) chats.unshift({ href: here, name: shortName(them.name) });
   const back = `/matches?character=${encodeURIComponent(self)}`;
   const story = t.hasStory ? `/couples/${lo}/${hi}` : null;
+  // While they're deciding, or one said no, the line under the name says so (the action button only shows to act).
+  const stage =
+    next?.kind === "declined" ? `💔 Not this time: ${shortName((next.by === "you" ? me : them).name)} isn't feeling it` : next?.kind === "waiting" ? "💘 Matched · deciding on a date" : t.stageLabel;
 
   return (
     <div className="messages-fullscreen">
-      <div className="thread-bar">
-        <CharacterPicker characters={mine} current={self} href="/matches?character=" label="Switch to another character's matches" />
-      </div>
       <TextPhone
         pair={[lo, hi]}
         characters={{ lo: refOf(t.ca), hi: refOf(t.cb) }}
         mine={self === lo ? "lo" : "hi"}
         canFlip={t.mine.length === 2}
-        stageLabel={t.stageLabel}
+        stageLabel={stage}
         initial={t.chain}
         today={dayOf(new Date())}
         ownKey={t.ownKey}
         page={{
           back,
           info: story,
-          bar: <ThreadNext next={next} mine={{ id: me.id, name: me.name }} them={{ id: them.id, name: them.name }} story={story} back={back} />,
+          switcher: <ThreadSwitcher chats={chats} current={here} />,
+          action: <ThreadNext next={next} mineId={me.id} themId={them.id} />,
         }}
       />
     </div>
