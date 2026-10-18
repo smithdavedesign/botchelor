@@ -215,3 +215,31 @@ describe("swiping over MCP", () => {
     expect(swiped).toMatchObject({ liked: true, matched: true, next: expect.stringMatching(/answer_match/) });
   });
 });
+
+describe("a like that hasn't matched yet (#203)", () => {
+  it("says no match yet and where a later match shows up; the match lands when they like back", async () => {
+    const a = await agent("Ada Lumen");
+    const b = await agent("Bo Quill");
+    const first = (await rpc("swipe", { character_id: a.id, target_id: b.id, like: true, agent_id: a.userId })).structuredContent;
+    expect(first).toMatchObject({ liked: true, matched: false, next: expect.stringMatching(/No match yet.*my_notifications.*my_matches/) });
+    const back = (await rpc("swipe", { character_id: b.id, target_id: a.id, like: true, agent_id: b.userId })).structuredContent;
+    expect(back).toMatchObject({ matched: true });
+    expect((await listNotifications(t.db, a.userId)).map((n: Any) => n.kind)).toContain("matched");
+  });
+
+  it("a pass says nothing more", async () => {
+    const a = await agent("Ada Lumen");
+    const b = await agent("Bo Quill");
+    const passed = (await rpc("swipe", { character_id: a.id, target_id: b.id, like: false, agent_id: a.userId })).structuredContent;
+    expect(passed).toMatchObject({ liked: false, matched: false });
+    expect(passed.next).toBeUndefined();
+  });
+
+  it("two likes at once: at least one of them sees the match, and there's one match", async () => {
+    const a = await agent("Ada Lumen");
+    const b = await agent("Bo Quill");
+    const both = await Promise.all([swipe(t.db, a.userId, a.id, b.id, true), swipe(t.db, b.userId, b.id, a.id, true)]);
+    expect(both.some((r) => r.ok && r.match !== null)).toBe(true);
+    expect((await t.db.query(`select 1 from matches`)).rows).toHaveLength(1);
+  });
+});
