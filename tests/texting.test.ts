@@ -63,13 +63,13 @@ async function owner(name = "Wren Kestrel") {
 }
 
 /** An aired date with the house partner at `at`, with its morning-after texts (side "a" is the owner's character). */
-async function date(creator: string, characterId: string, at: string, afterglow: Line[] = []) {
+async function date(creator: string, characterId: string, at: string, afterglow: Line[] = [], opts: { air?: boolean } = {}) {
   scriptOutcome({ ending: "second_date", sides: [side(true), side(true)] });
   scriptedModel([episodeJson()]);
   const res = await api.createEpisode({ character_id: characterId, partner_id: HOUSE_PARTNER_ID }, creator);
   expect(res.status).toBe(200);
   const episode = await res.json();
-  await api.reveal(episode.id, creator);
+  if (opts.air !== false) await api.reveal(episode.id, creator);
   await t.db.query(`update episodes set created_at = $2, afterglow = $3::jsonb where id = $1`, [episode.id, at, JSON.stringify(afterglow)]);
   return episode;
 }
@@ -136,6 +136,19 @@ describe("agents text each other between dates (MCP send_text / read_texts)", ()
     expect((await rpc("read_texts", { character_id: character.id, with: HOUSE_PARTNER_ID, agent_id: userIdOf(newUserCookie()) })).isError).toBe(true);
   });
 
+  it("gives a couple page link only once the page opens for anyone (after a date airs), and says why before", async () => {
+    const { creator, userId, character } = await owner();
+    vi.stubEnv("HOUSE_TEXT_REPLIES", "0");
+    const episode = await date(creator, character.id, daysAgo(1), [], { air: false });
+    const before = (await rpc("send_text", { character_id: character.id, to: HOUSE_PARTNER_ID, text: "Before it airs.", agent_id: userId })).structuredContent;
+    expect(before).toMatchObject({ couple_page: null, couple_page_note: expect.stringMatching(/once one of their dates has aired/) });
+    expect((await rpc("read_texts", { character_id: character.id, with: HOUSE_PARTNER_ID, agent_id: userId })).structuredContent.couple_page).toBeNull();
+    await api.reveal(episode.id, creator);
+    const after = (await rpc("send_text", { character_id: character.id, to: HOUSE_PARTNER_ID, text: "Now it's aired.", agent_id: userId })).structuredContent;
+    expect(after.couple_page).toMatch(/^\/couples\/[^/]+\/[^/#]+#texts$/);
+    expect(after.couple_page_note).toBeUndefined();
+  });
+
   it("never across a block between the owners", async () => {
     const { host, partner, hostCharacter, partnerCharacter, episode } = await setupPairedEpisode({ ending: "second_date" });
     await t.db.query(`insert into blocks (blocker_id, via_episode_id, blocked_id) values ($1, $2, $3)`, [userIdOf(partner), episode.id, userIdOf(host)]);
@@ -151,8 +164,10 @@ describe("agents text each other between dates (MCP send_text / read_texts)", ()
 
     const r = await say("Hey you.");
     expect(r).toMatchObject({ ok: true, reply: { text: "Reply 1", who: them, source: "between" } });
-    // One short text on the show's model, answering the thread (the morning after included).
+    // One short text on the show's model, answering the thread (the morning after included): a reply to what was just
+    // said, not a new subject out of nowhere (visitor run 4).
     expect(show.calls[0][0].content).toMatch(/short text \(under 200 characters\)/);
+    expect(show.calls[0][0].content).toMatch(/answer their last text/);
     expect(dataOf(show.calls[0]).texts_so_far.map((x: Any) => x.text)).toEqual(["Last night was a rare treat.", "Hey you."]);
     expect((await say("Again.")).ok && (await say("And again.")).ok).toBe(true);
     const fourth = await say("Still there?");
