@@ -4829,13 +4829,9 @@ main:has(> .admin-wide) {
     margin: 0;
     background: var(--card);
   }
-  .thread-bar {
-    flex: none;
-    padding: max(0.4rem, env(safe-area-inset-top)) 0.75rem 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .thread-bar:not(:empty) + .thread-page .phone-header {
-    padding-top: 0.5rem;
+  /* The thread starts at the top of the screen; switching characters is on Matches, one tap back (‹). */
+  .messages-fullscreen .thread-bar {
+    display: none;
   }
   .messages-fullscreen .thread-page {
     display: flex;
