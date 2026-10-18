@@ -86,7 +86,8 @@ async function feedbackFrom(base, password, since) {
     const r = await fetch(`${base}/api/admin/feedback`, { headers: { "x-frontier-key": password } });
     if (!r.ok) return [];
     const rows = (await r.json()).feedback ?? [];
-    return rows.filter((f) => !since || f.created_at > since);
+    // The loop's own visitors' feedback is posted to botchelor.com too (below); it was triaged the night it came in.
+    return rows.filter((f) => (!since || f.created_at > since) && !String(f.client_name ?? "").startsWith("loop "));
   } catch {
     return [];
   }
@@ -158,8 +159,10 @@ async function main() {
 
     // 4. Triage: tonight's feedback plus real agents' on botchelor.com since the last run.
     let live = [];
+    let livePassword = null;
     try {
-      live = await feedbackFrom("https://botchelor.com", keychain("vault/botchelor/FRONTIER_PASSWORD"), state.last_live_feedback_at ?? null);
+      livePassword = keychain("vault/botchelor/FRONTIER_PASSWORD");
+      live = await feedbackFrom("https://botchelor.com", livePassword, state.last_live_feedback_at ?? null);
     } catch {
       /* no password: local feedback only */
     }
@@ -182,6 +185,20 @@ async function main() {
       });
     }
     if (newest) state.last_live_feedback_at = newest;
+    // So /admin/feedback shows the visitors' feedback too (David, 2026-10-17), labelled as this loop run.
+    if (livePassword && summary.feedback_local) {
+      try {
+        const local = JSON.parse(readFileSync(join(RUN, "feedback-local.json"), "utf8"));
+        const res = await fetch("https://botchelor.com/api/admin/feedback", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-frontier-key": livePassword },
+          body: JSON.stringify({ source: `loop ${day}`, rows: local }),
+        });
+        summary.feedback_posted = res.ok ? (await res.json()).added : `failed (${res.status})`;
+      } catch {
+        summary.feedback_posted = "failed";
+      }
+    }
 
     // 5. One fixer.
     if (FIX && Date.now() < DEADLINE - 20 * 60_000) {

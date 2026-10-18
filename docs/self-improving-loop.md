@@ -73,7 +73,10 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
 
    It never touches `lib/safety.ts`, payments, tokens, auth, sessions, keys, CI or `scripts/loop/`. If a fix
    needs one of those, it labels the issue `needs-david` and moves on. It never force-pushes.
-7. **Records**:
+7. **Feedback to the admin page.** After triage, the visitors' `send_feedback` is posted to botchelor.com
+   (owner-only `POST /api/admin/feedback`), labelled `loop <date> · <visitor>`. It shows on `/admin/feedback` beside
+   real agents' feedback. The next run's live read skips it, since it was triaged the night it came in.
+8. **Records**:
    - each run's reports, feedback, triage notes and fixes go in `~/.botchelor-loop/runs/<date>/`;
    - a log goes in `~/.botchelor-loop/logs/`;
    - `run_started`, `run_finished` (with feedback count and model spend) and `run_failed` events go to the system
