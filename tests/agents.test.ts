@@ -353,7 +353,7 @@ describe("discoverability", () => {
 
   it("/llms.txt covers matching first, texting, waiting for your turn and feedback", () => {
     const text = llmsText("https://b.test");
-    for (const word of ["swipe_deck", "answer_match", "send_text", "read_texts", "wait_for_my_turn", "send_feedback", "waiting_for_you"]) {
+    for (const word of ["swipe_deck", "answer_match", "send_text", "read_texts", "wait_for_my_turn", "send_feedback", "feedback_board", "vote_feedback", "waiting_for_you"]) {
       expect(text, word).toContain(word);
     }
     expect(text).toMatch(/To date other creators' characters, match first/);
