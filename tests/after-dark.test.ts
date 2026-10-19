@@ -138,7 +138,8 @@ import { GET as settingsGet, POST as settingsPost } from "@/app/api/admin/after-
 import { POST as switchPost } from "@/app/api/admin/after-dark/switch/route";
 import { GET as mediaGet } from "@/app/api/admin/after-dark/media/[id]/route";
 import { GET as clipGet, POST as clipPost } from "@/app/api/admin/after-dark/clip/route";
-import { setMediaFetchForTests } from "@/lib/adult/media";
+import { baselinePrompt, FACE_MODEL, physicalLook, recentActions, scenePrompt, setMediaFetchForTests } from "@/lib/adult/media";
+import type { Character } from "@/lib/character";
 import { checkOutput, classScores, HIVE_VLM, setCheckFetchForTests, vlmAnswer } from "@/lib/adult/check";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { listNotifications } from "@/lib/notifications";
@@ -478,7 +479,69 @@ describe("the picture request", () => {
     scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }], explicit: true, picture: null }));
     await post({ a: CAST_A, b: CAST_B }, cookie);
     expect(url).toBe("https://fal.run/fal-ai/lora");
-    expect(sent).toMatchObject({ model_name: "SG161222/RealVisXL_V4.0", negative_prompt: expect.stringMatching(/teen.*minor/) });
+    expect(sent).toMatchObject({ model_name: "SG161222/RealVisXL_V4.0", prompt_weighting: true, negative_prompt: expect.stringMatching(/teen.*minor/) });
+  });
+
+  it("a picture of one of them keeps their face (their baseline as the reference); of both, or with no face found, it goes from the words", async () => {
+    const { cookie } = await admin();
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive" }, cookie);
+    const sent: { url: string; body: Record<string, unknown> }[] = [];
+    let faceStatus = 200;
+    setMediaFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(input);
+      if (!u.startsWith("https://fal.run/")) return new Response(PNG, { headers: { "content-type": "image/png" } });
+      sent.push({ url: u, body: JSON.parse(String(init?.body)) });
+      if (u.endsWith(FACE_MODEL)) return faceStatus === 200 ? Response.json({ image: { url: "https://cdn.fal.test/face.png" } }) : new Response("no face", { status: faceStatus });
+      return Response.json({ images: [{ url: "https://cdn.fal.test/pic.png" }] });
+    });
+    fakeHive();
+    scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }], explicit: true, picture: null }));
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    expect(sent.map((s) => s.url)).toEqual(["https://fal.run/fal-ai/lora", "https://fal.run/fal-ai/lora"]);
+
+    sent.length = 0;
+    scripted(JSON.stringify({ lines: [{ who: "b", action: "pulls him onto the couch", text: "Show me." }], place: "his flat", stage: 5, explicit: true, picture: { of: "a", description: "him on the couch" } }));
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].url).toBe(`https://fal.run/${FACE_MODEL}`);
+    expect(sent[0].body).toMatchObject({ face_image_url: expect.stringMatching(/^data:image\/png;base64,/), base_sdxl_model_repo: "SG161222/RealVisXL_V4.0" });
+    expect(sent[0].body.prompt).toMatch(/^Explicit, uncensored adult photograph: him on the couch\..*Setting: his flat\. Just now: pulls him onto the couch\./);
+
+    sent.length = 0;
+    faceStatus = 422;
+    scripted(JSON.stringify({ lines: [{ who: "a", text: "Again." }], explicit: true, picture: { of: "b", description: "her by the window" } }));
+    expect((await (await post({ a: CAST_A, b: CAST_B }, cookie)).json()).pictures).toHaveLength(1);
+    expect(sent.map((s) => s.url)).toEqual([`https://fal.run/${FACE_MODEL}`, "https://fal.run/fal-ai/lora"]);
+
+    sent.length = 0;
+    scripted(JSON.stringify({ lines: [{ who: "a", text: "Both of us." }], explicit: true, picture: { of: "both", description: "the two of them" } }));
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    expect(sent.map((s) => s.url)).toEqual(["https://fal.run/fal-ai/lora"]);
+  });
+});
+
+describe("what a picture's prompt knows", () => {
+  const sable = { id: "house-sable", name: "Sable Quist", age: 33, pronouns: "she/her", look: { appearance: "mismatched everything, glitter that refuses to wash out, always mid-laugh" } } as unknown as Character;
+  const chud = { id: "chud-1", name: "Chud Crusher", age: 30, pronouns: "he/him", look: { appearance: "broad shoulders, buzz cut, a captain's hat" } } as unknown as Character;
+
+  it("uses a house character's physical look over the vibe line, drops clothes once undressed, and never says a name", () => {
+    expect(physicalLook(sable)).toMatch(/copper hair/);
+    expect(physicalLook(sable)).toMatch(/patterned jacket/);
+    expect(physicalLook(sable, true)).not.toMatch(/jacket|laughing/);
+    expect(physicalLook(chud)).toBe("broad shoulders, buzz cut, a captain's hat");
+    const p = baselinePrompt(sable);
+    expect(p).toMatch(/33-year-old adult woman, in her early thirties with light tan skin, .*copper hair.*\. Nude, alone, waist-up, facing the camera/);
+    expect(p).not.toMatch(/Sable|Quist/);
+  });
+
+  it("puts what the picture shows first, then who, where and what just happened; clothed before they undress", () => {
+    const p = scenePrompt(chud, sable, "both", "kissing on the couch.", { place: "his flat", stage: 2, recent: ["pulls her closer"] });
+    expect(p).toBe(
+      "Candid adult photograph: kissing on the couch. A 30-year-old adult man, broad shoulders, buzz cut, a captain's hat and a 33-year-old adult woman, " +
+        physicalLook(sable) +
+        ". Setting: his flat. Just now: pulls her closer. Photorealistic. Everyone shown is an adult.",
+    );
+    expect(recentActions([{ text: "*leans in* Hi." }, { text: "No action." }, { text: "*kicks the door open* Home." }, { text: "*laughs* Ok." }])).toEqual(["kicks the door open", "laughs"]);
   });
 });
 
