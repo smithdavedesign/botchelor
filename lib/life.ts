@@ -12,7 +12,7 @@
  * character might mention, never how a date ends. Pure, no database.
  */
 import { seedFrom } from "./engine";
-import { seasonIdAt } from "./season-cast";
+import { weekIdOf as seasonIdAt } from "./season-window";
 
 export const THIS_WEEK_MAX = 100;
 

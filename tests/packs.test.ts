@@ -5,7 +5,7 @@ import { listMyCharacters } from "@/lib/game";
 import { setModelForTests } from "@/lib/model";
 import { refundOrder } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON as FREE } from "@/lib/rules";
-import { seasonAt } from "@/lib/seasons";
+import { weekAt as seasonAt } from "@/lib/seasons";
 import {
   api,
   buy,

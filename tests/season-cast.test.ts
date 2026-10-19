@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { getDatingProfile, searchCharacters } from "@/lib/dating";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { listCast } from "@/lib/mechanics";
-import { DEFAULT_SEASON_CAST_SIZE, seasonCast, seasonCastIds, seasonIdAt, setSeasonCastForTests } from "@/lib/season-cast";
+import { DEFAULT_SEASON_CAST_SIZE, ensureSeasonCast, refreshSeasonCast, resetStoredSeasonCastForTests, seasonCast, seasonCastIds, seasonIdAt, setSeasonCastForTests, SURVIVORS } from "@/lib/season-cast";
 import { seasonAt } from "@/lib/seasons";
 import { api, episodeJson, newUserCookie, scriptedModel, startTestDb, validCharacter } from "./helpers";
 
@@ -27,12 +27,14 @@ describe("this season's house cast (the rotation)", () => {
     expect(seasonCastIds(new Date("2026-10-18T22:00:00Z"), {})).toEqual(ids);
   });
 
-  it("rotates from season to season, and over the year everyone gets a turn", () => {
-    const start = new Date("2026-10-12T00:00:00Z").getTime();
-    const seasons = Array.from({ length: 12 }, (_, i) => seasonCastIds(new Date(start + i * WEEK), {}).join(","));
-    expect(new Set(seasons).size).toBeGreaterThan(6);
-    const yearOfCasts = Array.from({ length: 52 }, (_, i) => seasonCastIds(new Date(start + i * WEEK), {})).flat();
-    expect(new Set(yearOfCasts).size).toBe(ROSTER.length);
+  it("the stand-in deals a different cast each season, and over a few years everyone gets a turn", () => {
+    const month = (i: number) => new Date(Date.UTC(2026, 10 + i, 3));
+    const seasons = Array.from({ length: 12 }, (_, i) => seasonCastIds(month(i), {}).join(","));
+    expect(new Set(seasons).size).toBeGreaterThan(9);
+    const casts = Array.from({ length: 36 }, (_, i) => seasonCastIds(month(i), {})).flat();
+    expect(new Set(casts).size).toBe(ROSTER.length);
+    // Weekly before seasons went monthly: still the same all week.
+    expect(seasonCastIds(new Date("2026-10-12T00:00:00Z"), {})).toEqual(seasonCastIds(new Date(Date.parse("2026-10-12T00:00:00Z") + WEEK - 1), {}));
   });
 
   it("can be pinned by hand, or sized, from the environment", () => {
@@ -103,5 +105,64 @@ describe("only this season's house cast can be booked", () => {
 
     expect((await getDatingProfile(t.db, offSeason[0]))?.can_ask_out).toBe(false);
     expect((await getDatingProfile(t.db, onSeason[0]))?.can_ask_out).toBe(true);
+  });
+});
+
+describe("monthly seasons: who stays and who's new (stored)", () => {
+  let t: Awaited<ReturnType<typeof startTestDb>>;
+  beforeAll(async () => {
+    t = await startTestDb();
+    setSeasonCastForTests(null);
+  });
+  afterAll(async () => {
+    resetStoredSeasonCastForTests();
+    setSeasonCastForTests(ROSTER);
+    await t.close();
+  });
+  beforeEach(async () => {
+    await t.reset();
+    resetStoredSeasonCastForTests();
+  });
+
+  const OCT = new Date("2026-10-20T12:00:00Z");
+  const NOV = new Date("2026-11-01T00:00:01Z");
+  const review = (who: string, id: string, stars: number, at: string) =>
+    t.db.query(`insert into character_reviews (reviewer_id, character_id, stars, updated_at) values ($1, $2, $3, $4)`, [who, id, stars, at]);
+
+  it("the first monthly season keeps the cast the shuffle dealt it", async () => {
+    const dealt = seasonCastIds(OCT, {});
+    expect((await ensureSeasonCast(t.db, OCT, {})).map((c) => [c.character_id, c.source])).toEqual(dealt.map((id) => [id, "dealt"]));
+  });
+
+  it("on the 1st, the last season's two best-reviewed stay on and newcomers fill the rest, once", async () => {
+    const october = (await ensureSeasonCast(t.db, OCT, {})).map((c) => c.character_id);
+    const [w, x, y, z] = october;
+    // y is loved, z liked; w has one perfect review, which the prior keeps from beating a crowd; x has none.
+    for (let i = 0; i < 6; i++) await review(`fan-${i}`, y, 5, "2026-10-25T00:00:00Z");
+    for (let i = 0; i < 6; i++) await review(`fan-${i}`, z, 4, "2026-10-26T00:00:00Z");
+    await review("one-fan", w, 5, "2026-10-27T00:00:00Z");
+    // A review from before the season doesn't count for it.
+    for (let i = 0; i < 20; i++) await review(`old-${i}`, x, 5, "2026-10-01T00:00:00Z");
+
+    const november = await ensureSeasonCast(t.db, NOV, {});
+    expect(november.slice(0, SURVIVORS).map((c) => [c.character_id, c.source])).toEqual([
+      [y, "survivor"],
+      [z, "survivor"],
+    ]);
+    const added = november.slice(SURVIVORS);
+    expect(added).toHaveLength(DEFAULT_SEASON_CAST_SIZE - SURVIVORS);
+    expect(added.every((c) => c.source === "new" && !october.includes(c.character_id) && ROSTER.includes(c.character_id))).toBe(true);
+    // Decided once: a second read (another cold start) gets the same cast, even with new reviews.
+    await review("late", w, 5, "2026-10-31T00:00:00Z");
+    expect(await ensureSeasonCast(t.db, NOV, {})).toEqual(november);
+  });
+
+  it("once loaded, the stored cast is what the whole site books from", async () => {
+    const stored = (await ensureSeasonCast(t.db, NOV, {})).map((c) => c.character_id);
+    await t.db.query(`update season_casts set character_id = $1 where season_id = '2026-11-01' and slot = 0`, [ROSTER.find((id) => !stored.includes(id))]);
+    await refreshSeasonCast(t.db, NOV);
+    const ids = seasonCastIds(NOV, {});
+    expect(ids).not.toEqual(stored);
+    expect(ids.slice(1)).toEqual(stored.slice(1));
   });
 });

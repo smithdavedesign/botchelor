@@ -1,7 +1,7 @@
 import type { Db } from "./db";
 import { predictionPointsSql } from "./game";
 import { POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "./rules";
-import { listLeagueSeasons, seasonAt, UNNAMED_MEMBER, weekWindow, type PastSeason } from "./seasons";
+import { listLeagueSeasons, seasonAt, seasonWindow, UNNAMED_MEMBER, weekWindow, type PastSeason } from "./seasons";
 
 // The week rule moved to lib/seasons.ts with M4 (a season is the leaderboard week); M2 code imports it here.
 export { weekWindow };
@@ -34,7 +34,7 @@ export async function getLeague(db: Db, id: string, viewerId: string | null, now
   const league = (await db.query<{ id: string; name: string }>("select id, name from leagues where id = $1", [id])).rows[0];
   if (!league) return null;
 
-  const { start, end } = weekWindow(now);
+  const { start, end } = seasonWindow(now);
   // Rank and points come only from predictions (episodes, and couples' arcs settled this week: lib/arcs.ts); the
   // frame is joined beside them and can't move anyone.
   const { rows } = await db.query<Omit<LeaderboardEntry, "frame"> & { frame: string | null }>(

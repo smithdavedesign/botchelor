@@ -6,7 +6,7 @@ import { approvedPortraitId } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import type { CharacterExtras } from "@/lib/extras";
 import { dealtEvent, isOwnUpdate, type StoredThisWeek } from "@/lib/life";
-import { seasonIdAt } from "@/lib/season-cast";
+import { weekIdOf as seasonIdAt } from "@/lib/season-window";
 import { userIdFromCookieStore } from "@/lib/http";
 import { loadSoul } from "@/lib/souls";
 

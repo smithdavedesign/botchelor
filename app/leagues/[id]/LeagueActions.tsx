@@ -28,7 +28,7 @@ export default function LeagueActions({ leagueId, invitePath, isMember, hasName 
       {!isMember && (
         <form onSubmit={join}>
           <h2>Join this league</h2>
-          <p className="muted">Your display name and weekly points show on this board. Nothing else about you does.</p>
+          <p className="muted">Your display name and this season&apos;s points show on this board. Nothing else about you does.</p>
           {!hasName && <ProfileFields />}
           <button type="submit" disabled={busy}>
             Join

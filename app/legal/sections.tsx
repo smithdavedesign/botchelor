@@ -26,7 +26,7 @@ export function TermsSections() {
         are no prizes. Nothing you buy changes anyone&apos;s points, picks, odds or rank.
       </p>
       <p>
-        Each week is a season. When it closes (Monday 00:00 UTC), the top {PODIUM_SIZE} players with points in each
+        Each calendar month is a season. When it closes (the 1st, 00:00 UTC), the top {PODIUM_SIZE} players with points in each
         friend league earn a badge. Badges are free, can&apos;t be bought or transferred, have no value and carry no
         prizes.
       </p>

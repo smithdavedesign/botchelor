@@ -27,7 +27,7 @@ import type { Turn } from "./conversation";
 import { stageOf, type Stage } from "./relationships";
 import { contentWords, EVERYDAY_WORDS } from "./quality";
 import { checkFields } from "./safety";
-import { seasonIdAt } from "./season-cast";
+import { weekIdOf as seasonIdAt } from "./season-window";
 import { venue, venuePhrase, type PlaceId } from "./venues";
 
 /** Max learned drift per signal axis. Small on purpose: a character evolves, it does not transform. */

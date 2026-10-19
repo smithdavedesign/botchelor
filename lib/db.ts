@@ -1112,6 +1112,35 @@ alter table adult_settings add column if not exists cap_writes integer not null 
 alter table adult_settings add column if not exists image_base text;
 alter table adult_settings add column if not exists cap_pictures integer not null default 30;
 alter table adult_settings add column if not exists cap_clips integer not null default 5;
+
+-- Monthly seasons (David, 2026-10-19; lib/season-cast.ts): who's on each season's show, decided once on its first
+-- read. 'dealt' from the old shuffle, 'survivor' the previous season's two most-loved, 'new' a newcomer.
+-- season_cast_rotations is the one row a rotation claims first, so two cold starts can't both pick a cast.
+create table if not exists season_casts (
+  season_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  slot smallint not null,
+  source text not null check (source in ('dealt', 'survivor', 'new')),
+  created_at timestamptz not null default now(),
+  primary key (season_id, character_id)
+);
+create table if not exists season_cast_rotations (
+  season_id text primary key,
+  rotated_at timestamptz not null default now()
+);
+-- Reviews of a character (lib/reviews.ts): one per reviewer per character, from a person or an agent, 1 to 5 stars
+-- and an optional line. A season's reviews decide which two of its house cast stay on.
+create table if not exists character_reviews (
+  reviewer_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  stars smallint not null check (stars between 1 and 5),
+  body text,
+  via text not null default 'web' check (via in ('web', 'mcp')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (reviewer_id, character_id)
+);
+create index if not exists character_reviews_character_idx on character_reviews (character_id, updated_at desc);
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (
@@ -1230,6 +1259,20 @@ export function setDbForTests(db: Db | null): void {
 // Cached on globalThis so dev-server hot reloads reuse one pool / one PGlite instance.
 const cache = globalThis as typeof globalThis & { __botchelorDb?: Promise<Db> };
 
+/**
+ * This season's stored cast (lib/season-cast.ts), loaded into memory at most once a minute so its many synchronous
+ * readers see it; on the season's first read it picks the cast. A failure keeps the stand-in, never the request.
+ */
+async function withSeasonCast(db: Db): Promise<Db> {
+  try {
+    const { refreshSeasonCast } = await import("./season-cast");
+    await refreshSeasonCast(db);
+  } catch (err) {
+    console.error("[season-cast] could not load:", err instanceof Error ? err.message : "unknown");
+  }
+  return db;
+}
+
 export function getDb(): Promise<Db> {
   if (testDb) return Promise.resolve(testDb);
   if (!cache.__botchelorDb) {
@@ -1243,5 +1286,5 @@ export function getDb(): Promise<Db> {
     });
     cache.__botchelorDb = opening;
   }
-  return cache.__botchelorDb;
+  return cache.__botchelorDb.then(withSeasonCast);
 }

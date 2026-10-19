@@ -5,7 +5,7 @@ import { BadgeList, Podium } from "@/app/Badges";
 import type { Db } from "@/lib/db";
 import { getLeague } from "@/lib/leagues";
 import { BADGE_LABELS, PODIUM_SIZE } from "@/lib/rules";
-import { closeDueSeasons, listMyBadges, seasonAt, tryCloseDueSeasons } from "@/lib/seasons";
+import { closeDueSeasons, listMyBadges, seasonAt, seasonLabel, tryCloseDueSeasons, type Season } from "@/lib/seasons";
 import { api, named, newUserCookie, setupEpisode, startTestDb, userIdOf } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -70,9 +70,19 @@ async function podiumOf(leagueId: string, viewer: string | null = null, now = ne
   return league!.past_seasons;
 }
 
-/** Moves every aired episode and every league membership back by `weeks` weeks. */
-async function shiftBack(weeks: number) {
-  const interval = `${weeks * 7} days`;
+/** The season `n` before this one (a week before 2026-10-19, a month after). */
+function seasonBack(n: number): Season {
+  let at = new Date();
+  for (let i = 0; i < n; i++) at = new Date(new Date(seasonAt(at).starts_at).getTime() - 1);
+  return seasonAt(at);
+}
+
+/** How far to move back something that happened just now so it lands an hour into the season `n` before this one. */
+const backBy = (n: number) => `${Date.now() - new Date(seasonBack(n).starts_at).getTime() - 3_600_000} milliseconds`;
+
+/** Moves every aired episode and every league membership back `seasons` seasons. */
+async function shiftBack(seasons: number) {
+  const interval = backBy(seasons);
   await t.db.query("update episodes set revealed_at = revealed_at - $1::interval, created_at = created_at - $1::interval", [
     interval,
   ]);
@@ -153,9 +163,9 @@ describe("seasons close at their deadline (exit criterion)", () => {
     const [wren, kestrel, alder] = await players("Wren", "Kestrel", "Alder");
     const league = await newLeague("Rooftop Regulars", kestrel, [wren, alder]);
     await airTwoEpisodes([scoring(wren, 25), scoring(kestrel, 20), scoring(alder, 0)]);
-    await shiftBack(1); // as if all of it happened last week
+    await shiftBack(1); // as if all of it happened last season
 
-    const last = seasonAt(new Date(Date.now() - WEEK_MS));
+    const last = seasonBack(1);
     const current = seasonAt(new Date());
     const res = await api.getLeague(league, wren);
     expect(res.status).toBe(200);
@@ -236,7 +246,7 @@ describe("who earns a badge", () => {
     // Wren joins this week, after last week's season ended.
     expect((await api.joinLeague(league, wren)).status).toBe(201);
 
-    expect(await closeDueSeasons(t.db)).toEqual([seasonAt(new Date(Date.now() - WEEK_MS)).id]);
+    expect(await closeDueSeasons(t.db)).toEqual([seasonBack(1).id]);
     expect((await podiumOf(league))[0].podium).toEqual([{ place: 1, name: "Kestrel", points: 10, me: false }]);
     expect(await listMyBadges(t.db, userIdOf(wren))).toEqual([]);
   });
@@ -245,9 +255,9 @@ describe("who earns a badge", () => {
     const [wren, kestrel] = await players("Wren", "Kestrel");
     const league = await newLeague("Rooftop Regulars", wren, [kestrel]);
     const [one] = await airTwoEpisodes([scoring(wren, 25), scoring(kestrel, 20)]);
-    await t.db.query("update league_members set joined_at = joined_at - interval '7 days'");
-    // Only episode one aired last week; episode two aired this week and belongs to the open season.
-    await t.db.query("update episodes set revealed_at = revealed_at - interval '7 days' where id = $1", [one]);
+    await t.db.query("update league_members set joined_at = joined_at - $1::interval", [backBy(1)]);
+    // Only episode one aired last season; episode two aired in this one and belongs to the open season.
+    await t.db.query("update episodes set revealed_at = revealed_at - $2::interval where id = $1", [one, backBy(1)]);
     // A pick on an episode that never airs counts for nothing either.
     const unaired = await setupEpisode("friends");
     await api.predict({ episode_id: unaired.episode.id, pick: "friends" }, kestrel);
@@ -264,12 +274,12 @@ describe("who earns a badge", () => {
     const [wren, kestrel] = await players("Wren", "Kestrel");
     const league = await newLeague("Rooftop Regulars", wren, [kestrel]);
     const [one, two] = await airTwoEpisodes([scoring(wren, 25), scoring(kestrel, 20)]);
-    await t.db.query("update league_members set joined_at = joined_at - interval '21 days'");
-    await t.db.query("update episodes set revealed_at = revealed_at - interval '14 days' where id = $1", [one]);
-    await t.db.query("update episodes set revealed_at = revealed_at - interval '7 days' where id = $1", [two]);
+    await t.db.query("update league_members set joined_at = joined_at - $1::interval", [backBy(3)]);
+    await t.db.query("update episodes set revealed_at = revealed_at - $2::interval where id = $1", [one, backBy(2)]);
+    await t.db.query("update episodes set revealed_at = revealed_at - $2::interval where id = $1", [two, backBy(1)]);
 
-    const twoWeeksAgo = seasonAt(new Date(Date.now() - 2 * WEEK_MS));
-    const lastWeek = seasonAt(new Date(Date.now() - WEEK_MS));
+    const twoWeeksAgo = seasonBack(2);
+    const lastWeek = seasonBack(1);
     expect(await closeDueSeasons(t.db)).toEqual([twoWeeksAgo.id, lastWeek.id]);
     expect(await closeDueSeasons(t.db)).toEqual([]);
 
@@ -317,12 +327,41 @@ describe("seasonAt", () => {
     ["a Tuesday afternoon", "2026-10-13T18:00:00.000Z", "2026-10-12"],
     ["Monday at midnight UTC", "2026-10-12T00:00:00.000Z", "2026-10-12"],
     ["the last millisecond of Sunday UTC", "2026-10-18T23:59:59.999Z", "2026-10-12"],
-    ["a Sunday across a month boundary", "2026-11-01T12:00:00.000Z", "2026-10-26"],
-  ])("puts %s in the season that started Monday %s", (_label, now, id) => {
+  ])("puts %s in the weekly season that started Monday %s (before seasons went monthly)", (_label, now, id) => {
     const season = seasonAt(new Date(now));
     expect(season.id).toBe(id);
     expect(season.starts_at).toBe(`${id}T00:00:00.000Z`);
     expect(new Date(season.ends_at).getTime() - new Date(season.starts_at).getTime()).toBe(WEEK_MS);
+  });
+
+  it.each([
+    ["the first monthly season's first moment", "2026-10-19T00:00:00.000Z", "2026-10-19", "2026-11-01"],
+    ["the last millisecond of October", "2026-10-31T23:59:59.999Z", "2026-10-19", "2026-11-01"],
+    ["November's first moment", "2026-11-01T00:00:00.000Z", "2026-11-01", "2026-12-01"],
+    ["a day in December", "2026-12-17T08:00:00.000Z", "2026-12-01", "2027-01-01"],
+    ["February in a leap year", "2028-02-29T12:00:00.000Z", "2028-02-01", "2028-03-01"],
+  ])("from 2026-10-19 a season is a month: %s is in %s", (_label, now, id, ends) => {
+    const season = seasonAt(new Date(now));
+    expect(season).toEqual({ id, starts_at: `${id}T00:00:00.000Z`, ends_at: `${ends}T00:00:00.000Z` });
+  });
+
+  it("labels weekly seasons by their week and monthly ones by their month", () => {
+    expect(seasonLabel("2026-10-12")).toBe("week of Oct 12");
+    expect(seasonLabel("2026-10-19")).toBe("October 2026");
+    expect(seasonLabel("2026-11-01")).toBe("November 2026");
+  });
+
+  it("closes the last weekly season and the first monthly one apart, so no week's points count twice", async () => {
+    const [one, two] = await airTwoEpisodes([]);
+    await t.db.query(`insert into seasons (id, starts_at, ends_at) values ('2026-10-05', '2026-10-05T00:00:00Z', '2026-10-12T00:00:00Z')`);
+    const airAt = (id: string, iso: string) => t.db.query(`update episodes set revealed_at = $2 where id = $1`, [id, iso]);
+    await airAt(one, "2026-10-14T10:00:00Z");
+    await airAt(two, "2026-10-25T10:00:00Z");
+    expect(await closeDueSeasons(t.db, new Date("2026-10-20T00:00:00Z"))).toEqual(["2026-10-12"]);
+    expect(await closeDueSeasons(t.db, new Date("2026-10-30T00:00:00Z"))).toEqual([]);
+    expect(await closeDueSeasons(t.db, new Date("2026-11-02T00:00:00Z"))).toEqual(["2026-10-19"]);
+    const closed = (await t.db.query<{ starts_at: Date; ends_at: Date }>(`select starts_at, ends_at from seasons where id = '2026-10-19'`)).rows[0];
+    expect([new Date(closed.starts_at).toISOString(), new Date(closed.ends_at).toISOString()]).toEqual(["2026-10-19T00:00:00.000Z", "2026-11-01T00:00:00.000Z"]);
   });
 
   it("is what the league view reports as the open season", async () => {

@@ -46,6 +46,7 @@ import { siteUrl } from "./site";
 import { POST as postCharacter } from "@/app/api/characters/route";
 import { PATCH as patchCharacter } from "@/app/api/characters/[id]/route";
 import { POST as postRating } from "@/app/api/characters/[id]/ratings/route";
+import { reviewCharacter } from "./reviews";
 import { GET as getFeed, POST as postEpisode } from "@/app/api/episodes/route";
 import { GET as getEpisodeRoute } from "@/app/api/episodes/[id]/route";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
@@ -542,6 +543,20 @@ export const MCP_TOOLS = [
       type: "object",
       required: ["character_id", "category"],
       properties: { character_id: str(64), category: { type: "string", enum: [...RATING_CATEGORY_IDS] }, agent_id: AGENT_ID },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "review_character",
+    title: "Review a contestant",
+    description:
+      "Review a contestant: 1 to 5 stars and an optional line (up to 280 characters); reviewing again replaces yours. A season's reviews " +
+      "decide which two of its house cast stay on for the next month. Example: " +
+      '{"character_id": "house-nell", "stars": 5, "review": "Quietest person in the room, best line of the night."}. You can\'t review your own.',
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "stars"],
+      properties: { character_id: str(64), stars: { type: "integer", minimum: 1, maximum: 5 }, review: str(280), agent_id: AGENT_ID },
     },
     annotations: WRITE,
   },
@@ -1099,6 +1114,7 @@ const TOOL_ALIASES: Record<string, Record<string, string>> = {
   send_feedback: { broke: "problems", issues: "problems", feedback: "message" },
   send_text: { message: "text" },
   rate_character: { rating: "category", kind: "category", type: "category" },
+  review_character: { rating: "stars", score: "stars", star: "stars", text: "review", comment: "review", body: "review" },
 };
 
 /** A refusal's code, as a sentence (the rest already come as sentences). */
@@ -1802,6 +1818,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const category = RATING_WORDS[raw] ?? raw;
       const r = await callRoute(postRating as unknown as RouteHandler, { agentId: who.id, body: { category }, params: { id: String(args.character_id ?? "") } });
       return r.ok ? { data: { rating: r.data }, identity: who } : { error: errorOf(r) };
+    }
+    case "review_character": {
+      const who = resolveIdentity(args, session, true)!;
+      const body = typeof args.review === "string" ? args.review : typeof args.body === "string" ? args.body : null;
+      const r = await reviewCharacter(db, who.id, String(args.character_id ?? ""), { stars: Number(args.stars), body }, "mcp");
+      return r.ok ? { data: { reviews: r.summary }, identity: who } : { error: r.message };
     }
     case "get_relationships": {
       const who = resolveIdentity(args, session, true)!;

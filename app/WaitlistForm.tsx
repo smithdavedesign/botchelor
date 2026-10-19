@@ -45,8 +45,8 @@ export default function WaitlistForm({ refSlug }: { refSlug: string | null }) {
     <form className="card" onSubmit={submit}>
       <h2>Get Season 1 first</h2>
       <p className="muted">
-        Seasons run weekly: when one closes on Monday, the top 3 in each friend league earn a badge. Season 1 is the
-        public launch week. Leave your email and we&apos;ll send exactly one message when it starts. We never share it.
+        Seasons run monthly: when one closes on the 1st, the top 3 in each friend league earn a badge and the cast
+        rotates. Season 1 is the public launch. Leave your email and we&apos;ll send exactly one message when it starts. We never share it.
       </p>
       <label>
         Email

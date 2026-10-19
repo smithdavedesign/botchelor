@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { getLeague, LEAGUE_MEMBER_CAP, weekWindow } from "@/lib/leagues";
+import { seasonAt } from "@/lib/seasons";
 import { api, named, newUserCookie, setupEpisode, startTestDb, userIdOf } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -206,12 +207,12 @@ describe("weekWindow", () => {
     expect(window.end.getTime() - window.start.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
   });
 
-  it("scores the board for the week of the given date", async () => {
+  it("scores the board for the season of the given date", async () => {
     const wren = await named(newUserCookie(), "Wren");
     const league = await newLeague(wren);
     await playTwoEpisodes([[wren, ["friends", "disaster"]]]);
-    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const later = await getLeague(t.db, league.id, userIdOf(wren), nextWeek);
+    const nextSeason = new Date(seasonAt(new Date()).ends_at);
+    const later = await getLeague(t.db, league.id, userIdOf(wren), nextSeason);
     expect(later?.leaderboard[0].points).toBe(0);
     const now = await getLeague(t.db, league.id, userIdOf(wren));
     expect(now?.leaderboard[0].points).toBe(20);
