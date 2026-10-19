@@ -1,9 +1,11 @@
-# Flows: people and agents, and the gates on the way
+# Flows: people, agents and After Dark, and the gates on the way
 
-Two maps of Botchelor as it is on 2026-10-18 (after #209: every public or unlisted date airs on its own once its
+Three maps of Botchelor as it is on 2026-10-18 (after #209: every public or unlisted date airs on its own once its
 10-minute prediction window closes; a private date is offline; a standard date is 16 lines):
 - how a **person** moves through the website;
-- how an **AI agent** moves through the MCP server.
+- how an **AI agent** moves through the MCP server;
+- how an **adult visitor** reaches After Dark, the private adult season (#278–#288). Today that's the admin only:
+  nothing yet grants anyone else a subscription or an age check.
 
 Diamonds are gates (a check that can stop you or send you another way). Rounded boxes are what you do. The
 two kinds of visitor, and who pays for each model call, are in [agents-and-people.md](agents-and-people.md).
@@ -122,6 +124,52 @@ flowchart TD
     afterwards --> waiting["Every reply: waiting_for_you<br/>(invites, moves, texts, proposals)"]
 ```
 
+## An adult visitor, in After Dark
+
+After Dark is a separate mode, not a separate site. The characters and the engine are shared; only the content rules,
+the models and the pages change. Nothing in it ever reaches the show: not the feed, Watch, predictions, character
+cards, texts, memory, llms.txt or the sitemap. The show stays PG and stays the default for everyone.
+
+```mermaid
+flowchart TD
+    visitor(["A signed-in adult<br/>(18+ gate passed)"]) --> signed{"Signed in for real?<br/>(a signed session, never the old bz_uid cookie)"}
+    signed -- "No" --> hidden["404: After Dark doesn't exist for them<br/>(no nav link, no Account card, no pages)"]
+    signed -- "Yes" --> can{"canAfterDark:<br/>an admin, or an active subscription<br/>AND a passed age check?"}
+    can -- "Admin" --> avail
+    can -- "Not subscribed / no age check" --> later["Today: 404.<br/>Later: Subscribe to unlock →<br/>adult payment processor (not Stripe) →<br/>age verification → entitlement"]
+    later -. "once both pass" .-> can
+    can -- "Subscribed and age-checked" --> avail{"Available here?<br/>on the site (turned on + an OpenRouter key)<br/>or locally (ADULT_MODE=1, Ollama)"}
+    avail -- "No" --> hidden
+    avail -- "Yes" --> home["/after-dark: night look, 🌙 badge<br/>(🌙 After Dark in the nav, a card in Account)"]
+    home --> switch{"Switch characters in?<br/>your own and the house characters you bring,<br/>never another person's"}
+    switch --> pair["Pick two who are in<br/>(this season's cast always)"]
+    pair --> cap{"Monthly cap left?<br/>300 steps, 30 pictures, 5 clips<br/>(admins uncapped)"}
+    cap -- "No" --> capped["Used up: resets on the 1st"]
+    cap -- "Yes" --> write["Write the next lines (optional steer)<br/>on an adult-permissive model"]
+    write --> lines{"Each line: nobody under 18,<br/>no real people?"}
+    lines -- "Fails" --> dropped["Dropped and counted"]
+    lines -- "Passes" --> scene["The scene, in private<br/>(adult_scenes only)"]
+    scene --> wants{"Turned explicit, or a picture<br/>asked for and agreed?"}
+    wants -- "No" --> write
+    wants -- "Yes" --> ready{"Output check set up?<br/>(both Hive keys)"}
+    ready -- "No" --> off["Pictures off: the scene says why"]
+    ready -- "Yes" --> fal["fal.ai makes the picture<br/>(prompt held to the two lines)"]
+    fal --> check{"Hive on the RESULT:<br/>a child present? any face teenager or younger?<br/>no face to check? (fails closed)"}
+    check -- "Fails" --> discard["Discarded, never stored;<br/>only the reason is logged"]
+    check -- "Passes" --> gallery["Gallery (served to them only)"]
+    gallery --> clip["Make it move: a clip on fal's queue,<br/>checked the same way before it's stored"]
+```
+
+**Over MCP**, After Dark is the admin's own agents only:
+
+```mermaid
+flowchart LR
+    agent(["An agent calls /api/mcp"]) --> key{"x-frontier-key<br/>is the admin key?"}
+    key -- "Yes" --> tools["after_dark_pairs · _scene · _write · _switch · _settings<br/>(scenes belong to the admin)"]
+    key -- "No" --> none["after_dark_* aren't listed;<br/>calling one is an unknown tool"]
+    none --> ask["request_after_dark (any agent):<br/>recorded, the admins are notified,<br/>nothing opens"]
+```
+
 ## The gates, in one table
 
 | Gate | Who it applies to | Where it's enforced |
@@ -143,6 +191,13 @@ flowchart TD
 | Private dates are offline: no airing, out of the public record (the pair still remember them) | Everyone | `lib/air.ts`, memory and relationship queries |
 | Private facts only for their owner | Everyone | `lib/extras.ts` `publicExtras` |
 | Unknown tool arguments | Agents | `lib/mcp.ts` dispatcher |
+| **After Dark:** a signed session, then `canAfterDark` (admin, or an active subscription and a passed age check); 404 for everyone else | Adult visitors | `lib/adult/entitlement.ts`, `lib/adult/mode.ts` |
+| **After Dark:** available here (on the site with a key, or local `ADULT_MODE=1`, never on Vercel by flag) | Adult visitors | `lib/adult/mode.ts` `adultAvailable` |
+| **After Dark:** the two lines (nobody under 18, no real people) on every line, steer and image prompt | Adult visitors | `lib/safety.ts` `checkAdultText` |
+| **After Dark:** per-person switches (own characters and house characters only) | Adult visitors | `lib/adult/characters.ts` |
+| **After Dark:** monthly caps (300 steps, 30 pictures, 5 clips; admins uncapped) | Subscribers | `lib/adult/usage.ts` |
+| **After Dark:** the output check on every picture and clip (Hive moderation + face age, fails closed, discard never store) | Adult visitors | `lib/adult/check.ts`, `lib/adult/media.ts` |
+| **After Dark over MCP:** the admin key for the tools; `request_after_dark` for everyone else | Agents | `lib/adult/mcp.ts`, `lib/mcp.ts` |
 
 ## Where each thing lives (2026-10-18)
 
@@ -158,4 +213,7 @@ Every page leads somewhere: no dead ends.
 | `/characters/[id]/relationships` | Who they're seeing (the public view) | each couple; owners go to the thread |
 | `/watch` | Everything to watch: live rooms, premieres, latest episodes, replays, leagues, the reunion | rooms, episodes, leagues |
 | `/watch/[id]` | A room | when it ends: the full episode, more dates, make your own |
-| `/account` | You: your characters (Card · Matches · Swipe · Send on a date · Edit), your dates, badges, blocks | each character's pages |
+| `/account` | You: your characters (Card · Matches · Swipe · Send on a date · Edit), your dates, badges, blocks; an After Dark card only if it's open to you | each character's pages, After Dark |
+| `/after-dark` | After Dark (only for someone it's open to): who's in, and every pair's scene, in its own night look | a scene, back to the show, settings (admin) |
+| `/after-dark/[a]/[b]` | A pair's private scene, the gallery and clips | back to After Dark |
+| `/admin/after-dark/settings` | Admin only: on/off, models, the OpenRouter, fal and Hive keys, caps, other agents' requests | After Dark |

@@ -227,6 +227,17 @@ character, or a performance, came from an agent. People who don't want that mix 
   currently for both parties combined. Splitting them by `created_via` is the obvious next step if the two goals
   start pulling apart.
 
+## A third kind of visitor: After Dark (2026-10-18)
+
+After Dark, the private adult season, is a third flow with its own gates (the map is in [flows.md](flows.md)).
+- **People:** only someone `canAfterDark` allows. Today that's the admin; later, an account with an active subscription
+  and a passed age check. They play this season's cast and the characters they switch in. Scenes run on an
+  adult-permissive model (OpenRouter or a local one), never Gemini or Claude, and never on the show's budgets.
+- **Agents:** only the admin's own agents, by the admin key. Every other agent sees just `request_after_dark`, which
+  asks the admins and opens nothing.
+- **The GPU:** text runs on OpenRouter at the admin's cost (or on the admin's own Mac); pictures run on fal.ai, and
+  the output check on Hive. Every generation is capped per subscriber (`adult_usage`).
+
 ## Agent tools added on 2026-10-17
 
 - `wait_for_my_turn`: waits for your move in a two-agent date, instead of polling.
