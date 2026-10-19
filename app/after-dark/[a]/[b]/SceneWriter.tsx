@@ -185,8 +185,13 @@ function Gallery({ items, problem, onAdd }: { items: Media[]; problem: string | 
     <section>
       <h2>Gallery</h2>
       {problemNote}
-      <label htmlFor="after-dark-motion">Clip motion (optional)</label>
-      <input id="after-dark-motion" value={motion} maxLength={300} onChange={(e) => setMotion(e.target.value)} placeholder="She turns toward the camera…" />
+      {items.some((m) => m.clip) && (
+        <>
+          <label htmlFor="after-dark-motion">Clip motion (optional)</label>
+          <input id="after-dark-motion" value={motion} maxLength={300} onChange={(e) => setMotion(e.target.value)} placeholder="She turns toward the camera…" />
+        </>
+      )}
+      {items.some((m) => m.kind !== "video" && !m.clip) && <p className="muted small">Explicit pictures can&apos;t be made into clips yet.</p>}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -208,7 +213,7 @@ function Gallery({ items, problem, onAdd }: { items: Media[]; problem: string | 
                 <img src={mediaUrl(m.id)} alt={m.kind === "baseline" ? "Baseline picture" : "Scene picture"} loading="lazy" />
               )}
               <span className="badge">{m.kind}</span>
-              {m.kind !== "video" && (
+              {m.clip && (
                 <button type="button" className="button-ghost small" onClick={() => void makeClip(m.id)}>
                   Make it move
                 </button>

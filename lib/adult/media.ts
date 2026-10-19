@@ -18,7 +18,8 @@ import { checkOutput } from "./check";
 import { countUse, overCap } from "./usage";
 import { adultKeys, getAdultSettings } from "./settings";
 
-export type Media = { id: string; character_id: string | null; character_b: string | null; kind: "baseline" | "scene" | "video"; status: string; created_at: string; mime: string };
+/** `clip`: the picture can be made to move (it's on fal; Venice's explicit pictures can't be). */
+export type Media = { id: string; character_id: string | null; character_b: string | null; kind: "baseline" | "scene" | "video"; status: string; created_at: string; mime: string; clip?: boolean };
 
 /**
  * Pictures and clips run only with the output check in place (lib/adult/check.ts; docs/after-dark.md #1): the Hive
@@ -270,7 +271,7 @@ async function storePicture(
     `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, remote_url) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
     [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, file.bytes, url],
   );
-  return { id, character_id: opts.character_id, character_b: opts.character_b ?? null, kind: opts.kind, status: "ready", created_at: new Date().toISOString(), mime: file.mime };
+  return { id, character_id: opts.character_id, character_b: opts.character_b ?? null, kind: opts.kind, status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: url !== null };
 }
 
 /** The character's baseline, making it the first time it's needed. */
@@ -346,7 +347,7 @@ export async function pollClip(db: Db, id: string): Promise<string> {
 /** The gallery: a character's pictures and clips (both of a pair's, when given two), newest first. */
 export async function listMedia(db: Db, ids: string[]): Promise<Media[]> {
   const { rows } = await db.query<Media>(
-    `select id, character_id, character_b, kind, status, created_at, mime from adult_images
+    `select id, character_id, character_b, kind, status, created_at, mime, (kind <> 'video' and remote_url is not null) as clip from adult_images
       where character_id = any($1) or character_b = any($1)
       order by created_at desc limit 60`,
     [ids],
