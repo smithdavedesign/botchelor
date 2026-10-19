@@ -59,9 +59,10 @@ export async function getDealbreakerQuiz(
   const seed = Number(rows[0].seed ?? seedFrom(episodeId));
   const decoys = (
     await db.query<{ d: string }>(
-      `select d from (select distinct dealbreaker as d from characters where dealbreaker <> $1) s
+      // #258: never one of the guesser's own characters' dealbreakers: they'd know it's a decoy.
+      `select d from (select distinct dealbreaker as d from characters where dealbreaker <> $1 and ($3::text is null or owner_id is distinct from $3)) s
         order by md5(d || $2) limit 3`,
-      [real, String(seed)],
+      [real, String(seed), viewerId ?? null],
     )
   ).rows.map((r) => r.d);
   // Stable, seed-dependent order independent of how the rows arrived.
