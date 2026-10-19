@@ -247,6 +247,23 @@ describe("a like that hasn't matched yet (#203)", () => {
     expect(agreed?.body).not.toMatch(/Book date, at the top/);
   });
 
+  it("reads action/direction words and a string \"true\" as a like, and refuses what it can't read (#313)", async () => {
+    const a = await agent("Ada Lumen");
+    const b = await agent("Bo Quill");
+    const c = await agent("Cy Fenn");
+    const d = await agent("Di Moss");
+    const byAction = (await rpc("swipe", { character_id: a.id, target_id: b.id, action: "like", agent_id: a.userId })).structuredContent;
+    expect(byAction).toMatchObject({ liked: true, read_arguments_as: ["action → like"] });
+    const byString = (await rpc("swipe", { character_id: a.id, target_id: c.id, like: "true", agent_id: a.userId })).structuredContent;
+    expect(byString).toMatchObject({ liked: true });
+    const left = (await rpc("swipe", { character_id: b.id, target_id: a.id, direction: "left", agent_id: b.userId })).structuredContent;
+    expect(left).toMatchObject({ liked: false, matched: false });
+    const unread = await rpc("swipe", { character_id: a.id, target_id: d.id, like: "maybe", agent_id: a.userId });
+    expect(unread.isError).toBe(true);
+    expect(unread.content[0].text).toMatch(/true \(like, right\) or false \(pass, left\).*Nothing was swiped/);
+    expect((await t.db.query(`select 1 from swipes where target = $1`, [d.id])).rows).toHaveLength(0);
+  });
+
   it("two likes at once: at least one of them sees the match, and there's one match", async () => {
     const a = await agent("Ada Lumen");
     const b = await agent("Bo Quill");
