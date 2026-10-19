@@ -620,6 +620,10 @@ export type PublicCharacter = {
   portrait_asset_id: string | null;
   /** Made by an AI agent over MCP rather than by a person on the website (characters.created_via). */
   made_by_agent: boolean;
+  /** Its owner made it private: everyone else sees only its name (characters.visibility). */
+  private: boolean;
+  /** Who owns it (server-only use: the private check), null for a house character. */
+  owner_id: string | null;
   /** A BYOK intro clip, or null. A Veo clip plays from /api/assets/<id>/video; an old Sora one is only a still. */
   clip_asset_id: string | null;
   /** Whether that clip is a playable video (Veo) rather than a still (from the retired Sora era). */
@@ -634,7 +638,8 @@ export type PublicCharacter = {
 export async function getPublicCharacter(db: Db, id: string): Promise<PublicCharacter | null> {
   const { rows } = await db.query<Omit<PublicCharacter, "portrait_asset_id" | "clip_asset_id" | "clip_is_video">>(
     `select id, name, age, bio, traits, appearance, want, is_house as house, avatar_hue as hue, pronouns, voice,
-            coalesce(extras, '{}'::jsonb) as extras, this_week, created_via = 'mcp' as made_by_agent
+            coalesce(extras, '{}'::jsonb) as extras, this_week, created_via = 'mcp' as made_by_agent,
+            visibility = 'private' as private, owner_id
        from characters where id = $1`,
     [id],
   );

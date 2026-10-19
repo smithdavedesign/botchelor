@@ -35,10 +35,10 @@ export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<
   const characters = await db.query<{ id: string; at: Date | string }>(
     `select c.id, c.created_at as at
        from characters c
-      where (c.is_house and c.premium_sku is null and c.id = any($1)) or c.open_to_dates
+      where c.visibility = 'public' and ((c.is_house and c.premium_sku is null and c.id = any($1)) or c.open_to_dates
          or exists (select 1 from episodes e
                      where (e.character_a = c.id or e.character_b = c.id)
-                       and e.visibility = 'public' and e.revealed_at is not null)
+                       and e.visibility = 'public' and e.revealed_at is not null))
       order by c.is_house desc, c.created_at desc
       limit 20000`,
     [seasonCastIds()],

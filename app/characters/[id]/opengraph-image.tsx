@@ -21,7 +21,9 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   try {
     const db = await getDb();
     c = await getPublicCharacter(db, id);
-    if (c) portrait = await approvedPortraitDataUrl(db, c.id);
+    // A private character's card shows its name only (the drawn avatar, no bio).
+    if (c?.private) c = { ...c, bio: "", traits: [], want: "" };
+    else if (c) portrait = await approvedPortraitDataUrl(db, c.id);
   } catch {
     c = null;
   }

@@ -5542,6 +5542,14 @@ a.phone-head-btn {
   opacity: 0.5;
 }
 
+/* The /characters directory: a private character is listed by name only, not linked. */
+.gallery .card.is-private {
+  opacity: 0.7;
+}
+.directory-private {
+  cursor: default;
+}
+
 /* After Dark's videos of the night (Reels.tsx): one shot at a time, the line under it. */
 .after-dark-reels {
   list-style: none;
