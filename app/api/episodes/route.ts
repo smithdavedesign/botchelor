@@ -73,7 +73,8 @@ const EpisodeInput = z
     proposal_id: id.optional(),
   })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
-    message: "Send either partner_id (a house character or one that's open to dates) or blind: true.",
+    message:
+      "Send either partner_id (a house character or one that's open to dates) or blind: true. Partner ids: find_matches, list_cast or swipe_deck list them, and a match's id works too.",
     path: ["partner_id"],
   });
 

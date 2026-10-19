@@ -345,3 +345,28 @@ export function internalJobAuthorized(req: Request): boolean {
   const okAdmin = Boolean(adminToken) && safeEqual(req.headers.get("x-jobs-token") ?? "", adminToken ?? "");
   return okCron || okAdmin;
 }
+
+/**
+ * #253: a date whose generation died (the after() worker crashed or the function was cut off) only got the daily
+ * cron. Anyone waiting on it now restarts it: a job still queued after a minute and a half, or running past its
+ * lease, is run again. claim() makes a second runner a no-op, so it's safe to call from every wait.
+ */
+export async function rescueStuckJob(db: Db, episodeId: string, now: Date = new Date()): Promise<boolean> {
+  const stuck = (
+    await db.query(
+      `select 1 from generation_jobs
+        where episode_id = $1
+          and ((status = 'queued' and created_at < $2) or (status = 'running' and leased_until < $3))`,
+      [episodeId, new Date(now.getTime() - 90_000).toISOString(), now.toISOString()],
+    )
+  ).rows.length > 0;
+  if (!stuck) return false;
+  const run = () => runGenerationJob(db, episodeId).catch(() => {});
+  try {
+    const { after } = await import("next/server");
+    after(run);
+  } catch {
+    void run(); // outside a request (a script, a test): just run it
+  }
+  return true;
+}

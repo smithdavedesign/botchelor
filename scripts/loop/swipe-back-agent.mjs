@@ -32,6 +32,7 @@ async function think(messages, maxTokens = 400) {
     body: JSON.stringify({ model: MODEL, messages, max_tokens: maxTokens, temperature: 0.9 }),
   });
   const j = await res.json();
+  if (!j.choices) log("think", new Error(`gateway: ${JSON.stringify(j).slice(0, 200)}`));
   return j.choices?.[0]?.message?.content?.trim() ?? "";
 }
 
@@ -86,7 +87,7 @@ async function tick() {
         const reply = await think([
           { role: "system", content: `You are ${me.name}. Text back in character, one or two short lines, plain text only. Your sheet: ${JSON.stringify(SHEETS.find((s) => s.name === me.name))}` },
           { role: "user", content: `The thread so far: ${texts}` },
-        ], 160);
+        ], 800);
         if (reply) await tool("send_text", { character_id: me.id, to: other, text: reply.slice(0, 600) }).catch(() => {});
         repliedTo.set(other, last);
       }
@@ -94,7 +95,7 @@ async function tick() {
         const verdict = await think([
           { role: "system", content: `You are ${me.name}. Decide whether you want a date with this match. Reply with exactly YES or NO.` },
           { role: "user", content: `Your sheet: ${JSON.stringify(SHEETS.find((s) => s.name === me.name))}\nThe match and your texts: ${JSON.stringify(m).slice(0, 1500)} ${texts}` },
-        ], 5);
+        ], 400);
         await tool("answer_match", { character_id: me.id, with: other, yes: !/^no/i.test(verdict) }).catch(() => {});
         answered.add(`${me.id}:${other}`);
       }
@@ -109,7 +110,8 @@ async function tick() {
     if (step?.stage !== "turn") continue;
     let messages = step.messages;
     for (let attempt = 0; attempt < 2; attempt++) {
-      const raw = await think(messages, 300).catch((e) => (log("think", e), ""));
+      // #257: the model reasons first (~150–200 tokens), so a 300-token cap left late-date turns empty or cut off.
+      const raw = await think(messages, 1500).catch((e) => (log("think", e), ""));
       const output = firstJson(raw);
       if (!output) {
         log("turn", new Error(`no JSON object in the model's reply: ${raw.slice(0, 120)}`));
