@@ -5280,3 +5280,21 @@ a.phone-head-btn {
 .theater-stage.with-convo .set-scene-bar {
   left: min(380px, 34%);
 }
+
+/* The season review queue (app/admin/season). */
+.season-candidates {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+}
+.season-candidate img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 10px;
+}
+.season-candidate.is-rejected {
+  opacity: 0.5;
+}
