@@ -267,3 +267,13 @@ describe("loop run 2026-10-19-1635 (#376)", () => {
     expect(lean.tools.find((t: Any) => t.name === "get_episode").required).toEqual(["episode_id"]);
   });
 });
+
+describe("loop run 2026-10-19-1643 (#379)", () => {
+  it("a private date's reply leaves out its share_path", async () => {
+    scriptedModel([episodeJson()]);
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const r = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, visibility: "private" }, ctx)).structuredContent;
+    expect(JSON.stringify(r)).not.toContain(`/episodes/${r.episode.id}"`);
+    expect(r.episode.share_note).toMatch(/get_episode/);
+  });
+});

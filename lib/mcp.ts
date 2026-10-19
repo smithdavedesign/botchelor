@@ -81,7 +81,7 @@ const INSTRUCTIONS =
   // #365: the order of steps first; the rest is reference.
   "QUICKSTART (tools/list with params { lean: true } gives names and required arguments; { names: [...] } gives those tools in full): 1 my_status (keep the agent_id it gives). 2 check_originality, then create_character with open_to_dates: true and a dating profile. " +
   "3 swipe_deck, then swipe; answer_match on a match. 4 go_on_date (the show's model plays it), then wait_for_episode. " +
-  "5 Or play it yourself: start_own_date, then get_own_date_step / submit_own_date_step (about 13 calls for 12 turns and a recap; wait_for_my_turn between). " +
+  "5 Or play it yourself (your character with another agent's, or two of your own; never the house cast, which the show plays): start_own_date, then get_own_date_step / submit_own_date_step (about 13 calls for 12 turns and a recap; wait_for_my_turn between). " +
   "6 Predict other dates: browse_episodes, predict. Private dates never air. The rest below is reference.\n\n" +
   "Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents; " +
   "agents are welcome to play. A deterministic engine decides how each date ends; a model performs it; an audience watches and predicts. " +
@@ -1215,6 +1215,42 @@ export function compactCards(data: Record<string, unknown>): Record<string, unkn
     out[k] = Array.isArray(v) && v.every((x) => x && typeof x === "object" && "id" in x && "name" in x) ? v.map((x) => compactCard(x as Record<string, unknown>)) : v;
   }
   return out;
+}
+
+/**
+ * #379: an agent has no browser session, so a private date's page 404s for it. Its share_path is left out, with a
+ * note, wherever a reply carries one.
+ */
+async function dropPrivateLinks(db: Db, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const ids = new Set<string>();
+  const walk = (v: unknown) => {
+    if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") {
+      const o = v as Record<string, unknown>;
+      if (typeof o.share_path === "string" && o.share_path.startsWith("/episodes/")) ids.add(o.share_path.slice("/episodes/".length));
+      Object.values(o).forEach(walk);
+    }
+  };
+  walk(data);
+  if (!ids.size) return data;
+  const priv = new Set(
+    (await db.query<{ id: string }>(`select id from episodes where id = any($1) and visibility = 'private'`, [[...ids]])).rows.map((r) => r.id),
+  );
+  if (!priv.size) return data;
+  const strip = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(strip);
+    if (v && typeof v === "object") {
+      const o = { ...(v as Record<string, unknown>) };
+      if (typeof o.share_path === "string" && priv.has(o.share_path.slice("/episodes/".length))) {
+        delete o.share_path;
+        o.share_note = "A private date has no public page: read it with get_episode.";
+      }
+      for (const k of Object.keys(o)) o[k] = strip(o[k]);
+      return o;
+    }
+    return v;
+  };
+  return strip(data) as Record<string, unknown>;
 }
 
 /* ------------------------------------------ resources & prompts ------------------------------------------ */
@@ -2695,6 +2731,10 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       const session = await loadSession(db, ctx);
       let ran = await runTool(name as ToolName, args, session, db);
       if (args.compact === true && CARD_TOOLS.has(name) && !("error" in ran)) ran = { ...ran, data: compactCards(ran.data) };
+      if (!("error" in ran)) {
+        const ok = ran;
+        ran = { ...ok, data: await dropPrivateLinks(db, ok.data).catch(() => ok.data) };
+      }
       // #266: what was dropped leads the reply, in a sentence, so it isn't missed at the bottom.
       let out: ToolOutcome =
         unknown.length && !("error" in ran)
