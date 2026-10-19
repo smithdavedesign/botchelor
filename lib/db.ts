@@ -984,6 +984,9 @@ alter table adult_scenes add column if not exists place text;
 alter table adult_scenes add column if not exists stage integer not null default 0;
 alter table adult_scenes add column if not exists stage_from integer not null default 0;
 alter table adult_scenes add column if not exists picture_note text;
+-- The set they're on (a short place name, drawn once by lib/sets.ts), and a paid "Set the scene" the next lines react to.
+alter table adult_scenes add column if not exists set_place text;
+alter table adult_scenes add column if not exists cut_to text;
 -- Finished scenes, kept like dates (David, 2026-10-19: "save them and be able to play them back"): Start over files the
 -- running scene here instead of wiping it. Owner-only, like everything after dark.
 create table if not exists adult_nights (
@@ -998,6 +1001,7 @@ create table if not exists adult_nights (
   date_venue text,
   created_at timestamptz not null default now()
 );
+alter table adult_nights add column if not exists set_place text;
 create index if not exists adult_nights_pair on adult_nights (owner_id, character_a, character_b, created_at desc);
 
 -- After dark on the cloud (lib/adult/settings.ts): one row, set by an admin. The provider keys are sealed like BYOK

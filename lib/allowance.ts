@@ -133,6 +133,12 @@ export async function releaseEpisode(db: Db, userId: string, reservation: Reserv
  */
 export const CLIP_TOKEN_COST = 1;
 
+/**
+ * What setting the scene costs (David, 2026-10-19: "set the venue to any scene… for 1 token"): a bought token, like a
+ * clip, given back when the place is refused or the move doesn't happen.
+ */
+export const SET_SCENE_TOKEN_COST = 1;
+
 /** Spends `n` bought tokens if the user has them; false (nothing spent) when they don't. One conditional upsert. */
 export async function spendBoughtTokens(db: Db, userId: string, n: number): Promise<boolean> {
   const { rows } = await db.query(

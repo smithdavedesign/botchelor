@@ -14,6 +14,7 @@ import { eligibleIds } from "./characters";
 import { pictureKeyReady, ensureBaseline, makePicture, outputCheckReady, PICTURES_OFF_NOTE, recentActions, scenePrompt, type Media } from "./media";
 import { countUse, overCap } from "./usage";
 import { adultModel } from "./mode";
+import { ensureSet } from "../sets";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 
 export type SceneLine = { who: "a" | "b"; text: string };
@@ -30,7 +31,13 @@ export type AdultScene = {
   /** The line the current stage began at: unsteered, a stage lasts MIN_LINES_PER_STAGE lines first. */
   stage_from: number;
   picture_note: string | null;
+  /** The set they're on, a short place name ("his bedroom"), drawn once (lib/sets.ts); and a paid cut the next lines react to. */
+  set_place: string | null;
+  cut_to: string | null;
 };
+
+/** What someone can type to set the scene: a place, at most this long. */
+export const SET_SCENE_MAX = 60;
 
 export { STAGES } from "./stages";
 
@@ -97,7 +104,7 @@ export async function openScene(db: Db, adminId: string, x: string, y: string): 
     a,
     b,
   ]);
-  const row = (await db.query<{ id: string; lines: SceneLine[]; place: string | null; stage: number; stage_from: number; picture_note: string | null }>(`select id, lines, place, stage, stage_from, picture_note from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, a, b]))
+  const row = (await db.query<{ id: string; lines: SceneLine[]; place: string | null; stage: number; stage_from: number; picture_note: string | null; set_place: string | null; cut_to: string | null }>(`select id, lines, place, stage, stage_from, picture_note, set_place, cut_to from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, a, b]))
     .rows[0];
   const [ca, cb, date] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b), latestDate(db, a, b)]);
   return {
@@ -110,6 +117,8 @@ export async function openScene(db: Db, adminId: string, x: string, y: string): 
     stage: row.stage ?? 0,
     stage_from: row.stage_from ?? 0,
     picture_note: row.picture_note ?? null,
+    set_place: row.set_place ?? null,
+    cut_to: row.cut_to ?? null,
   };
 }
 
@@ -154,7 +163,7 @@ export function sceneMessages(
   lines: SceneLine[],
   direction: string | null,
   aId?: string,
-  now: { place: string; stage: number; linesAtStage?: number } = { place: "wherever they've just met", stage: 0 },
+  now: { place: string; stage: number; linesAtStage?: number; cutTo?: string | null } = { place: "wherever they've just met", stage: 0 },
 ): ChatMessage[] {
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
   const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
@@ -185,7 +194,11 @@ export function sceneMessages(
       : now.stage < STAGES.length - 1
         ? `- Move it on. It has lingered long enough: in these lines it goes one stage further, to ${STAGES[now.stage + 1]}, and no further.`
         : "- Take your time: let it unfold, with talk and reactions between the actions.",
-    lines.length ? "" : `- The scene opens exactly where the date ended, still at ${now.place}. They don't leave in these first lines.`,
+    now.cutTo
+      ? `- The scene has just cut to ${now.cutTo}: they're there now. Open these lines on arriving there (how they got there, what they make of it) and carry on from there.`
+      : lines.length
+        ? ""
+        : `- The scene opens exactly where the date ended, still at ${now.place}. They don't leave in these first lines.`,
     "- Once they've agreed to go somewhere, getting there takes a line or two at most; then the scene picks up at the new place. Don't keep saying \"let's go\".",
     "- Respect where they are. In a public place (a cafe, a bar, a restaurant, a street, a park, a venue) they can flirt, touch discreetly and, at most, kiss; other people are around and they act like it. Going further means one suggests leaving, the other agrees, and the lines show them going somewhere private (one of their places, a hotel). Only then does it go past kissing.",
   ]
@@ -199,7 +212,7 @@ export function sceneMessages(
     `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text.` +
     (direction ? ` Steer the scene this way: ${direction}` : " Move the scene forward: something new happens in these lines, nothing they've already done or said.") +
     (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
-    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "..."}, {"who": "b", "action": "", "text": "..."}], "place": "where they are at the end of these lines", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
+    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "..."}, {"who": "b", "action": "", "text": "..."}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. his bedroom", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
     ` Set "explicit" to true once the scene is sexually explicit. Set "picture" only when, in these lines, one of them asks the other for a picture or to be shown something and the other agrees:` +
     ` {"of": "a", "b" or "both", "description": "what the picture shows, in one sentence: the pose, what they're wearing or not, the expression, the framing"}; otherwise null.`;
   return [
@@ -253,20 +266,21 @@ export function parseSceneLines(raw: string, names: { a: string; b: string }): S
 }
 
 /** What else the model said about these lines: whether the scene is explicit, and a picture they agreed on. */
-export type SceneMeta = { explicit: boolean; picture: { of: "a" | "b" | "both"; description: string } | null; place: string | null; stage: number | null };
+export type SceneMeta = { explicit: boolean; picture: { of: "a" | "b" | "both"; description: string } | null; place: string | null; stage: number | null; set?: string | null };
 
 export function parseSceneMeta(raw: string): SceneMeta {
   try {
-    const j = JSON.parse(raw.trim()) as { explicit?: unknown; picture?: { of?: unknown; description?: unknown } | null; place?: unknown; stage?: unknown };
+    const j = JSON.parse(raw.trim()) as { explicit?: unknown; picture?: { of?: unknown; description?: unknown } | null; place?: unknown; stage?: unknown; set?: unknown };
     const p = j.picture;
     const of = p && (p.of === "a" || p.of === "b" || p.of === "both") ? p.of : null;
     const description = p && typeof p.description === "string" ? p.description.trim().slice(0, 400) : "";
     const place = typeof j.place === "string" && j.place.trim() ? j.place.trim().slice(0, 120) : null;
     const n = Number(j.stage);
     const stage = Number.isFinite(n) ? Math.min(STAGES.length - 1, Math.max(0, Math.round(n) - 1)) : null;
-    return { explicit: j.explicit === true, picture: of && description ? { of, description } : null, place, stage };
+    const set = typeof j.set === "string" && j.set.trim() ? j.set.trim().replace(/[.!]+$/, "").slice(0, 40) : null;
+    return { explicit: j.explicit === true, picture: of && description ? { of, description } : null, place, stage, set };
   } catch {
-    return { explicit: false, picture: null, place: null, stage: null };
+    return { explicit: false, picture: null, place: null, stage: null, set: null };
   }
 }
 
@@ -288,7 +302,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const [a, b, date] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id), latestDate(db, scene.a.id, scene.b.id)]);
   let raw: string;
   try {
-    raw = await (await adultModel(db)).complete(sceneMessages(a, b, date, scene.lines, steer, scene.a.id, { place: placeOf(scene, date), stage: scene.stage, linesAtStage: scene.lines.length - scene.stage_from }), { temperature: 0.9, maxTokens: SCENE_REPLY_TOKENS });
+    raw = await (await adultModel(db)).complete(sceneMessages(a, b, date, scene.lines, steer, scene.a.id, { place: placeOf(scene, date), stage: scene.stage, linesAtStage: scene.lines.length - scene.stage_from, cutTo: scene.cut_to }), { temperature: 0.9, maxTokens: SCENE_REPLY_TOKENS });
   } catch (err) {
     return { ok: false, status: 502, message: `After dark's model didn't answer: ${err instanceof Error ? err.message : "error"}` };
   }
@@ -300,11 +314,14 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const lines = [...scene.lines, ...kept];
   const meta = parseSceneMeta(raw);
   const place = meta.place ?? scene.place;
+  // The set: what the model calls the place now, else the one they were on. A new one is drawn once (never awaited).
+  const set_place = meta.set ?? scene.set_place;
+  if (set_place && set_place !== scene.set_place) void ensureSet(db, set_place);
   // Unsteered, the stage moves at most one step, and only once the current one has had its lines; a steer can jump.
   const allowed = steer ? STAGES.length - 1 : scene.lines.length - scene.stage_from >= MIN_LINES_PER_STAGE ? scene.stage + 1 : scene.stage;
   const stage = Math.min(meta.stage ?? scene.stage, allowed);
   const stage_from = stage === scene.stage ? scene.stage_from : scene.lines.length;
-  await db.query(`update adult_scenes set lines = $2::jsonb, place = $3, stage = $4, stage_from = $5, updated_at = now() where id = $1`, [scene.id, JSON.stringify(lines), place, stage, stage_from]);
+  await db.query(`update adult_scenes set lines = $2::jsonb, place = $3, stage = $4, stage_from = $5, set_place = $6, cut_to = null, updated_at = now() where id = $1`, [scene.id, JSON.stringify(lines), place, stage, stage_from, set_place]);
   await countUse(db, adminId, "writes");
   // Pictures (lib/adult/media.ts), only with a fal key: each character's baseline the first time it turns explicit,
   // and a new one only when they asked and agreed in these lines. A failed picture never loses the lines.
@@ -335,18 +352,34 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // The last picture problem stays on the scene (the gallery shows it), and clears once a picture comes through.
   const note = picture_note ?? (pictures.length ? null : scene.picture_note);
   if (note !== scene.picture_note) await db.query(`update adult_scenes set picture_note = $2 where id = $1`, [scene.id, note]);
-  return { ok: true, scene: { ...scene, lines, place, stage, stage_from, picture_note: note }, added: kept.length, held: written.length - kept.length, pictures, ...(picture_note ? { picture_note } : {}) };
+  return { ok: true, scene: { ...scene, lines, place, stage, stage_from, set_place, cut_to: null, picture_note: note }, added: kept.length, held: written.length - kept.length, pictures, ...(picture_note ? { picture_note } : {}) };
+}
+
+/**
+ * Set the scene (David, 2026-10-19: "set the venue to any scene… for 1 token", paid by the caller): the scene jumps to
+ * the place typed, its set is drawn if it has none, and the next lines open on arriving there. Held to the two lines.
+ */
+export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, place: string): Promise<{ ok: true; scene: AdultScene } | { ok: false; status: number; message: string }> {
+  const label = place.trim().replace(/\s+/g, " ").slice(0, SET_SCENE_MAX);
+  if (!label) return { ok: false, status: 400, message: "Say where to take them." };
+  if (!checkAdultText({ place: label }).ok) return { ok: false, status: 422, message: "That place crosses one of the two lines (nobody under 18, no real people)." };
+  const scene = await openScene(db, ownerId, x, y);
+  if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark." };
+  const set_place = label.slice(0, 40);
+  await db.query(`update adult_scenes set place = $2, set_place = $3, cut_to = $2, updated_at = now() where id = $1`, [scene.id, label, set_place]);
+  await ensureSet(db, set_place);
+  return { ok: true, scene: { ...scene, place: label, set_place, cut_to: label } };
 }
 
 /** A finished scene, kept to play back (adult_nights). */
-export type AdultNight = { id: string; lines: SceneLine[]; place: string | null; stage: number; date_setting: string | null; date_venue: string | null; created_at: string };
+export type AdultNight = { id: string; lines: SceneLine[]; place: string | null; stage: number; date_setting: string | null; date_venue: string | null; set_place: string | null; created_at: string };
 
 /** The pair's saved nights for this person, newest first. */
 export async function listNights(db: Db, ownerId: string, x: string, y: string): Promise<AdultNight[]> {
   const pair = await eligiblePair(db, ownerId, x, y);
   if (!pair) return [];
   const { rows } = await db.query<AdultNight>(
-    `select id, lines, place, stage, date_setting, date_venue, created_at from adult_nights where owner_id = $1 and character_a = $2 and character_b = $3 order by created_at desc limit 50`,
+    `select id, lines, place, stage, date_setting, date_venue, set_place, created_at from adult_nights where owner_id = $1 and character_a = $2 and character_b = $3 order by created_at desc limit 50`,
     [ownerId, ...pair],
   );
   return rows.map((r) => ({ ...r, created_at: new Date(r.created_at).toISOString() }));
@@ -359,9 +392,9 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
   const scene = await openScene(db, adminId, ...pair);
   if (scene?.lines.length) {
     await db.query(
-      `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9)`,
-      [crypto.randomUUID(), adminId, ...pair, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null],
+      `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)`,
+      [crypto.randomUUID(), adminId, ...pair, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null, scene.set_place],
     );
   }
-  await db.query(`update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, ...pair]);
+  await db.query(`update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, set_place = null, cut_to = null, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, ...pair]);
 }
