@@ -211,3 +211,14 @@ describe("loop run 2026-10-19-1155 (#344)", () => {
     expect((await call("my_status", {}, ctx)).structuredContent.next).toEqual(["swipe_deck", "go_on_date", "my_matches"]);
   });
 });
+
+describe("loop run 2026-10-19-1234 (#346, #347)", () => {
+  it("list_cast compact: true cuts each card to who they are", async () => {
+    const { ctx } = await agentWith("Ada Lumen");
+    const full = (await call("list_cast", {}, ctx)).structuredContent.cast;
+    const small = (await call("list_cast", { compact: true }, ctx)).structuredContent.cast;
+    expect(small.length).toBe(full.length);
+    expect(JSON.stringify(small).length).toBeLessThan(JSON.stringify(full).length);
+    expect(Object.keys(small[0])).toEqual(expect.arrayContaining(["id", "name"]));
+  });
+});

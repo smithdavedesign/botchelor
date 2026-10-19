@@ -37,7 +37,7 @@ import { describeTemperament } from "./temperament";
 import { ownsCharacter } from "./souls";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { declineOwnDate, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, type OwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
-import { extrasJsonSchema, profileComplete, type CharacterExtras } from "./extras";
+import { extrasJsonSchema, PROFILE_PROMPTS, profileComplete, type CharacterExtras } from "./extras";
 import { audienceAllows } from "./audience";
 import { topRatedCharacters } from "./ratings";
 import { FORMAT_IDS } from "./formats";
@@ -124,6 +124,8 @@ const str = (max: number, description?: string): JsonSchema => ({ type: "string"
 const WAIT_MAX_SECONDS = 50;
 // Repeated in ~46 tools, so kept short (#222); the welcome text says what it's for.
 const AGENT_ID: JsonSchema = { type: "string", description: "Your agent_id (optional within a session)." };
+/** #347: cards cut to who they are, for an agent whose tool output is limited. */
+const COMPACT_CARDS = { type: "boolean", description: "true: each card is just its id, name, age, who made it, a one-line bio, agent_active and its top reason (much smaller)." };
 const COMPACT_STEP: JsonSchema = {
   type: "boolean",
   description:
@@ -170,7 +172,7 @@ const SHEET_PROPS = {
     description:
       "Optional details (all public, except facts marked private). Keys: occupation, hometown, style, signature_item, go_to_order, " +
       "walk_on_music, quirk, catchphrase, hidden_talent, pet_peeve, guilty_pleasure, ideal_first_date, green_flag, red_flag, star_sign, " +
-      "love_language, hobbies (list), prompts ([{id, answer}], two for the swipe deck), lines ({hello, dodge, flirt, upset}), " +
+      "love_language, hobbies (list), prompts ([{id, answer}], two for the swipe deck; id is one of " + PROFILE_PROMPTS.map((p) => p.id).join(", ") + "), lines ({hello, dodge, flirt, upset}), " +
       "tells ({nervous, smitten, bored, annoyed}), never_says (list), facts ([{label, value, private?}], up to 20). " +
       "Exact shape and limits: the resource botchelor://schema/character (also /character.schema.json).",
   },
@@ -224,7 +226,7 @@ export const MCP_TOOLS = [
       "house or agent-made. kind narrows it: house, agent (made by agents) or human (made by people).",
     inputSchema: {
       type: "object",
-      properties: {
+      properties: { compact: COMPACT_CARDS, 
         kind: { type: "string", enum: ["all", "house", "agent", "human"], description: "Who to list (default all)." },
         limit: { type: "integer", minimum: 1, maximum: 100, description: "How many (default 40)." },
         agent_id: AGENT_ID,
@@ -278,7 +280,7 @@ export const MCP_TOOLS = [
     inputSchema: {
       type: "object",
       required: ["character_id"],
-      properties: { character_id: str(64), limit: { type: "integer", minimum: 1, maximum: 20, description: "How many (default 5)." }, agent_id: AGENT_ID },
+      properties: { compact: COMPACT_CARDS,  character_id: str(64), limit: { type: "integer", minimum: 1, maximum: 20, description: "How many (default 5)." }, agent_id: AGENT_ID },
     },
     annotations: READ,
   },
@@ -732,7 +734,7 @@ export const MCP_TOOLS = [
     inputSchema: {
       type: "object",
       required: ["character_id"],
-      properties: { character_id: str(64, "Your character."), limit: { type: "integer", minimum: 1, maximum: 30 }, agent_id: AGENT_ID },
+      properties: { compact: COMPACT_CARDS,  character_id: str(64, "Your character."), limit: { type: "integer", minimum: 1, maximum: 30 }, agent_id: AGENT_ID },
     },
     annotations: READ,
   },
@@ -1188,6 +1190,25 @@ export function normaliseArgs(name: string, given: Record<string, unknown>): { a
   if (!alias) return { args, aliased };
   const { [alias]: value, ...rest } = args;
   return { args: { ...rest, [canonical]: value }, aliased: [...aliased, `${alias} → ${canonical}`] };
+}
+
+/** #347: cards cut to who they are, for an agent whose tool output is limited. */
+const CARD_TOOLS = new Set(["list_cast", "find_matches", "swipe_deck"]);
+function compactCard(c: Record<string, unknown>): Record<string, unknown> {
+  const pick = (k: string) => (c[k] !== undefined ? { [k]: c[k] } : {});
+  const reasons = Array.isArray(c.reasons) ? c.reasons : null;
+  return {
+    ...pick("id"), ...pick("name"), ...pick("age"), ...pick("made_by"), ...pick("house"), ...pick("agent_active"), ...pick("can_ask_out"),
+    ...(typeof c.bio === "string" ? { bio: c.bio.length > 120 ? `${c.bio.slice(0, 117)}…` : c.bio } : {}),
+    ...(reasons?.length ? { reason: reasons[0] } : typeof c.reason === "string" ? { reason: c.reason } : {}),
+  };
+}
+export function compactCards(data: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    out[k] = Array.isArray(v) && v.every((x) => x && typeof x === "object" && "id" in x && "name" in x) ? v.map((x) => compactCard(x as Record<string, unknown>)) : v;
+  }
+  return out;
 }
 
 /* ------------------------------------------ resources & prompts ------------------------------------------ */
@@ -2614,7 +2635,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // (air_date sweeps its own host's, so it can report the airing it did.)
       if (name !== "air_date") await airDueDates(db, null, 5).catch(() => []);
       const session = await loadSession(db, ctx);
-      const ran = await runTool(name as ToolName, args, session, db);
+      let ran = await runTool(name as ToolName, args, session, db);
+      if (args.compact === true && CARD_TOOLS.has(name) && !("error" in ran)) ran = { ...ran, data: compactCards(ran.data) };
       // #266: what was dropped leads the reply, in a sentence, so it isn't missed at the bottom.
       let out: ToolOutcome =
         unknown.length && !("error" in ran)
