@@ -32,6 +32,9 @@ async function logRejection(db: Db, ownerId: string, kind: string, reason: strin
   await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, $3, $4)`, [crypto.randomUUID(), ownerId, kind, reason.slice(0, 300)]).catch(() => {});
 }
 
+/** On every picture: away from anyone young-looking, and from cartoon styles the face-age check can't read. */
+export const NEGATIVE_PROMPT = "child, children, kid, teen, teenager, minor, underage, young-looking, school uniform, cartoon, anime, illustration";
+
 /** fal's REST endpoints: run (wait for the result) and queue (submit, then poll), by model id. */
 const FAL_RUN = "https://fal.run";
 const FAL_QUEUE = "https://queue.fal.run";
@@ -86,11 +89,19 @@ export async function makePicture(
   const check = checkAdultText({ prompt: opts.prompt });
   if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
   const key = await falKey(db);
-  const { image_model } = await getAdultSettings(db);
+  const { image_model, image_base } = await getAdultSettings(db);
   const res = await doFetch(`${FAL_RUN}/${image_model}`, {
     method: "POST",
     headers: { authorization: `Key ${key}`, "content-type": "application/json" },
-    body: JSON.stringify({ prompt: opts.prompt, image_size: "portrait_4_3", num_images: 1, enable_safety_checker: false }),
+    body: JSON.stringify({
+      prompt: opts.prompt,
+      // Steer away from anyone young-looking, on top of the output check (never instead of it).
+      negative_prompt: NEGATIVE_PROMPT,
+      ...(image_model === "fal-ai/lora" ? { model_name: image_base } : {}),
+      image_size: "portrait_4_3",
+      num_images: 1,
+      enable_safety_checker: false,
+    }),
   });
   if (!res.ok) throw new Error(`fal.ai refused the picture (${res.status}): ${(await res.text()).slice(0, 200)}`);
   const body = (await res.json()) as { images?: { url?: string }[] };

@@ -402,3 +402,31 @@ describe("who it opens for (canAfterDark)", () => {
     expect((await get(mine.id, CAST_A, a.cookie)).status).toBe(200);
   });
 });
+
+describe("the picture request", () => {
+  afterEach(() => {
+    setMediaFetchForTests(null);
+    setCheckFetchForTests(null);
+  });
+
+  it("asks fal's custom-model endpoint for the photoreal base, steering away from anyone young-looking", async () => {
+    const { cookie } = await admin();
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_mod_key: "placeholder-mod", hive_demo_key: "placeholder-demo" }, cookie);
+    let sent: Record<string, unknown> | null = null;
+    let url = "";
+    setMediaFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(input);
+      if (u.startsWith("https://fal.run/")) {
+        url = u;
+        sent = JSON.parse(String(init?.body));
+        return Response.json({ images: [{ url: "https://cdn.fal.test/pic.png" }] });
+      }
+      return new Response(PNG, { headers: { "content-type": "image/png" } });
+    });
+    fakeHive(ADULT_FACE);
+    scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }], explicit: true, picture: null }));
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    expect(url).toBe("https://fal.run/fal-ai/lora");
+    expect(sent).toMatchObject({ model_name: "SG161222/RealVisXL_V4.0", negative_prompt: expect.stringMatching(/teen.*minor/) });
+  });
+});
