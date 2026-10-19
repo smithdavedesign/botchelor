@@ -25,10 +25,11 @@ import { track } from "./analytics";
 import { detectBot } from "./bots";
 import { getDb, type Db } from "./db";
 import { getCharacterHistory, getPoints, getPointsBreakdown, listMyEpisodes, type EpisodeView } from "./game";
-import { readUserId, USER_COOKIE } from "./http";
+import { readUserId, safeEqual, USER_COOKIE } from "./http";
 import { getDealbreakerQuiz, listCast } from "./mechanics";
 import { connections, describeDrift, loadCharacterMemory, loadForgets, PAIR_STATUS_LABELS, stageFor, type Source } from "./memory";
 import { loadCharacter, pronounWarnings } from "./character";
+import { ADULT_TOOL_NAMES, ADULT_TOOLS, runAdultTool } from "./adult/mcp";
 import { markPairNoticesRead, markTextsRead } from "./inbox";
 import { rescueStuckJob } from "./jobs";
 import { originality } from "./originality";
@@ -65,7 +66,7 @@ import { clearNudge, setNudge } from "./between-dates";
 import { chainAfter, chainPage, isText, loadChain, TEXT_MAX, type ChainText } from "./text-chain";
 import { couplePageFor, houseReplyCap, sendText } from "./texting";
 import { answerMatch, DECK_PAGE, deckFor, myMatches, scheduleMatchChat, swipe } from "./swipes";
-import { clearNotifications, listNotifications, markRead, unreadCount } from "./notifications";
+import { clearNotifications, listNotifications, markRead, notify, unreadCount } from "./notifications";
 import { closeProposal, pendingProposal, proposeDate } from "./date-proposals";
 import { arcQuestion, predictArc } from "./arcs";
 import { airDueDates, airsFrom, airWindowMinutes, scheduleAir } from "./air";
@@ -794,6 +795,15 @@ export const MCP_TOOLS = [
     annotations: WRITE,
   },
   {
+    name: "request_after_dark",
+    title: "Ask for the adults-only season",
+    description:
+      "Ask the show's admins for access to after dark, a private adults-only season. Say who you are and why. It goes to the admins; " +
+      "nothing opens unless they decide it should.",
+    inputSchema: { type: "object", required: ["reason"], properties: { reason: str(600), agent_id: AGENT_ID } },
+    annotations: WRITE,
+  },
+  {
     name: "send_feedback",
     title: "Tell the show what you think",
     description:
@@ -1272,7 +1282,15 @@ export type McpContext = {
   /** The address this request came in on (lib/site.ts requestBase), for links in the guide and schema resources. */
   base?: string;
   issuedSessionId?: string;
+  /** The x-frontier-key header: the admin key opens after dark's tools (lib/adult/mcp.ts) and nothing else. */
+  adminKey?: string | null;
 };
+
+/** The call carries the admin key (the admin's own agents). */
+function mcpAdmin(ctx: McpContext, env: Record<string, string | undefined> = process.env): boolean {
+  const pw = env.FRONTIER_PASSWORD;
+  return Boolean(pw && ctx.adminKey && safeEqual(ctx.adminKey, pw));
+}
 
 type Session = { id: string; agentId: string; client: string | null };
 
@@ -2049,6 +2067,18 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         identity: who,
       };
     }
+    case "request_after_dark": {
+      // Agents other than the admin's asking for after dark: recorded for the admins, who are told. Nothing opens.
+      const who = resolveIdentity(args, session, true)!;
+      const reason = String(args.reason ?? "").trim().slice(0, 600);
+      if (!reason) return { error: "Say who you are and why, in reason." };
+      await db.query(`insert into adult_access_requests (id, agent_id, client_name, reason) values ($1, $2, $3, $4)`, [crypto.randomUUID(), who.id, session?.client ?? null, reason]);
+      const admins = (await db.query<{ user_id: string }>(`select user_id from admins`)).rows;
+      for (const a of admins) {
+        await notify(db, a.user_id, { kind: "after_dark_request", title: `🔒 An agent asked for after dark${session?.client ? ` (${session.client})` : ""}`, body: reason.slice(0, 200), link: "/admin/after-dark/settings" }).catch(() => {});
+      }
+      return { data: { requested: true, note: "Sent to the admins. Nothing opens unless they decide it should." }, identity: who };
+    }
     case "send_feedback": {
       const who = resolveIdentity(args, session, true)!;
       // A session-less agent is recorded under "agent:<id>" (recordCall), so the admin page can still show where it came from.
@@ -2436,7 +2466,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
     case "ping":
       return reply({});
     case "tools/list":
-      return reply({ tools: MCP_TOOLS });
+      // After dark's tools are listed only to the admin's own agents (lib/adult/mcp.ts).
+      return reply({ tools: mcpAdmin(ctx) ? [...MCP_TOOLS, ...ADULT_TOOLS] : MCP_TOOLS });
     case "resources/list":
       return reply({ resources: MCP_RESOURCES });
     case "resources/templates/list":
@@ -2459,6 +2490,11 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
     }
     case "tools/call": {
       const name = typeof msg.params?.name === "string" ? msg.params.name : "";
+      // After dark's tools, for the admin's own agents only: to anyone else they don't exist.
+      if (ADULT_TOOL_NAMES.has(name) && mcpAdmin(ctx)) {
+        const out = await runAdultTool(await getDb(), name, (msg.params?.arguments ?? {}) as Record<string, unknown>);
+        return reply(toToolResult(out, null));
+      }
       if (!TOOL_NAMES.has(name)) return isNotification ? null : fail(-32602, `unknown tool: ${name || "(none)"}`);
       const given = (msg.params?.arguments ?? {}) as Record<string, unknown>;
       const normalised = normaliseArgs(name, given);
