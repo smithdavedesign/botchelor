@@ -9,7 +9,7 @@
  * The texts read are what they sent since their last date (its morning after, and its closing lines when it had none),
  * or their whole chat when they've never been on one (a match's first texts). Deterministic and free.
  */
-import { placeFor } from "./places";
+import { placeProposal } from "./places";
 import type { End } from "./relationships";
 import type { PlaceId } from "./venues";
 
@@ -23,14 +23,20 @@ export type AgreedPlan = { texts: PlanText[]; place: PlaceId };
 export const PLAN_LOOKBACK = 12;
 /** How long a plan's text can be, as stored and as the prompts quote it. */
 const PLAN_TEXT_MAX = 200;
-/** The yes answers the other's latest text, with at most this many of its own texts in between. */
-const YES_REACH = 2;
+/**
+ * How far back a yes may reach for the place it's agreeing to (Marlowe × Juniper, 2026-10-18: "come to the observatory"
+ * / "I accept" / "say yes, I'll bring coffee" / "we have a deal" — the yes that registered was three texts after the
+ * place was named). People don't always say the place in the same breath as the yes.
+ */
+const PLACE_REACH = 5;
 
 const PROPOSE =
   /\b(let's|lets|let us|how about|what about|we should|we could|wanna|want to|fancy|shall we|come with me|come over|come round|come back to|meet me|join me|i'll take you|take you to|next time|would you like|do you want|up for|i'll cook|i'll show you|i'll bring|i will bring|you bring|bring the|you should come|back to mine|back to yours)\b/i;
 const NOT_A_PROPOSAL = /\b(let's not|lets not|let us not)\b/i;
+// Affirmations, kept wide: a house model and a real person say yes in many ways ("I accept", "sounds quiet", "the gulls
+// say we have a deal"). A refusal (NO) always overrides, so "I can't accept" is still a no.
 const YES =
-  /\b(yes|yeah|yep|yup|yess+|sure|deal|i'm in|im in|count me in|sounds (?:good|great|perfect|fun|lovely|amazing|like a plan)|it's a date|its a date|you're on|youre on|absolutely|definitely|love that|love to|i'd love|i would love|i'd like that|id like that|let's do it|let's do that|lets do it|works for me|see you there|i'll be there|can't wait|cant wait|ok|okay|alright|all right|why not|bring your|perfect|great idea|good idea|go on then|you got it)\b/i;
+  /\b(yes|yeah|yep|yup|yess+|sure|deal|accept|i'm in|im in|i'm there|im there|count me in|sounds (?:good|great|perfect|fun|lovely|amazing|wonderful|nice|quiet|right|promising|like a plan|like fun)|it's a date|its a date|you're on|youre on|absolutely|definitely|love that|love to|i'd love|i would love|i'd like that|id like that|let's do it|let's do that|lets do it|works for me|see you there|i'll be there|can't wait|cant wait|okay|ok|alright|all right|why not|bring your|perfect|great idea|good idea|go on then|you got it|consider it done|say no more|you had me|i'm game|im game)\b/i;
 const NO =
   /\b(no thanks|not really|not sure|rather not|can't make|cannot make|i can't|i cannot|not for me|maybe not|let's not|lets not|i'll pass|pass on|no way|not happening|nope|nah|another time|some other time|not tonight|not this time|rain ?check)\b|^\s*no\b/i;
 
@@ -50,25 +56,36 @@ export const agrees = (text: string): boolean => (YES.test(text) || GOES.test(te
 export function agreedPlan(texts: readonly PlanText[], names: Record<End, string>, lookback = PLAN_LOOKBACK): AgreedPlan | null {
   const recent = texts.slice(-lookback);
   const other = (who: End): End => (who === "lo" ? "hi" : "lo");
-  const where = (t: PlanText) => placeFor(t.text, names[t.who], names[other(t.who)]);
-  for (let j = recent.length - 1; j > 0; j--) {
+  const where = (t: PlanText) => placeProposal(t.text, names[t.who], names[other(t.who)]);
+  const clip = (t: PlanText): PlanText => ({ who: t.who, text: t.text.slice(0, PLAN_TEXT_MAX) });
+  for (let j = recent.length - 1; j >= 1; j--) {
     const reply = recent[j];
     if (!saysYes(reply.text)) continue;
-    let i = j - 1;
-    while (i >= 0 && recent[i].who === reply.who) i--;
-    if (i < 0 || j - i - 1 > YES_REACH) continue;
-    const ask = recent[i];
-    const asked = where(ask);
-    if (!proposes(ask.text) || (!PROPOSE.test(ask.text) && !asked)) continue;
-    // "Sure, but how about the observatory instead?" proposes somewhere else: that's the next proposal, not a yes.
-    const answered = where(reply);
-    if (asked && answered && answered !== asked && PROPOSE.test(reply.text)) continue;
-    // A yes to somewhere unnamed ("want to hang out again?" / "sure!") can't set a date anywhere: an older one may.
-    if (!asked && !answered) continue;
-    return {
-      texts: [ask, reply].map((t) => ({ who: t.who, text: t.text.slice(0, PLAN_TEXT_MAX) })),
-      place: (asked ?? answered)!,
-    };
+    // The place this yes agrees to: the best place-naming proposal from the OTHER side within reach — a strong
+    // destination ("come to the observatory") outranks a bare drink or kind word in a logistics line ("I'll bring the
+    // coffee" is not a café), and among equals the most recent wins. The yes needn't name it (people say the place,
+    // then banter, then "deal"); a refusal in between breaks the thread.
+    let proposal: PlanText | null = null;
+    let place: PlaceId | null = null;
+    let strong = false;
+    for (let i = j - 1; i >= 0 && j - i <= PLACE_REACH; i--) {
+      const t = recent[i];
+      if (t.who === reply.who) continue;
+      if (saysNo(t.text)) break;
+      const p = where(t);
+      if (!p || !proposes(t.text)) continue;
+      if (!place || (p.strong && !strong)) {
+        proposal = t;
+        place = p.place;
+        strong = p.strong;
+      }
+      if (strong) break; // the most recent strong destination is the one they're going to
+    }
+    if (!place || !proposal) continue;
+    // "Sure, but how about the observatory instead?" is a counter-proposal to somewhere else, not a yes to the place.
+    const rp = where(reply);
+    if (rp && rp.place !== place && proposes(reply.text)) continue;
+    return { texts: [clip(proposal), clip(reply)], place };
   }
   return null;
 }

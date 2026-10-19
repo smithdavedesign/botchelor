@@ -76,6 +76,21 @@ describe("agreedPlan: a proposal and the other's yes", () => {
     expect(plan?.texts.map((t) => t.text)).toEqual(["Coffee works. Bring the anthology story and I'll bring dried apricots.", "You're on."]);
   });
 
+  it("hears natural affirmations and a place a few texts back (Marlowe × Juniper, 2026-10-18)", () => {
+    // Their real thread on prod: the place was named, then "I accept", then "say yes / I'll bring coffee", then "deal".
+    // The old detector missed it (date 2 was dealt a random café), so the texted plan didn't set up the next date.
+    const plan = agreedPlan(
+      [
+        lo("Next time, come to the observatory with me? There's a meteor shower."),
+        hi("The observatory sounds quiet. I accept, provided the meteors don't interrupt any ghost stories."),
+        lo("Say yes. I'll bring the terrible thermos coffee."),
+        hi("Terrible coffee is a prerequisite for astronomy. The gulls say we have a deal."),
+      ],
+      NAMES,
+    );
+    expect(plan?.place).toBe("elsewhere@the observatory");
+  });
+
   it("takes the counter-proposal the other said yes to", () => {
     expect(agreedPlan([lo("Karaoke?"), hi("How about the observatory?"), lo("Deal.")], NAMES)?.place).toBe("elsewhere@the observatory");
   });
