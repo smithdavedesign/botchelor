@@ -30,6 +30,8 @@ export const LINES_PER_TURN = 6;
 const SCENE_IN_PROMPT = 30;
 export const SCENE_MAX_LINES = 400;
 const DIRECTION_MAX = 300;
+/** Six lines and the picture note fit well inside this; it's also what the provider reserves credit for. */
+export const SCENE_REPLY_TOKENS = 1200;
 
 type LatestDate = { setting: string | null; ending: string | null; character_a: string; transcript: { side: "a" | "b"; dialogue: string; action?: string }[] | null };
 
@@ -227,9 +229,9 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const [a, b, date] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id), latestDate(db, scene.a.id, scene.b.id)]);
   let raw: string;
   try {
-    raw = await (await adultModel(db)).complete(sceneMessages(a, b, date, scene.lines, steer, scene.a.id), { temperature: 0.9 });
+    raw = await (await adultModel(db)).complete(sceneMessages(a, b, date, scene.lines, steer, scene.a.id), { temperature: 0.9, maxTokens: SCENE_REPLY_TOKENS });
   } catch (err) {
-    return { ok: false, status: 502, message: `The local model didn't answer (${err instanceof Error ? err.message : "error"}). Is Ollama running?` };
+    return { ok: false, status: 502, message: `After dark's model didn't answer: ${err instanceof Error ? err.message : "error"}` };
   }
   const written = parseSceneLines(raw, { a: scene.a.name, b: scene.b.name });
   const kept = written.filter((l) => checkAdultText({ line: l.text }).ok);

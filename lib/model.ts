@@ -25,6 +25,11 @@ export type Usage = { model: string; input: number; cachedInput: number; output:
 export type ModelOptions = {
   /** Sampling temperature: higher for spoken dialogue (variety), lower for plans and recaps (fidelity). */
   temperature?: number;
+  /**
+   * A ceiling on the reply's length. Some providers (OpenRouter) reserve credit for the model's whole maximum when
+   * none is sent, and refuse a call a small key could easily afford.
+   */
+  maxTokens?: number;
   /** Called with the call's token usage when the provider reports it (lib/pricing.ts turns it into a cost). */
   onUsage?: (usage: Usage) => void;
   /**
@@ -184,6 +189,7 @@ export function openAICompatibleModel(opts: {
         let res: Response;
         const body: Record<string, unknown> = { model: opts.model, messages, response_format: { type: "json_object" } };
         if (options?.temperature !== undefined) body.temperature = options.temperature;
+        if (options?.maxTokens !== undefined) body.max_tokens = options.maxTokens;
         if (useReasoning) body.reasoning_effort = opts.reasoning;
         // A free tier answers 429 when a burst of calls (a date is ~13 in a row) crosses its per-minute quota;
         // a short, bounded backoff rides that out instead of losing the whole conversation to one refusal.
