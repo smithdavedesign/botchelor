@@ -226,7 +226,7 @@ describe("the weekly free allowance", () => {
     const creator = await newCreator();
     const model = scriptedModel([]);
     expect((await api.createEpisode({ character_id: "nope", partner_id: HOUSE_PARTNER_ID }, creator.cookie)).status).toBe(404);
-    expect((await api.createEpisode({ character_id: creator.characterId, partner_id: "nope" }, creator.cookie)).status).toBe(422);
+    expect((await api.createEpisode({ character_id: creator.characterId, partner_id: "nope" }, creator.cookie)).status).toBe(404);
     expect((await api.createEpisode({ character_id: creator.characterId, partner_id: "house-vesper" }, creator.cookie)).status).toBe(402);
     expect(model.calls).toHaveLength(0);
     expect(await allowanceOf(creator.cookie)).toMatchObject({ free_left: FREE, left: FREE });

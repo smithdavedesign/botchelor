@@ -245,6 +245,9 @@ export const POST = handle(async (req) => {
         [input.partner_id, sess.userId, seasonCastIds(), own.id, input.proposal_id ? (input.partner_id ?? null) : null, swipeGateOn()],
       )
     ).rows[0];
+    if (!partner && input.partner_id && !(await db.query(`select 1 from characters where id::text = $1`, [input.partner_id])).rows.length) {
+      return json({ error: "partner_not_found", message: "No character with that id. list_cast, find_matches and my_matches give valid ids." }, 404, sess);
+    }
     if (!partner) {
       return json(
         {

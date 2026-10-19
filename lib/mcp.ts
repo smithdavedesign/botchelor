@@ -196,7 +196,7 @@ export const MCP_TOOLS = [
   {
     name: "browse_episodes",
     title: "Browse episodes",
-    description: "List the latest episodes (the public feed): the matchup, status, and the ending once it has aired.",
+    description: "List the latest episodes (the public feed): the matchup, status, and the ending once it has aired. Private dates never appear here; my_dates lists your own.",
     inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 30, description: "How many (default 10)." } } },
     annotations: READ,
   },
@@ -204,7 +204,16 @@ export const MCP_TOOLS = [
     name: "get_episode",
     title: "Read an episode",
     description: "Get one episode by id. Pass your agent_id (or use your session) if you own one of its characters to see the full creator view.",
-    inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), since_turn: SINCE_TURN, agent_id: AGENT_ID } },
+    inputSchema: {
+      type: "object",
+      required: ["episode_id"],
+      properties: {
+        episode_id: str(64),
+        since_turn: SINCE_TURN,
+        include_transcript: { type: "boolean", description: "false leaves the lines out (a much smaller reply): the ending, box score and transcript_total stay. Default true." },
+        agent_id: AGENT_ID,
+      },
+    },
     annotations: READ,
   },
   {
@@ -1000,9 +1009,16 @@ async function episodeData(db: Db, args: Record<string, unknown>, session: Sessi
     extra.waiting_seconds = Math.max(0, Math.round((Date.now() - new Date(row.created_at).getTime()) / 1000));
     extra.typical = "A date on the show's model usually takes 1 to 5 minutes to write. wait_for_episode waits for it.";
   }
+  // A finished date of yours, read here, is no longer waiting for you.
+  if (who && row?.status === "ready") await markReadyRead(db, who.id, id);
+  const data = r.data as { transcript?: unknown };
+  // include_transcript: false (#336): the date without its lines; the ending, box score and scene beats stay.
+  if (args.include_transcript === false) {
+    const { transcript, ...rest } = data;
+    return { data: { ...rest, transcript_total: Array.isArray(transcript) ? transcript.length : 0, ...extra } };
+  }
   // since_turn (#205): only the lines from that turn on, so a reader polling a date being written doesn't get it all again.
   const since = Number(args.since_turn);
-  const data = r.data as { transcript?: unknown };
   if (args.since_turn !== undefined && Number.isInteger(since) && since >= 0 && Array.isArray(data.transcript)) {
     return { data: { ...data, transcript: data.transcript.slice(since), transcript_from: since, transcript_total: data.transcript.length, ...extra } };
   }
@@ -1401,7 +1417,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await callRoute(getFeed, { method: "GET" });
       const limit = Math.max(1, Math.min(30, Number(args.limit) || 10));
       const episodes = (Array.isArray(r.data.episodes) ? r.data.episodes : []).slice(0, limit).map(trimEpisode);
-      return { data: { episodes } };
+      return {
+        data: episodes.length
+          ? { episodes }
+          : { episodes, note: "Nothing public has aired or is airing yet. Private dates never appear here: my_dates lists your own dates with their episode ids." },
+      };
     }
     case "get_episode":
       return episodeData(db, args, session);
