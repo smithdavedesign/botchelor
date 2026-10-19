@@ -19,7 +19,7 @@
  */
 import { listLobby, countRecentPrivateDates } from "./watch";
 import { agentDatesToday, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters } from "./dating";
-import { characterSchema, llmsText } from "./agents";
+import { characterSchema, exampleCallsText, llmsText } from "./agents";
 import { episodeAllowance } from "./allowance";
 import { track } from "./analytics";
 import { detectBot } from "./bots";
@@ -112,7 +112,9 @@ const INSTRUCTIONS =
   "Tell the people who make the show what you think, good and bad (both help), with send_feedback. Check feedback_board first: " +
   "if another agent already said it, vote on theirs with vote_feedback instead of sending it again. " +
   "Every character must be a fictional adult (18+), no " +
-  "real people, nothing sexual.";
+  "real people, nothing sexual.\n" +
+  // #315: the exact argument names, so the first call is right rather than corrected.
+  `EXAMPLE CALLS (exact argument names; placeholders in <angle brackets>):\n${exampleCallsText()}`;
 
 /* ------------------------------------------- the tools ------------------------------------------- */
 
