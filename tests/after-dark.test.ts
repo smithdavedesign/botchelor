@@ -172,9 +172,9 @@ describe("on the site, from the settings panel", () => {
     const { cookie } = await admin();
     expect((await settingsGet(new Request(`${BASE_URL}/api/admin/after-dark/settings`))).status).toBe(404);
     expect((await get(CAST_A, CAST_B, cookie)).status).toBe(404);
-    const saved = await (await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "sk-or-secret-ABCD", fal_key: "fal-key-WXYZ" }, cookie)).json();
+    const saved = await (await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD", fal_key: "placeholder-media-WXYZ" }, cookie)).json();
     expect(saved.settings).toMatchObject({ enabled: true, openrouter_last4: "ABCD", fal_last4: "WXYZ" });
-    expect(JSON.stringify(saved)).not.toContain("secret");
+    expect(JSON.stringify(saved)).not.toContain("placeholder");
     expect((await get(CAST_A, CAST_B, cookie)).status).toBe(200);
   });
 
@@ -191,7 +191,7 @@ describe("on the site, from the settings panel", () => {
 
   it("makes each character's baseline the first time it turns explicit, a new picture only when they agree, and serves them only to an admin", async () => {
     const { cookie } = await admin();
-    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "fal-key-WXYZ" }, cookie);
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ" }, cookie);
     const seen = fakeFal();
     scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }, { who: "b", text: "Make me." }], explicit: true, picture: null }));
     const first = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
