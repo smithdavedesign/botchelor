@@ -38,7 +38,12 @@ export async function POST(req: Request): Promise<Response> {
     return rpcError(-32700, "parse error");
   }
 
-  const ctx: McpContext = { sessionId: req.headers.get("mcp-session-id"), userAgent: req.headers.get("user-agent"), base: requestBase(req) };
+  const ctx: McpContext = {
+    sessionId: req.headers.get("mcp-session-id"),
+    userAgent: req.headers.get("user-agent"),
+    base: requestBase(req),
+    adminKey: req.headers.get("x-frontier-key"),
+  };
   const out = await handleMcpPost(body, ctx);
   const headers: Record<string, string> = { ...JSON_HEADERS };
   if (ctx.issuedSessionId) headers["mcp-session-id"] = ctx.issuedSessionId;

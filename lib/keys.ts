@@ -81,6 +81,10 @@ function decryptKey(enc: Encrypted, env: Record<string, string | undefined> = pr
 
 const last4 = (s: string): string => s.slice(-4);
 
+/** The same sealing for a secret stored somewhere other than user_keys (lib/adult/settings.ts). */
+export const sealSecret = (plain: string, env: Record<string, string | undefined> = process.env) => encryptKey(plain, env);
+export const openSecret = (enc: { ciphertext: string; nonce: string }, env: Record<string, string | undefined> = process.env) => decryptKey(enc, env);
+
 /* ----------------------------------- store ----------------------------------- */
 
 export type StoredKeyInfo = { provider: string; kind: KeyKind; last4: string; model: string | null; created_at: string };

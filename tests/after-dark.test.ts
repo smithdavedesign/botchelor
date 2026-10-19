@@ -133,3 +133,110 @@ describe("a scene", () => {
     expect(parseSceneLines("Ada: Hi.\nBo: Hello there.\n(narration)", names)).toEqual(want);
   });
 });
+
+import { GET as settingsGet, POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
+import { POST as switchPost } from "@/app/api/admin/after-dark/switch/route";
+import { GET as mediaGet } from "@/app/api/admin/after-dark/media/[id]/route";
+import { GET as clipGet, POST as clipPost } from "@/app/api/admin/after-dark/clip/route";
+import { setMediaFetchForTests } from "@/lib/adult/media";
+import { handleMcpMessage, type McpContext } from "@/lib/mcp";
+import { listNotifications } from "@/lib/notifications";
+
+const call = (handler: (r: Request) => Promise<Response>, path: string, body: unknown, cookie?: string) =>
+  handler(new Request(`${BASE_URL}${path}`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) }));
+const PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+
+/** A stand-in for fal.ai: pictures come back at once, a clip after one status poll. */
+function fakeFal() {
+  const seen: string[] = [];
+  setMediaFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    seen.push(`${init?.method ?? "GET"} ${url}`);
+    if (url.startsWith("https://fal.run/")) return Response.json({ images: [{ url: "https://cdn.fal.test/pic.png" }] });
+    if (url.startsWith("https://queue.fal.run/") && init?.method === "POST") return Response.json({ request_id: "req-1" });
+    if (url.endsWith("/status")) return Response.json({ status: "COMPLETED" });
+    if (url.includes("/requests/req-1")) return Response.json({ video: { url: "https://cdn.fal.test/clip.mp4" } });
+    if (url.endsWith(".png")) return new Response(PNG, { headers: { "content-type": "image/png" } });
+    if (url.endsWith(".mp4")) return new Response(PNG, { headers: { "content-type": "video/mp4" } });
+    return new Response("nope", { status: 404 });
+  });
+  return seen;
+}
+
+describe("on the site, from the settings panel", () => {
+  afterEach(() => setMediaFetchForTests(null));
+
+  it("the settings are an admin's only; keys come back as their last four; it opens on Vercel once on with a key", async () => {
+    vi.stubEnv("ADULT_MODE", "");
+    vi.stubEnv("VERCEL", "1");
+    const { cookie } = await admin();
+    expect((await settingsGet(new Request(`${BASE_URL}/api/admin/after-dark/settings`))).status).toBe(404);
+    expect((await get(CAST_A, CAST_B, cookie)).status).toBe(404);
+    const saved = await (await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD", fal_key: "placeholder-media-WXYZ" }, cookie)).json();
+    expect(saved.settings).toMatchObject({ enabled: true, openrouter_last4: "ABCD", fal_last4: "WXYZ" });
+    expect(JSON.stringify(saved)).not.toContain("placeholder");
+    expect((await get(CAST_A, CAST_B, cookie)).status).toBe(200);
+  });
+
+  it("an admin switches their own character in, never someone else's", async () => {
+    const { id, cookie } = await admin();
+    const mineCookie = signedIn(id);
+    const mine = await (await api.createCharacter(validCharacter({ name: "Chud Crusher" }), `bz_uid=${id}`)).json();
+    const theirs = await (await api.createCharacter(validCharacter({ name: "Not Yours" }), newUserCookie())).json();
+    expect((await get(mine.id, CAST_A, cookie)).status).toBe(404);
+    expect((await call(switchPost, "/api/admin/after-dark/switch", { character_id: mine.id, on: true }, mineCookie)).status).toBe(200);
+    expect((await get(mine.id, CAST_A, cookie)).status).toBe(200);
+    expect((await call(switchPost, "/api/admin/after-dark/switch", { character_id: theirs.id, on: true }, cookie)).status).toBe(403);
+  });
+
+  it("makes each character's baseline the first time it turns explicit, a new picture only when they agree, and serves them only to an admin", async () => {
+    const { cookie } = await admin();
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ" }, cookie);
+    const seen = fakeFal();
+    scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }, { who: "b", text: "Make me." }], explicit: true, picture: null }));
+    const first = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
+    expect(first.pictures.map((p: { kind: string }) => p.kind)).toEqual(["baseline", "baseline"]);
+    scripted(JSON.stringify({ lines: [{ who: "a", text: "Again." }], explicit: true, picture: { of: "both", description: "the two of them on the sofa" } }));
+    const second = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
+    expect(second.pictures.map((p: { kind: string }) => p.kind)).toEqual(["scene"]);
+    expect(seen.filter((s) => s.startsWith("POST https://fal.run/"))).toHaveLength(3);
+    const pic = second.pictures[0].id as string;
+    const media = (c?: string) => mediaGet(new Request(`${BASE_URL}/api/admin/after-dark/media/${pic}`, { headers: c ? { cookie: c } : {} }), { params: Promise.resolve({ id: pic }) });
+    expect((await media(cookie)).status).toBe(200);
+    expect((await media()).status).toBe(404);
+    // A clip from that picture: started on fal's queue, then stored once it's done.
+    const clip = await (await call(clipPost, "/api/admin/after-dark/clip", { image_id: pic, motion: "a slow turn" }, cookie)).json();
+    expect(clip.clip.status).toBe("pending");
+    const polled = await (await clipGet(new Request(`${BASE_URL}/api/admin/after-dark/clip?id=${clip.clip.id}`, { headers: { cookie } }))).json();
+    expect(polled.status).toBe("ready");
+  });
+});
+
+describe("over MCP", () => {
+  // Made up per run, so nothing in the repo looks like a stored password.
+  const ADMIN_KEY = crypto.randomUUID();
+  const rpc = async (method: string, params: Record<string, unknown>, ctx: McpContext) => (await handleMcpMessage({ jsonrpc: "2.0", id: 1, method, params }, ctx))!;
+
+  it("lists after dark's tools only to a call with the admin key, and treats them as unknown for everyone else", async () => {
+    vi.stubEnv("FRONTIER_PASSWORD", ADMIN_KEY);
+    const names = async (ctx: McpContext) => ((await rpc("tools/list", {}, ctx)).result as { tools: { name: string }[] }).tools.map((t) => t.name);
+    expect(await names({})).not.toContain("after_dark_write");
+    expect(await names({})).toContain("request_after_dark");
+    expect(await names({ adminKey: "wrong" })).not.toContain("after_dark_write");
+    expect(await names({ adminKey: ADMIN_KEY })).toContain("after_dark_write");
+    const stranger = await rpc("tools/call", { name: "after_dark_pairs", arguments: {} }, {});
+    expect((stranger.error as { message?: string } | undefined)?.message).toMatch(/unknown tool/);
+  });
+
+  it("an admin's agent writes a scene; another agent can only ask, and the admins are told", async () => {
+    vi.stubEnv("FRONTIER_PASSWORD", ADMIN_KEY);
+    const { id } = await admin();
+    scripted(JSON.stringify({ lines: [{ who: "a", text: "Hello again." }] }));
+    const wrote = await rpc("tools/call", { name: "after_dark_write", arguments: { a: CAST_A, b: CAST_B } }, { adminKey: ADMIN_KEY });
+    expect((wrote.result as { structuredContent?: { added?: number } }).structuredContent?.added ?? JSON.stringify(wrote.result)).toBeTruthy();
+    const asked = await rpc("tools/call", { name: "request_after_dark", arguments: { reason: "I'm an agent and I'd like in." } }, {});
+    expect(JSON.stringify(asked.result)).toMatch(/Sent to the admins/);
+    expect((await t.db.query(`select 1 from adult_access_requests`)).rows).toHaveLength(1);
+    expect((await listNotifications(t.db, id))[0]).toMatchObject({ kind: "after_dark_request" });
+  });
+});

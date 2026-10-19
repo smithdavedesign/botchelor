@@ -14,59 +14,58 @@ the check. A line that fails is dropped, and the admin is told how many.
 
 ## Where it runs (built)
 
-- **Local only.** It works only with `ADULT_MODE=1`, and it is always off on Vercel (`VERCEL` / `VERCEL_ENV`), so the
-  public site has no way in.
-- **Admin only.** It needs a signed, signed-in admin session. An old unsigned `bz_uid` cookie never opens it, and
-  everyone else gets a 404, so the pages don't even reveal that they exist.
-- **Kept apart.** Scenes live in `adult_scenes` and nowhere else: not in episodes, texts, memory, the relationship
-  graph, the feed, search, MCP or the sitemap. A test checks that.
-- **On an open-weight model on the admin's Mac.** It never touches the Gemini or Claude keys or budgets.
-  - Default: Ollama at `http://localhost:11434/v1` running `dolphin-mistral`, an open model that writes adult
-    fiction.
-  - `ADULT_LLM_BASE_URL` / `ADULT_LLM_MODEL` / `ADULT_LLM_API_KEY` point it at another OpenAI-compatible endpoint.
-  - The client asks for JSON, so the model replies `{"lines": [...]}`. `parseSceneLines` also reads the shapes small
-    models fall back to.
+**Two ways in.** Either way it's for a signed, signed-in admin session only. An old unsigned `bz_uid` cookie never
+opens it, and everyone else gets a 404, so the pages don't reveal that they exist.
+- **On the site (M2):** an admin turns it on at `/admin/after-dark/settings` and saves an OpenRouter key.
+  - Text runs on OpenRouter (default `mistralai/mistral-large`, changeable).
+  - Pictures and clips run on fal.ai (`fal-ai/flux/dev`, `fal-ai/wan-i2v` by default) with fal's own safety checker
+    off. Our two lines still apply to every prompt.
+  - Keys are sealed like BYOK keys (`sealSecret` in `lib/keys.ts`) and only their last four are shown again. Set a
+    spend limit with each provider when you create the key.
+- **Locally:** run with `ADULT_MODE=1`. With no OpenRouter key saved, text runs on Ollama on your Mac
+  (`dolphin-mistral`, or `ADULT_LLM_BASE_URL` / `ADULT_LLM_MODEL`). This mode never switches on through the flag on
+  Vercel.
 
-**Run it:**
+**Who's in:**
+- this season's house cast, always;
+- any of the admin's own characters they switch on, and the house characters those characters date;
+- never another person's character (`lib/adult/characters.ts`).
+
+**Kept apart:** `adult_scenes`, `adult_images` (bytes served only by `/api/admin/after-dark/media/[id]`, `private,
+no-store`), `adult_characters`, `adult_settings` and `adult_access_requests`. Nothing is written to episodes, texts,
+memory, the graph, the feed, search or the sitemap. A test checks this.
+
+**MCP:**
+- **The admin's own agents:** send `x-frontier-key` and they get `after_dark_pairs`, `after_dark_scene`,
+  `after_dark_write` and `after_dark_switch`.
+- **Every other agent:** those tools aren't listed, and calling one returns "unknown tool". The only after-dark tool
+  they see is `request_after_dark`. It records the request, notifies every admin and lists it on the settings page.
+  Nothing opens for that agent.
+
+**Run it locally:**
 1. `ollama serve`
 2. `ADULT_MODE=1 npm run dev`
-3. Sign in, claim admin on `/admin` with the admin password, and open `/admin/after-dark`.
+3. Sign in, claim admin on `/admin`, and open `/admin/after-dark`.
 
-## How a scene works (built, M1)
+## How a scene works (built)
 
-1. Pick two of this season's cast (`/admin/after-dark`, all pairs).
-2. The scene picks up from their latest date if they've had one, otherwise from their first meeting.
-3. **Write the next lines** writes 6 lines at a time, alternating, in each character's voice. You can steer it
-   ("they go back to hers"). **Start over** clears the scene.
-4. Scenes have a 400-line cap. A local 7B model answers in about 2–8 seconds on a 16GB Mac.
+1. Pick two of the characters who are in.
+2. The scene picks up from their latest date, or starts as they meet.
+3. **Write the next lines** writes 6 lines at a time in each character's voice. You can steer it, or **Start over**.
+4. Each reply also says whether the scene has turned explicit, and whether a picture was asked for and agreed to.
 
-## Next: images (M2, not built)
+## Pictures and clips (built, on fal.ai)
 
-David's design:
-- **One baseline explicit image per cast member**, made the first time a scene turns sexual, and reused after that.
-- **A new image only when the story asks for it:** one character asks for something specific and the other agrees,
-  in the scene. No images otherwise, so we aren't generating dozens up front.
-- **A private gallery per character**, stored with the scenes and never served publicly, to reuse in later scenes.
+- **One baseline explicit picture per character**, made the first time a scene turns explicit, and reused after that.
+- **A new picture only when the story asks:** one character asks the other for one and the other agrees, in the lines
+  just written.
+- **A gallery per pair.** "Make it move" turns a picture into a clip on fal's queue; the page polls until it's ready.
+- Picture prompts are built from the characters' own sheets. They always say the people are adults, and they go
+  through the two lines before anything is generated.
 
-Needs:
-- **A local image model.** The Mac has none today.
-  - On 16GB, SDXL-class open models with an adult-capable fine-tune run in ComfyUI or Draw Things at about
-    30–90 seconds an image.
-  - Quality goes up a lot on a rented GPU (below).
-- **Image prompts built from the character's `appearance`**, with the same two lines enforced. The prompt always says
-  "adult" and never takes an age under 18. Each image also needs a check before it's saved.
-- **Storage:** a local folder or private bucket, with paths only in an `adult_images` table, never a public URL.
-
-## Quality upgrades (David approved paid options for the proof of concept; he signs up and pays)
-
-| What | Option | Rough cost |
-|---|---|---|
-| Better text | A larger open model (30–70B) on a rented GPU (RunPod, Vast.ai, Modal) behind a private endpoint, via `ADULT_LLM_*` | about $0.50–2 an hour, only while in use |
-| Images | ComfyUI on a rented GPU with an open adult-capable image model | a few cents an image |
-| Video | Open video models are heavy (24GB+ of GPU memory) and slow; a rented A100/H100 by the hour | about $2–4 an hour |
-
-The agents don't sign up for or pay for any of these. For each one, I propose the service and what it buys, and
-David creates the account, sets a spend cap and stores the key in the keychain (`~/ai-stack/bin/secrets add`).
+**What fal can't promise:** the check runs on our prompts, not on fal's output. Nothing in our prompts can ask for
+anyone under 18, and the characters are adults on their sheets. Checking the output image itself would be an extra
+step later.
 
 ## If it ever becomes a paid public season
 
