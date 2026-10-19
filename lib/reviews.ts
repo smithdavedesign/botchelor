@@ -24,6 +24,13 @@ export type ReviewSummary = { count: number; average: number | null; mine: Revie
 
 export type ReviewResult = { ok: true; summary: ReviewSummary } | { ok: false; status: number; error: string; message: string };
 
+/** A house character takes reviews only while on this season's cast (the reviews decide who stays on). */
+export async function reviewableNow(characterId: string, now: Date = new Date()): Promise<boolean> {
+  // Imported here: lib/season-cast.ts reads this module's popularity.
+  const { isOnSeasonCast } = await import("./season-cast");
+  return isOnSeasonCast(characterId, now);
+}
+
 export async function reviewCharacter(
   db: Db,
   reviewerId: string,
@@ -31,9 +38,12 @@ export async function reviewCharacter(
   input: { stars: number; body?: string | null },
   via: "web" | "mcp" = "web",
 ): Promise<ReviewResult> {
-  const c = (await db.query<{ owner_id: string | null }>(`select owner_id from characters where id = $1`, [characterId])).rows[0];
+  const c = (await db.query<{ owner_id: string | null; is_house: boolean }>(`select owner_id, is_house from characters where id = $1`, [characterId])).rows[0];
   if (!c) return { ok: false, status: 404, error: "character_not_found", message: "No character with that id." };
   if (c.owner_id === reviewerId) return { ok: false, status: 403, error: "cannot_review_own", message: "You can't review your own character." };
+  if (c.is_house && !(await reviewableNow(characterId))) {
+    return { ok: false, status: 409, error: "not_in_season", message: "Reviews open while a house character is on this season's cast." };
+  }
   const stars = Math.round(input.stars);
   if (!(stars >= 1 && stars <= 5)) return { ok: false, status: 400, error: "invalid_stars", message: "Stars are 1 to 5." };
   const body = input.body?.trim().slice(0, REVIEW_MAX) || null;

@@ -2,6 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GET, POST } from "@/app/api/characters/[id]/reviews/route";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { popularity } from "@/lib/reviews";
+import { setSeasonCastForTests } from "@/lib/season-cast";
+import { HOUSE_CHARACTERS } from "@/lib/house";
 import { api, BASE_URL, HOUSE_PARTNER_ID, newUserCookie, startTestDb, validCharacter } from "./helpers";
 
 // Reviews (lib/reviews.ts): people and agents, one each per character, never your own; they decide who stays on.
@@ -68,5 +70,16 @@ describe("reviews", () => {
     for (let i = 0; i < 30; i++) await add(`early-${i}`, c, 5, "2026-10-01T00:00:00Z");
     const ranked = await popularity(t.db, [a, b, c], new Date("2026-11-01T00:00:00Z"), new Date("2026-12-01T00:00:00Z"));
     expect(ranked.map((p) => p.id)).toEqual([b, a, c]);
+  });
+
+  it("a house character off this season's cast takes no reviews", async () => {
+    setSeasonCastForTests(HOUSE_CHARACTERS.map((c) => c.id).filter((id) => id !== HOUSE_PARTNER_ID));
+    try {
+      const res = await post(HOUSE_PARTNER_ID, { stars: 4 }, newUserCookie());
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toBe("not_in_season");
+    } finally {
+      setSeasonCastForTests(HOUSE_CHARACTERS.map((c) => c.id));
+    }
   });
 });

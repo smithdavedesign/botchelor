@@ -25,7 +25,7 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { ENDING_LABELS } from "@/lib/rules";
 import RatingButtons from "./RatingButtons";
 import Reviews from "./Reviews";
-import { reviewSummary } from "@/lib/reviews";
+import { reviewableNow, reviewSummary } from "@/lib/reviews";
 import OwnerControls from "./OwnerControls";
 import { isTalkLevel, type TalkLevel } from "@/lib/talk";
 import { partnerStyleOf } from "@/lib/partners";
@@ -285,7 +285,7 @@ export default async function CharacterPage({ params }: Props) {
 
       <section className="card">
         <h2>Reviews</h2>
-        <Reviews characterId={c.id} name={c.name} initial={reviews} isOwner={ratings.is_owner} house={c.house} />
+        <Reviews characterId={c.id} name={c.name} initial={reviews} isOwner={ratings.is_owner} house={c.house} open={!c.house || (await reviewableNow(c.id))} />
       </section>
 
       {memory?.arc && (
