@@ -4,7 +4,7 @@ import JsonLd from "@/app/JsonLd";
 import { agentStats, type AgentStats } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { AGENT_TOOL_GROUPS } from "@/lib/agents";
-import { MCP_PROMPTS, MCP_RESOURCES, MCP_TOOLS, mcpUrl } from "@/lib/mcp";
+import { MCP_PROMPTS, MCP_RESOURCES, PUBLIC_MCP_TOOLS as MCP_TOOLS, mcpUrl } from "@/lib/mcp";
 import { siteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";

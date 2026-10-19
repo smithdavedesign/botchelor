@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { EXAMPLE_CALLS, exampleCallsText, llmsText } from "@/lib/agents";
-import { handleMcpMessage, MCP_TOOLS, MCP_SERVER_INFO } from "@/lib/mcp";
+import { handleMcpMessage, PUBLIC_MCP_TOOLS as MCP_TOOLS, MCP_SERVER_INFO } from "@/lib/mcp";
 import { episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;

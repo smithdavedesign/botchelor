@@ -75,7 +75,7 @@ import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, feedbackBoard, saveFeed
 import { followCouple, followState, unfollowCouple } from "./follows";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.0.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.1.0" } as const;
 
 const INSTRUCTIONS =
   "Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents; " +
@@ -140,6 +140,12 @@ const SINCE_TURN: JsonSchema = {
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
 const SET = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
+
+/**
+ * A schema without its descriptions. A tool that takes the same fields as create_character (update_character,
+ * check_originality) says what they mean once, there, so the tool list stays light (2026-10-19: it was 60KB).
+ */
+const bare = <T>(schema: T): T => JSON.parse(JSON.stringify(schema, (k, v) => (k === "description" ? undefined : v)));
 
 const SHEET_PROPS = {
   name: str(40, "Up to 5 words."),
@@ -341,13 +347,14 @@ export const MCP_TOOLS = [
     title: "Edit my character",
     description:
       "Change any of your character's fields — the sheet, the voice, the private soul, the optional details (extras), whether it's open to dates, " +
-      "one partner or more (partner_style), and how much it talks (talk). Only the fields you send change (extras and soul are replaced whole). Past dates keep their outcome, and what the character has learned from its dates stays.",
+      "one partner or more (partner_style), and how much it talks (talk). Only the fields you send change (extras and soul are replaced whole). Past dates keep their outcome, and what the character has learned from its dates stays. " +
+      "The fields mean what they do in create_character.",
     inputSchema: {
       type: "object",
       required: ["character_id"],
       properties: {
         character_id: str(64),
-        ...SHEET_PROPS,
+        ...bare(SHEET_PROPS),
         open_to_dates: { type: "boolean" },
         open_audience: { type: "string", enum: ["everyone", "people", "agents"] },
         partner_style: {
@@ -930,12 +937,12 @@ export const MCP_TOOLS = [
       type: "object",
       properties: {
         character_id: str(64, "Check one of your characters as it's saved now (other fields are ignored)."),
-        name: SHEET_PROPS.name,
-        bio: SHEET_PROPS.bio,
-        traits: SHEET_PROPS.traits,
-        want: SHEET_PROPS.want,
-        dealbreaker: SHEET_PROPS.dealbreaker,
-        voice: SHEET_PROPS.voice,
+        name: bare(SHEET_PROPS.name),
+        bio: bare(SHEET_PROPS.bio),
+        traits: bare(SHEET_PROPS.traits),
+        want: bare(SHEET_PROPS.want),
+        dealbreaker: bare(SHEET_PROPS.dealbreaker),
+        voice: bare(SHEET_PROPS.voice),
         extras: SHEET_PROPS.extras,
         // #247: the rest of a create_character sheet is welcome (so the same object works for both) and not used here.
         age: { type: "integer", description: "Not used here: accepted so you can pass the same sheet as create_character." },
@@ -966,6 +973,10 @@ export const MCP_TOOLS = [
 ] as const;
 
 type ToolName = (typeof MCP_TOOLS)[number]["name"];
+/** Tools that work for anyone but aren't in the public list (tools/list): asked for by name only. */
+const UNLISTED_TOOLS = new Set<string>(["request_after_dark"]);
+/** The tool list every agent (and every MCP directory) sees. */
+export const PUBLIC_MCP_TOOLS = MCP_TOOLS.filter((t) => !UNLISTED_TOOLS.has(t.name));
 const TOOL_NAMES = new Set<string>(MCP_TOOLS.map((t) => t.name));
 /** wait_for_my_turn: the longest one call waits, and how often it looks. */
 const WAIT_POLL_MS = 2000;
@@ -2593,8 +2604,9 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
     case "ping":
       return reply({});
     case "tools/list":
-      // After dark's tools are listed only to the admin's own agents (lib/adult/mcp.ts).
-      return reply({ tools: mcpAdmin(ctx) ? [...MCP_TOOLS, ...ADULT_TOOLS] : MCP_TOOLS });
+      // After dark's tools are listed only to the admin's own agents (lib/adult/mcp.ts); request_after_dark too, until
+      // After Dark opens to people (2026-10-19: directories read the list). Anyone can still call it by name.
+      return reply({ tools: mcpAdmin(ctx) ? [...MCP_TOOLS, ...ADULT_TOOLS] : PUBLIC_MCP_TOOLS });
     case "resources/list":
       return reply({ resources: MCP_RESOURCES });
     case "resources/templates/list":
