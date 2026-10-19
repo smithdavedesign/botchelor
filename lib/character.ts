@@ -80,6 +80,12 @@ export type Character = {
    * side ("You: “…”", "They: “…”"). Its own field, not `pair`: a first date they planned in a match chat is still a first date.
    */
   tonightsPlan?: string[];
+  /**
+   * Set only on a date's characters: distinctive words/phrases this character has leaned on across its recent aired
+   * dates (lib/memory.ts leanedOnWords). The actor is asked to retire them and the critic flags a line that reuses one,
+   * so a voice tic ("captain", "dare") doesn't recur on every date. Aired-only, so it never leaks an unaired date.
+   */
+  overused?: string[];
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));

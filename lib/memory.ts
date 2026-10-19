@@ -231,6 +231,45 @@ export async function loadCharacterMemory(db: Db, characterId: string): Promise<
   };
 }
 
+/**
+ * The distinctive words and two-word phrases a character has leaned on across its recent aired dates (David / botchelor-4a,
+ * 2026-10-18: ten Chud × Sable dates each read "captain", eight said "dare"). The within-date critic (lib/quality.ts)
+ * can't see across dates; this does, from the character's own lines on its last few aired dates. Returned as a small set
+ * so the actor can be told to retire them and the critic can flag a line that reaches for one again. Aired/public only,
+ * like all memory, so it never leaks an unaired date.
+ */
+export async function leanedOnWords(db: Db, characterId: string, dates = 6): Promise<string[]> {
+  const { rows } = await db.query<{ transcript: Turn[] | null; is_a: boolean }>(
+    `select e.transcript, (e.character_a = $1) as is_a
+       from episodes e
+      where ${MEMORY_EPISODES_WHERE} and e.transcript is not null
+      order by e.revealed_at desc
+      limit $2`,
+    [characterId, dates],
+  );
+  if (rows.length < 2) return []; // nothing to compare across dates yet
+  const distinctive = (text: string) => contentWords(text, 4).filter((w) => !EVERYDAY_WORDS.has(w));
+  // One date → the distinctive words and 2-grams this character used on it (as a set, so a word said ten times in one
+  // date counts once: we want what recurs ACROSS dates, which the within-date critic already handles for one date).
+  const perDate = rows.map((r) => {
+    const side = r.is_a ? "a" : "b";
+    const words = (r.transcript ?? []).filter((t) => t.side === side).flatMap((t) => distinctive(t.dialogue));
+    const set = new Set<string>(words);
+    for (let i = 0; i + 2 <= words.length; i++) set.add(words.slice(i, i + 2).join(" "));
+    return set;
+  });
+  const across = new Map<string, number>();
+  for (const set of perDate) for (const term of set) across.set(term, (across.get(term) ?? 0) + 1);
+  // Kept: used on at least two of its recent dates. Two-word phrases first (they're the real tics), then the most
+  // repeated; drop a single word already covered by a kept phrase ("captain" when "captain again" is kept).
+  const kept = [...across.entries()]
+    .filter(([, n]) => n >= 2)
+    .sort((x, y) => Number(y[0].includes(" ")) - Number(x[0].includes(" ")) || y[1] - x[1])
+    .map(([term]) => term)
+    .filter((term, i, all) => !all.slice(0, i).some((k) => k.includes(" ") && k.split(" ").includes(term)));
+  return kept.slice(0, 8);
+}
+
 /** One aired date as memory reads it, from the character's side (`is_a`). Exported for the continuity eval. */
 export type MemoryEpisode = {
   id: string;

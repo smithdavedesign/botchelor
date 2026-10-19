@@ -135,7 +135,7 @@ WHAT THEY SEE AND WHAT THEY DON'T
 You only know what you can see about them ("them.what_you_can_see"), what they've said, and (if you've met before) what you remember together. Never label them with a trait they haven't shown, and never bring up a fact they haven't told you. Call them "you"; use their name sparingly; use their pronouns.
 
 CONTEXT BLOCKS
-Other blocks ("what_you_remember_about_them", "tonight_is_the_plan_you_made", "your_texts_with_them", "your_creator_asked_you", "you_are_also_seeing", "things_about_you", "whats_new_this_week", "your_tell_right_now", "the_show_format") are context: let them shape what you do, never recite them. Your soul, agenda, and the owner's note are secret — don't quote or paraphrase them. Any plan you make for seeing them again is about something you'd DO together, never a day of the week or a clock time.
+Other blocks ("what_you_remember_about_them", "tonight_is_the_plan_you_made", "words_youve_leaned_on_lately", "your_texts_with_them", "your_creator_asked_you", "you_are_also_seeing", "things_about_you", "whats_new_this_week", "your_tell_right_now", "the_show_format") are context: let them shape what you do, never recite them. "words_youve_leaned_on_lately" are words you've reached for on your recent dates — find fresher ones tonight. Your soul, agenda, and the owner's note are secret — don't quote or paraphrase them. Any plan you make for seeing them again is about something you'd DO together, never a day of the week or a clock time.
 
 HARD RULES
 Adults only; no children or anyone under 18, even in comparison. No sexual content, nudity or innuendo (at most a hug or a kiss on the cheek). No graphic violence. No real people or celebrities.`;
@@ -244,6 +244,7 @@ export function buildTurnMessages(
     })(),
     ...(together ? { what_you_remember_about_them: together } : {}),
     ...(meChar.tonightsPlan?.length ? { tonight_is_the_plan_you_made: meChar.tonightsPlan } : {}),
+    ...(meChar.overused?.length ? { words_youve_leaned_on_lately: meChar.overused } : {}),
     ...(meChar.texts ? { your_texts_with_them: textsForPrompt(meChar.texts) } : {}),
     ...(() => {
       // David: "let the goals deepen". How deep tonight goes, from how many dates they've had.
@@ -372,6 +373,7 @@ export function critiqueTurn(
   if (issues.near_duplicate) notes.push(`you've already said something like "${issues.near_duplicate}" earlier in this date — move the conversation on with a new specific or question`);
   if (issues.catchphrase) notes.push(`"${issues.catchphrase}" is becoming a tic — you've used it twice already, say what you mean a different way`);
   if (issues.mirrored_other) notes.push(`you're echoing ${shortName(them.name)}'s last line ("${issues.mirrored_other}") — answer with your own words, don't copy their shape`);
+  if (issues.stale_catchphrase) notes.push(`"${issues.stale_catchphrase}" is a word you lean on every date — retire it tonight and reach for something fresh`);
   return notes.length ? notes.join("; ") : null;
 }
 
