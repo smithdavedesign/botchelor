@@ -65,6 +65,22 @@ async function hive(key: string, endpoint: string, payload: unknown): Promise<un
   return res.json();
 }
 
+/** A set (an empty place, lib/sets.ts) is refused at this NSFW score or above, or with a child present. */
+export const SET_NSFW_SCORE = 0.3;
+
+/** Checks a drawn set: moderation only (there's nobody in it to age-check). Never throws: any failure is a refusal. */
+export async function checkSet(key: string | null, url: string): Promise<CheckResult> {
+  if (!key) return { ok: false, reason: "the output check isn't set up (no Hive key)" };
+  try {
+    const scores = classScores(await hive(key, HIVE_MODERATION, { input: [{ media_url: url }], processing_mode: "sync_with_fallback" }));
+    if (!scores.some((s) => s.cls === "no_child_present" || s.cls === "yes_child_present")) return { ok: false, reason: "moderation reply had no child scores" };
+    const bad = scores.find((s) => (MODERATION_CHILD.includes(s.cls) && s.score >= CHILD_SCORE) || (s.cls === "general_nsfw" && s.score >= SET_NSFW_SCORE));
+    return bad ? { ok: false, reason: `moderation: ${bad.cls} ${bad.score.toFixed(2)}` } : { ok: true };
+  } catch (err) {
+    return { ok: false, reason: `the check couldn't run (${err instanceof Error ? err.message : "error"})` };
+  }
+}
+
 /** A file to check: fal's URL, or the bytes themselves (Venice returns them, with no URL). */
 export type Checkable = string | { base64: string; mime: string };
 

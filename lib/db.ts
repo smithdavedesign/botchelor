@@ -953,6 +953,18 @@ create table if not exists scene_requests (
   primary key (episode_id, normalized)
 );
 create index if not exists scene_requests_normalized_idx on scene_requests (normalized);
+-- Drawn sets for places of their own (lib/sets.ts): one per place, drawn once on fal and screened by Hive.
+create table if not exists place_sets (
+  normalized text primary key,
+  label text not null,
+  status text not null check (status in ('drawing', 'ready', 'refused', 'failed')),
+  reason text,
+  mime text,
+  data bytea,
+  model text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
 -- After dark (lib/adult, admin only, local only): the adult season's private scenes, between two of this season's house
 -- characters. Kept out of every other table, so nothing explicit can reach the feed, the cast, the swipe deck, texts,
