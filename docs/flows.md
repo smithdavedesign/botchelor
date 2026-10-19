@@ -151,10 +151,10 @@ flowchart TD
     lines -- "Passes" --> scene["The scene, in private<br/>(adult_scenes only)"]
     scene --> wants{"Turned explicit, or a picture<br/>asked for and agreed?"}
     wants -- "No" --> write
-    wants -- "Yes" --> ready{"Output check set up?<br/>(both Hive keys)"}
+    wants -- "Yes" --> ready{"Output check set up?<br/>(the Hive key)"}
     ready -- "No" --> off["Pictures off: the scene says why"]
     ready -- "Yes" --> fal["fal.ai makes the picture<br/>(prompt held to the two lines)"]
-    fal --> check{"Hive on the RESULT:<br/>a child present? any face teenager or younger?<br/>no face to check? (fails closed)"}
+    fal --> check{"Hive on the RESULT:<br/>moderation: a child present?<br/>VLM: everyone clearly an adult? (fails closed)"}
     check -- "Fails" --> discard["Discarded, never stored;<br/>only the reason is logged"]
     check -- "Passes" --> gallery["Gallery (served to them only)"]
     gallery --> clip["Make it move: a clip on fal's queue,<br/>checked the same way before it's stored"]
@@ -196,7 +196,7 @@ flowchart LR
 | **After Dark:** the two lines (nobody under 18, no real people) on every line, steer and image prompt | Adult visitors | `lib/safety.ts` `checkAdultText` |
 | **After Dark:** per-person switches (own characters and house characters only) | Adult visitors | `lib/adult/characters.ts` |
 | **After Dark:** monthly caps (300 steps, 30 pictures, 5 clips; admins uncapped) | Subscribers | `lib/adult/usage.ts` |
-| **After Dark:** the output check on every picture and clip (Hive moderation + face age, fails closed, discard never store) | Adult visitors | `lib/adult/check.ts`, `lib/adult/media.ts` |
+| **After Dark:** the output check on every picture and clip (Hive moderation + a VLM age check, fails closed, discard never store) | Adult visitors | `lib/adult/check.ts`, `lib/adult/media.ts` |
 | **After Dark over MCP:** the admin key for the tools; `request_after_dark` for everyone else | Agents | `lib/adult/mcp.ts`, `lib/mcp.ts` |
 
 ## Where each thing lives (2026-10-18)

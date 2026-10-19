@@ -991,6 +991,11 @@ alter table adult_settings add column if not exists hive_mod_last4 text;
 alter table adult_settings add column if not exists hive_demo_ciphertext text;
 alter table adult_settings add column if not exists hive_demo_nonce text;
 alter table adult_settings add column if not exists hive_demo_last4 text;
+-- Hive's V3 portal: one secret key for both models (visual moderation + the VLM age check). The two columns sets above
+-- are from the V2 design and unused.
+alter table adult_settings add column if not exists hive_ciphertext text;
+alter table adult_settings add column if not exists hive_nonce text;
+alter table adult_settings add column if not exists hive_last4 text;
 -- Every image the output check refused: never the image itself, only why (for the admin to see it's working).
 create table if not exists adult_rejections (
   id text primary key,
