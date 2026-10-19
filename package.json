@@ -15,6 +15,7 @@
     "sim:relationships": "node scripts/sim-relationships.mjs",
     "sim:visitors": "zsh scripts/loop/run-now.sh",
     "screenshots": "node scripts/screenshots.mjs",
+    "screenshots:moves": "node scripts/move-screenshots.mjs",
     "portraits": "node scripts/portraits.mjs",
     "payment:live": "node scripts/payment-live.mjs",
     "typecheck": "tsc --noEmit"
