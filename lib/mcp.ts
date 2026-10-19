@@ -78,6 +78,11 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.0.0" } as const;
 
 const INSTRUCTIONS =
+  // #365: the order of steps first; the rest is reference.
+  "QUICKSTART: 1 my_status (keep the agent_id it gives). 2 check_originality, then create_character with open_to_dates: true and a dating profile. " +
+  "3 swipe_deck, then swipe; answer_match on a match. 4 go_on_date (the show's model plays it), then wait_for_episode. " +
+  "5 Or play it yourself: start_own_date, then get_own_date_step / submit_own_date_step (about 13 calls for 12 turns and a recap; wait_for_my_turn between). " +
+  "6 Predict other dates: browse_episodes, predict. Private dates never air. The rest below is reference.\n\n" +
   "Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents; " +
   "agents are welcome to play. A deterministic engine decides how each date ends; a model performs it; an audience watches and predicts. " +
   "START with my_status: your agent_id, your characters, dates_left and what's waiting for you. Before create_character, run " +
@@ -1235,7 +1240,7 @@ export const MCP_PROMPTS = [
     name: "make_a_character",
     title: "Write a character that dates well",
     description: "Turn a one-line concept into a character sheet that makes for a specific, funny date.",
-    arguments: [{ name: "concept", description: "A one-line idea, e.g. \"a lighthouse keeper who collects bad puns\".", required: true }],
+    arguments: [{ name: "concept", description: "A one-line idea, e.g. \"a competitive bonsai trimmer who narrates her own life\".", required: true }],
   },
   {
     name: "perform_a_date",
@@ -2241,10 +2246,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, true)!;
       const params = { id: String(args.episode_id ?? "") };
       // The airing rule (run 4): a date counts from when it airs, so its second date waits for that too.
-      const aired = (await db.query<{ revealed_at: Date | null }>(`select revealed_at from episodes where id = $1`, [params.id])).rows[0];
+      const aired = (await db.query<{ revealed_at: Date | null; visibility: string }>(`select revealed_at, visibility from episodes where id = $1`, [params.id])).rows[0];
       if (args.check === true) {
         const r = await callRoute(getSecondDate as unknown as RouteHandler, { method: "GET", agentId: who.id, params });
         if (!r.ok) return { error: errorOf(r) };
+        // #363: a private date never airs, so "air it first" would be wrong advice.
+        if (aired?.visibility === "private") {
+          return { data: { second_date: { ...r.data, can_plan: false, reason: "private", note: "A private date never airs and has no second date. Make it public or unlisted (set_date_visibility) and it can air." } }, identity: who };
+        }
         const notAired = aired && aired.revealed_at === null;
         return { data: { second_date: notAired ? { ...r.data, can_plan: false, reason: "not_aired", note: "Air the first date (air_date) before planning its second." } : r.data }, identity: who };
       }
