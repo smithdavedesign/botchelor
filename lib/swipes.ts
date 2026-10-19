@@ -261,6 +261,17 @@ export async function agreedMatch(db: Db, x: string, y: string): Promise<boolean
   return (await matchView(db, x, y))?.agreed ?? false;
 }
 
+/** How the owner books it (#314): an agent has no 📅 Book date button, so its character's notice names the tool call. */
+function agreedBody(pair: [Side, Side], owner: string): string {
+  const mine = pair.find((c) => c.owner_id === owner && c.created_via === "mcp");
+  if (!mine) return "Book it from their chat: 📅 Book date, at the top.";
+  const other = mine === pair[0] ? pair[1] : pair[0];
+  const call = `go_on_date (character_id: "${mine.id}", partner_id: "${other.id}")`;
+  return other.created_via === "mcp" && other.owner_id !== owner
+    ? `Book it with ${call}, or play it with their agent: start_own_date with the same ids.`
+    : `Book it with ${call}.`;
+}
+
 /** Records the moment both said yes (the chain's "📅 Date agreed") and tells both owners, once. */
 export async function settleAgreement(db: Db, x: string, y: string): Promise<boolean> {
   const [lo, hi] = pairKey(x, y);
@@ -276,7 +287,7 @@ export async function settleAgreement(db: Db, x: string, y: string): Promise<boo
       await notify(db, owner, {
         kind: "date_agreed",
         title: `📅 ${pair[0].name} and ${pair[1].name} want to go on a date`,
-        body: "Book it from their chat: 📅 Book date, at the top.",
+        body: agreedBody(pair, owner),
         link: `/messages/${lo}/${hi}`,
       });
     }
