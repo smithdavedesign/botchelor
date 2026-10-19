@@ -50,7 +50,7 @@ The aim is a good tile on the first try, with nothing redrawn.
 
 **Screening:** Hive screens every tile before it's kept (`lib/adult/check.ts`):
 
-- *Show tiles:* the child classifier, the VLM age check ("ADULTS"), and the NSFW score below 0.3.
+- *Show tiles:* the child classifier and the VLM age check ("ADULTS"). fal's own safety checker refuses anything explicit, so Hive isn't asked twice: self-serve Hive has a small daily quota (it 429'd for the rest of the day after the first draw), shared with the site's sets and After Dark.
 - *After Dark tiles:* the child classifier and the VLM age check.
 
 A refused tile is stored as `refused` with its reason, never its picture, and is never redrawn. If a tile isn't drawn, the builder shows its label instead (as it does locally and in tests).

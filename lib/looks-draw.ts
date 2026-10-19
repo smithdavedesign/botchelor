@@ -10,7 +10,7 @@
  * screened again on the next run, so it's never paid for twice. The admin draws them a batch at a time (POST /api/admin/looks).
  */
 import { recordAsset, reviewAsset } from "./assets";
-import { checkOutput, checkSet } from "./adult/check";
+import { checkOutput } from "./adult/check";
 import { canAfterDark } from "./adult/entitlement";
 import { NEGATIVE_PROMPT, VENICE_IMAGE } from "./adult/media";
 import { adultKeys, getAdultSettings } from "./adult/settings";
@@ -50,11 +50,15 @@ type Drawn = Picture | Unchecked | { refused: string } | { failed: string };
 const UNCHECKED = /^(the check couldn't run|moderation reply had no child scores)/;
 const UNCHECKED_PREFIX = "unchecked: ";
 
-/** Screens a show picture: an adult, and nothing explicit. */
+/**
+ * Screens a show picture: everyone an adult (Hive's child classifier and its age check). Nothing explicit is fal's own
+ * safety checker's job (on for every show picture; drawPg refuses what it flags), so Hive isn't asked twice: self-serve
+ * Hive has a small daily quota, and the site's sets and After Dark pictures share it.
+ */
 async function screenPg(hive: string | null, url: string): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
-  const [adult, clean] = await Promise.all([checkOutput(hive, url, "image"), checkSet(hive, url)]);
-  for (const v of [adult, clean]) if (!v.ok) return UNCHECKED.test(v.reason) ? { unchecked: v.reason } : { refused: v.reason };
-  return { ok: true };
+  const v = await checkOutput(hive, url, "image");
+  if (v.ok) return { ok: true };
+  return UNCHECKED.test(v.reason) ? { unchecked: v.reason } : { refused: v.reason };
 }
 
 /** Screens an After Dark picture: everyone shown an adult. */

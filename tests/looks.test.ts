@@ -175,6 +175,22 @@ describe("drawing the tiles", () => {
     expect(await drawMissingTiles(t.db, { only: ["pg-man-eyes-blue", "pg-man-eyes-grey"] })).toEqual([{ id: "pg-man-eyes-blue", status: "ready" }]);
   });
 
+  it("asks Hive once per show picture (fal's checker covers explicit), and refuses what fal flags without asking at all", async () => {
+    await keys();
+    let hiveCalls = 0;
+    setCheckFetchForTests(async (input: RequestInfo | URL) => {
+      hiveCalls++;
+      return String(input) === HIVE_MODERATION ? Response.json(CLEAN) : Response.json(ADULTS);
+    });
+    fakeProviders();
+    expect(await drawTile(t.db, tileSpecs().find((s) => s.id === "pg-woman-eyes-brown")!)).toBe("ready");
+    expect(hiveCalls).toBe(2); // moderation + the age check, once each
+    setLooksFetchForTests(async (input: RequestInfo | URL) =>
+      String(input).startsWith("https://fal.run/") ? Response.json({ images: [{ url: "https://cdn.fal.test/x.jpg" }], has_nsfw_concepts: [true] }) : new Response(JPEG));
+    expect(await drawTile(t.db, tileSpecs().find((s) => s.id === "pg-woman-outfit-swim")!)).toBe("refused");
+    expect(hiveCalls).toBe(2);
+  });
+
   it("draws nothing without keys", async () => {
     const calls = fakeProviders();
     expect(await drawTile(t.db, tileSpecs()[0])).toBe("failed");
