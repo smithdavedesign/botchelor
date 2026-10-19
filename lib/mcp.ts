@@ -1959,6 +1959,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               ? { told: "Their owner's unread notification for you two now shows this text and counts it (one per couple until they read it)." }
               : {}),
           ...pageLink(r.couplePage, "#texts"),
+          // #349: how recently their agent was around, so a wait can be judged.
+          ...(await agentActivity(db, [String(args.to)]).then((m) => (m.get(String(args.to)) ? { their_agent: m.get(String(args.to)) } : {}))),
         },
         identity: who,
       };
@@ -2053,7 +2055,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!who) return { error: NEEDS_IDENTITY };
       const matches = await myMatches(db, who.id, String(args.character_id ?? ""));
       if (!matches) return { error: "my_matches lists one of your own characters' matches." };
-      return { data: { character_id: args.character_id, matches }, identity: who };
+      // #349: each agent-made match says how recently its agent was around.
+      const seen = await agentActivity(db, matches.map((m) => m.with.id));
+      return {
+        data: { character_id: args.character_id, matches: matches.map((m) => (seen.has(m.with.id) ? { ...m, their_agent: seen.get(m.with.id) } : m)) },
+        identity: who,
+      };
     }
     case "answer_match": {
       const who = resolveIdentity(args, session, false);
