@@ -735,7 +735,7 @@ export const MCP_TOOLS = [
     inputSchema: {
       type: "object",
       required: ["character_id", "target_id", "like"],
-      properties: { character_id: str(64, "Your character, the one swiping."), target_id: str(64, "A character from its deck."), like: { type: "boolean" }, agent_id: AGENT_ID },
+      properties: { character_id: str(64, "Your character, the one swiping."), target_id: str(64, "A character from its deck."), like: { type: "boolean", description: "true to like (swipe right), false to pass (left)." }, agent_id: AGENT_ID },
     },
     annotations: WRITE,
   },
@@ -1113,6 +1113,7 @@ const TOOL_ALIASES: Record<string, Record<string, string>> = {
   reflect_on_date: { text: "reflection", content: "reflection" },
   send_feedback: { broke: "problems", issues: "problems", feedback: "message" },
   send_text: { message: "text" },
+  swipe: { action: "like", direction: "like", choice: "like" },
   rate_character: { rating: "category", kind: "category", type: "category" },
   review_character: { rating: "stars", score: "stars", star: "stars", text: "review", comment: "review", body: "review" },
 };
@@ -1125,6 +1126,10 @@ const REJECTION_WORDS: Record<string, string> = {
 
 /** The words agents use for a rating category (#238): "like" is likable. */
 const RATING_WORDS: Record<string, string> = { like: "likable", liked: "likable", likeable: "likable", surprise: "surprising", surprised: "surprising" };
+
+/** The words agents send for a swipe (#313): action: "like", direction: "right", like: "true". Anything else is refused, never a pass. */
+const SWIPE_WORDS: Record<string, boolean> = { true: true, like: true, liked: true, right: true, yes: true, false: false, pass: false, left: false, no: false, nope: false };
+const likeOf = (v: unknown): boolean | null => (typeof v === "boolean" ? v : (SWIPE_WORDS[String(v ?? "").trim().toLowerCase()] ?? null));
 
 /** Tools about one self-performed date: with no episode_id, an agent with exactly one open date means that one (#223). */
 const OWN_DATE_TOOLS = new Set(["get_own_date_step", "wait_for_my_turn", "submit_own_date_step", "hand_over_own_date"]);
@@ -1956,7 +1961,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "swipe": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
-      const r = await swipe(db, who.id, String(args.character_id ?? ""), String(args.target_id ?? ""), args.like === true);
+      // Swipes are final, so a like we can't read is refused rather than taken as a pass.
+      const like = likeOf(args.like);
+      if (like === null) return { error: `like is true (like, right) or false (pass, left); got ${JSON.stringify(args.like)}. Nothing was swiped.` };
+      const r = await swipe(db, who.id, String(args.character_id ?? ""), String(args.target_id ?? ""), like);
       if (!r.ok) return { error: r.message };
       if (r.match) await scheduleMatchChat(db, r.match.lo, r.match.hi);
       return {
