@@ -250,3 +250,18 @@ describe("the model call", () => {
     expect(seen?.maxTokens).toBe(1200);
   });
 });
+
+describe("settings over MCP", () => {
+  it("an admin's agent reads and changes the models, never the keys", async () => {
+    const key = crypto.randomUUID();
+    vi.stubEnv("FRONTIER_PASSWORD", key);
+    const run = async (args: Record<string, unknown>) =>
+      ((await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "after_dark_settings", arguments: args } }, { adminKey: key }))!.result as {
+        structuredContent: { settings: Record<string, unknown> };
+      }).structuredContent.settings;
+    expect((await run({ text_model: "sao10k/l3.3-euryale-70b" })).text_model).toBe("sao10k/l3.3-euryale-70b");
+    expect(JSON.stringify(await run({}))).not.toMatch(/ciphertext|nonce/);
+    const stranger = await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "after_dark_settings", arguments: {} } }, {});
+    expect((stranger!.error as { message?: string } | undefined)?.message).toMatch(/unknown tool/);
+  });
+});
