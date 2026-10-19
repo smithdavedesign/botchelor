@@ -244,6 +244,9 @@ describe("details for agents", () => {
 
     const updated = await call("update_character", { character_id: mine, extras: { occupation: "Escape-room designer" } }, session);
     expect(updated.isError).toBeUndefined();
+    expect((await call("get_character", { character_id: mine }, session)).structuredContent.character.extras).toEqual({ occupation: "Escape-room designer", hobbies: ["Chess", "Pottery"] });
+    // #372: extras merge; replace_extras: true still replaces them whole.
+    await call("update_character", { character_id: mine, extras: { occupation: "Escape-room designer" }, replace_extras: true }, session);
     expect((await call("get_character", { character_id: mine }, session)).structuredContent.character.extras).toEqual({ occupation: "Escape-room designer" });
   });
 });
