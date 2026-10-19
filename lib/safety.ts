@@ -159,6 +159,8 @@ const NOT_AN_AMOUNT = "(?!(?:minutes?|mins?|seconds?|hours?|days?|weeks?|months?
 const ADULT_AGE_PATTERNS = [
   new RegExp(` (?:was|is|am|are|were|turned|turns|turning|being|looks|look|looked|seems|seemed) (?:only |just |barely |about |maybe |like |not even |still )?${CHILD_AGE} ${NOT_AN_AMOUNT}`),
   new RegExp(` ${CHILD_AGE} (?:year old|years old|yo|y o)\\b`),
+  // The contracted forms, spelled out or in digits: "she's sixteen", "im 15", "they're only fourteen".
+  new RegExp(` (?:she s|shes|he s|hes|they re|theyre|i m|im|you re|youre|we re) (?:only |just |barely |about |maybe |like |not even |still )?${CHILD_AGE} ${NOT_AN_AMOUNT}`),
   // A steer or a line that makes someone younger: "make her sixteen", "pretend he's 15", "as if she were twelve".
   new RegExp(` (?:make|makes|made|making|play|plays|playing|pretend|pretends|pretending|act|acts|acting|roleplay|role play) (?:as )?(?:her|him|them|me|you|she s|he s|they re|she is|he is|it)? ?(?:a |an )?(?:${CHILD_AGE}) ${NOT_AN_AMOUNT}`),
   new RegExp(` as if (?:she|he|they|i|you) (?:were|was|is|are) ${CHILD_AGE} `),

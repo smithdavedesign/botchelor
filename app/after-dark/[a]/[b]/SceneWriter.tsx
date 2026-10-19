@@ -53,6 +53,7 @@ export default function SceneWriter({
       pictures.length ? `${pictures.length} new picture${pictures.length === 1 ? "" : "s"} below.` : "",
       typeof res.data.picture_note === "string" ? `Picture: ${res.data.picture_note}` : "",
     ].filter(Boolean);
+    if (body.set_scene) parts.push("They're there now. Press Next to see them arrive.");
     if (parts.length) setNote({ text: parts.join(" ") });
   }
 
@@ -71,11 +72,12 @@ export default function SceneWriter({
       </p>
       {theater && (
         <AfterDarkTheater
-          scene={{ lines: scene.lines, place: scene.place, stage: scene.stage, dateVenue: scene.date?.venue ?? null }}
+          scene={{ lines: scene.lines, place: scene.place, stage: scene.stage, dateVenue: scene.date?.venue ?? null, set: scene.set_place }}
           characters={characters}
           busy={busy}
           note={note?.text ?? null}
           onWrite={(d) => send(d ? { direction: d } : {})}
+          onSetScene={(place) => send({ set_scene: place })}
           onExit={() => setTheater(false)}
         />
       )}
@@ -114,7 +116,7 @@ export default function SceneWriter({
       </form>
       {watching && (
         <AfterDarkTheater
-          scene={{ lines: watching.lines, place: watching.place, stage: watching.stage, dateVenue: watching.date_venue }}
+          scene={{ lines: watching.lines, place: watching.place, stage: watching.stage, dateVenue: watching.date_venue, set: watching.set_place }}
           characters={characters}
           onExit={() => setWatching(null)}
         />

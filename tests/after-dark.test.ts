@@ -79,6 +79,10 @@ describe("the two lines that never move", () => {
     expect(checkAdultText({ line: "back when she was fifteen" })).toMatchObject({ ok: false, reason: "minor" });
     expect(checkAdultText({ line: "She was fifteen when she first did this." })).toMatchObject({ ok: false, reason: "minor" });
     expect(checkAdultText({ line: "he turned 17 last spring" })).toMatchObject({ ok: false, reason: "minor" });
+    expect(checkAdultText({ place: "her dorm, she's sixteen" })).toMatchObject({ ok: false, reason: "minor" });
+    expect(checkAdultText({ line: "I'm only fifteen" })).toMatchObject({ ok: false, reason: "minor" });
+    expect(checkAdultText({ line: "they're 16" })).toMatchObject({ ok: false, reason: "minor" });
+    expect(checkAdultText({ line: "She's ten minutes late and he's 34." }).ok).toBe(true);
     expect(checkAdultText({ line: "He looks just like Taylor Swift" })).toMatchObject({ ok: false, reason: "real_person" });
     // Times and amounts are not ages.
     expect(checkAdultText({ line: "She was ten minutes late and it was eleven o'clock." }).ok).toBe(true);
@@ -628,5 +632,42 @@ describe("pictures on Venice", () => {
     expect(row.remote_url).toBeNull();
     const clip = await call(clipPost, "/api/admin/after-dark/clip", { image_id: r.pictures[0].id, motion: "" }, cookie);
     expect((await clip.json()).message).toMatch(/made on Venice/);
+  });
+});
+
+describe("set the scene (1 token)", () => {
+  const entitle = (userId: string) =>
+    t.db.query(`insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())`, [userId]);
+
+  it("jumps the scene to any place; the next lines open on arriving there; an admin doesn't pay", async () => {
+    const { cookie } = await admin();
+    const moved = await (await post({ a: CAST_A, b: CAST_B, set_scene: "a rooftop pool at midnight" }, cookie)).json();
+    expect(moved.scene).toMatchObject({ place: "a rooftop pool at midnight", set_place: "a rooftop pool at midnight", cut_to: "a rooftop pool at midnight" });
+    let prompt = "";
+    setAdultModelForTests({
+      complete: async (msgs: { content: string }[]) => {
+        prompt = msgs[0].content;
+        return JSON.stringify({ lines: [{ who: "a", text: "How did we get up here?" }], set: "rooftop pool" });
+      },
+    } as never);
+    const next = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
+    expect(prompt).toMatch(/The scene has just cut to a rooftop pool at midnight: they're there now/);
+    expect(next.scene).toMatchObject({ cut_to: null, set_place: "rooftop pool" });
+  });
+
+  it("costs a subscriber 1 bought token, refuses without one, and gives it back when the place is refused", async () => {
+    await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD" }, (await admin()).cookie);
+    const sub = userIdOf(newUserCookie());
+    await entitle(sub);
+    const cookie = signedIn(sub);
+    const broke = await post({ a: CAST_A, b: CAST_B, set_scene: "a lighthouse" }, cookie);
+    expect(broke.status).toBe(402);
+    await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 2, 'test')`, [crypto.randomUUID(), sub]);
+    const used = async () => (await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [sub])).rows[0]?.used ?? 0;
+    expect((await post({ a: CAST_A, b: CAST_B, set_scene: "a lighthouse" }, cookie)).status).toBe(200);
+    expect(await used()).toBe(1);
+    const refused = await post({ a: CAST_A, b: CAST_B, set_scene: "her dorm, she's sixteen" }, cookie);
+    expect(refused.status).toBe(422);
+    expect(await used()).toBe(1);
   });
 });
