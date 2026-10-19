@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { ExtrasInput, extrasFields, normaliseExtras } from "@/lib/extras";
+import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { checkFields, type RejectReason } from "@/lib/safety";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput } from "@/lib/souls";
@@ -74,7 +75,8 @@ const REJECTION_MESSAGES: Record<RejectReason, string> = {
 export const POST = handle(async (req) => {
   const sess = session(req);
   const input = parseBody(CharacterInput, await readJson(req), "invalid_character");
-  const extras = normaliseExtras(input.extras);
+  const db = await getDb();
+  const extras = await gateAfterDarkLooks(db, sess, normaliseExtras(input.extras));
 
   const verdict = checkFields({
     name: input.name,
@@ -99,7 +101,6 @@ export const POST = handle(async (req) => {
   const soul = input.soul ? normaliseSoul(input.soul) : null;
   if (soul && !isEmptySoul(soul)) assertSafeSoul(soul);
 
-  const db = await getDb();
   const id = crypto.randomUUID();
   const hue = input.avatar_hue && input.avatar_hue > 0 ? input.avatar_hue : null;
   await db.query(

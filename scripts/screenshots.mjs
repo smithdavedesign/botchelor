@@ -568,6 +568,12 @@ async function capture(base, leagueId, viewer) {
       await home.getByRole("button", { name: "Next: Look" }).click();
       // Step 3 — Look.
       await home.getByText("Give them a look").waitFor();
+      // The looks builder, a tile at a time; the free-text look sits under it, folded.
+      await home.getByRole("button", { name: "Woman", exact: true }).click();
+      await home.getByRole("button", { name: "Realistic" }).click();
+      await home.getByText("Choose an ethnicity").waitFor();
+      await shot(home, "builder-looks");
+      await home.locator(".looks-more").evaluate((d) => (d.open = true));
       await home.locator('input[name="extra_style"]').fill("Sharp blazer, sneakers, zero regrets");
       await home.getByRole("button", { name: "Next: Dating profile" }).click();
       // Step 4 — the optional details (occupation, hobbies, quirks, profile prompts).

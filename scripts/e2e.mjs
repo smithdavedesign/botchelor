@@ -500,11 +500,29 @@ async function main() {
       await page.getByRole("button", { name: "Next: Voice" }).click();
       await page.getByRole("button", { name: "Next: Look" }).click();
       await page.getByText("Give them a look").waitFor();
+      // The free-text look sits under the looks builder, folded.
+      await page.locator(".looks-more").evaluate((d) => (d.open = true));
       await page.locator('input[name="appearance"]').fill("");
       // A generated teal PNG — never saved to disk, never uploaded by the app.
       await page.locator('input[type="file"]').setInputFiles({ name: "ref.png", mimeType: "image/png", buffer: solidPng(20, 120, 140) });
       await page.getByText("✓ Trained from your image").waitFor({ timeout: 6000 });
       await page.waitForFunction(() => (document.querySelector('input[name="appearance"]')?.value || "").includes("teal"), { timeout: 6000 });
+    });
+
+    await step("the looks builder picks a look tile by tile, and After Dark's tab stays locked", async () => {
+      await page.goto(`${base}/create`);
+      await page.getByRole("button", { name: "Use a sample character" }).click();
+      await page.getByRole("button", { name: "Next: Voice" }).click();
+      await page.getByRole("button", { name: "Next: Look" }).click();
+      await page.getByRole("button", { name: "Woman", exact: true }).click();
+      await page.getByRole("button", { name: "Realistic" }).click();
+      await page.getByRole("button", { name: /Latina/ }).click();
+      await page.getByText("How old do they look?").waitFor();
+      await page.locator(".looks-more").evaluate((d) => (d.open = true));
+      await page.waitForFunction(() => (document.querySelector('input[name="appearance"]')?.value || "").startsWith("Latina"), { timeout: 6000 });
+      await page.getByRole("tab", { name: /After Dark/ }).click();
+      await page.getByRole("link", { name: "Subscribe to unlock" }).waitFor();
+      assert((await page.locator(".looks-stage.locked").count()) === 1, "After Dark's looks were not locked for a visitor");
     });
 
     await step("a sample character fills the whole card for a fast start", async () => {

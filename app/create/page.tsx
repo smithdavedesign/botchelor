@@ -8,7 +8,8 @@ import { listMyCharacters } from "@/lib/game";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCast } from "@/lib/season-cast";
 import { swipeGateOn } from "@/lib/swipe-gate";
-import { userIdFromCookieStore } from "@/lib/http";
+import { authFromCookieStore } from "@/lib/http";
+import { builderLooks } from "@/lib/looks-draw";
 import { ownedSkus } from "@/lib/payments";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import CreateWizard, { type Partner } from "./CreateWizard";
@@ -26,7 +27,8 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 /** The dedicated character / AI-agent builder. A stepped wizard, not a wall of fields. */
 export default async function CreatePage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const viewerId = userIdFromCookieStore(await cookies());
+  const auth = authFromCookieStore(await cookies());
+  const viewerId = auth?.userId ?? null;
   const db = viewerId ? await getDb() : null;
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
   const dates = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
@@ -67,6 +69,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       premium: true,
     })),
   ];
+  const looks = await builderLooks(db ?? (await getDb()), auth);
   const offer = paymentLinkFromEnv()
     ? priceLabelFromEnv(process.env, `${PACK_5.name} for ${formatPrice(PACK_5.price_cents)}`)
     : null;
@@ -81,6 +84,8 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       myCharacters={myCharacters.map(({ id, name }) => ({ id, name }))}
       startSample={sp.sample === "1"}
       startCharacterId={typeof sp.character === "string" ? sp.character : null}
+      lookTiles={looks.tiles}
+      afterDark={looks.afterDark}
     />
   );
 }

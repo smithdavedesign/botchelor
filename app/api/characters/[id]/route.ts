@@ -8,6 +8,7 @@ import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { checkFields, type RejectReason } from "@/lib/safety";
 import type { ImageSignals } from "@/lib/avatar";
+import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { ExtrasInput, extrasFields, normaliseExtras, type ExtrasInputType } from "@/lib/extras";
 import { stampThisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { assertSafeSoul, clearSignals, isEmptySoul, normaliseSoul, ownsCharacter, saveSignals, saveSoul, SoulInput } from "@/lib/souls";
@@ -110,6 +111,7 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   if (!(await ownsCharacter(db, id, sess.userId))) return json({ error: "character_not_found" }, 404, sess);
 
   const input = parseBody(CharacterPatch, await readJson(req), "invalid_character") as Record<string, unknown>;
+  if (input.extras) input.extras = await gateAfterDarkLooks(db, sess, normaliseExtras(input.extras as ExtrasInputType));
   const verdict = checkFields({
     name: input.name as string | undefined,
     bio: input.bio as string | undefined,

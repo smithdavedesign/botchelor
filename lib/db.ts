@@ -978,6 +978,20 @@ create table if not exists place_sets (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- The looks builder's picture tiles (lib/looks.ts, lib/looks-draw.ts): one per option, drawn once and screened by Hive.
+-- 'nsfw' tiles are After Dark's: served only to an account that can open it.
+create table if not exists look_tiles (
+  id text primary key,
+  variant text not null check (variant in ('pg', 'nsfw')),
+  status text not null check (status in ('drawing', 'ready', 'refused', 'failed')),
+  prompt text not null,
+  reason text,
+  mime text,
+  data bytea,
+  model text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
 -- After dark (lib/adult, admin only, local only): the adult season's private scenes, between two of this season's house
 -- characters. Kept out of every other table, so nothing explicit can reach the feed, the cast, the swipe deck, texts,
