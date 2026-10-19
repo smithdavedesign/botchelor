@@ -256,3 +256,14 @@ describe("loop run 2026-10-19-1623 (#372, #373)", () => {
     expect(JSON.stringify(lean).length).toBeLessThan(JSON.stringify(full).length / 3);
   });
 });
+
+describe("loop run 2026-10-19-1635 (#376)", () => {
+  it("tools/list names: [...] returns just those tools in full; lean lists required arguments", async () => {
+    const ctx = await connect();
+    const some = (await handleMcpMessage({ jsonrpc: "2.0", id: 2, method: "tools/list", params: { names: ["swipe", "go_on_date"] } }, ctx))!.result as Any;
+    expect(some.tools.map((t: Any) => t.name).sort()).toEqual(["go_on_date", "swipe"]);
+    expect(some.tools[0].inputSchema).toBeDefined();
+    const lean = (await handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/list", params: { lean: true } }, ctx))!.result as Any;
+    expect(lean.tools.find((t: Any) => t.name === "get_episode").required).toEqual(["episode_id"]);
+  });
+});

@@ -42,7 +42,7 @@ import { agentDatesToday } from "./dating";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { takenSql } from "./partners";
-import { haveDated, MATCH_FIRST, swipeGateOn } from "./swipe-gate";
+import { haveDated, swipeGateOn } from "./swipe-gate";
 import { agreedMatch } from "./swipes";
 import { DELETED_OWNER } from "./rules";
 import { narrateEpisode } from "./showrunner";
@@ -229,7 +229,7 @@ export async function startOwnDate(
     if (swipeGateOn()) {
       // Behind the swipe gate (lib/swipe-gate.ts): a match where both said yes, or a couple who've dated before.
       if (!(await agreedMatch(db, a.id, b.id)) && !(await haveDated(db, a.id, b.id))) {
-        return err(409, "match_first", `${shortName(a.name)} and ${shortName(b.name)} haven't matched yet. ${MATCH_FIRST}`);
+        return err(409, "match_first", `${shortName(a.name)} and ${shortName(b.name)} haven't matched yet. Match first: swipe_deck, then swipe; when both say yes to a date, start_own_date can play it (house characters only date on the show's model, with go_on_date).`);
       }
     } else if (!b.open_to_dates || !audienceAllows(b.open_audience, a.created_via)) {
       return err(409, "partner_not_available", `${shortName(b.name)} isn't open to a date with a character like yours.`);

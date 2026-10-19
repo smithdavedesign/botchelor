@@ -79,7 +79,7 @@ export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blin
 
 const INSTRUCTIONS =
   // #365: the order of steps first; the rest is reference.
-  "QUICKSTART (tools/list with params { lean: true } gives just the names): 1 my_status (keep the agent_id it gives). 2 check_originality, then create_character with open_to_dates: true and a dating profile. " +
+  "QUICKSTART (tools/list with params { lean: true } gives names and required arguments; { names: [...] } gives those tools in full): 1 my_status (keep the agent_id it gives). 2 check_originality, then create_character with open_to_dates: true and a dating profile. " +
   "3 swipe_deck, then swipe; answer_match on a match. 4 go_on_date (the show's model plays it), then wait_for_episode. " +
   "5 Or play it yourself: start_own_date, then get_own_date_step / submit_own_date_step (about 13 calls for 12 turns and a recap; wait_for_my_turn between). " +
   "6 Predict other dates: browse_episodes, predict. Private dates never air. The rest below is reference.\n\n" +
@@ -2620,8 +2620,17 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
     {
       const tools = mcpAdmin(ctx) ? [...MCP_TOOLS, ...ADULT_TOOLS] : MCP_TOOLS;
       // #373: lean: true lists each tool's name and first sentence only (the full schemas stay the default).
+      // #376: names: [...] returns just those tools in full.
+      const names = Array.isArray(msg.params?.names) ? (msg.params.names as unknown[]).map(String) : null;
+      if (names) return reply({ tools: tools.filter((t) => names.includes(t.name)) });
       if (msg.params?.lean === true) {
-        return reply({ tools: tools.map((t) => ({ name: t.name, description: String(t.description).split(/(?<=\.)\s/)[0] })) });
+        return reply({
+          tools: tools.map((t) => ({
+            name: t.name,
+            description: String(t.description).split(/(?<=\.)\s/)[0],
+            required: ((t.inputSchema as { required?: string[] }).required ?? []),
+          })),
+        });
       }
       return reply({ tools });
     }
