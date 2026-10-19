@@ -366,3 +366,59 @@ describe("an agent's own date can move", () => {
 
 // Keep the type import used (DateShape documents what moveProblem and settleLine read).
 export type _Shape = DateShape;
+
+describe("simulateConversation: the creator sets the scene", () => {
+  const POOL = "elsewhere@a rooftop pool" as PlaceId;
+  const noted = (msgs: ChatMessage[]) => msgs.some((m) => /note from the show's producer: suggest the two of you go to a rooftop pool/.test(m.content));
+
+  it("the next line proposes the paid place in its own words, and they go only when the other says yes", async () => {
+    let proposed: string[] = [];
+    let pending: { id: string; to: PlaceId } | null = { id: "s1", to: POOL };
+    const calls: ChatMessage[][] = [];
+    const model: Model = {
+      async complete(messages) {
+        calls.push(messages);
+        const data = JSON.parse(messages[1].content.replace(/^[^\n]*\n/, ""));
+        const i = data.conversation_so_far.length as number;
+        const extra = noted(messages) ? { dialogue: "Have you ever been up on that pool roof? Let's go.", move: "the pool on the roof" } : data.their_suggestion ? { dialogue: "Yes, let's.", accept_move: true } : {};
+        return JSON.stringify({ dialogue: LINES[i % LINES.length], action: "", emotion: "warm", interest_signal: 0.6, ...extra });
+      },
+    };
+    const t = await simulateConversation(model, built.input, outcome, built.characters, built.setup.producer, START, "classic", 12, {}, undefined, undefined, undefined, {
+      moves: true,
+      suggestion: async () => pending,
+      onSuggestionProposed: async (id) => {
+        proposed.push(id);
+        pending = null;
+      },
+    });
+    expect(t[0].move).toEqual({ say: "the pool on the roof", to: POOL });
+    expect(t[1].moved_to).toBe(POOL);
+    expect(proposed).toEqual(["s1"]);
+    expect(calls.filter(noted)).toHaveLength(1);
+    expect(placeAt(t, START)).toBe(POOL);
+    proposed = [];
+  });
+
+  it("a no keeps them where they are", async () => {
+    let pending: { id: string; to: PlaceId } | null = { id: "s2", to: POOL };
+    const model: Model = {
+      async complete(messages) {
+        const data = JSON.parse(messages[1].content.replace(/^[^\n]*\n/, ""));
+        const i = data.conversation_so_far.length as number;
+        const extra = noted(messages) ? { dialogue: "What about the rooftop pool instead?", move: "a rooftop pool" } : data.their_suggestion ? { dialogue: "No, I like it here.", accept_move: false } : {};
+        return JSON.stringify({ dialogue: LINES[i % LINES.length], action: "", emotion: "warm", interest_signal: 0.6, ...extra });
+      },
+    };
+    const t = await simulateConversation(model, built.input, outcome, built.characters, built.setup.producer, START, "classic", 12, {}, undefined, undefined, undefined, {
+      moves: true,
+      suggestion: async () => pending,
+      onSuggestionProposed: async () => {
+        pending = null;
+      },
+    });
+    expect(t[0].move?.to).toBe(POOL);
+    expect(t.some((l) => l.moved_to)).toBe(false);
+    expect(placeAt(t, START)).toBe(START);
+  });
+});

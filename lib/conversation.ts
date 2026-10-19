@@ -385,7 +385,17 @@ export type ConversationOptions = {
   moveCutoff?: number;
   /** Epoch ms: past it, the date wraps up within two lines, with a goodbye (the recap and the texts still need time). */
   deadline?: number;
+  /**
+   * Set the scene (lib/scene-suggestions.ts): a place the creator paid to suggest, read before each line that could
+   * propose a move. The line is told to propose it; the other one still decides. `onProposed` once it's said.
+   */
+  suggestion?: () => Promise<{ id: string; to: PlaceId } | null>;
+  onSuggestionProposed?: (id: string) => Promise<void>;
 };
+
+/** The producer's note to the next speaker when the creator has set the scene. */
+export const suggestionNote = (to: PlaceId): string =>
+  `A note from the show's producer: suggest the two of you go to ${venuePhrase(to)} next. Propose it on this line, in your own words and voice, and put the place in "move". They can still say no.`;
 
 /**
  * Runs the whole date as a turn-by-turn two-agent conversation, played from the date's beat sheet. Returns
@@ -424,11 +434,17 @@ export async function simulateConversation(
     const shape = dateShape(transcript, venueId, turns, { moves, noNewMoves: opts.moveCutoff !== undefined && now >= opts.moveCutoff, endBy });
     const i = transcript.length;
     if (i >= shape.total) break;
-    const { messages, side, act } = buildTurnMessages(input, outcome, characters, producer, venueId, transcript, i, formatId, formatCtx, {
+    // A place the creator set (paid): only when this line could propose a move, and it's somewhere else.
+    const canPropose = moves && shape.movesLeft > 0 && !shape.pending && !shape.closing && !shape.wrapping;
+    const suggested = canPropose ? await opts.suggestion?.().catch(() => null) : null;
+    const suggestion = suggested && suggested.to !== shape.place ? suggested : null;
+    const built = buildTurnMessages(input, outcome, characters, producer, venueId, transcript, i, formatId, formatCtx, {
       plan: beats,
       totalTurns: turns,
       shape,
     });
+    const { side, act } = built;
+    const messages = suggestion ? [...built.messages, { role: "user" as const, content: suggestionNote(suggestion.to) }] : built.messages;
     const names = side === "a" ? { self: characters[0].name, other: characters[1].name } : { self: characters[1].name, other: characters[0].name };
     const turnModel = actorForSide?.(side) ?? model;
     let line: { turn: Turn; reply: MoveReply } | null = null;
@@ -461,6 +477,13 @@ export async function simulateConversation(
     line ??= draft;
     if (!line) throw new ConversationError(reasons);
     const turn = settleLine(line.turn, line.reply, shape, names);
+    // The suggested place, proposed: it goes where the creator set it, whatever words the line used for it.
+    if (suggestion && line.reply.move?.trim()) {
+      turn.move = { say: line.reply.move.trim().slice(0, 80), to: suggestion.to };
+      delete turn.moved_to;
+      delete turn.done;
+      await opts.onSuggestionProposed?.(suggestion.id).catch(() => {});
+    }
     transcript.push(turn);
     if (onTurn) await Promise.resolve().then(() => onTurn([...transcript])).catch(() => {});
     // The actor's own "I'm done" signal, respected only in the goodbye stretch (David 2026-10-18: let dates close
