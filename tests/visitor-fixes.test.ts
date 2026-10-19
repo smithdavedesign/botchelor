@@ -202,3 +202,12 @@ describe("loop run 2026-10-19-1133 (#334, #335, #336)", () => {
     expect(r.status).toBe("ready");
   });
 });
+
+describe("loop run 2026-10-19-1155 (#344)", () => {
+  it("my_status suggests what to do next", async () => {
+    const fresh = await connect();
+    await call("swipe_deck", { character_id: "x" }, fresh).catch(() => {});
+    const { ctx } = await agentWith("Ada Lumen");
+    expect((await call("my_status", {}, ctx)).structuredContent.next).toEqual(["swipe_deck", "go_on_date", "my_matches"]);
+  });
+});
