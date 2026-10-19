@@ -1,6 +1,6 @@
 import type { Db } from "./db";
 import { FREE_EPISODES_PER_SEASON } from "./rules";
-import { seasonAt } from "./seasons";
+import { weekAt } from "./seasons";
 
 /**
  * How many dates a creator can still send their characters on (M4): FREE_EPISODES_PER_SEASON each
@@ -32,7 +32,7 @@ export const packDatesSql = (who: string) => `((select coalesce(sum(o.episodes),
 const PACK_EPISODES_BOUGHT = packDatesSql("$1");
 
 function allowance(now: Date, freeUsed: number, packBought: number, packUsed: number): Allowance {
-  const season = seasonAt(now);
+  const season = weekAt(now);
   const free_left = Math.max(0, FREE_EPISODES_PER_SEASON - freeUsed);
   const pack_left = Math.max(0, packBought - packUsed);
   return {
@@ -54,7 +54,7 @@ export async function episodeAllowance(db: Db, userId: string | null, now = new 
     `select coalesce((select used from free_episode_usage where user_id = $1 and season_id = $2), 0)::int as free_used,
             ${PACK_EPISODES_BOUGHT} as pack_bought,
             coalesce((select used from pack_episode_usage where user_id = $1), 0)::int as pack_used`,
-    [userId, seasonAt(now).id],
+    [userId, weekAt(now).id],
   );
   const { free_used, pack_bought, pack_used } = rows[0];
   return allowance(now, free_used, pack_bought, pack_used);
@@ -62,7 +62,7 @@ export async function episodeAllowance(db: Db, userId: string | null, now = new 
 
 /** Takes one date: a free one this season if any is left, else a pack date; null when none is left. */
 export async function reserveEpisode(db: Db, userId: string, now = new Date()): Promise<Reservation | null> {
-  const season = seasonAt(now).id;
+  const season = weekAt(now).id;
   const free = await db.query(
     `insert into free_episode_usage as u (user_id, season_id, used) values ($1, $2, 1)
      on conflict (user_id, season_id) do update set used = u.used + 1 where u.used < $3
@@ -94,7 +94,7 @@ export function freeSecondDateOn(env: Record<string, string | undefined> = proce
 /** Takes this season's free second date, or null when it's off or already used. */
 export async function reserveSecondDate(db: Db, userId: string, now = new Date(), env: Record<string, string | undefined> = process.env): Promise<Reservation | null> {
   if (!freeSecondDateOn(env)) return null;
-  const season = seasonAt(now).id;
+  const season = weekAt(now).id;
   const taken = await db.query(
     `insert into free_second_date_usage (user_id, season_id) values ($1, $2) on conflict (user_id, season_id) do nothing returning user_id`,
     [userId, season],
@@ -105,7 +105,7 @@ export async function reserveSecondDate(db: Db, userId: string, now = new Date()
 /** Whether this season's free second date is still there for the user (false when the offer is off). */
 export async function secondDateFreeNow(db: Db, userId: string, now = new Date(), env: Record<string, string | undefined> = process.env): Promise<boolean> {
   if (!freeSecondDateOn(env)) return false;
-  const used = await db.query(`select 1 from free_second_date_usage where user_id = $1 and season_id = $2`, [userId, seasonAt(now).id]);
+  const used = await db.query(`select 1 from free_second_date_usage where user_id = $1 and season_id = $2`, [userId, weekAt(now).id]);
   return used.rows.length === 0;
 }
 

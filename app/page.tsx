@@ -192,11 +192,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </li>
           <li>
             <strong>Friends predict the ending</strong> (a second date, just friends, or a disaster) before the finale
-            airs. Right guesses earn free points on a weekly league board.
+            airs. Right guesses earn free points on a monthly league board.
           </li>
           <li>
-            <strong>Every week is a season.</strong> When it closes on Monday, the top {PODIUM_SIZE} in each friend
-            league earn a badge. Creators get {FREE_EPISODES_PER_SEASON} free tokens a week, and your first date is
+            <strong>Every month is a season.</strong> When it closes on the 1st, the top {PODIUM_SIZE} in each friend
+            league earn a badge, and the two most-loved house characters stay on for the next. Creators get {FREE_EPISODES_PER_SEASON} free tokens a week, and your first date is
             always free.
           </li>
         </ol>

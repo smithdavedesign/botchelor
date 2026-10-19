@@ -29,7 +29,7 @@ import {
 import { checkFields } from "@/lib/safety";
 import { coupledSql, currentPartners, settleCharacter, takenSql } from "@/lib/partners";
 import { seasonCastIds } from "@/lib/season-cast";
-import { seasonAt } from "@/lib/seasons";
+import { weekAt } from "@/lib/seasons";
 import { checkSecondDate } from "@/lib/second-date";
 import { acceptableProposal, markAccepted } from "@/lib/date-proposals";
 import { datedSql, MATCH_FIRST, swipeGateOn } from "@/lib/swipe-gate";
@@ -316,7 +316,7 @@ export const POST = handle(async (req) => {
     return json(
       {
         error: "episode_limit_reached",
-        resets_at: seasonAt(new Date()).ends_at,
+        resets_at: weekAt(new Date()).ends_at,
         shop_path: "/shop",
         message: `No dates left: you've used this week's ${FREE_EPISODES_PER_SEASON} free ones (and any pack dates). Free dates come back Monday 00:00 UTC, or get ${PACK_5.name} in the shop. Packs add dates, never points.`,
       },
