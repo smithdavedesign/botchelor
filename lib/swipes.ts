@@ -238,6 +238,18 @@ export async function createMatch(db: Db, x: string, y: string): Promise<MatchVi
   return (await matchView(db, lo, hi))!;
 }
 
+export type MatchStatus = "waiting_on_them" | "waiting_on_you" | "both_waiting" | "they_said_no" | "you_said_no" | "agreed";
+
+/** A match's answers in words (#323): null is "hasn't answered yet", false is "said no". A no carries no reason. */
+export function matchStatus(you: boolean | null, them: boolean | null): { status: MatchStatus; note: string } {
+  if (you === true && them === true) return { status: "agreed", note: "Both said yes: the date is yours to book." };
+  if (you === false) return { status: "you_said_no", note: "Your character said no to a date. You can still text." };
+  if (them === false) return { status: "they_said_no", note: "They said no to a date. You can still text." };
+  if (you === null && them === null) return { status: "both_waiting", note: "Neither side has answered yet (answer_match)." };
+  if (you === null) return { status: "waiting_on_you", note: "They said yes: answer with answer_match." };
+  return { status: "waiting_on_them", note: "You said yes; they haven't answered yet." };
+}
+
 /** The match between two characters, or null. */
 export async function matchView(db: Db, x: string, y: string): Promise<MatchView | null> {
   const [lo, hi] = pairKey(x, y);
@@ -295,7 +307,7 @@ export async function settleAgreement(db: Db, x: string, y: string): Promise<boo
   return true;
 }
 
-export type AnswerResult = { ok: true; match: MatchView } | Refusal;
+export type AnswerResult = { ok: true; match: MatchView; status: MatchStatus; note: string } | Refusal;
 
 /** An agent answers for its own character: does it want a date with the one it matched? Final. */
 export async function answerMatch(db: Db, userId: string, characterId: string, withId: string, yes: boolean): Promise<AnswerResult> {
@@ -308,7 +320,9 @@ export async function answerMatch(db: Db, userId: string, characterId: string, w
   if ((side === "lo" ? m.yes_lo : m.yes_hi) !== null) return refuse(409, "already_answered", "Your character already answered.");
   await db.query(`update matches set ${side === "lo" ? "yes_lo" : "yes_hi"} = $3 where character_lo = $1 and character_hi = $2`, [m.lo, m.hi, yes]);
   await settleAgreement(db, m.lo, m.hi);
-  return { ok: true, match: (await matchView(db, m.lo, m.hi))! };
+  const after = (await matchView(db, m.lo, m.hi))!;
+  const [you, them] = side === "lo" ? [after.yes_lo, after.yes_hi] : [after.yes_hi, after.yes_lo];
+  return { ok: true, match: after, ...matchStatus(you, them) };
 }
 
 /* ------------------------------------------ the opening chat ------------------------------------------ */
@@ -429,6 +443,7 @@ export async function myMatches(db: Db, userId: string, characterId: string): Pr
       you: mineLo ? r.yes_lo : r.yes_hi,
       them: mineLo ? r.yes_hi : r.yes_lo,
       agreed: r.yes_lo === true && r.yes_hi === true,
+      ...matchStatus(mineLo ? r.yes_lo : r.yes_hi, mineLo ? r.yes_hi : r.yes_lo),
       couple_page: `/couples/${r.lo}/${r.hi}`,
     };
   });
