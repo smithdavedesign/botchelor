@@ -74,6 +74,13 @@ memory, the graph, the feed, search or the sitemap. A test checks this.
 anyone under 18, and the characters are adults on their sheets. Checking the output image itself would be an extra
 step later.
 
+**Where explicit pictures are made (2026-10-19).** fal's acceptable use policy bans sexually explicit output, and its
+request checker refuses it (422 `content_policy_violation`), so the setting `image_provider` sends pictures to Venice.
+- **The call:** Venice's `/image/generate` with `safe_mode: false` and the model `lustify-v8`, a photoreal SDXL fine-tune that Venice tags as its most uncensored, at $0.01 a picture.
+- **The check:** Venice returns the bytes rather than a link. Hive checks those bytes (`media_base64`, plus a data URI for the vision model) before anything is stored.
+- **Clips:** they stay on fal, from fal pictures only.
+- **Open question:** Venice's API docs offer adult images to every API user, but its terms of service hedge on this. Confirm with Venice before anyone but the admin uses it.
+
 ## The output check (built, Hive)
 
 No picture or clip is stored or served until the file fal returned passes Hive's checks (`lib/adult/check.ts`), on

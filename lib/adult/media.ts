@@ -44,6 +44,37 @@ export const NEGATIVE_PROMPT = "child, children, kid, teen, teenager, minor, und
 const FAL_RUN = "https://fal.run";
 const FAL_QUEUE = "https://queue.fal.run";
 const MAX_BYTES = 40 * 1024 * 1024;
+export const VENICE_IMAGE = "https://api.venice.ai/api/v1/image/generate";
+
+/** A picture on Venice: its bytes come back in the reply (no URL), unblurred with safe_mode off. */
+async function venicePicture(db: Db, prompt: string): Promise<{ bytes: Buffer; mime: string }> {
+  const { venice } = await adultKeys(db);
+  if (!venice) throw new Error("No Venice key saved in after dark's settings.");
+  const { venice_image_model } = await getAdultSettings(db);
+  const res = await doFetch(VENICE_IMAGE, {
+    method: "POST",
+    headers: { authorization: `Bearer ${venice}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: venice_image_model,
+      prompt,
+      // Steer away from anyone young-looking, on top of the output check (never instead of it).
+      negative_prompt: NEGATIVE_PROMPT,
+      width: 832,
+      height: 1104,
+      format: "png",
+      safe_mode: false,
+      hide_watermark: true,
+    }),
+  });
+  if (!res.ok) throw new Error(`Venice refused the picture (${res.status}): ${(await res.text()).slice(0, 200)}`);
+  if (res.headers.get("x-venice-is-content-violation") === "true") throw new Error("Venice flagged the picture as against its terms.");
+  const body = (await res.json()) as { images?: string[] };
+  const b64 = body.images?.[0];
+  if (!b64) throw new Error("Venice returned no picture.");
+  const bytes = Buffer.from(b64, "base64");
+  if (bytes.length > MAX_BYTES) throw new Error("file too large");
+  return { bytes, mime: "image/png" };
+}
 
 type Fetch = typeof fetch;
 let testFetch: Fetch | null = null;
@@ -129,6 +160,12 @@ export function scenePrompt(a: Character, b: Character, of: "a" | "b" | "both", 
     .join(" ");
 }
 
+/** Whether the picture provider chosen in settings has its key saved. */
+export async function pictureKeyReady(db: Db): Promise<boolean> {
+  const [k, s] = await Promise.all([adultKeys(db).catch(() => null), getAdultSettings(db)]);
+  return Boolean(s.image_provider === "venice" ? k?.venice : k?.fal);
+}
+
 async function falKey(db: Db): Promise<string> {
   const { fal } = await adultKeys(db);
   if (!fal) throw new Error("No fal.ai key saved in after dark's settings.");
@@ -171,8 +208,18 @@ export async function makePicture(
   if (capped) throw new Error(capped);
   const check = checkAdultText({ prompt: opts.prompt });
   if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
+  const { image_model, image_base, image_provider } = await getAdultSettings(db);
+  if (image_provider === "venice") {
+    const file = await venicePicture(db, opts.prompt);
+    // The output check on the bytes themselves, before anything is stored: a failure is discarded.
+    const verdict = await checkOutput((await adultKeys(db)).hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image");
+    if (!verdict.ok) {
+      await logRejection(db, ownerId, opts.kind, verdict.reason);
+      throw new Error(`The picture was discarded by the output check (${verdict.reason}).`);
+    }
+    return storePicture(db, ownerId, opts, file, null);
+  }
   const key = await falKey(db);
-  const { image_model, image_base } = await getAdultSettings(db);
   const run = (model: string, input: Record<string, unknown>) =>
     doFetch(`${FAL_RUN}/${model}`, {
       method: "POST",
@@ -203,7 +250,17 @@ export async function makePicture(
     await logRejection(db, ownerId, opts.kind, verdict.reason);
     throw new Error(`The picture was discarded by the output check (${verdict.reason}).`);
   }
-  const file = await download(url);
+  return storePicture(db, ownerId, opts, await download(url), url);
+}
+
+/** Stores a picture that passed the output check, and counts it. */
+async function storePicture(
+  db: Db,
+  ownerId: string,
+  opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null },
+  file: { bytes: Buffer; mime: string },
+  url: string | null,
+): Promise<Media> {
   await countUse(db, ownerId, "pictures");
   const id = crypto.randomUUID();
   await db.query(
@@ -227,7 +284,8 @@ export async function startClip(db: Db, ownerId: string, imageId: string, motion
     [imageId],
   )).rows[0];
   if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
-  if (!pic?.remote_url) throw new Error("No picture with that id.");
+  if (!pic) throw new Error("No picture with that id.");
+  if (!pic.remote_url) throw new Error("Clips run on fal.ai, which doesn't allow explicit pictures, and this one was made on Venice.");
   const capped = await overCap(db, ownerId, "clips");
   if (capped) throw new Error(capped);
   const prompt = `${motion.trim() || "Slow, natural movement"}. Everyone shown is an adult.`;
