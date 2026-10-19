@@ -352,7 +352,8 @@ describe("settings over MCP", () => {
   });
 });
 
-import { overusedWords, parseSceneMeta, sceneMessages } from "@/lib/adult/scenes";
+import { listNights, overusedWords, parseSceneMeta, sceneMessages } from "@/lib/adult/scenes";
+import { lineToTurn, stageFor } from "@/app/after-dark/[a]/[b]/AfterDarkTheater";
 
 describe("the scene prompt", () => {
   it("names the words the scene keeps leaning on (not the characters' names), and asks for actions apart from speech", () => {
@@ -391,6 +392,29 @@ describe("the scene prompt", () => {
     const msgs = sceneMessages(null, null, null, [], null, undefined, { place: "a cafe", stage: 0, linesAtStage: 0 });
     expect(msgs[0].content).toMatch(/Tease it out/);
     expect(msgs[0].content).toMatch(/still at a cafe\. They don't leave in these first lines/);
+  });
+
+  it("files the scene as a saved night on Start over, to play back; only its owner sees it", async () => {
+    const { id, cookie } = await admin();
+    scripted(JSON.stringify({ lines: [{ who: "a", action: "leans in", text: "Hi." }, { who: "b", text: "Hello." }], place: "the bar", stage: 1 }));
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    const reset = await (await post({ a: CAST_A, b: CAST_B, reset: true }, cookie)).json();
+    expect(reset.scene.lines).toEqual([]);
+    expect(reset.nights).toHaveLength(1);
+    expect(reset.nights[0]).toMatchObject({ place: "the bar", lines: [{ who: "a", text: "*leans in* Hi." }, { who: "b", text: "Hello." }] });
+    expect(await listNights(t.db, id, CAST_B, CAST_A)).toHaveLength(1);
+    expect(await listNights(t.db, crypto.randomUUID(), CAST_A, CAST_B)).toEqual([]);
+    // An empty scene isn't filed.
+    await post({ a: CAST_A, b: CAST_B, reset: true }, cookie);
+    expect(await listNights(t.db, id, CAST_A, CAST_B)).toHaveLength(1);
+  });
+
+  it("plays a scene line as a date turn on the right set", () => {
+    expect(lineToTurn({ who: "a", text: "*leans in* Hi there." })).toMatchObject({ side: "a", action: "leans in", dialogue: "Hi there." });
+    expect(lineToTurn({ who: "b", text: "Plain." })).toMatchObject({ action: "", dialogue: "Plain." });
+    expect(stageFor(null, "bowling_alley")).toBe("bowling_alley");
+    expect(stageFor("bowling alley, lane twelve", "bowling_alley")).toBe("bowling_alley");
+    expect(stageFor("his apartment", "bowling_alley")).toBe("elsewhere@his apartment");
   });
 
   it("puts the action before the speech", () => {
