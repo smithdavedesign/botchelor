@@ -8,6 +8,7 @@ import { listSwitchable, setAdultSwitch } from "./characters";
 import { listMedia } from "./media";
 import { adultAvailable } from "./mode";
 import { continueScene, listCastPairs, openScene } from "./scenes";
+import { getAdultSettings, saveAdultSettings } from "./settings";
 
 type JsonSchema = Record<string, unknown>;
 const id = { type: "string", maxLength: 64 };
@@ -37,6 +38,23 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     annotations: { readOnlyHint: false },
   },
   {
+    name: "after_dark_settings",
+    title: "After dark: models and on/off",
+    description:
+      "Admin only. Reads after dark's settings, and changes the models or turns it on or off when given. Keys are never shown or set here " +
+      "(only on /admin/after-dark/settings).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        enabled: { type: "boolean" },
+        text_model: { type: "string", maxLength: 120, description: "An OpenRouter model id." },
+        image_model: { type: "string", maxLength: 120, description: "A fal.ai image model id." },
+        video_model: { type: "string", maxLength: 120, description: "A fal.ai video model id." },
+      },
+    },
+    annotations: { readOnlyHint: false },
+  },
+  {
     name: "after_dark_switch",
     title: "After dark: switch a character in or out",
     description: "Admin only. Switches one of your characters, or a house character, in or out of after dark (this season's cast is always in).",
@@ -53,6 +71,13 @@ async function sceneOwner(db: Db): Promise<string | null> {
 }
 
 export async function runAdultTool(db: Db, name: string, args: Record<string, unknown>): Promise<{ data: Record<string, unknown> } | { error: string }> {
+  // The settings themselves are reachable while it's off (that's where it's turned on). Never the keys.
+  if (name === "after_dark_settings") {
+    const patch: Record<string, unknown> = {};
+    if (typeof args.enabled === "boolean") patch.enabled = args.enabled;
+    for (const k of ["text_model", "image_model", "video_model"]) if (typeof args[k] === "string" && (args[k] as string).trim()) patch[k] = (args[k] as string).trim();
+    return { data: { settings: Object.keys(patch).length ? await saveAdultSettings(db, patch) : await getAdultSettings(db) } };
+  }
   if (!(await adultAvailable(db))) return { error: "After dark is off: turn it on in its settings (/admin/after-dark/settings)." };
   const owner = await sceneOwner(db);
   if (!owner) return { error: "No admin account to hold the scenes: claim admin on /admin first." };
