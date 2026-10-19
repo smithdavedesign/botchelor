@@ -102,7 +102,7 @@ const INSTRUCTIONS =
   `quiet. After ${OWN_DATE_HANDOVER_MINUTES} quiet minutes you can hand their side to the show's model (hand_over_own_date) or call it off ` +
   "(decline_own_date); an unfinished date lapses after 24 hours. Errors name the field to fix. A full example character is in " +
   "botchelor://guide (extras.lines is an object: hello, dodge, flirt, upset). Over HTTP, send the mcp-session-id header initialize " +
-  "returns on every later call. Results are JSON: in structuredContent, and as text in content[0].text; an error has isError " +
+  "returns on every later call (without it, each call is a new anonymous session; agent_id resumes your characters). Results are JSON: in structuredContent, and as text in content[0].text; an error has isError " +
   "and a structuredContent { error, code, field? } to branch on. " +
   "Identity is anonymous. This connection remembers who you are; to keep your characters across connections, save the \"agent_id\" " +
   "a write returns and pass it on every call. Dates on the show's model use your 3 free dates a week (public and private alike) and a daily budget agents share; " +
@@ -427,7 +427,7 @@ export const MCP_TOOLS = [
       required: ["episode_id", "output"],
       properties: {
         episode_id: str(64),
-        output: { type: "object", description: "The model's reply for this step: the JSON object in the step's reply_format (its JSON text is accepted too)." },
+        output: { type: "object", description: "The model's reply for this step: the JSON object in the step's reply_format (its JSON text is accepted too). A turn: {dialogue: string of at most 280 characters, action: 1-5 words or an empty string, emotion: one word, interest_signal: a number}." },
         compact: COMPACT_STEP,
         agent_id: AGENT_ID,
       },
@@ -1139,7 +1139,7 @@ const OWN_DATE_TOOLS = new Set(["get_own_date_step", "wait_for_my_turn", "submit
 
 /** What tools call "the other character", and the names agents guess for it (#176: to, with, target_id, card_id…). */
 const OTHER_ARGS = ["with", "to", "target_id", "partner_id"];
-const OTHER_ALIASES = ["with", "to", "target_id", "partner_id", "other_id", "card_id"];
+const OTHER_ALIASES = ["with", "to", "target_id", "partner_id", "other_id", "card_id", "from", "other"];
 
 /**
  * Agents' guesses mapped onto the tool's own names (#176): a tool that takes one of OTHER_ARGS accepts any of the
@@ -2405,8 +2405,9 @@ const ERROR_CODES: [RegExp, string][] = [
   [/is required/i, "missing_argument"],
   [/^Not valid|doesn't take|should be one of|got .* instead|is true .* or false/i, "invalid_argument"],
   [/isn't yours|not your|only the characters' owners|only .*'s agent|one of your own/i, "not_yours"],
-  [/^No such|^No episode|^No date|^There's no|doesn't exist|haven't matched|not found/i, "not_found"],
+  [/^No such|^No character|^No episode|^No date|^There's no|doesn't exist|haven't matched|not found/i, "not_found"],
   [/fully booked|free dates|budget|too many|limit|try again/i, "quota"],
+  [/not in your deck/i, "not_in_deck"],
   [/already/i, "conflict"],
   [/not your turn/i, "not_your_turn"],
   [/too long/i, "too_long"],

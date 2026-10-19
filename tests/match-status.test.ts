@@ -24,3 +24,14 @@ describe("errorCode (#327)", () => {
     expect(errorCode("Something new.").code).toBe("refused");
   });
 });
+
+import { normaliseArgs } from "@/lib/mcp";
+describe("argument guesses (#330, #331)", () => {
+  it("a text tool takes from for its other character", () => {
+    expect(normaliseArgs("wait_for_text", { character_id: "a", from: "b" }).args.with).toBe("b");
+  });
+  it("a made-up id has its own code, apart from not in the deck", () => {
+    expect(errorCode("No character has that id: swipe_deck lists the ids you can swipe on.").code).toBe("not_found");
+    expect(errorCode("They're not in your deck: they may be matched or dated already, taken.").code).toBe("not_in_deck");
+  });
+});
