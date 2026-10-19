@@ -222,3 +222,17 @@ describe("loop run 2026-10-19-1234 (#346, #347)", () => {
     expect(Object.keys(small[0])).toEqual(expect.arrayContaining(["id", "name"]));
   });
 });
+
+describe("loop run 2026-10-19-1432 (#356)", () => {
+  it("start_own_date on a pair the show's model is writing says to wait, not to play it", async () => {
+    const a = await agentWith("Ada Lumen");
+    const b = (await call("create_character", validCharacter({ name: "Bram Okafor" }), a.ctx)).structuredContent.character.id;
+    scriptedModel([episodeJson()]);
+    const ep = (await call("go_on_date", { character_id: a.id, partner_id: HOUSE_PARTNER_ID }, a.ctx)).structuredContent.episode.id;
+    // Stand it in as a show-model date of these two, still being written.
+    await t.db.query(`update episodes set character_b = $2, status = 'generating', performed_by = 'platform' where id = $1`, [ep, b]);
+    const r = await call("start_own_date", { character_id: a.id, partner_id: b }, a.ctx);
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toMatch(/show's model .*wait_for_episode/);
+  });
+});

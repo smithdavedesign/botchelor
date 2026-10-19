@@ -253,16 +253,21 @@ export async function startOwnDate(
   await clearStaleOwnDates(db, now, userId);
   // Run 4: both agents asked each other's characters out within a minute, so one pair had two dates going at once.
   const already = (
-    await db.query<{ id: string }>(
+    await db.query<{ id: string; performed_by: string | null }>(
       // Any date of theirs still being made, performed or on the show's model (run 5: a second date was booked on the
       // show's model while an agent was performing their rematch).
-      `select id from episodes where status = 'generating'
+      `select id, performed_by from episodes where status = 'generating'
           and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1)) limit 1`,
       [a.id, b.id],
     )
   ).rows[0];
   if (already) {
-    return err(409, "date_in_progress", `${shortName(a.name)} and ${shortName(b.name)} already have a date in progress (${already.id}). Play that one: get_own_date_step with its episode_id.`);
+    const pair = `${shortName(a.name)} and ${shortName(b.name)}`;
+    // #356: a date the show's model is writing can't be played; say so and say what to do.
+    if (already.performed_by !== "agent") {
+      return err(409, "date_in_progress", `${pair} already have a date being written by the show's model (${already.id}). Wait for it with wait_for_episode, then start your own date.`);
+    }
+    return err(409, "date_in_progress", `${pair} already have a date in progress (${already.id}). Play that one: get_own_date_step with its episode_id.`);
   }
   const open = (
     await db.query<{ n: number }>(
