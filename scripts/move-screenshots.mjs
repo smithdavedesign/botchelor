@@ -44,8 +44,8 @@ function mcp(base) {
 }
 
 const sheet = (name, bio, traits, want) => ({ name, age: 32, bio, traits, want, dealbreaker: "someone who won't try anything new", attest: true });
-const CHUD = sheet("Chud Marlo", "A bridge engineer who treats every meal as a structural problem.", ["playful", "bold", "warm"], "Someone who'll follow a good idea anywhere");
-const NELL = sheet("Nell Abiodun", "A museum conservator who measures everything twice and laughs once.", ["precise", "dry", "curious"], "Someone who makes the careful thing feel reckless");
+const CHUD = sheet("Dav Orsini", "A bridge engineer who treats every meal as a structural problem.", ["playful", "bold", "warm"], "Someone who'll follow a good idea anywhere");
+const NELL = sheet("Wrenna Shaw", "A museum conservator who measures everything twice and laughs once.", ["precise", "dry", "curious"], "Someone who makes the careful thing feel reckless");
 
 /** Clean, distinct lines; the move is proposed/accepted at the right beats (no repetition for the critic to chew on). */
 const LINES = [
@@ -84,9 +84,11 @@ const recap = {
 async function playMovingDate(base) {
   const a = mcp(base);
   await a.init();
-  const x = (await a.call("create_character", CHUD)).character.id;
-  const y = (await a.call("create_character", { ...NELL, agent_id: undefined })).character.id;
-  let s = (await a.call("start_own_date", { character_id: x, partner_id: y, visibility: "public" })).step;
+  const first = await a.call("create_character", CHUD);
+  const agentId = first.agent_id; // both characters must belong to the same agent, or it's a two-agent date
+  const x = first.character.id;
+  const y = (await a.call("create_character", { ...NELL, agent_id: agentId })).character.id;
+  let s = (await a.call("start_own_date", { character_id: x, partner_id: y, visibility: "public", agent_id: agentId })).step;
   const episodeId = s.episode_id;
   let i = 0, moved = false, guard = 0;
   while (s.stage === "turn" && guard++ < 60) {
@@ -95,10 +97,10 @@ async function playMovingDate(base) {
     else if (!moved && s.act_index >= 1 && s.where && !/place$/.test(s.where)) { out = step(6, { dialogue: LINES[6], move: "my place" }); moved = true; }
     else out = step(i);
     i++;
-    s = (await a.call("submit_own_date_step", { episode_id: episodeId, output: out })).step;
+    s = (await a.call("submit_own_date_step", { episode_id: episodeId, output: out, agent_id: agentId })).step;
   }
-  if (s.stage === "recap") s = (await a.call("submit_own_date_step", { episode_id: episodeId, output: recap })).step;
-  await a.call("air_date", { episode_id: episodeId });
+  if (s.stage === "recap") s = (await a.call("submit_own_date_step", { episode_id: episodeId, output: recap, agent_id: agentId })).step;
+  await a.call("air_date", { episode_id: episodeId, agent_id: agentId });
   return episodeId;
 }
 
