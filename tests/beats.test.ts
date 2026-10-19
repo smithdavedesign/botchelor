@@ -235,3 +235,20 @@ describe("blind view + the self-quote check", () => {
     expect(transcriptQuality(t, CHARS).self_quotes).toBe(1);
   });
 });
+
+describe("the goodbye for an established couple (2026-10-18, after ten Chud × Sable dates)", () => {
+  it("stops sounding like booking a first follow-up once they're four dates deep", async () => {
+    const { closingMove } = await import("@/lib/beats");
+    // Early on, a second-date goodbye is about arranging more.
+    const early = Array.from({ length: 4 }, (_, i) => closingMove({ ending: "second_date" }, i, 0).actor).join(" ");
+    expect(early).toMatch(/ask for it|plan|another night|something to keep|linger/i);
+    // Deep in, seeing each other is a given — no "plan another date".
+    for (let n = 4; n <= 10; n++) {
+      const g = closingMove({ ending: "second_date" }, n, 0);
+      expect(g.actor).toMatch(/a given|building|further ahead|reluctant/i);
+      expect(g.director).not.toMatch(/asks to see the other again/);
+    }
+    // A disaster or friends ending is unchanged by how many dates they've had.
+    expect(closingMove({ ending: "disaster" }, 9, 0).actor).toMatch(/plainly|awkwardly/i);
+  });
+});

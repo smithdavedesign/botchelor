@@ -176,6 +176,10 @@ describe("the reply fields", () => {
     expect(movePlace("Chud's flat", CHUD.self, CHUD.other)).toBe("home@Chud's place");
     expect(movePlace("somewhere quieter", CHUD.self, CHUD.other)).toBe("elsewhere@somewhere quieter");
     expect(movePlace("a hotel room", CHUD.self, CHUD.other)).toBeNull();
+    // Not venues on a PG show (a 2026-10-18 move put two of them in a car): a car or a bedroom is dropped.
+    expect(movePlace("my car", CHUD.self, CHUD.other)).toBeNull();
+    expect(movePlace("the back seat", CHUD.self, CHUD.other)).toBeNull();
+    expect(movePlace("my bedroom", CHUD.self, CHUD.other)).toBe("home@Chud's place");
     expect(movePlace("www.example.com", CHUD.self, CHUD.other)).toBeNull();
   });
 });

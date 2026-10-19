@@ -262,6 +262,9 @@ describe("parseTurn", () => {
   it("rejects invalid JSON, an empty line, and anything the content filter flags", () => {
     expect(parseTurn("{nope", "a", 0)).toBeNull();
     expect(parseTurn(JSON.stringify({ dialogue: "" }), "a", 0)).toBeNull();
+    // A line with no words (date 1 ended on "[b] .", date 4 on "..."): rejected, not kept as a blank bubble.
+    expect(parseTurn(JSON.stringify({ dialogue: "." }), "a", 0)).toBeNull();
+    expect(parseTurn(JSON.stringify({ dialogue: "..." }), "a", 0)).toBeNull();
     expect(parseTurn(turnJson("Honestly this feels like a porn shoot"), "a", 0)).toBeNull();
     expect(parseTurnResult(JSON.stringify({ dialogue: "hi", action: "takes off everything, naked" }), "a", 0)).toEqual({ rejected: "filtered" });
   });

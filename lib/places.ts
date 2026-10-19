@@ -131,7 +131,9 @@ const PLAIN_NOUNS = new Set("place spot joint corner stand stall shop store stre
 /** Where a named place starts: after a preposition, or an "how about…", with an article in front of it. */
 const NAMED = /\b(?:at|to|by|in|inside|outside|near|on|under|up|from|over|along|across|down|around|through|into|past|behind|how about|what about|fancy|try)\s+((?:the|a|an|that|this|some|our)\s+[^.,!?;:()"“”\n]{2,80})/gi;
 /** The show stays PG: none of these is a date venue, whatever the texts say. */
-const NOT_A_VENUE = /\b(bed|beds|bedroom|bathroom|bath|shower|hotel room|motel|my room|your room)\b/i;
+// Not date venues on this PG show: a bedroom etc., and a car/van (a 2026-10-18 move put two of them in a car, where one
+// said "come sit on my lap" over a revving engine). A move or plan naming one of these is dropped.
+const NOT_A_VENUE = /\b(bed|beds|bedroom|bathroom|bath|shower|hotel room|motel|my room|your room|cars?|van|vehicle|back ?seat|backseat)\b/i;
 const LINKISH = /https?:|www\.|@\w|\.\w{2,4}\/|\d{3,}/i;
 
 /** A named place the text points at ("the observatory"), or null when nothing in it reads like one. */
