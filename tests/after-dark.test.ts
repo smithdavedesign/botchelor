@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { adultModeEnabled, setAdultModelForTests } from "@/lib/adult/mode";
-import { parseSceneLines } from "@/lib/adult/scenes";
+import { dropForeignActions, parseSceneLines } from "@/lib/adult/scenes";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
@@ -135,6 +135,17 @@ describe("a scene", () => {
     expect(parseSceneLines(JSON.stringify({ lines: [{ who: "a", text: "Hi." }, { who: "b", text: "Hello there." }] }), names)).toEqual(want);
     expect(parseSceneLines('{\n"Ada": "Hi.",\n"Bo": "Hello there."\n}', names)).toEqual(want);
     expect(parseSceneLines("Ada: Hi.\nBo: Hello there.\n(narration)", names)).toEqual(want);
+  });
+
+  it("drops actions the model wrote in another script", () => {
+    const names = { a: "Ada Lumen", b: "Bo Quill" };
+    const raw = JSON.stringify({ lines: [{ who: "a", action: "медленно целует её шею", text: "Hi." }, { who: "b", action: "smiles", text: "Hello." }] });
+    expect(parseSceneLines(raw, names)).toEqual([
+      { who: "a", text: "Hi." },
+      { who: "b", text: "*smiles* Hello." },
+    ]);
+    expect(dropForeignActions("*медленно покрывает губами ее шею* Your neck is a canvas.")).toBe("Your neck is a canvas.");
+    expect(dropForeignActions("*leans in* Café?")).toBe("*leans in* Café?");
   });
 });
 

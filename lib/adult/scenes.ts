@@ -109,7 +109,7 @@ export async function openScene(db: Db, adminId: string, x: string, y: string): 
   const [ca, cb, date] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b), latestDate(db, a, b)]);
   return {
     id: row.id,
-    lines: row.lines ?? [],
+    lines: (row.lines ?? []).map((l) => ({ ...l, text: dropForeignActions(l.text) })),
     a: { id: a, name: ca?.name ?? a },
     b: { id: b, name: cb?.name ?? b },
     date: date ? { setting: date.setting, ending: date.ending, venue: date.venue } : null,
@@ -209,7 +209,7 @@ export function sceneMessages(
   const user =
     `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}. ` +
     `Each line is 1 to 3 sentences in that character's own voice, vivid and specific, never a stock line ("you feel amazing"). ` +
-    `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text.` +
+    `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text. Write both in English.` +
     (direction ? ` Steer the scene this way: ${direction}` : " Move the scene forward: something new happens in these lines, nothing they've already done or said.") +
     (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
     ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "..."}, {"who": "b", "action": "", "text": "..."}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. his bedroom", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
@@ -219,6 +219,14 @@ export function sceneMessages(
     { role: "system", content: system },
     { role: "user", content: user },
   ];
+}
+
+/** Letters outside the Latin script: the Venice text model sometimes slips into Russian, mostly in the actions. */
+const FOREIGN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u;
+
+/** Drops *actions* written in another script (lines saved before the model was told to keep to English). */
+export function dropForeignActions(text: string): string {
+  return text.replace(/\*[^*]+\*\s*/g, (m) => (FOREIGN.test(m) ? "" : m)).trim() || text;
 }
 
 /** The lines in a model's reply: {"lines": [...]}, an array, a single line, "Name": "text" pairs, or "Name: text". */
@@ -238,7 +246,8 @@ export function parseSceneLines(raw: string, names: { a: string; b: string }): S
       const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed.lines) ? parsed.lines : [parsed];
       // The action leads, in asterisks, so it never lands in the middle of a sentence.
       const withAction = (x: { text?: string; action?: string }) => {
-        const act = typeof x.action === "string" ? x.action.trim().replace(/^\*+|\*+$/g, "") : "";
+        const raw = typeof x.action === "string" ? x.action.trim().replace(/^\*+|\*+$/g, "") : "";
+        const act = FOREIGN.test(raw) ? "" : raw;
         return typeof x.text === "string" && x.text.trim() ? (act ? `*${act}* ${x.text.trim()}` : x.text) : act ? `*${act}*` : x.text;
       };
       const out = arr
@@ -382,7 +391,7 @@ export async function listNights(db: Db, ownerId: string, x: string, y: string):
     `select id, lines, place, stage, date_setting, date_venue, set_place, created_at from adult_nights where owner_id = $1 and character_a = $2 and character_b = $3 order by created_at desc limit 50`,
     [ownerId, ...pair],
   );
-  return rows.map((r) => ({ ...r, created_at: new Date(r.created_at).toISOString() }));
+  return rows.map((r) => ({ ...r, lines: (r.lines ?? []).map((l) => ({ ...l, text: dropForeignActions(l.text) })), created_at: new Date(r.created_at).toISOString() }));
 }
 
 /** Starts the pair's scene again from the top, saving the one that ran as a night to play back. */
