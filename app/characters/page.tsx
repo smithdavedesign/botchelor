@@ -92,7 +92,7 @@ export default async function CharactersPage({ searchParams }: Props) {
         </ul>
       </section>
 
-      <section>
+      <section id="next-season">
         <h2>Next season&apos;s candidates: {seasonLabel(nextId)}</h2>
         {upcoming.length ? (
           <ul className="gallery">

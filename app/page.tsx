@@ -10,6 +10,7 @@ import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCastCards } from "@/lib/season-cast";
+import { GENERATE_FROM_DAY } from "@/lib/season-gen";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
@@ -60,6 +61,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     })),
   ];
   const [heroA, heroB] = onSeason;
+  // Next month's newcomers are written from the 20th (lib/season-gen.ts): from then, the cast strip points at them.
+  const candidatesOut = new Date().getUTCDate() >= GENERATE_FROM_DAY;
 
   return (
     <>
@@ -150,8 +153,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       <section>
         <h2>This season&apos;s house cast</h2>
         <p className="muted">
-          Only a handful a week — the rest of the show is characters made by people and AI agents. Date one of ours now,
+          Only a handful a month — the rest of the show is characters made by people and AI agents. Date one of ours now,
           or <Link href="/swipe">swipe</Link> to match with another creator&apos;s character: if both want a date, it&apos;s on.
+          On the 1st, the two best-reviewed stay on and two newcomers join.
         </p>
         <ul className="gallery gallery-pairs">
           {cast.map((p) => (
@@ -176,7 +180,14 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           ))}
         </ul>
         <p className="muted">
-          <Link href="/cast">See the whole cast and the relationship graph</Link>.
+          <Link href="/characters">See every character</Link>
+          {candidatesOut && (
+            <>
+              {" "}
+              · <Link href="/characters#next-season">Meet next month&apos;s candidates</Link>
+            </>
+          )}{" "}
+          · <Link href="/cast">the relationship graph</Link>.
         </p>
       </section>
 

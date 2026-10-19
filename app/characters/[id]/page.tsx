@@ -170,7 +170,9 @@ export default async function CharacterPage({ params }: Props) {
           ]),
         ]}
       />
-      <p className="kicker">Contestant card</p>
+      <p className="kicker">
+        <Link href="/characters">← Every character</Link> · Contestant card
+      </p>
       <div className="contestant">
         <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={96} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} />
         <div className="meta">
