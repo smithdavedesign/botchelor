@@ -11,7 +11,7 @@ import type { ChatMessage } from "../model";
 import { pairKey } from "../relationships";
 import { checkAdultText } from "../safety";
 import { eligibleIds } from "./characters";
-import { ensureBaseline, makePicture, scenePrompt, type Media } from "./media";
+import { ensureBaseline, makePicture, OUTPUT_CHECK_READY, PICTURES_OFF_NOTE, scenePrompt, type Media } from "./media";
 import { adultKeys } from "./settings";
 import { adultModel } from "./mode";
 
@@ -245,7 +245,8 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const pictures: Media[] = [];
   let picture_note: string | undefined;
   const meta = parseSceneMeta(raw);
-  if ((meta.explicit || meta.picture) && a && b && (await adultKeys(db).catch(() => ({ fal: null }))).fal) {
+  if ((meta.explicit || meta.picture) && !OUTPUT_CHECK_READY) picture_note = PICTURES_OFF_NOTE;
+  else if ((meta.explicit || meta.picture) && a && b && (await adultKeys(db).catch(() => ({ fal: null }))).fal) {
     try {
       if (meta.explicit) for (const c of [a, b]) { const made = await ensureBaseline(db, adminId, c); if (made) pictures.push(made); }
       if (meta.picture) {

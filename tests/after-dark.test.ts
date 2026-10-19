@@ -189,7 +189,19 @@ describe("on the site, from the settings panel", () => {
     expect((await call(switchPost, "/api/admin/after-dark/switch", { character_id: theirs.id, on: true }, cookie)).status).toBe(403);
   });
 
-  it("makes each character's baseline the first time it turns explicit, a new picture only when they agree, and serves them only to an admin", async () => {
+  it("makes no picture or clip until the output check exists: the scene still writes, and says why", async () => {
+    const { cookie } = await admin();
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ" }, cookie);
+    const seen = fakeFal();
+    scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }], explicit: true, picture: { of: "both", description: "the two of them" } }));
+    const r = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
+    expect(r.added).toBe(1);
+    expect(r.pictures).toEqual([]);
+    expect(r.picture_note).toMatch(/off until every image is checked/);
+    expect(seen.filter((s) => s.includes("fal.run"))).toEqual([]);
+  });
+
+  it.skip("(once the output check exists) makes each character's baseline the first time it turns explicit, a new picture only when they agree, and serves them only to an admin", async () => {
     const { cookie } = await admin();
     await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ" }, cookie);
     const seen = fakeFal();

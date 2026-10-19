@@ -13,6 +13,15 @@ import { adultKeys, getAdultSettings } from "./settings";
 
 export type Media = { id: string; character_id: string | null; character_b: string | null; kind: "baseline" | "scene" | "video"; status: string; created_at: string; mime: string };
 
+/**
+ * Pictures and clips are OFF until an output check exists (docs/after-dark.md #1; botchelor-fb's review,
+ * 2026-10-18): with fal's safety checker off, nothing would catch a returned image that shows a minor, and it would
+ * be stored. Our prompt check isn't enough on its own. Turn this on only when every image passes an age/CSAM check
+ * on the OUTPUT before it is stored (discarded, never stored, on a fail).
+ */
+export const OUTPUT_CHECK_READY = false;
+export const PICTURES_OFF_NOTE = "Pictures and clips are off until every image is checked after it's made (no one who looks under 18), not only our prompt.";
+
 /** fal's REST endpoints: run (wait for the result) and queue (submit, then poll), by model id. */
 const FAL_RUN = "https://fal.run";
 const FAL_QUEUE = "https://queue.fal.run";
@@ -61,6 +70,7 @@ export async function makePicture(
   ownerId: string,
   opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null },
 ): Promise<Media> {
+  if (!OUTPUT_CHECK_READY) throw new Error(PICTURES_OFF_NOTE);
   const check = checkAdultText({ prompt: opts.prompt });
   if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
   const key = await falKey(db);
@@ -96,6 +106,7 @@ export async function startClip(db: Db, ownerId: string, imageId: string, motion
     `select remote_url, character_id, character_b, prompt from adult_images where id = $1 and kind <> 'video' and status = 'ready'`,
     [imageId],
   )).rows[0];
+  if (!OUTPUT_CHECK_READY) throw new Error(PICTURES_OFF_NOTE);
   if (!pic?.remote_url) throw new Error("No picture with that id.");
   const prompt = `${motion.trim() || "Slow, natural movement"}. Everyone shown is an adult.`;
   const check = checkAdultText({ prompt });
