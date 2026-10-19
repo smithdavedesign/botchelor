@@ -22,6 +22,7 @@ import { loadThread } from "@/lib/inbox";
 import { nextDate } from "@/lib/date-proposals";
 import { arcQuestion } from "@/lib/arcs";
 import { followState } from "@/lib/follows";
+import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 
 export const dynamic = "force-dynamic";
 
@@ -171,6 +172,8 @@ export default async function CouplePage({ params }: Props) {
       {next && <NextDate pair={[ca.id, cb.id]} next={next} hasNudge={nudges.length > 0} />}
 
       {arc && <ArcCard pair={[ca.id, cb.id]} names={`${first(ca)} and ${first(cb)}`} q={arc} />}
+
+      <AfterDarkTeaser pair={[ca.id, cb.id]} />
 
       {owner && chain && (
         <ThreadPreview

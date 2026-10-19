@@ -28,6 +28,7 @@ import OwnerControls from "./OwnerControls";
 import { isTalkLevel, type TalkLevel } from "@/lib/talk";
 import { partnerStyleOf } from "@/lib/partners";
 import LearnedPanel from "./LearnedPanel";
+import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 
 export const dynamic = "force-dynamic";
 
@@ -298,6 +299,8 @@ export default async function CharacterPage({ params }: Props) {
           )}
         </section>
       )}
+
+      {c.house && <AfterDarkTeaser character={c.id} />}
 
       {relationships.length > 0 && (
         <section className="card">

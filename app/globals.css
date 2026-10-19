@@ -5093,3 +5093,28 @@ a.phone-head-btn {
   color: #7a4fd6;
   font-weight: 700;
 }
+
+/* After Dark's teaser in the show: the length, under a blur, and the way to unlock it. The text is filler. */
+.ad-teaser {
+  background: #1d1430;
+  color: #f1e9ff;
+  border-color: #33264d;
+}
+.ad-teaser .muted {
+  color: #b7a8d3;
+}
+.ad-teaser a:not(.button) {
+  color: #c792ff;
+}
+.ad-teaser-title {
+  margin: var(--space-2) 0;
+  font-weight: 700;
+}
+.ad-blur {
+  filter: blur(5px);
+  user-select: none;
+  pointer-events: none;
+}
+.ad-blur p {
+  margin: 0.2rem 0;
+}
