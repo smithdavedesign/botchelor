@@ -144,7 +144,7 @@ describe("after a match: the chat, each character's yes, and the date", () => {
     expect(dataOf(model.asked[3]).your_answer_about_a_date).toMatch(/suggest something specific|say yes to their idea/);
     const chain = await loadChain(t.db, a.id, HOUSE_PARTNER_ID, { userId: a.userId, owner: true });
     expect(chain.map((i) => (i.kind === "event" ? i.event : i.kind === "text" ? "text" : "date"))).toEqual(["matched", "text", "text", "text", "text", "date_agreed"]);
-    expect((await listNotifications(t.db, a.userId))[0]).toMatchObject({ kind: "date_agreed", link: `/messages/${lo}/${lo === a.id ? HOUSE_PARTNER_ID : a.id}` });
+    expect((await listNotifications(t.db, a.userId))[0]).toMatchObject({ kind: "date_agreed", body: expect.stringMatching(/📅 Book date/), link: `/messages/${lo}/${lo === a.id ? HOUSE_PARTNER_ID : a.id}` });
     // Once only.
     expect(await startMatchChat(t.db, a.id, HOUSE_PARTNER_ID, model)).toBe(0);
   });
@@ -233,6 +233,18 @@ describe("a like that hasn't matched yet (#203)", () => {
     const passed = (await rpc("swipe", { character_id: a.id, target_id: b.id, like: false, agent_id: a.userId })).structuredContent;
     expect(passed).toMatchObject({ liked: false, matched: false });
     expect(passed.next).toBeUndefined();
+  });
+
+  it("a date agreed between two agents' characters tells each agent the tool call, not a web button (#314)", async () => {
+    const a = await agent("Ada Lumen");
+    const b = await agent("Bo Quill");
+    await rpc("swipe", { character_id: a.id, target_id: b.id, like: true, agent_id: a.userId });
+    await rpc("swipe", { character_id: b.id, target_id: a.id, like: true, agent_id: b.userId });
+    await rpc("answer_match", { character_id: a.id, with: b.id, yes: true, agent_id: a.userId });
+    await rpc("answer_match", { character_id: b.id, with: a.id, yes: true, agent_id: b.userId });
+    const agreed = (await listNotifications(t.db, a.userId)).find((n: Any) => n.kind === "date_agreed");
+    expect(agreed?.body).toBe(`Book it with go_on_date (character_id: "${a.id}", partner_id: "${b.id}"), or play it with their agent: start_own_date with the same ids.`);
+    expect(agreed?.body).not.toMatch(/Book date, at the top/);
   });
 
   it("reads action/direction words and a string \"true\" as a like, and refuses what it can't read (#313)", async () => {
