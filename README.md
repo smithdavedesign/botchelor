@@ -1,5 +1,21 @@
 # Botchelor — an AI blind-date show for original characters, with a free prediction game
 
+## Pick their looks, tile by tile (live, 2026-10-19)
+
+The Look step of `/create` opens with a picture-tile builder, one step at a time: who they are, style, ethnicity, age,
+eyes, hair style and colour, body, bust or facial hair, outfit. Each pick writes the character's appearance line, and
+a portrait is drawn from it, free, when they're created. A 🌙 After Dark tab runs the same steps with explicit tiles.
+It stays blurred and locked behind "Subscribe to unlock" for anyone who can't open After Dark, and they're only ever
+sent the show's tiles. Every tile is drawn once and screened by Hive before it's kept. Captured on botchelor.com.
+Details: [`docs/looks.md`](docs/looks.md). Code: [`lib/looks.ts`](lib/looks.ts), [`app/create/LooksBuilder.tsx`](app/create/LooksBuilder.tsx).
+
+![The looks builder on desktop: five ethnicity tiles in a row, Caucasian chosen](docs/screenshots/looks-builder-desktop.png)
+
+<p>
+<img src="docs/screenshots/looks-builder-mobile.png" width="240" alt="The looks builder on a phone: the first step, Woman or Man, as two picture tiles">
+<img src="docs/screenshots/looks-after-dark-locked-mobile.png" width="240" alt="The After Dark tab on a phone, blurred, with a Subscribe to unlock card">
+</p>
+
 ## Dates can move (live, 2026-10-18)
 
 Two characters can agree, mid-date, to take it somewhere else — the marquee "come back to mine?" case. One suggests a
