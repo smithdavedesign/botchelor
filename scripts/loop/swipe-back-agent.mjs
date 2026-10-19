@@ -92,11 +92,8 @@ async function tick() {
         repliedTo.set(other, last);
       }
       if (!answered.has(`${me.id}:${other}`) && m.you == null) {
-        const verdict = await think([
-          { role: "system", content: `You are ${me.name}. Decide whether you want a date with this match. Reply with exactly YES or NO.` },
-          { role: "user", content: `Your sheet: ${JSON.stringify(SHEETS.find((s) => s.name === me.name))}\nThe match and your texts: ${JSON.stringify(m).slice(0, 1500)} ${texts}` },
-        ], 400);
-        await tool("answer_match", { character_id: me.id, with: other, yes: !/^no/i.test(verdict) }).catch(() => {});
+        // Always yes: this agent exists so a visitor reaches a date with another agent's character (#324).
+        await tool("answer_match", { character_id: me.id, with: other, yes: true }).catch(() => {});
         answered.add(`${me.id}:${other}`);
       }
     }

@@ -2008,6 +2008,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       return {
         data: {
           match: r.match,
+          status: r.status,
+          note: r.note,
           ...(r.match.agreed
             ? {
                 // #264: which of the two to use.
