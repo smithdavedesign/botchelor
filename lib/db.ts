@@ -1184,6 +1184,10 @@ create table if not exists season_candidates (
   reviewed_at timestamptz
 );
 create index if not exists season_candidates_season_idx on season_candidates (season_id, status);
+-- Private characters (David, 2026-10-19): listed in the /characters directory but not linked, and their card shows
+-- only their name to anyone but the owner. House characters are always public.
+alter table characters add column if not exists visibility text not null default 'public'
+  check (visibility in ('public', 'private'));
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

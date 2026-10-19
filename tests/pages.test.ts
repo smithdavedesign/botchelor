@@ -90,7 +90,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
   it("lists the public pages in the static part of the sitemap, and nothing private", () => {
     const urls = staticSitemap("https://botchelor.vercel.app").map((e) => e.url);
     expect(urls).toEqual(
-      ["/", "/create", "/watch", "/cast", "/agents", "/shop", "/terms", "/privacy"].map((p) => `https://botchelor.vercel.app${p}`),
+      ["/", "/create", "/watch", "/cast", "/characters", "/agents", "/shop", "/terms", "/privacy"].map((p) => `https://botchelor.vercel.app${p}`),
     );
     expect(urls.join(" ")).not.toMatch(/\/api\/|\/leagues\/|\/watch\/|\/account|\/admin/);
   });

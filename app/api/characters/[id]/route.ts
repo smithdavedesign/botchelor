@@ -47,6 +47,8 @@ const CharacterPatch = z
     talk: z.enum(TALK_LEVELS).nullable().optional(),
     // One partner or more (lib/partners.ts); "decide" leaves it to the character.
     partner_style: z.enum(PARTNER_STYLES).optional(),
+    // Private: in the /characters directory by name only, not linked, and the card shows only the name to others.
+    visibility: z.enum(["public", "private"]).optional(),
     // Optional details (lib/extras.ts), replaced wholesale; null or {} clears them.
     extras: ExtrasInput.nullable().optional(),
     // What's new this week (lib/life.ts): a string lasts this season ("" = nothing new this week); null hands it
@@ -98,6 +100,7 @@ const COLUMN: Record<string, (v: Record<string, unknown>) => unknown> = {
   open_audience: (v) => v.open_audience,
   talk: (v) => (v.talk === "standard" ? null : (v.talk ?? null)),
   partner_style: (v) => v.partner_style,
+  visibility: (v) => v.visibility,
   extras: (v) => JSON.stringify(normaliseExtras(v.extras as ExtrasInputType | null)),
   this_week: (v) => (v.this_week === null ? null : JSON.stringify(stampThisWeek(v.this_week as string))),
 };
