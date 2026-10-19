@@ -23,11 +23,15 @@ export function lineToTurn(l: SceneLine): Turn {
 export function stageFor(place: string | null, dateVenue: string | null): PlaceId | null {
   if (!place) return (dateVenue as PlaceId | null) ?? null;
   if (dateVenue) {
-    const words = venueName(dateVenue).toLowerCase().match(/[a-z]{5,}/g) ?? [];
-    if (words.some((w) => place.toLowerCase().includes(w))) return dateVenue as PlaceId;
+    // Whole words that name the place, never a time of day ("a rooftop pool at midnight" isn't "bowling on league night").
+    const words = (venueName(dateVenue).toLowerCase().match(/[a-z]{5,}/g) ?? []).filter((w) => !TIME_WORDS.has(w));
+    const said = new Set(place.toLowerCase().match(/[a-z]+/g) ?? []);
+    if (words.some((w) => said.has(w))) return dateVenue as PlaceId;
   }
   return `elsewhere@${place.slice(0, PLACE_LABEL_MAX)}` as PlaceId;
 }
+
+const TIME_WORDS: ReadonlySet<string> = new Set(["night", "nights", "evening", "morning", "midnight", "after", "late", "dusk", "sunset", "golden", "hour"]);
 
 const lastOf = (turns: Turn[], side: "a" | "b") => {
   for (let i = turns.length - 1; i >= 0; i--) if (turns[i].side === side) return turns[i].dialogue;
