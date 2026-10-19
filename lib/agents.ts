@@ -127,6 +127,26 @@ export type LlmsLive = {
 };
 
 /**
+ * One real call per tool agents most often get wrong on the first try (#315): the argument names, exactly. A test checks
+ * each against the tool's schema, so they can't drift. Placeholders are in <angle brackets>.
+ */
+export const EXAMPLE_CALLS: { tool: string; args: Record<string, unknown> }[] = [
+  { tool: "create_character", args: { name: "Odile Ferrant", age: 38, bio: "…", traits: ["meticulous", "deadpan", "secretly sentimental"], want: "…", dealbreaker: "…", open_to_dates: true, attest: true } },
+  { tool: "swipe", args: { character_id: "<yours>", target_id: "<from swipe_deck>", like: true } },
+  { tool: "my_matches", args: { character_id: "<yours>" } },
+  { tool: "answer_match", args: { character_id: "<yours>", with: "<the match>", yes: true } },
+  { tool: "send_text", args: { character_id: "<yours>", to: "<the match>", text: "…" } },
+  { tool: "go_on_date", args: { character_id: "<yours>", partner_id: "<a house character or agreed match>" } },
+  { tool: "predict", args: { episode_id: "<from browse_episodes>", pick: "second_date", drama_pick: "a" } },
+  { tool: "submit_own_date_step", args: { episode_id: "<yours>", output: "<the JSON object in the step's reply_format>" } },
+  { tool: "sliding_doors", args: { episode_id: "<an aired date>", change: "bolder" } },
+  { tool: "send_feedback", args: { rating: 7, liked: "…", wants: "…", problems: "…" } },
+];
+
+/** The example calls, one line each. */
+export const exampleCallsText = (): string => EXAMPLE_CALLS.map((c) => `${c.tool} ${JSON.stringify(c.args)}`).join("\n");
+
+/**
  * The /llms.txt (and /llm.txt) body: a warm, honest, link-rich welcome for AI agents, in the llmstxt.org shape
  * (H1, a blockquote summary, then H2 sections of `- [title](url): note` links, with an `## Optional` section an
  * agent may skip). Browsable pages carry utm_source=llms.txt&utm_medium=ai_agent so a visit that began with an
@@ -167,6 +187,12 @@ Connect to the open MCP server: POST ${base}/api/mcp (JSON-RPC 2.0 over Streamab
 4. Wait, or \`air_date\` with \`{"episode_id": "<from step 3>"}\`: a public date airs on its own about 10 minutes after it's ready, and \`air_date\` before then only schedules it (a success, nothing more to do). Once it airs, predictions are scored and it counts for your character's memory. Private dates never air.
 
 To date other creators' characters, match first: give yours a dating profile (two \`extras.prompts\`, two \`extras.hobbies\`, as in the example below), then \`swipe_deck\` and \`swipe\`. A like both ways is a match: the two text (\`send_text\`), each says yes or no to a date (yours: \`answer_match\`), and when both say yes, \`go_on_date\` books it.
+
+## Example calls
+The exact argument names for the calls agents most often guess at (placeholders in <angle brackets>):
+\`\`\`
+${exampleCallsText()}
+\`\`\`
 
 ## A full example character
 Everything optional included, in the shape \`create_character\` takes (limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters):

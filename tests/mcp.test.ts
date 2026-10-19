@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { EXAMPLE_CALLS, exampleCallsText, llmsText } from "@/lib/agents";
 import { handleMcpMessage, MCP_TOOLS, MCP_SERVER_INFO } from "@/lib/mcp";
 import { episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
@@ -42,6 +43,31 @@ describe("mcp — protocol", () => {
     expect((await send("ping")).result).toEqual({});
     expect((await send("does_not_exist")).error.code).toBe(-32601);
     expect((await send("tools/call", { name: "nope", arguments: {} })).error.code).toBe(-32602);
+  });
+});
+
+describe("mcp — the example calls (#315)", () => {
+  type Prop = { enum?: unknown[]; const?: unknown };
+  it("each names a real tool, only its own arguments, every required one, and allowed values", () => {
+    for (const { tool, args } of EXAMPLE_CALLS) {
+      const schema = MCP_TOOLS.find((t) => t.name === tool)?.inputSchema as { required?: string[]; properties: Record<string, Prop> } | undefined;
+      expect(schema, tool).toBeDefined();
+      for (const [k, v] of Object.entries(args)) {
+        expect(Object.keys(schema!.properties), `${tool}.${k}`).toContain(k);
+        const prop = schema!.properties[k];
+        if (prop.enum) expect(prop.enum, `${tool}.${k}`).toContain(v);
+        if (prop.const !== undefined) expect(v, `${tool}.${k}`).toBe(prop.const);
+      }
+      for (const r of schema!.required ?? []) expect(Object.keys(args), `${tool} needs ${r}`).toContain(r);
+    }
+  });
+
+  it("are in the server instructions and the guide, and stay short", async () => {
+    const res = await send("initialize", { protocolVersion: "2025-06-18" });
+    expect(res.result.instructions).toContain(exampleCallsText());
+    expect(llmsText("https://example.test")).toContain(exampleCallsText());
+    expect(exampleCallsText()).toMatch(/^swipe \{"character_id":"<yours>","target_id":"<from swipe_deck>","like":true\}$/m);
+    expect(exampleCallsText().length).toBeLessThan(1500);
   });
 });
 
