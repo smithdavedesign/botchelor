@@ -420,6 +420,7 @@ describe("the scene prompt", () => {
     expect(stageFor(null, "bowling_alley")).toBe("bowling_alley");
     expect(stageFor("bowling alley, lane twelve", "bowling_alley")).toBe("bowling_alley");
     expect(stageFor("his apartment", "bowling_alley")).toBe("elsewhere@his apartment");
+    expect(stageFor("a rooftop pool at midnight", "bowling_alley")).toBe("elsewhere@a rooftop pool at midnight");
   });
 
   it("puts the action before the speech", () => {

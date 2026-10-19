@@ -953,6 +953,19 @@ create table if not exists scene_requests (
   primary key (episode_id, normalized)
 );
 create index if not exists scene_requests_normalized_idx on scene_requests (normalized);
+-- Set the scene on a filming date (lib/scene-suggestions.ts): a paid place the producer suggests; kept if they go.
+create table if not exists scene_suggestions (
+  id text primary key,
+  episode_id text not null references episodes (id) on delete cascade,
+  user_id text not null,
+  place text not null,
+  label text not null,
+  tokens integer not null default 0,
+  status text not null default 'pending' check (status in ('pending', 'proposed', 'moved', 'declined')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists scene_suggestions_episode_idx on scene_suggestions (episode_id);
 -- Drawn sets for places of their own (lib/sets.ts): one per place, drawn once on fal and screened by Hive.
 create table if not exists place_sets (
   normalized text primary key,
