@@ -184,9 +184,10 @@ export function sceneMessages(
     (now.linesAtStage ?? 0) < MIN_LINES_PER_STAGE
       ? `- Tease it out. These lines stay at ${STAGES[now.stage]}: linger in it, with talk, looks, hesitation and anticipation. Don't move on to the next stage yet.`
       : now.stage < STAGES.length - 1
-        ? `- Build it slowly. If it comes naturally, these lines may move one stage, to ${STAGES[now.stage + 1]}, and no further; staying put is fine too.`
+        ? `- Move it on. It has lingered long enough: in these lines it goes one stage further, to ${STAGES[now.stage + 1]}, and no further.`
         : "- Take your time: let it unfold, with talk and reactions between the actions.",
     lines.length ? "" : `- The scene opens exactly where the date ended, still at ${now.place}. They don't leave in these first lines.`,
+    "- Once they've agreed to go somewhere, getting there takes a line or two at most; then the scene picks up at the new place. Don't keep saying \"let's go\".",
     "- Respect where they are. In a public place (a cafe, a bar, a restaurant, a street, a park, a venue) they can flirt, touch discreetly and, at most, kiss; other people are around and they act like it. Going further means one suggests leaving, the other agrees, and the lines show them going somewhere private (one of their places, a hotel). Only then does it go past kissing.",
   ]
     .filter((x) => x !== "")
