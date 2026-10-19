@@ -5072,6 +5072,21 @@ a.phone-head-btn {
   background: var(--ad-bg);
   color: var(--ad-ink);
   color-scheme: dark;
+  /* The site's own tokens, remapped, so every control (ghost buttons, fields, errors, focus) is readable at night
+     in both themes (David, 2026-10-18: "dark red on black… unreadable"). */
+  --ink: var(--ad-ink);
+  --muted: var(--ad-muted);
+  --card: var(--ad-card);
+  --paper: var(--ad-bg);
+  --paper-2: var(--ad-card);
+  --line: var(--ad-line);
+  --field: #241a3a;
+  --soft: #2a1f42;
+  --accent: var(--ad-accent);
+  --accent-text: #e2c8ff;
+  --focus: var(--ad-accent);
+  --bad-text: #ffadc0;
+  --ok-text: #a6ecbc;
 }
 .after-dark-mode .card,
 .after-dark-mode .after-dark-line {
