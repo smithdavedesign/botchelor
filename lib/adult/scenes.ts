@@ -11,7 +11,7 @@ import type { ChatMessage } from "../model";
 import { pairKey } from "../relationships";
 import { checkAdultText } from "../safety";
 import { eligibleIds } from "./characters";
-import { ensureBaseline, makePicture, outputCheckReady, PICTURES_OFF_NOTE, scenePrompt, type Media } from "./media";
+import { ensureBaseline, makePicture, outputCheckReady, PICTURES_OFF_NOTE, recentActions, scenePrompt, type Media } from "./media";
 import { adultKeys } from "./settings";
 import { countUse, overCap } from "./usage";
 import { adultModel } from "./mode";
@@ -202,7 +202,7 @@ export function sceneMessages(
     (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
     ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "..."}, {"who": "b", "action": "", "text": "..."}], "place": "where they are at the end of these lines", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
     ` Set "explicit" to true once the scene is sexually explicit. Set "picture" only when, in these lines, one of them asks the other for a picture or to be shown something and the other agrees:` +
-    ` {"of": "a", "b" or "both", "description": "what the picture shows, in a sentence"}; otherwise null.`;
+    ` {"of": "a", "b" or "both", "description": "what the picture shows, in one sentence: the pose, what they're wearing or not, the expression, the framing"}; otherwise null.`;
   return [
     { role: "system", content: system },
     { role: "user", content: user },
@@ -317,7 +317,17 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
       if (meta.explicit) for (const c of [a, b]) { const made = await ensureBaseline(db, adminId, c); if (made) pictures.push(made); }
       if (meta.picture) {
         const forOne = meta.picture.of === "b" ? b.id : a.id;
-        pictures.push(await makePicture(db, adminId, { prompt: scenePrompt(a, b, meta.picture.of, meta.picture.description), kind: "scene", character_id: forOne, character_b: meta.picture.of === "both" ? b.id : null }));
+        const ctx = { place, stage, explicit: meta.explicit, recent: recentActions(kept) };
+        pictures.push(
+          await makePicture(db, adminId, {
+            prompt: scenePrompt(a, b, meta.picture.of, meta.picture.description, ctx),
+            kind: "scene",
+            character_id: forOne,
+            character_b: meta.picture.of === "both" ? b.id : null,
+            // One of them: their baseline keeps the face the same (lib/adult/media.ts FACE_MODEL).
+            face_of: meta.picture.of === "both" ? null : forOne,
+          }),
+        );
       }
     } catch (err) {
       picture_note = err instanceof Error ? err.message : "The picture didn't come through.";

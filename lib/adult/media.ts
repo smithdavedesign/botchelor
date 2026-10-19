@@ -5,9 +5,14 @@
  *  - a private gallery per character for later scenes; a clip is made from a picture on request.
  * Bytes are stored in adult_images and served only to an admin. Every prompt is held to the two lines (no minors, no
  * real people), says the people are adults, and is built from the characters' own sheets.
+ *
+ * What a picture knows (David, 2026-10-19: "do all three"): the character's physical look, compacted and put first;
+ * where the scene is, how far it's gone and what they just did; and, for a picture of one of them, their baseline as
+ * a face reference, so the same face comes back in every picture.
  */
 import type { Character } from "../character";
 import type { Db } from "../db";
+import { ALL_HOUSE_CHARACTERS } from "../house";
 import { checkAdultText } from "../safety";
 import { checkOutput } from "./check";
 import { countUse, overCap } from "./usage";
@@ -47,20 +52,81 @@ export function setMediaFetchForTests(f: Fetch | null): void {
 }
 const doFetch: Fetch = (...a) => (testFetch ?? fetch)(...a);
 
-const who = (c: Character) => {
-  const p = c.pronouns?.startsWith("she") ? "woman" : c.pronouns?.startsWith("he") ? "man" : "person";
-  return `${c.name}, an adult ${p} aged ${Math.max(18, c.age)}${c.look.appearance ? `: ${c.look.appearance}` : ""}`;
-};
+/** A look's words past this are dropped: the face-reference model reads only the start of a prompt (~77 tokens). */
+const LOOK_WORDS = 24;
 
-/** The first explicit picture of a character, from their own sheet. */
-export function baselinePrompt(c: Character): string {
-  return `Explicit, uncensored adult photograph of ${who(c)}. Nude, alone, intimate, photorealistic, natural light. Everyone shown is an adult.`;
+/**
+ * How a character looks, for a picture: a house character's `look` (lib/house.ts: written for the portrait generator,
+ * physical where `appearance` is a vibe like "always mid-laugh"), else their sheet's appearance line. Never their name
+ * (a name can pull a real person's face). Undressed, what they wear is left out ("in a patterned jacket").
+ */
+export function physicalLook(c: Character, undressed = false): string {
+  const house = ALL_HOUSE_CHARACTERS.find((h) => h.id === c.id)?.look;
+  let look = (house || c.look.appearance || "").trim().replace(/[.\s]+$/, "");
+  // "a man in his mid-thirties with…": the person() around it already says who; the age and colouring stay.
+  look = look.replace(/^an?\s+((?:[\w-]+\s+)?)(?:man|woman|person)\b\s*/i, "$1").replace(/^,\s*/, "");
+  // Clothes are "in a…", "wearing…"; never "in his mid-thirties".
+  if (undressed) look = look.replace(/,?\s*\b(?:in an?|wearing|dressed in)\s+[^,]*/gi, "");
+  // "laughing", "always mid-laugh": a mood, not a look, and a picture's expression comes from the scene.
+  look = look.replace(/,\s*(?:laughing|smiling|grinning|always [^,]+)(?=,|$)/gi, "");
+  // Whole phrases only, up to the word budget: "in an oversized" cut short is worse than nothing.
+  const kept: string[] = [];
+  let n = 0;
+  for (const part of look.split(/,\s*/).filter(Boolean)) {
+    const w = part.split(/\s+/).length;
+    if (kept.length && n + w > LOOK_WORDS) break;
+    kept.push(part);
+    n += w;
+  }
+  return kept.join(", ");
 }
 
-/** A picture the scene asked for, of one or both of them. */
-export function scenePrompt(a: Character, b: Character, of: "a" | "b" | "both", description: string): string {
-  const people = of === "a" ? who(a) : of === "b" ? who(b) : `${who(a)}, and ${who(b)}`;
-  return `Explicit, uncensored adult photograph of ${people}. ${description}. Photorealistic. Everyone shown is an adult.`;
+const person = (c: Character, undressed: boolean) => {
+  const p = c.pronouns?.startsWith("she") ? "woman" : c.pronouns?.startsWith("he") ? "man" : "person";
+  const look = physicalLook(c, undressed);
+  return `a ${Math.max(18, c.age)}-year-old adult ${p}${look ? `, ${look}` : ""}`;
+};
+
+/**
+ * Where a scene is when a picture is taken: the place, how far it's gone (lib/adult/stages.ts), whether the model
+ * called these lines explicit, and what they just did.
+ */
+export type PictureContext = { place: string | null; stage: number; explicit?: boolean; recent: string[] };
+
+/** The last few actions from a scene's lines ("*pulls her closer*"), the freshest last: what a picture should show. */
+export function recentActions(lines: { text: string }[], n = 2): string[] {
+  return lines
+    .map((l) => l.text.match(/^\*([^*]+)\*/)?.[1]?.trim())
+    .filter((x): x is string => Boolean(x))
+    .slice(-n)
+    .map((x) => x.split(/\s+/).slice(0, 12).join(" "));
+}
+
+/** From "undressing" (stage 4 of 5) on, what they wear is left out of their look. */
+const UNDRESSED_FROM = 3;
+
+/**
+ * The first explicit picture of a character, from their own sheet. Facing the camera, face clear, waist up: it's the
+ * face reference for every later picture of them, and a face-detection model needs to find it.
+ */
+export function baselinePrompt(c: Character): string {
+  return `Explicit, uncensored adult photograph, ${person(c, true)}. Nude, alone, waist-up, facing the camera, face clearly visible, natural light, photorealistic. Everyone shown is an adult.`;
+}
+
+/** A picture the scene asked for, of one or both of them: what it shows first, then who, then where and what just happened. */
+export function scenePrompt(a: Character, b: Character, of: "a" | "b" | "both", description: string, ctx?: PictureContext): string {
+  const undressed = !ctx || ctx.explicit === true || ctx.stage >= UNDRESSED_FROM;
+  const people = of === "a" ? person(a, undressed) : of === "b" ? person(b, undressed) : `${person(a, undressed)} and ${person(b, undressed)}`;
+  const opener = undressed ? "Explicit, uncensored adult photograph" : "Candid adult photograph";
+  return [
+    `${opener}: ${description.trim().replace(/\.$/, "")}.`,
+    `${people[0].toUpperCase()}${people.slice(1)}.`,
+    ctx?.place ? `Setting: ${ctx.place}.` : "",
+    ctx?.recent.length ? `Just now: ${ctx.recent.join("; ")}.` : "",
+    "Photorealistic. Everyone shown is an adult.",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 async function falKey(db: Db): Promise<string> {
@@ -77,11 +143,28 @@ async function download(url: string): Promise<{ bytes: Buffer; mime: string }> {
   return { bytes, mime: res.headers.get("content-type") ?? "application/octet-stream" };
 }
 
+/**
+ * fal's face-reference model: SDXL with IP-Adapter FaceID, on the same photoreal base, given one face to keep. It reads
+ * a single face, so a picture of both of them goes without one.
+ */
+export const FACE_MODEL = "fal-ai/ip-adapter-face-id";
+
+/** A character's baseline as a data URI, for the face-reference model (no public URL: the bytes are ours, private). */
+async function baselineFace(db: Db, characterId: string): Promise<string | null> {
+  const r = (
+    await db.query<{ data: Buffer | Uint8Array | null; mime: string }>(
+      `select data, mime from adult_images where character_id = $1 and kind = 'baseline' and status = 'ready' order by created_at limit 1`,
+      [characterId],
+    )
+  ).rows[0];
+  return r?.data ? `data:${r.mime};base64,${Buffer.from(r.data).toString("base64")}` : null;
+}
+
 /** Makes one picture on fal and stores it. Refuses a prompt that crosses a line. */
 export async function makePicture(
   db: Db,
   ownerId: string,
-  opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null },
+  opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null; face_of?: string | null },
 ): Promise<Media> {
   if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
   const capped = await overCap(db, ownerId, "pictures");
@@ -90,22 +173,29 @@ export async function makePicture(
   if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
   const key = await falKey(db);
   const { image_model, image_base } = await getAdultSettings(db);
-  const res = await doFetch(`${FAL_RUN}/${image_model}`, {
-    method: "POST",
-    headers: { authorization: `Key ${key}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      prompt: opts.prompt,
+  const run = (model: string, input: Record<string, unknown>) =>
+    doFetch(`${FAL_RUN}/${model}`, {
+      method: "POST",
+      headers: { authorization: `Key ${key}`, "content-type": "application/json" },
       // Steer away from anyone young-looking, on top of the output check (never instead of it).
-      negative_prompt: NEGATIVE_PROMPT,
-      ...(image_model === "fal-ai/lora" ? { model_name: image_base } : {}),
-      image_size: "portrait_4_3",
-      num_images: 1,
-      enable_safety_checker: false,
-    }),
+      body: JSON.stringify({ prompt: opts.prompt, negative_prompt: NEGATIVE_PROMPT, enable_safety_checker: false, ...input }),
+    });
+  const face = opts.face_of ? await baselineFace(db, opts.face_of) : null;
+  let res: Response | null = null;
+  if (face) {
+    res = await run(FACE_MODEL, { face_image_url: face, model_type: "SDXL-v2-plus", base_sdxl_model_repo: image_base, width: 768, height: 1024 });
+    // No face found in the reference, or the model's down: the picture still comes, from the words alone.
+    if (!res.ok && res.status !== 401 && res.status !== 403) res = null;
+  }
+  res ??= await run(image_model, {
+    ...(image_model === "fal-ai/lora" ? { model_name: image_base, prompt_weighting: true } : {}),
+    image_size: "portrait_4_3",
+    num_images: 1,
   });
   if (!res.ok) throw new Error(`fal.ai refused the picture (${res.status}): ${(await res.text()).slice(0, 200)}`);
-  const body = (await res.json()) as { images?: { url?: string }[] };
-  const url = body.images?.[0]?.url;
+  // The face model returns one `image`; the others an `images` list.
+  const body = (await res.json()) as { images?: { url?: string }[]; image?: { url?: string } };
+  const url = body.images?.[0]?.url ?? body.image?.url;
   if (!url) throw new Error("fal.ai returned no picture.");
   // The output check, before anything is stored: a failure is discarded.
   const verdict = await checkOutput((await adultKeys(db)).hive, url, "image");
