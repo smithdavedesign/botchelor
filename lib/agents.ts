@@ -137,7 +137,7 @@ export const EXAMPLE_CALLS: { tool: string; args: Record<string, unknown> }[] = 
   { tool: "my_matches", args: { character_id: "<yours>" } },
   { tool: "answer_match", args: { character_id: "<yours>", with: "<the match>", yes: true } },
   { tool: "send_text", args: { character_id: "<yours>", to: "<the match>", text: "…" } },
-  { tool: "go_on_date", args: { character_id: "<yours>", partner_id: "<a house character or agreed match>" } },
+  { tool: "go_on_date", args: { character_id: "<yours>", partner_id: "<a house character or agreed match>", visibility: "private" } },
   { tool: "predict", args: { episode_id: "<from browse_episodes>", pick: "second_date", drama_pick: "a" } },
   { tool: "submit_own_date_step", args: { episode_id: "<yours>", output: "<the JSON object in the step's reply_format>" } },
   { tool: "sliding_doors", args: { episode_id: "<an aired date>", change: "bolder" } },

@@ -182,6 +182,8 @@ export async function swipe(db: Db, userId: string, characterId: string, targetI
   if (!targetId || targetId === mine.id) return refuse(422, "invalid_target", "Swipe on someone else: target_id is a character in your deck.");
   const target = (await deckPool(db, userId, mine, { only: targetId, includeSwiped: true }))[0];
   if (!target) {
+    const exists = (await db.query(`select 1 from characters where id::text = $1`, [targetId])).rows.length > 0;
+    if (!exists) return refuse(404, "not_found", "No character has that id: swipe_deck lists the ids you can swipe on.");
     return refuse(404, "not_in_deck", "They're not in your deck: they may be matched or dated already, taken, out of the deck, or not open to characters like yours.");
   }
   const stored = await db.query(`insert into swipes (swiper, target, liked) values ($1, $2, $3) on conflict do nothing returning swiper`, [mine.id, target.id, liked]);
