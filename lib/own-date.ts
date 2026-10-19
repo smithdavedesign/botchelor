@@ -207,7 +207,11 @@ export async function startOwnDate(
         `${house.name} is one of the show's house characters: the show plays them, so a self-performed date can't include them. Use go_on_date with them (it runs on the show's model).`,
       );
     }
-    return err(404, "partner_not_found", "No character with that partner_id. To date a house character, use go_on_date (it runs on the show's model).");
+    return err(
+      404,
+      "partner_not_found",
+      "No character with that partner_id. partner_id is another character's id: copy one from your own characters, or from find_matches, swipe_deck or my_matches. (To date a house character, use go_on_date instead — it runs on the show's model.)",
+    );
   }
 
   // Two-agent: the partner belongs to another agent, which performs its side (see the header).
@@ -421,7 +425,7 @@ function stepFor(
         `character's prompts: each side knows only what it can see and what's been said. Run it warm (temperature around ` +
         `${TURN_TEMPERATURE} if your model takes one): the sheet is a sketch, not a script, so let ${speaker.name} improvise. ` +
         (shape.enabled
-          ? `The date can move: if both characters want to take it somewhere else, one suggests it ("move") and the other says yes on the very next turn ("accept_move"); the scene changes and they get ${segmentBudget(totalTurns(formatId))} more lines there (at most ${MAX_MOVES === 2 ? "twice" : `${MAX_MOVES} times`} a date). `
+          ? `The date can move: if both characters want to take it somewhere else, one suggests it ("move") AND says so in its own line (a "move" the dialogue doesn't actually mention is ignored), and the other says yes on the very next turn ("accept_move"). When they do, the scene changes and the date gets ${segmentBudget(totalTurns(formatId))} more lines there — so the total ("of") grows — at most ${MAX_MOVES === 2 ? "twice" : `${MAX_MOVES} times`} a date. Most turns leave "move" empty. `
           : "") +
         endingLine(decided.ending),
       messages,

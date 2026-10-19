@@ -296,7 +296,21 @@ const CLOSING_MOVES: Record<Outcome["ending"], { director: string; actor: string
   ],
 };
 
+/**
+ * The goodbyes for a couple who are well past the early dates (David 2026-10-18, after ten Chud × Sable dates all ended
+ * on "let's plan another date"): seeing each other again is a given, so they don't book it like strangers.
+ */
+const ESTABLISHED_SECOND_DATE: { director: string; actor: string }[] = [
+  { director: "no plan is needed any more — seeing each other again is a given; a warm, familiar goodbye says it.", actor: "You don't need to arrange anything: being together again is a given now. Say goodnight like someone you'll obviously see soon." },
+  { director: "they talk about something further off than the next date — a trip, a season, something they're building.", actor: "Look further ahead than the next date: something the two of you are building, a trip, a someday. Not tonight's logistics." },
+  { director: "one of them almost doesn't leave; the goodbye is reluctant and easy, no plan spoken.", actor: "Don't want to go, and let it show — an easy, reluctant goodbye. No plan needs saying." },
+];
+
 export function closingMove(outcome: Pick<Outcome, "ending">, timesBefore: number, seed = 0): { director: string; actor: string } {
+  // Four dates deep, a second-date ending stops sounding like booking a first follow-up.
+  if (outcome.ending === "second_date" && timesBefore >= 4) {
+    return ESTABLISHED_SECOND_DATE[(timesBefore + seed) % ESTABLISHED_SECOND_DATE.length];
+  }
   const moves = CLOSING_MOVES[outcome.ending];
   return moves[(timesBefore + seed) % moves.length];
 }

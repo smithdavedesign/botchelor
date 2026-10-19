@@ -218,8 +218,12 @@ export function buildTurnMessages(
   // The plan they agreed to by text (lib/plans.ts), or a second date's plan from its morning after (in `together`).
   const tonightsPlan = Boolean(meChar.tonightsPlan?.length || together?.tonight_is_the_plan);
   const hasMet = Boolean(together);
+  // "What's new this week" is news you share once. On a rematch they've heard it, so drop it — Sable re-announced the
+  // same "adopted a dog this week" as news on all ten of her dates with Chud (2026-10-18). A stranger still hears it.
+  const you = characterSelfView(meChar, dateContext(me));
+  if (hasMet && you.whats_new_this_week !== undefined) delete (you as Record<string, unknown>).whats_new_this_week;
   const data = {
-    you: characterSelfView(meChar, dateContext(me)),
+    you,
     them: characterBlindView(themChar),
     where: venue(place).prompt,
     // They moved (lib/moves.ts): where they've been, and the act's plan kept but set where they are now.
@@ -310,6 +314,8 @@ export function parseTurnResult(raw: string, side: "a" | "b", act: number): { tu
   }
   const parsed = TurnOutput.safeParse(json);
   if (!parsed.success) return { rejected: "schema" };
+  // A spoken line has to have words: the schema's min(1) let "." and "…" through (date 1 ended on "[b] .", 2026-10-18).
+  if (!/\p{L}/u.test(parsed.data.dialogue)) return { rejected: "schema" };
   const dialogue = trimTo(parsed.data.dialogue, TURN_DIALOGUE_MAX);
   const action = trimTo(parsed.data.action ?? "", ACTION_MAX);
   const emotion = trimTo(parsed.data.emotion ?? "", EMOTION_MAX);
