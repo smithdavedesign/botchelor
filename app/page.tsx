@@ -9,7 +9,7 @@ import { PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
-import { seasonCast } from "@/lib/season-cast";
+import { seasonCastCards } from "@/lib/season-cast";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
@@ -49,7 +49,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
 
   // This season's handful of house characters (lib/season-cast.ts), plus any premium one this viewer owns.
-  const onSeason = seasonCast();
+  const onSeason = await seasonCastCards(db ?? (await getDb()));
   const cast: { id: string; name: string; traits: string[]; premium: boolean }[] = [
     ...onSeason.map((c) => ({ id: c.id, name: c.name, traits: [...c.traits], premium: false })),
     ...PREMIUM_HOUSE_CHARACTERS.filter((c) => owned.includes(c.sku)).map((c) => ({

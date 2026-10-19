@@ -6,7 +6,7 @@ import { listOpenCharacters } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
-import { seasonCast } from "@/lib/season-cast";
+import { seasonCastCards } from "@/lib/season-cast";
 import { swipeGateOn } from "@/lib/swipe-gate";
 import { authFromCookieStore } from "@/lib/http";
 import { builderLooks } from "@/lib/looks-draw";
@@ -49,7 +49,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
 
   // This season's house cast (a handful; lib/season-cast.ts), plus any premium one this viewer owns.
   const partners: Partner[] = [
-    ...seasonCast().map(({ id, name, age, bio, traits, archetype, hue }) => ({
+    ...(await seasonCastCards(db ?? (await getDb()))).map(({ id, name, age, bio, traits, archetype, hue }) => ({
       id,
       name,
       age,

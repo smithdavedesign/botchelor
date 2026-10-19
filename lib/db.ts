@@ -1168,6 +1168,22 @@ create table if not exists character_reviews (
   primary key (reviewer_id, character_id)
 );
 create index if not exists character_reviews_character_idx on character_reviews (character_id, updated_at desc);
+-- A generated house character's physical look, for pictures only (lib/season-gen.ts); never shown, never read by the
+-- engine. The code-defined cast keeps theirs in lib/house.ts.
+alter table characters add column if not exists look text;
+-- Next month's generated newcomers waiting for review (lib/season-gen.ts). portrait_asset is their PG portrait in the
+-- asset ledger (pending until approved); check_note is 'passed' once Hive kept it, else why not.
+create table if not exists season_candidates (
+  character_id text primary key references characters (id) on delete cascade,
+  season_id text not null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  archetype text,
+  portrait_asset text,
+  check_note text,
+  created_at timestamptz not null default now(),
+  reviewed_at timestamptz
+);
+create index if not exists season_candidates_season_idx on season_candidates (season_id, status);
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

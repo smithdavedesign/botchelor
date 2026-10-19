@@ -38,7 +38,8 @@ export type Character = {
   house: boolean;
   /** Server-only. Null for a house character. */
   ownerId: string | null;
-  look: { appearance: string | null; hue: number | null; portrait: string | null };
+  /** `physical`: how a generated house character looks, for pictures only (lib/season-gen.ts); never shown, never read by the engine. */
+  look: { appearance: string | null; hue: number | null; portrait: string | null; physical?: string | null };
   persona: { traits: readonly string[]; want: string };
   /** How others refer to them ("she/her", "he/him", "they/them"); null when not given (prompts then avoid gendering). */
   pronouns: string | null;
@@ -120,6 +121,7 @@ export function assembleCharacter(args: {
   record?: CharacterRecord;
   extras?: CharacterExtras | null;
   thisWeek?: string | null;
+  physical?: string | null;
 }): Character {
   const base = soulBaseSignals(args.soul, args.sheet);
   return {
@@ -129,7 +131,7 @@ export function assembleCharacter(args: {
     bio: args.sheet.bio,
     house: args.sheet.house,
     ownerId: args.ownerId ?? null,
-    look: { appearance: args.sheet.appearance ?? null, hue: args.hue ?? null, portrait: characterPortrait(args.id) },
+    look: { appearance: args.sheet.appearance ?? null, hue: args.hue ?? null, portrait: characterPortrait(args.id), ...(args.physical ? { physical: args.physical } : {}) },
     persona: { traits: args.sheet.traits, want: args.sheet.want },
     pronouns: args.sheet.pronouns ?? null,
     voice: args.sheet.voice ?? null,
@@ -150,9 +152,9 @@ export async function loadCharacter(db: Db, id: string): Promise<Character | nul
     id: string; owner_id: string | null; name: string; age: number; bio: string;
     traits: string[]; want: string; dealbreaker: string; is_house: boolean;
     appearance: string | null; avatar_hue: number | null; pronouns: string | null; voice: string | null;
-    extras: CharacterExtras | null; this_week: StoredThisWeek | null;
+    extras: CharacterExtras | null; this_week: StoredThisWeek | null; look: string | null;
   }>(
-    `select id, owner_id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue, pronouns, voice, extras, this_week
+    `select id, owner_id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue, pronouns, voice, extras, this_week, look
        from characters where id = $1`,
     [id],
   );
@@ -171,6 +173,7 @@ export async function loadCharacter(db: Db, id: string): Promise<Character | nul
   return assembleCharacter({
     id: r.id, sheet, ownerId: r.owner_id, hue: r.avatar_hue, soul, memory, record: history.record, extras: r.extras,
     thisWeek: thisWeek(r.id, r.this_week),
+    physical: r.look,
   });
 }
 

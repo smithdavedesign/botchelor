@@ -36,7 +36,7 @@ import { POST as postVote } from "@/app/api/watch-parties/[id]/votes/route";
 import { catalogItem, CURRENCY } from "@/lib/catalog";
 import { ensureSchema, pgliteDb, setDbForTests, type Db } from "@/lib/db";
 import { fixedEngine, setEngineForTests, type Outcome } from "@/lib/engine";
-import { HOUSE_CHARACTERS } from "@/lib/house";
+import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
@@ -144,6 +144,7 @@ export async function startTestDb() {
         "character_reviews",
         "season_casts",
         "season_cast_rotations",
+        "season_candidates",
         "character_memory",
         "memory_forgets",
         "badges",
@@ -171,6 +172,8 @@ export async function startTestDb() {
       await db.query("delete from predictions");
       await db.query("delete from episodes");
       await db.query("delete from characters where not is_house");
+      // Generated house characters (lib/season-gen.ts); the code-defined cast stays.
+      await db.query("delete from characters where is_house and id <> all($1)", [ALL_HOUSE_CHARACTERS.map((c) => c.id)]);
       setModelForTests(null);
       setEngineForTests(null);
     },

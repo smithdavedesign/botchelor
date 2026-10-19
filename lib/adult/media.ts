@@ -46,8 +46,11 @@ const FAL_QUEUE = "https://queue.fal.run";
 const MAX_BYTES = 40 * 1024 * 1024;
 export const VENICE_IMAGE = "https://api.venice.ai/api/v1/image/generate";
 
-/** A picture on Venice: its bytes come back in the reply (no URL), unblurred with safe_mode off. */
-async function venicePicture(db: Db, prompt: string): Promise<{ bytes: Buffer; mime: string }> {
+/**
+ * A picture on Venice: its bytes come back in the reply (no URL), unblurred with safe_mode off. `safe` turns Venice's
+ * safe mode on, for the show's own (PG) portraits (lib/season-gen.ts).
+ */
+export async function venicePicture(db: Db, prompt: string, opts: { safe?: boolean } = {}): Promise<{ bytes: Buffer; mime: string }> {
   const { venice } = await adultKeys(db);
   if (!venice) throw new Error("No Venice key saved in after dark's settings.");
   const { venice_image_model } = await getAdultSettings(db);
@@ -62,7 +65,7 @@ async function venicePicture(db: Db, prompt: string): Promise<{ bytes: Buffer; m
       width: 832,
       height: 1104,
       format: "png",
-      safe_mode: false,
+      safe_mode: opts.safe === true,
       hide_watermark: true,
     }),
   });
@@ -92,7 +95,7 @@ const LOOK_WORDS = 24;
  * (a name can pull a real person's face). Undressed, what they wear is left out ("in a patterned jacket").
  */
 export function physicalLook(c: Character, undressed = false): string {
-  const house = ALL_HOUSE_CHARACTERS.find((h) => h.id === c.id)?.look;
+  const house = ALL_HOUSE_CHARACTERS.find((h) => h.id === c.id)?.look ?? c.look.physical;
   let look = (house || c.look.appearance || "").trim().replace(/[.\s]+$/, "");
   // "a man in his mid-thirties with…": the person() around it already says who; the age and colouring stay.
   look = look.replace(/^an?\s+((?:[\w-]+\s+)?)(?:man|woman|person)\b\s*/i, "$1").replace(/^,\s*/, "");

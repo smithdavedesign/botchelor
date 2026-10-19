@@ -75,14 +75,17 @@ async function storedCast(db: Db, season: string): Promise<CastSlot[]> {
 }
 
 /**
- * Who fills a season's open places after the survivors. For now the roster, in the season's dealt order, preferring
- * whoever sat the last season out.
+ * Who fills a season's open places after the survivors: the season's generated newcomers (lib/season-gen.ts), and if
+ * there aren't enough of them, the roster in the season's dealt order, preferring whoever sat the last season out.
  */
 async function newcomers(db: Db, season: string, places: number, last: string[], taken: string[]): Promise<string[]> {
+  // Imported here: lib/season-gen.ts reads this module's sizes.
+  const { takeNewcomers } = await import("./season-gen");
+  const generated = (await takeNewcomers(db, season, places)).filter((id) => !taken.includes(id));
   const order = dealt(season, ROSTER.length);
   const fresh = order.filter((id) => !last.includes(id) && !taken.includes(id));
   const rest = order.filter((id) => last.includes(id) && !taken.includes(id));
-  return [...fresh, ...rest].slice(0, places);
+  return [...generated, ...fresh, ...rest].slice(0, places);
 }
 
 /** Picks a season's cast: the first monthly season keeps its dealt cast; after it, two survivors and newcomers. */
@@ -134,7 +137,27 @@ export function resetStoredSeasonCastForTests(): void {
   stored = null;
 }
 
-/** This season's house characters, in billing order. */
+export type CastCard = { id: string; name: string; age: number; bio: string; traits: readonly string[]; archetype: string; hue: number };
+
+/** This season's house cast as cards, from the database, so a generated newcomer (lib/season-gen.ts) shows too. */
+export async function seasonCastCards(db: Db, now: Date = new Date()): Promise<CastCard[]> {
+  const ids = seasonCastIds(now);
+  const { rows } = await db.query<{ id: string; name: string; age: number; bio: string; traits: string[]; hue: number | null; archetype: string | null }>(
+    `select c.id, c.name, c.age, c.bio, c.traits, c.avatar_hue as hue, sc.archetype
+       from characters c left join season_candidates sc on sc.character_id = c.id
+      where c.id = any($1)`,
+    [ids],
+  );
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return ids.flatMap((id) => {
+    const r = byId.get(id);
+    if (!r) return [];
+    const house = HOUSE_CHARACTERS.find((c) => c.id === id);
+    return [{ id, name: r.name, age: r.age, bio: r.bio, traits: r.traits, archetype: house?.archetype ?? r.archetype ?? "The newcomer", hue: r.hue ?? house?.hue ?? 200 }];
+  });
+}
+
+/** This season's house characters, in billing order (the code-defined ones only: seasonCastCards has everyone). */
 export function seasonCast(now: Date = new Date()): HouseCharacter[] {
   return seasonCastIds(now)
     .map((id) => HOUSE_CHARACTERS.find((c) => c.id === id))

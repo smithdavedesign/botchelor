@@ -14,6 +14,7 @@ import { getModel } from "@/lib/model";
 import { relationshipMetrics } from "@/lib/relationship-metrics";
 import { clearStaleOwnDates } from "@/lib/own-date";
 import { refreshLobby } from "@/lib/watch";
+import { ensureCastBaselines, seasonGenerationDue } from "@/lib/season-gen";
 
 // A fresh template date (~10 model calls) plus a few backfilled conversations (~8 calls each).
 export const maxDuration = 300;
@@ -57,7 +58,13 @@ async function run(req: Request): Promise<Response> {
   const indexnow = await recentPublicUrls(db, new Date(Date.now() - 26 * 60 * 60 * 1000))
     .then((urls) => submitIndexNow(urls))
     .catch(() => ({ submitted: 0, status: null }));
+  // Monthly seasons (lib/season-gen.ts): from the 20th, next month's candidates; and the cast's After Dark baselines.
+  const candidates = await seasonGenerationDue(db).catch((e: unknown) => ({ season: "", made: [], errors: [e instanceof Error ? e.message : "error"] }));
+  const baselines = await ensureCastBaselines(db).catch(() => ({ made: 0, errors: ["error"] }));
   track("daily_job", {
+    season_candidates_made: candidates?.made.length ?? 0,
+    season_candidate_errors: candidates?.errors.length ?? 0,
+    cast_baselines_made: baselines.made,
     room_created: Boolean(lobby.created),
     lobby_reason: lobby.reason ?? null,
     backfilled: backfill.filled.length,
