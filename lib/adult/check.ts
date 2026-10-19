@@ -65,12 +65,17 @@ async function hive(key: string, endpoint: string, payload: unknown): Promise<un
   return res.json();
 }
 
-/** Checks a file fal returned (by its URL). Never throws: any failure is a refusal. */
-export async function checkOutput(key: string | null, url: string, kind: "image" | "video" = "image"): Promise<CheckResult> {
+/** A file to check: fal's URL, or the bytes themselves (Venice returns them, with no URL). */
+export type Checkable = string | { base64: string; mime: string };
+
+/** Checks a file a provider returned. Never throws: any failure is a refusal. */
+export async function checkOutput(key: string | null, media: Checkable, kind: "image" | "video" = "image"): Promise<CheckResult> {
   if (!key) return { ok: false, reason: "the output check isn't set up (no Hive key)" };
+  const url = typeof media === "string" ? media : `data:${media.mime};base64,${media.base64}`;
+  const input = typeof media === "string" ? { media_url: media } : { media_base64: media.base64 };
   try {
     const [mod, vlm] = await Promise.all([
-      hive(key, HIVE_MODERATION, { input: [{ media_url: url }], processing_mode: "sync_with_fallback" }),
+      hive(key, HIVE_MODERATION, { input: [input], processing_mode: "sync_with_fallback" }),
       kind === "image"
         ? hive(key, HIVE_VLM, {
             model: "hive/vision-language-model",

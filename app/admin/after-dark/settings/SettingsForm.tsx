@@ -10,6 +10,7 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
   const [orKey, setOrKey] = useState("");
   const [falKey, setFalKey] = useState("");
   const [hiveKey, setHiveKey] = useState("");
+  const [veniceKey, setVeniceKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
 
@@ -23,6 +24,7 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
     setOrKey("");
     setFalKey("");
     setHiveKey("");
+    setVeniceKey("");
     setNote({ text: "Saved." });
   }
 
@@ -36,6 +38,9 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       ...(orKey.trim() ? { openrouter_key: orKey.trim() } : {}),
       ...(falKey.trim() ? { fal_key: falKey.trim() } : {}),
       ...(hiveKey.trim() ? { hive_key: hiveKey.trim() } : {}),
+      ...(veniceKey.trim() ? { venice_key: veniceKey.trim() } : {}),
+      image_provider: s.image_provider,
+      venice_image_model: s.venice_image_model,
     });
   }
 
@@ -62,6 +67,23 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       <input id="ad-image-base" value={s.image_base} onChange={(e) => setS({ ...s, image_base: e.target.value })} />
       <label htmlFor="ad-video-model">Clip model</label>
       <input id="ad-video-model" value={s.video_model} onChange={(e) => setS({ ...s, video_model: e.target.value })} />
+      <h3>Explicit pictures: Venice</h3>
+      <p className="muted small">
+        fal.ai&apos;s rules ban explicit pictures, so they&apos;re made on Venice (safe mode off). Clips still run on fal, from fal pictures only.
+      </p>
+      <label htmlFor="ad-image-provider">Make pictures on</label>
+      <select
+        id="ad-image-provider"
+        value={s.image_provider}
+        onChange={(e) => setS({ ...s, image_provider: e.target.value === "venice" ? "venice" : "fal" })}
+      >
+        <option value="venice">Venice</option>
+        <option value="fal">fal.ai (nothing explicit)</option>
+      </select>
+      <label htmlFor="ad-venice-key">Venice key {s.venice_last4 && <span className="muted small">saved, ends …{s.venice_last4}</span>}</label>
+      <input id="ad-venice-key" type="password" autoComplete="off" value={veniceKey} onChange={(e) => setVeniceKey(e.target.value)} />
+      <label htmlFor="ad-venice-model">Venice picture model</label>
+      <input id="ad-venice-model" value={s.venice_image_model} onChange={(e) => setS({ ...s, venice_image_model: e.target.value })} />
       <h3>The output check: Hive</h3>
       <p className="muted small">
         Every picture and clip is checked after it&apos;s made and discarded if Hive&apos;s moderation sees a child, or its vision model

@@ -138,7 +138,7 @@ import { GET as settingsGet, POST as settingsPost } from "@/app/api/admin/after-
 import { POST as switchPost } from "@/app/api/admin/after-dark/switch/route";
 import { GET as mediaGet } from "@/app/api/admin/after-dark/media/[id]/route";
 import { GET as clipGet, POST as clipPost } from "@/app/api/admin/after-dark/clip/route";
-import { baselinePrompt, FACE_MODEL, physicalLook, recentActions, scenePrompt, setMediaFetchForTests } from "@/lib/adult/media";
+import { baselinePrompt, FACE_MODEL, physicalLook, recentActions, scenePrompt, setMediaFetchForTests, VENICE_IMAGE } from "@/lib/adult/media";
 import type { Character } from "@/lib/character";
 import { checkOutput, classScores, HIVE_VLM, setCheckFetchForTests, vlmAnswer } from "@/lib/adult/check";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
@@ -591,5 +591,42 @@ describe("the teaser in the show", () => {
     const filler = fillerLines(3, t1.path).join(" ");
     expect(filler).not.toContain("secret line");
     expect(fillerLines(3, t1.path)).toEqual(fillerLines(3, t1.path));
+  });
+});
+
+describe("pictures on Venice", () => {
+  afterEach(() => {
+    setMediaFetchForTests(null);
+    setCheckFetchForTests(null);
+  });
+
+  it("makes them on Venice with safe mode off, checks the bytes with Hive before storing, and keeps clips to fal pictures", async () => {
+    const { cookie } = await admin();
+    const saved = await (
+      await call(settingsPost, "/api/admin/after-dark/settings", { image_provider: "venice", venice_key: "placeholder-venice-VNCE", hive_key: "placeholder-hive" }, cookie)
+    ).json();
+    expect(saved.settings).toMatchObject({ image_provider: "venice", venice_image_model: "lustify-v8", venice_last4: "VNCE" });
+    let sent: Record<string, unknown> | null = null;
+    setMediaFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === VENICE_IMAGE) {
+        sent = JSON.parse(String(init?.body));
+        return Response.json({ id: "x", images: [Buffer.from(PNG).toString("base64")], timing: {} });
+      }
+      return new Response("unexpected", { status: 500 });
+    });
+    const bodies: Record<string, unknown>[] = [];
+    setCheckFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD);
+    });
+    scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }], explicit: true, picture: null }));
+    const r = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
+    expect(r.pictures.map((p: { kind: string }) => p.kind)).toEqual(["baseline", "baseline"]);
+    expect(sent).toMatchObject({ model: "lustify-v8", safe_mode: false, negative_prompt: expect.stringMatching(/minor/) });
+    expect(JSON.stringify(bodies[0])).toContain("media_base64");
+    const row = (await t.db.query<{ remote_url: string | null }>(`select remote_url from adult_images limit 1`)).rows[0];
+    expect(row.remote_url).toBeNull();
+    const clip = await call(clipPost, "/api/admin/after-dark/clip", { image_id: r.pictures[0].id, motion: "" }, cookie);
+    expect((await clip.json()).message).toMatch(/made on Venice/);
   });
 });

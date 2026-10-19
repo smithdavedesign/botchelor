@@ -1016,6 +1016,12 @@ alter table adult_settings add column if not exists hive_demo_last4 text;
 alter table adult_settings add column if not exists hive_ciphertext text;
 alter table adult_settings add column if not exists hive_nonce text;
 alter table adult_settings add column if not exists hive_last4 text;
+-- Pictures on Venice (fal bans explicit output): the provider switch, its model, and its key.
+alter table adult_settings add column if not exists image_provider text;
+alter table adult_settings add column if not exists venice_image_model text;
+alter table adult_settings add column if not exists venice_ciphertext text;
+alter table adult_settings add column if not exists venice_nonce text;
+alter table adult_settings add column if not exists venice_last4 text;
 -- Every image the output check refused: never the image itself, only why (for the admin to see it's working).
 create table if not exists adult_rejections (
   id text primary key,
