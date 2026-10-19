@@ -12,6 +12,8 @@ import TemperamentSliders, { type TemperamentSource } from "./TemperamentSliders
 import { deriveSoulSignals, type SoulSignals } from "@/lib/engine";
 import { sheetSignals } from "@/lib/temperament";
 import VoiceStep from "./VoiceStep";
+import LooksBuilder from "./LooksBuilder";
+import { looksAppearance } from "@/lib/looks";
 import FactsStep from "./FactsStep";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
@@ -139,6 +141,8 @@ export default function CreateWizard({
   myCharacters = [],
   startSample = false,
   startCharacterId = null,
+  lookTiles = [],
+  afterDark = false,
   edit,
 }: {
   partners?: Partner[];
@@ -150,6 +154,10 @@ export default function CreateWizard({
   myCharacters?: { id: string; name: string }[];
   startSample?: boolean;
   startCharacterId?: string | null;
+  /** The looks builder's tiles that have a picture (lib/looks-draw.ts readyTiles). */
+  lookTiles?: readonly string[];
+  /** This viewer can open After Dark, so its looks tab is unlocked (lib/adult/entitlement.ts). */
+  afterDark?: boolean;
   /** Edit an existing character instead of creating one: every field is prefilled and every step open. */
   edit?: { id: string; initial: EditInitial };
 }) {
@@ -175,6 +183,14 @@ export default function CreateWizard({
   const [soul, setSoul] = useState<Soul>(init?.soul ?? EMPTY_SOUL);
   const [extras, setExtrasState] = useState<CharacterExtras>(init?.extras ?? {});
   const setExtras = useCallback((update: (prev: CharacterExtras) => CharacterExtras) => setExtrasState(update), []);
+  // The appearance line the looks builder last wrote: replaced as the picks change, unless it's been typed over.
+  const autoAppearance = useRef<string | null>(init?.extras.looks ? looksAppearance(init.extras.looks) : null);
+  // Typed by hand (here, or saved before): the looks builder leaves it alone. A sample's line it replaces.
+  const appearanceTyped = useRef(Boolean(init?.appearance?.trim() && init.appearance !== autoAppearance.current));
+  function looksAppearanceChanged(line: string) {
+    setAppearance((prev) => (appearanceTyped.current && prev.trim() && prev !== autoAppearance.current ? prev : line));
+    autoAppearance.current = line;
+  }
   const [autonomy, setAutonomy] = useState<Autonomy>("balanced");
   const [attest, setAttest] = useState(false);
   // A new character fills in its dating profile, so it joins the swipe deck unless its creator says not to.
@@ -350,6 +366,8 @@ export default function CreateWizard({
       if (status === 201) {
         trackConversion("character_created", { open_to_dates: openToDates });
         setCreated({ id: String(data.id), name: String(data.name) });
+        // Looks picked: draw their portrait from them in the background (free, capped; lib/looks-draw.ts).
+        if (normaliseExtras(extras).looks?.gender) void fetch(`/api/characters/${String(data.id)}/looks-portrait`, { method: "POST" }).catch(() => {});
         try {
           localStorage.removeItem(DRAFT_KEY);
         } catch {
@@ -590,12 +608,27 @@ export default function CreateWizard({
         {step === S.look && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">Give them a look</legend>
+            <LooksBuilder
+              looks={extras.looks ?? {}}
+              setLooks={(l) => setExtras((p) => ({ ...p, looks: l }))}
+              age={sheet.age}
+              setAge={(a) => setField("age", a)}
+              tiles={lookTiles}
+              afterDark={afterDark}
+              onAppearance={looksAppearanceChanged}
+              onGender={(g) => setPronouns((p) => p || (g === "man" ? "he/him" : "she/her"))}
+            />
+            <details className="looks-more" open={Boolean(appearance.trim() && !extras.looks?.gender) || undefined}>
+              <summary>Or describe them in your own words, pick a colour, or train the look from an image</summary>
             <div className="looks">
               <Avatar seed={avatarSeed} name={sheet.name || "?"} hue={hue} size={72} portraitSrc={portrait} />
               <div className="looks-fields">
                 <label>
                   Appearance <span className="muted">(optional)</span>
-                  <input type="text" name="appearance" maxLength={140} placeholder="tall, freckled, always in a yellow raincoat" value={appearance} onChange={(e) => setAppearance(e.target.value)} />
+                  <input type="text" name="appearance" maxLength={140} placeholder="tall, freckled, always in a yellow raincoat" value={appearance} onChange={(e) => {
+                      appearanceTyped.current = true;
+                      setAppearance(e.target.value);
+                    }} />
                 </label>
                 <DetailField k="style" extras={extras} setExtras={setExtras} />
                 <DetailField k="signature_item" extras={extras} setExtras={setExtras} />
@@ -648,15 +681,17 @@ export default function CreateWizard({
                 </span>
               </div>
             </div>
+            </details>
             {edit && init?.imageTrained && !imageSignals && (
               <p className="muted small">✓ Their instincts were trained from an image or a curated look; that stays unless you train again.</p>
             )}
             {edit ? (
-              <PortraitPanel id={edit.id} name={sheet.name || init?.name || "them"} portrait={portrait} onPortrait={setPortrait} />
+              <PortraitPanel id={edit.id} name={sheet.name || init?.name || "them"} portrait={portrait} onPortrait={setPortrait} hasLooks={Boolean(init?.extras.looks?.gender)} />
             ) : (
               <p className="wizard-pro-hint">
-                <span className="pro-tag">✨ Pro</span> A generated portrait is available right after you create — it runs on
-                your own OpenAI key. <Link href="/account">Add a key</Link> to unlock it.
+                {extras.looks?.gender
+                  ? "📸 Their portrait is drawn from these looks as soon as you create them, free."
+                  : "📸 Pick their looks above and their portrait is drawn from them when you create them, free."}
               </p>
             )}
           </fieldset>
@@ -851,9 +886,24 @@ function ReviewRow({ label, children }: { label: string; children: ReactNode }) 
  * Edit mode, Look step: their generated portrait (BYOK, Pro). Shows whether they have one and makes a new one
  * on the owner's own image key. The server builds it from the SAVED sheet, so a just-changed look needs saving first.
  */
-function PortraitPanel({ id, name, portrait, onPortrait }: { id: string; name: string; portrait: string | null; onPortrait: (src: string) => void }) {
+function PortraitPanel({ id, name, portrait, onPortrait, hasLooks }: { id: string; name: string; portrait: string | null; onPortrait: (src: string) => void; hasLooks: boolean }) {
   const [state, setState] = useState<null | "working" | "no_key" | { error: string }>(null);
+  const [fromLooks, setFromLooks] = useState<null | "working" | { error: string }>(null);
   const first = shortName(name);
+
+  /** Free: drawn from their saved looks on our image model (lib/looks-draw.ts), a few per character. */
+  async function drawFromLooks() {
+    setFromLooks("working");
+    const { ok, data, message } = await requestJson(`/api/characters/${id}/looks-portrait`, {}, "POST").catch(() => ({
+      ok: false,
+      data: {} as Record<string, unknown>,
+      message: "Network error. Try again.",
+    }));
+    if (ok && typeof data.portrait_path === "string") {
+      onPortrait(data.portrait_path);
+      setFromLooks(null);
+    } else setFromLooks({ error: message ?? "Couldn't draw a portrait." });
+  }
 
   async function generate() {
     setState("working");
@@ -873,6 +923,13 @@ function PortraitPanel({ id, name, portrait, onPortrait }: { id: string; name: s
 
   return (
     <div className="wizard-pro-hint wizard-portrait">
+      <p>
+        <strong>📸 Portrait from their looks</strong> — free, drawn from the looks they&apos;ve saved{hasLooks ? "" : " (pick and save their looks first)"}.
+      </p>
+      <button type="button" className="secondary small" onClick={drawFromLooks} disabled={!hasLooks || fromLooks === "working"}>
+        {fromLooks === "working" ? "Drawing…" : "Draw a portrait from their looks"}
+      </button>
+      {fromLooks && typeof fromLooks === "object" && <p className="error">{fromLooks.error}</p>}
       <p>
         <span className="pro-tag">✨ Pro</span> <strong>Portrait</strong> —{" "}
         {portrait ? `${first}'s generated portrait shows on their card (and above).` : "none yet, so their card shows the drawn avatar."}

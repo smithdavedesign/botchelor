@@ -12,6 +12,7 @@
  * ends. Pure data + zod, no server imports: the builder (a client component) and the API share this file.
  */
 import { z } from "zod";
+import { LOOK_STEPS, LooksInput, normaliseLooks, publicLooks, type Looks } from "./looks";
 
 export const STAR_SIGNS = [
   "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
@@ -142,6 +143,8 @@ export const ExtrasInput = z
       )
       .max(MAX_FACTS, `At most ${MAX_FACTS} facts.`)
       .optional(),
+    /** The looks builder's picks (lib/looks.ts). */
+    looks: LooksInput.optional(),
   })
   .strict();
 export type ExtrasInputType = z.infer<typeof ExtrasInput>;
@@ -159,6 +162,8 @@ export type CharacterExtras = Partial<Record<TextDetail, string>> & {
   never_says?: string[];
   /** The creator's own facts (see MAX_FACTS); `private: true` keeps one off the card. */
   facts?: CharacterFact[];
+  /** The looks builder's picks (lib/looks.ts); `looks.after_dark` is private like a private fact. */
+  looks?: Looks;
 };
 
 /** Keeps only the filled entries of a keyed group; undefined when none are. */
@@ -199,6 +204,8 @@ export function normaliseExtras(input: ExtrasInputType | null | undefined): Char
     .filter((f) => f.label && f.value && !factKeys.has(`${f.label}|${f.value}`.toLowerCase()) && factKeys.add(`${f.label}|${f.value}`.toLowerCase()))
     .slice(0, MAX_FACTS);
   if (facts.length) out.facts = facts;
+  const looks = normaliseLooks(input.looks);
+  if (looks) out.looks = looks;
   return out;
 }
 
@@ -212,6 +219,11 @@ export const factLine = (f: Pick<CharacterFact, "label" | "value">): string => `
  */
 export function publicExtras(e: CharacterExtras | null | undefined): CharacterExtras {
   if (!e) return {};
+  if (e.looks?.after_dark) {
+    const { looks, ...rest } = e;
+    const shown = publicLooks(looks);
+    return publicExtras(shown ? { ...rest, looks: shown } : rest);
+  }
   if (!e.facts?.some((f) => f.private)) return e;
   const { facts, ...rest } = e;
   const shown = facts!.filter((f) => !f.private);
@@ -382,6 +394,21 @@ export function extrasJsonSchema(): Record<string, unknown> {
             value: { type: "string", maxLength: FACT_VALUE_MAX },
             private: { type: "boolean", description: "true: only the character and its owner ever see it." },
           },
+        },
+      },
+      looks: {
+        type: "object",
+        additionalProperties: false,
+        description:
+          "How they look, picked from fixed options (the /create looks builder): it writes their appearance line and their portrait. Pick a gender first; bust is for women, facial_hair for men.",
+        properties: {
+          ...Object.fromEntries(
+            LOOK_STEPS.filter((st) => !st.afterDark && st.id !== "age").map((st) => [
+              st.id,
+              { type: "string", enum: [...new Set([...st.options, ...(st.optionsMan ?? [])].map((o) => o.id))] },
+            ]),
+          ),
+          age: { type: "integer", minimum: 18, maximum: 60, description: "The age they look (their sheet's age is separate)." },
         },
       },
     },

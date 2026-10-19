@@ -5217,3 +5217,247 @@ a.phone-head-btn {
     display: none;
   }
 }
+
+/* ---------- The looks builder (app/create/LooksBuilder.tsx): picture tiles, one step at a time ---------- */
+.looks-builder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  position: relative;
+  min-width: 0;
+  margin-bottom: var(--space-4);
+}
+.looks-stage {
+  min-width: 0;
+}
+.looks-tabs {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-2);
+  justify-self: start;
+}
+.looks-tabs button {
+  border: 0;
+  border-radius: 999px;
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 40px;
+  box-shadow: none;
+}
+.looks-tabs button.chosen {
+  background: var(--grad);
+  color: var(--accent-ink);
+}
+.looks-builder.is-after-dark .looks-tabs button.chosen {
+  background: linear-gradient(120deg, #2b1640, #10091c);
+}
+.looks-lock {
+  margin-left: 0.25em;
+}
+.looks-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.looks-dots button {
+  width: 22px;
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  padding: 0;
+  background: var(--line);
+  cursor: pointer;
+}
+.looks-dots button.done {
+  background: var(--accent);
+  opacity: 0.55;
+}
+.looks-dots button.current {
+  background: var(--accent);
+}
+.looks-title {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 var(--space-3);
+  font-size: 1.15rem;
+}
+.looks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.looks-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 200px));
+}
+.looks-tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  padding: 0;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+.looks-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+.looks-tile:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.looks-tile.chosen {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--soft);
+}
+.looks-tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.looks-tile.no-img {
+  background: linear-gradient(160deg, var(--paper-2), var(--soft));
+}
+.looks-tile-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 18px 8px 8px;
+  background: linear-gradient(transparent, rgba(20, 8, 20, 0.78));
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.92rem;
+  text-align: center;
+}
+.looks-tile.no-img .looks-tile-label {
+  top: 0;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  background: none;
+  color: var(--ink);
+}
+.looks-tile.chosen .looks-tile-label {
+  background: linear-gradient(transparent, rgba(181, 44, 89, 0.92));
+}
+.looks-tile.no-img.chosen .looks-tile-label {
+  background: none;
+  color: var(--accent-text);
+}
+.looks-ages {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+  scroll-snap-type: x proximity;
+}
+.looks-ages button {
+  flex: 0 0 auto;
+  box-shadow: none;
+  min-width: 48px;
+  min-height: 48px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  scroll-snap-align: start;
+}
+.looks-ages button.chosen {
+  border-color: var(--accent);
+  background: var(--grad);
+  color: var(--accent-ink);
+}
+.looks-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: var(--space-2) 0;
+  padding: 0;
+}
+.looks-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+/* Locked After Dark: the show's tiles, heavily blurred, under the unlock card. Never an explicit picture. */
+.looks-stage.locked {
+  filter: blur(14px) saturate(0.7);
+  pointer-events: none;
+  user-select: none;
+}
+.looks-unlock {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -40%);
+  width: min(92%, 380px);
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: linear-gradient(160deg, #241133, #0f0818);
+  color: #f5e9ff;
+  text-align: center;
+  box-shadow: var(--shadow);
+  z-index: 2;
+}
+.looks-unlock p {
+  margin: 0;
+}
+.looks-more {
+  margin-top: var(--space-2);
+}
+.looks-more > summary {
+  cursor: pointer;
+  color: var(--accent-text);
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+}
+@media (max-width: 520px) {
+  .looks-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+  .looks-grid.two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .looks-tile-label {
+    font-size: 0.8rem;
+    padding: 14px 4px 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .looks-tile {
+    transition: none;
+  }
+  .looks-tile:hover {
+    transform: none;
+  }
+}

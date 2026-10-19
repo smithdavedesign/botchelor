@@ -7,7 +7,8 @@ import { getDb } from "@/lib/db";
 import type { CharacterExtras } from "@/lib/extras";
 import { dealtEvent, isOwnUpdate, type StoredThisWeek } from "@/lib/life";
 import { seasonIdAt } from "@/lib/season-cast";
-import { userIdFromCookieStore } from "@/lib/http";
+import { authFromCookieStore } from "@/lib/http";
+import { builderLooks } from "@/lib/looks-draw";
 import { loadSoul } from "@/lib/souls";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,8 @@ type Row = {
  */
 export default async function EditCharacterPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const viewerId = userIdFromCookieStore(await cookies());
+  const auth = authFromCookieStore(await cookies());
+  const viewerId = auth?.userId ?? null;
   if (!viewerId) notFound();
   const db = await getDb();
   const row = (
@@ -80,5 +82,6 @@ export default async function EditCharacterPage({ params }: { params: Promise<{ 
     thisWeek: isOwnUpdate(row.this_week) ? row.this_week!.text : null,
     thisWeekDealt: dealtEvent(id, seasonIdAt(new Date())),
   };
-  return <CreateWizard edit={{ id, initial }} />;
+  const looks = await builderLooks(db, auth);
+  return <CreateWizard edit={{ id, initial }} lookTiles={looks.tiles} afterDark={looks.afterDark} />;
 }
