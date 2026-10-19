@@ -970,6 +970,7 @@ create table if not exists adult_scenes (
 -- Where the scene is now and how far it's gone (David, 2026-10-18: "we were at a cafe"), and the last picture problem.
 alter table adult_scenes add column if not exists place text;
 alter table adult_scenes add column if not exists stage integer not null default 0;
+alter table adult_scenes add column if not exists stage_from integer not null default 0;
 alter table adult_scenes add column if not exists picture_note text;
 
 -- After dark on the cloud (lib/adult/settings.ts): one row, set by an admin. The provider keys are sealed like BYOK
