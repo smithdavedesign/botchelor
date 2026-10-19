@@ -22,9 +22,10 @@ export default async function AfterDarkScenePage({ params }: Props) {
   const scene = await openScene(db, admin, a, b);
   if (!scene) notFound();
   return (
+    <div className="after-dark-mode">
     <article className="after-dark">
       <p className="kicker">
-        <Link href="/admin/after-dark">← After dark</Link>
+        <Link href="/after-dark">← 🌙 After Dark</Link>
       </p>
       <h1>
         {scene.a.name} × {scene.b.name}
@@ -34,5 +35,6 @@ export default async function AfterDarkScenePage({ params }: Props) {
       </p>
       <SceneWriter initial={scene} gallery={await listMedia(db, [scene.a.id, scene.b.id])} />
     </article>
+    </div>
   );
 }

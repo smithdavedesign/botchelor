@@ -67,6 +67,51 @@ memory, the graph, the feed, search or the sitemap. A test checks this.
 anyone under 18, and the characters are adults on their sheets. Checking the output image itself would be an extra
 step later.
 
+## The output check (built, Hive)
+
+No picture or clip is stored or served until the file fal returned passes two Hive checks (`lib/adult/check.ts`). A
+fail is discarded, never stored, and only its reason is logged in `adult_rejections`.
+1. **Visual moderation:** refuse if `yes_child_present` or `yes_child_safety` scores 0.05 or more.
+2. **Demographics (face age):** refuse if any face scores 0.05 or more on `teenager`, `pre_teen`, `toddler` or
+   `baby`, or if no face can be found to check.
+
+It fails closed: a missing key, a Hive error or an unreadable reply all count as a refusal. Pictures stay off until
+both Hive keys are saved in settings.
+
+## Who it opens for (built)
+
+- **`canAfterDark`** (`lib/adult/entitlement.ts`) is checked on every page, route and generation.
+  - An admin always gets in.
+  - Anyone else needs a signed-in account with an active subscription and a passed age check (`adult_entitlements`).
+  - A lapsed subscription, or a period that has ended, closes it again.
+  - Nothing writes those rows yet, so today it's admin-only.
+- **Switches are per person** (`adult_switches`). Each person switches in their own characters and the house
+  characters they bring along, never anyone else's. One person's switches never change another person's after dark.
+- **Margin guard** (`adult_usage`): monthly caps on scene steps, pictures and clips per person. The defaults are 300,
+  30 and 5, stored in `adult_settings`. Admins aren't capped.
+- **The mode:** the pages live at `/after-dark` with their own night look and a 🌙 badge. A 🌙 After Dark link appears
+  in the nav and an After Dark card in Account, only for someone it's open to. Settings stay at
+  `/admin/after-dark/settings`, admin only.
+
+## Before anyone but the admin uses it
+
+The full reasoning is in `docs/after-dark.md`. Everything below is needed, and everything except the last item needs
+David to sign up, pay or decide.
+
+1. **An adult payment processor** (CCBill or Segpay, never Stripe). Its webhook writes `adult_entitlements`
+   (status and period end). Then add the "Subscribe to unlock" row in Account.
+2. **An age-verification provider** (Yoti, Persona or Veriff) in the subscribe flow. It writes `age_verified_at`
+   only; the ID is never stored.
+3. **Hive's CSAM classifier** (built with Thorn), Enterprise only, as a third check on every image, alongside the two
+   self-serve checks.
+4. **Hosting:** confirm with Vercel (registration@vercel.com) and move explicit image storage to adult-permissive
+   storage. Right now it's bytes in Neon, served through Vercel to the admin only.
+5. **Model terms:** confirm the text provider (Venice, for `dolphin-mistral-24b-venice-edition`) and the image and
+   clip models allow adult content. Swap `fal-ai/flux/dev`, which is Stability-based and doesn't allow it.
+6. **Legal:** counsel on the state-by-state age-verification rules, plus terms and a privacy update for the adult tier.
+7. **Product, which we can build:** the subscribe flow and processor webhook, the "Subscribe to unlock" row, an
+   age-check expiry, per-subscriber cost reporting, and moderation and reporting for subscribers' scenes.
+
 ## If it ever becomes a paid public season
 
 This is a separate project:

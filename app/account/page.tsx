@@ -10,6 +10,8 @@ import { listMyLeagues } from "@/lib/leagues";
 import { listBlocks } from "@/lib/people";
 import { listMyBadges, tryCloseDueSeasons, type Badge } from "@/lib/seasons";
 import AccountPanel from "./AccountPanel";
+import { canAfterDark } from "@/lib/adult/entitlement";
+import { authFromCookieStore } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Account · Botchelor", robots: { index: false, follow: false } };
@@ -38,6 +40,17 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
     <>
       <h1>Your account</h1>
       <AccountPanel next={next} emailConfirmed={emailConfirmed} />
+
+      {/* After Dark: only for an account it's open to. The "subscribe to unlock" row comes with the payment processor. */}
+      {(await canAfterDark(db, authFromCookieStore(await cookies()))).ok && (
+        <section className="card">
+          <h2>🌙 After Dark</h2>
+          <p className="muted">The private adult season. Switch your characters in and out there.</p>
+          <Link className="button" href="/after-dark">
+            Open After Dark
+          </Link>
+        </section>
+      )}
 
       {badges.length > 0 && (
         <section>

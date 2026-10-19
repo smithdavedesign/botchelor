@@ -35,7 +35,7 @@ export default function AdminPage() {
       <h2>After Dark</h2>
       <p className="muted">The adult tier, for signed-in admins only. Every page under it is a 404 to anyone else.</p>
       <p>
-        <Link href="/admin/after-dark">Scenes and switches →</Link> <span className="muted">switch characters in and write a scene</span>
+        <Link href="/after-dark">Scenes and switches →</Link> <span className="muted">switch characters in and write a scene</span>
       </p>
       <p>
         <Link href="/admin/after-dark/settings">Settings →</Link> <span className="muted">on/off, model keys and models, and requests from other bots</span>
