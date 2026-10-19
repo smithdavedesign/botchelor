@@ -277,3 +277,23 @@ describe("settings over MCP", () => {
     expect((stranger!.error as { message?: string } | undefined)?.message).toMatch(/unknown tool/);
   });
 });
+
+import { overusedWords, sceneMessages } from "@/lib/adult/scenes";
+
+describe("the scene prompt", () => {
+  it("names the words the scene keeps leaning on (not the characters' names), and asks for actions apart from speech", () => {
+    const lines = Array.from({ length: 8 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `Sure thing, captain. Ada, captain, really ${i}.` }));
+    expect(overusedWords(lines, ["Ada Lumen", "Bo Quill"])).toEqual(["captain", "sure", "thing"]);
+    const msgs = sceneMessages(null, null, null, lines, null);
+    expect(msgs[1].content).toMatch(/Don.t lean on these words again: captain, sure, thing/);
+    expect(msgs[1].content).toMatch(/Move the scene forward/);
+    expect(msgs[1].content).toMatch(/"action"/);
+  });
+
+  it("puts the action before the speech", () => {
+    expect(parseSceneLines(JSON.stringify({ lines: [{ who: "a", action: "leans in", text: "Hi." }, { who: "b", action: "", text: "Hello." }] }), { a: "Ada Lumen", b: "Bo Quill" })).toEqual([
+      { who: "a", text: "*leans in* Hi." },
+      { who: "b", text: "Hello." },
+    ]);
+  });
+});

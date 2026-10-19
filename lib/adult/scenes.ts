@@ -107,11 +107,27 @@ const sheetOf = (c: Character | null, side: "a" | "b") =>
         `Bio: ${c.bio}`,
         `Traits: ${c.persona.traits.join(", ")}. Wants: ${c.persona.want}.`,
         c.voice ? `Voice: ${c.voice}` : "",
+        c.extras.catchphrase ? `Catchphrase (use sparingly): ${c.extras.catchphrase}` : "",
         c.look.appearance ? `Looks: ${c.look.appearance}` : "",
       ]
         .filter(Boolean)
         .join("\n")
     : `${side.toUpperCase()}: unknown`;
+
+const COMMON = new Set(
+  "about after again also always another their there these those though through would could should every other where while which with without your yours yourself just like know right really think going gonna wanna want need make made take back over into onto then than them they this that what when here have been being does doing done more most much very even still only says said tell told look looks looking feel feels felt good come came come'on".split(" "),
+);
+
+/**
+ * Words the scene keeps leaning on (a pet name said a dozen times, a stock line), to steer away from (David,
+ * 2026-10-18: "captain" ten times in one scene). Not the characters' names.
+ */
+export function overusedWords(lines: SceneLine[], names: string[], min = 4, max = 6): string[] {
+  const skip = new Set([...COMMON, ...names.flatMap((n) => n.toLowerCase().split(/\s+/))]);
+  const counts = new Map<string, number>();
+  for (const l of lines) for (const w of l.text.toLowerCase().match(/[a-z']{4,}/g) ?? []) if (!skip.has(w)) counts.set(w, (counts.get(w) ?? 0) + 1);
+  return [...counts.entries()].filter(([, n]) => n >= min).sort((x, y) => y[1] - x[1]).slice(0, max).map(([w]) => w);
+}
 
 /** The prompt for the next lines: who they are, their latest date, the scene so far, and the admin's steer. */
 export function sceneMessages(
@@ -147,10 +163,14 @@ export function sceneMessages(
     .filter((x) => x !== "")
     .join("\n");
   // The model client asks for a JSON object (response_format json_object), so the lines come inside one.
+  const avoid = overusedWords(lines, [nameOf("a"), nameOf("b")]);
   const user =
-    `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}: what each says, with any action in *asterisks*.` +
-    (direction ? ` Steer the scene this way: ${direction}` : "") +
-    ` Reply with a JSON object: {"lines": [{"who": "a", "text": "..."}, {"who": "b", "text": "..."}], "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}.` +
+    `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}. ` +
+    `Each line is 1 to 3 sentences in that character's own voice, vivid and specific, never a stock line ("you feel amazing"). ` +
+    `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text.` +
+    (direction ? ` Steer the scene this way: ${direction}` : " Move the scene forward: something new happens in these lines, nothing they've already done or said.") +
+    (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
+    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "..."}, {"who": "b", "action": "", "text": "..."}], "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}.` +
     ` Set "explicit" to true once the scene is sexually explicit. Set "picture" only when, in these lines, one of them asks the other for a picture or to be shown something and the other agrees:` +
     ` {"of": "a", "b" or "both", "description": "what the picture shows, in a sentence"}; otherwise null.`;
   return [
@@ -171,11 +191,16 @@ export function parseSceneLines(raw: string, names: { a: string; b: string }): S
   if (start !== -1 && end > start) {
     try {
       const parsed = JSON.parse(trimmed.startsWith("{") ? trimmed : raw.slice(start, end + 1)) as
-        | { who?: string; text?: string; lines?: { who?: string; text?: string }[] }
-        | { who?: string; text?: string }[];
+        | { who?: string; text?: string; action?: string; lines?: { who?: string; text?: string; action?: string }[] }
+        | { who?: string; text?: string; action?: string }[];
       const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed.lines) ? parsed.lines : [parsed];
+      // The action leads, in asterisks, so it never lands in the middle of a sentence.
+      const withAction = (x: { text?: string; action?: string }) => {
+        const act = typeof x.action === "string" ? x.action.trim().replace(/^\*+|\*+$/g, "") : "";
+        return typeof x.text === "string" && x.text.trim() ? (act ? `*${act}* ${x.text.trim()}` : x.text) : act ? `*${act}*` : x.text;
+      };
       const out = arr
-        .map((x) => ({ side: typeof x.who === "string" ? sideOf(x.who.trim().toLowerCase()) : null, text: x.text }))
+        .map((x) => ({ side: typeof x.who === "string" ? sideOf(x.who.trim().toLowerCase()) : null, text: withAction(x) }))
         .filter((x): x is { side: "a" | "b"; text: string } => x.side !== null && typeof x.text === "string" && Boolean(x.text.trim()))
         .map((x) => ({ who: x.side, text: clean(x.text) }));
       if (out.length) return out;
