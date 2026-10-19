@@ -216,6 +216,13 @@ describe("on the site, from the settings panel", () => {
     expect(r.pictures).toEqual([]);
     expect(r.picture_note).toMatch(/off until the output check is set up/);
     expect(seen.filter((s) => s.includes("fal.run"))).toEqual([]);
+    // Why the picture didn't come stays on the scene for the gallery, with where they are and how far it's gone.
+    scripted(JSON.stringify({ lines: [{ who: "b", text: "Let's get out of here." }], place: "her flat", stage: 3, explicit: false, picture: null }));
+    const again = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
+    expect(again.scene).toMatchObject({ place: "her flat", stage: 2, picture_note: expect.stringMatching(/off until the output check/) });
+    await post({ a: CAST_A, b: CAST_B, reset: true }, cookie);
+    const fresh = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
+    expect(fresh.scene.lines.length).toBeGreaterThan(0);
   });
 
   it("makes each character's baseline the first time it turns explicit, a new picture only when they agree, and serves them only to an admin", async () => {
@@ -344,7 +351,7 @@ describe("settings over MCP", () => {
   });
 });
 
-import { overusedWords, sceneMessages } from "@/lib/adult/scenes";
+import { overusedWords, parseSceneMeta, sceneMessages } from "@/lib/adult/scenes";
 
 describe("the scene prompt", () => {
   it("names the words the scene keeps leaning on (not the characters' names), and asks for actions apart from speech", () => {
@@ -354,6 +361,17 @@ describe("the scene prompt", () => {
     expect(msgs[1].content).toMatch(/Don.t lean on these words again: captain, sure, thing/);
     expect(msgs[1].content).toMatch(/Move the scene forward/);
     expect(msgs[1].content).toMatch(/"action"/);
+  });
+
+  it("builds slowly and respects where they are: a cafe is for flirting, going further means leaving first", () => {
+    const msgs = sceneMessages(null, null, null, [], null, undefined, { place: "a cafe, where their date was", stage: 0 });
+    expect(msgs[0].content).toMatch(/Where they are now: a cafe, where their date was\. How far it's gone: talking and flirting \(stage 1 of 5/);
+    expect(msgs[0].content).toMatch(/at most one stage further/);
+    expect(msgs[0].content).toMatch(/public place.*at most, kiss.*somewhere private/);
+    expect(msgs[1].content).toMatch(/"place"/);
+    expect(parseSceneMeta(JSON.stringify({ lines: [], place: "her flat", stage: 3 }))).toMatchObject({ place: "her flat", stage: 2 });
+    expect(parseSceneMeta(JSON.stringify({ lines: [], stage: 99 })).stage).toBe(4);
+    expect(parseSceneMeta(JSON.stringify({ lines: [] }))).toMatchObject({ place: null, stage: null });
   });
 
   it("puts the action before the speech", () => {
