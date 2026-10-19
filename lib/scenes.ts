@@ -3,24 +3,19 @@
  * new scene requested"). A date that goes somewhere the library has no set for (lib/places.ts: a plan they agreed to by
  * text, or a move on the date) shows the generic background with the place's name, and the place is logged here when
  * the date is finished. Once per date and place, so a worker's retry or an agent's next step can't count it twice.
- * The admin page lists them by how often they're asked for (GET /api/admin/scenes): the order to make new sets in.
+ * The admin page lists them by how often they're asked for (GET /api/admin/scenes). Each also gets a set drawn once
+ * (lib/sets.ts); POST /api/admin/scenes draws the missing ones, most asked-for first.
  */
 import { track } from "./analytics";
+import { ensureSet } from "./sets";
 import type { Turn } from "./conversation";
 import type { Db } from "./db";
 import type { DateSetup } from "./game";
-import { isPlaceholder, placeLabel } from "./venues";
+import { isPlaceholder, normalizeScene, placeLabel } from "./venues";
 
 export type SceneKind = "plan" | "move";
 
-/** The same place however it's written: "The Observatory", "the observatory" and "an observatory" count together. */
-export const normalizeScene = (label: string): string =>
-  label
-    .toLowerCase()
-    .replace(/^(the|a|an|that|this|some|our)\s+/, "")
-    .replace(/[^\p{L}\p{N}' ]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+export { normalizeScene };
 
 /**
  * The places a finished date went that the library has no set for: where it was booked (a texted plan's place), and
@@ -67,6 +62,8 @@ export async function logSceneRequests(
     } catch (err) {
       console.error("[scenes] could not log", episodeId, err instanceof Error ? err.message : "unknown");
     }
+    // And its set, if it has none yet (lib/sets.ts; a no-op once drawn). Never throws.
+    await ensureSet(db, label);
   }
   return logged;
 }

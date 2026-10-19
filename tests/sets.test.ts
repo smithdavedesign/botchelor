@@ -1,0 +1,79 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { GET } from "@/app/api/sets/[slug]/route";
+import { HIVE_MODERATION, setCheckFetchForTests } from "@/lib/adult/check";
+import { saveAdultSettings } from "@/lib/adult/settings";
+import { ensureSet, SET_MODEL, setPrompt, setSetsFetchForTests } from "@/lib/sets";
+import { setPath } from "@/lib/venues";
+import { BASE_URL, startTestDb } from "./helpers";
+
+// Drawn sets for places of their own (lib/sets.ts): once per place, screened by Hive, served for the scene's backdrop.
+let t: Awaited<ReturnType<typeof startTestDb>>;
+beforeAll(async () => {
+  t = await startTestDb();
+});
+afterAll(async () => {
+  await t.close();
+});
+beforeEach(async () => {
+  await t.reset();
+  vi.stubEnv("SESSION_SECRET", "a-test-session-secret-that-is-long-enough-0123456789");
+});
+afterEach(() => {
+  setSetsFetchForTests(null);
+  setCheckFetchForTests(null);
+});
+
+const JPEG = new Uint8Array([255, 216, 255, 224, 1, 2, 3]);
+const CLEAN = { output: [{ classes: [{ class: "no_child_present", value: 0.99 }, { class: "yes_child_present", value: 0.01 }, { class: "general_nsfw", value: 0.01 }] }] };
+
+function fakeFal() {
+  const drawn: string[] = [];
+  setSetsFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url === `https://fal.run/${SET_MODEL}`) {
+      drawn.push(JSON.parse(String(init?.body)).prompt);
+      return Response.json({ images: [{ url: "https://cdn.fal.test/set.jpg" }] });
+    }
+    return new Response(JPEG, { headers: { "content-type": "image/jpeg" } });
+  });
+  return drawn;
+}
+const hive = (body: unknown) => setCheckFetchForTests(async (input: RequestInfo | URL) => (String(input) === HIVE_MODERATION ? Response.json(body) : new Response("?", { status: 500 })));
+const keys = () => saveAdultSettings(t.db, { fal_key: "placeholder-fal", hive_key: "placeholder-hive" });
+const serve = (label: string) => GET(new Request(`${BASE_URL}${setPath(label)}`), { params: Promise.resolve({ slug: setPath(label).split("/").pop()! }) });
+
+describe("drawn sets", () => {
+  it("draws a place once, empty, screened, and serves it however the place is written", async () => {
+    await keys();
+    const drawn = fakeFal();
+    hive(CLEAN);
+    expect((await serve("The Observatory")).status).toBe(404);
+    expect(await ensureSet(t.db, "elsewhere@the observatory")).toBe("ready");
+    expect(drawn).toEqual([setPrompt("the observatory")]);
+    expect(drawn[0]).toMatch(/no people/);
+    const res = await serve("An observatory");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+    expect(await ensureSet(t.db, "elsewhere@The Observatory")).toBe("exists");
+    expect(drawn).toHaveLength(1);
+  });
+
+  it("keeps nothing Hive refuses, and doesn't try it again", async () => {
+    await keys();
+    const drawn = fakeFal();
+    hive({ output: [{ classes: [{ class: "no_child_present", value: 0.9 }, { class: "general_nsfw", value: 0.8 }] }] });
+    expect(await ensureSet(t.db, "elsewhere@a sauna")).toBe("refused");
+    expect((await serve("a sauna")).status).toBe(404);
+    expect(await ensureSet(t.db, "elsewhere@a sauna")).toBe("exists");
+    expect(drawn).toHaveLength(1);
+  });
+
+  it("draws nothing for a library venue, a place that fails the show's text check, or without keys", async () => {
+    const drawn = fakeFal();
+    hive(CLEAN);
+    expect(await ensureSet(t.db, "bowling_alley")).toBe("skipped");
+    expect(await ensureSet(t.db, null)).toBe("skipped");
+    expect(await ensureSet(t.db, "elsewhere@the observatory")).toBe("failed");
+    expect(drawn).toEqual([]);
+  });
+});

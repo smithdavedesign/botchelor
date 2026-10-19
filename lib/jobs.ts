@@ -50,6 +50,7 @@ import {
   DEFAULT_GAME_BUDGET,
   DEFAULT_STRATEGY,
 } from "./rules";
+import { ensureSet } from "./sets";
 import { logSceneRequests, trackMoves } from "./scenes";
 import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { ShowrunnerError } from "./showrunner";
@@ -233,6 +234,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     }
     // How long they talk (lib/talk.ts): the longer owner setting; marathon only with both sides on owners' keys.
     const talk = talkFor(sides.talk, Boolean(keyForSide?.("a") && keyForSide?.("b")), showFormat(formatId).turns);
+    // A place they planned by text with no set yet: draw it while the date is filmed (lib/sets.ts). Never awaited.
+    void ensureSet(db, built.setup.venue);
     const gen = await generateDate(models, built, decided, {
       formatId,
       talk,
@@ -246,8 +249,12 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       deadline: t0 + DATE_DEADLINE_MS,
       // The creator's theater plays the date while it's filmed: each line is saved as it's written (only the
       // creator sees a transcript before it airs, lib/game.ts), and the finished date overwrites it below.
-      onTurn: (lines) =>
-        db.query(`update episodes set transcript = $2::jsonb where id = $1 and status = 'generating'`, [episodeId, JSON.stringify(lines)]).then(() => {}),
+      onTurn: (lines) => {
+        // A move somewhere new: start drawing its set now, so it's there by the time they arrive (lib/sets.ts).
+        const to = lines[lines.length - 1]?.move?.to;
+        if (to) void ensureSet(db, to);
+        return db.query(`update episodes set transcript = $2::jsonb where id = $1 and status = 'generating'`, [episodeId, JSON.stringify(lines)]).then(() => {});
+      },
     });
     if (gen.conversationError) {
       track("conversation_failed", { episode_id: episodeId, where: "job", reason: failureReason(gen.conversationError) });

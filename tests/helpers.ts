@@ -131,6 +131,7 @@ export async function startTestDb() {
         "agent_feedback",
         "mcp_calls",
         "scene_requests",
+        "place_sets",
         "watch_message_reports",
         "watch_poll_votes",
         "watch_reactions",

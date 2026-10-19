@@ -108,6 +108,18 @@ export const PLACE_LABEL_MAX = 40;
 
 const ALL_VENUES: readonly Venue[] = [...DATE_VENUES, ...EXTRA_VENUES];
 
+/** The same place however it's written: "The Observatory", "the observatory" and "an observatory" count together. */
+export const normalizeScene = (label: string): string =>
+  label
+    .toLowerCase()
+    .replace(/^(the|a|an|that|this|some|our)\s+/, "")
+    .replace(/[^\p{L}\p{N}' ]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** Where a drawn set for a place of its own is served (lib/sets.ts); a 404 until one is drawn. */
+export const setPath = (label: string): string => `/api/sets/${encodeURIComponent(normalizeScene(label))}`;
+
 /** A place's venue id and its own name ("elsewhere@the observatory" → elsewhere, "the observatory"). */
 export function placeParts(id: string | null | undefined): { id: string | null; label: string | null } {
   if (!id) return { id: null, label: null };

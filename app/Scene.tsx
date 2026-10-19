@@ -1,12 +1,14 @@
 import Avatar from "./Avatar";
 import { venueBackdrop } from "@/lib/portraits";
-import { placeLabel, venueBackdropCss, venueName, type PlaceId } from "@/lib/venues";
+import { isPlaceholder, placeLabel, setPath, venueBackdropCss, venueName, type PlaceId } from "@/lib/venues";
 import type { CharacterRef } from "@/lib/game";
 
 /** The full-bleed backdrop for the scene: a dark scrim over the venue photo, with the gradient as fallback. */
 export function sceneBackground(venue: PlaceId | null): string {
   return [
     "linear-gradient(rgba(12,8,16,0.42), rgba(12,8,16,0.66))",
+    // A place of its own's drawn set (lib/sets.ts) when there is one; until then the request 404s and the generic set shows.
+    isPlaceholder(venue) && placeLabel(venue) ? `url(${setPath(placeLabel(venue)!)})` : null,
     venueBackdrop(venue) ? `url(${venueBackdrop(venue)})` : null,
     venueBackdropCss(venue),
   ]
