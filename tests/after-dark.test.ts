@@ -349,3 +349,56 @@ describe("the scene prompt", () => {
     ]);
   });
 });
+
+import { canAfterDark } from "@/lib/adult/entitlement";
+
+describe("who it opens for (canAfterDark)", () => {
+  const entitle = (userId: string, status: string, ageChecked: boolean, periodEnd: string | null = null) =>
+    t.db.query(`insert into adult_entitlements (user_id, subscription_status, period_end, age_verified_at) values ($1, $2, $3, $4)`, [
+      userId,
+      status,
+      periodEnd,
+      ageChecked ? new Date().toISOString() : null,
+    ]);
+
+  it("an admin always; anyone else needs an active subscription and a passed age check; signed out never", async () => {
+    const { id } = await admin();
+    expect(await canAfterDark(t.db, { userId: id, authenticated: true })).toEqual({ ok: true, why: "admin" });
+    expect(await canAfterDark(t.db, { userId: id, authenticated: false })).toEqual({ ok: false, why: "signed_out" });
+    const u = userIdOf(newUserCookie());
+    expect((await canAfterDark(t.db, { userId: u, authenticated: true })).why).toBe("needs_subscription");
+    await entitle(u, "active", false);
+    expect((await canAfterDark(t.db, { userId: u, authenticated: true })).why).toBe("needs_age_check");
+    await t.db.query(`update adult_entitlements set age_verified_at = now() where user_id = $1`, [u]);
+    expect(await canAfterDark(t.db, { userId: u, authenticated: true })).toEqual({ ok: true, why: "subscribed" });
+    // A lapsed subscription closes it again, and so does a period that ended.
+    await t.db.query(`update adult_entitlements set period_end = now() - interval '1 day' where user_id = $1`, [u]);
+    expect((await canAfterDark(t.db, { userId: u, authenticated: true })).why).toBe("needs_subscription");
+  });
+
+  it("a subscriber gets in, switches only their own characters, and is capped; an admin isn't", async () => {
+    await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD" }, (await admin()).cookie);
+    const sub = userIdOf(newUserCookie());
+    await entitle(sub, "active", true);
+    const cookie = signedIn(sub);
+    expect((await get(CAST_A, CAST_B, cookie)).status).toBe(200);
+    const theirs = await (await api.createCharacter(validCharacter({ name: "Not Yours" }), newUserCookie())).json();
+    expect((await call(switchPost, "/api/admin/after-dark/switch", { character_id: theirs.id, on: true }, cookie)).status).toBe(403);
+    await t.db.query(`update adult_settings set cap_writes = 1 where id = 1`);
+    scripted(JSON.stringify({ lines: [{ who: "a", text: "Hi." }] }));
+    expect((await post({ a: CAST_A, b: CAST_B }, cookie)).status).toBe(200);
+    const capped = await post({ a: CAST_A, b: CAST_B }, cookie);
+    expect(capped.status).toBe(429);
+    expect((await capped.json()).message).toMatch(/this month's 1 scene steps/);
+  });
+
+  it("one person's switches don't change anyone else's after dark", async () => {
+    const a = await admin();
+    const mine = await (await api.createCharacter(validCharacter({ name: "Chud Crusher" }), `bz_uid=${a.id}`)).json();
+    await call(switchPost, "/api/admin/after-dark/switch", { character_id: mine.id, on: true }, a.cookie);
+    const sub = userIdOf(newUserCookie());
+    await entitle(sub, "active", true);
+    expect((await get(mine.id, CAST_A, signedIn(sub))).status).toBe(404);
+    expect((await get(mine.id, CAST_A, a.cookie)).status).toBe(200);
+  });
+});

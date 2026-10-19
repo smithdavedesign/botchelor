@@ -25,7 +25,7 @@ export default async function AfterDarkSettingsPage() {
   return (
     <article className="after-dark">
       <p className="kicker">
-        <Link href="/admin/after-dark">← After dark</Link>
+        <Link href="/after-dark">← After Dark</Link>
       </p>
       <h1>After dark settings</h1>
       <p className="muted">

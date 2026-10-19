@@ -13,6 +13,7 @@ import { checkAdultText } from "../safety";
 import { eligibleIds } from "./characters";
 import { ensureBaseline, makePicture, outputCheckReady, PICTURES_OFF_NOTE, scenePrompt, type Media } from "./media";
 import { adultKeys } from "./settings";
+import { countUse, overCap } from "./usage";
 import { adultModel } from "./mode";
 
 export type SceneLine = { who: "a" | "b"; text: string };
@@ -35,16 +36,16 @@ export const SCENE_REPLY_TOKENS = 1200;
 
 type LatestDate = { setting: string | null; ending: string | null; character_a: string; transcript: { side: "a" | "b"; dialogue: string; action?: string }[] | null };
 
-/** The pair, lower id first, when both may be in after dark (lib/adult/characters.ts); null otherwise. */
-export async function eligiblePair(db: Db, x: string, y: string): Promise<[string, string] | null> {
+/** The pair, lower id first, when both may be in this person's after dark (lib/adult/characters.ts); null otherwise. */
+export async function eligiblePair(db: Db, ownerId: string, x: string, y: string): Promise<[string, string] | null> {
   if (x === y) return null;
-  const ok = await eligibleIds(db);
+  const ok = await eligibleIds(db, ownerId);
   return ok.has(x) && ok.has(y) ? pairKey(x, y) : null;
 }
 
 /** Every pair of the characters who can be in after dark, with how far each pair's scene has gone for this admin. */
 export async function listCastPairs(db: Db, adminId: string) {
-  const cast = [...(await eligibleIds(db))];
+  const cast = [...(await eligibleIds(db, adminId))];
   const names = new Map(
     (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [cast])).rows.map((r) => [r.id, r.name]),
   );
@@ -61,7 +62,7 @@ export async function listCastPairs(db: Db, adminId: string) {
   for (let i = 0; i < sorted.length; i++) {
     for (let j = i + 1; j < sorted.length; j++) {
       const [a, b] = [sorted[i], sorted[j]];
-      pairs.push({ a: { id: a, name: names.get(a) ?? a }, b: { id: b, name: names.get(b) ?? b }, lines: scenes.get(`${a}/${b}`) ?? 0, path: `/admin/after-dark/${a}/${b}` });
+      pairs.push({ a: { id: a, name: names.get(a) ?? a }, b: { id: b, name: names.get(b) ?? b }, lines: scenes.get(`${a}/${b}`) ?? 0, path: `/after-dark/${a}/${b}` });
     }
   }
   return pairs;
@@ -79,7 +80,7 @@ async function latestDate(db: Db, a: string, b: string): Promise<LatestDate | nu
 
 /** The admin's scene for a pair of this season's cast, made on first open. Null for any other pair. */
 export async function openScene(db: Db, adminId: string, x: string, y: string): Promise<AdultScene | null> {
-  const pair = await eligiblePair(db, x, y);
+  const pair = await eligiblePair(db, adminId, x, y);
   if (!pair) return null;
   const [a, b] = pair;
   await db.query(`insert into adult_scenes (id, owner_id, character_a, character_b) values ($1, $2, $3, $4) on conflict do nothing`, [
@@ -247,6 +248,8 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const scene = await openScene(db, adminId, x, y);
   if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: this season's cast, or ones you've switched on." };
   if (scene.lines.length >= SCENE_MAX_LINES) return { ok: false, status: 409, message: "This scene is at its length limit. Start over to begin again." };
+  const capped = await overCap(db, adminId, "writes");
+  if (capped) return { ok: false, status: 429, message: capped };
   const steer = direction?.trim().slice(0, DIRECTION_MAX) || null;
   if (steer && !checkAdultText({ direction: steer }).ok) {
     return { ok: false, status: 422, message: "That steer crosses one of the two lines (nobody under 18, no real people)." };
@@ -265,6 +268,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   }
   const lines = [...scene.lines, ...kept];
   await db.query(`update adult_scenes set lines = $2::jsonb, updated_at = now() where id = $1`, [scene.id, JSON.stringify(lines)]);
+  await countUse(db, adminId, "writes");
   // Pictures (lib/adult/media.ts), only with a fal key: each character's baseline the first time it turns explicit,
   // and a new one only when they asked and agreed in these lines. A failed picture never loses the lines.
   const pictures: Media[] = [];
@@ -287,7 +291,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
 
 /** Starts the pair's scene again from the top. */
 export async function resetScene(db: Db, adminId: string, x: string, y: string): Promise<void> {
-  const pair = await eligiblePair(db, x, y);
+  const pair = await eligiblePair(db, adminId, x, y);
   if (!pair) return;
   await db.query(`update adult_scenes set lines = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, ...pair]);
 }

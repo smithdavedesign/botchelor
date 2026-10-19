@@ -119,6 +119,9 @@ export async function startTestDb() {
     async reset() {
       for (const table of [
         "adult_rejections",
+        "adult_usage",
+        "adult_switches",
+        "adult_entitlements",
         "adult_access_requests",
         "adult_images",
         "adult_characters",

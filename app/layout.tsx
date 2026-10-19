@@ -6,7 +6,8 @@ import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
 import { getDb } from "@/lib/db";
 import { unreadCount } from "@/lib/notifications";
-import { userIdFromCookieStore } from "@/lib/http";
+import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
+import { canAfterDark } from "@/lib/adult/entitlement";
 import { siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
 import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
@@ -66,6 +67,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // The nav's token meter needs this viewer's dates left; an anonymous visitor gets the fresh weekly allowance.
   const cookieStore = await cookies();
   const viewerId = userIdFromCookieStore(cookieStore);
+  // After Dark's link shows only to someone it's open to (lib/adult/entitlement.ts); everyone else never sees it.
+  const afterDark = viewerId ? (await canAfterDark(await getDb(), authFromCookieStore(cookieStore)).catch(() => ({ ok: false }))).ok : false;
   const dates = viewerId ? await episodeAllowance(await getDb(), viewerId) : freshAllowance();
   // The bell's unread count (lib/notifications.ts): what happened between dates.
   const unread = viewerId ? await unreadCount(await getDb(), viewerId).catch(() => 0) : 0;
@@ -93,7 +96,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             Botchelor
           </Link>
           <span className="tagline">a blind-date show for original characters</span>
-          <Nav tokens={dates.left} unread={unread} texts={texts} />
+          <Nav tokens={dates.left} unread={unread} texts={texts} afterDark={afterDark} />
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">

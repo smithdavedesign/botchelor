@@ -5056,3 +5056,40 @@ a.phone-head-btn {
   display: grid;
   gap: 0.4rem;
 }
+
+/* After Dark's own look (David, 2026-10-18: never unsure which mode you're in): night colours and a moon badge, in
+   both themes, on every after-dark page. */
+.after-dark-mode {
+  --ad-bg: #120c1c;
+  --ad-card: #1d1430;
+  --ad-ink: #f1e9ff;
+  --ad-muted: #b7a8d3;
+  --ad-line: #33264d;
+  --ad-accent: #c792ff;
+  padding: var(--space-5) var(--space-4);
+  min-height: 70vh;
+  border-radius: 1rem;
+  background: var(--ad-bg);
+  color: var(--ad-ink);
+  color-scheme: dark;
+}
+.after-dark-mode .card,
+.after-dark-mode .after-dark-line {
+  background: var(--ad-card);
+  border-color: var(--ad-line);
+  color: var(--ad-ink);
+}
+.after-dark-mode .after-dark-line.is-b {
+  background: color-mix(in srgb, var(--ad-accent) 18%, var(--ad-card));
+}
+.after-dark-mode .muted,
+.after-dark-mode .kicker {
+  color: var(--ad-muted);
+}
+.after-dark-mode a {
+  color: var(--ad-accent);
+}
+.nav-after-dark {
+  color: #7a4fd6;
+  font-weight: 700;
+}

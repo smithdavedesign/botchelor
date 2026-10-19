@@ -1031,6 +1031,38 @@ create table if not exists adult_access_requests (
   created_at timestamptz not null default now()
 );
 
+-- Who may use after dark besides an admin (docs/after-dark.md #2): an active subscription (from the adult payment
+-- processor's webhook) AND a passed age check (from the age-verification provider). Nothing writes these yet: until the
+-- processor and the age check exist, after dark stays admin-only.
+create table if not exists adult_entitlements (
+  user_id text primary key,
+  subscription_status text not null default 'none' check (subscription_status in ('none', 'active', 'lapsed', 'cancelled')),
+  period_end timestamptz,
+  age_verified_at timestamptz,
+  provider text,
+  updated_at timestamptz not null default now()
+);
+-- Each person's own character switches (their characters, and the house characters they bring along).
+create table if not exists adult_switches (
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  enabled_at timestamptz not null default now(),
+  primary key (owner_id, character_id)
+);
+insert into adult_switches (owner_id, character_id, enabled_at)
+  select owner_id, character_id, enabled_at from adult_characters on conflict do nothing;
+-- The margin guard (docs/after-dark.md #5): each person's generations this month. Admins aren't capped.
+create table if not exists adult_usage (
+  owner_id text not null,
+  month text not null,
+  writes integer not null default 0,
+  pictures integer not null default 0,
+  clips integer not null default 0,
+  primary key (owner_id, month)
+);
+alter table adult_settings add column if not exists cap_writes integer not null default 300;
+alter table adult_settings add column if not exists cap_pictures integer not null default 30;
+alter table adult_settings add column if not exists cap_clips integer not null default 5;
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

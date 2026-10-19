@@ -10,6 +10,7 @@ import type { Character } from "../character";
 import type { Db } from "../db";
 import { checkAdultText } from "../safety";
 import { checkOutput } from "./check";
+import { countUse, overCap } from "./usage";
 import { adultKeys, getAdultSettings } from "./settings";
 
 export type Media = { id: string; character_id: string | null; character_b: string | null; kind: "baseline" | "scene" | "video"; status: string; created_at: string; mime: string };
@@ -80,6 +81,8 @@ export async function makePicture(
   opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null },
 ): Promise<Media> {
   if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
+  const capped = await overCap(db, ownerId, "pictures");
+  if (capped) throw new Error(capped);
   const check = checkAdultText({ prompt: opts.prompt });
   if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
   const key = await falKey(db);
@@ -100,6 +103,7 @@ export async function makePicture(
     throw new Error(`The picture was discarded by the output check (${verdict.reason}).`);
   }
   const file = await download(url);
+  await countUse(db, ownerId, "pictures");
   const id = crypto.randomUUID();
   await db.query(
     `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, remote_url) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -123,6 +127,8 @@ export async function startClip(db: Db, ownerId: string, imageId: string, motion
   )).rows[0];
   if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
   if (!pic?.remote_url) throw new Error("No picture with that id.");
+  const capped = await overCap(db, ownerId, "clips");
+  if (capped) throw new Error(capped);
   const prompt = `${motion.trim() || "Slow, natural movement"}. Everyone shown is an adult.`;
   const check = checkAdultText({ prompt });
   if (!check.ok) throw new Error(`That clip crosses one of the two lines (${check.reason}).`);
@@ -136,6 +142,7 @@ export async function startClip(db: Db, ownerId: string, imageId: string, motion
   if (!res.ok) throw new Error(`fal.ai refused the clip (${res.status}): ${(await res.text()).slice(0, 200)}`);
   const { request_id } = (await res.json()) as { request_id?: string };
   if (!request_id) throw new Error("fal.ai returned no request id.");
+  await countUse(db, ownerId, "clips");
   const id = crypto.randomUUID();
   await db.query(
     `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, status, request_id, source_image)

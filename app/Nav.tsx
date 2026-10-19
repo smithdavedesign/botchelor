@@ -18,7 +18,7 @@ const LINKS = [
  * the links themselves (a row on desktop, a drop-down panel on mobile). "Tokens" are this viewer's dates
  * left — one token sends a character on one date — so the meter doubles as the entry to top up (M4 packs).
  */
-export default function Nav({ tokens, unread = 0, texts = 0 }: { tokens: number; unread?: number; texts?: number }) {
+export default function Nav({ tokens, unread = 0, texts = 0, afterDark = false }: { tokens: number; unread?: number; texts?: number; afterDark?: boolean }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -63,6 +63,11 @@ export default function Nav({ tokens, unread = 0, texts = 0 }: { tokens: number;
             )}
           </Link>
         ))}
+        {afterDark && (
+          <Link href="/after-dark" className="nav-after-dark" aria-current={pathname.startsWith("/after-dark") ? "page" : undefined}>
+            🌙 After Dark
+          </Link>
+        )}
         <Link href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">
           <span aria-hidden="true">🔔</span>
           <span className="nav-bell-label">Notifications</span>
