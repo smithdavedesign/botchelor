@@ -23,4 +23,4 @@ export function requestBase(req: Request, env: Record<string, string | undefined
 }
 
 /** The pages worth listing for search engines: public, and the same for every visitor. */
-export const PUBLIC_PATHS = ["/", "/create", "/watch", "/cast", "/agents", "/shop", "/terms", "/privacy"] as const;
+export const PUBLIC_PATHS = ["/", "/create", "/watch", "/cast", "/characters", "/agents", "/shop", "/terms", "/privacy"] as const;

@@ -20,6 +20,8 @@ type Props = {
   clip?: { admin: boolean; boughtTokens: number; hasKey: boolean; cost: number };
   /** How much they talk (lib/talk.ts), and whether the owner has a text key (marathon runs on it). */
   talk?: { level: TalkLevel; hasTextKey: boolean };
+  /** Private: listed by name only in the directory, and the card shows just the name to everyone else. */
+  private?: boolean;
   /** One partner or more (lib/partners.ts): the owner's choice, what the character decided, and who they're with. */
   partners?: { choice: PartnerStyle; decided: "one" | "open" | null; taken: boolean; partners: { id: string; name: string }[] };
 };
@@ -45,6 +47,18 @@ export default function OwnerControls(props: Props) {
     setBusy(false);
     if (ok) router.refresh();
     else setOpenToDates(!next);
+  }
+
+  const [isPrivate, setIsPrivate] = useState(props.private ?? false);
+
+  async function togglePrivate() {
+    const next = !isPrivate;
+    setIsPrivate(next);
+    setBusy(true);
+    const { ok } = await requestJson(`/api/characters/${props.id}`, { visibility: next ? "private" : "public" }, "PATCH").catch(() => ({ ok: false }));
+    setBusy(false);
+    if (ok) router.refresh();
+    else setIsPrivate(!next);
   }
 
   const [audience, setAudience] = useState<Audience>(props.audience ?? "everyone");
@@ -168,6 +182,14 @@ export default function OwnerControls(props: Props) {
           : "Not in the swipe deck for now."}{" "}
         <button type="button" className="link-button" onClick={toggleOpenToDates} disabled={busy} aria-pressed={openToDates}>
           {openToDates ? "Close to dates" : "Open to dates"}
+        </button>
+      </p>
+      <p className="muted small">
+        {isPrivate
+          ? "🔒 Private: the directory lists them by name only, and their card shows just their name to everyone else."
+          : "Public: anyone can open their card from the directory."}{" "}
+        <button type="button" className="link-button" onClick={togglePrivate} disabled={busy} aria-pressed={isPrivate}>
+          {isPrivate ? "Make public" : "Make private"}
         </button>
       </p>
       {openToDates && (

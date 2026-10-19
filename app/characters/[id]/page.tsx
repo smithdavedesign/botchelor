@@ -42,6 +42,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const c = await getPublicCharacter(await getDb(), id);
   if (!c) return { title: "Character not found · Botchelor", robots: { index: false, follow: false } };
+  if (c.private) return { title: `${c.name} · Botchelor`, robots: { index: false, follow: false } };
   return {
     title: `${c.name}, ${c.age}: a contestant on Botchelor`,
     description: `${c.name}, a contestant on Botchelor: ${c.bio} Wants: ${c.want}`.slice(0, 200),
@@ -56,6 +57,19 @@ export default async function CharacterPage({ params }: Props) {
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
   const viewerId = userIdFromCookieStore(await cookies());
+  // A private character (its owner's choice): everyone but the owner sees only its name.
+  if (c.private && c.owner_id !== viewerId) {
+    return (
+      <article className="character-private">
+        <p className="kicker">Contestant</p>
+        <h1>{c.name}</h1>
+        <p className="muted">🔒 Their creator keeps this character private.</p>
+        <p>
+          <Link href="/characters">← Every character</Link>
+        </p>
+      </article>
+    );
+  }
   const [{ episodes, record }, ratings, memory, dating, reviews] = await Promise.all([
     getCharacterHistory(db, id),
     getCharacterRatings(db, id, viewerId),
@@ -202,7 +216,7 @@ export default async function CharacterPage({ params }: Props) {
           )}
         </p>
       )}
-      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} openToDates={dating?.open_to_dates ?? false} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} />}
+      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} private={c.private} openToDates={dating?.open_to_dates ?? false} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} />}
       {plays && (
         <p className="muted small owner-temperament">
           🔒 How {shortName(c.name)} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}
