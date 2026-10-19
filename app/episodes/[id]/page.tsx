@@ -131,7 +131,7 @@ export default async function EpisodePage({
         )}
         <GeneratingPoller
           episodeId={episode.id}
-          stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null } : undefined}
+          stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null, canSetScene: !selfPerformed } : undefined}
         />
         <p className="muted">
           <Link href="/watch">More episodes</Link>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Scene from "@/app/Scene";
@@ -17,7 +17,58 @@ function lastLine(turns: Turn[], side: "a" | "b"): string | null {
 }
 
 /** The creator who just sent the date: wait on the theater stage itself, and play the date the moment it's filmed. */
-type Stage = { characters: [CharacterRef, CharacterRef]; venue: PlaceId | null };
+type Stage = { characters: [CharacterRef, CharacterRef]; venue: PlaceId | null; canSetScene?: boolean };
+
+/**
+ * Set the scene while it's filmed (lib/scene-suggestions.ts): any place, 1 token. The next line suggests it and the
+ * other one decides; the token comes back if they don't go.
+ */
+function SetSceneBar({ episodeId }: { episodeId: string }) {
+  const [open, setOpen] = useState(false);
+  const [place, setPlace] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  async function go(e: FormEvent) {
+    e.preventDefault();
+    if (!place.trim()) return;
+    setBusy(true);
+    const res = await fetch(`/api/episodes/${episodeId}/set-scene`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ place: place.trim() }),
+    }).catch(() => null);
+    const data = (await res?.json().catch(() => null)) as { message?: string; suggestion?: { label: string } } | null;
+    setBusy(false);
+    if (!res?.ok) return setNote({ text: data?.message ?? "That didn't go through. Try again.", error: true });
+    setNote({ text: `Sent. The next line suggests ${data?.suggestion?.label ?? "it"}. They can still say no, and your token comes back if they don't go.` });
+    setPlace("");
+    setOpen(false);
+  }
+  return (
+    <div className="ad-theater-bar set-scene-bar">
+      {open ? (
+        <form onSubmit={go} className="set-scene-form">
+          <input aria-label="Take them anywhere" value={place} maxLength={60} onChange={(e) => setPlace(e.target.value)} placeholder="Take them anywhere: a rooftop pool at midnight…" disabled={busy} autoFocus />
+          <button type="submit" className="primary" disabled={busy || !place.trim()}>
+            {busy ? "Sending…" : "Suggest it · 1 token"}
+          </button>
+          <button type="button" className="button-ghost" onClick={() => setOpen(false)} disabled={busy}>
+            Cancel
+          </button>
+        </form>
+      ) : (
+        <button type="button" className="button-ghost" onClick={() => setOpen(true)} title="Take them anywhere (1 token)">
+          📍 Set the scene
+        </button>
+      )}
+      {note && (
+        <p className="ad-theater-note" role="status">
+          {note.text}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /**
  * M10 part 2: while an episode is 'generating', poll its status and refresh the page the moment the
@@ -132,6 +183,7 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
               </Link>
             </div>
           </header>
+          {stage.canSetScene && <SetSceneBar episodeId={episodeId} />}
           {!shown.length && (
             <div className="theater-verdict" role="status" aria-live="polite">
               <p className="ending">Filming the date…</p>

@@ -50,6 +50,7 @@ import {
   DEFAULT_GAME_BUDGET,
   DEFAULT_STRATEGY,
 } from "./rules";
+import { markProposed, pendingSuggestion, settleSuggestions } from "./scene-suggestions";
 import { ensureSet } from "./sets";
 import { logSceneRequests, trackMoves } from "./scenes";
 import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
@@ -247,6 +248,9 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       moves: built.setup.moves,
       moveCutoff: t0 + MOVE_CUTOFF_MS,
       deadline: t0 + DATE_DEADLINE_MS,
+      // Set the scene (lib/scene-suggestions.ts): the creator's paid place, read before each line that could propose it.
+      suggestion: () => pendingSuggestion(db, episodeId),
+      onSuggestionProposed: (id) => markProposed(db, id),
       // The creator's theater plays the date while it's filmed: each line is saved as it's written (only the
       // creator sees a transcript before it airs, lib/game.ts), and the finished date overwrites it below.
       onTurn: (lines) => {
@@ -288,6 +292,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     if (saved.rows.length) {
       await rememberDate(db, row.a_id, row.b_id).catch(() => {});
       await logSceneRequests(db, episodeId, built.setup, transcript);
+      await settleSuggestions(db, episodeId, transcript);
       trackMoves(episodeId, transcript, "show");
       // M14: learned memory is recomputed when a date AIRS (the reveal route / the watch room), not here —
       // a generated date is not yet revealed, and its arc is public, so counting it would spoil predictions.
@@ -314,6 +319,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // back, then delete the episode (which cascades its job). The poller sees it gone and offers a retry.
     // (Only a process crash *before* this catch leaves the job 'running'; the cron re-runs that once.)
     if (row.reservation) await releaseEpisode(db, row.creator_id, row.reservation).catch(() => {});
+    // A scene they set and never reached: its token back before the episode (and the suggestion with it) goes.
+    await settleSuggestions(db, episodeId, []);
     await db.query(`delete from episodes where id = $1 and status = 'generating'`, [episodeId]);
   }
 }
