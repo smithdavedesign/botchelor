@@ -154,6 +154,24 @@ export function namedPlace(text: string): string | null {
 }
 
 /**
+ * Where a text points, and how strong a destination it is (lib/plans.ts agreedPlan). A real destination — one of their
+ * homes, a specific venue ("the bowling alley"), or a place named with a going cue ("come to the observatory") — is
+ * `strong`. A bare kind-of-place word, which is often just logistics ("I'll bring the coffee" is not a café), is weak,
+ * so a strong destination earlier in the exchange outranks it. Null when the text names nowhere.
+ */
+export function placeProposal(text: string, from: string, to: string): { place: PlaceId; strong: boolean } | null {
+  const t = text.slice(0, 300);
+  if (MY_HOME.test(t)) return { place: `home@${shortName(from)}'s place`, strong: true };
+  if (YOUR_HOME.test(t)) return { place: `home@${shortName(to)}'s place`, strong: true };
+  const specific = SPECIFIC.find(([re]) => re.test(t))?.[1];
+  if (specific) return { place: specific, strong: true };
+  const named = namedPlace(t) ?? ACTIVITIES.find(([re]) => re.test(t))?.[1];
+  if (named) return { place: `elsewhere@${named}`, strong: true };
+  const weak = kind(t, false) ?? kind(t, true) ?? HINTS.find(([re]) => re.test(t))?.[1];
+  return weak ? { place: weak, strong: false } : null;
+}
+
+/**
  * Where a character on a date proposes moving to, from its own few words ("move": "my place", "the night market",
  * "somewhere quieter"): one of their homes, a library venue, or else the placeholder with their words for a name. Null
  * when the words can't name a place on the show (too long, a link, not PG, or filtered).
