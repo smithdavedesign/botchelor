@@ -24,6 +24,8 @@ import { relationshipsOf, viewRelationship } from "@/lib/relationships";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ENDING_LABELS } from "@/lib/rules";
 import RatingButtons from "./RatingButtons";
+import Reviews from "./Reviews";
+import { reviewSummary } from "@/lib/reviews";
 import OwnerControls from "./OwnerControls";
 import { isTalkLevel, type TalkLevel } from "@/lib/talk";
 import { partnerStyleOf } from "@/lib/partners";
@@ -54,11 +56,12 @@ export default async function CharacterPage({ params }: Props) {
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
   const viewerId = userIdFromCookieStore(await cookies());
-  const [{ episodes, record }, ratings, memory, dating] = await Promise.all([
+  const [{ episodes, record }, ratings, memory, dating, reviews] = await Promise.all([
     getCharacterHistory(db, id),
     getCharacterRatings(db, id, viewerId),
     loadCharacterMemory(db, id),
     getDatingProfile(db, id),
+    reviewSummary(db, id, viewerId),
   ]);
   const week = thisWeek(c.id, c.this_week);
   // The owner also sees its private facts (marked as theirs alone); everyone else gets the public card.
@@ -264,6 +267,11 @@ export default async function CharacterPage({ params }: Props) {
         <h2>Audience rating</h2>
         <p className="muted">How the crowd reads this contestant. It&apos;s just for fun — it never changes a date, the odds or your points on a prediction.</p>
         <RatingButtons characterId={c.id} counts={ratings.counts} mine={ratings.mine} isOwner={ratings.is_owner} />
+      </section>
+
+      <section className="card">
+        <h2>Reviews</h2>
+        <Reviews characterId={c.id} name={c.name} initial={reviews} isOwner={ratings.is_owner} house={c.house} />
       </section>
 
       {memory?.arc && (

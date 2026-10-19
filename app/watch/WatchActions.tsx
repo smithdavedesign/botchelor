@@ -32,7 +32,7 @@ export function CreateLeagueForm({ hasName }: { hasName: boolean }) {
   return (
     <form className="card" onSubmit={create}>
       <h3>Start a league with friends</h3>
-      <p className="muted">A weekly leaderboard for your group. Share its link to invite people.</p>
+      <p className="muted">A monthly leaderboard for your group. Share its link to invite people.</p>
       <label>
         League name
         <input type="text" name="league_name" required maxLength={40} />

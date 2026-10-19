@@ -1,9 +1,10 @@
 import type { Db } from "./db";
 import { predictionPointsSql } from "./game";
 import { PODIUM_SIZE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "./rules";
+import { seasonLabel, seasonWindow, weekWindow } from "./season-window";
 
 /**
- * Seasons (M4). A season is the leaderboard week: Monday 00:00 UTC to the next Monday. When it ends,
+ * Seasons (M4). A season is the leaderboard's month (a week before 2026-10-19; lib/season-window.ts). When it ends,
  * the top 3 in each friend league earn a badge (Olympic places, so ties share; a badge needs points).
  *
  * Nothing runs at the deadline. A season's standings depend only on rows stamped before it: finales
@@ -12,40 +13,34 @@ import { PODIUM_SIZE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "./r
  * and closing again changes nothing. Vercel Hobby cron runs once a day within an hour, so it couldn't.
  */
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEK_MS = 7 * DAY_MS;
 /** Shown for a league member who has no display name (boards and podiums). */
 export const UNNAMED_MEMBER = "Unnamed player";
 /** How many closed seasons a league page lists. */
 export const PAST_SEASONS_SHOWN = 4;
 
-/**
- * The leaderboard week containing `now`: Monday 00:00 UTC to the next Monday. Points count in the week
- * the episode airs (when they are earned). One UTC rule everywhere, so no viewer sees a different week.
- */
-export function weekWindow(now: Date): { start: Date; end: Date } {
-  const midnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  const daysSinceMonday = (now.getUTCDay() + 6) % 7;
-  const start = new Date(midnight - daysSinceMonday * DAY_MS);
-  return { start, end: new Date(start.getTime() + WEEK_MS) };
-}
+export { seasonLabel, seasonWindow, weekWindow };
 
-/** `id` is the Monday the season starts (YYYY-MM-DD, UTC); it closes at `ends_at`. */
+/** `id` is the day the season starts (YYYY-MM-DD, UTC); it closes at `ends_at`. */
 export type Season = { id: string; starts_at: string; ends_at: string };
 
+const asSeason = ({ start, end }: { start: Date; end: Date }): Season => ({
+  id: start.toISOString().slice(0, 10),
+  starts_at: start.toISOString(),
+  ends_at: end.toISOString(),
+});
+
+/** The leaderboard season containing `now`: a calendar month (lib/season-window.ts; a week before 2026-10-19). */
 export function seasonAt(now: Date): Season {
-  const { start, end } = weekWindow(now);
-  return { id: start.toISOString().slice(0, 10), starts_at: start.toISOString(), ends_at: end.toISOString() };
+  return asSeason(seasonWindow(now));
+}
+
+/** The week containing `now`, Monday to Monday: what free dates still reset on (lib/allowance.ts). */
+export function weekAt(now: Date): Season {
+  return asSeason(weekWindow(now));
 }
 
 function seasonFromId(id: string): Season {
   return seasonAt(new Date(`${id}T00:00:00.000Z`));
-}
-
-/** "week of Oct 12" */
-export function seasonLabel(id: string): string {
-  const day = new Date(`${id}T00:00:00.000Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-  return `week of ${day}`;
 }
 
 /**
@@ -57,16 +52,20 @@ export function seasonLabel(id: string): string {
  * same podium, and every insert is ON CONFLICT DO NOTHING.
  */
 export async function closeDueSeasons(db: Db, now?: Date): Promise<string[]> {
-  const { rows } = await db.query<{ id: string }>(
-    `select distinct to_char(date_trunc('week', e.revealed_at at time zone 'UTC'), 'YYYY-MM-DD') as id
+  const clock = now ?? new Date((await db.query<{ now: Date | string }>(`select now() as now`)).rows[0].now);
+  // The days with an aired finale since the last closed season and before this one; each maps to its season here,
+  // because a season is a week or a month depending on when it was (lib/season-window.ts).
+  const { rows } = await db.query<{ day: string }>(
+    `select distinct to_char(date_trunc('day', e.revealed_at at time zone 'UTC'), 'YYYY-MM-DD') as day
        from episodes e
-      where e.visibility = 'public' and e.revealed_at < coalesce($1::timestamptz, date_trunc('week', now() at time zone 'UTC') at time zone 'UTC')
+      where e.visibility = 'public' and e.revealed_at < $1::timestamptz
         and e.revealed_at >= coalesce((select max(ends_at) from seasons), '-infinity'::timestamptz)
-      order by id`,
-    [now ? weekWindow(now).start.toISOString() : null],
+      order by day`,
+    [seasonWindow(clock).start.toISOString()],
   );
-  for (const { id } of rows) await closeSeason(db, seasonFromId(id));
-  return rows.map((r) => r.id);
+  const due = [...new Map(rows.map(({ day }) => { const s = seasonFromId(day); return [s.id, s] as const; })).values()];
+  for (const season of due) await closeSeason(db, season);
+  return due.map((s) => s.id);
 }
 
 /**

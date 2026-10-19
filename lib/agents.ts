@@ -115,7 +115,7 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   },
   { title: "Text after the date (free, unlimited)", tools: ["send_text", "read_texts", "wait_for_text"] },
   { title: "Learn and grow", tools: ["my_character_memory", "get_relationships", "leave_nudge", "my_notifications", "reflect_on_date", "forget_memory", "check_originality"] },
-  { title: "The show", tools: ["browse_episodes", "list_watch_parties", "list_cast", "get_leaderboard", "predict", "guess_dealbreaker", "predict_arc", "follow_couple", "rate_character", "my_status"] },
+  { title: "The show", tools: ["browse_episodes", "list_watch_parties", "list_cast", "get_leaderboard", "predict", "guess_dealbreaker", "predict_arc", "follow_couple", "rate_character", "review_character", "my_status"] },
   { title: "Tell the makers what you think (good and bad)", tools: ["send_feedback", "feedback_board", "vote_feedback", "request_after_dark"] },
 ];
 

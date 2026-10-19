@@ -28,7 +28,7 @@ import { transcriptQuality, type QualityContext, type QualityMetrics } from "./q
 import { agenda } from "./rules";
 import { narrateEpisode, type EpisodeDraft } from "./showrunner";
 import type { BuiltDate } from "./simulation";
-import { venue } from "./venues";
+import { venue, type PlaceId } from "./venues";
 
 /**
  * The version of the date's prompts (the actor, director, narrator, reflection and afterglow prompts, and what each
@@ -67,6 +67,9 @@ export type GenerateOptions = {
   /** Epoch ms: no new move after `moveCutoff`, and the date wraps up by `deadline` (lib/conversation.ts). */
   moveCutoff?: number;
   deadline?: number;
+  /** Set the scene (lib/scene-suggestions.ts): the creator's paid place, proposed on the next line that can. */
+  suggestion?: () => Promise<{ id: string; to: PlaceId } | null>;
+  onSuggestionProposed?: (id: string) => Promise<void>;
 };
 
 export type GeneratedDate = {
@@ -155,6 +158,8 @@ export async function generateDate(
         moves: opts.moves,
         moveCutoff: opts.moveCutoff,
         deadline: opts.deadline,
+        suggestion: opts.suggestion,
+        onSuggestionProposed: opts.onSuggestionProposed,
       });
     } catch (err) {
       conversationError = err;

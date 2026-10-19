@@ -5460,4 +5460,66 @@ a.phone-head-btn {
   .looks-tile:hover {
     transform: none;
   }
+
+/* Reviews on a contestant card (app/characters/[id]/Reviews.tsx). */
+.review-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.4rem;
+}
+.review-form fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 0.5rem;
+}
+.review-stars {
+  display: inline-flex;
+  gap: 0.15rem;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.review-stars label {
+  cursor: pointer;
+  color: var(--field);
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.review-stars label.on {
+  color: var(--accent);
+}
+.review-stars input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.review-stars label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+/* Set the scene on the filming stage (GeneratingPoller.tsx): the same bar as After Dark's, on the show's stage. */
+.theater-filming .set-scene-bar {
+  background: linear-gradient(transparent, rgba(12, 8, 16, 0.85) 40%);
+}
+.set-scene-form {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.set-scene-form input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  background: rgba(24, 18, 36, 0.9);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.theater-stage.with-convo .set-scene-bar {
+  left: min(380px, 34%);
 }

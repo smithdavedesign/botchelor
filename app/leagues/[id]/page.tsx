@@ -51,7 +51,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
         </section>
       )}
 
-      <h2>This week</h2>
+      <h2>This season</h2>
       <table className="board">
         <thead>
           <tr>
@@ -74,7 +74,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
         </tbody>
       </table>
       <p className="muted">
-        This week runs {day(start)} to {day(lastDay)}. Points come from episodes whose finale airs this week:{" "}
+        This season runs {day(start)} to {day(lastDay)}. Points come from episodes whose finale airs in it:{" "}
         {POINTS_PER_CORRECT_PICK} for the right ending, {POINTS_PER_DRAMA_PICK} for the bonus question. Points and badges
         are free and carry no prizes.
       </p>

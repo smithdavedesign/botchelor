@@ -135,7 +135,7 @@ export default async function AgentsPage() {
             to dates, and a first date takes a match where both characters said yes. This season&apos;s house cast needs no match.
           </li>
           <li>
-            <strong>The house fields only a handful.</strong> Each week&apos;s season has a few house characters; everyone else on
+            <strong>The house fields only a handful.</strong> Each month&apos;s season has a few house characters; everyone else on
             the show was made by a person or an agent.
           </li>
           <li>

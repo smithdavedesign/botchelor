@@ -23,11 +23,15 @@ export function lineToTurn(l: SceneLine): Turn {
 export function stageFor(place: string | null, dateVenue: string | null): PlaceId | null {
   if (!place) return (dateVenue as PlaceId | null) ?? null;
   if (dateVenue) {
-    const words = venueName(dateVenue).toLowerCase().match(/[a-z]{5,}/g) ?? [];
-    if (words.some((w) => place.toLowerCase().includes(w))) return dateVenue as PlaceId;
+    // Whole words that name the place, never a time of day ("a rooftop pool at midnight" isn't "bowling on league night").
+    const words = (venueName(dateVenue).toLowerCase().match(/[a-z]{5,}/g) ?? []).filter((w) => !TIME_WORDS.has(w));
+    const said = new Set(place.toLowerCase().match(/[a-z]+/g) ?? []);
+    if (words.some((w) => said.has(w))) return dateVenue as PlaceId;
   }
   return `elsewhere@${place.slice(0, PLACE_LABEL_MAX)}` as PlaceId;
 }
+
+const TIME_WORDS: ReadonlySet<string> = new Set(["night", "nights", "evening", "morning", "midnight", "after", "late", "dusk", "sunset", "golden", "hour"]);
 
 const lastOf = (turns: Turn[], side: "a" | "b") => {
   for (let i = turns.length - 1; i >= 0; i--) if (turns[i].side === side) return turns[i].dialogue;
@@ -45,14 +49,17 @@ export default function AfterDarkTheater({
   busy = false,
   note = null,
   onWrite,
+  onSetScene,
   onExit,
 }: {
-  scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null };
+  scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null; set?: string | null };
   characters: [CharacterRef, CharacterRef];
   busy?: boolean;
   note?: string | null;
   /** Writes the next lines; without it, this is a saved night's playback. */
   onWrite?: (direction: string) => Promise<void>;
+  /** Set the scene: take them anywhere (1 token). */
+  onSetScene?: (place: string) => Promise<void>;
   onExit: () => void;
 }) {
   const live = Boolean(onWrite);
@@ -62,6 +69,8 @@ export default function AfterDarkTheater({
   const replay = useReplay(turns, true, { live, startAt });
   const [convo, setConvo] = useState(false);
   const [direction, setDirection] = useState("");
+  const [moving, setMoving] = useState(false);
+  const [where, setWhere] = useState("");
   const shown = replay.shown;
   const [a, b] = characters;
   const caughtUp = shown.length >= turns.length;
@@ -73,13 +82,21 @@ export default function AfterDarkTheater({
     setDirection("");
   }
 
+  async function go(e: FormEvent) {
+    e.preventDefault();
+    if (!where.trim()) return;
+    await onSetScene?.(where.trim());
+    setWhere("");
+    setMoving(false);
+  }
+
   return (
     <div className="theater theater-clean theater-after-dark" role="dialog" aria-label={`${a.name} and ${b.name}, after dark`}>
       <div className={`theater-stage${convo ? " with-convo" : ""}`}>
         <div className="theater-scene-area">
           <Scene
             characters={characters}
-            venue={stageFor(scene.place, scene.dateVenue)}
+            venue={stageFor(scene.set || scene.place, scene.dateVenue)}
             lineA={lastOf(shown, "a")}
             lineB={lastOf(shown, "b")}
             actLabel={STAGES[scene.stage] ?? null}
@@ -125,7 +142,30 @@ export default function AfterDarkTheater({
           </div>
         </header>
 
-        {live ? (
+        {live && moving ? (
+        <form className="ad-theater-bar" onSubmit={go}>
+          <input
+            aria-label="Take them anywhere"
+            value={where}
+            maxLength={60}
+            onChange={(e) => setWhere(e.target.value)}
+            placeholder="Take them anywhere: a rooftop pool at midnight…"
+            disabled={busy}
+            autoFocus
+          />
+          <button type="submit" className="primary" disabled={busy || !where.trim()}>
+            {busy ? "Moving…" : "Go · 1 token"}
+          </button>
+          <button type="button" className="button-ghost" onClick={() => setMoving(false)} disabled={busy}>
+            Cancel
+          </button>
+          {note && (
+            <p className="ad-theater-note" role="status">
+              {note}
+            </p>
+          )}
+        </form>
+        ) : live ? (
         <form className="ad-theater-bar" onSubmit={next}>
           <input
             aria-label="Steer it (optional)"
@@ -138,6 +178,11 @@ export default function AfterDarkTheater({
           <button type="submit" className="primary" disabled={busy || !caughtUp}>
             {busy ? "Writing…" : caughtUp ? "Next" : "Playing…"}
           </button>
+          {onSetScene && (
+            <button type="button" className="button-ghost" onClick={() => setMoving(true)} disabled={busy} title="Take them anywhere (1 token)">
+              📍 Set the scene
+            </button>
+          )}
           {note && (
             <p className="ad-theater-note" role="status">
               {note}

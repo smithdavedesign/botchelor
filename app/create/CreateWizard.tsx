@@ -1233,8 +1233,8 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
 
       <p className="muted">
         {swipeGate
-          ? "Or date one of this season's house cast now, no match needed: a handful the show fields each week. Either way, you can't steer the date."
-          : "Or one of this season's house cast — a handful the show fields each week. Either way, you can't steer the date."}
+          ? "Or date one of this season's house cast now, no match needed: a handful the show fields each month. Either way, you can't steer the date."
+          : "Or one of this season's house cast — a handful the show fields each month. Either way, you can't steer the date."}
       </p>
       <ul className="gallery">
         {partners.map((p) => (

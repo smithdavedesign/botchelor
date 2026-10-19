@@ -953,6 +953,19 @@ create table if not exists scene_requests (
   primary key (episode_id, normalized)
 );
 create index if not exists scene_requests_normalized_idx on scene_requests (normalized);
+-- Set the scene on a filming date (lib/scene-suggestions.ts): a paid place the producer suggests; kept if they go.
+create table if not exists scene_suggestions (
+  id text primary key,
+  episode_id text not null references episodes (id) on delete cascade,
+  user_id text not null,
+  place text not null,
+  label text not null,
+  tokens integer not null default 0,
+  status text not null default 'pending' check (status in ('pending', 'proposed', 'moved', 'declined')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists scene_suggestions_episode_idx on scene_suggestions (episode_id);
 -- Drawn sets for places of their own (lib/sets.ts): one per place, drawn once on fal and screened by Hive.
 create table if not exists place_sets (
   normalized text primary key,
@@ -998,6 +1011,9 @@ alter table adult_scenes add column if not exists place text;
 alter table adult_scenes add column if not exists stage integer not null default 0;
 alter table adult_scenes add column if not exists stage_from integer not null default 0;
 alter table adult_scenes add column if not exists picture_note text;
+-- The set they're on (a short place name, drawn once by lib/sets.ts), and a paid "Set the scene" the next lines react to.
+alter table adult_scenes add column if not exists set_place text;
+alter table adult_scenes add column if not exists cut_to text;
 -- Finished scenes, kept like dates (David, 2026-10-19: "save them and be able to play them back"): Start over files the
 -- running scene here instead of wiping it. Owner-only, like everything after dark.
 create table if not exists adult_nights (
@@ -1012,6 +1028,7 @@ create table if not exists adult_nights (
   date_venue text,
   created_at timestamptz not null default now()
 );
+alter table adult_nights add column if not exists set_place text;
 create index if not exists adult_nights_pair on adult_nights (owner_id, character_a, character_b, created_at desc);
 
 -- After dark on the cloud (lib/adult/settings.ts): one row, set by an admin. The provider keys are sealed like BYOK
@@ -1122,6 +1139,35 @@ alter table adult_settings add column if not exists cap_writes integer not null 
 alter table adult_settings add column if not exists image_base text;
 alter table adult_settings add column if not exists cap_pictures integer not null default 30;
 alter table adult_settings add column if not exists cap_clips integer not null default 5;
+
+-- Monthly seasons (David, 2026-10-19; lib/season-cast.ts): who's on each season's show, decided once on its first
+-- read. 'dealt' from the old shuffle, 'survivor' the previous season's two most-loved, 'new' a newcomer.
+-- season_cast_rotations is the one row a rotation claims first, so two cold starts can't both pick a cast.
+create table if not exists season_casts (
+  season_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  slot smallint not null,
+  source text not null check (source in ('dealt', 'survivor', 'new')),
+  created_at timestamptz not null default now(),
+  primary key (season_id, character_id)
+);
+create table if not exists season_cast_rotations (
+  season_id text primary key,
+  rotated_at timestamptz not null default now()
+);
+-- Reviews of a character (lib/reviews.ts): one per reviewer per character, from a person or an agent, 1 to 5 stars
+-- and an optional line. A season's reviews decide which two of its house cast stay on.
+create table if not exists character_reviews (
+  reviewer_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  stars smallint not null check (stars between 1 and 5),
+  body text,
+  via text not null default 'web' check (via in ('web', 'mcp')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (reviewer_id, character_id)
+);
+create index if not exists character_reviews_character_idx on character_reviews (character_id, updated_at desc);
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (
@@ -1240,6 +1286,20 @@ export function setDbForTests(db: Db | null): void {
 // Cached on globalThis so dev-server hot reloads reuse one pool / one PGlite instance.
 const cache = globalThis as typeof globalThis & { __botchelorDb?: Promise<Db> };
 
+/**
+ * This season's stored cast (lib/season-cast.ts), loaded into memory at most once a minute so its many synchronous
+ * readers see it; on the season's first read it picks the cast. A failure keeps the stand-in, never the request.
+ */
+async function withSeasonCast(db: Db): Promise<Db> {
+  try {
+    const { refreshSeasonCast } = await import("./season-cast");
+    await refreshSeasonCast(db);
+  } catch (err) {
+    console.error("[season-cast] could not load:", err instanceof Error ? err.message : "unknown");
+  }
+  return db;
+}
+
 export function getDb(): Promise<Db> {
   if (testDb) return Promise.resolve(testDb);
   if (!cache.__botchelorDb) {
@@ -1253,5 +1313,5 @@ export function getDb(): Promise<Db> {
     });
     cache.__botchelorDb = opening;
   }
-  return cache.__botchelorDb;
+  return cache.__botchelorDb.then(withSeasonCast);
 }
