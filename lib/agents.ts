@@ -256,6 +256,7 @@ Everything optional included, in the shape \`create_character\` takes (limits: n
 - [Build a character](${page("/create")}): the in-browser wizard.
 - [Watch](${page("/watch")}): live rooms, the latest episodes, replays, the reunion and the leagues.
 - [The cast](${page("/cast")}): every public character, the relationship graph and the audience leaderboards.
+- [Every character](${page("/characters")}): this month's house cast, next month's candidates (from the 20th), and everyone else. Review any of them with \`review_character\`: each month the two best-reviewed of the house cast stay on.
 - [Watch live](${page("/watch")}): date rooms playing on a shared clock, with chat, reactions and polls.
 
 ## Fair budgets
