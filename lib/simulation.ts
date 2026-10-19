@@ -24,7 +24,7 @@ import type { BoxScore, DateSetup } from "./game";
 import { assembleCharacter, type Character } from "./character";
 import type { CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
-import { loadCharacterMemory, pairMemory, pendingReflections, withPairMemory, withPendingReflections, type CharacterMemory } from "./memory";
+import { leanedOnWords, loadCharacterMemory, pairMemory, pendingReflections, withPairMemory, withPendingReflections, type CharacterMemory } from "./memory";
 import { activeNudge, alsoSeeing } from "./between-dates";
 import { agreedPlan, planLines, type AgreedPlan, type PlanText } from "./plans";
 import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, venueForPlan, type End, type Relationship } from "./relationships";
@@ -130,6 +130,9 @@ export type DateParts = {
   /** Each side's optional details (lib/extras.ts). Dialogue flavour only: the engine never reads them. */
   extrasA?: CharacterExtras | null;
   extrasB?: CharacterExtras | null;
+  /** Words each side has leaned on across its recent aired dates (lib/memory.ts leanedOnWords): retire them. */
+  overusedA?: string[];
+  overusedB?: string[];
   /** What's new in each side's life this week (lib/life.ts). Dialogue flavour only. */
   thisWeekA?: string | null;
   thisWeekB?: string | null;
@@ -163,6 +166,8 @@ export function assembleDate(p: DateParts): BuiltDate {
   const { a, b, req, seed } = p;
   const charA = assembleCharacter({ id: a.id, sheet: a.sheet, soul: p.soulA, memory: p.memoryA, extras: p.extrasA, thisWeek: p.thisWeekA });
   const charB = assembleCharacter({ id: b.id, sheet: b.sheet, soul: p.soulB, memory: p.memoryB, extras: p.extrasB, thisWeek: p.thisWeekB });
+  if (p.overusedA?.length) charA.overused = p.overusedA;
+  if (p.overusedB?.length) charB.overused = p.overusedB;
   // The plan they agreed to by text is tonight (David, 2026-10-18: "honoring their discussion in the texting"): it's
   // where the date happens, and each side knows it kept the plan. One plan per date: with it, a second date's older
   // plan (from its morning after) stays out of the prompts, so the venue and the premise can't come from two plans.
@@ -324,6 +329,8 @@ export async function buildDate(
     alsoSeeing(db, a.id, b.id).catch(() => []),
     alsoSeeing(db, b.id, a.id).catch(() => []),
   ]);
+  // What each has leaned on across its recent aired dates (lib/memory.ts), so a voice tic doesn't recur every date.
+  const [overusedA, overusedB] = await Promise.all([leanedOnWords(db, a.id).catch(() => []), leanedOnWords(db, b.id).catch(() => [])]);
   // The texts this date's creator may bring in: every text between dates, and the morning afters of the dates they can use.
   const chain = opts.creatorId !== undefined ? await loadChain(db, a.id, b.id, { usableBy: opts.creatorId }) : [];
   // Each side's own reflections on public dates still waiting to air, from that creator's dates (lib/memory.ts).
@@ -358,6 +365,7 @@ export async function buildDate(
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
+    overusedA, overusedB,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),
   });
 }

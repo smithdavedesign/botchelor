@@ -135,6 +135,8 @@ export type LineIssues = {
   catchphrase: string | null;
   /** A 4+ consecutive content-word run shared with the OTHER speaker's immediately previous line — mirroring. */
   mirrored_other: string | null;
+  /** A distinctive word/phrase this character has leaned on across its recent aired dates (self.overused) — a voice tic. */
+  stale_catchphrase: string | null;
 };
 
 /** The never-say phrase a line uses, matched on whole words (case-insensitive), or null. */
@@ -279,6 +281,17 @@ export function lineIssues(
     if (hit) mirroredOther = hit;
   }
 
+  // Stale catchphrase: a distinctive word or 2-word phrase this character has leaned on across its recent aired dates
+  // (lib/memory.ts leanedOnWords, on self.overused) — the across-date version of the within-date catchphrase check.
+  // Flags the first line that reaches for one, so "captain"/"dare" don't recur on every date (Chud × Sable, 2026-10-18).
+  let staleCatchphrase: string | null = null;
+  if (self.overused?.length) {
+    const stale = new Set(self.overused.map((w) => w.toLowerCase()));
+    const mineDistinct = distinctiveWords(line.dialogue);
+    const terms = [...mineDistinct, ...[...ngrams(mineDistinct, 2)]];
+    staleCatchphrase = terms.find((t) => stale.has(t)) ?? null;
+  }
+
   return {
     profile_reading: leakedWord || leakedGram || labelled,
     self_label: selfLabel,
@@ -293,6 +306,7 @@ export function lineIssues(
     near_duplicate: nearDuplicate,
     catchphrase,
     mirrored_other: mirroredOther,
+    stale_catchphrase: staleCatchphrase,
   };
 }
 
@@ -319,6 +333,8 @@ export type QualityMetrics = {
   catchphrases: number;
   /** Lines that mirrored the other speaker's immediately previous line (4+ shared content-word run). */
   mirrored: number;
+  /** Lines that reached for a word/phrase this character has leaned on across its recent aired dates. */
+  stale_catchphrases: number;
   distinctness: number;
   grounding: [number, number];
   /** 0..100: one headline number combining the above (higher is more genuine). */
@@ -333,7 +349,7 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
   const spread = n ? Math.sqrt(wordsPerLine.reduce((x, w) => x + (w - avg) ** 2, 0) / n) : 0;
 
   let profileReading = 0, selfLabels = 0, selfQuotes = 0, misgendered = 0, abrupt = 0, repeated = 0, repeatedActions = 0, nameTics = 0, voiceBreaks = 0;
-  let nearDuplicates = 0, catchphrases = 0, mirrored = 0;
+  let nearDuplicates = 0, catchphrases = 0, mirrored = 0, staleCatchphrases = 0;
   let responsive = 0, replies = 0;
   const lastInterest: [number | null, number | null] = [null, null];
   const sideWords: [Set<string>, Set<string>] = [new Set(), new Set()];
@@ -355,6 +371,7 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
     if (issues.near_duplicate) nearDuplicates++;
     if (issues.catchphrase) catchphrases++;
     if (issues.mirrored_other) mirrored++;
+    if (issues.stale_catchphrase) staleCatchphrases++;
 
     const content = new Set(contentWords(t.dialogue));
     linesBy[s]++;
@@ -417,6 +434,7 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
     near_duplicates: nearDuplicates,
     catchphrases,
     mirrored,
+    stale_catchphrases: staleCatchphrases,
     distinctness: r2(distinctness),
     grounding: [r2(grounding[0]), r2(grounding[1])],
     index,
