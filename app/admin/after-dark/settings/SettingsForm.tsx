@@ -9,6 +9,8 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
   const [s, setS] = useState(initial);
   const [orKey, setOrKey] = useState("");
   const [falKey, setFalKey] = useState("");
+  const [hiveMod, setHiveMod] = useState("");
+  const [hiveDemo, setHiveDemo] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
 
@@ -21,6 +23,8 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
     setS(res.data.settings as AdultSettings);
     setOrKey("");
     setFalKey("");
+    setHiveMod("");
+    setHiveDemo("");
     setNote({ text: "Saved." });
   }
 
@@ -32,6 +36,8 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       video_model: s.video_model,
       ...(orKey.trim() ? { openrouter_key: orKey.trim() } : {}),
       ...(falKey.trim() ? { fal_key: falKey.trim() } : {}),
+      ...(hiveMod.trim() ? { hive_mod_key: hiveMod.trim() } : {}),
+      ...(hiveDemo.trim() ? { hive_demo_key: hiveDemo.trim() } : {}),
     });
   }
 
@@ -56,6 +62,16 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       <input id="ad-image-model" value={s.image_model} onChange={(e) => setS({ ...s, image_model: e.target.value })} />
       <label htmlFor="ad-video-model">Clip model</label>
       <input id="ad-video-model" value={s.video_model} onChange={(e) => setS({ ...s, video_model: e.target.value })} />
+      <h3>The output check: Hive</h3>
+      <p className="muted small">
+        Every picture and clip is checked after it&apos;s made and discarded if a child is present or any face reads as under 18 (or there&apos;s no
+        face to check). Pictures stay off until both keys are saved. Hive gives each project its own key.
+        {s.hive_mod_last4 && s.hive_demo_last4 ? " Both are saved: pictures are on." : ""}
+      </p>
+      <label htmlFor="ad-hive-mod">Hive visual moderation key {s.hive_mod_last4 && <span className="muted small">saved, ends …{s.hive_mod_last4}</span>}</label>
+      <input id="ad-hive-mod" type="password" autoComplete="off" value={hiveMod} onChange={(e) => setHiveMod(e.target.value)} />
+      <label htmlFor="ad-hive-demo">Hive demographics key {s.hive_demo_last4 && <span className="muted small">saved, ends …{s.hive_demo_last4}</span>}</label>
+      <input id="ad-hive-demo" type="password" autoComplete="off" value={hiveDemo} onChange={(e) => setHiveDemo(e.target.value)} />
       <p>
         <button type="submit" className="primary" disabled={busy}>
           {busy ? "Saving…" : "Save"}

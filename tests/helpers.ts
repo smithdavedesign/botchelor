@@ -118,6 +118,12 @@ export async function startTestDb() {
     db,
     async reset() {
       for (const table of [
+        "adult_rejections",
+        "adult_access_requests",
+        "adult_images",
+        "adult_characters",
+        "adult_scenes",
+        "adult_settings",
         "agent_feedback",
         "mcp_calls",
         "scene_requests",
