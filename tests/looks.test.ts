@@ -20,7 +20,7 @@ import {
   tileSpecs,
   GENDERS,
 } from "@/lib/looks";
-import { drawMissingTiles, drawTile, LOOKS_PG_MODEL, PORTRAITS_PER_CHARACTER, setLooksFetchForTests } from "@/lib/looks-draw";
+import { drawMissingTiles, drawTile, LOOKS_PG_MODEL, PORTRAITS_PER_CHARACTER, setLooksFetchForTests, setLooksPauseForTests } from "@/lib/looks-draw";
 import { checkAdultText } from "@/lib/safety";
 import { api, BASE_URL, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -29,6 +29,7 @@ import { api, BASE_URL, newUserCookie, startTestDb, userIdOf, validCharacter } f
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
   t = await startTestDb();
+  setLooksPauseForTests(0);
 });
 afterAll(async () => {
   await t.close();
@@ -140,6 +141,38 @@ describe("drawing the tiles", () => {
     expect((await serve(spec.id)).status).toBe(404);
     expect(await drawTile(t.db, spec)).toBe("exists");
     expect(calls).toHaveLength(1);
+  });
+
+  it("keeps a picture Hive was too busy to screen, unshown, and screens it again without drawing it twice", async () => {
+    await keys();
+    const calls = fakeProviders();
+    setCheckFetchForTests(async () => new Response("slow down", { status: 429 }));
+    const spec = tileSpecs().find((s) => s.id === "pg-woman-hair_color-red")!;
+    expect(await drawTile(t.db, spec)).toBe("failed");
+    expect((await serve(spec.id)).status).toBe(404);
+    // The next batch picks it up (after the short wait) and only screens it.
+    await t.db.query(`update look_tiles set updated_at = now() - interval '1 hour' where id = $1`, [spec.id]);
+    hive();
+    expect(await drawMissingTiles(t.db, { only: [spec.id] })).toEqual([{ id: spec.id, status: "ready" }]);
+    expect(calls).toHaveLength(1);
+    expect((await serve(spec.id)).status).toBe(200);
+  });
+
+  it("stops a batch when the screen rate-limits, instead of paying for pictures it can't check", async () => {
+    await keys();
+    const calls = fakeProviders();
+    setCheckFetchForTests(async () => new Response("slow down", { status: 429 }));
+    const drawn = await drawMissingTiles(t.db, { only: ["pg-woman-eyes-blue", "pg-woman-eyes-grey", "pg-woman-eyes-hazel"] });
+    expect(drawn).toHaveLength(1);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("retries tiles stored as refused only because the check couldn't run", async () => {
+    await keys();
+    fakeProviders();
+    hive();
+    await t.db.query(`insert into look_tiles (id, variant, status, prompt, reason) values ('pg-man-eyes-blue', 'pg', 'refused', 'p', 'the check couldn''t run (Hive answered 429)'), ('pg-man-eyes-grey', 'pg', 'refused', 'p', 'age check: MINOR')`);
+    expect(await drawMissingTiles(t.db, { only: ["pg-man-eyes-blue", "pg-man-eyes-grey"] })).toEqual([{ id: "pg-man-eyes-blue", status: "ready" }]);
   });
 
   it("draws nothing without keys", async () => {
