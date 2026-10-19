@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
 import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import AfterDarkTheater from "./AfterDarkTheater";
+import Reels from "./Reels";
+import type { Reel } from "@/lib/adult/reels";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { STAGES } from "@/lib/adult/stages";
 
@@ -17,6 +19,8 @@ export default function SceneWriter({
   characters,
   play = false,
   nights = [],
+  reels = [],
+  reelTokens = 15,
 }: {
   initial: AdultScene;
   gallery: Media[];
@@ -25,7 +29,20 @@ export default function SceneWriter({
   play?: boolean;
   /** Their saved nights (each Start over files the scene that ran), newest first. */
   nights?: AdultNight[];
+  /** Their videos of the night, and what one costs in tokens (lib/adult/reels.ts). */
+  reels?: Reel[];
+  reelTokens?: number;
 }) {
+  const [reelList, setReelList] = useState(reels);
+  const [reelNote, setReelNote] = useState<{ text: string; error?: boolean } | null>(null);
+  const putReel = useCallback((r: Reel) => setReelList((list) => [r, ...list.filter((x) => x.id !== r.id)]), []);
+  async function makeVideo(nightId?: string) {
+    setReelNote({ text: "Picking the night's best moments and voicing them…" });
+    const res = await requestJson("/api/admin/after-dark/reel", { a: scene.a.id, b: scene.b.id, ...(nightId ? { night_id: nightId } : {}) }).catch(() => null);
+    if (!res?.ok) return setReelNote({ text: res?.message ?? "That didn't go through. Try again.", error: true });
+    putReel(res.data.reel as Reel);
+    setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
+  }
   const [theater, setTheater] = useState(play);
   const [nightList, setNightList] = useState(nights);
   const [watching, setWatching] = useState<AdultNight | null>(null);
@@ -78,6 +95,9 @@ export default function SceneWriter({
           note={note?.text ?? null}
           onWrite={(d) => send(d ? { direction: d } : {})}
           onSetScene={(place) => send({ set_scene: place })}
+          onMakeVideo={() => makeVideo()}
+          videoTokens={reelTokens}
+          videoNote={reelNote?.text ?? null}
           onExit={() => setTheater(false)}
         />
       )}
@@ -130,6 +150,9 @@ export default function SceneWriter({
                 <button type="button" className="button-ghost" onClick={() => setWatching(n)}>
                   ▶ Play
                 </button>{" "}
+                <button type="button" className="button-ghost" onClick={() => void makeVideo(n.id)} title={`A short film of this night, in their voices (${reelTokens} tokens)`}>
+                  🎬 Video · {reelTokens} tokens
+                </button>{" "}
                 {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {n.lines.length} lines
                 {n.place ? ` · ended ${n.place}` : ""}
               </li>
@@ -137,6 +160,12 @@ export default function SceneWriter({
           </ul>
         </section>
       )}
+      {reelNote && (
+        <p className={reelNote.error ? "error" : "muted small"} role="status">
+          {reelNote.text}
+        </p>
+      )}
+      <Reels reels={reelList} onChange={putReel} />
       <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} />
     </section>
   );

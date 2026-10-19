@@ -41,6 +41,9 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       ...(veniceKey.trim() ? { venice_key: veniceKey.trim() } : {}),
       image_provider: s.image_provider,
       venice_image_model: s.venice_image_model,
+      reel_model: s.reel_model,
+      reel_shots: s.reel_shots,
+      reel_tokens: s.reel_tokens,
     });
   }
 
@@ -84,6 +87,17 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       <input id="ad-venice-key" type="password" autoComplete="off" value={veniceKey} onChange={(e) => setVeniceKey(e.target.value)} />
       <label htmlFor="ad-venice-model">Venice picture model</label>
       <input id="ad-venice-model" value={s.venice_image_model} onChange={(e) => setS({ ...s, venice_image_model: e.target.value })} />
+      <h3>Video of the night: Venice</h3>
+      <p className="muted small">
+        A short film of a whole night: the strongest lines, each a shot of the speaker saying it in their own stock voice. A Wan 2.6 or 2.5 model
+        lip-syncs to that voice; any other model is given the line to speak itself.
+      </p>
+      <label htmlFor="ad-reel-model">Video model</label>
+      <input id="ad-reel-model" value={s.reel_model} onChange={(e) => setS({ ...s, reel_model: e.target.value })} />
+      <label htmlFor="ad-reel-shots">Shots per video (about 5 seconds each)</label>
+      <input id="ad-reel-shots" type="number" min={2} max={12} value={s.reel_shots} onChange={(e) => setS({ ...s, reel_shots: Number(e.target.value) || 6 })} />
+      <label htmlFor="ad-reel-tokens">Price in bought tokens (admins don&apos;t pay)</label>
+      <input id="ad-reel-tokens" type="number" min={0} max={500} value={s.reel_tokens} onChange={(e) => setS({ ...s, reel_tokens: Number(e.target.value) || 0 })} />
       <h3>The output check: Hive</h3>
       <p className="muted small">
         Every picture and clip is checked after it&apos;s made and discarded if Hive&apos;s moderation sees a child, or its vision model
