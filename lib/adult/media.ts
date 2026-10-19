@@ -16,16 +16,16 @@ import { adultKeys, getAdultSettings } from "./settings";
 export type Media = { id: string; character_id: string | null; character_b: string | null; kind: "baseline" | "scene" | "video"; status: string; created_at: string; mime: string };
 
 /**
- * Pictures and clips run only with the output check in place (lib/adult/check.ts; docs/after-dark.md #1): both Hive
- * keys saved. Without it they stay off: fal's safety checker is off, so nothing else would catch a returned image
+ * Pictures and clips run only with the output check in place (lib/adult/check.ts; docs/after-dark.md #1): the Hive
+ * key saved. Without it they stay off: fal's safety checker is off, so nothing else would catch a returned image
  * that shows a minor. Every file is checked before it's stored, and a failure is discarded, never stored.
  */
 export async function outputCheckReady(db: Db): Promise<boolean> {
   const k = await adultKeys(db).catch(() => null);
-  return Boolean(k?.hive_mod && k?.hive_demo);
+  return Boolean(k?.hive);
 }
 export const PICTURES_OFF_NOTE =
-  "Pictures and clips are off until the output check is set up (both Hive keys in after dark's settings): every image is checked after it's made, not only our prompt.";
+  "Pictures and clips are off until the output check is set up (the Hive key in after dark's settings): every image is checked after it's made, not only our prompt.";
 
 /** Logs a refusal (never the file), so the admin can see the check working. */
 async function logRejection(db: Db, ownerId: string, kind: string, reason: string): Promise<void> {
@@ -108,7 +108,7 @@ export async function makePicture(
   const url = body.images?.[0]?.url;
   if (!url) throw new Error("fal.ai returned no picture.");
   // The output check, before anything is stored: a failure is discarded.
-  const verdict = await checkOutput(await adultKeys(db), url);
+  const verdict = await checkOutput((await adultKeys(db)).hive, url, "image");
   if (!verdict.ok) {
     await logRejection(db, ownerId, opts.kind, verdict.reason);
     throw new Error(`The picture was discarded by the output check (${verdict.reason}).`);
@@ -181,7 +181,7 @@ export async function pollClip(db: Db, id: string): Promise<string> {
     return "failed";
   }
   // The output check on the clip itself, before it's stored: a failure is discarded.
-  const verdict = await checkOutput(await adultKeys(db), body.video.url);
+  const verdict = await checkOutput((await adultKeys(db)).hive, body.video.url, "video");
   if (!verdict.ok) {
     await logRejection(db, row.owner_id, "video", verdict.reason);
     await db.query(`update adult_images set status = 'failed' where id = $1`, [id]);

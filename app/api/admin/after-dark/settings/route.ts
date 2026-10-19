@@ -12,8 +12,7 @@ const Input = z.object({
   image_base: z.string().max(160).optional(),
   openrouter_key: z.string().max(400).optional(),
   fal_key: z.string().max(400).optional(),
-  hive_mod_key: z.string().max(400).optional(),
-  hive_demo_key: z.string().max(400).optional(),
+  hive_key: z.string().max(400).optional(),
 });
 
 /** After dark's settings: a signed-in admin only, even while it's off (that's where it's turned on). */

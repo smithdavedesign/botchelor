@@ -69,14 +69,17 @@ step later.
 
 ## The output check (built, Hive)
 
-No picture or clip is stored or served until the file fal returned passes two Hive checks (`lib/adult/check.ts`). A
-fail is discarded, never stored, and only its reason is logged in `adult_rejections`.
-1. **Visual moderation:** refuse if `yes_child_present` or `yes_child_safety` scores 0.05 or more.
-2. **Demographics (face age):** refuse if any face scores 0.05 or more on `teenager`, `pre_teen`, `toddler` or
-   `baby`, or if no face can be found to check.
+No picture or clip is stored or served until the file fal returned passes Hive's checks (`lib/adult/check.ts`), on
+one V3 secret key from Hive's Service API Keys page. A fail is discarded, never stored, and only its reason is logged
+in `adult_rejections`.
+1. **`hive/visual-moderation`** ($3 per 1,000 images): refuse if `yes_child_present` scores 0.05 or more on any frame.
+2. **`hive/vision-language-model`**, on pictures: asked whether everyone shown is clearly 18 or older; anything but
+   a plain `ADULTS` (`MINOR`, `UNSURE`, nobody visible, an unreadable answer) is a refusal. Hive's face-age
+   (Demographics) model is Enterprise only on the V3 portal, so the VLM stands in for it. A clip is made from a
+   picture that already passed both, and its frames go through moderation again.
 
 It fails closed: a missing key, a Hive error or an unreadable reply all count as a refusal. Pictures stay off until
-both Hive keys are saved in settings.
+the Hive key is saved in settings.
 
 ## Who it opens for (built)
 
@@ -103,7 +106,7 @@ David to sign up, pay or decide.
 2. **An age-verification provider** (Yoti, Persona or Veriff) in the subscribe flow. It writes `age_verified_at`
    only; the ID is never stored.
 3. **Hive's CSAM classifier** (built with Thorn), Enterprise only, as a third check on every image, alongside the two
-   self-serve checks.
+   self-serve checks. Demographics (face age) is Enterprise too, and is worth adding then as well.
 4. **Hosting:** confirm with Vercel (registration@vercel.com) and move explicit image storage to adult-permissive
    storage. Right now it's bytes in Neon, served through Vercel to the admin only.
 5. **Model terms:** confirm the text provider (Venice, for `dolphin-mistral-24b-venice-edition`) and the image and

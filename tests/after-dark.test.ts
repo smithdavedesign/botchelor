@@ -139,7 +139,7 @@ import { POST as switchPost } from "@/app/api/admin/after-dark/switch/route";
 import { GET as mediaGet } from "@/app/api/admin/after-dark/media/[id]/route";
 import { GET as clipGet, POST as clipPost } from "@/app/api/admin/after-dark/clip/route";
 import { setMediaFetchForTests } from "@/lib/adult/media";
-import { classScores, faceCount, setCheckFetchForTests } from "@/lib/adult/check";
+import { checkOutput, classScores, HIVE_VLM, setCheckFetchForTests, vlmAnswer } from "@/lib/adult/check";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { listNotifications } from "@/lib/notifications";
 
@@ -164,15 +164,17 @@ function fakeFal() {
   return seen;
 }
 
-/** Hive's replies: moderation with no child, and one adult face; or what a test passes in. */
-const CLEAN_MOD = { status: [{ response: { output: [{ classes: [{ class: "yes_child_present", score: 0.01 }, { class: "no_child_present", score: 0.99 }, { class: "general_nsfw", score: 0.98 }] }] } }] };
-const ADULT_FACE = { status: [{ response: { output: [{ bounding_poly: [{ classes: [{ class: "adult", score: 0.97 }, { class: "teenager", score: 0.02 }] }] }] } }] };
-function fakeHive(demo: unknown, mod: unknown = CLEAN_MOD, fail = false) {
-  setCheckFetchForTests(async (_input: RequestInfo | URL, init?: RequestInit) => {
+/** Hive's replies (V3): moderation with no child, and the VLM saying everyone's an adult; or what a test passes in. */
+const CLEAN_MOD = { output: [{ classes: [{ class: "yes_child_present", value: 0.01 }, { class: "no_child_present", value: 0.99 }, { class: "general_nsfw", value: 0.98 }] }] };
+const ADULTS = { choices: [{ message: { role: "assistant", content: "ADULTS" } }] };
+function fakeHive(vlm: unknown = ADULTS, mod: unknown = CLEAN_MOD, fail = false) {
+  const seen: string[] = [];
+  setCheckFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+    seen.push(String((init?.headers as Record<string, string>)?.authorization ?? ""));
     if (fail) return new Response("down", { status: 500 });
-    const key = String((init?.headers as Record<string, string>)?.authorization ?? "");
-    return Response.json(key.includes("mod") ? mod : demo);
+    return Response.json(String(input) === HIVE_VLM ? vlm : mod);
   });
+  return seen;
 }
 
 describe("on the site, from the settings panel", () => {
@@ -218,9 +220,9 @@ describe("on the site, from the settings panel", () => {
 
   it("makes each character's baseline the first time it turns explicit, a new picture only when they agree, and serves them only to an admin", async () => {
     const { cookie } = await admin();
-    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_mod_key: "placeholder-mod", hive_demo_key: "placeholder-demo" }, cookie);
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive" }, cookie);
     const seen = fakeFal();
-    fakeHive(ADULT_FACE);
+    fakeHive();
     scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }, { who: "b", text: "Make me." }], explicit: true, picture: null }));
     const first = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
     expect(first.pictures.map((p: { kind: string }) => p.kind)).toEqual(["baseline", "baseline"]);
@@ -247,17 +249,19 @@ describe("the output check (Hive)", () => {
   });
 
   const cases: [string, unknown, unknown, boolean, RegExp][] = [
-    ["a child present", ADULT_FACE, { status: [{ response: { output: [{ classes: [{ class: "yes_child_present", score: 0.4 }] }] } }] }, false, /moderation: yes_child_present/],
-    ["a teenage face", { status: [{ response: { output: [{ bounding_poly: [{ classes: [{ class: "adult", score: 0.6 }, { class: "teenager", score: 0.3 }] }] }] } }] }, CLEAN_MOD, false, /face age: teenager/],
-    ["no face to check", { status: [{ response: { output: [] } }] }, CLEAN_MOD, false, /no face found/],
-    ["Hive down", ADULT_FACE, CLEAN_MOD, true, /couldn't run/],
+    ["a child present", ADULTS, { output: [{ classes: [{ class: "no_child_present", value: 0.6 }, { class: "yes_child_present", value: 0.4 }] }] }, false, /moderation: yes_child_present/],
+    ["the VLM says a minor", { choices: [{ message: { content: "MINOR" } }] }, CLEAN_MOD, false, /age check: MINOR/],
+    ["the VLM is unsure", { choices: [{ message: { content: "Unsure." } }] }, CLEAN_MOD, false, /age check: UNSURE/],
+    ["an unreadable reply", {}, CLEAN_MOD, false, /age check: no answer/],
+    ["no child scores", ADULTS, { output: [] }, false, /no child scores/],
+    ["Hive down", ADULTS, CLEAN_MOD, true, /couldn't run/],
   ];
-  for (const [what, demo, mod, fail, reason] of cases) {
+  for (const [what, vlm, mod, fail, reason] of cases) {
     it(`discards the picture, stores nothing, and logs why: ${what}`, async () => {
       const { cookie } = await admin();
-      await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_mod_key: "placeholder-mod", hive_demo_key: "placeholder-demo" }, cookie);
+      await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive" }, cookie);
       fakeFal();
-      fakeHive(demo, mod, fail);
+      fakeHive(vlm, mod, fail);
       scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }], explicit: true, picture: null }));
       const r = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
       expect(r.added).toBe(1);
@@ -269,10 +273,20 @@ describe("the output check (Hive)", () => {
     });
   }
 
-  it("reads class scores and faces wherever Hive puts them", () => {
-    expect(classScores(ADULT_FACE).map((c) => c.cls)).toEqual(["adult", "teenager"]);
-    expect(faceCount(ADULT_FACE)).toBe(1);
-    expect(faceCount({ output: [] })).toBe(0);
+  it("reads Hive's V3 replies, and sends the one secret key as a Bearer token", async () => {
+    expect(classScores(CLEAN_MOD).map((c) => c.cls)).toEqual(["yes_child_present", "no_child_present", "general_nsfw"]);
+    expect(vlmAnswer(ADULTS)).toBe("ADULTS");
+    expect(vlmAnswer({ choices: [{ message: { content: " adults." } }] })).toBe("ADULTS");
+    const seen = fakeHive();
+    expect(await checkOutput("placeholder-hive", "https://cdn.fal.test/pic.png")).toEqual({ ok: true });
+    expect(seen).toEqual(["Bearer placeholder-hive", "Bearer placeholder-hive"]);
+    expect(await checkOutput(null, "https://cdn.fal.test/pic.png")).toMatchObject({ ok: false });
+  });
+
+  it("checks a clip's frames with moderation only (its picture already passed the age check)", async () => {
+    const seen = fakeHive({});
+    expect(await checkOutput("placeholder-hive", "https://cdn.fal.test/clip.mp4", "video")).toEqual({ ok: true });
+    expect(seen).toHaveLength(1);
   });
 });
 
@@ -411,7 +425,7 @@ describe("the picture request", () => {
 
   it("asks fal's custom-model endpoint for the photoreal base, steering away from anyone young-looking", async () => {
     const { cookie } = await admin();
-    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_mod_key: "placeholder-mod", hive_demo_key: "placeholder-demo" }, cookie);
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive" }, cookie);
     let sent: Record<string, unknown> | null = null;
     let url = "";
     setMediaFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -423,7 +437,7 @@ describe("the picture request", () => {
       }
       return new Response(PNG, { headers: { "content-type": "image/png" } });
     });
-    fakeHive(ADULT_FACE);
+    fakeHive();
     scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }], explicit: true, picture: null }));
     await post({ a: CAST_A, b: CAST_B }, cookie);
     expect(url).toBe("https://fal.run/fal-ai/lora");
