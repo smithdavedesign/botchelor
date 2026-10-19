@@ -153,6 +153,43 @@ export function checkShowText(fields: Record<string, string | readonly string[] 
   return { ok: true };
 }
 
+// After dark is held tighter on age than the show: any "was / is / turned <age under 18>" counts, not only the
+// "when she was" form, unless what follows makes it a time, an amount or a count ("was ten minutes late").
+const NOT_AN_AMOUNT = "(?!(?:minutes?|mins?|seconds?|hours?|days?|weeks?|months?|o clock|oclock|am|pm|a m|p m|dollars?|bucks|pounds?|euros?|percent|times|of (?:us|them|you|those)|people|men|women|feet|foot|inches|miles|km|kilos?)\\b)";
+const ADULT_AGE_PATTERNS = [
+  new RegExp(` (?:was|is|am|are|were|turned|turns|turning|being|looks|look|looked|seems|seemed) (?:only |just |barely |about |maybe |like |not even |still )?${CHILD_AGE} ${NOT_AN_AMOUNT}`),
+  new RegExp(` ${CHILD_AGE} (?:year old|years old|yo|y o)\\b`),
+  // A steer or a line that makes someone younger: "make her sixteen", "pretend he's 15", "as if she were twelve".
+  new RegExp(` (?:make|makes|made|making|play|plays|playing|pretend|pretends|pretending|act|acts|acting|roleplay|role play) (?:as )?(?:her|him|them|me|you|she s|he s|they re|she is|he is|it)? ?(?:a |an )?(?:${CHILD_AGE}) ${NOT_AN_AMOUNT}`),
+  new RegExp(` as if (?:she|he|they|i|you) (?:were|was|is|are) ${CHILD_AGE} `),
+];
+
+/**
+ * After dark (lib/adult): adult content is allowed there, so this keeps only the two lines that hold everywhere:
+ * nobody under 18 (in any form, including an age in passing) and no real, identifiable people.
+ */
+export function checkAdultText(fields: Record<string, string | readonly string[] | undefined>): SafetyResult {
+  for (const [field, value] of Object.entries(fields)) {
+    const texts = value === undefined ? [] : typeof value === "string" ? [value] : value;
+    for (const text of texts) {
+      const folded = fold(text);
+      const plain = spaced(folded);
+      if (
+        MINOR_TERMS.some((t) => hasPhrase(plain, t)) ||
+        MINOR_AGE_PATTERNS.some((re) => re.test(plain)) ||
+        CHILDHOOD_AGE_PATTERNS.some((re) => re.test(plain)) ||
+        ADULT_AGE_PATTERNS.some((re) => re.test(plain))
+      ) {
+        return { ok: false, reason: "minor", field };
+      }
+      const deleeted = spaced(folded.replace(/[013457@$!]/g, (c) => LEET[c]));
+      const variants = [plain, deleeted, joinSpelledOut(plain), joinSpelledOut(deleeted)];
+      if (REAL_PEOPLE_PATTERNS.some((re) => variants.some((v) => re.test(v)))) return { ok: false, reason: "real_person", field };
+    }
+  }
+  return { ok: true };
+}
+
 /** Checks each field in order and reports the first one that fails. */
 export function checkFields(fields: Record<string, string | readonly string[] | undefined>): SafetyResult {
   for (const [field, value] of Object.entries(fields)) {

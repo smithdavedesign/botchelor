@@ -954,6 +954,20 @@ create table if not exists scene_requests (
 );
 create index if not exists scene_requests_normalized_idx on scene_requests (normalized);
 
+-- After dark (lib/adult, admin only, local only): the adult season's private scenes, between two of this season's house
+-- characters. Kept out of every other table, so nothing explicit can reach the feed, the cast, the swipe deck, texts,
+-- memory or any public page.
+create table if not exists adult_scenes (
+  id text primary key,
+  owner_id text not null,
+  character_a text not null references characters (id) on delete cascade,
+  character_b text not null references characters (id) on delete cascade,
+  lines jsonb not null default '[]',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (owner_id, character_a, character_b)
+);
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

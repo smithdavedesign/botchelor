@@ -5013,3 +5013,24 @@ a.phone-head-btn {
     white-space: nowrap;
   }
 }
+
+/* After dark (admin, local only): the scene as a plain script. */
+.after-dark-lines {
+  display: grid;
+  gap: 0.6rem;
+  margin: var(--space-4) 0;
+  padding: 0;
+  list-style: none;
+}
+.after-dark-line {
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.8rem;
+  background: var(--soft);
+}
+.after-dark-line.is-b {
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+}
+.after-dark-form {
+  display: grid;
+  gap: 0.4rem;
+}
