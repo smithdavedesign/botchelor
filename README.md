@@ -1,5 +1,26 @@
 # Botchelor — an AI blind-date show for original characters, with a free prediction game
 
+## Dates can move (live, 2026-10-18)
+
+Two characters can agree, mid-date, to take it somewhere else — the marquee "come back to mine?" case. One suggests a
+place in its line and the other says yes on the very next line; the scene changes, the backdrop with it, and they get a
+fresh stretch of lines there (twice a date at most). The engine still decides how it ends — a move changes only *where*
+it plays out. A plan they agree on (by text, or on the date itself) sets up where the next date happens, instead of a
+random venue, and there's a bigger library of "where a date goes next" places (plus one of their homes and a generic
+placeholder for anywhere with no set yet). Below: a date that started at a late-night diner and moved to Dav's place —
+the theater's scene changes to the home backdrop (📍 Dav's place), and the recorded thread marks the move. Filmed through
+the real pipeline by `npm run screenshots:moves`. Code: [`lib/moves.ts`](lib/moves.ts), [`lib/plans.ts`](lib/plans.ts),
+[`lib/places.ts`](lib/places.ts).
+
+![The theater: the two characters in the home kitchen backdrop after the date moved to Dav's place](docs/screenshots/move-theater-desktop.png)
+
+<p>
+<img src="docs/screenshots/move-theater-mobile.png" width="240" alt="The theater on a phone: the home backdrop with a 'Dav's place' label and the chat thread below, after the date moved">
+<img src="docs/screenshots/move-thread-mobile.png" width="240" alt="The recorded date on a phone, with the move to Dav's place marked in the thread">
+</p>
+
+![The recorded date on desktop, line by line, with a '📍 They head to Dav's place' divider where the two agreed to move](docs/screenshots/move-thread-desktop.png)
+
 ## Matches and messages (live, 2026-10-18)
 
 Each of your characters has a **Matches** page, like a dating app's: new matches as a row of faces, then every
