@@ -24,7 +24,7 @@ export type AdultScene = {
   a: { id: string; name: string };
   b: { id: string; name: string };
   /** Their latest date, the scene's starting point when they've had one. */
-  date: { setting: string | null; ending: string | null } | null;
+  date: { setting: string | null; ending: string | null; venue: string | null } | null;
   /** Where they are now (the model keeps it), how far it's gone (STAGES), and why the last picture didn't come. */
   place: string | null;
   stage: number;
@@ -43,7 +43,7 @@ const DIRECTION_MAX = 300;
 /** Six lines and the picture note fit well inside this; it's also what the provider reserves credit for. */
 export const SCENE_REPLY_TOKENS = 1200;
 
-type LatestDate = { setting: string | null; ending: string | null; character_a: string; transcript: { side: "a" | "b"; dialogue: string; action?: string }[] | null };
+type LatestDate = { setting: string | null; ending: string | null; venue: string | null; character_a: string; transcript: { side: "a" | "b"; dialogue: string; action?: string }[] | null };
 
 /** The pair, lower id first, when both may be in this person's after dark (lib/adult/characters.ts); null otherwise. */
 export async function eligiblePair(db: Db, ownerId: string, x: string, y: string): Promise<[string, string] | null> {
@@ -79,7 +79,7 @@ export async function listCastPairs(db: Db, adminId: string) {
 
 async function latestDate(db: Db, a: string, b: string): Promise<LatestDate | null> {
   const { rows } = await db.query<LatestDate>(
-    `select setting, ending, character_a, transcript from episodes
+    `select setting, ending, setup->>'venue' as venue, character_a, transcript from episodes
       where status = 'ready' and varies_episode_id is null and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1))
       order by created_at desc limit 1`,
     [a, b],
@@ -106,7 +106,7 @@ export async function openScene(db: Db, adminId: string, x: string, y: string): 
     lines: row.lines ?? [],
     a: { id: a, name: ca?.name ?? a },
     b: { id: b, name: cb?.name ?? b },
-    date: date ? { setting: date.setting, ending: date.ending } : null,
+    date: date ? { setting: date.setting, ending: date.ending, venue: date.venue } : null,
     place: row.place ?? null,
     stage: row.stage ?? 0,
     stage_from: row.stage_from ?? 0,
@@ -339,9 +339,30 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   return { ok: true, scene: { ...scene, lines, place, stage, stage_from, picture_note: note }, added: kept.length, held: written.length - kept.length, pictures, ...(picture_note ? { picture_note } : {}) };
 }
 
-/** Starts the pair's scene again from the top. */
+/** A finished scene, kept to play back (adult_nights). */
+export type AdultNight = { id: string; lines: SceneLine[]; place: string | null; stage: number; date_setting: string | null; date_venue: string | null; created_at: string };
+
+/** The pair's saved nights for this person, newest first. */
+export async function listNights(db: Db, ownerId: string, x: string, y: string): Promise<AdultNight[]> {
+  const pair = await eligiblePair(db, ownerId, x, y);
+  if (!pair) return [];
+  const { rows } = await db.query<AdultNight>(
+    `select id, lines, place, stage, date_setting, date_venue, created_at from adult_nights where owner_id = $1 and character_a = $2 and character_b = $3 order by created_at desc limit 50`,
+    [ownerId, ...pair],
+  );
+  return rows.map((r) => ({ ...r, created_at: new Date(r.created_at).toISOString() }));
+}
+
+/** Starts the pair's scene again from the top, saving the one that ran as a night to play back. */
 export async function resetScene(db: Db, adminId: string, x: string, y: string): Promise<void> {
   const pair = await eligiblePair(db, adminId, x, y);
   if (!pair) return;
+  const scene = await openScene(db, adminId, ...pair);
+  if (scene?.lines.length) {
+    await db.query(
+      `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9)`,
+      [crypto.randomUUID(), adminId, ...pair, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null],
+    );
+  }
   await db.query(`update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, ...pair]);
 }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { listMedia } from "@/lib/adult/media";
-import { continueScene, openScene, resetScene } from "@/lib/adult/scenes";
+import { continueScene, listNights, openScene, resetScene } from "@/lib/adult/scenes";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 
@@ -31,7 +31,7 @@ export const POST = handle(async (req: Request) => {
   if (input.reset) {
     await resetScene(db, admin, input.a, input.b);
     const scene = await openScene(db, admin, input.a, input.b);
-    return scene ? json({ scene }) : hidden();
+    return scene ? json({ scene, nights: await listNights(db, admin, input.a, input.b) }) : hidden();
   }
   const r = await continueScene(db, admin, input.a, input.b, input.direction ?? null);
   if (!r.ok) return json({ error: "not_continued", message: r.message }, r.status);

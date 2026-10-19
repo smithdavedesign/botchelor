@@ -3,13 +3,32 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
 import type { Media } from "@/lib/adult/media";
-import type { AdultScene } from "@/lib/adult/scenes";
+import type { CharacterRef } from "@/lib/game";
+import AfterDarkTheater from "./AfterDarkTheater";
+import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { STAGES } from "@/lib/adult/stages";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
 /** The scene so far, the way to write more (a few lines at a time, with an optional steer), and the gallery. */
-export default function SceneWriter({ initial, gallery: firstGallery }: { initial: AdultScene; gallery: Media[] }) {
+export default function SceneWriter({
+  initial,
+  gallery: firstGallery,
+  characters,
+  play = false,
+  nights = [],
+}: {
+  initial: AdultScene;
+  gallery: Media[];
+  characters: [CharacterRef, CharacterRef];
+  /** Open straight into the theater (`?play=1`). */
+  play?: boolean;
+  /** Their saved nights (each Start over files the scene that ran), newest first. */
+  nights?: AdultNight[];
+}) {
+  const [theater, setTheater] = useState(play);
+  const [nightList, setNightList] = useState(nights);
+  const [watching, setWatching] = useState<AdultNight | null>(null);
   const [scene, setScene] = useState(initial);
   const [gallery, setGallery] = useState(firstGallery);
   const [direction, setDirection] = useState("");
@@ -25,6 +44,7 @@ export default function SceneWriter({ initial, gallery: firstGallery }: { initia
     if (!res) return setNote({ text: "Network error. Try again.", error: true });
     if (!res.ok) return setNote({ text: res.message, error: true });
     setScene(res.data.scene as AdultScene);
+    if (Array.isArray(res.data.nights)) setNightList(res.data.nights as AdultNight[]);
     const pictures = (res.data.pictures as Media[] | undefined) ?? [];
     if (pictures.length) setGallery((g) => [...pictures, ...g]);
     const held = Number(res.data.held ?? 0);
@@ -44,6 +64,21 @@ export default function SceneWriter({ initial, gallery: firstGallery }: { initia
 
   return (
     <section className="after-dark-scene">
+      <p>
+        <button type="button" className="primary" onClick={() => setTheater(true)}>
+          🎬 Watch in theater
+        </button>
+      </p>
+      {theater && (
+        <AfterDarkTheater
+          scene={{ lines: scene.lines, place: scene.place, stage: scene.stage, dateVenue: scene.date?.venue ?? null }}
+          characters={characters}
+          busy={busy}
+          note={note?.text ?? null}
+          onWrite={(d) => send(d ? { direction: d } : {})}
+          onExit={() => setTheater(false)}
+        />
+      )}
       {scene.lines.length > 0 && (
         <p className="muted small">
           {scene.place ? `Now: ${scene.place}. ` : ""}So far: {STAGES[scene.stage] ?? STAGES[0]}.
@@ -77,6 +112,29 @@ export default function SceneWriter({ initial, gallery: firstGallery }: { initia
           </button>
         </p>
       </form>
+      {watching && (
+        <AfterDarkTheater
+          scene={{ lines: watching.lines, place: watching.place, stage: watching.stage, dateVenue: watching.date_venue }}
+          characters={characters}
+          onExit={() => setWatching(null)}
+        />
+      )}
+      {nightList.length > 0 && (
+        <section>
+          <h2>Their nights</h2>
+          <ul className="after-dark-nights">
+            {nightList.map((n) => (
+              <li key={n.id}>
+                <button type="button" className="button-ghost" onClick={() => setWatching(n)}>
+                  ▶ Play
+                </button>{" "}
+                {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {n.lines.length} lines
+                {n.place ? ` · ended ${n.place}` : ""}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} />
     </section>
   );

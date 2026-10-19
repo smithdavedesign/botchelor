@@ -5133,3 +5133,87 @@ a.phone-head-btn {
 .ad-blur p {
   margin: 0.2rem 0;
 }
+
+/* After Dark's theater (AfterDarkTheater.tsx): the show's stage at night, with the steer and Next along the bottom. */
+.theater-after-dark {
+  background: #120c1c;
+}
+.theater-after-dark .scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 40%, transparent 35%, rgba(18, 8, 34, 0.7) 100%);
+}
+.theater-after-dark .theater-hud .chip {
+  background: rgba(199, 146, 255, 0.18);
+  color: #f1e9ff;
+  border-color: rgba(199, 146, 255, 0.4);
+}
+.ad-theater-place {
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ad-theater-action {
+  position: absolute;
+  left: 50%;
+  bottom: 6.5rem;
+  transform: translateX(-50%);
+  z-index: 2;
+  width: min(34rem, 88%);
+  margin: 0;
+  text-align: center;
+  font-style: italic;
+  color: #e2c8ff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+}
+.ad-theater-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, rgba(12, 6, 22, 0.85) 40%);
+}
+.ad-theater-bar input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  background: rgba(36, 26, 58, 0.9);
+  color: #f1e9ff;
+  border: 1px solid #33264d;
+}
+.ad-theater-bar input::placeholder {
+  color: #b7a8d3;
+}
+.ad-theater-note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: #ffd2dc;
+}
+.theater-stage.with-convo .ad-theater-action,
+.theater-stage.with-convo .ad-theater-bar {
+  left: min(380px, 34%);
+}
+.theater-stage.with-convo .ad-theater-action {
+  left: calc(50% + min(190px, 17%));
+}
+/* On a phone the thread is the main view (the scene is a strip on top), so the bar sits under it, not over it. */
+@media (max-width: 760px) {
+  .ad-theater-bar,
+  .theater-stage.with-convo .ad-theater-bar {
+    position: static;
+    order: 2;
+    background: rgba(12, 6, 22, 0.95);
+  }
+  .ad-theater-action {
+    display: none;
+  }
+}
