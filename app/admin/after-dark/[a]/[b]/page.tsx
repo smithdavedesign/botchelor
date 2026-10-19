@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
+import { listMedia } from "@/lib/adult/media";
 import { openScene } from "@/lib/adult/scenes";
 import { getDb } from "@/lib/db";
 import SceneWriter from "./SceneWriter";
@@ -31,7 +32,7 @@ export default async function AfterDarkScenePage({ params }: Props) {
       <p className="muted">
         {scene.date ? `Picking up from their latest date: ${scene.date.setting ?? "a date"}.` : "They haven't been on a date yet: this is how they meet."}
       </p>
-      <SceneWriter initial={scene} />
+      <SceneWriter initial={scene} gallery={await listMedia(db, [scene.a.id, scene.b.id])} />
     </article>
   );
 }

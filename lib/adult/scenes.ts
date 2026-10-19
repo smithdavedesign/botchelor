@@ -10,7 +10,9 @@ import type { Db } from "../db";
 import type { ChatMessage } from "../model";
 import { pairKey } from "../relationships";
 import { checkAdultText } from "../safety";
-import { seasonCastIds } from "../season-cast";
+import { eligibleIds } from "./characters";
+import { ensureBaseline, makePicture, scenePrompt, type Media } from "./media";
+import { adultKeys } from "./settings";
 import { adultModel } from "./mode";
 
 export type SceneLine = { who: "a" | "b"; text: string };
@@ -31,14 +33,16 @@ const DIRECTION_MAX = 300;
 
 type LatestDate = { setting: string | null; ending: string | null; character_a: string; transcript: { side: "a" | "b"; dialogue: string; action?: string }[] | null };
 
-/** The pair, lower id first, when both are on this season's cast; null otherwise (nobody's own characters). */
-export function castPair(x: string, y: string, cast = seasonCastIds()): [string, string] | null {
-  if (x === y || !cast.includes(x) || !cast.includes(y)) return null;
-  return pairKey(x, y);
+/** The pair, lower id first, when both may be in after dark (lib/adult/characters.ts); null otherwise. */
+export async function eligiblePair(db: Db, x: string, y: string): Promise<[string, string] | null> {
+  if (x === y) return null;
+  const ok = await eligibleIds(db);
+  return ok.has(x) && ok.has(y) ? pairKey(x, y) : null;
 }
 
-/** Every pair of this season's cast, with how far each pair's scene has gone for this admin. */
-export async function listCastPairs(db: Db, adminId: string, cast = seasonCastIds()) {
+/** Every pair of the characters who can be in after dark, with how far each pair's scene has gone for this admin. */
+export async function listCastPairs(db: Db, adminId: string) {
+  const cast = [...(await eligibleIds(db))];
   const names = new Map(
     (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [cast])).rows.map((r) => [r.id, r.name]),
   );
@@ -73,7 +77,7 @@ async function latestDate(db: Db, a: string, b: string): Promise<LatestDate | nu
 
 /** The admin's scene for a pair of this season's cast, made on first open. Null for any other pair. */
 export async function openScene(db: Db, adminId: string, x: string, y: string): Promise<AdultScene | null> {
-  const pair = castPair(x, y);
+  const pair = await eligiblePair(db, x, y);
   if (!pair) return null;
   const [a, b] = pair;
   await db.query(`insert into adult_scenes (id, owner_id, character_a, character_b) values ($1, $2, $3, $4) on conflict do nothing`, [
@@ -144,7 +148,9 @@ export function sceneMessages(
   const user =
     `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}: what each says, with any action in *asterisks*.` +
     (direction ? ` Steer the scene this way: ${direction}` : "") +
-    ` Reply with a JSON object: {"lines": [{"who": "a", "text": "..."}, {"who": "b", "text": "..."}]}, where "a" is ${first("a")} and "b" is ${first("b")}.`;
+    ` Reply with a JSON object: {"lines": [{"who": "a", "text": "..."}, {"who": "b", "text": "..."}], "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}.` +
+    ` Set "explicit" to true once the scene is sexually explicit. Set "picture" only when, in these lines, one of them asks the other for a picture or to be shown something and the other agrees:` +
+    ` {"of": "a", "b" or "both", "description": "what the picture shows, in a sentence"}; otherwise null.`;
   return [
     { role: "system", content: system },
     { role: "user", content: user },
@@ -190,12 +196,29 @@ export function parseSceneLines(raw: string, names: { a: string; b: string }): S
   return out;
 }
 
-export type ContinueResult = { ok: true; scene: AdultScene; added: number; held: number } | { ok: false; status: number; message: string };
+/** What else the model said about these lines: whether the scene is explicit, and a picture they agreed on. */
+export type SceneMeta = { explicit: boolean; picture: { of: "a" | "b" | "both"; description: string } | null };
+
+export function parseSceneMeta(raw: string): SceneMeta {
+  try {
+    const j = JSON.parse(raw.trim()) as { explicit?: unknown; picture?: { of?: unknown; description?: unknown } | null };
+    const p = j.picture;
+    const of = p && (p.of === "a" || p.of === "b" || p.of === "both") ? p.of : null;
+    const description = p && typeof p.description === "string" ? p.description.trim().slice(0, 400) : "";
+    return { explicit: j.explicit === true, picture: of && description ? { of, description } : null };
+  } catch {
+    return { explicit: false, picture: null };
+  }
+}
+
+export type ContinueResult =
+  | { ok: true; scene: AdultScene; added: number; held: number; pictures: Media[]; picture_note?: string }
+  | { ok: false; status: number; message: string };
 
 /** Writes the next lines on the local model, keeps those inside the two lines, and saves them. */
 export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null): Promise<ContinueResult> {
   const scene = await openScene(db, adminId, x, y);
-  if (!scene) return { ok: false, status: 404, message: "After dark is this season's cast only: pick two of them." };
+  if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: this season's cast, or ones you've switched on." };
   if (scene.lines.length >= SCENE_MAX_LINES) return { ok: false, status: 409, message: "This scene is at its length limit. Start over to begin again." };
   const steer = direction?.trim().slice(0, DIRECTION_MAX) || null;
   if (steer && !checkAdultText({ direction: steer }).ok) {
@@ -204,7 +227,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const [a, b, date] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id), latestDate(db, scene.a.id, scene.b.id)]);
   let raw: string;
   try {
-    raw = await adultModel().complete(sceneMessages(a, b, date, scene.lines, steer, scene.a.id), { temperature: 0.9 });
+    raw = await (await adultModel(db)).complete(sceneMessages(a, b, date, scene.lines, steer, scene.a.id), { temperature: 0.9 });
   } catch (err) {
     return { ok: false, status: 502, message: `The local model didn't answer (${err instanceof Error ? err.message : "error"}). Is Ollama running?` };
   }
@@ -215,12 +238,28 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   }
   const lines = [...scene.lines, ...kept];
   await db.query(`update adult_scenes set lines = $2::jsonb, updated_at = now() where id = $1`, [scene.id, JSON.stringify(lines)]);
-  return { ok: true, scene: { ...scene, lines }, added: kept.length, held: written.length - kept.length };
+  // Pictures (lib/adult/media.ts), only with a fal key: each character's baseline the first time it turns explicit,
+  // and a new one only when they asked and agreed in these lines. A failed picture never loses the lines.
+  const pictures: Media[] = [];
+  let picture_note: string | undefined;
+  const meta = parseSceneMeta(raw);
+  if ((meta.explicit || meta.picture) && a && b && (await adultKeys(db).catch(() => ({ fal: null }))).fal) {
+    try {
+      if (meta.explicit) for (const c of [a, b]) { const made = await ensureBaseline(db, adminId, c); if (made) pictures.push(made); }
+      if (meta.picture) {
+        const forOne = meta.picture.of === "b" ? b.id : a.id;
+        pictures.push(await makePicture(db, adminId, { prompt: scenePrompt(a, b, meta.picture.of, meta.picture.description), kind: "scene", character_id: forOne, character_b: meta.picture.of === "both" ? b.id : null }));
+      }
+    } catch (err) {
+      picture_note = err instanceof Error ? err.message : "The picture didn't come through.";
+    }
+  }
+  return { ok: true, scene: { ...scene, lines }, added: kept.length, held: written.length - kept.length, pictures, ...(picture_note ? { picture_note } : {}) };
 }
 
 /** Starts the pair's scene again from the top. */
 export async function resetScene(db: Db, adminId: string, x: string, y: string): Promise<void> {
-  const pair = castPair(x, y);
+  const pair = await eligiblePair(db, x, y);
   if (!pair) return;
   await db.query(`update adult_scenes set lines = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, ...pair]);
 }

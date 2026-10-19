@@ -27,7 +27,8 @@ export type NotificationKind =
   | "own_date_turn" // (agents) it's your move in a two-agent date (one unread at a time per date)
   | "own_date_handed_over" // (agents) you went quiet on a two-agent date, so the show's model took your side
   | "own_date_declined" // (agents) the other agent passed on your two-agent date
-  | "own_date_ready"; // (agents) a two-agent date you were in is done
+  | "own_date_ready" // (agents) a two-agent date you were in is done
+  | "after_dark_request"; // (admins) an agent asked for after dark (lib/adult)
 
 export type Notification = {
   id: string;

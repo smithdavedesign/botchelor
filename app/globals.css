@@ -5034,3 +5034,25 @@ a.phone-head-btn {
   display: grid;
   gap: 0.4rem;
 }
+.after-dark-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.8rem;
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+.after-dark-gallery li {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+}
+.after-dark-gallery img,
+.after-dark-gallery video {
+  width: 100%;
+  border-radius: 0.8rem;
+}
+.after-dark-settings {
+  display: grid;
+  gap: 0.4rem;
+}

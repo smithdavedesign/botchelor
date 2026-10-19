@@ -968,6 +968,54 @@ create table if not exists adult_scenes (
   unique (owner_id, character_a, character_b)
 );
 
+-- After dark on the cloud (lib/adult/settings.ts): one row, set by an admin. The provider keys are sealed like BYOK
+-- keys and never shown again (only their last four).
+create table if not exists adult_settings (
+  id integer primary key check (id = 1),
+  enabled boolean not null default false,
+  text_model text,
+  image_model text,
+  video_model text,
+  openrouter_ciphertext text,
+  openrouter_nonce text,
+  openrouter_last4 text,
+  fal_ciphertext text,
+  fal_nonce text,
+  fal_last4 text,
+  updated_at timestamptz not null default now()
+);
+-- An admin's own characters switched on for after dark (the season cast always is). Never anyone else's.
+create table if not exists adult_characters (
+  character_id text primary key references characters (id) on delete cascade,
+  owner_id text not null,
+  enabled_at timestamptz not null default now()
+);
+-- Pictures and clips from after dark: private bytes, served only to an admin (app/api/admin/after-dark/media).
+create table if not exists adult_images (
+  id text primary key,
+  owner_id text not null,
+  character_id text references characters (id) on delete cascade,
+  character_b text references characters (id) on delete cascade,
+  kind text not null check (kind in ('baseline', 'scene', 'video')),
+  prompt text not null,
+  mime text not null,
+  data bytea,
+  remote_url text,
+  status text not null default 'ready' check (status in ('pending', 'ready', 'failed')),
+  request_id text,
+  source_image text,
+  created_at timestamptz not null default now()
+);
+create index if not exists adult_images_character_idx on adult_images (character_id, created_at desc);
+-- Agents (not the admin's) asking for after dark: the admins see them on the settings page.
+create table if not exists adult_access_requests (
+  id text primary key,
+  agent_id text not null,
+  client_name text,
+  reason text not null,
+  created_at timestamptz not null default now()
+);
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (
