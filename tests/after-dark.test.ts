@@ -219,7 +219,8 @@ describe("on the site, from the settings panel", () => {
     // Why the picture didn't come stays on the scene for the gallery, with where they are and how far it's gone.
     scripted(JSON.stringify({ lines: [{ who: "b", text: "Let's get out of here." }], place: "her flat", stage: 3, explicit: false, picture: null }));
     const again = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
-    expect(again.scene).toMatchObject({ place: "her flat", stage: 2, picture_note: expect.stringMatching(/off until the output check/) });
+    // Unsteered, the stage can't jump: it holds until the stage has had its lines, then moves one at a time.
+    expect(again.scene).toMatchObject({ place: "her flat", stage: 0, picture_note: expect.stringMatching(/off until the output check/) });
     await post({ a: CAST_A, b: CAST_B, reset: true }, cookie);
     const fresh = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
     expect(fresh.scene.lines.length).toBeGreaterThan(0);
@@ -366,12 +367,30 @@ describe("the scene prompt", () => {
   it("builds slowly and respects where they are: a cafe is for flirting, going further means leaving first", () => {
     const msgs = sceneMessages(null, null, null, [], null, undefined, { place: "a cafe, where their date was", stage: 0 });
     expect(msgs[0].content).toMatch(/Where they are now: a cafe, where their date was\. How far it's gone: talking and flirting \(stage 1 of 5/);
-    expect(msgs[0].content).toMatch(/at most one stage further/);
+    expect(msgs[0].content).toMatch(/Tease it out. These lines stay at talking and flirting/);
+    expect(sceneMessages(null, null, null, [], null, undefined, { place: "her flat", stage: 1, linesAtStage: 12 })[0].content).toMatch(/may move one stage, to kissing, and no further/);
     expect(msgs[0].content).toMatch(/public place.*at most, kiss.*somewhere private/);
     expect(msgs[1].content).toMatch(/"place"/);
     expect(parseSceneMeta(JSON.stringify({ lines: [], place: "her flat", stage: 3 }))).toMatchObject({ place: "her flat", stage: 2 });
     expect(parseSceneMeta(JSON.stringify({ lines: [], stage: 99 })).stage).toBe(4);
     expect(parseSceneMeta(JSON.stringify({ lines: [] }))).toMatchObject({ place: null, stage: null });
+  });
+
+  it("teases it out: a stage holds for its lines, then moves one step at a time; a steer can jump", async () => {
+    const { cookie } = await admin();
+    const six = (stage: number) => JSON.stringify({ lines: Array.from({ length: 6 }, (_, i) => ({ who: i % 2 ? "b" : "a", text: `Line ${i}.` })), place: "the cafe", stage });
+    const step = async (stage: number, direction?: string) => {
+      scripted(six(stage));
+      return (await (await post({ a: CAST_A, b: CAST_B, ...(direction ? { direction } : {}) }, cookie)).json()).scene.stage as number;
+    };
+    expect(await step(5)).toBe(0);
+    expect(await step(5)).toBe(0);
+    expect(await step(5)).toBe(1);
+    expect(await step(5)).toBe(1);
+    expect(await step(5, "They go straight back to hers and into bed.")).toBe(4);
+    const msgs = sceneMessages(null, null, null, [], null, undefined, { place: "a cafe", stage: 0, linesAtStage: 0 });
+    expect(msgs[0].content).toMatch(/Tease it out/);
+    expect(msgs[0].content).toMatch(/still at a cafe\. They don't leave in these first lines/);
   });
 
   it("puts the action before the speech", () => {
