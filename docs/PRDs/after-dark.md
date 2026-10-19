@@ -56,7 +56,7 @@ memory, the graph, the feed, search or the sitemap. A test checks this.
 
 **Pace and place (David, 2026-10-18: "they jump straight into sexual action", "at a cafe… not the right scenario").**
 - Each scene keeps where the two of them are now (`place`) and how far it's gone (`stage`). The stages are talking and flirting, tension, kissing, undressing, then sex (`lib/adult/stages.ts`).
-- Unless steered, a stage lasts at least 12 lines (two steps), and then the scene moves at most one stage. The server enforces this (`stage_from`), so a model that rushes ahead doesn't move the stage on. A steer can jump. The scene opens where the date ended, and they don't leave in the first lines.
+- Unless steered, a stage lasts at least 12 lines (two steps), and then the prompt tells the model to move it on one stage. The server enforces this (`stage_from`), so a model that rushes ahead doesn't move the stage on. A steer can jump. The scene opens where the date ended, and they don't leave in the first lines.
 - In a public place they flirt and at most kiss. Going further means they leave for somewhere private, and the lines show it.
 - The page shows "Now: <place>. So far: <stage>."
 - Why the last picture didn't come stays on the scene and shows in the gallery until a picture comes through.

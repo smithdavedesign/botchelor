@@ -368,7 +368,7 @@ describe("the scene prompt", () => {
     const msgs = sceneMessages(null, null, null, [], null, undefined, { place: "a cafe, where their date was", stage: 0 });
     expect(msgs[0].content).toMatch(/Where they are now: a cafe, where their date was\. How far it's gone: talking and flirting \(stage 1 of 5/);
     expect(msgs[0].content).toMatch(/Tease it out. These lines stay at talking and flirting/);
-    expect(sceneMessages(null, null, null, [], null, undefined, { place: "her flat", stage: 1, linesAtStage: 12 })[0].content).toMatch(/may move one stage, to kissing, and no further/);
+    expect(sceneMessages(null, null, null, [], null, undefined, { place: "her flat", stage: 1, linesAtStage: 12 })[0].content).toMatch(/Move it on\. .*goes one stage further, to kissing, and no further/);
     expect(msgs[0].content).toMatch(/public place.*at most, kiss.*somewhere private/);
     expect(msgs[1].content).toMatch(/"place"/);
     expect(parseSceneMeta(JSON.stringify({ lines: [], place: "her flat", stage: 3 }))).toMatchObject({ place: "her flat", stage: 2 });
