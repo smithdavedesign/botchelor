@@ -54,6 +54,13 @@ memory, the graph, the feed, search or the sitemap. A test checks this.
 3. **Write the next lines** writes 6 lines at a time in each character's voice. You can steer it, or **Start over**.
 4. Each reply also says whether the scene has turned explicit, and whether a picture was asked for and agreed to.
 
+**Pace and place (David, 2026-10-18: "they jump straight into sexual action", "at a cafe… not the right scenario").**
+- Each scene keeps where the two of them are now (`place`) and how far it's gone (`stage`). The stages are talking and flirting, tension, kissing, undressing, then sex (`lib/adult/stages.ts`).
+- Unless the steer says otherwise, each step goes at most one stage further.
+- In a public place they flirt and at most kiss. Going further means they leave for somewhere private, and the lines show it.
+- The page shows "Now: <place>. So far: <stage>."
+- Why the last picture didn't come stays on the scene and shows in the gallery until a picture comes through.
+
 ## Pictures and clips (built, on fal.ai)
 
 - **One baseline explicit picture per character**, made the first time a scene turns explicit, and reused after that.

@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
 import type { Media } from "@/lib/adult/media";
 import type { AdultScene } from "@/lib/adult/scenes";
+import { STAGES } from "@/lib/adult/stages";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -43,6 +44,11 @@ export default function SceneWriter({ initial, gallery: firstGallery }: { initia
 
   return (
     <section className="after-dark-scene">
+      {scene.lines.length > 0 && (
+        <p className="muted small">
+          {scene.place ? `Now: ${scene.place}. ` : ""}So far: {STAGES[scene.stage] ?? STAGES[0]}.
+        </p>
+      )}
       {scene.lines.length ? (
         <ol className="after-dark-lines">
           {scene.lines.map((l, i) => (
@@ -71,13 +77,13 @@ export default function SceneWriter({ initial, gallery: firstGallery }: { initia
           </button>
         </p>
       </form>
-      <Gallery items={gallery} onAdd={(m) => setGallery((g) => [m, ...g])} />
+      <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} />
     </section>
   );
 }
 
 /** Their pictures and clips. A picture can be made to move (a clip takes a minute or more on fal.ai). */
-function Gallery({ items, onAdd }: { items: Media[]; onAdd: (m: Media) => void }) {
+function Gallery({ items, problem, onAdd }: { items: Media[]; problem: string | null; onAdd: (m: Media) => void }) {
   const [motion, setMotion] = useState("");
   const [pending, setPending] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -102,12 +108,23 @@ function Gallery({ items, onAdd }: { items: Media[]; onAdd: (m: Media) => void }
     onAdd(res.data.clip as Media);
   }
 
+  const problemNote = problem ? (
+    <p className="error" role="status">
+      The last picture didn&apos;t come through: {problem}
+    </p>
+  ) : null;
   if (!items.length) {
-    return <p className="muted small">No pictures yet: the first ones come when a scene turns explicit, or when they ask each other for one.</p>;
+    return (
+      <>
+        {problemNote}
+        <p className="muted small">No pictures yet: the first ones come when a scene turns explicit, or when they ask each other for one.</p>
+      </>
+    );
   }
   return (
     <section>
       <h2>Gallery</h2>
+      {problemNote}
       <label htmlFor="after-dark-motion">Clip motion (optional)</label>
       <input id="after-dark-motion" value={motion} maxLength={300} onChange={(e) => setMotion(e.target.value)} placeholder="She turns toward the camera…" />
       {error && (
