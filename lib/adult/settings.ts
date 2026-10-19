@@ -18,6 +18,8 @@ export type AdultSettings = {
   video_model: string;
   openrouter_last4: string | null;
   fal_last4: string | null;
+  hive_mod_last4: string | null;
+  hive_demo_last4: string | null;
 };
 
 type Row = {
@@ -31,6 +33,12 @@ type Row = {
   fal_ciphertext: string | null;
   fal_nonce: string | null;
   fal_last4: string | null;
+  hive_mod_ciphertext: string | null;
+  hive_mod_nonce: string | null;
+  hive_mod_last4: string | null;
+  hive_demo_ciphertext: string | null;
+  hive_demo_nonce: string | null;
+  hive_demo_last4: string | null;
 };
 
 async function row(db: Db): Promise<Row | null> {
@@ -46,14 +54,21 @@ export async function getAdultSettings(db: Db): Promise<AdultSettings> {
     video_model: r?.video_model || DEFAULT_VIDEO_MODEL,
     openrouter_last4: r?.openrouter_last4 ?? null,
     fal_last4: r?.fal_last4 ?? null,
+    hive_mod_last4: r?.hive_mod_last4 ?? null,
+    hive_demo_last4: r?.hive_demo_last4 ?? null,
   };
 }
 
 /** The decrypted keys, for the server only. */
-export async function adultKeys(db: Db): Promise<{ openrouter: string | null; fal: string | null }> {
+export async function adultKeys(db: Db): Promise<{ openrouter: string | null; fal: string | null; hive_mod: string | null; hive_demo: string | null }> {
   const r = await row(db);
-  const open = (c: string | null, n: string | null) => (c && n ? openSecret({ ciphertext: c, nonce: n }) : null);
-  return { openrouter: open(r?.openrouter_ciphertext ?? null, r?.openrouter_nonce ?? null), fal: open(r?.fal_ciphertext ?? null, r?.fal_nonce ?? null) };
+  const open = (c: string | null | undefined, n: string | null | undefined) => (c && n ? openSecret({ ciphertext: c, nonce: n }) : null);
+  return {
+    openrouter: open(r?.openrouter_ciphertext, r?.openrouter_nonce),
+    fal: open(r?.fal_ciphertext, r?.fal_nonce),
+    hive_mod: open(r?.hive_mod_ciphertext, r?.hive_mod_nonce),
+    hive_demo: open(r?.hive_demo_ciphertext, r?.hive_demo_nonce),
+  };
 }
 
 export type SettingsPatch = {
@@ -64,6 +79,8 @@ export type SettingsPatch = {
   /** A new key, or "" to remove it. */
   openrouter_key?: string;
   fal_key?: string;
+  hive_mod_key?: string;
+  hive_demo_key?: string;
 };
 
 export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<AdultSettings> {
@@ -79,6 +96,8 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<A
   for (const [k, col] of [
     ["openrouter_key", "openrouter"],
     ["fal_key", "fal"],
+    ["hive_mod_key", "hive_mod"],
+    ["hive_demo_key", "hive_demo"],
   ] as const) {
     const v = patch[k];
     if (v === undefined) continue;

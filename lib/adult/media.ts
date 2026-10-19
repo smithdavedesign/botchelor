@@ -9,18 +9,27 @@
 import type { Character } from "../character";
 import type { Db } from "../db";
 import { checkAdultText } from "../safety";
+import { checkOutput } from "./check";
 import { adultKeys, getAdultSettings } from "./settings";
 
 export type Media = { id: string; character_id: string | null; character_b: string | null; kind: "baseline" | "scene" | "video"; status: string; created_at: string; mime: string };
 
 /**
- * Pictures and clips are OFF until an output check exists (docs/after-dark.md #1; botchelor-fb's review,
- * 2026-10-18): with fal's safety checker off, nothing would catch a returned image that shows a minor, and it would
- * be stored. Our prompt check isn't enough on its own. Turn this on only when every image passes an age/CSAM check
- * on the OUTPUT before it is stored (discarded, never stored, on a fail).
+ * Pictures and clips run only with the output check in place (lib/adult/check.ts; docs/after-dark.md #1): both Hive
+ * keys saved. Without it they stay off: fal's safety checker is off, so nothing else would catch a returned image
+ * that shows a minor. Every file is checked before it's stored, and a failure is discarded, never stored.
  */
-export const OUTPUT_CHECK_READY = false;
-export const PICTURES_OFF_NOTE = "Pictures and clips are off until every image is checked after it's made (no one who looks under 18), not only our prompt.";
+export async function outputCheckReady(db: Db): Promise<boolean> {
+  const k = await adultKeys(db).catch(() => null);
+  return Boolean(k?.hive_mod && k?.hive_demo);
+}
+export const PICTURES_OFF_NOTE =
+  "Pictures and clips are off until the output check is set up (both Hive keys in after dark's settings): every image is checked after it's made, not only our prompt.";
+
+/** Logs a refusal (never the file), so the admin can see the check working. */
+async function logRejection(db: Db, ownerId: string, kind: string, reason: string): Promise<void> {
+  await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, $3, $4)`, [crypto.randomUUID(), ownerId, kind, reason.slice(0, 300)]).catch(() => {});
+}
 
 /** fal's REST endpoints: run (wait for the result) and queue (submit, then poll), by model id. */
 const FAL_RUN = "https://fal.run";
@@ -70,7 +79,7 @@ export async function makePicture(
   ownerId: string,
   opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null },
 ): Promise<Media> {
-  if (!OUTPUT_CHECK_READY) throw new Error(PICTURES_OFF_NOTE);
+  if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
   const check = checkAdultText({ prompt: opts.prompt });
   if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
   const key = await falKey(db);
@@ -84,6 +93,12 @@ export async function makePicture(
   const body = (await res.json()) as { images?: { url?: string }[] };
   const url = body.images?.[0]?.url;
   if (!url) throw new Error("fal.ai returned no picture.");
+  // The output check, before anything is stored: a failure is discarded.
+  const verdict = await checkOutput(await adultKeys(db), url);
+  if (!verdict.ok) {
+    await logRejection(db, ownerId, opts.kind, verdict.reason);
+    throw new Error(`The picture was discarded by the output check (${verdict.reason}).`);
+  }
   const file = await download(url);
   const id = crypto.randomUUID();
   await db.query(
@@ -106,7 +121,7 @@ export async function startClip(db: Db, ownerId: string, imageId: string, motion
     `select remote_url, character_id, character_b, prompt from adult_images where id = $1 and kind <> 'video' and status = 'ready'`,
     [imageId],
   )).rows[0];
-  if (!OUTPUT_CHECK_READY) throw new Error(PICTURES_OFF_NOTE);
+  if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
   if (!pic?.remote_url) throw new Error("No picture with that id.");
   const prompt = `${motion.trim() || "Slow, natural movement"}. Everyone shown is an adult.`;
   const check = checkAdultText({ prompt });
@@ -132,7 +147,7 @@ export async function startClip(db: Db, ownerId: string, imageId: string, motion
 
 /** Checks a pending clip once; stores it when fal has finished. */
 export async function pollClip(db: Db, id: string): Promise<string> {
-  const row = (await db.query<{ status: string; request_id: string | null }>(`select status, request_id from adult_images where id = $1 and kind = 'video'`, [id])).rows[0];
+  const row = (await db.query<{ status: string; request_id: string | null; owner_id: string }>(`select status, request_id, owner_id from adult_images where id = $1 and kind = 'video'`, [id])).rows[0];
   if (!row || row.status !== "pending" || !row.request_id) return row?.status ?? "missing";
   const key = await falKey(db);
   const { video_model } = await getAdultSettings(db);
@@ -144,6 +159,13 @@ export async function pollClip(db: Db, id: string): Promise<string> {
   const done = await doFetch(`${FAL_QUEUE}/${app}/requests/${row.request_id}`, { headers: { authorization: `Key ${key}` } });
   const body = (await done.json().catch(() => ({}))) as { video?: { url?: string } };
   if (!body.video?.url) {
+    await db.query(`update adult_images set status = 'failed' where id = $1`, [id]);
+    return "failed";
+  }
+  // The output check on the clip itself, before it's stored: a failure is discarded.
+  const verdict = await checkOutput(await adultKeys(db), body.video.url);
+  if (!verdict.ok) {
+    await logRejection(db, row.owner_id, "video", verdict.reason);
     await db.query(`update adult_images set status = 'failed' where id = $1`, [id]);
     return "failed";
   }

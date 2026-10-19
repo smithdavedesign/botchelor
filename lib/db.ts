@@ -984,6 +984,21 @@ create table if not exists adult_settings (
   fal_last4 text,
   updated_at timestamptz not null default now()
 );
+-- The output check's keys (Hive: visual moderation and demographics are separate projects with their own keys).
+alter table adult_settings add column if not exists hive_mod_ciphertext text;
+alter table adult_settings add column if not exists hive_mod_nonce text;
+alter table adult_settings add column if not exists hive_mod_last4 text;
+alter table adult_settings add column if not exists hive_demo_ciphertext text;
+alter table adult_settings add column if not exists hive_demo_nonce text;
+alter table adult_settings add column if not exists hive_demo_last4 text;
+-- Every image the output check refused: never the image itself, only why (for the admin to see it's working).
+create table if not exists adult_rejections (
+  id text primary key,
+  owner_id text not null,
+  kind text not null,
+  reason text not null,
+  created_at timestamptz not null default now()
+);
 -- An admin's own characters switched on for after dark (the season cast always is). Never anyone else's.
 create table if not exists adult_characters (
   character_id text primary key references characters (id) on delete cascade,
