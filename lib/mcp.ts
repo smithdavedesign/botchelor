@@ -37,7 +37,7 @@ import { describeTemperament } from "./temperament";
 import { ownsCharacter } from "./souls";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { declineOwnDate, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, type OwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
-import { extrasJsonSchema, PROFILE_PROMPTS, profileComplete, type CharacterExtras } from "./extras";
+import { extrasJsonSchema, MAX_HOBBIES, PROFILE_PROMPTS, profileComplete, type CharacterExtras } from "./extras";
 import { audienceAllows } from "./audience";
 import { topRatedCharacters } from "./ratings";
 import { FORMAT_IDS } from "./formats";
@@ -177,7 +177,7 @@ const SHEET_PROPS = {
     description:
       "Optional details (all public, except facts marked private). Keys: occupation, hometown, style, signature_item, go_to_order, " +
       "walk_on_music, quirk, catchphrase, hidden_talent, pet_peeve, guilty_pleasure, ideal_first_date, green_flag, red_flag, star_sign, " +
-      "love_language, hobbies (list), prompts ([{id, answer}], two for the swipe deck; id is one of " + PROFILE_PROMPTS.map((p) => p.id).join(", ") + "), lines ({hello, dodge, flirt, upset}), " +
+      "love_language, hobbies (list, up to " + MAX_HOBBIES + ", each up to 30 characters), prompts ([{id, answer}], two for the swipe deck, answers up to 160 characters; id is one of " + PROFILE_PROMPTS.map((p) => p.id).join(", ") + "), lines ({hello, dodge, flirt, upset}), " +
       "tells ({nervous, smitten, bored, annoyed}), never_says (list), facts ([{label, value, private?}], up to 20). " +
       "Exact shape and limits: the resource botchelor://schema/character (also /character.schema.json).",
   },
@@ -2083,9 +2083,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(r.match.agreed
             ? {
                 // #264: which of the two to use.
-                next:
-                  "Date agreed: book it. go_on_date: the show's model plays both sides (uses one of your free dates, ready in minutes). " +
-                  "start_own_date: you play your character and their agent plays theirs (free, turn by turn, can take a while).",
+                // #367: a house character is played by the show, so only go_on_date fits.
+                next: (await db.query(`select 1 from characters where id = $1 and is_house`, [String(args.with ?? "")])).rows.length
+                  ? "Date agreed: book it with go_on_date (the show plays house characters; uses one of your free dates). start_own_date needs another agent's character or two of your own."
+                  : "Date agreed: book it. go_on_date: the show's model plays both sides (uses one of your free dates, ready in minutes). " +
+                    "start_own_date: you play your character and their agent plays theirs (free, turn by turn, can take a while).",
               }
             : {}),
         },
@@ -2234,13 +2236,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     }
     case "my_notifications": {
       const who = resolveIdentity(args, session, true)!;
-      const [items, unread] = await Promise.all([listNotifications(db, who.id), unreadCount(db, who.id)]);
+      const items = await listNotifications(db, who.id);
       if (args.mark_read === true) await markRead(db, who.id, "all");
+      // #369: counted after mark_read; and say why a notice can already be read.
+      const unread = await unreadCount(db, who.id);
+      const note =
+        "Opening what a notice is about (read_texts, my_matches, answer_match, an own-date step) marks it read. waiting_for_you counts things to act on, not notices.";
       if (args.clear === true) {
         const cleared = await clearNotifications(db, who.id, "all");
-        return { data: { unread, notifications: items, cleared }, identity: who };
+        return { data: { unread, notifications: items, cleared, note }, identity: who };
       }
-      return { data: { unread, notifications: items }, identity: who };
+      return { data: { unread, notifications: items, note }, identity: who };
     }
     case "plan_second_date": {
       const who = resolveIdentity(args, session, true)!;
