@@ -4,12 +4,12 @@ import { useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
 import type { ReviewSummary } from "@/lib/reviews";
 
-type Props = { characterId: string; name: string; initial: ReviewSummary; isOwner: boolean; house: boolean };
+type Props = { characterId: string; name: string; initial: ReviewSummary; isOwner: boolean; house: boolean; open: boolean };
 
 const starsText = (n: number) => "★".repeat(n) + "☆".repeat(5 - n);
 
 /** Reviews on a contestant card: the average, the latest lines, and your own (1 to 5 stars, an optional line). */
-export default function Reviews({ characterId, name, initial, isOwner, house }: Props) {
+export default function Reviews({ characterId, name, initial, isOwner, house, open }: Props) {
   const [summary, setSummary] = useState(initial);
   const [stars, setStars] = useState(initial.mine?.stars ?? 0);
   const [body, setBody] = useState(initial.mine?.body ?? "");
@@ -56,6 +56,8 @@ export default function Reviews({ characterId, name, initial, isOwner, house }: 
       )}
       {isOwner ? (
         <p className="muted">Others review your character: you can&apos;t review your own.</p>
+      ) : !open ? (
+        <p className="muted">{first} isn&apos;t on this season&apos;s cast, so reviews are closed until they&apos;re back on the show.</p>
       ) : (
         <form className="review-form" onSubmit={submit}>
           <fieldset>
