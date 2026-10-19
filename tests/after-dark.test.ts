@@ -430,3 +430,28 @@ describe("the picture request", () => {
     expect(sent).toMatchObject({ model_name: "SG161222/RealVisXL_V4.0", negative_prompt: expect.stringMatching(/teen.*minor/) });
   });
 });
+
+import { fillerLines, teasersFor } from "@/lib/adult/teaser";
+
+describe("the teaser in the show", () => {
+  it("counts only the season's scenes (an admin's), never one person's private scene, and never carries a real line", async () => {
+    const { cookie } = await admin();
+    scripted(JSON.stringify({ lines: [{ who: "a", text: "The secret line nobody outside should read." }, { who: "b", text: "Agreed." }] }));
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    const [t1] = await teasersFor(t.db, { pair: [CAST_B, CAST_A] });
+    expect(t1).toMatchObject({ lines: 2, path: expect.stringMatching(/^\/after-dark\//) });
+    expect((await teasersFor(t.db, { character: CAST_A })).length).toBe(1);
+    // A subscriber's own private scene is never teased.
+    const sub = userIdOf(newUserCookie());
+    await t.db.query(`insert into adult_scenes (id, owner_id, character_a, character_b, lines) values ($1, $2, $3, $4, $5::jsonb)`, [
+      crypto.randomUUID(),
+      sub,
+      ...[CAST_A, HOUSE_CHARACTERS[2].id].sort(),
+      JSON.stringify([{ who: "a", text: "Mine." }]),
+    ]);
+    expect((await teasersFor(t.db, { character: HOUSE_CHARACTERS[2].id })).length).toBe(0);
+    const filler = fillerLines(3, t1.path).join(" ");
+    expect(filler).not.toContain("secret line");
+    expect(fillerLines(3, t1.path)).toEqual(fillerLines(3, t1.path));
+  });
+});
