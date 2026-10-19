@@ -8,7 +8,12 @@ import { openSecret, sealSecret } from "../keys";
 
 /** Defaults to start from; every one can be changed on the settings page. */
 export const DEFAULT_TEXT_MODEL = "mistralai/mistral-large";
-export const DEFAULT_IMAGE_MODEL = "fal-ai/flux/dev";
+/**
+ * fal's custom-model endpoint running a photoreal SDXL fine-tune (OpenRAIL++, which doesn't forbid consensual adult
+ * content). FLUX [dev]'s terms don't fit adult output, so it's not the default (docs/after-dark.md #6).
+ */
+export const DEFAULT_IMAGE_MODEL = "fal-ai/lora";
+export const DEFAULT_IMAGE_BASE = "SG161222/RealVisXL_V4.0";
 export const DEFAULT_VIDEO_MODEL = "fal-ai/wan-i2v";
 
 export type AdultSettings = {
@@ -16,6 +21,7 @@ export type AdultSettings = {
   text_model: string;
   image_model: string;
   video_model: string;
+  image_base: string;
   openrouter_last4: string | null;
   fal_last4: string | null;
   hive_mod_last4: string | null;
@@ -27,6 +33,7 @@ type Row = {
   text_model: string | null;
   image_model: string | null;
   video_model: string | null;
+  image_base: string | null;
   openrouter_ciphertext: string | null;
   openrouter_nonce: string | null;
   openrouter_last4: string | null;
@@ -52,6 +59,7 @@ export async function getAdultSettings(db: Db): Promise<AdultSettings> {
     text_model: r?.text_model || DEFAULT_TEXT_MODEL,
     image_model: r?.image_model || DEFAULT_IMAGE_MODEL,
     video_model: r?.video_model || DEFAULT_VIDEO_MODEL,
+    image_base: r?.image_base || DEFAULT_IMAGE_BASE,
     openrouter_last4: r?.openrouter_last4 ?? null,
     fal_last4: r?.fal_last4 ?? null,
     hive_mod_last4: r?.hive_mod_last4 ?? null,
@@ -76,6 +84,7 @@ export type SettingsPatch = {
   text_model?: string;
   image_model?: string;
   video_model?: string;
+  image_base?: string;
   /** A new key, or "" to remove it. */
   openrouter_key?: string;
   fal_key?: string;
@@ -92,7 +101,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<A
     set.push(`${col} = $${vals.length}`);
   };
   if (patch.enabled !== undefined) put("enabled", patch.enabled);
-  for (const k of ["text_model", "image_model", "video_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
+  for (const k of ["text_model", "image_model", "video_model", "image_base"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
   for (const [k, col] of [
     ["openrouter_key", "openrouter"],
     ["fal_key", "fal"],

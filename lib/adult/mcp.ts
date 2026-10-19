@@ -50,6 +50,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
         text_model: { type: "string", maxLength: 120, description: "An OpenRouter model id." },
         image_model: { type: "string", maxLength: 120, description: "A fal.ai image model id." },
         video_model: { type: "string", maxLength: 120, description: "A fal.ai video model id." },
+        image_base: { type: "string", maxLength: 160, description: "For fal-ai/lora: the Hugging Face id of the base model." },
       },
     },
     annotations: { readOnlyHint: false },
@@ -75,7 +76,7 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
   if (name === "after_dark_settings") {
     const patch: Record<string, unknown> = {};
     if (typeof args.enabled === "boolean") patch.enabled = args.enabled;
-    for (const k of ["text_model", "image_model", "video_model"]) if (typeof args[k] === "string" && (args[k] as string).trim()) patch[k] = (args[k] as string).trim();
+    for (const k of ["text_model", "image_model", "video_model", "image_base"]) if (typeof args[k] === "string" && (args[k] as string).trim()) patch[k] = (args[k] as string).trim();
     return { data: { settings: Object.keys(patch).length ? await saveAdultSettings(db, patch) : await getAdultSettings(db) } };
   }
   if (!(await adultAvailable(db))) return { error: "After dark is off: turn it on in its settings (/admin/after-dark/settings)." };

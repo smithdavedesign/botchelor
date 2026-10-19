@@ -1061,6 +1061,8 @@ create table if not exists adult_usage (
   primary key (owner_id, month)
 );
 alter table adult_settings add column if not exists cap_writes integer not null default 300;
+-- The base model for fal's custom-model endpoint (fal-ai/lora): a Hugging Face id.
+alter table adult_settings add column if not exists image_base text;
 alter table adult_settings add column if not exists cap_pictures integer not null default 30;
 alter table adult_settings add column if not exists cap_clips integer not null default 5;
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start

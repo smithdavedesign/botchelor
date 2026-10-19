@@ -9,6 +9,7 @@ const Input = z.object({
   text_model: z.string().max(120).optional(),
   image_model: z.string().max(120).optional(),
   video_model: z.string().max(120).optional(),
+  image_base: z.string().max(160).optional(),
   openrouter_key: z.string().max(400).optional(),
   fal_key: z.string().max(400).optional(),
   hive_mod_key: z.string().max(400).optional(),

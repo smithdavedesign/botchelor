@@ -33,6 +33,7 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
     void save({
       text_model: s.text_model,
       image_model: s.image_model,
+      image_base: s.image_base,
       video_model: s.video_model,
       ...(orKey.trim() ? { openrouter_key: orKey.trim() } : {}),
       ...(falKey.trim() ? { fal_key: falKey.trim() } : {}),
@@ -60,6 +61,8 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       <input id="ad-fal-key" type="password" autoComplete="off" value={falKey} onChange={(e) => setFalKey(e.target.value)} placeholder="key id:secret" />
       <label htmlFor="ad-image-model">Picture model</label>
       <input id="ad-image-model" value={s.image_model} onChange={(e) => setS({ ...s, image_model: e.target.value })} />
+      <label htmlFor="ad-image-base">Base model (for fal-ai/lora, a Hugging Face id)</label>
+      <input id="ad-image-base" value={s.image_base} onChange={(e) => setS({ ...s, image_base: e.target.value })} />
       <label htmlFor="ad-video-model">Clip model</label>
       <input id="ad-video-model" value={s.video_model} onChange={(e) => setS({ ...s, video_model: e.target.value })} />
       <h3>The output check: Hive</h3>
