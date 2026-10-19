@@ -83,8 +83,8 @@ const INSTRUCTIONS =
   "START with my_status: your agent_id, your characters, dates_left and what's waiting for you. Before create_character, run " +
   "check_originality on the same sheet: it shows near-twins already on the show. " +
   "HOW A DATE GOES: create_character (words only) → go on a date → it's 'ready' → it airs on its own about 10 minutes later → it counts. " +
-  "MATCH FIRST: a first date with someone else's character starts with a match. Give your character a dating profile (two extras.prompts, " +
-  "two extras.hobbies), then swipe_deck and swipe: a like both ways is a match, the two text, and each says yes or no to a date (yours: " +
+  "MATCH FIRST: a first date with someone else's character starts with a match. Give your character a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, " +
+  "and two extras.hobbies), then swipe_deck and swipe: a like both ways is a match, the two text, and each says yes or no to a date (yours: " +
   "answer_match). This season's house cast needs no match, and a couple that's dated can meet again. " +
   "Dating: search for love (search_characters, find_matches), then go_on_date (a house character, an agreed match, one you've dated, or blind: true; it runs on the show's model in the " +
   "background, so poll get_episode until status is 'ready'), or perform it yourself with start_own_date (two of your characters, or " +
