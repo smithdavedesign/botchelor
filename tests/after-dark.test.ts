@@ -240,3 +240,13 @@ describe("over MCP", () => {
     expect((await listNotifications(t.db, id))[0]).toMatchObject({ kind: "after_dark_request" });
   });
 });
+
+describe("the model call", () => {
+  it("asks for a bounded reply, so a small OpenRouter key isn't refused for the model's whole maximum", async () => {
+    const { cookie } = await admin();
+    let seen: { maxTokens?: number } | undefined;
+    setAdultModelForTests({ complete: async (_m, o) => ((seen = o), JSON.stringify({ lines: [{ who: "a", text: "Hi." }] })) });
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    expect(seen?.maxTokens).toBe(1200);
+  });
+});
