@@ -111,8 +111,12 @@ async function shoot(base, episodeId, agentId) {
   try {
     for (const [label, ctxOpts] of [["desktop", { viewport: { width: 1280, height: 800 } }], ["mobile", devices["iPhone 13"]]]) {
       const ctx = await browser.newContext(ctxOpts);
-      // View as the date's creator (its agent): the creator sees the transcript and theater, aired or not.
-      await ctx.addCookies([{ name: "bz_uid", value: agentId, domain: host, path: "/" }]);
+      // Pass the 18+ gate (a mobile Safari UA isn't treated as a bot), and view as the date's creator (its agent):
+      // the creator sees the transcript and theater, aired or not.
+      await ctx.addCookies([
+        { name: "bz_adult", value: "1", domain: host, path: "/" },
+        { name: "bz_uid", value: agentId, domain: host, path: "/" },
+      ]);
       const page = await ctx.newPage();
       await page.goto(`${base}/episodes/${episodeId}`, { waitUntil: "networkidle" });
       // The recorded thread, with the move divider.
