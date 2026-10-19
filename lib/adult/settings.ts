@@ -23,6 +23,13 @@ export const DEFAULT_VIDEO_MODEL = "fal-ai/wan-i2v";
 export const IMAGE_PROVIDERS = ["fal", "venice"] as const;
 export type ImageProvider = (typeof IMAGE_PROVIDERS)[number];
 export const DEFAULT_VENICE_IMAGE_MODEL = "lustify-v8";
+/**
+ * The full-night video: Wan 2.6 lip-syncs to each character's own voice (the 'own voice' test, B); six shots, about 30
+ * seconds; 15 bought tokens (docs/after-dark-costs.md: about $3.50 to make, $10.50 in after fees).
+ */
+export const DEFAULT_REEL_MODEL = "wan-2.6-image-to-video";
+export const DEFAULT_REEL_SHOTS = 6;
+export const DEFAULT_REEL_TOKENS = 15;
 
 export type AdultSettings = {
   enabled: boolean;
@@ -33,6 +40,10 @@ export type AdultSettings = {
   image_provider: ImageProvider;
   venice_image_model: string;
   venice_last4: string | null;
+  /** The full-night video (lib/adult/reels.ts): its model, how many shots, and its price in bought tokens. */
+  reel_model: string;
+  reel_shots: number;
+  reel_tokens: number;
   openrouter_last4: string | null;
   fal_last4: string | null;
   hive_last4: string | null;
@@ -49,6 +60,9 @@ type Row = {
   venice_ciphertext: string | null;
   venice_nonce: string | null;
   venice_last4: string | null;
+  reel_model: string | null;
+  reel_shots: number | null;
+  reel_tokens: number | null;
   openrouter_ciphertext: string | null;
   openrouter_nonce: string | null;
   openrouter_last4: string | null;
@@ -75,6 +89,9 @@ export async function getAdultSettings(db: Db): Promise<AdultSettings> {
     image_provider: r?.image_provider === "venice" ? "venice" : "fal",
     venice_image_model: r?.venice_image_model || DEFAULT_VENICE_IMAGE_MODEL,
     venice_last4: r?.venice_last4 ?? null,
+    reel_model: r?.reel_model || DEFAULT_REEL_MODEL,
+    reel_shots: r?.reel_shots ?? DEFAULT_REEL_SHOTS,
+    reel_tokens: r?.reel_tokens ?? DEFAULT_REEL_TOKENS,
     openrouter_last4: r?.openrouter_last4 ?? null,
     fal_last4: r?.fal_last4 ?? null,
     hive_last4: r?.hive_last4 ?? null,
@@ -101,6 +118,9 @@ export type SettingsPatch = {
   image_base?: string;
   image_provider?: ImageProvider;
   venice_image_model?: string;
+  reel_model?: string;
+  reel_shots?: number;
+  reel_tokens?: number;
   /** A new key, or "" to remove it. */
   openrouter_key?: string;
   fal_key?: string;
@@ -119,7 +139,8 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<A
   };
   if (patch.enabled !== undefined) put("enabled", patch.enabled);
   if (patch.image_provider !== undefined) put("image_provider", patch.image_provider);
-  for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
+  for (const k of ["reel_shots", "reel_tokens"] as const) if (patch[k] !== undefined) put(k, patch[k]);
+  for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model", "reel_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
   for (const [k, col] of [
     ["openrouter_key", "openrouter"],
     ["fal_key", "fal"],

@@ -683,3 +683,122 @@ describe("set the scene (1 token)", () => {
     expect(await used()).toBe(1);
   });
 });
+
+import { GET as reelGet, POST as reelPost } from "@/app/api/admin/after-dark/reel/route";
+import { pickLines, setReelFetchForTests, spoken, voiceFor, type Reel } from "@/lib/adult/reels";
+import { mediaLinkValid, signedMediaUrl } from "@/lib/adult/media";
+import { loadCharacter } from "@/lib/character";
+
+describe("the video of the night", () => {
+  afterEach(() => {
+    setReelFetchForTests(null);
+    setCheckFetchForTests(null);
+  });
+
+  const night = Array.from({ length: 12 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `*leans closer* Line number ${i} says something rather vivid here.` }));
+  async function ready(cookie: string, ownerId: string) {
+    await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", reel_shots: 3 }, cookie);
+    // A Hive-passed picture of the pair to start shots from, and the night itself.
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data) values ('pic-1', $1, $2, $3, 'scene', 'p', 'image/png', $4)`, [ownerId, CAST_A, CAST_B, Buffer.from(PNG)]);
+    const scene = (await (await get(CAST_A, CAST_B, cookie)).json()).scene;
+    await t.db.query(`update adult_scenes set lines = $2::jsonb where id = $1`, [scene.id, JSON.stringify(night)]);
+  }
+  /** Venice: voices, queues, and a shot that's done on the first retrieve. Records what was asked. */
+  function fakeVenice() {
+    const seen: { path: string; body: Record<string, unknown> }[] = [];
+    let q = 0;
+    setReelFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input).replace("https://api.venice.ai/api/v1", "");
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      seen.push({ path, body });
+      if (path === "/audio/speech") return new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "audio/mpeg" } });
+      if (path === "/video/queue") return Response.json({ model: body.model, queue_id: `q${++q}` });
+      if (path === "/video/retrieve") return new Response(new Uint8Array([0, 0, 0, 24]), { headers: { "content-type": "video/mp4" } });
+      return new Response("?", { status: 500 });
+    });
+    return seen;
+  }
+  const make = (cookie: string, body: Record<string, unknown> = {}) => call(reelPost, "/api/admin/after-dark/reel", { a: CAST_A, b: CAST_B, ...body }, cookie);
+  const advance = async (id: string, cookie: string) => (await (await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?id=${id}`, { headers: { cookie } }))).json()).reel as Reel;
+
+  it("voices each picked line in the speaker's own voice, lip-syncs a shot to it, checks every shot, and plays them in order", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    const seen = fakeVenice();
+    setCheckFetchForTests(async () => Response.json(CLEAN_MOD));
+    scripted(JSON.stringify({ shots: [{ line: 9, motion: "she pulls him down" }, { line: 2, motion: "they kiss" }, { line: 5, motion: "slow" }] }));
+    const started = await (await make(cookie)).json();
+    expect(started.reel).toMatchObject({ status: "making", tokens: 0 });
+    expect(started.reel.shots.map((s: { line: number }) => s.line)).toEqual([2, 5, 9]);
+    const queued = seen.filter((s) => s.path === "/video/queue");
+    expect(queued).toHaveLength(3);
+    expect(queued[0].body).toMatchObject({ model: "wan-2.6-image-to-video", audio_url: expect.stringMatching(/^data:audio\/mpeg;base64,/), image_url: expect.stringContaining("/api/admin/after-dark/media/pic-1?until=") });
+    const voices = seen.filter((s) => s.path === "/audio/speech").map((s) => s.body.voice);
+    const sceneA = (await (await get(CAST_A, CAST_B, cookie)).json()).scene.a.id as string;
+    const chA = await loadCharacter(t.db, sceneA);
+    expect(voices[0]).toBe(voiceFor(chA!));
+    expect(voices[0]).toBe(voiceFor(chA!)); // the same voice every time
+    expect(seen.find((s) => s.path === "/audio/speech")!.body.input).toBe("Line number 2 says something rather vivid here.");
+    // Two shots per poll (Hive rate-limits a burst), then the last one.
+    expect((await advance(started.reel.id, cookie)).shots.filter((s) => s.status === "ready")).toHaveLength(2);
+    const done = await advance(started.reel.id, cookie);
+    expect(done.status).toBe("ready");
+    expect(done.shots.every((s) => s.status === "ready" && s.media_id)).toBe(true);
+  });
+
+  it("costs a subscriber the reel's price, gives back the share of discarded shots, and waits when Hive is busy", async () => {
+    const { id: adminId, cookie: adminCookie } = await admin();
+    await ready(adminCookie, adminId);
+    await call(settingsPost, "/api/admin/after-dark/settings", { reel_tokens: 15 }, adminCookie);
+    const sub = userIdOf(newUserCookie());
+    await t.db.query(`insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())`, [sub]);
+    const cookie = signedIn(sub);
+    const scene = (await (await get(CAST_A, CAST_B, cookie)).json()).scene;
+    await t.db.query(`update adult_scenes set lines = $2::jsonb where id = $1`, [scene.id, JSON.stringify(night)]);
+    fakeVenice();
+    scripted("not json");
+    expect((await make(cookie)).status).toBe(402);
+    await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 20, 'test')`, [crypto.randomUUID(), sub]);
+    const used = async () => (await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [sub])).rows[0]?.used ?? 0;
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    expect(started.tokens).toBe(15);
+    expect(await used()).toBe(15);
+    expect((await make(cookie)).status).toBe(409);
+    // Hive busy: nothing discarded, the shots wait for the next poll.
+    setCheckFetchForTests(async () => new Response("slow down", { status: 429 }));
+    expect((await advance(started.id, cookie)).shots.every((s) => s.status === "queued")).toBe(true);
+    // Then one shot shows a child signal: discarded, never stored; the other two come through.
+    let n = 0;
+    setCheckFetchForTests(async () => Response.json(n++ === 0 ? { output: [{ classes: [{ class: "no_child_present", value: 0.5 }, { class: "yes_child_present", value: 0.5 }] }] } : CLEAN_MOD));
+    await advance(started.id, cookie);
+    const done = await advance(started.id, cookie);
+    expect(done.status).toBe("ready");
+    expect(done.shots.map((s) => s.status)).toEqual(["discarded", "ready", "ready"]);
+    expect(await used()).toBe(10);
+  });
+
+  it("picks lines across the night when the model's pick can't be read, and cuts what's said to what a shot holds", async () => {
+    scripted("not json");
+    const picks = await pickLines(t.db, night, 4);
+    expect(picks).toHaveLength(4);
+    expect(picks[picks.length - 1].line).toBe(11);
+    expect(picks[0].line).toBe(0);
+    expect(spoken("*whispers* " + "word ".repeat(40)).speech.split(" ")).toHaveLength(24);
+  });
+
+  it("lets a provider fetch a picture for minutes by a signed link, never a clip, never after it expires", async () => {
+    const url = signedMediaUrl("pic-1", "https://botchelor.com", 1_000);
+    const q = new URL(url).searchParams;
+    expect(mediaLinkValid("pic-1", q.get("until"), q.get("sig"), 2_000)).toBe(true);
+    expect(mediaLinkValid("pic-2", q.get("until"), q.get("sig"), 2_000)).toBe(false);
+    expect(mediaLinkValid("pic-1", q.get("until"), q.get("sig"), 1_000 + 31 * 60 * 1000)).toBe(false);
+    const { id } = await admin();
+    await t.db.query(`insert into adult_images (id, owner_id, kind, prompt, mime, data) values ('pic-1', $1, 'scene', 'p', 'image/png', $2), ('vid-1', $1, 'video', 'p', 'video/mp4', $2)`, [id, Buffer.from(PNG)]);
+    const fetchAs = async (mid: string) => {
+      const u = new URL(signedMediaUrl(mid, BASE_URL));
+      return (await mediaGet(new Request(u.toString()), { params: Promise.resolve({ id: mid }) })).status;
+    };
+    expect(await fetchAs("pic-1")).toBe(200);
+    expect(await fetchAs("vid-1")).toBe(404);
+  });
+});

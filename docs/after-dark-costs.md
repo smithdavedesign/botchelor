@@ -86,6 +86,36 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 - **On a person's own Venice key:** a video costs them 0 tokens, just as a long date on their own keys does. We still pay the Hive check (about $0.05), which is too small to charge for.
 - **Below 5 tokens a best-quality video barely breaks even**, because of the Wan 3.0 cost plus card fees.
 
+## The video of the night (the main earner)
+
+**What it is:** a short film of a whole night (`lib/adult/reels.ts`).
+- The model picks its strongest lines across the night: how it starts, how it builds, the peak (rarely at either end), how it lands.
+- Each line becomes one shot of the speaker saying it, in their own stock voice. Wan 2.6 lip-syncs to that voice.
+- Each shot starts from the pair's own pictures, which already passed the age check.
+- Hive checks every shot before it's kept. A discarded shot gives back its share of the tokens.
+- The shots play in order, with each line as a caption.
+
+**Settings:** the model, the number of shots and the price (`reel_model`, `reel_shots`, `reel_tokens`). The defaults are Wan 2.6, 6 shots (about 30 s) and 15 tokens.
+
+| Default video (6 shots, Wan 2.6, about 30 s) | Cost |
+|---|---|
+| 6 shots × $0.55 (5 s each; a long line takes 10 s, $1.10) | $3.30 to $4.00 |
+| Voices: 6 lines on Kokoro | under $0.01 |
+| Picking the lines (text model) | about $0.001 |
+| Hive on about 30 to 60 frames | about $0.10 to $0.20 |
+| **Total** | **about $3.50 to $4.20** |
+
+At **15 tokens** we take in about $10.80 after Stripe's fee (about $10.20 with an adult processor), so we keep about **$6 to $7** a video. On Wan 2.6 Flash, the cost halves.
+
+### What other sites charge (from reviews, October 2026; check before relying on them)
+
+- **[OurDream](https://kissable.app/blog/best-ai-girlfriend-app-with-video):** about 100 coins for a 5 s clip and 300 for 30 s. 1,000 coins is about $10, so roughly **$1 for 5 s and $3 for 30 s**. It's video inside the chat, but with no voiced dialogue from the user's own story.
+- **[GirlfriendGPT](https://www.callyourgirlfriend.com/ai-girlfriend-video-generator):** 30 coins for a 5 s clip, 60 for 10 s.
+- **[Promptchan](https://il.ly/blog/nsfw):** about 20 to 28 credits a clip, on a paid tier only.
+- **Candy.ai:** video comes out of a 100-token monthly allowance. [One review](https://www.startuphub.ai/ai-news/reviews/2026/best-ai-girlfriend-apps-2026) estimates real video spend at $25 to $60 a month.
+
+Ours is priced above the clip sites on purpose. They sell a few seconds of motion; ours is the person's own night, in their characters' own voices, as a short film. At $12 (15 tokens) we're about 4 times OurDream's 30 s price. Lower it in settings if people don't buy.
+
 ## The subscription
 
 After Dark opens only with a subscription and a passed age check. The monthly caps (in After Dark's settings) limit

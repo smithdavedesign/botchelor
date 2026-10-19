@@ -16,6 +16,9 @@ const Input = z.object({
   venice_key: z.string().max(400).optional(),
   image_provider: z.enum(["fal", "venice"]).optional(),
   venice_image_model: z.string().max(120).optional(),
+  reel_model: z.string().max(120).optional(),
+  reel_shots: z.number().int().min(2).max(12).optional(),
+  reel_tokens: z.number().int().min(0).max(500).optional(),
 });
 
 /** After dark's settings: a signed-in admin only, even while it's off (that's where it's turned on). */

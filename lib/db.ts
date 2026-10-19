@@ -1066,6 +1066,22 @@ alter table adult_settings add column if not exists venice_image_model text;
 alter table adult_settings add column if not exists venice_ciphertext text;
 alter table adult_settings add column if not exists venice_nonce text;
 alter table adult_settings add column if not exists venice_last4 text;
+-- The full-night video (lib/adult/reels.ts): its model, shots and price, and each reel made.
+alter table adult_settings add column if not exists reel_model text;
+alter table adult_settings add column if not exists reel_shots integer;
+alter table adult_settings add column if not exists reel_tokens integer;
+create table if not exists adult_reels (
+  id text primary key,
+  owner_id text not null,
+  character_a text not null references characters (id) on delete cascade,
+  character_b text not null references characters (id) on delete cascade,
+  status text not null check (status in ('making', 'ready', 'failed')),
+  tokens integer not null default 0,
+  shots jsonb not null default '[]',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists adult_reels_pair on adult_reels (owner_id, character_a, character_b, created_at desc);
 -- Every image the output check refused: never the image itself, only why (for the admin to see it's working).
 create table if not exists adult_rejections (
   id text primary key,

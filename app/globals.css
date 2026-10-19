@@ -5549,3 +5549,20 @@ a.phone-head-btn {
 .directory-private {
   cursor: default;
 }
+
+/* After Dark's videos of the night (Reels.tsx): one shot at a time, the line under it. */
+.after-dark-reels {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+.after-dark-reel video {
+  width: 100%;
+  max-height: 70vh;
+  border-radius: var(--radius);
+  background: #000;
+}
+.after-dark-reel figcaption {
+  margin-top: var(--space-2);
+}

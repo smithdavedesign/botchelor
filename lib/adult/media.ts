@@ -13,6 +13,7 @@
 import type { Character } from "../character";
 import type { Db } from "../db";
 import { ALL_HOUSE_CHARACTERS } from "../house";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { checkAdultText } from "../safety";
 import { checkOutput } from "./check";
 import { countUse, overCap } from "./usage";
@@ -353,6 +354,27 @@ export async function listMedia(db: Db, ids: string[]): Promise<Media[]> {
     [ids],
   );
   return rows.map((r) => ({ ...r, created_at: new Date(r.created_at).toISOString() }));
+}
+
+/**
+ * A link to one picture that works without a session for a few minutes, for a provider to fetch as a video's start
+ * frame (lib/adult/reels.ts). HMAC over the id and the expiry with SESSION_SECRET; pictures only, never clips.
+ */
+export const MEDIA_LINK_MS = 30 * 60 * 1000;
+const mediaMac = (id: string, until: number, secret: string) => createHmac("sha256", secret).update(`after-dark-media:${id}:${until}`).digest("base64url");
+export function signedMediaUrl(id: string, baseUrl: string, now = Date.now(), env: Record<string, string | undefined> = process.env): string {
+  const secret = env.SESSION_SECRET;
+  if (!secret) throw new Error("SESSION_SECRET is not set");
+  const until = now + MEDIA_LINK_MS;
+  return `${baseUrl.replace(/\/$/, "")}/api/admin/after-dark/media/${encodeURIComponent(id)}?until=${until}&sig=${mediaMac(id, until, secret)}`;
+}
+export function mediaLinkValid(id: string, until: string | null, sig: string | null, now = Date.now(), env: Record<string, string | undefined> = process.env): boolean {
+  const secret = env.SESSION_SECRET;
+  const t = Number(until);
+  if (!secret || !sig || !Number.isFinite(t) || t < now || t > now + MEDIA_LINK_MS) return false;
+  const want = Buffer.from(mediaMac(id, t, secret));
+  const got = Buffer.from(sig);
+  return want.length === got.length && timingSafeEqual(want, got);
 }
 
 export async function mediaBytes(db: Db, id: string): Promise<{ data: Buffer; mime: string } | null> {

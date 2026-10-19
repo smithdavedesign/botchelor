@@ -4,7 +4,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { listMedia } from "@/lib/adult/media";
+import { listReels } from "@/lib/adult/reels";
 import { listNights, openScene } from "@/lib/adult/scenes";
+import { getAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
 import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/lib/game";
 import SceneWriter from "./SceneWriter";
@@ -49,6 +51,8 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
         characters={[refOf(scene.a.id, scene.a.name, await getPublicCharacter(db, scene.a.id)), refOf(scene.b.id, scene.b.name, await getPublicCharacter(db, scene.b.id))]}
         play={play === "1"}
         nights={await listNights(db, admin, scene.a.id, scene.b.id)}
+        reels={await listReels(db, admin, scene.a.id, scene.b.id)}
+        reelTokens={(await getAdultSettings(db)).reel_tokens}
       />
     </article>
     </div>

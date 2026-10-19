@@ -50,6 +50,9 @@ export default function AfterDarkTheater({
   note = null,
   onWrite,
   onSetScene,
+  onMakeVideo,
+  videoTokens = 15,
+  videoNote = null,
   onExit,
 }: {
   scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null; set?: string | null };
@@ -60,6 +63,10 @@ export default function AfterDarkTheater({
   onWrite?: (direction: string) => Promise<void>;
   /** Set the scene: take them anywhere (1 token). */
   onSetScene?: (place: string) => Promise<void>;
+  /** The full-night video (lib/adult/reels.ts): the whole conversation, in their voices, for `videoTokens`. */
+  onMakeVideo?: () => Promise<void>;
+  videoTokens?: number;
+  videoNote?: string | null;
   onExit: () => void;
 }) {
   const live = Boolean(onWrite);
@@ -136,6 +143,17 @@ export default function AfterDarkTheater({
             >
               📜
             </button>
+            {onMakeVideo && (
+              <button
+                type="button"
+                className="secondary small"
+                onClick={() => void onMakeVideo()}
+                disabled={busy || scene.lines.length < 6}
+                title={`A short film of the whole night, in their own voices (${videoTokens} tokens)`}
+              >
+                🎬 Video of the night · {videoTokens}
+              </button>
+            )}
             <button type="button" className="secondary small" onClick={onExit}>
               Exit
             </button>
@@ -183,9 +201,9 @@ export default function AfterDarkTheater({
               📍 Set the scene
             </button>
           )}
-          {note && (
+          {(videoNote || note) && (
             <p className="ad-theater-note" role="status">
-              {note}
+              {videoNote || note}
             </p>
           )}
         </form>
