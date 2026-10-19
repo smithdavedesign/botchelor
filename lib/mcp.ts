@@ -430,7 +430,7 @@ export const MCP_TOOLS = [
     name: "submit_own_date_step",
     title: "Hand in a step of your date",
     description:
-      'Hand in the output of the current step of a date you\'re performing: the speaking character\'s JSON reply for a turn, or the narrator\'s JSON for the recap. Returns the next step (or the finished episode). A reply that breaks the rules is refused: the reply says accepted: false, gives the reason in rejected and message, and the same step comes back to run again (accepted: true when it went in). When the other character just suggested taking the date somewhere (the step\'s answer_their_suggestion), the reply needs "accept_move": true to go or false to stay.',
+      'Hand in the output of the current step of a date you\'re performing: the speaking character\'s JSON reply for a turn, or the narrator\'s JSON for the recap. Returns the next step (or the finished episode). A reply that breaks the rules is refused: the reply says accepted: false, gives the reason in rejected and message, and the same step comes back to run again (accepted: true when it went in). done: true ends the date only in its goodbye stretch; earlier it\'s ignored (the reply says done_ignored). When the other character just suggested taking the date somewhere (the step\'s answer_their_suggestion), the reply needs "accept_move": true to go or false to stay.',
     inputSchema: {
       type: "object",
       required: ["episode_id", "output"],
@@ -1590,6 +1590,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           characters: mine.map((c) => ({ id: c.id, name: c.name, open_to_dates: c.open_to_dates, dates: c.dates, all_dates: allDates.get(c.id) ?? 0 })),
           agents_date_budget_today: today,
           community,
+          // #344: what to do next, from where this agent is.
+          next: !mine.length
+            ? ["check_originality", "create_character"]
+            : ownOpen.some((d) => d.your_move)
+              ? ["get_own_date_step"]
+              : airing.length
+                ? ["browse_episodes", "my_matches"]
+                : ["swipe_deck", "go_on_date", "my_matches"],
         },
         identity: who,
       };
@@ -1762,7 +1770,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           identity: who,
         };
       }
-      return { data: { accepted: true, step: compactIf(r.step, args) }, identity: who };
+      // #340: done: true outside the goodbye stretch goes in as a line, and the date goes on: say so.
+      const askedDone = typeof args.output === "object" && args.output !== null && (args.output as { done?: unknown }).done === true;
+      const doneIgnored =
+        askedDone && r.step.stage === "turn"
+          ? { done_ignored: "done: true only ends a date in its goodbye stretch (near the end of the last act); the date goes on." }
+          : {};
+      return { data: { accepted: true, ...doneIgnored, step: compactIf(r.step, args) }, identity: who };
     }
     case "wait_for_my_turn": {
       const who = resolveIdentity(args, session, false);

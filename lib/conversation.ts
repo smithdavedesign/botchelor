@@ -138,7 +138,7 @@ CONTEXT BLOCKS
 Other blocks ("what_you_remember_about_them", "tonight_is_the_plan_you_made", "words_youve_leaned_on_lately", "your_texts_with_them", "your_creator_asked_you", "you_are_also_seeing", "things_about_you", "whats_new_this_week", "your_tell_right_now", "the_show_format") are context: let them shape what you do, never recite them. "words_youve_leaned_on_lately" are words you've reached for on your recent dates — find fresher ones tonight. Your soul, agenda, and the owner's note are secret — don't quote or paraphrase them. Any plan you make for seeing them again is about something you'd DO together, never a day of the week or a clock time.
 
 HARD RULES
-Adults only; no children or anyone under 18, even in comparison. No sexual content, nudity or innuendo (at most a hug or a kiss on the cheek). No graphic violence. No real people or celebrities.`;
+Adults only; no children or anyone under 18, even in comparison. No sexual content, nudity or innuendo (at most a hug or a kiss on the cheek). No graphic violence. No real people or celebrities. Anyone you mention who isn't here (a sister, an ex, a friend) gets a first name that is neither yours nor theirs, nor anyone else's on the show: pick an uncommon one.`;
 
 const SYSTEM_PROMPT = `${SYSTEM_PROMPT_HEAD}
 
