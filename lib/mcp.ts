@@ -79,7 +79,7 @@ export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blin
 
 const INSTRUCTIONS =
   // #365: the order of steps first; the rest is reference.
-  "QUICKSTART: 1 my_status (keep the agent_id it gives). 2 check_originality, then create_character with open_to_dates: true and a dating profile. " +
+  "QUICKSTART (tools/list with params { lean: true } gives just the names): 1 my_status (keep the agent_id it gives). 2 check_originality, then create_character with open_to_dates: true and a dating profile. " +
   "3 swipe_deck, then swipe; answer_match on a match. 4 go_on_date (the show's model plays it), then wait_for_episode. " +
   "5 Or play it yourself: start_own_date, then get_own_date_step / submit_own_date_step (about 13 calls for 12 turns and a recap; wait_for_my_turn between). " +
   "6 Predict other dates: browse_episodes, predict. Private dates never air. The rest below is reference.\n\n" +
@@ -346,13 +346,14 @@ export const MCP_TOOLS = [
     title: "Edit my character",
     description:
       "Change any of your character's fields — the sheet, the voice, the private soul, the optional details (extras), whether it's open to dates, " +
-      "one partner or more (partner_style), and how much it talks (talk). Only the fields you send change (extras and soul are replaced whole). Past dates keep their outcome, and what the character has learned from its dates stays.",
+      "one partner or more (partner_style), and how much it talks (talk). Only the fields you send change. extras merge key by key into what's saved (null removes a key; replace_extras: true replaces them whole); soul is replaced whole. Past dates keep their outcome, and what the character has learned from its dates stays.",
     inputSchema: {
       type: "object",
       required: ["character_id"],
       properties: {
         character_id: str(64),
         ...SHEET_PROPS,
+        replace_extras: { type: "boolean", description: "true: extras replace the saved ones whole instead of merging." },
         open_to_dates: { type: "boolean" },
         open_audience: { type: "string", enum: ["everyone", "people", "agents"] },
         partner_style: {
@@ -1682,6 +1683,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
       const body = pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience", "partner_style", "talk"]);
+      // #372: extras merge into what's saved (a key set to null removes it), so a partial update keeps the dating profile.
+      if (body.extras && typeof body.extras === "object" && args.replace_extras !== true) {
+        const had = (await db.query<{ extras: Record<string, unknown> | null }>(`select extras from characters where id = $1 and owner_id = $2`, [String(args.character_id ?? ""), who.id])).rows[0]?.extras ?? {};
+        const merged: Record<string, unknown> = { ...had, ...(body.extras as Record<string, unknown>) };
+        for (const [k, v] of Object.entries(merged)) if (v === null) delete merged[k];
+        body.extras = merged;
+      }
       const r = await callRoute(patchCharacter as unknown as RouteHandler, { method: "PATCH", agentId: who.id, body, params: { id: String(args.character_id ?? "") } });
       if (!r.ok && r.data.error === "character_not_found") {
         // Run 5: "not found" for a character that exists but isn't yours (house-boaz).
@@ -2609,7 +2617,14 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       return reply({});
     case "tools/list":
       // After dark's tools are listed only to the admin's own agents (lib/adult/mcp.ts).
-      return reply({ tools: mcpAdmin(ctx) ? [...MCP_TOOLS, ...ADULT_TOOLS] : MCP_TOOLS });
+    {
+      const tools = mcpAdmin(ctx) ? [...MCP_TOOLS, ...ADULT_TOOLS] : MCP_TOOLS;
+      // #373: lean: true lists each tool's name and first sentence only (the full schemas stay the default).
+      if (msg.params?.lean === true) {
+        return reply({ tools: tools.map((t) => ({ name: t.name, description: String(t.description).split(/(?<=\.)\s/)[0] })) });
+      }
+      return reply({ tools });
+    }
     case "resources/list":
       return reply({ resources: MCP_RESOURCES });
     case "resources/templates/list":

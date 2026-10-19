@@ -236,3 +236,23 @@ describe("loop run 2026-10-19-1432 (#356)", () => {
     expect(r.content[0].text).toMatch(/show's model .*wait_for_episode/);
   });
 });
+
+describe("loop run 2026-10-19-1623 (#372, #373)", () => {
+  it("update_character merges extras, so the dating profile survives a partial update", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen", { extras: { prompts: [{ id: "win_me_over", answer: "Soup." }, { id: "irrational_fear", answer: "Moths." }], hobbies: ["choir", "crosswords"] } });
+    const r = await call("update_character", { character_id: id, extras: { occupation: "Ferry pilot" } }, ctx);
+    expect(r.isError).toBeFalsy();
+    const row = (await t.db.query<{ extras: { hobbies?: string[]; occupation?: string } }>(`select extras from characters where id = $1`, [id])).rows[0];
+    expect(row.extras.hobbies).toEqual(["choir", "crosswords"]);
+    expect(row.extras.occupation).toBe("Ferry pilot");
+  });
+
+  it("tools/list with lean: true gives names and one line each", async () => {
+    const ctx = await connect();
+    const full = (await handleMcpMessage({ jsonrpc: "2.0", id: 2, method: "tools/list" }, ctx))!.result as Any;
+    const lean = (await handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/list", params: { lean: true } }, ctx))!.result as Any;
+    expect(lean.tools.length).toBe(full.tools.length);
+    expect(lean.tools[0].inputSchema).toBeUndefined();
+    expect(JSON.stringify(lean).length).toBeLessThan(JSON.stringify(full).length / 3);
+  });
+});
