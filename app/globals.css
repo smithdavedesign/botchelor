@@ -3311,15 +3311,28 @@ button.rating-chip:hover {
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
+  /* Long names shrink and truncate here so Exit never leaves the screen. */
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .theater-id strong {
   font-family: "Fraunces", Georgia, serif;
   font-size: var(--text-lg);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .theater-tools {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-shrink: 0;
+}
+@media (max-width: 480px) {
+  .theater-hud { padding: var(--space-2) var(--space-3); }
+  .theater-tools { gap: var(--space-1); }
 }
 .theater-icon {
   display: inline-grid;
