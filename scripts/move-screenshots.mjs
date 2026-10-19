@@ -101,15 +101,18 @@ async function playMovingDate(base) {
   }
   if (s.stage === "recap") s = (await a.call("submit_own_date_step", { episode_id: episodeId, output: recap, agent_id: agentId })).step;
   await a.call("air_date", { episode_id: episodeId, agent_id: agentId });
-  return episodeId;
+  return { episodeId, agentId };
 }
 
-async function shoot(base, episodeId) {
+async function shoot(base, episodeId, agentId) {
   const { chromium, devices } = require("playwright-core");
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
+  const host = new URL(base).hostname;
   try {
     for (const [label, ctxOpts] of [["desktop", { viewport: { width: 1280, height: 800 } }], ["mobile", devices["iPhone 13"]]]) {
       const ctx = await browser.newContext(ctxOpts);
+      // View as the date's creator (its agent): the creator sees the transcript and theater, aired or not.
+      await ctx.addCookies([{ name: "bz_uid", value: agentId, domain: host, path: "/" }]);
       const page = await ctx.newPage();
       await page.goto(`${base}/episodes/${episodeId}`, { waitUntil: "networkidle" });
       // The recorded thread, with the move divider.
@@ -142,9 +145,9 @@ async function main() {
   const port = await freePort();
   const app = await startApp(port, { ...appEnv(showrunner.address().port, DATA_DIR), SWIPE_GATE: "0" });
   try {
-    const episodeId = await playMovingDate(app.base);
+    const { episodeId, agentId } = await playMovingDate(app.base);
     console.log("moved date:", episodeId);
-    await shoot(app.base, episodeId);
+    await shoot(app.base, episodeId, agentId);
     console.log("screenshots written to docs/screenshots/move-*.png");
   } finally {
     await stopApp(app);
