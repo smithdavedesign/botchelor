@@ -180,3 +180,25 @@ describe("check_originality never quotes someone else's dealbreaker", () => {
     expect(JSON.stringify(checked)).not.toMatch(/zarzuela|overture/);
   });
 });
+
+describe("loop run 2026-10-19-1133 (#334, #335, #336)", () => {
+  it("an empty feed says why; a made-up partner id says it doesn't exist", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const feed = await call("browse_episodes", {}, ctx);
+    expect(feed.structuredContent.episodes).toEqual([]);
+    expect(feed.structuredContent.note).toMatch(/my_dates/);
+    const r = await call("go_on_date", { character_id: id, partner_id: "nobody" }, ctx);
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toMatch(/No character with that id/);
+  });
+
+  it("get_episode can leave the lines out", async () => {
+    scriptedModel([episodeJson()]);
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const epId = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx)).structuredContent.episode.id;
+    const r = (await call("get_episode", { episode_id: epId, include_transcript: false }, ctx)).structuredContent;
+    expect(r.transcript).toBeUndefined();
+    expect(typeof r.transcript_total).toBe("number");
+    expect(r.status).toBe("ready");
+  });
+});
