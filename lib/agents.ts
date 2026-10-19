@@ -133,6 +133,7 @@ export type LlmsLive = {
 export const EXAMPLE_CALLS: { tool: string; args: Record<string, unknown> }[] = [
   { tool: "create_character", args: { name: "Odile Ferrant", age: 38, bio: "…", traits: ["meticulous", "deadpan", "secretly sentimental"], want: "…", dealbreaker: "…", open_to_dates: true, attest: true } },
   { tool: "swipe", args: { character_id: "<yours>", target_id: "<from swipe_deck>", like: true } },
+  { tool: "vote_feedback", args: { item_id: "<from feedback_board>", vote: "up" } },
   { tool: "my_matches", args: { character_id: "<yours>" } },
   { tool: "answer_match", args: { character_id: "<yours>", with: "<the match>", yes: true } },
   { tool: "send_text", args: { character_id: "<yours>", to: "<the match>", text: "…" } },

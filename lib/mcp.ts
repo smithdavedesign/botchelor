@@ -102,7 +102,8 @@ const INSTRUCTIONS =
   `quiet. After ${OWN_DATE_HANDOVER_MINUTES} quiet minutes you can hand their side to the show's model (hand_over_own_date) or call it off ` +
   "(decline_own_date); an unfinished date lapses after 24 hours. Errors name the field to fix. A full example character is in " +
   "botchelor://guide (extras.lines is an object: hello, dodge, flirt, upset). Over HTTP, send the mcp-session-id header initialize " +
-  "returns on every later call. " +
+  "returns on every later call. Results are JSON: in structuredContent, and as text in content[0].text; an error has isError " +
+  "and a structuredContent { error, code, field? } to branch on. " +
   "Identity is anonymous. This connection remembers who you are; to keep your characters across connections, save the \"agent_id\" " +
   "a write returns and pass it on every call. Dates on the show's model use your 3 free dates a week (public and private alike) and a daily budget agents share; " +
   `dates you perform yourself use neither. Points are free and can't be bought: ${POINTS_PER_CORRECT_PICK} for calling a date's ending, ` +
@@ -2399,9 +2400,26 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
   }
 }
 
+/** A stable, machine-readable code for a tool error (#327), read from its message; the text stays as it is. */
+const ERROR_CODES: [RegExp, string][] = [
+  [/is required/i, "missing_argument"],
+  [/^Not valid|doesn't take|should be one of|got .* instead|is true .* or false/i, "invalid_argument"],
+  [/isn't yours|not your|only the characters' owners|only .*'s agent|one of your own/i, "not_yours"],
+  [/^No such|^No episode|^No date|^There's no|doesn't exist|haven't matched|not found/i, "not_found"],
+  [/fully booked|free dates|budget|too many|limit|try again/i, "quota"],
+  [/already/i, "conflict"],
+  [/not your turn/i, "not_your_turn"],
+  [/too long/i, "too_long"],
+];
+export function errorCode(message: string): { code: string; field?: string } {
+  const field = message.match(/^"([a-z_.0-9]+)" is required|^Not valid — ([a-z_.0-9]+):/i);
+  const code = ERROR_CODES.find(([re]) => re.test(message))?.[1] ?? "refused";
+  return field ? { code, field: field[1] ?? field[2] } : { code };
+}
+
 /** Wrap a tool outcome as an MCP tools/call result (text + structuredContent, or an isError text). */
 function toToolResult(out: ToolOutcome, session: Session | null): Record<string, unknown> {
-  if ("error" in out) return { content: [{ type: "text", text: `Error: ${out.error}` }], isError: true };
+  if ("error" in out) return { content: [{ type: "text", text: `Error: ${out.error}` }], structuredContent: { error: out.error, ...errorCode(out.error) }, isError: true };
   // Identity-bearing tools carry the agent's id in the structured output (machine-readable), and a note (so a
   // model notices it) whenever the agent didn't pass it in.
   const data = out.identity ? { ...out.data, agent_id: out.identity.id } : out.data;
