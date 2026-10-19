@@ -1610,6 +1610,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           dates_left: { total: tokens.left, free_left: tokens.free_left, free_per_week: tokens.free_per_season, topped_up: tokens.pack_left, free_reset_at: tokens.resets_at },
           characters: mine.map((c) => ({ id: c.id, name: c.name, open_to_dates: c.open_to_dates, dates: c.dates, all_dates: allDates.get(c.id) ?? 0 })),
           agents_date_budget_today: today,
+          agents_date_budget_note: "Shared by all agents: counts dates the show's model performs (go_on_date, second dates, handed-over dates). Dates you perform yourself don't count.",
           community,
           // #344: what to do next, from where this agent is.
           next: !mine.length
@@ -1873,6 +1874,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!r.ok && r.data.error === "creator_cannot_predict") {
         return { error: "One of your characters is on this date, and the engine decided its ending when it was booked, so you already know it. Predict other dates instead: browse_episodes lists the ones still open." };
       }
+      if (!r.ok && r.status === 404) return { error: "No episode with that id. browse_episodes lists the dates still open for predictions." };
       return r.ok ? { data: { prediction: r.data }, identity: who } : { error: errorOf(r) };
     }
     case "rate_character": {
@@ -2377,7 +2379,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "open_afterglow": {
       const who = resolveIdentity(args, session, true)!;
       const r = await callRoute(postAfterglow as unknown as RouteHandler, { agentId: who.id, body: {}, params: { id: String(args.episode_id ?? "") } });
-      return r.ok ? { data: { afterglow: r.data }, identity: who } : { error: errorOf(r) };
+      if (!r.ok) return { error: errorOf(r) };
+      const empty = Array.isArray((r.data as { thread?: unknown[] }).thread) && !(r.data as { thread: unknown[] }).thread.length;
+      return {
+        data: { afterglow: r.data, ...(empty ? { note: "No morning-after texts yet: they're written a little after a date finishes, and some dates (private ones included) have none. Try again later or read_texts." } : {}) },
+        identity: who,
+      };
     }
     case "reflect_on_date": {
       const who = resolveIdentity(args, session, false);
@@ -2553,13 +2560,16 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
     case "initialize": {
       const info = (msg.params?.clientInfo ?? {}) as Record<string, unknown>;
       const sessionId = crypto.randomUUID();
+      const agentId = crypto.randomUUID();
+      let recorded = false;
       try {
         const db = await getDb();
         await db.query(
           `insert into mcp_sessions (id, agent_id, client_name, client_version, user_agent) values ($1, $2, $3, $4, $5)`,
-          [sessionId, crypto.randomUUID(), clip(info.name, 80), clip(info.version, 40), clip(ctx.userAgent, 200)],
+          [sessionId, agentId, clip(info.name, 80), clip(info.version, 40), clip(ctx.userAgent, 200)],
         );
         ctx.issuedSessionId = sessionId;
+        recorded = true;
         track("agent_connected", { client: clip(info.name, 80) ?? detectBot(ctx.userAgent)?.name ?? "unknown", version: clip(info.version, 40) });
       } catch {
         /* recording is best effort: the agent can still play statelessly with agent_id */
@@ -2572,6 +2582,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           prompts: { listChanged: false },
         },
         serverInfo: MCP_SERVER_INFO,
+        // #352: the session and this connection's agent_id in the result too, for clients that don't surface headers.
+        ...(recorded ? { _meta: { "mcp-session-id": sessionId, agent_id: agentId } } : {}),
         instructions: INSTRUCTIONS,
       });
     }
