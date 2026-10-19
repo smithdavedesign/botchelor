@@ -57,7 +57,7 @@ A refused tile is stored as `refused` with its reason, never its picture, and is
 
 **Cost:** about 81 × 1.3¢ (fal) + 50 × 1¢ (Venice), plus one or two Hive calls each. That's about $1.50 once, from the admin's keys in After Dark's settings.
 
-**Drawing them:** `POST /api/admin/looks` with `x-frontier-key` or an admin session, body `{ "limit": 40, "variant": "pg" | "nsfw", "only": [ids] }`. It draws up to 40 per call, four at a time. `GET` shows progress and any refusals.
+**Drawing them:** `POST /api/admin/looks` with `x-frontier-key` or an admin session, body `{ "limit": 40, "variant": "pg" | "nsfw", "only": [ids] }`. It draws up to 40 per call (12 is a good batch), one at a time with a short pause, and stops when a provider rate-limits. A picture Hive couldn't screen (busy) is kept unshown and only re-screened next run, never drawn twice. `GET` shows progress and any refusals.
 
 ## The portrait
 

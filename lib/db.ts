@@ -992,6 +992,7 @@ create table if not exists look_tiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table look_tiles add column if not exists remote_url text;
 
 -- After dark (lib/adult, admin only, local only): the adult season's private scenes, between two of this season's house
 -- characters. Kept out of every other table, so nothing explicit can reach the feed, the cast, the swipe deck, texts,

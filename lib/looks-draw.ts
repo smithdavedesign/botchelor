@@ -6,7 +6,8 @@
  * Paid from the admin's keys in After Dark's settings; with none saved, nothing is drawn and the builder shows labels.
  *
  * A tile is claimed before it's drawn, so two runs can't pay for it twice, and a refused one stays refused (its prompt
- * isn't redrawn on the off chance). The admin draws them a batch at a time (POST /api/admin/looks).
+ * isn't redrawn on the off chance). A picture Hive couldn't screen (busy, down) isn't a refusal: it's kept unshown and
+ * screened again on the next run, so it's never paid for twice. The admin draws them a batch at a time (POST /api/admin/looks).
  */
 import { recordAsset, reviewAsset } from "./assets";
 import { checkOutput, checkSet } from "./adult/check";
@@ -22,7 +23,7 @@ export const LOOKS_PORTRAIT_VERSION = "looks-v1";
 const FAL_RUN = "https://fal.run";
 const MAX_BYTES = 12 * 1024 * 1024;
 /** A tile that failed to draw (not refused) may be tried again after this long. */
-const RETRY_AFTER_MS = 60 * 60 * 1000;
+const RETRY_AFTER_MS = 2 * 60 * 1000;
 
 /** Portraits drawn on our keys: this many per character, and this many a day across the site (LOOKS_PORTRAITS_PER_DAY). */
 export const PORTRAITS_PER_CHARACTER = 3;
@@ -41,9 +42,30 @@ const doFetch: Fetch = (...a) => (testFetch ?? fetch)(...a);
 
 type Picture = { bytes: Buffer; mime: string; url: string | null };
 type Keys = { fal: string | null; venice: string | null; hive: string | null };
+/** A picture that was made but couldn't be screened (Hive busy or down): kept to check again, never shown. */
+type Unchecked = Picture & { unchecked: string };
+type Drawn = Picture | Unchecked | { refused: string } | { failed: string };
 
-/** A show picture on fal, then Hive: an adult, and nothing explicit. */
-async function drawPg(keys: Keys, prompt: string, seed: number | null, size: { width: number; height: number }): Promise<Picture | { refused: string } | { failed: string }> {
+/** Hive couldn't give a verdict (a rate limit, an outage, an odd reply): a reason to check again, not a refusal. */
+const UNCHECKED = /^(the check couldn't run|moderation reply had no child scores)/;
+const UNCHECKED_PREFIX = "unchecked: ";
+
+/** Screens a show picture: an adult, and nothing explicit. */
+async function screenPg(hive: string | null, url: string): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
+  const [adult, clean] = await Promise.all([checkOutput(hive, url, "image"), checkSet(hive, url)]);
+  for (const v of [adult, clean]) if (!v.ok) return UNCHECKED.test(v.reason) ? { unchecked: v.reason } : { refused: v.reason };
+  return { ok: true };
+}
+
+/** Screens an After Dark picture: everyone shown an adult. */
+async function screenNsfw(hive: string | null, b64: string, mime: string): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
+  const v = await checkOutput(hive, { base64: b64, mime }, "image");
+  if (v.ok) return { ok: true };
+  return UNCHECKED.test(v.reason) ? { unchecked: v.reason } : { refused: v.reason };
+}
+
+/** A show picture on fal, then Hive. */
+async function drawPg(keys: Keys, prompt: string, seed: number | null, size: { width: number; height: number }): Promise<Drawn> {
   if (!keys.fal || !keys.hive) return { failed: "no fal or Hive key saved" };
   const res = await doFetch(`${FAL_RUN}/${LOOKS_PG_MODEL}`, {
     method: "POST",
@@ -55,18 +77,17 @@ async function drawPg(keys: Keys, prompt: string, seed: number | null, size: { w
   const url = body.images?.[0]?.url;
   if (!url) return { failed: "fal.ai returned no picture" };
   if (body.has_nsfw_concepts?.[0]) return { refused: "fal.ai flagged it as explicit" };
-  const [adult, clean] = await Promise.all([checkOutput(keys.hive, url, "image"), checkSet(keys.hive, url)]);
-  if (!adult.ok) return { refused: adult.reason };
-  if (!clean.ok) return { refused: clean.reason };
   const file = await doFetch(url);
   if (!file.ok) return { failed: `download ${file.status}` };
   const bytes = Buffer.from(await file.arrayBuffer());
   if (bytes.length > MAX_BYTES) return { failed: "file too large" };
-  return { bytes, mime: file.headers.get("content-type") ?? "image/jpeg", url };
+  const pic = { bytes, mime: file.headers.get("content-type") ?? "image/jpeg", url };
+  const v = await screenPg(keys.hive, url);
+  return "ok" in v ? pic : "refused" in v ? v : { ...pic, unchecked: v.unchecked };
 }
 
-/** An After Dark picture on Venice (bytes come back in the reply), then Hive: everyone shown an adult. */
-async function drawNsfw(db: Db, keys: Keys, prompt: string, seed: number): Promise<Picture | { refused: string } | { failed: string }> {
+/** An After Dark picture on Venice (bytes come back in the reply), then Hive. */
+async function drawNsfw(db: Db, keys: Keys, prompt: string, seed: number): Promise<Drawn> {
   if (!keys.venice || !keys.hive) return { failed: "no Venice or Hive key saved" };
   const { venice_image_model } = await getAdultSettings(db);
   const res = await doFetch(VENICE_IMAGE, {
@@ -80,9 +101,9 @@ async function drawNsfw(db: Db, keys: Keys, prompt: string, seed: number): Promi
   if (!b64) return { failed: "Venice returned no picture" };
   const bytes = Buffer.from(b64, "base64");
   if (bytes.length > MAX_BYTES) return { failed: "file too large" };
-  const verdict = await checkOutput(keys.hive, { base64: b64, mime: "image/webp" }, "image");
-  if (!verdict.ok) return { refused: verdict.reason };
-  return { bytes, mime: "image/webp", url: null };
+  const pic = { bytes, mime: "image/webp", url: null };
+  const v = await screenNsfw(keys.hive, b64, pic.mime);
+  return "ok" in v ? pic : "refused" in v ? v : { ...pic, unchecked: v.unchecked };
 }
 
 async function keysFor(db: Db): Promise<Keys> {
@@ -90,51 +111,89 @@ async function keysFor(db: Db): Promise<Keys> {
   return { fal: k?.fal ?? null, venice: k?.venice ?? null, hive: k?.hive ?? null };
 }
 
+/**
+ * Tiles worth another go: one that failed to draw (after a short wait), and one whose picture couldn't be screened
+ * (including those stored as refused before that was told apart from a real refusal).
+ */
+const RETRYABLE = `(look_tiles.status = 'failed' and look_tiles.updated_at < now() - ($4::int * interval '1 millisecond'))
+   or (look_tiles.status = 'refused' and look_tiles.reason like 'the check couldn''t run%')`;
+
 /** Draws one tile if it isn't drawn (or refused, or being drawn). Never throws. */
 export async function drawTile(db: Db, spec: TileSpec, keys?: Keys): Promise<string> {
-  const claimed = await db.query(
+  const claimed = await db.query<{ data: Buffer | Uint8Array | null; mime: string | null; reason: string | null; remote_url: string | null }>(
     `insert into look_tiles (id, variant, status, prompt) values ($1, $2, 'drawing', $3)
      on conflict (id) do update set status = 'drawing', prompt = excluded.prompt, updated_at = now()
-       where look_tiles.status = 'failed' and look_tiles.updated_at < now() - ($4::int * interval '1 millisecond')
-     returning 1`,
+       where ${RETRYABLE}
+     returning data, mime, reason, remote_url`,
     [spec.id, spec.variant, spec.prompt, RETRY_AFTER_MS],
   );
   if (!claimed.rows.length) return "exists";
   const done = (status: "ready" | "refused" | "failed", reason: string | null, file?: Picture) =>
     db
-      .query(`update look_tiles set status = $2, reason = $3, mime = $4, data = $5, model = $6, updated_at = now() where id = $1`, [
+      .query(`update look_tiles set status = $2, reason = $3, mime = $4, data = $5, model = $6, remote_url = $7, updated_at = now() where id = $1`, [
         spec.id,
         status,
         reason?.slice(0, 300) ?? null,
         file?.mime ?? null,
         file?.bytes ?? null,
         spec.variant === "pg" ? LOOKS_PG_MODEL : "venice",
+        file?.url ?? null,
       ])
       .then(() => status);
   try {
     const k = keys ?? (await keysFor(db));
+    const prev = claimed.rows[0];
+    // Made before but not screened: screen the kept picture again, rather than paying to draw a new one.
+    if (prev.data && prev.mime && prev.reason?.startsWith(UNCHECKED_PREFIX)) {
+      const pic = { bytes: Buffer.from(prev.data), mime: prev.mime, url: prev.remote_url };
+      const v = spec.variant === "pg" ? (pic.url ? await screenPg(k.hive, pic.url) : { refused: "nothing to screen" }) : await screenNsfw(k.hive, pic.bytes.toString("base64"), pic.mime);
+      if ("ok" in v) return done("ready", null, pic);
+      if ("refused" in v) return done("refused", v.refused);
+      return done("failed", UNCHECKED_PREFIX + v.unchecked, pic);
+    }
     const r = spec.variant === "pg" ? await drawPg(k, spec.prompt, spec.seed, { width: 512, height: 640 }) : await drawNsfw(db, k, spec.prompt, spec.seed);
     if ("refused" in r) return done("refused", r.refused);
     if ("failed" in r) return done("failed", r.failed);
+    if ("unchecked" in r) return done("failed", UNCHECKED_PREFIX + r.unchecked, r);
     return done("ready", null, r);
   } catch (err) {
     return done("failed", err instanceof Error ? err.message : "error");
   }
 }
 
-/** Draws up to `limit` tiles that aren't drawn yet (of one variant, or both). Returns what happened to each. */
+/** A provider said slow down: stop this batch rather than paying for pictures that can't be screened. */
+const RATE_LIMITED = /\b429\b/;
+/** A pause between tiles, so one batch stays under Hive's and Venice's rate limits. */
+let pauseMs = 1500;
+export function setLooksPauseForTests(ms: number): void {
+  pauseMs = ms;
+}
+
+/**
+ * Draws up to `limit` tiles that aren't drawn yet (of one variant, or both), one at a time. Returns what happened to
+ * each, and stops early when a provider rate-limits.
+ */
 export async function drawMissingTiles(db: Db, opts: { limit?: number; variant?: TileVariant; only?: string[] } = {}): Promise<{ id: string; status: string }[]> {
-  const have = new Set((await db.query<{ id: string }>(`select id from look_tiles where status in ('ready', 'refused', 'drawing')`)).rows.map((r) => r.id));
+  const done = new Set(
+    (
+      await db.query<{ id: string }>(
+        `select id from look_tiles where status in ('ready', 'drawing') or (status = 'refused' and reason not like 'the check couldn''t run%')`,
+      )
+    ).rows.map((r) => r.id),
+  );
   const todo = tileSpecs()
-    .filter((s) => (!opts.variant || s.variant === opts.variant) && (!opts.only?.length || opts.only.includes(s.id)) && !have.has(s.id))
+    .filter((s) => (!opts.variant || s.variant === opts.variant) && (!opts.only?.length || opts.only.includes(s.id)) && !done.has(s.id))
     .slice(0, Math.max(1, Math.min(opts.limit ?? 10, 40)));
   const keys = await keysFor(db);
-  // A few at a time: quick enough for one request, gentle on the providers.
   const out: { id: string; status: string }[] = [];
-  for (let i = 0; i < todo.length; i += 4) {
-    const batch = todo.slice(i, i + 4);
-    const statuses = await Promise.all(batch.map((s) => drawTile(db, s, keys)));
-    batch.forEach((s, j) => out.push({ id: s.id, status: statuses[j] }));
+  for (const [i, s] of todo.entries()) {
+    if (i && pauseMs) await new Promise((r) => setTimeout(r, pauseMs));
+    const status = await drawTile(db, s, keys);
+    out.push({ id: s.id, status });
+    if (status === "failed") {
+      const reason = (await db.query<{ reason: string | null }>(`select reason from look_tiles where id = $1`, [s.id])).rows[0]?.reason ?? "";
+      if (RATE_LIMITED.test(reason)) break;
+    }
   }
   return out;
 }
@@ -184,7 +243,8 @@ export async function drawLooksPortrait(db: Db, characterId: string, env: Record
   if (today >= portraitsPerDay(env)) return { ok: false, status: 429, error: "portraits_busy", message: "Today's portraits are all drawn. Try again tomorrow." };
   const r = await drawPg(await keysFor(db), prompt, null, { width: 640, height: 800 }).catch((err: unknown) => ({ failed: err instanceof Error ? err.message : "error" }));
   if ("refused" in r) return { ok: false, status: 422, error: "portrait_refused", message: "The picture didn't pass our check. Try other looks." };
-  if ("failed" in r) return { ok: false, status: 502, error: "portrait_failed", message: "The portrait couldn't be drawn right now. Try again in a bit." };
+  // Unscreened (Hive busy) is never approved: the same as a failure, try again.
+  if ("failed" in r || "unchecked" in r) return { ok: false, status: 502, error: "portrait_failed", message: "The portrait couldn't be drawn right now. Try again in a bit." };
   const assetId = await recordAsset(db, {
     character_id: characterId,
     kind: "portrait",
