@@ -1037,6 +1037,16 @@ create table if not exists adult_nights (
 alter table adult_nights add column if not exists set_place text;
 alter table adult_nights add column if not exists chapter integer;
 alter table adult_nights add column if not exists recap text;
+-- What After Dark left behind, in the show's terms (lib/adult/memory.ts): one PG note per character about the other,
+-- carried into their next date and texts. Never a scene line.
+create table if not exists adult_memories (
+  character_id text not null references characters (id) on delete cascade,
+  other_id text not null references characters (id) on delete cascade,
+  owner_id text not null,
+  note text not null,
+  updated_at timestamptz not null default now(),
+  primary key (character_id, other_id)
+);
 create index if not exists adult_nights_pair on adult_nights (owner_id, character_a, character_b, created_at desc);
 
 -- After dark on the cloud (lib/adult/settings.ts): one row, set by an admin. The provider keys are sealed like BYOK

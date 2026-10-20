@@ -5617,3 +5617,24 @@ a.phone-head-btn {
 .after-dark-reel figcaption {
   margin-top: var(--space-2);
 }
+
+/* 🌙 on a date that carried an After Dark memory (only for someone After Dark is open to). */
+.after-dark-marker a {
+  display: inline-block;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  background: #1d1430;
+  color: #e2c8ff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.after-dark-steer-mode {
+  display: flex;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+.after-dark-steer-mode label {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}

@@ -395,12 +395,12 @@ describe("the scene prompt", () => {
     expect(parseSceneMeta(JSON.stringify({ lines: [] }))).toMatchObject({ place: null, stage: null });
   });
 
-  it("teases it out: a stage holds for its lines, then moves one step at a time; a steer can jump", async () => {
+  it("teases it out: a stage holds for its lines, then moves one step at a time; a direct steer can jump", async () => {
     const { cookie } = await admin();
     const six = (stage: number) => JSON.stringify({ lines: Array.from({ length: 6 }, (_, i) => ({ who: i % 2 ? "b" : "a", text: `Line ${i}.` })), place: "the cafe", stage });
     const step = async (stage: number, direction?: string) => {
       scripted(six(stage));
-      return (await (await post({ a: CAST_A, b: CAST_B, ...(direction ? { direction } : {}) }, cookie)).json()).scene.stage as number;
+      return (await (await post({ a: CAST_A, b: CAST_B, ...(direction ? { direction, steer_mode: "direct" } : {}) }, cookie)).json()).scene.stage as number;
     };
     expect(await step(5)).toBe(0);
     expect(await step(5)).toBe(0);
@@ -851,5 +851,65 @@ describe("chapters: a long night runs on, and remembers how it began", () => {
     const reset = await (await post({ a: CAST_A, b: CAST_B, reset: true }, cookie)).json();
     expect(reset.scene).toMatchObject({ chapter: 1, recap: null, prev_tail: [] });
     expect(reset.nights.map((n: { chapter: number }) => n.chapter)).toEqual([2, 1]);
+  });
+});
+
+import { afterDarkNote, FALLBACK_NOTE } from "@/lib/adult/memory";
+import { assembleDate, DEFAULT_DATE_REQUEST } from "@/lib/simulation";
+import { remembered } from "@/lib/memory";
+
+describe("what After Dark leaves behind (PG only)", () => {
+  const night = Array.from({ length: 10 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `Line ${i}.` }));
+  it("files a night and keeps one show-safe note per character; an explicit note is replaced with the plain fallback", async () => {
+    const { cookie } = await admin();
+    const scene = (await (await get(CAST_A, CAST_B, cookie)).json()).scene;
+    await t.db.query(`update adult_scenes set lines = $2::jsonb where id = $1`, [scene.id, JSON.stringify(night)]);
+    scripted(JSON.stringify({ a: "You and Bo ended up back at his place after the bowling; you're closer now, and you still can't stop grinning about the shoe rental.", b: "You and Ada had sex all night." }));
+    await post({ a: CAST_A, b: CAST_B, reset: true }, cookie);
+    const [aId, bId] = [scene.a.id, scene.b.id];
+    expect(await afterDarkNote(t.db, aId, bId)).toMatch(/closer now/);
+    const bNote = await afterDarkNote(t.db, bId, aId);
+    expect(bNote).toBe(FALLBACK_NOTE(scene.a.name.split(" ")[0]));
+    expect(bNote).not.toMatch(/sex/);
+  });
+
+  it("goes into the pair's memory for their next date, and marks the date for 🌙", () => {
+    const sheet = (name: string) => ({ name, age: 33, bio: "A bio.", traits: ["warm", "bold", "dry"], want: "someone kind", dealbreaker: "liars", house: false });
+    const built = assembleDate({
+      episodeId: "e-ad",
+      a: { id: "ca", sheet: sheet("Ada Lumen") },
+      b: { id: "cb", sheet: sheet("Bo Quill") },
+      req: DEFAULT_DATE_REQUEST,
+      seed: 3,
+      soulA: null,
+      soulB: null,
+      memoryA: null,
+      memoryB: null,
+      history: undefined,
+      afterDark: { a: "You and Bo spent the night at his place; you're closer now.", b: null },
+    } as never);
+    expect(built.setup.after_dark).toBe(true);
+    const [ca, cb] = built.characters as unknown as [{ pair?: Record<string, unknown> }, { pair?: Record<string, unknown> }];
+    expect(remembered(ca as never, "cb")).toMatchObject({ what_happened_after_your_last_date: expect.stringMatching(/closer now/) });
+    expect(cb.pair?.what_happened_after_your_last_date).toBeUndefined();
+  });
+});
+
+describe("the steer: a nudge by default, direct on request", () => {
+  it("a nudge is worked toward at the scene's own pace; direct does it now and can skip ahead", async () => {
+    const { cookie } = await admin();
+    let prompt = "";
+    setAdultModelForTests({
+      complete: async (msgs: { content: string }[]) => {
+        prompt = msgs[1].content;
+        return JSON.stringify({ lines: [{ who: "a", text: "Hi." }], stage: 5 });
+      },
+    } as never);
+    const nudged = await (await post({ a: CAST_A, b: CAST_B, direction: "they go back to hers" }, cookie)).json();
+    expect(prompt).toMatch(/Lean the scene gently this way, at its own pace/);
+    expect(nudged.scene.stage).toBe(0);
+    const direct = await (await post({ a: CAST_A, b: CAST_B, direction: "they go straight to bed", steer_mode: "direct" }, cookie)).json();
+    expect(prompt).toMatch(/Steer the scene this way: they go straight to bed/);
+    expect(direct.scene.stage).toBe(4);
   });
 });
