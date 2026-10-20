@@ -9,7 +9,7 @@ import Reels from "./Reels";
 import Avatar from "@/app/Avatar";
 import type { Reel } from "@/lib/adult/reels";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
-import { STAGES } from "@/lib/adult/stages";
+import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -112,10 +112,15 @@ export default function SceneWriter({
           onExit={() => setTheater(false)}
         />
       )}
-      {scene.lines.length > 0 && (
+      {(scene.lines.length > 0 || scene.chapter > 1) && (
         <p className="muted small">
+          {scene.chapter > 1 ? `Chapter ${scene.chapter}. ` : ""}
           {scene.place ? `Now: ${scene.place}. ` : ""}So far: {STAGES[scene.stage] ?? STAGES[0]}.
+          {scene.chapter > 1 ? " The earlier chapters are under Their nights, and they still remember them." : ""}
         </p>
+      )}
+      {scene.chapter > SOFT_CHAPTERS && (
+        <p className="muted small">This night has run {scene.chapter - 1} chapters. It might be a good place to end it: Start over files it, and the next night begins fresh.</p>
       )}
       {scene.lines.length ? (
         <ol className="after-dark-lines">
@@ -132,7 +137,7 @@ export default function SceneWriter({
           })}
         </ol>
       ) : (
-        <p className="muted">Nothing yet. Write the first lines, or steer it first.</p>
+        <p className="muted">{scene.chapter > 1 ? `Chapter ${scene.chapter} starts here: write the next lines.` : "Nothing yet. Write the first lines, or steer it first."}</p>
       )}
       {note && (
         <p className={note.error ? "error" : "muted small"} role={note.error ? "alert" : "status"}>
@@ -177,7 +182,8 @@ export default function SceneWriter({
                 <button type="button" className="button-ghost" onClick={() => void makeVideo(n.id)} title={`A short film of this night, in their voices (${reelTokens} tokens)`}>
                   🎬 Video · {reelTokens} tokens
                 </button>{" "}
-                {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {n.lines.length} lines
+                {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                {n.chapter ? ` · Chapter ${n.chapter}` : ""} · {n.lines.length} lines
                 {n.place ? ` · ended ${n.place}` : ""}
               </li>
             ))}

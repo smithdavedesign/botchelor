@@ -16,6 +16,7 @@ import { countUse, overCap } from "./usage";
 import { adultModel } from "./mode";
 import { ensureSet } from "../sets";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
+export { SOFT_CHAPTERS } from "./stages";
 
 export type SceneLine = { who: "a" | "b"; text: string };
 export type AdultScene = {
@@ -34,17 +35,30 @@ export type AdultScene = {
   /** The set they're on, a short place name ("his bedroom"), drawn once (lib/sets.ts); and a paid cut the next lines react to. */
   set_place: string | null;
   cut_to: string | null;
+  /** Which chapter of the night this is, the recap of the chapters before it, and their last lines (carried over). */
+  chapter: number;
+  recap: string | null;
+  prev_tail: SceneLine[];
 };
+
+/**
+ * Chapters (David, 2026-10-19: "a limit to how long after hours can go… a long scroll"). A night has no hard end: every
+ * CHAPTER_LINES lines the chapter is filed as a saved night, the model writes a running recap of the night so far, and
+ * the next chapter starts with that recap and the last PREV_TAIL lines, so the characters remember how it began (the
+ * prompt otherwise only holds the last 30 lines). Past SOFT_CHAPTERS the page suggests ending the night.
+ */
+export const CHAPTER_LINES = 120;
+const PREV_TAIL = 12;
+const RECAP_MAX = 1200;
 
 /** What someone can type to set the scene: a place, at most this long. */
 export const SET_SCENE_MAX = 60;
 
 export { STAGES } from "./stages";
 
-/** Lines written per call, the scene kept in the prompt, and a scene's length cap. */
+/** Lines written per call, and the scene kept in the prompt (a night has no length cap: it runs in chapters). */
 export const LINES_PER_TURN = 6;
 const SCENE_IN_PROMPT = 30;
-export const SCENE_MAX_LINES = 400;
 const DIRECTION_MAX = 300;
 /** Six lines and the picture note fit well inside this; it's also what the provider reserves credit for. */
 export const SCENE_REPLY_TOKENS = 1200;
@@ -104,7 +118,7 @@ export async function openScene(db: Db, adminId: string, x: string, y: string): 
     a,
     b,
   ]);
-  const row = (await db.query<{ id: string; lines: SceneLine[]; place: string | null; stage: number; stage_from: number; picture_note: string | null; set_place: string | null; cut_to: string | null }>(`select id, lines, place, stage, stage_from, picture_note, set_place, cut_to from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, a, b]))
+  const row = (await db.query<{ id: string; lines: SceneLine[]; place: string | null; stage: number; stage_from: number; picture_note: string | null; set_place: string | null; cut_to: string | null; chapter: number; recap: string | null; prev_tail: SceneLine[] | null }>(`select id, lines, place, stage, stage_from, picture_note, set_place, cut_to, chapter, recap, prev_tail from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, a, b]))
     .rows[0];
   const [ca, cb, date] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b), latestDate(db, a, b)]);
   return {
@@ -119,6 +133,9 @@ export async function openScene(db: Db, adminId: string, x: string, y: string): 
     picture_note: row.picture_note ?? null,
     set_place: row.set_place ?? null,
     cut_to: row.cut_to ?? null,
+    chapter: row.chapter ?? 1,
+    recap: row.recap ?? null,
+    prev_tail: row.prev_tail ?? [],
   };
 }
 
@@ -163,7 +180,7 @@ export function sceneMessages(
   lines: SceneLine[],
   direction: string | null,
   aId?: string,
-  now: { place: string; stage: number; linesAtStage?: number; cutTo?: string | null } = { place: "wherever they've just met", stage: 0 },
+  now: { place: string; stage: number; linesAtStage?: number; cutTo?: string | null; recap?: string | null; opening?: boolean } = { place: "wherever they've just met", stage: 0 },
 ): ChatMessage[] {
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
   const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
@@ -185,6 +202,7 @@ export function sceneMessages(
     "",
     date ? `Their latest date: ${date.setting ?? "a date"}. It ended: ${date.ending ?? "unknown"}.` : "They haven't been on a date yet: they've just met.",
     dateTail.length ? `The end of that date:\n${dateTail.join("\n")}` : "",
+    now.recap ? `Earlier tonight (what's happened so far, keep it in mind and don't repeat it):\n${now.recap}` : "",
     sceneTail.length ? `The scene so far:\n${sceneTail.join("\n")}` : "The scene starts now, picking up where their date ended.",
     "",
     `Where they are now: ${now.place}. How far it's gone: ${STAGES[now.stage]} (stage ${now.stage + 1} of ${STAGES.length}: ${STAGES.join(" → ")}).`,
@@ -196,9 +214,9 @@ export function sceneMessages(
         : "- Take your time: let it unfold, with talk and reactions between the actions.",
     now.cutTo
       ? `- The scene has just cut to ${now.cutTo}: they're there now. Open these lines on arriving there (how they got there, what they make of it) and carry on from there.`
-      : lines.length
-        ? ""
-        : `- The scene opens exactly where the date ended, still at ${now.place}. They don't leave in these first lines.`,
+      : (now.opening ?? lines.length === 0)
+        ? `- The scene opens exactly where the date ended, still at ${now.place}. They don't leave in these first lines.`
+        : "",
     "- Once they've agreed to go somewhere, getting there takes a line or two at most; then the scene picks up at the new place. Don't keep saying \"let's go\".",
     "- Respect where they are. In a public place (a cafe, a bar, a restaurant, a street, a park, a venue) they can flirt, touch discreetly and, at most, kiss; other people are around and they act like it. Going further means one suggests leaving, the other agrees, and the lines show them going somewhere private (one of their places, a hotel). Only then does it go past kissing.",
   ]
@@ -301,7 +319,6 @@ export type ContinueResult =
 export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null): Promise<ContinueResult> {
   const scene = await openScene(db, adminId, x, y);
   if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: this season's cast, or ones you've switched on." };
-  if (scene.lines.length >= SCENE_MAX_LINES) return { ok: false, status: 409, message: "This scene is at its length limit. Start over to begin again." };
   const capped = await overCap(db, adminId, "writes");
   if (capped) return { ok: false, status: 429, message: capped };
   const steer = direction?.trim().slice(0, DIRECTION_MAX) || null;
@@ -311,7 +328,14 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const [a, b, date] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id), latestDate(db, scene.a.id, scene.b.id)]);
   let raw: string;
   try {
-    raw = await (await adultModel(db)).complete(sceneMessages(a, b, date, scene.lines, steer, scene.a.id, { place: placeOf(scene, date), stage: scene.stage, linesAtStage: scene.lines.length - scene.stage_from, cutTo: scene.cut_to }), { temperature: 0.9, maxTokens: SCENE_REPLY_TOKENS });
+    raw = await (await adultModel(db)).complete(sceneMessages(a, b, date, [...scene.prev_tail, ...scene.lines], steer, scene.a.id, {
+      place: placeOf(scene, date),
+      stage: scene.stage,
+      linesAtStage: scene.lines.length - scene.stage_from,
+      cutTo: scene.cut_to,
+      recap: scene.recap,
+      opening: scene.chapter === 1 && scene.lines.length === 0,
+    }), { temperature: 0.9, maxTokens: SCENE_REPLY_TOKENS });
   } catch (err) {
     return { ok: false, status: 502, message: `After dark's model didn't answer: ${err instanceof Error ? err.message : "error"}` };
   }
@@ -361,7 +385,59 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // The last picture problem stays on the scene (the gallery shows it), and clears once a picture comes through.
   const note = picture_note ?? (pictures.length ? null : scene.picture_note);
   if (note !== scene.picture_note) await db.query(`update adult_scenes set picture_note = $2 where id = $1`, [scene.id, note]);
-  return { ok: true, scene: { ...scene, lines, place, stage, stage_from, set_place, cut_to: null, picture_note: note }, added: kept.length, held: written.length - kept.length, pictures, ...(picture_note ? { picture_note } : {}) };
+  const after: AdultScene = { ...scene, lines, place, stage, stage_from, set_place, cut_to: null, picture_note: note };
+  // A full chapter: filed as a saved night, recapped, and the night runs straight on into the next one.
+  const next = lines.length >= CHAPTER_LINES ? await nextChapter(db, adminId, after, a, b) : after;
+  return { ok: true, scene: next, added: kept.length, held: written.length - kept.length, pictures, ...(picture_note ? { picture_note } : {}) };
+}
+
+/** The running recap: the night so far, from the last recap and the chapter just finished. Falls back to the old one. */
+export async function writeRecap(db: Db, a: Character | null, b: Character | null, before: string | null, lines: SceneLine[]): Promise<string | null> {
+  const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
+  try {
+    const raw = await (await adultModel(db)).complete(
+      [
+        { role: "system", content: "You keep the running recap of a private scene between two consenting adults, so a writer picking it up later remembers it." },
+        {
+          role: "user",
+          content:
+            (before ? `The recap so far:\n${before}\n\n` : "") +
+            `The latest chapter:\n${lines.map((l) => `${nameOf(l.who)}: ${l.text}`).join("\n")}\n\n` +
+            `Write the recap of the whole night so far in under 150 words: where they've been, what's happened between them and in what order, ` +
+            `how each of them feels now, and any running jokes, pet names or promises. Plain facts, no quotes. Reply with a JSON object: {"recap": "..."}`,
+        },
+      ],
+      { temperature: 0.3, maxTokens: 400 },
+    );
+    const recap = (JSON.parse(raw.trim()) as { recap?: unknown }).recap;
+    if (typeof recap !== "string" || !recap.trim()) return before;
+    const text = recap.trim().slice(0, RECAP_MAX);
+    return checkAdultText({ recap: text }).ok ? text : before;
+  } catch {
+    return before;
+  }
+}
+
+/** Files a full chapter as a saved night and starts the next one, carrying the recap and the last few lines. */
+async function nextChapter(db: Db, ownerId: string, scene: AdultScene, a: Character | null, b: Character | null): Promise<AdultScene> {
+  const recap = await writeRecap(db, a, b, scene.recap, scene.lines);
+  await db.query(
+    `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place, chapter, recap)
+     values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12)`,
+    [crypto.randomUUID(), ownerId, scene.a.id, scene.b.id, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null, scene.set_place, scene.chapter, recap],
+  );
+  const prev_tail = scene.lines.slice(-PREV_TAIL);
+  // The stage's line count carries over, so the pacing doesn't restart with the chapter.
+  const stage_from = scene.stage_from - scene.lines.length;
+  const chapter = scene.chapter + 1;
+  await db.query(`update adult_scenes set lines = '[]'::jsonb, prev_tail = $2::jsonb, chapter = $3, recap = $4, stage_from = $5, updated_at = now() where id = $1`, [
+    scene.id,
+    JSON.stringify(prev_tail),
+    chapter,
+    recap,
+    stage_from,
+  ]);
+  return { ...scene, lines: [], prev_tail, chapter, recap, stage_from };
 }
 
 /**
@@ -381,14 +457,14 @@ export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, 
 }
 
 /** A finished scene, kept to play back (adult_nights). */
-export type AdultNight = { id: string; lines: SceneLine[]; place: string | null; stage: number; date_setting: string | null; date_venue: string | null; set_place: string | null; created_at: string };
+export type AdultNight = { id: string; lines: SceneLine[]; place: string | null; stage: number; date_setting: string | null; date_venue: string | null; set_place: string | null; chapter: number | null; created_at: string };
 
 /** The pair's saved nights for this person, newest first. */
 export async function listNights(db: Db, ownerId: string, x: string, y: string): Promise<AdultNight[]> {
   const pair = await eligiblePair(db, ownerId, x, y);
   if (!pair) return [];
   const { rows } = await db.query<AdultNight>(
-    `select id, lines, place, stage, date_setting, date_venue, set_place, created_at from adult_nights where owner_id = $1 and character_a = $2 and character_b = $3 order by created_at desc limit 50`,
+    `select id, lines, place, stage, date_setting, date_venue, set_place, chapter, created_at from adult_nights where owner_id = $1 and character_a = $2 and character_b = $3 order by created_at desc limit 50`,
     [ownerId, ...pair],
   );
   return rows.map((r) => ({ ...r, lines: (r.lines ?? []).map((l) => ({ ...l, text: dropForeignActions(l.text) })), created_at: new Date(r.created_at).toISOString() }));
@@ -401,9 +477,9 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
   const scene = await openScene(db, adminId, ...pair);
   if (scene?.lines.length) {
     await db.query(
-      `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)`,
-      [crypto.randomUUID(), adminId, ...pair, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null, scene.set_place],
+      `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place, chapter, recap) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12)`,
+      [crypto.randomUUID(), adminId, ...pair, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null, scene.set_place, scene.chapter, scene.recap],
     );
   }
-  await db.query(`update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, set_place = null, cut_to = null, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, ...pair]);
+  await db.query(`update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, set_place = null, cut_to = null, chapter = 1, recap = null, prev_tail = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, ...pair]);
 }
