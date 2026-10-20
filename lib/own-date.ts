@@ -42,7 +42,7 @@ import { agentDatesToday } from "./dating";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { takenSql } from "./partners";
-import { haveDated, MATCH_FIRST, swipeGateOn } from "./swipe-gate";
+import { haveDated, swipeGateOn } from "./swipe-gate";
 import { agreedMatch } from "./swipes";
 import { DELETED_OWNER } from "./rules";
 import { narrateEpisode } from "./showrunner";
@@ -229,7 +229,7 @@ export async function startOwnDate(
     if (swipeGateOn()) {
       // Behind the swipe gate (lib/swipe-gate.ts): a match where both said yes, or a couple who've dated before.
       if (!(await agreedMatch(db, a.id, b.id)) && !(await haveDated(db, a.id, b.id))) {
-        return err(409, "match_first", `${shortName(a.name)} and ${shortName(b.name)} haven't matched yet. ${MATCH_FIRST}`);
+        return err(409, "match_first", `${shortName(a.name)} and ${shortName(b.name)} haven't matched yet. Match first: swipe_deck, then swipe; when both say yes to a date, start_own_date can play it (house characters only date on the show's model, with go_on_date).`);
       }
     } else if (!b.open_to_dates || !audienceAllows(b.open_audience, a.created_via)) {
       return err(409, "partner_not_available", `${shortName(b.name)} isn't open to a date with a character like yours.`);
@@ -253,16 +253,21 @@ export async function startOwnDate(
   await clearStaleOwnDates(db, now, userId);
   // Run 4: both agents asked each other's characters out within a minute, so one pair had two dates going at once.
   const already = (
-    await db.query<{ id: string }>(
+    await db.query<{ id: string; performed_by: string | null }>(
       // Any date of theirs still being made, performed or on the show's model (run 5: a second date was booked on the
       // show's model while an agent was performing their rematch).
-      `select id from episodes where status = 'generating'
+      `select id, performed_by from episodes where status = 'generating'
           and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1)) limit 1`,
       [a.id, b.id],
     )
   ).rows[0];
   if (already) {
-    return err(409, "date_in_progress", `${shortName(a.name)} and ${shortName(b.name)} already have a date in progress (${already.id}). Play that one: get_own_date_step with its episode_id.`);
+    const pair = `${shortName(a.name)} and ${shortName(b.name)}`;
+    // #356: a date the show's model is writing can't be played; say so and say what to do.
+    if (already.performed_by !== "agent") {
+      return err(409, "date_in_progress", `${pair} already have a date being written by the show's model (${already.id}). Wait for it with wait_for_episode, then start your own date.`);
+    }
+    return err(409, "date_in_progress", `${pair} already have a date in progress (${already.id}). Play that one: get_own_date_step with its episode_id.`);
   }
   const open = (
     await db.query<{ n: number }>(

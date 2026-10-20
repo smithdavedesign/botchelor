@@ -222,3 +222,78 @@ describe("loop run 2026-10-19-1234 (#346, #347)", () => {
     expect(Object.keys(small[0])).toEqual(expect.arrayContaining(["id", "name"]));
   });
 });
+
+describe("loop run 2026-10-19-1432 (#356)", () => {
+  it("start_own_date on a pair the show's model is writing says to wait, not to play it", async () => {
+    const a = await agentWith("Ada Lumen");
+    const b = (await call("create_character", validCharacter({ name: "Bram Okafor" }), a.ctx)).structuredContent.character.id;
+    scriptedModel([episodeJson()]);
+    const ep = (await call("go_on_date", { character_id: a.id, partner_id: HOUSE_PARTNER_ID }, a.ctx)).structuredContent.episode.id;
+    // Stand it in as a show-model date of these two, still being written.
+    await t.db.query(`update episodes set character_b = $2, status = 'generating', performed_by = 'platform' where id = $1`, [ep, b]);
+    const r = await call("start_own_date", { character_id: a.id, partner_id: b }, a.ctx);
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toMatch(/show's model .*wait_for_episode/);
+  });
+});
+
+describe("loop run 2026-10-19-1623 (#372, #373)", () => {
+  it("update_character merges extras, so the dating profile survives a partial update", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen", { extras: { prompts: [{ id: "win_me_over", answer: "Soup." }, { id: "irrational_fear", answer: "Moths." }], hobbies: ["choir", "crosswords"] } });
+    const r = await call("update_character", { character_id: id, extras: { occupation: "Ferry pilot" } }, ctx);
+    expect(r.isError).toBeFalsy();
+    const row = (await t.db.query<{ extras: { hobbies?: string[]; occupation?: string } }>(`select extras from characters where id = $1`, [id])).rows[0];
+    expect(row.extras.hobbies).toEqual(["choir", "crosswords"]);
+    expect(row.extras.occupation).toBe("Ferry pilot");
+  });
+
+  it("tools/list with lean: true gives names and one line each", async () => {
+    const ctx = await connect();
+    const full = (await handleMcpMessage({ jsonrpc: "2.0", id: 2, method: "tools/list" }, ctx))!.result as Any;
+    const lean = (await handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/list", params: { lean: true } }, ctx))!.result as Any;
+    expect(lean.tools.length).toBe(full.tools.length);
+    expect(lean.tools[0].inputSchema).toBeUndefined();
+    expect(JSON.stringify(lean).length).toBeLessThan(JSON.stringify(full).length / 3);
+  });
+});
+
+describe("loop run 2026-10-19-1635 (#376)", () => {
+  it("tools/list names: [...] returns just those tools in full; lean lists required arguments", async () => {
+    const ctx = await connect();
+    const some = (await handleMcpMessage({ jsonrpc: "2.0", id: 2, method: "tools/list", params: { names: ["swipe", "go_on_date"] } }, ctx))!.result as Any;
+    expect(some.tools.map((t: Any) => t.name).sort()).toEqual(["go_on_date", "swipe"]);
+    expect(some.tools[0].inputSchema).toBeDefined();
+    const lean = (await handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/list", params: { lean: true } }, ctx))!.result as Any;
+    expect(lean.tools.find((t: Any) => t.name === "get_episode").required).toEqual(["episode_id"]);
+  });
+});
+
+describe("loop run 2026-10-19-1643 (#379)", () => {
+  it("a private date's reply leaves out its share_path", async () => {
+    scriptedModel([episodeJson()]);
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const r = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, visibility: "private" }, ctx)).structuredContent;
+    expect(JSON.stringify(r)).not.toContain(`/episodes/${r.episode.id}"`);
+    expect(r.episode.share_note).toMatch(/get_episode/);
+  });
+});
+
+describe("loop run 2026-10-19-1652 (#381)", () => {
+  it("lean tools/list carries every argument's type", async () => {
+    const ctx = await connect();
+    const lean = (await handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/list", params: { lean: true } }, ctx))!.result as Any;
+    const go = lean.tools.find((t: Any) => t.name === "go_on_date");
+    expect(go.args.visibility).toBe("public|unlisted|private");
+  });
+});
+
+describe("#361", () => {
+  it("initialize with an agent_id resumes that agent", async () => {
+    const { agentId, id } = await agentWith("Ada Lumen");
+    const ctx: McpContext = {};
+    const init = (await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "t" }, agent_id: agentId } }, ctx))!.result as Any;
+    expect(init._meta.agent_id).toBe(agentId);
+    const mine = (await call("my_characters", {}, { sessionId: ctx.issuedSessionId })).structuredContent.characters.map((c: Any) => c.id);
+    expect(mine).toContain(id);
+  });
+});

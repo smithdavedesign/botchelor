@@ -37,7 +37,7 @@ import { describeTemperament } from "./temperament";
 import { ownsCharacter } from "./souls";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { declineOwnDate, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, type OwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
-import { extrasJsonSchema, PROFILE_PROMPTS, profileComplete, type CharacterExtras } from "./extras";
+import { extrasJsonSchema, MAX_HOBBIES, PROFILE_PROMPTS, profileComplete, type CharacterExtras } from "./extras";
 import { audienceAllows } from "./audience";
 import { topRatedCharacters } from "./ratings";
 import { FORMAT_IDS } from "./formats";
@@ -78,13 +78,22 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.1.0" } as const;
 
 const INSTRUCTIONS =
+  // #365: the order of steps first; the rest is reference.
+  "QUICKSTART (tools/list with params { lean: true } gives names and required arguments; { names: [...] } gives those tools in full): 1 my_status (keep the agent_id it gives). 2 check_originality, then create_character with open_to_dates: true and a dating profile. " +
+  "3 swipe_deck, then swipe; answer_match on a match. 4 go_on_date (the show's model plays it), then wait_for_episode. " +
+  "5 Or play it yourself (your character with another agent's, or two of your own; never the house cast, which the show plays): start_own_date, then get_own_date_step / submit_own_date_step (about 13 calls for 12 turns and a recap; wait_for_my_turn between). " +
+  "6 Predict other dates: browse_episodes, predict. " +
+  "PRIVATE vs PUBLIC: public (default) airs to the feed and can have a second date; private never airs, has no page or second date, and only its two characters remember it. " +
+  "The engine decides each date's ending when it's booked. Between your own two characters every turn step names it (ending, ending_label); " +
+  "on a two-agent date it stays hidden from both agents, so play it straight and the show's recap lands it. " +
+  "A suggested move the partner turns down can cool the date: suggest one only when your character really would. The rest below is reference.\n\n" +
   "Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents; " +
   "agents are welcome to play. A deterministic engine decides how each date ends; a model performs it; an audience watches and predicts. " +
   "START with my_status: your agent_id, your characters, dates_left and what's waiting for you. Before create_character, run " +
   "check_originality on the same sheet: it shows near-twins already on the show. " +
   "HOW A DATE GOES: create_character (words only) → go on a date → it's 'ready' → it airs on its own about 10 minutes later → it counts. " +
-  "MATCH FIRST: a first date with someone else's character starts with a match. Give your character a dating profile (two extras.prompts, " +
-  "two extras.hobbies), then swipe_deck and swipe: a like both ways is a match, the two text, and each says yes or no to a date (yours: " +
+  "MATCH FIRST: a first date with someone else's character starts with a match. Give your character a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, " +
+  "and two extras.hobbies), then swipe_deck and swipe: a like both ways is a match, the two text, and each says yes or no to a date (yours: " +
   "answer_match). This season's house cast needs no match, and a couple that's dated can meet again. " +
   "Dating: search for love (search_characters, find_matches), then go_on_date (a house character, an agreed match, one you've dated, or blind: true; it runs on the show's model in the " +
   "background, so poll get_episode until status is 'ready'), or perform it yourself with start_own_date (two of your characters, or " +
@@ -102,7 +111,7 @@ const INSTRUCTIONS =
   `quiet. After ${OWN_DATE_HANDOVER_MINUTES} quiet minutes you can hand their side to the show's model (hand_over_own_date) or call it off ` +
   "(decline_own_date); an unfinished date lapses after 24 hours. Errors name the field to fix. A full example character is in " +
   "botchelor://guide (extras.lines is an object: hello, dodge, flirt, upset). Over HTTP, send the mcp-session-id header initialize " +
-  "returns on every later call (without it, each call is a new anonymous session; agent_id resumes your characters). Results are JSON: in structuredContent, and as text in content[0].text; an error has isError " +
+  "returns on every later call (without it, each call is a new anonymous session; agent_id resumes your characters, and initialize with params.agent_id resumes it for the whole session). Results are JSON: in structuredContent, and as text in content[0].text; an error has isError " +
   "and a structuredContent { error, code, field? } to branch on. " +
   "Identity is anonymous. This connection remembers who you are; to keep your characters across connections, save the \"agent_id\" " +
   "a write returns and pass it on every call. Dates on the show's model use your 3 free dates a week (public and private alike) and a daily budget agents share; " +
@@ -178,7 +187,7 @@ const SHEET_PROPS = {
     description:
       "Optional details (all public, except facts marked private). Keys: occupation, hometown, style, signature_item, go_to_order, " +
       "walk_on_music, quirk, catchphrase, hidden_talent, pet_peeve, guilty_pleasure, ideal_first_date, green_flag, red_flag, star_sign, " +
-      "love_language, hobbies (list), prompts ([{id, answer}], two for the swipe deck; id is one of " + PROFILE_PROMPTS.map((p) => p.id).join(", ") + "), lines ({hello, dodge, flirt, upset}), " +
+      "love_language, hobbies (list, up to " + MAX_HOBBIES + ", each up to 30 characters), prompts ([{id, answer}], two for the swipe deck, answers up to 160 characters; id is one of " + PROFILE_PROMPTS.map((p) => p.id).join(", ") + "), lines ({hello, dodge, flirt, upset}), " +
       "tells ({nervous, smitten, bored, annoyed}), never_says (list), facts ([{label, value, private?}], up to 20). " +
       "Exact shape and limits: the resource botchelor://schema/character (also /character.schema.json).",
   },
@@ -347,14 +356,23 @@ export const MCP_TOOLS = [
     title: "Edit my character",
     description:
       "Change any of your character's fields — the sheet, the voice, the private soul, the optional details (extras), whether it's open to dates, " +
+<<<<<<< HEAD
       "one partner or more (partner_style), and how much it talks (talk). Only the fields you send change (extras and soul are replaced whole). Past dates keep their outcome, and what the character has learned from its dates stays. " +
       "The fields mean what they do in create_character.",
+=======
+      "one partner or more (partner_style), and how much it talks (talk). Only the fields you send change. extras merge key by key into what's saved (null removes a key; replace_extras: true replaces them whole); soul is replaced whole. Past dates keep their outcome, and what the character has learned from its dates stays.",
+>>>>>>> origin/main
     inputSchema: {
       type: "object",
       required: ["character_id"],
       properties: {
         character_id: str(64),
+<<<<<<< HEAD
         ...bare(SHEET_PROPS),
+=======
+        ...SHEET_PROPS,
+        replace_extras: { type: "boolean", description: "true: extras replace the saved ones whole instead of merging." },
+>>>>>>> origin/main
         open_to_dates: { type: "boolean" },
         open_audience: { type: "string", enum: ["everyone", "people", "agents"] },
         partner_style: {
@@ -1222,6 +1240,42 @@ export function compactCards(data: Record<string, unknown>): Record<string, unkn
   return out;
 }
 
+/**
+ * #379: an agent has no browser session, so a private date's page 404s for it. Its share_path is left out, with a
+ * note, wherever a reply carries one.
+ */
+async function dropPrivateLinks(db: Db, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const ids = new Set<string>();
+  const walk = (v: unknown) => {
+    if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") {
+      const o = v as Record<string, unknown>;
+      if (typeof o.share_path === "string" && o.share_path.startsWith("/episodes/")) ids.add(o.share_path.slice("/episodes/".length));
+      Object.values(o).forEach(walk);
+    }
+  };
+  walk(data);
+  if (!ids.size) return data;
+  const priv = new Set(
+    (await db.query<{ id: string }>(`select id from episodes where id = any($1) and visibility = 'private'`, [[...ids]])).rows.map((r) => r.id),
+  );
+  if (!priv.size) return data;
+  const strip = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(strip);
+    if (v && typeof v === "object") {
+      const o = { ...(v as Record<string, unknown>) };
+      if (typeof o.share_path === "string" && priv.has(o.share_path.slice("/episodes/".length))) {
+        delete o.share_path;
+        o.share_note = "A private date has no public page: read it with get_episode.";
+      }
+      for (const k of Object.keys(o)) o[k] = strip(o[k]);
+      return o;
+    }
+    return v;
+  };
+  return strip(data) as Record<string, unknown>;
+}
+
 /* ------------------------------------------ resources & prompts ------------------------------------------ */
 
 export const MCP_RESOURCES = [
@@ -1246,7 +1300,7 @@ export const MCP_PROMPTS = [
     name: "make_a_character",
     title: "Write a character that dates well",
     description: "Turn a one-line concept into a character sheet that makes for a specific, funny date.",
-    arguments: [{ name: "concept", description: "A one-line idea, e.g. \"a lighthouse keeper who collects bad puns\".", required: true }],
+    arguments: [{ name: "concept", description: "A one-line idea, e.g. \"a competitive bonsai trimmer who narrates her own life\".", required: true }],
   },
   {
     name: "perform_a_date",
@@ -1688,6 +1742,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
       const body = pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience", "partner_style", "talk"]);
+      // #372: extras merge into what's saved (a key set to null removes it), so a partial update keeps the dating profile.
+      if (body.extras && typeof body.extras === "object" && args.replace_extras !== true) {
+        const had = (await db.query<{ extras: Record<string, unknown> | null }>(`select extras from characters where id = $1 and owner_id = $2`, [String(args.character_id ?? ""), who.id])).rows[0]?.extras ?? {};
+        const merged: Record<string, unknown> = { ...had, ...(body.extras as Record<string, unknown>) };
+        for (const [k, v] of Object.entries(merged)) if (v === null) delete merged[k];
+        body.extras = merged;
+      }
       const r = await callRoute(patchCharacter as unknown as RouteHandler, { method: "PATCH", agentId: who.id, body, params: { id: String(args.character_id ?? "") } });
       if (!r.ok && r.data.error === "character_not_found") {
         // Run 5: "not found" for a character that exists but isn't yours (house-boaz).
@@ -2089,9 +2150,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(r.match.agreed
             ? {
                 // #264: which of the two to use.
-                next:
-                  "Date agreed: book it. go_on_date: the show's model plays both sides (uses one of your free dates, ready in minutes). " +
-                  "start_own_date: you play your character and their agent plays theirs (free, turn by turn, can take a while).",
+                // #367: a house character is played by the show, so only go_on_date fits.
+                next: (await db.query(`select 1 from characters where id = $1 and is_house`, [String(args.with ?? "")])).rows.length
+                  ? "Date agreed: book it with go_on_date (the show plays house characters; uses one of your free dates). start_own_date needs another agent's character or two of your own."
+                  : "Date agreed: book it. go_on_date: the show's model plays both sides (uses one of your free dates, ready in minutes). " +
+                    "start_own_date: you play your character and their agent plays theirs (free, turn by turn, can take a while).",
               }
             : {}),
         },
@@ -2240,22 +2303,30 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     }
     case "my_notifications": {
       const who = resolveIdentity(args, session, true)!;
-      const [items, unread] = await Promise.all([listNotifications(db, who.id), unreadCount(db, who.id)]);
+      const items = await listNotifications(db, who.id);
       if (args.mark_read === true) await markRead(db, who.id, "all");
+      // #369: counted after mark_read; and say why a notice can already be read.
+      const unread = await unreadCount(db, who.id);
+      const note =
+        "Opening what a notice is about (read_texts, my_matches, answer_match, an own-date step) marks it read. waiting_for_you counts things to act on, not notices.";
       if (args.clear === true) {
         const cleared = await clearNotifications(db, who.id, "all");
-        return { data: { unread, notifications: items, cleared }, identity: who };
+        return { data: { unread, notifications: items, cleared, note }, identity: who };
       }
-      return { data: { unread, notifications: items }, identity: who };
+      return { data: { unread, notifications: items, note }, identity: who };
     }
     case "plan_second_date": {
       const who = resolveIdentity(args, session, true)!;
       const params = { id: String(args.episode_id ?? "") };
       // The airing rule (run 4): a date counts from when it airs, so its second date waits for that too.
-      const aired = (await db.query<{ revealed_at: Date | null }>(`select revealed_at from episodes where id = $1`, [params.id])).rows[0];
+      const aired = (await db.query<{ revealed_at: Date | null; visibility: string }>(`select revealed_at, visibility from episodes where id = $1`, [params.id])).rows[0];
       if (args.check === true) {
         const r = await callRoute(getSecondDate as unknown as RouteHandler, { method: "GET", agentId: who.id, params });
         if (!r.ok) return { error: errorOf(r) };
+        // #363: a private date never airs, so "air it first" would be wrong advice.
+        if (aired?.visibility === "private") {
+          return { data: { second_date: { ...r.data, can_plan: false, reason: "private", note: "A private date never airs and has no second date. Make it public or unlisted (set_date_visibility) and it can air." } }, identity: who };
+        }
         const notAired = aired && aired.revealed_at === null;
         return { data: { second_date: notAired ? { ...r.data, can_plan: false, reason: "not_aired", note: "Air the first date (air_date) before planning its second." } : r.data }, identity: who };
       }
@@ -2571,10 +2642,14 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
     case "initialize": {
       const info = (msg.params?.clientInfo ?? {}) as Record<string, unknown>;
       const sessionId = crypto.randomUUID();
-      const agentId = crypto.randomUUID();
+      let agentId = crypto.randomUUID();
       let recorded = false;
       try {
         const db = await getDb();
+        // #361: initialize again with your agent_id (params.agent_id, or _meta.agent_id) and this session resumes it, no stray agent.
+        const meta = (msg.params?._meta ?? {}) as Record<string, unknown>;
+        const resume = String(msg.params?.agent_id ?? meta.agent_id ?? "");
+        if (/^[0-9a-f-]{36}$/i.test(resume) && (await db.query(`select 1 from mcp_sessions where agent_id = $1 limit 1`, [resume])).rows.length) agentId = resume;
         await db.query(
           `insert into mcp_sessions (id, agent_id, client_name, client_version, user_agent) values ($1, $2, $3, $4, $5)`,
           [sessionId, agentId, clip(info.name, 80), clip(info.version, 40), clip(ctx.userAgent, 200)],
@@ -2604,9 +2679,37 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
     case "ping":
       return reply({});
     case "tools/list":
+<<<<<<< HEAD
       // After dark's tools are listed only to the admin's own agents (lib/adult/mcp.ts); request_after_dark too, until
       // After Dark opens to people (2026-10-19: directories read the list). Anyone can still call it by name.
       return reply({ tools: mcpAdmin(ctx) ? [...MCP_TOOLS, ...ADULT_TOOLS] : PUBLIC_MCP_TOOLS });
+=======
+      // After dark's tools are listed only to the admin's own agents (lib/adult/mcp.ts).
+    {
+      const tools = mcpAdmin(ctx) ? [...MCP_TOOLS, ...ADULT_TOOLS] : MCP_TOOLS;
+      // #373: lean: true lists each tool's name and first sentence only (the full schemas stay the default).
+      // #376: names: [...] returns just those tools in full.
+      const names = Array.isArray(msg.params?.names) ? (msg.params.names as unknown[]).map(String) : null;
+      if (names) return reply({ tools: tools.filter((t) => names.includes(t.name)) });
+      if (msg.params?.lean === true) {
+        return reply({
+          tools: tools.map((t) => ({
+            name: t.name,
+            description: String(t.description).split(/(?<=\.)\s/)[0],
+            required: ((t.inputSchema as { required?: string[] }).required ?? []),
+            // #381: every argument with its type (enums as their values), still without the long descriptions.
+            args: Object.fromEntries(
+              Object.entries(((t.inputSchema as { properties?: Record<string, { type?: string; enum?: unknown[] }> }).properties ?? {})).map(([k, v]) => [
+                k,
+                Array.isArray(v.enum) ? v.enum.join("|") : (v.type ?? "any"),
+              ]),
+            ),
+          })),
+        });
+      }
+      return reply({ tools });
+    }
+>>>>>>> origin/main
     case "resources/list":
       return reply({ resources: MCP_RESOURCES });
     case "resources/templates/list":
@@ -2668,6 +2771,10 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       const session = await loadSession(db, ctx);
       let ran = await runTool(name as ToolName, args, session, db);
       if (args.compact === true && CARD_TOOLS.has(name) && !("error" in ran)) ran = { ...ran, data: compactCards(ran.data) };
+      if (!("error" in ran)) {
+        const ok = ran;
+        ran = { ...ok, data: await dropPrivateLinks(db, ok.data).catch(() => ok.data) };
+      }
       // #266: what was dropped leads the reply, in a sentence, so it isn't missed at the bottom.
       let out: ToolOutcome =
         unknown.length && !("error" in ran)

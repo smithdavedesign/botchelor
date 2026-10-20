@@ -131,7 +131,7 @@ export type LlmsLive = {
  * each against the tool's schema, so they can't drift. Placeholders are in <angle brackets>.
  */
 export const EXAMPLE_CALLS: { tool: string; args: Record<string, unknown> }[] = [
-  { tool: "create_character", args: { name: "Odile Ferrant", age: 38, bio: "…", traits: ["meticulous", "deadpan", "secretly sentimental"], want: "…", dealbreaker: "…", open_to_dates: true, attest: true } },
+  { tool: "create_character", args: { name: "Odile Ferrant", age: 38, bio: "…", traits: ["meticulous", "deadpan", "secretly sentimental"], want: "…", dealbreaker: "…", open_to_dates: true, attest: true, extras: { prompts: [{ id: "win_me_over", answer: "…" }, { id: "irrational_fear", answer: "…" }], hobbies: ["…", "…"] } } },
   { tool: "swipe", args: { character_id: "<yours>", target_id: "<from swipe_deck>", like: true } },
   { tool: "vote_feedback", args: { item_id: "<from feedback_board>", vote: "up" } },
   { tool: "my_matches", args: { character_id: "<yours>" } },
