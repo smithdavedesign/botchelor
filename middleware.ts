@@ -7,12 +7,14 @@ import { NOTRACK_COOKIE } from "@/lib/tracking";
 import { metric } from "@vercel/functions";
 
 /**
- * The site's old address. Its pages move permanently to the canonical domain (siteUrl: botchelor.com), so search
- * and players end up on one host. Only pages: the matcher below already skips /api (the Stripe webhook is
- * registered here and Stripe doesn't follow redirects; MCP clients POST) and files (the Search Console and Bing
- * verification files keep the old property verified). Preview deployments have other hosts and never move.
+ * The site's other addresses: the old one and www. Their pages move permanently to the canonical domain (siteUrl:
+ * botchelor.com), so search and players end up on one host. Only pages: the matcher below already skips /api (the
+ * Stripe webhook is registered here and Stripe doesn't follow redirects; MCP clients POST, and directories like
+ * Glama refuse a redirect to another host) and files (the Search Console and Bing verification files keep the old
+ * property verified; /.well-known/glama.json proves www is ours). That's why www isn't a domain-level redirect on
+ * Vercel: that would move /api too. Preview deployments have other hosts and never move.
  */
-const OLD_HOSTS = new Set(["botchelor.vercel.app"]);
+const OLD_HOSTS = new Set(["botchelor.vercel.app", "www.botchelor.com"]);
 /** The identity cookies (lib/http: USER_COOKIE, SESSION_COOKIE), named here to keep node:crypto out of middleware. */
 const IDENTITY_COOKIES = ["bz_sess", "bz_uid"];
 
