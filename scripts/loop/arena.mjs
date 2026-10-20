@@ -37,8 +37,36 @@ for (let i = 0; i < 200; i++) {
   await new Promise((r) => setTimeout(r, 300));
 }
 const call = client(base);
-for (const pair of PAIRS.slice(0, 9)) for (const c of [pair.a, pair.b]) await call("/api/characters", { ...c, open_to_dates: true, attest: true }, persona());
+const made = [];
+for (const pair of PAIRS.slice(0, 9)) {
+  const ids = [];
+  for (const c of [pair.a, pair.b]) {
+    const who = persona();
+    const r = await call("/api/characters", { ...c, open_to_dates: true, attest: true }, who);
+    ids.push({ id: r.id, who });
+  }
+  made.push(ids);
+}
 console.log(`READY ${base}`);
+
+// #343 (David, 2026-10-19: seed it): a fresh arena had an empty feed, so a visitor had nothing to predict and an empty
+// leaderboard. Three public blind dates for the cast, booked as their people: once written, one airs (the record and the
+// leaderboard) and two stay open to predict. In the background, so the visitors aren't held up; three date-model calls.
+(async () => {
+  const booked = [];
+  // Blind dates (the show picks a house partner): no match needed, whatever the swipe gate says.
+  for (const [a] of made.slice(0, 3)) {
+    const r = await call("/api/episodes", { character_id: a.id, blind: true, visibility: "public" }, a.who, [200, 201]).catch(() => null);
+    if (r?.id) booked.push({ id: r.id, who: a.who });
+  }
+  for (let i = 0; i < 120 && booked.length; i++) {
+    const states = await Promise.all(booked.map((e) => fetch(`${base}/api/episodes/${e.id}`, { headers: { cookie: e.who.cookie } }).then((x) => x.json()).catch(() => ({}))));
+    if (states.every((st) => st.status === "ready")) break;
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+  if (booked[0]) await call(`/api/episodes/${booked[0].id}/reveal`, {}, booked[0].who, [200, 201, 409]).catch(() => null);
+  console.log(`SEEDED ${booked.length} dates`);
+})();
 const stop = () => { child.kill("SIGTERM"); process.exit(0); };
 process.on("SIGTERM", stop);
 process.on("SIGINT", stop);

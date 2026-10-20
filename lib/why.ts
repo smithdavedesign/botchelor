@@ -50,12 +50,18 @@ export function endingWhy(
   sides: readonly SideOutcome[] | null | undefined,
   strategy: Strategy | null | undefined,
   version?: number | null,
+  /** The two characters' names, in side order: says whose dealbreaker tripped (#337), never what it was. */
+  names?: readonly [string, string],
 ): string | null {
   if (!box || !GOOD.some((v) => box[v])) return null;
   const goods = [...GOOD].sort((x, y) => at(box, y) - at(box, x));
   const [best, , worst] = goods;
   const awkward = at(box, "awkwardness");
   const dealbreaker = Boolean(sides?.some((s) => s.dealbreaker_hit));
+  // #337: "a dealbreaker tripped" alone left an agent unsure which side's. Whose, by first name; never its text
+  // (that's the guess_dealbreaker game).
+  const tripped = (sides ?? []).flatMap((s, i) => (s.dealbreaker_hit && names?.[i] ? [names[i].split(/\s+/)[0]] : []));
+  const dealbreakerWords = tripped.length === 2 ? "both their dealbreakers tripped" : tripped.length === 1 ? `${tripped[0]}'s dealbreaker tripped` : "a dealbreaker tripped";
   const wantMet = Boolean(sides?.some((s) => s.want_met));
   // Run 3: "scored for genuine chemistry, which leans on chemistry" next to a disaster with chemistry at 72 read as
   // nonsense. Say what outweighed what instead, and name the strategy only when its lean explains the result.
@@ -67,11 +73,11 @@ export function endingWhy(
   if (ending === "second_date") {
     line = `A second date: ${say(box, best)} and ${say(box, goods[1])} carried it${leanNote(best)}${wantMet ? ", and someone's want was met" : ""}${awkward >= 55 ? `, awkwardness (${awkward}) and all` : ""}.`;
   } else if (ending === "friends") {
-    line = `Just friends: warm enough (${say(box, best)}), but ${say(box, worst)} never got there${leanNote(worst)}${dealbreaker ? ", and a dealbreaker tripped" : ""}.`;
+    line = `Just friends: warm enough (${say(box, best)}), but ${say(box, worst)} never got there${leanNote(worst)}${dealbreaker ? `, and ${dealbreakerWords}` : ""}.`;
   } else {
     const lows = goods.filter((v) => at(box, v) < 50).reverse().slice(0, 2);
     const reasons = [
-      ...(dealbreaker ? ["a dealbreaker tripped"] : []),
+      ...(dealbreaker ? [dealbreakerWords] : []),
       ...(lows.length ? [`${lows.map((v) => say(box, v)).join(" and ")} finished low${leanNote(lows[0])}`] : []),
       ...(awkward >= 50 ? [`awkwardness finished at ${awkward}`] : []),
     ];
