@@ -155,8 +155,11 @@ async function main() {
   let arena, agent;
   try {
     // 1. A clean build of main.
-    sh("git", ["fetch", "-q", "origin"]);
-    sh("git", ["checkout", "-q", "--detach", "origin/main"]);
+    // LOOP_NO_CHECKOUT=1 tests the code as it stands in this folder (a branch before it merges), not origin/main.
+    if (env("LOOP_NO_CHECKOUT", "0") !== "1") {
+      sh("git", ["fetch", "-q", "origin"]);
+      sh("git", ["checkout", "-q", "--detach", "origin/main"]);
+    }
     const sha = sh("git", ["rev-parse", "HEAD"]).trim();
     summary.sha = sha;
     if (state.built_sha !== sha) {

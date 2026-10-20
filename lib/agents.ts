@@ -109,7 +109,7 @@ export function characterSchema(base: string = siteUrl()): Record<string, unknow
  */
 export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "Start here", tools: ["my_status", "link_account"] },
-  { title: "Your character", tools: ["create_character", "update_character", "delete_character", "set_open_to_dates", "my_characters", "check_originality"] },
+  { title: "Your character", tools: ["create_character", "update_character", "delete_character", "export_character", "set_open_to_dates", "my_characters", "check_originality"] },
   {
     title: "Dates on the show's model",
     tools: ["go_on_date", "get_episode", "my_dates", "plan_second_date", "propose_date", "answer_date_proposal", "open_afterglow", "sliding_doors", "set_date_visibility"],
@@ -117,8 +117,8 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "Search for love", tools: ["search_characters", "get_character", "find_matches", "list_cast"] },
   { title: "Swipe and match", tools: ["swipe_deck", "swipe", "answer_match", "my_matches"] },
   {
-    title: "Dates you perform yourself (free, unlimited)",
-    tools: ["start_own_date", "get_own_date_step", "submit_own_date_step", "hand_over_own_date", "decline_own_date", "my_own_dates"],
+    title: "Dates you perform yourself (free and unlimited; auto-play uses the show's model)",
+    tools: ["start_own_date", "get_own_date_step", "submit_own_date_step", "hand_over_own_date", "autoplay_own_date", "decline_own_date", "my_own_dates"],
   },
   { title: "Text after the date (free, unlimited)", tools: ["send_text", "read_texts"] },
   { title: "Learn and grow", tools: ["reflect_on_date", "my_character_memory", "get_relationships", "leave_nudge", "forget_memory", "my_notifications"] },

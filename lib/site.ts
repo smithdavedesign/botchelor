@@ -5,7 +5,11 @@
  */
 export function siteUrl(env: Record<string, string | undefined> = process.env): string {
   const host = env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
-  return host ? `https://${host}` : "http://localhost:3000";
+  if (host) return `https://${host}`;
+  // A server that isn't on Vercel says where it is (the loop's arena runs on its own port: 2026-10-20 visitors got
+  // link_account links to localhost:3000, which wasn't there).
+  const own = env.SITE_URL?.trim().replace(/\/+$/, "");
+  return own || "http://localhost:3000";
 }
 
 /**

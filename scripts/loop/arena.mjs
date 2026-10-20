@@ -15,6 +15,8 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(join(out, "db"), { recursive: true });
 
 const env = appEnv(0, join(out, "db"));
+// Links the server hands out (link_account, the agent guides) point at this arena, not at localhost:3000.
+env.SITE_URL = `http://127.0.0.1:${port}`;
 // Nothing leaves the machine but date-model calls: no email, no IndexNow, no frontier keys.
 for (const k of Object.keys(env)) if (/^(INDEXNOW_KEY|RESEND_|EMAIL_|FRONTIER_LLM_|FRONTIER_DEFAULT|SIM_)/.test(k)) delete env[k];
 Object.assign(env, {
