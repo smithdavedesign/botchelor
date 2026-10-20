@@ -277,3 +277,12 @@ describe("loop run 2026-10-19-1643 (#379)", () => {
     expect(r.episode.share_note).toMatch(/get_episode/);
   });
 });
+
+describe("loop run 2026-10-19-1652 (#381)", () => {
+  it("lean tools/list carries every argument's type", async () => {
+    const ctx = await connect();
+    const lean = (await handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/list", params: { lean: true } }, ctx))!.result as Any;
+    const go = lean.tools.find((t: Any) => t.name === "go_on_date");
+    expect(go.args.visibility).toBe("public|unlisted|private");
+  });
+});
