@@ -5738,3 +5738,86 @@ a.phone-head-btn {
   gap: 0.3rem;
   align-items: center;
 }
+
+/* ---------------- the OC ship name generator (/tools/ship-name-generator, /ship/<a>/<b>) ---------------- */
+
+.ship-tool h1 {
+  margin-bottom: var(--space-3);
+}
+
+/* Two names side by side with a × between them; stacked on a phone. */
+.ship-form {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0 var(--space-3);
+  align-items: end;
+}
+.ship-form .ship-x {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--accent-text);
+  line-height: var(--control-h);
+}
+.ship-form button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+@media (max-width: 520px) {
+  .ship-form {
+    grid-template-columns: 1fr;
+  }
+  .ship-form .ship-x {
+    display: none;
+  }
+}
+
+/* The ship names: the best one across the top, the rest as tiles. */
+.ship-names {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: 0;
+}
+.ship-names li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.ship-names strong {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-xl);
+  overflow-wrap: anywhere;
+}
+.ship-names li:first-child {
+  grid-column: 1 / -1;
+  background: var(--paper-2);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+.ship-names li:first-child strong {
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  line-height: 1.1;
+}
+@media (max-width: 520px) {
+  .ship-names {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.ship-how {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.ship-how-list li + li {
+  margin-top: var(--space-2);
+}
+
+.ship-cta {
+  background: var(--paper-2);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}

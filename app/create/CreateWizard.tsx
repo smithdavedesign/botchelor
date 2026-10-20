@@ -141,6 +141,7 @@ export default function CreateWizard({
   myCharacters = [],
   startSample = false,
   startCharacterId = null,
+  startName = null,
   lookTiles = [],
   afterDark = false,
   edit,
@@ -154,6 +155,8 @@ export default function CreateWizard({
   myCharacters?: { id: string; name: string }[];
   startSample?: boolean;
   startCharacterId?: string | null;
+  /** A new character with this name already in (/create?name=, from a ship name page: app/ship/[a]/[b]). */
+  startName?: string | null;
   /** The looks builder's tiles that have a picture (lib/looks-draw.ts readyTiles). */
   lookTiles?: readonly string[];
   /** This viewer can open After Dark, so its looks tab is unlocked (lib/adult/entitlement.ts). */
@@ -170,7 +173,11 @@ export default function CreateWizard({
   const [step, setStep] = useState(0);
   const [maxStep, setMaxStep] = useState(edit ? last : 0); // the furthest step reached; editing opens them all
   const [sheet, setSheet] = useState<Sheet>(
-    init ? { name: init.name, age: String(init.age), bio: init.bio, want: init.want, dealbreaker: init.dealbreaker } : EMPTY_SHEET,
+    init
+      ? { name: init.name, age: String(init.age), bio: init.bio, want: init.want, dealbreaker: init.dealbreaker }
+      : startName
+        ? { ...EMPTY_SHEET, name: startName }
+        : EMPTY_SHEET,
   );
   const [pronouns, setPronouns] = useState(init?.pronouns ?? "");
   const [traits, setTraits] = useState(init ? [init.traits[0] ?? "", init.traits[1] ?? "", init.traits[2] ?? ""] : ["", "", ""]);
@@ -226,6 +233,8 @@ export default function CreateWizard({
       applySample();
       return;
     }
+    // Arrived with a name to make (a ship name page): start that character fresh, not an older draft.
+    if (startName) return;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;

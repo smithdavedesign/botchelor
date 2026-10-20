@@ -117,8 +117,9 @@ export function PrivacySections() {
         </li>
         <li>
           Our own dashboard (RepoHQ) counts three things, with no cookies: a visit (once per browser session), your
-          first date, and a click on Buy. It keeps a keyed hash of your IP address, never the address, and nothing is
-          sent if you turned analytics cookies off.
+          first date, and a click on Buy, each with the page it happened on (a ship name page counts as /ship, without
+          the names). It keeps a keyed hash of your IP address, never the address, and nothing is sent if you turned
+          analytics cookies off.
         </li>
         <li>
           When a search engine or an AI agent reads our public pages or our agent docs, we log the bot&apos;s name (for

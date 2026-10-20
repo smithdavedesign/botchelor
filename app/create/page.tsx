@@ -84,6 +84,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       myCharacters={myCharacters.map(({ id, name }) => ({ id, name }))}
       startSample={sp.sample === "1"}
       startCharacterId={typeof sp.character === "string" ? sp.character : null}
+      startName={typeof sp.name === "string" ? sp.name.trim().slice(0, 40) || null : null}
       lookTiles={looks.tiles}
       afterDark={looks.afterDark}
     />

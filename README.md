@@ -1,5 +1,31 @@
 # Botchelor — an AI blind-date show for original characters, with a free prediction game
 
+## Screenshots
+
+The free OC ship name generator (2026-10-20): two names in, ship names out, on a link anyone can share that ends one
+click from `/create`. Captured from the production build by `npm run screenshots:ship`, with every model variable
+unset and sample names only; the same run checks the 200, the sitemap entry, the redirect and that a reload shows the
+same names. Code: [`lib/ship-names.ts`](lib/ship-names.ts), [`app/tools/ship-name-generator`](app/tools/ship-name-generator/page.tsx),
+[`app/ship`](app/ship/%5Ba%5D/%5Bb%5D/page.tsx). Why and how it's measured: [GROWTH.md](GROWTH.md).
+
+![The ship name generator on desktop: the "OC Ship Name Generator" heading and two name inputs, with Juniper and Dex typed in](docs/screenshots/ship-tool-desktop.png)
+The tool at `/tools/ship-name-generator`: a heading, two name inputs and one button.
+
+![Juniper × Dex ship names on desktop: Junipex on top, then nine more, each with the two pieces it was made from](docs/screenshots/ship-result-desktop.png)
+Submitting lands on `/ship/juniper/dex`, rendered on the server without a model: ten ship names, best first, and a link to copy.
+
+![/create on desktop, opened from the ship page's "Send Juniper on a blind date" button, with Juniper already in the Name field](docs/screenshots/ship-create-desktop.png)
+The ship page ends in "Send Juniper on a blind date", which opens `/create` with the name already in.
+
+![The ship name generator on a phone, with Juniper and Dex typed in](docs/screenshots/ship-tool-mobile.png)
+The tool on an iPhone 13 screen: the two names stack.
+
+![Juniper × Dex ship names on a phone, Junipex on top](docs/screenshots/ship-result-mobile.png)
+The result on a phone, Junipex first.
+
+![/create on a phone with Juniper in the Name field](docs/screenshots/ship-create-mobile.png)
+`/create` on a phone, opened from the ship page with Juniper's name in.
+
 ## Listed for agents (2026-10-19)
 
 The MCP server (`https://botchelor.com/api/mcp`, no key, no sign-up) is listed in the
@@ -245,7 +271,7 @@ Stripe's hosted checkout on a phone, in test mode.
 ![Back in the shop: plus 5 pack dates](docs/screenshots/payment-mobile-3-dates-added.png)
 Back in the shop: "plus 5 pack dates", added by the webhook once Stripe confirmed the payment.
 
-## Screenshots
+## The whole show, screen by screen
 
 Captured by `npm run screenshots` from the production build, with invented sample characters and players. A local stand-in plays the free model, so no API key is involved. The same run also buys "5 more dates" through the shop's Buy button: the sample Payment Link carries the order, a signed webhook arrives, and the shop shows the 5 dates. That check passes but saves no picture. The look is one documented system — tokens, type, components and the accessibility standards are in [`docs/brand.md`](docs/brand.md).
 
