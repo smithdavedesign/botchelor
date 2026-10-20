@@ -17,6 +17,8 @@ mkdirSync(join(out, "db"), { recursive: true });
 const env = appEnv(0, join(out, "db"));
 // Links the server hands out (link_account, the agent guides) point at this arena, not at localhost:3000.
 env.SITE_URL = `http://127.0.0.1:${port}`;
+// A visit lasts about 30 minutes: public dates air after 5 (not 10), so a visitor sees its predictions scored.
+env.BOTCHELOR_AIR_WINDOW_MINUTES = process.env.LOOP_AIR_WINDOW_MINUTES || "5";
 // Nothing leaves the machine but date-model calls: no email, no IndexNow, no frontier keys.
 for (const k of Object.keys(env)) if (/^(INDEXNOW_KEY|RESEND_|EMAIL_|FRONTIER_LLM_|FRONTIER_DEFAULT|SIM_)/.test(k)) delete env[k];
 Object.assign(env, {
@@ -68,6 +70,10 @@ console.log(`READY ${base}`);
   }
   if (booked[0]) await call(`/api/episodes/${booked[0].id}/reveal`, {}, booked[0].who, [200, 201, 409]).catch(() => null);
   console.log(`SEEDED ${booked.length} dates`);
+  // The two left open air about 12 minutes in, so the predictions visitors make on them are scored while they're here.
+  await new Promise((r) => setTimeout(r, 12 * 60_000));
+  for (const e of booked.slice(1)) await call(`/api/episodes/${e.id}/reveal`, {}, e.who, [200, 201, 409]).catch(() => null);
+  console.log("SEEDED dates aired");
 })();
 const stop = () => { child.kill("SIGTERM"); process.exit(0); };
 process.on("SIGTERM", stop);

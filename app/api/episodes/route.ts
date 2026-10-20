@@ -246,7 +246,7 @@ export const POST = handle(async (req) => {
       )
     ).rows[0];
     if (!partner && input.partner_id && !(await db.query(`select 1 from characters where id::text = $1`, [input.partner_id])).rows.length) {
-      return json({ error: "partner_not_found", message: "No character with that id. list_cast, find_matches and my_matches give valid ids." }, 404, sess);
+      return json({ error: "partner_not_found", message: "No character with that id. my_status lists the house cast; search_characters and my_matches give other ids." }, 404, sess);
     }
     if (!partner) {
       return json(

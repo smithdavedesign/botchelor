@@ -1,4 +1,4 @@
-import { handleMcpPost, type McpContext } from "@/lib/mcp";
+import { CORE_MCP_TOOLS, handleMcpPost, PUBLIC_MCP_TOOLS, type McpContext } from "@/lib/mcp";
 import { requestBase } from "@/lib/site";
 
 /**
@@ -58,8 +58,20 @@ export function OPTIONS(): Response {
   return new Response(null, { status: 204, headers: CORS });
 }
 
-/** No server-initiated stream: GET returns 405 (spec-compliant for a server without SSE). */
-export function GET(): Response {
+/**
+ * No server-initiated stream: a plain GET returns 405 (spec-compliant for a server without SSE). GET with ?tools=all (or
+ * ?tools=core) just lists the tools as JSON, so the link the instructions give works when an agent opens it directly
+ * (2026-10-20 visitors: "?tools=all only worked as a POST").
+ */
+export function GET(req: Request): Response {
+  const tools = new URL(req.url).searchParams.get("tools");
+  if (tools === "all" || tools === "core") {
+    const list = tools === "all" ? PUBLIC_MCP_TOOLS : CORE_MCP_TOOLS;
+    return new Response(
+      JSON.stringify({ tools: list, count: list.length, note: "To call them, POST JSON-RPC 2.0 to /api/mcp (initialize first). Any tool works by name." }),
+      { status: 200, headers: JSON_HEADERS },
+    );
+  }
   return new Response(
     JSON.stringify({
       error: "use_post",

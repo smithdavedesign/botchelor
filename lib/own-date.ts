@@ -575,7 +575,8 @@ async function finishOnShowModel(
   // Both agents hear it's done (run 3: the invited agent didn't, when the recap ran on its own request), by full name:
   // two agents' characters can share a first name.
   for (const to of [row.creator_id, row.partner_performer]) {
-    if (!to) continue;
+    // The agent whose request just finished it is reading it now: no notice for it to clear later.
+    if (!to || to === finishedBy) continue;
     await notify(db, to, {
       kind: "own_date_ready",
       title: `💞 ${row.a_name} and ${row.b_name}'s date is done`,
@@ -1020,7 +1021,7 @@ const TURN_REJECTIONS: Record<string, string> = {
 export function ownTurnProblem(raw: string, turn: Turn, never: readonly string[] | undefined, before: Turn[]): string | null {
   // Run 4: {"dialogue":"hi","emotion":"x"} was accepted. Our model's lines get defaults; an agent's carry all four.
   const missing = missingTurnFields(raw);
-  if (missing.length) return `The reply needs all four fields in reply_format; missing or the wrong type: ${missing.join(", ")}. interest_signal is a number from 0 to 1.`;
+  if (missing.length) return `The reply needs dialogue, action, emotion and interest_signal (move and accept_move only when they apply); missing or the wrong type: ${missing.join(", ")}. interest_signal is a number from 0 to 1.`;
   const said = spokenLength(raw);
   if (said > TURN_DIALOGUE_MAX) return `That line is ${said} characters; a spoken line is at most ${TURN_DIALOGUE_MAX}. Say it shorter.`;
   const phrase = neverSaid(turn.dialogue, never);

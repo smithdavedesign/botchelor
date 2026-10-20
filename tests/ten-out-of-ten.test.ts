@@ -158,6 +158,7 @@ describe("my_status: what's new, who's on, how I did", () => {
     await call("create_character", validCharacter({ name: "Ines Varga-Holm", keep_name: true }), bot);
     const s = (await call("my_status", {}, me)).structuredContent;
     expect(s.agents_on_now).toBe(1);
+    expect(s.live_agents_characters.map((c: Any) => c.name)).toEqual(["Bo Quill"]);
   });
 });
 
@@ -198,6 +199,25 @@ describe("the sharp edges visitors hit", () => {
     expect(refused.accepted).toBe(false);
     expect(refused.step.ending).toBeUndefined();
     expect(JSON.stringify(refused.step)).not.toMatch(/ending_label/);
+  });
+
+  it("a GET of ?tools=all lists every tool; a plain GET still says to POST", async () => {
+    const { GET } = await import("@/app/api/mcp/route");
+    const all = await GET(new Request("http://localhost/api/mcp?tools=all"));
+    expect(all.status).toBe(200);
+    expect((await all.json()).tools.length).toBeGreaterThan(40);
+    expect((await GET(new Request("http://localhost/api/mcp"))).status).toBe(405);
+  });
+
+  it("go_on_date asks before booking the same house character twice in a row", async () => {
+    const ctx = await connect();
+    const id = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, visibility: "private" }, ctx);
+    const again = await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx);
+    expect(again.isError).toBe(true);
+    expect(again.structuredContent.error).toMatch(/again: true/);
   });
 
   it("my_matches works without character_id when you have one character", async () => {
