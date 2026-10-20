@@ -74,12 +74,19 @@ npm run typecheck
 | `npm run sim:visitors` | The self-improving loop now: uninstructed agents explore a local copy, then triage (`LOOP_FIX=1` adds the fixer) |
 | `npm run screenshots` | Regenerates `docs/screenshots/` |
 
+**CI** (`.github/workflows/ci.yml`: typecheck and `npm test` on every PR and push to main) is paused: the GitHub
+account used its 2,000 free Actions minutes on 2026-10-19 and they come back about 2026-11-01. Until then every job
+fails in seconds, and PRs merge after `npx tsc --noEmit -p .` and the full `npx vitest run` pass locally on the branch
+merged with current main (say so on the PR). The MCP Registry publish is an Action too: run `mcp-publisher publish
+registry/server.json` by hand meanwhile ([docs/launch-kit.md](docs/launch-kit.md)).
+
 ## Deploy
 
 - **Host:** the Vercel project `botchelor` (Pro), linked to GitHub. A merge to `main` deploys to production. Check the
   production commit after a merge: once, two merges seconds apart deployed only the first, so main was redeployed
   from git.
-- **Cron jobs** (`vercel.json`): `/api/jobs/daily` (16:00 UTC: daily texts, digests, prunes) and `/api/jobs/lobby`
+- **Cron jobs** (`vercel.json`): `/api/jobs/daily` (16:00 UTC: daily texts, digests, prunes; from the 20th, next
+  month's candidates, and the cast's After Dark baselines: [docs/seasons.md](docs/seasons.md)) and `/api/jobs/lobby`
   (hourly: watch-party rooms, and agents' dates whose prediction window closed).
 - **Domain:** `botchelor.com`, with DNS on Wix ([docs/launch-readiness.md](docs/launch-readiness.md)). The Stripe
   webhook stays on `botchelor.vercel.app`.

@@ -121,7 +121,9 @@ One database, no joins across services. Tables, and who owns each:
 | `predictions`, `dealbreaker_guesses`, `matchmaker_proposals` | the free prediction game | `lib/game.ts`, `lib/mechanics.ts` |
 | `profiles`, `identity_consents` | display names and mutual reveal | `lib/people.ts` |
 | `reports`, `blocks` | report-to-hide and per-episode blocks | `/api/reports`, `/api/blocks` |
-| `leagues`, `league_members`, `seasons`, `badges` | friend leagues and the weekly season | `lib/leagues.ts`, `lib/seasons.ts` |
+| `leagues`, `league_members`, `seasons`, `badges` | friend leagues and the monthly season (weekly before 2026-10-19) | `lib/leagues.ts`, `lib/seasons.ts` |
+| `season_casts`, `season_cast_rotations`, `season_candidates` | each season's stored house cast, the one-time claim that picks it, and next month's generated newcomers in review | `lib/season-cast.ts`, `lib/season-gen.ts` |
+| `character_reviews` | 1–5 stars and a line per reviewer per character; a season's reviews decide who stays | `lib/reviews.ts` |
 | `orders` | one row per checkout; the only table purchases write | `lib/payments.ts` |
 | `free_episode_usage`, `pack_episode_usage` | date allowances, as counters so a reservation is atomic | `lib/allowance.ts` |
 | `character_assets` | image provenance and review status; empty today, by design | `lib/assets.ts` |
@@ -130,7 +132,8 @@ One database, no joins across services. Tables, and who owns each:
 
 Nothing is computed by a cron job. A **season** closes lazily: standings depend only on rows stamped
 before the deadline (finales aired in the window, members who joined before it), so the first visit
-after Monday 00:00 UTC closes last week and awards badges. A **watch party**'s phase is a pure function
+after the 1st (00:00 UTC) closes last month and awards badges ([docs/seasons.md](seasons.md)). The season's house cast is picked
+the same way, once, on its first read. A **watch party**'s phase is a pure function
 of `starts_at` and the current clock, so every viewer sees the same beat without a realtime server —
 clients poll for the live tallies.
 
