@@ -64,14 +64,14 @@ Each entry holds:
 **Self-healing:** a memory row with aired dates but no milestones predates these columns, so `loadCharacterMemory` rebuilds it once on read.
 
 ## 4. This week
-`thisWeek(id, stored)` gives the character something new going on each season (the Monday-to-Monday week).
-- **The creator's update** (`this_week`, 100 characters) wins for the season it was written in. An empty string means "nothing new this week". `null` hands it back to the show.
+`thisWeek(id, stored)` gives the character something new going on each week (Monday to Monday; it stays weekly though seasons are monthly since 2026-10-19).
+- **The creator's update** (`this_week`, 100 characters) wins for the week it was written in. An empty string means "nothing new this week". `null` hands it back to the show.
 - **Otherwise the show deals one** from 40 small life events, chosen by `seedFrom(id, season)`.
 - Events are written as status lines with no subject, so one wording works on the card and in the prompt (`whats_new_this_week`).
 
 ## 5. Story, milestones, stage
 All are built from the aired record and are public. They're on the contestant card and in `get_character`.
-- **`chapters`**: one line per season ("Week of Oct 12: 2 dates: just friends with Nell, a second date with Dex."), up to 8.
+- **`chapters`**: one line per week ("Week of Oct 12: 2 dates: just friends with Nell, a second date with Dex."), up to 8.
 - **`milestones`**, once each, in order: first date, first second date, made a friend, survived a disaster, first rematch, comeback, heartbreaker, on a roll, 5/10/25 dates.
 - **`stageFor(dates)`**: Fresh face, Newcomer, Regular, Veteran, Legend.
 - **The card** shows the stage, "This week", "Their story so far", "Connections", and the owner-only "Who it remembers".

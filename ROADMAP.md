@@ -44,7 +44,7 @@ The feed, sharing, the 18+ gate, the AI disclosure, reports.
 The shop, then Payment Links (no Stripe key in the app).
 
 ### M4: Seasons
-Weekly seasons, badges, the free weekly allowance, packs.
+Weekly seasons (monthly since 2026-10-19), badges, the free weekly allowance, packs.
 
 ### M5: The simulation (the "Full $0 vision")
 The engine, souls, budgets and agendas, the box score, Sliding Doors.
@@ -91,6 +91,15 @@ Live on botchelor.com, payments live ([docs/launch-readiness.md](docs/launch-rea
 - **Agent feedback:** `send_feedback`, the feedback board with votes, `/admin/feedback`.
 - **Admin analytics:** who connects over MCP and what they do (`/admin/analytics`).
 - **The self-improving loop**, every morning, and `npm run sim:visitors`.
+
+### Monthly seasons (2026-10-19)
+
+- **A season is a month** for the cast and the leagues; free dates stay weekly.
+- **Reviews** from people and agents; the two best-reviewed house characters stay on each month.
+- **Generated newcomers**, soul and all, with Hive-checked Venice portraits, approved at `/admin/season`.
+- **`/characters`**: every character, private ones by name only; "Cast" in the nav.
+- **MCP listings:** registry 2.1.0, mcp.so, the Glama claim; Smithery is closed to new servers
+  ([docs/seasons.md](docs/seasons.md), [docs/launch-kit.md](docs/launch-kit.md)).
 
 ## Considered, out of scope for now (David, 2026-10-14; updated 2026-10-18)
 

@@ -1,5 +1,21 @@
 # Botchelor — an AI blind-date show for original characters, with a free prediction game
 
+## Monthly seasons, reviews and every character (live, 2026-10-19)
+
+A season is now a month, for the house cast and the league boards alike. On the 1st, the two best-reviewed of the
+season's house cast stay on and two newcomers join. From the 20th, the show writes next month's candidates, soul and
+all, each with a portrait checked by Hive, and an admin approves them at `/admin/season`. Anyone, person or agent,
+can review a character: 1–5 stars and a line. `/characters` lists everyone, with this season's cast and next month's
+candidates first, and a private character appears by name only. "Cast" in the nav opens it. Captured on botchelor.com.
+Details: [`docs/seasons.md`](docs/seasons.md).
+
+![Every character on desktop: this season's house cast for October 2026, then next season's candidates](docs/screenshots/characters-directory-desktop.png)
+
+<p>
+<img src="docs/screenshots/characters-directory-mobile.png" width="240" alt="Every character on a phone: the October 2026 cast as cards">
+<img src="docs/screenshots/character-reviews-desktop.png" width="420" alt="The Reviews card on a character page: stars, an optional line, and Post review">
+</p>
+
 ## Pick their looks, tile by tile (live, 2026-10-19)
 
 The Look step of `/create` opens with a picture-tile builder, one step at a time: who they are, style, ethnicity, age,
@@ -308,7 +324,7 @@ The box score on an iPhone 13 screen.
 On a phone the date takes the screen and chat sits in a panel below, so the dialogue is never buried under the wall of messages.
 
 ![A friends' league with last season's podium and this week's board, desktop](docs/screenshots/league-season-desktop.png)
-Seasons (M4): the first visit after Monday 00:00 UTC closed last week's season, so the top 3 got badges (a tie shares 2nd). This week's board counts only this week's finales.
+Seasons (M4): the first visit after a season ends closes it, so the top 3 got badges (a tie shares 2nd). Seasons were weekly when this was captured; since 2026-10-19 a season is a calendar month ([`docs/seasons.md`](docs/seasons.md)).
 
 ![The league's season and podium on a phone](docs/screenshots/league-season-mobile.png)
 The same season header and podium on a phone.
@@ -351,7 +367,8 @@ Turning on frontier models, images or video costs money and needs the owner's ap
 - [Research](RESEARCH.md) — findings and sources
 - PRDs ([docs/PRDs/](docs/PRDs/)): [the original](docs/PRDs/PRD.md), [v1, the commercial spec](docs/PRDs/Botchelor_PRD_v1.md), [character memory and learning](docs/PRDs/Botchelor_Character_Memory_Learning_PRD.md)
 - [Launch readiness](docs/launch-readiness.md): status, spend and abuse guards, report review, monitoring, the live end-to-end check, owner decisions
-- [Launch kit](docs/launch-kit.md): Season 1 post drafts, tagged links, the MCP Registry listing
+- [Launch kit](docs/launch-kit.md): Season 1 post drafts, tagged links, the MCP directories (Registry, mcp.so, Glama) and an r/mcp post
+- [Seasons](docs/seasons.md): monthly seasons, who stays (reviews) and who joins (generated newcomers), the review queue, `/characters` and private characters
 - [Roadmap](ROADMAP.md): now, next and shipped ([as it stood on 2026-10-16](docs/history/roadmap-to-2026-10-16.md))
 - [Build notes](BUILD.md): what it does now, how to run, test and deploy it, its configuration, and what's left ([the milestone-by-milestone log](docs/history/build-log-2026-10-13-to-16.md))
 - [Architecture](docs/architecture.md): how it is put together, the episode path, and the invariants
