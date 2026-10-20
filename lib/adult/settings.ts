@@ -24,10 +24,11 @@ export const IMAGE_PROVIDERS = ["fal", "venice"] as const;
 export type ImageProvider = (typeof IMAGE_PROVIDERS)[number];
 export const DEFAULT_VENICE_IMAGE_MODEL = "lustify-v8";
 /**
- * The full-night video: Wan 2.6 lip-syncs to each character's own voice (the 'own voice' test, B); six shots, about 30
- * seconds; 15 bought tokens (docs/after-dark-costs.md: about $3.50 to make, $10.50 in after fees).
+ * The full-night video: Wan 3.0 speaks each line itself, quoted in its prompt (David, 2026-10-19, after watching both
+ * tests: the model's own voice felt more real than a stock voice lip-synced by Wan 2.6). Six shots, about 30 seconds;
+ * 15 bought tokens (docs/after-dark-costs.md: about $4 to $5 to make, $10.50 in after fees).
  */
-export const DEFAULT_REEL_MODEL = "wan-2.6-image-to-video";
+export const DEFAULT_REEL_MODEL = "wan-3-0-image-to-video";
 export const DEFAULT_REEL_SHOTS = 6;
 export const DEFAULT_REEL_TOKENS = 15;
 
