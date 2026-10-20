@@ -804,9 +804,23 @@ describe("the video of the night", () => {
     expect(started.tokens).toBe(15);
     expect(await used()).toBe(15);
     expect((await make(cookie)).status).toBe(409);
-    // Hive busy: nothing discarded, the shots wait for the next poll.
-    setCheckFetchForTests(async () => new Response("slow down", { status: 429 }));
-    expect((await advance(started.id, cookie)).shots.every((s) => s.status === "queued")).toBe(true);
+    // Hive busy: nothing discarded, and that shot waits before it's sent again (nothing more goes to Hive this poll).
+    let hiveCalls = 0;
+    setCheckFetchForTests(async () => {
+      hiveCalls++;
+      return new Response("slow down", { status: 429 });
+    });
+    const waiting = await advance(started.id, cookie);
+    expect(waiting.shots.every((s) => s.status === "queued")).toBe(true);
+    expect(waiting.shots.filter((s) => s.retry_at)).toHaveLength(1);
+    // Each poll tries the next shot; once all three are waiting, a poll sends nothing to Hive at all.
+    await advance(started.id, cookie);
+    expect((await advance(started.id, cookie)).shots.filter((s) => s.retry_at)).toHaveLength(3);
+    const calls = hiveCalls;
+    await advance(started.id, cookie);
+    expect(hiveCalls).toBe(calls);
+    // The wait is over.
+    await t.db.query(`update adult_reels set shots = (select jsonb_agg(x - 'retry_at') from jsonb_array_elements(shots) x) where id = $1`, [started.id]);
     // Then one shot shows a child signal: discarded, never stored; the other two come through.
     let n = 0;
     setCheckFetchForTests(async () => Response.json(n++ === 0 ? { output: [{ classes: [{ class: "no_child_present", value: 0.5 }, { class: "yes_child_present", value: 0.5 }] }] } : CLEAN_MOD));
@@ -815,6 +829,23 @@ describe("the video of the night", () => {
     expect(done.status).toBe("ready");
     expect(done.shots.map((s) => s.status)).toEqual(["discarded", "ready", "ready"]);
     expect(await used()).toBe(10);
+  });
+
+  it("gives up on shots still unchecked after hours, so a stuck video stops blocking new ones", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    fakeVenice();
+    scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }] }));
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    setCheckFetchForTests(async () => new Response("slow down", { status: 429 }));
+    await advance(started.id, cookie);
+    expect((await make(cookie)).status).toBe(409);
+    await t.db.query(`update adult_reels set created_at = now() - interval '4 hours' where id = $1`, [started.id]);
+    const settled = await advance(started.id, cookie);
+    expect(settled.status).toBe("failed");
+    expect(settled.shots.every((s) => s.status === "failed")).toBe(true);
+    scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }] }));
+    expect((await make(cookie)).status).toBe(200);
   });
 
   it("picks lines across the night when the model's pick can't be read, and cuts what's said to what a shot holds", async () => {

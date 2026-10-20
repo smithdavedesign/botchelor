@@ -35,6 +35,13 @@ export const REEL_SHOTS = 6;
 const WORDS_5S = 12;
 const WORDS_MAX = 24;
 const SHOTS_PER_POLL = 2;
+/**
+ * A shot Hive couldn't check (busy, rate-limited) waits this long before it's fetched and sent again. Without it, an
+ * open page polling every 15s re-sent two 10 MB shots to Hive each time, which kept Hive rate-limiting the whole site
+ * (2026-10-19). And a reel still waiting after REEL_GIVE_UP_MS gives up on those shots, so it stops blocking new ones.
+ */
+export const CHECK_RETRY_MS = 10 * 60 * 1000;
+export const REEL_GIVE_UP_MS = 3 * 60 * 60 * 1000;
 /** Kokoro's stock voices, by how a character is referred to. */
 const VOICES = {
   she: ["af_bella", "af_nicole", "af_sarah", "af_heart", "af_nova", "af_jessica", "af_kore", "af_aoede"],
@@ -54,6 +61,8 @@ export type ReelShot = {
   model?: string;
   media_id?: string;
   reason?: string;
+  /** After a check that couldn't run: not fetched or sent to Hive again before this time. */
+  retry_at?: string;
 };
 export type Reel = { id: string; status: "making" | "ready" | "failed"; tokens: number; shots: ReelShot[]; created_at: string };
 
@@ -257,15 +266,21 @@ async function queueShot(db: Db, key: string, model: string, s: ReelShot, speake
 
 /** Checks a reel's queued shots once: stores each finished one that passes Hive, discards the rest. */
 export async function advanceReel(db: Db, ownerId: string, id: string): Promise<Reel | null> {
-  const row = (await db.query<{ owner_id: string; character_a: string; character_b: string; status: string; shots: ReelShot[] }>(`select owner_id, character_a, character_b, status, shots from adult_reels where id = $1`, [id])).rows[0];
+  const row = (await db.query<{ owner_id: string; character_a: string; character_b: string; status: string; shots: ReelShot[]; created_at: string | Date }>(`select owner_id, character_a, character_b, status, shots, created_at from adult_reels where id = $1`, [id])).rows[0];
   if (!row || row.owner_id !== ownerId) return null;
   if (row.status !== "making") return getReel(db, id);
   const keys = await adultKeys(db);
   const shots = row.shots;
   // A couple of finished shots per poll: Hive rate-limits a burst (429), and the next poll takes the rest.
   let checked = 0;
+  const now = Date.now();
+  // Waited long enough: shots still unchecked are given up (their share of tokens comes back), so the reel settles.
+  if (now - new Date(row.created_at).getTime() > REEL_GIVE_UP_MS) {
+    for (const s of shots) if (s.status === "queued") Object.assign(s, { status: "failed", reason: s.reason ?? "gave up waiting" });
+  }
   for (const s of shots) {
     if (s.status !== "queued" || !s.queue_id || !s.model || !keys.venice || checked >= SHOTS_PER_POLL) continue;
+    if (s.retry_at && now < new Date(s.retry_at).getTime()) continue;
     // Venice keeps the file until we've stored our own (a check that can't run yet is tried again next poll).
     const res = await venice(keys.venice, "/video/retrieve", { model: s.model, queue_id: s.queue_id });
     if (!res.ok) {
@@ -277,8 +292,13 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     const bytes = Buffer.from(await res.arrayBuffer());
     checked++;
     const verdict = await checkOutput(keys.hive, { base64: bytes.toString("base64"), mime: "video/mp4" }, "video");
-    // The check couldn't run (Hive busy or down): not a refusal yet, so try this shot again on the next poll.
-    if (!verdict.ok && verdict.reason.startsWith("the check couldn't run") && !verdict.reason.includes("no Hive key")) continue;
+    // The check couldn't run (Hive busy or down): not a refusal yet. Try again after a wait, and send nothing more to
+    // Hive this poll.
+    if (!verdict.ok && verdict.reason.startsWith("the check couldn't run") && !verdict.reason.includes("no Hive key")) {
+      s.retry_at = new Date(now + CHECK_RETRY_MS).toISOString();
+      s.reason = verdict.reason.slice(0, 200);
+      break;
+    }
     if (!verdict.ok) {
       s.status = "discarded";
       s.reason = verdict.reason.slice(0, 200);
@@ -292,6 +312,8 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     );
     s.status = "ready";
     s.media_id = mediaId;
+    delete s.retry_at;
+    delete s.reason;
     // Ours now: Venice's copy can go.
     await venice(keys.venice, "/video/retrieve", { model: s.model, queue_id: s.queue_id, delete_media_on_completion: true }).catch(() => {});
   }
