@@ -128,6 +128,7 @@ export async function startTestDb() {
         "adult_scenes",
         "adult_nights",
         "adult_reels",
+        "adult_memories",
         "adult_settings",
         "agent_feedback",
         "mcp_calls",

@@ -27,6 +27,7 @@ import { thisWeek, type StoredThisWeek } from "./life";
 import { leanedOnWords, loadCharacterMemory, pairMemory, pendingReflections, withPairMemory, withPendingReflections, type CharacterMemory } from "./memory";
 import { activeNudge, alsoSeeing } from "./between-dates";
 import { agreedPlan, planLines, type AgreedPlan, type PlanText } from "./plans";
+import { afterDarkNote, withAfterDark } from "./adult/memory";
 import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, venueForPlan, type End, type Relationship } from "./relationships";
 import { loadSoul, type StoredSoul } from "./souls";
 import { isText, loadChain, promptTexts, type ChainItem, type PromptTexts } from "./text-chain";
@@ -143,6 +144,8 @@ export type DateParts = {
    */
   relationship?: Relationship | null;
   creatorId?: string;
+  /** What each side remembers of After Dark with the other, in PG terms (lib/adult/memory.ts), or null. */
+  afterDark?: { a: string | null; b: string | null };
   followupOf?: string | null;
   /** Each owner's standing nudge about the other, and who else each is seeing (public). Flavour only. */
   nudges?: { a: string | null; b: string | null };
@@ -185,6 +188,9 @@ export function assembleDate(p: DateParts): BuiltDate {
     charB.pair = pairContext(p.relationship, b.id, p.creatorId, followup);
     charA.pairShared = charB.pairShared = pairSharedWords(p.relationship, p.creatorId);
   }
+  // After Dark, only ever as its PG note (David's pick: on their public dates too).
+  if (p.afterDark?.a) charA.pair = withAfterDark(charA.pair ?? null, p.afterDark.a);
+  if (p.afterDark?.b) charB.pair = withAfterDark(charB.pair ?? null, p.afterDark.b);
   if (agreed) charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${agreed.texts.map((t) => t.text).join(" ")}`.trim();
   // Their texts go into the date (David: "the full text history going into the date"). Both of them sent and read every
   // one, so each side carries the whole thread, and its words are things both already know.
@@ -222,6 +228,8 @@ export function assembleDate(p: DateParts): BuiltDate {
     producer: pickProducer(seedFrom(seed, "producer")),
     venue: p.venueOverride ?? plannedVenue ?? pickVenueAvoiding(seedFrom(seed, "venue"), p.avoidVenues ?? []),
     ...(p.avoidVenues?.length ? { avoid_venues: p.avoidVenues } : {}),
+    // They carried an After Dark memory into this date (lib/adult/memory.ts): its page shows 🌙 to whoever After Dark is open to.
+    ...(p.afterDark?.a || p.afterDark?.b ? { after_dark: true } : {}),
     format: req.format,
     // Moves (lib/moves.ts): on for every date booked from now, unless the format keeps one table (the speed date).
     ...(showFormat(req.format).moves !== false ? { moves: true } : {}),
@@ -329,6 +337,7 @@ export async function buildDate(
     alsoSeeing(db, a.id, b.id).catch(() => []),
     alsoSeeing(db, b.id, a.id).catch(() => []),
   ]);
+  const afterDark = { a: await afterDarkNote(db, a.id, b.id), b: await afterDarkNote(db, b.id, a.id) };
   // What each has leaned on across its recent aired dates (lib/memory.ts), so a voice tic doesn't recur every date.
   const [overusedA, overusedB] = await Promise.all([leanedOnWords(db, a.id).catch(() => []), leanedOnWords(db, b.id).catch(() => [])]);
   // The texts this date's creator may bring in: every text between dates, and the morning afters of the dates they can use.
@@ -363,7 +372,7 @@ export async function buildDate(
     episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues, venueOverride: opts.venueOverride, agreedPlan: agreed,
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
-    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts,
+    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     overusedA, overusedB,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),

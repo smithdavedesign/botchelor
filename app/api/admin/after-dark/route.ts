@@ -11,7 +11,7 @@ import { handle, json, parseBody, readJson } from "@/lib/http";
 export const maxDuration = 300;
 
 const id = z.string().min(1).max(64);
-const Input = z.object({ a: id, b: id, direction: z.string().max(300).optional(), reset: z.literal(true).optional(), set_scene: z.string().max(SET_SCENE_MAX).optional() });
+const Input = z.object({ a: id, b: id, direction: z.string().max(300).optional(), reset: z.literal(true).optional(), set_scene: z.string().max(SET_SCENE_MAX).optional(), steer_mode: z.enum(["nudge", "direct"]).optional() });
 
 /** Not found for everyone but a signed-in admin while after dark is open (lib/adult/mode.ts). */
 const hidden = () => json({ error: "not_found" }, 404);
@@ -48,7 +48,7 @@ export const POST = handle(async (req: Request) => {
     }
     return json({ scene: moved.scene });
   }
-  const r = await continueScene(db, admin, input.a, input.b, input.direction ?? null);
+  const r = await continueScene(db, admin, input.a, input.b, input.direction ?? null, input.steer_mode ?? "nudge");
   if (!r.ok) return json({ error: "not_continued", message: r.message }, r.status);
   return json({ scene: r.scene, added: r.added, held: r.held, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}) });
 });

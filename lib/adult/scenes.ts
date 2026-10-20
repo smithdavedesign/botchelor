@@ -15,6 +15,7 @@ import { pictureKeyReady, ensureBaseline, makePicture, outputCheckReady, PICTURE
 import { countUse, overCap } from "./usage";
 import { adultModel } from "./mode";
 import { ensureSet } from "../sets";
+import { rememberAfterDark } from "./memory";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 export { SOFT_CHAPTERS } from "./stages";
 
@@ -180,7 +181,7 @@ export function sceneMessages(
   lines: SceneLine[],
   direction: string | null,
   aId?: string,
-  now: { place: string; stage: number; linesAtStage?: number; cutTo?: string | null; recap?: string | null; opening?: boolean } = { place: "wherever they've just met", stage: 0 },
+  now: { place: string; stage: number; linesAtStage?: number; cutTo?: string | null; recap?: string | null; opening?: boolean; steerMode?: SteerMode } = { place: "wherever they've just met", stage: 0 },
 ): ChatMessage[] {
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
   const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
@@ -228,7 +229,11 @@ export function sceneMessages(
     `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}. ` +
     `Each line is 1 to 3 sentences in that character's own voice, vivid and specific, never a stock line ("you feel amazing"). ` +
     `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text. Write both in English.` +
-    (direction ? ` Steer the scene this way: ${direction}` : " Move the scene forward: something new happens in these lines, nothing they've already done or said.") +
+    (direction
+      ? now.steerMode === "direct"
+        ? ` Steer the scene this way: ${direction}`
+        : ` Lean the scene gently this way, at its own pace (the pace and place rules above still hold; work toward it, don't jump to it): ${direction}`
+      : " Move the scene forward: something new happens in these lines, nothing they've already done or said.") +
     (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
     ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "..."}, {"who": "b", "action": "", "text": "..."}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. his bedroom", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
     ` Set "explicit" to true once the scene is sexually explicit. Set "picture" only when, in these lines, one of them asks the other for a picture or to be shown something and the other agrees:` +
@@ -316,7 +321,13 @@ export type ContinueResult =
   | { ok: false; status: number; message: string };
 
 /** Writes the next lines on the local model, keeps those inside the two lines, and saves them. */
-export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null): Promise<ContinueResult> {
+/**
+ * How a steer is taken (David, 2026-10-19: "is it a light suggestion?"): a nudge (the default) is worked toward at the
+ * scene's own pace, the pacing rules still hold; direct does it now and can jump stages.
+ */
+export type SteerMode = "nudge" | "direct";
+
+export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null, steerMode: SteerMode = "nudge"): Promise<ContinueResult> {
   const scene = await openScene(db, adminId, x, y);
   if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: this season's cast, or ones you've switched on." };
   const capped = await overCap(db, adminId, "writes");
@@ -335,6 +346,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
       cutTo: scene.cut_to,
       recap: scene.recap,
       opening: scene.chapter === 1 && scene.lines.length === 0,
+      steerMode,
     }), { temperature: 0.9, maxTokens: SCENE_REPLY_TOKENS });
   } catch (err) {
     return { ok: false, status: 502, message: `After dark's model didn't answer: ${err instanceof Error ? err.message : "error"}` };
@@ -351,7 +363,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const set_place = meta.set ?? scene.set_place;
   if (set_place && set_place !== scene.set_place) void ensureSet(db, set_place);
   // Unsteered, the stage moves at most one step, and only once the current one has had its lines; a steer can jump.
-  const allowed = steer ? STAGES.length - 1 : scene.lines.length - scene.stage_from >= MIN_LINES_PER_STAGE ? scene.stage + 1 : scene.stage;
+  const allowed = steer && steerMode === "direct" ? STAGES.length - 1 : scene.lines.length - scene.stage_from >= MIN_LINES_PER_STAGE ? scene.stage + 1 : scene.stage;
   const stage = Math.min(meta.stage ?? scene.stage, allowed);
   const stage_from = stage === scene.stage ? scene.stage_from : scene.lines.length;
   await db.query(`update adult_scenes set lines = $2::jsonb, place = $3, stage = $4, stage_from = $5, set_place = $6, cut_to = null, updated_at = now() where id = $1`, [scene.id, JSON.stringify(lines), place, stage, stage_from, set_place]);
@@ -426,6 +438,7 @@ async function nextChapter(db: Db, ownerId: string, scene: AdultScene, a: Charac
      values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12)`,
     [crypto.randomUUID(), ownerId, scene.a.id, scene.b.id, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null, scene.set_place, scene.chapter, recap],
   );
+  await rememberAfterDark(db, ownerId, a, b, recap, scene.lines);
   const prev_tail = scene.lines.slice(-PREV_TAIL);
   // The stage's line count carries over, so the pacing doesn't restart with the chapter.
   const stage_from = scene.stage_from - scene.lines.length;
@@ -476,6 +489,8 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
   if (!pair) return;
   const scene = await openScene(db, adminId, ...pair);
   if (scene?.lines.length) {
+    const [ca, cb] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id)]);
+    await rememberAfterDark(db, adminId, ca, cb, scene.recap, scene.lines);
     await db.query(
       `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place, chapter, recap) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12)`,
       [crypto.randomUUID(), adminId, ...pair, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null, scene.set_place, scene.chapter, scene.recap],

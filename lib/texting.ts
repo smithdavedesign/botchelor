@@ -17,6 +17,7 @@
  * writer wants, up to TEXT_MAX (a ceiling against abuse, not a style); TEXTS_PER_MINUTE stops a runaway loop, not a
  * conversation.
  */
+import { afterDarkNote, withAfterDark } from "./adult/memory";
 import { textedLinks } from "./inbox";
 import { AFTERGLOW_TEXT_MAX, parseAfterglowLine } from "./afterglow";
 import { activeNudge, alsoSeeing, buildTextMessages, dayOf, insertText, NUDGE_MAX, SHOW_THREAD_CHARS, threadFor, type TextVia } from "./between-dates";
@@ -171,7 +172,7 @@ async function houseReply(db: Db, p: Pair, creatorId: string, ownModel: Model | 
   const chain = await loadChain(db, p.lo, p.hi, { usableBy: creatorId });
   const names = p.mine === "lo" ? [p.me.name, house.name] : [house.name, p.me.name];
   const thread = threadFor(chain, names[0], names[1], ownModel ? dateTextsBudget() : SHOW_THREAD_CHARS);
-  const messages = buildTextMessages(house, p.me, pairContext(p.rel, house.id, creatorId, null), thread, {
+  const messages = buildTextMessages(house, p.me, withAfterDark(pairContext(p.rel, house.id, creatorId, null), await afterDarkNote(db, house.id, p.me.id)), thread, {
     nudge: null,
     alsoSeeing: await alsoSeeing(db, house.id, p.me.id),
     open: Boolean(ownModel),
@@ -220,7 +221,7 @@ export async function writeOwnText(db: Db, o: { userId: string; from: string; to
   const chain = await loadChain(db, p.lo, p.hi, { usableBy: o.userId });
   const names = p.mine === "lo" ? [p.me.name, p.them.name] : [p.them.name, p.me.name];
   const thread = threadFor(chain, names[0], names[1], dateTextsBudget());
-  const messages = buildTextMessages(p.me, p.them, pairContext(p.rel, p.me.id, o.userId, null), thread, {
+  const messages = buildTextMessages(p.me, p.them, withAfterDark(pairContext(p.rel, p.me.id, o.userId, null), await afterDarkNote(db, p.me.id, p.them.id)), thread, {
     nudge: hint || (await activeNudge(db, p.me.id, p.them.id)),
     alsoSeeing: await alsoSeeing(db, p.me.id, p.them.id),
     open: true,

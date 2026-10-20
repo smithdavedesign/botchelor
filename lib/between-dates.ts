@@ -11,6 +11,7 @@
  *    their texts and goes into their next date with that person, then it's used. Flavour only: never the engine.
  *  - **Drama.** A character seeing more than one person knows it (public record only), and so does the director.
  */
+import { afterDarkNote, withAfterDark } from "./adult/memory";
 import { shortName } from "./names";
 import { characterBlindView, characterSelfView, loadCharacter, type Character } from "./character";
 import type { Db } from "./db";
@@ -166,7 +167,7 @@ PURPOSE
 ${purpose}
 
 WHAT YOU KNOW
-${matched ? `You know them only from their dating profile ("them": what they put on it) and your texts. Never bring up anything about them that isn't there.` : `You know them from your dates together ("your_relationship_with_them": what they've told you, your inside jokes) and your texts ("texts_so_far"). Never bring up anything they haven't told you.`} "your_answer_about_a_date" (if present) is private: whether you'd go on a date with them. Let your texts land there (a plan, or a kind fizzle) without announcing it. "your_creator_asked_you" (if present) is a private nudge: let it shape the text, never mention it. "you_are_also_seeing" (if present) is private: it may colour your mood, but you never mention them.
+${matched ? `You know them only from their dating profile ("them": what they put on it) and your texts. Never bring up anything about them that isn't there.` : `You know them from your dates together ("your_relationship_with_them": what they've told you, your inside jokes) and your texts ("texts_so_far"). Never bring up anything they haven't told you.`} If "your_relationship_with_them" has "what_happened_after_your_last_date", you two spent the night together: let it warm how you text (a callback, a little teasing), never describe it, never anything explicit. "your_answer_about_a_date" (if present) is private: whether you'd go on a date with them. Let your texts land there (a plan, or a kind fizzle) without announcing it. "your_creator_asked_you" (if present) is a private nudge: let it shape the text, never mention it. "you_are_also_seeing" (if present) is private: it may colour your mood, but you never mention them.
 
 HOW TO TEXT
 ${length}, in your own "voice". ${reply ? `They just texted you: answer what they said or asked first. Stay with what you both know (your texts, your dates, your own life); bring up "whats_new_this_week" only if it connects.` : `Share something from your own life ("whats_new_this_week"), pick up a thread, or ask them something.`} Don't recap your dates. A real person doesn't open every text the same way or repeat their own lines. If "you_already_made_a_plan" is there, that plan is settled: don't propose or confirm it again; text about anything else. Any new plan is somewhere you'd go together, so name the place: if you both agree to it, that's where your next date happens. Never a day of the week or a clock time.
@@ -274,7 +275,7 @@ export async function sendDailyTexts(
       for (const who of [firstEnd, firstEnd === "lo" ? "hi" : "lo"] as const) {
         const me = who === "lo" ? lo : hi;
         const them = who === "lo" ? hi : lo;
-        const messages = buildTextMessages(me, them, pairContext(rel, me.id, PUBLIC_ONLY, null), thread, {
+        const messages = buildTextMessages(me, them, withAfterDark(pairContext(rel, me.id, PUBLIC_ONLY, null), await afterDarkNote(db, me.id, them.id)), thread, {
           nudge: await activeNudge(db, me.id, them.id),
           alsoSeeing: await alsoSeeing(db, me.id, them.id),
         });

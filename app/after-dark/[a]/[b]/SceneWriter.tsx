@@ -45,6 +45,8 @@ export default function SceneWriter({
     setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
   }
   const [theater, setTheater] = useState(play);
+  // A steer is a nudge by default (worked toward at the scene's own pace); direct does it now.
+  const [steerMode, setSteerMode] = useState<"nudge" | "direct">("nudge");
   // Whether the end of the lines is on screen: the skip-to-bottom button shows only when it isn't.
   const endRef = useRef<HTMLSpanElement>(null);
   const [atEnd, setAtEnd] = useState(true);
@@ -87,7 +89,7 @@ export default function SceneWriter({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    await send(direction.trim() ? { direction: direction.trim() } : {});
+    await send(direction.trim() ? { direction: direction.trim(), steer_mode: steerMode } : {});
     setDirection("");
   }
 
@@ -104,7 +106,7 @@ export default function SceneWriter({
           characters={characters}
           busy={busy}
           note={note?.text ?? null}
-          onWrite={(d) => send(d ? { direction: d } : {})}
+          onWrite={(d) => send(d ? { direction: d, steer_mode: steerMode } : {})}
           onSetScene={(place) => send({ set_scene: place })}
           onMakeVideo={() => makeVideo()}
           videoTokens={reelTokens}
@@ -153,6 +155,14 @@ export default function SceneWriter({
           </button>
         )}
         <label htmlFor="after-dark-direction">Steer it (optional)</label>
+        <span className="after-dark-steer-mode" role="radiogroup" aria-label="How strongly">
+          <label title="Worked toward at the scene's own pace">
+            <input type="radio" name="steer-mode" checked={steerMode === "nudge"} onChange={() => setSteerMode("nudge")} /> Nudge
+          </label>
+          <label title="Done now: it can skip ahead">
+            <input type="radio" name="steer-mode" checked={steerMode === "direct"} onChange={() => setSteerMode("direct")} /> Direct
+          </label>
+        </span>
         <input id="after-dark-direction" value={direction} maxLength={300} onChange={(e) => setDirection(e.target.value)} placeholder="They go back to hers…" disabled={busy} />
         <p>
           <button type="submit" className="primary" disabled={busy}>

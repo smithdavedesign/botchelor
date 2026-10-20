@@ -34,7 +34,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     description:
       "Admin only. Writes the next lines of a pair's scene on after dark's model, optionally steered. Nobody under 18 and no real people, " +
       "always; anything else between the two adults is allowed. Pictures come when the scene turns explicit, or when they ask each other for one.",
-    inputSchema: { type: "object", required: ["a", "b"], properties: { a: id, b: id, direction: { type: "string", maxLength: 300 } } },
+    inputSchema: { type: "object", required: ["a", "b"], properties: { a: id, b: id, direction: { type: "string", maxLength: 300 }, steer_mode: { type: "string", enum: ["nudge", "direct"], description: "nudge (default): worked toward at the scene's own pace. direct: done now, can skip ahead." } } },
     annotations: { readOnlyHint: false },
   },
   {
@@ -92,7 +92,7 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
       return scene ? { data: { scene, gallery: await listMedia(db, [scene.a.id, scene.b.id]) } } : { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
     }
     case "after_dark_write": {
-      const r = await continueScene(db, owner, a, b, typeof args.direction === "string" ? args.direction : null);
+      const r = await continueScene(db, owner, a, b, typeof args.direction === "string" ? args.direction : null, args.steer_mode === "direct" ? "direct" : "nudge");
       return r.ok ? { data: { scene: r.scene, added: r.added, held: r.held, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}) } } : { error: r.message };
     }
     case "after_dark_switch": {

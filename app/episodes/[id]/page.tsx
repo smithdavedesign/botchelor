@@ -7,6 +7,7 @@ import { breadcrumbJsonLd } from "@/lib/seo";
 import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
 import { getDb } from "@/lib/db";
+import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { getEpisodeView, getPoints } from "@/lib/game";
 import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
@@ -76,6 +77,8 @@ export default async function EpisodePage({
   // Dates air by default once their prediction window closes (lib/air.ts): opening one that's due airs it.
   await airIfDue(db, id).catch(() => null);
   const episode = await getEpisodeView(db, id, viewerId);
+  // 🌙 on a date that carried an After Dark memory, only for someone After Dark is open to (never a hint to anyone else).
+  const afterDarkLink = episode?.after_dark && (await adultViewerFromCookies(db, await cookies())) ? `/after-dark/${[episode!.characters[0].id, episode!.characters[1].id].sort().join("/")}` : null;
   // When an unaired date airs on its own (its booking plus the prediction window), for the host's controls.
   const airsAt =
     episode && !episode.revealed && episode.is_host
@@ -212,6 +215,11 @@ export default async function EpisodePage({
         <p className="error">{HIDDEN_EPISODE_MESSAGE} Only its creators can still open it.</p>
       )}
 
+      {afterDarkLink && (
+        <p className="after-dark-marker">
+          <Link href={afterDarkLink}>🌙 They spent the night together before this date. See their night</Link>
+        </p>
+      )}
       <section className="card">
         <h2>The setting</h2>
         {episode.venue && (

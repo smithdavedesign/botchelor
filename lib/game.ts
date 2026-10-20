@@ -67,6 +67,8 @@ export type DateSetup = {
    * text (`agreed_plan`), which can be one of their homes or a place the library has no set for yet ("elsewhere@the
    * observatory"). Optional: episodes written before the library existed have no venue, and `venue()` falls back for them.
    */
+  /** They carried an After Dark memory into this date (lib/adult/memory.ts); only its PG note, never the scene. */
+  after_dark?: boolean;
   venue?: PlaceId;
   /**
    * The venues the dealer stepped past: where either person's character had its last dates (lib/venues.ts
@@ -172,6 +174,8 @@ export type EpisodeJson = {
   drama_question: DramaQuestion | null;
   revealed: boolean;
   /** Where the date happened (lib/venues.ts). Not a secret: it is the teaser's location, shown from the start. */
+  /** This date carried an After Dark memory (the page shows 🌙 only to someone After Dark is open to). */
+  after_dark?: boolean;
   venue?: PlaceId;
   /** The show format (lib/formats.ts). Not a secret: it is the episode's billing, shown from the start. Classic omitted. */
   format?: FormatId;
@@ -267,6 +271,7 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     revealed: ep.revealed,
   };
   if (ep.setup?.venue) json.venue = ep.setup.venue;
+  if (ep.setup?.after_dark) json.after_dark = true;
   // The format is the episode's billing (shown from the start), not a spoiler. Classic is the default, so
   // it needs no badge; only a chosen non-classic format is surfaced.
   if (ep.setup?.format && !isDefaultFormat(ep.setup.format)) json.format = ep.setup.format;
