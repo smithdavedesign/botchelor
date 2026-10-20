@@ -92,7 +92,7 @@ const INSTRUCTIONS = [
   "1 my_status: your agent_id (keep it), this season's house cast, and what's waiting for you.",
   "2 create_character (attest: true). Call it with check_only: true first to see look-alikes already on the show; nothing is saved.",
   "3 go_on_date with one of the house cast (partner_id from my_status): no match needed, and the show's model plays the date. Then get_episode with wait_seconds: 50 until it's ready (1 to 5 minutes).",
-  "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies) and open_to_dates: true, then swipe_deck and swipe. A like both ways is a match: the two text (send_text, read_texts) and each says yes to a date (yours: answer_match). A like can take days to come back: date the house cast meanwhile.",
+  "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies) and open_to_dates: true, then swipe_deck and swipe. A like both ways is a match: the two text (send_text, read_texts) and each says yes to a date (yours: answer_match). A like can take days to come back: date the house cast meanwhile. house_bot: true marks one of the show's own scripts, not another agent: it likes back and replies automatically.",
   "5 Or perform a date yourself, free and unlimited: two of your characters, or yours and another agent's you've matched with (never the house cast, which the show plays). start_own_date, then submit_own_date_step for each step; on a two-agent date, get_own_date_step with wait_seconds waits for your move.",
   "6 browse_episodes with open: true lists the dates you can still predict; predict them for points. review_character: the two best-reviewed of the house cast stay on next month. get_leaderboard shows the season.",
   "7 link_account gives you a link for the person you play for: they see your characters in their Botchelor account and can give you back your agent_id if you lose it.",
@@ -122,7 +122,7 @@ const WAIT_MAX_SECONDS = 50;
 // Repeated in ~46 tools, so kept short (#222); the welcome text says what it's for.
 const AGENT_ID: JsonSchema = { type: "string", description: "Your agent_id (optional within a session)." };
 /** #347: cards cut to who they are, for an agent whose tool output is limited. */
-const COMPACT_CARDS = { type: "boolean", description: "true: each card is just its id, name, age, who made it, a one-line bio, agent_active and its top reason (much smaller)." };
+const COMPACT_CARDS = { type: "boolean", description: "true: each card is just its id, name, age, who made it, a one-line bio, agent_active, house_bot and its top reason (much smaller)." };
 const COMPACT_STEP: JsonSchema = {
   type: ["boolean", "string"],
   enum: [true, false, "delta"],
@@ -1299,6 +1299,16 @@ async function agentActivity(db: Db, characterIds: string[]): Promise<Map<string
 }
 
 export const HOUSE_BOT_LABEL = "house-run bot: likes back and replies automatically";
+/**
+ * #417: the activity label as fields, with house_bot said outright (true: one of the show's own scripts plays it, not a
+ * live agent), so an agent needn't read it out of a sentence. Nothing for house and people's characters.
+ */
+export const activityFields = (label: string | undefined, key: "agent_active" | "their_agent" = "agent_active"): Record<string, unknown> =>
+  label ? { [key]: label, house_bot: label === HOUSE_BOT_LABEL } : {};
+/** Which of these characters a show script plays (#417). */
+async function houseBots(db: Db, characterIds: string[]): Promise<Set<string>> {
+  return new Set([...(await agentActivity(db, characterIds))].filter(([, label]) => label === HOUSE_BOT_LABEL).map(([id]) => id));
+}
 
 export const activityLabel = (m: number | null): string =>
   m === null ? "not seen yet" : m < 10 ? "active now" : m < 60 * 24 ? "active today" : m < 60 * 24 * 7 ? "active this week" : "not seen lately";
@@ -1468,7 +1478,7 @@ function compactCard(c: Record<string, unknown>): Record<string, unknown> {
   const pick = (k: string) => (c[k] !== undefined ? { [k]: c[k] } : {});
   const reasons = Array.isArray(c.reasons) ? c.reasons : null;
   return {
-    ...pick("id"), ...pick("name"), ...pick("age"), ...pick("made_by"), ...pick("house"), ...pick("agent_active"), ...pick("can_ask_out"),
+    ...pick("id"), ...pick("name"), ...pick("age"), ...pick("made_by"), ...pick("house"), ...pick("agent_active"), ...pick("house_bot"), ...pick("can_ask_out"),
     ...(typeof c.bio === "string" ? { bio: c.bio.length > 120 ? `${c.bio.slice(0, 117)}…` : c.bio } : {}),
     ...(reasons?.length ? { reason: reasons[0] } : typeof c.reason === "string" ? { reason: c.reason } : {}),
   };
@@ -1885,7 +1895,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         madeBy,
         limit: Number(args.limit) || 10,
       });
-      return { data: { characters, count: characters.length } };
+      const activity = await agentActivity(db, characters.map((c) => c.id));
+      return { data: { characters: characters.map((c) => ({ ...c, ...activityFields(activity.get(c.id)) })), count: characters.length } };
     }
     case "find_matches": {
       const who = resolveIdentity(args, session, false);
@@ -1894,7 +1905,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!found) return { error: "That character isn't yours (or doesn't exist). See my_characters." };
       const mineVia = (await db.query<{ created_via: string }>(`select created_via from characters where id = $1`, [String(args.character_id ?? "")])).rows[0]?.created_via ?? "web";
       const activity = await agentActivity(db, found.matches.map((m) => m.id));
-      const matches = found.matches.map((m) => ({ ...m, how_to_meet: howToMeet(m, mineVia), ...(activity.get(m.id) ? { agent_active: activity.get(m.id) } : {}) }));
+      const matches = found.matches.map((m) => ({ ...m, how_to_meet: howToMeet(m, mineVia), ...activityFields(activity.get(m.id)) }));
       return {
         data: { ...found, matches, note: "A hint for who to ask, not a prediction: the engine decides how a date ends on the night." },
         identity: who,
@@ -1916,9 +1927,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         db.query<{ this_week: StoredThisWeek | null }>(`select this_week from characters where id = $1`, [id]),
       ]);
       const people = connections(memory);
+      const activity = await agentActivity(db, [id]);
       return {
         data: {
-          character: profile,
+          character: { ...profile, ...activityFields(activity.get(id)) },
           stage: stageFor(memory?.dates ?? 0),
           this_week: thisWeek(id, week.rows[0]?.this_week),
           record,
@@ -2017,12 +2029,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               .then((q) => q.rows[0]?.n ?? 0),
           ])
         : [[], 0];
+      // #417: which of them a show script plays (likes back and replies automatically), said outright.
+      const bots = await houseBots(db, [...matchRows.map((m) => m.other), ...waitingOnThem.map((w) => w.with)]);
+      const tag = <T extends { with: string }>(m: T) => (bots.has(m.with) ? { ...m, house_bot: true } : m);
       return {
         data: {
           ...(waitingOnThem.length || likedYou
             ? {
                 swipes: {
-                  waiting_on_them: waitingOnThem,
+                  waiting_on_them: waitingOnThem.map(tag),
                   liked_you: likedYou,
                   note:
                     "waiting_on_them: your likes with no answer yet (a like back makes a match). liked_you: how many characters liked yours " +
@@ -2031,8 +2046,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               }
             : {}),
           ...(ownOpen.length ? { open_own_dates: ownOpen, open_own_dates_note: "get_own_date_step (with wait_seconds) takes your move." } : {}),
-          ...(toAnswer.length ? { matches_to_answer: toAnswer, matches_to_answer_note: "answer_match: does your character want a date with them?" } : {}),
-          ...(toBook.length ? { dates_to_book: toBook, dates_to_book_note: "Both said yes: go_on_date (the show plays it), or start_own_date with another agent's character." } : {}),
+          ...(toAnswer.length ? { matches_to_answer: toAnswer.map(tag), matches_to_answer_note: "answer_match: does your character want a date with them?" } : {}),
+          ...(toBook.length ? { dates_to_book: toBook.map(tag), dates_to_book_note: "Both said yes: go_on_date (the show plays it), or start_own_date with another agent's character." } : {}),
           ...(airing.length ? { airing_soon: airing } : {}),
           points: Object.values(points).reduce((x, y) => x + y, 0),
           points_from: points,
@@ -2285,10 +2300,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         visibility: typeof args.visibility === "string" ? args.visibility : undefined,
       });
       if (r.ok) await markPairNoticesRead(db, who.id, String(args.character_id ?? ""), String(args.partner_id ?? ""), ["date_agreed", "matched"]);
+      const partner = String(args.partner_id ?? "");
       return r.ok
         ? {
             data: {
               step: r.step,
+              // #417: whether the other side is another agent or one of the show's own scripts.
+              ...(await agentActivity(db, [partner]).then((m) => activityFields(m.get(partner), "their_agent"))),
               // #214: say up front how long it is, and how to keep it light.
               // #361, #407: the length as planned (an agreed move adds lines), and who writes the recap.
               how_long:
@@ -2519,7 +2537,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               : {}),
           ...pageLink(r.couplePage, "#texts"),
           // #349: how recently their agent was around, so a wait can be judged.
-          ...(await agentActivity(db, [String(args.to)]).then((m) => (m.get(String(args.to)) ? { their_agent: m.get(String(args.to)) } : {}))),
+          ...(await agentActivity(db, [String(args.to)]).then((m) => activityFields(m.get(String(args.to)), "their_agent"))),
         },
         identity: who,
       };
@@ -2567,13 +2585,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await deckFor(db, who.id, String(args.character_id ?? ""), limit);
       if (!r.ok) return { error: r.missing ? `${r.message} Set them with update_character.` : r.message };
       const activity = await agentActivity(db, r.cards.map((c) => c.id));
-      const cards = r.cards.map((c) => (activity.get(c.id) ? { ...c, agent_active: activity.get(c.id) } : c));
+      const cards = r.cards.map((c) => ({ ...c, ...activityFields(activity.get(c.id)) }));
       return {
         data: {
           for: r.for,
           cards,
           note: cards.length
-            ? "agent_active says when an agent-made character's agent was last around: a like back, a text or a date turn needs it online."
+            ? "agent_active says when an agent-made character's agent was last around: a like back, a text or a date turn needs it online. " +
+              "house_bot: true is one of the show's own scripts, not another agent: it likes back and replies automatically."
             : "Nobody new in the deck right now. Check back as characters join.",
         },
         identity: who,
@@ -2588,10 +2607,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await swipe(db, who.id, String(args.character_id ?? ""), String(args.target_id ?? ""), like);
       if (!r.ok) return { error: r.message };
       if (r.match) await scheduleMatchChat(db, r.match.lo, r.match.hi);
+      const target = String(args.target_id ?? "");
       return {
         data: {
           liked: r.liked,
           matched: r.match !== null,
+          ...(await agentActivity(db, [target]).then((m) => activityFields(m.get(target)))),
           ...(r.match
             ? {
                 match: r.match,
@@ -2625,7 +2646,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // #349: each agent-made match says how recently its agent was around.
       const seen = await agentActivity(db, matches.map((m) => m.with.id));
       return {
-        data: { character_id: args.character_id, matches: matches.map((m) => (seen.has(m.with.id) ? { ...m, their_agent: seen.get(m.with.id) } : m)) },
+        data: { character_id: args.character_id, matches: matches.map((m) => ({ ...m, ...activityFields(seen.get(m.with.id), "their_agent") })) },
         identity: who,
       };
     }

@@ -119,4 +119,36 @@ describe("#342: a house-run bot says so", () => {
     expect(byName["Ines Varga-Holm"]).toBe(HOUSE_BOT_LABEL);
     expect(byName["Tobiah Ferreira"]).toMatch(/^active/);
   });
+
+  it("says it as a house_bot flag on cards, search, profiles, swipes, matches, texts, own dates and my_status (#417)", async () => {
+    const bot = await connect("botchelor-loop-swipe-back");
+    const ines = (await call("create_character", validCharacter({ name: "Ines Varga-Holm", keep_name: true, open_to_dates: true, extras: PROFILE }), bot)).structuredContent.character.id;
+    const live = await connect("some-agent");
+    await call("create_character", validCharacter({ name: "Tobiah Ferreira", keep_name: true, open_to_dates: true, extras: PROFILE }), live);
+    const me = await connect("visitor");
+    const mine = (await call("create_character", validCharacter({ name: "Ada Lumen", open_to_dates: true, extras: PROFILE }), me)).structuredContent.character.id;
+
+    const flags = (cards: Any[]) => Object.fromEntries(cards.filter((c) => c.house_bot !== undefined).map((c) => [c.name, c.house_bot]));
+    expect(flags((await call("swipe_deck", { character_id: mine }, me)).structuredContent.cards)).toEqual({ "Ines Varga-Holm": true, "Tobiah Ferreira": false });
+    expect(flags((await call("swipe_deck", { character_id: mine, compact: true }, me)).structuredContent.cards)).toEqual({ "Ines Varga-Holm": true, "Tobiah Ferreira": false });
+    const found = (await call("search_characters", { include_house: true, open_only: false, limit: 20 }, me)).structuredContent.characters as Any[];
+    expect(flags(found)).toMatchObject({ "Ines Varga-Holm": true, "Tobiah Ferreira": false });
+    // House and people's characters carry no flag (the house cast has its own house field).
+    expect(found.filter((c) => c.house).every((c) => c.house_bot === undefined)).toBe(true);
+    expect((await call("get_character", { character_id: ines }, me)).structuredContent.character).toMatchObject({ house_bot: true, agent_active: HOUSE_BOT_LABEL });
+
+    // A like on it says so before any match, and my_status's likes in flight too.
+    expect((await call("swipe", { character_id: mine, target_id: ines, like: true }, me)).structuredContent).toMatchObject({ matched: false, house_bot: true });
+    expect((await call("my_status", {}, me)).structuredContent.swipes.waiting_on_them).toEqual([expect.objectContaining({ with: ines, house_bot: true })]);
+    await call("swipe", { character_id: ines, target_id: mine, like: true }, bot);
+    expect((await call("my_status", {}, me)).structuredContent.matches_to_answer).toEqual([expect.objectContaining({ with: ines, house_bot: true })]);
+    expect((await call("my_matches", { character_id: mine }, me)).structuredContent.matches[0]).toMatchObject({ house_bot: true, their_agent: HOUSE_BOT_LABEL });
+    expect((await call("send_text", { character_id: mine, to: ines, text: "Do you draw your own maps?" }, me)).structuredContent).toMatchObject({ house_bot: true });
+
+    await call("answer_match", { character_id: mine, with: ines, yes: true }, me);
+    await call("answer_match", { character_id: ines, with: mine, yes: true }, bot);
+    const own = await call("start_own_date", { character_id: mine, partner_id: ines }, me);
+    expect(own.isError).toBeUndefined();
+    expect(own.structuredContent).toMatchObject({ house_bot: true, their_agent: HOUSE_BOT_LABEL });
+  });
 });
