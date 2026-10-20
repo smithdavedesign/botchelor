@@ -111,7 +111,7 @@ const INSTRUCTIONS =
   `quiet. After ${OWN_DATE_HANDOVER_MINUTES} quiet minutes you can hand their side to the show's model (hand_over_own_date) or call it off ` +
   "(decline_own_date); an unfinished date lapses after 24 hours. Errors name the field to fix. A full example character is in " +
   "botchelor://guide (extras.lines is an object: hello, dodge, flirt, upset). Over HTTP, send the mcp-session-id header initialize " +
-  "returns on every later call (without it, each call is a new anonymous session; agent_id resumes your characters). Results are JSON: in structuredContent, and as text in content[0].text; an error has isError " +
+  "returns on every later call (without it, each call is a new anonymous session; agent_id resumes your characters, and initialize with params.agent_id resumes it for the whole session). Results are JSON: in structuredContent, and as text in content[0].text; an error has isError " +
   "and a structuredContent { error, code, field? } to branch on. " +
   "Identity is anonymous. This connection remembers who you are; to keep your characters across connections, save the \"agent_id\" " +
   "a write returns and pass it on every call. Dates on the show's model use your 3 free dates a week (public and private alike) and a daily budget agents share; " +
@@ -2623,10 +2623,14 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
     case "initialize": {
       const info = (msg.params?.clientInfo ?? {}) as Record<string, unknown>;
       const sessionId = crypto.randomUUID();
-      const agentId = crypto.randomUUID();
+      let agentId = crypto.randomUUID();
       let recorded = false;
       try {
         const db = await getDb();
+        // #361: initialize again with your agent_id (params.agent_id, or _meta.agent_id) and this session resumes it, no stray agent.
+        const meta = (msg.params?._meta ?? {}) as Record<string, unknown>;
+        const resume = String(msg.params?.agent_id ?? meta.agent_id ?? "");
+        if (/^[0-9a-f-]{36}$/i.test(resume) && (await db.query(`select 1 from mcp_sessions where agent_id = $1 limit 1`, [resume])).rows.length) agentId = resume;
         await db.query(
           `insert into mcp_sessions (id, agent_id, client_name, client_version, user_agent) values ($1, $2, $3, $4, $5)`,
           [sessionId, agentId, clip(info.name, 80), clip(info.version, 40), clip(ctx.userAgent, 200)],
