@@ -1,10 +1,13 @@
 /**
  * RepoHQ's funnel beacon: the owner's portfolio dashboard, whose growth loop reads it (idea-factory lib/growth.js).
  * `visit` once per browser session on any page, `activate` the first time this browser starts a date (the core
- * action, GROWTH.md), and `checkout` when someone clicks Buy. Fire-and-forget POSTs with no cookies; RepoHQ keeps a
- * keyed hash of the IP, never the address. Nothing is sent from previews or local runs, from automated browsers, when
- * localStorage "repohq:notrack" is set (the owner's own browsers), or when the visitor declined analytics cookies.
+ * action, GROWTH.md), and `checkout` when someone clicks Buy, each with the page it happened on (beaconPath).
+ * Fire-and-forget POSTs with no cookies; RepoHQ keeps a keyed hash of the IP, never the address. Nothing is sent from
+ * previews or local runs, from automated browsers, when localStorage "repohq:notrack" is set (the owner's own
+ * browsers), or when the visitor declined analytics cookies.
  */
+import { safeFrom } from "@/lib/age";
+
 export const SIGNAL_URL = "https://repohq.vercel.app/api/ideas/signal";
 export const SLUG = "botchelor";
 export type FunnelKind = "visit" | "activate" | "checkout";
@@ -24,6 +27,18 @@ export function externalReferrer(referrer: string, origin: string): string | nul
   } catch {
     return null;
   }
+}
+
+/**
+ * The page an event counts for: this page, or on the 18+ gate the page the visitor was headed to (its `from`), so a
+ * visitor from search who meets the gate first still counts for the page they came for. A ship name page counts as
+ * /ship: its address holds the two names someone typed, and nothing typed goes to the beacon.
+ */
+export function beaconPath(pathname: string, search = ""): string {
+  let path = pathname;
+  const from = pathname === "/gate" ? new URLSearchParams(search).get("from") : null;
+  if (from) path = safeFrom(from).split(/[?#]/)[0] || "/";
+  return path === "/ship" || path.startsWith("/ship/") ? "/ship" : path;
 }
 
 /** Set by <FunnelBeacon> from the server: whether this is production, and this visitor's consent default. */
@@ -70,7 +85,12 @@ export function sendFunnel(kind: FunnelKind): void {
     void fetch(SIGNAL_URL, {
       method: "POST",
       headers: { "content-type": "text/plain" },
-      body: JSON.stringify({ slug: SLUG, kind, referrer: externalReferrer(document.referrer, location.origin) }),
+      body: JSON.stringify({
+        slug: SLUG,
+        kind,
+        path: beaconPath(location.pathname, location.search),
+        referrer: externalReferrer(document.referrer, location.origin),
+      }),
       keepalive: true,
       credentials: "omit",
     }).catch(() => {});
