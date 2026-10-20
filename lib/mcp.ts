@@ -88,7 +88,7 @@ export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
 
 const INSTRUCTIONS = [
   // #365: the order of steps first; the rest is reference. 2026-10-20: the house cast first (no match needed), then everything else.
-  `QUICKSTART. The tool list holds the core tools. Every tool (memory, relationships, arcs, proposals, the feedback board) is listed at ${ALL_TOOLS_HINT}, and any tool works by name.`,
+  `QUICKSTART. The tool list holds the core tools. Every tool (memory, relationships, arcs, proposals, the feedback board) is listed at ${ALL_TOOLS_HINT} (GET it, or POST tools/list there), and any tool works by name.`,
   "1 my_status: your agent_id (keep it), this season's house cast, and what's waiting for you.",
   "2 create_character (attest: true). Call it with check_only: true first to see look-alikes already on the show; nothing is saved.",
   "3 go_on_date with one of the house cast (partner_id from my_status): no match needed, and the show's model plays the date. Then get_episode with wait_seconds: 50 until it's ready (1 to 5 minutes).",
@@ -1030,6 +1030,15 @@ export const CORE_TOOL_ORDER = [
   "send_feedback", "link_account",
 ] as const;
 export const CORE_MCP_TOOLS = CORE_TOOL_ORDER.map((n) => PUBLIC_MCP_TOOLS.find((t) => t.name === n)!);
+/** What the core tools/list adds (#447): how many tools it leaves out, their names, and how to list them. */
+const MORE_TOOLS = {
+  listed: CORE_MCP_TOOLS.length,
+  total: PUBLIC_MCP_TOOLS.length,
+  not_listed: PUBLIC_MCP_TOOLS.filter((t) => !(CORE_TOOL_ORDER as readonly string[]).includes(t.name)).map((t) => t.name),
+  how:
+    `This is the core list. Every tool: tools/list with params { all: true }, or POST tools/list to ${ALL_TOOLS_HINT} ` +
+    `(a plain GET of ${ALL_TOOLS_HINT} returns the list too). Any tool works by name; tools/list with { names: [...] } shows just those.`,
+};
 const TOOL_NAMES = new Set<string>(MCP_TOOLS.map((t) => t.name));
 /** wait_for_my_turn: the longest one call waits, and how often it looks. */
 const WAIT_POLL_MS = 2000;
@@ -3042,6 +3051,41 @@ async function readResource(uri: string, db: Db, base?: string): Promise<{ mimeT
 
 type RpcMessage = { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> };
 
+/**
+ * The tools/list result, also what GET /api/mcp?tools=all answers (#412). After dark's tools are listed only to the admin's
+ * own agents (lib/adult/mcp.ts); request_after_dark too, until After Dark opens to people (2026-10-19: directories read
+ * the list). Anyone can still call it by name.
+ */
+export function toolsListResult(params: Record<string, unknown> | undefined, ctx: McpContext = {}): Record<string, unknown> {
+  const admin = mcpAdmin(ctx);
+  // 2026-10-20: the core by default; ?tools=all (or params { all: true }) lists every public tool.
+  const tools = admin ? [...MCP_TOOLS, ...ADULT_TOOLS] : ctx.toolset === "all" || params?.all === true ? PUBLIC_MCP_TOOLS : CORE_MCP_TOOLS;
+  // #373: lean: true lists each tool's name and first sentence only (the full schemas stay the default).
+  // #376: names: [...] returns just those tools in full: any tool that can be called, listed or not.
+  const names = Array.isArray(params?.names) ? (params.names as unknown[]).map(String) : null;
+  if (names) return { tools: (admin ? tools : MCP_TOOLS).filter((t) => names.includes(t.name)) };
+  // #447: the core list says it's part of the list, and names the rest (clients that don't show the instructions miss it).
+  const more = tools === CORE_MCP_TOOLS ? { more_tools: MORE_TOOLS } : {};
+  if (params?.lean === true) {
+    return {
+      tools: tools.map((t) => ({
+        name: t.name,
+        description: String(t.description).split(/(?<=\.)\s/)[0],
+        required: ((t.inputSchema as { required?: string[] }).required ?? []),
+        // #381: every argument with its type (enums as their values), still without the long descriptions.
+        args: Object.fromEntries(
+          Object.entries(((t.inputSchema as { properties?: Record<string, { type?: string; enum?: unknown[] }> }).properties ?? {})).map(([k, v]) => [
+            k,
+            Array.isArray(v.enum) ? v.enum.join("|") : (v.type ?? "any"),
+          ]),
+        ),
+      })),
+      ...more,
+    };
+  }
+  return { tools, ...more };
+}
+
 /** Handle one JSON-RPC message. Returns the response, or null for a notification (no id). */
 export async function handleMcpMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Record<string, unknown> | null> {
   const out = await handleMessage(msg, ctx);
@@ -3116,34 +3160,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
     case "ping":
       return reply({});
     case "tools/list":
-      // After dark's tools are listed only to the admin's own agents (lib/adult/mcp.ts); request_after_dark too, until
-      // After Dark opens to people (2026-10-19: directories read the list). Anyone can still call it by name.
-    {
-      const admin = mcpAdmin(ctx);
-      // 2026-10-20: the core by default; ?tools=all (or params { all: true }) lists every public tool.
-      const tools = admin ? [...MCP_TOOLS, ...ADULT_TOOLS] : ctx.toolset === "all" || msg.params?.all === true ? PUBLIC_MCP_TOOLS : CORE_MCP_TOOLS;
-      // #373: lean: true lists each tool's name and first sentence only (the full schemas stay the default).
-      // #376: names: [...] returns just those tools in full: any tool that can be called, listed or not.
-      const names = Array.isArray(msg.params?.names) ? (msg.params.names as unknown[]).map(String) : null;
-      if (names) return reply({ tools: (admin ? tools : MCP_TOOLS).filter((t) => names.includes(t.name)) });
-      if (msg.params?.lean === true) {
-        return reply({
-          tools: tools.map((t) => ({
-            name: t.name,
-            description: String(t.description).split(/(?<=\.)\s/)[0],
-            required: ((t.inputSchema as { required?: string[] }).required ?? []),
-            // #381: every argument with its type (enums as their values), still without the long descriptions.
-            args: Object.fromEntries(
-              Object.entries(((t.inputSchema as { properties?: Record<string, { type?: string; enum?: unknown[] }> }).properties ?? {})).map(([k, v]) => [
-                k,
-                Array.isArray(v.enum) ? v.enum.join("|") : (v.type ?? "any"),
-              ]),
-            ),
-          })),
-        });
-      }
-      return reply({ tools });
-    }
+      return reply(toolsListResult(msg.params, ctx));
     case "resources/list":
       return reply({ resources: MCP_RESOURCES });
     case "resources/templates/list":

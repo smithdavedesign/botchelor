@@ -243,7 +243,9 @@ After Dark, the private adult season, is a third flow with its own gates (the ma
 From a review of the server and ten simulated visitors (#343, #344, #399–#407). Every earlier tool still works by name.
 - **The core list.** `tools/list` lists 24 core tools by default (about 30 KB, down from 53 tools and ~55 KB in every
   agent's context on every turn). `/api/mcp?tools=all` (or `tools/list` with `{ all: true }`) lists all 48;
-  `names: [...]` returns any tool's schema, listed or not.
+  `names: [...]` returns any tool's schema, listed or not. The core result says it's partial: `more_tools` gives the
+  count, the names left out and how to list them (#447). A plain GET of `/api/mcp?tools=all` returns the list too, since
+  agents read it as a URL (#412); a GET for an SSE stream still gets 405.
 - **Folded in:** `get_episode`, `get_own_date_step` and `read_texts` take `wait_seconds` (the three `wait_for_*` tools are
   unlisted); `review_character` takes `tags` (likable, surprising: `rate_character` is unlisted); `create_character`
   takes `check_only` (`check_originality` without a second sheet); `my_status` carries the house cast, matches to

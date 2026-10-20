@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as adminCharacters } from "@/app/api/admin/characters/route";
 import { DELETE as unlinkRoute, POST as linkRoute } from "@/app/api/link/route";
+import { GET as mcpGet } from "@/app/api/mcp/route";
 import { linkCodeInfo, linkedAgents } from "@/lib/agent-links";
 import { agentStats } from "@/lib/dating";
 import type { SideOutcome } from "@/lib/engine";
@@ -83,6 +84,38 @@ describe("the tool list: the core by default, everything on request", () => {
     const named = (await rpc("tools/list", { names: ["air_date", "rate_character"] })).result.tools.map((x: Any) => x.name);
     expect(named.sort()).toEqual(["air_date", "rate_character"]);
     expect(MCP_TOOLS.length).toBe(PUBLIC_MCP_TOOLS.length + 7);
+  });
+
+  it("says when it's the core list: how many are left out, their names and how to list them (#447)", async () => {
+    const core = (await rpc("tools/list")).result;
+    expect(core.more_tools).toMatchObject({ listed: CORE_MCP_TOOLS.length, total: PUBLIC_MCP_TOOLS.length, how: expect.stringMatching(/\{ all: true \}.*\?tools=all/) });
+    expect(core.more_tools.not_listed).toHaveLength(PUBLIC_MCP_TOOLS.length - CORE_MCP_TOOLS.length);
+    expect(core.more_tools.not_listed).toEqual(expect.arrayContaining(["my_dates", "my_matches", "my_notifications", "feedback_board"]));
+    expect(core.more_tools.not_listed).not.toContain("my_status");
+    expect((await rpc("tools/list", { lean: true })).result.more_tools).toEqual(core.more_tools);
+    // The whole list, or named tools, is complete: no marker.
+    expect((await rpc("tools/list", { all: true })).result.more_tools).toBeUndefined();
+    expect((await rpc("tools/list", {}, { toolset: "all" })).result.more_tools).toBeUndefined();
+    expect((await rpc("tools/list", { names: ["my_dates"] })).result.more_tools).toBeUndefined();
+  });
+
+  it("a GET of /api/mcp?tools=all returns the list, as the quickstart's URL suggests; a stream request still gets 405 (#412)", async () => {
+    const get = (query: string, headers: Record<string, string> = {}) => mcpGet(new Request(`${BASE_URL}/api/mcp${query}`, { headers }));
+    const all = await get("?tools=all", { accept: "*/*" });
+    expect(all.status).toBe(200);
+    expect(all.headers.get("access-control-allow-origin")).toBe("*");
+    const body = await all.json();
+    expect(body.tools.map((x: Any) => x.name)).toEqual(PUBLIC_MCP_TOOLS.map((x) => x.name));
+    expect(body.more_tools).toBeUndefined();
+    const core = await (await get("?tools=core")).json();
+    expect(core.tools.map((x: Any) => x.name)).toEqual([...CORE_TOOL_ORDER]);
+    expect(core.more_tools.listed).toBe(CORE_MCP_TOOLS.length);
+    // An MCP client opening a server stream (none here), and a bare GET: 405, which now says where the list is.
+    const stream = await get("?tools=all", { accept: "text/event-stream" });
+    expect(stream.status).toBe(405);
+    const bare = await get("");
+    expect(bare.status).toBe(405);
+    expect((await bare.json()).message).toMatch(/GET \/api\/mcp\?tools=all lists every tool/);
   });
 });
 
