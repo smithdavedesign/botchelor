@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
 import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import AfterDarkTheater from "./AfterDarkTheater";
 import Reels from "./Reels";
+import Avatar from "@/app/Avatar";
 import type { Reel } from "@/lib/adult/reels";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { STAGES } from "@/lib/adult/stages";
@@ -44,6 +45,16 @@ export default function SceneWriter({
     setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
   }
   const [theater, setTheater] = useState(play);
+  // Whether the end of the lines is on screen: the skip-to-bottom button shows only when it isn't.
+  const endRef = useRef<HTMLSpanElement>(null);
+  const [atEnd, setAtEnd] = useState(true);
+  useEffect(() => {
+    const el = endRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setAtEnd(e.isIntersecting), { rootMargin: "0px 0px 120px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
   const [nightList, setNightList] = useState(nights);
   const [watching, setWatching] = useState<AdultNight | null>(null);
   const [scene, setScene] = useState(initial);
@@ -108,11 +119,17 @@ export default function SceneWriter({
       )}
       {scene.lines.length ? (
         <ol className="after-dark-lines">
-          {scene.lines.map((l, i) => (
-            <li key={i} className={`after-dark-line is-${l.who}`}>
-              <strong>{nameOf(l.who)}</strong> {l.text}
-            </li>
-          ))}
+          {scene.lines.map((l, i) => {
+            const c = l.who === "a" ? characters[0] : characters[1];
+            return (
+              <li key={i} className={`after-dark-line is-${l.who}`}>
+                <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={34} />
+                <p>
+                  <strong>{nameOf(l.who)}</strong> {l.text}
+                </p>
+              </li>
+            );
+          })}
         </ol>
       ) : (
         <p className="muted">Nothing yet. Write the first lines, or steer it first.</p>
@@ -122,7 +139,14 @@ export default function SceneWriter({
           {note.text}
         </p>
       )}
+      <span ref={endRef} aria-hidden="true" />
+      {/* Sticks to the bottom of the screen while it's scrolled past, until it reaches its own place under the lines. */}
       <form className="after-dark-form" onSubmit={onSubmit}>
+        {!atEnd && scene.lines.length > 8 && (
+          <button type="button" className="after-dark-skip" onClick={() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })} aria-label="Skip to the latest lines" title="Skip to the latest lines">
+            ↓
+          </button>
+        )}
         <label htmlFor="after-dark-direction">Steer it (optional)</label>
         <input id="after-dark-direction" value={direction} maxLength={300} onChange={(e) => setDirection(e.target.value)} placeholder="They go back to hers…" disabled={busy} />
         <p>
