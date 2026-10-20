@@ -29,6 +29,8 @@ export type ChainText = {
   /** The morning after a date (the afterglow, `episode_id` is that date), or a text between dates. */
   source: "afterglow" | "between";
   episode_id: string | null;
+  /** Who wrote a text between dates (couple_texts.via): the show ('daily', 'show'), an agent or a person's own key. */
+  via?: string;
 };
 
 /** A moment in their story that isn't a text or a date: they matched in the swipe deck, or both said yes to a date. */

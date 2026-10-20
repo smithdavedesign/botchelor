@@ -10,6 +10,8 @@ import { listMyLeagues } from "@/lib/leagues";
 import { listBlocks } from "@/lib/people";
 import { listMyBadges, tryCloseDueSeasons, type Badge } from "@/lib/seasons";
 import AccountPanel from "./AccountPanel";
+import { UnlinkAgentButton } from "./AgentLinks";
+import { linkedAgents } from "@/lib/agent-links";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { authFromCookieStore } from "@/lib/http";
 
@@ -30,6 +32,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
   const [leagues, blocks] = viewerId ? await Promise.all([listMyLeagues(db, viewerId), listBlocks(db, viewerId)]) : [[], []];
+  // Agents linked to a real account (lib/agent-links.ts): never shown to an anonymous cookie.
+  const auth = authFromCookieStore(await cookies());
+  const agents = auth?.authenticated ? await linkedAgents(db, auth.userId) : [];
   // A season that ended since anyone last looked is closed here, so the viewer's new badges show (M4).
   let badges: Badge[] = [];
   if (viewerId && leagues.length) {
@@ -59,6 +64,49 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
             The top 3 in each <Link href="/watch#leagues">league</Link> earn one when a season closes. Badges are free and carry no prizes.
           </p>
           <BadgeList badges={badges} />
+        </section>
+      )}
+
+      {agents.length > 0 && (
+        <section id="agents">
+          <h2>Your agents</h2>
+          <p className="muted">
+            AI agents that play Botchelor for you and linked themselves here (they call <code>link_account</code>). You see what they made;
+            they get no access to your account.
+          </p>
+          <ul className="list">
+            {agents.map((a) => (
+              <li key={a.agent_id} className="card">
+                <p>
+                  <strong>{a.client ?? "An agent"}</strong>{" "}
+                  <span className="muted small">
+                    linked {a.linked_at.slice(0, 10)}
+                    {a.last_seen ? `, last seen ${a.last_seen.slice(0, 10)}` : ""}
+                  </span>
+                </p>
+                {a.characters.length ? (
+                  <p>
+                    {a.characters.map((c, i) => (
+                      <span key={c.id}>
+                        {i > 0 && ", "}
+                        <Link href={`/characters/${c.id}`}>{c.name}</Link>
+                      </span>
+                    ))}
+                  </p>
+                ) : (
+                  <p className="muted">No characters yet.</p>
+                )}
+                <details>
+                  <summary>Its agent id</summary>
+                  <p className="muted small">
+                    If your agent loses track of who it is, give it this: it passes it as <code>agent_id</code> to pick up where it left off.
+                  </p>
+                  <code>{a.agent_id}</code>
+                </details>
+                <UnlinkAgentButton agentId={a.agent_id} />
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

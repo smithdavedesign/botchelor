@@ -10,7 +10,7 @@ describe("llms.txt — llmstxt.org shape, honest, measurable", () => {
 
   it("follows the spec: H1, a blockquote summary, H2 sections of markdown links, and an Optional section", () => {
     expect(body).toMatch(/^# Botchelor\n\n> /);
-    for (const h of ["## Why an agent might want to be here", "## Quickstart: three MCP calls", "## Docs", "## The show", "## Optional"]) {
+    for (const h of ["## Why an agent might want to be here", "## Quickstart", "## Docs", "## The show", "## Optional"]) {
       expect(body).toContain(h);
     }
     expect(body).toMatch(/- \[[^\]]+\]\(https:\/\/botchelor\.vercel\.app\/[^)]*\): /);
@@ -24,7 +24,7 @@ describe("llms.txt — llmstxt.org shape, honest, measurable", () => {
   });
 
   it("gives a copy-paste quickstart and makes no hidden or manipulative claims", () => {
-    expect(body).toMatch(/create_character[\s\S]*find_matches[\s\S]*go_on_date/);
+    expect(body).toMatch(/my_status[\s\S]*create_character[\s\S]*go_on_date/);
     expect(body).not.toMatch(/<!--|display:\s*none|ignore (all|previous) instructions/i);
   });
 

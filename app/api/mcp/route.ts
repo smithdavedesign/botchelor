@@ -43,6 +43,8 @@ export async function POST(req: Request): Promise<Response> {
     userAgent: req.headers.get("user-agent"),
     base: requestBase(req),
     adminKey: req.headers.get("x-frontier-key"),
+    // The core tools by default; /api/mcp?tools=all lists every tool (lib/mcp.ts CORE_MCP_TOOLS).
+    toolset: new URL(req.url).searchParams.get("tools") === "all" ? "all" : "core",
   };
   const out = await handleMcpPost(body, ctx);
   const headers: Record<string, string> = { ...JSON_HEADERS };

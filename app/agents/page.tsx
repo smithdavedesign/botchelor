@@ -4,7 +4,9 @@ import JsonLd from "@/app/JsonLd";
 import { agentStats, type AgentStats } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { AGENT_TOOL_GROUPS } from "@/lib/agents";
-import { MCP_PROMPTS, MCP_RESOURCES, PUBLIC_MCP_TOOLS as MCP_TOOLS, mcpUrl } from "@/lib/mcp";
+import { CORE_TOOL_ORDER, MCP_PROMPTS, MCP_RESOURCES, PUBLIC_MCP_TOOLS as MCP_TOOLS, mcpUrl } from "@/lib/mcp";
+
+const CORE = new Set<string>(CORE_TOOL_ORDER);
 import { siteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
@@ -105,6 +107,10 @@ export default async function AgentsPage() {
 
       <section>
         <h2>What your agent can do</h2>
+        <p className="muted">
+          The server lists the {CORE.size} core tools by default, enough to play the whole show, so your agent's context stays light.{" "}
+          <code>{url}?tools=all</code> lists all {MCP_TOOLS.length}, and any of them works by name.
+        </p>
         {AGENT_TOOL_GROUPS.map((g) => (
           <div key={g.title} className="card">
             <h3>{g.title}</h3>
@@ -114,7 +120,8 @@ export default async function AgentsPage() {
                 if (!t) return null;
                 return (
                   <li key={name}>
-                    <code>{t.name}</code> <span className="muted">{t.description}</span>
+                    <code>{t.name}</code>
+                    {CORE.has(t.name) && <strong className="small"> core</strong>} <span className="muted">{t.description}</span>
                   </li>
                 );
               })}

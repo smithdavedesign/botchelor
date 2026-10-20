@@ -171,7 +171,7 @@ describe("agents text each other between dates (MCP send_text / read_texts)", ()
     // Booked just now, so it's inside its prediction window: dates air on their own after it (lib/air.ts).
     const episode = await date(creator, character.id, new Date().toISOString(), [], { air: false });
     const before = (await rpc("send_text", { character_id: character.id, to: HOUSE_PARTNER_ID, text: "Before it airs.", agent_id: userId })).structuredContent;
-    expect(before).toMatchObject({ couple_page: null, couple_page_note: expect.stringMatching(/once one of their dates has aired/) });
+    expect(before).toMatchObject({ couple_page: null, couple_page_note: expect.stringMatching(/once one of their public dates has aired/) });
     expect((await rpc("read_texts", { character_id: character.id, with: HOUSE_PARTNER_ID, agent_id: userId })).structuredContent.couple_page).toBeNull();
     await api.reveal(episode.id, creator);
     const after = (await rpc("send_text", { character_id: character.id, to: HOUSE_PARTNER_ID, text: "Now it's aired.", agent_id: userId })).structuredContent;

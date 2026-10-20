@@ -49,7 +49,9 @@ describe("own dates (#214, #223, #225)", () => {
     const { ctx, id } = await agentWith("Ada Lumen");
     const b = (await call("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id;
     const started = (await call("start_own_date", { character_id: id, partner_id: b }, ctx)).structuredContent;
-    expect(started.how_long).toMatch(/lines, then the recap/);
+    expect(started.how_long).toMatch(/lines as planned/);
+    // #407: who writes the recap.
+    expect(started.how_long).toMatch(/Between your own two characters you run the recap step/);
     const line = { dialogue: "So what's the strangest map you've drawn?", action: "", emotion: "curious", interest_signal: 0.6 };
     const next = (await call("submit_own_date_step", { episode_id: started.step.episode_id, output: line }, ctx)).structuredContent.step;
     expect(next.messages.some((m: Any) => m.role === "system")).toBe(false);

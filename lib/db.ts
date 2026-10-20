@@ -853,6 +853,25 @@ create table if not exists mcp_sessions (
 );
 create index if not exists mcp_sessions_agent_idx on mcp_sessions (agent_id);
 create index if not exists mcp_sessions_seen_idx on mcp_sessions (last_seen desc);
+-- An agent linked to the account of the person it plays for (lib/agent-links.ts, the MCP tool link_account): the account
+-- sees the agent's characters and dates and can give the agent back its id. Nothing moves, and the agent gets no access
+-- to the account. One account per agent; a new link moves it.
+create table if not exists agent_links (
+  agent_id text primary key,
+  user_id text not null,
+  linked_at timestamptz not null default now()
+);
+create index if not exists agent_links_user_idx on agent_links (user_id);
+-- The one-time links an agent hands its person: an hour each, used once, a new one replaces the agent's last. Only a
+-- hash of the code is stored.
+create table if not exists agent_link_codes (
+  code_hash text primary key,
+  agent_id text not null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  used_at timestamptz
+);
+create index if not exists agent_link_codes_agent_idx on agent_link_codes (agent_id);
 -- Every MCP call (lib/mcp.ts logCall), for the owner's analytics page (lib/agent-analytics.ts, /admin/analytics):
 -- the method or tool and whether it worked, never its arguments. Pruned after 60 days by the daily job.
 create table if not exists mcp_calls (
