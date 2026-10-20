@@ -286,3 +286,14 @@ describe("loop run 2026-10-19-1652 (#381)", () => {
     expect(go.args.visibility).toBe("public|unlisted|private");
   });
 });
+
+describe("#361", () => {
+  it("initialize with an agent_id resumes that agent", async () => {
+    const { agentId, id } = await agentWith("Ada Lumen");
+    const ctx: McpContext = {};
+    const init = (await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "t" }, agent_id: agentId } }, ctx))!.result as Any;
+    expect(init._meta.agent_id).toBe(agentId);
+    const mine = (await call("my_characters", {}, { sessionId: ctx.issuedSessionId })).structuredContent.characters.map((c: Any) => c.id);
+    expect(mine).toContain(id);
+  });
+});
