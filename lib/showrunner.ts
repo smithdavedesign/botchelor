@@ -16,6 +16,7 @@ import type { DateInput, Outcome, SideSetup } from "./engine";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { venue, venuePhrase, type PlaceId } from "./venues";
 import { DEFAULT_FORMAT, formatNote, type FormatContext, type FormatId } from "./formats";
+import { hasSelfTalk, stripSelfTalk } from "./quality";
 import { checkShowText } from "./safety";
 
 /** CharacterSheet now lives in the engine (it decides outcomes from it); re-exported for existing imports. */
@@ -47,8 +48,27 @@ export const EpisodeDraftSchema = z.object({
 });
 export type EpisodeDraft = z.infer<typeof EpisodeDraftSchema>;
 
-export type ParseFailure = "invalid_json" | "schema" | "too_long" | "unsafe";
-export type ParseResult = { ok: true; episode: EpisodeDraft } | { ok: false; reason: ParseFailure };
+export type ParseFailure = "invalid_json" | "schema" | "too_long" | "unsafe" | "self_talk";
+/** A draft with the model's self-talk in it (#406) carries the draft too: the last attempt repairs it instead of failing. */
+export type ParseResult = { ok: true; episode: EpisodeDraft } | { ok: false; reason: ParseFailure; episode?: EpisodeDraft };
+
+/** Narrator-only fields (where "wait," can only be the model talking to itself) and the ones that carry voices. */
+const narratorTexts = (d: EpisodeDraft): string[] => [d.setting, ...d.goals, d.twist];
+const voicedTexts = (d: EpisodeDraft): string[] => [...d.scenes, d.finale, d.best_line, ...d.confessionals];
+const hasDraftSelfTalk = (d: EpisodeDraft): boolean => narratorTexts(d).some((t) => hasSelfTalk(t, true)) || voicedTexts(d).some((t) => hasSelfTalk(t));
+
+/** The draft with every field's self-talk taken out (lib/quality.ts stripSelfTalk). */
+export function repairSelfTalk(d: EpisodeDraft): EpisodeDraft {
+  return {
+    setting: stripSelfTalk(d.setting, true),
+    goals: d.goals.map((g) => stripSelfTalk(g, true)),
+    scenes: d.scenes.map((t) => stripSelfTalk(t)),
+    twist: stripSelfTalk(d.twist, true),
+    finale: stripSelfTalk(d.finale),
+    best_line: stripSelfTalk(d.best_line),
+    confessionals: d.confessionals.map((t) => stripSelfTalk(t)),
+  };
+}
 
 export class ShowrunnerError extends Error {
   override name = "ShowrunnerError";
@@ -203,6 +223,7 @@ export function parseEpisode(raw: string): ParseResult {
     confessionals: episode.confessionals,
   });
   if (!verdict.ok) return { ok: false, reason: "unsafe" };
+  if (hasDraftSelfTalk(episode)) return { ok: false, reason: "self_talk", episode };
   return { ok: true, episode };
 }
 
@@ -246,6 +267,10 @@ export async function narrateEpisode(
     }
     const result = parseEpisode(raw);
     if (result.ok) return anchorBestLine(result.episode, story?.transcript ?? []);
+    // Self-talk on the last try: take the asides out rather than lose the date (it was safe, just untidy).
+    if (result.reason === "self_talk" && result.episode && attempt === SHOWRUNNER_ATTEMPTS - 1) {
+      return anchorBestLine(repairSelfTalk(result.episode), story?.transcript ?? []);
+    }
     reasons.push(result.reason);
   }
   throw new ShowrunnerError(reasons);

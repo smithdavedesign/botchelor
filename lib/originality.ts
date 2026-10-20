@@ -211,6 +211,17 @@ export const CONCEPT_TWIN_AT = 0.09;
 export const CONCEPT_TWIN_TERMS = 4;
 /** With a shared first name or a near-identical surname, two shared concepts are enough. */
 const NAMED_TWIN_TERMS = 2;
+/**
+ * #403: the same temperament doing the same kind of thing. Two identical traits plus three shared story terms: Maren (a
+ * patient, wry lens restorer with a ledger of everyone who waved from a ferry) next to Ines (a wry, patient ferry
+ * lost-property clerk with a ledger of what's left behind) shared just three terms, under the concept bar.
+ */
+const SAME_TEMPERAMENT_TRAITS = 2;
+const SAME_TEMPERAMENT_TERMS = 3;
+const sharedTraits = (a: SheetDraft, b: SheetDraft): string[] => {
+  const mine = new Set((a.traits ?? []).map((t) => t.trim().toLowerCase()).filter(Boolean));
+  return [...new Set((b.traits ?? []).map((t) => t.trim().toLowerCase()))].filter((t) => mine.has(t));
+};
 
 const nameParts = (name: string | undefined) => (name ?? "").toLowerCase().replace(/[^a-z\s'-]/g, " ").trim().split(/\s+/).filter(Boolean);
 const firstName = (name: string | undefined) => nameParts(name)[0] ?? "";
@@ -253,6 +264,10 @@ export function twinWhy(sheet: SheetDraft, other: Compared, terms: Set<string>, 
   }
   const alike = lookalikeWhy(sheet, other, other.name);
   if (alike) return { ...base, kind: "concept", why: alike.why, score: 1 + alike.score };
+  const traits = sharedTraits(sheet, other);
+  if (traits.length >= SAME_TEMPERAMENT_TRAITS && concept.count >= SAME_TEMPERAMENT_TERMS) {
+    return { ...base, kind: "concept", why: `${other.name} has the same temperament (${traits.join(", ")}) and a similar story${both}.`, score: 0.8 + concept.score };
+  }
   const first = firstName(sheet.name);
   const sameFirst = first.length >= 3 && first === firstName(other.name);
   const closeSurname = surnamesClose(sheet.name, other.name);
