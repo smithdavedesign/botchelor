@@ -25,7 +25,7 @@ import type { Db } from "../db";
 import { checkAdultText } from "../safety";
 import { checkOutput } from "./check";
 import { adultModel } from "./mode";
-import { signedMediaUrl } from "./media";
+import { ensureBaseline, signedMediaUrl } from "./media";
 import { eligiblePair, type SceneLine } from "./scenes";
 import { adultKeys, getAdultSettings } from "./settings";
 
@@ -129,16 +129,31 @@ async function venice(key: string, path: string, body: unknown): Promise<Respons
   return doFetch(`${VENICE}${path}`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify(body) });
 }
 
-/** The pair's pictures that passed the check, to start shots from: the speaker's own first, then the pair's. */
-async function startFrames(db: Db, a: string, b: string): Promise<{ id: string; character_id: string | null; kind: string }[]> {
+/**
+ * The pair's pictures that passed the check, to start shots from: each one's own (their baseline, and pictures of
+ * them alone) and pictures of exactly these two together. Never a picture with someone else in it: a character's
+ * pictures with another partner would put that partner's face in this pair's video (David, 2026-10-19: Cass Vega and
+ * Sable's video showed Chud, from Chud and Sable's night, because Cass had no pictures of her own).
+ */
+export async function startFrames(db: Db, a: string, b: string): Promise<{ id: string; character_id: string | null; character_b: string | null; kind: string }[]> {
   return (
-    await db.query<{ id: string; character_id: string | null; kind: string }>(
-      `select id, character_id, kind from adult_images
-        where status = 'ready' and kind <> 'video' and (character_id in ($1, $2) or character_b in ($1, $2))
-        order by created_at desc limit 12`,
+    await db.query<{ id: string; character_id: string | null; character_b: string | null; kind: string }>(
+      `select id, character_id, character_b, kind from adult_images
+        where status = 'ready' and kind <> 'video'
+          and ((character_b is null and character_id in ($1, $2))
+            or (character_id = $1 and character_b = $2) or (character_id = $2 and character_b = $1))
+        order by (kind = 'baseline') desc, created_at desc limit 16`,
       [a, b],
     )
   ).rows;
+}
+
+/** The start frame for a shot of `speaker`: their own pictures first (rotated), then the two of them together. */
+export function frameFor(frames: { id: string; character_id: string | null; character_b: string | null }[], speaker: string, k: number): string | null {
+  const own = frames.filter((f) => f.character_id === speaker && !f.character_b);
+  const together = frames.filter((f) => f.character_b);
+  const pool = own.length ? own : together;
+  return pool.length ? pool[k % pool.length].id : null;
 }
 
 export type MakeReelResult = { ok: true; reel: Reel } | { ok: false; status: number; error: string; message: string };
@@ -147,7 +162,7 @@ export type MakeReelResult = { ok: true; reel: Reel } | { ok: false; status: num
  * Starts a reel of a night: spends the tokens (admins free), picks the lines, voices them and queues one shot per line.
  * `lines` is the night (the running scene, or a saved one).
  */
-export async function makeReel(db: Db, ownerId: string, x: string, y: string, lines: SceneLine[], baseUrl: string): Promise<MakeReelResult> {
+export async function makeReel(db: Db, ownerId: string, x: string, y: string, lines: SceneLine[], baseUrl: string, opts: { shots?: number } = {}): Promise<MakeReelResult> {
   const pair = await eligiblePair(db, ownerId, x, y);
   if (!pair) return { ok: false, status: 404, error: "not_found", message: "Pick two characters who are in after dark." };
   const [a, b] = pair;
@@ -155,8 +170,6 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
   const keys = await adultKeys(db);
   if (!keys.venice || !keys.hive) return { ok: false, status: 409, error: "not_set_up", message: "Videos need the Venice and Hive keys in After Dark's settings." };
   if (lines.length < 6) return { ok: false, status: 409, error: "too_short", message: "Let the night run a little longer first: a video needs at least six lines." };
-  const frames = await startFrames(db, a, b);
-  if (!frames.length) return { ok: false, status: 409, error: "no_pictures", message: "They need their pictures first (a scene makes them when it turns explicit)." };
   const busy = await db.query(`select 1 from adult_reels where owner_id = $1 and status = 'making'`, [ownerId]);
   if (busy.rows.length) return { ok: false, status: 409, error: "busy", message: "A video is already being made. It takes a few minutes." };
   const pays = !(await isAdmin(db, ownerId));
@@ -167,7 +180,10 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
   const id = crypto.randomUUID();
   try {
     const [ca, cb] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b)]);
-    const picks = await pickLines(db, lines, settings.reel_shots);
+    // Each of them needs a picture of their own to start their shots from: a baseline is made now if they have none.
+    for (const c of [ca, cb]) if (c) await ensureBaseline(db, ownerId, c);
+    const frames = await startFrames(db, a, b);
+    const picks = await pickLines(db, lines, Math.min(12, Math.max(2, opts.shots ?? settings.reel_shots)));
     const shots: ReelShot[] = [];
     for (const [k, p] of picks.entries()) {
       const l = lines[p.line];
@@ -175,9 +191,9 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
       // Every word that will be spoken, and every direction, is held to the two lines first.
       if (!checkAdultText({ speech, motion: p.motion }).ok) continue;
       const speaker = l.who === "a" ? ca : cb;
-      const own = frames.filter((f) => f.character_id === speaker?.id);
-      const frame = (own.length ? own : frames)[k % (own.length ? own.length : frames.length)];
-      shots.push({ line: p.line, who: l.who, text: speech, motion: p.motion, status: "queued", media_id: frame.id });
+      const frame = speaker ? frameFor(frames, speaker.id, k) : null;
+      if (!frame) continue;
+      shots.push({ line: p.line, who: l.who, text: speech, motion: p.motion, status: "queued", media_id: frame });
     }
     if (!shots.length) throw new Error("no usable lines");
     await db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots) values ($1, $2, $3, $4, 'making', $5, $6::jsonb)`, [

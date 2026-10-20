@@ -6,6 +6,8 @@
 import type { Db } from "../db";
 import { listSwitchable, setAdultSwitch } from "./characters";
 import { listMedia } from "./media";
+import { advanceReel, listReels, makeReel } from "./reels";
+import { siteUrl } from "../site";
 import { adultAvailable } from "./mode";
 import { continueScene, listCastPairs, openScene } from "./scenes";
 import { getAdultSettings, saveAdultSettings } from "./settings";
@@ -62,6 +64,19 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     inputSchema: { type: "object", required: ["character_id", "on"], properties: { character_id: id, on: { type: "boolean" } } },
     annotations: { readOnlyHint: false },
   },
+  {
+    name: "after_dark_reel",
+    title: "After dark: a video of the night",
+    description:
+      "Admin only. With a and b: makes a video of the pair's night (the model picks its strongest lines; one voiced shot per line, " +
+      "started from each character's own pictures; every shot checked before it's kept). `shots` sets its length (2-12, ~5-10s each). " +
+      "With reel_id: checks a video being made (call it every minute or so until it's ready). With list: the pair's videos.",
+    inputSchema: {
+      type: "object",
+      properties: { a: id, b: id, shots: { type: "integer", minimum: 2, maximum: 12 }, reel_id: id, list: { type: "boolean" } },
+    },
+    annotations: { readOnlyHint: false },
+  },
 ];
 
 export const ADULT_TOOL_NAMES = new Set(ADULT_TOOLS.map((t) => t.name));
@@ -98,6 +113,18 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
     case "after_dark_switch": {
       const ok = await setAdultSwitch(db, owner, String(args.character_id ?? ""), args.on === true);
       return ok ? { data: { characters: await listSwitchable(db, owner) } } : { error: "Only the admin's own characters, and house characters, can be switched on." };
+    }
+    case "after_dark_reel": {
+      if (typeof args.reel_id === "string") {
+        const reel = await advanceReel(db, owner, args.reel_id);
+        return reel ? { data: { reel } } : { error: "No video with that id." };
+      }
+      if (args.list === true) return { data: { reels: await listReels(db, owner, a, b) } };
+      const scene = await openScene(db, owner, a, b);
+      if (!scene) return { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
+      const shots = typeof args.shots === "number" ? args.shots : undefined;
+      const r = await makeReel(db, owner, a, b, scene.lines, siteUrl(), { shots });
+      return r.ok ? { data: { reel: r.reel } } : { error: r.message };
     }
     default:
       return { error: `unknown tool: ${name}` };
