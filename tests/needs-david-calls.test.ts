@@ -1,0 +1,122 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { handleMcpMessage, HOUSE_BOT_LABEL, withoutEnding, type McpContext } from "@/lib/mcp";
+import { endingWhy } from "@/lib/why";
+import { episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
+
+// David's calls on the needs-david agent feedback (2026-10-19, "I agree with everything"): #261, #252, #337, #268,
+// #260, #342 (#343 is the loop arena's seeding, scripts/loop/arena.mjs).
+let t: Awaited<ReturnType<typeof startTestDb>>;
+beforeAll(async () => {
+  t = await startTestDb();
+});
+afterAll(async () => {
+  await t.close();
+});
+beforeEach(async () => {
+  await t.reset();
+  vi.spyOn(console, "log").mockImplementation(() => {});
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+const call = async (name: string, args: Record<string, unknown>, ctx: McpContext): Promise<Any> =>
+  (await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, ctx))!.result;
+async function connect(client = "botchelor-calls-test"): Promise<McpContext> {
+  const ctx: McpContext = {};
+  await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: client } } }, ctx);
+  return { sessionId: ctx.issuedSessionId };
+}
+const PROFILE = {
+  prompts: [
+    { id: "simple_pleasures", answer: "A window seat and nowhere to be." },
+    { id: "geek_out", answer: "Old maps, and the places on them that don't exist any more." },
+  ],
+  hobbies: ["Hiking", "Old maps"],
+};
+
+describe("#261: the booker doesn't see the ending while the date is written", () => {
+  it("hides the ending, box score and drama answer until it's ready", () => {
+    const e = { id: "e1", status: "generating", ending: "friends", drama_answer: "yes", box_score: { chemistry: 60 }, why: "…", setting: "A bar" };
+    expect(withoutEnding(e)).toEqual({ id: "e1", status: "generating", setting: "A bar" });
+    expect(withoutEnding({ ...e, status: "ready" })).toMatchObject({ ending: "friends", box_score: { chemistry: 60 } });
+  });
+
+  it("go_on_date says when the ending can be read", async () => {
+    const ctx = await connect();
+    const id = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    const r = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx)).structuredContent;
+    expect(r.ending_note).toMatch(/hidden until the date is written/);
+    if (r.episode.status === "generating") expect(r.episode.ending).toBeUndefined();
+  });
+});
+
+describe("#252 and #268: what a self-played date says up front", () => {
+  it("says role-play doesn't change the ending, and offers the six-line speed date", async () => {
+    const ctx = await connect();
+    const a = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;
+    const b = (await call("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id;
+    const r = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent;
+    expect(r.ending_note).toMatch(/Nothing the characters say or agree to changes the ending/);
+    expect(r.how_long).toMatch(/format: "speed_date" is a six-line date/);
+    expect(r.how_long).toMatch(/submit_own_date_step with wait_seconds/);
+  });
+});
+
+describe("#337: whose dealbreaker tripped", () => {
+  const box = { chemistry: { final: 40 }, attraction: { final: 45 }, trust: { final: 42 }, awkwardness: { final: 60 } } as Any;
+  const side = (hit: boolean) => ({ wants_another: false, agenda_met: false, satisfied: false, dealbreaker_hit: hit ? "x" : null, want_met: null, note_followed: null }) as Any;
+  it("names the side by first name, never the dealbreaker", () => {
+    expect(endingWhy("disaster", box, [side(false), side(true)], null, 2, ["Ada Lumen", "Bo Quill"])).toMatch(/Bo's dealbreaker tripped/);
+    expect(endingWhy("disaster", box, [side(true), side(true)], null, 2, ["Ada Lumen", "Bo Quill"])).toMatch(/both their dealbreakers tripped/);
+    expect(endingWhy("disaster", box, [side(true), side(false)], null, 2)).toMatch(/a dealbreaker tripped/);
+  });
+});
+
+describe("#260: agents can delete their characters", () => {
+  it("needs confirm, removes one that never dated, and retires one that did", async () => {
+    const ctx = await connect();
+    const fresh = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;
+    expect((await call("delete_character", { character_id: fresh }, ctx)).isError).toBe(true);
+    const gone = (await call("delete_character", { character_id: fresh, confirm: true }, ctx)).structuredContent;
+    expect(gone).toMatchObject({ deleted: true, anonymized: false });
+    expect((await t.db.query(`select 1 from characters where id = $1`, [fresh])).rows).toHaveLength(0);
+
+    const dated = (await call("create_character", validCharacter({ name: "Bo Quill", open_to_dates: true }), ctx)).structuredContent.character.id;
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    await call("go_on_date", { character_id: dated, partner_id: HOUSE_PARTNER_ID }, ctx);
+    const retired = (await call("delete_character", { character_id: dated, confirm: true }, ctx)).structuredContent;
+    expect(retired).toMatchObject({ deleted: false, anonymized: true });
+    const row = (await t.db.query<{ open_to_dates: boolean; owner_id: string }>(`select open_to_dates, owner_id from characters where id = $1`, [dated])).rows[0];
+    expect(row.open_to_dates).toBe(false);
+    // Not yours any more.
+    expect((await call("delete_character", { character_id: dated, confirm: true }, ctx)).isError).toBe(true);
+  });
+
+  it("refuses someone else's character", async () => {
+    const a = await connect();
+    const id = (await call("create_character", validCharacter({ name: "Ada Lumen" }), a)).structuredContent.character.id;
+    const b = await connect();
+    await call("create_character", validCharacter({ name: "Bo Quill" }), b);
+    expect((await call("delete_character", { character_id: id, confirm: true }, b)).isError).toBe(true);
+  });
+});
+
+describe("#342: a house-run bot says so", () => {
+  it("labels a character run by the loop's own script, and leaves real agents alone", async () => {
+    const bot = await connect("botchelor-loop-swipe-back");
+    await call("create_character", validCharacter({ name: "Ines Varga-Holm", keep_name: true, open_to_dates: true, extras: PROFILE }), bot);
+    const live = await connect("some-agent");
+    await call("create_character", validCharacter({ name: "Tobiah Ferreira", keep_name: true, open_to_dates: true, extras: PROFILE }), live);
+    const me = await connect("visitor");
+    const mine = (await call("create_character", validCharacter({ name: "Ada Lumen", open_to_dates: true, extras: PROFILE }), me)).structuredContent.character.id;
+    const cards = (await call("swipe_deck", { character_id: mine }, me)).structuredContent.cards as Any[];
+    const byName = Object.fromEntries(cards.map((c) => [c.name, c.agent_active]));
+    expect(byName["Ines Varga-Holm"]).toBe(HOUSE_BOT_LABEL);
+    expect(byName["Tobiah Ferreira"]).toMatch(/^active/);
+  });
+});

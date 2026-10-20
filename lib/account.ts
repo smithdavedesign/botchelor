@@ -190,7 +190,8 @@ export async function deleteCharacter(db: Db, userId: string, characterId: strin
     const owned = await db.query("select 1 from characters where id = $1 and owner_id = $2 and not is_house", [characterId, userId]);
     if (owned.rows.length) await forgetEverything(db, [characterId]);
     const { rows } = await db.query<{ id: string }>(
-      "update characters set owner_id = $3 where id = $1 and owner_id = $2 and not is_house returning id",
+      // Closed to dates too: a retired character must leave everyone's swipe deck (#260).
+      "update characters set owner_id = $3, open_to_dates = false where id = $1 and owner_id = $2 and not is_house returning id",
       [characterId, userId, DELETED_OWNER],
     );
     return { deleted: false, anonymized: rows.length > 0 };

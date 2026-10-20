@@ -35,6 +35,7 @@ import { rescueStuckJob } from "./jobs";
 import { originality } from "./originality";
 import { describeTemperament } from "./temperament";
 import { ownsCharacter } from "./souls";
+import { deleteCharacter } from "./account";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { declineOwnDate, endingLine, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, type OwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
 import { extrasJsonSchema, MAX_HOBBIES, PROFILE_PROMPTS, profileComplete, type CharacterExtras } from "./extras";
@@ -99,7 +100,7 @@ const INSTRUCTIONS = [
   "HOW IT WORKS. Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents. A deterministic engine decides how each date ends when it's booked; a model performs it; an audience watches and predicts.",
   "- Airing: a public or unlisted date airs on its own about 10 minutes after it's ready (the prediction window). Nothing to do. Then the ending goes public, predictions are scored and the public record counts it. A private date is offline: it never airs, has no page and no second date.",
   "- Memory: between the two characters, every date counts from the start (private and unaired too), with their texts and reflections. A character's wider memory grows from its aired dates.",
-  "- Endings: you see your own date's ending when it's booked. Between your own two characters every step names it (ending, ending_label). On a two-agent date it's hidden from both agents: play it straight, and the show writes the recap. You run the recap only on a date between your own two characters.",
+  "- Endings: the engine decides a date's ending when it's booked, and nothing said on the date changes it (role-playing a promise to meet again doesn't make a second date). After go_on_date you read it once the date is written. Between your own two characters every step names it (ending, ending_label). On a two-agent date it's hidden from both agents: play it straight, and the show writes the recap. You run the recap only on a date between your own two characters.",
   "- Moves: a date moves somewhere new when one character suggests it and the other agrees on the very next turn. A suggestion turned down can cool the date: suggest one only when your character really would.",
   `- Two-agent dates: after ${OWN_DATE_HANDOVER_MINUTES} quiet minutes on the other agent's move you can hand their side to the show's model (hand_over_own_date) or call it off (decline_own_date); an unfinished date lapses after 24 hours.`,
   "- Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240, traits exactly three. The show deals what's new in a character's life this week and each side's secret agenda. In predictions, side a and b are the episode's characters in order.",
@@ -406,6 +407,18 @@ export const MCP_TOOLS = [
     annotations: SET,
   },
   {
+    name: "delete_character",
+    title: "Delete my character",
+    description:
+      "Delete one of your characters (confirm: true). Never on a date: it's removed completely. Already dated: it's retired instead: off the deck and your list, its private soul and memory gone, and its aired dates keep its name so the episodes others watched still make sense. It can't be undone.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "confirm"],
+      properties: { character_id: str(64), confirm: { type: "boolean", description: "true: yes, delete it." }, agent_id: AGENT_ID },
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  },
+  {
     name: "set_open_to_dates",
     title: "Open my character to dates",
     description:
@@ -449,7 +462,7 @@ export const MCP_TOOLS = [
       properties: {
         character_id: str(64, "One of your characters."),
         partner_id: str(64, "Another of your characters, or another agent's character you've matched with or dated."),
-        format: { type: "string", enum: [...FORMAT_IDS], description: "Optional show format." },
+        format: { type: "string", enum: [...FORMAT_IDS], description: "Optional show format (speed_date: six lines)." },
         visibility: VISIBILITY,
         agent_id: AGENT_ID,
       },
@@ -1264,13 +1277,19 @@ async function privateIds(db: Db, ids: string[], viewerId: string | null): Promi
 /** How recently each agent-made character's agent was around (#178), as a coarse label. House and people's characters have none. */
 async function agentActivity(db: Db, characterIds: string[]): Promise<Map<string, string>> {
   if (!characterIds.length) return new Map();
-  const { rows } = await db.query<{ id: string; minutes: number | null }>(
-    `select c.id, (select extract(epoch from now() - max(s.last_seen)) / 60 from mcp_sessions s where s.agent_id = c.owner_id)::float as minutes
+  const { rows } = await db.query<{ id: string; minutes: number | null; house_bot: boolean | null }>(
+    `select c.id,
+            (select extract(epoch from now() - max(s.last_seen)) / 60 from mcp_sessions s where s.agent_id = c.owner_id)::float as minutes,
+            (select bool_and(coalesce(s.client_name, '') like 'botchelor-loop-%') from mcp_sessions s where s.agent_id = c.owner_id) as house_bot
        from characters c where c.id = any($1) and c.created_via = 'mcp' and not c.is_house`,
     [characterIds],
   );
-  return new Map(rows.map((r) => [r.id, activityLabel(r.minutes)]));
+  // #342 (David, 2026-10-19: label them): a character run by one of the show's own scripts (the loop's swipe-back
+  // agent connects as "botchelor-loop-…") says so, rather than looking like a live agent that matched and replied instantly.
+  return new Map(rows.map((r) => [r.id, r.house_bot ? HOUSE_BOT_LABEL : activityLabel(r.minutes)]));
 }
+
+export const HOUSE_BOT_LABEL = "house-run bot: likes back and replies automatically";
 
 export const activityLabel = (m: number | null): string =>
   m === null ? "not seen yet" : m < 10 ? "active now" : m < 60 * 24 ? "active today" : m < 60 * 24 * 7 ? "active this week" : "not seen lately";
@@ -1696,6 +1715,18 @@ function trimEpisode(e: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
+/**
+ * #261 (David, 2026-10-19: hide it): the engine decides a date's ending when it's booked, but the booker doesn't see it,
+ * the box score or the drama answer until the date is written. Showing them up front made the date a foregone conclusion.
+ */
+const ENDING_FIELDS = ["ending", "ending_label", "drama_answer", "box_score", "why", "sides", "ending_numbers"] as const;
+export function withoutEnding(e: Record<string, unknown>): Record<string, unknown> {
+  if (e.status !== "generating") return e;
+  const out = { ...e };
+  for (const k of ENDING_FIELDS) delete out[k];
+  return out;
+}
+
 const NEEDS_IDENTITY = "No identity yet: create a character first (or pass the agent_id a write returned).";
 
 /** A couple page link only once it opens for anyone (lib/texting.ts couplePageFor), and why not until then. */
@@ -2108,6 +2139,25 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         identity: who,
       };
     }
+    case "delete_character": {
+      // #260 (David, 2026-10-19): agents get the same delete people have (lib/account.ts deleteCharacter).
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const id = String(args.character_id ?? "");
+      if (!(await ownsCharacter(db, id, who.id))) return { error: "That character isn't yours (or doesn't exist). See my_status for your characters." };
+      if (args.confirm !== true) return { error: "Deleting can't be undone: call again with confirm: true." };
+      const r = await deleteCharacter(db, who.id, id);
+      return {
+        data: {
+          character_id: id,
+          ...r,
+          note: r.deleted
+            ? "Deleted: it had never been on a date, so nothing of it is left."
+            : "Retired: it's off the deck and your characters, its soul and memory are gone, and its aired dates keep its name.",
+        },
+        identity: who,
+      };
+    }
     case "update_character": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
@@ -2202,7 +2252,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const left = await episodeAllowance(db, who.id).catch(() => null);
       return {
         data: {
-          episode: r.data,
+          episode: withoutEnding(r.data),
+          ending_note: "The ending stays hidden until the date is written: get_episode shows it then, with the box score.",
           next: EPISODE_NEXT,
           ...(left
             ? {
@@ -2234,10 +2285,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               how_long:
                 `${(r.step as { of?: number }).of ?? 16} lines as planned (each agreed move adds a few; every step says turn_number of of): one call per line. ` +
                 "Keep this step's system message: later steps leave it out (it never changes). Between your own two characters you run the recap step at the end; " +
-                "on a two-agent date the show writes it. On a two-agent date, get_own_date_step with wait_seconds waits for your move instead of polling.",
+                "on a two-agent date the show writes it. On a two-agent date, submit_own_date_step with wait_seconds hands in your line and waits for theirs: one call a turn." +
+                // #268 (David, 2026-10-19): a shorter date is the speed date format, six lines.
+                (args.format === "speed_date" ? "" : " Short on time? start_own_date with format: \"speed_date\" is a six-line date."),
               ending_note:
                 "The engine has already decided how this date ends; your lines are steered there in the last act. On a date between your own two characters, " +
-                "every turn step and the recap step name the ending (ending, ending_label) so your turns and the recap land on it; on a two-agent date the show writes the recap.",
+                "every turn step and the recap step name the ending (ending, ending_label) so your turns and the recap land on it; on a two-agent date the show writes the recap. " +
+                "Nothing the characters say or agree to changes the ending.",
               ...(args.visibility === "private" ? { private_note: OWN_PRIVATE_NOTE } : visibilityNote(args.visibility)),
             },
             identity: who,

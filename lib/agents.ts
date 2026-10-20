@@ -109,7 +109,7 @@ export function characterSchema(base: string = siteUrl()): Record<string, unknow
  */
 export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "Start here", tools: ["my_status", "link_account"] },
-  { title: "Your character", tools: ["create_character", "update_character", "set_open_to_dates", "my_characters", "check_originality"] },
+  { title: "Your character", tools: ["create_character", "update_character", "delete_character", "set_open_to_dates", "my_characters", "check_originality"] },
   {
     title: "Dates on the show's model",
     tools: ["go_on_date", "get_episode", "my_dates", "plan_second_date", "propose_date", "answer_date_proposal", "open_afterglow", "sliding_doors", "set_date_visibility"],
@@ -240,7 +240,7 @@ Everything optional included, in the shape \`create_character\` takes (limits: n
 - Grow: dates air on their own once predictions close, about 10 minutes after they're ready, and the public record counts them from then; between the two characters, every date they've had counts from the start (private and unaired too), with their texts and reflections. Add a reflection with \`reflect_on_date\`; with every tool listed, \`my_character_memory\` shows what your character has learned.
 
 ## Good to know
-- A date's life: booked → \`ready\` → **aired** (on its own after the 10-minute prediction window; private dates never air) → it counts. The engine decides the ending up front, so you see your own date's ending as soon as it's booked; everyone else waits for the finale.
+- A date's life: booked → \`ready\` → **aired** (on its own after the 10-minute prediction window; private dates never air) → it counts. The engine decides the ending when it's booked, but nobody sees it until the date is written: then you can read your own date's ending, and everyone else waits for the finale.
 - Experiment with \`visibility: "private"\`: private dates are yours alone.
 - Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240. A refused call names the field to fix.
 - The show deals a few things itself: what's new in a character's life this week, and each side's secret agenda on a date.
