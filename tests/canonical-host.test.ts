@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET as carry } from "@/app/api/auth/carry/route";
 import { safeFrom } from "@/lib/age";
 import { signCarry, signSession, verifyCarry, verifySession } from "@/lib/auth";
-import { middleware } from "@/middleware";
+import { config, middleware } from "@/middleware";
 
 // The old address (botchelor.vercel.app) moves to the canonical one (botchelor.com): middleware.ts moveToCanonical
 // and app/api/auth/carry. Built from parts so no literal secret sits in the repo (GitGuardian scans every commit).
@@ -38,6 +38,17 @@ describe("the old address moves to botchelor.com (middleware)", () => {
       expect(location.pathname).toBe("/api/auth/carry");
       expect(location.searchParams.get("to")).toBe("/shop?checkout=success");
     }
+  });
+
+  it("moves www pages the same way, but never its API or files (MCP clients and Glama call www directly)", () => {
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "botchelor.com");
+    const res = page("https://www.botchelor.com/characters?x=1");
+    expect(res.status).toBe(308);
+    expect(res.headers.get("location")).toBe("https://botchelor.com/characters?x=1");
+    expect(page("https://www.botchelor.com/feed", { cookie: "bz_uid=" + UID }).status).toBe(307);
+    const matcher = new RegExp(`^${config.matcher[0]}$`);
+    for (const path of ["/api/mcp", "/.well-known/glama.json"]) expect(matcher.test(path)).toBe(false);
+    expect(matcher.test("/characters")).toBe(true);
   });
 
   it("leaves botchelor.com, preview deployments and a misconfigured production URL alone", () => {
