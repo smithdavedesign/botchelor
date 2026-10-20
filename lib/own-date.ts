@@ -93,6 +93,8 @@ export type OwnDateStep =
       messages: ChatMessage[];
       /** compact: true (lib/mcp.ts): messages leave out the system message, the same on every turn (#205). */
       system_unchanged?: true;
+      /** compact: "delta" (#344): the messages are left out; the agent keeps each side's conversation and sends it last_lines. */
+      delta?: true;
       reply_format: string;
     }
   | {
@@ -138,6 +140,7 @@ type Row = {
   created_at: Date | string;
   last_move_at: Date | string | null;
   handed_over: "a" | "b" | null;
+  visibility: string;
   a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_appearance: string | null; a_pronouns: string | null; a_voice: string | null;
   b_id: string; b_name: string; b_age: number; b_bio: string; b_traits: string[]; b_want: string; b_dealbreaker: string; b_appearance: string | null; b_pronouns: string | null; b_voice: string | null;
 };
@@ -334,7 +337,7 @@ export async function startOwnDate(
 async function load(db: Db, userId: string, episodeId: string): Promise<Row | null> {
   const { rows } = await db.query<Row>(
     `select e.id, e.creator_id, e.partner_performer, e.status, e.seed::text as seed, e.setup, e.note, e.transcript, e.reflections,
-            e.created_at, e.last_move_at, e.handed_over,
+            e.created_at, e.last_move_at, e.handed_over, e.visibility,
             a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want, a.dealbreaker a_dealbreaker,
             a.appearance a_appearance, a.pronouns a_pronouns, a.voice a_voice,
             b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want, b.dealbreaker b_dealbreaker,
@@ -376,7 +379,7 @@ async function rebuild(db: Db, row: Row) {
 }
 
 /** The turn step's one line on where the date is headed (#204); forViewer drops it on a two-agent date. */
-const endingLine = (ending: Ending) =>
+export const endingLine = (ending: Ending) =>
   `The engine decided this date ends as "${ENDING_LABELS[ending]}" (ending: ${ending}): let the turns head there, without announcing it, so the recap doesn't contradict them.`;
 
 const totalTurns = (formatId: FormatId): number => showFormat(formatId).turns ?? CONVERSATION_TURNS;
@@ -574,9 +577,7 @@ async function finishOnShowModel(
     await notify(db, to, {
       kind: "own_date_ready",
       title: `💞 ${row.a_name} and ${row.b_name}'s date is done`,
-      body: to === row.creator_id
-        ? "Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like). A public or unlisted date airs on its own about 10 minutes after it's ready; a private one never airs. Nothing to do."
-        : "Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like). A public or unlisted date airs on its own about 10 minutes after it's ready; a private one never airs. Nothing to do.",
+      body: `Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like). ${airingNote(row.visibility)}`,
       link: `/episodes/${row.id}`,
     });
   }
@@ -597,15 +598,24 @@ async function doneStep(db: Db, userId: string, row: Row, built: BuiltDate, deci
   };
 }
 
+/**
+ * What happens to a finished date, by its visibility (#399: a private date's agents were told to air it, and air_date
+ * refused). Private never airs; public and unlisted air on their own. Either way there's nothing to do.
+ */
+export const airingNote = (visibility: string): string =>
+  visibility === "private"
+    ? "It's private, so it stays offline and never airs (set_date_visibility makes it public or unlisted if you want it to). Nothing to do."
+    : "It airs on its own about 10 minutes after it's ready. Nothing to do.";
+
 /** Who airs a two-agent date: the host is the agent that asked, playing side a (#193). */
-function hostInfo(row: Pick<Row, "creator_id" | "a_name">, userId: string): HostInfo {
+function hostInfo(row: Pick<Row, "creator_id" | "a_name" | "visibility">, userId: string): HostInfo {
   const you = row.creator_id === userId;
   return {
     character: row.a_name,
     you_can_air: you,
     airs: you
-      ? "You asked for this date. A public or unlisted date airs on its own about 10 minutes after it's ready (a private one never airs): nothing to do."
-      : `${row.a_name}'s agent asked for this date. A public or unlisted date airs on its own about 10 minutes after it's ready (a private one never airs): nothing to do. You can't predict it: you played it.`,
+      ? `You asked for this date. ${airingNote(row.visibility)}`
+      : `${row.a_name}'s agent asked for this date. ${airingNote(row.visibility)} You can't predict it: you played it.`,
   };
 }
 

@@ -440,3 +440,47 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
     index,
   };
 }
+
+/* ------------------------------------------ the model's self-talk (#406) ------------------------------------------ */
+
+/**
+ * A draft that corrects itself in the open: "A comedy open mic on a Thursday night... wait, no days or times allowed on
+ * plans; instead: …" (#406). The model's aside is not narration, and it leaked onto an episode page.
+ */
+/** Never narration, wherever they appear. */
+const SELF_TALK_ANYWHERE = [
+  /\binstead\s*:/i,
+  /\blet me (?:rephrase|redo|try (?:that )?again|fix that|correct that)\b/i,
+  /\bno (?:days?|times?|weekdays?|dates?|names?)(?: or [a-z]+)? (?:are |is )?allowed\b/i,
+];
+/**
+ * Asides that are also ordinary speech ("Wait, you like jazz?"), so they count only in a narrator-only field (the
+ * setting, the goals, the twist), never in scenes or confessionals, which carry the characters' voices.
+ */
+const SELF_TALK_NARRATOR = [/(?:\.\.\.|…|[;,.—–-])\s*(?:wait|hmm+|oops|scratch that)\b[,.!:]?/i, /\bactually,?\s+no\b/i];
+
+/** The first self-talk marker's position in `text`, or -1. `narrator`: also the asides that could be speech. */
+export function selfTalkAt(text: string, narrator = false): number {
+  let at = -1;
+  for (const re of narrator ? [...SELF_TALK_ANYWHERE, ...SELF_TALK_NARRATOR] : SELF_TALK_ANYWHERE) {
+    const m = re.exec(text);
+    if (m && (at < 0 || m.index < at)) at = m.index;
+  }
+  return at;
+}
+
+export const hasSelfTalk = (text: string, narrator = false): boolean => selfTalkAt(text, narrator) >= 0;
+
+/**
+ * The text with the aside taken out: what came after the last "instead:" when there is one (the model's correction),
+ * else everything before the first marker. Falls back to the text as it was if nothing sensible would be left.
+ */
+export function stripSelfTalk(text: string, narrator = false): string {
+  if (!hasSelfTalk(text, narrator)) return text;
+  const instead = text.match(/\binstead\s*:\s*([\s\S]+)$/i);
+  let out = instead ? instead[1] : text.slice(0, selfTalkAt(text, narrator));
+  out = out.replace(/[\s.…;,—–-]+$/, "").trim();
+  if (out.length < 12 || hasSelfTalk(out, narrator)) return text;
+  out = out[0].toUpperCase() + out.slice(1);
+  return /[.!?"”]$/.test(out) ? out : `${out}.`;
+}

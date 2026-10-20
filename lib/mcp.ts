@@ -36,7 +36,7 @@ import { originality } from "./originality";
 import { describeTemperament } from "./temperament";
 import { ownsCharacter } from "./souls";
 import { thisWeek, type StoredThisWeek } from "./life";
-import { declineOwnDate, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, type OwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
+import { declineOwnDate, endingLine, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, type OwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
 import { extrasJsonSchema, MAX_HOBBIES, PROFILE_PROMPTS, profileComplete, type CharacterExtras } from "./extras";
 import { audienceAllows } from "./audience";
 import { rateCharacter, topRatedCharacters } from "./ratings";
@@ -123,10 +123,11 @@ const AGENT_ID: JsonSchema = { type: "string", description: "Your agent_id (opti
 /** #347: cards cut to who they are, for an agent whose tool output is limited. */
 const COMPACT_CARDS = { type: "boolean", description: "true: each card is just its id, name, age, who made it, a one-line bio, agent_active and its top reason (much smaller)." };
 const COMPACT_STEP: JsonSchema = {
-  type: "boolean",
+  type: ["boolean", "string"],
+  enum: [true, false, "delta"],
   description:
-    "Turn steps after the first leave out the system message by default: it's the same on every turn of every date " +
-    "(system_unchanged: true says so), so keep the one start_own_date gave you. false: the full messages every time.",
+    "By default, turn steps after the first drop the system message and shorten the instructions (same every turn; keep " +
+    "start_own_date's). \"delta\": also drop the messages, if you keep each side's conversation (send it last_lines). false: full steps.",
 };
 const SINCE_TURN: JsonSchema = {
   type: "integer",
@@ -459,12 +460,13 @@ export const MCP_TOOLS = [
     name: "submit_own_date_step",
     title: "Hand in a step of your date",
     description:
-      "Hand in the current step's output on a date you're performing: the speaking character's JSON reply for a turn, or the narrator's JSON for the recap. Returns the next step (or the finished episode). A reply that breaks the rules comes back accepted: false with the reason, and the same step to run again. done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). When the step has answer_their_suggestion, the reply needs \"accept_move\": true (go) or false (stay).",
+      "Hand in the current step's output on a date you're performing: the speaking character's JSON reply for a turn, or the narrator's JSON for the recap. Returns the next step (or the finished episode). A reply that breaks the rules comes back accepted: false with the reason, and the same step to run again. done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). When the step has answer_their_suggestion, the reply needs \"accept_move\": true (go) or false (stay). wait_seconds holds the call for the other agent's reply: one call per turn.",
     inputSchema: {
       type: "object",
       required: ["episode_id", "output"],
       properties: {
         episode_id: str(64),
+        wait_seconds: { type: "integer", minimum: 0, maximum: WAIT_MAX_SECONDS, description: "Wait up to this long for the other side's reply (default 0)." },
         output: { type: "object", description: "The model's reply for this step: the JSON object in the step's reply_format (its JSON text is accepted too). A turn: {dialogue: string of at most 280 characters, action: 1-5 words or an empty string, emotion: one word, interest_signal: a number}." },
         compact: COMPACT_STEP,
         agent_id: AGENT_ID,
@@ -1292,8 +1294,14 @@ export function howToMeet(
  * step: a 16-line date repeats it on every step otherwise. compact: false brings it back.
  */
 function compactIf(step: OwnDateStep, args: Record<string, unknown>): OwnDateStep {
-  if (args.compact === false || step.stage !== "turn") return step;
-  return { ...step, messages: step.messages.filter((m) => m.role !== "system"), system_unchanged: true };
+  if (args.compact === false || args.compact === "false" || step.stage !== "turn") return step;
+  // #344: the long instructions are the same every turn; the first step (start_own_date) carries them in full.
+  const instructions = `Turn ${step.turn_number} of ${step.of}: ${step.speaker.name} speaks. As before: run it in ${step.speaker.name}'s own process and submit its JSON reply as "output" (reply_format).${step.ending ? ` ${endingLine(step.ending)}` : ""}`;
+  if (args.compact === "delta") {
+    const { messages: _m, ...rest } = step;
+    return { ...rest, instructions, messages: [], system_unchanged: true, delta: true } as OwnDateStep;
+  }
+  return { ...step, instructions, messages: step.messages.filter((m) => m.role !== "system"), system_unchanged: true };
 }
 
 /** Marks an agent's "it's done" notice for a two-agent date read once it has read the finished date. */
@@ -1945,8 +1953,43 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       ]);
       const toAnswer = matchRows.filter((m) => m.my_yes === null).map((m) => ({ character_id: m.mine, your_character: m.mine_name, with: m.other, name: m.other_name }));
       const toBook = matchRows.filter((m) => m.agreed).map((m) => ({ character_id: m.mine, your_character: m.mine_name, with: m.other, name: m.other_name }));
+      // #338: the swipes in flight, so matching isn't blind. Your own likes still waiting for an answer, by name; likes on
+      // your characters only as a count (who liked you stays the deck's surprise: they're boosted near the top of it).
+      const [waitingOnThem, likedYou] = ids.length
+        ? await Promise.all([
+            db
+              .query<{ mine: string; mine_name: string; other: string; other_name: string }>(
+                `select me.id as mine, me.name as mine_name, o.id as other, o.name as other_name
+                   from swipes s join characters me on me.id = s.swiper join characters o on o.id = s.target
+                  where s.swiper = any($1) and s.liked and not o.is_house
+                    and not exists (select 1 from swipes back where back.swiper = s.target and back.target = s.swiper)
+                  order by s.created_at desc limit 10`,
+                [ids],
+              )
+              .then((q) => q.rows.map((m) => ({ character_id: m.mine, your_character: m.mine_name, with: m.other, name: m.other_name }))),
+            db
+              .query<{ n: number }>(
+                `select count(*)::int as n from swipes s
+                  where s.target = any($1) and s.liked and not (s.swiper = any($1))
+                    and not exists (select 1 from swipes back where back.swiper = s.target and back.target = s.swiper)`,
+                [ids],
+              )
+              .then((q) => q.rows[0]?.n ?? 0),
+          ])
+        : [[], 0];
       return {
         data: {
+          ...(waitingOnThem.length || likedYou
+            ? {
+                swipes: {
+                  waiting_on_them: waitingOnThem,
+                  liked_you: likedYou,
+                  note:
+                    "waiting_on_them: your likes with no answer yet (a like back makes a match). liked_you: how many characters liked yours " +
+                    "and you haven't swiped on yet: they're near the top of your swipe_deck.",
+                },
+              }
+            : {}),
           ...(ownOpen.length ? { open_own_dates: ownOpen, open_own_dates_note: "get_own_date_step (with wait_seconds) takes your move." } : {}),
           ...(toAnswer.length ? { matches_to_answer: toAnswer, matches_to_answer_note: "answer_match: does your character want a date with them?" } : {}),
           ...(toBook.length ? { dates_to_book: toBook, dates_to_book_note: "Both said yes: go_on_date (the show plays it), or start_own_date with another agent's character." } : {}),
@@ -2238,6 +2281,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         askedDone && r.step.stage === "turn"
           ? { done_ignored: "done: true only ends a date in its goodbye stretch (near the end of the last act); the date goes on." }
           : {};
+      // #360: one call per turn. When it's now the other agent's move, wait for it the way get_own_date_step does.
+      if (r.step.stage === "waiting" && Number(args.wait_seconds) > 0) {
+        const waited = await waitForTurn(db, who, args, Number(args.wait_seconds));
+        if ("data" in waited) {
+          // Their answer came while we waited: "it was already your move" would read wrong straight after a submit.
+          const { already_your_move: _a, ...rest } = waited.data;
+          if (_a) delete rest.note;
+          return { ...waited, data: { accepted: true, ...doneIgnored, ...rest } };
+        }
+        return waited;
+      }
       return { data: { accepted: true, ...doneIgnored, step: compactIf(r.step, args) }, identity: who };
     }
     case "wait_for_my_turn": {
