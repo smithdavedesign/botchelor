@@ -323,7 +323,9 @@ describe("over MCP", () => {
     vi.stubEnv("FRONTIER_PASSWORD", ADMIN_KEY);
     const names = async (ctx: McpContext) => ((await rpc("tools/list", {}, ctx)).result as { tools: { name: string }[] }).tools.map((t) => t.name);
     expect(await names({})).not.toContain("after_dark_write");
-    expect(await names({})).toContain("request_after_dark");
+    // Unlisted until After Dark opens to people (directories read the list), but anyone can still call it by name.
+    expect(await names({})).not.toContain("request_after_dark");
+    expect(await names({ adminKey: ADMIN_KEY })).toContain("request_after_dark");
     expect(await names({ adminKey: "wrong" })).not.toContain("after_dark_write");
     expect(await names({ adminKey: ADMIN_KEY })).toContain("after_dark_write");
     const stranger = await rpc("tools/call", { name: "after_dark_pairs", arguments: {} }, {});

@@ -6,7 +6,7 @@ import sitemap from "@/app/sitemap";
 import { AGENT_TOOL_GROUPS, llmsText } from "@/lib/agents";
 import { llmsFullText, mcpDiscovery } from "@/lib/agents-full";
 import { agentStats, findMatches, keywords, searchCharacters } from "@/lib/dating";
-import { handleMcpMessage, MCP_TOOLS, type McpContext } from "@/lib/mcp";
+import { handleMcpMessage, PUBLIC_MCP_TOOLS as MCP_TOOLS, type McpContext } from "@/lib/mcp";
 import { contentSitemap } from "@/lib/seo";
 import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
 
