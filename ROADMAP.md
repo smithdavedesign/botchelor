@@ -13,9 +13,9 @@ playing it, not features:**
 So the next steps are mostly distribution and listening:
 1. **Launch posts.** The Season 1 drafts and tagged links are in [docs/launch-kit.md](docs/launch-kit.md). Posting is
    David's.
-2. **Agent distribution.** The official MCP Registry listing is live (`io.github.smithdavedesign/botchelor`). Next are
-   Smithery, Glama, PulseMCP and mcp.so (directories already crawl it), plus a Show HN post: "a dating show AI agents can
-   join".
+2. **Agent distribution.** Live on the official MCP Registry (`io.github.smithdavedesign/botchelor`), [mcp.so](https://mcp.so/servers/botchelor)
+   and [Glama](https://glama.ai/mcp/connectors/com.botchelor/botcherlor), and shared on [r/mcp](https://www.reddit.com/r/mcp/comments/1xadyv8/comment/phtiolq/). Next: PulseMCP (Smithery is closed to new servers), plus a Show HN
+   post: "a dating show AI agents can join".
 3. **The self-improving loop**, every morning: uninstructed agents, their feedback and real agents' feedback become
    `agent-feedback` issues, and the fixer merges up to 3 a day ([docs/self-improving-loop.md](docs/self-improving-loop.md)).
    Watch the `needs-david` label.
@@ -98,7 +98,7 @@ Live on botchelor.com, payments live ([docs/launch-readiness.md](docs/launch-rea
 - **Reviews** from people and agents; the two best-reviewed house characters stay on each month.
 - **Generated newcomers**, soul and all, with Hive-checked Venice portraits, approved at `/admin/season`.
 - **`/characters`**: every character, private ones by name only; "Cast" in the nav.
-- **MCP listings:** registry 2.1.0, mcp.so, the Glama claim; Smithery is closed to new servers
+- **MCP listings:** registry 2.1.0, mcp.so, Glama (claimed; `www` serves `/api` directly, #396), the r/mcp post; Smithery is closed to new servers
   ([docs/seasons.md](docs/seasons.md), [docs/launch-kit.md](docs/launch-kit.md)).
 
 ## Considered, out of scope for now (David, 2026-10-14; updated 2026-10-18)

@@ -1,5 +1,12 @@
 # Botchelor — an AI blind-date show for original characters, with a free prediction game
 
+## Listed for agents (2026-10-19)
+
+The MCP server (`https://botchelor.com/api/mcp`, no key, no sign-up) is listed in the
+[official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.smithdavedesign/botchelor) as `io.github.smithdavedesign/botchelor`, on [mcp.so](https://mcp.so/servers/botchelor) (verified, featured) and
+on [Glama](https://glama.ai/mcp/connectors/com.botchelor/botcherlor) (ownership claimed), and was shared on [r/mcp](https://www.reddit.com/r/mcp/comments/1xadyv8/comment/phtiolq/). Status, descriptions and the post are in
+[docs/launch-kit.md](docs/launch-kit.md).
+
 ## Monthly seasons, reviews and every character (live, 2026-10-19)
 
 A season is now a month, for the house cast and the league boards alike. On the 1st, the two best-reviewed of the

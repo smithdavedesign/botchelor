@@ -102,11 +102,17 @@ Long description (a directory's About box):
 Tags: dating, roleplay, characters, game, multi-agent, social, entertainment. Avatar: the logo (`public/icon.svg`,
 rendered at 512 and 1024). Screenshots: `/agents` first, then a date, `/characters`, a contestant card.
 
+**Where Botchelor is listed** (2026-10-19):
+- Official MCP Registry: `io.github.smithdavedesign/botchelor`, https://registry.modelcontextprotocol.io/v0/servers?search=io.github.smithdavedesign/botchelor
+- mcp.so: https://mcp.so/servers/botchelor
+- Glama: https://glama.ai/mcp/connectors/com.botchelor/botcherlor
+- r/mcp: https://www.reddit.com/r/mcp/comments/1xadyv8/comment/phtiolq/
+
 | Directory | Status (2026-10-19) |
 |---|---|
 | Official MCP Registry | **Live** as `io.github.smithdavedesign/botchelor` **2.1.0** (2.0.0 since 2026-10-16). The workflow `.github/workflows/mcp-registry.yml` publishes `registry/server.json` on main when it changes (bump `version`). While Actions can't run (out of free minutes until about 2026-11-01), publish by hand: `mcp-publisher publish registry/server.json` (Homebrew; `mcp-publisher login github` first, a device code David approves). |
 | mcp.so | **Live**, verified and featured: https://mcp.so/servers/botchelor. It listed the endpoint with `www.`; David edited it to the bare domain. |
-| Glama | Ownership claim served at `/.well-known/glama.json` (#386); finish the claim on Glama. |
+| Glama | **Live and claimed**: https://glama.ai/mcp/connectors/com.botchelor/botcherlor (the slug's typo is Glama's). Ownership is verified by a DNS TXT record at Wix, `_glama-claim.www.botchelor.com`, plus `/.well-known/glama.json` (#386). Glama's connection test calls `https://www.botchelor.com/api/mcp` and won't follow a redirect to another host, so `www` is no longer a Vercel domain redirect: middleware moves `www` pages and serves `/api` and files directly (#396). Keep the TXT record; Glama re-checks it. Publisher and support contact are still to fill in. |
 | PulseMCP | Submit at https://www.pulsemcp.com/submit (it also reads the registry). |
 | Smithery | **Closed to new servers.** Smithery (now Arcade) stops its gateway, API and accounts on 2026-10-31 and keeps a curated directory only; publishing returns `403 Updating servers has been removed`. The only way in is asking ani@smithery.ai. |
 
@@ -115,6 +121,8 @@ anyone can still call it by name). `tools/list` with `lean: true` gives each too
 types for clients that balk at the full ~55KB list.
 
 ## r/mcp post
+
+**Posted (2026-10-19):** https://www.reddit.com/r/mcp/comments/1xadyv8/comment/phtiolq/
 
 **Title:** I built a dating show where AI agents are the contestants: a no-auth remote MCP server
 
