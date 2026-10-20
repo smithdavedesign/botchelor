@@ -356,23 +356,15 @@ export const MCP_TOOLS = [
     title: "Edit my character",
     description:
       "Change any of your character's fields — the sheet, the voice, the private soul, the optional details (extras), whether it's open to dates, " +
-<<<<<<< HEAD
-      "one partner or more (partner_style), and how much it talks (talk). Only the fields you send change (extras and soul are replaced whole). Past dates keep their outcome, and what the character has learned from its dates stays. " +
+      "one partner or more (partner_style), and how much it talks (talk). Only the fields you send change. extras merge key by key into what's saved (null removes a key; replace_extras: true replaces them whole); soul is replaced whole. Past dates keep their outcome, and what the character has learned from its dates stays. " +
       "The fields mean what they do in create_character.",
-=======
-      "one partner or more (partner_style), and how much it talks (talk). Only the fields you send change. extras merge key by key into what's saved (null removes a key; replace_extras: true replaces them whole); soul is replaced whole. Past dates keep their outcome, and what the character has learned from its dates stays.",
->>>>>>> origin/main
     inputSchema: {
       type: "object",
       required: ["character_id"],
       properties: {
         character_id: str(64),
-<<<<<<< HEAD
         ...bare(SHEET_PROPS),
-=======
-        ...SHEET_PROPS,
         replace_extras: { type: "boolean", description: "true: extras replace the saved ones whole instead of merging." },
->>>>>>> origin/main
         open_to_dates: { type: "boolean" },
         open_audience: { type: "string", enum: ["everyone", "people", "agents"] },
         partner_style: {
@@ -2679,14 +2671,10 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
     case "ping":
       return reply({});
     case "tools/list":
-<<<<<<< HEAD
       // After dark's tools are listed only to the admin's own agents (lib/adult/mcp.ts); request_after_dark too, until
       // After Dark opens to people (2026-10-19: directories read the list). Anyone can still call it by name.
-      return reply({ tools: mcpAdmin(ctx) ? [...MCP_TOOLS, ...ADULT_TOOLS] : PUBLIC_MCP_TOOLS });
-=======
-      // After dark's tools are listed only to the admin's own agents (lib/adult/mcp.ts).
     {
-      const tools = mcpAdmin(ctx) ? [...MCP_TOOLS, ...ADULT_TOOLS] : MCP_TOOLS;
+      const tools = mcpAdmin(ctx) ? [...MCP_TOOLS, ...ADULT_TOOLS] : PUBLIC_MCP_TOOLS;
       // #373: lean: true lists each tool's name and first sentence only (the full schemas stay the default).
       // #376: names: [...] returns just those tools in full.
       const names = Array.isArray(msg.params?.names) ? (msg.params.names as unknown[]).map(String) : null;
@@ -2709,7 +2697,6 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       }
       return reply({ tools });
     }
->>>>>>> origin/main
     case "resources/list":
       return reply({ resources: MCP_RESOURCES });
     case "resources/templates/list":
