@@ -5036,9 +5036,19 @@ a.phone-head-btn {
   list-style: none;
 }
 .after-dark-line {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
   padding: 0.6rem 0.8rem;
   border-radius: 0.8rem;
   background: var(--soft);
+}
+.after-dark-line > p {
+  margin: 0;
+  min-width: 0;
+}
+.after-dark-line > :first-child {
+  flex: 0 0 auto;
 }
 .after-dark-line.is-b {
   background: color-mix(in srgb, var(--accent) 12%, var(--card));
@@ -5046,6 +5056,32 @@ a.phone-head-btn {
 .after-dark-form {
   display: grid;
   gap: 0.4rem;
+  /* Stays on screen while the lines run long, then settles into its own place under them. */
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding: var(--space-3) 0 calc(var(--space-2) + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, var(--ad-bg, var(--paper)) 18%);
+}
+.after-dark-form p {
+  margin: 0;
+}
+/* Skip to the latest lines: a small round button at the bottom right, above the steer bar, while the end is off screen. */
+.after-dark-skip {
+  position: absolute;
+  right: 0.2rem;
+  top: -2.6rem;
+  z-index: 6;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 1.1rem;
+  line-height: 1;
+  background: var(--ad-card, var(--card));
+  color: var(--ad-ink, var(--ink));
+  border: 1px solid var(--ad-line, var(--line));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 .after-dark-gallery {
   display: grid;
