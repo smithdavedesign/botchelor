@@ -687,7 +687,7 @@ describe("set the scene (1 token)", () => {
 });
 
 import { GET as reelGet, POST as reelPost } from "@/app/api/admin/after-dark/reel/route";
-import { pickLines, setReelFetchForTests, spoken, voiceFor, type Reel } from "@/lib/adult/reels";
+import { frameFor, pickLines, setReelFetchForTests, spoken, startFrames, voiceFor, type Reel } from "@/lib/adult/reels";
 import { mediaLinkValid, signedMediaUrl } from "@/lib/adult/media";
 import { loadCharacter } from "@/lib/character";
 
@@ -702,6 +702,10 @@ describe("the video of the night", () => {
     await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", reel_shots: 3 }, cookie);
     // A Hive-passed picture of the pair to start shots from, and the night itself.
     await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data) values ('pic-1', $1, $2, $3, 'scene', 'p', 'image/png', $4)`, [ownerId, CAST_A, CAST_B, Buffer.from(PNG)]);
+    // Each one's own baseline (a reel makes one first for a character with none).
+    for (const [pid, c] of [["base-a", CAST_A], ["base-b", CAST_B]]) {
+      await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ($1, $2, $3, 'baseline', 'p', 'image/png', $4)`, [pid, ownerId, c, Buffer.from(PNG)]);
+    }
     const scene = (await (await get(CAST_A, CAST_B, cookie)).json()).scene;
     await t.db.query(`update adult_scenes set lines = $2::jsonb where id = $1`, [scene.id, JSON.stringify(night)]);
   }
@@ -723,6 +727,23 @@ describe("the video of the night", () => {
   const make = (cookie: string, body: Record<string, unknown> = {}) => call(reelPost, "/api/admin/after-dark/reel", { a: CAST_A, b: CAST_B, ...body }, cookie);
   const advance = async (id: string, cookie: string) => (await (await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?id=${id}`, { headers: { cookie } }))).json()).reel as Reel;
 
+  it("starts each shot from the speaker's own pictures, and never from a picture with another partner in it", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    const other = HOUSE_CHARACTERS[2].id;
+    // B's night with someone else: a picture of the two of them, and one of that other partner alone.
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data) values ('other-pair', $1, $2, $3, 'scene', 'p', 'image/png', $4), ('other-solo', $1, $2, null, 'baseline', 'p', 'image/png', $4)`, [id, other, CAST_B, Buffer.from(PNG)]);
+    const frames = await startFrames(t.db, CAST_A, CAST_B);
+    expect(frames.map((f) => f.id).sort()).toEqual(["base-a", "base-b", "pic-1"]);
+    expect(frameFor(frames, CAST_A, 0)).toBe("base-a");
+    expect(frameFor(frames, CAST_B, 3)).toBe("base-b");
+    // Nobody's own picture: the two of them together, never anyone else.
+    expect(frameFor(frames.filter((f) => f.id !== "base-a"), CAST_A, 0)).toBe("pic-1");
+    // The pair's page shows only theirs.
+    const gallery = (await (await get(CAST_A, CAST_B, cookie)).json()).gallery as { id: string }[];
+    expect(gallery.map((g) => g.id).sort()).toEqual(["base-a", "base-b", "pic-1"]);
+  });
+
   it("voices each picked line in the speaker's own voice, lip-syncs a shot to it, checks every shot, and plays them in order", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);
@@ -736,7 +757,9 @@ describe("the video of the night", () => {
     expect(started.reel.shots.map((s: { line: number }) => s.line)).toEqual([2, 5, 9]);
     const queued = seen.filter((s) => s.path === "/video/queue");
     expect(queued).toHaveLength(3);
-    expect(queued[0].body).toMatchObject({ model: "wan-2.6-image-to-video", audio_url: expect.stringMatching(/^data:audio\/mpeg;base64,/), image_url: expect.stringContaining("/api/admin/after-dark/media/pic-1?until=") });
+    expect(queued[0].body).toMatchObject({ model: "wan-2.6-image-to-video", audio_url: expect.stringMatching(/^data:audio\/mpeg;base64,/), image_url: expect.stringMatching(/\/api\/admin\/after-dark\/media\/base-[ab]\?until=/) });
+    // Line 2 is the first speaker's, line 9 the second's: each shot starts from its speaker's own baseline.
+    expect(new Set(queued.map((q) => String(q.body.image_url).match(/media\/(base-[ab])/)?.[1])).size).toBe(2);
     const voices = seen.filter((s) => s.path === "/audio/speech").map((s) => s.body.voice);
     const sceneA = (await (await get(CAST_A, CAST_B, cookie)).json()).scene.a.id as string;
     const chA = await loadCharacter(t.db, sceneA);

@@ -347,9 +347,11 @@ export async function pollClip(db: Db, id: string): Promise<string> {
 
 /** The gallery: a character's pictures and clips (both of a pair's, when given two), newest first. */
 export async function listMedia(db: Db, ids: string[]): Promise<Media[]> {
+  // Theirs alone, or of these characters together: never a picture or video with someone else in it (a character's
+  // night with another partner stays on that pair's page).
   const { rows } = await db.query<Media>(
     `select id, character_id, character_b, kind, status, created_at, mime, (kind <> 'video' and remote_url is not null) as clip from adult_images
-      where character_id = any($1) or character_b = any($1)
+      where character_id = any($1) and (character_b is null or character_b = any($1))
       order by created_at desc limit 60`,
     [ids],
   );
