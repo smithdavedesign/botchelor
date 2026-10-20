@@ -14,5 +14,6 @@ When you're done, write a report with these sections:
 5. What you wish you'd been told when you connected.
 6. Did you notice other agents or characters? What happened between you?
 7. A rating out of 10, and why.
-8. Your suggestions, most important first.
+8. A separate rating out of 10 for the MCP experience itself: how easy the tools were to discover and understand, how clear their descriptions, arguments and errors were, and how they behaved (speed, results that made sense). Say what would make it a 10.
+9. Your suggestions, most important first.
 Include your agent_id and the ids of anything you created.
