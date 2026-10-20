@@ -29,7 +29,7 @@ things with nobody undressed in them: empty sets, and clips from non-explicit pi
 | Explicit picture | Venice, `lustify-v8`, 832×1104 | $0.01 a picture |
 | Set (an empty place) | fal, `fal-ai/flux/schnell`, 16:9 | about $0.003 per megapixel, so about $0.002 a set |
 | Picture moderation | Hive, `hive/visual-moderation` | $3 per 1,000 images ($0.003 each) |
-| Age check on a picture | Hive, `hive/vision-language-model` | Billed by tokens: about 1,860 in and 3 out per check. The rate isn't on the model page, so confirm it on Hive's Usage page. |
+| Age check on a picture | Hive, `hive/vision-language-model` | $0.50 per million input tokens and $2.50 per million output; about 1,860 in and 3 out per check, so about $0.001. No daily limit listed. |
 | Text moderation (not used yet) | Hive, `hive/text-moderation` | $0.50 per 1,000 requests |
 
 ### Video (Venice quotes, 720p, made from a starting picture)
@@ -90,22 +90,25 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 
 **What it is:** a short film of a whole night (`lib/adult/reels.ts`).
 - The model picks its strongest lines across the night: how it starts, how it builds, the peak (rarely at either end), how it lands.
-- Each line becomes one shot of the speaker saying it, in their own stock voice. Wan 2.6 lip-syncs to that voice.
-- Each shot starts from the pair's own pictures, which already passed the age check.
+- Each line becomes one shot of the speaker saying it, starting from the pair's own pictures, which already passed the age check.
+- **Voices (David's pick, 2026-10-19, after watching both tests):** Wan 3.0 speaks each line itself, from the prompt ("test A"). It sounded more real than a stock Kokoro voice lip-synced by Wan 2.6 ("test B").
+  - The catch: the model chooses the voice per shot, so a character can sound slightly different from shot to shot.
+  - B's own-voice path is still in the code: set the model to a Wan 2.6 one to use it.
 - Hive checks every shot before it's kept. A discarded shot gives back its share of the tokens.
 - The shots play in order, with each line as a caption.
 
-**Settings:** the model, the number of shots and the price (`reel_model`, `reel_shots`, `reel_tokens`). The defaults are Wan 2.6, 6 shots (about 30 s) and 15 tokens.
+**Settings:** the model, the number of shots and the price (`reel_model`, `reel_shots`, `reel_tokens`). The defaults are Wan 3.0, 6 shots (about 30 s) and 15 tokens.
 
-| Default video (6 shots, Wan 2.6, about 30 s) | Cost |
+| Default video (6 shots, Wan 3.0, about 30 s) | Cost |
 |---|---|
-| 6 shots × $0.55 (5 s each; a long line takes 10 s, $1.10) | $3.30 to $4.00 |
-| Voices: 6 lines on Kokoro | under $0.01 |
+| 6 shots × $0.65 (5 s each; a long line takes 10 s, $1.30) | $3.90 to $5.00 |
 | Picking the lines (text model) | about $0.001 |
-| Hive on about 30 to 60 frames | about $0.10 to $0.20 |
-| **Total** | **about $3.50 to $4.20** |
+| Hive moderation on each shot, plus the age check | about $0.10 to $0.20 |
+| **Total** | **about $4.00 to $5.20** |
 
-At **15 tokens** we take in about $10.80 after Stripe's fee (about $10.20 with an adult processor), so we keep about **$6 to $7** a video. On Wan 2.6 Flash, the cost halves.
+At **15 tokens** we take in about $10.80 after Stripe's fee (about $10.20 with an adult processor), so we keep about **$5 to $6.50** a video. Test B's route (Wan 2.6 with our own voices) would cost about $3.50.
+
+**Hive's limit:** self-serve allows 100 visual-moderation requests a day, and the only way to raise it is to contact Hive Sales. That's needed before real volume. The vision-language model (the age check) has no listed limit and costs $0.50 per million input tokens and $2.50 per million output, about $0.001 a check.
 
 ### What other sites charge (from reviews, October 2026; check before relying on them)
 

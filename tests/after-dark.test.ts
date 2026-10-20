@@ -726,6 +726,8 @@ describe("the video of the night", () => {
   it("voices each picked line in the speaker's own voice, lip-syncs a shot to it, checks every shot, and plays them in order", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);
+    // Test B's route: our own stock voice, lip-synced by a model that takes audio in.
+    await call(settingsPost, "/api/admin/after-dark/settings", { reel_model: "wan-2.6-image-to-video" }, cookie);
     const seen = fakeVenice();
     setCheckFetchForTests(async () => Response.json(CLEAN_MOD));
     scripted(JSON.stringify({ shots: [{ line: 9, motion: "she pulls him down" }, { line: 2, motion: "they kiss" }, { line: 5, motion: "slow" }] }));
@@ -746,6 +748,19 @@ describe("the video of the night", () => {
     const done = await advance(started.reel.id, cookie);
     expect(done.status).toBe("ready");
     expect(done.shots.every((s) => s.status === "ready" && s.media_id)).toBe(true);
+  });
+
+  it("by default has Wan 3.0 speak each line itself, quoted in its prompt (David's pick)", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    const seen = fakeVenice();
+    scripted(JSON.stringify({ shots: [{ line: 2, motion: "they kiss" }, { line: 5, motion: "slow" }, { line: 9, motion: "closer" }] }));
+    await make(cookie);
+    expect(seen.some((x) => x.path === "/audio/speech")).toBe(false);
+    const q = seen.find((x) => x.path === "/video/queue")!.body;
+    expect(q).toMatchObject({ model: "wan-3-0-image-to-video", audio: true, aspect_ratio: "adaptive" });
+    expect(q.audio_url).toBeUndefined();
+    expect(String(q.prompt)).toContain('says: "Line number 2 says something rather vivid here."');
   });
 
   it("costs a subscriber the reel's price, gives back the share of discarded shots, and waits when Hive is busy", async () => {
