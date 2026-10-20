@@ -819,3 +819,37 @@ describe("the video of the night", () => {
     expect(await fetchAs("vid-1")).toBe(404);
   });
 });
+
+import { CHAPTER_LINES } from "@/lib/adult/scenes";
+
+describe("chapters: a long night runs on, and remembers how it began", () => {
+  it("files a full chapter as a saved night, recaps it, carries the last lines over, and the next prompt holds the recap", async () => {
+    const { cookie } = await admin();
+    const scene = (await (await get(CAST_A, CAST_B, cookie)).json()).scene;
+    const full = Array.from({ length: CHAPTER_LINES - 6 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `Line ${i}.` }));
+    await t.db.query(`update adult_scenes set lines = $2::jsonb, stage = 2, stage_from = 100 where id = $1`, [scene.id, JSON.stringify(full)]);
+    let prompts: string[] = [];
+    setAdultModelForTests({
+      complete: async (msgs: { content: string }[]) => {
+        prompts.push(msgs.map((m) => m.content).join("\n"));
+        if (/running recap/.test(msgs[0].content)) return JSON.stringify({ recap: "They met at the bar, went back to hers, and he keeps calling her 'trouble'." });
+        return JSON.stringify({ lines: Array.from({ length: 6 }, (_, i) => ({ who: i % 2 ? "b" : "a", text: `New line ${i}.` })) });
+      },
+    } as never);
+    const r = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
+    expect(r.scene).toMatchObject({ chapter: 2, lines: [], recap: expect.stringContaining("trouble") });
+    expect(r.scene.prev_tail).toHaveLength(12);
+    expect(r.scene.stage_from).toBe(100 - CHAPTER_LINES);
+    const nights = (await t.db.query<{ chapter: number; n: number; recap: string }>(`select chapter, jsonb_array_length(lines) as n, recap from adult_nights`)).rows;
+    expect(nights).toEqual([{ chapter: 1, n: CHAPTER_LINES, recap: expect.stringContaining("trouble") }]);
+    prompts = [];
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    expect(prompts[0]).toMatch(/Earlier tonight[^\n]*\nThey met at the bar/);
+    expect(prompts[0]).toContain("New line 5.");
+    expect(prompts[0]).not.toMatch(/The scene opens exactly where the date ended/);
+    // Start over files chapter 2 and begins a new night at chapter 1 with no recap.
+    const reset = await (await post({ a: CAST_A, b: CAST_B, reset: true }, cookie)).json();
+    expect(reset.scene).toMatchObject({ chapter: 1, recap: null, prev_tail: [] });
+    expect(reset.nights.map((n: { chapter: number }) => n.chapter)).toEqual([2, 1]);
+  });
+});
