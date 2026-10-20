@@ -6,7 +6,7 @@ import { deleteCharacter } from "@/lib/account";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
-import { checkFields, type RejectReason } from "@/lib/safety";
+import { CHARACTER_REJECTION_MESSAGES as REJECTION_MESSAGES, checkFields } from "@/lib/safety";
 import type { ImageSignals } from "@/lib/avatar";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { ExtrasInput, extrasFields, normaliseExtras, type ExtrasInputType } from "@/lib/extras";
@@ -77,12 +77,6 @@ const CharacterPatch = z
       .optional(),
   })
   .refine((v) => Object.keys(v).length > 0, "Nothing to update.");
-
-const REJECTION_MESSAGES: Record<RejectReason, string> = {
-  minor: "Characters must be adults, with nothing suggesting they are under 18.",
-  sexual: "Keep the character sheet free of sexual content.",
-  real_person: "Characters must be original: no real people.",
-};
 
 /** The columns a PATCH may set, in the order they appear on the body. `null` clears an optional column. */
 const COLUMN: Record<string, (v: Record<string, unknown>) => unknown> = {

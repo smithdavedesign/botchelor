@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
+import { createHref, prefillFromQuery } from "@/lib/chemistry-test";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
 import { listOpenCharacters } from "@/lib/dating";
 import { getDb } from "@/lib/db";
@@ -70,6 +71,9 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
     })),
   ];
   const looks = await builderLooks(db ?? (await getDb()), auth);
+  // From the OC chemistry test's "Watch the real date" (app/tools/oc-chemistry-test/result): the second character, to
+  // build next with its sheet filled in too.
+  const next = prefillFromQuery(sp, "with_");
   const offer = paymentLinkFromEnv()
     ? priceLabelFromEnv(process.env, `${PACK_5.name} for ${formatPrice(PACK_5.price_cents)}`)
     : null;
@@ -84,7 +88,8 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       myCharacters={myCharacters.map(({ id, name }) => ({ id, name }))}
       startSample={sp.sample === "1"}
       startCharacterId={typeof sp.character === "string" ? sp.character : null}
-      startName={typeof sp.name === "string" ? sp.name.trim().slice(0, 40) || null : null}
+      start={prefillFromQuery(sp)}
+      pairNext={next?.name ? { name: next.name, href: createHref(next) } : null}
       lookTiles={looks.tiles}
       afterDark={looks.afterDark}
     />

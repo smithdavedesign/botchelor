@@ -9,6 +9,13 @@
 export type RejectReason = "minor" | "sexual" | "real_person";
 export type SafetyResult = { ok: true } | { ok: false; reason: RejectReason; field: string };
 
+/** What a refused character sheet is told: the builder's API (create and edit) and the OC chemistry test. */
+export const CHARACTER_REJECTION_MESSAGES: Record<RejectReason, string> = {
+  minor: "Characters must be adults, with nothing suggesting they are under 18.",
+  sexual: "Keep the character sheet free of sexual content.",
+  real_person: "Characters must be original: no real people.",
+};
+
 const SEXUAL_TERMS = [
   "sex", "sexy", "sexual", "sexually", "sexting", "porn", "porno", "pornographic", "pornography",
   "nsfw", "nude", "nudes", "nudity", "naked", "erotic", "erotica", "orgasm", "orgasms", "orgy",

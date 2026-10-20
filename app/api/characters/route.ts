@@ -6,7 +6,7 @@ import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { ExtrasInput, extrasFields, normaliseExtras } from "@/lib/extras";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
-import { checkFields, type RejectReason } from "@/lib/safety";
+import { CHARACTER_REJECTION_MESSAGES as REJECTION_MESSAGES, checkFields } from "@/lib/safety";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput } from "@/lib/souls";
 
 const MIN_AGE = 18;
@@ -65,12 +65,6 @@ const CharacterInput = z.object({
   this_week: z.string().trim().max(THIS_WEEK_MAX, `At most ${THIS_WEEK_MAX} characters.`).optional(),
   attest: z.literal(true, "Confirm you are 18+ and this is your own original character."),
 });
-
-const REJECTION_MESSAGES: Record<RejectReason, string> = {
-  minor: "Characters must be adults, with nothing suggesting they are under 18.",
-  sexual: "Keep the character sheet free of sexual content.",
-  real_person: "Characters must be original: no real people.",
-};
 
 export const POST = handle(async (req) => {
   const sess = session(req);

@@ -2,29 +2,33 @@
 
 ## Screenshots
 
-The free OC ship name generator (2026-10-20): two names in, ship names out, on a link anyone can share that ends one
-click from `/create`. Captured from the production build by `npm run screenshots:ship`, with every model variable
-unset and sample names only; the same run checks the 200, the sitemap entry, the redirect and that a reload shows the
-same names. Code: [`lib/ship-names.ts`](lib/ship-names.ts), [`app/tools/ship-name-generator`](app/tools/ship-name-generator/page.tsx),
-[`app/ship`](app/ship/%5Ba%5D/%5Bb%5D/page.tsx). Why and how it's measured: [GROWTH.md](GROWTH.md).
+The free OC chemistry test (2026-10-20): two characters' traits, wants and dealbreakers in, and the show's own date
+engine says whether their first date ends in a second date, just friends or a disaster, with a score out of 100 and
+three reasons, on a link anyone can share that ends one click from `/create`. Captured from the production build by
+`npm run screenshots:chemistry`, with every model variable unset and invented sample characters only. The same run
+checks the 200 and the `<title>`, the sitemap entry, that a reload gives the same score, the og:title and share card,
+that a real person's name is refused with `/create`'s message, and both tools in the footer of `/` and `/create`.
+Code: [`lib/chemistry-test.ts`](lib/chemistry-test.ts), [`app/tools/oc-chemistry-test`](app/tools/oc-chemistry-test/page.tsx).
+Why and how it's measured: [GROWTH.md](GROWTH.md). (The ship name generator's screenshots are still in
+`docs/screenshots/ship-*.png`.)
 
-![The ship name generator on desktop: the "OC Ship Name Generator" heading and two name inputs, with Juniper and Dex typed in](docs/screenshots/ship-tool-desktop.png)
-The tool at `/tools/ship-name-generator`: a heading, two name inputs and one button.
+![The OC Chemistry Test on desktop: the heading and two character sheets side by side, Odessa Crane and Fitz Harlow, each with a name, three traits, a want and a dealbreaker](docs/screenshots/chemistry-tool-desktop.png)
+The tool at `/tools/oc-chemistry-test`: two sheets with `/create`'s fields and limits, filled in with the sample pair.
 
-![Juniper × Dex ship names on desktop: Junipex on top, then nine more, each with the two pieces it was made from](docs/screenshots/ship-result-desktop.png)
-Submitting lands on `/ship/juniper/dex`, rendered on the server without a model: ten ship names, best first, and a link to copy.
+![Odessa Crane × Fitz Harlow on desktop: 74/100, A second date, and three reasons](docs/screenshots/chemistry-result-desktop.png)
+Submitting lands on a shareable result, rendered on the server by the engine without a model: the score, the ending and why.
 
-![/create on desktop, opened from the ship page's "Send Juniper on a blind date" button, with Juniper already in the Name field](docs/screenshots/ship-create-desktop.png)
-The ship page ends in "Send Juniper on a blind date", which opens `/create` with the name already in.
+![/create on desktop, opened from "Watch the real date": a note that Odessa's sheet is in with a "Build Fitz next" link, and Odessa Crane with her three traits in the preview and the Name field](docs/screenshots/chemistry-create-desktop.png)
+"Watch the real date" opens `/create` with the first sheet filled in and a link that opens it with the second.
 
-![The ship name generator on a phone, with Juniper and Dex typed in](docs/screenshots/ship-tool-mobile.png)
-The tool on an iPhone 13 screen: the two names stack.
+![The chemistry test on a phone: the first character's sheet, filled in](docs/screenshots/chemistry-tool-mobile.png)
+The tool on an iPhone 13 screen: the two sheets stack.
 
-![Juniper × Dex ship names on a phone, Junipex on top](docs/screenshots/ship-result-mobile.png)
-The result on a phone, Junipex first.
+![Odessa Crane × Fitz Harlow on a phone: 74/100, A second date, and the reasons](docs/screenshots/chemistry-result-mobile.png)
+The result on a phone.
 
-![/create on a phone with Juniper in the Name field](docs/screenshots/ship-create-mobile.png)
-`/create` on a phone, opened from the ship page with Juniper's name in.
+![/create on a phone with Odessa Crane's name and traits filled in](docs/screenshots/chemistry-create-mobile.png)
+`/create` on a phone, opened from the result with Odessa's sheet in.
 
 ## Listed for agents (2026-10-19)
 

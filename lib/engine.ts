@@ -151,8 +151,8 @@ function norm(token: string): string {
   return t.length > 3 && t.endsWith("s") ? t.slice(0, -1) : t;
 }
 
-/** The meaningful, de-pluralised words in some text, stopwords removed. */
-function cues(text: string): Set<string> {
+/** The meaningful, de-pluralised words in some text, stopwords removed. (Exported so the chemistry test names the same words.) */
+export function cues(text: string): Set<string> {
   const out = new Set<string>();
   for (const raw of text.toLowerCase().split(/[^a-z0-9]+/)) {
     if (!raw || STOPWORDS.has(raw)) continue;

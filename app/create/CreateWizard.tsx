@@ -1,6 +1,7 @@
 "use client";
 
 import { shortName } from "@/lib/names";
+import type { CreatePrefill } from "@/lib/chemistry-test";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -141,7 +142,8 @@ export default function CreateWizard({
   myCharacters = [],
   startSample = false,
   startCharacterId = null,
-  startName = null,
+  start = null,
+  pairNext = null,
   lookTiles = [],
   afterDark = false,
   edit,
@@ -155,8 +157,13 @@ export default function CreateWizard({
   myCharacters?: { id: string; name: string }[];
   startSample?: boolean;
   startCharacterId?: string | null;
-  /** A new character with this name already in (/create?name=, from a ship name page: app/ship/[a]/[b]). */
-  startName?: string | null;
+  /**
+   * A new character with these fields already in (/create?name=…&trait1=…&want=…&dealbreaker=…, lib/chemistry-test.ts
+   * prefillFromQuery): from a ship name page (app/ship/[a]/[b]) or the OC chemistry test's result.
+   */
+  start?: CreatePrefill | null;
+  /** The chemistry test's second character, to build next with its sheet filled in too (/create?with_name=…). */
+  pairNext?: { name: string; href: string } | null;
   /** The looks builder's tiles that have a picture (lib/looks-draw.ts readyTiles). */
   lookTiles?: readonly string[];
   /** This viewer can open After Dark, so its looks tab is unlocked (lib/adult/entitlement.ts). */
@@ -175,12 +182,14 @@ export default function CreateWizard({
   const [sheet, setSheet] = useState<Sheet>(
     init
       ? { name: init.name, age: String(init.age), bio: init.bio, want: init.want, dealbreaker: init.dealbreaker }
-      : startName
-        ? { ...EMPTY_SHEET, name: startName }
+      : start
+        ? { ...EMPTY_SHEET, name: start.name ?? "", want: start.want ?? "", dealbreaker: start.dealbreaker ?? "" }
         : EMPTY_SHEET,
   );
   const [pronouns, setPronouns] = useState(init?.pronouns ?? "");
-  const [traits, setTraits] = useState(init ? [init.traits[0] ?? "", init.traits[1] ?? "", init.traits[2] ?? ""] : ["", "", ""]);
+  const [traits, setTraits] = useState(
+    init ? [init.traits[0] ?? "", init.traits[1] ?? "", init.traits[2] ?? ""] : start?.traits ? [...start.traits] : ["", "", ""],
+  );
   const [voice, setVoice] = useState(init?.voice ?? "");
   const [appearance, setAppearance] = useState(init?.appearance ?? "");
   const [hue, setHue] = useState(init?.hue ?? 0);
@@ -233,8 +242,8 @@ export default function CreateWizard({
       applySample();
       return;
     }
-    // Arrived with a name to make (a ship name page): start that character fresh, not an older draft.
-    if (startName) return;
+    // Arrived with a character to make (a ship name page, the chemistry test): start it fresh, not an older draft.
+    if (start) return;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -493,6 +502,7 @@ export default function CreateWizard({
         outOfTokens={outOfTokens}
         setOutOfTokens={setOutOfTokens}
         onSend={(sharePath) => router.push(sharePath)}
+        pairNext={pairNext}
       />
     );
   }
@@ -536,6 +546,13 @@ export default function CreateWizard({
               <Link href={`/create?character=${c.id}`}>Send {c.name} on a date</Link>
             </span>
           ))}
+        </p>
+      )}
+
+      {!edit && pairNext && step === S.identity && (
+        <p className="hint-nudge">
+          {`From the OC chemistry test: ${shortName(sheet.name) ? `${shortName(sheet.name)}'s` : "their"} name, traits, want and dealbreaker are in, so add an age and a short bio. Then it's ${shortName(pairNext.name)}'s turn, filled in too: `}
+          <Link href={pairNext.href}>{`Build ${shortName(pairNext.name)} next`}</Link>
         </p>
       )}
 
@@ -1002,9 +1019,11 @@ type SendProps = {
   outOfTokens: boolean;
   setOutOfTokens: (b: boolean) => void;
   onSend: (sharePath: string) => void;
+  /** The chemistry test's second character, still to build. */
+  pairNext: { name: string; href: string } | null;
 };
 
-function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend }: SendProps) {
+function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, pairNext }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
   const [strategy, setStrategy] = useState<Strategy>("genuine_chemistry");
   const [budget, setBudget] = useState<GameBudget>(25);
@@ -1081,6 +1100,12 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
         back Monday 00:00 UTC.{" "}
         {tokens.left <= 1 && offer && <Link href="/shop">{offer}</Link>}
       </p>
+      {pairNext && (
+        <p className="hint-nudge">
+          {`${shortName(pairNext.name)} from the chemistry test is still to build, with their sheet filled in: `}
+          <Link href={pairNext.href}>{`Build ${shortName(pairNext.name)} next`}</Link>
+        </p>
+      )}
 
       <section className="card wizard-pro-card">
         <h2>

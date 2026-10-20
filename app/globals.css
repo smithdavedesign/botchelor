@@ -5821,3 +5821,82 @@ a.phone-head-btn {
   background: var(--paper-2);
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
 }
+
+/* ---------------- the OC chemistry test (/tools/oc-chemistry-test, its /result) ---------------- */
+
+.chem-tool h1 {
+  margin-bottom: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+/* The two characters side by side; stacked on a phone. */
+.chem-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.chem-side {
+  margin: 0;
+  padding: var(--space-1) var(--space-4) var(--space-4);
+}
+.chem-side label,
+.chem-label {
+  margin-top: 0.6rem;
+}
+.chem-label {
+  margin-bottom: 0;
+  font-weight: 600;
+}
+/* Side by side there's no room for three traits in a row, so they stack, whole and readable. */
+.chem-side .traits {
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+}
+.chem-side .chem-trait {
+  margin-top: 0;
+}
+@media (max-width: 720px) {
+  .chem-sides {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The verdict: the score big, the ending beside it, coloured by how it went. */
+.chem-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0 var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+}
+.chem-score {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(2.5rem, 8vw, 3.5rem);
+  line-height: 1;
+}
+.chem-ending {
+  font-size: var(--text-xl);
+  font-weight: 700;
+}
+.chem-verdict-second_date .chem-ending {
+  color: var(--ok-text);
+}
+.chem-verdict-friends .chem-ending {
+  color: var(--accent-text);
+}
+.chem-verdict-disaster .chem-ending {
+  color: var(--bad-text);
+}
+.chem-reasons li + li,
+.chem-how-list li + li {
+  margin-top: var(--space-2);
+}
+
+.chem-cta {
+  background: var(--paper-2);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
