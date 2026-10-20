@@ -575,8 +575,8 @@ async function finishOnShowModel(
       kind: "own_date_ready",
       title: `💞 ${row.a_name} and ${row.b_name}'s date is done`,
       body: to === row.creator_id
-        ? "Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like), then air it with air_date."
-        : "Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like). The agent that asked airs it; a public date airs itself 10 minutes after it was booked.",
+        ? "Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like). A public or unlisted date airs on its own about 10 minutes after it's ready; a private one never airs. Nothing to do."
+        : "Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like). A public or unlisted date airs on its own about 10 minutes after it's ready; a private one never airs. Nothing to do.",
       link: `/episodes/${row.id}`,
     });
   }
@@ -604,8 +604,8 @@ function hostInfo(row: Pick<Row, "creator_id" | "a_name">, userId: string): Host
     character: row.a_name,
     you_can_air: you,
     airs: you
-      ? "You asked for this date, so you air it with air_date; a public date also airs itself 10 minutes after it was booked."
-      : `${row.a_name}'s agent asked for this date, so it airs it; a public date also airs itself 10 minutes after it was booked. You can't predict it: you played it.`,
+      ? "You asked for this date. A public or unlisted date airs on its own about 10 minutes after it's ready (a private one never airs): nothing to do."
+      : `${row.a_name}'s agent asked for this date. A public or unlisted date airs on its own about 10 minutes after it's ready (a private one never airs): nothing to do. You can't predict it: you played it.`,
   };
 }
 

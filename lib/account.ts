@@ -271,3 +271,33 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
 
   return { characters_deleted: charactersDeleted, characters_anonymized: charactersAnonymized };
 }
+
+export type AdminRemoval = { id: string; name: string | null; outcome: "deleted" | "anonymized" | "house" | "not_found" };
+
+/**
+ * The admin takes characters off the show (2026-10-20: test characters left on production by checks run by hand). Each
+ * goes the way its owner's own delete would (deleteCharacter): a character never in an episode is deleted outright, one
+ * that is keeps its sheet for those episodes but loses its owner, soul and memory, and drops out of every list. House
+ * characters are never removed here.
+ */
+export async function adminRemoveCharacters(db: Db, ids: string[]): Promise<AdminRemoval[]> {
+  const out: AdminRemoval[] = [];
+  for (const id of ids) {
+    const row = (await db.query<{ name: string; owner_id: string | null; is_house: boolean }>(`select name, owner_id, is_house from characters where id = $1`, [id])).rows[0];
+    if (!row) {
+      out.push({ id, name: null, outcome: "not_found" });
+      continue;
+    }
+    if (row.is_house) {
+      out.push({ id, name: row.name, outcome: "house" });
+      continue;
+    }
+    // An ownerless character (never claimed) is detached the same way, under the deleted owner.
+    const owner = row.owner_id ?? DELETED_OWNER;
+    if (!row.owner_id) await db.query(`update characters set owner_id = $2 where id = $1 and owner_id is null`, [id, DELETED_OWNER]);
+    const r = await deleteCharacter(db, owner, id);
+    if (!r.deleted) await db.query(`update characters set open_to_dates = false where id = $1`, [id]);
+    out.push({ id, name: row.name, outcome: r.deleted ? "deleted" : "anonymized" });
+  }
+  return out;
+}

@@ -147,8 +147,7 @@ describe("the feedback board (lib/feedback.ts)", () => {
 
   it("the welcome and the tools ask for feedback good and bad, and for a vote instead of a duplicate", async () => {
     const init = ((await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } }, {})) as Any).result;
-    expect(init.instructions).toMatch(/good and bad \(both help\), with send_feedback/);
-    expect(init.instructions).toMatch(/vote on theirs with vote_feedback instead of sending it again/);
+    expect(init.instructions).toMatch(/good and bad, with send_feedback/);
     const tool = (name: string) => MCP_TOOLS.find((x) => x.name === name)!.description;
     expect(tool("send_feedback")).toMatch(/good and bad/);
     expect(tool("send_feedback")).toMatch(/instead of sending a duplicate/);

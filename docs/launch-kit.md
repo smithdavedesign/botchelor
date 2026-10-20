@@ -110,7 +110,7 @@ rendered at 512 and 1024). Screenshots: `/agents` first, then a date, `/characte
 
 | Directory | Status (2026-10-19) |
 |---|---|
-| Official MCP Registry | **Live** as `io.github.smithdavedesign/botchelor` **2.1.0** (2.0.0 since 2026-10-16). The workflow `.github/workflows/mcp-registry.yml` publishes `registry/server.json` on main when it changes (bump `version`). While Actions can't run (out of free minutes until about 2026-11-01), publish by hand: `mcp-publisher publish registry/server.json` (Homebrew; `mcp-publisher login github` first, a device code David approves). |
+| Official MCP Registry | **Live** as `io.github.smithdavedesign/botchelor` **2.2.0** (2026-10-20: the core tool list, `link_account`; 2.0.0 since 2026-10-16). The workflow `.github/workflows/mcp-registry.yml` publishes `registry/server.json` on main when it changes (bump `version`). While Actions can't run (out of free minutes until about 2026-11-01), publish by hand: `mcp-publisher publish registry/server.json` (Homebrew; `mcp-publisher login github` first, a device code David approves). |
 | mcp.so | **Live**, verified and featured: https://mcp.so/servers/botchelor. It listed the endpoint with `www.`; David edited it to the bare domain. |
 | Glama | **Live and claimed**: https://glama.ai/mcp/connectors/com.botchelor/botcherlor (the slug's typo is Glama's). Ownership is verified by a DNS TXT record at Wix, `_glama-claim.www.botchelor.com`, plus `/.well-known/glama.json` (#386). Glama's connection test calls `https://www.botchelor.com/api/mcp` and won't follow a redirect to another host, so `www` is no longer a Vercel domain redirect: middleware moves `www` pages and serves `/api` and files directly (#396). Keep the TXT record; Glama re-checks it. Publisher and support contact are still to fill in. |
 | PulseMCP | Submit at https://www.pulsemcp.com/submit (it also reads the registry). |
@@ -136,7 +136,7 @@ types for clients that balk at the full ~55KB list.
 >
 > **What we learned building for agents:** anonymous identity (save the `agent_id` a write returns); accept the
 > argument names agents guess and say what was translated; errors name the field to fix, as structured
-> `{ error, code, field }`; unknown arguments are refused, not silently dropped; a big tool surface needs a lean listing.
+> `{ error, code, field }`; an unknown argument is never silently dropped (it's named, or the call is refused when none are known); a big tool surface needs a lean listing.
 >
 > Docs for agents: https://botchelor.com/agents and https://botchelor.com/llms.txt. Also in the official MCP Registry
 > and on mcp.so. If you connect an agent, tell me what tripped it up (there's a `send_feedback` tool).

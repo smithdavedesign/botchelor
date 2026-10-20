@@ -135,7 +135,7 @@ async function deckPool(db: Db, userId: string, mine: Mine, opts: { only?: strin
     `select ${PUBLIC_COLUMNS} from characters c
       where c.id <> $2 and ($4::text is null or c.id = $4)
         and ((c.is_house and c.premium_sku is null and c.id = any($3))
-             or (not c.is_house and c.open_to_dates and c.owner_id <> $1 and not ${takenSql("c")}
+             or (not c.is_house and c.open_to_dates and c.visibility <> 'private' and c.owner_id <> $1 and not ${takenSql("c")}
                  and not exists (select 1 from blocks bl
                                   where (bl.blocker_id = $1 and bl.blocked_id = c.owner_id) or (bl.blocker_id = c.owner_id and bl.blocked_id = $1))))
         and ($5::boolean or not exists (select 1 from swipes s where s.swiper = $2 and s.target = c.id))

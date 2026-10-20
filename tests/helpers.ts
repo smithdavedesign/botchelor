@@ -131,6 +131,8 @@ export async function startTestDb() {
         "adult_memories",
         "adult_settings",
         "agent_feedback",
+        "agent_links",
+        "agent_link_codes",
         "mcp_calls",
         "scene_requests",
         "place_sets",

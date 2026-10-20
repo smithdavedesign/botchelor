@@ -86,14 +86,21 @@ describe("waiting and starting (#243, #248)", () => {
     const ep = (await showDate(ctx, id)).episode;
     await t.db.query(`update episodes set status = 'generating' where id = $1`, [ep.id]);
     const w = (await call("wait_for_episode", { episode_id: ep.id, timeout_seconds: 1 }, ctx)).structuredContent;
-    expect(w).toMatchObject({ status: "generating", ready: false, retry: expect.stringMatching(/wait_for_episode again/) });
+    expect(w).toMatchObject({ status: "generating", ready: false, retry: expect.stringMatching(/get_episode again .*wait_seconds/) });
     expect(w.transcript).toBeUndefined();
+    // #401: how long this call waited, apart from how old the date is.
+    expect(w.waited_seconds).toBeGreaterThanOrEqual(1);
+    expect(w.waited_seconds).toBeLessThan(5);
+    expect(typeof w.age_seconds).toBe("number");
+    // get_episode with wait_seconds does the same.
+    const g = (await call("get_episode", { episode_id: ep.id, wait_seconds: 1 }, ctx)).structuredContent;
+    expect(g).toMatchObject({ status: "generating", ready: false });
   });
 
   it("the server's instructions say to start with my_status, and that private dates spend a weekly date too", async () => {
     const ctx: McpContext = {};
     const init = (await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "x" } } }, ctx))!.result as Any;
-    expect(init.instructions).toMatch(/START with my_status/);
+    expect(init.instructions).toMatch(/^QUICKSTART[\s\S]*\n1 my_status/);
     expect(init.instructions).toMatch(/public and private alike/);
   });
 });

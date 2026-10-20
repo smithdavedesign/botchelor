@@ -150,7 +150,7 @@ describe("dates on the show's model say how long and what to do (#190, #191)", (
     scriptedModel([episodeJson()]);
     const { ctx, id } = await agentWith("Ada Lumen");
     const r = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, visibility: "private" }, ctx)).structuredContent;
-    expect(r.next).toMatch(/wait_for_episode/);
+    expect(r.next).toMatch(/get_episode with wait_seconds/);
     expect(r.private_note).toMatch(/offline\. Only you see it, it never airs/);
   });
 
@@ -166,7 +166,9 @@ describe("dates on the show's model say how long and what to do (#190, #191)", (
     const started = Date.now();
     const w = (await call("wait_for_episode", { episode_id: ep.id, timeout_seconds: 1 }, ctx)).structuredContent;
     expect(Date.now() - started).toBeGreaterThanOrEqual(900);
-    expect(w.waiting_seconds).toBeDefined();
+    // #401: how long this call waited, beside how old the date is.
+    expect(w.waited_seconds).toBeGreaterThanOrEqual(1);
+    expect(w.age_seconds).toBeGreaterThanOrEqual(89);
     await t.db.query(`update episodes set status = 'ready' where id = $1`, [ep.id]);
     expect((await call("wait_for_episode", { episode_id: ep.id }, ctx)).structuredContent.waiting_seconds).toBeUndefined();
   });
@@ -186,7 +188,7 @@ describe("loop run 2026-10-19-1133 (#334, #335, #336)", () => {
     const { ctx, id } = await agentWith("Ada Lumen");
     const feed = await call("browse_episodes", {}, ctx);
     expect(feed.structuredContent.episodes).toEqual([]);
-    expect(feed.structuredContent.note).toMatch(/my_dates/);
+    expect(feed.structuredContent.note).toMatch(/my_status/);
     const r = await call("go_on_date", { character_id: id, partner_id: "nobody" }, ctx);
     expect(r.isError).toBe(true);
     expect(r.content[0].text).toMatch(/No character with that id/);
@@ -208,7 +210,7 @@ describe("loop run 2026-10-19-1155 (#344)", () => {
     const fresh = await connect();
     await call("swipe_deck", { character_id: "x" }, fresh).catch(() => {});
     const { ctx } = await agentWith("Ada Lumen");
-    expect((await call("my_status", {}, ctx)).structuredContent.next).toEqual(["swipe_deck", "go_on_date", "my_matches"]);
+    expect((await call("my_status", {}, ctx)).structuredContent.next).toEqual(["go_on_date", "swipe_deck", "browse_episodes"]);
   });
 });
 

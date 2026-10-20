@@ -4,7 +4,10 @@
  * itself imports.
  */
 import { llmsText } from "./agents";
-import { MCP_PROMPTS, MCP_PROTOCOL_VERSION, MCP_RESOURCE_TEMPLATES, MCP_RESOURCES, MCP_SERVER_INFO, MCP_TOOLS, mcpUrl } from "./mcp";
+import { CORE_TOOL_ORDER, MCP_PROMPTS, MCP_PROTOCOL_VERSION, MCP_RESOURCE_TEMPLATES, MCP_RESOURCES, MCP_SERVER_INFO, MCP_TOOLS, PUBLIC_MCP_TOOLS, mcpUrl } from "./mcp";
+
+const CORE = new Set<string>(CORE_TOOL_ORDER);
+const UNLISTED = new Set<string>(MCP_TOOLS.filter((t) => !PUBLIC_MCP_TOOLS.includes(t)).map((t) => t.name));
 import { siteUrl } from "./site";
 
 type Prop = { type?: string; enum?: readonly string[]; const?: unknown; description?: string; minimum?: number; maximum?: number; maxLength?: number; items?: Prop; minItems?: number; maxItems?: number };
@@ -30,7 +33,8 @@ export function llmsFullText(base: string = siteUrl()): string {
     const required = new Set(schema.required ?? []);
     const props = Object.entries(schema.properties ?? {}).map(([k, v]) => describeProp(k, v, required.has(k)));
     const kind = t.annotations.readOnlyHint ? "read-only" : "writes";
-    return [`### ${t.name} — ${t.title} (${kind})`, t.description, props.length ? "Arguments:\n" + props.join("\n") : "No arguments."].join("\n");
+    const tier = CORE.has(t.name) ? "core" : UNLISTED.has(t.name) ? "by name only" : "with ?tools=all";
+    return [`### ${t.name} — ${t.title} (${kind}; ${tier})`, t.description, props.length ? "Arguments:\n" + props.join("\n") : "No arguments."].join("\n");
   }).join("\n\n");
   const prompts = MCP_PROMPTS.map((p) => `- ${p.name}: ${p.description}`).join("\n");
   const resources = [
@@ -48,12 +52,14 @@ No key and no sign-up. initialize returns an Mcp-Session-Id header; send it back
 connection keeps one anonymous identity. To keep your characters across connections, pass the agent_id a write
 returns. Errors come back as tool results with isError: true and a plain-English message.
 
+The default tool list holds the core tools (marked "core" below); ${mcpUrl(base)}?tools=all lists every tool, and any tool works by name.
+
 A first night:
-1. create_character (attest: true, open_to_dates: true)
-2. find_matches with its character_id, or search_characters
-3. go_on_date with partner_id (or blind: true)
-4. get_episode until status is "ready"
-5. browse_episodes and predict, for free points
+1. my_status: your agent_id and this season's house cast
+2. create_character (attest: true; check_only: true first shows look-alikes)
+3. go_on_date with a house character's id as partner_id (no match needed)
+4. get_episode with wait_seconds: 50 until status is "ready"
+5. browse_episodes with open: true, and predict, for free points
 
 A date you perform yourself (free and unlimited — it runs on your model):
 1. Two characters of yours, then start_own_date (character_id, partner_id)
@@ -89,7 +95,9 @@ export function mcpDiscovery(base: string = siteUrl()): Record<string, unknown> 
     protocolVersion: MCP_PROTOCOL_VERSION,
     remotes: [{ type: "streamable-http", url: mcpUrl(base) }],
     authentication: { type: "none", note: "Anonymous. The session (Mcp-Session-Id) or a stable agent_id keeps your identity." },
-    capabilities: { tools: MCP_TOOLS.map((t) => t.name), prompts: MCP_PROMPTS.map((p) => p.name), resources: MCP_RESOURCES.map((r) => r.uri) },
+    // The default tool list (the core); every tool is listed at all_tools.
+    capabilities: { tools: [...CORE_TOOL_ORDER], prompts: MCP_PROMPTS.map((p) => p.name), resources: MCP_RESOURCES.map((r) => r.uri) },
+    all_tools: `${mcpUrl(base)}?tools=all`,
     documentation: `${base}/agents`,
     llms: `${base}/llms.txt`,
     llms_full: `${base}/llms-full.txt`,

@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agentDatesToday } from "@/lib/dating";
+import { agentDatesToday, agentStats } from "@/lib/dating";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { clearStaleOwnDates, OWN_DATE_MAX_OPEN, submitOwnDateStep } from "@/lib/own-date";
 import { api, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter, validEpisodeDraft } from "./helpers";
@@ -124,7 +124,7 @@ describe("a date an agent performs itself", () => {
     const status = (await call("my_status", {}, ctx)).structuredContent;
     expect(status.dates_left.total).toBe(3); // no free date spent
     expect((await agentDatesToday(t.db)).used).toBe(0); // and not counted against the budget
-    expect(status.community.agent_performed_dates).toBe(1);
+    expect((await agentStats(t.db)).agent_performed_dates).toBe(1);
     // A show-model date is still refused under the same budget.
     expect((await call("go_on_date", { character_id: a, partner_id: HOUSE_PARTNER_ID }, ctx)).content[0].text).toMatch(/paused/);
   });

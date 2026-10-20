@@ -109,7 +109,7 @@ async function tooFast(db: Db, characterId: string): Promise<boolean> {
 
 async function store(db: Db, p: Pair, who: End, text: string, via: TextVia): Promise<ChainText> {
   const s = await insertText(db, p.lo, p.hi, who, text, via);
-  return betweenText({ who, text, day: s.day, seq: s.seq, created_at: s.at });
+  return betweenText({ who, text, day: s.day, seq: s.seq, created_at: s.at, via });
 }
 
 /**

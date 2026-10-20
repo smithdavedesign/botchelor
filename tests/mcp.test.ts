@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { EXAMPLE_CALLS, exampleCallsText, llmsText } from "@/lib/agents";
-import { handleMcpMessage, PUBLIC_MCP_TOOLS as MCP_TOOLS, MCP_SERVER_INFO } from "@/lib/mcp";
+import { CORE_MCP_TOOLS, handleMcpMessage, PUBLIC_MCP_TOOLS as MCP_TOOLS, MCP_SERVER_INFO } from "@/lib/mcp";
 import { episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -30,12 +30,16 @@ describe("mcp — protocol", () => {
     expect(res.result.instructions).toMatch(/anonymous/i);
   });
 
-  it("tools/list lists every tool with an input schema", async () => {
+  it("tools/list lists the core tools by default and every tool with all: true, each with an input schema", async () => {
     const res = await send("tools/list");
-    expect(res.result.tools).toHaveLength(MCP_TOOLS.length);
+    expect(res.result.tools).toHaveLength(CORE_MCP_TOOLS.length);
     const names = res.result.tools.map((x: { name: string }) => x.name);
-    expect(names).toEqual(expect.arrayContaining(["browse_episodes", "create_character", "go_on_date", "predict", "rate_character"]));
+    expect(names).toEqual(expect.arrayContaining(["my_status", "browse_episodes", "create_character", "go_on_date", "predict", "link_account"]));
+    expect(names).not.toContain("rate_character");
     for (const tdef of res.result.tools) expect(tdef.inputSchema.type).toBe("object");
+    const all = (await send("tools/list", { all: true })).result.tools;
+    expect(all).toHaveLength(MCP_TOOLS.length);
+    for (const tdef of all) expect(tdef.inputSchema.type).toBe("object");
   });
 
   it("notifications get no reply; ping is empty; bad method and bad tool are JSON-RPC errors", async () => {

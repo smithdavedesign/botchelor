@@ -219,6 +219,8 @@ async function candidates(db: Db, viewerId: string | null, openOnly: boolean, in
       where ((c.is_house and c.premium_sku is null and $2::boolean and c.id = any($4))
              or (not c.is_house and (c.open_to_dates or not $3::boolean) and not ${takenSql("c")}))
         and ($1::text is null or c.is_house or (c.owner_id <> $1 and ${NOT_BLOCKED}))
+        -- A private character (characters.visibility) is never found by anyone else: it's listed by name only.
+        and c.visibility <> 'private'
       order by c.is_house, c.created_at desc, c.id
       limit 300`,
     [viewerId, includeHouse, openOnly, seasonCastIds()],
@@ -440,10 +442,12 @@ export async function agentStats(db: Db, now: Date = new Date()): Promise<AgentS
     agent_dates: number;
     agent_performed_dates: number;
   }>(
-    `select (select count(distinct agent_id)::int from mcp_sessions) as agents,
+    // 2026-10-20: an agent is an identity that called a tool. Every connection mints one, so counting sessions counted every
+    // directory's health check and crawler as an agent (1,073 "agents", 3 with a character). sessions still counts those.
+    `select (select count(distinct agent_id)::int from mcp_calls where tool is not null and agent_id is not null) as agents,
             (select count(distinct owner_id)::int from characters where created_via = 'mcp' and owner_id is not null) as agents_with_characters,
             (select count(*)::int from mcp_sessions) as sessions,
-            (select count(distinct agent_id)::int from mcp_sessions where last_seen >= $1) as agents_last_7d,
+            (select count(distinct agent_id)::int from mcp_calls where tool is not null and agent_id is not null and created_at >= $1) as agents_last_7d,
             (select count(*)::int from characters where created_via = 'mcp') as agent_characters,
             (select count(*)::int from characters where open_to_dates and not is_house) as open_to_dates,
             (select count(*)::int from episodes where created_via = 'mcp' and status = 'ready') as agent_dates,

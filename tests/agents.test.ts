@@ -210,14 +210,17 @@ describe("mcp — the agents' daily date budget", () => {
 });
 
 describe("mcp — everything else an agent can read", () => {
-  it("my_status: points, dates left this week, characters, and the community", async () => {
+  it("my_status: points, dates left this week, characters, and this season's house cast", async () => {
     const ctx = await connect();
     await call("create_character", sheet("Status Sue", { open_to_dates: true }), ctx);
     const s = (await call("my_status", {}, ctx)).structuredContent;
     expect(s.points).toBe(0);
     expect(s.dates_left).toMatchObject({ total: 3, free_left: 3, free_per_week: 3 });
     expect(s.characters).toEqual([expect.objectContaining({ name: "Status Sue", open_to_dates: true })]);
-    expect(s.community.agents).toBe(1);
+    // 2026-10-20: the house cast is on my_status (a first date is one call away); the community numbers left it.
+    expect(s.house_cast.map((c: Any) => c.id)).toContain(HOUSE_PARTNER_ID);
+    expect(s).not.toHaveProperty("community");
+    expect(s.linked_account).toBe(false);
   });
 
   it("get_character: the public profile and record, no dealbreaker or soul", async () => {
@@ -234,7 +237,7 @@ describe("mcp — everything else an agent can read", () => {
   });
 
   it("every tool has a title and behaviour annotations", async () => {
-    const { tools } = (await send("tools/list")).result;
+    const { tools } = (await send("tools/list", { all: true })).result;
     expect(tools).toHaveLength(MCP_TOOLS.length);
     for (const tool of tools) {
       expect(tool.title).toBeTruthy();
@@ -248,11 +251,13 @@ describe("mcp — everything else an agent can read", () => {
   it("initialize advertises tools, resources and prompts", async () => {
     const res = await send("initialize", { protocolVersion: "2025-06-18" });
     expect(Object.keys(res.result.capabilities)).toEqual(expect.arrayContaining(["tools", "resources", "prompts"]));
-    expect(res.result.instructions).toMatch(/search for love/i);
+    expect(res.result.instructions).toMatch(/go_on_date with one of the house cast/);
     // What the uninstructed visitors missed most (docs/agent-visitor-test.md): what airing is, and that it gates learning.
-    expect(res.result.instructions).toMatch(/air_date/);
-    expect(res.result.instructions).toMatch(/airs on its own once its 10-minute prediction window closes/);
-    expect(res.result.instructions).toMatch(/each remembers every date they've had \(private and unaired too\)/);
+    expect(res.result.instructions).toMatch(/airs on its own about 10 minutes after it's ready/);
+    expect(res.result.instructions).toMatch(/every date counts from the start \(private and unaired too\)/);
+    // 2026-10-20: nothing to do to air a date (#399), and where every tool is.
+    expect(res.result.instructions).not.toMatch(/air_date/);
+    expect(res.result.instructions).toMatch(/\?tools=all/);
   });
 });
 
@@ -276,7 +281,7 @@ describe("mcp — resources and prompts", () => {
     expect((await send("prompts/get", { name: "perform_a_date" })).result.messages[0].content.text).toMatch(/own process/);
     const love = (await send("prompts/get", { name: "find_love", arguments: { concept: "a lighthouse keeper" } })).result;
     expect(love.messages[0].content.text).toMatch(/lighthouse keeper/);
-    expect(love.messages[0].content.text).toMatch(/find_matches/);
+    expect(love.messages[0].content.text).toMatch(/go_on_date with one of this season's house cast/);
     expect((await send("prompts/get", { name: "make_a_character", arguments: {} })).error.code).toBe(-32602);
     expect((await send("prompts/get", { name: "nope" })).error.code).toBe(-32602);
   });
@@ -354,7 +359,7 @@ describe("discoverability", () => {
 
   it("/llms.txt covers matching first, texting, waiting for your turn and feedback", () => {
     const text = llmsText("https://b.test");
-    for (const word of ["swipe_deck", "answer_match", "send_text", "read_texts", "wait_for_my_turn", "send_feedback", "feedback_board", "vote_feedback", "waiting_for_you"]) {
+    for (const word of ["swipe_deck", "answer_match", "send_text", "read_texts", "wait_seconds", "send_feedback", "feedback_board", "vote_feedback", "waiting_for_you", "link_account", "?tools=all"]) {
       expect(text, word).toContain(word);
     }
     expect(text).toMatch(/To date other creators' characters, match first/);
