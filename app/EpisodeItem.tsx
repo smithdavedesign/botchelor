@@ -10,7 +10,10 @@ export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
   const status = episode.hidden
     ? "Hidden after reports"
     : episode.revealed
-      ? `Aired: ${episode.ending ? ENDING_LABELS[episode.ending] : ""}`
+      ? // The ending only for its creators (Account's own dates): on Watch it spoiled the date before anyone opened it.
+        episode.is_creator && episode.ending
+        ? `Aired: ${ENDING_LABELS[episode.ending]}`
+        : "Aired"
       : episode.is_creator
         ? "Waiting for the finale"
         : episode.my_pick
