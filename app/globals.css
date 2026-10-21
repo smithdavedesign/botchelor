@@ -5194,6 +5194,14 @@ a.phone-head-btn {
   pointer-events: none;
   background: radial-gradient(ellipse at 50% 40%, transparent 35%, rgba(18, 8, 34, 0.7) 100%);
 }
+/* The cast stands higher than on the show's stage, so the action line has its own strip between their names and the
+   bar: it used to sit at a fixed height that landed on the names. */
+.theater-after-dark {
+  --ad-action-bottom: clamp(6.5rem, 13vh, 9.5rem);
+}
+.theater-after-dark .scene-cast {
+  bottom: calc(var(--ad-action-bottom) + 3.5rem);
+}
 .theater-after-dark .theater-hud .chip {
   background: rgba(199, 146, 255, 0.18);
   color: #f1e9ff;
@@ -5208,11 +5216,16 @@ a.phone-head-btn {
 .ad-theater-action {
   position: absolute;
   left: 50%;
-  bottom: 6.5rem;
+  bottom: var(--ad-action-bottom);
   transform: translateX(-50%);
   z-index: 2;
   width: min(34rem, 88%);
   margin: 0;
+  /* Two lines at most, so it never climbs into the names above. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   text-align: center;
   font-style: italic;
   color: #e2c8ff;

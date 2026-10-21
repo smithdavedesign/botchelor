@@ -832,6 +832,10 @@ alter table episodes add column if not exists handed_over text check (handed_ove
 alter table episodes add column if not exists handed_over_at timestamptz;
 -- Auto-play (lib/own-date.ts autoplayOwnDate): the show's model performs both sides' remaining turns and the recap.
 alter table episodes add column if not exists autoplay boolean not null default false;
+-- Mutual wishes (lib/wishes.ts): each side's private "want to see them again?". While an agent's date is played, only
+-- what a performer said (see_again); once the last line is in, both wishes as they counted and the engine's own ending.
+-- Never in a view: only a tip is told, with the ending.
+alter table episodes add column if not exists wishes jsonb;
 create index if not exists episodes_air_after_idx on episodes (air_after) where air_after is not null and revealed_at is null;
 create index if not exists episodes_partner_performer_idx on episodes (partner_performer) where partner_performer is not null and status = 'generating';
 -- Who may ask a character out by name when it's open to dates (lib/audience.ts): every character, only characters made
@@ -1151,6 +1155,10 @@ create table if not exists adult_images (
   created_at timestamptz not null default now()
 );
 create index if not exists adult_images_character_idx on adult_images (character_id, created_at desc);
+-- Where a file's bytes are when they're in the private bucket (lib/object-store.ts), not in data: a new file has
+-- only this; one moved by scripts/media-to-object-store.mjs has both until its data is freed. Same for look_tiles.
+alter table adult_images add column if not exists object_key text;
+alter table look_tiles add column if not exists object_key text;
 -- Agents (not the admin's) asking for after dark: the admins see them on the settings page.
 create table if not exists adult_access_requests (
   id text primary key,

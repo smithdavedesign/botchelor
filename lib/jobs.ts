@@ -251,6 +251,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       // Set the scene (lib/scene-suggestions.ts): the creator's paid place, read before each line that could propose it.
       suggestion: () => pendingSuggestion(db, episodeId),
       onSuggestionProposed: (id) => markProposed(db, id),
+      // David 2026-10-20: each character's own last read of the other weighs in on how it ends (lib/wishes.ts).
+      wishes: true,
       // The creator's theater plays the date while it's filmed: each line is saved as it's written (only the
       // creator sees a transcript before it airs, lib/game.ts), and the finished date overwrites it below.
       onTurn: (lines) => {
@@ -264,13 +266,15 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       track("conversation_failed", { episode_id: episodeId, where: "job", reason: failureReason(gen.conversationError) });
     }
     if (gen.quality) trackDateQuality(episodeId, "job", gen.plan?.source ?? null, gen.quality);
-    const { draft, transcript, afterglow, reflections } = gen;
+    const { draft, transcript, afterglow, reflections, outcome } = gen;
 
+    // The ending as it stands once the wishes weighed in (the engine's own, unless they tipped it), with its drama and sides.
     const saved = await db.query<{ id: string }>(
       `update episodes
           set setting = $2, goals = $3::jsonb, scenes = $4::jsonb, twist = $5, finale = $6,
               best_line = $7, confessionals = $8::jsonb, transcript = $9::jsonb, afterglow = $10::jsonb,
-              reflections = $11::jsonb, generated_with = $12::jsonb, status = 'ready'
+              reflections = $11::jsonb, generated_with = $12::jsonb, status = 'ready',
+              ending = $13, drama_question = $14, drama_answer = $15, sides = $16::jsonb, wishes = $17::jsonb
         where id = $1 and status = 'generating'
         returning id`,
       [
@@ -287,6 +291,11 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
         JSON.stringify(reflections),
         // Which models actually wrote it (by role, fallbacks included) and the prompt version: traceable quality.
         JSON.stringify(row.use_frontier ? { ...gen.generatedWith, frontier: true } : gen.generatedWith),
+        outcome.ending,
+        outcome.drama_question,
+        outcome.drama_answer,
+        JSON.stringify(outcome.sides),
+        gen.wishes ? JSON.stringify(gen.wishes) : null,
       ],
     );
     if (saved.rows.length) {

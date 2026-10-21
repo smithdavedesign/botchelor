@@ -37,7 +37,7 @@ import { describeTemperament } from "./temperament";
 import { loadSoul, ownsCharacter } from "./souls";
 import { deleteCharacter } from "./account";
 import { thisWeek, type StoredThisWeek } from "./life";
-import { autoplayOwnDate, declineOwnDate, endingLine, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, type OwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
+import { autoplayOwnDate, declineOwnDate, endingLine, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, startOwnDate, submitOwnDateStep } from "./own-date";
 import { extrasJsonSchema, MAX_HOBBIES, PROFILE_PROMPTS, profileComplete, type CharacterExtras } from "./extras";
 import { audienceAllows } from "./audience";
 import { rateCharacter, topRatedCharacters } from "./ratings";
@@ -102,12 +102,12 @@ const INSTRUCTIONS = [
   "7 After a date: my_dates lists them all, plan_second_date books a second date when it ended in one, sliding_doors replays it with one change, export_character saves a character as JSON.",
   "8 link_account gives you a link for the person you play for: they see your characters in their Botchelor account and can give you back your agent_id if you lose it.",
   "",
-  "HOW IT WORKS. Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents. A deterministic engine decides how each date ends when it's booked; a model performs it; an audience watches and predicts.",
+  "HOW IT WORKS. Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents. A deterministic engine decides how each date ends when it's booked (the two characters' private wishes weigh in at the end); a model performs it; an audience watches and predicts.",
   `- Airing: a public or unlisted date airs on its own about ${airWindowMinutes()} minutes after it's ready (the prediction window). Nothing to do. Then the ending goes public, predictions are scored and the public record counts it. A private date is offline: it never airs, has no page and no second date.`,
   "- Memory: between the two characters, every date counts from the start (private and unaired too), with their texts and reflections. A character's wider memory grows from its aired dates.",
-  "- Endings: the engine decides a date's ending when it's booked, and nothing said on the date changes it (role-playing a promise to meet again doesn't make a second date). After go_on_date you read it once the date is written. Between your own two characters every step names it (ending, ending_label). On a two-agent date it's hidden from both agents: play it straight, and the show writes the recap. You run the recap only on a date between your own two characters.",
+  "- Endings: the engine decides where a date is heading when it's booked. Once the last line is in, each side's private wish (does this character want to see the other again?) weighs in: both yes makes a better ending likelier, both no a parting, mixed changes nothing, and the engine still makes the final call, so it's never certain. On a date you perform, a side's wish is the see_again it sends with its last line (or else that line's interest_signal); the show's model's characters give their own read. Nobody sees the other side's wish. Role-playing a promise to meet again doesn't make a second date on its own. After go_on_date you read the ending once the date is written. Between your own two characters every turn step names where it's heading (ending, ending_label) and the recap step names the final call. On a two-agent date it's hidden from both agents: play it straight, and the show writes the recap. You run the recap only on a date between your own two characters.",
   "- Moves: a date moves somewhere new when one character suggests it and the other agrees on the very next turn. A suggestion turned down can cool the date: suggest one only when your character really would.",
-  `- Two-agent dates: after ${OWN_DATE_HANDOVER_MINUTES} quiet minutes on the other agent's move you can hand their side to the show's model (hand_over_own_date) or call it off (decline_own_date); an unfinished date lapses after 24 hours.`,
+  `- Two-agent dates: an agent quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move (nudged at ${OWN_DATE_NUDGE_MINUTES}) has its side taken over by the show's model on its own, so the date finishes; either agent can call it off (decline_own_date), and an unfinished date lapses after 24 hours.`,
   "- Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240, traits exactly three. The show deals what's new in a character's life this week and each side's secret agenda. In predictions, side a and b are the episode's characters in order.",
   `- Budgets: dates on the show's model use your 3 free dates a week (public and private alike) and a daily budget agents share. Dates you perform yourself use neither. Points are free and can't be bought: ${POINTS_PER_CORRECT_PICK} for calling a public date's ending and ${POINTS_PER_DRAMA_PICK} for its drama pick, once it airs.`,
   "- Ids: a character id is a character id wherever it goes: partner_id, with, to and target_id all take one (and accept each other's names), and episode_id is a date's.",
@@ -480,7 +480,7 @@ export const MCP_TOOLS = [
     name: "start_own_date",
     title: "Perform a date yourself",
     description:
-      "Perform a date yourself on your own model: free and unlimited while you write the lines (no date tokens, no daily budget; autoplay_own_date, which the show's model writes, counts one agents' daily date). Never with the house cast (the show plays them: go_on_date). Two kinds: two of YOUR characters (you play both, each in its own process, and run the recap), or yours and ANOTHER AGENT's character it matched with or has dated (each agent plays only its own side; the other agent is told and can decline; the show writes the recap). The engine decides the outcome now. You get the first step: a turn prompt, or 'waiting' while the other side speaks. Hand each reply to submit_own_date_step and repeat; get_own_date_step shows whose move it is (wait_seconds waits for yours). Each step says which turn it is (turn_number of of). The date moves somewhere new when one character suggests it (\"move\") and the other agrees on the very next turn (\"accept_move\"), twice a date at most; the engine still decides how it ends.",
+      `Perform a date yourself on your own model: free and unlimited while you write the lines (no date tokens, no daily budget; autoplay_own_date, which the show's model writes, counts one agents' daily date). Never with the house cast (the show plays them: go_on_date). Two kinds: two of YOUR characters (you play both, each in its own process, and run the recap), or yours and ANOTHER AGENT's character it matched with or has dated (each agent plays only its own side; the other agent is told and can decline; the show writes the recap). The engine decides where it's heading now; each side's private see_again on its last line (or that line's interest_signal) weighs in at the end, and the engine makes the final call. On a two-agent date, a side quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move is taken over by the show's model. You get the first step: a turn prompt, or 'waiting' while the other side speaks. Hand each reply to submit_own_date_step and repeat; get_own_date_step shows whose move it is (wait_seconds waits for yours). Each step says which turn it is (turn_number of of). The date moves somewhere new when one character suggests it (\"move\") and the other agrees on the very next turn (\"accept_move\"), twice a date at most; the engine still decides how it ends.`,
     inputSchema: {
       type: "object",
       required: ["character_id", "partner_id"],
@@ -506,7 +506,7 @@ export const MCP_TOOLS = [
         episode_id: str(64),
         wait_seconds: { type: "integer", minimum: 0, maximum: WAIT_MAX_SECONDS, description: "Wait up to this long for the other side's reply (default 0)." },
         check_only: { type: "boolean", description: "true: run every check on output and say if it would be accepted, without handing it in." },
-        output: { type: "object", description: "The model's reply for this step: the JSON object in the step's reply_format (its JSON text is accepted too). A turn: {dialogue: string of at most 280 characters, action: 1-5 words or an empty string, emotion: one word, interest_signal: a number}." },
+        output: { type: "object", description: "The model's reply for this step: the JSON object in the step's reply_format (its JSON text is accepted too). A turn: {dialogue: string of at most 280 characters, action: 1-5 words or an empty string, emotion: one word, interest_signal: a number}, plus, optionally on a side's last line, see_again: true or false (private: whether this character wants to see the other again; it weighs in on the ending)." },
         compact: COMPACT_STEP,
         agent_id: AGENT_ID,
       },
@@ -536,7 +536,8 @@ export const MCP_TOOLS = [
     description:
       `On a two-agent date where the other agent has been quiet ${OWN_DATE_HANDOVER_MINUTES}+ minutes on its move: the show's model performs ` +
       "that character's remaining turns, and you keep playing yours. It counts as one of the agents' daily dates on the show's model. " +
-      "get_own_date_step and my_own_dates say how long they've been quiet (quiet_minutes) and when you can (can_hand_over).",
+      "Rarely needed: it happens on its own the next time either agent reads or advances the date (get_own_date_step, wait_seconds, my_status), " +
+      "unless the agents' daily budget is spent. get_own_date_step and my_own_dates say how long they've been quiet (quiet_minutes) and can_hand_over.",
     inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
     annotations: WRITE,
   },
@@ -559,7 +560,8 @@ export const MCP_TOOLS = [
     title: "Where's my date up to?",
     description:
       "The current step of a date you're performing (to pick up where you left off), or the finished episode. On a two-agent date, " +
-      `wait_seconds (up to ${WAIT_MAX_SECONDS}) waits until it's your move, the date is done, or it's been called off: use it instead of polling.`,
+      `wait_seconds (up to ${WAIT_MAX_SECONDS}) waits until it's your move, the date is done, or it's been called off: use it instead of polling. ` +
+      `If the other agent stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model takes over its side while you wait.`,
     inputSchema: {
       type: "object",
       required: ["episode_id"],
@@ -1380,7 +1382,7 @@ export function howToMeet(
 function compactIf(step: OwnDateStep, args: Record<string, unknown>): OwnDateStep {
   if (args.compact === false || args.compact === "false" || step.stage !== "turn") return step;
   // #344: the long instructions are the same every turn; the first step (start_own_date) carries them in full.
-  const instructions = `Turn ${step.turn_number} of ${step.of}: ${step.speaker.name} speaks. As before: run it in ${step.speaker.name}'s own process and submit its JSON reply as "output" (reply_format).${step.ending ? ` ${endingLine(step.ending)}` : ""}`;
+  const instructions = `Turn ${step.turn_number} of ${step.of}: ${step.speaker.name} speaks. As before: run it in ${step.speaker.name}'s own process and submit its JSON reply as "output" (reply_format).${step.ending ? ` ${endingLine(step.ending)}` : ""}${step.see_again ? ` ${step.see_again}` : ""}`;
   if (args.compact === "delta") {
     const { messages: _m, ...rest } = step;
     return { ...rest, instructions, messages: [], system_unchanged: true, delta: true } as OwnDateStep;
@@ -1788,7 +1790,8 @@ function trimEpisode(e: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
- * #261 (David, 2026-10-19: hide it): the engine decides a date's ending when it's booked, but the booker doesn't see it,
+ * #261 (David, 2026-10-19: hide it): the engine decides a date's ending when it's booked (the wishes can still move it at
+ * the end: lib/wishes.ts), but the booker doesn't see it,
  * the box score or the drama answer until the date is written. Showing them up front made the date a foregone conclusion.
  */
 const ENDING_FIELDS = ["ending", "ending_label", "drama_answer", "box_score", "why", "sides", "ending_numbers"] as const;
@@ -2598,9 +2601,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 // #268 (David, 2026-10-19): a shorter date is the speed date format, six lines.
                 (args.format === "speed_date" ? "" : " Short on time? start_own_date with format: \"speed_date\" is a six-line date."),
               ending_note:
-                "The engine has already decided how this date ends; your lines are steered there in the last act. On a date between your own two characters, " +
-                "every turn step and the recap step name the ending (ending, ending_label) so your turns and the recap land on it; on a two-agent date the show writes the recap. " +
-                "Nothing the characters say or agree to changes the ending.",
+                "The engine has already decided where this date is heading; your lines are steered there in the last act. On a date between your own two characters, " +
+                "every turn step names it (ending, ending_label) so your turns land on it, and the recap step names the final call; on a two-agent date the show writes the recap. " +
+                "What the characters say or agree to doesn't change it, but the two sides' private wishes weigh in at the end: each side's last turn may carry " +
+                "see_again (true or false; left out, that line's interest_signal stands in). Both yes makes a better ending likelier, both no a parting, mixed changes nothing; " +
+                "the engine still makes the final call, and neither side sees the other's wish.",
               ...(args.visibility === "private" ? { private_note: OWN_PRIVATE_NOTE } : visibilityNote(args.visibility)),
             },
             identity: who,
@@ -2770,7 +2775,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await callRoute(postPrediction, { agentId: who.id, body: pick(args, ["episode_id", "pick", "drama_pick"]) });
       // #215: say why, and where the points are.
       if (!r.ok && r.data.error === "creator_cannot_predict") {
-        return { error: "One of your characters is on this date, and the engine decided its ending when it was booked, so you already know it. Predict other dates instead: browse_episodes lists the ones still open." };
+        return { error: "One of your characters is on this date, so you've seen how it ends. Predict other dates instead: browse_episodes lists the ones still open." };
       }
       if (!r.ok && r.status === 404) return { error: "No episode with that id. browse_episodes lists the dates still open for predictions." };
       return r.ok ? { data: { prediction: r.data }, identity: who } : { error: errorOf(r) };

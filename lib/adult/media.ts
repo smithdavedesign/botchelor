@@ -3,7 +3,8 @@
  *  - one baseline picture per character, made the first time a scene turns explicit, and reused after;
  *  - a new picture only when, in the scene, one character asks for one and the other agrees;
  *  - a private gallery per character for later scenes; a clip is made from a picture on request.
- * Bytes are stored in adult_images and served only to an admin. Every prompt is held to the two lines (no minors, no
+ * Bytes are stored in the private bucket (lib/object-store.ts; adult_images.data before it, and still when it isn't
+ * configured) and served only to an admin. Every prompt is held to the two lines (no minors, no
  * real people), says the people are adults, and is built from the characters' own sheets.
  *
  * What a picture knows (David, 2026-10-19: "do all three"): the character's physical look, compacted and put first;
@@ -14,6 +15,7 @@ import type { Character } from "../character";
 import type { Db } from "../db";
 import { ALL_HOUSE_CHARACTERS } from "../house";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { dataColumn, keepBytes, objectStore, readBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { checkOutput } from "./check";
 import { countUse, overCap } from "./usage";
@@ -194,12 +196,13 @@ export const FACE_MODEL = "fal-ai/ip-adapter-face-id";
 /** A character's baseline as a data URI, for the face-reference model (no public URL: the bytes are ours, private). */
 async function baselineFace(db: Db, characterId: string): Promise<string | null> {
   const r = (
-    await db.query<{ data: Buffer | Uint8Array | null; mime: string }>(
-      `select data, mime from adult_images where character_id = $1 and kind = 'baseline' and status = 'ready' order by created_at limit 1`,
+    await db.query<{ data: Buffer | Uint8Array | null; object_key: string | null; mime: string }>(
+      `select ${dataColumn()}, object_key, mime from adult_images where character_id = $1 and kind = 'baseline' and status = 'ready' order by created_at limit 1`,
       [characterId],
     )
   ).rows[0];
-  return r?.data ? `data:${r.mime};base64,${Buffer.from(r.data).toString("base64")}` : null;
+  const bytes = r ? await readBytes(r) : null;
+  return bytes ? `data:${r!.mime};base64,${bytes.toString("base64")}` : null;
 }
 
 /** Makes one picture on fal and stores it. Refuses a prompt that crosses a line. */
@@ -268,9 +271,10 @@ async function storePicture(
 ): Promise<Media> {
   await countUse(db, ownerId, "pictures");
   const id = crypto.randomUUID();
+  const kept = await keepBytes("after-dark", id, file.bytes, file.mime);
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, remote_url) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, file.bytes, url],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url],
   );
   return { id, character_id: opts.character_id, character_b: opts.character_b ?? null, kind: opts.kind, status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: url !== null };
 }
@@ -352,7 +356,8 @@ export async function pollClip(db: Db, id: string, viewerId: string): Promise<st
     return "failed";
   }
   const file = await download(body.video.url);
-  await db.query(`update adult_images set status = 'ready', data = $2, mime = $3, remote_url = $4 where id = $1`, [id, file.bytes, file.mime, body.video.url]);
+  const kept = await keepBytes("after-dark", id, file.bytes, file.mime);
+  await db.query(`update adult_images set status = 'ready', data = $2, object_key = $3, mime = $4, remote_url = $5 where id = $1`, [id, kept.data, kept.object_key, file.mime, body.video.url]);
   return "ready";
 }
 
@@ -390,12 +395,47 @@ export function mediaLinkValid(id: string, until: string | null, sig: string | n
   return want.length === got.length && timingSafeEqual(want, got);
 }
 
-/** A ready file's bytes, to its viewer (null only for a signed link, which names the one picture itself). */
-export async function mediaBytes(db: Db, id: string, viewerId: string | null): Promise<{ data: Buffer; mime: string } | null> {
+/**
+ * A ready file, to its viewer: theirs or, for an admin, anyone's (viewableBy). Null only for a signed link, which names
+ * the one picture itself.
+ */
+const readyFor = (id: string, viewerId: string | null): { where: string; params: string[] } =>
+  viewerId === null
+    ? { where: `id = $1 and status = 'ready'`, params: [id] }
+    : { where: `id = $1 and status = 'ready' and ${viewableBy(2)}`, params: [id, viewerId] };
+
+/** Where a ready file is: its bucket key (when it's been moved there), and its mime. Null when there's no such file. */
+export async function mediaRef(db: Db, id: string, viewerId: string | null): Promise<{ mime: string; key: string | null } | null> {
+  const { where, params } = readyFor(id, viewerId);
   const r = (
-    viewerId === null
-      ? await db.query<{ data: Buffer | Uint8Array | null; mime: string }>(`select data, mime from adult_images where id = $1 and status = 'ready'`, [id])
-      : await db.query<{ data: Buffer | Uint8Array | null; mime: string }>(`select data, mime from adult_images where id = $1 and status = 'ready' and ${viewableBy(2)}`, [id, viewerId])
+    await db.query<{ mime: string; object_key: string | null; has_data: boolean }>(
+      `select mime, object_key, data is not null as has_data from adult_images where ${where}`,
+      params,
+    )
   ).rows[0];
-  return r?.data ? { data: Buffer.from(r.data), mime: r.mime } : null;
+  if (!r || (!r.object_key && !r.has_data)) return null;
+  // A key with no bucket configured (the settings removed): the column, if it's still there, is all there is.
+  return { mime: r.mime, key: r.object_key && objectStore() ? r.object_key : null };
+}
+
+/**
+ * A short-lived link straight to a file in the bucket, so its bytes never pass through a function or Postgres; null
+ * when the file isn't in the bucket. Only for someone the caller has already let in: the bucket is private, and the
+ * link is the only way in.
+ */
+export async function mediaLink(key: string, now = Date.now()): Promise<{ url: string; maxAge: number } | null> {
+  const store = objectStore();
+  return store ? store.presign(key, now) : null;
+}
+
+export async function mediaBytes(db: Db, id: string, viewerId: string | null): Promise<{ data: Buffer; mime: string } | null> {
+  const { where, params } = readyFor(id, viewerId);
+  const r = (
+    await db.query<{ data: Buffer | Uint8Array | null; object_key: string | null; mime: string }>(
+      `select ${dataColumn()}, object_key, mime from adult_images where ${where}`,
+      params,
+    )
+  ).rows[0];
+  const data = r ? await readBytes(r) : null;
+  return data ? { data, mime: r!.mime } : null;
 }

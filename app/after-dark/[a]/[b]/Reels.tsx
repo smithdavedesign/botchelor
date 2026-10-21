@@ -104,7 +104,13 @@ function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
       try {
         const out = await Promise.all(
           shots.map(async (s) => {
-            const res = await fetch(mediaUrl(s.media_id!));
+            // A shot in the bucket redirects to it; read across origins, that needs the bucket's CORS rule. Without
+            // it (a network error, not a status), the player plays the link itself instead of a preloaded copy.
+            const res = await fetch(mediaUrl(s.media_id!)).catch(() => null);
+            if (!res) {
+              if (!cancelled) setLoaded((n) => n + 1);
+              return mediaUrl(s.media_id!);
+            }
             if (!res.ok) throw new Error(String(res.status));
             const url = URL.createObjectURL(await res.blob());
             made.push(url);

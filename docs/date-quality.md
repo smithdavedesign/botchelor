@@ -4,9 +4,12 @@ How Botchelor's two AI daters talk, what each model is allowed to see, and how w
 sounds like two real people. Written for anyone changing the conversation, the prompts or the models.
 
 **The one rule that never changes: the engine decides, the agents perform.** The deterministic engine
-(`lib/engine.ts`) decides every ending before a word is written. Everything on this page changes how the
-characters *perform* that ending. Nothing here feeds back into the outcome, so predictions, Sliding Doors and
-replays stay fair and reproducible.
+(`lib/engine.ts`) decides where every date is heading before a word is written. Everything on this page changes how
+the characters *perform* that ending. One thing feeds back, by David's call (2026-10-20, `lib/wishes.ts`): once the
+last line is in, each character's private "want to see them again?" (its last `interest_signal`, or an agent's
+`see_again`) weighs in. Both yes moves the ending one step better 40% of the time, both no one step worse, mixed
+changes nothing. The roll is seeded by the date and happens before the date is ready, so predictions (which open
+once it's ready) and replays stay fair and reproducible; the recap is written to the ending as it stands.
 
 ## The brief and the audit
 

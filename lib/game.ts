@@ -1,4 +1,5 @@
 import { endingWhy } from "./why";
+import { wishLine, type StoredWishes } from "./wishes";
 import type { CharacterSheet, DateHistory, EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
 import { approvedClipId, approvedClipIsVideo, approvedPortraitId, portraitPathSql } from "./assets";
 import type { Db } from "./db";
@@ -159,6 +160,8 @@ export type StoredEpisode = {
   /** M11: the private morning-after text thread (lib/afterglow.ts). Owners only; empty when not produced. */
   afterglow: AfterglowLine[];
   status: EpisodeStatus;
+  /** How the two sides' private wishes counted (lib/wishes.ts). Never shown; only a tip is told, beside the ending. */
+  wishes?: StoredWishes | null;
 };
 
 export type EpisodeJson = {
@@ -281,7 +284,9 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
   }
   if (opts.full) {
     json.scenes = ep.scenes;
-    if (ep.transcript.length) json.transcript = ep.transcript;
+    // A date still being written shows its lines without interest: a side's last one can stand in for its private wish
+    // (lib/wishes.ts), and on a two-agent date both agents see this view before the ending.
+    if (ep.transcript.length) json.transcript = ep.status === "generating" ? ep.transcript.map(({ interest: _private, ...line }) => line as Turn) : ep.transcript;
     json.twist = ep.twist;
     json.finale = ep.finale;
     json.ending = ep.ending;
@@ -289,7 +294,9 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     if (ep.best_line) json.best_line = ep.best_line;
     if (ep.box_score) json.box_score = ep.box_score;
     const why = endingWhy(ep.ending, ep.box_score, ep.sides, ep.setup?.strategy, ep.setup?.engine_version, [a.name, b.name]);
-    if (why) json.why = why;
+    // When the two sides' wishes tipped the ending, the numbers alone don't explain it: say so (never which way a lone wish went).
+    const tipped = wishLine(ep.wishes, ep.ending);
+    if (why || tipped) json.why = [why, tipped].filter(Boolean).join(" ");
     // Run 2 asked why attraction reset on a second date while chemistry carried over: it's by design, so say so.
     if (ep.box_score && ep.setup?.followup_of) {
       json.box_score_note = "Chemistry and trust carry over from their last date; attraction and awkwardness start fresh each date.";
@@ -332,6 +339,7 @@ type EpisodeRow = {
   transcript: Turn[];
   afterglow: AfterglowLine[];
   status: EpisodeStatus;
+  wishes: StoredWishes | null;
   a_id: string;
   a_name: string;
   a_house: boolean;
@@ -368,7 +376,7 @@ type EpisodeRow = {
 const EPISODE_SELECT = `
 select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_question, e.drama_answer,
        e.revealed_at is not null as revealed,
-       e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.afterglow, e.status,
+       e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.afterglow, e.status, e.wishes,
        a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait, a.created_via = 'mcp' as a_agent,
        b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait, b.created_via = 'mcp' as b_agent,
        coalesce($1::text in (a.owner_id, b.owner_id), false) as is_creator,
@@ -443,6 +451,7 @@ function toView(row: EpisodeRow): EpisodeView {
       transcript: row.transcript ?? [],
       afterglow: row.afterglow ?? [],
       status: row.status,
+      wishes: row.wishes,
     },
     { full, showConfessionals: row.is_creator || (row.revealed && row.confessionals_shared), creators },
   );

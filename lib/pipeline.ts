@@ -12,7 +12,9 @@
  *                   agree and the best line is a line that was actually said. Fails closed: no recap, no episode.
  *   4. afterglow  — the morning-after texts, which now remember the date. Best-effort.
  *
- * The engine has already decided the outcome; nothing here can change it.
+ * The engine has already decided the outcome. The one thing that can still move it, with `wishes` on: once the
+ * conversation is in, each character's own last read of the other (its interest) weighs in, one step at most and only
+ * when both agree (lib/wishes.ts); the recap, afterglow and reflections then follow the ending as it stands.
  */
 import { simulateAfterglow, type AfterglowLine } from "./afterglow";
 import { planDate, type DatePlan } from "./beats";
@@ -29,6 +31,7 @@ import { agenda } from "./rules";
 import { narrateEpisode, type EpisodeDraft } from "./showrunner";
 import type { BuiltDate } from "./simulation";
 import { venue, type PlaceId } from "./venues";
+import { applyWishes, resolveWishes, settledWishes, type StoredWishes } from "./wishes";
 
 /**
  * The version of the date's prompts (the actor, director, narrator, reflection and afterglow prompts, and what each
@@ -70,9 +73,15 @@ export type GenerateOptions = {
   /** Set the scene (lib/scene-suggestions.ts): the creator's paid place, proposed on the next line that can. */
   suggestion?: () => Promise<{ id: string; to: PlaceId } | null>;
   onSuggestionProposed?: (id: string) => Promise<void>;
+  /** Let the two characters' wishes weigh in on the ending (lib/wishes.ts): a show date's job, not the evals. */
+  wishes?: boolean;
 };
 
 export type GeneratedDate = {
+  /** The outcome the date was written to: the engine's, unless the wishes tipped it. */
+  outcome: Outcome;
+  /** How the wishes counted (for episodes.wishes); null when they weren't weighed. */
+  wishes: StoredWishes | null;
   draft: EpisodeDraft;
   transcript: Turn[];
   afterglow: AfterglowLine[];
@@ -132,7 +141,7 @@ function recording(model: Model, into: Set<string>): Model {
 export async function generateDate(
   models: DateModels,
   built: BuiltDate,
-  outcome: Outcome,
+  decided: Outcome,
   opts: GenerateOptions,
 ): Promise<GeneratedDate> {
   const actor = countingModel(models.actor);
@@ -152,9 +161,9 @@ export async function generateDate(
   let conversationError: unknown = null;
   if (opts.conversation) {
     // A director that is down (a stronger free model at its quota) costs nothing: planDate falls back to rules.
-    plan = await planDate(director.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.formatCtx);
+    plan = await planDate(director.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.formatCtx);
     try {
-      transcript = await simulateConversation(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan, keyForSide, opts.onTurn, {
+      transcript = await simulateConversation(actor.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan, keyForSide, opts.onTurn, {
         moves: opts.moves,
         moveCutoff: opts.moveCutoff,
         deadline: opts.deadline,
@@ -164,6 +173,15 @@ export async function generateDate(
     } catch (err) {
       conversationError = err;
     }
+  }
+
+  // Each character's own last read of the other weighs in (lib/wishes.ts); everything after follows where it ends.
+  let outcome = decided;
+  let wishes: StoredWishes | null = null;
+  if (opts.wishes && transcript.length) {
+    const read = resolveWishes(null, transcript);
+    outcome = applyWishes(decided, read, built.seed);
+    wishes = settledWishes(read, decided.ending);
   }
 
   // The recap: on the director, from what was actually said; on the actor's model if the director can't.
@@ -204,7 +222,7 @@ export async function generateDate(
     byok: [...byokServed],
     prompts: PROMPT_VERSION,
   };
-  return { draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, generatedWith, conversationError, afterglowError };
+  return { outcome, wishes, draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, generatedWith, conversationError, afterglowError };
 }
 
 /** What the quality checks treat as shared (the venue, the recap's setting) and as each side's private notes. */

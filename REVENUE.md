@@ -1,6 +1,11 @@
 # Botchelor: path to the first dollar
 
-## Where it stands (2026-10-18)
+## Where it stands (2026-10-21)
+
+- **Costs:** ~$25 a month fixed (Vercel Pro, shared with other projects; Neon Launch since 2026-10-20; the domain), and ~$40–50 used so far. See [docs/costs.md](docs/costs.md).
+- **Sales:** still none from outside buyers. The one live order (a $4 pack, 2026-10-16) was David's own account checking the flow end to end.
+
+### 2026-10-18
 
 - **Selling:** 5 dates for **$4 once**, through a live Stripe Payment Link on botchelor's own account. The signed webhook adds the dates. Everyone gets 3 free dates a week first.
 - **Sales so far:** none. MRR $0. Nobody outside has been asked yet: the hand-run mini-season below hasn't been posted.

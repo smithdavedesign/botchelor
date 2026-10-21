@@ -131,6 +131,8 @@ export const CURRENT_ENGINE_VERSION: EngineVersion = 3;
 
 export interface Engine {
   decide(input: DateInput, seed: number, version?: EngineVersion): Outcome;
+  /** A test's forced outcome that stands exactly as given: the date's wishes don't weigh in on it (lib/wishes.ts). */
+  exact?: boolean;
 }
 
 /* ---------------------------------- text cues ---------------------------------- */
@@ -470,9 +472,13 @@ export function getEngine(): Engine {
   return testEngine ?? deterministicEngine;
 }
 
-/** A fixed outcome, for integration tests that need a specific ending (see tests/helpers.ts). */
-export function fixedEngine(partial: Partial<Outcome> & { ending: Ending }): Engine {
+/**
+ * A fixed outcome, for integration tests that need a specific ending (see tests/helpers.ts). It stands exactly as given
+ * unless `wishes` is on, for a test of the wishes weighing in (lib/wishes.ts).
+ */
+export function fixedEngine(partial: Partial<Outcome> & { ending: Ending }, opts: { wishes?: boolean } = {}): Engine {
   return {
+    exact: !opts.wishes,
     decide(_input, seed, _version) {
       const flat = (final: number): VariableArc => ({ start: final, delta: 0, final });
       const base: Outcome = {
