@@ -62,7 +62,7 @@ describe("the Characters hub's tabs", () => {
     expect((await api.editCharacter(hidden.id, { visibility: "private" }, hidden.cookie)).status).toBe(200);
     const agent = await agentMade("Ada Lumen");
     const bot = await agentMade("Bo Quill", "botchelor-loop-swipe-back");
-    const crowd = await agentMade("Cy Fenn", "crowd-agent-7"); // the loop arena's crowd looks like real agents on purpose
+    const crowd = await agentMade("Cy Fenn", "crowd-agent-7"); // an ordinary client name: a real agent
 
     const tabs = await everyTab();
     expect(tabs.people).toEqual([hidden.id, person.id]);
