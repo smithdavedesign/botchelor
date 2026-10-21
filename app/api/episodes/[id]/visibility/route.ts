@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { DATE_VISIBILITIES } from "@/lib/rules";
 import { updateCharacterMemory } from "@/lib/memory";
 import { refreshEpisodePair } from "@/lib/relationships";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-const VisibilityInput = z.object({ visibility: z.enum(["public", "private", "unlisted"]) });
+const VisibilityInput = z.object({ visibility: z.enum(DATE_VISIBILITIES) });
 
 /**
  * The host changes who can see their date (M16). Host-only (the user who asked for the date). A private

@@ -30,14 +30,14 @@ describe("mcp — protocol", () => {
     expect(res.result.instructions).toMatch(/anonymous/i);
   });
 
-  it("tools/list lists every tool by default and the core with core: true, each with an input schema", async () => {
+  it("tools/list lists the core by default and every tool with all: true, each with an input schema", async () => {
     const res = await send("tools/list", { core: true });
     expect(res.result.tools).toHaveLength(CORE_MCP_TOOLS.length);
     const names = res.result.tools.map((x: { name: string }) => x.name);
     expect(names).toEqual(expect.arrayContaining(["my_status", "browse_episodes", "create_character", "go_on_date", "predict", "link_account"]));
     expect(names).not.toContain("rate_character");
     for (const tdef of res.result.tools) expect(tdef.inputSchema.type).toBe("object");
-    const all = (await send("tools/list")).result.tools;
+    const all = (await send("tools/list", { all: true })).result.tools;
     expect(all).toHaveLength(MCP_TOOLS.length);
     for (const tdef of all) expect(tdef.inputSchema.type).toBe("object");
   });
