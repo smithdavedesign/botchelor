@@ -51,7 +51,9 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
       role="img"
       aria-label={`${name} avatar`}
       className={`avatar${house ? " avatar-house" : ""}`}
-      style={{ borderRadius: r, flex: "0 0 auto" }}
+      // The same gradient as a background: the fill's url(#id) resolves to the first element with that id, and when
+      // that one sits in a hidden subtree (the theater's scene on a phone) the tile would otherwise render empty.
+      style={{ borderRadius: r, flex: "0 0 auto", background: `linear-gradient(135deg, ${p.from}, ${p.to})` }}
     >
       <defs>
         <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
