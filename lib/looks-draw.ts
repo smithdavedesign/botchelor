@@ -15,6 +15,7 @@ import { canAfterDark } from "./adult/entitlement";
 import { NEGATIVE_PROMPT, VENICE_IMAGE } from "./adult/media";
 import { adultKeys, getAdultSettings } from "./adult/settings";
 import type { Db } from "./db";
+import { dataColumn, keepBytes, objectStore, readBytes } from "./object-store";
 import { looksPortraitPrompt, tileSpecs, type Looks, type TileSpec, type TileVariant } from "./looks";
 
 /** FLUX [dev] on fal: faces and fabric good enough to choose from, about 1.3¢ for a tile this size. */
@@ -124,36 +125,43 @@ const RETRYABLE = `(look_tiles.status = 'failed' and look_tiles.updated_at < now
 
 /** Draws one tile if it isn't drawn (or refused, or being drawn). Never throws. */
 export async function drawTile(db: Db, spec: TileSpec, keys?: Keys): Promise<string> {
-  const claimed = await db.query<{ data: Buffer | Uint8Array | null; mime: string | null; reason: string | null; remote_url: string | null }>(
+  const claimed = await db.query<{ data: Buffer | Uint8Array | null; object_key: string | null; mime: string | null; reason: string | null; remote_url: string | null }>(
     `insert into look_tiles (id, variant, status, prompt) values ($1, $2, 'drawing', $3)
      on conflict (id) do update set status = 'drawing', prompt = excluded.prompt, updated_at = now()
        where ${RETRYABLE}
-     returning data, mime, reason, remote_url`,
+     returning ${dataColumn("look_tiles")}, object_key, mime, reason, remote_url`,
     [spec.id, spec.variant, spec.prompt, RETRY_AFTER_MS],
   );
   if (!claimed.rows.length) return "exists";
-  const done = (status: "ready" | "refused" | "failed", reason: string | null, file?: Picture) =>
-    db
-      .query(`update look_tiles set status = $2, reason = $3, mime = $4, data = $5, model = $6, remote_url = $7, updated_at = now() where id = $1`, [
-        spec.id,
-        status,
-        reason?.slice(0, 300) ?? null,
-        file?.mime ?? null,
-        file?.bytes ?? null,
-        spec.variant === "pg" ? LOOKS_PG_MODEL : "venice",
-        file?.url ?? null,
-      ])
-      .then(() => status);
+  const prev = claimed.rows[0];
+  // The picture's bytes go to the bucket when it's configured (lib/object-store.ts), else the data column. `key`: the
+  // kept picture already in the bucket, screened again, isn't uploaded twice.
+  const done = async (status: "ready" | "refused" | "failed", reason: string | null, file?: Picture, key?: string | null) => {
+    const kept = key ? { data: null, object_key: key } : file ? await keepBytes("looks", spec.id, file.bytes, file.mime) : { data: null, object_key: null };
+    await db.query(`update look_tiles set status = $2, reason = $3, mime = $4, data = $5, object_key = $6, model = $7, remote_url = $8, updated_at = now() where id = $1`, [
+      spec.id,
+      status,
+      reason?.slice(0, 300) ?? null,
+      file?.mime ?? null,
+      kept.data,
+      kept.object_key,
+      spec.variant === "pg" ? LOOKS_PG_MODEL : "venice",
+      file?.url ?? null,
+    ]);
+    // A refusal is never kept: a picture that was kept unscreened, then refused, leaves the bucket too.
+    if (prev.object_key && prev.object_key !== kept.object_key) await objectStore()?.remove(prev.object_key).catch(() => {});
+    return status;
+  };
   try {
     const k = keys ?? (await keysFor(db));
-    const prev = claimed.rows[0];
     // Made before but not screened: screen the kept picture again, rather than paying to draw a new one.
-    if (prev.data && prev.mime && prev.reason?.startsWith(UNCHECKED_PREFIX)) {
-      const pic = { bytes: Buffer.from(prev.data), mime: prev.mime, url: prev.remote_url };
+    const prevBytes = prev.mime && prev.reason?.startsWith(UNCHECKED_PREFIX) ? await readBytes(prev) : null;
+    if (prevBytes && prev.mime) {
+      const pic = { bytes: prevBytes, mime: prev.mime, url: prev.remote_url };
       const v = spec.variant === "pg" ? (pic.url ? await screenPg(k.hive, pic.url) : { refused: "nothing to screen" }) : await screenNsfw(k.hive, pic.bytes.toString("base64"), pic.mime);
-      if ("ok" in v) return done("ready", null, pic);
+      if ("ok" in v) return done("ready", null, pic, prev.object_key);
       if ("refused" in v) return done("refused", v.refused);
-      return done("failed", UNCHECKED_PREFIX + v.unchecked, pic);
+      return done("failed", UNCHECKED_PREFIX + v.unchecked, pic, prev.object_key);
     }
     const r = spec.variant === "pg" ? await drawPg(k, spec.prompt, spec.seed, { width: 512, height: 640 }) : await drawNsfw(db, k, spec.prompt, spec.seed);
     if ("refused" in r) return done("refused", r.refused);
@@ -221,9 +229,22 @@ export async function readyTiles(db: Db, variant: TileVariant): Promise<string[]
   return (await db.query<{ id: string }>(`select id from look_tiles where variant = $1 and status = 'ready' order by id`, [variant])).rows.map((r) => r.id);
 }
 
-export async function getTile(db: Db, id: string): Promise<{ variant: TileVariant; mime: string; data: Buffer } | null> {
-  const r = (await db.query<{ variant: TileVariant; mime: string; data: Buffer | Uint8Array }>(`select variant, mime, data from look_tiles where id = $1 and status = 'ready'`, [id])).rows[0];
-  return r ? { variant: r.variant, mime: r.mime, data: Buffer.from(r.data) } : null;
+/**
+ * A drawn tile: where it is (its bucket key, when it's been moved there and the bucket is configured), and its bytes
+ * unless `bytes: false` and it's in the bucket (the route then hands out a link instead of reading it).
+ */
+export async function getTile(db: Db, id: string, opts: { bytes?: boolean } = {}): Promise<{ variant: TileVariant; mime: string; key: string | null; data: Buffer | null } | null> {
+  const r = (
+    await db.query<{ variant: TileVariant; mime: string; data: Buffer | Uint8Array | null; object_key: string | null }>(
+      `select variant, mime, ${dataColumn()}, object_key from look_tiles where id = $1 and status = 'ready'`,
+      [id],
+    )
+  ).rows[0];
+  if (!r) return null;
+  const key = r.object_key && objectStore() ? r.object_key : null;
+  const data = key && opts.bytes === false ? null : await readBytes(r);
+  if (!key && !data) return null;
+  return { variant: r.variant, mime: r.mime, key, data };
 }
 
 export type PortraitResult = { ok: true; asset_id: string } | { ok: false; status: number; error: string; message: string };

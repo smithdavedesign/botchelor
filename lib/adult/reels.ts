@@ -26,6 +26,7 @@ import { checkAdultText } from "../safety";
 import { checkOutput } from "./check";
 import { adultModel } from "./mode";
 import { ensureBaseline, signedMediaUrl } from "./media";
+import { keepBytes } from "../object-store";
 import { eligiblePair, type SceneLine } from "./scenes";
 import { adultKeys, getAdultSettings } from "./settings";
 
@@ -306,9 +307,10 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
       continue;
     }
     const mediaId = crypto.randomUUID();
+    const kept = await keepBytes("after-dark", mediaId, bytes, "video/mp4");
     await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, status, source_image) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, 'ready', $7)`,
-      [mediaId, ownerId, row.character_a, row.character_b, `Reel shot: ${s.text}`.slice(0, 500), bytes, s.media_id ?? null],
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8)`,
+      [mediaId, ownerId, row.character_a, row.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null],
     );
     s.status = "ready";
     s.media_id = mediaId;

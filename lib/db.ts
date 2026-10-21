@@ -1151,6 +1151,10 @@ create table if not exists adult_images (
   created_at timestamptz not null default now()
 );
 create index if not exists adult_images_character_idx on adult_images (character_id, created_at desc);
+-- Where a file's bytes are when they're in the private bucket (lib/object-store.ts), not in data: a new file has
+-- only this; one moved by scripts/media-to-object-store.mjs has both until its data is freed. Same for look_tiles.
+alter table adult_images add column if not exists object_key text;
+alter table look_tiles add column if not exists object_key text;
 -- Agents (not the admin's) asking for after dark: the admins see them on the settings page.
 create table if not exists adult_access_requests (
   id text primary key,

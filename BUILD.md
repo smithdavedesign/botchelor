@@ -99,6 +99,7 @@ needs a real one.
 | Area | Variables |
 |---|---|
 | Database | `DATABASE_URL` (Neon) |
+| Media bucket | `MEDIA_S3_ENDPOINT`, `MEDIA_S3_BUCKET`, `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY`, optional `MEDIA_S3_REGION`: a private S3-compatible bucket for After Dark media and looks tiles (lib/object-store.ts); unset, they stay in Postgres. `scripts/media-to-object-store.mjs` copies existing rows |
 | Date model | `FRONTIER_LLM_API_KEY`, `FRONTIER_LLM_BASE_URL`, `FRONTIER_LLM_MODEL`, `FRONTIER_DEFAULT`, `FRONTIER_DAILY_DATE_CAP`; fallback `GOOGLE_API_KEY` or `LLM_*`; `LLM_DIRECTOR_MODEL`, `LLM_*_REASONING` |
 | Payments | `STRIPE_PAYMENT_LINK`, `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, `STRIPE_PRICE_LABEL`, `STRIPE_WEBHOOK_SECRET` (no Stripe secret key anywhere; a test fails if one appears) |
 | Accounts | `SESSION_SECRET`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `OAUTH_REDIRECT_BASE` |
