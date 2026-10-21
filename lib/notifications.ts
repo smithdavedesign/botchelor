@@ -20,6 +20,7 @@ export type NotificationKind =
   | "couple_date" // a couple you follow went on another date
   | "arc_resolved" // a prediction you made about a couple's arc came true (or didn't)
   | "partner_style" // your character settled one partner or more, or closed to dates because they're taken
+  | "match_taken" // a character you matched went exclusive with someone else (one partner) and closed to other dates (#514)
   | "date_proposal" // another owner proposed a date between their character and yours
   | "date_proposal_declined" // the other owner said not this time to your proposal
   | "date_accepted" // the other owner accepted your proposal: the date is booked
@@ -43,6 +44,11 @@ export type Notification = {
    * notice says it's booked instead of "Book it". Old notices fix themselves this way.
    */
   booked?: { episode_id: string; status: "generating" | "ready" };
+  /**
+   * An own_date_turn / own_date_invite notice whose date isn't waiting on this person any more (#529): it finished, was
+   * called off or lapsed, or the show's model plays their side now. The notice says so and is read.
+   */
+  resolved?: { episode_id: string; why: TurnResolution };
 };
 
 /** The notices that ask an owner to book a pair's date, and so go stale once one is booked. */
@@ -80,6 +86,93 @@ export async function markPairNotices(db: Db, userId: string, x: string, y: stri
 export async function resolvePairNotices(db: Db, x: string, y: string, opts: { bookedBy: string; private?: boolean }): Promise<void> {
   const others = opts.private ? [] : [...(await ownersOf(db, [x, y]).catch(() => new Map<string, string | null>())).values()];
   for (const owner of new Set([opts.bookedBy, ...others])) if (owner) await markPairNotices(db, owner, x, y);
+}
+
+/** The notices that ask an agent to play a self-performed date, and so go stale once the date isn't waiting on it (#529). */
+export const TURN_NOTICE_KINDS = ["own_date_turn", "own_date_invite"] as const;
+/** Why a turn notice no longer asks anything: the date is done, called off or lapsed (gone), or the show plays that side. */
+export type TurnResolution = "done" | "gone" | "show_plays";
+
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+/** The date a turn notice is about (its body names it); null for any other notice. */
+export function dateOfTurnNotice(n: { kind: string; body: string | null }): string | null {
+  if (!(TURN_NOTICE_KINDS as readonly string[]).includes(n.kind) || !n.body) return null;
+  return UUID.exec(n.body)?.[0] ?? null;
+}
+
+/**
+ * The write half of stale turn notices, the way resolvePairNotices does "Book it" (#527): a self-performed date finished,
+ * was called off or lapsed, or the show's model took a side, so its "Your move…" and invite notices are done. `userIds`:
+ * only these agents' (a hand-over clears just the quiet side's); left out, both agents'.
+ */
+export async function resolveTurnNotices(db: Db, episodeId: string, userIds?: (string | null | undefined)[]): Promise<void> {
+  if (!episodeId) return;
+  const only = userIds ? userIds.filter((u): u is string => Boolean(u)) : null;
+  if (only && !only.length) return;
+  await db
+    .query(`update notifications set read_at = now() where kind = any($1) and read_at is null and body like $2 and ($3::text[] is null or user_id = any($3))`, [
+      [...TURN_NOTICE_KINDS],
+      `%${episodeId}%`,
+      only,
+    ])
+    .catch(() => {});
+}
+
+/** Whether a self-performed date (its episodes row) still waits on `userId`: null while it does, else why it doesn't. */
+export function turnResolution(
+  e: { status: string; creator_id: string; partner_performer: string | null; handed_over: string | null; autoplay: boolean } | undefined,
+  userId: string,
+): TurnResolution | null {
+  if (!e) return "gone";
+  if (e.status !== "generating") return "done";
+  if (e.autoplay) return "show_plays";
+  // Side a is the agent that started it; side b the invited agent (or the same agent, between its own two characters).
+  const sides = [e.creator_id === userId ? "a" : null, (e.partner_performer ?? e.creator_id) === userId ? "b" : null].filter(Boolean);
+  return sides.some((side) => side !== e.handed_over) ? null : "show_plays";
+}
+
+/** What a stale turn notice says instead. */
+export const resolvedTurnBody = (why: TurnResolution): string =>
+  why === "done"
+    ? "Resolved: that date is finished, so nothing waits on you."
+    : why === "gone"
+      ? "Resolved: that date was called off or lapsed, so nothing waits on you."
+      : "Resolved: the show's model plays your side of that date now.";
+
+/**
+ * The render-time half (old notices fix themselves, like withBookings): a turn notice whose date no longer waits on this
+ * person says why, and is read.
+ */
+export async function withTurnState(db: Db, userId: string, items: Notification[]): Promise<Notification[]> {
+  const dates = items.map((n) => dateOfTurnNotice(n));
+  const ids = [...new Set(dates.filter((d): d is string => Boolean(d)))];
+  if (!ids.length) return items;
+  const { rows } = await db.query<{ id: string; status: string; creator_id: string; partner_performer: string | null; handed_over: string | null; autoplay: boolean }>(
+    `select id, status, creator_id, partner_performer, handed_over, autoplay from episodes where id = any($1)`,
+    [ids],
+  );
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const stale: string[] = [];
+  const out = items.map((n, i) => {
+    const date = dates[i];
+    if (!date) return n;
+    const why = turnResolution(byId.get(date), userId);
+    if (!why) return n;
+    if (!n.read) stale.push(n.id);
+    return { ...n, body: resolvedTurnBody(why), read: true, resolved: { episode_id: date, why } };
+  });
+  if (stale.length) await markRead(db, userId, stale).catch(() => 0);
+  return out;
+}
+
+/** Marks this person's unread turn notices whose date no longer waits on them read (before counting what's unread). */
+export async function sweepStaleTurnNotices(db: Db, userId: string): Promise<void> {
+  const { rows } = await db.query<{ id: string; kind: NotificationKind; body: string | null }>(
+    `select id, kind, body from notifications where user_id = $1 and read_at is null and kind = any($2)`,
+    [userId, [...TURN_NOTICE_KINDS]],
+  );
+  if (!rows.length) return;
+  await withTurnState(db, userId, rows.map((r) => ({ id: r.id, kind: r.kind, title: "", body: r.body, link: null, created_at: "", read: false })));
 }
 
 /** Notifies one person: stored for the inbox, then pushed to their browsers. Never throws. */
@@ -124,7 +217,7 @@ export async function listNotifications(db: Db, userId: string, limit = 50): Pro
     [userId, limit],
   );
   const items: Notification[] = rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, link: r.link, created_at: new Date(r.created_at).toISOString(), read: r.read_at !== null }));
-  return withBookings(db, userId, items);
+  return withTurnState(db, userId, await withBookings(db, userId, items));
 }
 
 /** What a stale "Book it" notice says instead. */
@@ -164,6 +257,7 @@ export async function withBookings(db: Db, userId: string, items: Notification[]
 }
 
 export async function unreadCount(db: Db, userId: string): Promise<number> {
+  await sweepStaleTurnNotices(db, userId).catch(() => {});
   const { rows } = await db.query<{ n: number }>(`select count(*)::int as n from notifications where user_id = $1 and read_at is null`, [userId]);
   return rows[0]?.n ?? 0;
 }

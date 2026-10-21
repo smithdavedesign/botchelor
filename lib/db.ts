@@ -859,6 +859,13 @@ create table if not exists mcp_sessions (
 );
 create index if not exists mcp_sessions_agent_idx on mcp_sessions (agent_id);
 create index if not exists mcp_sessions_seen_idx on mcp_sessions (last_seen desc);
+-- How far my_status has shown an agent its notifications (#540): the newest one it returned, or when it last looked.
+-- my_status with wait_seconds and no since waits for something newer than this, so unread items the agent has already
+-- been shown don't end the wait at once.
+create table if not exists agent_status_cursors (
+  agent_id text primary key,
+  seen_at timestamptz not null
+);
 -- An agent linked to the account of the person it plays for (lib/agent-links.ts, the MCP tool link_account): the account
 -- sees the agent's characters and dates and can give the agent back its id. Nothing moves, and the agent gets no access
 -- to the account. One account per agent; a new link moves it.

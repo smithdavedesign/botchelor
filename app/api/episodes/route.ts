@@ -29,6 +29,7 @@ import {
 } from "@/lib/rules";
 import { checkFields } from "@/lib/safety";
 import { coupledSql, currentPartners, settleCharacter, takenSql } from "@/lib/partners";
+import { takenMessage } from "@/lib/partners-shared";
 import { seasonCastIds } from "@/lib/season-cast";
 import { weekAt } from "@/lib/seasons";
 import { checkSecondDate } from "@/lib/second-date";
@@ -204,8 +205,8 @@ export const POST = handle(async (req) => {
       {
         error: "taken",
         field: "partner_id",
-        // #514: name the exact field that reopens them (the card, for people; update_character, for agents).
-        message: `${shortName(own.name)} is with ${with_?.name ?? "someone"} and wants one partner. Date ${shortName(with_?.name) ?? "them"}, or set them to more than one: partner_style "open" on their card (update_character with partner_style: "open" over MCP).`,
+        // #514: name the rule and the exact fields that reopen them (the card, for people; update_character, for agents).
+        message: takenMessage(shortName(own.name), { mine: true, partner: with_?.name ?? null }),
       },
       409,
       sess,

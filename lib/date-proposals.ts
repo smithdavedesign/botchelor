@@ -15,6 +15,7 @@ import type { Db } from "./db";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { takenSql } from "./partners";
+import { takenMessage } from "./partners-shared";
 import { haveDated, MATCH_FIRST, swipeGateOn } from "./swipe-gate";
 import { DELETED_OWNER } from "./rules";
 import { secondDateState, type SecondDateState } from "./second-date";
@@ -75,7 +76,7 @@ export async function proposeDate(db: Db, userId: string, fromId: string, toId: 
   if (!to.owner_id || to.owner_id === DELETED_OWNER) return no(409, "partner_gone", "That character's creator has left the show.");
   if (to.owner_id === userId) return no(409, "your_own", "Both characters are yours: there's no one to ask.");
   if (await blockedBetween(db, userId, to.owner_id)) return no(409, "match_unavailable", "That match is no longer available.");
-  if (await takenElsewhere(db, toId, fromId)) return no(409, "taken", `${shortName(to.name)} is with someone else and wants one partner.`);
+  if (await takenElsewhere(db, toId, fromId)) return no(409, "taken", takenMessage(shortName(to.name), { mine: false }));
   if (await pendingProposal(db, toId, fromId)) {
     return no(409, "they_proposed", `${shortName(to.name)}'s creator already proposed a date: accept theirs to book it.`);
   }
@@ -202,7 +203,7 @@ export async function nextDate(
     return { ...base, option: { kind: "unavailable", message: "That match is no longer available." } };
   }
   if (!them.is_house && (await takenElsewhere(db, them.id, mine.id))) {
-    return { ...base, option: { kind: "unavailable", message: `${shortName(them.name)} is with someone else and wants one partner.` } };
+    return { ...base, option: { kind: "unavailable", message: takenMessage(shortName(them.name), { mine: false }) } };
   }
   if (them.is_house || them.open_to_dates) return { ...base, option: { kind: "date", after } };
   if (!them.owner_id || them.owner_id === DELETED_OWNER) {

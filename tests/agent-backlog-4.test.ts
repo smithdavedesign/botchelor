@@ -546,7 +546,7 @@ describe("dates an agent performs", () => {
     const { settleCommitment } = await import("@/lib/partners");
     await settleCommitment(t.db, lo, hi);
     const n = (await listNotifications(t.db, agentId)).find((x) => x.kind === "partner_style");
-    expect(n?.body).toMatch(new RegExp(`update_character with partner_style: "open" \\(${mine}\\)`));
+    expect(n?.body).toMatch(new RegExp(`update_character with partner_style: "open" and open_to_dates: true \\(${mine}\\)`));
     expect(n?.body).toMatch(/go_on_date with anyone else is refused/);
   });
 });
@@ -630,8 +630,8 @@ describe("the 2026-10-21 runs (#517, #519, #520, #529, #534, #535, #536, #537)",
     expect(waited.waited_seconds).toBeGreaterThanOrEqual(1);
     // An older since returns at once, and the reply says so instead of looking like a broken wait.
     const stale = (await call("my_status", { since: new Date(Date.now() - 3_600_000).toISOString(), wait_seconds: 1 }, ctx)).structuredContent;
-    expect(stale.returned_because).toBe("already_new_since");
-    expect(stale.wait_note).toMatch(/already newer than since/);
+    expect(stale.returned_because).toBe("new"); // 2.4.1: new | timeout | unread_at_start; since_note says it was already there
+    expect(stale.since_note).toMatch(/already newer than since/);
     expect(stale.new_since).toHaveLength(1);
   });
 

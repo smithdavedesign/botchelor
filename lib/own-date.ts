@@ -45,8 +45,9 @@ import { audienceAllows, type Audience } from "./audience";
 import { getDirectorModel, getModel } from "./model";
 import { agentDatesToday } from "./dating";
 import { pairNames, shortName } from "./names";
-import { notify, resolvePairNotices } from "./notifications";
+import { notify, resolvePairNotices, resolveTurnNotices } from "./notifications";
 import { takenSql } from "./partners";
+import { takenMessage } from "./partners-shared";
 import { haveDated, swipeGateOn } from "./swipe-gate";
 import { agreedMatch } from "./swipes";
 import { DATE_VISIBILITIES, DELETED_OWNER } from "./rules";
@@ -298,8 +299,9 @@ async function checkOwnDate(
       `select ${takenSql("x", "$2")} as a, ${takenSql("y", "$1")} as b from characters x, characters y where x.id = $1 and y.id = $2`,
       [a.id, b.id],
     );
-    if (taken.rows[0]?.a) return err(409, "taken", `${shortName(a.name)} is with someone else and wants one partner.`);
-    if (taken.rows[0]?.b) return err(409, "taken", `${shortName(b.name)} is with someone else and wants one partner.`);
+    // #514: the rule, and the field that changes it (a is the asker's; b is the other agent's).
+    if (taken.rows[0]?.a) return err(409, "taken", takenMessage(shortName(a.name), { mine: true }));
+    if (taken.rows[0]?.b) return err(409, "taken", takenMessage(shortName(b.name), { mine: false }));
     const invited = (
       await db.query<{ n: number }>(`select count(*)::int as n from episodes where partner_performer = $1 and status = 'generating'`, [partnerPerformer])
     ).rows[0].n;
@@ -729,18 +731,13 @@ function whoPerformed(row: Row, to: string): string {
   return "Both agents performed their sides.";
 }
 
-/** #529: a date that's over (finished, declined or expired) leaves no "your move" or invite notice unread, for anyone. */
+/**
+ * #529: a date that's over (finished, declined or expired) leaves no "your move" or invite notice unread, for anyone.
+ * The write half lives with the "Book it" one in lib/notifications.ts (resolveTurnNotices, #527's pattern), which a
+ * hand-over or autoplay also calls for the side the show takes; listNotifications resolves old ones at read time.
+ */
 export async function settleOwnDateNotices(db: Db, episodeIds: string | string[]): Promise<void> {
-  const ids = (Array.isArray(episodeIds) ? episodeIds : [episodeIds]).filter(Boolean);
-  if (!ids.length) return;
-  await db
-    .query(
-      `update notifications set read_at = now()
-        where kind in ('own_date_turn', 'own_date_invite') and read_at is null
-          and exists (select 1 from unnest($1::text[]) x where body like '%' || x || '%')`,
-      [ids],
-    )
-    .catch(() => {});
+  for (const id of (Array.isArray(episodeIds) ? episodeIds : [episodeIds]).filter(Boolean)) await resolveTurnNotices(db, id);
 }
 
 /**
@@ -935,6 +932,10 @@ export async function autoplayOwnDate(db: Db, userId: string, episodeId: string,
       where id = $1 and status = 'generating'`,
     [episodeId, set.autoplay, set.handed_over],
   );
+  // #529: whoever's side the show now plays has no move to make: their "Your move…" notices are done.
+  const nowShow = performersOf({ ...row, autoplay: set.autoplay, handed_over: set.handed_over ?? row.handed_over });
+  const before = performersOf(row);
+  await resolveTurnNotices(db, episodeId, (["a", "b"] as const).filter((s) => nowShow[s] === SHOW && before[s] !== SHOW).map((s) => before[s]));
   track("own_date_autoplay", { episode_id: episodeId, side, two_agent: twoAgent, house_bot: planned.plan.bot });
   // getOwnDateStep plays every turn that's now the show's, one after another, and the recap when it's due.
   return getOwnDateStep(db, userId, episodeId);
@@ -1079,6 +1080,8 @@ async function takeOver(db: Db, row: Row, side: "a" | "b", speaker: string, quie
     [row.id, side, both, row.handed_over, (row.transcript ?? []).length],
   );
   if (!taken.rows.length) return false;
+  // #529: the quiet side's "Your move…" notices are done (the show plays it now).
+  await resolveTurnNotices(db, row.id, [quietAgent]);
   await notify(db, quietAgent, {
     kind: "own_date_handed_over",
     title: `🎬 The show's model took over ${shortName(speaker)}'s side`,
