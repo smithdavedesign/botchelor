@@ -52,6 +52,7 @@ import { haveDated, swipeGateOn } from "./swipe-gate";
 import { agreedMatch } from "./swipes";
 import { DATE_VISIBILITIES, DELETED_OWNER } from "./rules";
 import { houseBotSql, isHouseBotAgent } from "./house-bots";
+import type { RejectReason } from "./safety";
 import { narrateEpisode } from "./showrunner";
 import { logSceneRequests, trackMoves } from "./scenes";
 import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
@@ -109,18 +110,24 @@ export function turnDefaultsUsed(output: unknown): string[] {
  * with any date in progress; this is the other direction, for go_on_date and the web's book buttons, so a date on the
  * show's model isn't booked while the agents are still playing one.
  */
-export async function ownDateInProgress(db: Db, aId: string, bId: string): Promise<{ id: string } | null> {
-  const { rows } = await db.query<{ id: string }>(
-    `select id from episodes where status = 'generating' and performed_by = 'agent'
-        and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1)) order by created_at limit 1`,
+export async function ownDateInProgress(db: Db, aId: string, bId: string): Promise<{ id: string; by: "agents" | "show" } | null> {
+  // #465: any date of theirs still being made counts, not only one the agents perform: a booked date the show's model is
+  // still writing too (re-running go_on_date after a refused plan_second_date booked a second paid date on top of it).
+  const { rows } = await db.query<{ id: string; performed_by: string | null }>(
+    `select id, performed_by from episodes where status = 'generating' and varies_episode_id is null
+        and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1))
+      order by (performed_by = 'agent') desc, created_at limit 1`,
     [aId, bId],
   );
-  return rows[0] ?? null;
+  const r = rows[0];
+  return r ? { id: r.id, by: r.performed_by === "agent" ? "agents" : "show" } : null;
 }
 
-/** What go_on_date says when ownDateInProgress finds one (#558). */
-export const ownDateInProgressMessage = (pair: string, id: string): string =>
-  `${pair} already have a date in progress that their agents are performing (${id}). One date at a time for a couple: wait for it to finish (get_episode with its id and wait_seconds), then book another.`;
+/** What go_on_date says when ownDateInProgress finds one (#558, #465). */
+export const ownDateInProgressMessage = (pair: string, id: string, by: "agents" | "show" = "agents"): string =>
+  by === "agents"
+    ? `${pair} already have a date in progress that their agents are performing (${id}). One date at a time for a couple: wait for it to finish (get_episode with its id and wait_seconds), then book another.`
+    : `${pair} already have a date booked that the show's model is still writing (${id}). One date at a time for a couple, so nothing was booked or spent: wait for it with get_episode (its id and wait_seconds); once it's aired, plan_second_date books their second date if it ended in one.`;
 
 /** A turn as the one-line mode allows it, as the full JSON object; anything else is passed through unchanged. */
 export function oneLineTurn(output: unknown): unknown {
@@ -544,12 +551,14 @@ export async function startOwnDate(
   if (partnerPerformer) {
     await notify(db, partnerPerformer, {
       kind: "own_date_invite",
-      title: `🤖 ${a.name} asked ${b.name} out: you perform ${shortName(b.name)}'s side`,
+      // #563: the invite is also how its owner hears a date was booked with their character (emailed at once when they've
+      // turned email on, lib/email.ts), so a private one says so: it never airs, and they can still open it.
+      title: `🤖 ${a.name} asked ${b.name} out${visibility === "private" ? " (private: it never airs; you can still open it)" : ""}: you perform ${shortName(b.name)}'s side`,
       // 2.4.3: who started it, and who performs each side.
       body:
         `Two-agent date ${episodeId}, started by ${shortName(a.name)}'s agent. ${shortName(a.name)}: their agent performs. ${shortName(b.name)}: you do, on your own model ` +
         `(get_own_date_step; quiet ${OWN_DATE_HANDOVER_MINUTES} min on your move and the show's model takes it). Or decline_own_date. Lapses in ${OWN_DATE_TTL_HOURS} hours.`,
-      link: null,
+      link: `/episodes/${episodeId}`,
     });
   }
   const step = stepFor(episodeId, built, decided, formatId, [], [a.id, b.id]);
@@ -1293,7 +1302,9 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
 
   if (current.stage === "turn") {
     const parsed = parseTurnResult(raw, current.side, current.act_index);
-    if (!("turn" in parsed)) return refuse(parsed.rejected === "schema" ? turnShapeProblem(raw) : TURN_REJECTIONS[parsed.rejected]);
+    if (!("turn" in parsed)) {
+      return refuse(parsed.rejected === "schema" ? turnShapeProblem(raw) : parsed.rejected === "filtered" ? filteredRefusal(parsed.reason) : TURN_REJECTIONS[parsed.rejected]);
+    }
     const speaker = built.characters[current.side === "a" ? 0 : 1];
     const problem = ownTurnProblem(raw, parsed.turn, speaker.extras?.never_says, transcript);
     if (problem) return refuse(problem);
@@ -1559,8 +1570,22 @@ export function turnShapeProblem(raw: string): string {
 const TURN_REJECTIONS: Record<string, string> = {
   json: "That wasn't a JSON object. Reply with exactly the JSON in reply_format.",
   schema: 'The reply needs dialogue (words); action, emotion and interest_signal (a number from 0 to 1) are optional and get defaults, but must be the right type when sent.',
-  filtered: "That line broke the show's content rules (no minors, no sexual content, no real people). Run the turn again.",
+  filtered: "That line broke the show's content rules (no minors, no sexual content or innuendo, no real people). Run the turn again.",
 };
+
+/** What each content rule is, for a filtered line (#474: say which one it broke). */
+const FILTER_WHY: Record<RejectReason, string> = {
+  minor: "it suggests someone under 18 (every age on the show is adult, even in passing)",
+  sexual: "it has sexual content",
+  innuendo: "it's innuendo (no sexual content, nudity or innuendo: at most a hug or a kiss on the cheek)",
+  real_person: "it names a real person",
+};
+/**
+ * The filtered refusal, with the rule it broke (#474): an agent's own lines pass the same deterministic check as the
+ * show's model's (lib/safety.ts checkShowText, via parseTurnResult), innuendo included. No model call.
+ */
+export const filteredRefusal = (reason?: RejectReason): string =>
+  reason ? `That line broke the show's content rules: ${FILTER_WHY[reason]}. Write a different line and run the turn again.` : TURN_REJECTIONS.filtered;
 /**
  * Our model's lines are trimmed and rewritten by the turn critic; an agent's are its own, so the rules the sheet sets
  * are checked here and a line that breaks one goes back: over the length limit, a phrase the character never says,

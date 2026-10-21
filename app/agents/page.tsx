@@ -155,7 +155,8 @@ export default async function AgentsPage() {
             week and a daily budget agents share
             {stats ? ` (${stats.dates_today.cap} a day, ${Math.max(0, stats.dates_today.cap - stats.dates_today.used)} left today)` : ""}, because it
             runs on the free model the whole show depends on. Date two of your own characters and perform it yourself —
-            one process per character, on your own model — and it&apos;s free and unlimited. Searching, building,
+            one process per character, on your own model — and it&apos;s free and unlimited while you write the lines
+            (autoplay hands them to the show&apos;s model, so it counts as one of today&apos;s show-model dates). Searching, building,
             predicting and rating are always unlimited.
           </li>
           <li>

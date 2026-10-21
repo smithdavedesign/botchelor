@@ -266,7 +266,9 @@ describe("parseTurn", () => {
     expect(parseTurn(JSON.stringify({ dialogue: "." }), "a", 0)).toBeNull();
     expect(parseTurn(JSON.stringify({ dialogue: "..." }), "a", 0)).toBeNull();
     expect(parseTurn(turnJson("Honestly this feels like a porn shoot"), "a", 0)).toBeNull();
-    expect(parseTurnResult(JSON.stringify({ dialogue: "hi", action: "takes off everything, naked" }), "a", 0)).toEqual({ rejected: "filtered" });
+    expect(parseTurnResult(JSON.stringify({ dialogue: "hi", action: "takes off everything, naked" }), "a", 0)).toEqual({ rejected: "filtered", reason: "sexual" });
+    // #474: the show's model's lines get the same innuendo check as an agent's own (and say which rule).
+    expect(parseTurnResult(turnJson("Is that a compass in your pocket or are you just pleased to see me?"), "a", 0)).toEqual({ rejected: "filtered", reason: "innuendo" });
   });
 
   it("trims a line that runs long instead of throwing it away", () => {

@@ -62,6 +62,11 @@ export type DeckCard = {
   made_by: MadeBy;
   /** Why your character might click with them, from the deck's ranking (lib/dating.ts rankFor). */
   why: string[];
+  /**
+   * #443 (David, 2026-10-21): this character already liked yours, so a like back is a match ("Liked you" on the card).
+   * Only this flag, on its own card: never a list of who liked you.
+   */
+  liked_you: boolean;
 };
 
 type Refusal = { ok: false; status: number; error: string; message: string; missing?: string[] };
@@ -83,7 +88,7 @@ export type SwipeResult = { ok: true; liked: boolean; match: MatchView | null } 
 
 const promptLabel = new Map<string, string>(PROFILE_PROMPTS.map((p) => [p.id, p.label]));
 
-function toCard(p: DatingProfile, why: string[]): DeckCard {
+function toCard(p: DatingProfile, why: string[], likedYou = false): DeckCard {
   return {
     id: p.id,
     name: p.name,
@@ -102,6 +107,7 @@ function toCard(p: DatingProfile, why: string[]): DeckCard {
     house: p.made_by === "house",
     made_by: p.made_by,
     why,
+    liked_you: likedYou,
   };
 }
 
@@ -157,7 +163,8 @@ async function deckPool(db: Db, userId: string, mine: Mine, opts: { only?: strin
 /**
  * The next cards in one of your characters' deck, best first: ranked like find_matches (shared traits and interests,
  * what each wants, what the show has learned, a popularity damper), with the reasons. Someone who already liked your
- * character ranks a little higher; it's never said, because likes are secret.
+ * character ranks a little higher, and (#443, David 2026-10-21) its card says so: liked_you, "Liked you". Only on its
+ * own card, as a flag: there's no list of who liked you anywhere.
  */
 export async function deckFor(db: Db, userId: string, characterId: string, limit = DECK_PAGE): Promise<DeckResult> {
   const mine = await loadMine(db, userId, characterId);
@@ -172,7 +179,7 @@ export async function deckFor(db: Db, userId: string, characterId: string, limit
   const likedMine = new Set(likers.rows.map((r) => r.swiper));
   const boost = (id: string) => (likedMine.has(id) ? 2 : 0);
   ranked.sort((a, b) => b.score + boost(b.id) - (a.score + boost(a.id)));
-  return { ok: true, for: { id: mine.id, name: mine.name }, cards: ranked.slice(0, Math.max(1, Math.min(30, limit))).map((m) => toCard(m, m.why)) };
+  return { ok: true, for: { id: mine.id, name: mine.name }, cards: ranked.slice(0, Math.max(1, Math.min(30, limit))).map((m) => toCard(m, m.why, likedMine.has(m.id))) };
 }
 
 /**

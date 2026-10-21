@@ -153,12 +153,14 @@ describe("stale “Book it” notices (lib/notifications.ts)", () => {
     await notify(t.db, a.userId, { kind: "texted", title: "Wren texted", link: `/messages/${lo}/${hi}` }); // not a booking notice: stays
     await book(a.cookie, a.id, b.id);
     expect(await unread(a.userId)).toEqual(["date_agreed", "texted"]);
-    expect(await unread(b.userId)).toEqual([]);
+    // #563: what's left for the other owner is the news that a date was booked with their character.
+    expect(await unread(b.userId)).toEqual(["date_booked_with_yours"]);
     const left = (await listNotifications(t.db, a.userId)).find((n) => n.kind === "date_agreed" && !n.booked);
     expect(left?.link).toBe(`/messages/${pair(a.id, c.id).join("/")}`);
   });
 
-  it("a private date clears only the booker's notices", async () => {
+  // #563 (David, 2026-10-21): the other owner is told of a private date too (they can open it), so it clears theirs as well.
+  it("a private date clears both owners' notices, and tells the other owner it was booked", async () => {
     const a = await made("Ira Fenn");
     const b = await made("Wren Kestrel", { open_to_dates: true });
     await agreed(a.userId, a.id, b.id);
@@ -167,7 +169,7 @@ describe("stale “Book it” notices (lib/notifications.ts)", () => {
     scriptedModel([episodeJson()]);
     expect((await api.createEpisode({ character_id: a.id, partner_id: b.id, visibility: "private" }, a.cookie)).status).toBe(200);
     expect(await unread(a.userId)).toEqual([]);
-    expect(await unread(b.userId)).toEqual(["date_agreed"]);
+    expect(await unread(b.userId)).toEqual(["date_booked_with_yours"]);
   });
 
   it("an old notice fixes itself: once a date is booked after it, it says booked (and is read) instead of Book it", async () => {

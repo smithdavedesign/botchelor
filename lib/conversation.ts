@@ -35,7 +35,7 @@ import { isLogistics, remembered, sharedHistory } from "./memory";
 import { currentTell } from "./personality";
 import { lineIssues } from "./quality";
 import { actName, actForTurn, agenda, CONVERSATION_TURNS, DATE_ACTS, TURN_DIALOGUE_MAX, type ProducerId } from "./rules";
-import { checkShowText } from "./safety";
+import { checkShowText, type RejectReason } from "./safety";
 import { factsForAct } from "./extras";
 import { dateShape, moveProblem, settleLine, type DateShape, type MoveReply } from "./moves";
 import { textsForPrompt } from "./text-chain";
@@ -311,7 +311,11 @@ export type TurnRejection = "json" | "schema" | "filtered";
  * Parses one agent turn: it must be JSON with a line of dialogue, and the line must pass the content filter.
  * Over-long fields are trimmed to fit rather than rejected.
  */
-export function parseTurnResult(raw: string, side: "a" | "b", act: number): { turn: Turn; reply: MoveReply; wish?: boolean } | { rejected: TurnRejection } {
+export function parseTurnResult(
+  raw: string,
+  side: "a" | "b",
+  act: number,
+): { turn: Turn; reply: MoveReply; wish?: boolean } | { rejected: TurnRejection; /** Which content rule a filtered line broke (#474). */ reason?: RejectReason } {
   const trimmed = raw.trim();
   const unfenced = CODE_FENCE.exec(trimmed)?.[1] ?? trimmed;
   let json: unknown;
@@ -327,7 +331,8 @@ export function parseTurnResult(raw: string, side: "a" | "b", act: number): { tu
   const dialogue = trimTo(parsed.data.dialogue, TURN_DIALOGUE_MAX);
   const action = trimTo(parsed.data.action ?? "", ACTION_MAX);
   const emotion = trimTo(parsed.data.emotion ?? "", EMOTION_MAX);
-  if (!checkShowText({ dialogue, action, emotion }).ok) return { rejected: "filtered" };
+  const verdict = checkShowText({ dialogue, action, emotion });
+  if (!verdict.ok) return { rejected: "filtered", reason: verdict.reason };
   return {
     turn: {
       side, act, dialogue, action, emotion,

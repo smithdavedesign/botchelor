@@ -10,6 +10,7 @@ export const REJECTION_MESSAGES: Record<RejectReason, string> = {
   minor: "Nothing suggesting anyone is under 18, please.",
   sexual: "Keep it free of sexual content.",
   real_person: "No real people's names.",
+  innuendo: "Keep it free of innuendo.",
 };
 
 export const nameText = (max: number) =>

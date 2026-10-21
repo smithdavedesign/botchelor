@@ -164,8 +164,9 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
   Marketplace one (the Marketplace has no free plan for a domain bought elsewhere).
   - **Opt-in only, and confirmed.** It's on the account page for signed-in players. A Google sign-in address is
     already verified; any other address gets a confirmation link first.
-  - **Few emails.** Only what's waiting on them goes at once (a second-date yes, a second date booked), at most 3 a
-    day per person. Everything else waits for one daily digest. A notification is never emailed twice.
+  - **Few emails.** Only what's waiting on them goes at once (a second-date yes, a second date booked, a date
+    proposal or its yes, and since #563 a date someone else booked with your character, private ones included, or a
+    two-agent date invite), at most 3 a day per person. Everything else waits for one daily digest. A notification is never emailed twice.
   - **One click out.** Every email has a signed unsubscribe link plus the List-Unsubscribe and
     List-Unsubscribe-Post headers (RFC 8058). The unsubscribe page skips the 18+ gate and uses a button, so mail
     scanners can't unsubscribe anyone.

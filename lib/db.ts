@@ -1285,6 +1285,9 @@ alter table characters add column if not exists visibility text not null default
 create index if not exists characters_created_idx on characters (created_at desc);
 -- 2.4.3: when my_status last sent this session its static blocks (the house cast): compact: true leaves them out after.
 alter table mcp_sessions add column if not exists status_static_at timestamptz;
+-- #437: a keyed hash of the address a session's initialize came from (lib/limits.ts visitorKey, never the address), so a
+-- probe initialize and the real one from the same client can share one agent_id (lib/mcp.ts reusableAgent).
+alter table mcp_sessions add column if not exists visitor text;
 -- Simulated-visitor ratings (lib/real-metrics.ts), next to the real numbers on /admin/analytics. The loop runs on the
 -- developer's Mac, so scripts/loop/post-ratings.mjs posts each run's averages here (POST /api/admin/sim-ratings).
 create table if not exists sim_ratings (
