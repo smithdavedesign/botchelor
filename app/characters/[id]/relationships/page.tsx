@@ -45,6 +45,19 @@ export default async function RelationshipBoard({ params }: Props) {
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
   const viewerId = userIdFromCookieStore(await cookies());
+  // A private character (its owner's choice): everyone but the owner sees only its name, as on its card.
+  if (c.private && c.owner_id !== viewerId) {
+    return (
+      <article className="character-private">
+        <p className="kicker">Relationships</p>
+        <h1>{c.name}</h1>
+        <p className="muted">🔒 Their creator keeps this character private.</p>
+        <p>
+          <Link href="/characters">← Every character</Link>
+        </p>
+      </article>
+    );
+  }
   const edges = await relationshipsOf(db, id);
   const people = new Map(
     (
