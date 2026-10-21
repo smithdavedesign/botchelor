@@ -78,18 +78,29 @@ export const TURN_EXAMPLE = '{"dialogue":"You never asked about the wind.","acti
  * accept_move, done) is kept.
  */
 export const ONE_LINE_DEFAULTS = { action: "", emotion: "warm", interest_signal: 0.5 } as const;
+const ONE_LINE_FIELDS = Object.keys(ONE_LINE_DEFAULTS);
 export const ONE_LINE_EXAMPLE = '"You never asked about the wind."';
 /** A filled recap, short, for the step's instructions (2.4.3). */
 export const RECAP_EXAMPLE =
   '{"setting":"A ferry bar in fog.","goals":["Ada wants a straight answer.","Bo wants to be surprised."],"scenes":["They meet at the rail.","The foghorn ruins his joke.","They split the last pretzel."],"twist":"The ferry turns back.","finale":"They agree to disagree about fog.","best_line":"Fog is just weather being shy.","confessionals":["He talks too much. I liked it.","She laughed at the horn, not at me."]}';
 /** The examples every turn step carries: the one-line form and the full JSON. */
-export const TURN_EXAMPLES_LINE = `Example turn: ${ONE_LINE_EXAMPLE} (just the line: action, emotion and interest_signal get defaults) or the full ${TURN_EXAMPLE}.`;
+export const TURN_EXAMPLES_LINE = `Example turn: ${ONE_LINE_EXAMPLE}, or {"dialogue": ${ONE_LINE_EXAMPLE}} (just the line: action, emotion and interest_signal get defaults), or the full ${TURN_EXAMPLE} (send all four, or only dialogue).`;
 
 /** A turn as the one-line mode allows it, as the full JSON object; anything else is passed through unchanged. */
 export function oneLineTurn(output: unknown): unknown {
   if (typeof output === "string") {
     const t = output.trim();
-    if (!t || t.startsWith("{") || t.startsWith("[") || t.startsWith("```")) return output;
+    // The JSON of a minimal object ('{"dialogue":"…"}') gets the same treatment as the object itself, below.
+    if (t.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(t);
+        const filled = oneLineTurn(parsed);
+        return filled === parsed ? output : filled;
+      } catch {
+        return output;
+      }
+    }
+    if (!t || t.startsWith("[") || t.startsWith("```")) return output;
     // A JSON string literal ("\"Hello\"") is the line inside it.
     if (t.startsWith('"') && t.endsWith('"') && t.length > 1) {
       try {
@@ -104,6 +115,9 @@ export function oneLineTurn(output: unknown): unknown {
   if (output && typeof output === "object" && !Array.isArray(output)) {
     const { line, ...rest } = output as Record<string, unknown>;
     if (typeof line === "string" && rest.dialogue === undefined) return { ...ONE_LINE_DEFAULTS, ...rest, dialogue: line };
+    // {dialogue} with none of action, emotion and interest_signal is the minimal form too (run 2026-10-21-0514: an
+    // agent sent it, as the example suggested, and was refused). Sending some of the three still needs all of them.
+    if (typeof rest.dialogue === "string" && !ONE_LINE_FIELDS.some((k) => k in rest)) return { ...ONE_LINE_DEFAULTS, ...rest };
   }
   return output;
 }
