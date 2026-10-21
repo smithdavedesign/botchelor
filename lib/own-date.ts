@@ -104,6 +104,24 @@ export function turnDefaultsUsed(output: unknown): string[] {
   return ONE_LINE_FIELDS.filter((k) => !(k in r));
 }
 
+/**
+ * #558: an unfinished date the agents are performing for these two characters, if any. start_own_date refuses a pair
+ * with any date in progress; this is the other direction, for go_on_date and the web's book buttons, so a date on the
+ * show's model isn't booked while the agents are still playing one.
+ */
+export async function ownDateInProgress(db: Db, aId: string, bId: string): Promise<{ id: string } | null> {
+  const { rows } = await db.query<{ id: string }>(
+    `select id from episodes where status = 'generating' and performed_by = 'agent'
+        and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1)) order by created_at limit 1`,
+    [aId, bId],
+  );
+  return rows[0] ?? null;
+}
+
+/** What go_on_date says when ownDateInProgress finds one (#558). */
+export const ownDateInProgressMessage = (pair: string, id: string): string =>
+  `${pair} already have a date in progress that their agents are performing (${id}). One date at a time for a couple: wait for it to finish (get_episode with its id and wait_seconds), then book another.`;
+
 /** A turn as the one-line mode allows it, as the full JSON object; anything else is passed through unchanged. */
 export function oneLineTurn(output: unknown): unknown {
   if (typeof output === "string") {
