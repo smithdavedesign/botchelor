@@ -256,7 +256,10 @@ describe("on the site, from the settings panel", () => {
     expect(seen.filter((s) => s.startsWith("POST https://fal.run/"))).toHaveLength(3);
     const pic = second.pictures[0].id as string;
     const media = (c?: string) => mediaGet(new Request(`${BASE_URL}/api/admin/after-dark/media/${pic}`, { headers: c ? { cookie: c } : {} }), { params: Promise.resolve({ id: pic }) });
-    expect((await media(cookie)).status).toBe(200);
+    const shown = await media(cookie);
+    expect(shown.status).toBe(200);
+    // Kept by the admin's browser (the bytes never change), never by a shared cache.
+    expect(shown.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
     expect((await media()).status).toBe(404);
     // A clip from that picture: started on fal's queue, then stored once it's done.
     const clip = await (await call(clipPost, "/api/admin/after-dark/clip", { image_id: pic, motion: "a slow turn" }, cookie)).json();

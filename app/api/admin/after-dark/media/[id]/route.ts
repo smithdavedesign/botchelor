@@ -2,7 +2,12 @@ import { adultViewer } from "@/lib/adult/mode";
 import { mediaBytes, mediaLinkValid } from "@/lib/adult/media";
 import { getDb } from "@/lib/db";
 
-/** A picture or clip from after dark: to a signed-in admin only, never cached anywhere shared. */
+/**
+ * A picture or clip from after dark: to a signed-in admin only, never cached anywhere shared. A ready file's bytes never
+ * change, so the admin's own browser keeps it: without that, every view (and the reel player preloading every shot)
+ * downloaded it from Postgres again, which used up the database's network transfer and took the site down (2026-10-20).
+ */
+const KEEP = "private, max-age=31536000, immutable";
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const db = await getDb();
   const admin = await adultViewer(db, req);
@@ -14,6 +19,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (linked && file?.mime.startsWith("video/")) return new Response("Not found", { status: 404 });
   if (!file) return new Response("Not found", { status: 404 });
   return new Response(new Uint8Array(file.data), {
-    headers: { "content-type": file.mime, "cache-control": "private, no-store", "x-robots-tag": "noindex" },
+    headers: { "content-type": file.mime, "cache-control": admin ? KEEP : "private, no-store", "x-robots-tag": "noindex" },
   });
 }
