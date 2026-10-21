@@ -283,7 +283,11 @@ describe("a house date over MCP", () => {
     expect(full.compact_tip).toMatch(/compact: true/);
     const compact = (await call("my_status", { compact: true }, ctx)).structuredContent;
     expect(Object.keys(compact).filter((k) => k.endsWith("_note") || k === "compact_tip")).toEqual([]);
-    expect(Object.keys(compact.house_cast[0]).sort()).toEqual(["id", "name"]);
+    // 2.4.3: this session already had the house cast (the call above), so compact leaves it out and says how to get it back.
+    expect(compact.house_cast).toBeUndefined();
+    expect(compact.left_out).toMatchObject({ blocks: expect.arrayContaining(["house_cast"]), back: expect.stringMatching(/compact: false/) });
+    const fresh = (await call("my_status", { compact: true, agent_id: agentId }, {})).structuredContent;
+    expect(Object.keys(fresh.house_cast[0]).sort()).toEqual(["id", "name"]);
     expect(compact.next).toEqual(["browse_episodes", "predict"]);
     await t.db.query(`insert into notifications (id, user_id, kind, title, link) values (gen_random_uuid()::text, $1, 'texted', 'A text', '/messages/a/b')`, [agentId]);
     const texted = (await call("my_status", {}, ctx)).structuredContent;

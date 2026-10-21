@@ -14,7 +14,10 @@ import {
   crowdRound,
   isLogisticsLine,
   echoesProfile,
+  crowdNames,
+  fixNames,
   mergeLastLines,
+  replyMessages,
   nearDuplicate,
   scriptedText,
   scriptedTurn,
@@ -135,12 +138,12 @@ describe("the loop arena's crowd", () => {
     await crowdRound(agents);
     const match = (await call("my_matches", { character_id: mine }, v)).structuredContent.matches.find((m: Any) => m.with.id === odile.id);
     expect(match.them).toBe(true);
-    const opened = (await call("read_texts", { character_id: mine, with: odile.id }, v)).structuredContent.items.filter((i: Any) => i.text);
+    const opened = (await call("read_texts", { character_id: mine, with: odile.id }, v)).structuredContent.items.filter((i: Any) => i.text && i.from !== "show");
     expect(opened.map((i: Any) => i.from)).toEqual(["them"]);
     await call("send_text", { character_id: mine, to: odile.id, text: "Ha! Want to go out for a drink tomorrow?" }, v);
     await crowdRound(agents);
     await crowdRound(agents);
-    const thread = (await call("read_texts", { character_id: mine, with: odile.id }, v)).structuredContent.items.filter((i: Any) => i.text);
+    const thread = (await call("read_texts", { character_id: mine, with: odile.id }, v)).structuredContent.items.filter((i: Any) => i.text && i.from !== "show");
     expect(thread.map((i: Any) => i.from)).toEqual(["them", "this_character", "them"]);
     expect(thread[2].text).toMatch(/pick the place|say yes|free tonight/);
 
@@ -281,7 +284,7 @@ describe("the crowd's brain", () => {
     for (const a of agents) a.brain = brain; // from here on the crowd talks through the brain
     await crowdRound(agents);
     await crowdRound(agents);
-    const texts = async () => ((await call("read_texts", { character_id: mine, with: them.id }, v)).structuredContent.items as Any[]).filter((i) => i.text);
+    const texts = async () => ((await call("read_texts", { character_id: mine, with: them.id }, v)).structuredContent.items as Any[]).filter((i) => i.text && i.from !== "show");
     return { agents, v, mine, them, texts };
   }
 
@@ -369,6 +372,45 @@ describe("the crowd's brain", () => {
     expect(sent).toEqual(["Warm white or cool white? Important question."]);
     expect(agent.said.get("c1")).toHaveLength(2);
     expect(brain.summary()).toMatchObject({ model: "local-chat", model_replies: 0, fallback_replies: 1, reason_if_fallback: "repeat of its own line" });
+  });
+
+  // 2026-10-21-0419: a crowd character called the visitor's Odalys "Odile" (its own name). MCP 2.4.3.
+  it("addresses the partner by their exact name: the prompt says it, a slip is repaired, another character's name is refused", async () => {
+    const me = { id: "c1", name: "Odile Brannock", entry: CROWD[0].characters[0] };
+    const partner = { name: "Odalys Fenn", profile: [] };
+    // The prompt passes the exact first name, and warns off the speaker's own.
+    const prompt = replyMessages({ kind: "text", me: me.entry, partner, history: [{ name: "Odalys Fenn", text: "Hi!" }] })[0].content;
+    expect(prompt).toContain("Their name is exactly Odalys. If you use a name for them, spell it Odalys: never your own name (Odile)");
+
+    // Pure: the speaker's own name said to them, or a near-miss of theirs after a comma, becomes theirs.
+    expect(fixNames("That sounds lovely, Odile.", { me: me.name, partner: partner.name })).toEqual({ line: "That sounds lovely, Odalys.", problem: null, repaired: true });
+    expect(fixNames("Odile, tell me more.", { me: me.name, partner: partner.name }).line).toBe("Odalys, tell me more.");
+    expect(fixNames("Thanks, Odalis!", { me: me.name, partner: partner.name }).line).toBe("Thanks, Odalys!");
+    // Its own name in a sentence about itself stays; an ordinary word that looks like a name stays.
+    expect(fixNames("I'm Odile, and I fix neon.", { me: me.name, partner: partner.name }).repaired).toBe(false);
+    expect(fixNames("Oddly, I agree.", { me: me.name, partner: partner.name }).line).toBe("Oddly, I agree.");
+    // Someone from the crowd who isn't in this thread: refused. In the thread (they've talked about them): fine.
+    expect(fixNames("Feodor would love that.", { me: me.name, partner: partner.name, known: crowdNames() }).problem).toBe("named someone not in the thread (Feodor)");
+    expect(fixNames("Feodor would love that.", { me: me.name, partner: partner.name, known: crowdNames(), thread: ["Feodor Lisle"] }).problem).toBeNull();
+    expect(crowdNames()).toContain("Odile Brannock");
+
+    // Through speak: a slip goes out repaired, on the model's first try.
+    reply = () => ({ content: "Warm white, always, Odile." });
+    const brain = await brainOn();
+    const agent = { brain, said: new Map(), def: CROWD[0] } as unknown as CrowdAgent;
+    const sent: string[] = [];
+    const send = async (line: string) => (sent.push(line), { ok: true as const, result: line });
+    expect(await speak(agent, { kind: "text", me, partner, history: [{ name: "Odalys Fenn", text: "Warm or cool white?" }], send, fallback: () => "Canned line." })).toBe("Warm white, always, Odalys.");
+    expect(brain.summary()).toMatchObject({ model_replies: 1, fallback_replies: 0 });
+
+    // A reply naming another crowd character, twice: refused, retried, then the canned line.
+    requests = [];
+    reply = () => ({ content: "Feodor says the arch is haunted, you know." });
+    const out = await speak(agent, { kind: "text", me, partner, history: [{ name: "Odalys Fenn", text: "What's new?" }], send, fallback: () => "Canned line, honestly." });
+    expect(requests).toHaveLength(2);
+    expect(out).toBe("Canned line, honestly.");
+    expect(requests[1].messages[0].content).toContain("Your last try was refused (named someone not in the thread (Feodor))");
+    expect(brain.summary().fallback_reasons).toMatchObject({ "named someone not in the thread (Feodor)": 1 });
   });
 
   it("falls back to the script when the model fails, and counts every path with its reason", async () => {

@@ -682,6 +682,67 @@ export function echoesProfile(line, profileTexts = [], allowed = "") {
   return null;
 }
 
+/** Levenshtein distance, for a name a letter or two off. */
+function editDistance(x, y) {
+  const row = Array.from({ length: y.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= x.length; i++) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= y.length; j++) {
+      const keep = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (x[i - 1] === y[j - 1] ? 0 : 1));
+      prev = keep;
+    }
+  }
+  return row[y.length];
+}
+
+/** A misspelling of `name` ("Odila" for "Odalys"): the same first two letters and a letter or few apart. */
+const nearName = (word, name) =>
+  word.length >= 4 && name.length >= 4 && word !== name && word.slice(0, 2) === name.slice(0, 2) && editDistance(word, name) <= Math.max(1, Math.floor(Math.max(word.length, name.length) / 2));
+
+/** Every crowd character's name: the names a crowd line must not use for someone who isn't in the thread. */
+export const crowdNames = () => CROWD.flatMap((a) => a.characters.map((c) => c.sheet.name));
+
+/**
+ * The name slip (2026-10-21-0419: a crowd character called the visitor's Odalys "Odile", its own name). A model line
+ * must address the partner by their exact first name. Repaired: the speaker's own first name, or a near-miss of the
+ * partner's, used to address them (", Odile?" or "Odile, ..."). Refused (`problem`): a known character's name (`known`)
+ * who isn't in this thread (`thread`: the names of the people in it). Returns the line, repaired, and the problem or null.
+ */
+export function fixNames(line, { me = "", partner = "", known = [], thread = [] } = {}) {
+  const mine = firstName(me).toLowerCase();
+  const theirs = firstName(partner);
+  const lowTheirs = theirs.toLowerCase();
+  if (!theirs) return { line: String(line ?? ""), problem: null, repaired: false };
+  const inThread = new Set([me, partner, ...thread].flatMap((n) => String(n ?? "").toLowerCase().split(/\s+/)).filter(Boolean));
+  const knownFirst = new Set(known.map((n) => firstName(n).toLowerCase()).filter((n) => n.length >= 3));
+  const text = String(line ?? "");
+  let problem = null;
+  let repaired = false;
+  const out = text.replace(/\b[A-Z][a-zà-ÿ'’-]{2,}\b/g, (word, offset) => {
+    const low = word.toLowerCase().replace(/['’]s$/, "");
+    if (low === lowTheirs) return word;
+    const before = text.slice(0, offset);
+    const after = text.slice(offset + word.length);
+    // Said to them: after a comma (", Odile?"), or opening the line with a comma after it ("Odile, ...").
+    const addressed = /,\s*$/.test(before) || (/^\W*$/.test(before) && /^\s*,/.test(after));
+    if (low === mine) {
+      if (!addressed) return word;
+      repaired = true;
+      return theirs;
+    }
+    // A near-miss only after a comma ("Thanks, Odila."): at the start of a line it may just be a word ("Oddly, ...").
+    if (/,\s*$/.test(before) && nearName(low, lowTheirs)) {
+      repaired = true;
+      return theirs;
+    }
+    if (knownFirst.has(low) && !inThread.has(low)) problem = `named someone not in the thread (${word})`;
+    return word;
+  });
+  return { line: out, problem, repaired };
+}
+
 /** A model's reply as one clean line: no thinking, name prefix, quotes, emoji or stage directions; 1 to 3 sentences. */
 export function cleanReply(raw, { name = "", partner = "" } = {}) {
   const quotes = /^["“”'‘’]+|["“”'‘’]+$/g;
@@ -734,6 +795,8 @@ export function replyMessages({ kind, me, partner, history = [], extra = {}, sai
     extra.suggestion ? `${them} just suggested going somewhere else: say kindly that you'd rather stay here a little longer.` : "",
     "Rules:",
     `- Write only ${first}'s next ${what}: 1 to 3 short sentences, in your own voice. Plain words: no emoji, no hashtags, no quotation marks, no name in front, no actions in asterisks.`,
+    // 2026-10-21-0419: a crowd character called its date by the wrong name. The exact first name, said once.
+    partner.name ? `- Their name is exactly ${them}. If you use a name for them, spell it ${them}: never your own name (${first}) or anyone else's.` : "",
     lastIsTheirs ? `- Answer what ${them} just said, directly, before anything else.` : "",
     `- Don't quote ${them}'s dating profile back at them. Talk about what was actually said, or about your own life.`,
     said.length ? `- Never repeat yourself. You've already said: ${said.slice(-REPLY_HISTORY).map((l) => `"${l}"`).join(" ")}` : "- Never repeat yourself.",
@@ -981,7 +1044,11 @@ export async function speak(agent, { kind, me, partner, history = [], extra = {}
         log(`reply ${who}: model try ${attempt + 1} failed: ${e.message}`);
         continue;
       }
-      const problem = lineProblem(line, { said, history, partnerName: partner.name, profile, allowed });
+      // The exact name: a slip is repaired; a name from outside the thread is refused (and retried, then the script).
+      const named = fixNames(line, { me: me.name, partner: partner.name, known: crowdNames(), thread: history.map((h) => h.name) });
+      if (named.repaired) log(`reply ${who}: model try ${attempt + 1}: name repaired`);
+      line = named.line;
+      const problem = named.problem ?? lineProblem(line, { said, history, partnerName: partner.name, profile, allowed });
       if (problem) {
         why = refused = problem;
         log(`reply ${who}: model try ${attempt + 1}: ${problem}`);
@@ -1325,7 +1392,8 @@ async function socialise(agent, ctx, log) {
       }
       const visitor = !ctx.ids.has(other);
       const items = (await agent.tool("read_texts", { character_id: me.id, with: other }).catch(() => ({ items: [] }))).items ?? [];
-      const thread = items.filter((i) => typeof i.text === "string");
+      // Texts only: date and event markers carry text too (MCP 2.4.3, from: "show").
+      const thread = items.filter((i) => typeof i.text === "string" && i.from !== "show");
       const last = thread.at(-1);
       // Opens the thread with a visitor's character once matched; answers whatever's newest from the other side, one
       // round later. Between two of the crowd's characters it stops after a few texts (they'd talk forever).

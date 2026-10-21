@@ -63,6 +63,11 @@ export function normalizeLine(s: string): string;
 export function nearDuplicate(a: string, b: string): boolean;
 export function echoesProfile(line: string, profileTexts?: string[], allowed?: string): string | null;
 export function cleanReply(raw: string, opts?: { name?: string; partner?: string }): string;
+export function crowdNames(): string[];
+export function fixNames(
+  line: string,
+  opts?: { me?: string; partner?: string; known?: string[]; thread?: string[] },
+): { line: string; problem: string | null; repaired: boolean };
 export function replyMessages(opts: {
   kind: "text" | "turn";
   me: CrowdEntry;

@@ -1270,6 +1270,10 @@ create index if not exists season_candidates_season_idx on season_candidates (se
 -- only their name to anyone but the owner. House characters are always public.
 alter table characters add column if not exists visibility text not null default 'public'
   check (visibility in ('public', 'private'));
+-- 2.4.3: the originality check compares a new sheet with every character made in the last 48 hours (lib/originality.ts).
+create index if not exists characters_created_idx on characters (created_at desc);
+-- 2.4.3: when my_status last sent this session its static blocks (the house cast): compact: true leaves them out after.
+alter table mcp_sessions add column if not exists status_static_at timestamptz;
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

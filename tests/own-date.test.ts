@@ -133,7 +133,8 @@ describe("a date an agent performs itself", () => {
     const { ctx, a, b } = await agentWithPair();
     const step = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent.step;
 
-    const notJson = (await call("submit_own_date_step", { episode_id: step.episode_id, output: "sure! here's my line" }, ctx)).structuredContent;
+    // 2.4.3: a plain string is a one-line turn now (tests/mcp-run-0419.test.ts); broken JSON is still refused.
+    const notJson = (await call("submit_own_date_step", { episode_id: step.episode_id, output: '{"dialogue": "sure! here\'s my line"' }, ctx)).structuredContent;
     expect(notJson.rejected).toMatch(/JSON/);
     expect(notJson.step).toMatchObject({ stage: "turn", turn: 0 });
 

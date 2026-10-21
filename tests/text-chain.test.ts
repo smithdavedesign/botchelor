@@ -208,8 +208,9 @@ describe("a couple's text chain (lib/text-chain.ts)", () => {
     const mine = (await rpc({ character_id: character.id, agent_id: userId })).result.structuredContent;
     expect(mine.relationships[0].texts).toEqual([
       // #402: the show wrote both (the morning-after texts, and the daily texts between dates).
-      { from: "this_character", written_by: "the_show", text: "Last night was fun.", day: "2026-10-10", kind: "morning_after", episode_id: first.id },
-      { from: "them", written_by: "the_show", text: "Same time next week?", day: "2026-10-11", kind: "between_dates" },
+      // 2.4.3 (#556): every text item is { from, text, at, ... }.
+      { from: "this_character", written_by: "the_show", text: "Last night was fun.", at: "2026-10-10T19:00:00.000Z", day: "2026-10-10", kind: "morning_after", episode_id: first.id },
+      { from: "them", written_by: "the_show", text: "Same time next week?", at: expect.stringMatching(/^2026-10-11T/), day: "2026-10-11", kind: "between_dates" },
     ]);
     expect((await rpc({ character_id: character.id })).result.structuredContent.relationships[0].texts).toBeUndefined();
   });

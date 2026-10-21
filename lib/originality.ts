@@ -23,8 +23,13 @@ export type SheetDraft = {
 };
 
 export type Cliche = { field: "bio" | "traits" | "want" | "dealbreaker"; phrase: string; tip: string };
-/** `kind`: "concept" reads like the same character; "name" only shares a first name (a lighter nudge). */
-export type Lookalike = { id: string; name: string; why: string; kind?: "concept" | "name" };
+/**
+ * `kind`: "concept" reads like the same character; "name" only shares a first name (a lighter nudge). `recent`: made in
+ * the last RECENT_HOURS (2.4.3); `name_and_job`: a close name doing the same job, the case that gets a suggestion.
+ */
+export type Lookalike = { id: string; name: string; why: string; kind?: "concept" | "name"; recent?: true; name_and_job?: true };
+/** 2.4.3: what to change when a name and a job are too close to a recent character's: a different name or job, concretely. */
+export type RenameSuggestion = { text: string; names: string[]; jobs: string[] };
 export type OriginalityReport = {
   score: number;
   cliches: Cliche[];
@@ -35,6 +40,8 @@ export type OriginalityReport = {
   /** The score a sheet reads as "fine" from, and the one it stands out from. */
   thresholds: { fine_from: number; stands_out_from: number };
   verdict_note: string;
+  /** 2.4.3: a close name doing the same job as a character made in the last RECENT_HOURS: pick a different job or name. */
+  suggestion?: RenameSuggestion;
 };
 
 /** The score a sheet is "fine to create" from, and "stands out" from (#505). A nudge, never a gate. */
@@ -268,6 +275,78 @@ export function surnamesClose(a: string | undefined, b: string | undefined): boo
 
 type Compared = { id: string; name: string } & SheetDraft;
 
+/* ------------------------------------------ recent characters (2.4.3) ------------------------------------------ */
+/*
+ * The 2026-10-21-0419 run: two agents a few minutes apart made near-namesakes in the same line of work, and the check
+ * compared them only as far as its other signals went. Every character made in the last RECENT_HOURS by anyone (public
+ * ones: a private character's sheet stays its owner's) is compared too, through an index on created_at, and a close name
+ * doing the same job gets a concrete "pick a different job or name" before saving.
+ */
+export const RECENT_HOURS = 48;
+const RECENT_LIMIT = 200;
+
+/** First names a letter or two apart ("Odile" and "Odila"), or the same: close enough to blur on one date. */
+function firstNamesClose(a: string | undefined, b: string | undefined): boolean {
+  const x = firstName(a);
+  const y = firstName(b);
+  if (x.length < 3 || y.length < 3) return false;
+  if (x === y) return true;
+  return Math.min(x.length, y.length) >= 4 && x[0] === y[0] && editDistance(x, y) <= (Math.min(x.length, y.length) >= 6 ? 2 : 1);
+}
+
+/** The line of work two sheets share (their occupations, or one's occupation in the other's bio), as words; empty when none. */
+export function sharedJob(a: SheetDraft, b: SheetDraft): string[] {
+  const ja = workWords(a);
+  const jb = workWords(b);
+  const ba = bioWords(a);
+  const bb = bioWords(b);
+  return [...new Set([...[...ja].filter((w) => jb.has(w) || bb.has(w)), ...[...jb].filter((w) => ba.has(w))])];
+}
+
+/** A close name (first name or surname) doing the same job: the two would read as one character. Pure. */
+export function nameAndJobClose(sheet: SheetDraft, other: Compared): string[] | null {
+  if (!(firstNamesClose(sheet.name, other.name) || surnamesClose(sheet.name, other.name))) return null;
+  const job = sharedJob(sheet, other);
+  return job.length ? job : null;
+}
+
+/** Lines of work to offer instead, a spread of them: one that no recent character shares a word with is suggested. */
+const JOB_IDEAS = [
+  "a piano tuner", "a lock restorer", "a beekeeper", "a ferry engineer", "a typeface designer", "a cheese cave keeper", "a bell founder",
+  "a hot-air balloon pilot", "a museum night guard", "a puppet repairer", "a seed librarian", "a court stenographer", "a glassblower",
+  "a mountain-hut cook", "a canal lock keeper", "a weather balloon launcher", "a subtitle translator", "an organ builder", "a falconer",
+  "a crossword setter", "a theatre prop maker", "a tide-table printer", "a skate sharpener", "a perfume tester",
+];
+
+/** Spare first names, for "pick a different name" (none of them is offered if the show already has it). */
+const NAME_IDEAS = ["Wren", "Tamsin", "Ottoline", "Bastien", "Leocadia", "Hollis", "Ysolde", "Casimir", "Peregrine", "Delphine", "Ambrose", "Sabine", "Lucan", "Mireille", "Thaddeus", "Ingrid"];
+
+/** The concrete suggestion: free names (keeping nothing that's close to the twin's) and jobs nobody recent has. */
+async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], recent: Compared[]): Promise<RenameSuggestion> {
+  const seed = [...(sheet.name ?? "x")].reduce((n, ch) => n + ch.charCodeAt(0), 0);
+  const rotate = <T,>(xs: T[]) => xs.map((_, i) => xs[(seed + i) % xs.length]);
+  const surnameOf = surname(sheet.name);
+  const keepSurname = surnameOf && !twins.some((t) => surnamesClose(sheet.name, t.name));
+  const cap = (s: string) => s.replace(/\b[a-z]/g, (c) => c.toUpperCase());
+  const candidates = rotate(NAME_IDEAS)
+    .filter((n) => !twins.some((t) => firstNamesClose(n, t.name)) && !recent.some((r) => firstNamesClose(n, r.name)))
+    .map((n) => (keepSurname ? `${n} ${cap(surnameOf)}` : n));
+  const taken = candidates.length
+    ? new Set((await db.query<{ name: string }>(`select lower(trim(name)) as name from characters where lower(trim(name)) = any($1)`, [candidates.map((n) => n.toLowerCase())])).rows.map((r) => r.name))
+    : new Set<string>();
+  const names = candidates.filter((n) => !taken.has(n.toLowerCase())).slice(0, 3);
+  const used = new Set([...recent, ...twins].flatMap((r) => [...workWords(r), ...bioWords(r)]));
+  const jobs = rotate(JOB_IDEAS).filter((j) => !contentWords(j, 4).some((w) => used.has(w) || used.has(stem(w)))).slice(0, 3);
+  const who = twins.map((t) => t.name).join(", ");
+  return {
+    names,
+    jobs,
+    text:
+      `Too close to ${who} (made in the last ${RECENT_HOURS} hours): a close name and the same job. Pick a different job or name before saving` +
+      `${names.length ? `: a name like ${names.join(", ")}` : ""}${jobs.length ? `${names.length ? ", or" : ":"} a job like ${jobs.join(", ")}` : ""}.`,
+  };
+}
+
 /** Why `sheet` reads like `other`, from every signal, with a score for ordering; or null. Pure, given the term weights. */
 export function twinWhy(sheet: SheetDraft, other: Compared, terms: Set<string>, otherTerms: Set<string>, weight: (term: string) => number): (Lookalike & { score: number }) | null {
   const base = { id: other.id, name: other.name };
@@ -295,15 +374,34 @@ export function twinWhy(sheet: SheetDraft, other: Compared, terms: Set<string>, 
   return null;
 }
 
+type Row = { id: string; name: string; bio: string; traits: string[]; want: string; voice: string | null; extras: CharacterExtras | null; recent: boolean };
+
 /** Characters already on the show that read almost the same (or share the name). Excludes `excludeId` (the one being edited). */
 export async function findLookalikes(db: Db, sheet: SheetDraft, excludeId: string | null = null, limit = 3): Promise<Lookalike[]> {
-  const { rows } = await db.query<{ id: string; name: string; bio: string; traits: string[]; want: string; voice: string | null; extras: CharacterExtras | null }>(
-    `select id, name, bio, traits, want, voice, extras from characters
-      where ($1::text is null or id <> $1)
-      order by is_house desc, created_at desc
-      limit 500`,
-    [excludeId],
-  );
+  return (await lookalikesWithRecent(db, sheet, excludeId, limit)).found;
+}
+
+async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string | null, limit: number): Promise<{ found: Lookalike[]; recent: Compared[]; rows: Compared[] }> {
+  const recentSql = `created_at > now() - interval '${RECENT_HOURS} hours'`;
+  const [main, fresh] = await Promise.all([
+    db.query<Row>(
+      `select id, name, bio, traits, want, voice, extras, ${recentSql} and not is_house and visibility = 'public' as recent from characters
+        where ($1::text is null or id <> $1)
+        order by is_house desc, created_at desc
+        limit 500`,
+      [excludeId],
+    ),
+    // 2.4.3: every public character made in the last RECENT_HOURS, by anyone (characters_created_idx), whatever the cap above left out.
+    db.query<Row>(
+      `select id, name, bio, traits, want, voice, extras, true as recent from characters
+        where ${recentSql} and not is_house and visibility = 'public' and ($1::text is null or id <> $1)
+        order by created_at desc
+        limit ${RECENT_LIMIT}`,
+      [excludeId],
+    ),
+  ]);
+  const seen = new Set(main.rows.map((r) => r.id));
+  const rows = [...main.rows, ...fresh.rows.filter((r) => !seen.has(r.id))];
   const name = sheet.name?.trim().toLowerCase();
   const terms = conceptTerms(sheet);
   // Other characters' private facts and their dealbreaker never take part: neither is on their card
@@ -317,10 +415,20 @@ export async function findLookalikes(db: Db, sheet: SheetDraft, excludeId: strin
       found.push({ id: r.id, name: r.name, kind: "concept", why: `There's already someone called ${r.name} on the show.`, score: 3 });
       return;
     }
+    // 2.4.3: a recent character with a close name doing the same job reads as the same one, whatever else differs.
+    const job = r.recent ? nameAndJobClose(sheet, r) : null;
+    if (job) {
+      found.push({ id: r.id, name: r.name, kind: "concept", recent: true, name_and_job: true, why: `${r.name}, made in the last ${RECENT_HOURS} hours, has a close name and the same job (${job.slice(0, 2).join(", ")}).`, score: 2.5 });
+      return;
+    }
     const twin = twinWhy(sheet, r, terms, rowTerms[i], weight);
     if (twin) found.push(twin);
   });
-  return found.sort((x, y) => y.score - x.score).slice(0, limit).map(({ score: _s, ...l }) => l);
+  return {
+    found: found.sort((x, y) => y.score - x.score).slice(0, limit).map(({ score: _s, ...l }) => l),
+    recent: rows.filter((r) => r.recent),
+    rows,
+  };
 }
 
 const words = (s: string | undefined) => (s ?? "").trim().split(/\s+/).filter(Boolean).length;
@@ -375,7 +483,12 @@ export function scoreSheet(sheet: SheetDraft, cliches: Cliche[], similar: Lookal
   };
 }
 
-/** The whole check, with lookalikes from the database. */
+/** The whole check, with lookalikes from the database (2.4.3: and a suggestion when a name and job are too close to a recent one's). */
 export async function originality(db: Db, sheet: SheetDraft, excludeId: string | null = null): Promise<OriginalityReport> {
-  return scoreSheet(sheet, findCliches(sheet), await findLookalikes(db, sheet, excludeId));
+  const { found, recent, rows } = await lookalikesWithRecent(db, sheet, excludeId, 3);
+  const report = scoreSheet(sheet, findCliches(sheet), found);
+  const close = found.filter((f) => f.name_and_job).flatMap((f) => rows.filter((r) => r.id === f.id));
+  if (!close.length) return report;
+  const suggestion = await renameSuggestion(db, sheet, close, recent);
+  return { ...report, suggestion, tips: [suggestion.text, ...report.tips.filter((t) => t !== suggestion.text)].slice(0, 5) };
 }

@@ -282,8 +282,8 @@ describe("what comes back (#481)", () => {
     }
   });
 
-  it("the server is at 2.4.2", () => {
-    expect(MCP_SERVER_INFO.version).toBe("2.4.2");
+  it("the server is at 2.4.3", () => {
+    expect(MCP_SERVER_INFO.version).toBe("2.4.3");
   });
 });
 
