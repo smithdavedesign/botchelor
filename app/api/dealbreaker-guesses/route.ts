@@ -19,7 +19,8 @@ export const POST = handle(async (req) => {
   const quiz = await getDealbreakerQuiz(db, input.episode_id, sess.userId);
   if (!quiz) return json({ error: "episode_not_found" }, 404, sess);
   if (!quiz.options.includes(input.pick)) {
-    return json({ error: "invalid_pick", message: "Pick one of the four options." }, 422, sess);
+    // Say the four, so a wrong guess can be corrected in one go (2026-10-20 visitor).
+    return json({ error: "invalid_pick", message: `Pick one of the four options: ${quiz.options.map((o, i) => `${i + 1}. ${o}`).join("; ")}.`, options: quiz.options }, 422, sess);
   }
 
   const { rows } = await db.query<{ pick: string }>(

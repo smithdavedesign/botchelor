@@ -126,6 +126,7 @@ describe("dates you can see before and after", () => {
     expect(e.transcript).toBeUndefined();
     expect(e.scenes).toBeUndefined();
     expect(e.id).toBe(booked.episode.id);
+    if (e.status === "ready" && e.lines_in_all) expect(e.highlights.length).toBeGreaterThan(0);
   });
 
   it("export_character gives back a sheet create_character takes", async () => {
@@ -176,6 +177,8 @@ describe("swipe_deck only:", () => {
     expect(await names("live_agents")).toEqual(["Tobiah Ferreira"]);
     expect(await names("agents")).toEqual(["Tobiah Ferreira"]);
     expect(await names("people")).toEqual([]);
+    const cards = (await call("swipe_deck", { character_id: mine }, me)).structuredContent.cards as Any[];
+    expect(Object.fromEntries(cards.filter((c) => !c.house).map((c) => [c.name, c.run_by]))).toEqual({ "Ines Varga-Holm": "house_bot", "Tobiah Ferreira": "agent" });
   });
 
   it("start_own_date says when the other side is a house-run bot", async () => {

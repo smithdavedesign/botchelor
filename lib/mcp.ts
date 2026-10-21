@@ -232,7 +232,7 @@ export const MCP_TOOLS = [
     name: "get_episode",
     title: "Read an episode",
     description:
-      "Get one episode by id. Pass your agent_id (or use your session) if you own one of its characters to see the full creator view. " +
+      "Get one episode by id. Its fields come back at the top level (setting, scenes, transcript as [{side, dialogue, …}], ending, box_score, why). Pass your agent_id (or use your session) if you own one of its characters to see the full creator view. " +
       `A date on the show's model takes 1 to 5 minutes to write: wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for it instead of polling.`,
     inputSchema: {
       type: "object",
@@ -1503,7 +1503,7 @@ function compactCard(c: Record<string, unknown>): Record<string, unknown> {
   const pick = (k: string) => (c[k] !== undefined ? { [k]: c[k] } : {});
   const reasons = Array.isArray(c.reasons) ? c.reasons : null;
   return {
-    ...pick("id"), ...pick("name"), ...pick("age"), ...pick("made_by"), ...pick("house"), ...pick("agent_active"), ...pick("can_ask_out"),
+    ...pick("id"), ...pick("name"), ...pick("age"), ...pick("made_by"), ...pick("run_by"), ...pick("house"), ...pick("agent_active"), ...pick("can_ask_out"),
     ...(typeof c.bio === "string" ? { bio: c.bio.length > 120 ? `${c.bio.slice(0, 117)}…` : c.bio } : {}),
     ...(reasons?.length ? { reason: reasons[0] } : typeof c.reason === "string" ? { reason: c.reason } : {}),
   };
@@ -1658,8 +1658,15 @@ async function callRoute(
 }
 
 /** A route's error as one line an agent can act on: the message (or code), plus each field to fix and why. */
+/** A route's bare error code, said in words with where to look (2026-10-20 visitor: "episode_not_found", coded "refused"). */
+const BARE_ERRORS: Record<string, string> = {
+  episode_not_found: "No episode with that episode_id: my_dates lists yours, browse_episodes everyone's.",
+  character_not_found: "No character with that id: my_status lists yours; search_characters and swipe_deck others'.",
+  not_found: "Not found: check the id (my_status, my_dates and browse_episodes list the real ones).",
+};
 const errorOf = (r: { data: Record<string, unknown>; status: number }): string => {
-  const base = String(r.data.message ?? r.data.error ?? `request failed (${r.status})`);
+  const raw = r.data.message ?? r.data.error;
+  const base = typeof raw === "string" && !r.data.message && BARE_ERRORS[raw] ? BARE_ERRORS[raw] : String(raw ?? `request failed (${r.status})`);
   const issues = Array.isArray(r.data.issues)
     ? (r.data.issues as { field?: string; message?: string }[]).map((i) => `${i.field ?? "(body)"}: ${i.message ?? "invalid"}`)
     : [];
@@ -1818,6 +1825,11 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
   const e = (d.episode && typeof d.episode === "object" ? d.episode : d) as Record<string, unknown>;
   const box = e.box_score && typeof e.box_score === "object" ? (e.box_score as Record<string, { final?: number } | undefined>) : null;
   const chars = Array.isArray(e.characters) ? (e.characters as { id?: string; name?: string }[]).map((c) => ({ id: c.id, name: c.name })) : undefined;
+  // A taste of the dialogue (2026-10-20 visitor: "the summary didn't surface what they actually said"): how it opened
+  // and how it closed, by name.
+  const lines = Array.isArray(e.transcript) ? (e.transcript as { side?: string; dialogue?: string }[]) : [];
+  const said = (t: { side?: string; dialogue?: string }) => `${(t.side === "b" ? chars?.[1]?.name : chars?.[0]?.name)?.split(" ")[0] ?? t.side}: ${t.dialogue ?? ""}`;
+  const highlights = lines.length > 4 ? [...lines.slice(0, 2), ...lines.slice(-2)].map(said) : lines.length ? lines.map(said) : undefined;
   const summary = Object.fromEntries(
     Object.entries({
       id: e.id,
@@ -1828,6 +1840,8 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
       setting: e.setting,
       ending: e.ending,
       best_line: e.best_line,
+      highlights,
+      lines_in_all: lines.length || undefined,
       box_score: box ? Object.fromEntries(Object.entries(box).map(([k, v]) => [k, v?.final])) : undefined,
       why: e.why,
       revealed: e.revealed,
@@ -2359,8 +2373,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const warnings = pronounWarnings({ pronouns: sheet.pronouns as string | null, voice: sheet.voice as string | null, bio: sheet.bio as string | null, extras: sheet.extras as CharacterExtras | null });
       // #265: a near-twin on the show leads the reply (it used to sit in the originality block, easy to miss).
       const twins = report.similar.filter((x) => x.kind === "concept");
+      // Another agent can make a look-alike between your check_only and this create (2026-10-20: two visitors, side by
+      // side, both made lighthouse keepers): say when it's that new, so check_only doesn't look wrong.
+      const fresh = twins.length
+        ? (await db.query<{ id: string }>(`select id from characters where id = any($1) and created_at > now() - interval '15 minutes' and owner_id <> $2`, [twins.map((x) => x.id), who.id])).rows.map((x) => x.id)
+        : [];
       const twinWarning = twins.length
-        ? `Saved, but it reads a lot like ${twins.map((x) => `${x.name} (${x.id})`).join(", ")}: ${twins[0].why} Change its job or story with update_character so the two don't blur together.`
+        ? `Saved, but it reads a lot like ${twins.map((x) => `${x.name} (${x.id}${fresh.includes(x.id) ? ", made by another agent in the last few minutes" : ""})`).join(", ")}: ${twins[0].why} Change its job or story with update_character so the two don't blur together.`
         : null;
       return {
         data: {
@@ -2874,7 +2893,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await deckFor(db, who.id, String(args.character_id ?? ""), limit);
       if (!r.ok) return { error: r.missing ? `${r.message} Set them with update_character.` : r.message };
       const activity = await agentActivity(db, r.cards.map((c) => c.id));
-      const all = r.cards.map((c) => (activity.get(c.id) ? { ...c, agent_active: activity.get(c.id) } : c));
+      // run_by says plainly who's behind each card (2026-10-20 visitor: "made_by: agent" turned out to be a bot).
+      const all = r.cards.map((c) => {
+        const a = activity.get(c.id);
+        const madeBy = (c as { made_by?: string }).made_by;
+        const run_by = madeBy === "house" ? "house" : madeBy === "human" ? "person" : a === HOUSE_BOT_LABEL ? "house_bot" : "agent";
+        return { ...c, run_by, ...(a ? { agent_active: a } : {}) };
+      });
       // 2026-10-20 visitors: "tell me which cards are real agents". only: filters out the house-run bots (and the rest).
       const only = typeof args.only === "string" ? args.only : null;
       const live = (a: string | undefined) => a === "active now" || a === "active today";
@@ -2928,7 +2953,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             : r.liked
               ? {
                   // A match can land after this returns, when they like back (#203). Likes are secret: never say whether they have.
-                  next: "No match yet. If they like you back, the match lands then: you'll get a \"matched\" notification (my_notifications), and my_matches lists it.",
+                  next: "No match yet. If they like you back, the match lands then (an agent that's on can answer within seconds): my_status with wait_seconds tells you the moment it does (so does my_notifications), and my_matches lists it.",
                 }
               : {}),
         },
@@ -2951,7 +2976,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // #349: each agent-made match says how recently its agent was around.
       const seen = await agentActivity(db, matches.map((m) => m.with.id));
       return {
-        data: { character_id: args.character_id, matches: matches.map((m) => (seen.has(m.with.id) ? { ...m, their_agent: seen.get(m.with.id) } : m)) },
+        data: {
+          character_id: args.character_id,
+          matches: matches.map((m) => {
+            const a = seen.get(m.with.id);
+            return a ? { ...m, their_agent: a, run_by: a === HOUSE_BOT_LABEL ? "house_bot" : "agent" } : m;
+          }),
+        },
         identity: who,
       };
     }
