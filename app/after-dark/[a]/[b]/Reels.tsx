@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Reel, ReelShot } from "@/lib/adult/reels";
+import { REEL_STALLED_MS } from "@/lib/adult/reel-timing";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -45,7 +46,7 @@ export default function Reels({ reels, onChange }: { reels: Reel[]; onChange: (r
       <ul className="after-dark-reels">
         {reels.map((r) => (
           <li key={r.id}>
-            <ReelPlayer reel={r} />
+            <ReelPlayer reel={r} onChange={onChange} />
           </li>
         ))}
       </ul>
@@ -55,17 +56,57 @@ export default function Reels({ reels, onChange }: { reels: Reel[]; onChange: (r
 
 const readyShots = (r: Reel): ReelShot[] => (r.status === "making" ? [] : r.shots.filter((s) => s.status === "ready" && s.media_id));
 
-function ReelPlayer({ reel }: { reel: Reel }) {
+/** Stops a reel still being made (DELETE): the shots in are kept, the rest's tokens come back. */
+export async function stopReel(id: string): Promise<Reel | null> {
+  const res = await fetch(`/api/admin/after-dark/reel?id=${encodeURIComponent(id)}`, { method: "DELETE" }).then((r) => r.json()).catch(() => null);
+  return (res?.reel as Reel | undefined) ?? null;
+}
+
+function ReelPlayer({ reel, onChange }: { reel: Reel; onChange: (r: Reel) => void }) {
   const shots = readyShots(reel);
   const done = reel.shots.filter((s) => s.status !== "queued").length;
+  const [stopping, setStopping] = useState(false);
+  const [stopFailed, setStopFailed] = useState(false);
   if (reel.status === "making") {
+    const minutes = Math.floor((Date.now() - new Date(reel.created_at).getTime()) / 60_000);
+    const stalled = minutes * 60_000 > REEL_STALLED_MS;
+    // A shot the safety check couldn't look at yet (Hive busy) waits and is tried again.
+    const checkBusy = reel.shots.some((s) => s.status === "queued" && s.retry_at);
     return (
-      <p className="muted small" role="status">
-        🎬 Making the video: {done} of {reel.shots.length} shots done. It takes a few minutes; you can leave and come back.
-      </p>
+      <div className="muted small" role="status">
+        <p>
+          🎬 Making the video: {done} of {reel.shots.length} shots done
+          {minutes >= 1 ? `, started ${minutes} min ago` : ""}.{" "}
+          {stalled
+            ? "That's much longer than usual, so it looks stuck. Stop it and its tokens come back for the shots that didn't arrive."
+            : checkBusy
+              ? "The safety check is busy, so some shots wait and are tried again every 10 minutes."
+              : "It takes a few minutes; you can leave and come back."}
+        </p>
+        <p>
+          <button
+            type="button"
+            className={stalled ? "secondary small" : "button-ghost small"}
+            disabled={stopping}
+            onClick={async () => {
+              setStopping(true);
+              const r = await stopReel(reel.id);
+              setStopping(false);
+              if (r) onChange(r);
+              else setStopFailed(true);
+            }}
+          >
+            {stopping ? "Stopping…" : "Stop this video"}
+          </button>
+          {stopFailed && <span className="error"> That didn&apos;t go through. Try again.</span>}
+        </p>
+      </div>
     );
   }
-  if (!shots.length) return <p className="muted small">That video didn&apos;t come through, and its tokens are back.</p>;
+  if (!shots.length) {
+    const stopped = reel.shots.some((s) => s.reason === "stopped");
+    return <p className="muted small">{stopped ? "Stopped before any shot came through. Its tokens are back." : "That video didn't come through, and its tokens are back."}</p>;
+  }
   return (
     <>
       <SeamlessPlayer shots={shots} />
