@@ -2236,6 +2236,99 @@ button.poll-option.chosen {
 .watch-airing > li {
   scroll-snap-align: start;
 }
+/* Rooms (ready, premieres, replays) side by side, so a long list never lengthens the page (2026-10-21). */
+.watch-strip {
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(15rem, 18rem);
+  padding: var(--space-1) 0 var(--space-3);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+}
+.watch-strip > * {
+  scroll-snap-align: start;
+  margin: 0;
+}
+.watch-strip .watch-lobby-card {
+  flex-direction: column;
+  align-items: flex-start;
+  height: 100%;
+  box-sizing: border-box;
+}
+.watch-league-details > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--accent-text);
+}
+.watch-league-details form > h3 {
+  display: none; /* the summary already says it */
+}
+.watch-league-details[open] > summary {
+  margin-bottom: var(--space-3);
+}
+.watch-live-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin: 0;
+}
+.watch-reunion-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  text-decoration: none;
+  color: inherit;
+}
+.watch-reunion-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+.watch-reunion-card .kicker {
+  margin: 0;
+}
+.watch-reunion-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-lg);
+}
+.watch-reunion-award {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.watch-reunion-cta {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+/* Latest episodes on a wide screen: two columns, so 12 a page is six rows. */
+@media (min-width: 761px) {
+  .watch-latest-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  .watch-latest-list > li.card {
+    margin: 0;
+  }
+  .watch-latest-list > li.card > p.muted {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+}
+/* Latest episodes on a phone: compact rows, the setting on one line (12 a page, as before). */
+@media (max-width: 760px) {
+  .watch-latest-list > li.card {
+    padding: var(--space-3);
+    margin: 0 0 var(--space-2);
+  }
+  .watch-latest-list > li.card > p.muted {
+    margin: 0.25rem 0 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
 .watch-airing-card {
   display: flex;
   flex-direction: column;
