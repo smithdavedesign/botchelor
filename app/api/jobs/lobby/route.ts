@@ -4,6 +4,7 @@ import { internalJobAuthorized } from "@/lib/jobs";
 import { refreshLobby } from "@/lib/watch";
 import { airDueDates } from "@/lib/air";
 import { autoplayQuietOwnDates } from "@/lib/own-date";
+import { retryDueSets } from "@/lib/sets";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -22,7 +23,9 @@ async function run(req: Request): Promise<Response> {
   const aired = (await airDueDates(db).catch(() => [])).length;
   // Two-agent dates nobody is reading, waiting on a move quiet past the hand-over: the show's model takes that side.
   const handed_over = await autoplayQuietOwnDates(db).catch(() => 0);
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over });
+  // Drawn sets whose check couldn't run (a Hive 429): their kept pictures are checked again, a few at a time (lib/sets.ts).
+  const sets_rechecked = (await retryDueSets(db, 3).catch(() => [])).length;
+  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over, sets_rechecked });
 }
 
 export const GET = handle(run);

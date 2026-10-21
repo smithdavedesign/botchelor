@@ -69,10 +69,12 @@ async function hive(key: string, endpoint: string, payload: unknown): Promise<un
 export const SET_NSFW_SCORE = 0.3;
 
 /** Checks a drawn set: moderation only (there's nobody in it to age-check). Never throws: any failure is a refusal. */
-export async function checkSet(key: string | null, url: string): Promise<CheckResult> {
+export async function checkSet(key: string | null, media: string | { base64: string; mime: string }): Promise<CheckResult> {
   if (!key) return { ok: false, reason: "the output check isn't set up (no Hive key)" };
+  // fal's URL when it's just been drawn; the kept bytes when it's checked again later (fal's links expire).
+  const input = typeof media === "string" ? { media_url: media } : { media_base64: media.base64 };
   try {
-    const scores = classScores(await hive(key, HIVE_MODERATION, { input: [{ media_url: url }], processing_mode: "sync_with_fallback" }));
+    const scores = classScores(await hive(key, HIVE_MODERATION, { input: [input], processing_mode: "sync_with_fallback" }));
     if (!scores.some((s) => s.cls === "no_child_present" || s.cls === "yes_child_present")) return { ok: false, reason: "moderation reply had no child scores" };
     const bad = scores.find((s) => (MODERATION_CHILD.includes(s.cls) && s.score >= CHILD_SCORE) || (s.cls === "general_nsfw" && s.score >= SET_NSFW_SCORE));
     return bad ? { ok: false, reason: `moderation: ${bad.cls} ${bad.score.toFixed(2)}` } : { ok: true };

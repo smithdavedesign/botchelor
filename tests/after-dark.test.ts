@@ -354,7 +354,7 @@ describe("the model call", () => {
     let seen: { maxTokens?: number } | undefined;
     setAdultModelForTests({ complete: async (_m, o) => ((seen = o), JSON.stringify({ lines: [{ who: "a", text: "Hi." }] })) });
     await post({ a: CAST_A, b: CAST_B }, cookie);
-    expect(seen?.maxTokens).toBe(1200);
+    expect(seen?.maxTokens).toBe(1600);
   });
 });
 
@@ -692,7 +692,8 @@ describe("set the scene (1 token)", () => {
     } as never);
     const next = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
     expect(prompt).toMatch(/The scene has just cut to a rooftop pool at midnight: they're there now/);
-    expect(next.scene).toMatchObject({ cut_to: null, set_place: "rooftop pool" });
+    // "rooftop pool" is the same place reworded: the set they cut to stays (lib/adult/continuity.ts).
+    expect(next.scene).toMatchObject({ cut_to: null, set_place: "a rooftop pool at midnight" });
   });
 
   it("costs a subscriber 1 bought token, refuses without one, and gives it back when the place is refused", async () => {

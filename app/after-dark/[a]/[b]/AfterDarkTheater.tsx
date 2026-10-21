@@ -9,6 +9,7 @@ import { STAGES } from "@/lib/adult/stages";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { PLACE_LABEL_MAX, venueName, type PlaceId } from "@/lib/venues";
+import { useSteadySet } from "./useSteadySet";
 
 /** A scene line as a date turn: the leading *action* apart from what they say. */
 export function lineToTurn(l: SceneLine): Turn {
@@ -88,6 +89,8 @@ export default function AfterDarkTheater({
   const [a, b] = characters;
   const caughtUp = shown.length >= turns.length;
   const latestAction = shown.length ? shown[shown.length - 1].action : "";
+  // The set: preloaded, so the last ready one stays up until the next has loaded (never the placeholder in between).
+  const stage = useSteadySet(stageFor(scene.set || scene.place, scene.dateVenue));
 
   async function next(e: FormEvent) {
     e.preventDefault();
@@ -109,7 +112,8 @@ export default function AfterDarkTheater({
         <div className="theater-scene-area">
           <Scene
             characters={characters}
-            venue={stageFor(scene.set || scene.place, scene.dateVenue)}
+            venue={stage.venue}
+            setUrl={stage.setUrl}
             lineA={lastOf(shown, "a")}
             lineB={lastOf(shown, "b")}
             actLabel={STAGES[scene.stage] ?? null}
