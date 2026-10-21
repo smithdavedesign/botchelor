@@ -24,7 +24,8 @@
  *   --cases id,id          a subset of the suite's cases (default: all)
  *   --repeat N             samples per case, 1 to 5 (default 1)
  *   --steps N              After Dark scene steps per sample, 1 to 8 (default 4); direction[i] steers step i+1
- *   --memory live|none     After Dark memory for both configs unless a config sets its own (default live)
+ *   --memory live|none|extracted  After Dark memory for both configs unless a config sets its own (default live);
+ *                          extracted runs the fact extractor in memory over the pair's stored chapters (nothing saved)
  *   --judge-model alias    a LOCAL LiteLLM alias (default local-uncensored for After Dark, local-qwen3 for dates)
  *   --judge-base url       LiteLLM's OpenAI-compatible base (default http://127.0.0.1:4000/v1); key from
  *                          $LITELLM_MASTER_KEY or the keychain's litellm-master-key, never printed
@@ -53,6 +54,8 @@ import { createLocalJudge, litellmKey, LocalJudgeError } from "./local-judge.mjs
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const CASES_FILE = join(ROOT, "scripts", "eval", "golden-cases.json");
 export const AD_ROUTE = "/api/jobs/eval-after-dark";
+/** The route's memory modes: real memories and facts, none, or facts extracted in memory from the pair's stored chapters. */
+export const AD_MEMORY = ["live", "none", "extracted"];
 export const DATES_ROUTE = "/api/jobs/eval";
 /** A scene step on the After Dark route's model is about $0.001 (docs/after-dark-costs.md): budgeted at three times that. */
 export const AD_STEP_USD = 0.003;
@@ -550,7 +553,12 @@ async function callAfterDark({ base, secret, kase, config, opts, fetchImpl, slee
     memory: l?.memory ?? null,
     stage: num(l?.stage),
   }));
-  if (!lines.length) throw new Error("the route wrote no lines");
+  if (!lines.length) {
+    // Say why (2026-10-21: twelve runs read "no lines" when OpenRouter's credit had run out: HTTP 402 on every step).
+    const stepError = (Array.isArray(out?.steps) ? out.steps : []).map((s) => s?.error).find(Boolean);
+    const why = [stepError, out?.stopped, ...(Array.isArray(out?.extraction_errors) ? out.extraction_errors : [])].filter(Boolean)[0];
+    throw new Error(`the route wrote no lines${why ? `: ${String(why).slice(0, 200)}` : ""}`);
+  }
   const rawMetrics = out?.metrics && typeof out.metrics === "object" ? out.metrics : {};
   const extra = {};
   if (!("refusals" in rawMetrics) && out?.refusals !== undefined) extra.refusals = out.refusals;
@@ -679,7 +687,7 @@ export function parseConfig(text, name = "config") {
   if (cfg.promptVersion !== undefined && !/^v\d+$/.test(String(cfg.promptVersion))) throw new Error(`--${name}: promptVersion is v1, v2, …`);
   if (cfg.model !== undefined && (typeof cfg.model !== "string" || !cfg.model.trim() || cfg.model.length > 120)) throw new Error(`--${name}: model is a model name`);
   if (cfg.temperature !== undefined && !(num(cfg.temperature) !== null && cfg.temperature >= 0 && cfg.temperature <= 2)) throw new Error(`--${name}: temperature is 0 to 2`);
-  if (cfg.memory !== undefined && !["live", "none"].includes(cfg.memory)) throw new Error(`--${name}: memory is live or none`);
+  if (cfg.memory !== undefined && !AD_MEMORY.includes(cfg.memory)) throw new Error(`--${name}: memory is live, none or extracted`);
   return cfg;
 }
 
@@ -758,7 +766,7 @@ export function parseArgs(argv) {
   };
   if (opts.repeat === null) throw new Error("--repeat is 1 to 5");
   if (opts.steps === null) throw new Error("--steps is 1 to 8");
-  if (!["live", "none"].includes(opts.memory)) throw new Error("--memory is live or none");
+  if (!AD_MEMORY.includes(opts.memory)) throw new Error("--memory is live, none or extracted");
   if (!(opts.maxUsd >= 0)) throw new Error("--max-usd is a number of dollars");
   if (!(opts.stepUsd >= 0)) throw new Error("--step-usd is a number of dollars");
   if (!(opts.gap >= 0)) throw new Error("--gap is a number of seconds");

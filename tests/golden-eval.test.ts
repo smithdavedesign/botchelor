@@ -257,6 +257,9 @@ describe("options", () => {
     expect(() => parseConfig('{"prompt":"v2"}', "a")).toThrow(/unknown key prompt/);
     expect(() => parseConfig("temperature=7", "b")).toThrow(/temperature is 0 to 2/);
     expect(() => parseConfig("promptVersion=two", "b")).toThrow(/promptVersion/);
+    // The route's third memory mode: facts extracted in memory from the pair's stored chapters (nothing saved).
+    expect(parseConfig('{"promptVersion":"v2","memory":"extracted"}', "b")).toMatchObject({ memory: "extracted" });
+    expect(() => parseConfig('{"memory":"some"}', "b")).toThrow(/live, none or extracted/);
   });
 
   it("the committed golden set: the four After Dark pairs, each with a scripted steer, and the date eval's cases", () => {
