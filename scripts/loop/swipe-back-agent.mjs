@@ -78,7 +78,8 @@ async function tick() {
       const other = m.with?.id;
       if (!other) continue;
       const thread = await tool("read_texts", { character_id: me.id, with: other }).catch(() => ({ items: [] }));
-      const said = (thread.items ?? []).filter((i) => typeof i.text === "string");
+      // Texts only: date and event markers carry text too (MCP 2.4.3, from: "show").
+      const said = (thread.items ?? []).filter((i) => typeof i.text === "string" && i.from !== "show");
       const texts = JSON.stringify(said.slice(-12));
       const lastItem = said.at(-1);
       const last = lastItem ? `${lastItem.id}` : null;

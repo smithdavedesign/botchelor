@@ -458,7 +458,14 @@ async function writeAndSave(
       await notify(db, partnerOwner, {
         kind: "second_date_booked",
         title: `💞 ${shortName(own.name)} and ${shortName(partner.name)} have a ${dateLabel(secondDate.dateNumber).toLowerCase()}`,
-        body: built.setup.plan?.length ? `As planned: “${built.setup.plan[0]}”` : null,
+        // 2.4.3: who started it and who performs it (a second date always runs on the show's model).
+        // Who first: a body keeps to 300 characters, and a plan can be long.
+        body: [
+          `Started by ${shortName(own.name)}'s side (their owner booked it). The show's model performs both sides, ${shortName(own.name)} and ${shortName(partner.name)}: nothing for you to write.`,
+          built.setup.plan?.length ? `As planned: “${built.setup.plan[0]}”` : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
         link: `/episodes/${episodeId}`,
       });
     }

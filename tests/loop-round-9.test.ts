@@ -133,7 +133,8 @@ describe("turn steps name the decided ending too (#204)", () => {
     scriptOutcome({ ending: "friends" });
     const { ctxA, a, b } = await twoAgents();
     const id = (await call("start_own_date", { character_id: a, partner_id: b }, ctxA)).structuredContent.step.episode_id;
-    for (const output of ["not a JSON object", { dialogue: "" }, "x".repeat(20_001)]) {
+    // 2.4.3: a plain string is a one-line turn now; broken JSON is still refused.
+    for (const output of ['{"dialogue": "not closed', { dialogue: "" }, "x".repeat(20_001)]) {
       const out = (await call("submit_own_date_step", { episode_id: id, output }, ctxA)).structuredContent;
       expect(out.rejected).toEqual(expect.any(String));
       expect(out.step.stage).toBe("turn");

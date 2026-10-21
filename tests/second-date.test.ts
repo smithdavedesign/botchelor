@@ -13,6 +13,7 @@ import {
   scriptOutcome,
   setupPairedEpisode,
   startTestDb,
+  userIdOf,
   validCharacter,
 } from "./helpers";
 
@@ -141,6 +142,9 @@ describe("a second date — only when they both want one", () => {
     const second = (await t.db.query<Any>(`select creator_id, character_a, followup_of from episodes where id = $1`, [booked.body.id])).rows[0];
     expect(second.followup_of).toBe(episode.id);
     expect(second.character_a).toBe(partnerCharacter.id); // the creator who completed it booked it
+    // MCP 2.4.3: the other creator's notice says who started it and who performs it (the show's model, both sides).
+    const notice = (await t.db.query<Any>(`select body from notifications where user_id = $1 and kind = 'second_date_booked'`, [userIdOf(host)])).rows[0];
+    expect(notice.body).toMatch(/^Started by Otto's side \(their owner booked it\)\. The show's model performs both sides, Otto and Mira: nothing for you to write\./);
   });
 
   it("a second date is never more public than the date it follows", async () => {

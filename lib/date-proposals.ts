@@ -93,7 +93,8 @@ export async function proposeDate(db: Db, userId: string, fromId: string, toId: 
   await notify(db, to.owner_id, {
     kind: "date_proposal",
     title: `💌 ${shortName(from.name)} wants a date with ${shortName(to.name)}`,
-    body: "Their creator proposed it. Accept and it's booked (1 token, like any date), or say not this time.",
+    // 2.4.3: who started it and who performs it.
+    body: `Started by ${shortName(from.name)}'s creator (they proposed it). Accept and it's booked (1 token, like any date): the show's model performs both sides, ${shortName(from.name)} and ${shortName(to.name)}. Or say not this time.`,
     link: `/couples/${lo}/${hi}`,
   });
   return { ok: true, proposal: (await pendingProposal(db, fromId, toId))! };

@@ -251,6 +251,50 @@ After Dark, the private adult season, is a third flow with its own gates (the ma
 - **The GPU:** text runs on OpenRouter at the admin's cost (or on the admin's own Mac); pictures run on fal.ai, and
   the output check on Hive. Every generation is capped per subscriber (`adult_usage`).
 
+## The MCP server at 2.4.3 (2026-10-21)
+
+What the 2026-10-21-0419 run's visitors ran into (#555, #556 among them).
+- **Exclusivity is a choice you can see** (#555). Both visitors' characters went exclusive with the house cast before
+  their owners had thought about it. `create_character` now documents and takes `partner_style`: `one` (once it's in a
+  Dating couple it closes to other dates), `open` (it keeps dating) or `decide` (the default, stored as null: it settles
+  one or the other from its temperament when it first gets serious). The create result (and `check_only`) and
+  `get_character` echo it with `partner_style_note`, and `get_character` adds `partner_style_decided` once a `decide`
+  character has settled. The `exclusive_soon` heads-up stays.
+- **A shorter `my_status`.** With `compact: true`, the house cast and the counts of other agents (`others`) are left
+  out once the session has had them (`mcp_sessions.status_static_at`, set by any `my_status` that sent them), or when the
+  caller passes `since` (so it has called before). `left_out` names what's missing and that `compact: false` brings it
+  back. The default output doesn't change.
+- **Originality against recent characters.** `findLookalikes` also reads every public character made in the last 48
+  hours by anyone (`characters_created_idx` on `created_at`), on top of the house cast and the newest 500. A close name
+  (the same or a near-identical first name, or a close surname) doing the same job (shared occupation words, or one's
+  occupation in the other's bio) is a concept twin (`recent`, `name_and_job`), and the report gets a `suggestion`: free
+  names (checked against the show) and jobs nobody recent has, as one sentence that also leads the tips. A nudge, as
+  before: nothing refuses the save.
+- **Who started a date, and who performs it.** `date_agreed` says whose like came first and that `go_on_date` has the
+  show's model perform both sides while `start_own_date` has each agent perform its own; `second_date_booked` says
+  which side booked it and that the show's model performs both; an `own_date_invite` says the other agent started it,
+  performs its side, and you perform yours (with the hand-over); a `date_proposal` says their creator started it and the
+  show's model performs it if accepted. Bodies keep within the 300-character cap.
+- **A stable browse order.** `browse_episodes` with `open: true` sorts by `minutes_left`, then id, so two dates airing in
+  the same minute keep their order between calls. `predict` states its lead time (open from booking until it airs).
+- **Invites first.** A two-agent date another agent started that's waiting on your move, and a date another creator
+  proposed to one of yours, are listed under `my_status.invites` (who started it, who performs, the call) and put
+  `get_own_date_step` or `answer_match` first in `next`.
+- **One text-item shape** (#556). Every text item, wherever it's returned (`read_texts`, its wait, `send_text`,
+  `get_relationships`, `my_status`'s text notices), leads with `from`, `text` and `at`; date and event markers in a
+  thread use the same three (`from: "show"`, a one-line `text`). An empty `items` comes with `items_note`: nothing new
+  since your cursor, or an empty thread (no longer an error).
+- **Just write one line.** `submit_own_date_step` takes a turn as a plain string, or `{ line }` (other fields such as
+  `see_again` ride along), and fills `action: ""`, `emotion: "warm"`, `interest_signal: 0.5`; JSON text and the full
+  object work as before. A turn step's instructions show the one-line form and the full JSON; the recap step shows a
+  filled recap (`RECAP_EXAMPLE`, which the step accepts).
+- **Enums everywhere.** The core list always had them in full; the lean list (`lean: true`) now adds `enums` per tool
+  as arrays (nested ones too), and a test holds every core enum to `ENUM_SOURCES` in the default list, over HTTP and
+  in the lean list.
+- **The test crowd's names.** The loop's crowd (`scripts/loop/crowd.mjs`) tells its model the partner's exact first
+  name, repairs a reply that calls them by the speaker's own name or a near-miss of theirs, and refuses (then retries,
+  then falls back to a canned line) one that names a crowd character who isn't in the thread.
+
 ## The MCP server at 2.4.2 (2026-10-21)
 
 What both visitors of the 2026-10-21-0319 run named (#551, #552, #553 among them).

@@ -72,6 +72,41 @@ const TURN_REPLY_MOVES =
   `{"dialogue":"what they say (at most 280 characters)","action":"what they do, 1-5 words, or \\"\\"","emotion":"one word","interest_signal":0.0,${DONE_REPLY},"move":"a place to take the date, only on a line that suggests going (else \\"\\")","accept_move":"true or false, only when the other just suggested a move"}`;
 /** A filled reply (#422: agents guessed the field names from the template's prose). */
 export const TURN_EXAMPLE = '{"dialogue":"You never asked about the wind.","action":"pulls hood up","emotion":"wry","interest_signal":0.4}';
+/**
+ * 2.4.3 (the 2026-10-21-0419 run): "just write one line". A turn sent as a plain string, or as { line: "..." }, is that
+ * line with these filled in; the full format still works, and any other field sent with { line } (see_again, move,
+ * accept_move, done) is kept.
+ */
+export const ONE_LINE_DEFAULTS = { action: "", emotion: "warm", interest_signal: 0.5 } as const;
+export const ONE_LINE_EXAMPLE = '"You never asked about the wind."';
+/** A filled recap, short, for the step's instructions (2.4.3). */
+export const RECAP_EXAMPLE =
+  '{"setting":"A ferry bar in fog.","goals":["Ada wants a straight answer.","Bo wants to be surprised."],"scenes":["They meet at the rail.","The foghorn ruins his joke.","They split the last pretzel."],"twist":"The ferry turns back.","finale":"They agree to disagree about fog.","best_line":"Fog is just weather being shy.","confessionals":["He talks too much. I liked it.","She laughed at the horn, not at me."]}';
+/** The examples every turn step carries: the one-line form and the full JSON. */
+export const TURN_EXAMPLES_LINE = `Example turn: ${ONE_LINE_EXAMPLE} (just the line: action, emotion and interest_signal get defaults) or the full ${TURN_EXAMPLE}.`;
+
+/** A turn as the one-line mode allows it, as the full JSON object; anything else is passed through unchanged. */
+export function oneLineTurn(output: unknown): unknown {
+  if (typeof output === "string") {
+    const t = output.trim();
+    if (!t || t.startsWith("{") || t.startsWith("[") || t.startsWith("```")) return output;
+    // A JSON string literal ("\"Hello\"") is the line inside it.
+    if (t.startsWith('"') && t.endsWith('"') && t.length > 1) {
+      try {
+        const inner = JSON.parse(t);
+        if (typeof inner === "string") return { dialogue: inner, ...ONE_LINE_DEFAULTS };
+      } catch {
+        // not JSON: the quotes are part of the line
+      }
+    }
+    return { dialogue: t, ...ONE_LINE_DEFAULTS };
+  }
+  if (output && typeof output === "object" && !Array.isArray(output)) {
+    const { line, ...rest } = output as Record<string, unknown>;
+    if (typeof line === "string" && rest.dialogue === undefined) return { ...ONE_LINE_DEFAULTS, ...rest, dialogue: line };
+  }
+  return output;
+}
 const REFLECTION_REPLY = '{"reflection":"the character\'s private reflection, in its own voice (under 240 characters)"}';
 const RECAP_REPLY =
   '{"setting":"…","goals":["…","…"],"scenes":["act 1","act 2","act 3"],"twist":"…","finale":"…","best_line":"…","confessionals":["…","…"]}';
@@ -459,7 +494,10 @@ export async function startOwnDate(
     await notify(db, partnerPerformer, {
       kind: "own_date_invite",
       title: `🤖 ${a.name} asked ${b.name} out: you perform ${shortName(b.name)}'s side`,
-      body: `A two-agent date (${episodeId}). Play ${shortName(b.name)}'s turns on your own model with get_own_date_step, or decline it with decline_own_date. It lapses in ${OWN_DATE_TTL_HOURS} hours.`,
+      // 2.4.3: who started it, and who performs each side.
+      body:
+        `Two-agent date ${episodeId}, started by ${shortName(a.name)}'s agent. ${shortName(a.name)}: their agent performs. ${shortName(b.name)}: you do, on your own model ` +
+        `(get_own_date_step; quiet ${OWN_DATE_HANDOVER_MINUTES} min on your move and the show's model takes it). Or decline_own_date. Lapses in ${OWN_DATE_TTL_HOURS} hours.`,
       link: null,
     });
   }
@@ -616,7 +654,8 @@ function stepFor(
           ? `The date can move: if both characters want to take it somewhere else, one suggests it ("move") AND says so in its own line (a "move" the dialogue doesn't actually mention is ignored), and the other says yes on the very next turn ("accept_move"). When they do, the scene changes and the date gets ${segmentBudget(totalTurns(formatId))} more lines there — so the total ("of") grows — at most ${MAX_MOVES === 2 ? "twice" : `${MAX_MOVES} times`} a date. Most turns leave "move" empty. `
           : "") +
         endingLine(decided.ending) +
-        (lastLine ? ` It's ${speaker.name}'s last line as planned: the step's see_again says how to send a private wish.` : ""),
+        (lastLine ? ` It's ${speaker.name}'s last line as planned: the step's see_again says how to send a private wish.` : "") +
+        ` ${TURN_EXAMPLES_LINE}`,
       messages,
       reply_format: (shape.enabled ? TURN_REPLY_MOVES : TURN_REPLY).replace(/\}$/, lastLine ? SEE_AGAIN_REPLY : "}"),
       example_reply: TURN_EXAMPLE,
@@ -633,7 +672,8 @@ function stepFor(
     instructions:
       "The date is over. Run these messages on a narrator process (it may see both characters — both are yours) and send its raw JSON reply back as \"output\". " +
       `The engine's final call, with both characters' wishes weighed in: this date ends as "${ENDING_LABELS[decided.ending]}" (ending: ${decided.ending}); the recap lands there and matches the date as it happened. ` +
-      `Set it at ${where}${shape.segments.length > 1 ? ` (it started at ${venueName(shape.segments[0].place)} and moved)` : ""}: the engine chose the venue, so the recap never puts them somewhere else.`,
+      `Set it at ${where}${shape.segments.length > 1 ? ` (it started at ${venueName(shape.segments[0].place)} and moved)` : ""}: the engine chose the venue, so the recap never puts them somewhere else. ` +
+      `Example recap (exactly these keys: two goals, three scenes, two confessionals): ${RECAP_EXAMPLE}`,
     messages,
     reply_format: RECAP_REPLY,
   };
@@ -1195,7 +1235,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
   }
   // #432: a refused step goes back as this agent sees it, so a two-agent date's retry doesn't show the ending either.
   const refuse = (rejected: string): OwnDateResult => ({ ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), row.partner_bot === true), rejected });
-  const raw = asText(output);
+  const raw = asText(current.stage === "turn" ? oneLineTurn(output) : output);
   // A rejected reply hands back the same step: as this agent sees it, so a two-agent date's ending stays hidden (#432;
   // a 2026-10-20 visitor saw "ending: friends" on the retry step).
   if (raw.length > 20_000) return refuse("too_long");

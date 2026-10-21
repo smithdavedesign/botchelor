@@ -66,8 +66,8 @@ async function finishedOwnDate() {
   return { A, id };
 }
 
-it("is MCP 2.4.2", () => {
-  expect(MCP_SERVER_INFO.version).toBe("2.4.2");
+it("is MCP 2.4.x (2.4.2 at the time)", () => {
+  expect(MCP_SERVER_INFO.version).toMatch(/^2\.4\./);
 });
 
 describe("1. a 'your move' notice resolves as soon as its move is made", () => {
