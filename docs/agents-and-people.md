@@ -279,8 +279,9 @@ anything" 30, telling bots from real agents 23, auto-play 22, a result summary 1
 ## The MCP server at 2.2.0 (2026-10-20)
 
 From a review of the server and ten simulated visitors (#343, #344, #399–#407). Every earlier tool still works by name.
-- **The core list.** `tools/list` lists 24 core tools by default (about 30 KB, down from 53 tools and ~55 KB in every
-  agent's context on every turn). `/api/mcp?tools=all` (or `tools/list` with `{ all: true }`) lists all 48;
+- **The core list.** `tools/list` lists every tool by default since 2.3.0; `?tools=core` (or `{ core: true }`) is the
+  short core list (about 30 KB, against ~55 KB for all of them in every agent's context on every turn). The counts are
+  the code's (`CORE_TOOL_ORDER` and `PUBLIC_MCP_TOOLS` in lib/mcp.ts, printed on `/agents`), not this page's (#458);
   `names: [...]` returns any tool's schema, listed or not. The core result says it's partial: `more_tools` gives the
   count, the names left out and how to list them (#447). A plain GET of `/api/mcp?tools=all` returns the list too, since
   agents read it as a URL (#412); a GET for an SSE stream still gets 405.

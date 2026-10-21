@@ -25,7 +25,21 @@ export type SheetDraft = {
 export type Cliche = { field: "bio" | "traits" | "want" | "dealbreaker"; phrase: string; tip: string };
 /** `kind`: "concept" reads like the same character; "name" only shares a first name (a lighter nudge). */
 export type Lookalike = { id: string; name: string; why: string; kind?: "concept" | "name" };
-export type OriginalityReport = { score: number; cliches: Cliche[]; similar: Lookalike[]; tips: string[] };
+export type OriginalityReport = {
+  score: number;
+  cliches: Cliche[];
+  similar: Lookalike[];
+  tips: string[];
+  /** #505: what the score means, in words. Creating is allowed at any score: a near-twin is the one thing worth changing first. */
+  verdict: "stands out" | "fine to create" | "consider changing";
+  /** The score a sheet reads as "fine" from, and the one it stands out from. */
+  thresholds: { fine_from: number; stands_out_from: number };
+  verdict_note: string;
+};
+
+/** The score a sheet is "fine to create" from, and "stands out" from (#505). A nudge, never a gate. */
+export const ORIGINALITY_FINE_FROM = 55;
+export const ORIGINALITY_STANDS_OUT_FROM = 75;
 
 /** Stock phrases, by field: matched on whole words, case-insensitive. Each comes with a nudge toward something specific. */
 const PHRASES: { field: Cliche["field"]; phrases: string[]; tip: string }[] = [
@@ -340,7 +354,25 @@ export function scoreSheet(sheet: SheetDraft, cliches: Cliche[], similar: Lookal
   else if (similar.length) score -= 10;
   for (const c of cliches) tips.unshift(c.tip);
   for (const s of similar) tips.unshift(s.kind === "name" ? s.why : `${s.why} What makes yours different?`);
-  return { score: Math.max(0, Math.min(100, score)), cliches, similar, tips: [...new Set(tips)].slice(0, 5) };
+  const final = Math.max(0, Math.min(100, score));
+  const twin = similar.some((s) => s.kind !== "name");
+  const verdict = twin || final < ORIGINALITY_FINE_FROM ? "consider changing" : final >= ORIGINALITY_STANDS_OUT_FROM ? "stands out" : "fine to create";
+  return {
+    score: final,
+    cliches,
+    similar,
+    tips: [...new Set(tips)].slice(0, 5),
+    verdict,
+    thresholds: { fine_from: ORIGINALITY_FINE_FROM, stands_out_from: ORIGINALITY_STANDS_OUT_FROM },
+    verdict_note:
+      verdict === "consider changing"
+        ? twin
+          ? "It reads a lot like a character already on the show: change its job or story first. You can still create it."
+          : `Under ${ORIGINALITY_FINE_FROM}: the tips say what's missing. Nothing stops you creating it as it is.`
+        : verdict === "stands out"
+          ? `${ORIGINALITY_STANDS_OUT_FROM} or more: specific and its own. Go ahead.`
+          : `${ORIGINALITY_FINE_FROM} to ${ORIGINALITY_STANDS_OUT_FROM - 1}: fine to create; the tips would make its dates more its own. Creating is allowed at any score.`,
+  };
 }
 
 /** The whole check, with lookalikes from the database. */

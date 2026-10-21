@@ -125,6 +125,11 @@ export type DateSetup = {
    * moves, so an agent's date already being played keeps its length and prompts when this ships.
    */
   moves?: boolean;
+  /**
+   * On a date an agent performs (lib/own-date.ts): the line count at which a side said "done" in the goodbye stretch,
+   * so the date ends there (#491), as the show's model's dates do (lib/conversation.ts).
+   */
+  end_by?: number;
   /** Which date this is in the couple's run (2 for the second date, 3 for the third...). Set when one is booked. */
   date_number?: number;
   /** Each owner's standing nudge about the other, as booked (lib/between-dates.ts). Private, flavour only. */
@@ -255,7 +260,13 @@ export type EpisodeView = EpisodeJson & {
   };
 };
 
-type EpisodeJsonOpts = { full: boolean; showConfessionals: boolean; creators?: CreatorRef[] };
+type EpisodeJsonOpts = {
+  full: boolean;
+  showConfessionals: boolean;
+  creators?: CreatorRef[];
+  /** #469: both characters are the viewer's, so the cue that tripped a dealbreaker can be said (never across owners). */
+  dealbreakers?: [string | null, string | null];
+};
 
 export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): EpisodeJson {
   const [a, b] = ep.characters;
@@ -296,7 +307,16 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     const why = endingWhy(ep.ending, ep.box_score, ep.sides, ep.setup?.strategy, ep.setup?.engine_version, [a.name, b.name]);
     // When the two sides' wishes tipped the ending, the numbers alone don't explain it: say so (never which way a lone wish went).
     const tipped = wishLine(ep.wishes, ep.ending);
-    if (why || tipped) json.why = [why, tipped].filter(Boolean).join(" ");
+    // #469: on a date between a viewer's own two characters, which cue tripped which dealbreaker (the debrief the
+    // engine keeps for exactly this); never shown when another owner's character is on the date.
+    const cues = opts.dealbreakers && ep.sides
+      ? ep.sides.flatMap((s, i) =>
+          s.dealbreaker_hit && opts.dealbreakers![i]
+            ? [`${[a, b][i].name}'s dealbreaker "${opts.dealbreakers![i]}" was tripped by ${[a, b][1 - i].name}'s "${s.dealbreaker_hit}".`]
+            : [],
+        )
+      : [];
+    if (why || tipped || cues.length) json.why = [why, tipped, ...cues].filter(Boolean).join(" ");
     // Run 2 asked why attraction reset on a second date while chemistry carried over: it's by design, so say so.
     if (ep.box_score && ep.setup?.followup_of) {
       json.box_score_note = "Chemistry and trust carry over from their last date; attraction and awkwardness start fresh each date.";
@@ -354,6 +374,8 @@ type EpisodeRow = {
   b_agent: boolean;
   is_creator: boolean;
   is_host: boolean;
+  /** Both characters are the viewer's (#469). */
+  owns_both: boolean;
   visibility: "public" | "private" | "unlisted";
   my_side: 0 | 1 | null;
   hidden: boolean;
@@ -381,6 +403,7 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
        b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait, b.created_via = 'mcp' as b_agent,
        coalesce($1::text in (a.owner_id, b.owner_id), false) as is_creator,
        coalesce(e.creator_id = $1::text, false) as is_host,
+       coalesce($1::text = a.owner_id and $1::text = b.owner_id, false) as owns_both,
        e.visibility,
        case when a.owner_id = $1::text then 0 when b.owner_id = $1::text then 1 else null end as my_side,
        rep.n >= $2::int as hidden,
@@ -453,7 +476,12 @@ function toView(row: EpisodeRow): EpisodeView {
       status: row.status,
       wishes: row.wishes,
     },
-    { full, showConfessionals: row.is_creator || (row.revealed && row.confessionals_shared), creators },
+    {
+      full,
+      showConfessionals: row.is_creator || (row.revealed && row.confessionals_shared),
+      creators,
+      ...(row.owns_both ? { dealbreakers: [row.setup?.sheet_a?.dealbreaker ?? null, row.setup?.sheet_b?.dealbreaker ?? null] } : {}),
+    },
   );
   const view: EpisodeView = {
     ...episode,

@@ -72,7 +72,8 @@ describe("the tool list: everything by default, the core on request", () => {
     // 2026-10-20: 53 tools were ~55 KB (~14k tokens) in every agent's context on every turn. The core stays well under that.
     // 2026-10-20 (20 visitor runs: "hidden tools" was the most common deduction): autoplay, my_dates, plan_second_date
     // and sliding_doors joined the core, so the budget moved from 31 KB to 37 KB. Still well under the full list.
-    expect(JSON.stringify(core).length).toBeLessThan(37_000);
+    // 2026-10-21: 36.5 KB → 38 KB with previews, waits, batch steps and filters (#413–#515); still well under the full list.
+    expect(JSON.stringify(core).length).toBeLessThan(39_000);
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.65);
     expect((await rpc("tools/list", { all: true })).result.tools).toHaveLength(PUBLIC_MCP_TOOLS.length);
     expect((await rpc("tools/list", { lean: true, core: true })).result.tools).toHaveLength(CORE_MCP_TOOLS.length);
