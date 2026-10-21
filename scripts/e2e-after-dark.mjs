@@ -136,6 +136,31 @@ async function main() {
       }
     });
 
+    await step("in the theater, the admin steers with Direct, and the steer goes as direct (desktop and phone)", async () => {
+      const ctx = await adultContext();
+      try {
+        await register(ctx, `admin3${Date.now() % 1e6}`);
+        await ctx.request.post(`${base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } });
+        for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+          const page = await ctx.newPage();
+          await page.setViewportSize(viewport);
+          await page.goto(`${base}${scenePath}?play=1`);
+          const bar = page.locator(".ad-theater-bar");
+          await bar.getByRole("radio", { name: "Direct" }).check();
+          await bar.getByRole("textbox", { name: "Steer it (optional)" }).fill("they kiss in the doorway");
+          await page.locator(".theater").getByRole("button", { name: "⏭" }).click().catch(() => {});
+          const sent = page.waitForRequest((r) => r.url().endsWith("/api/admin/after-dark") && r.method() === "POST");
+          await bar.getByRole("button", { name: "Next" }).click();
+          const body = JSON.parse((await sent).postData() ?? "{}");
+          assert(body.steer_mode === "direct" && body.direction === "they kiss in the doorway", `the theater's steer should go as direct (sent ${JSON.stringify(body)})`);
+          if (process.env.SHOTS_DIR) await page.screenshot({ path: join(process.env.SHOTS_DIR, `after-dark-theater-steer-${viewport.width}.png`) });
+          await page.close();
+        }
+      } finally {
+        await ctx.close();
+      }
+    });
+
     await step("nothing of the scene reaches the show: the feed, the cast pages and the home page", async () => {
       for (const path of ["/", "/watch", "/characters", "/api/feed"]) {
         const body = await (await fetch(`${base}${path}`, { headers: { cookie: "bz_adult=1" } })).text();

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import JsonLd from "@/app/JsonLd";
 import { breadcrumbJsonLd } from "@/lib/seo";
+import { episodeCardPath, SHARE_QUESTION, shareDescription, shareTitle } from "@/lib/episode-share";
 import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
 import { getDb } from "@/lib/db";
@@ -38,25 +39,44 @@ export const dynamic = "force-dynamic";
 
 const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
 
-const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
-
 /**
  * Each episode gets its own title and summary for search and link previews, from the public view only (no
  * spoilers: the setting is the teaser). Only public, unhidden episodes are indexable; unlisted, private and
  * hidden ones tell crawlers to stay out.
+ *
+ * The link preview is the share card (/api/og/episode/<id>): a "How does it end?" poll, as a large Twitter card.
+ * Setting openGraph.images here is what puts it ahead of ./opengraph-image (the box score card, still served).
  */
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const episode = await getEpisodeView(await getDb(), id, null);
   if (!episode || episode.hidden) return { title: "Episode · Botchelor", robots: { index: false, follow: false } };
   const [a, b] = episode.characters;
+  const names: [string, string] = [a.name, b.name];
   const indexable = episode.visibility === "public";
+  const description = shareDescription(names, episode.setting, episode.revealed);
+  const card = { url: episodeCardPath(id), width: 1200, height: 630, alt: `${a.name} × ${b.name}: ${SHARE_QUESTION} A poll with three answers.` };
   return {
     title: `${a.name} × ${b.name}: an AI blind date · Botchelor`,
-    description: clip(`${a.name} meets ${b.name}. ${episode.setting} Watch the date and guess how it ends.`, 200),
+    description,
     alternates: { canonical: `/episodes/${id}` },
     robots: indexable ? { index: true, follow: true } : { index: false, follow: false },
+    // The root layout's openGraph and twitter are replaced, not merged, so the site's own fields are repeated here.
+    openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: `/episodes/${id}`, title: shareTitle(names), description, images: [card] },
+    twitter: { card: "summary_large_image", title: shareTitle(names), description, images: [{ url: card.url, alt: card.alt }] },
   };
+}
+
+/** The way in for anyone who isn't one of this date's creators, most often someone who followed a shared link. */
+function MakeYourOwn() {
+  return (
+    <p className="make-your-own">
+      <Link className="button" href="/create">
+        Make your own character
+      </Link>
+      <span className="muted">Send your OC on a blind date like this one. Free to start, no sign-up.</span>
+    </p>
+  );
 }
 
 export default async function EpisodePage({
@@ -132,6 +152,7 @@ export default async function EpisodePage({
               : "🎭 Its creator's own AI is performing this date, one line at a time. The ending is already decided."}
           </p>
         )}
+        {!episode.is_creator && <MakeYourOwn />}
         <GeneratingPoller
           episodeId={episode.id}
           stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null, canSetScene: !selfPerformed } : undefined}
@@ -180,6 +201,8 @@ export default async function EpisodePage({
       <h1>
         {a.name} × {b.name}
       </h1>
+      {/* Straight under the title, ahead of the badges, so it stays on a phone's first screen however many there are. */}
+      {!episode.is_creator && <MakeYourOwn />}
       <p className="muted">
         {a.name}
         {a.house && <span className="badge">House character</span>}
@@ -400,6 +423,7 @@ export default async function EpisodePage({
       <EpisodeActions
         episodeId={episode.id}
         sharePath={episode.share_path}
+        shareBase={base}
         isCreator={episode.is_creator}
         isHost={episode.is_host}
         revealed={episode.revealed}
