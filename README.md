@@ -2,10 +2,40 @@
 
 ## Screenshots
 
-The free OC ship name generator (2026-10-20): two names in, ship names out, on a link anyone can share that ends one
-click from `/create`. Captured from the production build by `npm run screenshots:ship`, with every model variable
-unset and sample names only; the same run checks the 200, the sitemap entry, the redirect and that a reload shows the
-same names. Code: [`lib/ship-names.ts`](lib/ship-names.ts), [`app/tools/ship-name-generator`](app/tools/ship-name-generator/page.tsx),
+The episode share card (2026-10-21): a shared episode link unfurls as a "How does it end?" poll, and every share link
+carries `?ref=share`, so RepoHQ's beacon counts those visits apart from "direct". Captured from the production build by
+`npm run screenshots:share`, with the stand-in showrunner and sample characters only. The same run checks over HTTP
+that the card is a 1200×630 PNG (and a 404 for an unknown id), that the page's tags (og:image, twitter:card, a
+no-spoiler og:description) reach Reddit's, Discord's and Bluesky's fetchers in `<head>`, and that the 18+ gate keeps
+`?ref=share`. Code: [`app/api/og/episode/[id]/route.tsx`](app/api/og/episode/%5Bid%5D/route.tsx),
+[`lib/episode-share.ts`](lib/episode-share.ts), [`EpisodeShare.tsx`](app/episodes/%5Bid%5D/EpisodeShare.tsx). Why and
+how it's measured: [GROWTH.md](GROWTH.md).
+
+![The share card for Mira Quell × Rafe Calloway: "How does it end?" with A second date, Just friends and A disaster as poll options](docs/screenshots/share-card.png)
+`/api/og/episode/<id>`, the image the episode's og:image points at: the two characters, where they met and the poll,
+never the ending or a creator. (A local run, so the corner shows the local address; on the site it says botchelor.com.)
+
+![An episode opened from a shared link on desktop, with "Make your own character" right under the title](docs/screenshots/share-episode-desktop.png)
+A logged-out visitor opening the shared link (`?ref=share`) gets "Make your own character" in the first screen.
+
+![The same episode on a phone: the AI disclosure, the matchup, the title and the button, all in the first screen](docs/screenshots/share-episode-mobile.png)
+On an iPhone 13 the button still makes the first screen, under the AI disclosure. The run checks it there with long names too.
+
+![The prediction poll on desktop, then Copy link, Share on Reddit and Share on Bluesky](docs/screenshots/share-links-desktop.png)
+Under the poll: Copy link, Share on Reddit and Share on Bluesky, each with `?ref=share` (the run reads every one).
+
+![The poll and the share links on a phone](docs/screenshots/share-links-mobile.png)
+The share links on a phone.
+
+![The character builder on a phone, opened from the episode's "Make your own character"](docs/screenshots/share-create-mobile.png)
+"Make your own character" opens the builder at `/create`.
+
+## A free OC ship name generator (2026-10-20)
+
+Two names in, ship names out, on a link anyone can share that ends one click from `/create`. Captured from the
+production build by `npm run screenshots:ship`, with every model variable unset and sample names only; the same run
+checks the 200, the sitemap entry, the redirect and that a reload shows the same names. Code:
+[`lib/ship-names.ts`](lib/ship-names.ts), [`app/tools/ship-name-generator`](app/tools/ship-name-generator/page.tsx),
 [`app/ship`](app/ship/%5Ba%5D/%5Bb%5D/page.tsx). Why and how it's measured: [GROWTH.md](GROWTH.md).
 
 ![The ship name generator on desktop: the "OC Ship Name Generator" heading and two name inputs, with Juniper and Dex typed in](docs/screenshots/ship-tool-desktop.png)

@@ -107,6 +107,8 @@ export default function SceneWriter({
           busy={busy}
           note={note?.text ?? null}
           onWrite={(d) => send(d ? { direction: d, steer_mode: steerMode } : {})}
+          steerMode={steerMode}
+          onSteerMode={setSteerMode}
           onSetScene={(place) => send({ set_scene: place })}
           onMakeVideo={() => makeVideo()}
           videoTokens={reelTokens}
