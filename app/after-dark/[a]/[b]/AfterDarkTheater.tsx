@@ -32,6 +32,18 @@ export function stageFor(place: string | null, dateVenue: string | null): PlaceI
   return `elsewhere@${place.slice(0, PLACE_LABEL_MAX)}` as PlaceId;
 }
 
+/**
+ * The label over the stage: how far it had gone at the line on screen (each line keeps its stage), so a replay climbs
+ * with the night instead of showing its end from the first hello. A line from before lines kept one shows nothing until
+ * playback catches up with the latest, and a new chapter with no lines yet says which chapter it is.
+ */
+export function stageLabel(scene: { lines: SceneLine[]; stage: number; chapter?: number }, shown: number, caughtUp: boolean): string | null {
+  if (!scene.lines.length) return scene.chapter && scene.chapter > 1 ? `Chapter ${scene.chapter}` : (STAGES[0] ?? null);
+  const at = scene.lines[Math.max(0, shown - 1)]?.stage;
+  if (typeof at === "number") return STAGES[at] ?? null;
+  return caughtUp ? (STAGES[scene.stage] ?? null) : null;
+}
+
 const TIME_WORDS: ReadonlySet<string> = new Set(["night", "nights", "evening", "morning", "midnight", "after", "late", "dusk", "sunset", "golden", "hour"]);
 
 const lastOf = (turns: Turn[], side: "a" | "b") => {
@@ -59,7 +71,7 @@ export default function AfterDarkTheater({
   videoNote = null,
   onExit,
 }: {
-  scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null; set?: string | null };
+  scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null; set?: string | null; chapter?: number };
   characters: [CharacterRef, CharacterRef];
   busy?: boolean;
   note?: string | null;
@@ -89,6 +101,7 @@ export default function AfterDarkTheater({
   const [a, b] = characters;
   const caughtUp = shown.length >= turns.length;
   const latestAction = shown.length ? shown[shown.length - 1].action : "";
+  const label = stageLabel(scene, shown.length, caughtUp);
   // The set: preloaded, so the last ready one stays up until the next has loaded (never the placeholder in between).
   const stage = useSteadySet(stageFor(scene.set || scene.place, scene.dateVenue));
 
@@ -116,7 +129,7 @@ export default function AfterDarkTheater({
             setUrl={stage.setUrl}
             lineA={lastOf(shown, "a")}
             lineB={lastOf(shown, "b")}
-            actLabel={STAGES[scene.stage] ?? null}
+            actLabel={label}
             placeholder={scene.lines.length ? "…" : "Press Next to begin."}
           />
           {latestAction && <p className="ad-theater-action">{latestAction}</p>}
