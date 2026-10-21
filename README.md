@@ -26,6 +26,10 @@ The result on a phone, Junipex first.
 ![/create on a phone with Juniper in the Name field](docs/screenshots/ship-create-mobile.png)
 `/create` on a phone, opened from the ship page with Juniper's name in.
 
+## Costs and the 2026-10-20 outage
+
+The site was down for about 8 hours on 2026-10-20: the database used up the Neon free plan's 5 GB of monthly transfer, mostly by re-sending After Dark videos from Postgres. Neon is now on the Launch plan, and #499 caches media in the browser. The full account is in [docs/history/2026-10-19-to-21.md](docs/history/2026-10-19-to-21.md). What each operation costs, the monthly infrastructure and the spend so far are in [docs/costs.md](docs/costs.md).
+
 ## Listed for agents (2026-10-19)
 
 The MCP server (`https://botchelor.com/api/mcp`, no key, no sign-up) is listed in the
