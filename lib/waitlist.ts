@@ -1,6 +1,6 @@
 import type { Db } from "./db";
 
-/** The landing-page waitlist for Season 1 (M3). */
+/** The waitlist (M3): once the home page's Season 1 signup, now After Dark's (tagged after-dark). Nothing is sent from the app. */
 export const EMAIL_MAX = 254;
 export const COMMUNITY_MAX = 80;
 export const REF_MAX = 40;
