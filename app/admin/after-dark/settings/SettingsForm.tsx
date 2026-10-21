@@ -4,9 +4,20 @@ import { useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
 import type { AdultSettings } from "@/lib/adult/settings";
 
+/** A number field's value: a number, or null when it's empty (the setting's default, or none). */
+const numberOrNull = (v: string): number | null => (v.trim() === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+
 /** The switch, the models and the provider keys. A key field left empty keeps the saved key. */
 export default function SettingsForm({ initial }: { initial: AdultSettings }) {
   const [s, setS] = useState(initial);
+  // The sampling fields as typed, so one can be emptied (back to its default) and retyped.
+  const samplingOf = (x: AdultSettings) => ({
+    temperature: String(x.text_temperature),
+    frequency: String(x.frequency_penalty),
+    presence: String(x.presence_penalty),
+    repetition: x.repetition_penalty === null ? "" : String(x.repetition_penalty),
+  });
+  const [sampling, setSampling] = useState(() => samplingOf(initial));
   const [orKey, setOrKey] = useState("");
   const [falKey, setFalKey] = useState("");
   const [hiveKey, setHiveKey] = useState("");
@@ -21,6 +32,7 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
     setBusy(false);
     if (!res?.ok) return setNote({ text: res?.message ?? "Couldn't save that.", error: true });
     setS(res.data.settings as AdultSettings);
+    setSampling(samplingOf(res.data.settings as AdultSettings));
     setOrKey("");
     setFalKey("");
     setHiveKey("");
@@ -32,6 +44,12 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
     e.preventDefault();
     void save({
       text_model: s.text_model,
+      // Empty is null: the default (or, for the repetition penalty, none).
+      text_temperature: numberOrNull(sampling.temperature),
+      frequency_penalty: numberOrNull(sampling.frequency),
+      presence_penalty: numberOrNull(sampling.presence),
+      repetition_penalty: numberOrNull(sampling.repetition),
+      prompt_version: s.prompt_version,
       image_model: s.image_model,
       image_base: s.image_base,
       video_model: s.video_model,
@@ -61,6 +79,23 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       <input id="ad-or-key" type="password" autoComplete="off" value={orKey} onChange={(e) => setOrKey(e.target.value)} placeholder="sk-or-…" />
       <label htmlFor="ad-text-model">Model</label>
       <input id="ad-text-model" value={s.text_model} onChange={(e) => setS({ ...s, text_model: e.target.value })} />
+      <p className="muted small">
+        How the scene writer samples. The penalties only see the reply being written, so they thin out a word said three times in one go; empty
+        puts a field back to its default.
+      </p>
+      <label htmlFor="ad-temperature">Temperature (0 to 2; 0.8 by default)</label>
+      <input id="ad-temperature" type="number" min={0} max={2} step={0.05} value={sampling.temperature} onChange={(e) => setSampling({ ...sampling, temperature: e.target.value })} />
+      <label htmlFor="ad-frequency-penalty">Frequency penalty (-2 to 2; 0.3 by default)</label>
+      <input id="ad-frequency-penalty" type="number" min={-2} max={2} step={0.05} value={sampling.frequency} onChange={(e) => setSampling({ ...sampling, frequency: e.target.value })} />
+      <label htmlFor="ad-presence-penalty">Presence penalty (-2 to 2; 0.3 by default)</label>
+      <input id="ad-presence-penalty" type="number" min={-2} max={2} step={0.05} value={sampling.presence} onChange={(e) => setSampling({ ...sampling, presence: e.target.value })} />
+      <label htmlFor="ad-repetition-penalty">Repetition penalty (open models only; 1 is off, empty sends none)</label>
+      <input id="ad-repetition-penalty" type="number" min={0} max={2} step={0.05} value={sampling.repetition} onChange={(e) => setSampling({ ...sampling, repetition: e.target.value })} />
+      <label htmlFor="ad-prompt-version">Scene prompt</label>
+      <select id="ad-prompt-version" value={s.prompt_version} onChange={(e) => setS({ ...s, prompt_version: e.target.value === "v1" ? "v1" : "v2" })}>
+        <option value="v2">v2: their own voice, and the facts they remember</option>
+        <option value="v1">v1: the prompt before 2026-10-21</option>
+      </select>
       <h3>Pictures and clips: fal.ai</h3>
       <label htmlFor="ad-fal-key">fal.ai key {s.fal_last4 && <span className="muted small">saved, ends …{s.fal_last4}</span>}</label>
       <input id="ad-fal-key" type="password" autoComplete="off" value={falKey} onChange={(e) => setFalKey(e.target.value)} placeholder="key id:secret" />

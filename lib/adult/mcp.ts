@@ -108,7 +108,7 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
     }
     case "after_dark_write": {
       const r = await continueScene(db, owner, a, b, typeof args.direction === "string" ? args.direction : null, args.steer_mode === "direct" ? "direct" : "nudge");
-      return r.ok ? { data: { scene: r.scene, added: r.added, held: r.held, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}) } } : { error: r.message };
+      return r.ok ? { data: { scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}) } } : { error: r.message };
     }
     case "after_dark_switch": {
       const ok = await setAdultSwitch(db, owner, String(args.character_id ?? ""), args.on === true);

@@ -1300,6 +1300,30 @@ create table if not exists sim_ratings (
   posted_at timestamptz not null default now()
 );
 create index if not exists sim_ratings_at_idx on sim_ratings (at desc);
+-- After Dark's scene writer (lib/adult/settings.ts, David 2026-10-21): its temperature and penalties, null keeping the
+-- default (0.8, 0.3, 0.3, no repetition penalty), and which scene prompt runs (v2 unless set; v1 is the one before it).
+alter table adult_settings add column if not exists text_temperature double precision;
+alter table adult_settings add column if not exists frequency_penalty double precision;
+alter table adult_settings add column if not exists presence_penalty double precision;
+alter table adult_settings add column if not exists repetition_penalty double precision;
+alter table adult_settings add column if not exists prompt_version text;
+-- After Dark's structured memory (lib/adult/facts.ts): concrete things one character keeps about the other from their
+-- nights (who said what, running jokes, pet names, promises, likes, boundaries), extracted when a chapter closes or a
+-- night is saved and brought back a few at a time into the scene prompt. After Dark only: no date, text or page reads it.
+create table if not exists adult_facts (
+  id text primary key,
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  other_id text not null references characters (id) on delete cascade,
+  kind text not null check (kind in ('said', 'joke', 'pet_name', 'promise', 'like', 'boundary', 'event')),
+  fact text not null check (char_length(fact) <= 200),
+  quote text check (char_length(quote) <= 160),
+  source text not null default 'after_dark' check (source in ('after_dark', 'date')),
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz,
+  uses integer not null default 0
+);
+create index if not exists adult_facts_pair on adult_facts (owner_id, character_id, other_id);
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

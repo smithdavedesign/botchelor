@@ -10,15 +10,19 @@
  * - each character's catchphrase, counted per chapter;
  * - set churn: distinct set names per chapter (and, when the script can see them, the sets requested meanwhile);
  * - a line whose private "why" cites a memory that isn't in what they can remember;
- * - the share of lines whose "why" draws on a memory, a trait, or just the moment.
+ * - the share of lines whose "why" draws on a memory, a trait, or just the moment;
+ * - drift, per character (lib/adult/quality.ts): how much of their own sheet their lines use, and how often they reach
+ *   for a stock romance phrase (David, 2026-10-21: sheet details in 2 of 977 lines; "symphony" 16 times).
  *
  * Lines saved before the private notes existed have no "why": the memory and share checks just count none.
  */
 import { agreedMove, canonicalSet, HOME_ROOMS, homeProposed, placeIn, proposesMove, repeatOf, samePlace, saysCatchphrase, speechOf, type MoveLog } from "./continuity";
+import { driftOf, sideOfObserved, type Drift } from "./quality";
 
 export type ObservedLine = { who: "a" | "b"; text: string; why?: string | null; memory?: string | null; moved_to?: string | null };
 export type ObservedChapter = { chapter: number; source: "night" | "scene"; id: string; lines: ObservedLine[]; set_place: string | null; place: string | null; moves?: MoveLog[] | null; sets_requested?: string[] };
-export type ObservedSide = { name: string; catchphrase: string | null; traits: string[]; tells: string[]; voice: string | null; want: string | null };
+/** One character's sheet as the observer reads it; `bio` and `details` (job, hobbies, quirk…) feed the drift section. */
+export type ObservedSide = { name: string; catchphrase: string | null; traits: string[]; tells: string[]; voice: string | null; want: string | null; bio?: string | null; details?: string[] };
 export type ObserverInput = {
   a: ObservedSide;
   b: ObservedSide;
@@ -49,6 +53,8 @@ export type ObserverReport = {
     share_memory: number;
     share_trait: number;
     share_moment: number;
+    /** Per character (by name): how much of their sheet shows, and stock phrases per 100 of their lines. */
+    drift: Record<string, Drift>;
   };
 };
 
@@ -99,6 +105,7 @@ export function observeNight(input: ObserverInput): ObserverReport {
     share_memory: 0,
     share_trait: 0,
     share_moment: 0,
+    drift: {},
   };
 
   // Where they are as the night goes (a place noun), and whose home they're in when they're in one.
@@ -223,6 +230,12 @@ export function observeNight(input: ObserverInput): ObserverReport {
   summary.share_memory = withWhy ? round(withMemory / withWhy) : 0;
   summary.share_trait = withWhy ? round(withTrait / withWhy) : 0;
   summary.share_moment = withWhy ? round(withMoment / withWhy) : 0;
+  const drift = driftOf(
+    input.chapters.flatMap((c) => c.lines),
+    sideOfObserved(input.a),
+    sideOfObserved(input.b),
+  );
+  summary.drift = { [names.a]: drift.a, [names.b]: drift.b };
   return { pair: `${names.a} × ${names.b}`, chapters: input.chapters.length, lines: total, findings, summary };
 }
 
@@ -252,6 +265,15 @@ export function reportMarkdown(r: ObserverReport, judge?: { model: string; callo
     out.push(`| Memories cited that aren't in what they remember | ${s.unfounded_memories} |`);
   }
   out.push("");
+  const drift = Object.values(s.drift ?? {});
+  if (drift.length) {
+    out.push("### Drift: still themselves?", "", "| Character | Lines | Lines using their sheet | Stock phrases per 100 lines | Most used |", "|---|---|---|---|---|");
+    for (const d of drift) {
+      const top = Object.entries(d.cliches).sort((x, y) => y[1] - x[1]).slice(0, 5).map(([p, n]) => `${p} ×${n}`).join(", ");
+      out.push(`| ${d.name} | ${d.lines} | ${pct(d.sheet_detail_rate)} | ${d.cliche_rate} | ${top || "none"} |`);
+    }
+    out.push("");
+  }
   const byChapter = new Map<number, Finding[]>();
   for (const f of r.findings) byChapter.set(f.chapter, [...(byChapter.get(f.chapter) ?? []), f]);
   for (const [c, fs] of [...byChapter.entries()].sort((x, y) => x[0] - y[0])) {
