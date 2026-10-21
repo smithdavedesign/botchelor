@@ -155,8 +155,11 @@ async function main() {
   let arena, agent;
   try {
     // 1. A clean build of main.
-    sh("git", ["fetch", "-q", "origin"]);
-    sh("git", ["checkout", "-q", "--detach", "origin/main"]);
+    // LOOP_NO_CHECKOUT=1 tests the code as it stands in this folder (a branch before it merges), not origin/main.
+    if (env("LOOP_NO_CHECKOUT", "0") !== "1") {
+      sh("git", ["fetch", "-q", "origin"]);
+      sh("git", ["checkout", "-q", "--detach", "origin/main"]);
+    }
     const sha = sh("git", ["rev-parse", "HEAD"]).trim();
     summary.sha = sha;
     if (state.built_sha !== sha) {
@@ -175,7 +178,8 @@ async function main() {
       arena = startProcess("arena.mjs", [join(RUN, "arena"), String(PORT)], { LOOP_LLM_API_KEY: gatewayKey, LOOP_ADMIN_PASSWORD: arenaPassword }, (l) => {
         if (l.startsWith("READY ")) base = l.slice(6).trim();
       });
-      for (let i = 0; i < 400 && !base; i++) await new Promise((r) => setTimeout(r, 500));
+      // The arena writes its sample dates before READY (up to ~5 minutes), so allow 7.5.
+      for (let i = 0; i < 900 && !base; i++) await new Promise((r) => setTimeout(r, 500));
       if (!base) throw new Error("arena never came up");
       agent = startProcess("swipe-back-agent.mjs", [base, String((VISITOR_MINUTES + 15) * 60)], { LOOP_LLM_API_KEY: gatewayKey }, (l) => log("[agent]", l));
 

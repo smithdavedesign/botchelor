@@ -15,6 +15,10 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(join(out, "db"), { recursive: true });
 
 const env = appEnv(0, join(out, "db"));
+// Links the server hands out (link_account, the agent guides) point at this arena, not at localhost:3000.
+env.SITE_URL = `http://127.0.0.1:${port}`;
+// A visit lasts about 30 minutes: public dates air after 5 (not 10), so a visitor sees its predictions scored.
+env.BOTCHELOR_AIR_WINDOW_MINUTES = process.env.LOOP_AIR_WINDOW_MINUTES || "5";
 // Nothing leaves the machine but date-model calls: no email, no IndexNow, no frontier keys.
 for (const k of Object.keys(env)) if (/^(INDEXNOW_KEY|RESEND_|EMAIL_|FRONTIER_LLM_|FRONTIER_DEFAULT|SIM_)/.test(k)) delete env[k];
 Object.assign(env, {
@@ -47,25 +51,31 @@ for (const pair of PAIRS.slice(0, 9)) {
   }
   made.push(ids);
 }
-console.log(`READY ${base}`);
-
 // #343 (David, 2026-10-19: seed it): a fresh arena had an empty feed, so a visitor had nothing to predict and an empty
-// leaderboard. Three public blind dates for the cast, booked as their people: once written, one airs (the record and the
-// leaderboard) and two stay open to predict. In the background, so the visitors aren't held up; three date-model calls.
-(async () => {
-  const booked = [];
+// leaderboard. Five public blind dates for the cast, booked as their people and written BEFORE the visitors arrive (a
+// visit is 5 to 10 minutes; seeding after READY left them "still being written"). One airs at once (the record and the
+// leaderboard); the rest stay open to predict and air in stages, at 3 and 6 minutes, so a visitor's picks are scored
+// while it's here. Five date-model calls.
+const booked = [];
+for (const [a] of made.slice(0, 5)) {
   // Blind dates (the show picks a house partner): no match needed, whatever the swipe gate says.
-  for (const [a] of made.slice(0, 3)) {
-    const r = await call("/api/episodes", { character_id: a.id, blind: true, visibility: "public" }, a.who, [200, 201]).catch(() => null);
-    if (r?.id) booked.push({ id: r.id, who: a.who });
+  const r = await call("/api/episodes", { character_id: a.id, blind: true, visibility: "public" }, a.who, [200, 201]).catch(() => null);
+  if (r?.id) booked.push({ id: r.id, who: a.who });
+}
+for (let i = 0; i < 60 && booked.length; i++) {
+  const states = await Promise.all(booked.map((e) => fetch(`${base}/api/episodes/${e.id}`, { headers: { cookie: e.who.cookie } }).then((x) => x.json()).catch(() => ({}))));
+  if (states.every((st) => st.status === "ready")) break;
+  await new Promise((r) => setTimeout(r, 5000));
+}
+if (booked[0]) await call(`/api/episodes/${booked[0].id}/reveal`, {}, booked[0].who, [200, 201, 409]).catch(() => null);
+console.log(`READY ${base}`);
+console.error(`SEEDED ${booked.length} dates`);
+(async () => {
+  for (const [at, batch] of [[3, booked.slice(1, 3)], [6, booked.slice(3)]]) {
+    await new Promise((r) => setTimeout(r, 3 * 60_000));
+    for (const e of batch) await call(`/api/episodes/${e.id}/reveal`, {}, e.who, [200, 201, 409]).catch(() => null);
+    console.error(`SEEDED ${batch.length} aired at ${at} minutes`);
   }
-  for (let i = 0; i < 120 && booked.length; i++) {
-    const states = await Promise.all(booked.map((e) => fetch(`${base}/api/episodes/${e.id}`, { headers: { cookie: e.who.cookie } }).then((x) => x.json()).catch(() => ({}))));
-    if (states.every((st) => st.status === "ready")) break;
-    await new Promise((r) => setTimeout(r, 5000));
-  }
-  if (booked[0]) await call(`/api/episodes/${booked[0].id}/reveal`, {}, booked[0].who, [200, 201, 409]).catch(() => null);
-  console.log(`SEEDED ${booked.length} dates`);
 })();
 const stop = () => { child.kill("SIGTERM"); process.exit(0); };
 process.on("SIGTERM", stop);

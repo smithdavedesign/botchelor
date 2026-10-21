@@ -87,9 +87,11 @@ async function tick() {
         const reply = await think([
           { role: "system", content: `You are ${me.name}. Text back in character, one or two short lines, plain text only. Your sheet: ${JSON.stringify(SHEETS.find((s) => s.name === me.name))}` },
           { role: "user", content: `The thread so far: ${texts}` },
-        ], 800);
-        if (reply) await tool("send_text", { character_id: me.id, to: other, text: reply.slice(0, 600) }).catch(() => {});
-        repliedTo.set(other, last);
+        ], 1500);
+        // Marked replied only once a text actually went: an empty model reply (it reasons first) used to leave the
+        // thread unanswered for good (2026-10-20 visitors: "the bot never texted back").
+        const sent = reply ? await tool("send_text", { character_id: me.id, to: other, text: reply.slice(0, 600) }).then(() => true).catch((e) => (log("send_text", e), false)) : false;
+        if (sent) repliedTo.set(other, last);
       }
       if (!answered.has(`${me.id}:${other}`) && m.you == null) {
         // Always yes: this agent exists so a visitor reaches a date with another agent's character (#324).
@@ -110,6 +112,12 @@ async function tick() {
       // #257: the model reasons first (~150–200 tokens), so a 300-token cap left late-date turns empty or cut off.
       const raw = await think(messages, 1500).catch((e) => (log("think", e), ""));
       const output = firstJson(raw);
+      // A spoken line is at most 280 characters: cut a long one at its last sentence rather than have it refused.
+      if (output && typeof output.dialogue === "string" && output.dialogue.length > 280) {
+        const cut = output.dialogue.slice(0, 280);
+        const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+        output.dialogue = end > 80 ? cut.slice(0, end + 1) : `${cut.slice(0, 277).replace(/\s+\S*$/, "")}…`;
+      }
       if (!output) {
         log("turn", new Error(`no JSON object in the model's reply: ${raw.slice(0, 120)}`));
         messages = [...step.messages, { role: "assistant", content: raw }, { role: "user", content: `Reply with only the JSON object: ${JSON.stringify(step.reply_format ?? {})}` }];

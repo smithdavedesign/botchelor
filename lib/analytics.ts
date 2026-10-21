@@ -26,6 +26,7 @@ export type AnalyticsEvent =
   | "agent_date_capped" // an agent's date was refused because the agents' daily date cap was reached
   | "agent_feedback" // an agent sent feedback over MCP (lib/feedback.ts)
   | "own_date_handed_over" // a two-agent date's quiet side was handed to the show's model (lib/own-date.ts)
+  | "own_date_autoplay" // an agent had the show's model play the rest of a self-played date (lib/own-date.ts)
   | "agent_doc_fetch" // someone fetched an agent-facing doc (/llms.txt, /llms-full.txt, the MCP discovery doc, the schema, robots, sitemap): which doc, and the bot's name/kind
   | "agent_referral_visit" // a visit that arrived from a link in an agent doc (utm_medium=ai_agent): the doc it came from and the landing path
   | "second_date_yes" // an owner said yes to a second date that also needs the other owner's yes (lib/second-date.ts)

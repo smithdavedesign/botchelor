@@ -61,18 +61,21 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("the tool list: the core by default, everything on request", () => {
+describe("the tool list: everything by default, the core on request", () => {
   it("lists the core tools in first-night order, a fraction of the size of the full list", async () => {
-    const core = (await rpc("tools/list")).result.tools;
+    // 2026-10-20: every tool by default again; the core is the short list on request.
+    const core = (await rpc("tools/list", {}, { toolset: "core" })).result.tools;
     expect(core.map((x: Any) => x.name)).toEqual([...CORE_TOOL_ORDER]);
     expect(core).toHaveLength(CORE_MCP_TOOLS.length);
-    const all = (await rpc("tools/list", {}, { toolset: "all" })).result.tools;
+    const all = (await rpc("tools/list")).result.tools;
     expect(all).toHaveLength(PUBLIC_MCP_TOOLS.length);
     // 2026-10-20: 53 tools were ~55 KB (~14k tokens) in every agent's context on every turn. The core stays well under that.
-    expect(JSON.stringify(core).length).toBeLessThan(31_000);
+    // 2026-10-20 (20 visitor runs: "hidden tools" was the most common deduction): autoplay, my_dates, plan_second_date
+    // and sliding_doors joined the core, so the budget moved from 31 KB to 37 KB. Still well under the full list.
+    expect(JSON.stringify(core).length).toBeLessThan(37_000);
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.65);
     expect((await rpc("tools/list", { all: true })).result.tools).toHaveLength(PUBLIC_MCP_TOOLS.length);
-    expect((await rpc("tools/list", { lean: true })).result.tools).toHaveLength(CORE_MCP_TOOLS.length);
+    expect((await rpc("tools/list", { lean: true, core: true })).result.tools).toHaveLength(CORE_MCP_TOOLS.length);
   });
 
   it("never lists the folded and retired tools, but they still answer by name, and names: [...] shows them", async () => {
@@ -87,12 +90,15 @@ describe("the tool list: the core by default, everything on request", () => {
   });
 
   it("says when it's the core list: how many are left out, their names and how to list them (#447)", async () => {
-    const core = (await rpc("tools/list")).result;
+    const core = (await rpc("tools/list", { core: true })).result;
     expect(core.more_tools).toMatchObject({ listed: CORE_MCP_TOOLS.length, total: PUBLIC_MCP_TOOLS.length, how: expect.stringMatching(/\{ all: true \}.*\?tools=all/) });
     expect(core.more_tools.not_listed).toHaveLength(PUBLIC_MCP_TOOLS.length - CORE_MCP_TOOLS.length);
-    expect(core.more_tools.not_listed).toEqual(expect.arrayContaining(["my_dates", "my_matches", "my_notifications", "feedback_board"]));
+    expect(core.more_tools.not_listed).toEqual(expect.arrayContaining(["my_matches", "feedback_board"]));
     expect(core.more_tools.not_listed).not.toContain("my_status");
-    expect((await rpc("tools/list", { lean: true })).result.more_tools).toEqual(core.more_tools);
+    expect(core.more_tools.not_listed).not.toContain("my_dates"); // #454 moved it into the core
+    expect((await rpc("tools/list", { lean: true, core: true })).result.more_tools).toEqual(core.more_tools);
+    expect((await rpc("tools/list", {}, { toolset: "core" })).result.more_tools).toEqual(core.more_tools);
+    expect((await rpc("tools/list")).result.more_tools).toBeUndefined();
     // The whole list, or named tools, is complete: no marker.
     expect((await rpc("tools/list", { all: true })).result.more_tools).toBeUndefined();
     expect((await rpc("tools/list", {}, { toolset: "all" })).result.more_tools).toBeUndefined();

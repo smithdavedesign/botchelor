@@ -23,6 +23,7 @@
  * The date is written 'generating' (invisible in the feed) until the recap lands. An agent may have a few
  * unfinished at once; one left unfinished for a day is cleared.
  */
+import { airWindowMinutes } from "./air";
 import { track, trackDateQuality } from "./analytics";
 import { buildTurnMessages, parseTurnResult, TURN_TEMPERATURE, type Turn } from "./conversation";
 import type { Db } from "./db";
@@ -124,7 +125,7 @@ export type ReflectStep = {
   prompts: { character_id: string; name: string; messages: ChatMessage[]; reply_format: string }[];
 };
 
-export type OwnDateResult = { ok: true; step: OwnDateStep; rejected?: string } | { ok: false; status: number; error: string; message: string };
+export type OwnDateResult = { ok: true; step: OwnDateStep; rejected?: string; checked?: true } | { ok: false; status: number; error: string; message: string };
 
 type Row = {
   id: string;
@@ -140,6 +141,7 @@ type Row = {
   created_at: Date | string;
   last_move_at: Date | string | null;
   handed_over: "a" | "b" | null;
+  autoplay: boolean;
   visibility: string;
   a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_appearance: string | null; a_pronouns: string | null; a_voice: string | null;
   b_id: string; b_name: string; b_age: number; b_bio: string; b_traits: string[]; b_want: string; b_dealbreaker: string; b_appearance: string | null; b_pronouns: string | null; b_voice: string | null;
@@ -337,7 +339,7 @@ export async function startOwnDate(
 async function load(db: Db, userId: string, episodeId: string): Promise<Row | null> {
   const { rows } = await db.query<Row>(
     `select e.id, e.creator_id, e.partner_performer, e.status, e.seed::text as seed, e.setup, e.note, e.transcript, e.reflections,
-            e.created_at, e.last_move_at, e.handed_over, e.visibility,
+            e.created_at, e.last_move_at, e.handed_over, e.autoplay, e.visibility,
             a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want, a.dealbreaker a_dealbreaker,
             a.appearance a_appearance, a.pronouns a_pronouns, a.voice a_voice,
             b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want, b.dealbreaker b_dealbreaker,
@@ -485,7 +487,8 @@ function reflectStep(
 type Performers = { a: string; b: string };
 /** Who performs a side once the show's model has taken it over (handOverOwnDate). */
 const SHOW = "show";
-const performersOf = (row: Pick<Row, "creator_id" | "partner_performer"> & { handed_over?: "a" | "b" | null }): Performers => {
+const performersOf = (row: Pick<Row, "creator_id" | "partner_performer"> & { handed_over?: "a" | "b" | null; autoplay?: boolean }): Performers => {
+  if (row.autoplay) return { a: SHOW, b: SHOW };
   const p = { a: row.creator_id, b: row.partner_performer ?? row.creator_id };
   if (row.handed_over) p[row.handed_over] = SHOW;
   return p;
@@ -573,7 +576,8 @@ async function finishOnShowModel(
   // Both agents hear it's done (run 3: the invited agent didn't, when the recap ran on its own request), by full name:
   // two agents' characters can share a first name.
   for (const to of [row.creator_id, row.partner_performer]) {
-    if (!to) continue;
+    // The agent whose request just finished it is reading it now: no notice for it to clear later.
+    if (!to || to === finishedBy) continue;
     await notify(db, to, {
       kind: "own_date_ready",
       title: `💞 ${row.a_name} and ${row.b_name}'s date is done`,
@@ -605,7 +609,7 @@ async function doneStep(db: Db, userId: string, row: Row, built: BuiltDate, deci
 export const airingNote = (visibility: string): string =>
   visibility === "private"
     ? "It's private, so it stays offline and never airs (set_date_visibility makes it public or unlisted if you want it to). Nothing to do."
-    : "It airs on its own about 10 minutes after it's ready. Nothing to do.";
+    : `It airs on its own about ${airWindowMinutes()} minutes after it's ready. Nothing to do.`;
 
 /** Who airs a two-agent date: the host is the agent that asked, playing side a (#193). */
 function hostInfo(row: Pick<Row, "creator_id" | "a_name" | "visibility">, userId: string): HostInfo {
@@ -630,7 +634,8 @@ export async function getOwnDateStep(db: Db, userId: string, episodeId: string):
   const twoAgent = row.partner_performer !== null;
   const step = stepFor(episodeId, built, decided, formatId, transcript, ids);
   // A two-agent date whose last turn is in: the show writes the recap now (or retries it, if it failed before).
-  if (step.stage === "recap" && twoAgent && (await finishOnShowModel(db, row, built, decided, formatId, transcript, userId))) {
+  // …and an auto-played date (the show performed both sides), whose recap the show writes too.
+  if (step.stage === "recap" && (twoAgent || row.autoplay) && (await finishOnShowModel(db, row, built, decided, formatId, transcript, userId))) {
     const fresh = await load(db, userId, episodeId);
     if (fresh?.status === "ready") return { ok: true, step: await doneStep(db, userId, fresh, built, decided, formatId, transcript) };
   }
@@ -646,6 +651,46 @@ export async function getOwnDateStep(db: Db, userId: string, episodeId: string):
     }
   }
   return { ok: true, step: forViewer(step, userId, performersOf(row), twoAgent, lastMove(row)) };
+}
+
+/**
+ * Auto-play (2026-10-20: the most-asked feature in 20 visitor runs, "play the rest with this persona"). The show's model
+ * performs the rest of a self-played date in this one call:
+ *  - on a date between your own two characters: "both" sides (it writes the recap too), or one side, "a" or "b", while
+ *    you write the other's lines;
+ *  - on a two-agent date: only your own side ("mine"); the other agent keeps theirs.
+ * It runs on the show's model, so it counts as one of the agents' daily show-model dates (lib/dating.ts agentDatesToday),
+ * like a hand-over; a date already counted that way isn't counted twice.
+ */
+export async function autoplayOwnDate(db: Db, userId: string, episodeId: string, side: "a" | "b" | "both" | "mine"): Promise<OwnDateResult> {
+  const row = await load(db, userId, episodeId);
+  if (!row) return notFound(db, userId, episodeId);
+  if (row.status === "ready") return err(409, "already_done", "That date is already finished.");
+  const twoAgent = row.partner_performer !== null;
+  const mySide: "a" | "b" = row.creator_id === userId ? "a" : "b";
+  let set: { autoplay: boolean; handed_over: "a" | "b" | null };
+  if (twoAgent) {
+    if (side === "both") return err(409, "not_both", "On a two-agent date the show can play only your side (side: \"mine\"); the other agent plays theirs.");
+    const pick = side === "mine" ? mySide : side;
+    if (pick !== mySide) return err(409, "not_yours", "That's the other agent's side. hand_over_own_date takes it once they've been quiet a while.");
+    if (row.handed_over && row.handed_over !== pick) return err(409, "one_side", "The show is already playing the other side of this date.");
+    set = { autoplay: false, handed_over: pick };
+  } else {
+    set = side === "both" || side === "mine" ? { autoplay: true, handed_over: null } : { autoplay: false, handed_over: side };
+  }
+  const counted = (await db.query<{ at: Date | null }>(`select handed_over_at as at from episodes where id = $1`, [episodeId])).rows[0]?.at;
+  if (!counted) {
+    const today = await agentDatesToday(db);
+    if (today.used >= today.cap) return err(429, "agent_budget", `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}, or keep playing it yourself.`);
+  }
+  await db.query(
+    `update episodes set autoplay = $2, handed_over = coalesce($3, handed_over), handed_over_at = coalesce(handed_over_at, now())
+      where id = $1 and status = 'generating'`,
+    [episodeId, set.autoplay, set.handed_over],
+  );
+  track("own_date_autoplay", { episode_id: episodeId, side, two_agent: twoAgent });
+  // getOwnDateStep plays every turn that's now the show's, one after another, and the recap when it's due.
+  return getOwnDateStep(db, userId, episodeId);
 }
 
 /** One turn of a handed-over side, on the show's model (the same parser and filter as every line). */
@@ -734,7 +779,7 @@ async function notFound(db: Db, userId: string, episodeId: string): Promise<OwnD
 const asText = (output: unknown): string => (typeof output === "string" ? output : JSON.stringify(output ?? null));
 
 /** Hand in the output for the current step; returns the next one (or the same one, refused, with why). */
-export async function submitOwnDateStep(db: Db, userId: string, episodeId: string, output: unknown): Promise<OwnDateResult> {
+export async function submitOwnDateStep(db: Db, userId: string, episodeId: string, output: unknown, opts: { checkOnly?: boolean } = {}): Promise<OwnDateResult> {
   const row = await load(db, userId, episodeId);
   if (!row) return notFound(db, userId, episodeId);
   if (row.status === "ready") return getOwnDateStep(db, userId, episodeId);
@@ -747,13 +792,15 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     return getOwnDateStep(db, userId, episodeId).then((r) => (r.ok ? { ...r, rejected: "not_your_turn" } : r));
   }
   // #432: a refused step goes back as this agent sees it, so a two-agent date's retry doesn't show the ending either.
-  const refuse = (rejected: string): OwnDateResult => ({ ok: true, step: forViewer(current, userId, performersOf(row), twoAgent), rejected });
+  const refuse = (rejected: string): OwnDateResult => ({ ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row)), rejected });
   const raw = asText(output);
+  // A rejected reply hands back the same step: as this agent sees it, so a two-agent date's ending stays hidden (#432;
+  // a 2026-10-20 visitor saw "ending: friends" on the retry step).
   if (raw.length > 20_000) return refuse("too_long");
 
   if (current.stage === "turn") {
     const parsed = parseTurnResult(raw, current.side, current.act_index);
-    if (!("turn" in parsed)) return refuse(TURN_REJECTIONS[parsed.rejected]);
+    if (!("turn" in parsed)) return refuse(parsed.rejected === "schema" ? turnShapeProblem(raw) : TURN_REJECTIONS[parsed.rejected]);
     const speaker = built.characters[current.side === "a" ? 0 : 1];
     const problem = ownTurnProblem(raw, parsed.turn, speaker.extras?.never_says, transcript);
     if (problem) return refuse(problem);
@@ -762,6 +809,8 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     const names = namesFor(built, current.side);
     const moveNote = moveProblem(parsed.reply, shape, names, shortName(names.other), parsed.turn.dialogue, true);
     if (moveNote) return refuse(`${moveNote.charAt(0).toUpperCase()}${moveNote.slice(1)}.`);
+    // check_only (2026-10-20 visitors: "validate a line before it counts"): every check above passed; nothing is saved.
+    if (opts.checkOnly) return { ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row)), checked: true };
     const next = [...transcript, settleLine(parsed.turn, parsed.reply, shape, names)];
     const saved = await db.query(
       `update episodes set transcript = $2::jsonb, last_move_at = now()
@@ -780,12 +829,16 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       }
       return getOwnDateStep(db, userId, episodeId);
     }
-    return { ok: true, step: stepFor(episodeId, built, decided, formatId, next, [row.a_id, row.b_id]) };
+    // One side handed to the show (autoplay_own_date): its turn plays now, so the next step is yours again.
+    const upNext = stepFor(episodeId, built, decided, formatId, next, [row.a_id, row.b_id]);
+    if (upNext.stage === "turn" && performersOf(row)[upNext.side] === SHOW) return getOwnDateStep(db, userId, episodeId);
+    return { ok: true, step: upNext };
   }
 
   if (current.stage === "recap") {
     const parsed = parseEpisode(raw);
     if (!parsed.ok) return refuse(RECAP_REJECTIONS[parsed.reason]);
+    if (opts.checkOnly) return { ok: true, step: current, checked: true };
     const draft = anchorBestLine(parsed.episode, transcript);
     const saved = await db.query(
       `update episodes
@@ -957,9 +1010,32 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
   return out;
 }
 
+/**
+ * Which field of a turn reply is wrong, by name (2026-10-20 visitor: interest_signal: "curious" was blamed on dialogue,
+ * and the message called required fields optional).
+ */
+export function turnShapeProblem(raw: string): string {
+  let o: Record<string, unknown> = {};
+  try {
+    const t = raw.trim();
+    o = JSON.parse(/^```/.test(t) ? t.replace(/^```(?:json)?\s*|\s*```$/g, "") : t) as Record<string, unknown>;
+  } catch {
+    return TURN_REJECTIONS.json;
+  }
+  const bad: string[] = [];
+  if (typeof o.dialogue !== "string" || !/\p{L}/u.test(o.dialogue)) bad.push('"dialogue" (what they say, in words)');
+  if ("action" in o && typeof o.action !== "string") bad.push('"action" (1-5 words, or "")');
+  if ("emotion" in o && typeof o.emotion !== "string") bad.push('"emotion" (one word)');
+  if ("interest_signal" in o && !Number.isFinite(Number(o.interest_signal))) bad.push(`"interest_signal" (a number from 0 to 1, not ${JSON.stringify(o.interest_signal)})`);
+  if ("accept_move" in o && typeof o.accept_move !== "boolean" && o.accept_move !== "true" && o.accept_move !== "false") bad.push('"accept_move" (true or false)');
+  return bad.length
+    ? `Fix ${bad.join(", ")}. A turn is {dialogue, action, emotion, interest_signal}, all four required (move and accept_move only when they apply).`
+    : TURN_REJECTIONS.schema;
+}
+
 const TURN_REJECTIONS: Record<string, string> = {
   json: "That wasn't a JSON object. Reply with exactly the JSON in reply_format.",
-  schema: 'The reply needs a non-empty "dialogue" string (plus optional action, emotion, interest_signal).',
+  schema: 'The reply needs dialogue (words), action, emotion and interest_signal (a number from 0 to 1): all four.',
   filtered: "That line broke the show's content rules (no minors, no sexual content, no real people). Run the turn again.",
 };
 /**
@@ -970,7 +1046,7 @@ const TURN_REJECTIONS: Record<string, string> = {
 export function ownTurnProblem(raw: string, turn: Turn, never: readonly string[] | undefined, before: Turn[]): string | null {
   // Run 4: {"dialogue":"hi","emotion":"x"} was accepted. Our model's lines get defaults; an agent's carry all four.
   const missing = missingTurnFields(raw);
-  if (missing.length) return `The reply needs all four fields in reply_format; missing or the wrong type: ${missing.join(", ")}. interest_signal is a number from 0 to 1.`;
+  if (missing.length) return `The reply needs dialogue, action, emotion and interest_signal (move and accept_move only when they apply); missing or the wrong type: ${missing.join(", ")}. interest_signal is a number from 0 to 1.`;
   const said = spokenLength(raw);
   if (said > TURN_DIALOGUE_MAX) return `That line is ${said} characters; a spoken line is at most ${TURN_DIALOGUE_MAX}. Say it shorter.`;
   const phrase = neverSaid(turn.dialogue, never);
@@ -1032,4 +1108,5 @@ const RECAP_REJECTIONS: Record<string, string> = {
   schema: "The recap needs every key in reply_format: setting, two goals, three scenes, twist, finale, best_line and two confessionals.",
   too_long: "The recap is too long: keep setting, goals, scenes, twist and finale under 400 words together.",
   unsafe: "The recap broke the show's content rules (no minors, no sexual content, no real people). Run it again.",
+  self_talk: "The recap talks to itself (\"wait…\", \"instead:\", \"no days allowed\"): hand in only the final narration.",
 };
