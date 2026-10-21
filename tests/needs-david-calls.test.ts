@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { handleMcpMessage, HOUSE_BOT_LABEL, withoutEnding, type McpContext } from "@/lib/mcp";
+import { handleMcpMessage, hideUnwrittenEndings, HOUSE_BOT_LABEL, withoutEnding, type McpContext } from "@/lib/mcp";
 import { endingWhy } from "@/lib/why";
 import { episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
@@ -51,6 +51,34 @@ describe("#261: the booker doesn't see the ending while the date is written", ()
     const r = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx)).structuredContent;
     expect(r.ending_note).toMatch(/hidden until the date is written/);
     if (r.episode.status === "generating") expect(r.episode.ending).toBeUndefined();
+  });
+});
+
+describe("#261 everywhere: no tool shows a generating date's ending (2026-10-21 visitors)", () => {
+  it("takes the ending off a generating date wherever it sits, and leaves a written one and an own-date step alone", () => {
+    const gen = { id: "e1", status: "generating", ending: "friends", box_score: { chemistry: 60 } };
+    const out = hideUnwrittenEndings({ latest_dates: [gen, { ...gen, id: "e2", status: "ready" }], second_date: { episode: gen }, step: { stage: "turn", ending: "friends" } });
+    expect(out.latest_dates[0]).toEqual({ id: "e1", status: "generating" });
+    expect(out.latest_dates[1]).toMatchObject({ ending: "friends", box_score: { chemistry: 60 } });
+    expect(out.second_date.episode).toEqual({ id: "e1", status: "generating" });
+    expect(out.step).toEqual({ stage: "turn", ending: "friends" });
+  });
+
+  it("my_status's latest_dates and get_episode hide it while the date is written", async () => {
+    const ctx = await connect();
+    const id = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    const ep = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx)).structuredContent.episode.id;
+    // Back to "being written", with the engine's ending already stored (as it is from the last line on: lib/own-date.ts).
+    await t.db.query(`update episodes set status = 'generating' where id = $1`, [ep]);
+    const status = (await call("my_status", {}, ctx)).structuredContent;
+    const mine = (status.latest_dates ?? []).find((e: Any) => e.id === ep || e.episode_id === ep);
+    expect(mine).toBeDefined();
+    expect(mine.ending).toBeUndefined();
+    expect(mine.box_score).toBeUndefined();
+    const got = (await call("get_episode", { episode_id: ep }, ctx)).structuredContent;
+    expect(JSON.stringify(got)).not.toMatch(/"(ending|box_score|drama_answer)":/);
   });
 });
 
