@@ -17,7 +17,17 @@ export const FEEDBACK_FIELD_MAX = 2000;
 /** How many an identity may send in a day: plenty for a real opinion, not a spam channel. */
 export const FEEDBACK_PER_DAY = 10;
 
-export type FeedbackInput = { rating?: number | null; liked?: string | null; wants?: string | null; problems?: string | null; message?: string | null };
+export type FeedbackInput = {
+  rating?: number | null;
+  liked?: string | null;
+  wants?: string | null;
+  problems?: string | null;
+  message?: string | null;
+  /** The model the agent says it runs on: what it says, not checked. */
+  model?: string | null;
+};
+
+export const FEEDBACK_MODEL_MAX = 80;
 
 export type FeedbackRow = {
   id: string;
@@ -38,10 +48,11 @@ export type FeedbackRow = {
   wants: string | null;
   problems: string | null;
   message: string | null;
+  model: string | null;
   created_at: string;
 };
 
-const clean = (s: unknown): string | null => (typeof s === "string" && s.trim() ? s.trim().slice(0, FEEDBACK_FIELD_MAX) : null);
+const clean = (s: unknown, max = FEEDBACK_FIELD_MAX): string | null => (typeof s === "string" && s.trim() ? s.trim().slice(0, max) : null);
 
 export type SaveFeedbackResult = { ok: true; id: string } | { ok: false; message: string };
 
@@ -69,9 +80,9 @@ export async function saveFeedback(
   }
   const id = crypto.randomUUID();
   await db.query(
-    `insert into agent_feedback (id, agent_id, session_id, client_name, rating, liked, wants, problems, message, shared)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [id, agentId, sessionId, client, rating, text.liked, text.wants, text.problems, text.message, shared],
+    `insert into agent_feedback (id, agent_id, session_id, client_name, rating, liked, wants, problems, message, shared, model)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [id, agentId, sessionId, client, rating, text.liked, text.wants, text.problems, text.message, shared, clean(input.model, FEEDBACK_MODEL_MAX)],
   );
   return { ok: true, id };
 }
@@ -211,7 +222,7 @@ export async function setFeedbackHidden(db: Db, feedbackId: string, hidden: bool
 export async function listFeedback(db: Db, limit = 200): Promise<FeedbackRow[]> {
   const { rows } = await db.query<Omit<FeedbackRow, "created_at" | "hidden_at"> & { created_at: Date | string; hidden_at: Date | string | null }>(
     `select f.id, f.agent_id, f.session_id, coalesce(f.client_name, s.client_name) as client_name, s.client_version, s.user_agent,
-            s.calls as session_calls, f.rating, f.liked, f.wants, f.problems, f.message, f.created_at, f.shared, f.hidden_at,
+            s.calls as session_calls, f.rating, f.liked, f.wants, f.problems, f.message, f.model, f.created_at, f.shared, f.hidden_at,
             (select count(*)::int from characters c where c.owner_id = f.agent_id) as characters,
             (select coalesce(json_agg(json_build_object('kind', v.kind, 'up', v.up, 'down', v.down) order by v.kind), '[]'::json)
                from (select kind, count(*) filter (where vote = 1)::int as up, count(*) filter (where vote = -1)::int as down
@@ -259,11 +270,11 @@ export async function importFeedback(db: Db, source: string, rows: ImportedFeedb
     const agent = (typeof r.agent_id === "string" && r.agent_id.trim() ? r.agent_id.trim() : "visitor").slice(0, 64);
     const client = `${source.slice(0, 60)}${r.client_name ? ` · ${String(r.client_name).slice(0, 60)}` : ""}`;
     const { rows: done } = await db.query(
-      `insert into agent_feedback (id, agent_id, session_id, client_name, rating, liked, wants, problems, message, created_at)
-       select $1, $2, null, $3, $4, $5, $6, $7, $8, $9
+      `insert into agent_feedback (id, agent_id, session_id, client_name, rating, liked, wants, problems, message, created_at, model)
+       select $1, $2, null, $3, $4, $5, $6, $7, $8, $9, $10
         where not exists (select 1 from agent_feedback where client_name = $3 and agent_id = $2 and created_at = $9)
        returning id`,
-      [crypto.randomUUID(), agent, client, rating, text.liked, text.wants, text.problems, text.message, at],
+      [crypto.randomUUID(), agent, client, rating, text.liked, text.wants, text.problems, text.message, at, clean(r.model, FEEDBACK_MODEL_MAX)],
     );
     added += done.length;
   }

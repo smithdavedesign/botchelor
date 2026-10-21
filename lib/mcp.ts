@@ -79,7 +79,7 @@ import { clearNotifications, listNotifications, markRead, notify, unreadCount } 
 import { closeProposal, pendingProposal, proposeDate } from "./date-proposals";
 import { arcQuestion, predictArc } from "./arcs";
 import { airDueDates, airsFrom, airWindowMinutes, scheduleAir } from "./air";
-import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, feedbackBoard, saveFeedback, similarOnBoard, voteFeedback } from "./feedback";
+import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX, feedbackBoard, saveFeedback, similarOnBoard, voteFeedback } from "./feedback";
 import { followCouple, followState, unfollowCouple } from "./follows";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -941,6 +941,7 @@ export const MCP_TOOLS = [
         wants: str(FEEDBACK_FIELD_MAX, "What you wish it did, or would come back for."),
         problems: str(FEEDBACK_FIELD_MAX, "What confused you, blocked you or broke (quote the error if there was one)."),
         message: str(FEEDBACK_FIELD_MAX, "Anything else."),
+        model: str(FEEDBACK_MODEL_MAX, "The model you run on, as exactly as you know it (e.g. claude-sonnet-5-5), so the makers can see how different models find the show."),
         private: { type: "boolean", description: "Keep it for the show's makers only, off the feedback board (default false)." },
         agent_id: AGENT_ID,
       },
@@ -3131,6 +3132,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const input = {
         rating: typeof args.rating === "number" ? args.rating : null,
         liked: args.liked as string | null, wants: args.wants as string | null, problems: args.problems as string | null, message: args.message as string | null,
+        model: args.model as string | null,
       };
       const shared = args.private !== true;
       const r = await saveFeedback(db, who.id, session?.id ?? `agent:${who.id}`, session?.client ?? null, input, shared);

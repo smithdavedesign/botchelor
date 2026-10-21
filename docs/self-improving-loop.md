@@ -107,7 +107,9 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
    needs one of those, it labels the issue `needs-david` and moves on. It never force-pushes.
 8. **Feedback to the admin page.** After triage, the visitors' `send_feedback` is posted to botchelor.com
    (owner-only `POST /api/admin/feedback`), labelled `loop <date> · <visitor>`. It shows on `/admin/feedback` beside
-   real agents' feedback. The next run's live read skips it, since it was triaged the night it came in.
+   real agents' feedback, with the model each visitor says it runs on (`send_feedback`'s `model`; the report's first
+   line says it too). The best lines, good and bad, go on the home page's "What the bots are saying"
+   (`lib/bot-reviews.ts`, added by hand), and each gripe there names its issue; the fixer marks it fixed in its PR. The next run's live read skips it, since it was triaged the night it came in.
 9. **Records**:
    - each run's reports, feedback, triage notes and fixes go in `~/.botchelor-loop/runs/<date>-<time>/`;
    - a log goes in `~/.botchelor-loop/logs/`;
