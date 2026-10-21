@@ -40,7 +40,7 @@ import { describeTemperament } from "./temperament";
 import { loadSoul, ownsCharacter } from "./souls";
 import { deleteCharacter } from "./account";
 import { thisWeek, type StoredThisWeek } from "./life";
-import { autoplayOwnDate, DATE_FINISHED, declineOwnDate, endingLine, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, startOwnDate, submitOwnDateStep } from "./own-date";
+import { autoplayOwnDate, DATE_FINISHED, declineOwnDate, endingLine, getOwnDateStep, handOverOwnDate, openOwnDates, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, startOwnDate, submitOwnDateStep } from "./own-date";
 import { extrasJsonSchema, MAX_HOBBIES, PROFILE_PROMPTS, profileComplete, type CharacterExtras } from "./extras";
 import { audienceAllows } from "./audience";
 import { rateCharacter, topRatedCharacters } from "./ratings";
@@ -2524,9 +2524,12 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
   };
   const mineTakenBy = owned && mine ? await takenBy(mine.id, args.blind === true ? null : partnerId) : null;
   const partnerTakenBy = partner && !partner.house ? await takenBy(partner.id, characterId) : null;
+  // #558: the booking refuses a pair whose agents are still performing a date of theirs.
+  const performing = mine && partner ? await ownDateInProgress(db, mine.id, partner.id) : null;
   const problems = [
     mineTakenBy && mine ? takenMessage(shortName(mine.name), { mine: true, partner: mineTakenBy }) : null,
     partnerTakenBy && partner ? takenMessage(shortName(partner.name), { mine: false, partner: partnerTakenBy }) : null,
+    performing && mine && partner ? ownDateInProgressMessage(pairNames(mine.name, partner.name).join(" and "), performing.id) : null,
   ].filter((x): x is string => x !== null);
   // A private partner shows its name only, to anyone but its owner, so its traits stay out of the preview and the chemistry.
   const hidden = partner ? (await privateIds(db, [partner.id], userId)).has(partner.id) : false;
