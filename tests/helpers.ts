@@ -88,7 +88,9 @@ type Table =
   | "paid_usage"
   | "server_errors"
   | "scene_requests"
-  | "sim_ratings";
+  | "sim_ratings"
+  | "quality_runs"
+  | "line_feedback";
 
 /** One in-memory Postgres per test file, wired in as the app's database. */
 export async function startTestDb() {
@@ -138,6 +140,8 @@ export async function startTestDb() {
         "agent_link_codes",
         "mcp_calls",
         "sim_ratings",
+        "quality_runs",
+        "line_feedback",
         "scene_requests",
         "place_sets",
         "scene_suggestions",

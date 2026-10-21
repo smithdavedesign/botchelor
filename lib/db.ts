@@ -1300,6 +1300,37 @@ create table if not exists sim_ratings (
   posted_at timestamptz not null default now()
 );
 create index if not exists sim_ratings_at_idx on sim_ratings (at desc);
+-- Quality runs (lib/quality-runs.ts): the golden set's side-by-side verdicts (scripts/eval/golden.mjs) and the nightly
+-- After Dark observer's counts (scripts/eval/observer-nightly.mjs), posted from the developer's Mac to
+-- POST /api/admin/quality and shown on /admin/analytics next to Real use. The same kind and label again replaces it.
+create table if not exists quality_runs (
+  id text primary key,
+  kind text not null check (kind in ('after_dark_observer', 'golden')),
+  at timestamptz not null,
+  sha text,
+  label text not null,
+  metrics jsonb not null default '{}',
+  posted_at timestamptz not null default now(),
+  unique (kind, label)
+);
+create index if not exists quality_runs_at_idx on quality_runs (at desc);
+-- A thumbs up or down on one line (lib/line-feedback.ts, app/ChatThread.tsx): a date's transcript line ('episode', the
+-- ref is the episode) or an After Dark line ('after_dark', the ref is the running scene or a saved night; a scene's votes
+-- move to the night it's filed as). One vote per person per line, and a 0 vote removes it. Real use counts them
+-- (lib/real-metrics.ts), and scripts/eval/export-preferences.mjs turns them into a dataset for fine-tuning.
+create table if not exists line_feedback (
+  id text primary key,
+  user_id text not null,
+  kind text not null check (kind in ('episode', 'after_dark')),
+  ref_id text not null,
+  line_index integer not null check (line_index >= 0),
+  vote smallint not null check (vote in (-1, 1)),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, kind, ref_id, line_index)
+);
+create index if not exists line_feedback_ref_idx on line_feedback (kind, ref_id);
+create index if not exists line_feedback_updated_idx on line_feedback (updated_at desc);
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

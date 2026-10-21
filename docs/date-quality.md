@@ -221,6 +221,108 @@ The eval route (`POST /api/jobs/eval`) is gated like the job routes (404 without
 are limited to Google models at the configured endpoint. Every run is committed under `docs/eval/` with every
 transcript, so any number below can be checked line by line.
 
+### The golden set: A against B, side by side (`scripts/eval/golden.mjs`)
+The simulated visitors rate the product 8 to 8.5 whatever changes (2026-10-21), and one score per run hides small
+moves. So a prompt or model change is measured by comparing two configs on the same fixed cases
+(`scripts/eval/golden-cases.json`):
+
+- **After Dark:** four production pairs, Star Dust × Chud, Cass Vega × Sable, Chud × Sable and Cass × Chud. Each has a
+  scripted steer per step (`direction[i]` steers step i+1), so every run sees the same night. They run through
+  `POST /api/jobs/eval-after-dark` (from the ad-voice-memory PR), which builds the scene in memory and stores nothing.
+  A config is `{promptVersion, model?, temperature?, memory?}`. Until that route is deployed, the script says so and stops.
+- **Dates:** the six cases above, run through `POST /api/jobs/eval` on two deployments (production against a preview).
+
+**The judge** is a local model through the ai-stack's LiteLLM (`scripts/eval/local-judge.mjs`), never a paid or cloud
+one: `local-uncensored` for After Dark text, `local-qwen3` for dates.
+- It uses the crowd brain's safety check (#544). The alias must be served only by Ollama on this Mac and be in no fallback
+  list. Every request says `disable_fallbacks`. Every answer must carry `x-litellm-model-api-base` naming this Mac, with
+  no fallback tried and no cost, or the judge switches itself off.
+- It reads both characters' sheets and the two transcripts, and answers
+  `{winner, sounds_like_sheet, reasons}` on three points: truer to each sheet and voice, more specific and less generic,
+  and the better scene.
+- Each sample is judged twice, the order swapped. The first order is random but seeded by the label, so a rerun matches.
+  B +1, A −1 and tie 0 per pass, summed: B twice, or B and a tie, is a B win. A split (each pass picked whichever it read
+  first) is a tie, so the position bias cancels out. The report also says how often a pass picked the first version.
+- Out come B's win rate (a tie counts half), the exact two-sided sign test on the decided samples, the same for
+  "sounds like the sheet", and the mean per run of every deterministic metric, A against B.
+
+**`--gate`** exits 1 when:
+- B loses: its win rate is under 0.45 (`--thresholds win=…`);
+- B failed more runs than A, or the judge gave no verdict, or the run stopped at its budget;
+- or a metric regresses past its tolerance, as a mean per run over the paired samples (`--thresholds repeats=1,…`):
+
+| Suite | Metric | Fails when it moves by more than |
+|---|---|---|
+| After Dark | repeated lines | +0.5 a run |
+| After Dark | invented names | +0.25 a run |
+| After Dark | unfounded memory citations | +0.25 a run |
+| After Dark | cliché rate | +0.02 |
+| After Dark | sheet detail rate | −0.05 |
+| Dates | genuineness index | −5 |
+| Dates | near-duplicates, voice breaks, profile reading | +0.5 a date |
+| Dates | misgendering | +0.25 a date |
+
+The rest (unprovoked moves, alternation, memory share, refusals, drops; abrupt flips, mirroring and so on) are shown,
+not gated.
+
+**Cost:** it prints an estimate first. After Dark is budgeted at $0.003 a scene step, three times the $0.001 measured
+(`docs/after-dark-costs.md`); dates at 2¢ each. It refuses when the estimate is over `--max-usd` (default $2), then stops before any
+call that would pass it, using what the route reports as it goes. Everything is written to `docs/eval/golden-<label>.json`
+(every transcript, metric, cost and judgment) and `.md`. `--post` sends the summary, numbers only, to `/admin/analytics`.
+
+```bash
+export CRON_SECRET="$(security find-generic-password -s vault/botchelor/CRON_SECRET -w)"
+
+# After Dark: prompt v1 against v2 on production's route (the judge needs the ai-stack running)
+node scripts/eval/golden.mjs --suite after-dark --label ad-v1-v2 \
+  --a '{"promptVersion":"v1"}' --b '{"promptVersion":"v2"}' --repeat 2 --gate --post
+#   the characters' sheets for the judge: add DATABASE_URL (read-only) or they're judged by name
+
+# Dates: production against a preview (CRON_SECRET_B and VERCEL_BYPASS_B if the preview differs)
+node scripts/eval/golden.mjs --suite dates --label prod-vs-pr580 \
+  --base-a https://botchelor.com --base-b https://botchelor-git-<branch>.vercel.app --repeat 2 --gate
+
+node scripts/eval/golden.mjs … --dry-run   # the plan and the estimate, nothing called
+```
+
+### Real-user signals: 👍/👎 on lines
+Every line in a thread can take a thumbs up or down (`app/ChatThread.tsx` with
+`feedback={{ kind, refId }}`, `lib/line-feedback.ts`). The votes are stored in `line_feedback`: one per person per line
+(user, kind, ref, line index), and tapping the thumb that's already set sends 0, which removes it.
+- `POST /api/line-feedback` needs a session (an anonymous one is fine) and is rate limited per connection and per person.
+  `GET` returns the viewer's own votes.
+- Only lines the viewer can see: a date that's public or unlisted, or a private one that's theirs (never one hidden by
+  reports unless it's theirs); After Dark only for a signed-in admin, on their own scene or night.
+- A running scene's votes move to the night its lines are filed as (a full chapter, or Start over), so a vote always
+  stays on the line it was cast on.
+
+Real use (`/admin/analytics`) counts the 👍, the 👎, the share up and the people who voted. Admins are left out, so
+After Dark's votes don't count there. `scripts/eval/export-preferences.mjs` (read-only) writes every rated line as JSONL:
+the votes, the line, the lines before it, an After Dark line's private why and memory, and the observer's flags on it.
+That's the dataset for fine-tuning later.
+
+The episode page doesn't pass `feedback` yet: its redesign is in flight. In `app/episodes/[id]/page.tsx`, the read card
+(`<details className="card transcript episode-read" id="the-date">`) passes
+`feedback={{ kind: "episode", refId: episode.id }}` to its `<ChatThread>`. `EpisodeTheater` takes an `episodeId` prop
+from the page and passes the same to the `<ChatThread>` in `Playback`. Line i is `transcript[i]`, and the replay's
+`shown` is a prefix of it, so nothing else changes.
+
+### The After Dark observer, nightly (`scripts/eval/observer-nightly.mjs`)
+It finds every After Dark pair whose scene or nights changed in the last 24 hours, and runs the observer's checks
+(`lib/adult/observer.ts`, as `scripts/eval/after-dark-observer.mjs` does, imported) on each pair's latest night. It is
+read-only on the database and uses no model. Then it:
+- writes `.data/observer/nightly-<date>.json`;
+- posts one summary row to `POST /api/admin/quality` (kind `after_dark_observer`), shown on `/admin/analytics` with the
+  golden runs;
+- emits one event with `~/ai-stack/bin/emit-event`.
+
+`scripts/eval/observer-nightly.sh` fetches `DATABASE_URL` with
+`neon connection-string --profile davejobs-agent --project-id cool-boat-29098893` and runs it. Wire it into the loop with
+one line in `scripts/loop/nightly.mjs`, after housekeeping (step 5):
+`try { sh("zsh", ["scripts/eval/observer-nightly.sh"]); } catch { /* the observer never fails the loop */ }`.
+Or give it its own launchd job pointing at `~/.botchelor-loop/repo/scripts/eval/observer-nightly.sh`, the way
+`scripts/loop/install.sh` installs the loop.
+
 ## Results
 
 Every run is in `docs/eval/` with every transcript. Metrics below are recomputed with today's `lib/quality.ts`

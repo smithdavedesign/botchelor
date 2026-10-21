@@ -69,6 +69,7 @@ export default function AfterDarkTheater({
   onMakeVideo,
   videoTokens = 15,
   videoNote = null,
+  feedbackRef = null,
   onExit,
 }: {
   scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null; set?: string | null; chapter?: number };
@@ -86,6 +87,11 @@ export default function AfterDarkTheater({
   onMakeVideo?: () => Promise<void>;
   videoTokens?: number;
   videoNote?: string | null;
+  /**
+   * What these lines are, for their 👍/👎 (lib/line-feedback.ts): the running scene's id, or the saved night's. A scene's
+   * votes move to the night its chapter is filed as, so the running scene's are read again when its lines are replaced.
+   */
+  feedbackRef?: string | null;
   onExit: () => void;
 }) {
   const live = Boolean(onWrite);
@@ -104,6 +110,9 @@ export default function AfterDarkTheater({
   const label = stageLabel(scene, shown.length, caughtUp);
   // The set: preloaded, so the last ready one stays up until the next has loaded (never the placeholder in between).
   const stage = useSteadySet(stageFor(scene.set || scene.place, scene.dateVenue));
+  // The chapter and its first line say which lines these are: both change when a chapter is filed or Start over runs.
+  const epoch = `${scene.chapter ?? 1}:${scene.lines[0]?.text.slice(0, 60) ?? ""}`;
+  const feedback = useMemo(() => (feedbackRef ? { kind: "after_dark" as const, refId: feedbackRef, epoch } : null), [feedbackRef, epoch]);
 
   async function next(e: FormEvent) {
     e.preventDefault();
@@ -135,7 +144,7 @@ export default function AfterDarkTheater({
           {latestAction && <p className="ad-theater-action">{latestAction}</p>}
         </div>
         <div className="theater-convo">
-          <ChatThread characters={characters} turns={shown} typing={busy ? null : replay.typing} tone="dark" follow empty="The scene appears here, line by line." />
+          <ChatThread characters={characters} turns={shown} typing={busy ? null : replay.typing} tone="dark" follow empty="The scene appears here, line by line." feedback={feedback} />
         </div>
 
         <header className="theater-hud">

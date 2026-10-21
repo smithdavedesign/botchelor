@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "about": "The golden set (scripts/eval/golden.mjs): fixed cases two configs are compared on, side by side. After Dark cases are production pairs (David's own characters and this season's house cast) run through POST /api/jobs/eval-after-dark, each with a scripted steer per step (direction[i] steers step i+1) so every run is comparable. Date cases are the date eval's fixed set (lib/eval.ts EVAL_CASES), run through POST /api/jobs/eval on two deployments. Optional `sheets` (by character id) override the sheet the judge reads; otherwise house and eval characters come from lib/eval.ts and the rest from the database (--db, read-only).",
+  "after_dark": [
+    {
+      "id": "star-chud",
+      "a": "40256bba-4c22-4e5e-9c7d-6950bf9666a0",
+      "b": "5193e319-8943-4e02-8965-53c4f118ac29",
+      "names": ["Star Dust", "Chud the crusher"],
+      "why": "two of David's characters: does each keep their own voice once it turns explicit, and does their date carry over?",
+      "direction": [
+        "Pick up right after their date: one of them brings up something the other said there.",
+        "Chud explains how something works, confidently and wrongly, and Star teases him for it.",
+        "One of them suggests going somewhere more private, and the other has to say yes first.",
+        "Slow down for a moment: something honest about why each of them said yes tonight."
+      ]
+    },
+    {
+      "id": "cass-sable",
+      "a": "10e87c81-7d7e-4fe8-ba40-047c04abc9af",
+      "b": "house-sable",
+      "names": ["Cass Vega", "Sable Quist"],
+      "why": "calm and exact against loud and fast: two opposite voices that flatten into the same lines when the writer drifts",
+      "direction": [
+        "Sable has three plans for the night at once; Cass picks one, precisely.",
+        "A sudden loud noise makes Cass flinch, and Sable notices.",
+        "Sable dares Cass to do something; Cass agrees, on her own terms.",
+        "They end up somewhere quieter, and it gets closer."
+      ]
+    },
+    {
+      "id": "chud-sable",
+      "a": "5193e319-8943-4e02-8965-53c4f118ac29",
+      "b": "house-sable",
+      "names": ["Chud the crusher", "Sable Quist"],
+      "why": "the pair David has watched most: catchphrase repeats, moves nobody agreed to, memories that aren't there",
+      "direction": [
+        "Sable says yes to a plan before Chud has finished explaining it.",
+        "Chud tries to follow the instructions for something and wings it instead.",
+        "One of them checks the time, and the other calls it out.",
+        "They agree to go back to one of their places."
+      ]
+    },
+    {
+      "id": "cass-chud",
+      "a": "10e87c81-7d7e-4fe8-ba40-047c04abc9af",
+      "b": "5193e319-8943-4e02-8965-53c4f118ac29",
+      "names": ["Cass Vega", "Chud the crusher"],
+      "why": "precision against improvisation: tells and sheet details (her right angles, his manuals) should show up in what they do",
+      "direction": [
+        "Cass straightens things on the table while they talk, and Chud asks why.",
+        "Chud admits he never reads the instructions; Cass is horrified and charmed.",
+        "Cass suggests they leave, and Chud has to agree first.",
+        "Somewhere private, Cass explains flowers like explosives, and it turns into flirting."
+      ]
+    }
+  ],
+  "dates": [
+    { "id": "thin-oc-juniper", "a": "eval-thin-oc", "b": "house-juniper", "why": "a thin visitor sheet against a rich house voice; misgendering; profile reading" },
+    { "id": "rafe-juniper", "a": "house-rafe", "b": "house-juniper", "why": "two strong, opposite voices (showman vs deadpan)" },
+    { "id": "mira-dex", "a": "eval-rich-oc", "b": "house-dex", "why": "a visitor with a full private soul" },
+    { "id": "teo-ines", "a": "house-teo", "b": "house-ines", "why": "flirt vs earnest optimist" },
+    { "id": "orin-sable", "a": "house-orin", "b": "house-sable", "why": "a show format with a named chaperone" },
+    { "id": "kaz-nell", "a": "house-kaz", "b": "house-nell", "why": "a speed date (fewer turns) must still reach its ending" }
+  ],
+  "sheets": {}
+}

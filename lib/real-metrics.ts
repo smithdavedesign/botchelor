@@ -16,10 +16,14 @@
  *
  * Rates over fewer than MIN_N people or agents are marked "n too small" by the page rather than shown as if they meant
  * something. The definitions below are what the page prints next to each number.
+ *
+ * Beside them: the people's own 👍/👎 on lines (lib/line-feedback.ts), the simulated visitors' ratings, and the latest
+ * quality runs (lib/quality-runs.ts: the golden set's side-by-side verdicts and the nightly After Dark observer).
  */
 import type { Db } from "./db";
 import { OUR_TRAFFIC, WRITE_TOOLS } from "./agent-analytics";
 import { HOUSE_BOT_CLIENT_PREFIX } from "./house-bots";
+import { listQualityRuns, type QualityRun } from "./quality-runs";
 import { DELETED_OWNER } from "./rules";
 import { SYSTEM_CREATOR_ID } from "./watch";
 
@@ -99,6 +103,8 @@ const AUDIENCE: ReadonlySet<Kind> = new Set(["predict", "review", "watch"]);
 type DateRow = { creator: string; partner: string | null; performed_by: string; at: Date };
 type FirstDate = { creator: string; aired: Date; followed: boolean };
 type OrderRow = { user: string; cents: number; at: Date };
+/** A 👍 (1) or 👎 (-1) on a line (lib/line-feedback.ts), as of its last change. */
+type VoteRow = { user: string; vote: number; at: Date };
 
 /** Everything the windows are computed from, loaded once for the longest window. */
 export type Facts = {
@@ -109,6 +115,7 @@ export type Facts = {
   dates: DateRow[];
   firstDates: FirstDate[];
   orders: OrderRow[];
+  votes: VoteRow[];
   /** A person's first character made on the web, ever. */
   firstCreator: Map<string, Date>;
   /** An agent's first write, ever: a write tool that worked, a character it made, a date it booked or played. */
@@ -202,6 +209,10 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
     )
   ).rows.map((r) => ({ ...r, at: new Date(r.at) }));
 
+  const votes = (
+    await db.query<{ user: string; vote: number; at: Date | string }>(`select user_id as "user", vote, updated_at as at from line_feedback where updated_at >= $1`, [since])
+  ).rows.map((r) => ({ user: r.user, vote: Number(r.vote), at: new Date(r.at) }));
+
   const firstCreator = new Map(
     (
       await db.query<{ id: string; first: Date | string }>(
@@ -252,6 +263,7 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
     dates: dates.map(({ via: _via, ...d }) => ({ ...d, at: new Date(d.at) })),
     firstDates,
     orders,
+    votes,
     firstCreator,
     firstAgentWrite,
   };
@@ -265,6 +277,8 @@ export type RealWindow = {
   dates: { booked: Metric; show_model: Metric; own_date: Metric; two_agent: Metric; second_date_rate: Metric; per_active_person: Metric };
   money: { orders: Metric; revenue: Metric; buyers: Metric; conversion: Metric };
   engagement: { predictions: Metric; audience_predicting: Metric; reviews: Metric; texts_people: Metric; texts_agents: Metric };
+  /** Thumbs on lines (lib/line-feedback.ts). */
+  feedback: { votes_up: Metric; votes_down: Metric; share_up: Metric; voters: Metric };
   /** How many of our own identities did something in the window, and were left out. */
   ours_left_out: number;
 };
@@ -332,6 +346,11 @@ export function computeWindow(f: Facts, days: number): RealWindow {
   const audience = new Set(realEvents.filter((e) => AUDIENCE.has(e.kind)).map((e) => e.id));
   const predictors = new Set(realEvents.filter((e) => e.kind === "predict").map((e) => e.id));
 
+  // Line votes: as each stands after its last change, by real people (an admin's After Dark votes are ours, so out).
+  const votes = f.votes.filter((v) => inWindow(v.at) && real(v.user));
+  const up = votes.filter((v) => v.vote > 0).length;
+  const down = votes.filter((v) => v.vote < 0).length;
+
   const oursSeen = new Set([
     ...events.filter((e) => f.ours.has(e.id)).map((e) => e.id),
     ...f.dates.filter((d) => inWindow(d.at) && f.ours.has(d.creator)).map((d) => d.creator),
@@ -373,6 +392,12 @@ export function computeWindow(f: Facts, days: number): RealWindow {
       reviews: count(realEvents.filter((e) => e.kind === "review").length),
       texts_people: count(realEvents.filter((e) => e.kind === "text" && e.via === "web").length),
       texts_agents: count(realEvents.filter((e) => e.kind === "text" && e.via === "mcp").length),
+    },
+    feedback: {
+      votes_up: count(up),
+      votes_down: count(down),
+      share_up: share(up, up + down),
+      voters: count(new Set(votes.map((v) => v.user)).size),
     },
     ours_left_out: oursSeen.size,
   };
@@ -432,11 +457,15 @@ export const METRIC_DEFS: MetricDef[] = [
   { section: "engagement", key: "reviews", label: "Reviews", definition: "Character reviews posted, by people and agents." },
   { section: "engagement", key: "texts_people", label: "Texts by people", definition: "Texts a person's own model key wrote for their character." },
   { section: "engagement", key: "texts_agents", label: "Texts by agents", definition: "Texts an agent wrote for its character (send_text)." },
+  { section: "feedback", key: "votes_up", label: "👍 on lines", definition: "Lines of a date marked good, as each vote stands after its last change in the window. After Dark's votes are admin-only, so ours, and left out." },
+  { section: "feedback", key: "votes_down", label: "👎 on lines", definition: "Lines of a date marked not good, counted the same way." },
+  { section: "feedback", key: "share_up", label: "Share 👍", definition: "👍 votes divided by all line votes." },
+  { section: "feedback", key: "voters", label: "People who voted", definition: "Distinct people behind those votes." },
 ];
 
-export type RealUse = { generated_at: string; min_n: number; windows: RealWindow[]; defs: MetricDef[]; sims: SimRating[] };
+export type RealUse = { generated_at: string; min_n: number; windows: RealWindow[]; defs: MetricDef[]; sims: SimRating[]; quality: QualityRun[] };
 
-/** The whole section: both windows from one load, the definitions, and the last 10 simulated runs. */
+/** The whole section: both windows from one load, the definitions, the last 10 simulated runs and the last 10 quality runs. */
 export async function realUse(db: Db, now = new Date()): Promise<RealUse> {
   const facts = await loadFacts(db, Math.max(...WINDOWS), now);
   return {
@@ -445,5 +474,6 @@ export async function realUse(db: Db, now = new Date()): Promise<RealUse> {
     windows: WINDOWS.map((d) => computeWindow(facts, d)),
     defs: METRIC_DEFS,
     sims: await listSimRatings(db, 10),
+    quality: await listQualityRuns(db, { limit: 10 }),
   };
 }

@@ -3923,6 +3923,106 @@ button.rating-chip:hover {
     animation: none;
   }
 }
+/* 👍/👎 on a line (ChatThread's `feedback`, lib/line-feedback.ts). They share a row with the line's caption, sit grey and
+   faint until the row is hovered or a thumb is focused or set, and reset everything the default button adds. The button
+   is the tap target and its face the small circle that shows: on a touch screen the button grows to 44px around the same
+   face, negative margins keep the row about as tall as the caption, and the foot's own margins keep the overhang clear
+   of the bubble above and the next line. */
+.chat-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 0.15rem;
+  max-width: 100%;
+}
+.chat-row-b .chat-foot {
+  flex-direction: row-reverse;
+}
+.chat-votes {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.55;
+  transition: opacity 0.12s ease;
+}
+.chat-row:hover .chat-votes,
+.chat-votes:focus-within,
+.chat-votes.voted {
+  opacity: 1;
+}
+button.chat-vote {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1;
+  transform: none;
+  cursor: pointer;
+}
+button.chat-vote:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+.chat-vote-face {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  filter: grayscale(1);
+}
+/* Hover only where there's a pointer that hovers: on a phone a tapped thumb would otherwise keep looking hovered. */
+@media (hover: hover) {
+  button.chat-vote:hover .chat-vote-face {
+    filter: none;
+    background: var(--paper-2);
+  }
+  .chat-dark button.chat-vote:hover .chat-vote-face {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+button.chat-vote:focus-visible .chat-vote-face {
+  filter: none;
+}
+button.chat-vote[aria-pressed="true"] .chat-vote-face {
+  filter: none;
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.chat-dark button.chat-vote[aria-pressed="true"] .chat-vote-face {
+  background: rgba(255, 255, 255, 0.16);
+}
+.chat-vote-error {
+  align-self: center;
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--bad-text);
+}
+.chat-dark .chat-vote-error {
+  color: rgba(255, 255, 255, 0.85);
+}
+@media (pointer: coarse) {
+  .chat-foot {
+    margin: 0.5rem 0 0.15rem;
+  }
+  .chat-votes {
+    opacity: 0.75;
+  }
+  button.chat-vote {
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-block: -0.5rem;
+  }
+}
 
 @media (max-width: 760px) {
   .theater {

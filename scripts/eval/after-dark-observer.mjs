@@ -22,12 +22,15 @@
  *
  * Every connection is opened read-only (default_transaction_read_only=on) and the script only runs SELECTs. It ends by
  * emitting one summary event with ~/ai-stack/bin/emit-event when that exists.
+ *
+ * scripts/eval/observer-nightly.mjs and scripts/eval/export-preferences.mjs import loadLib, openDb and fromDb from here,
+ * so main() runs only when this file is the script being run.
  */
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const LOCAL_JUDGES = new Set(["local-uncensored", "local-qwen3", "local-chat"]);
@@ -51,7 +54,8 @@ function parseArgs(argv) {
   return o;
 }
 
-async function loadLib() {
+/** lib/adult/observer.ts (observeNight, reportMarkdown), through Vite's module runner: the same TypeScript the tests run. */
+export async function loadLib() {
   const { runnerImport } = await import("vite");
   const { module } = await runnerImport(join(ROOT, "lib/adult/observer.ts"), {
     configFile: false,
@@ -62,8 +66,8 @@ async function loadLib() {
   return module;
 }
 
-/** A read-only query function over Postgres (pg) or PGlite. */
-async function openDb(o) {
+/** A read-only query function over Postgres (pg) or PGlite: o.pglite, else o.db, $OBSERVER_DATABASE_URL, $DATABASE_URL. */
+export async function openDb(o) {
   if (o.pglite) {
     const { PGlite } = await import("@electric-sql/pglite");
     const pg = new PGlite(o.pglite);
@@ -104,8 +108,12 @@ const sideOf = (c) => {
   };
 };
 
-/** Builds the observer's input from the database: the pair's nights (chapters in order), memories and sets asked for. */
-async function fromDb(q, o) {
+/**
+ * Builds the observer's input from the database: the pair's nights (chapters in order), memories and sets asked for.
+ * o: { pair: [id or prefix, id or prefix], owner?: admin id, nights: "latest" | "all" }. One ObserverInput per run of
+ * chapters (each Start over begins a new run); each chapter keeps its scene or night id.
+ */
+export async function fromDb(q, o) {
   const [x, y] = await Promise.all([character(q, o.pair[0]), character(q, o.pair[1])]);
   const [aRow, bRow] = x.id < y.id ? [x, y] : [y, x];
   const cols = new Set((await q(`select column_name from information_schema.columns where table_name = 'adult_nights'`)).map((r) => r.column_name));
@@ -292,8 +300,10 @@ async function main() {
   );
 }
 
-main().catch(async (err) => {
-  console.error(`[observer] ${err.message}`);
-  await emit("fail", err.message.slice(0, 300));
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  main().catch(async (err) => {
+    console.error(`[observer] ${err.message}`);
+    await emit("fail", err.message.slice(0, 300));
+    process.exit(1);
+  });
+}
