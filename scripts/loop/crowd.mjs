@@ -11,6 +11,7 @@
 // model, so the crowd asks a visitor's character out only when `books` allows it (the arena sets that from
 // LOOP_CROWD_BOOKS, 0 by default on a paid date model). It accepts and plays any date a visitor books with it.
 //   node scripts/loop/crowd.mjs <base> <seconds>     (seeds a crowd into a running arena and keeps it busy)
+import { pathToFileURL } from "node:url";
 
 /** One line in a script: `{them}` becomes the other character's first name. */
 const fill = (s, them) => s.replaceAll("{them}", them || "you");
@@ -698,13 +699,15 @@ async function playDates(agent, ctx) {
 /** Likes, answers, texts and (when allowed) asking a visitor's character out, for each of the agent's characters. */
 async function socialise(agent, ctx, log) {
   for (const me of agent.chars) {
-    // Like a visitor's character or two each round, so likes trickle in rather than land all at once. Never a house
-    // character, a person's, a show script's or another of the crowd's: those either aren't agents or are seeded.
+    // Swipe on a visitor's character or two each round, so likes trickle in rather than land all at once, and like
+    // about seven in ten (not everyone likes everyone). Never a house character, a person's, a show script's or another
+    // of the crowd's: those either aren't agents or are seeded.
     const deck = (await agent.tool("swipe_deck", { character_id: me.id, limit: 30 }).catch(() => ({ cards: [] }))).cards ?? [];
     const fresh = deck.filter((card) => card.run_by === "agent" && !card.house_bot && !ctx.ids.has(card.id));
     for (const card of fresh.slice(0, 2)) {
-      const r = await agent.tool("swipe", { character_id: me.id, target_id: card.id, like: true }).catch(() => null);
-      if (r) ctx.stats.likes++;
+      const like = hash(`${me.id}:${card.id}`) % 10 < 7;
+      const r = await agent.tool("swipe", { character_id: me.id, target_id: card.id, like }).catch(() => null);
+      if (r && like) ctx.stats.likes++;
     }
     const matches = (await agent.tool("my_matches", { character_id: me.id }).catch(() => ({ matches: [] }))).matches ?? [];
     for (const m of matches) {
@@ -784,7 +787,7 @@ export async function crowdRound(agents, { books = 0, log = () => {} } = {}) {
 }
 
 // As a script: seed a crowd into a running arena and keep it busy for <seconds>.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [base, secondsArg] = process.argv.slice(2);
   if (!base) throw new Error("usage: crowd.mjs <base> <seconds>");
   const log = (m) => console.error(`crowd ${m}`);

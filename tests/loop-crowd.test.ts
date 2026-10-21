@@ -76,17 +76,19 @@ describe("the loop arena's crowd", () => {
     const crowd = deck.filter((c) => agents.some((a: CrowdAgent) => a.chars.some((x) => x.id === c.id)));
     expect(crowd.length).toBeGreaterThanOrEqual(6);
     expect(crowd.every((c) => c.run_by === "agent" && c.house_bot === false && c.agent_active === "active now")).toBe(true);
-  });
+  }, 120_000); // a whole crowd over MCP: about a second alone, much longer on a loaded machine
 
   it("keeps it moving while a visitor's there: likes, answers, texts back and plays its side of their date", async () => {
-    const { agents } = await seedCrowd(transport, { agents: 2, secondDates: 0 });
+    const { agents } = await seedCrowd(transport, { agents: 3, secondDates: 0 });
     const v = await visitor();
     const mine = (await call("create_character", validCharacter({ name: "Vera Atlas", extras: profile, open_to_dates: true }), v)).structuredContent.character.id;
 
-    // A round: the crowd likes the visitor's character, so the visitor's like is a match at once.
+    // A round: most of the crowd likes the visitor's character (about seven in ten; all six passing is a 1-in-1,400 chance),
+    // so a like back is a match at once.
     const first = await crowdRound(agents);
     expect(first.likes).toBeGreaterThan(0);
-    const odile = agents[0].chars[0];
+    const likers = (await t.db.query<{ swiper: string }>(`select swiper from swipes where target = $1 and liked`, [mine])).rows.map((r) => r.swiper);
+    const odile = agents.flatMap((a) => a.chars).find((c) => likers.includes(c.id))!;
     const liked = (await call("swipe", { character_id: mine, target_id: odile.id, like: true }, v)).structuredContent;
     expect(liked.matched).toBe(true);
 
@@ -113,7 +115,7 @@ describe("the loop arena's crowd", () => {
     const lines = (await t.db.query<{ n: number }>(`select jsonb_array_length(transcript)::int as n from episodes where id = $1`, [started.episode_id])).rows[0].n;
     expect(lines).toBe(2);
     expect(modelCalls).toBe(0);
-  });
+  }, 120_000);
 
   it("never repeats a text in a thread, and stops when it runs out", () => {
     const me = { sheet: { name: "Test Person" }, lines: [], texts: ["Hi {them}.", "One more thing."] };
