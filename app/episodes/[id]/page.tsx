@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import JsonLd from "@/app/JsonLd";
 import { breadcrumbJsonLd } from "@/lib/seo";
+import { episodeCardPath, SHARE_QUESTION, shareDescription, shareTitle } from "@/lib/episode-share";
 import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
 import { getDb } from "@/lib/db";
@@ -28,6 +29,7 @@ import ConfessionalShare from "./ConfessionalShare";
 import CreatorReveal from "./CreatorReveal";
 import DealbreakerQuiz from "./DealbreakerQuiz";
 import EpisodeActions from "./EpisodeActions";
+import RecapToggle from "./RecapToggle";
 import { airIfDue, airWindowMinutes } from "@/lib/air";
 import SafetyActions from "./SafetyActions";
 import SlidingDoors from "./SlidingDoors";
@@ -38,25 +40,44 @@ export const dynamic = "force-dynamic";
 
 const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
 
-const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
-
 /**
  * Each episode gets its own title and summary for search and link previews, from the public view only (no
  * spoilers: the setting is the teaser). Only public, unhidden episodes are indexable; unlisted, private and
  * hidden ones tell crawlers to stay out.
+ *
+ * The link preview is the share card (/api/og/episode/<id>): a "How does it end?" poll, as a large Twitter card.
+ * Setting openGraph.images here is what puts it ahead of ./opengraph-image (the box score card, still served).
  */
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const episode = await getEpisodeView(await getDb(), id, null);
   if (!episode || episode.hidden) return { title: "Episode · Botchelor", robots: { index: false, follow: false } };
   const [a, b] = episode.characters;
+  const names: [string, string] = [a.name, b.name];
   const indexable = episode.visibility === "public";
+  const description = shareDescription(names, episode.setting, episode.revealed);
+  const card = { url: episodeCardPath(id), width: 1200, height: 630, alt: `${a.name} × ${b.name}: ${SHARE_QUESTION} A poll with three answers.` };
   return {
     title: `${a.name} × ${b.name}: an AI blind date · Botchelor`,
-    description: clip(`${a.name} meets ${b.name}. ${episode.setting} Watch the date and guess how it ends.`, 200),
+    description,
     alternates: { canonical: `/episodes/${id}` },
     robots: indexable ? { index: true, follow: true } : { index: false, follow: false },
+    // The root layout's openGraph and twitter are replaced, not merged, so the site's own fields are repeated here.
+    openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: `/episodes/${id}`, title: shareTitle(names), description, images: [card] },
+    twitter: { card: "summary_large_image", title: shareTitle(names), description, images: [{ url: card.url, alt: card.alt }] },
   };
+}
+
+/** The way in for anyone who isn't one of this date's creators, most often someone who followed a shared link. */
+function MakeYourOwn() {
+  return (
+    <p className="make-your-own">
+      <Link className="button" href="/create">
+        Make your own character
+      </Link>
+      <span className="muted">Send your OC on a blind date like this one. Free to start, no sign-up.</span>
+    </p>
+  );
 }
 
 export default async function EpisodePage({
@@ -132,6 +153,7 @@ export default async function EpisodePage({
               : "🎭 Its creator's own AI is performing this date, one line at a time. The ending is already decided."}
           </p>
         )}
+        {!episode.is_creator && <MakeYourOwn />}
         <GeneratingPoller
           episodeId={episode.id}
           stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null, canSetScene: !selfPerformed } : undefined}
@@ -144,6 +166,8 @@ export default async function EpisodePage({
   }
 
   const base = siteUrl();
+  // The theater can play it (the ending is known and there are lines), so the written recap folds behind a toggle.
+  const hasTheater = Boolean(episode.ending && episode.transcript && episode.transcript.length > 0);
   return (
     <article>
       {episode.visibility === "public" && !episode.hidden && (
@@ -180,6 +204,8 @@ export default async function EpisodePage({
       <h1>
         {a.name} × {b.name}
       </h1>
+      {/* Straight under the title, ahead of the badges, so it stays on a phone's first screen however many there are. */}
+      {!episode.is_creator && <MakeYourOwn />}
       <p className="muted">
         {a.name}
         {a.house && <span className="badge">House character</span>}
@@ -221,7 +247,7 @@ export default async function EpisodePage({
         </p>
       )}
       {/* The theater first: on a phone it sat ~2,650px down, under a written recap that gives the ending away. */}
-      {episode.ending && episode.transcript && episode.transcript.length > 0 && (
+      {hasTheater && episode.ending && episode.transcript && (
         <p className="theater-cta theater-cta-top">
           <EpisodeTheater
             characters={episode.characters}
@@ -268,34 +294,6 @@ export default async function EpisodePage({
         )}
       </section>
 
-      {episode.ending ? (
-        <section className="card">
-          <h2>The date</h2>
-          {episode.scenes?.map((scene, i) => (
-            <div key={i}>
-              <h3 className="act">{DATE_ACTS[i] ?? `Act ${i + 1}`}</h3>
-              <p>{withoutActLabel(scene, DATE_ACTS[i])}</p>
-            </div>
-          ))}
-          <h2>The twist</h2>
-          <p>{episode.twist}</p>
-          <h2>The finale</h2>
-          <p>{episode.finale}</p>
-          <p className="ending">Ending: {ENDING_LABELS[episode.ending]}</p>
-          {episode.drama_question && episode.drama_answer && (
-            <p>
-              {DRAMA_QUESTION_LABELS[episode.drama_question]}{" "}
-              <strong>{dramaAnswerLabel(episode.drama_question, episode.drama_answer, names)}</strong>
-            </p>
-          )}
-          {!episode.revealed && <p className="muted">Only the creators can see this until the finale airs.</p>}
-        </section>
-      ) : (
-        <section className="card">
-          <p className="muted">The date, the twist and the ending stay hidden until the finale airs.</p>
-        </section>
-      )}
-
       {episode.transcript && episode.transcript.length > 0 && (
         <section className="card transcript">
           <h2>The date, line by line</h2>
@@ -304,59 +302,91 @@ export default async function EpisodePage({
         </section>
       )}
 
-      {episode.box_score && <BoxScore boxScore={episode.box_score} bestLine={episode.best_line} why={episode.why} note={episode.box_score_note} />}
-
-      {episode.agendas && (
-        <section className="card">
-          <h2>Secret agendas &amp; the producer</h2>
-          {episode.producer && (
-            <p className="muted">
-              The producer&apos;s act-2 situation: <strong>{episode.producer}</strong>.
-            </p>
-          )}
-          <ul>
-            {episode.agendas.map((ag) => (
-              <li key={ag.character_id}>
-                <strong>{nameOf(ag.character_id)}:</strong> {ag.agenda}
-              </li>
+      {/* The recap, the box score and the other ending reveals: folded away behind one toggle when the theater can
+          play the date, so nobody scrolling past is told how it ends (open as before when there's no transcript). */}
+      <RecapToggle hasTheater={hasTheater}>
+        {episode.ending ? (
+          <section className="card">
+            <h2>The date</h2>
+            {episode.scenes?.map((scene, i) => (
+              <div key={i}>
+                <h3 className="act">{DATE_ACTS[i] ?? `Act ${i + 1}`}</h3>
+                <p>{withoutActLabel(scene, DATE_ACTS[i])}</p>
+              </div>
             ))}
-          </ul>
-        </section>
-      )}
-
-      {episode.confessionals && (
-        <section className="card">
-          <h2>The confessionals</h2>
-          {episode.confessionals.map((c) => (
-            <p key={c.character_id} className="confessional">
-              <strong>{nameOf(c.character_id)}:</strong> “{c.line}”
-            </p>
-          ))}
-          {episode.is_host && <ConfessionalShare episodeId={episode.id} shared={episode.confessionals_shared} />}
-        </section>
-      )}
-
-      {episode.debrief && (
-        <section className="card debrief">
-          <h2>Your private debrief</h2>
-          <p className="muted">A report on your own AI&apos;s date. Only you can see this.</p>
-          <ul>
-            <li>Wants another date: <strong>{episode.debrief.wants_another ? "yes" : "no"}</strong></li>
-            <li>What it liked: {episode.debrief.liked ? <>something about “{episode.debrief.liked}”</> : "nothing in particular"}</li>
-            <li>What made it uncomfortable: {episode.debrief.uncomfortable ? <>“{episode.debrief.uncomfortable}”</> : "nothing major"}</li>
-            <li>Its secret agenda ({episode.debrief.agenda}): <strong>{episode.debrief.agenda_met ? "met" : "not met"}</strong></li>
-            {episode.debrief.note_followed !== null && (
-              <li>Your note in the pocket: <strong>{episode.debrief.note_followed ? "it took your advice" : "it ignored your advice"}</strong></li>
+            <h2>The twist</h2>
+            <p>{episode.twist}</p>
+            <h2>The finale</h2>
+            <p>{episode.finale}</p>
+            <p className="ending">Ending: {ENDING_LABELS[episode.ending]}</p>
+            {episode.drama_question && episode.drama_answer && (
+              <p>
+                {DRAMA_QUESTION_LABELS[episode.drama_question]}{" "}
+                <strong>{dramaAnswerLabel(episode.drama_question, episode.drama_answer, names)}</strong>
+              </p>
             )}
-          </ul>
-          {surprise && (
-            <p className={surprise.surprised ? "notice" : undefined}>
-              You guessed {ENDING_LABELS[surprise.self_pick]}; your AI landed on {ENDING_LABELS[surprise.actual]}.{" "}
-              {surprise.surprised ? "It surprised you." : "Exactly as you expected."}
-            </p>
-          )}
-        </section>
-      )}
+            {!episode.revealed && <p className="muted">Only the creators can see this until the finale airs.</p>}
+          </section>
+        ) : (
+          <section className="card">
+            <p className="muted">The date, the twist and the ending stay hidden until the finale airs.</p>
+          </section>
+        )}
+
+        {episode.box_score && <BoxScore boxScore={episode.box_score} bestLine={episode.best_line} why={episode.why} note={episode.box_score_note} />}
+
+        {episode.agendas && (
+          <section className="card">
+            <h2>Secret agendas &amp; the producer</h2>
+            {episode.producer && (
+              <p className="muted">
+                The producer&apos;s act-2 situation: <strong>{episode.producer}</strong>.
+              </p>
+            )}
+            <ul>
+              {episode.agendas.map((ag) => (
+                <li key={ag.character_id}>
+                  <strong>{nameOf(ag.character_id)}:</strong> {ag.agenda}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {episode.confessionals && (
+          <section className="card">
+            <h2>The confessionals</h2>
+            {episode.confessionals.map((c) => (
+              <p key={c.character_id} className="confessional">
+                <strong>{nameOf(c.character_id)}:</strong> “{c.line}”
+              </p>
+            ))}
+            {episode.is_host && <ConfessionalShare episodeId={episode.id} shared={episode.confessionals_shared} />}
+          </section>
+        )}
+
+        {episode.debrief && (
+          <section className="card debrief">
+            <h2>Your private debrief</h2>
+            <p className="muted">A report on your own AI&apos;s date. Only you can see this.</p>
+            <ul>
+              <li>Wants another date: <strong>{episode.debrief.wants_another ? "yes" : "no"}</strong></li>
+              <li>What it liked: {episode.debrief.liked ? <>something about “{episode.debrief.liked}”</> : "nothing in particular"}</li>
+              <li>What made it uncomfortable: {episode.debrief.uncomfortable ? <>“{episode.debrief.uncomfortable}”</> : "nothing major"}</li>
+              <li>Its secret agenda ({episode.debrief.agenda}): <strong>{episode.debrief.agenda_met ? "met" : "not met"}</strong></li>
+              {episode.debrief.note_followed !== null && (
+                <li>Your note in the pocket: <strong>{episode.debrief.note_followed ? "it took your advice" : "it ignored your advice"}</strong></li>
+              )}
+            </ul>
+            {surprise && (
+              <p className={surprise.surprised ? "notice" : undefined}>
+                You guessed {ENDING_LABELS[surprise.self_pick]}; your AI landed on {ENDING_LABELS[surprise.actual]}.{" "}
+                {surprise.surprised ? "It surprised you." : "Exactly as you expected."}
+              </p>
+            )}
+          </section>
+        )}
+      </RecapToggle>
 
       {episode.afterglow && (
         <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} />
@@ -400,6 +430,7 @@ export default async function EpisodePage({
       <EpisodeActions
         episodeId={episode.id}
         sharePath={episode.share_path}
+        shareBase={base}
         isCreator={episode.is_creator}
         isHost={episode.is_host}
         revealed={episode.revealed}

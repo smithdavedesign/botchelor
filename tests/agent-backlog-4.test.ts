@@ -165,10 +165,11 @@ describe("arguments and errors", () => {
     const { ctx, id } = await agentWith("Ada Lumen");
     const r = await call("swipe", { character_id: id, target_id: HOUSE_PARTNER_ID, like: true, preview: true }, ctx);
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toMatch(/swipe has no preview.*nothing was started or spent/);
+    expect(r.content[0].text).toMatch(/swipe has no preview or dry run, so nothing was done or spent/);
     expect(await t.count("episodes")).toBe(0);
-    const d = await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, dry_run: true }, ctx);
-    expect(d.content[0].text).toMatch(/go_on_date has no dry_run \(it takes preview\)/);
+    // A dry run the tool knows by another name is read as that one: dry_run → preview, and nothing is booked.
+    const d = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, dry_run: true }, ctx)).structuredContent;
+    expect(d.preview).toBe(true);
     expect(await t.count("episodes")).toBe(0);
   });
 
@@ -236,7 +237,7 @@ describe("creating a character", () => {
     const made = (await call("create_character", validCharacter({ name: "Marguerite Toll", ...sheet }), ctx)).structuredContent;
     expect(check.originality.similar.map((s: Any) => s.id)).toEqual(made.originality.similar.map((s: Any) => s.id));
     expect(made.originality.similar.map((s: Any) => s.id)).toContain(bot.id);
-    expect(made.warning).toMatch(/made by a house-run bot \(one of the show's own scripts answers for it\)/);
+    expect(made.warning).toMatch(/a house-run bot's character \(one of the show's own scripts, not another agent\)/);
     expect(made.warning).not.toMatch(/made by another agent/);
   });
 });
@@ -317,7 +318,7 @@ describe("a house date over MCP", () => {
     expect(closed.content[0].text).toMatch(new RegExp(`set_date_visibility with episode_id "${priv.episode.id}" and visibility "unlisted"`));
     expect(closed.content[0].text).toMatch(/books a new date, not this one's second date/);
     const sd = (await call("sliding_doors", { episode_id: booked.episode.id, change: "bolder" }, ctx)).structuredContent;
-    expect(sd.cost).toMatch(/^free/);
+    expect(sd.cost).toMatchObject({ spent: "nothing", agents_shared_daily: "not counted" });
   });
 
   it("the leaderboard marks a place held on few reviews as provisional (#488)", async () => {
@@ -341,7 +342,7 @@ describe("swiping and texting", () => {
     const B = await agentWith("Bo Quill", { open_to_dates: true, extras: PROFILE });
     const like = (await call("swipe", { character_id: A.id, target_id: B.id, like: true }, A.ctx)).structuredContent;
     expect(like).toMatchObject({ liked: true, matched: false, run_by: "agent", agent_active: "active now" });
-    expect(like.next).toMatch(/Their agent is around/);
+    expect(like.next).toMatch(/Their agent was active now/);
     const again = await call("swipe", { character_id: A.id, target_id: B.id, like: true }, A.ctx);
     expect(again.content[0].text).toMatch(/already swiped/);
     await call("swipe", { character_id: B.id, target_id: A.id, like: true }, B.ctx);
@@ -411,7 +412,7 @@ describe("dates an agent performs", () => {
     const a = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;
     const b = (await call("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id;
     const preview = (await call("start_own_date", { character_id: a, partner_id: b, preview: true }, ctx)).structuredContent;
-    expect(preview).toMatchObject({ preview: true, started: false, lines: 12, other_side: expect.stringMatching(/yours too/), visibility: "public" });
+    expect(preview).toMatchObject({ preview: true, started: false, kind: "your_own_two", format: { lines: 12 }, other_side: expect.stringMatching(/You play both/), visibility: "public" });
     expect(await t.count("episodes")).toBe(0);
     const started = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent;
     expect(started.resumed).toBeUndefined();
@@ -479,19 +480,20 @@ describe("dates an agent performs", () => {
     const started = (await call("start_own_date", { character_id: A.id, partner_id: B.id, format: "speed_date" }, A.ctx)).structuredContent;
     const id = started.step.episode_id;
     const preview = (await call("autoplay_own_date", { episode_id: id, preview: true }, A.ctx)).structuredContent;
-    expect(preview).toMatchObject({ preview: true, played: false, side: "mine", lines_in: 0 });
+    expect(preview).toMatchObject({ preview: true, played: false, side: "mine", lines_left: 6, show_plays: ["Ada Lumen"] });
     expect((await t.db.query<Any>(`select autoplay, handed_over from episodes where id = $1`, [id])).rows[0]).toEqual({ autoplay: false, handed_over: null });
-    const both = (await call("autoplay_own_date", { episode_id: id, preview: true, side: "both" }, A.ctx)).structuredContent;
-    expect(both.refused).toMatch(/only your side/);
+    const both = await call("autoplay_own_date", { episode_id: id, preview: true, side: "both" }, A.ctx);
+    expect(both.isError).toBe(true);
+    expect(both.content[0].text).toMatch(/only your side/);
     // Bo's agent is one of the show's own scripts: the show can play its side too, so the whole date can finish.
     await t.db.query(`update mcp_sessions set client_name = 'botchelor-loop-swipe-back' where agent_id = $1`, [B.agentId]);
     const botPreview = (await call("autoplay_own_date", { episode_id: id, preview: true }, A.ctx)).structuredContent;
-    expect(botPreview).toMatchObject({ side: "both", bot_partner: true });
+    expect(botPreview).toMatchObject({ side: "mine", house_bot: true, show_plays: ["Ada Lumen", "Bo Quill"] });
     const turn = (i: number) => JSON.stringify({ dialogue: `Autoplayed line ${i} about maps and weather.`, action: "", emotion: "warm", interest_signal: 0.6 });
     scriptedModel([turn(0), turn(1), turn(2), turn(3), turn(4), turn(5), episodeJson()]);
     const played = (await call("autoplay_own_date", { episode_id: id }, A.ctx)).structuredContent;
     expect(played.isError).toBeUndefined();
-    expect(played).toMatchObject({ autoplay: "both", bot_partner: true });
+    expect(played).toMatchObject({ autoplay: "mine" });
     expect(played.step.stage).toBe("done");
     expect((await t.db.query<Any>(`select status from episodes where id = $1`, [id])).rows[0].status).toBe("ready");
     // At the start, Bo's agent still read as a live agent (its session was renamed after).

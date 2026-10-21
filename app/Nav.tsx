@@ -11,7 +11,7 @@ const LINKS = [
   { href: "/swipe", label: "Swipe" },
   { href: "/matches", label: "Matches" },
   { href: "/watch", label: "Watch" },
-  { href: "/characters", label: "Cast" },
+  { href: "/characters", label: "Characters" },
   { href: "/account", label: "Account" },
 ] as const;
 

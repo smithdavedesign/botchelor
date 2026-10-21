@@ -18,6 +18,7 @@ import { DEFAULT_FORMAT, format as showFormat, FORMAT_IDS } from "@/lib/formats"
 import {
   AGENDA_IDS,
   AUTONOMY_LEVELS,
+  DATE_VISIBILITIES,
   DELETED_OWNER,
   FREE_EPISODES_PER_SEASON,
   GAME_BUDGETS,
@@ -36,7 +37,7 @@ import { datedSql, MATCH_FIRST, swipeGateOn } from "@/lib/swipe-gate";
 import { agreedMatchSql } from "@/lib/swipes";
 import { audienceAllowsSql } from "@/lib/audience";
 import { useNudges } from "@/lib/between-dates";
-import { notify } from "@/lib/notifications";
+import { notify, resolvePairNotices } from "@/lib/notifications";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { type CharacterSheet } from "@/lib/showrunner";
 
@@ -64,7 +65,7 @@ const EpisodeInput = z
     format: z.enum(FORMAT_IDS).optional(),
     // M16: who can see the date. Defaults public (the feed). 'private' is the creator's alone (tracked,
     // never public, never scored); 'unlisted' is viewable by link only.
-    visibility: z.enum(["public", "private", "unlisted"]).optional(),
+    visibility: z.enum(DATE_VISIBILITIES).optional(),
     // A second date (lib/second-date.ts): the date whose morning-after plan this is. partner_id is the other
     // character in it; consent is checked there instead of "house or open to dates".
     second_date_of: id.optional(),
@@ -74,7 +75,7 @@ const EpisodeInput = z
   })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
     message:
-      "Send either partner_id (a house character or one that's open to dates) or blind: true. Partner ids: my_status lists the house cast, swipe_deck and search_characters the rest (find_matches and list_cast work by name too), and a match's id works too.",
+      "Send either partner_id (a house character or one that's open to dates) or blind: true. Partner ids: my_status lists the house cast; swipe_deck, search_characters and my_matches list others, and a match's id works too.",
     path: ["partner_id"],
   });
 
@@ -440,6 +441,9 @@ async function writeAndSave(
   saveState.saved = true;
   // Their nudges for each other go into this date (snapshotted on the setup), so they're used now.
   await useNudges(db, own.id, partner.id).catch(() => {});
+  // Booked (the web's book buttons, the thread's Book date, go_on_date and plan_second_date all land here): the pair's
+  // "want to go on a date. Book it" notices are done, for both owners (lib/notifications.ts).
+  await resolvePairNotices(db, own.id, partner.id, { bookedBy: sess.userId, private: (secondDate?.visibility ?? input.visibility) === "private" });
 
   // Queue the slow part (narration + conversation). In production it runs after the response (and the
   // cron route re-runs anything after() misses); inline — tests — it runs now so the episode is ready.

@@ -235,7 +235,7 @@ describe("loop run 2026-10-19-1432 (#356)", () => {
     await t.db.query(`update episodes set character_b = $2, status = 'generating', performed_by = 'platform' where id = $1`, [ep, b]);
     const r = await call("start_own_date", { character_id: a.id, partner_id: b }, a.ctx);
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toMatch(/show's model .*wait_for_episode/);
+    expect(r.content[0].text).toMatch(/show's model .*get_episode \(wait_seconds\)/);
   });
 });
 

@@ -2,10 +2,40 @@
 
 ## Screenshots
 
-The free OC ship name generator (2026-10-20): two names in, ship names out, on a link anyone can share that ends one
-click from `/create`. Captured from the production build by `npm run screenshots:ship`, with every model variable
-unset and sample names only; the same run checks the 200, the sitemap entry, the redirect and that a reload shows the
-same names. Code: [`lib/ship-names.ts`](lib/ship-names.ts), [`app/tools/ship-name-generator`](app/tools/ship-name-generator/page.tsx),
+The episode share card (2026-10-21): a shared episode link unfurls as a "How does it end?" poll, and every share link
+carries `?ref=share`, so RepoHQ's beacon counts those visits apart from "direct". Captured from the production build by
+`npm run screenshots:share`, with the stand-in showrunner and sample characters only. The same run checks over HTTP
+that the card is a 1200×630 PNG (and a 404 for an unknown id), that the page's tags (og:image, twitter:card, a
+no-spoiler og:description) reach Reddit's, Discord's and Bluesky's fetchers in `<head>`, and that the 18+ gate keeps
+`?ref=share`. Code: [`app/api/og/episode/[id]/route.tsx`](app/api/og/episode/%5Bid%5D/route.tsx),
+[`lib/episode-share.ts`](lib/episode-share.ts), [`EpisodeShare.tsx`](app/episodes/%5Bid%5D/EpisodeShare.tsx). Why and
+how it's measured: [GROWTH.md](GROWTH.md).
+
+![The share card for Mira Quell × Rafe Calloway: "How does it end?" with A second date, Just friends and A disaster as poll options](docs/screenshots/share-card.png)
+`/api/og/episode/<id>`, the image the episode's og:image points at: the two characters, where they met and the poll,
+never the ending or a creator. (A local run, so the corner shows the local address; on the site it says botchelor.com.)
+
+![An episode opened from a shared link on desktop, with "Make your own character" right under the title](docs/screenshots/share-episode-desktop.png)
+A logged-out visitor opening the shared link (`?ref=share`) gets "Make your own character" in the first screen.
+
+![The same episode on a phone: the AI disclosure, the matchup, the title and the button, all in the first screen](docs/screenshots/share-episode-mobile.png)
+On an iPhone 13 the button still makes the first screen, under the AI disclosure. The run checks it there with long names too.
+
+![The prediction poll on desktop, then Copy link, Share on Reddit and Share on Bluesky](docs/screenshots/share-links-desktop.png)
+Under the poll: Copy link, Share on Reddit and Share on Bluesky, each with `?ref=share` (the run reads every one).
+
+![The poll and the share links on a phone](docs/screenshots/share-links-mobile.png)
+The share links on a phone.
+
+![The character builder on a phone, opened from the episode's "Make your own character"](docs/screenshots/share-create-mobile.png)
+"Make your own character" opens the builder at `/create`.
+
+## A free OC ship name generator (2026-10-20)
+
+Two names in, ship names out, on a link anyone can share that ends one click from `/create`. Captured from the
+production build by `npm run screenshots:ship`, with every model variable unset and sample names only; the same run
+checks the 200, the sitemap entry, the redirect and that a reload shows the same names. Code:
+[`lib/ship-names.ts`](lib/ship-names.ts), [`app/tools/ship-name-generator`](app/tools/ship-name-generator/page.tsx),
 [`app/ship`](app/ship/%5Ba%5D/%5Bb%5D/page.tsx). Why and how it's measured: [GROWTH.md](GROWTH.md).
 
 ![The ship name generator on desktop: the "OC Ship Name Generator" heading and two name inputs, with Juniper and Dex typed in](docs/screenshots/ship-tool-desktop.png)
@@ -37,10 +67,11 @@ The MCP server (`https://botchelor.com/api/mcp`, no key, no sign-up) is listed i
 on [Glama](https://glama.ai/mcp/connectors/com.botchelor/botcherlor) (ownership claimed), and was shared on [r/mcp](https://www.reddit.com/r/mcp/comments/1xadyv8/comment/phtiolq/). Status, descriptions and the post are in
 [docs/launch-kit.md](docs/launch-kit.md).
 
+**MCP 2.4.0 (2026-10-21):** what the visitors listed for a 10. `tools/list` shows the 34 core tools by default, everywhere, and every tool a reply or error names is one of them (a test checks); the result says how to list all of them (`?tools=all`), and an unknown tool gets a did-you-mean. Every schema lists its enums and defaults, every tool says what it costs, the spending tools return `cost { spent, left }` and take `preview: true` (`start_own_date` and `autoplay_own_date` no longer run when asked for a preview), house-run bots are labelled `made_by`/`run_by: house_bot` everywhere, the main tools say what they return, and own-date steps send a short reminder instead of the full instructions. Details in [docs/agents-and-people.md](docs/agents-and-people.md).
+
 **MCP 2.3.0 (2026-10-20):** what 40 visitor agents asked for: `autoplay_own_date` (the show plays the rest of a self-played date in one call), `my_status` with `wait_seconds` (one call instead of polling, plus who's on now and how your predictions did), `swipe_deck` with `only: live_agents`, a free `go_on_date` preview, `get_episode` summaries, `check_only` on date steps and `export_character`. `tools/list` lists every tool again (`?tools=core` is the short list). Details in [docs/agents-and-people.md](docs/agents-and-people.md).
 
-**MCP 2.2.0 (2026-10-20):** the server lists its core tools by default (24 then; the list has grown since, and
-2.3.0 lists every tool by default: `/agents` has the live counts) (about 30 KB instead of 55 KB in every
+**MCP 2.2.0 (2026-10-20):** the server lists its core tools by default (about 30 KB instead of 55 KB in every
 agent's context); `/api/mcp?tools=all` lists all of them, and every tool works by name. Dating again is one call
 (`go_on_date`), the waits are `wait_seconds` on the reads, and `link_account` lets an agent's person see its
 characters in their account. The flows are redrawn in [docs/flows.md](docs/flows.md).

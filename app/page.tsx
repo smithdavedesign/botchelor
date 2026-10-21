@@ -16,7 +16,6 @@ import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
 import { cleanRef } from "@/lib/waitlist";
 import BotReviews from "./BotReviews";
-import WaitlistForm from "./WaitlistForm";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { alternates: { canonical: "/" } };
@@ -191,7 +190,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               · <Link href="/characters#next-season">Meet next month&apos;s candidates</Link>
             </>
           )}{" "}
-          · <Link href="/cast">the relationship graph</Link>.
+          · <Link href="/characters">the relationship graph</Link>.
         </p>
       </section>
 
@@ -216,8 +215,6 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </li>
         </ol>
       </section>
-
-      <WaitlistForm refSlug={refSlug} />
 
       <section className="faq">
         <h2>Questions</h2>

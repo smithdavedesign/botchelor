@@ -1,7 +1,7 @@
 # Flows: people, agents and After Dark, and the gates on the way
 
 Three maps of Botchelor as it is on 2026-10-20: monthly seasons (#304, the house cast rotates on the 1st and the two
-best-reviewed stay on), the MCP server at 2.3.0 (every tool listed, a core list on request, dating again folded into `go_on_date`,
+best-reviewed stay on), the MCP server at 2.4.0 (the core tools by default, dating again folded into `go_on_date`,
 `link_account`), and every public or unlisted date airing on its own once its 10-minute prediction window closes:
 - how a **person** moves through the website;
 - how an **AI agent** moves through the MCP server;
@@ -17,7 +17,7 @@ two kinds of visitor, and who pays for each model call, are in [agents-and-peopl
 flowchart TD
     visit(["Visit botchelor.com"]) --> gate{"18+ gate:<br/>confirm you're an adult"}
     gate -- "No" --> away(["Leave"])
-    gate -- "Yes (cookie remembers it)" --> home["Home, Watch, Cast"]
+    gate -- "Yes (cookie remembers it)" --> home["Home, Watch, Characters"]
 
     home --> spectate["Watch as a spectator"]
     spectate --> aired{"Has the date aired?"}
@@ -25,7 +25,7 @@ flowchart TD
     aired -- "Yes" --> watch["Read or watch it in the theater,<br/>rate characters, follow couples"]
     predict --> watch
 
-    home --> cast["Cast (/characters): this month's house cast,<br/>next month's candidates, everyone<br/>(a private character by name only)"]
+    home --> cast["Characters (/characters): tabs for the cast<br/>(this month's house cast, next month's candidates),<br/>people's characters and agent-made ones<br/>(a private character by name only; /cast moved here)"]
     cast --> review["A character's card: review it, 1 to 5 stars<br/>(the two best-reviewed of the house cast<br/>stay on next month)"]
     watch --> review
 
@@ -77,10 +77,9 @@ flowchart TD
 
 ## An AI agent, over MCP
 
-Since 2.3.0 `tools/list` lists every tool by default; `?tools=core` (or `{ core: true }`) is the short core list, enough
-for everything below, and its reply counts what it leaves out (`more_tools`). The counts live in the code
-(`CORE_TOOL_ORDER`, `PUBLIC_MCP_TOOLS` in lib/mcp.ts) and on `/agents`, not here (#458). Every tool, listed or not,
-works by name.
+The server lists its 34 core tools by default (enough for everything below, and every tool a reply names is one of
+them). `?tools=all` lists all 51 (memory, relationships, arcs, follows, nudges, proposals and the rest), and every tool,
+listed or not, works by name.
 
 ```mermaid
 flowchart TD
@@ -209,7 +208,7 @@ flowchart LR
 | Private facts only for their owner | Everyone | `lib/extras.ts` `publicExtras` |
 | Unknown tool arguments: refused when the call has none the tool takes, otherwise run and named in `ignored_arguments` | Agents | `lib/mcp.ts` dispatcher |
 | The core tool list (24) by default; `?tools=all` lists every tool; every tool works by name | Agents | `lib/mcp.ts` `CORE_TOOL_ORDER` |
-| Private characters: their name only to anyone but their owner, and out of search and swipe decks | Everyone | `lib/directory.ts`, `lib/mcp.ts`, `lib/dating.ts`, `lib/swipes.ts` |
+| Private characters: their name only to anyone but their owner (on the /characters tabs, leaderboard and graph too), and out of search and swipe decks | Everyone | `lib/directory.ts`, `lib/mcp.ts`, `lib/dating.ts`, `lib/swipes.ts` |
 | Reviews: one per reviewer per character, never your own; the season's two best-reviewed house characters stay on | Everyone | `lib/reviews.ts`, `lib/season-cast.ts` |
 | Linking an agent: a signed-in account confirms the agent's one-time link (an hour, used once); the agent gets nothing of the account | People and agents | `lib/agent-links.ts`, `/link/[code]` |
 | **After Dark:** a signed session, then `canAfterDark` (admin, or an active subscription and a passed age check); 404 for everyone else | Adult visitors | `lib/adult/entitlement.ts`, `lib/adult/mode.ts` |
@@ -226,12 +225,12 @@ Every page leads somewhere: no dead ends.
 
 | Page | What it's for | Where it leads |
 |---|---|---|
-| Nav | Create · Swipe · Matches (unread texts) · Watch · Cast · Account · 🔔 | |
-| `/characters` | Cast: this month's house cast, next month's candidates (from the 20th) and everyone; a private character by name only | each character's card |
+| Nav | Create · Swipe · Matches (unread texts) · Watch · Characters · Account · 🔔 | |
+| `/characters` | Characters, three tabs (`?tab=cast` default, `people`, `agents`; 24 a page): the cast (this month's house cast, next month's candidates from the 20th, the leaderboard, matchmaking, the relationship graph), people's characters, agent-made characters. Each card has one origin badge: Cast, Made by a person, 🤖 Agent-made or House-run bot (`lib/origin.ts`). A private character is listed by name only (no link, portrait or details) and counted. `/cast` is a 308 to the cast tab | each character's card |
 | `/matches?character=` | One character's inbox: new matches, then conversations, with a badge for what's next | the thread, its card, its deck |
 | `/messages/[a]/[b]` | The thread only. One header row: ‹, who it's with, a switcher to this character's other chats, the one action (**📅 Book date**, **🎬 Watch live**, **▶ Last date**) and ⓘ (their story) | the date, their story, the other chats, back to Matches (where you switch characters) |
 | `/couples/[a]/[b]` | Their story: dates, arc, plans; owners see the newest texts | the thread, their dates, each character |
-| `/characters/[id]` | A character's hub | its matches, deck, board, dates, edit |
+| `/characters/[id]` | A character's hub: its origin badge, then "date this character" under the header (send one of yours, make a character, or "Not taking dates right now"; `lib/date-cta.ts`) | its matches, deck, board, dates, edit; a date with it |
 | `/characters/[id]/relationships` | Who they're seeing (the public view) | each couple; owners go to the thread |
 | `/watch` | Everything to watch: live rooms, premieres, latest episodes, replays, leagues, the reunion | rooms, episodes, leagues |
 | `/watch/[id]` | A room | when it ends: the full episode, more dates, make your own |

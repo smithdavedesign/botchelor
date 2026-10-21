@@ -1,6 +1,6 @@
 import { shortName } from "@/lib/names";
 import { z } from "zod";
-import { dateLabel } from "@/lib/rules";
+import { DATE_VISIBILITIES, dateLabel } from "@/lib/rules";
 import { POST as createEpisode } from "@/app/api/episodes/route";
 import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
@@ -30,7 +30,7 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   return json({ episode_id: id, ...state }, 200, sess);
 });
 
-const Input = z.object({ visibility: z.enum(["public", "private", "unlisted"]).optional() });
+const Input = z.object({ visibility: z.enum(DATE_VISIBILITIES).optional() });
 
 /**
  * An owner says yes to their characters' second date. When the other owner has already agreed (or doesn't need

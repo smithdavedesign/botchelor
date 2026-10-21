@@ -497,10 +497,24 @@ h2 {
   content: "● ";
   color: var(--accent);
 }
+/* "Latest" and Clear all on one row at the top of the card, with no band under it (mobile audit 2026-10-21). */
 .notification-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin: 0 0 0.25rem;
+  margin: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+.notification-actions h2 {
+  font-size: var(--text-md);
+}
+.notification-actions .button-ghost {
+  margin: 0;
+}
+/* A "Book it" notice whose date has been booked since: it says so, with the way to the date. */
+.notification-booked {
+  color: var(--muted);
+}
+.notification-booked a {
+  font-weight: 600;
 }
 
 .site-footer {
@@ -1150,6 +1164,28 @@ button.chosen {
 
 .share button {
   margin: 0;
+}
+
+/* An episode's share links (app/episodes/[id]/EpisodeShare.tsx): Copy link, then Reddit and Bluesky side by side. */
+.share-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.25rem;
+}
+
+/* "Make your own character" under an episode's matchup, for spectators: the button, its line beside it on desktop
+   and under it on a phone. */
+.make-your-own {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.85rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.make-your-own .button {
+  margin-top: 0;
 }
 
 .report {
@@ -2185,6 +2221,151 @@ button.poll-option.chosen {
 }
 .watch-lobby-live.on {
   color: var(--accent-text);
+}
+/* Watch's order (2026-10-21): a one-line intro, then something to watch on the first screen of a phone. */
+.watch-intro {
+  margin-bottom: var(--space-2);
+}
+.watch-intro a {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.watch-subhead {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-md);
+}
+/* "Airing soon": a horizontal strip of unaired dates to call, swiped sideways on a phone. */
+.watch-airing {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(11.5rem, 14rem);
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-1) 0 var(--space-3);
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+}
+.watch-airing > li {
+  scroll-snap-align: start;
+}
+.watch-airing-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  text-decoration: none;
+  color: inherit;
+}
+.watch-airing-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+.watch-airing-avatars {
+  display: flex;
+  gap: var(--space-1);
+}
+.watch-airing-names {
+  font-size: var(--text-md);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.watch-airing-when {
+  align-self: flex-start;
+}
+.watch-airing-call {
+  margin-top: auto;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--accent-text);
+}
+/* Prev / page n of N / Next under the latest episodes. */
+.watch-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+}
+.watch-pager .button-ghost {
+  margin: 0;
+}
+.watch-pager-gap {
+  min-width: 5rem;
+}
+/* The private-dates note, as one line under the latest episodes instead of a card on top. */
+.private-teaser.private-teaser-compact {
+  margin: var(--space-5) 0 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.private-teaser-compact .private-teaser-lock {
+  font-size: var(--text-md);
+}
+.private-teaser-compact a {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+/* "How it works", folded away near the bottom. */
+.watch-how-details {
+  margin: var(--space-5) 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
+}
+.watch-how-details > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--accent-text);
+}
+.watch-how-details[open] > summary {
+  margin-bottom: var(--space-2);
+}
+.watch-how-details .watch-how {
+  margin-bottom: 0;
+}
+/* The watch room's pre-show (app/watch/[id]/WatchRoom.tsx): a countdown to the first lines and who's on stage,
+   in place of an empty conversation. */
+.watch-countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  text-align: center;
+}
+.watch-countdown-time {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-text);
+}
+.watch-countdown-cast {
+  display: flex;
+  gap: var(--space-2);
+}
+.watch-countdown-who,
+.watch-countdown-hint {
+  margin: 0;
+}
+.watch-countdown-hint {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.watch-countdown.is-dark {
+  margin: var(--space-6) var(--space-4) 0;
+  color: #fff;
+}
+.watch-countdown.is-dark .watch-countdown-time {
+  color: #fff;
+}
+.watch-countdown.is-dark .watch-countdown-hint {
+  color: rgba(255, 255, 255, 0.65);
 }
 
 /* A format badge reads as the episode's billing, so it takes the second accent to stand apart from the
@@ -3761,6 +3942,34 @@ button.link-button.danger {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+/* The episode page's written recap and ending reveals, closed behind one toggle when the theater can play the date
+   (app/episodes/[id]/RecapToggle.tsx). */
+details.recap-toggle {
+  margin: var(--space-4) 0;
+}
+details.recap-toggle > summary {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
+  color: var(--accent-text);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+details.recap-toggle > summary::-webkit-details-marker {
+  display: none;
+}
+details.recap-toggle > summary::before {
+  content: "▸ ";
+}
+details.recap-toggle[open] > summary::before {
+  content: "▾ ";
+}
+details.recap-toggle[open] > summary {
+  margin-bottom: var(--space-3);
 }
 
 /* Account page (M16): auth forms + links. */
@@ -5379,6 +5588,22 @@ a.phone-head-btn {
 .ad-theater-bar input::placeholder {
   color: #b7a8d3;
 }
+/* Nudge or Direct, beside the theater's steer (the page's form has the same choice). */
+.ad-steer-mode {
+  display: inline-flex;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: #f1e9ff;
+}
+.ad-steer-mode label {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+.ad-steer-mode input {
+  flex: none;
+  accent-color: #c9a2ff;
+}
 .ad-theater-note {
   flex-basis: 100%;
   margin: 0;
@@ -5731,12 +5956,130 @@ a.phone-head-btn {
   opacity: 0.5;
 }
 
-/* The /characters directory: a private character is listed by name only, not linked. */
-.gallery .card.is-private {
+/* The /characters hub: three tabs as segmented links (each a real page, so crawlable and script-free), with counts. */
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  margin: var(--space-3) 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  width: fit-content;
+  max-width: 100%;
+}
+.segmented-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.segmented-tab:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+}
+.segmented-tab[aria-current="page"] {
+  background: var(--accent-btn);
+  color: var(--accent-ink);
+}
+.segmented-count {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  opacity: 0.8;
+}
+/* Phones: the three tabs share the width as equal segments, labels wrapping inside if they must. */
+@media (max-width: 600px) {
+  .segmented {
+    width: 100%;
+    border-radius: 14px;
+    flex-wrap: nowrap;
+  }
+  .segmented-tab {
+    flex: 1 1 0;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0;
+    min-height: 48px;
+    padding: 0.3rem 0.4rem;
+    border-radius: 10px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.15;
+  }
+}
+/* A private character on the hub, its leaderboard or its graph: the name only, never linked. */
+.gallery .card.is-private,
+.list .card.is-private {
   opacity: 0.7;
 }
 .directory-private {
   cursor: default;
+}
+/* Who made a character (lib/origin.ts): the cast and house-run bots get their own tints; agents keep .badge-agent. */
+.badge-origin-cast {
+  background: color-mix(in srgb, var(--accent) 14%, var(--card));
+  color: var(--accent-text);
+}
+.badge-origin-house_bot {
+  background: color-mix(in srgb, var(--muted) 16%, var(--card));
+  color: var(--ink);
+}
+.earlier-cast {
+  margin-top: var(--space-4, 1rem);
+}
+.earlier-cast summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+/* "Date this character", right under the contestant header (app/characters/[id]/DateThisCharacter.tsx). */
+.date-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0;
+}
+.date-cta > .button,
+.date-cta > button {
+  margin: 0;
+}
+.date-cta-pick {
+  display: grid;
+  gap: 0.15rem;
+  min-width: min(100%, 12rem);
+}
+.date-cta-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+.date-cta-closed {
+  display: block;
+}
+.date-cta .error {
+  flex-basis: 100%;
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .date-cta > .button,
+  .date-cta > button,
+  .date-cta-pick {
+    flex: 1 1 100%;
+  }
+  .date-cta > .button {
+    justify-content: center;
+    text-align: center;
+  }
 }
 
 /* After Dark's videos of the night (Reels.tsx): one shot at a time, the line under it. */

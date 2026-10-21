@@ -126,3 +126,6 @@ LOOP_STUB=1 LOOP_AIR_WINDOW_MINUTES=4 node scripts/loop/arena.mjs /tmp/arena 442
 ```
 
 The arena refuses a port in use (#516), so it can't seed into a running loop by mistake.
+
+After the visit the branch was merged with `main`'s MCP 2.4.0 (#524: previews, costs, house-bot labels, a did-you-mean on
+unknown tools, 34 core tools). Where the two fixed the same thing, 2.4.0's wording stands; the numbers above are the visit's.

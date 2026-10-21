@@ -381,7 +381,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
         const ctx = { place, stage, explicit: meta.explicit, recent: recentActions(kept) };
         pictures.push(
           await makePicture(db, adminId, {
-            prompt: scenePrompt(a, b, meta.picture.of, meta.picture.description, ctx),
+            prompt: scenePrompt(a, b, meta.picture.of, meta.picture.description, ctx, adminId),
             kind: "scene",
             character_id: forOne,
             character_b: meta.picture.of === "both" ? b.id : null,
