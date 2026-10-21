@@ -102,6 +102,11 @@ A user's key is only ever used for calls whose prompt contains **no other user's
 - A **soulless side** (a house character, or a soul kept local-only, so no soul reaches the model) may ride
   the date's **lone creator's key**.
 - A **second real user's side stays on the platform** — their soul must never ride someone else's key.
+- **Whoever booked it**, X's side runs on X's key: a date another person or an agent books with X's character (open
+  to dates, or a match, couple or proposal X agreed to) spends X's key on X's lines, bounded by that booker's allowance
+  and the agents' daily cap. Kept on purpose (security review, 2026-10-20): moving those turns to our model would only
+  add to our spend, since nothing private of anyone else is in them. The Account page says so beside the key, with the
+  way out (close the characters to dates, or remove the key).
 - **Texting between dates on your key** (`writeOwnText` in `lib/texting.ts`, from the phone on the couple page, as
   often and as long as you like). The prompt carries your own character's soul, the other character's public view and
   the thread both owners read, so it runs on your key. A house character's reply rides the same key, since it has no
