@@ -617,4 +617,27 @@ describe("the 2026-10-21 runs (#517, #519, #520, #529, #534, #535, #536, #537)",
       expect(edge.second_dates_note).toMatch(/follow-up dates that took place/);
     }
   });
+
+  it("my_status waits the whole wait when nothing is newer than since, and says why it returned (#540)", async () => {
+    const { ctx, agentId } = await agentWith("Ada Lumen");
+    // An old unread notice: it must not end a wait that starts after it.
+    await t.db.query(`insert into notifications (id, user_id, kind, title, body, link, created_at) values ($1, $2, 'texted', 'Bo texted', null, null, now() - interval '1 minute')`, [crypto.randomUUID(), agentId]);
+    const first = (await call("my_status", {}, ctx)).structuredContent;
+    const started = Date.now();
+    const waited = (await call("my_status", { since: first.cursor, wait_seconds: 1 }, ctx)).structuredContent;
+    expect(Date.now() - started).toBeGreaterThanOrEqual(900);
+    expect(waited).toMatchObject({ new_since: [], returned_because: "timeout" });
+    expect(waited.waited_seconds).toBeGreaterThanOrEqual(1);
+    // An older since returns at once, and the reply says so instead of looking like a broken wait.
+    const stale = (await call("my_status", { since: new Date(Date.now() - 3_600_000).toISOString(), wait_seconds: 1 }, ctx)).structuredContent;
+    expect(stale.returned_because).toBe("already_new_since");
+    expect(stale.wait_note).toMatch(/already newer than since/);
+    expect(stale.new_since).toHaveLength(1);
+  });
+
+  it("the budget block says tokens are the topped-up pack, apart from the free dates (#539)", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const preview = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, preview: true }, ctx)).structuredContent;
+    expect(preview.cost.left).toMatchObject({ free_dates_this_week: 3, tokens: 0, note: expect.stringMatching(/topped-up pack dates only/) });
+  });
 });

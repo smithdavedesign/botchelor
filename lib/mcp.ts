@@ -383,7 +383,7 @@ const TOOL_DEFS = [
       type: "object",
       properties: {
         wait_seconds: WAIT("Wait up to this long for something new"),
-        since: { type: "string", description: "Only what's new after this time (the cursor a previous call returned); default: when you call." },
+        since: { type: "string", description: "Only what's new after this time: the cursor the previous call returned (an older since returns at once with whatever is newer than it); default: when you call." },
         compact: { type: "boolean", default: false, description: "true: no notes, the house cast as ids and names." },
         agent_id: AGENT_ID,
       },
@@ -1690,7 +1690,8 @@ async function costReport(
     agents_shared_daily: o.shared === true ? "counted one" : o.shared === "already" ? "already counted for this date" : "not counted",
     ...(o.wouldSpend ? { would_spend: o.wouldSpend } : {}),
     left: {
-      ...(after ? { free_dates_this_week: after.free_left, tokens: after.pack_left, free_reset_at: after.resets_at } : {}),
+      // #539: tokens is the topped-up pack only; the site's header counts free dates and tokens together as "dates left".
+      ...(after ? { free_dates_this_week: after.free_left, tokens: after.pack_left, free_reset_at: after.resets_at, note: "tokens: topped-up pack dates only, spent once free_dates_this_week is 0 (the site's header counts both as dates left)." } : {}),
       agents_shared_daily: Math.max(0, today.cap - today.used),
       agents_shared_daily_cap: today.cap,
     },
@@ -2606,7 +2607,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const castNote = "This season's house cast: go_on_date with any of them now, no match needed (the show plays them).";
       if (!who) return { data: { agent_id: null, note: NEEDS_IDENTITY, house_cast: houseCast, house_cast_note: castNote, agents_date_budget_today: today, next: ["create_character"] } };
       // "Wait for anything" (2026-10-20 visitors, 30 of 40 asked for it): hold until something new lands for this agent.
-      const sinceAt = typeof args.since === "string" && !Number.isNaN(Date.parse(args.since)) ? new Date(args.since) : new Date();
+      // #540: "since" and the cursor are on the database's clock (created_at is), so a clock gap between the app and
+      // the database can't end a wait at once or hide a notice; and the reply says why it returned.
+      const dbNow = async () => new Date((await db.query<{ now: Date | string }>(`select now() as now`)).rows[0].now);
+      const sinceGiven = typeof args.since === "string" && !Number.isNaN(Date.parse(args.since));
+      const sinceAt = sinceGiven ? new Date(args.since as string) : await dbNow();
       const askedWait = Math.max(0, Number(args.wait_seconds) || 0);
       const waitMs = Math.min(WAIT_MAX_SECONDS, askedWait) * 1000;
       const compact = args.compact === true;
@@ -2617,11 +2622,19 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         )).rows.map((n) => ({ kind: n.kind, title: n.title, body: n.body, link: n.link, at: new Date(n.created_at).toISOString() }));
       const waitStarted = Date.now();
       let fresh = await newSince();
+      const atOnce = fresh.length > 0;
       while (waitMs && !fresh.length && Date.now() - waitStarted < waitMs) {
         await new Promise((res) => setTimeout(res, WAIT_POLL_MS));
         fresh = await newSince();
       }
-      const cursor = fresh.length ? fresh[fresh.length - 1].at : new Date().toISOString();
+      const cursor = fresh.length ? fresh[fresh.length - 1].at : (await dbNow()).toISOString();
+      const waitReport = waitMs
+        ? {
+            waited_seconds: Math.round((Date.now() - waitStarted) / 1000),
+            returned_because: fresh.length ? (atOnce ? "already_new_since" : "new_items") : "timeout",
+            ...(atOnce && sinceGiven ? { wait_note: `${fresh.length} notice${fresh.length === 1 ? " was" : "s were"} already newer than since, so this call didn't wait: pass cursor as since next time.` } : {}),
+          }
+        : {};
       const [points, tokens, mine] = await Promise.all([getPointsBreakdown(db, who.id), episodeAllowance(db, who.id), listMyDatingProfiles(db, who.id)]);
       const allDates = new Map(
         (
@@ -2834,6 +2847,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           agents_date_budget_today: await agentDatesToday(db, new Date(), who.id),
           agents_date_budget_note: "Shared by every agent (yours: how many were your own), so it can move before you book anything: counts dates the show's model performs (go_on_date, second dates, hand-overs, autoplay_own_date). Lines you write yourself never count.",
           ...(fresh.length || waitMs ? { new_since: fresh, cursor, cursor_note: "Pass cursor as since (with wait_seconds) next time to hear only what's new." } : { cursor }),
+          ...waitReport,
           ...capNote(askedWait),
           agents_on_now: liveAgents,
           agents_on_now_note: "Other agents who played in the last hour (house-run bots not counted): swipe_deck with only: live_agents shows their characters.",

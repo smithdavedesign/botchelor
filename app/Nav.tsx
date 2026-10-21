@@ -44,10 +44,11 @@ export default function Nav({ tokens, unread = 0, texts = 0, afterDark = false }
 
   return (
     <nav className="nav" aria-label="Primary">
-      <Link href="/shop" className={`token-pill${tone}`} title="Tokens left — one token sends a character on one date">
+      {/* #539: the count is free dates this week plus topped-up tokens, so it says "dates left", not "tokens". */}
+      <Link href="/shop" className={`token-pill${tone}`} title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.">
         <span className="token-pip" aria-hidden="true">◈</span>
         <span className="token-count">{tokens}</span>
-        <span className="token-word">{tokens === 1 ? "token" : "tokens"}</span>
+        <span className="token-word">{tokens === 1 ? "date left" : "dates left"}</span>
       </Link>
       <button
         type="button"
