@@ -1152,6 +1152,28 @@ button.chosen {
   margin: 0;
 }
 
+/* An episode's share links (app/episodes/[id]/EpisodeShare.tsx): Copy link, then Reddit and Bluesky side by side. */
+.share-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.25rem;
+}
+
+/* "Make your own character" under an episode's matchup, for spectators: the button, its line beside it on desktop
+   and under it on a phone. */
+.make-your-own {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.85rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.make-your-own .button {
+  margin-top: 0;
+}
+
 .report {
   display: flex;
   gap: 0.75rem;
@@ -5551,6 +5573,22 @@ a.phone-head-btn {
 }
 .ad-theater-bar input::placeholder {
   color: #b7a8d3;
+}
+/* Nudge or Direct, beside the theater's steer (the page's form has the same choice). */
+.ad-steer-mode {
+  display: inline-flex;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: #f1e9ff;
+}
+.ad-steer-mode label {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+.ad-steer-mode input {
+  flex: none;
+  accent-color: #c9a2ff;
 }
 .ad-theater-note {
   flex-basis: 100%;

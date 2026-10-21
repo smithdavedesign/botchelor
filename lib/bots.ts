@@ -74,6 +74,8 @@ const KNOWN: { pattern: RegExp; name: string; kind: BotKind }[] = [
   { pattern: /WhatsApp/i, name: "WhatsApp", kind: "social" },
   { pattern: /TelegramBot/i, name: "TelegramBot", kind: "social" },
   { pattern: /redditbot/i, name: "redditbot", kind: "social" },
+  // Bluesky's link-card fetcher ("Bluesky Cardyb/1.1; +mailto:…"): no "bot" token or "+http" link, so GENERIC misses it.
+  { pattern: /Cardyb/i, name: "Bluesky", kind: "social" },
   { pattern: /Embedly|Iframely|vkShare|Pinterest/i, name: "unfurler", kind: "social" },
 ];
 
