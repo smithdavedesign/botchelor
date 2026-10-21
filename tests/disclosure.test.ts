@@ -99,7 +99,8 @@ describe("AI disclosure and crisis link on every episode", () => {
   it("the episode page renders EpisodeNotices for every viewer, and the layout footer renders the crisis link", () => {
     const page = readFileSync(new URL("../app/episodes/[id]/page.tsx", import.meta.url), "utf8");
     expect(page).toMatch(/import EpisodeNotices[^;]*from "@\/app\/Notices"/);
-    expect(page).toContain("<EpisodeNotices />");
+    // The page's own copy leaves the crisis links to the site footer right below it (no doubling); the footer has them.
+    expect(page).toMatch(/<EpisodeNotices( crisis=\{false\})? \/>/);
     const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
     expect(layout).toContain("<CrisisResources />");
   });

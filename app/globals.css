@@ -1823,43 +1823,21 @@ button.button-ghost:hover:not(:disabled) {
   .watch-dot { animation: none; }
 }
 
-/* The standard watch room is wider than the site's reading column, so the date, the live chat and the voting can sit
-   side by side. Theater mode is full-screen and ignores it. */
+/* The standard watch room is wider than the site's reading column: the date, and beside it one sticky sidebar (the
+   vote and the chat in tabs, app/watch/[id]/WatchRoom.tsx RoomPanel). Theater mode is full-screen and ignores it. */
 main:has(> .watch) {
-  max-width: 84rem;
+  max-width: 76rem;
 }
 .watch-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "stage" "votes" "chat";
   gap: 1rem;
   align-items: start;
 }
-/* Two columns: the date, and beside it the live chat over the voting. */
-@media (min-width: 52rem) {
+@media (min-width: 60rem) {
   .watch-grid {
-    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-    grid-template-areas: "stage chat" "stage votes";
-    grid-template-rows: auto 1fr;
-  }
-}
-/* Three columns: the date, the live chat, the voting. Chat and voting stay in view while the date scrolls. */
-@media (min-width: 72rem) {
-  .watch-grid {
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas: "stage chat votes";
-    grid-template-rows: auto;
-  }
-  .watch-side,
-  .watch-votes {
-    position: sticky;
-    top: 1rem;
-    max-height: calc(100vh - 2rem);
-    overflow-y: auto;
-  }
-  .watch-side .watch-messages {
-    max-height: none;
-    height: max(14rem, calc(100vh - 16rem));
+    grid-template-columns: minmax(0, 1fr) 23rem;
+    gap: 1.25rem;
   }
 }
 .watch-stage,
@@ -1867,16 +1845,6 @@ main:has(> .watch) {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  min-width: 0;
-}
-.watch-stage {
-  grid-area: stage;
-}
-.watch-votes {
-  grid-area: votes;
-}
-.watch-side {
-  grid-area: chat;
   min-width: 0;
 }
 .watch-stage .card,
@@ -3921,6 +3889,106 @@ button.rating-chip:hover {
   .chat-bubble,
   .chat-typing span {
     animation: none;
+  }
+}
+/* 👍/👎 on a line (ChatThread's `feedback`, lib/line-feedback.ts). They share a row with the line's caption, sit grey and
+   faint until the row is hovered or a thumb is focused or set, and reset everything the default button adds. The button
+   is the tap target and its face the small circle that shows: on a touch screen the button grows to 44px around the same
+   face, negative margins keep the row about as tall as the caption, and the foot's own margins keep the overhang clear
+   of the bubble above and the next line. */
+.chat-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 0.15rem;
+  max-width: 100%;
+}
+.chat-row-b .chat-foot {
+  flex-direction: row-reverse;
+}
+.chat-votes {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.55;
+  transition: opacity 0.12s ease;
+}
+.chat-row:hover .chat-votes,
+.chat-votes:focus-within,
+.chat-votes.voted {
+  opacity: 1;
+}
+button.chat-vote {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1;
+  transform: none;
+  cursor: pointer;
+}
+button.chat-vote:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+.chat-vote-face {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  filter: grayscale(1);
+}
+/* Hover only where there's a pointer that hovers: on a phone a tapped thumb would otherwise keep looking hovered. */
+@media (hover: hover) {
+  button.chat-vote:hover .chat-vote-face {
+    filter: none;
+    background: var(--paper-2);
+  }
+  .chat-dark button.chat-vote:hover .chat-vote-face {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+button.chat-vote:focus-visible .chat-vote-face {
+  filter: none;
+}
+button.chat-vote[aria-pressed="true"] .chat-vote-face {
+  filter: none;
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.chat-dark button.chat-vote[aria-pressed="true"] .chat-vote-face {
+  background: rgba(255, 255, 255, 0.16);
+}
+.chat-vote-error {
+  align-self: center;
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--bad-text);
+}
+.chat-dark .chat-vote-error {
+  color: rgba(255, 255, 255, 0.85);
+}
+@media (pointer: coarse) {
+  .chat-foot {
+    margin: 0.5rem 0 0.15rem;
+  }
+  .chat-votes {
+    opacity: 0.75;
+  }
+  button.chat-vote {
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-block: -0.5rem;
   }
 }
 
@@ -6528,4 +6596,497 @@ a.phone-head-btn {
 }
 .looks-dots button {
   width: 100%;
+}
+
+/* ---------------- the watch room's sidebar (RoomPanel) and its theater (2026-10-21) ----------------
+   One column beside the show, in tabs (Chat · The date · Vote), as on Twitch or YouTube Live: the chat reads from the
+   bottom with the composer pinned under it, an empty chat is a welcome by the composer, not a tall empty box. */
+.room-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: min(72vh, 40rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+/* Beside the date (not in the theater): as tall as its tab needs, up to the screen under the site's sticky header;
+   only the chat takes a set height, so it can read from the bottom. */
+.watch-grid > .room-panel {
+  height: auto;
+}
+.watch-grid > .room-panel .room-pane-chat {
+  flex: 0 0 auto;
+  height: min(28rem, 70vh);
+}
+@media (min-width: 60rem) {
+  .watch-grid > .room-panel {
+    position: sticky;
+    top: 5.25rem;
+    max-height: calc(100dvh - 6.5rem);
+  }
+  .watch-grid > .room-panel .room-pane-chat {
+    height: min(26rem, calc(100dvh - 12rem));
+  }
+}
+.room-panel-hidden {
+  height: auto;
+  padding: var(--space-3) var(--space-4);
+}
+.room-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.room-panel button.room-tab,
+.room-panel button.room-hide {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+}
+.room-panel button.room-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.85rem 0.75rem 0.75rem;
+  border-bottom: 2.5px solid transparent;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+.room-panel button.room-tab:hover:not(:disabled) {
+  color: var(--ink);
+  background: none;
+  transform: none;
+}
+.room-panel button.room-tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+}
+.room-tab-count {
+  min-width: 1.2rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--accent-text);
+  font-size: 0.7rem;
+  line-height: 1.2rem;
+  text-align: center;
+}
+.room-tab-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: watch-pulse 1.8s ease-out infinite;
+}
+.room-panel button.room-hide {
+  margin-left: auto;
+  padding: 0 0.5rem;
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+.room-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.room-pane-chat,
+.room-pane-script {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.room-votes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+.room-votes .card {
+  margin: 0;
+}
+.room-empty {
+  margin: var(--space-4) var(--space-2);
+}
+.room-script {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.room-script .chat-thread {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-3) var(--space-4) var(--space-5);
+}
+.room-panel .watch-chat {
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+.room-panel .watch-reactions {
+  flex: 0 0 auto;
+  gap: 0.35rem;
+}
+.room-panel .watch-react {
+  padding: 0.25rem 0.6rem;
+}
+.watch-react-count {
+  margin-left: 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.room-panel .watch-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: none;
+  overscroll-behavior: contain;
+}
+/* Newest at the bottom, by the composer: a short chat sits there rather than at the top of an empty box. */
+.room-panel .watch-messages > :first-child {
+  margin-top: auto;
+}
+.watch-welcome {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.room-panel .watch-compose {
+  flex: 0 0 auto;
+}
+.room-panel .watch-fineprint {
+  flex: 0 0 auto;
+}
+
+/* Dark, in the theater: the site's dark palette, scoped to the sidebar, so the polls and the chat follow it. */
+.room-panel.is-dark {
+  --ink: #f5e9f0;
+  --muted: #b49fbd;
+  --paper-2: #1d1024;
+  --card: #1a1020;
+  --accent: #ff5e8c;
+  --accent-text: #ff7aa3;
+  --accent-btn: #ff5e8c;
+  --accent-2: #a98bff;
+  --accent-ink: #130a16;
+  --line: #34223f;
+  --field: #7a5f93;
+  --soft: #2a1730;
+  color-scheme: dark;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  background: #140c1a;
+  color: var(--ink);
+  box-shadow: none;
+}
+.room-panel.is-dark .card {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.room-panel.is-dark input {
+  background: #221628;
+  color: var(--ink);
+  border-color: var(--field);
+}
+
+/* The watch room's theater: the stage, and the sidebar beside it (360px), or the stage alone once it's hidden. */
+.theater.theater-room {
+  display: flex;
+}
+.theater-room > .room-panel {
+  flex: 0 0 min(360px, 34vw);
+  height: 100%;
+}
+.theater-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  box-shadow: none;
+}
+.theater-pill:hover:not(:disabled) {
+  transform: none;
+  background: rgba(0, 0, 0, 0.6);
+}
+/* While the theater is open the page under it is still: no scrolling it, no rubber-banding on a phone. */
+html.theater-lock,
+html.theater-lock body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+@media (max-width: 760px) {
+  /* A phone: the scene is a short banner with the title and buttons; the sidebar (opening on the date) is the rest. */
+  .theater.theater-room {
+    flex-direction: column;
+  }
+  .theater-room > .theater-stage {
+    flex: 0 0 auto;
+  }
+  .theater-room > .room-panel {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  /* The decision lands over the sidebar, at the foot of the screen, not clipped inside the short banner. */
+  .theater-room .theater-verdict {
+    position: fixed;
+    top: auto;
+    bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(30rem, calc(100% - 2 * var(--gutter)));
+    z-index: 210;
+  }
+}
+/* The live count over the photo: white, like the rest of the theater's header (pink on a busy scene couldn't be read). */
+.theater-hud .watch-live {
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+}
+
+/* ---------------- the episode page (app/episodes/[id]/page.tsx, 2026-10-21) ----------------
+   A hero with the venue's photo behind the pair and the setting, the way to watch on it; then one reading column. */
+main:has(> .episode-page) {
+  max-width: 68rem;
+}
+.episode-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(26rem, 64vh, 38rem);
+  margin: calc(-1 * 1.25rem) calc(-1 * var(--gutter)) var(--space-5);
+  background-color: #1d1030;
+  background-size: cover;
+  background-position: center 35%;
+  color: #fff;
+}
+@media (min-width: 761px) {
+  .episode-hero {
+    margin: 0 0 var(--space-6, 2rem);
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 18px 50px -24px rgba(20, 8, 30, 0.55);
+  }
+}
+.episode-hero-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 46rem;
+  padding: var(--space-6, 2rem) var(--gutter) var(--space-5);
+}
+@media (min-width: 761px) {
+  .episode-hero-inner {
+    padding: 3rem 3rem 2.5rem;
+  }
+}
+.episode-hero-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.82);
+}
+.episode-hero-kicker span + span::before {
+  content: "·";
+  margin-right: 0.9rem;
+  opacity: 0.7;
+}
+.episode-hero-cast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.episode-hero-cast .avatar {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+.episode-hero-x {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.75);
+}
+.episode-hero-cast .episode-hero-x {
+  font-size: 1.6rem;
+}
+.episode-hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.4rem);
+  line-height: 1.05;
+  text-wrap: balance;
+  color: #fff;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
+}
+.episode-hero-setting {
+  margin: 0;
+  max-width: 38rem;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.05rem, 2.4vw, 1.3rem);
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+}
+.episode-hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.episode-hero-cta > button,
+.episode-hero-cta > .button {
+  margin: 0;
+  padding: 0.8rem 1.5rem;
+  font-size: var(--text-md);
+}
+.episode-hero .button-ghost {
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+.episode-hero .button-ghost:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.episode-hero-link {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+}
+.episode-hero-link::after {
+  content: " →";
+}
+.episode-hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.episode-hero-chips li {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.episode-body {
+  max-width: 44rem;
+  margin: 0 auto;
+}
+.episode-wants ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.episode-wants li.card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+}
+.episode-wants li p {
+  margin: 0;
+  min-width: 0;
+}
+.episode-wants li strong {
+  display: block;
+  font-family: "Fraunces", Georgia, serif;
+}
+.episode-bonus {
+  margin: var(--space-3) 0 0;
+}
+.episode-predict {
+  scroll-margin-top: 5rem;
+}
+details.episode-read {
+  scroll-margin-top: 5rem;
+}
+details.episode-read > summary {
+  cursor: pointer;
+  list-style: none;
+}
+details.episode-read > summary::-webkit-details-marker {
+  display: none;
+}
+details.episode-read > summary h2 {
+  margin: 0 0 0.2rem;
+}
+details.episode-read > summary h2::before {
+  content: "▸ ";
+  color: var(--accent-text);
+}
+details.episode-read[open] > summary h2::before {
+  content: "▾ ";
+}
+details.episode-read[open] > summary {
+  margin-bottom: var(--space-3);
+}
+section.make-your-own {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+}
+section.make-your-own h2 {
+  margin: 0 0 0.25rem;
+}
+section.make-your-own p {
+  margin: 0;
+}
+.episode-foot {
+  margin-top: var(--space-6, 2rem);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+details.episode-safety {
+  margin: var(--space-3) 0;
+}
+details.episode-safety > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+details.episode-safety[open] > summary {
+  margin-bottom: var(--space-2);
+}
+details.episode-safety .safety > h2 {
+  display: none; /* the summary already says it */
 }

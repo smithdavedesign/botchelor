@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Avatar from "@/app/Avatar";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
@@ -40,6 +40,97 @@ const POLL_MS = 4000;
 const CHAT_HIDDEN_KEY = "bz_watch_chat_hidden";
 /** "standard" once this browser stepped out of theater mode; a date opens in theater mode otherwise. */
 const VIEW_KEY = "bz_watch_view";
+/** "0" once this browser hid the theater's sidebar on a wide screen. */
+const SIDE_KEY = "bz_watch_side";
+
+type RoomTab = "chat" | "script" | "vote";
+const TAB_LABELS: Record<RoomTab, string> = { chat: "Chat", script: "The date", vote: "Vote" };
+
+/** Something to vote on right now: the prediction, or one of the audience polls. */
+function voteLive(state: RoomState): boolean {
+  return state.predictions_open || state.question.open || state.chaos.open || state.chemistry.open;
+}
+
+/**
+ * The tab a room opens on: the vote while the ending can still be called and you haven't, else the date itself on a
+ * phone or in a replay (where the chat has gone quiet), else the chat.
+ */
+function firstTab(state: RoomState, tabs: RoomTab[], { phone, replay }: { phone: boolean; replay: boolean }): RoomTab {
+  if (tabs.includes("vote") && state.predictions_open && !state.my_prediction) return "vote";
+  if (tabs.includes("script") && (phone || replay)) return "script";
+  return tabs.includes("chat") ? "chat" : tabs[0];
+}
+
+/**
+ * The room's sidebar (2026-10-21, after Twitch / YouTube Live: one column beside the show, in tabs): the chat, the
+ * date's lines (in the theater, where the stage shows only the latest), and the voting. A live dot on Vote when
+ * something's open; the chat's count on Chat. Dark in the theater, the page's own colours outside it.
+ */
+function RoomPanel({
+  state,
+  sync,
+  tabs,
+  start,
+  script,
+  dark = false,
+  onHide,
+}: {
+  state: RoomState;
+  sync: () => void;
+  tabs: RoomTab[];
+  start: RoomTab;
+  script?: ReactNode;
+  dark?: boolean;
+  onHide?: () => void;
+}) {
+  // The opening tab only: after that the viewer's choice stands (it never jumps when, say, they vote).
+  const [tab, setTab] = useState<RoomTab>(start);
+  const live = voteLive(state);
+  return (
+    <aside className={`room-panel${dark ? " is-dark" : ""}`} aria-label="The room">
+      <div className="room-tabs" role="tablist" aria-label="The room">
+        {tabs.map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            id={`room-tab-${t}`}
+            aria-selected={tab === t}
+            aria-controls={`room-pane-${t}`}
+            className="room-tab"
+            onClick={() => setTab(t)}
+          >
+            {TAB_LABELS[t]}
+            {t === "chat" && state.messages.length > 0 && <span className="room-tab-count">{state.messages.length}</span>}
+            {t === "vote" && live && <span className="room-tab-live" aria-label="open now" />}
+          </button>
+        ))}
+        {onHide && (
+          <button type="button" className="room-hide" onClick={onHide} aria-label="Hide the sidebar" title="Hide the sidebar">
+            ⇥
+          </button>
+        )}
+      </div>
+      <div className={`room-pane room-pane-${tab}`} role="tabpanel" id={`room-pane-${tab}`} aria-labelledby={`room-tab-${tab}`}>
+        {tab === "chat" && <Chat state={state} onDone={sync} />}
+        {tab === "script" && <div className="room-script">{script}</div>}
+        {tab === "vote" && <Votes state={state} onDone={sync} />}
+      </div>
+    </aside>
+  );
+}
+
+/** The voting tab: the prediction and the audience polls, or what to expect before any open. */
+function Votes({ state, onDone }: { state: RoomState; onDone: () => void }) {
+  const any = state.predictions_open || state.my_prediction || state.question.open || state.question.show_results || state.chaos.open || state.chemistry.open || state.chemistry.show_results;
+  return (
+    <div className="room-votes">
+      <Predictions state={state} onDone={onDone} />
+      <Polls state={state} onDone={onDone} />
+      {!any && <p className="muted room-empty">The votes open once the date gets going: call the ending, then the polls during the challenge.</p>}
+    </div>
+  );
+}
 
 function readChatHidden(): boolean {
   try {
@@ -143,32 +234,24 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
         </div>
       </header>
 
-      {/* The date, the live chat and the voting: three columns on a wide screen, two on a tablet (the chat over the
-          voting), one on a phone (the date, the voting, then the chat). */}
+      {/* The date, and beside it one sticky sidebar with the vote and the chat in tabs (2026-10-21: three columns, a
+          tall empty chat box and a third column of polls). On a phone the sidebar follows the date. */}
       <div className="watch-grid">
         <section className="watch-stage" aria-label="The date">
           <Stage state={state} onPredict={sync} preshowLeft={preshowLeft} />
         </section>
-
-        <section className="watch-votes" aria-label="Voting">
-          <Reactions state={state} onDone={sync} />
-          <Polls state={state} onDone={sync} />
-          <Predictions state={state} onDone={sync} />
-        </section>
-
-        <aside className="watch-side">
-          <div className="watch-chat-head">
-            <h2>Live chat</h2>
-            <button type="button" className="secondary small" onClick={toggleChat}>
-              {chatHidden ? "Show chat" : "Hide chat"}
-            </button>
-          </div>
-          {chatHidden ? (
-            <p className="muted">Chat hidden. You&apos;re watching the date in peace.</p>
-          ) : (
-            <Chat state={state} onDone={sync} />
-          )}
-        </aside>
+        {chatHidden ? (
+          <aside className="room-panel room-panel-hidden">
+            <p className="muted">
+              Chat hidden.{" "}
+              <button type="button" className="linklike" onClick={toggleChat}>
+                Show the chat and votes
+              </button>
+            </p>
+          </aside>
+        ) : (
+          <RoomPanel state={state} sync={sync} tabs={["vote", "chat"]} start={firstTab(state, ["vote", "chat"], { phone: false, replay: false })} onHide={toggleChat} />
+        )}
       </div>
     </div>
   );
@@ -193,13 +276,30 @@ function Theater({
   preshowLeft: number | null;
 }) {
   const [a, b] = state.characters;
-  // One docked side panel at a time, opened from a HUD icon, so the scene itself stays free of chrome.
-  const [panel, setPanel] = useState<"chat" | "votes" | null>(null);
-  const [convo, setConvo] = useState(true);
-  const toggle = (which: "chat" | "votes") => setPanel((p) => (p === which ? null : which));
-  // Only open the audience chat by default where there's room for the scene, the thread and the panel.
+  // The sidebar (chat, the date's lines, the vote) sits beside the stage; on a wide screen it can be hidden, and that's
+  // remembered. On a phone it's the main view, under the scene.
+  const [side, setSide] = useState(true);
+  const [phone, setPhone] = useState(false);
   useEffect(() => {
-    if (window.innerWidth >= 1280) setPanel("chat");
+    setPhone(window.matchMedia("(max-width: 760px)").matches);
+    try {
+      if (localStorage.getItem(SIDE_KEY) === "0") setSide(false);
+    } catch {
+      /* no storage: the sidebar shows */
+    }
+  }, []);
+  function showSide(on: boolean) {
+    setSide(on);
+    try {
+      localStorage.setItem(SIDE_KEY, on ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }
+  // The theater covers the page: the page under it doesn't scroll (or rubber-band on a phone) while it's open.
+  useEffect(() => {
+    document.documentElement.classList.add("theater-lock");
+    return () => document.documentElement.classList.remove("theater-lock");
   }, []);
 
   // Decided once, on entry: a finished room replays; a room you watched live stays live when it ends.
@@ -219,10 +319,12 @@ function Theater({
   const leadingChemistry = state.chemistry.options.find((o) => o.id === state.chemistry.leading);
   // Before the first line: a countdown and who's on stage, never an empty thread (a room sat 20+ seconds on one).
   const preshow = !isReplay && turns.length === 0 && inPreshow(state);
+  const tabs: RoomTab[] = ["chat", "script", "vote"];
+  const open = side || phone;
 
   return (
-    <div className={`theater${panel ? "" : " theater-clean"}`}>
-      <div className={`theater-stage${convo ? " with-convo" : ""}`}>
+    <div className={`theater theater-room${open ? " with-side" : ""}`}>
+      <div className="theater-stage">
         <div className="theater-scene-area">
           <Scene
             characters={state.characters}
@@ -233,18 +335,6 @@ function Theater({
             placeholder={
               isReplay ? "The replay begins…" : preshow ? preshowCountdownLabel(state.clock.started ? preshowLeft : null) : "The date is about to begin…"
             }
-          />
-        </div>
-        <div className="theater-convo">
-          {preshow && <Preshow state={state} left={preshowLeft} tone="dark" />}
-          <ChatThread
-            characters={state.characters}
-            turns={turns}
-            typing={typing}
-            challenge={state.challenge}
-            tone="dark"
-            follow
-            empty={preshow ? null : "The conversation appears here, line by line."}
           />
         </div>
 
@@ -258,7 +348,7 @@ function Theater({
             ) : (
               <>
                 <span className="watch-live">
-                  <span className="watch-dot" aria-hidden /> {state.watching}
+                  <span className="watch-dot" aria-hidden /> {state.watching} watching
                 </span>
                 <span className="chip">
                   {state.clock.started ? state.clock.phase_label : "Starting…"}
@@ -281,43 +371,19 @@ function Theater({
                 </button>
               </>
             )}
-            <button
-              type="button"
-              className={`theater-icon theater-icon-wide${convo ? " on" : ""}`}
-              onClick={() => setConvo((v) => !v)}
-              aria-pressed={convo}
-              aria-label="The conversation"
-              title="The conversation"
-            >
-              📜
-            </button>
-            <button
-              type="button"
-              className={`theater-icon${panel === "votes" ? " on" : ""}`}
-              onClick={() => toggle("votes")}
-              aria-pressed={panel === "votes"}
-              aria-label="Voting and questions"
-              title="Voting & questions"
-            >
-              🗳️
-            </button>
-            <button
-              type="button"
-              className={`theater-icon${panel === "chat" ? " on" : ""}`}
-              onClick={() => toggle("chat")}
-              aria-pressed={panel === "chat"}
-              aria-label="Live chat"
-              title="Live chat"
-            >
-              💬
-            </button>
+            {!open && (
+              <button type="button" className="theater-pill" onClick={() => showSide(true)}>
+                💬 Chat &amp; vote
+                {voteLive(state) && <span className="room-tab-live" aria-label="voting open" />}
+              </button>
+            )}
             <button type="button" className="secondary small" onClick={onExit}>
-              Exit
+              Exit theater
             </button>
           </div>
         </header>
 
-        {/* The decision is the payoff, not chrome, so it lands on the scene; everything interactive is in a panel. */}
+        {/* The decision is the payoff, not chrome, so it lands on the scene; everything interactive is in the sidebar. */}
         {showVerdict && (
           <div className="theater-verdict">
             <p className="ending">{state.ending_label}</p>
@@ -341,35 +407,31 @@ function Theater({
         )}
       </div>
 
-      {panel === "chat" && (
-        <aside className="theater-panel">
-          <div className="watch-chat-head">
-            <h2>Live chat</h2>
-            <button type="button" className="theater-icon" onClick={() => setPanel(null)} aria-label="Close chat" title="Close">
-              ✕
-            </button>
-          </div>
-          <Reactions state={state} onDone={sync} />
-          <Chat state={state} onDone={sync} />
-        </aside>
-      )}
-
-      {panel === "votes" && (
-        <aside className="theater-panel theater-votes">
-          <div className="watch-chat-head">
-            <h2>Voting &amp; questions</h2>
-            <button type="button" className="theater-icon" onClick={() => setPanel(null)} aria-label="Close voting" title="Close">
-              ✕
-            </button>
-          </div>
-          <Predictions state={state} onDone={sync} />
-          <Polls state={state} onDone={sync} />
-          {!state.predictions_open &&
-            !state.question.open &&
-            !state.chaos.open &&
-            !state.chemistry.open &&
-            !state.show_ending && <p className="muted">The votes open once the date gets going.</p>}
-        </aside>
+      {open && (
+        <RoomPanel
+          // Remounted once the screen size is known, so a phone opens on the date.
+          key={phone ? "phone" : "wide"}
+          dark
+          state={state}
+          sync={sync}
+          tabs={tabs}
+          start={firstTab(state, tabs, { phone, replay: isReplay })}
+          onHide={phone ? undefined : () => showSide(false)}
+          script={
+            <>
+              {preshow && <Preshow state={state} left={preshowLeft} tone="dark" />}
+              <ChatThread
+                characters={state.characters}
+                turns={turns}
+                typing={typing}
+                challenge={state.challenge}
+                tone="dark"
+                follow
+                empty={preshow ? null : "The conversation appears here, line by line."}
+              />
+            </>
+          }
+        />
       )}
     </div>
   );
@@ -532,7 +594,8 @@ function Reactions({ state, onDone }: { state: RoomState; onDone: () => void }) 
           onClick={() => react(r.emoji)}
           aria-label={r.label}
         >
-          <span className="watch-react-emoji">{r.emoji}</span> {r.count}
+          <span className="watch-react-emoji">{r.emoji}</span>
+          {r.count > 0 && <span className="watch-react-count">{r.count}</span>}
         </button>
       ))}
     </div>
@@ -788,7 +851,9 @@ function Chat({ state, onDone }: { state: RoomState; onDone: () => void }) {
     <div className="watch-chat">
       <div className="watch-messages" ref={listRef}>
         {state.messages.length === 0 ? (
-          <p className="muted">No messages yet. Be the first to react.</p>
+          <p className="muted watch-welcome">
+            Welcome to the room{state.watching > 1 ? `: ${state.watching} watching` : ""}. Say hi, or react to a line.
+          </p>
         ) : (
           state.messages.map((m) => (
             <p key={m.id} className={`watch-msg${m.mine ? " mine" : ""}`}>
@@ -802,6 +867,8 @@ function Chat({ state, onDone }: { state: RoomState; onDone: () => void }) {
           ))
         )}
       </div>
+      {/* Reactions by the composer, where the thumb already is (as a stream's emote bar sits by its chat box). */}
+      <Reactions state={state} onDone={onDone} />
       <form
         className="watch-compose"
         onSubmit={(e) => {

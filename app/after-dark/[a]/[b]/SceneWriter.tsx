@@ -122,6 +122,7 @@ export default function SceneWriter({
           onMakeVideo={() => makeVideo()}
           videoTokens={reelTokens}
           videoNote={reelNote?.text ?? null}
+          feedbackRef={scene.id}
           onExit={() => setTheater(false)}
         />
       )}
@@ -188,6 +189,7 @@ export default function SceneWriter({
         <AfterDarkTheater
           scene={{ lines: watching.lines, place: watching.place, stage: watching.stage, dateVenue: watching.date_venue, set: watching.set_place }}
           characters={characters}
+          feedbackRef={watching.id}
           onExit={() => setWatching(null)}
         />
       )}

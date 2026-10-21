@@ -7,6 +7,7 @@
  */
 import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
+import { moveLineFeedback } from "../line-feedback";
 import type { ChatMessage, Model, ModelOptions, Usage } from "../model";
 import { pairKey } from "../relationships";
 import { checkAdultText } from "../safety";
@@ -969,11 +970,12 @@ export async function writeRecap(db: Db, a: Character | null, b: Character | nul
 /** Files a full chapter as a saved night and starts the next one, carrying the recap and the last few lines. */
 async function nextChapter(db: Db, ownerId: string, scene: AdultScene, a: Character | null, b: Character | null): Promise<AdultScene> {
   const recap = await writeRecap(db, a, b, scene.recap, scene.lines);
+  const nightId = crypto.randomUUID();
   await db.query(
     `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place, chapter, recap, moves, place_history)
      values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb)`,
     [
-      crypto.randomUUID(),
+      nightId,
       ownerId,
       scene.a.id,
       scene.b.id,
@@ -989,6 +991,8 @@ async function nextChapter(db: Db, ownerId: string, scene: AdultScene, a: Charac
       JSON.stringify(scene.place_history),
     ],
   );
+  // The lines' thumbs (lib/line-feedback.ts) go with them to the saved night, before the scene's lines are cleared.
+  await moveLineFeedback(db, scene.id, nightId);
   await rememberAfterDark(db, ownerId, a, b, recap, scene.lines);
   // The chapter's concrete facts, for the scene prompt from now on (lib/adult/facts.ts; After Dark only).
   await rememberFacts(db, ownerId, a, b, scene.lines);
@@ -1086,11 +1090,15 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
   if (scene?.lines.length) {
     const [ca, cb] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id)]);
     await rememberAfterDark(db, adminId, ca, cb, scene.recap, scene.lines);
+    // The night's concrete facts, for the scene prompt from now on (lib/adult/facts.ts; After Dark only).
     await rememberFacts(db, adminId, ca, cb, scene.lines);
+    const nightId = crypto.randomUUID();
     await db.query(
       `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place, chapter, recap, moves, place_history) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb)`,
-      [crypto.randomUUID(), adminId, ...pair, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null, scene.set_place, scene.chapter, scene.recap, JSON.stringify(scene.moves), JSON.stringify(scene.place_history)],
+      [nightId, adminId, ...pair, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null, scene.set_place, scene.chapter, scene.recap, JSON.stringify(scene.moves), JSON.stringify(scene.place_history)],
     );
+    // The lines' thumbs (lib/line-feedback.ts) go with them to the saved night.
+    await moveLineFeedback(db, scene.id, nightId);
   }
   await db.query(
     `update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, set_place = null, cut_to = null, chapter = 1, recap = null, prev_tail = '[]'::jsonb, place_history = '[]'::jsonb, moves = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
