@@ -311,35 +311,32 @@ describe("a two-agent date: each agent performs only its own character", () => {
     expect(refused.content[0].text).toMatch(/private, so it stays offline and never airs\. Make it public or unlisted/);
   });
 
-  it("nudges a quiet agent at 5 minutes and hands its side to the show's model at 10, on the agents' budget", async () => {
+  it("nudges a quiet agent at 2 minutes, and at 3 the show's model takes its side on its own, on the agents' budget", async () => {
     const { ctxA, ctxB, agentB, a, b } = await twoAgents();
     const step = (await call("start_own_date", { character_id: a, partner_id: b }, ctxA)).structuredContent.step;
     const id: string = step.episode_id;
     const waiting = (await call("submit_own_date_step", { episode_id: id, output: line(0) }, ctxA)).structuredContent.step;
     expect(waiting).toMatchObject({ stage: "waiting", can_hand_over: false, quiet_minutes: 0 });
-    expect((await call("hand_over_own_date", { episode_id: id }, ctxA)).content[0].text).toMatch(/after 10 quiet minutes/);
+    expect(waiting.instructions).toMatch(/If they stay quiet 3 minutes, the show's model takes over Bo Quill's side on its own/);
+    expect((await call("hand_over_own_date", { episode_id: id }, ctxA)).content[0].text).toMatch(/after 3 quiet minutes/);
 
-    // Five quiet minutes: the quiet agent gets one reminder (#220), however often the other asks; no hand-over yet.
-    await t.db.query(`update episodes set last_move_at = now() - interval '6 minutes' where id = $1`, [id]);
+    // Two quiet minutes: the quiet agent gets one reminder, however often the other asks; no hand-over yet.
+    await t.db.query(`update episodes set last_move_at = now() - interval '150 seconds' where id = $1`, [id]);
     expect((await call("get_own_date_step", { episode_id: id }, ctxA)).structuredContent.step).toMatchObject({ stage: "waiting", can_hand_over: false });
     await call("get_own_date_step", { episode_id: id }, ctxA);
     const nudges = (await listNotifications(t.db, agentB)).filter((n) => n.title.startsWith("⏰"));
     expect(nudges).toHaveLength(1);
-    expect(nudges[0]).toMatchObject({ kind: "own_date_turn", title: expect.stringMatching(/Still your move/) });
+    expect(nudges[0]).toMatchObject({ kind: "own_date_turn", title: expect.stringMatching(/Still your move/), body: expect.stringMatching(/After 3 quiet minutes the show's model takes over/) });
 
-    await t.db.query(`update episodes set last_move_at = now() - interval '25 minutes' where id = $1`, [id]);
-    expect((await call("my_own_dates", {}, ctxA)).structuredContent.dates[0]).toMatchObject({ quiet_minutes: 25 });
-    expect((await call("get_own_date_step", { episode_id: id }, ctxA)).structuredContent.step).toMatchObject({ stage: "waiting", can_hand_over: true });
+    // Past three: the next time Ada's agent reads the date, the show plays Bo's turn and it's Ada's move again.
+    await t.db.query(`update episodes set last_move_at = now() - interval '4 minutes' where id = $1`, [id]);
     const before = (await agentDatesToday(t.db)).used;
     scriptedModel([JSON.stringify({ dialogue: "Maps of places that moved. Rivers, mostly.", action: "", emotion: "wry", interest_signal: 0.6 })]);
-    const handed = await call("hand_over_own_date", { episode_id: id }, ctxA);
-    expect(handed.isError).toBeUndefined();
-    // The show played Bo's turn, so it's Ada's move again; Bo's agent is told; it's one of the agents' dates.
-    expect(handed.structuredContent.step).toMatchObject({ stage: "turn", side: "a", turn: 2 });
-    expect((await t.db.query<Any>(`select handed_over, jsonb_array_length(transcript) as n from episodes where id = $1`, [id])).rows[0]).toEqual({ handed_over: "b", n: 2 });
-    expect((await listNotifications(t.db, agentB))[0]).toMatchObject({ kind: "own_date_handed_over" });
+    expect((await call("get_own_date_step", { episode_id: id }, ctxA)).structuredContent.step).toMatchObject({ stage: "turn", side: "a", turn: 2 });
+    expect((await t.db.query<Any>(`select handed_over, autoplay, jsonb_array_length(transcript) as n from episodes where id = $1`, [id])).rows[0]).toEqual({ handed_over: "b", autoplay: false, n: 2 });
+    expect((await listNotifications(t.db, agentB))[0]).toMatchObject({ kind: "own_date_handed_over", body: expect.stringMatching(/you were quiet 4 minutes, so the show's model took over/) });
     expect((await agentDatesToday(t.db)).used).toBe(before + 1);
-    // Bo's agent can't hand in Bo's lines any more.
+    // Bo's agent can't hand in Bo's lines any more; the show answers Ada's next line straight away.
     scriptedModel([JSON.stringify({ dialogue: "Then draw me one.", action: "", emotion: "warm", interest_signal: 0.7 })]);
     await call("submit_own_date_step", { episode_id: id, output: line(2) }, ctxA);
     expect((await call("submit_own_date_step", { episode_id: id, output: line(99) }, ctxB)).structuredContent.rejected).toBe("not_your_turn");

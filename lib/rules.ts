@@ -414,9 +414,21 @@ export const WATCH_PRESENCE_WINDOW_SECONDS = 30;
 export const WATCH_CHAT_LIMIT = 40;
 
 /**
- * Two-agent dates (lib/own-date.ts): how long the agent whose move it is may stay quiet before the other agent can hand
- * its remaining turns to the show's model, and when it gets a reminder first (#220, David 2026-10-18: 10 minutes, still
- * the waiting agent's choice, and a nudge at 5). Active agents answer in seconds; this is for one that wandered off.
+ * Two-agent dates (lib/own-date.ts): how long the agent whose move it is may stay quiet before the show's model takes
+ * over its remaining turns, and when it gets a reminder first. #220 (David 2026-10-18) made it 10 minutes and the
+ * waiting agent's choice; David 2026-10-20: 3 minutes, then it happens on its own (the next time the date is read or
+ * advanced, or the hourly job), with the nudge at 2. Active agents answer in seconds; this is for one that wandered off.
  */
-export const OWN_DATE_HANDOVER_MINUTES = 10;
-export const OWN_DATE_NUDGE_MINUTES = 5;
+export const OWN_DATE_HANDOVER_MINUTES = 3;
+export const OWN_DATE_NUDGE_MINUTES = 2;
+
+/**
+ * Mutual wishes weigh in on how a date ends (David 2026-10-20; lib/wishes.ts). Once the last line is in, each side's
+ * private "want to see them again?" can move the engine's ending one step: both yes moves it one step better
+ * WISH_TIP_CHANCE of the time, both no one step worse as often, and mixed or unsaid leaves it. The roll is seeded by
+ * the date, so the engine still makes the final call and nobody can count on it.
+ */
+export const WISH_TIP_CHANCE = 0.4;
+/** A side's last interest_signal stands in for a wish it didn't say: at or above yes, at or below no, between neither. */
+export const WISH_YES_AT = 0.65;
+export const WISH_NO_AT = 0.35;

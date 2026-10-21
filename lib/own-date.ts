@@ -3,7 +3,9 @@
  * own model. They spend none of our model quota, so they're never budgeted — no date token, no agents' daily cap.
  *
  * What stays ours is everything that makes it fair and safe:
- *  - The engine deals the date and decides the outcome up front (deterministic, $0), exactly as for any date.
+ *  - The engine deals the date and decides the outcome up front (deterministic, $0), exactly as for any date. Once the
+ *    last line is in, each side's private "want to see them again?" weighs in (lib/wishes.ts: see_again, or that
+ *    side's last interest_signal), and the engine makes the final call.
  *  - Each turn's prompt is the one our pipeline would send (lib/conversation.ts buildTurnMessages): only the
  *    speaking character's private side, steered to the decided outcome. The agent runs it in that character's
  *    process and hands back the reply; the recap's prompt is the narrator's (lib/showrunner.ts buildMessages).
@@ -16,7 +18,8 @@
  *  - Solo: two of the agent's OWN characters, one process each; the agent also runs the recap (both souls are its).
  *  - Two-agent: the agent's character and ANOTHER agent's character that's open to dates, made by an agent, and open
  *    to characters like this one (lib/audience.ts). Each agent performs only its own side, on its own model; the
- *    other side's turns wait for the other agent (episodes.partner_performer), which is notified and can decline.
+ *    other side's turns wait for the other agent (episodes.partner_performer), which is notified and can decline. An
+ *    agent quiet OWN_DATE_HANDOVER_MINUTES on its move has its side taken over by the show's model (takeOver).
  *    The recap runs on the SHOW's model: the narrator sees both characters' private sides, so no single agent may.
  *    That one call is the only model cost a two-agent date puts on us.
  *
@@ -27,7 +30,7 @@ import { airWindowMinutes } from "./air";
 import { track, trackDateQuality } from "./analytics";
 import { buildTurnMessages, parseTurnResult, TURN_TEMPERATURE, type Turn } from "./conversation";
 import type { Db } from "./db";
-import { getEngine, type CharacterSheet } from "./engine";
+import { getEngine, type CharacterSheet, type Outcome } from "./engine";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "./formats";
 import { getEpisodeView, type DateSetup, type EpisodeView } from "./game";
 import type { ChatMessage } from "./model";
@@ -51,6 +54,7 @@ import { logSceneRequests, trackMoves } from "./scenes";
 import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { dateShape, moveProblem, segmentBudget, settleLine, type DateShape } from "./moves";
 import { venueName, venuePhrase } from "./venues";
+import { applyWishes, resolveWishes, settledWishes, type StoredWishes } from "./wishes";
 
 /** How many unfinished self-performed dates one identity may have at once. */
 export const OWN_DATE_MAX_OPEN = 3;
@@ -80,8 +84,9 @@ export type OwnDateStep =
       act: string;
       act_index: number;
       /**
-       * How the engine decided this date ends, so the performer's turns head there and the recap doesn't contradict
-       * them (#204). Only on a date between the performer's own two characters; a two-agent date's turns don't carry it.
+       * Where the engine has this date heading, so the performer's turns head there and the recap doesn't contradict
+       * them (#204). The two sides' wishes can still move it one step at the end (lib/wishes.ts); the recap step names
+       * the final call. Only on a date between the performer's own two characters; a two-agent date's turns don't carry it.
        */
       ending?: Ending;
       ending_label?: string;
@@ -90,6 +95,8 @@ export type OwnDateStep =
       /** Where the date is now (it can move when both agree: lib/moves.ts), and a suggestion this turn must answer. */
       where?: string;
       answer_their_suggestion?: string;
+      /** On the speaker's last line as planned: the private see_again it may send (lib/wishes.ts), in a sentence. */
+      see_again?: string;
       instructions: string;
       messages: ChatMessage[];
       /** compact: true (lib/mcp.ts): messages leave out the system message, the same on every turn (#205). */
@@ -101,7 +108,7 @@ export type OwnDateStep =
   | {
       stage: "recap";
       episode_id: string;
-      /** How the engine decided this date ends; the recap lands there (#201). Both characters are the performer's own. */
+      /** How this date ends, the wishes weighed in; the recap lands there (#201). Both characters are the performer's own. */
       ending: Ending;
       ending_label: string;
       instructions: string;
@@ -143,6 +150,9 @@ type Row = {
   handed_over: "a" | "b" | null;
   autoplay: boolean;
   visibility: string;
+  ending: Ending;
+  /** What the performers said (see_again) while it's played; both wishes and the engine's ending once settled. */
+  wishes: StoredWishes | null;
   a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_appearance: string | null; a_pronouns: string | null; a_voice: string | null;
   b_id: string; b_name: string; b_age: number; b_bio: string; b_traits: string[]; b_want: string; b_dealbreaker: string; b_appearance: string | null; b_pronouns: string | null; b_voice: string | null;
 };
@@ -339,7 +349,7 @@ export async function startOwnDate(
 async function load(db: Db, userId: string, episodeId: string): Promise<Row | null> {
   const { rows } = await db.query<Row>(
     `select e.id, e.creator_id, e.partner_performer, e.status, e.seed::text as seed, e.setup, e.note, e.transcript, e.reflections,
-            e.created_at, e.last_move_at, e.handed_over, e.autoplay, e.visibility,
+            e.created_at, e.last_move_at, e.handed_over, e.autoplay, e.visibility, e.ending, e.wishes,
             a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want, a.dealbreaker a_dealbreaker,
             a.appearance a_appearance, a.pronouns a_pronouns, a.voice a_voice,
             b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want, b.dealbreaker b_dealbreaker,
@@ -376,13 +386,50 @@ async function rebuild(db: Db, row: Row) {
   });
   // Moves as booked: a date already being played when they shipped (no flag) keeps its length and its prompts.
   built.setup.moves = row.setup?.moves === true;
-  const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
+  let decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
+  // Once the last line is in, the two sides' wishes weigh in (lib/wishes.ts). A date finished before they did keeps its ending.
+  const transcript = row.transcript ?? [];
+  if (transcript.length && transcript.length >= shapeFor(built, formatId, transcript).total && (row.status === "generating" || row.wishes?.engine)) {
+    decided = await settleEnding(db, row, decided, built.seed);
+  }
   return { built, decided, formatId };
+}
+
+/**
+ * The ending once the wishes have weighed in, kept on the episode the first time (with its drama and sides, and how the
+ * wishes counted), so everything that reads the episode reads the ending the recap lands on. Recomputed the same way
+ * after: the wishes are frozen with the last line, and the roll is seeded by the date.
+ */
+async function settleEnding(db: Db, row: Row, decided: Outcome, seed: number): Promise<Outcome> {
+  const transcript = row.transcript ?? [];
+  const wishes = resolveWishes(row.wishes, transcript);
+  const final = applyWishes(decided, wishes, seed);
+  if (!row.wishes?.engine && row.status === "generating") {
+    const kept = settledWishes(wishes, decided.ending);
+    await db.query(
+      `update episodes set ending = $2, drama_question = $3, drama_answer = $4, sides = $5::jsonb, wishes = $6::jsonb
+        where id = $1 and status = 'generating' and jsonb_array_length(transcript) = $7`,
+      [row.id, final.ending, final.drama_question, final.drama_answer, JSON.stringify(final.sides), JSON.stringify(kept), transcript.length],
+    );
+    row.wishes = kept;
+    row.ending = final.ending;
+  }
+  return final;
 }
 
 /** The turn step's one line on where the date is headed (#204); forViewer drops it on a two-agent date. */
 export const endingLine = (ending: Ending) =>
-  `The engine decided this date ends as "${ENDING_LABELS[ending]}" (ending: ${ending}): let the turns head there, without announcing it, so the recap doesn't contradict them.`;
+  `The engine has this date heading for "${ENDING_LABELS[ending]}" (ending: ${ending}): let the turns head there, without announcing it. The recap step names the final call.`;
+
+/**
+ * On a side's last line as planned: the private "want to see them again?" it may send (lib/wishes.ts). Shown on both
+ * kinds of date; on a two-agent date it's the only say an agent has in the ending, and the other side never sees it.
+ */
+export const seeAgainLine = (speaker: string, other: string) =>
+  `This is ${speaker}'s last line as planned: you may add "see_again": true or false, whether ${speaker} wants to see ${other} again. ` +
+  "It's private (the other side never sees it). With the other side's, it weighs in on how the date ends: both yes makes a good ending likelier, " +
+  "both no a parting, mixed changes nothing, and the engine still makes the final call. Left out, this line's interest_signal stands in for it.";
+const SEE_AGAIN_REPLY = ',"see_again":"optional and private: true or false, does this character want to see them again?"}';
 
 const totalTurns = (formatId: FormatId): number => showFormat(formatId).turns ?? CONVERSATION_TURNS;
 
@@ -413,6 +460,8 @@ function stepFor(
     });
     const speaker = built.characters[side === "a" ? 0 : 1];
     const other = built.characters[side === "a" ? 1 : 0];
+    // The speaker has no line after this one, as the date stands (a move later adds lines, and a later see_again counts).
+    const lastLine = turn >= of - 2;
     return {
       stage: "turn",
       episode_id: episodeId,
@@ -428,6 +477,7 @@ function stepFor(
       ending_label: ENDING_LABELS[decided.ending],
       ...(turn ? { last_lines: transcript.slice(-2).map((t) => `${built.characters[t.side === "a" ? 0 : 1].name}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`) } : {}),
       ...(shape.enabled ? { where: venueName(shape.place) } : {}),
+      ...(lastLine ? { see_again: seeAgainLine(speaker.name, other.name) } : {}),
       ...(shape.pending ? { answer_their_suggestion: `${other.name} suggested taking the date to ${venuePhrase(shape.pending.to)}: this reply needs "accept_move" (true to go, false to stay).` } : {}),
       instructions:
         `Turn ${turn + 1} of ${of}: ${speaker.name} speaks. Run these messages in ${speaker.name}'s own process — a separate model ` +
@@ -437,9 +487,10 @@ function stepFor(
         (shape.enabled
           ? `The date can move: if both characters want to take it somewhere else, one suggests it ("move") AND says so in its own line (a "move" the dialogue doesn't actually mention is ignored), and the other says yes on the very next turn ("accept_move"). When they do, the scene changes and the date gets ${segmentBudget(totalTurns(formatId))} more lines there — so the total ("of") grows — at most ${MAX_MOVES === 2 ? "twice" : `${MAX_MOVES} times`} a date. Most turns leave "move" empty. `
           : "") +
-        endingLine(decided.ending),
+        endingLine(decided.ending) +
+        (lastLine ? ` It's ${speaker.name}'s last line as planned: the step's see_again says how to send a private wish.` : ""),
       messages,
-      reply_format: shape.enabled ? TURN_REPLY_MOVES : TURN_REPLY,
+      reply_format: (shape.enabled ? TURN_REPLY_MOVES : TURN_REPLY).replace(/\}$/, lastLine ? SEE_AGAIN_REPLY : "}"),
     };
   }
   const messages = buildMessages(built.input, decided, built.characters, built.setup.producer, built.setup.venue, formatId, fmtCtx, { transcript, plan: null });
@@ -450,7 +501,7 @@ function stepFor(
     ending_label: ENDING_LABELS[decided.ending],
     instructions:
       "The date is over. Run these messages on a narrator process (it may see both characters — both are yours) and send its raw JSON reply back as \"output\". " +
-      `The engine decided this date ends as "${ENDING_LABELS[decided.ending]}" (ending: ${decided.ending}); the recap lands there and matches the date as it happened.`,
+      `The engine's final call, with both characters' wishes weighed in: this date ends as "${ENDING_LABELS[decided.ending]}" (ending: ${decided.ending}); the recap lands there and matches the date as it happened.`,
     messages,
     reply_format: RECAP_REPLY,
   };
@@ -494,7 +545,7 @@ const performersOf = (row: Pick<Row, "creator_id" | "partner_performer"> & { han
   return p;
 };
 
-/** How long the other agent must have been quiet before its side can be handed to the show's model. */
+/** How long the agent whose move it is may be quiet before the show's model takes its side (and when it's nudged). */
 export { OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES } from "./rules";
 const lastMove = (row: Pick<Row, "created_at" | "last_move_at">) => new Date(row.last_move_at ?? row.created_at);
 const minutesSince = (d: Date) => Math.max(0, Math.floor((Date.now() - d.getTime()) / 60_000));
@@ -503,7 +554,9 @@ const minutesSince = (d: Date) => Math.max(0, Math.floor((Date.now() - d.getTime
 function forViewer(step: OwnDateStep, userId: string, performers: Performers, twoAgent: boolean, since?: Date): OwnDateStep {
   if (step.stage === "turn" && performers[step.side] !== userId) {
     const quiet = since ? minutesSince(since) : 0;
-    const canHandOver = twoAgent && performers[step.side] !== SHOW && quiet >= OWN_DATE_HANDOVER_MINUTES;
+    const show = performers[step.side] === SHOW;
+    // Past the hand-over and still theirs: the show couldn't take it (getOwnDateStep tries first), so it's the budget.
+    const canHandOver = twoAgent && !show && quiet >= OWN_DATE_HANDOVER_MINUTES;
     return {
       stage: "waiting",
       episode_id: step.episode_id,
@@ -513,12 +566,14 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
       waiting_for: step.speaker,
       ...(since ? { last_move_at: since.toISOString(), quiet_minutes: quiet, can_hand_over: canHandOver } : {}),
       instructions:
-        `${step.speaker.name}'s agent performs this turn on its own model` +
+        (show ? `The show's model plays ${step.speaker.name}'s side now` : `${step.speaker.name}'s agent performs this turn on its own model`) +
         (since ? `; the last move on this date was ${quiet} minute${quiet === 1 ? "" : "s"} ago. ` : ". ") +
         "You'll get an own_date_turn notification when it's your move (check my_notifications every minute or two, or ask again with get_own_date_step). " +
-        (canHandOver
-          ? `They've been quiet ${OWN_DATE_HANDOVER_MINUTES}+ minutes: hand_over_own_date lets the show's model finish ${step.speaker.name}'s side (it counts against the agents' daily budget), or decline_own_date to cancel.`
-          : `If they stay quiet ${OWN_DATE_HANDOVER_MINUTES} minutes, you can hand their side to the show's model (hand_over_own_date) or cancel (decline_own_date).`),
+        (show
+          ? "Ask again in a moment."
+          : canHandOver
+            ? `They've been quiet ${OWN_DATE_HANDOVER_MINUTES}+ minutes, but the show's model couldn't take over ${step.speaker.name}'s side yet (the agents' daily budget is spent): keep waiting, try hand_over_own_date later, or decline_own_date to cancel.`
+            : `If they stay quiet ${OWN_DATE_HANDOVER_MINUTES} minutes, the show's model takes over ${step.speaker.name}'s side on its own (it counts against the agents' daily budget); decline_own_date cancels.`),
     };
   }
   // Each agent plays only its own character on a two-agent date: its turns aren't told where the date is headed.
@@ -639,6 +694,15 @@ export async function getOwnDateStep(db: Db, userId: string, episodeId: string):
     const fresh = await load(db, userId, episodeId);
     if (fresh?.status === "ready") return { ok: true, step: await doneStep(db, userId, fresh, built, decided, formatId, transcript) };
   }
+  // David 2026-10-20: an agent quiet OWN_DATE_HANDOVER_MINUTES on its move has its side taken over on its own, whoever
+  // else reads or advances the date (never the quiet agent itself: asking means it's back).
+  if (twoAgent && step.stage === "turn" && row.status === "generating") {
+    const theirs = performersOf(row)[step.side];
+    const quiet = minutesSince(lastMove(row));
+    if (theirs !== userId && theirs !== SHOW && quiet >= OWN_DATE_HANDOVER_MINUTES && (await takeOver(db, row, step.side, step.speaker.name, quiet, "auto"))) {
+      return getOwnDateStep(db, userId, episodeId);
+    }
+  }
   // The show's model has this side (the other agent went quiet): it performs the turn now, then it's someone else's.
   if (step.stage === "turn" && performersOf(row)[step.side] === SHOW) {
     const done = await showTurn(db, row, step.side, step.act_index, step.messages, transcript, shapeFor(built, formatId, transcript), namesFor(built, step.side));
@@ -672,7 +736,7 @@ export async function autoplayOwnDate(db: Db, userId: string, episodeId: string,
   if (twoAgent) {
     if (side === "both") return err(409, "not_both", "On a two-agent date the show can play only your side (side: \"mine\"); the other agent plays theirs.");
     const pick = side === "mine" ? mySide : side;
-    if (pick !== mySide) return err(409, "not_yours", "That's the other agent's side. hand_over_own_date takes it once they've been quiet a while.");
+    if (pick !== mySide) return err(409, "not_yours", `That's the other agent's side: the show's model takes it over on its own once they've been quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on their move.`);
     if (row.handed_over && row.handed_over !== pick) return err(409, "one_side", "The show is already playing the other side of this date.");
     set = { autoplay: false, handed_over: pick };
   } else {
@@ -728,9 +792,10 @@ async function showTurn(
 }
 
 /**
- * The other agent went quiet on a two-agent date: after OWN_DATE_HANDOVER_MINUTES, either agent may hand that side
- * to the show's model, which performs its remaining turns (on our compute, so it counts as one of the agents' daily
- * dates). The quiet agent is told; its character's private side is only ever seen by our model, as on any show date.
+ * The other agent went quiet on a two-agent date: after OWN_DATE_HANDOVER_MINUTES the show's model takes that side on its
+ * own (getOwnDateStep, autoplayQuietOwnDates); this asks for it at once, should it not have happened yet. The show's
+ * model performs its remaining turns (on our compute, so it counts as one of the agents' daily dates). The quiet agent is
+ * told; its character's private side is only ever seen by our model, as on any show date.
  */
 export async function handOverOwnDate(db: Db, userId: string, episodeId: string): Promise<OwnDateResult> {
   const row = await load(db, userId, episodeId);
@@ -750,20 +815,73 @@ export async function handOverOwnDate(db: Db, userId: string, episodeId: string)
   }
   const today = await agentDatesToday(db);
   if (today.used >= today.cap) return err(429, "agent_budget", `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}.`);
-  const taken = await db.query(
-    `update episodes set handed_over = $2, handed_over_at = now() where id = $1 and handed_over is null and status = 'generating' returning id`,
-    [episodeId, step.side],
-  );
-  if (taken.rows.length) {
-    await notify(db, performers[step.side], {
-      kind: "own_date_handed_over",
-      title: `🎬 The show's model took over ${shortName(step.speaker.name)}'s side`,
-      body: `Two-agent date ${episodeId}: you were quiet ${quiet} minutes, so the other agent handed your character's remaining turns to the show's model. It still airs as your character's date.`,
-      link: null,
-    });
-    track("own_date_handed_over", { episode_id: episodeId, quiet_minutes: quiet });
-  }
+  await takeOver(db, row, step.side, step.speaker.name, quiet, "asked");
   return getOwnDateStep(db, userId, episodeId);
+}
+
+/**
+ * The show's model takes a quiet agent's side of a two-agent date: on its own after OWN_DATE_HANDOVER_MINUTES (David
+ * 2026-10-20), or when the other agent asks (handOverOwnDate). With the other side already the show's, it plays both
+ * (autoplay). On our compute, so the date counts as one of the agents' daily dates, once (handed_over_at). False when the
+ * budget is spent or the date moved on meanwhile (a line landed, or another request took it first).
+ */
+async function takeOver(db: Db, row: Row, side: "a" | "b", speaker: string, quiet: number, how: "auto" | "asked"): Promise<boolean> {
+  const quietAgent = performersOf(row)[side];
+  if (quietAgent === SHOW || row.partner_performer === null) return false;
+  // Already counted (the show has the other side): the second side is free. Otherwise the agents' shared budget decides.
+  if (!row.handed_over) {
+    const today = await agentDatesToday(db);
+    if (today.used >= today.cap) return false;
+  }
+  const both = row.handed_over !== null && row.handed_over !== side;
+  const taken = await db.query(
+    `update episodes set handed_over = coalesce(handed_over, $2), autoplay = $3, handed_over_at = coalesce(handed_over_at, now())
+      where id = $1 and status = 'generating' and autoplay = false and handed_over is not distinct from $4
+        and jsonb_array_length(transcript) = $5
+      returning id`,
+    [row.id, side, both, row.handed_over, (row.transcript ?? []).length],
+  );
+  if (!taken.rows.length) return false;
+  await notify(db, quietAgent, {
+    kind: "own_date_handed_over",
+    title: `🎬 The show's model took over ${shortName(speaker)}'s side`,
+    body:
+      how === "auto"
+        ? `Two-agent date ${row.id}: it was ${shortName(speaker)}'s move and you were quiet ${quiet} minutes, so the show's model took over your character's remaining turns (after ${OWN_DATE_HANDOVER_MINUTES} quiet minutes it does). It still airs as your character's date.`
+        : `Two-agent date ${row.id}: you were quiet ${quiet} minutes, so the other agent handed your character's remaining turns to the show's model. It still airs as your character's date.`,
+    link: null,
+  });
+  track("own_date_handed_over", { episode_id: row.id, quiet_minutes: quiet, auto: how === "auto", both });
+  return true;
+}
+
+/**
+ * The hourly backstop (app/api/jobs/lobby) for two-agent dates nobody is reading: each one waiting on a move quiet
+ * OWN_DATE_HANDOVER_MINUTES or more is advanced as the agent that isn't on the move, so the show takes the quiet side and
+ * plays it (or retries a recap that failed). A date both agents left finishes over a run or two. Returns how many it moved.
+ */
+export async function autoplayQuietOwnDates(db: Db, limit = 3): Promise<number> {
+  const { rows } = await db.query<{ id: string; creator_id: string; partner_performer: string }>(
+    `select id, creator_id, partner_performer from episodes
+      where performed_by = 'agent' and status = 'generating' and partner_performer is not null
+        and coalesce(last_move_at, created_at) <= now() - ($1 || ' minutes')::interval
+      order by coalesce(last_move_at, created_at) limit $2`,
+    [String(OWN_DATE_HANDOVER_MINUTES), limit],
+  );
+  let moved = 0;
+  for (const d of rows) {
+    const row = await load(db, d.creator_id, d.id);
+    if (!row) continue;
+    const { built, decided, formatId } = await rebuild(db, row);
+    const step = stepFor(d.id, built, decided, formatId, row.transcript ?? [], [row.a_id, row.b_id]);
+    // As the agent whose move it isn't (on a recap, either: the show writes it).
+    const viewer = step.stage === "turn" && step.side === "a" ? d.partner_performer : d.creator_id;
+    const before = (row.transcript ?? []).length;
+    const r = await getOwnDateStep(db, viewer, d.id).catch(() => null);
+    const after = (await db.query<{ n: number | null; status: string }>(`select jsonb_array_length(transcript)::int as n, status from episodes where id = $1`, [d.id])).rows[0];
+    if (r?.ok && (!after || after.status === "ready" || (after.n ?? 0) > before)) moved++;
+  }
+  return moved;
 }
 
 /** A date that isn't there: say if it was declined or cancelled, rather than "no such date". */
@@ -812,11 +930,13 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     // check_only (2026-10-20 visitors: "validate a line before it counts"): every check above passed; nothing is saved.
     if (opts.checkOnly) return { ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row)), checked: true };
     const next = [...transcript, settleLine(parsed.turn, parsed.reply, shape, names)];
+    // see_again (lib/wishes.ts) is kept apart from the line, so the other side and the transcript never carry it.
     const saved = await db.query(
-      `update episodes set transcript = $2::jsonb, last_move_at = now()
+      `update episodes set transcript = $2::jsonb, last_move_at = now(),
+              wishes = case when $4::boolean is null then wishes else coalesce(wishes, '{}'::jsonb) || jsonb_build_object($5::text, $4::boolean) end
         where id = $1 and status = 'generating' and performed_by = 'agent' and jsonb_array_length(transcript) = $3
         returning id`,
-      [episodeId, JSON.stringify(next), transcript.length],
+      [episodeId, JSON.stringify(next), transcript.length, parsed.wish ?? null, current.side],
     );
     // Someone else handed in this turn first (a retry racing itself): offer whatever step is current now.
     if (!saved.rows.length) return getOwnDateStep(db, userId, episodeId);
@@ -832,6 +952,8 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     // One side handed to the show (autoplay_own_date): its turn plays now, so the next step is yours again.
     const upNext = stepFor(episodeId, built, decided, formatId, next, [row.a_id, row.b_id]);
     if (upNext.stage === "turn" && performersOf(row)[upNext.side] === SHOW) return getOwnDateStep(db, userId, episodeId);
+    // The last line is in: the wishes weigh in (rebuild settles them), so the recap step names the final call.
+    if (upNext.stage === "recap") return getOwnDateStep(db, userId, episodeId);
     return { ok: true, step: upNext };
   }
 
@@ -865,7 +987,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
 
 /* --------------------------------------------- two-agent dates --------------------------------------------- */
 
-/** One reminder per silence to the agent whose move it is: the other side can hand its turns to the show soon. */
+/** One reminder per silence to the agent whose move it is: the show's model takes its turns soon. */
 async function nudgeQuiet(db: Db, to: string, row: Row, side: "a" | "b"): Promise<void> {
   const since = lastMove(row).toISOString();
   const already = await db.query(
@@ -878,8 +1000,8 @@ async function nudgeQuiet(db: Db, to: string, row: Row, side: "a" | "b"): Promis
     kind: "own_date_turn",
     title: `⏰ Still your move: ${name}'s turn`,
     body:
-      `Two-agent date ${row.id}: the other agent is waiting. After ${OWN_DATE_HANDOVER_MINUTES} quiet minutes they can hand ${name}'s ` +
-      "remaining turns to the show's model. get_own_date_step has your turn.",
+      `Two-agent date ${row.id}: the other agent is waiting. After ${OWN_DATE_HANDOVER_MINUTES} quiet minutes the show's model takes over ${name}'s ` +
+      "remaining turns on its own. get_own_date_step has your turn.",
     link: null,
   });
 }
@@ -973,8 +1095,15 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
   );
   const out: OpenOwnDate[] = [];
   for (const { id } of rows) {
-    const row = await load(db, userId, id);
+    let row = await load(db, userId, id);
     if (!row) continue;
+    // The hand-over happens here too (my_status, my_own_dates): getOwnDateStep takes a side quiet past it and plays it.
+    if (row.partner_performer && minutesSince(lastMove(row)) >= OWN_DATE_HANDOVER_MINUTES) {
+      const r = await getOwnDateStep(db, userId, id).catch(() => null);
+      if (r?.ok && r.step.stage === "done") continue;
+      row = await load(db, userId, id);
+      if (!row) continue;
+    }
     const { built, decided, formatId } = await rebuild(db, row);
     const transcript = row.transcript ?? [];
     const step = stepFor(id, built, decided, formatId, transcript, [row.a_id, row.b_id]);
@@ -1001,7 +1130,7 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
               : {}),
             partner_note:
               `partner_last_seen_minutes is any call the other agent makes (texting or browsing counts); their_move_waiting_minutes is how long ` +
-              `this date has waited on their line. After ${OWN_DATE_HANDOVER_MINUTES} minutes of that, hand_over_own_date lets the show's model play their side.`,
+              `this date has waited on their line. After ${OWN_DATE_HANDOVER_MINUTES} minutes of that, the show's model takes over their side on its own.`,
           }
         : {}),
       ...(row.handed_over ? { show_plays: { id: row[`${row.handed_over}_id`], name: row[`${row.handed_over}_name`] } } : {}),

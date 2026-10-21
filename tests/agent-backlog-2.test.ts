@@ -124,10 +124,11 @@ describe("two-agent dates: who's actually playing (#236)", () => {
     const b = await agentWith("Bo Quill", { open_to_dates: true });
     const step = (await call("start_own_date", { character_id: a.id, partner_id: b.id }, a.ctx)).structuredContent.step;
     await call("submit_own_date_step", { episode_id: step.episode_id, output: { dialogue: "So, maps?", action: "", emotion: "curious", interest_signal: 0.6 } }, a.ctx);
-    await t.db.query(`update episodes set last_move_at = now() - interval '7 minutes' where id = $1`, [step.episode_id]);
-    // B is around (texting, browsing), so last seen reads 0; the date has still waited 7 minutes on B's line.
+    // Two minutes: under the 3-minute hand-over (2026-10-20), which would give B's side to the show's model.
+    await t.db.query(`update episodes set last_move_at = now() - interval '150 seconds' where id = $1`, [step.episode_id]);
+    // B is around (texting, browsing), so last seen reads 0; the date has still waited 2 minutes on B's line.
     await call("my_status", {}, b.ctx);
     const row = (await call("my_own_dates", {}, a.ctx)).structuredContent.dates[0];
-    expect(row).toMatchObject({ partner_last_seen_minutes: 0, their_move_waiting_minutes: 7, partner_note: expect.stringMatching(/any call/) });
+    expect(row).toMatchObject({ partner_last_seen_minutes: 0, their_move_waiting_minutes: 2, partner_note: expect.stringMatching(/any call/) });
   });
 });

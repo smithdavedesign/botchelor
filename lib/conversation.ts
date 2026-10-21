@@ -19,8 +19,10 @@
  * first draft stands — the critic can improve a date but never cost one.
  *
  * Privacy (PRD §12): only this side's private data and its own beat are ever in its prompt. The engine has
- * already decided the outcome (lib/engine.ts); the emotion/interest fields are flavour only and never feed the
- * engine, the box score or prediction scoring. Best-effort: a failed conversation leaves an empty transcript.
+ * already decided the outcome (lib/engine.ts); emotion is flavour only, and interest never feeds the engine's decision,
+ * the box score or prediction scoring. The one place interest counts: a side's last line stands in for its private
+ * "want to see them again?" when the date's wishes weigh in on the ending (lib/wishes.ts). Best-effort: a failed
+ * conversation leaves an empty transcript.
  */
 import { shortName } from "./names";
 import { z } from "zod";
@@ -39,14 +41,17 @@ import { dateShape, moveProblem, settleLine, type DateShape, type MoveReply } fr
 import { textsForPrompt } from "./text-chain";
 import { venue, venuePhrase, type PlaceId } from "./venues";
 
-/** One line of the date. `side` is "a"/"b"; `act` indexes DATE_ACTS. emotion/interest are flavour only. */
+/** One line of the date. `side` is "a"/"b"; `act` indexes DATE_ACTS. emotion is flavour; interest, see Turn.interest. */
 export type Turn = {
   side: "a" | "b";
   act: number;
   dialogue: string;
   action: string;
   emotion: string;
-  /** The agent's self-reported interest this turn, 0..1. Visualization only; never scores anything. */
+  /**
+   * The agent's self-reported interest this turn, 0..1. Never scores anything; a side's last one is its wish when it
+   * didn't say one (lib/wishes.ts), so a date still being written never shows it (lib/game.ts).
+   */
   interest: number;
   /** The actor's "I'm done" signal (the closing stretch only; see simulateConversation). Optional, never persisted. */
   done?: boolean;
@@ -99,6 +104,8 @@ const TurnOutput = z.object({
   move: z.unknown().optional().transform((v) => (typeof v === "string" && v.trim() ? v.trim() : undefined)),
   /** The answer to the other's proposal: true to go, false to stay. */
   accept_move: flag,
+  /** An agent's own date (lib/own-date.ts): its side's private "want to see them again?" (lib/wishes.ts). Never on the line. */
+  see_again: flag,
 });
 
 /** Shortens text to `max` characters at the last sentence end (else the last space) inside the limit. */
@@ -304,7 +311,7 @@ export type TurnRejection = "json" | "schema" | "filtered";
  * Parses one agent turn: it must be JSON with a line of dialogue, and the line must pass the content filter.
  * Over-long fields are trimmed to fit rather than rejected.
  */
-export function parseTurnResult(raw: string, side: "a" | "b", act: number): { turn: Turn; reply: MoveReply } | { rejected: TurnRejection } {
+export function parseTurnResult(raw: string, side: "a" | "b", act: number): { turn: Turn; reply: MoveReply; wish?: boolean } | { rejected: TurnRejection } {
   const trimmed = raw.trim();
   const unfenced = CODE_FENCE.exec(trimmed)?.[1] ?? trimmed;
   let json: unknown;
@@ -329,6 +336,8 @@ export function parseTurnResult(raw: string, side: "a" | "b", act: number): { tu
     },
     // What it says about moving, settled against where the date stands (lib/moves.ts settleLine).
     reply: { ...(parsed.data.move ? { move: parsed.data.move } : {}), ...(parsed.data.accept_move !== undefined ? { accept: parsed.data.accept_move } : {}) },
+    // Kept off the turn (the transcript is what both sides and the creator read), so it stays private.
+    ...(parsed.data.see_again !== undefined ? { wish: parsed.data.see_again } : {}),
   };
 }
 
