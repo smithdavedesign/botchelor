@@ -217,10 +217,19 @@ async function judge(o, input) {
         },
         {
           role: "user",
-          content: `${sheetText(input.a)}\n\n${sheetText(input.b)}\n\nChapter ${ch.chapter}, lines ${from}–${from + slice.length - 1}:\n${transcript}\n\nReply with JSON only: {"callouts": [{"lines": "12-14", "note": "what you see, one sentence"}]} (at most 6, the clearest ones; [] if nothing stands out).`,
+          content:
+            `${sheetText(input.a)}\n\n${sheetText(input.b)}\n\nChapter ${ch.chapter}, lines ${from}–${from + slice.length - 1}:\n${transcript}\n\n` +
+            `Reply with JSON only: {"callouts": [{"lines": "<first>-<last>", "note": "<what you see there, naming who does what>"}]}, using the line numbers shown above. ` +
+            `At most 4, the clearest ones; {"callouts": []} if nothing stands out.`,
         },
       ]).catch((e) => (console.error(`[judge] ch ${ch.chapter} ${from}: ${e.message}`), ""));
-      for (const c of jsonIn(raw)?.callouts ?? []) if (c?.lines && c?.note) callouts.push({ chapter: ch.chapter, lines: String(c.lines), note: String(c.note).slice(0, 300) });
+      // A small local model echoes the template or the categories; keep only specific callouts inside this window.
+      const kept = (jsonIn(raw)?.callouts ?? []).filter((c) => {
+        const note = String(c?.note ?? "").trim();
+        const [lo, hi = lo] = String(c?.lines ?? "").split(/[-–]/).map((n) => Number(n.trim()));
+        return note.length > 25 && !/[<>]|^(?:a |no )?(what you see|place changing|lines (?:that )?(contradict|don't sound)|repeated lines|character asking|contradicts where)/i.test(note) && lo >= from && hi < from + slice.length && hi >= lo;
+      });
+      for (const c of kept.slice(0, 4)) callouts.push({ chapter: ch.chapter, lines: String(c.lines), note: String(c.note).slice(0, 300) });
     }
   }
   const drift = {};
