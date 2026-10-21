@@ -1,7 +1,6 @@
 "use client";
 
 import type { FormEvent } from "react";
-import ShareLink from "@/app/ShareLink";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
 import { trackConversion } from "@/app/conversion";
@@ -17,10 +16,13 @@ import {
   type DramaQuestion,
   type Ending,
 } from "@/lib/rules";
+import EpisodeShare from "./EpisodeShare";
 
 type Props = {
   episodeId: string;
   sharePath: string;
+  /** The site's address (lib/site), for the absolute links Reddit and Bluesky get. */
+  shareBase: string;
   isCreator: boolean;
   isHost: boolean;
   revealed: boolean;
@@ -43,9 +45,10 @@ function setVisibility(episodeId: string, visibility: "public" | "private") {
 }
 
 export default function EpisodeActions(props: Props) {
-  const { episodeId, sharePath, isCreator, isHost, revealed, names, dramaQuestion, myPick, myDramaPick, visibility, airsAt } = props;
+  const { episodeId, sharePath, shareBase, isCreator, isHost, revealed, names, dramaQuestion, myPick, myDramaPick, visibility, airsAt } = props;
   const offline = visibility === "private";
   const { busy, error, setError, run } = useAction();
+  const share = <EpisodeShare path={sharePath} base={shareBase} names={names} />;
 
   function predict(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,7 +68,7 @@ export default function EpisodeActions(props: Props) {
     return (
       <section className="card">
         <p>{offline ? "The finale aired, and the date is offline now: only its owners see it." : "The finale has aired. Share it anyway:"}</p>
-        {!offline && <ShareLink path={sharePath} label="Episode link" />}
+        {!offline && share}
         {isHost && (
           <button type="button" className="secondary small" disabled={busy} onClick={() => run(() => setVisibility(episodeId, offline ? "public" : "private"))}>
             {offline ? "Put it back on the air" : "Take it offline"}
@@ -90,7 +93,7 @@ export default function EpisodeActions(props: Props) {
             counts for both characters.
           </p>
         )}
-        {!offline && <ShareLink path={sharePath} label="Episode link" />}
+        {!offline && share}
         {isHost && (
           <div className="row">
             {!offline && (
@@ -144,7 +147,7 @@ export default function EpisodeActions(props: Props) {
         </p>
       )}
       {error && <p className="error">{error}</p>}
-      <ShareLink path={sharePath} label="Episode link" />
+      {share}
     </section>
   );
 }
