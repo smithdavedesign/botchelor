@@ -41,7 +41,7 @@ export const GET = handle(async (req: Request) => {
   const q = new URL(req.url).searchParams;
   const reelId = q.get("id");
   if (reelId) {
-    const reel = await advanceReel(db, viewer, reelId);
+    const reel = await advanceReel(db, viewer, reelId, requestBase(req));
     return reel ? json({ reel }) : hidden();
   }
   return json({ reels: await listReels(db, viewer, q.get("a") ?? "", q.get("b") ?? "") });
