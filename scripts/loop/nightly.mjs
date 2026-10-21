@@ -306,6 +306,16 @@ async function main() {
       summary.housekeeping_error = err instanceof Error ? err.message : String(err);
     }
 
+    // 5b. The After Dark observer (scripts/eval/observer-nightly.sh, botchelor-2c's #583): read-only checks on the pairs
+    // that changed in the last day, one summary row to /admin/analytics, no model. Its outcome goes in the summary, so a
+    // failure is seen rather than swallowed; ten minutes at most, so it never holds up the fixer.
+    try {
+      const out = sh("zsh", ["scripts/eval/observer-nightly.sh"], { timeout: 10 * 60_000 });
+      summary.observer = out.trim().split("\n").at(-1)?.slice(0, 300) || "ok";
+    } catch (err) {
+      summary.observer = `failed: ${(err instanceof Error ? err.message : String(err)).split("\n")[0].slice(0, 200)}`;
+    }
+
     // 6. One fixer.
     if (FIX && Date.now() < DEADLINE - 20 * 60_000) {
       const fix = readFileSync(join(HERE, "fix-prompt.md"), "utf8").replaceAll("{{MAX_FIXES}}", String(MAX_FIXES)).replaceAll("{{OUT}}", join(RUN, "fixes.md"));
