@@ -91,6 +91,18 @@ async function credits(key) {
   }
 }
 
+/**
+ * Which path the crowd's replies took tonight (scripts/loop/crowd.mjs, #544): the model, or the scripted fallback, and
+ * why. In the summary, so a quiet fallback can't read as "visitors still call the crowd canned".
+ */
+function crowdBrain() {
+  try {
+    return JSON.parse(readFileSync(join(RUN, "arena", "crowd.json"), "utf8")).crowd_brain ?? undefined;
+  } catch {
+    return undefined; // no crowd file (an older arena, or it never came up)
+  }
+}
+
 async function feedbackFrom(base, password, since) {
   try {
     const r = await fetch(`${base}/api/admin/feedback`, { headers: { "x-frontier-key": password } });
@@ -237,6 +249,7 @@ async function main() {
       writeFileSync(join(RUN, "feedback-local.json"), JSON.stringify(local, null, 2));
       summary.feedback_local = local.length;
     }
+    summary.crowd_brain = crowdBrain() ?? summary.crowd_brain; // the minute-fresh counts, in case the stop write is late
     agent?.kill("SIGTERM");
     arena?.kill("SIGTERM");
     summary.model_spend_usd = Math.round(((before - (await credits(gatewayKey))) || 0) * 10000) / 10000;
@@ -311,6 +324,9 @@ async function main() {
   } finally {
     agent?.kill("SIGTERM");
     arena?.kill("SIGTERM");
+    // The arena rewrites crowd.json as it stops: give it a moment, so the summary has the whole run's counts.
+    if (arena) await new Promise((ok) => setTimeout(ok, 1500));
+    summary.crowd_brain = crowdBrain() ?? summary.crowd_brain;
     writeFileSync(join(RUN, "summary.json"), JSON.stringify(summary, null, 2));
     writeFileSync(STATE, JSON.stringify(state, null, 2));
     rmSync(join(RUN, "arena", "db"), { recursive: true, force: true }); // the throwaway database

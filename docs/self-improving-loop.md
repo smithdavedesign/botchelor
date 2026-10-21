@@ -101,9 +101,9 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
 
      When the whole run is scripted, `model` is null and `reason_if_fallback` says why, for example `"LOOP_STUB=1"`
      or `"LiteLLM unreachable at startup (no answer in 2s)"`. If the brain switches itself off mid-run, `model_was`
-     names the alias it had been using. The summary's `world` is read at READY, so it holds the seeding counts. To
-     report the whole run, nightly.mjs would re-read `arena/crowd.json` after the visitors finish, before it stops the
-     arena, and set `summary.crowd_brain`.
+     names the alias it had been using. The summary's `world` is read at READY, so it holds the seeding counts. The
+     whole run's counts are `summary.crowd_brain`: nightly.mjs reads `arena/crowd.json` after the visitors finish, and
+     again just after it stops the arena (the stop write), keeping the later one.
 3. **An agent that swipes back** (`scripts/loop/swipe-back-agent.mjs`). The swipe gate means a first date with
    another creator's character needs a match, and people-made characters only match when their owner swipes. So
    this agent makes two characters with dating profiles and:
