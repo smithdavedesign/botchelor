@@ -18,13 +18,24 @@ export type ChatMessage = { role: "system" | "user" | "assistant"; content: stri
 export const REASONING_EFFORTS = ["minimal", "low", "medium", "high"] as const;
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
-/** One call's token usage, as the provider billed it (output includes thinking). */
-export type Usage = { model: string; input: number; cachedInput: number; output: number; thinking: number };
+/**
+ * One call's token usage, as the provider billed it (output includes thinking). `cost` is what the provider itself says
+ * the call cost in USD, when it says (OpenRouter's usage accounting); lib/pricing.ts prices the rest from the tokens.
+ */
+export type Usage = { model: string; input: number; cachedInput: number; output: number; thinking: number; cost?: number };
 
 /** Per-call generation settings. Optional: a model may ignore them (scripted test models do). */
 export type ModelOptions = {
   /** Sampling temperature: higher for spoken dialogue (variety), lower for plans and recaps (fidelity). */
   temperature?: number;
+  /**
+   * OpenAI-style penalties, passed on as frequency_penalty / presence_penalty (OpenRouter forwards them to the models
+   * that take them). Frequency grows with how often a token has already come up in the reply; presence is flat.
+   */
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  /** Open models' multiplicative repetition_penalty (1 is off). Most providers count the prompt's tokens in it too. */
+  repetitionPenalty?: number;
   /**
    * A ceiling on the reply's length. Some providers (OpenRouter) reserve credit for the model's whole maximum when
    * none is sent, and refuse a call a small key could easily afford.
@@ -65,6 +76,8 @@ type UsageBody = {
   total_tokens?: unknown;
   prompt_tokens_details?: { cached_tokens?: unknown };
   completion_tokens_details?: { reasoning_tokens?: unknown };
+  /** OpenRouter's usage accounting: what the call cost, in USD. */
+  cost?: unknown;
 };
 type CompletionResponse = { choices?: { message?: { content?: unknown } }[]; usage?: UsageBody };
 
@@ -82,7 +95,8 @@ export function usageFrom(body: UsageBody | undefined, model: string): Usage | n
   const output = Math.max(completion, count(body.total_tokens) - input);
   const reported = body.completion_tokens_details?.reasoning_tokens;
   const thinking = typeof reported === "number" ? count(reported) : Math.max(0, output - completion);
-  return { model, input, cachedInput: count(body.prompt_tokens_details?.cached_tokens), output, thinking };
+  const cost = typeof body.cost === "number" && Number.isFinite(body.cost) && body.cost >= 0 ? body.cost : undefined;
+  return { model, input, cachedInput: count(body.prompt_tokens_details?.cached_tokens), output, thinking, ...(cost !== undefined ? { cost } : {}) };
 }
 
 /** Models that refused a thinking level (an endpoint or model without one): asked without it from then on. */
@@ -172,6 +186,11 @@ export function openAICompatibleModel(opts: {
   now?: () => number;
   /** The thinking level to ask for (omitted: the model's default). Dropped automatically if the model refuses it. */
   reasoning?: ReasoningEffort;
+  /**
+   * Extra fields for every request body, under the standard ones (After Dark asks OpenRouter for the call's cost with
+   * `usage: { include: true }`).
+   */
+  extraBody?: Record<string, unknown>;
 }): Model {
   const url = `${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`;
   const id = modelId(opts.baseUrl, opts.model);
@@ -187,8 +206,11 @@ export function openAICompatibleModel(opts: {
       let useReasoning = opts.reasoning !== undefined && !noReasoning.has(opts.model);
       for (let pass = 0; ; pass++) {
         let res: Response;
-        const body: Record<string, unknown> = { model: opts.model, messages, response_format: { type: "json_object" } };
+        const body: Record<string, unknown> = { ...(opts.extraBody ?? {}), model: opts.model, messages, response_format: { type: "json_object" } };
         if (options?.temperature !== undefined) body.temperature = options.temperature;
+        if (options?.frequencyPenalty !== undefined) body.frequency_penalty = options.frequencyPenalty;
+        if (options?.presencePenalty !== undefined) body.presence_penalty = options.presencePenalty;
+        if (options?.repetitionPenalty !== undefined) body.repetition_penalty = options.repetitionPenalty;
         if (options?.maxTokens !== undefined) body.max_tokens = options.maxTokens;
         if (useReasoning) body.reasoning_effort = opts.reasoning;
         // A free tier answers 429 when a burst of calls (a date is ~13 in a row) crosses its per-minute quota;

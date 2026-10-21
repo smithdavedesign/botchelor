@@ -184,9 +184,64 @@ Options: `--nights all` (every night, not just the latest), `--owner <admin id>`
 `ObserverInput`, no database), `--out <dir>` (default `.data/observer`). It writes `<pair>-<time>.md` and `.json`,
 prints the markdown, and emits one summary event with `~/ai-stack/bin/emit-event` when that exists.
 
+The report ends with a **drift** table per character (`lib/adult/quality.ts`): the share of their lines that use a
+distinctive word from their own sheet, and stock romance phrases per 100 lines.
+
 **Running it nightly (not wired yet).** The loop (`scripts/loop`) could run it after each night of visitor runs:
 for every pair with an `adult_nights` row filed since the last run, call the script with `--nights latest` against a
 read-only connection string (Neon's `--endpoint-type read_only`, or the read-only session it already sets), without
 `--judge` by default (it's free but slow on a 16 GB machine), and post the summary event's counts to #team-agents
 when any of unprovoked moves, "my place" when there, repeats or unfounded memories is above zero. The judge pass can
 run weekly on the worst night.
+
+## Voice, guards and remembered facts (2026-10-21)
+
+A review of all 977 production lines found the characters losing their sheets (sheet details in 2 lines; "symphony"
+16 times), 23 verbatim and 18 near repeats, an invented "Chad" (a misnamed Chud), the same speaker twice in a row, and
+a memory of two generic sentences. What runs now:
+
+- **One pure step** (`writeSceneStep` in `lib/adult/scenes.ts`): the prompt, the model call and every guard, with no
+  database writes. `continueScene` runs it and saves the result; the eval route runs the very same step.
+- **Prompt v2** (the default; `prompt_version` in the settings brings back v1, kept word for word for A/B): each sheet
+  gets the voice kit the dates use (details, public facts, the four tells by name, never-says, sample lines) and up to
+  five of the character's own best show lines as "how {name} talks"; a rule to stay themselves when it gets intimate;
+  the banned stock phrases (`STOCK_PHRASES`, minus any a sheet owns); "only the two of them are in this scene"; who
+  speaks first; and what they remember, numbered (`[F3]` facts, `[M1]` other memories) for the line's `memory` to cite.
+- **Guards**, in order: the two lines; a line that steps out of the scene to refuse (dropped); names (a near-miss of
+  their names, "Chad" for "Chud", repaired; a line naming another character on the show dropped; only a word used as a
+  name counts); repeats (tonight's, and a copy of one of their show lines); turn-taking (the same speaker twice within a
+  reply is merged when it's only speech, else dropped; a reply opening on whoever spoke last is kept and counted).
+- **Sampling** (settings, next to the model): temperature 0.8, frequency and presence penalties 0.3, repetition
+  penalty off (providers count the prompt in it, which would push lines away from the sheet).
+- **Remembered facts** (`adult_facts`, `lib/adult/facts.ts`): when a chapter closes or a night is saved, one call at
+  temperature 0.3 pulls 3–8 concrete facts per character about the other (said, joke, pet_name, promise, like,
+  boundary, event), quoted only when the quote is really in the lines, no vibes; deduped, about 40 a character-pair
+  (least used and oldest go first). Each step shows the six that best fit the last 8 lines (shared words, then recency,
+  a nudge for unused ones); a cited fact's `uses` goes up. A citation of something not in the list is flagged in the
+  metrics, never dropped. After Dark only: the show's PG note is unchanged and no date or text reads these.
+
+### The A/B: `POST /api/jobs/eval-after-dark`
+
+Same gate as `/api/jobs/eval` (`Authorization: Bearer $CRON_SECRET`, else 404). It runs `steps` steps of the
+production step from an empty scene where the pair's latest date ended and **writes nothing** (no scene, facts, uses,
+sets or usage counts). It spends on After Dark's OpenRouter key: a call a step (two at most), plus one per chunk of
+stored lines with `memory: "extracted"`.
+
+```sh
+curl -s -X POST https://botchelor.com/api/jobs/eval-after-dark -H "authorization: Bearer $CRON_SECRET" \
+  -H 'content-type: application/json' \
+  -d '{"a":"<id>","b":"<id>","promptVersion":"v2","memory":"extracted","steps":4,"model":"sao10k/l3.1-euryale-70b","temperature":0.8}'
+```
+
+- `promptVersion`: `v1` | `v2`; `steps`: 1–8; `memory`: `none` (nothing remembered), `live` (their memories and
+  stored facts), `extracted` (their memories plus facts extracted in memory from their stored nights, the newest 3
+  chapters: production has no facts until a chapter closes); `model`: the current setting or one of
+  `nousresearch/hermes-3-llama-3.1-70b`, `sao10k/l3.1-euryale-70b`, `deepseek/deepseek-chat-v3.1`,
+  `mistralai/mistral-large-2512`, `nousresearch/hermes-4-405b`; `temperature`: 0–2 (else the setting); `direction`: a
+  steer per step. The pair must be in the first admin's After Dark (this season's cast or switched on).
+- Returns `lines` (`step, who, name, text, action, why, memory, stage, cites`), `facts` (`id, label, of, kind, fact,
+  quote, uses, cited`), `metrics` (`lib/adult/quality.ts`), `steps`, `dropped`, `refusals`, `usage` (`calls`,
+  `input_tokens`, `output_tokens`, `cost_usd` from OpenRouter's own figure, else the list price; `cost_source`),
+  `stopped` (`time` or `model_error`) and `extraction_errors`. `GET` lists the models and modes.
+- `scripts/eval/golden.mjs --suite after-dark --a '{"promptVersion":"v1"}' --b '{"promptVersion":"v2"}'` runs it on the
+  golden cases, both arms side by side with a local judge, and gates on these metrics (`docs/date-quality.md`).

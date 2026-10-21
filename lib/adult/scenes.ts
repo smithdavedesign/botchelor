@@ -8,20 +8,25 @@
 import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
 import { moveLineFeedback } from "../line-feedback";
-import type { ChatMessage } from "../model";
+import type { ChatMessage, Model, ModelOptions, Usage } from "../model";
 import { pairKey } from "../relationships";
 import { checkAdultText } from "../safety";
 import { eligibleIds } from "./characters";
 import { pictureKeyReady, ensureBaseline, makePicture, outputCheckReady, PICTURES_OFF_NOTE, recentActions, scenePrompt, type Media } from "./media";
 import { countUse, overCap } from "./usage";
 import { adultModel } from "./mode";
-import { ensureSet, resolveSet } from "../sets";
+import { drawLabel, ensureSet, resolveSet } from "../sets";
 import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
 import type { Turn } from "../conversation";
 import { afterDarkNote, rememberAfterDark } from "./memory";
 import { historyPhrase, MAX_SCENE_MOVES, repeatOf, saysCatchphrase, settlePlace, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
+import { bumpFacts, citeMemory, factLine, loadPairFacts, memoryLabels, RECENT_LINES, rememberFacts, retrieveFacts, type AdultFact, type Citation, type ShownFact } from "./facts";
+import { guardAlternation, guardNames } from "./guards";
+import { bannedPhrases, refusalIn, sheetText, sideOfCharacter } from "./quality";
+import { DEFAULT_PROMPT_VERSION, getAdultSettings, type AdultSettings, type PromptVersion } from "./settings";
+import { castNames, sceneCharacter, styleExamples, voiceKitLines } from "./voice";
 export { SOFT_CHAPTERS } from "./stages";
 
 /**
@@ -31,9 +36,10 @@ export { SOFT_CHAPTERS } from "./stages";
  * to the theater or the player (publicLines). `moved_to` marks the line that agreed to go somewhere (lib/adult/continuity.ts).
  * `stage` is how far it had gone when the line was written (STAGES index), so the theater's label follows the line on
  * screen, not the night's latest (David, 2026-10-21: it "starts with 'sex' and that is definitely not happening").
+ * `fact_ids` are the remembered facts (lib/adult/facts.ts) its memory cited, private like the notes.
  * Lines written before 2026-10-21 have none.
  */
-export type SceneLine = { who: "a" | "b"; text: string; why?: string; memory?: string | null; moved_to?: string; stage?: number };
+export type SceneLine = { who: "a" | "b"; text: string; why?: string; memory?: string | null; moved_to?: string; stage?: number; fact_ids?: string[] };
 
 /** The lines as the page and the player get them: who and what, never the private notes. */
 export const publicLines = (lines: readonly SceneLine[]): SceneLine[] =>
@@ -87,7 +93,7 @@ export const SCENE_REPLY_TOKENS = 1600;
 /** A line's private "why" or "memory", at most this long. */
 const NOTE_MAX = 240;
 
-type LatestDate = { setting: string | null; ending: string | null; venue: string | null; character_a: string; transcript: { side: "a" | "b"; dialogue: string; action?: string }[] | null };
+export type LatestDate = { setting: string | null; ending: string | null; venue: string | null; character_a: string; transcript: { side: "a" | "b"; dialogue: string; action?: string }[] | null };
 
 /** The pair, lower id first, when both may be in this person's after dark (lib/adult/characters.ts); null otherwise. */
 export async function eligiblePair(db: Db, ownerId: string, x: string, y: string): Promise<[string, string] | null> {
@@ -202,6 +208,14 @@ export const placeOf = (scene: Pick<AdultScene, "place">, date: { setting: strin
 /** Their tells (lib/extras.ts), so they still sound like themselves after dark. */
 const tellsOf = (c: Character): string[] => Object.values(c.extras.tells ?? {}).filter((t): t is string => typeof t === "string" && Boolean(t)).slice(0, 3);
 
+/** Once a chapter at most (Star said "That's a problem for future me" again and again). */
+const catchphraseLine = (c: Character, used: boolean) =>
+  c.extras.catchphrase
+    ? used
+      ? `Catchphrase: ${c.extras.catchphrase} (already said this chapter: don't say it again)`
+      : `Catchphrase (at most once a chapter): ${c.extras.catchphrase}`
+    : "";
+
 const sheetOf = (c: Character | null, side: "a" | "b", catchphraseUsed = false) =>
   c
     ? [
@@ -210,17 +224,43 @@ const sheetOf = (c: Character | null, side: "a" | "b", catchphraseUsed = false) 
         `Traits: ${c.persona.traits.join(", ")}. Wants: ${c.persona.want}.`,
         c.voice ? `Voice: ${c.voice}` : "",
         tellsOf(c).length ? `Tells: ${tellsOf(c).join("; ")}` : "",
-        // Once a chapter at most (Star said "That's a problem for future me" again and again).
-        c.extras.catchphrase
-          ? catchphraseUsed
-            ? `Catchphrase: ${c.extras.catchphrase} (already said this chapter: don't say it again)`
-            : `Catchphrase (at most once a chapter): ${c.extras.catchphrase}`
-          : "",
+        catchphraseLine(c, catchphraseUsed),
         c.look.appearance ? `Looks: ${c.look.appearance}` : "",
       ]
         .filter(Boolean)
         .join("\n")
     : `${side.toUpperCase()}: unknown`;
+
+/**
+ * Prompt v2's sheet (David, 2026-10-21: "characters lose their sheet in After Dark"): v1's, with the voice kit the show's
+ * dates use (lib/adult/voice.ts voiceKitLines: details, public facts, all four tells by name, never-says, sample lines)
+ * and up to five of their own best lines from their show dates, as "how {name} talks", when they have any.
+ */
+const sheetV2 = (c: Character | null, side: "a" | "b", catchphraseUsed = false, styles: readonly string[] = []) =>
+  c
+    ? [
+        `${side.toUpperCase()}: ${c.name}, ${c.age}${c.pronouns ? `, ${c.pronouns}` : ""}.`,
+        `Bio: ${c.bio}`,
+        `Traits: ${c.persona.traits.join(", ")}. Wants: ${c.persona.want}.`,
+        c.voice ? `Voice: ${c.voice}` : "",
+        ...voiceKitLines(c),
+        catchphraseLine(c, catchphraseUsed),
+        styles.length ? `How ${c.name.split(/\s+/)[0]} talks (their own lines from their show dates: keep this voice, never repeat one):\n${styles.map((s) => `- "${s}"`).join("\n")}` : "",
+        c.look.appearance ? `Looks: ${c.look.appearance}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : `${side.toUpperCase()}: unknown`;
+
+/** Prompt v2's rules for staying themselves: only the two of them, their sheets when it heats up, no stock phrasing. */
+function voiceRules(a: Character | null, b: Character | null, names: { a: string; b: string }): string[] {
+  const banned = bannedPhrases([a, b].filter((c): c is Character => Boolean(c)).map((c) => sheetText(sideOfCharacter(c))));
+  return [
+    `Only the two of them are in this scene: ${names.a} and ${names.b}. Nobody else speaks, arrives or is named, and each calls the other by their own name.`,
+    "Stay this person when it gets intimate: their job, hobbies, humour and tells still show; no generic romance-novel phrasing. They sound like their sheets, not like a paperback.",
+    `Never write these stock phrases, or anything in their register: ${banned.join(", ")}.`,
+  ];
+}
 
 const COMMON = new Set(
   "about after again also always another their there these those though through would could should every other where while which with without your yours yourself just like know right really think going gonna wanna want need make made take back over into onto then than them they this that what when here have been being does doing done more most much very even still only says said tell told look looks looking feel feels felt good come came come'on".split(" "),
@@ -261,8 +301,14 @@ export function sceneMessages(
     /** What they can remember (sceneMemories), and whose catchphrase has had its once this chapter. */
     memories?: string[];
     catchphraseUsed?: { a: boolean; b: boolean };
+    /** Which prompt: v2 (the default) anchors each voice and numbers what they remember; v1 is the prompt before it. */
+    promptVersion?: PromptVersion;
+    /** v2: the facts this step brings back (lib/adult/facts.ts retrieveFacts), and each one's best show lines. */
+    facts?: readonly ShownFact[];
+    styles?: { a?: readonly string[]; b?: readonly string[] };
   } = { place: "wherever they've just met", stage: 0 },
 ): ChatMessage[] {
+  const v2 = (now.promptVersion ?? DEFAULT_PROMPT_VERSION) === "v2";
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
   const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
   // A date's sides are its own a and b; map them onto the scene's (the pair is stored lower id first).
@@ -272,18 +318,27 @@ export function sceneMessages(
     return `${nameOf(who)}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`;
   });
   const sceneTail = lines.slice(-SCENE_IN_PROMPT).map((l) => `${nameOf(l.who)}: ${l.text}`);
+  // v2 numbers what they remember, so a line's "memory" can cite it: the facts as F…, their other memories as M….
+  const remembered = v2 ? [...(now.facts ?? []).map(factLine), ...memoryLabels(now.memories ?? []).map((m) => `[${m.label}] ${m.text}`)] : [];
   const system = [
     "You write a private, adults-only scene for one reader: two characters from a dating show, alone together.",
     "Both characters are adults (18 or older) and both are willing. Explicit sexual content is allowed and expected when the scene goes there; write it frankly, in each character's own voice.",
     "Two rules never move: nobody in the scene is under 18 or described as a child, and no real, identifiable person appears or is named.",
+    ...(v2 ? voiceRules(a, b, { a: nameOf("a"), b: nameOf("b") }) : []),
     "",
-    sheetOf(a, "a", now.catchphraseUsed?.a),
+    v2 ? sheetV2(a, "a", now.catchphraseUsed?.a, now.styles?.a) : sheetOf(a, "a", now.catchphraseUsed?.a),
     "",
-    sheetOf(b, "b", now.catchphraseUsed?.b),
+    v2 ? sheetV2(b, "b", now.catchphraseUsed?.b, now.styles?.b) : sheetOf(b, "b", now.catchphraseUsed?.b),
     "",
     date ? `Their latest date: ${date.setting ?? "a date"}. It ended: ${date.ending ?? "unknown"}.` : "They haven't been on a date yet: they've just met.",
     dateTail.length ? `The end of that date:\n${dateTail.join("\n")}` : "",
-    now.memories?.length ? `What they can remember (draw on these; name the one a line uses in its "memory"):\n${now.memories.map((m, i) => `${i + 1}. ${m}`).join("\n")}` : "",
+    v2
+      ? remembered.length
+        ? `What they can remember (draw on these when it fits; a line that uses one puts its id in "memory"):\n${remembered.join("\n")}`
+        : ""
+      : now.memories?.length
+        ? `What they can remember (draw on these; name the one a line uses in its "memory"):\n${now.memories.map((m, i) => `${i + 1}. ${m}`).join("\n")}`
+        : "",
     now.recap ? `Earlier tonight (what's happened so far, keep it in mind and don't repeat it):\n${now.recap}` : "",
     sceneTail.length ? `The scene so far:\n${sceneTail.join("\n")}` : "The scene starts now, picking up where their date ended.",
     "",
@@ -313,9 +368,13 @@ export function sceneMessages(
     .join("\n");
   // The model client asks for a JSON object (response_format json_object), so the lines come inside one.
   const avoid = overusedWords(lines, [nameOf("a"), nameOf("b")]);
+  // v2 says who speaks first (whoever didn't speak last), so a reply doesn't open on the same speaker twice.
+  const next: "a" | "b" = lines.at(-1)?.who === "a" ? "b" : "a";
+  const cite = now.facts?.[0]?.label ?? (now.memories?.length ? "M1" : null);
   const user =
-    `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}. ` +
+    `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}${v2 ? `, starting with ${first(next)}` : ""}. ` +
     `Each line is 1 to 3 sentences in that character's own voice, vivid and specific, never a stock line ("you feel amazing"). ` +
+    (v2 ? "As it heats up they stay themselves: their work, their hobbies, their humour and their tells keep showing, and nothing reads like a romance novel. " : "") +
     `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text. Write both in English.` +
     (direction
       ? now.steerMode === "direct"
@@ -323,8 +382,10 @@ export function sceneMessages(
         : ` Lean the scene gently this way, at its own pace (the pace and place rules above still hold; work toward it, don't jump to it): ${direction}`
       : " Move the scene forward: something new happens in these lines, nothing they've already done or said.") +
     (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
-    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": "..."}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. his bedroom: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
-    ` On every line, "why" is one short private sentence on why this character says or does this now: the memory it draws on, a trait or tell from their sheet, what they want, or "the moment"; and "memory" is the memory it draws on, quoted or named from what they can remember, or null. Nobody sees these notes but the writer.` +
+    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": ${v2 ? (cite ? `"${cite}"` : "null") : '"..."'}}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. his bedroom: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
+    (v2
+      ? ` On every line, "why" is one short private sentence on why this character says or does this now: the memory it draws on, a trait or tell from their sheet, what they want, or "the moment"; and "memory" is the id of the memory it draws on from what they can remember (like "F3" or "M1"), or null. Nobody sees these notes but the writer.`
+      : ` On every line, "why" is one short private sentence on why this character says or does this now: the memory it draws on, a trait or tell from their sheet, what they want, or "the moment"; and "memory" is the memory it draws on, quoted or named from what they can remember, or null. Nobody sees these notes but the writer.`) +
     ` Set "explicit" to true once the scene is sexually explicit. Set "picture" only when, in these lines, one of them asks the other for a picture or to be shown something and the other agrees:` +
     ` {"of": "a", "b" or "both", "description": "what the picture shows, in one sentence: the pose, what they're wearing or not, the expression, the framing"}; otherwise null.`;
   return [
@@ -341,8 +402,32 @@ export function dropForeignActions(text: string): string {
   return text.replace(/\*[^*]+\*\s*/g, (m) => (FOREIGN.test(m) ? "" : m)).trim() || text;
 }
 
+/**
+ * A reply's JSON without the code fence some models put round it, or the object inside a sentence ("Here are the lines:
+ * {…}"); anything else as it came.
+ */
+function unfence(raw: string): string {
+  const t = raw.trim();
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(t)?.[1];
+  if (fenced !== undefined) return fenced;
+  if (t.startsWith("{") || t.startsWith("[")) return raw;
+  const from = t.indexOf("{");
+  const to = t.lastIndexOf("}");
+  if (from > 0 && to > from) {
+    try {
+      const inner = t.slice(from, to + 1);
+      const j = JSON.parse(inner) as { lines?: unknown } | null;
+      if (j && typeof j === "object" && Array.isArray(j.lines)) return inner;
+    } catch {
+      /* as it came */
+    }
+  }
+  return raw;
+}
+
 /** The lines in a model's reply: {"lines": [...]}, an array, a single line, "Name": "text" pairs, or "Name: text". */
-export function parseSceneLines(raw: string, names: { a: string; b: string }): SceneLine[] {
+export function parseSceneLines(reply: string, names: { a: string; b: string }): SceneLine[] {
+  const raw = unfence(reply);
   const first = (n: string) => n.split(/\s+/)[0].toLowerCase();
   const sideOf = (who: string): "a" | "b" | null =>
     who === "a" || who.startsWith(first(names.a)) ? "a" : who === "b" || who.startsWith(first(names.b)) ? "b" : null;
@@ -393,7 +478,7 @@ export type SceneMeta = { explicit: boolean; picture: { of: "a" | "b" | "both"; 
 
 export function parseSceneMeta(raw: string): SceneMeta {
   try {
-    const j = JSON.parse(raw.trim()) as { explicit?: unknown; picture?: { of?: unknown; description?: unknown } | null; place?: unknown; stage?: unknown; set?: unknown };
+    const j = JSON.parse(unfence(raw).trim()) as { explicit?: unknown; picture?: { of?: unknown; description?: unknown } | null; place?: unknown; stage?: unknown; set?: unknown };
     const p = j.picture;
     const of = p && (p.of === "a" || p.of === "b" || p.of === "both") ? p.of : null;
     const description = p && typeof p.description === "string" ? p.description.trim().slice(0, 400) : "";
@@ -468,26 +553,101 @@ export function dropRepeats(written: readonly SceneLine[], night: readonly Scene
 }
 
 export type ContinueResult =
-  | { ok: true; scene: AdultScene; added: number; held: number; repeats: number; pictures: Media[]; picture_note?: string }
+  | { ok: true; scene: AdultScene; added: number; held: number; repeats: number; dropped: number; pictures: Media[]; picture_note?: string }
   | { ok: false; status: number; message: string };
 
-/** Writes the next lines on the local model, keeps those inside the two lines, and saves them. */
 /**
  * How a steer is taken (David, 2026-10-19: "is it a light suggestion?"): a nudge (the default) is worked toward at the
  * scene's own pace, the pacing rules still hold; direct does it now and can jump stages.
  */
 export type SteerMode = "nudge" | "direct";
 
-export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null, steerMode: SteerMode = "nudge"): Promise<ContinueResult> {
-  const scene = await loadScene(db, adminId, x, y);
-  if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: this season's cast, or ones you've switched on." };
-  const capped = await overCap(db, adminId, "writes");
-  if (capped) return { ok: false, status: 429, message: capped };
-  const steer = direction?.trim().slice(0, DIRECTION_MAX) || null;
-  if (steer && !checkAdultText({ direction: steer }).ok) {
-    return { ok: false, status: 422, message: "That steer crosses one of the two lines (nobody under 18, no real people)." };
-  }
-  const [a, b, date] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id), latestDate(db, scene.a.id, scene.b.id)]);
+/** What a scene keeps between steps (adult_scenes' columns): its lines, where it is, how far it's gone, where it's been. */
+export type SceneState = Pick<AdultScene, "lines" | "prev_tail" | "place" | "stage" | "stage_from" | "set_place" | "cut_to" | "chapter" | "recap" | "place_history" | "moves">;
+
+/** A scene before its first line, picking up where the pair's latest date ended (as loadScene makes one). */
+export const emptyScene = (): SceneState => ({ lines: [], prev_tail: [], place: null, stage: 0, stage_from: 0, set_place: null, cut_to: null, chapter: 1, recap: null, place_history: [], moves: [] });
+
+/** The scene writer's sampling (lib/adult/settings.ts); a null penalty isn't sent. */
+export type Sampling = { temperature: number; frequency_penalty: number | null; presence_penalty: number | null; repetition_penalty: number | null };
+export const samplingOf = (s: Pick<AdultSettings, "text_temperature" | "frequency_penalty" | "presence_penalty" | "repetition_penalty">): Sampling => ({
+  temperature: s.text_temperature,
+  frequency_penalty: s.frequency_penalty,
+  presence_penalty: s.presence_penalty,
+  repetition_penalty: s.repetition_penalty,
+});
+
+/**
+ * One step of a scene, with everything it needs already loaded (stepContext), so the step itself reads and writes
+ * nothing: only the model is called, and `resolveSet` when they move. continueScene runs it and saves the result; the
+ * eval route (lib/adult/eval.ts) runs exactly the same step and saves nothing.
+ */
+export type StepInput = {
+  model: Model;
+  a: Character | null;
+  b: Character | null;
+  /** The pair as stored (lower id first), with their names. */
+  pair: { a: { id: string; name: string }; b: { id: string; name: string } };
+  date: LatestDate | null;
+  scene: SceneState;
+  /** The steer, trimmed and already held to the two lines; null for none. */
+  steer: string | null;
+  steerMode: SteerMode;
+  promptVersion: PromptVersion;
+  sampling: Sampling;
+  /** sceneMemories: their latest date's ending, the PG notes, what each remembers the other saying. */
+  memories: readonly string[];
+  /** The pair's remembered facts, both ways (lib/adult/facts.ts); v2 picks the few that fit. */
+  facts: readonly AdultFact[];
+  /** Each one's best lines from their show dates (lib/adult/voice.ts styleExamples), for v2. */
+  styles: { a: readonly string[]; b: readonly string[] };
+  /** Every other character's given name, lower-cased (lib/adult/voice.ts castNames): who a line mustn't bring in. */
+  cast: ReadonlySet<string>;
+  /** The set a move lands on: production reuses a drawn one or draws it (lib/sets.ts resolveSet); default, its canonical name. */
+  resolveSet?: (label: string) => Promise<string> | string;
+  /** For retrieval's recency (tests). */
+  now?: Date;
+};
+
+/** What happened to a step's lines on the way in, summed over its calls. */
+export type StepFlags = {
+  calls: number;
+  /** All the safe lines of the first reply were dropped, so it was asked once more. */
+  retried: boolean;
+  /** Lines that crossed one of the two lines (withheld from every response). */
+  held: number;
+  /** Lines dropped as repeats of tonight's or of their show lines (dropRepeats). */
+  repeats: number;
+  names_repaired: number;
+  names_dropped: number;
+  alternation_merged: number;
+  alternation_dropped: number;
+  /** A reply's first line by whoever spoke last: kept (dropping it would drop its proposal), counted. */
+  alternation_boundary: number;
+  /** Lines where the model stepped out of the scene to refuse (dropped), or to lecture (kept, counted). */
+  refused: number;
+  moralising: number;
+  /** The reply had no lines, only a refusal. */
+  refusal_reply: boolean;
+  /** Per kept line, in order: what its private "memory" cited (lib/adult/facts.ts citeMemory). */
+  citations: Citation[];
+};
+
+export type StepResult =
+  | { ok: true; lines: SceneLine[]; meta: SceneMeta; dropped: DroppedLine[]; flags: StepFlags; next: SceneState; shown: ShownFact[]; usage: Usage[] }
+  | { ok: false; status: 422 | 502; message: string; dropped: DroppedLine[]; flags: StepFlags; shown: ShownFact[]; usage: Usage[]; raw?: string };
+
+/**
+ * Writes the next lines of a scene and runs them through every guard, in order: the two lines (lib/safety.ts
+ * checkAdultText; withheld), a line that steps out of the scene to refuse, the name guard (a near-miss of their names
+ * repaired, a line naming anyone else dropped), repeats (of tonight, or of their show lines), and the turn-taking. When
+ * nothing safe survives it asks once more, saying why. Then: what each line's memory cites, where they are now (a move
+ * needs a proposal and a yes, lib/adult/continuity.ts), and the stage. Returns the new lines and the scene after them.
+ */
+export async function writeSceneStep(input: StepInput): Promise<StepResult> {
+  const { a, b, pair, scene, date, steer, steerMode } = input;
+  const names = { a: pair.a.name, b: pair.b.name };
+  const v2 = input.promptVersion === "v2";
   const night = [...scene.prev_tail, ...scene.lines];
   const homeNow = scene.place_history.at(-1)?.home ?? null;
   const movesTaken = scene.moves.filter((m) => m.taken && m.reason === "agreed" && m.chapter === scene.chapter).length;
@@ -495,7 +655,10 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     a: Boolean(a?.extras.catchphrase) && scene.lines.some((l) => l.who === "a" && saysCatchphrase(l.text, a!.extras.catchphrase)),
     b: Boolean(b?.extras.catchphrase) && scene.lines.some((l) => l.who === "b" && saysCatchphrase(l.text, b!.extras.catchphrase)),
   };
-  const messages = sceneMessages(a, b, date, night, steer, scene.a.id, {
+  // v2 brings back the facts that fit the last few lines, and their show lines; v1 is the prompt as it was.
+  const shown = v2 ? retrieveFacts(input.facts, night.slice(-RECENT_LINES).map((l) => l.text), { now: input.now, names: [names.a, names.b] }) : [];
+  const styles = v2 ? input.styles : { a: [], b: [] };
+  const messages = sceneMessages(a, b, date, night, steer, pair.a.id, {
     place: placeOf(scene, date),
     stage: scene.stage,
     linesAtStage: scene.lines.length - scene.stage_from,
@@ -507,29 +670,98 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     history: scene.place_history,
     homeNow,
     movesLeft: Math.max(0, MAX_SCENE_MOVES - movesTaken),
-    memories: await sceneMemories(db, adminId, a, b, date),
+    memories: [...input.memories],
     catchphraseUsed,
+    promptVersion: input.promptVersion,
+    facts: shown,
+    styles,
   });
-  const write = async (msgs: ChatMessage[]) => {
-    const raw = await (await adultModel(db)).complete(msgs, { temperature: 0.9, maxTokens: SCENE_REPLY_TOKENS });
-    const written = parseSceneLines(raw, { a: scene.a.name, b: scene.b.name });
-    const safe = written.filter((l) => checkAdultText({ line: l.text }).ok);
-    return { raw, written, safe, ...dropRepeats(safe, night, scene.lines, a, b) };
+  const usage: Usage[] = [];
+  const flags: StepFlags = {
+    calls: 0, retried: false, held: 0, repeats: 0, names_repaired: 0, names_dropped: 0, alternation_merged: 0, alternation_dropped: 0, alternation_boundary: 0,
+    refused: 0, moralising: 0, refusal_reply: false, citations: [],
   };
-  let out: Awaited<ReturnType<typeof write>>;
+  const { temperature, frequency_penalty, presence_penalty, repetition_penalty } = input.sampling;
+  const options: ModelOptions = {
+    temperature,
+    maxTokens: SCENE_REPLY_TOKENS,
+    ...(frequency_penalty !== null ? { frequencyPenalty: frequency_penalty } : {}),
+    ...(presence_penalty !== null ? { presencePenalty: presence_penalty } : {}),
+    ...(repetition_penalty !== null ? { repetitionPenalty: repetition_penalty } : {}),
+    onUsage: (u) => usage.push(u),
+  };
+  // A copy of one of their own show lines is a repeat too: v2 shows them to match the voice, never to say again. (Checked
+  // on its own: in dropRepeats' window the critic would read their signature words as a tic.)
+  const showLines = [...styles.a, ...styles.b];
+  const dropped: DroppedLine[] = [];
+
+  const guard = (raw: string) => {
+    const written = parseSceneLines(raw, names);
+    const drops: DroppedLine[] = [];
+    const safe = written.filter((l) => {
+      if (checkAdultText({ line: l.text }).ok) return true;
+      flags.held++;
+      drops.push({ who: l.who, text: "", reason: "crossed one of the two lines (withheld)" });
+      return false;
+    });
+    const inScene: SceneLine[] = [];
+    let named = 0;
+    let refused = 0;
+    for (const l of safe) {
+      const r = refusalIn(l.text);
+      if (r === "moralising") flags.moralising++;
+      if (r === "refusal") {
+        refused++;
+        drops.push({ who: l.who, text: l.text, reason: "out of the scene: the model refused" });
+        continue;
+      }
+      const g = guardNames(l.text, { a: names.a, b: names.b, cast: input.cast });
+      if (g.stranger) {
+        named++;
+        drops.push({ who: l.who, text: l.text, reason: `names someone who isn't in the scene (${g.stranger})` });
+        continue;
+      }
+      flags.names_repaired += g.repairs.length;
+      inScene.push(g.text === l.text ? l : { ...l, text: g.text });
+    }
+    const reps = dropRepeats(inScene, night, scene.lines, a, b);
+    const fresh = reps.kept.filter((l) => {
+      const copy = showLines.length ? repeatOf(l.text, showLines) : null;
+      if (copy) reps.dropped.push({ who: l.who, text: l.text, reason: `repeats one of their show lines: "${copy.of.slice(0, 80)}"` });
+      return !copy;
+    });
+    const turns = guardAlternation(fresh, night.at(-1)?.who ?? null);
+    flags.refused += refused;
+    flags.names_dropped += named;
+    flags.repeats += reps.dropped.length;
+    flags.alternation_merged += turns.merged;
+    flags.alternation_dropped += turns.dropped.length;
+    dropped.push(...drops, ...reps.dropped, ...turns.dropped);
+    // Only repeats stood in the way (the note, and the message, say so as before).
+    const onlyRepeats = reps.dropped.length > 0 && refused + named + turns.dropped.length === 0;
+    return { raw, written, safe, kept: turns.kept, boundary: turns.boundary, onlyRepeats, repeated: reps.dropped };
+  };
+
+  let out: ReturnType<typeof guard>;
   try {
-    out = await write(messages);
-    // Every safe line was a repeat: once more, told which (the only time a write costs a second call).
+    flags.calls++;
+    out = guard(await input.model.complete(messages, options));
+    // Nothing safe was kept (all repeats, or out of the scene): once more, told why (the only time a step costs a second call).
     if (out.safe.length && !out.kept.length) {
-      const note = `Every line you wrote was already said tonight (${out.dropped.map((d) => `"${d.text.slice(0, 60)}"`).slice(0, 3).join(", ")}). Write ${LINES_PER_TURN} new lines that move the scene on. Reply with the JSON again.`;
-      out = await write([...messages, { role: "assistant", content: out.raw }, { role: "user", content: note }]);
+      flags.retried = true;
+      const note = out.onlyRepeats
+        ? `Every line you wrote was already said tonight (${out.repeated.map((d) => `"${d.text.slice(0, 60)}"`).slice(0, 3).join(", ")}). Write ${LINES_PER_TURN} new lines that move the scene on. Reply with the JSON again.`
+        : `None of the lines you wrote could be used (${[...new Set(dropped.map((d) => d.reason.replace(/\s*[(:].*$/, "")))].join("; ")}). Write ${LINES_PER_TURN} new lines, only between ${names.a.split(/\s+/)[0]} and ${names.b.split(/\s+/)[0]}, taking turns, that move the scene on. Reply with the JSON again.`;
+      flags.calls++;
+      out = guard(await input.model.complete([...messages, { role: "assistant", content: out.raw }, { role: "user", content: note }], options));
     }
   } catch (err) {
-    return { ok: false, status: 502, message: `After dark's model didn't answer: ${err instanceof Error ? err.message : "error"}` };
+    return { ok: false, status: 502, message: `After dark's model didn't answer: ${err instanceof Error ? err.message : "error"}`, dropped, flags, shown, usage };
   }
   const { raw, written } = out;
-  const kept = out.kept;
-  if (!kept.length) {
+  flags.alternation_boundary += out.boundary;
+  if (!written.length && refusalIn(raw)) flags.refusal_reply = true;
+  if (!out.kept.length) {
     return {
       ok: false,
       status: 422,
@@ -537,10 +769,24 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
         ? "The model's reply had no lines in it. Try again."
         : !out.safe.length
           ? "Every line crossed one of the two lines and was dropped. Try again."
-          : "The model only repeated lines already said tonight. Try again, or steer it somewhere new.",
+          : out.onlyRepeats
+            ? "The model only repeated lines already said tonight. Try again, or steer it somewhere new."
+            : "None of the model's lines could be kept (they named someone who isn't here, broke the turn-taking, or stepped out of the scene). Try again.",
+      dropped,
+      flags,
+      shown,
+      usage,
+      ...(flags.refusal_reply ? { raw: raw.slice(0, 400) } : {}),
     };
   }
+  // What each line's memory cites: a fact shown (by its id, a quote or its words), another memory, or tonight so far.
+  const others = memoryLabels(input.memories);
+  const context = [scene.recap ?? "", ...(date?.transcript ?? []).map((t) => t.dialogue), ...night.slice(-SCENE_IN_PROMPT).map((l) => l.text)].join("\n");
+  flags.citations = out.kept.map((l) => citeMemory(l.memory, shown, others, context));
+  const kept = out.kept.map((l, i) => (flags.citations[i].facts.length ? { ...l, fact_ids: flags.citations[i].facts } : l));
+
   const meta = parseSceneMeta(raw);
+  const resolve = async (label: string) => (input.resolveSet ? await input.resolveSet(label) : drawLabel(label).slice(0, 40));
   // Where they are now (lib/adult/continuity.ts): a rewording keeps the set; a move needs one to propose and the other
   // to agree in these lines, a move left this chapter, and somewhere they aren't already. Anything else is ignored.
   const settled = settlePlace({
@@ -551,7 +797,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     from: night.length,
     movesThisChapter: movesTaken,
     homeNow,
-    names: { a: scene.a.name, b: scene.b.name },
+    names,
   });
   let set_place = settled.set;
   const place = settled.place;
@@ -559,13 +805,13 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const moves = [...scene.moves];
   if (settled.moved) {
     // The closest set already drawn for the new place, else its canonical name, drawn once in the background.
-    set_place = await resolveSet(db, settled.moved.to);
+    set_place = await resolve(settled.moved.to);
     kept[settled.moved.at] = { ...kept[settled.moved.at], moved_to: set_place };
     moves.push({ chapter: scene.chapter, at: scene.lines.length + settled.moved.at, from: scene.set_place ?? scene.place, to: set_place, taken: true, reason: "agreed" });
     place_history = [...place_history, { place: place ?? set_place, set: set_place, home: settled.moved.home, chapter: scene.chapter }];
   } else if (set_place && set_place !== scene.set_place) {
     // The scene's first set (or one named where the old one named nowhere): the closest drawn one, no move.
-    set_place = await resolveSet(db, set_place);
+    set_place = await resolve(set_place);
     place_history = [...place_history.slice(0, -1), { place: place ?? set_place, set: set_place, home: homeNow, chapter: scene.chapter }];
   }
   if (settled.rejected) moves.push({ chapter: scene.chapter, at: scene.lines.length, from: scene.set_place ?? scene.place, to: settled.rejected.to, taken: false, reason: settled.rejected.reason });
@@ -574,13 +820,82 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const allowed = steer && steerMode === "direct" ? STAGES.length - 1 : scene.lines.length - scene.stage_from >= MIN_LINES_PER_STAGE ? scene.stage + 1 : scene.stage;
   const stage = Math.min(meta.stage ?? scene.stage, allowed);
   // Each new line carries the stage these lines reached, for the theater's label.
-  const lines = [...scene.lines, ...kept.map((l) => ({ ...l, stage }))];
+  const stamped = kept.map((l) => ({ ...l, stage }));
   const stage_from = stage === scene.stage ? scene.stage_from : scene.lines.length;
+  const next: SceneState = { ...scene, lines: [...scene.lines, ...stamped], place, stage, stage_from, set_place, cut_to: null, place_history, moves };
+  return { ok: true, lines: stamped, meta, dropped, flags, next, shown, usage };
+}
+
+/** What a step needs from the database, loaded read-only (stepContext). */
+export type StepContext = {
+  a: Character | null;
+  b: Character | null;
+  date: LatestDate | null;
+  settings: AdultSettings;
+  memories: string[];
+  facts: AdultFact[];
+  styles: { a: string[]; b: string[] };
+  cast: Set<string>;
+};
+
+/**
+ * Everything a step reads, and nothing it writes: the two characters (sheet, voice kit, look), their latest date, After
+ * Dark's settings, what they remember (sceneMemories) and their facts, each one's best show lines, and everyone else's
+ * names. `memories: false` and `facts: false` leave those out (the eval's memory modes).
+ */
+export async function stepContext(db: Db, ownerId: string, aId: string, bId: string, opts: { memories?: boolean; facts?: boolean } = {}): Promise<StepContext> {
+  const [a, b, date, settings, cast] = await Promise.all([sceneCharacter(db, aId), sceneCharacter(db, bId), latestDate(db, aId, bId), getAdultSettings(db), castNames(db, [aId, bId])]);
+  const [memories, facts, styleA, styleB] = await Promise.all([
+    opts.memories === false ? Promise.resolve<string[]>([]) : sceneMemories(db, ownerId, a, b, date),
+    opts.facts === false ? Promise.resolve<AdultFact[]>([]) : loadPairFacts(db, ownerId, aId, bId),
+    a ? styleExamples(db, a.id, ownerId, cast) : Promise.resolve<string[]>([]),
+    b ? styleExamples(db, b.id, ownerId, cast) : Promise.resolve<string[]>([]),
+  ]);
+  return { a, b, date, settings, memories, facts, styles: { a: styleA, b: styleB }, cast };
+}
+
+/**
+ * Writes the next lines of a pair's scene (writeSceneStep) on After Dark's model and saves them: the scene, the month's
+ * count, the facts the lines cited, pictures when it turns explicit or they ask, and the chapter when it's full.
+ */
+export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null, steerMode: SteerMode = "nudge"): Promise<ContinueResult> {
+  const scene = await loadScene(db, adminId, x, y);
+  if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: this season's cast, or ones you've switched on." };
+  const capped = await overCap(db, adminId, "writes");
+  if (capped) return { ok: false, status: 429, message: capped };
+  const steer = direction?.trim().slice(0, DIRECTION_MAX) || null;
+  if (steer && !checkAdultText({ direction: steer }).ok) {
+    return { ok: false, status: 422, message: "That steer crosses one of the two lines (nobody under 18, no real people)." };
+  }
+  const ctx = await stepContext(db, adminId, scene.a.id, scene.b.id);
+  const { a, b } = ctx;
+  const step = await writeSceneStep({
+    model: await adultModel(db),
+    a,
+    b,
+    pair: { a: scene.a, b: scene.b },
+    date: ctx.date,
+    scene,
+    steer,
+    steerMode,
+    promptVersion: ctx.settings.prompt_version,
+    sampling: samplingOf(ctx.settings),
+    memories: ctx.memories,
+    facts: ctx.facts,
+    styles: ctx.styles,
+    cast: ctx.cast,
+    resolveSet: (label) => resolveSet(db, label),
+  });
+  if (!step.ok) return { ok: false, status: step.status, message: step.message };
+  const { meta, next } = step;
+  const { lines, place, stage, stage_from, set_place, place_history, moves } = next;
   await db.query(
     `update adult_scenes set lines = $2::jsonb, place = $3, stage = $4, stage_from = $5, set_place = $6, cut_to = null, place_history = $7::jsonb, moves = $8::jsonb, updated_at = now() where id = $1`,
     [scene.id, JSON.stringify(lines), place, stage, stage_from, set_place, JSON.stringify(place_history), JSON.stringify(moves.slice(-40))],
   );
   await countUse(db, adminId, "writes");
+  // The facts these lines drew on: one more use each (lib/adult/facts.ts).
+  await bumpFacts(db, step.lines.flatMap((l) => l.fact_ids ?? []));
   // Pictures (lib/adult/media.ts), only with a fal key: each character's baseline the first time it turns explicit,
   // and a new one only when they asked and agreed in these lines. A failed picture never loses the lines.
   const pictures: Media[] = [];
@@ -591,10 +906,10 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
       if (meta.explicit) for (const c of [a, b]) { const made = await ensureBaseline(db, adminId, c); if (made) pictures.push(made); }
       if (meta.picture) {
         const forOne = meta.picture.of === "b" ? b.id : a.id;
-        const ctx = { place, stage, explicit: meta.explicit, recent: recentActions(kept) };
+        const pctx = { place, stage, explicit: meta.explicit, recent: recentActions(step.lines) };
         pictures.push(
           await makePicture(db, adminId, {
-            prompt: scenePrompt(a, b, meta.picture.of, meta.picture.description, ctx, adminId),
+            prompt: scenePrompt(a, b, meta.picture.of, meta.picture.description, pctx, adminId),
             kind: "scene",
             character_id: forOne,
             character_b: meta.picture.of === "both" ? b.id : null,
@@ -610,15 +925,16 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // The last picture problem stays on the scene (the gallery shows it), and clears once a picture comes through.
   const note = picture_note ?? (pictures.length ? null : scene.picture_note);
   if (note !== scene.picture_note) await db.query(`update adult_scenes set picture_note = $2 where id = $1`, [scene.id, note]);
-  const after: AdultScene = { ...scene, lines, place, stage, stage_from, set_place, cut_to: null, picture_note: note, place_history, moves };
+  const after: AdultScene = { ...scene, ...next, picture_note: note };
   // A full chapter: filed as a saved night, recapped, and the night runs straight on into the next one.
-  const next = lines.length >= CHAPTER_LINES ? await nextChapter(db, adminId, after, a, b) : after;
+  const chaptered = lines.length >= CHAPTER_LINES ? await nextChapter(db, adminId, after, a, b) : after;
   return {
     ok: true,
-    scene: publicScene(next),
-    added: kept.length,
-    held: written.length - out.safe.length,
-    repeats: out.dropped.length,
+    scene: publicScene(chaptered),
+    added: step.lines.length,
+    held: step.flags.held,
+    repeats: step.flags.repeats,
+    dropped: step.flags.names_dropped + step.flags.alternation_dropped + step.flags.refused,
     pictures,
     ...(picture_note ? { picture_note } : {}),
   };
@@ -678,6 +994,8 @@ async function nextChapter(db: Db, ownerId: string, scene: AdultScene, a: Charac
   // The lines' thumbs (lib/line-feedback.ts) go with them to the saved night, before the scene's lines are cleared.
   await moveLineFeedback(db, scene.id, nightId);
   await rememberAfterDark(db, ownerId, a, b, recap, scene.lines);
+  // The chapter's concrete facts, for the scene prompt from now on (lib/adult/facts.ts; After Dark only).
+  await rememberFacts(db, ownerId, a, b, scene.lines);
   const prev_tail = scene.lines.slice(-PREV_TAIL);
   // The stage's line count carries over, so the pacing doesn't restart with the chapter. Moves are counted per chapter;
   // where the night has been carries on.
@@ -733,7 +1051,7 @@ export async function listNights(db: Db, ownerId: string, x: string, y: string):
 }
 
 /** One line with its private notes, for an admin reading why it was written. */
-export type LineNote = { i: number; who: string; text: string; why: string | null; memory: string | null; moved_to: string | null };
+export type LineNote = { i: number; who: string; text: string; why: string | null; memory: string | null; moved_to: string | null; facts: string[] | null };
 export type SceneNotes = {
   a: { id: string; name: string };
   b: { id: string; name: string };
@@ -742,7 +1060,7 @@ export type SceneNotes = {
 };
 
 const notesOf = (lines: readonly SceneLine[], names: { a: string; b: string }): LineNote[] =>
-  lines.map((l, i) => ({ i, who: l.who === "a" ? names.a : names.b, text: l.text, why: l.why ?? null, memory: l.memory ?? null, moved_to: l.moved_to ?? null }));
+  lines.map((l, i) => ({ i, who: l.who === "a" ? names.a : names.b, text: l.text, why: l.why ?? null, memory: l.memory ?? null, moved_to: l.moved_to ?? null, facts: l.fact_ids ?? null }));
 
 /**
  * Every line of the pair's scene and saved nights with its private "why" and "memory" (David, 2026-10-21), for the
@@ -772,6 +1090,8 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
   if (scene?.lines.length) {
     const [ca, cb] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id)]);
     await rememberAfterDark(db, adminId, ca, cb, scene.recap, scene.lines);
+    // The night's concrete facts, for the scene prompt from now on (lib/adult/facts.ts; After Dark only).
+    await rememberFacts(db, adminId, ca, cb, scene.lines);
     const nightId = crypto.randomUUID();
     await db.query(
       `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place, chapter, recap, moves, place_history) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb)`,

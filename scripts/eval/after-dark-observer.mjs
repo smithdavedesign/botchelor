@@ -88,11 +88,14 @@ const iso = (d) => new Date(d).toISOString();
 
 /** Finds a character by id or id prefix. */
 async function character(q, idOrPrefix) {
-  const rows = await q(`select id, name, traits, want, voice, extras from characters where id = $1 or id like $1 || '%' order by (id = $1) desc limit 2`, [idOrPrefix]);
+  const rows = await q(`select id, name, bio, traits, want, voice, extras from characters where id = $1 or id like $1 || '%' order by (id = $1) desc limit 2`, [idOrPrefix]);
   if (!rows.length) throw new Error(`no character ${idOrPrefix}`);
   if (rows.length > 1 && rows[0].id !== idOrPrefix) throw new Error(`${idOrPrefix} matches more than one character`);
   return rows[0];
 }
+
+/** The details a sheet's drift is read against (lib/extras.ts TEXT_DETAILS, but the catchphrase). */
+const DETAIL_KEYS = ["occupation", "hometown", "style", "signature_item", "go_to_order", "walk_on_music", "quirk", "hidden_talent", "pet_peeve", "guilty_pleasure", "ideal_first_date", "green_flag", "red_flag"];
 
 const sideOf = (c) => {
   const extras = typeof c.extras === "string" ? JSON.parse(c.extras) : (c.extras ?? {});
@@ -103,6 +106,14 @@ const sideOf = (c) => {
     tells: Object.values(extras.tells ?? {}),
     voice: c.voice ?? null,
     want: c.want ?? null,
+    bio: c.bio ?? null,
+    // Their job, hobbies and the rest, public only: what "lines using their sheet" counts (lib/adult/quality.ts).
+    details: [
+      ...DETAIL_KEYS.map((k) => extras[k]).filter((v) => typeof v === "string" && v),
+      ...(extras.hobbies ?? []),
+      ...(extras.prompts ?? []).map((p) => p.answer),
+      ...(extras.facts ?? []).filter((f) => !f.private).map((f) => `${f.label} ${f.value}`),
+    ],
     samples: Object.values(extras.lines ?? {}),
     never: extras.never_says ?? [],
   };
@@ -294,9 +305,10 @@ async function main() {
     all.push(report);
   }
   const s = all[0].summary;
+  const drift = Object.values(s.drift ?? {}).map((d) => `${d.name.split(/\s+/)[0]} sheet ${Math.round(d.sheet_detail_rate * 100)}% / ${d.cliche_rate} stock per 100`).join(", ");
   await emit(
     "info",
-    `${all.map((r) => r.pair).join("; ")}: ${all.reduce((n, r) => n + r.lines, 0)} lines, ${s.unprovoked_moves} unprovoked moves, ${s.my_place_when_there} my-place-when-there, ${s.verbatim_repeats + s.near_repeats} repeats, ${s.unfounded_memories} unfounded memories`,
+    `${all.map((r) => r.pair).join("; ")}: ${all.reduce((n, r) => n + r.lines, 0)} lines, ${s.unprovoked_moves} unprovoked moves, ${s.my_place_when_there} my-place-when-there, ${s.verbatim_repeats + s.near_repeats} repeats, ${s.unfounded_memories} unfounded memories${drift ? `; ${drift}` : ""}`,
   );
 }
 

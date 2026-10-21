@@ -245,6 +245,15 @@ export async function resolveSet(db: Db, label: string): Promise<string> {
   return name;
 }
 
+/**
+ * resolveSet that draws nothing: the closest ready set for a place, else the name it would be drawn under. The ready
+ * sets are read once, up front (the After Dark eval route writes nothing, not even a set to draw).
+ */
+export async function readySetResolver(db: Db): Promise<(label: string) => string> {
+  const ready = (await db.query<{ label: string }>(`select label from place_sets where status = 'ready'`)).rows.map((r) => r.label);
+  return (label: string) => closestSet(label, ready) ?? drawLabel(label).slice(0, 40);
+}
+
 /** Draws sets for the places asked for most that have none yet (the admin's backfill). */
 export async function drawMissingSets(db: Db, limit = 10): Promise<{ label: string; status: string }[]> {
   const { rows } = await db.query<{ label: string }>(

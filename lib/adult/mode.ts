@@ -36,13 +36,26 @@ export function setAdultModelForTests(model: Model | null): void {
   testModel = model;
 }
 
-/** The after-dark model: OpenRouter when its key is saved, else the local model (local mode only). */
-export async function adultModel(db: Db, env: Record<string, string | undefined> = process.env): Promise<Model> {
+/** What a caller may change about the client: another OpenRouter model (the eval's A/B arms), and its patience. */
+export type AdultModelOptions = { model?: string; timeoutMs?: number; retryDelaysMs?: number[] };
+
+/**
+ * The after-dark model: OpenRouter when its key is saved, else the local model (local mode only). On OpenRouter it asks
+ * for each call's cost (usage accounting), which a ModelOptions.onUsage reads as Usage.cost.
+ */
+export async function adultModel(db: Db, env: Record<string, string | undefined> = process.env, opts: AdultModelOptions = {}): Promise<Model> {
   if (testModel) return testModel;
   const { openrouter } = await adultKeys(db).catch(() => ({ openrouter: null }));
   if (openrouter) {
     const s = await getAdultSettings(db);
-    return openAICompatibleModel({ baseUrl: OPENROUTER_BASE_URL, apiKey: openrouter, model: s.text_model, timeoutMs: 120_000, retryDelaysMs: [2_000] });
+    return openAICompatibleModel({
+      baseUrl: OPENROUTER_BASE_URL,
+      apiKey: openrouter,
+      model: opts.model || s.text_model,
+      timeoutMs: opts.timeoutMs ?? 120_000,
+      retryDelaysMs: opts.retryDelaysMs ?? [2_000],
+      extraBody: { usage: { include: true } },
+    });
   }
   return openAICompatibleModel({
     baseUrl: env.ADULT_LLM_BASE_URL || ADULT_DEFAULT_BASE_URL,
@@ -52,6 +65,15 @@ export async function adultModel(db: Db, env: Record<string, string | undefined>
     timeoutMs: 180_000,
     retryDelaysMs: [],
   });
+}
+
+/**
+ * Whether After Dark has a text model to call here: the saved OpenRouter key, or the local mode (a test's scripted
+ * model counts). The eval route answers 503 without one rather than calling a local model that isn't there.
+ */
+export async function adultTextReady(db: Db, env: Record<string, string | undefined> = process.env): Promise<boolean> {
+  if (testModel || adultModeEnabled(env)) return true;
+  return Boolean((await adultKeys(db).catch(() => ({ openrouter: null }))).openrouter);
 }
 
 /** A signed-in admin, whether or not after dark is on (the settings page itself). Null for everyone else. */

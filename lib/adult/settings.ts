@@ -32,9 +32,33 @@ export const DEFAULT_REEL_MODEL = "wan-3-0-image-to-video";
 export const DEFAULT_REEL_SHOTS = 6;
 export const DEFAULT_REEL_TOKENS = 15;
 
+/**
+ * The scene writer's sampling (David, 2026-10-21, after the review of 977 lines: repeats, stock words, sheets lost).
+ * 0.8, down from 0.9: still varied, less drift. The penalties only see the reply being written (six lines), so they
+ * thin out a word said three times in one reply, not one said last step; the repeat guard handles that. The
+ * repetition penalty is off by default: open models' providers count the prompt in it, which would push the lines away
+ * from the very sheet words they should use.
+ */
+export const DEFAULT_TEXT_TEMPERATURE = 0.8;
+export const DEFAULT_FREQUENCY_PENALTY = 0.3;
+export const DEFAULT_PRESENCE_PENALTY = 0.3;
+export const DEFAULT_REPETITION_PENALTY: number | null = null;
+
+/** The scene prompts (lib/adult/scenes.ts sceneMessages): v2 anchors the voice and cites facts; v1 is the prompt before it. */
+export const PROMPT_VERSIONS = ["v1", "v2"] as const;
+export type PromptVersion = (typeof PROMPT_VERSIONS)[number];
+export const DEFAULT_PROMPT_VERSION: PromptVersion = "v2";
+
 export type AdultSettings = {
   enabled: boolean;
   text_model: string;
+  /** The scene writer's temperature and penalties (DEFAULT_TEXT_TEMPERATURE…); repetition_penalty null sends none. */
+  text_temperature: number;
+  frequency_penalty: number;
+  presence_penalty: number;
+  repetition_penalty: number | null;
+  /** Which scene prompt runs: v2 unless set (v1 stays for an A/B, and as the way back). */
+  prompt_version: PromptVersion;
   image_model: string;
   video_model: string;
   image_base: string;
@@ -53,6 +77,11 @@ export type AdultSettings = {
 type Row = {
   enabled: boolean;
   text_model: string | null;
+  text_temperature: number | null;
+  frequency_penalty: number | null;
+  presence_penalty: number | null;
+  repetition_penalty: number | null;
+  prompt_version: string | null;
   image_model: string | null;
   video_model: string | null;
   image_base: string | null;
@@ -81,9 +110,16 @@ async function row(db: Db): Promise<Row | null> {
 
 export async function getAdultSettings(db: Db): Promise<AdultSettings> {
   const r = await row(db);
+  // A stored number, or null for none (the default then applies).
+  const num = (v: unknown): number | null => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
   return {
     enabled: r?.enabled ?? false,
     text_model: r?.text_model || DEFAULT_TEXT_MODEL,
+    text_temperature: num(r?.text_temperature) ?? DEFAULT_TEXT_TEMPERATURE,
+    frequency_penalty: num(r?.frequency_penalty) ?? DEFAULT_FREQUENCY_PENALTY,
+    presence_penalty: num(r?.presence_penalty) ?? DEFAULT_PRESENCE_PENALTY,
+    repetition_penalty: num(r?.repetition_penalty) ?? DEFAULT_REPETITION_PENALTY,
+    prompt_version: (PROMPT_VERSIONS as readonly string[]).includes(r?.prompt_version ?? "") ? (r!.prompt_version as PromptVersion) : DEFAULT_PROMPT_VERSION,
     image_model: r?.image_model || DEFAULT_IMAGE_MODEL,
     video_model: r?.video_model || DEFAULT_VIDEO_MODEL,
     image_base: r?.image_base || DEFAULT_IMAGE_BASE,
@@ -114,6 +150,12 @@ export async function adultKeys(db: Db): Promise<{ openrouter: string | null; fa
 export type SettingsPatch = {
   enabled?: boolean;
   text_model?: string;
+  /** The scene writer's sampling; null puts one back to its default. */
+  text_temperature?: number | null;
+  frequency_penalty?: number | null;
+  presence_penalty?: number | null;
+  repetition_penalty?: number | null;
+  prompt_version?: PromptVersion;
   image_model?: string;
   video_model?: string;
   image_base?: string;
@@ -140,7 +182,9 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<A
   };
   if (patch.enabled !== undefined) put("enabled", patch.enabled);
   if (patch.image_provider !== undefined) put("image_provider", patch.image_provider);
+  if (patch.prompt_version !== undefined) put("prompt_version", patch.prompt_version);
   for (const k of ["reel_shots", "reel_tokens"] as const) if (patch[k] !== undefined) put(k, patch[k]);
+  for (const k of ["text_temperature", "frequency_penalty", "presence_penalty", "repetition_penalty"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model", "reel_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
   for (const [k, col] of [
     ["openrouter_key", "openrouter"],
