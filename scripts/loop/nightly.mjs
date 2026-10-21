@@ -2,8 +2,9 @@
 // after RepoHQ's last factory cycle (06:00) and before its 09:00 research, and it gives up by LOOP_DEADLINE_MIN.
 //
 //   1. build origin/main in the loop's own clone (~/.botchelor-loop/repo; launchd can't read ~/Documents);
-//   2. a local Botchelor on a throwaway database, the date model capped, plus a seeded agent that swipes back;
-//   3. a few uninstructed visitors (claude -p, on the subscription) explore it and report;
+//   2. a local Botchelor on a throwaway database, the date model capped, a scripted crowd of background agents
+//      (crowd.mjs, free), plus a seeded agent that swipes back;
+//   3. a few uninstructed visitors (claude -p, on the subscription) explore it for 20 to 30 minutes and report;
 //   4. triage (claude -p) turns their feedback, and real agents' feedback from botchelor.com, into GitHub issues;
 //   5. one fixer (claude -p) works the top issues: a PR each, merged once every check is green.
 // One run at a time (a lock), events to the system log, and a summary under ~/.botchelor-loop/runs/<date>/.
@@ -20,6 +21,10 @@ const HOME_DIR = process.env.LOOP_HOME || join(homedir(), ".botchelor-loop");
 const env = (k, d) => process.env[k] ?? d;
 const VISITORS = Number(env("LOOP_VISITORS", "2"));
 const VISITOR_MINUTES = Number(env("LOOP_VISITOR_MINUTES", "30"));
+// David, 2026-10-20 ("busier, longer sims"): visitors used to wrap up after 5 to 10 minutes. One that writes its report
+// before this many minutes is asked to carry on (VISITOR_NUDGES times at most), in the same conversation.
+const VISITOR_MIN_MINUTES = Math.min(VISITOR_MINUTES, Number(env("LOOP_VISITOR_MIN_MINUTES", "20")));
+const VISITOR_NUDGES = Number(env("LOOP_VISITOR_NUDGES", "3"));
 const MAX_ISSUES = Number(env("LOOP_MAX_ISSUES", "5"));
 const MAX_FIXES = Number(env("LOOP_MAX_FIXES", "3"));
 const FIX = env("LOOP_FIX", "1") !== "0";
@@ -46,11 +51,14 @@ const emit = (event, status, message) => {
 const keychain = (name) => execFileSync("security", ["find-generic-password", "-s", name, "-w"], { encoding: "utf8" }).trim();
 const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: REPO, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...opts });
 
-/** Claude Code headless, on the subscription: ANTHROPIC_API_KEY stripped so it can never fall back to API credit. */
-function claude(prompt, { cwd, model, tools, timeoutMin, out }) {
+/**
+ * Claude Code headless, on the subscription: ANTHROPIC_API_KEY stripped so it can never fall back to API credit.
+ * resume: carry on the most recent conversation in `cwd` (claude --continue) instead of starting a new one.
+ */
+function claude(prompt, { cwd, model, tools, timeoutMin, out, resume = false }) {
   const childEnv = { ...process.env };
   delete childEnv.ANTHROPIC_API_KEY;
-  const args = ["-p", prompt, "--model", model, "--output-format", "text"];
+  const args = ["-p", prompt, ...(resume ? ["--continue"] : []), "--model", model, "--output-format", "text"];
   if (tools === "all") args.push("--dangerously-skip-permissions");
   else args.push("--permission-mode", "acceptEdits", "--allowedTools", ...tools);
   return new Promise((resolve) => {
@@ -178,29 +186,52 @@ async function main() {
       arena = startProcess("arena.mjs", [join(RUN, "arena"), String(PORT)], { LOOP_LLM_API_KEY: gatewayKey, LOOP_ADMIN_PASSWORD: arenaPassword }, (l) => {
         if (l.startsWith("READY ")) base = l.slice(6).trim();
       });
-      // The arena writes its sample dates before READY (up to ~5 minutes), so allow 7.5.
-      for (let i = 0; i < 900 && !base; i++) await new Promise((r) => setTimeout(r, 500));
+      // The arena writes its sample dates and seeds the crowd before READY (up to ~5 minutes), so allow 10.
+      for (let i = 0; i < 1200 && !base; i++) await new Promise((r) => setTimeout(r, 500));
       if (!base) throw new Error("arena never came up");
-      agent = startProcess("swipe-back-agent.mjs", [base, String((VISITOR_MINUTES + 15) * 60)], { LOOP_LLM_API_KEY: gatewayKey }, (l) => log("[agent]", l));
+      try {
+        summary.world = JSON.parse(readFileSync(join(RUN, "arena", "world.json"), "utf8")); // what the visitors walked into
+      } catch {
+        /* an older arena writes none */
+      }
+      agent =startProcess("swipe-back-agent.mjs", [base, String((VISITOR_MINUTES + 15) * 60)], { LOOP_LLM_API_KEY: gatewayKey }, (l) => log("[agent]", l));
 
-      // 3. The visitors, side by side, each in its own folder.
+      // 3. The visitors, side by side, each in its own folder, for VISITOR_MIN_MINUTES to VISITOR_MINUTES each.
       const brief = readFileSync(join(HERE, "visitor-brief.md"), "utf8");
-      const runs = [];
-      for (let i = 0; i < VISITORS; i++) {
+      const clock = (ms) => new Date(ms).toTimeString().slice(0, 5);
+      const visit = async (i) => {
         const dir = join(RUN, `visitor-${i + 1}`);
         mkdirSync(dir, { recursive: true });
-        const prompt = brief.replaceAll("{{BASE}}", base).replaceAll("{{DIR}}", dir).replaceAll("{{MINUTES}}", String(VISITOR_MINUTES));
-        runs.push(
-          claude(prompt, {
-            cwd: dir,
-            model: VISITOR_MODEL,
-            tools: ["Read", "Write", "Edit", "Bash(curl:*)", "Bash(python3:*)", "Bash(node:*)", "Bash(jq:*)", "Bash(cat:*)", "Bash(ls:*)", "Bash(sleep:*)", "Bash(mkdir:*)"],
-            timeoutMin: VISITOR_MINUTES + 20,
-            out: join(RUN, `visitor-${i + 1}.md`),
-          }),
-        );
-      }
-      await Promise.all(runs);
+        const started = Date.now();
+        const notBefore = started + VISITOR_MIN_MINUTES * 60_000;
+        const prompt = brief
+          .replaceAll("{{BASE}}", base)
+          .replaceAll("{{DIR}}", dir)
+          .replaceAll("{{MINUTES}}", String(VISITOR_MINUTES))
+          .replaceAll("{{MIN_MINUTES}}", String(VISITOR_MIN_MINUTES))
+          .replaceAll("{{NOT_BEFORE}}", clock(notBefore))
+          .replaceAll("{{UNTIL}}", clock(started + VISITOR_MINUTES * 60_000));
+        const opts = {
+          cwd: dir,
+          model: VISITOR_MODEL,
+          tools: ["Read", "Write", "Edit", "Bash(curl:*)", "Bash(python3:*)", "Bash(node:*)", "Bash(jq:*)", "Bash(cat:*)", "Bash(ls:*)", "Bash(sleep:*)", "Bash(mkdir:*)", "Bash(date:*)"],
+        };
+        let r = await claude(prompt, { ...opts, timeoutMin: VISITOR_MINUTES + 20 });
+        // Wrapped up early: the same conversation carries on (the world has moved meanwhile), then writes the report again.
+        for (let n = 1; n <= VISITOR_NUDGES && r.code === 0 && Date.now() < notBefore - 60_000 && Date.now() < DEADLINE - 30 * 60_000; n++) {
+          writeFileSync(join(RUN, `visitor-${i + 1}-early-${n}.md`), r.text);
+          const left = Math.ceil((notBefore - Date.now()) / 60_000);
+          const nudge =
+            `It's only been ${Math.floor((Date.now() - started) / 60_000)} minutes, and you have until ${clock(notBefore)} at least ` +
+            `(${left} more minutes). Things on the server may have changed since you last looked. Go back to it: check on what you ` +
+            `started and try something you haven't yet. When it's ${clock(notBefore)} or later, write your whole report again ` +
+            `(every section; it replaces the one above).`;
+          r = await claude(nudge, { ...opts, resume: true, timeoutMin: left + 20 });
+        }
+        writeFileSync(join(RUN, `visitor-${i + 1}.md`), r.text);
+        return Math.round((Date.now() - started) / 60_000);
+      };
+      summary.visitor_minutes = await Promise.all(Array.from({ length: VISITORS }, (_, i) => visit(i)));
       summary.visitors = VISITORS;
       const local = await feedbackFrom(base, arenaPassword, null);
       writeFileSync(join(RUN, "feedback-local.json"), JSON.stringify(local, null, 2));
