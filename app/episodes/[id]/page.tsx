@@ -16,7 +16,7 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { secondDateState } from "@/lib/second-date";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
-import { DATE_ACTS, DRAMA_QUESTION_LABELS, dramaAnswerLabel, ENDING_LABELS, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
+import { DATE_ACTS, dateLabel, DRAMA_QUESTION_LABELS, dramaAnswerLabel, ENDING_LABELS, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
 import { formatLabel } from "@/lib/formats";
 import { venueBackdropCss, venueName } from "@/lib/venues";
 import { venueBackdrop } from "@/lib/portraits";
@@ -71,12 +71,72 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 /** The way in for anyone who isn't one of this date's creators, most often someone who followed a shared link. */
 function MakeYourOwn() {
   return (
-    <p className="make-your-own">
+    <section className="make-your-own card">
+      <div>
+        <h2>Send your own character on a date</h2>
+        <p className="muted">Make an original character in a minute and the show writes their blind date. Free to start, no sign-up.</p>
+      </div>
       <Link className="button" href="/create">
-        Make your own character
+        Make your character
       </Link>
-      <span className="muted">Send your OC on a blind date like this one. Free to start, no sign-up.</span>
-    </p>
+    </section>
+  );
+}
+
+type HeroCharacter = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null; agent?: boolean };
+
+/**
+ * The top of an episode (David, 2026-10-21: "expand the setting image so it's like a hero background… entice people
+ * who want to watch"): the venue's photo behind the pair, the setting as the teaser, and the way to watch. The venue's
+ * own gradient stands in where there's no reviewed photo. Never the ending: that's for the theater.
+ */
+function EpisodeHero({
+  characters,
+  venue,
+  setting,
+  chips,
+  children,
+}: {
+  characters: [HeroCharacter, HeroCharacter];
+  venue: string | null;
+  setting: string | null;
+  chips: (string | null | false | undefined)[];
+  children?: React.ReactNode;
+}) {
+  const [a, b] = characters;
+  const photo = venue ? venueBackdrop(venue) : null;
+  const background = [
+    // Dark at the bottom, where the words sit, so they read on any photo.
+    "linear-gradient(180deg, rgba(14,8,20,0.20) 0%, rgba(14,8,20,0.55) 45%, rgba(14,8,20,0.92) 100%)",
+    photo ? `url(${photo})` : null,
+    venue ? venueBackdropCss(venue) : "linear-gradient(135deg, #3a1630, #1d1030)",
+  ]
+    .filter(Boolean)
+    .join(", ");
+  return (
+    <header className={`episode-hero${photo ? "" : " no-photo"}`} style={{ backgroundImage: background }}>
+      <div className="episode-hero-inner">
+        <p className="episode-hero-kicker">
+          <span>Botchelor</span>
+          {venue && <span>{venueName(venue)}</span>}
+        </p>
+        <div className="episode-hero-cast" aria-hidden="true">
+          <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={84} />
+          <span className="episode-hero-x">×</span>
+          <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={84} />
+        </div>
+        <h1>
+          {a.name} <span className="episode-hero-x">×</span> {b.name}
+        </h1>
+        {setting && <p className="episode-hero-setting">{setting}</p>}
+        {children}
+        <ul className="episode-hero-chips" aria-label="About this episode">
+          {chips.filter(Boolean).map((c) => (
+            <li key={String(c)}>{c}</li>
+          ))}
+        </ul>
+      </div>
+    </header>
   );
 }
 
@@ -135,32 +195,37 @@ export default async function EpisodePage({
   // M10: the date is generated in the background. Until it's ready, show a waiting state that polls.
   if (episode.status !== "ready") {
     return (
-      <article>
-        <p className="kicker">Botchelor episode</p>
-        <EpisodeNotices />
-        <div className="matchup">
-          <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={60} />
-          <span className="vs">×</span>
-          <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={60} />
+      <article className="episode-page">
+        <EpisodeHero characters={episode.characters} venue={episode.venue ?? null} setting={null} chips={["🎬 Being filmed", "AI-generated"]}>
+          {!episode.is_creator && (
+            <div className="episode-hero-cta">
+              <Link className="episode-hero-link" href="/create">
+                Make your own character
+              </Link>
+            </div>
+          )}
+        </EpisodeHero>
+        <div className="episode-body">
+          {selfPerformed && (
+            <p className="muted">
+              {twoAgent
+                ? "🎭 Each character's own agent is performing this date on its own AI, taking turns. The ending is already decided."
+                : "🎭 Its creator's own AI is performing this date, one line at a time. The ending is already decided."}
+            </p>
+          )}
+          <GeneratingPoller
+            episodeId={episode.id}
+            stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null, canSetScene: !selfPerformed } : undefined}
+          />
+          {!episode.is_creator && <MakeYourOwn />}
+          <footer className="episode-foot">
+            <p>
+              <Link href="/watch">More episodes</Link>
+            </p>
+            {/* The site footer, straight below, carries the crisis links. */}
+            <EpisodeNotices crisis={false} />
+          </footer>
         </div>
-        <h1>
-          {a.name} × {b.name}
-        </h1>
-        {selfPerformed && (
-          <p className="muted">
-            {twoAgent
-              ? "🎭 Each character's own agent is performing this date on its own AI, taking turns. The ending is already decided."
-              : "🎭 Its creator's own AI is performing this date, one line at a time. The ending is already decided."}
-          </p>
-        )}
-        {!episode.is_creator && <MakeYourOwn />}
-        <GeneratingPoller
-          episodeId={episode.id}
-          stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null, canSetScene: !selfPerformed } : undefined}
-        />
-        <p className="muted">
-          <Link href="/watch">More episodes</Link>
-        </p>
       </article>
     );
   }
@@ -169,7 +234,7 @@ export default async function EpisodePage({
   // The theater can play it (the ending is known and there are lines), so the written recap folds behind a toggle.
   const hasTheater = Boolean(episode.ending && episode.transcript && episode.transcript.length > 0);
   return (
-    <article>
+    <article className="episode-page">
       {episode.visibility === "public" && !episode.hidden && (
         <JsonLd
           data={[{
@@ -194,113 +259,115 @@ export default async function EpisodePage({
           ])]}
         />
       )}
-      <p className="kicker">Botchelor episode</p>
-      <EpisodeNotices />
-      <div className="matchup">
-        <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={60} />
-        <span className="vs">×</span>
-        <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={60} />
-      </div>
-      <h1>
-        {a.name} × {b.name}
-      </h1>
-      {/* Straight under the title, ahead of the badges, so it stays on a phone's first screen however many there are. */}
-      {!episode.is_creator && <MakeYourOwn />}
-      <p className="muted">
-        {a.name}
-        {a.house && <span className="badge">House character</span>}
-        {a.agent && <span className="badge badge-agent">🤖 Agent-made</span>} meets {b.name}
-        {b.house && <span className="badge">House character</span>}
-        {b.agent && <span className="badge badge-agent">🤖 Agent-made</span>}
-        {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
-        {selfPerformed && (
-          <span
-            className="badge badge-agent"
-            title={
-              twoAgent
-                ? "Each character's agent played its own side on its own AI; the show wrote the recap; the engine decided the ending."
-                : "Its creator's AI played both characters; the engine decided the ending."
-            }
-          >
-            {twoAgent ? "🎭 Performed by both characters' agents" : "🎭 Performed by its creator's AI"}
-          </span>
-        )}
-      </p>
-      {episode.creators && (
-        <p className="creators">
-          Made by{" "}
-          {episode.creators.map((c, i) => (
-            <span key={c.character_id}>
-              {i > 0 && " and "}
-              <strong>{c.name}</strong> ({nameOf(c.character_id)}&apos;s creator)
-            </span>
-          ))}
-        </p>
-      )}
-      {episode.hidden && (
-        <p className="error">{HIDDEN_EPISODE_MESSAGE} Only its creators can still open it.</p>
-      )}
+      <EpisodeHero
+        characters={episode.characters}
+        venue={episode.venue ?? null}
+        setting={episode.setting}
+        chips={[
+          "AI-generated",
+          episode.followup_of ? dateLabel(episode.date_number ?? 2) : null,
+          episode.format ? formatLabel(episode.format) : null,
+          a.house && b.house ? "House cast" : a.house || b.house ? "With a house character" : null,
+          a.agent || b.agent ? "🤖 Agent-made" : null,
+          selfPerformed ? (twoAgent ? "🎭 Performed by both characters' agents" : "🎭 Performed by its creator's AI") : null,
+        ]}
+      >
+        <div className="episode-hero-cta">
+          {hasTheater && episode.ending && episode.transcript ? (
+            <EpisodeTheater
+              characters={episode.characters}
+              venue={episode.venue ?? null}
+              transcript={episode.transcript}
+              endingLabel={ENDING_LABELS[episode.ending]}
+              autoOpen={play && episode.is_creator}
+              startAt={play && episode.is_creator ? from : 0}
+            />
+          ) : (
+            episode.transcript &&
+            episode.transcript.length > 0 && (
+              <a className="button" href="#the-date">
+                Read the date
+              </a>
+            )
+          )}
+          {!episode.revealed && !episode.is_creator && (
+            <a className="button-ghost" href="#predict">
+              Call the ending
+            </a>
+          )}
+          {!episode.is_creator && (
+            <Link className="episode-hero-link" href="/create">
+              Make your own character
+            </Link>
+          )}
+        </div>
+      </EpisodeHero>
 
-      {afterDarkLink && (
-        <p className="after-dark-marker">
-          <Link href={afterDarkLink}>🌙 They spent the night together before this date. See their night</Link>
-        </p>
-      )}
-      {/* The theater first: on a phone it sat ~2,650px down, under a written recap that gives the ending away. */}
-      {hasTheater && episode.ending && episode.transcript && (
-        <p className="theater-cta theater-cta-top">
-          <EpisodeTheater
-            characters={episode.characters}
-            venue={episode.venue ?? null}
-            transcript={episode.transcript}
-            endingLabel={ENDING_LABELS[episode.ending]}
-            autoOpen={play && episode.is_creator}
-            startAt={play && episode.is_creator ? from : 0}
-          />
-          <span className="muted"> Watch it play out as a scene.</span>
-        </p>
-      )}
-      <section className="card">
-        <h2>The setting</h2>
-        {episode.venue && (
-          <p
-            className="venue"
-            style={{
-              // A legibility scrim over the reviewed backdrop photo (lib/portraits.ts), with the venue's
-              // gradient as the fallback when there's no photo for this venue.
-              backgroundImage: [
-                "linear-gradient(rgba(15,10,20,0.30), rgba(15,10,20,0.48))",
-                venueBackdrop(episode.venue) ? `url(${venueBackdrop(episode.venue)})` : null,
-                venueBackdropCss(episode.venue),
-              ]
-                .filter(Boolean)
-                .join(", "),
-            }}
-          >
-            {venueName(episode.venue)}
+      <div className="episode-body">
+        {episode.creators && (
+          <p className="creators">
+            Made by{" "}
+            {episode.creators.map((c, i) => (
+              <span key={c.character_id}>
+                {i > 0 && " and "}
+                <strong>{c.name}</strong> ({nameOf(c.character_id)}&apos;s creator)
+              </span>
+            ))}
           </p>
         )}
-        <p>{episode.setting}</p>
-        <h2>What they want</h2>
-        <ul>
-          {episode.goals.map((g) => (
-            <li key={g.character_id}>
-              <strong>{nameOf(g.character_id)}:</strong> {g.goal}
-            </li>
-          ))}
-        </ul>
-        {episode.drama_question && (
-          <p className="muted">Bonus question: {DRAMA_QUESTION_LABELS[episode.drama_question]}</p>
+        {episode.hidden && <p className="error">{HIDDEN_EPISODE_MESSAGE} Only its creators can still open it.</p>}
+        {afterDarkLink && (
+          <p className="after-dark-marker">
+            <Link href={afterDarkLink}>🌙 They spent the night together before this date. See their night</Link>
+          </p>
         )}
-      </section>
 
-      {episode.transcript && episode.transcript.length > 0 && (
-        <section className="card transcript">
-          <h2>The date, line by line</h2>
-          <p className="muted">The two characters played this out turn by turn — nobody scripted the lines in advance.</p>
-          <ChatThread characters={episode.characters} turns={episode.transcript} />
+        <section className="episode-wants" aria-labelledby="wants-title">
+          <h2 id="wants-title">What they want</h2>
+          <ul>
+            {episode.goals.map((g) => {
+              const c = episode.characters.find((x) => x.id === g.character_id);
+              return (
+                <li key={g.character_id} className="card">
+                  {c && <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={40} />}
+                  <p>
+                    <strong>{nameOf(g.character_id)}</strong> {g.goal}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+          {episode.drama_question && <p className="muted episode-bonus">Bonus question: {DRAMA_QUESTION_LABELS[episode.drama_question]}</p>}
         </section>
-      )}
+
+        {/* Predicting comes before the read: once the lines are read, there's nothing left to call. */}
+        <div id="predict" className="episode-predict">
+          <EpisodeActions
+            episodeId={episode.id}
+            sharePath={episode.share_path}
+            shareBase={base}
+            isCreator={episode.is_creator}
+            isHost={episode.is_host}
+            revealed={episode.revealed}
+            names={names}
+            dramaQuestion={episode.drama_question}
+            myPick={episode.my_pick}
+            myDramaPick={episode.my_drama_pick}
+            visibility={episode.visibility}
+            airsAt={airsAt}
+          />
+        </div>
+
+        {episode.transcript && episode.transcript.length > 0 && (
+          // The theater is the way to watch; the line-by-line read folds away under it (open when there's no theater).
+          <details className="card transcript episode-read" id="the-date" open={!hasTheater}>
+            <summary>
+              <h2>Read it line by line</h2>
+              <span className="muted">The two characters played this out turn by turn: nobody scripted the lines in advance.</span>
+            </summary>
+            <ChatThread characters={episode.characters} turns={episode.transcript} />
+          </details>
+        )}
 
       {/* The recap, the box score and the other ending reveals: folded away behind one toggle when the theater can
           play the date, so nobody scrolling past is told how it ends (open as before when there's no transcript). */}
@@ -427,21 +494,6 @@ export default async function EpisodePage({
         </section>
       )}
 
-      <EpisodeActions
-        episodeId={episode.id}
-        sharePath={episode.share_path}
-        shareBase={base}
-        isCreator={episode.is_creator}
-        isHost={episode.is_host}
-        revealed={episode.revealed}
-        names={names}
-        dramaQuestion={episode.drama_question}
-        myPick={episode.my_pick}
-        myDramaPick={episode.my_drama_pick}
-        visibility={episode.visibility}
-        airsAt={airsAt}
-      />
-
       {episode.identity && (
         <CreatorReveal
           episodeId={episode.id}
@@ -456,11 +508,21 @@ export default async function EpisodePage({
 
       <WatchPartyLaunch episodeId={episode.id} isHost={episode.is_host} partyId={partyId} />
 
-      <SafetyActions episodeId={episode.id} canBlock={canBlock} blocked={episode.blocked} />
+      {!episode.is_creator && <MakeYourOwn />}
 
-      <p className="muted">
-        Your points: {points}. <Link href="/watch">More episodes</Link>
-      </p>
+      <footer className="episode-foot">
+        <p className="muted">
+          Your points: {points}. <Link href="/watch">More episodes</Link>
+        </p>
+        {/* Report and block: one tap away on every episode, folded so it doesn't sit in the way. */}
+        <details className="episode-safety">
+          <summary>Something wrong? Report or block</summary>
+          <SafetyActions episodeId={episode.id} canBlock={canBlock} blocked={episode.blocked} />
+        </details>
+        {/* The site footer, straight below, carries the crisis links. */}
+        <EpisodeNotices crisis={false} />
+      </footer>
+      </div>
     </article>
   );
 }

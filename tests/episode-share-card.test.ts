@@ -400,11 +400,12 @@ describe("5. a shared link's visit is counted as ref=share, and invites the visi
     const html = await renderEpisode(episode.id);
     const cta = html.match(/<a[^>]*href="\/create"[^>]*>Make your own character<\/a>/);
     expect(cta).not.toBeNull();
-    // Above the fold: in the episode's header, right under the matchup and before the first card (the setting).
+    // Above the fold: in the episode's hero, under the title and before the first card (2026-10-21: the setting is
+    // the hero now, not a card).
     const at = html.indexOf(cta![0]);
     expect(at).toBeGreaterThan(html.indexOf("<h1"));
     expect(at).toBeLessThan(html.indexOf("<section"));
-    expect(at).toBeLessThan(html.indexOf("The setting"));
+    expect(at).toBeLessThan(html.indexOf("</header>"));
   });
 
   it("the share helpers: the tag on any path, a description with no setting yet, and %20 for spaces", () => {

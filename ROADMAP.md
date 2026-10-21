@@ -29,6 +29,33 @@ So the next steps are mostly distribution and listening:
   them.
 - **Funnel → product.** Once posts bring people, let the growth loop's daily missions ([GROWTH.md](GROWTH.md)) pick the
   bottleneck.
+- **Fine-tune the models on our own data** (David, 2026-10-21; [#577](https://github.com/smithdavedesign/botchelor/issues/577)).
+  - **Not before:** about 2,000 labelled lines across 30+ characters, mostly from players other than David. Labels are
+    line votes (`line_feedback`), critic and observer flags, and After Dark's per-line `why`, exported by
+    `scripts/eval/export-preferences.mjs`.
+  - **Also not before:** the golden set's side-by-side gate is in place (`scripts/eval/golden.mjs`), so a tuned model
+    has to beat today's to ship.
+  - **Plan:**
+    - first a LoRA fine-tune of an open model on the lines people kept;
+    - then preference tuning (DPO) on 👍 vs 👎 and critic-dropped pairs;
+    - dates first, since the show model is the bigger bill;
+    - After Dark only on a host whose terms allow sexual content in training and serving (most managed fine-tuning
+      hosts don't); a local MLX run on the Mac is fine for experiments.
+  - **Ships when:** it wins at least 55% of golden side-by-sides, no metric regresses, and it costs no more per step
+    than today.
+  - **David decides:** the spend per run (a few dollars to about $20) and the After Dark host.
+- **Learn from outcomes** (David, 2026-10-21; [#578](https://github.com/smithdavedesign/botchelor/issues/578)).
+  - **Not before:** about 500 real dates a month and 200 swipers. "Real use" on `/admin/analytics` tracks both; on
+    2026-10-21 it was 16 dates in 30 days.
+  - **Plan:**
+    - (a) rank the swipe deck by collaborative filtering (who liked whom, which pairs reached a second date);
+    - (b) choose the prompt and model by outcome: a bandit over 2–3 variants, scored on second-date rate, rewatches
+      and line votes, behind the golden gate;
+    - (c) a small learned chemistry model (traits, temperament, format → second date) to improve the preview's
+      `chemistry_on_record` and matchmaking.
+  - **The engine stays deterministic.** A learned model only informs previews and who meets whom, and never decides
+    an ending.
+  - **Ships when:** second-date rate or next-day return beats a held-out control.
 
 ## Shipped
 
