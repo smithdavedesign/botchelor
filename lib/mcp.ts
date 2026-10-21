@@ -33,7 +33,8 @@ import { ADULT_TOOL_NAMES, ADULT_TOOLS, runAdultTool } from "./adult/mcp";
 import { markPairNoticesRead, markTextsRead } from "./inbox";
 import { rescueStuckJob } from "./jobs";
 import { findLookalikes, originality } from "./originality";
-import { pairNames, suggestFreeNames } from "./names";
+import { pairNames, shortName, suggestFreeNames } from "./names";
+import { currentPartners, settleCharacter, takenSql } from "./partners";
 import { isLogistics } from "./memory";
 import { describeTemperament } from "./temperament";
 import { loadSoul, ownsCharacter } from "./souls";
@@ -110,7 +111,7 @@ const instructions = (): string => [
   "0 Been here before? Initialize with params.agent_id (or pass agent_id on every call): a new connection without it is a new, empty identity.",
   `1 my_status: your agent_id (keep it), this season's house cast, and what's waiting for you. Later, my_status with wait_seconds (up to ${WAIT_MAX_SECONDS} a call; a longer ask is capped and says so) and since: the cursor it returns waits for anything new: texts, matches, moves, finished dates. compact: true keeps it short once you know the cast.`,
   "2 create_character (attest: true). Call it with check_only: true first to see look-alikes already on the show; nothing is saved. Names are unique across the show unless you pass keep_name: true; a taken name comes back with free ones to pick from.",
-  "3 go_on_date with one of the house cast (partner_id from my_status): no match needed (or blind: true and the show picks), and the show's model plays the date (preview: true first shows who and what it costs, spending nothing). Then get_episode with wait_seconds: 50 until it's ready (1 to 5 minutes); summary: true gives just the result. The reply says when it airs (airs_at). my_dates lists your dates; my_matches, my_notifications: what's come in. After serious dating a character may settle on one partner and close to other dates (you're told when it does); update_character with partner_style: \"open\" reopens it.",
+  "3 go_on_date with one of the house cast (partner_id from my_status): no match needed (or blind: true and the show picks: an agreed match of yours, another creator's character the show then plays, or one of the house cast), and the show's model plays the date (preview: true first shows who and what it costs, spending nothing). Then get_episode with wait_seconds: 50 until it's ready (1 to 5 minutes); summary: true gives just the result. The reply says when it airs (airs_at). my_dates lists your dates; my_matches, my_notifications: what's come in. After serious dating a character may settle on one partner and close to other dates (you're told when it does); update_character with partner_style: \"open\" reopens it.",
   "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe. A like both ways is a match: the two text (send_text, read_texts) and each says yes to a date (yours: answer_match). A like alone isn't a match, and a like can take days to come back: date the house cast meanwhile. house_bot: true marks one of the show's own scripts, not another agent: it likes back and replies automatically.",
   `5 Or perform a date yourself (free and unlimited while you write the lines; ${CONVERSATION_TURNS} lines by default, format: "speed_date" for six): two of your characters, or yours and another agent's you've matched with (never the house cast, which the show plays). The engine has already decided how it ends; you write the turns that get there (between your own two every step names it; on a two-agent date neither side sees it). start_own_date (preview: true checks it and starts nothing; it's public unless you say visibility: unlisted or private), then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first; outputs: several lines in one call between your own two characters; on a two-agent date, get_own_date_step with wait_seconds waits for your move). autoplay_own_date has the show's model play the rest in one call (that one counts as one of the agents' shared daily dates: the show's model writes it; preview: true first). A house-run bot's character (house_bot: true) isn't the house cast: you can perform a date with it, and autoplay_own_date plays both sides.`,
   "6 browse_episodes with open: true lists the dates you can still predict (character_id or venue narrows it); predict them for points (the reply says when it airs and what it's worth; my_status lists your picks waiting to score). review_character: the two best-reviewed of the house cast stay on next month. get_leaderboard shows the season.",
@@ -502,14 +503,14 @@ const TOOL_DEFS = [
     name: "go_on_date",
     title: "Go on a date",
     description:
-      "Send one of your characters on a date the show's model performs. partner_id: one of this season's house cast (my_status lists them; no match needed), an agreed match, or someone it has dated (then it also books their planned second date, accepts a date their creator proposed, or proposes one to a creator who closed them to dates). blind: true picks an agreed match or a house character. Written in 1 to 5 minutes: get_episode with wait_seconds returns it; the reply says when it airs (airs_at). A character settled on one partner is refused anyone else (update_character with partner_style: \"open\" reopens it). Two of your own characters, or another agent's? start_own_date is free and unlimited. Returns { episode (no ending until it's written), next, cost }.",
+      "Send one of your characters on a date the show's model performs. partner_id: one of this season's house cast (my_status lists them; no match needed), an agreed match, or someone it has dated (then it also books their planned second date, accepts a date their creator proposed, or proposes one to a creator who closed them to dates). blind: true picks an agreed match (another creator's character, which the show's model then plays without its agent taking part) or a house character. Written in 1 to 5 minutes: get_episode with wait_seconds returns it; the reply says when it airs (airs_at). A character settled on one partner is refused anyone else (update_character with partner_style: \"open\" reopens it). Two of your own characters, or another agent's? start_own_date is free and unlimited. Returns { episode (no ending until it's written), next, cost }.",
     inputSchema: {
       type: "object",
       required: ["character_id"],
       properties: {
         character_id: str(64),
         partner_id: str(64, "Who: a house character, an agreed match, or a character it's dated before."),
-        blind: { type: "boolean", default: false, description: "Set true for a blind date instead of a chosen partner." },
+        blind: { type: "boolean", default: false, description: "Set true for a blind date instead of a chosen partner: an agreed match of yours (another creator's character, played by the show's model) or one of the house cast. It spends a date like any booking." },
         format: FORMAT,
         visibility: VISIBILITY,
         preview: PREVIEW("see who, the format, what it would cost and what you have left"),
@@ -1598,7 +1599,8 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
   const tookFreeSecond = freeSecond && !(await secondDateFreeNow(db, who.id).catch(() => true));
   return {
     data: {
-      episode: r.data,
+      // #517: like go_on_date, no ending, why or box score until it's written (the booker would read the spoiler).
+      episode: withoutEnding(r.data as Record<string, unknown>),
       second_date_of: episodeId,
       note: "Both wanted another date, so this is their second date: it happens where they planned it in their texts.",
       next: EPISODE_NEXT,
@@ -2240,6 +2242,18 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
     loadTraitStats(db).catch(() => null),
   ]);
   const owned = await ownsCharacter(db, characterId, userId);
+  // #534: the one-partner check the booking makes (lib/partners.ts), so a clean preview is one that books.
+  const takenBy = async (id: string, except: string | null): Promise<string | null> => {
+    await settleCharacter(db, id).catch(() => {});
+    const taken = (await db.query<{ taken: boolean }>(`select ${takenSql("c", "$2")} as taken from characters c where c.id = $1`, [id, except])).rows[0]?.taken;
+    return taken ? ((await currentPartners(db, id))[0]?.name ?? "someone") : null;
+  };
+  const mineTakenBy = owned && mine ? await takenBy(mine.id, args.blind === true ? null : partnerId) : null;
+  const partnerTakenBy = partner && !partner.house ? await takenBy(partner.id, characterId) : null;
+  const problems = [
+    mineTakenBy && mine ? `${shortName(mine.name)} is with ${mineTakenBy} and wants one partner: date ${shortName(mineTakenBy)}, or update_character with partner_style: "open".` : null,
+    partnerTakenBy && partner ? `${shortName(partner.name)} is with ${partnerTakenBy} and wants one partner, so this would be refused.` : null,
+  ].filter((x): x is string => x !== null);
   // A private partner shows its name only, to anyone but its owner, so its traits stay out of the preview and the chemistry.
   const hidden = partner ? (await privateIds(db, [partner.id], userId)).has(partner.id) : false;
   const fmt = showFormat((typeof args.format === "string" ? args.format : DEFAULT_FORMAT) as FormatId);
@@ -2247,13 +2261,15 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
   return {
     preview: true,
     booked: false,
+    can_book: owned && Boolean(mine) && (Boolean(partner) || args.blind === true) && !problems.length,
+    ...(problems.length ? { problems } : {}),
     ...(owned && mine ? { your_character: { id: mine.id, name: mine.name, traits: mine.traits } } : { problem: "character_id isn't one of your characters." }),
     with: partner
       ? hidden
         ? { id: partner.id, name: partner.name, private: true, note: "Its creator keeps this character private: only its name is shown." }
         : { id: partner.id, name: partner.name, age: partner.age, traits: partner.traits, bio: partner.bio, made_by: partner.house ? "house" : "a creator" }
       : args.blind === true
-        ? "a blind date: the show picks the partner when it's booked"
+        ? "a blind date: the show picks the partner when it's booked: an agreed match of yours (another creator's character, which the show's model then plays without its agent taking part) or one of the house cast"
         : partnerId
           ? "no character with that partner_id"
           : "pass partner_id (or blind: true)",
@@ -2884,6 +2900,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // 2026-10-20: check_only folds check_originality into create_character: the same sheet, nothing saved.
       if (args.check_only === true) {
         const who = resolveIdentity(args, session, false);
+        // #519: the sheet rules a save enforces (age 18+, three traits, lengths, the content filter) run here too, so
+        // a sheet that passes the check is one the save takes.
+        const sheet = await callRoute(postCharacter, { agentId: who?.id, body: { ...pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience"]), attest: true, check_only: true } });
+        if (!sheet.ok) return { error: `${errorOf(sheet)} (Nothing was saved; create_character would refuse this sheet the same way.)` };
         const r = await callRoute(postOriginality, { agentId: who?.id, body: pick(args, ["name", "bio", "traits", "want", "dealbreaker", "voice", "extras"]) });
         if (!r.ok) return { error: errorOf(r) };
         return {
@@ -3456,7 +3476,18 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               public_stage: rel.public.stage ? STAGE_LABELS[rel.public.stage] : null,
             }
           : {};
-        return [{ with: { id: other, name: names.get(other) ?? null }, ...pageLink(couplePageFor(rel)), ...view, told, ...unairedNote }];
+        // #520: second_dates counted endings, so one first date plus its second date read as 2. Both numbers, named.
+        const { second_dates: earned, second_dates_had: had, ...rest } = view;
+        return [{
+          with: { id: other, name: names.get(other) ?? null },
+          ...pageLink(couplePageFor(rel)),
+          ...rest,
+          second_dates_earned: earned,
+          second_dates_had: had,
+          second_dates_note: "second_dates_earned: dates that ended in a second date. second_dates_had: the follow-up dates that took place.",
+          told,
+          ...unairedNote,
+        }];
       });
       // Everyone sees the couple's open arc question (lib/arcs.ts).
       for (const r of relationships) Object.assign(r, { arc: await arcQuestion(db, who.id, id, r.with.id) });
@@ -3910,9 +3941,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (args.check === true || args.preview === true) {
         const r = await callRoute(getSecondDate as unknown as RouteHandler, { method: "GET", agentId: who.id, params });
         if (!r.ok) return { error: errorOf(r) };
+        // #536: what booking would spend, like every other preview (the visitor learned the cost when free_left hit 0).
+        const left = await episodeAllowance(db, who.id).catch(() => null);
+        const costBlock = {
+          cost: await costReport(db, who.id, { yours: "nothing", shared: false, wouldSpend: `${wouldSpendDate(left)} (plan_second_date without check books it)` }),
+          ...(left ? { dates_left: { total: left.left, free_left: left.free_left, free_reset_at: left.resets_at } } : {}),
+        };
         // #363: a private date never airs, so "air it first" would be wrong advice.
         if (aired?.visibility === "private") {
-          return { data: { second_date: { ...r.data, can_plan: false, reason: "private", note: "A private date never airs and has no second date. Make it public or unlisted (set_date_visibility) and it can air." } }, identity: who };
+          return { data: { second_date: { ...r.data, can_plan: false, reason: "private", note: "A private date never airs and has no second date. Make it public or unlisted (set_date_visibility) and it can air." }, ...costBlock }, identity: who };
         }
         const notAired = aired && aired.revealed_at === null;
         const at = notAired ? await airsFrom(db, params.id).catch(() => null) : null;
@@ -3921,6 +3958,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             second_date: notAired
               ? { ...r.data, can_plan: false, reason: "not_aired", note: `A second date follows a date that's aired.${at ? ` This one airs on its own at ${at.toISOString()}.` : ""}` }
               : r.data,
+            ...costBlock,
           },
           identity: who,
         };

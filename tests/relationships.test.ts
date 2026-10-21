@@ -221,6 +221,15 @@ describe("the relationship graph — who sees what", () => {
     expect(owner2.timeline.map((t) => t.episode_id)).toEqual(["pub", "unaired", "private", "hidden"]);
   });
 
+  it("second_dates counts the endings and second_dates_had the follow-up dates that took place (#520)", () => {
+    const first = ep("first", 1);
+    const second = ep("second", 3, { followup_of: "first" });
+    const view = viewRelationship(computeRelationship(LO, HI, [first, second]), { userId: "someone", owner: false })!;
+    expect(view.dates).toBe(2);
+    expect(view.second_dates).toBe(2);
+    expect(view.second_dates_had).toBe(1);
+  });
+
   it("an edge stored before dates carried a private flag treats them as private to the other owner", () => {
     const legacy = { ...rel, history: rel.history.map(({ private: _p, ...h }) => h) };
     const owner2 = viewRelationship(legacy, { userId: "user-2", owner: true })!;

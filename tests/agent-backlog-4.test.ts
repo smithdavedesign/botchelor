@@ -4,6 +4,7 @@ import { bestLine, standsAlone } from "@/lib/conversation";
 import { pairNames, suggestFreeNames } from "@/lib/names";
 import { scoreSheet } from "@/lib/originality";
 import { listNotifications } from "@/lib/notifications";
+import { pairKey } from "@/lib/relationships";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { api, episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, validCharacter, validEpisodeDraft } from "./helpers";
 
@@ -496,6 +497,13 @@ describe("dates an agent performs", () => {
     expect(played).toMatchObject({ autoplay: "mine" });
     expect(played.step.stage).toBe("done");
     expect((await t.db.query<Any>(`select status from episodes where id = $1`, [id])).rows[0].status).toBe("ready");
+    // #537: the "date is done" notice says who played: one agent and a house-run bot, not "both agents".
+    const done = (await listNotifications(t.db, B.agentId)).find((x) => x.kind === "own_date_ready");
+    expect(done?.body).toMatch(/You performed Bo Quill's side; Ada Lumen is a house-run bot's character/);
+    expect(done?.body).not.toMatch(/Both agents performed/);
+    // #529: a finished date leaves no "your move" or invite notice unread, on either side.
+    const stale = (await t.db.query<Any>(`select count(*)::int as n from notifications where kind in ('own_date_turn', 'own_date_invite') and read_at is null and body like $1`, [`%${id}%`])).rows[0].n;
+    expect(stale).toBe(0);
     // At the start, Bo's agent still read as a live agent (its session was renamed after).
     expect(started.other_side).toMatch(/their agent: active now/);
   });
@@ -540,5 +548,73 @@ describe("dates an agent performs", () => {
     const n = (await listNotifications(t.db, agentId)).find((x) => x.kind === "partner_style");
     expect(n?.body).toMatch(new RegExp(`update_character with partner_style: "open" \\(${mine}\\)`));
     expect(n?.body).toMatch(/go_on_date with anyone else is refused/);
+  });
+});
+
+describe("the 2026-10-21 runs (#517, #519, #520, #529, #534, #535, #536, #537)", () => {
+  it("create_character check_only runs the sheet rules a save does: an age under 18 is refused, nothing saved (#519)", async () => {
+    const ctx = await connect();
+    const r = await call("create_character", validCharacter({ name: "Pip Marlow", age: 12, check_only: true }), ctx);
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toMatch(/adults \(18\+\)/);
+    expect(r.content[0].text).toMatch(/Nothing was saved/);
+    expect(await t.count("characters", "not is_house")).toBe(0);
+    const ok = (await call("create_character", validCharacter({ name: "Pip Marlow", check_only: true }), ctx)).structuredContent;
+    expect(ok.saved).toBe(false);
+    expect(await t.count("characters", "not is_house")).toBe(0);
+  });
+
+  it("go_on_date preview runs the one-partner check, and says blind can pick another creator's character (#534, #535)", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const other = await agentWith("Cy Marr", { open_to_dates: true });
+    const clean = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, preview: true }, ctx)).structuredContent;
+    expect(clean).toMatchObject({ preview: true, booked: false, can_book: true });
+    expect(clean.problems).toBeUndefined();
+    const blind = (await call("go_on_date", { character_id: id, blind: true, preview: true }, ctx)).structuredContent;
+    expect(blind.with).toMatch(/another creator's character/);
+    // Ada wants one partner and is dating Cy: a house date would be refused, and the preview says so first.
+    const [lo, hi] = pairKey(id, other.id);
+    await t.db.query(`update characters set partner_style = 'one' where id = $1`, [id]);
+    await t.db.query(`insert into relationships (character_a, character_b, stage) values ($1, $2, 'dating')`, [lo, hi]);
+    const taken = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, preview: true }, ctx)).structuredContent;
+    expect(taken.can_book).toBe(false);
+    expect(taken.problems[0]).toMatch(/Ada is with Cy Marr and wants one partner.*partner_style: "open"/);
+    expect(await t.count("episodes")).toBe(0);
+    const real = await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx);
+    expect(real.isError).toBe(true);
+    expect(real.content[0].text).toMatch(/wants one partner/);
+  });
+
+  it("plan_second_date check says what booking would spend (#536)", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const booked = await houseDate(ctx, id);
+    const check = (await call("plan_second_date", { episode_id: booked.episode.id, check: true }, ctx)).structuredContent;
+    expect(check.second_date.can_plan).toBe(false);
+    expect(check.cost.would_spend).toMatch(/1 free weekly date and 1 of the agents' shared daily dates/);
+    expect(check.dates_left.free_left).toBeGreaterThan(0);
+  });
+
+  it("declining a two-agent date marks its invite read for the other side (#529)", async () => {
+    const { A, B } = await matched();
+    await call("answer_match", { character_id: A.id, with: B.id, yes: true }, A.ctx);
+    await call("answer_match", { character_id: B.id, with: A.id, yes: true }, B.ctx);
+    const started = (await call("start_own_date", { character_id: A.id, partner_id: B.id }, A.ctx)).structuredContent;
+    const unreadInvites = async () => (await t.db.query<Any>(`select count(*)::int as n from notifications where user_id = $1 and kind = 'own_date_invite' and read_at is null`, [B.agentId])).rows[0].n;
+    expect(await unreadInvites()).toBe(1);
+    await call("decline_own_date", { episode_id: started.step.episode_id }, A.ctx);
+    expect(await unreadInvites()).toBe(0);
+  });
+
+  it("get_relationships names both second-date numbers (#520)", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen");
+    await houseDate(ctx, id);
+    await t.db.query(`update episodes set revealed_at = now()`);
+    const r = (await call("get_relationships", { character_id: id }, ctx)).structuredContent;
+    const edge = r.relationships?.[0];
+    if (edge) {
+      expect(edge.second_dates).toBeUndefined();
+      expect(edge).toMatchObject({ second_dates_earned: expect.any(Number), second_dates_had: 0 });
+      expect(edge.second_dates_note).toMatch(/follow-up dates that took place/);
+    }
   });
 });

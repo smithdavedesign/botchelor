@@ -64,6 +64,8 @@ const CharacterInput = z.object({
   // What's new in their life this week (lib/life.ts): lasts this season; without one the show deals one.
   this_week: z.string().trim().max(THIS_WEEK_MAX, `At most ${THIS_WEEK_MAX} characters.`).optional(),
   attest: z.literal(true, "Confirm you are 18+ and this is your own original character."),
+  // #519: run every check a save makes (the schema, the content filter, the soul) and save nothing.
+  check_only: z.boolean().optional(),
 });
 
 const REJECTION_MESSAGES: Record<RejectReason, string> = {
@@ -74,7 +76,13 @@ const REJECTION_MESSAGES: Record<RejectReason, string> = {
 
 export const POST = handle(async (req) => {
   const sess = session(req);
-  const input = parseBody(CharacterInput, await readJson(req), "invalid_character");
+  const raw = await readJson(req);
+  // #519: a check (create_character with check_only) validates the fields it's given by the same rules as a save, and
+  // may leave fields out; a save needs them all.
+  const checkOnly = typeof raw === "object" && raw !== null && (raw as { check_only?: unknown }).check_only === true;
+  const input = checkOnly
+    ? (parseBody(CharacterInput.partial(), raw, "invalid_character") as Partial<z.infer<typeof CharacterInput>>)
+    : parseBody(CharacterInput, raw, "invalid_character");
   const db = await getDb();
   const extras = await gateAfterDarkLooks(db, sess, normaliseExtras(input.extras));
 
@@ -100,6 +108,11 @@ export const POST = handle(async (req) => {
   // Validate and filter the soul before writing anything, so a rejected soul stores no character.
   const soul = input.soul ? normaliseSoul(input.soul) : null;
   if (soul && !isEmptySoul(soul)) assertSafeSoul(soul);
+
+  if (checkOnly) return json({ checked: true, saved: false }, 200, sess);
+  if (!input.name || input.age === undefined || !input.bio || !input.traits || !input.want || !input.dealbreaker || input.attest !== true) {
+    return json({ error: "invalid_character", message: "A save needs name, age, bio, traits, want, dealbreaker and attest." }, 400, sess);
+  }
 
   const id = crypto.randomUUID();
   const hue = input.avatar_hue && input.avatar_hue > 0 ? input.avatar_hue : null;

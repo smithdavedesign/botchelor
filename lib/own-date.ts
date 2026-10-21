@@ -211,6 +211,7 @@ export async function clearStaleOwnDates(db: Db, now: Date = new Date(), creator
       returning id`,
     [cutoff, creatorId ?? null],
   );
+  await settleOwnDateNotices(db, rows.map((r) => r.id));
   return rows.length;
 }
 
@@ -716,6 +717,32 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
   return step;
 }
 
+/** #537: who played which side, for the "date is done" notice: two agents, one agent and a house-run bot, or a hand-over. */
+function whoPerformed(row: Row, to: string): string {
+  const mine = to === row.creator_id ? row.a_name : row.b_name;
+  const other = to === row.creator_id ? row.b_name : row.a_name;
+  if (row.partner_bot === true) return `You performed ${mine}'s side; ${other} is a house-run bot's character (one of the show's own scripts), so the show played it.`;
+  if (row.handed_over) {
+    const taken = row.handed_over === "a" ? row.a_name : row.b_name;
+    return `${taken}'s side was taken over by the show's model after its agent went quiet; ${taken === mine ? other : mine}'s agent performed the other.`;
+  }
+  return "Both agents performed their sides.";
+}
+
+/** #529: a date that's over (finished, declined or expired) leaves no "your move" or invite notice unread, for anyone. */
+export async function settleOwnDateNotices(db: Db, episodeIds: string | string[]): Promise<void> {
+  const ids = (Array.isArray(episodeIds) ? episodeIds : [episodeIds]).filter(Boolean);
+  if (!ids.length) return;
+  await db
+    .query(
+      `update notifications set read_at = now()
+        where kind in ('own_date_turn', 'own_date_invite') and read_at is null
+          and exists (select 1 from unnest($1::text[]) x where body like '%' || x || '%')`,
+      [ids],
+    )
+    .catch(() => {});
+}
+
 /**
  * A two-agent date's recap, on the show's model (one call, with the showrunner's retries). Saves it and marks the date
  * ready; tells the agent that didn't finish it. False if the model failed (the next get_own_date_step tries again).
@@ -754,13 +781,15 @@ async function finishOnShowModel(
   trackDateQuality(row.id, "agent", null, transcriptQuality(transcript, built.characters, qualityContext(built, draft.setting)));
   // Both agents hear it's done (run 3: the invited agent didn't, when the recap ran on its own request), by full name:
   // two agents' characters can share a first name.
+  // #529: the date is over, so no "your move" or invite notice about it is waiting on anyone.
+  await settleOwnDateNotices(db, row.id);
   for (const to of [row.creator_id, row.partner_performer]) {
     // The agent whose request just finished it is reading it now: no notice for it to clear later.
     if (!to || to === finishedBy) continue;
     await notify(db, to, {
       kind: "own_date_ready",
       title: `💞 ${row.a_name} and ${row.b_name}'s date is done`,
-      body: `Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like). ${airingNote(row.visibility)}`,
+      body: `${whoPerformed(row, to)} The show wrote the recap. Read it with get_own_date_step (and reflect, if you like). ${airingNote(row.visibility)}`,
       link: `/episodes/${row.id}`,
     });
   }
@@ -1191,6 +1220,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       [episodeId, draft.setting, JSON.stringify(draft.goals), JSON.stringify(draft.scenes), draft.twist, draft.finale, draft.best_line, JSON.stringify(draft.confessionals), transcript.length, PROMPT_VERSION],
     );
     if (saved.rows.length) {
+      await settleOwnDateNotices(db, episodeId);
       await rememberDate(db, row.a_id, row.b_id).catch(() => {});
       await logSceneRequests(db, episodeId, built.setup, transcript);
       trackMoves(episodeId, transcript, "agent");
@@ -1256,6 +1286,7 @@ export async function declineOwnDate(db: Db, userId: string, episodeId: string):
   );
   const r = rows[0];
   if (!r) return false;
+  await settleOwnDateNotices(db, episodeId);
   const cancelled = r.creator_id === userId;
   const other = cancelled ? r.partner_performer : r.creator_id;
   // Tell the other agent; and keep a note for whoever called it off, so a late get_own_date_step says what happened.

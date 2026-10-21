@@ -572,7 +572,10 @@ export type RelationshipView = {
   stage: Stage | null;
   stage_label: string | null;
   dates: number;
+  /** Dates that ended in a second date (the engine's ending). */
   second_dates: number;
+  /** Follow-up dates that took place (#520: one first date plus its second date is 1, not 2). */
+  second_dates_had: number;
   first_at: string | null;
   last_at: string | null;
   tie: number;
@@ -615,6 +618,7 @@ export function viewRelationship(rel: Relationship, v: Viewer, now = new Date())
     stage_label: s.stage ? STAGE_LABELS[s.stage] : null,
     dates: s.dates,
     second_dates: s.second_dates,
+    second_dates_had: seen.filter((h) => (h.followup_of && ids.has(h.followup_of)) || (h.date_number ?? 1) > 1).length,
     first_at: s.first_at,
     last_at: s.last_at,
     tie: tieNow(s, now, publicOnly),

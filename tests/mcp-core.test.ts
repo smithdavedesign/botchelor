@@ -7,7 +7,7 @@ import { agentStats } from "@/lib/dating";
 import type { SideOutcome } from "@/lib/engine";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
-import { CORE_MCP_TOOLS, CORE_TOOL_ORDER, handleMcpMessage, MCP_TOOLS, PUBLIC_MCP_TOOLS, type McpContext } from "@/lib/mcp";
+import { CORE_MCP_TOOLS, CORE_TOOL_ORDER, handleMcpMessage, MCP_TOOLS, PUBLIC_MCP_TOOLS, type McpContext, withoutEnding } from "@/lib/mcp";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -239,6 +239,13 @@ describe("go_on_date does the rest of dating again", () => {
     const r = (await call("go_on_date", { character_id: cass.id, partner_id: HOUSE_PARTNER_ID, agent_id: userIdOf(me) })).structuredContent;
     expect(r).toMatchObject({ second_date_of: first.id, note: expect.stringMatching(/second date/) });
     expect(r.episode.id).not.toBe(first.id);
+    // #517: no spoiler while it's being written (the booking reply used to carry the ending and box score). The test
+    // model writes it at once, so the reply here is already ready; the strip itself is checked on a generating one.
+    if (r.episode.status === "generating") expect(r.episode.ending).toBeUndefined();
+    const stripped = withoutEnding({ id: "x", status: "generating", ending: "second_date", why: "spoiler", box_score: { chemistry: 1 } });
+    expect(stripped.ending).toBeUndefined();
+    expect(stripped.why).toBeUndefined();
+    expect(stripped.box_score).toBeUndefined();
   });
 
   it("proposes to the creator of a closed character it's dated, and their go_on_date accepts it", async () => {
