@@ -21,6 +21,7 @@ import { contentWords, lineIssues } from "../quality";
 import type { Turn } from "../conversation";
 import { afterDarkNote, rememberAfterDark } from "./memory";
 import { historyPhrase, MAX_SCENE_MOVES, repeatOf, saysCatchphrase, settlePlace, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
+import { stagesFor, withoutSteerCopy } from "./stage-floor";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 import { bumpFacts, citeMemory, factLine, loadPairFacts, memoryLabels, RECENT_LINES, rememberFacts, retrieveFacts, type AdultFact, type Citation, type ShownFact } from "./facts";
 import { guardAlternation, guardNames } from "./guards";
@@ -378,8 +379,12 @@ export function sceneMessages(
     `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text. Write both in English.` +
     (direction
       ? now.steerMode === "direct"
-        ? ` Steer the scene this way: ${direction}`
-        : ` Lean the scene gently this way, at its own pace (the pace and place rules above still hold; work toward it, don't jump to it): ${direction}`
+        ? v2
+          ? ` Steer the scene this way, now: ${direction}. Act it out in their own words and actions, as these two characters would; never copy the steer's words into a line or an action.`
+          : ` Steer the scene this way: ${direction}`
+        : v2
+          ? ` Lean the scene gently this way, at its own pace (the pace and place rules above still hold; work toward it, don't jump to it): ${direction}. Act it out in their own words; never copy the steer's words into a line or an action.`
+          : ` Lean the scene gently this way, at its own pace (the pace and place rules above still hold; work toward it, don't jump to it): ${direction}`
       : " Move the scene forward: something new happens in these lines, nothing they've already done or said.") +
     (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
     ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": ${v2 ? (cite ? `"${cite}"` : "null") : '"..."'}}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. his bedroom: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
@@ -722,7 +727,13 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
         continue;
       }
       flags.names_repaired += g.repairs.length;
-      inScene.push(g.text === l.text ? l : { ...l, text: g.text });
+      // The steer acted out, never quoted (lib/adult/stage-floor.ts): an action that copies it goes, a line that does is dropped.
+      const own = withoutSteerCopy(g.text, steer);
+      if (!own) {
+        drops.push({ who: l.who, text: l.text, reason: "copied the steer instead of acting it out" });
+        continue;
+      }
+      inScene.push(own.text === l.text ? l : { ...l, text: own.text });
     }
     const reps = dropRepeats(inScene, night, scene.lines, a, b);
     const fresh = reps.kept.filter((l) => {
@@ -818,9 +829,10 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   if (!place_history.length && (place || set_place)) place_history = [{ place: place ?? set_place!, set: set_place, home: null, chapter: scene.chapter }];
   // Unsteered, the stage moves at most one step, and only once the current one has had its lines; a steer can jump.
   const allowed = steer && steerMode === "direct" ? STAGES.length - 1 : scene.lines.length - scene.stage_from >= MIN_LINES_PER_STAGE ? scene.stage + 1 : scene.stage;
-  const stage = Math.min(meta.stage ?? scene.stage, allowed);
-  // Each new line carries the stage these lines reached, for the theater's label.
-  const stamped = kept.map((l) => ({ ...l, stage }));
+  // The model's claim, raised to what the lines plainly show when it ran behind them (lib/adult/stage-floor.ts); each line
+  // carries the stage it was at, for the theater's label.
+  const { perLine, stage } = stagesFor(kept, scene.stage, Math.min(meta.stage ?? scene.stage, allowed));
+  const stamped = kept.map((l, i) => ({ ...l, stage: perLine[i] }));
   const stage_from = stage === scene.stage ? scene.stage_from : scene.lines.length;
   const next: SceneState = { ...scene, lines: [...scene.lines, ...stamped], place, stage, stage_from, set_place, cut_to: null, place_history, moves };
   return { ok: true, lines: stamped, meta, dropped, flags, next, shown, usage };
