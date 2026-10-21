@@ -10,11 +10,9 @@ describe("the one-line own-date turn also takes {dialogue} on its own", () => {
     expect(oneLineTurn({ dialogue: "Hi.", see_again: true })).toEqual({ dialogue: "Hi.", see_again: true, ...ONE_LINE_DEFAULTS });
   });
 
-  it("leaves a partly filled turn alone, so sending some of the fields still needs all four (run 4)", () => {
-    const partial = { dialogue: "hi", emotion: "x" };
-    expect(oneLineTurn(partial)).toBe(partial);
-    const text = '{"dialogue":"hi","emotion":"x"}';
-    expect(oneLineTurn(text)).toBe(text);
+  it("fills a partly filled turn too since 2.4.5 (run 0610), keeping what was sent", () => {
+    expect(oneLineTurn({ dialogue: "hi", emotion: "x" })).toEqual({ ...ONE_LINE_DEFAULTS, dialogue: "hi", emotion: "x" });
+    expect(oneLineTurn('{"dialogue":"hi","emotion":"x"}')).toEqual({ ...ONE_LINE_DEFAULTS, dialogue: "hi", emotion: "x" });
     expect(oneLineTurn("not json {")).toEqual({ dialogue: "not json {", ...ONE_LINE_DEFAULTS });
   });
 });

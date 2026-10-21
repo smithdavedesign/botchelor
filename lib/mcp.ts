@@ -40,7 +40,7 @@ import { describeTemperament } from "./temperament";
 import { loadSoul, ownsCharacter } from "./souls";
 import { deleteCharacter } from "./account";
 import { thisWeek, type StoredThisWeek } from "./life";
-import { autoplayOwnDate, DATE_FINISHED, declineOwnDate, endingLine, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, startOwnDate, submitOwnDateStep } from "./own-date";
+import { autoplayOwnDate, DATE_FINISHED, declineOwnDate, endingLine, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, startOwnDate, submitOwnDateStep, turnDefaultsUsed } from "./own-date";
 import { extrasJsonSchema, MAX_HOBBIES, PROFILE_PROMPTS, profileComplete, type CharacterExtras } from "./extras";
 import { audienceAllows } from "./audience";
 import { rateCharacter, topRatedCharacters } from "./ratings";
@@ -93,7 +93,7 @@ import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX, fee
 import { followCouple, followState, unfollowCouple } from "./follows";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.4.4" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.4.5" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -2532,6 +2532,8 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
   const hidden = partner ? (await privateIds(db, [partner.id], userId)).has(partner.id) : false;
   const fmt = showFormat((typeof args.format === "string" ? args.format : DEFAULT_FORMAT) as FormatId);
   const fit = mine && partner && stats && !hidden ? compatibility(stats, mine.traits, partner.traits) : null;
+  // A name where the id goes (run 0610: partner_id "Orin"): the character it most likely means, by full or first name.
+  const guess = !partner && partnerId ? await characterByName(db, partnerId) : null;
   return {
     preview: true,
     booked: false,
@@ -2545,8 +2547,9 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
       : args.blind === true
         ? "a blind date: the show picks the partner when it's booked: an agreed match of yours (another creator's character, which the show's model then plays without its agent taking part) or one of the house cast"
         : partnerId
-          ? "no character with that partner_id"
+          ? `no character with that partner_id: it takes a character's id, not a name${guess ? `. Did you mean ${guess.id} (${guess.name})?` : " (search_characters finds one by name)"}`
           : "pass partner_id (or blind: true)",
+    ...(guess && !partner ? { did_you_mean: guess } : {}),
     ...(fit
       ? {
           chemistry_on_record: {
@@ -2604,6 +2607,20 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
   const KEPT = ["episode_id", "ready", "waited_seconds", "age_seconds", "typical", "retry", "airs_at", "aired", "aired_note", "started_at", "waiting_seconds", "lines_so_far", "stage", "wait_capped_at", "wait_note", "returned_because", "wait_cap_seconds", "transcript_total"];
   const rest = d.episode && typeof d.episode === "object" ? Object.fromEntries(Object.entries(d).filter(([k]) => k !== "episode")) : Object.fromEntries(Object.entries(d).filter(([k]) => KEPT.includes(k)));
   return { ...rest, episode: summary, summary_note: "The result only. get_episode without summary has the scenes and every line." };
+}
+
+/** A public character whose full or first name is `name` (the house cast first), for a "did you mean" on an id. */
+async function characterByName(db: Db, name: string): Promise<{ id: string; name: string } | null> {
+  const q = name.trim().toLowerCase();
+  if (!q || q.length > 80) return null;
+  const { rows } = await db.query<{ id: string; name: string }>(
+    `select id, name from characters
+      where (lower(name) = $1 or lower(split_part(name, ' ', 1)) = $1) and owner_id is distinct from 'deleted'
+        and coalesce(visibility, 'public') <> 'private'
+      order by is_house desc, created_at desc limit 1`,
+    [q],
+  );
+  return rows[0] ?? null;
 }
 
 export function withoutEnding(e: Record<string, unknown>): Record<string, unknown> {
@@ -3738,6 +3755,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         askedDone && r.step.stage === "turn"
           ? { done_ignored: "done: true only ends a date in its goodbye stretch (near the end of the last act); the date goes on." }
           : {};
+      // 2.4.5: the fields a turn left to the defaults, named, so a short reply is never silently padded.
+      const defaultsUsed = turnDefaultsUsed(args.output);
+      const defaultsNote = defaultsUsed.length ? { defaults_used: defaultsUsed } : {};
       // #360: one call per turn. When it's now the other agent's move, wait for it the way get_own_date_step does.
       if (r.step.stage === "waiting" && Number(args.wait_seconds) > 0) {
         const waited = await waitForTurn(db, who, args, Number(args.wait_seconds));
@@ -3745,11 +3765,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           // Their answer came while we waited: "it was already your move" would read wrong straight after a submit.
           const { already_your_move: _a, ...rest } = waited.data;
           if (_a) delete rest.note;
-          return { ...waited, data: { accepted: true, ...doneIgnored, ...rest } };
+          return { ...waited, data: { accepted: true, ...doneIgnored, ...defaultsNote, ...rest } };
         }
         return waited;
       }
-      return { data: { accepted: true, ...doneIgnored, step: compactIf(r.step, args) }, identity: who };
+      return { data: { accepted: true, ...doneIgnored, ...defaultsNote, step: compactIf(r.step, args) }, identity: who };
     }
     case "wait_for_my_turn": {
       const who = resolveIdentity(args, session, false);

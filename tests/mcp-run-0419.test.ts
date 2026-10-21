@@ -331,7 +331,7 @@ describe("8. a one-line mode for own dates", () => {
 
   it("the steps show a compact example of a turn, and the recap step one of the recap JSON, which is accepted", async () => {
     const { A, step, id } = await ownDate();
-    expect(step.instructions).toContain(`Example turn: "You never asked about the wind.", or {"dialogue": "You never asked about the wind."} (just the line`);
+    expect(step.instructions).toContain(`Example turn: "You never asked about the wind.", or {"dialogue": "You never asked about the wind."}, or the full`);
     expect(step.instructions).toContain(TURN_EXAMPLE);
     let s = (await call("submit_own_date_step", { episode_id: id, output: "First line, honestly." }, A.ctx)).structuredContent.step;
     expect(s.instructions).toMatch(/or just the line, as "output"/);
