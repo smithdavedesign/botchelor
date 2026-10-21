@@ -17,7 +17,10 @@ export async function lastFrame(video: Buffer): Promise<Buffer | null> {
   let dir: string | null = null;
   try {
     const bin = (await import("ffmpeg-static")).default as unknown as string | null;
-    if (!bin) return null;
+    if (!bin) {
+      console.warn("reel last frame: no ffmpeg binary for this platform");
+      return null;
+    }
     dir = await mkdtemp(join(tmpdir(), "reel-frame-"));
     const input = join(dir, "shot.mp4");
     const output = join(dir, "last.jpg");
@@ -26,7 +29,9 @@ export async function lastFrame(video: Buffer): Promise<Buffer | null> {
     await run(bin, ["-hide_banner", "-loglevel", "error", "-sseof", "-0.25", "-i", input, "-frames:v", "1", "-q:v", "2", "-y", output], { timeout: 20_000 });
     const frame = await readFile(output);
     return frame.length ? frame : null;
-  } catch {
+  } catch (err) {
+    // Logged, so a missing binary in production shows in the runtime logs, not only as reels that still reset.
+    console.warn("reel last frame failed:", err instanceof Error ? err.message.slice(0, 200) : err);
     return null;
   } finally {
     if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
