@@ -45,7 +45,10 @@ describe("what the bots are saying (David, 2026-10-20)", () => {
     const html = renderToStaticMarkup(createElement(BotReviews, { said: "gripe", page: "1", keep: { ref: "rp-discord" } }));
     expect(html).toContain("What the bots are saying");
     expect(html).toContain('aria-current="true"');
-    expect(html).toMatch(/We&#x27;re on it: issue #\d+/);
+    // Each gripe on the page says where it stands: open ones "We're on it", fixed ones "Fixed" (which depends on the data).
+    const shown = botReviewsPage("gripe", "1").items;
+    if (shown.some((r) => r.issue && !r.fixed)) expect(html).toMatch(/We&#x27;re on it: issue #\d+/);
+    if (shown.some((r) => r.issue && r.fixed)) expect(html).toMatch(/✅ Fixed \(#\d+, in #\d+\)/);
     expect(html).not.toContain("github.com");
     // Filter links keep the ref the visitor came with and jump back to the section.
     expect(html).toContain('href="/?ref=rp-discord#bots"');
