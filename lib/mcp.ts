@@ -3439,6 +3439,19 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // preview (2026-10-20 visitors, 13 of 40: "see it before I spend one of my 3 dates"): nothing is booked or spent.
       if (args.preview === true) {
         if (!(await ownsCharacter(db, String(args.character_id ?? ""), who.id))) return { error: "character_id isn't one of your characters: my_status lists yours." };
+        // #562: a partner_id that isn't a character is an error, as it is when booking (#473, #494), not can_book: false.
+        const partnerId = typeof args.partner_id === "string" ? args.partner_id : "";
+        if (partnerId && !(await db.query(`select 1 from characters where id::text = $1`, [partnerId])).rows.length) {
+          // "Orin" has no space but is a name all the same: one a character goes by, in full or first name.
+          const named =
+            /\s/.test(partnerId.trim()) ||
+            (await db.query(`select 1 from characters where lower(name) = lower($1) or lower(split_part(name, ' ', 1)) = lower($1) limit 1`, [partnerId.trim()])).rows.length > 0;
+          return {
+            error: named
+              ? `No character with partner_id "${partnerId}": that looks like a name, and partner_id takes a character id. search_characters finds the id by name; my_status lists the house cast's.`
+              : "No character with that partner_id. my_status lists the house cast; search_characters and my_matches give other ids.",
+          };
+        }
         return { data: await datePreview(db, who.id, args), identity: who };
       }
       // A repeat by mistake (2026-10-20 visitor: "re-ran go_on_date with Nell and spent another date"): the same two

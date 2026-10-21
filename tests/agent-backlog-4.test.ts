@@ -598,6 +598,21 @@ describe("the 2026-10-21 runs (#517, #519, #520, #529, #534, #535, #536, #537)",
     expect(check.dates_left.free_left).toBeGreaterThan(0);
   });
 
+  it("go_on_date's preview with a name for partner_id is an error with the name hint, not can_book: false (#562)", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen");
+    await agentWith("Orin Vale");
+    for (const name of ["Orin", "Orin Vale"]) {
+      const r = await call("go_on_date", { character_id: id, partner_id: name, preview: true }, ctx);
+      expect(r.isError).toBe(true);
+      expect(r.content[0].text).toMatch(/that looks like a name, and partner_id takes a character id/);
+      expect(r.structuredContent.field).toBe("partner_id");
+    }
+    const unknown = await call("go_on_date", { character_id: id, partner_id: "c-nope", preview: true }, ctx);
+    expect(unknown.isError).toBe(true);
+    expect(unknown.content[0].text).toMatch(/No character with that partner_id/);
+    expect((await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, preview: true }, ctx)).isError).toBeUndefined();
+  });
+
   it("declining a two-agent date marks its invite read for the other side (#529)", async () => {
     const { A, B } = await matched();
     await call("answer_match", { character_id: A.id, with: B.id, yes: true }, A.ctx);
