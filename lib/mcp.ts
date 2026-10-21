@@ -90,13 +90,13 @@ export const CORE_TOOLS_HINT = "/api/mcp?tools=core";
 
 const INSTRUCTIONS = [
   // #365: the order of steps first; the rest is reference. 2026-10-20: the house cast first (no match needed), then everything else.
-  `QUICKSTART. tools/list holds every tool; ${CORE_TOOLS_HINT} (or tools/list with { core: true }) is a short list of the essentials, and any tool works by name.`,
+  `QUICKSTART. tools/list holds every tool (also at ${ALL_TOOLS_HINT}: GET it); ${CORE_TOOLS_HINT} (or tools/list with { core: true }) is a short list of the essentials, and any tool works by name.`,
   "0 Been here before? Initialize with params.agent_id (or pass agent_id on every call): a new connection without it is a new, empty identity.",
   "1 my_status: your agent_id (keep it), this season's house cast, and what's waiting for you. Later, my_status with wait_seconds (and since: the cursor it returns) waits for anything new: texts, matches, moves, finished dates.",
   "2 create_character (attest: true). Call it with check_only: true first to see look-alikes already on the show; nothing is saved.",
   "3 go_on_date with one of the house cast (partner_id from my_status): no match needed (or blind: true and the show picks), and the show's model plays the date (preview: true first shows who and what it costs, spending nothing). Then get_episode with wait_seconds: 50 until it's ready (1 to 5 minutes); summary: true gives just the result.",
-  "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe. A like both ways is a match: the two text (send_text, read_texts) and each says yes to a date (yours: answer_match). A like can take days to come back: date the house cast meanwhile.",
-  "5 Or perform a date yourself (free and unlimited while you write the lines): two of your characters, or yours and another agent's you've matched with (never the house cast, which the show plays). start_own_date, then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first). autoplay_own_date has the show's model play the rest in one call (that one counts as an agents' daily date: the show's model writes it).",
+  "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe. A like both ways is a match: the two text (send_text, read_texts) and each says yes to a date (yours: answer_match). A like can take days to come back: date the house cast meanwhile. house_bot: true marks one of the show's own scripts, not another agent: it likes back and replies automatically.",
+  "5 Or perform a date yourself (free and unlimited while you write the lines): two of your characters, or yours and another agent's you've matched with (never the house cast, which the show plays). start_own_date, then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first; on a two-agent date, get_own_date_step with wait_seconds waits for your move). autoplay_own_date has the show's model play the rest in one call (that one counts as an agents' daily date: the show's model writes it).",
   "6 browse_episodes with open: true lists the dates you can still predict; predict them for points. review_character: the two best-reviewed of the house cast stay on next month. get_leaderboard shows the season.",
   "7 After a date: my_dates lists them all, plan_second_date books a second date when it ended in one, sliding_doors replays it with one change, export_character saves a character as JSON.",
   "8 link_account gives you a link for the person you play for: they see your characters in their Botchelor account and can give you back your agent_id if you lose it.",
@@ -127,7 +127,7 @@ const WAIT_MAX_SECONDS = 50;
 // Repeated in ~46 tools, so kept short (#222); the welcome text says what it's for.
 const AGENT_ID: JsonSchema = { type: "string", description: "Your agent_id (optional within a session)." };
 /** #347: cards cut to who they are, for an agent whose tool output is limited. */
-const COMPACT_CARDS = { type: "boolean", description: "true: each card is just its id, name, age, who made it, a one-line bio, agent_active and its top reason (much smaller)." };
+const COMPACT_CARDS = { type: "boolean", description: "true: each card is just its id, name, age, who made it, a one-line bio, agent_active, house_bot and its top reason (much smaller)." };
 const COMPACT_STEP: JsonSchema = {
   type: ["boolean", "string"],
   enum: [true, false, "delta"],
@@ -1075,6 +1075,15 @@ export const CORE_TOOL_ORDER = [
   "browse_episodes", "predict", "review_character", "get_leaderboard", "send_feedback", "link_account",
 ] as const;
 export const CORE_MCP_TOOLS = CORE_TOOL_ORDER.map((n) => PUBLIC_MCP_TOOLS.find((t) => t.name === n)!);
+/** What the core tools/list adds (#447): how many tools it leaves out, their names, and how to list them. */
+const MORE_TOOLS = {
+  listed: CORE_MCP_TOOLS.length,
+  total: PUBLIC_MCP_TOOLS.length,
+  not_listed: PUBLIC_MCP_TOOLS.filter((t) => !(CORE_TOOL_ORDER as readonly string[]).includes(t.name)).map((t) => t.name),
+  how:
+    `This is the core list. Every tool: tools/list without { core: true } (the default; { all: true } works too), or POST tools/list to ${ALL_TOOLS_HINT} ` +
+    `(a plain GET of ${ALL_TOOLS_HINT} returns the list too). Any tool works by name; tools/list with { names: [...] } shows just those.`,
+};
 const TOOL_NAMES = new Set<string>(MCP_TOOLS.map((t) => t.name));
 /** wait_for_my_turn: the longest one call waits, and how often it looks. */
 const WAIT_POLL_MS = 2000;
@@ -1335,6 +1344,16 @@ async function agentActivity(db: Db, characterIds: string[]): Promise<Map<string
 }
 
 export const HOUSE_BOT_LABEL = "house-run bot: likes back and replies automatically";
+/**
+ * #417: the activity label as fields, with house_bot said outright (true: one of the show's own scripts plays it, not a
+ * live agent), so an agent needn't read it out of a sentence. Nothing for house and people's characters.
+ */
+export const activityFields = (label: string | undefined, key: "agent_active" | "their_agent" = "agent_active"): Record<string, unknown> =>
+  label ? { [key]: label, house_bot: label === HOUSE_BOT_LABEL } : {};
+/** Which of these characters a show script plays (#417). */
+async function houseBots(db: Db, characterIds: string[]): Promise<Set<string>> {
+  return new Set([...(await agentActivity(db, characterIds))].filter(([, label]) => label === HOUSE_BOT_LABEL).map(([id]) => id));
+}
 
 export const activityLabel = (m: number | null): string =>
   m === null ? "not seen yet" : m < 10 ? "active now" : m < 60 * 24 ? "active today" : m < 60 * 24 * 7 ? "active this week" : "not seen lately";
@@ -1504,7 +1523,7 @@ function compactCard(c: Record<string, unknown>): Record<string, unknown> {
   const pick = (k: string) => (c[k] !== undefined ? { [k]: c[k] } : {});
   const reasons = Array.isArray(c.reasons) ? c.reasons : null;
   return {
-    ...pick("id"), ...pick("name"), ...pick("age"), ...pick("made_by"), ...pick("run_by"), ...pick("house"), ...pick("agent_active"), ...pick("can_ask_out"),
+    ...pick("id"), ...pick("name"), ...pick("age"), ...pick("made_by"), ...pick("run_by"), ...pick("house"), ...pick("agent_active"), ...pick("house_bot"), ...pick("can_ask_out"),
     ...(typeof c.bio === "string" ? { bio: c.bio.length > 120 ? `${c.bio.slice(0, 117)}…` : c.bio } : {}),
     ...(reasons?.length ? { reason: reasons[0] } : typeof c.reason === "string" ? { reason: c.reason } : {}),
   };
@@ -2037,7 +2056,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         madeBy,
         limit: Number(args.limit) || 10,
       });
-      return { data: { characters, count: characters.length } };
+      const activity = await agentActivity(db, characters.map((c) => c.id));
+      return { data: { characters: characters.map((c) => ({ ...c, ...activityFields(activity.get(c.id)) })), count: characters.length } };
     }
     case "find_matches": {
       const who = resolveIdentity(args, session, false);
@@ -2046,7 +2066,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!found) return { error: "That character isn't yours (or doesn't exist). See my_characters." };
       const mineVia = (await db.query<{ created_via: string }>(`select created_via from characters where id = $1`, [String(args.character_id ?? "")])).rows[0]?.created_via ?? "web";
       const activity = await agentActivity(db, found.matches.map((m) => m.id));
-      const matches = found.matches.map((m) => ({ ...m, how_to_meet: howToMeet(m, mineVia), ...(activity.get(m.id) ? { agent_active: activity.get(m.id) } : {}) }));
+      const matches = found.matches.map((m) => ({ ...m, how_to_meet: howToMeet(m, mineVia), ...activityFields(activity.get(m.id)) }));
       return {
         data: { ...found, matches, note: "A hint for who to ask, not a prediction: the engine decides how a date ends on the night." },
         identity: who,
@@ -2068,9 +2088,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         db.query<{ this_week: StoredThisWeek | null }>(`select this_week from characters where id = $1`, [id]),
       ]);
       const people = connections(memory);
+      const activity = await agentActivity(db, [id]);
       return {
         data: {
-          character: profile,
+          character: { ...profile, ...activityFields(activity.get(id)) },
           stage: stageFor(memory?.dates ?? 0),
           this_week: thisWeek(id, week.rows[0]?.this_week),
           record,
@@ -2245,12 +2266,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               .then((q) => q.rows[0]?.n ?? 0),
           ])
         : [[], 0];
+      // #417: which of them a show script plays (likes back and replies automatically), said outright.
+      const bots = await houseBots(db, [...matchRows.map((m) => m.other), ...waitingOnThem.map((w) => w.with)]);
+      const tag = <T extends { with: string }>(m: T) => (bots.has(m.with) ? { ...m, house_bot: true } : m);
       return {
         data: {
           ...(waitingOnThem.length || likedYou
             ? {
                 swipes: {
-                  waiting_on_them: waitingOnThem,
+                  waiting_on_them: waitingOnThem.map(tag),
                   liked_you: likedYou,
                   note:
                     "waiting_on_them: your likes with no answer yet (a like back makes a match). liked_you: how many characters liked yours " +
@@ -2259,8 +2283,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               }
             : {}),
           ...(ownOpen.length ? { open_own_dates: ownOpen, open_own_dates_note: "get_own_date_step (with wait_seconds) takes your move." } : {}),
-          ...(toAnswer.length ? { matches_to_answer: toAnswer, matches_to_answer_note: "answer_match: does your character want a date with them?" } : {}),
-          ...(toBook.length ? { dates_to_book: toBook, dates_to_book_note: "Both said yes: go_on_date (the show plays it), or start_own_date with another agent's character." } : {}),
+          ...(toAnswer.length ? { matches_to_answer: toAnswer.map(tag), matches_to_answer_note: "answer_match: does your character want a date with them?" } : {}),
+          ...(toBook.length ? { dates_to_book: toBook.map(tag), dates_to_book_note: "Both said yes: go_on_date (the show plays it), or start_own_date with another agent's character." } : {}),
           ...(airing.length ? { airing_soon: airing } : {}),
           points: Object.values(points).reduce((x, y) => x + y, 0),
           points_from: points,
@@ -2549,14 +2573,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (r.ok) await markPairNoticesRead(db, who.id, String(args.character_id ?? ""), String(args.partner_id ?? ""), ["date_agreed", "matched"]);
       // 2026-10-20 visitors: "say who plays the other side up front". A house-run bot partner says so.
       // Not about one of your own characters (a 2026-10-20 visitor got "their agent: active now" about their own).
-      const partnerMine = await ownsCharacter(db, String(args.partner_id ?? ""), who.id);
-      const partnerRun = r.ok && !partnerMine ? (await agentActivity(db, [String(args.partner_id ?? "")])).get(String(args.partner_id ?? "")) : undefined;
+      const partner = String(args.partner_id ?? "");
+      const partnerMine = await ownsCharacter(db, partner, who.id);
+      const partnerRun = r.ok && !partnerMine ? (await agentActivity(db, [partner])).get(partner) : undefined;
       return r.ok
         ? {
             data: {
               ...(partnerRun ? { other_side: partnerRun === HOUSE_BOT_LABEL ? `${partnerRun}: its lines come from a script, not a live agent.` : `their agent: ${partnerRun}` } : {}),
               step: r.step,
               how_long_tip: "autoplay_own_date has the show's model play the rest in one call (side: mine on a two-agent date).",
+              // #417: whether the other side is another agent or one of the show's own scripts.
+              ...activityFields(partnerRun, "their_agent"),
               // #214: say up front how long it is, and how to keep it light.
               // #361, #407: the length as planned (an agreed move adds lines), and who writes the recap.
               how_long:
@@ -2846,7 +2873,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               : {}),
           ...pageLink(r.couplePage, "#texts"),
           // #349: how recently their agent was around, so a wait can be judged.
-          ...(await agentActivity(db, [String(args.to)]).then((m) => (m.get(String(args.to)) ? { their_agent: m.get(String(args.to)) } : {}))),
+          ...(await agentActivity(db, [String(args.to)]).then((m) => activityFields(m.get(String(args.to)), "their_agent"))),
         },
         identity: who,
       };
@@ -2899,7 +2926,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const a = activity.get(c.id);
         const madeBy = (c as { made_by?: string }).made_by;
         const run_by = madeBy === "house" ? "house" : madeBy === "human" ? "person" : a === HOUSE_BOT_LABEL ? "house_bot" : "agent";
-        return { ...c, run_by, ...(a ? { agent_active: a } : {}) };
+        return { ...c, run_by, ...activityFields(a) };
       });
       // 2026-10-20 visitors: "tell me which cards are real agents". only: filters out the house-run bots (and the rest).
       const only = typeof args.only === "string" ? args.only : null;
@@ -2917,7 +2944,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(only ? { only, filtered_out: all.length - cards.length } : {}),
           cards,
           note: cards.length
-            ? "agent_active says when an agent-made character's agent was last around: a like back, a text or a date turn needs it online."
+            ? "agent_active says when an agent-made character's agent was last around: a like back, a text or a date turn needs it online. " +
+              "house_bot: true is one of the show's own scripts, not another agent: it likes back and replies automatically."
             : "Nobody new in the deck right now. Check back as characters join.",
         },
         identity: who,
@@ -2932,10 +2960,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await swipe(db, who.id, String(args.character_id ?? ""), String(args.target_id ?? ""), like);
       if (!r.ok) return { error: r.message };
       if (r.match) await scheduleMatchChat(db, r.match.lo, r.match.hi);
+      const target = String(args.target_id ?? "");
       return {
         data: {
           liked: r.liked,
           matched: r.match !== null,
+          ...(await agentActivity(db, [target]).then((m) => activityFields(m.get(target)))),
           ...(r.match
             ? {
                 match: r.match,
@@ -2981,7 +3011,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           character_id: args.character_id,
           matches: matches.map((m) => {
             const a = seen.get(m.with.id);
-            return a ? { ...m, their_agent: a, run_by: a === HOUSE_BOT_LABEL ? "house_bot" : "agent" } : m;
+            return a ? { ...m, ...activityFields(a, "their_agent"), run_by: a === HOUSE_BOT_LABEL ? "house_bot" : "agent" } : m;
           }),
         },
         identity: who,
@@ -3411,6 +3441,43 @@ async function readResource(uri: string, db: Db, base?: string): Promise<{ mimeT
 
 type RpcMessage = { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> };
 
+/**
+ * The tools/list result, also what GET /api/mcp?tools=all answers (#412). After dark's tools are listed only to the admin's
+ * own agents (lib/adult/mcp.ts); request_after_dark too, until After Dark opens to people (2026-10-19: directories read
+ * the list). Anyone can still call it by name.
+ */
+export function toolsListResult(params: Record<string, unknown> | undefined, ctx: McpContext = {}): Record<string, unknown> {
+  const admin = mcpAdmin(ctx);
+  // Every public tool by default again (2026-10-20: three rounds of visitors marked down "hidden tools" while results
+  // named them); ?tools=core (or params { core: true }) is the short list for a client that wants it.
+  const core = ctx.toolset === "core" || params?.core === true;
+  const tools = admin ? [...MCP_TOOLS, ...ADULT_TOOLS] : core ? CORE_MCP_TOOLS : PUBLIC_MCP_TOOLS;
+  // #373: lean: true lists each tool's name and first sentence only (the full schemas stay the default).
+  // #376: names: [...] returns just those tools in full: any tool that can be called, listed or not.
+  const names = Array.isArray(params?.names) ? (params.names as unknown[]).map(String) : null;
+  if (names) return { tools: (admin ? tools : MCP_TOOLS).filter((t) => names.includes(t.name)) };
+  // #447: the core list says it's part of the list, and names the rest (clients that don't show the instructions miss it).
+  const more = tools === CORE_MCP_TOOLS ? { more_tools: MORE_TOOLS } : {};
+  if (params?.lean === true) {
+    return {
+      tools: tools.map((t) => ({
+        name: t.name,
+        description: String(t.description).split(/(?<=\.)\s/)[0],
+        required: ((t.inputSchema as { required?: string[] }).required ?? []),
+        // #381: every argument with its type (enums as their values), still without the long descriptions.
+        args: Object.fromEntries(
+          Object.entries(((t.inputSchema as { properties?: Record<string, { type?: string; enum?: unknown[] }> }).properties ?? {})).map(([k, v]) => [
+            k,
+            Array.isArray(v.enum) ? v.enum.join("|") : (v.type ?? "any"),
+          ]),
+        ),
+      })),
+      ...more,
+    };
+  }
+  return { tools, ...more };
+}
+
 /** Handle one JSON-RPC message. Returns the response, or null for a notification (no id). */
 export async function handleMcpMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Record<string, unknown> | null> {
   const out = await handleMessage(msg, ctx);
@@ -3485,36 +3552,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
     case "ping":
       return reply({});
     case "tools/list":
-      // After dark's tools are listed only to the admin's own agents (lib/adult/mcp.ts); request_after_dark too, until
-      // After Dark opens to people (2026-10-19: directories read the list). Anyone can still call it by name.
-    {
-      const admin = mcpAdmin(ctx);
-      // Every public tool by default again (2026-10-20: three rounds of visitors marked down "hidden tools" while results
-      // named them); ?tools=core (or params { core: true }) is the short list for a client that wants it.
-      const core = ctx.toolset === "core" || msg.params?.core === true;
-      const tools = admin ? [...MCP_TOOLS, ...ADULT_TOOLS] : core ? CORE_MCP_TOOLS : PUBLIC_MCP_TOOLS;
-      // #373: lean: true lists each tool's name and first sentence only (the full schemas stay the default).
-      // #376: names: [...] returns just those tools in full: any tool that can be called, listed or not.
-      const names = Array.isArray(msg.params?.names) ? (msg.params.names as unknown[]).map(String) : null;
-      if (names) return reply({ tools: (admin ? tools : MCP_TOOLS).filter((t) => names.includes(t.name)) });
-      if (msg.params?.lean === true) {
-        return reply({
-          tools: tools.map((t) => ({
-            name: t.name,
-            description: String(t.description).split(/(?<=\.)\s/)[0],
-            required: ((t.inputSchema as { required?: string[] }).required ?? []),
-            // #381: every argument with its type (enums as their values), still without the long descriptions.
-            args: Object.fromEntries(
-              Object.entries(((t.inputSchema as { properties?: Record<string, { type?: string; enum?: unknown[] }> }).properties ?? {})).map(([k, v]) => [
-                k,
-                Array.isArray(v.enum) ? v.enum.join("|") : (v.type ?? "any"),
-              ]),
-            ),
-          })),
-        });
-      }
-      return reply({ tools });
-    }
+      return reply(toolsListResult(msg.params, ctx));
     case "resources/list":
       return reply({ resources: MCP_RESOURCES });
     case "resources/templates/list":

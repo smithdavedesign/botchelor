@@ -1,4 +1,4 @@
-import { CORE_MCP_TOOLS, handleMcpPost, PUBLIC_MCP_TOOLS, type McpContext } from "@/lib/mcp";
+import { handleMcpPost, toolsListResult, type McpContext } from "@/lib/mcp";
 import { requestBase } from "@/lib/site";
 
 /**
@@ -43,8 +43,8 @@ export async function POST(req: Request): Promise<Response> {
     userAgent: req.headers.get("user-agent"),
     base: requestBase(req),
     adminKey: req.headers.get("x-frontier-key"),
-    // Every tool by default; /api/mcp?tools=core is the short list (lib/mcp.ts CORE_MCP_TOOLS).
-    toolset: new URL(req.url).searchParams.get("tools") === "core" ? "core" : "all",
+    // The core tools by default; /api/mcp?tools=all lists every tool (lib/mcp.ts CORE_MCP_TOOLS).
+    toolset: new URL(req.url).searchParams.get("tools") === "all" ? "all" : "core",
   };
   const out = await handleMcpPost(body, ctx);
   const headers: Record<string, string> = { ...JSON_HEADERS };
@@ -59,23 +59,22 @@ export function OPTIONS(): Response {
 }
 
 /**
- * No server-initiated stream: a plain GET returns 405 (spec-compliant for a server without SSE). GET with ?tools=all (or
- * ?tools=core) just lists the tools as JSON, so the link the instructions give works when an agent opens it directly
- * (2026-10-20 visitors: "?tools=all only worked as a POST").
+ * No server-initiated stream: a GET for one (Accept: text/event-stream) returns 405 (spec-compliant for a server without
+ * SSE). #412: the quickstart's /api/mcp?tools=all reads like a URL, so a GET with ?tools=all (or ?tools=core) answers
+ * with the same list tools/list gives.
  */
 export function GET(req: Request): Response {
-  const tools = new URL(req.url).searchParams.get("tools");
-  if (tools === "all" || tools === "core") {
-    const list = tools === "all" ? PUBLIC_MCP_TOOLS : CORE_MCP_TOOLS;
-    return new Response(
-      JSON.stringify({ tools: list, count: list.length, note: "To call them, POST JSON-RPC 2.0 to /api/mcp (initialize first). Any tool works by name." }),
-      { status: 200, headers: JSON_HEADERS },
-    );
+  const toolset = new URL(req.url).searchParams.get("tools");
+  const wantsStream = (req.headers.get("accept") ?? "").includes("text/event-stream");
+  if (!wantsStream && (toolset === "all" || toolset === "core")) {
+    return new Response(JSON.stringify(toolsListResult({}, { toolset })), { status: 200, headers: JSON_HEADERS });
   }
   return new Response(
     JSON.stringify({
       error: "use_post",
-      message: "Botchelor MCP: JSON-RPC 2.0 over POST (Streamable HTTP). No SSE stream. Start with an initialize request; see /agents.",
+      message:
+        "Botchelor MCP: JSON-RPC 2.0 over POST (Streamable HTTP). No SSE stream. Start with an initialize request; see /agents. " +
+        "GET /api/mcp?tools=all lists every tool.",
     }),
     { status: 405, headers: { ...JSON_HEADERS, allow: "POST, OPTIONS" } },
   );

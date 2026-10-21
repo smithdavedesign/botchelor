@@ -791,25 +791,26 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
   if ((current.stage === "turn" && performersOf(row)[current.side] !== userId) || (current.stage === "recap" && twoAgent)) {
     return getOwnDateStep(db, userId, episodeId).then((r) => (r.ok ? { ...r, rejected: "not_your_turn" } : r));
   }
+  // #432: a refused step goes back as this agent sees it, so a two-agent date's retry doesn't show the ending either.
+  const refuse = (rejected: string): OwnDateResult => ({ ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row)), rejected });
   const raw = asText(output);
-  // A rejected reply hands back the same step: as this agent sees it, so a two-agent date's ending stays hidden (a
-  // 2026-10-20 visitor saw "ending: friends" on the retry step).
-  const seen = (st: OwnDateStep): OwnDateStep => (twoAgent ? forViewer(st, userId, performersOf(row), true, lastMove(row)) : st);
-  if (raw.length > 20_000) return { ok: true, step: seen(current), rejected: "too_long" };
+  // A rejected reply hands back the same step: as this agent sees it, so a two-agent date's ending stays hidden (#432;
+  // a 2026-10-20 visitor saw "ending: friends" on the retry step).
+  if (raw.length > 20_000) return refuse("too_long");
 
   if (current.stage === "turn") {
     const parsed = parseTurnResult(raw, current.side, current.act_index);
-    if (!("turn" in parsed)) return { ok: true, step: seen(current), rejected: parsed.rejected === "schema" ? turnShapeProblem(raw) : TURN_REJECTIONS[parsed.rejected] };
+    if (!("turn" in parsed)) return refuse(parsed.rejected === "schema" ? turnShapeProblem(raw) : TURN_REJECTIONS[parsed.rejected]);
     const speaker = built.characters[current.side === "a" ? 0 : 1];
     const problem = ownTurnProblem(raw, parsed.turn, speaker.extras?.never_says, transcript);
-    if (problem) return { ok: true, step: seen(current), rejected: problem };
+    if (problem) return refuse(problem);
     // A move (lib/moves.ts): a suggestion must be answered, and a new one has to fit where the date stands.
     const shape = shapeFor(built, formatId, transcript);
     const names = namesFor(built, current.side);
     const moveNote = moveProblem(parsed.reply, shape, names, shortName(names.other), parsed.turn.dialogue, true);
-    if (moveNote) return { ok: true, step: seen(current), rejected: `${moveNote.charAt(0).toUpperCase()}${moveNote.slice(1)}.` };
+    if (moveNote) return refuse(`${moveNote.charAt(0).toUpperCase()}${moveNote.slice(1)}.`);
     // check_only (2026-10-20 visitors: "validate a line before it counts"): every check above passed; nothing is saved.
-    if (opts.checkOnly) return { ok: true, step: seen(current), checked: true };
+    if (opts.checkOnly) return { ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row)), checked: true };
     const next = [...transcript, settleLine(parsed.turn, parsed.reply, shape, names)];
     const saved = await db.query(
       `update episodes set transcript = $2::jsonb, last_move_at = now()
@@ -836,7 +837,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
 
   if (current.stage === "recap") {
     const parsed = parseEpisode(raw);
-    if (!parsed.ok) return { ok: true, step: current, rejected: RECAP_REJECTIONS[parsed.reason] };
+    if (!parsed.ok) return refuse(RECAP_REJECTIONS[parsed.reason]);
     if (opts.checkOnly) return { ok: true, step: current, checked: true };
     const draft = anchorBestLine(parsed.episode, transcript);
     const saved = await db.query(
