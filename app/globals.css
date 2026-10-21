@@ -5379,6 +5379,22 @@ a.phone-head-btn {
 .ad-theater-bar input::placeholder {
   color: #b7a8d3;
 }
+/* Nudge or Direct, beside the theater's steer (the page's form has the same choice). */
+.ad-steer-mode {
+  display: inline-flex;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: #f1e9ff;
+}
+.ad-steer-mode label {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+.ad-steer-mode input {
+  flex: none;
+  accent-color: #c9a2ff;
+}
 .ad-theater-note {
   flex-basis: 100%;
   margin: 0;

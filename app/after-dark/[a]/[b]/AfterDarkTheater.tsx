@@ -42,6 +42,7 @@ const lastOf = (turns: Turn[], side: "a" | "b") => {
  * After Dark's theater (David, 2026-10-18: "more immersive"): the show's stage, full screen, the two of them in the
  * place the scene has got to, line by line, with the steer and "Next" inside it, so the scene carries on without
  * leaving. Opens on the latest lines; ↻ plays it from the top. A saved night (no onWrite) plays back from the top.
+ * The steer has the page's Nudge/Direct choice too (David, 2026-10-21: no direct way to steer from the theater).
  */
 export default function AfterDarkTheater({
   scene,
@@ -49,6 +50,8 @@ export default function AfterDarkTheater({
   busy = false,
   note = null,
   onWrite,
+  steerMode = "nudge",
+  onSteerMode,
   onSetScene,
   onMakeVideo,
   videoTokens = 15,
@@ -61,6 +64,9 @@ export default function AfterDarkTheater({
   note?: string | null;
   /** Writes the next lines; without it, this is a saved night's playback. */
   onWrite?: (direction: string) => Promise<void>;
+  /** How strongly a steer is taken: worked toward (nudge) or done now (direct). Shared with the page's form. */
+  steerMode?: "nudge" | "direct";
+  onSteerMode?: (mode: "nudge" | "direct") => void;
   /** Set the scene: take them anywhere (1 token). */
   onSetScene?: (place: string) => Promise<void>;
   /** The full-night video (lib/adult/reels.ts): the whole conversation, in their voices, for `videoTokens`. */
@@ -193,6 +199,16 @@ export default function AfterDarkTheater({
             placeholder="Steer it (optional)…"
             disabled={busy}
           />
+          {onSteerMode && (
+            <span className="ad-steer-mode" role="radiogroup" aria-label="How strongly">
+              <label title="Worked toward at the scene's own pace">
+                <input type="radio" name="theater-steer-mode" checked={steerMode === "nudge"} onChange={() => onSteerMode("nudge")} /> Nudge
+              </label>
+              <label title="Done now: it can skip ahead">
+                <input type="radio" name="theater-steer-mode" checked={steerMode === "direct"} onChange={() => onSteerMode("direct")} /> Direct
+              </label>
+            </span>
+          )}
           <button type="submit" className="primary" disabled={busy || !caughtUp}>
             {busy ? "Writing…" : caughtUp ? "Next" : "Playing…"}
           </button>
