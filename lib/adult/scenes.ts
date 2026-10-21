@@ -28,11 +28,15 @@ export { SOFT_CHAPTERS } from "./stages";
  * line"), written in the same model call: why this character says or does this now, and the memory it draws on. They're
  * stored with the line, read only by an admin (sceneNotes, /api/admin/after-dark/why) and the observer, and never sent
  * to the theater or the player (publicLines). `moved_to` marks the line that agreed to go somewhere (lib/adult/continuity.ts).
+ * `stage` is how far it had gone when the line was written (STAGES index), so the theater's label follows the line on
+ * screen, not the night's latest (David, 2026-10-21: it "starts with 'sex' and that is definitely not happening").
+ * Lines written before 2026-10-21 have none.
  */
-export type SceneLine = { who: "a" | "b"; text: string; why?: string; memory?: string | null; moved_to?: string };
+export type SceneLine = { who: "a" | "b"; text: string; why?: string; memory?: string | null; moved_to?: string; stage?: number };
 
 /** The lines as the page and the player get them: who and what, never the private notes. */
-export const publicLines = (lines: readonly SceneLine[]): SceneLine[] => lines.map((l) => ({ who: l.who, text: l.text }));
+export const publicLines = (lines: readonly SceneLine[]): SceneLine[] =>
+  lines.map((l) => ({ who: l.who, text: l.text, ...(typeof l.stage === "number" ? { stage: l.stage } : {}) }));
 export type AdultScene = {
   id: string;
   lines: SceneLine[];
@@ -565,10 +569,11 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   }
   if (settled.rejected) moves.push({ chapter: scene.chapter, at: scene.lines.length, from: scene.set_place ?? scene.place, to: settled.rejected.to, taken: false, reason: settled.rejected.reason });
   if (!place_history.length && (place || set_place)) place_history = [{ place: place ?? set_place!, set: set_place, home: null, chapter: scene.chapter }];
-  const lines = [...scene.lines, ...kept];
   // Unsteered, the stage moves at most one step, and only once the current one has had its lines; a steer can jump.
   const allowed = steer && steerMode === "direct" ? STAGES.length - 1 : scene.lines.length - scene.stage_from >= MIN_LINES_PER_STAGE ? scene.stage + 1 : scene.stage;
   const stage = Math.min(meta.stage ?? scene.stage, allowed);
+  // Each new line carries the stage these lines reached, for the theater's label.
+  const lines = [...scene.lines, ...kept.map((l) => ({ ...l, stage }))];
   const stage_from = stage === scene.stage ? scene.stage_from : scene.lines.length;
   await db.query(
     `update adult_scenes set lines = $2::jsonb, place = $3, stage = $4, stage_from = $5, set_place = $6, cut_to = null, place_history = $7::jsonb, moves = $8::jsonb, updated_at = now() where id = $1`,

@@ -415,6 +415,21 @@ describe("the scene prompt", () => {
     expect(msgs[0].content).toMatch(/still at a cafe\. They don't leave in these first lines/);
   });
 
+  it("stamps each line with the stage it was written at, and the page gets it (David, 2026-10-21: the label said 'sex' at hello)", async () => {
+    const { cookie } = await admin();
+    const six = (stage: number) => JSON.stringify({ lines: Array.from({ length: 6 }, (_, i) => ({ who: i % 2 ? "b" : "a", text: `Stamp line ${stage}-${i}.` })), place: "the cafe", stage });
+    const step = async (stage: number, direction?: string) => {
+      scripted(six(stage));
+      return (await (await post({ a: CAST_A, b: CAST_B, ...(direction ? { direction, steer_mode: "direct" } : {}) }, cookie)).json()).scene;
+    };
+    await step(1);
+    const scene = await step(5, "They go straight back to hers and into bed.");
+    expect(scene.lines.slice(0, 6).every((l: { stage?: number }) => l.stage === 0)).toBe(true);
+    expect(scene.lines.slice(6).every((l: { stage?: number }) => l.stage === 4)).toBe(true);
+    // Still no private notes on the page.
+    expect(scene.lines.every((l: Record<string, unknown>) => !("why" in l) && !("memory" in l))).toBe(true);
+  });
+
   it("files the scene as a saved night on Start over, to play back; only its owner sees it", async () => {
     const { id, cookie } = await admin();
     scripted(JSON.stringify({ lines: [{ who: "a", action: "leans in", text: "Hi." }, { who: "b", text: "Hello." }], place: "the bar", stage: 1 }));

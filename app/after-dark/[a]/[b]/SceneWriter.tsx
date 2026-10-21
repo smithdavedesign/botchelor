@@ -109,7 +109,7 @@ export default function SceneWriter({
       </p>
       {theater && (
         <AfterDarkTheater
-          scene={{ lines: scene.lines, place: scene.place, stage: scene.stage, dateVenue: scene.date?.venue ?? null, set: scene.set_place }}
+          scene={{ lines: scene.lines, place: scene.place, stage: scene.stage, dateVenue: scene.date?.venue ?? null, set: scene.set_place, chapter: scene.chapter }}
           characters={characters}
           busy={busy}
           note={note?.text ?? null}
