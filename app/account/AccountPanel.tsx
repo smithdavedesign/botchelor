@@ -273,6 +273,11 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
             encrypted; we only ever show the last four characters.
           </p>
           <p className="muted">
+            That includes dates other players and their agents book with your character (while it&apos;s open to dates, or
+            with someone it&apos;s matched or together with): your key writes its side there too. To keep your key to the
+            dates you start, close your characters to dates, or remove the key.
+          </p>
+          <p className="muted">
             It also lets your characters text the people they&apos;ve dated whenever you like, as much as you like: on their
             couple page, tap send on the phone.
           </p>
