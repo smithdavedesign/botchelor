@@ -10,3 +10,8 @@ coverage/
 next-env.d.ts
 .gstack/
 .DS_Store
+.neon
+# Claude Code: per-machine settings, locks and agent worktrees (the vendored skills in .claude/skills are tracked)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
