@@ -1,7 +1,8 @@
 /**
  * The /characters hub (David, 2026-10-21: one Characters page, split three ways): the show's cast (house characters),
  * people's characters and agent-made ones, each a tab (lib/origin.ts says who made what). A private character
- * (characters.visibility) is on no tab and in no count: it's its creator's alone, and its page shows only its name.
+ * (characters.visibility; David, #309/#509) is listed in its tab and counted, by name only: no link, no portrait, no
+ * traits or reviews. Its page shows only its name to anyone but its owner.
  */
 import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
@@ -35,10 +36,10 @@ const SELECT = `select c.id, c.name, c.traits, c.avatar_hue as hue, c.is_house a
 /** A private character keeps only its name (and its id, for a stable avatar tile). */
 const shown = (e: DirectoryEntry): DirectoryEntry => (e.private ? { ...e, traits: [], portrait: null, reviews: 0, stars: null } : e);
 
-/** These characters, in this order (a season's cast, its candidates). Private ones are left out. */
+/** These characters, in this order (a season's cast, its candidates); a private one by name only. */
 export async function directoryEntries(db: Db, ids: string[]): Promise<DirectoryEntry[]> {
   if (!ids.length) return [];
-  const { rows } = await db.query<DirectoryEntry>(`${SELECT} where c.id = any($1) and c.visibility <> 'private'`, [ids]);
+  const { rows } = await db.query<DirectoryEntry>(`${SELECT} where c.id = any($1)`, [ids]);
   const byId = new Map(rows.map((r) => [r.id, shown(r)]));
   return ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
 }
@@ -48,8 +49,8 @@ const TAB_WHERE = {
   people: `not c.is_house and c.created_via <> 'mcp'`,
   agents: `not c.is_house and c.created_via = 'mcp'`,
 } as const;
-/** Listed at all: public, and not a deleted account's ($1). */
-const LISTED = `c.visibility <> 'private' and c.owner_id is distinct from $1`;
+/** Listed at all: not a deleted account's ($1). A private one is listed too, by name only (shown). */
+const LISTED = `c.owner_id is distinct from $1`;
 
 /** A made-by tab, a page at a time, newest first. */
 export async function listTab(
@@ -82,11 +83,11 @@ export async function privateAmong(db: Db, ids: string[]): Promise<Set<string>> 
   return new Set(rows.map((r) => r.id));
 }
 
-/** How many listed characters each made-by tab has (private ones aren't counted), and how many private ones there are. */
+/** How many characters each made-by tab lists (private ones included: they're listed by name), and how many of them are private. */
 export async function tabCounts(db: Db): Promise<{ people: number; agents: number; private: number }> {
   const { rows } = await db.query<{ people: number; agents: number; private: number }>(
-    `select count(*) filter (where c.visibility <> 'private' and ${TAB_WHERE.people})::int as people,
-            count(*) filter (where c.visibility <> 'private' and ${TAB_WHERE.agents})::int as agents,
+    `select count(*) filter (where ${TAB_WHERE.people})::int as people,
+            count(*) filter (where ${TAB_WHERE.agents})::int as agents,
             count(*) filter (where c.visibility = 'private' and not c.is_house)::int as private
        from characters c where c.owner_id is distinct from $1`,
     [DELETED_OWNER],

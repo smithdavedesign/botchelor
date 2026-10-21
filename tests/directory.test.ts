@@ -18,9 +18,9 @@ import { DIRECTORY_PAGE, directoryEntries, listTab, offSeasonHouse, tabCounts } 
 import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
 import { originsOf, parseTab, tabHref, tabOf } from "@/lib/origin";
 import { setSeasonCastForTests } from "@/lib/season-cast";
-import { api, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
+import { api, episodeJson, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
 
-// The /characters hub (lib/directory.ts, lib/origin.ts): the cast, people's characters, agent-made; private ones on no tab.
+// The /characters hub (lib/directory.ts, lib/origin.ts): the cast, people's characters, agent-made; a private one by name only.
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
   t = await startTestDb();
@@ -56,7 +56,7 @@ async function everyTab() {
 }
 
 describe("the Characters hub's tabs", () => {
-  it("files every character under exactly one tab by who made it, and a private one under none (nor its counts)", async () => {
+  it("files every character under exactly one tab by who made it, a private one by name only (and counted)", async () => {
     const person = await made("Open Book");
     const hidden = await made("Quiet Type");
     expect((await api.editCharacter(hidden.id, { visibility: "private" }, hidden.cookie)).status).toBe(200);
@@ -65,14 +65,15 @@ describe("the Characters hub's tabs", () => {
     const crowd = await agentMade("Cy Fenn", "crowd-agent-7"); // the loop arena's crowd looks like real agents on purpose
 
     const tabs = await everyTab();
-    expect(tabs.people).toEqual([person.id]);
+    expect(tabs.people).toEqual([hidden.id, person.id]);
+    const [named] = (await listTab(t.db, "people")).entries;
+    expect(named).toMatchObject({ id: hidden.id, name: "Quiet Type", private: true, traits: [], portrait: null, reviews: 0, stars: null });
     expect(tabs.agents).toEqual([crowd.id, agent.id, bot.id]); // the house-run bot after the real agents
     expect(tabs.cast).toEqual(expect.arrayContaining(ALL_HOUSE_CHARACTERS.map((c) => c.id)));
-    // A partition: nobody twice, everyone public once, the private one nowhere.
+    // A partition: nobody twice, everyone once.
     const all = [...tabs.cast, ...tabs.people, ...tabs.agents];
     expect(new Set(all).size).toBe(all.length);
-    expect(all).not.toContain(hidden.id);
-    expect(await tabCounts(t.db)).toEqual({ people: 1, agents: 3, private: 1 });
+    expect(await tabCounts(t.db)).toEqual({ people: 2, agents: 3, private: 1 });
 
     const origins = await originsOf(t.db, [person.id, agent.id, bot.id, crowd.id, HOUSE_CHARACTERS[0].id]);
     expect(Object.fromEntries(origins)).toEqual({ [person.id]: "person", [agent.id]: "agent", [bot.id]: "house_bot", [crowd.id]: "agent", [HOUSE_CHARACTERS[0].id]: "cast" });
@@ -101,7 +102,7 @@ describe("the Characters hub's tabs", () => {
     const cast = await render();
     expect(cast).toMatch(/<h1>Characters<\/h1>/);
     expect(cast).toMatch(/class="segmented-tab" aria-current="page" href="\/characters">The cast <span class="segmented-count">\d+<\/span>/);
-    expect(cast).toContain(`class="segmented-tab" href="/characters?tab=people">People&#x27;s characters <span class="segmented-count">1</span>`);
+    expect(cast).toContain(`class="segmented-tab" href="/characters?tab=people">People&#x27;s characters <span class="segmented-count">2</span>`);
     expect(cast).toContain(`class="segmented-tab" href="/characters?tab=agents">Agent-made <span class="segmented-count">2</span>`);
     expect(cast).toMatch(/This season: /);
     expect(cast).toMatch(/Next season&#x27;s candidates: /);
@@ -123,10 +124,13 @@ describe("the Characters hub's tabs", () => {
     expect(agents).toContain(`/characters/${bot.id}`);
     expect(agents).toContain(">House-run bot</span>");
 
-    for (const html of [cast, people, agents]) {
-      expect(html).not.toContain("Quiet Type");
-      expect(html).not.toContain(hidden.id);
-    }
+    // The private one: its name in its own tab, never linked, no traits; nowhere else.
+    expect(people).toMatch(/<span class="directory-private"><strong>Quiet Type<\/strong>/);
+    expect(people).toMatch(/Private: their creator keeps them to themselves/);
+    expect(people).not.toContain(`/characters/${hidden.id}`);
+    const card = people.slice(people.lastIndexOf("<li", people.indexOf("directory-private")), people.indexOf("</li>", people.indexOf("directory-private")));
+    expect(card).not.toMatch(/<img|class="chip"|badge/); // no portrait, no traits, no badges
+    for (const html of [cast, agents]) expect(html).not.toContain("Quiet Type");
   });
 
   it("pages a long tab at 24, newest first", async () => {
@@ -156,6 +160,28 @@ describe("the Characters hub's tabs", () => {
     expect(html).toContain(`class="segmented-tab" aria-current="page" href="/characters">The cast <span class="segmented-count">2</span>`);
     expect(html).toMatch(/<summary>Off this season \(\d+\)<\/summary>/);
     expect(html).toContain(`/characters/${HOUSE_CHARACTERS[2].id}`);
+  });
+});
+
+describe("the cast tab's leaderboard and relationship graph", () => {
+  it("show a private character by name only: never linked, no portrait, nothing about the couple's dates", async () => {
+    const hidden = await made("Quiet Type");
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    const res = await api.createEpisode({ character_id: hidden.id, partner_id: HOUSE_CHARACTERS[0].id }, hidden.cookie);
+    expect(res.status).toBe(200);
+    expect((await api.reveal((await res.json()).id, hidden.cookie)).status).toBeLessThan(300);
+    await t.db.query(`insert into character_ratings (rater_id, character_id, category) values ('fan-1', $1, 'likable')`, [hidden.id]);
+    const before = await render();
+    expect(before).toContain(`/characters/${hidden.id}"`); // public: linked on the board and in the graph
+    expect(before).toMatch(/\/couples\//);
+
+    await api.editCharacter(hidden.id, { visibility: "private" }, hidden.cookie);
+    const html = await render();
+    expect(html).toMatch(/<span class="directory-private"><strong>Quiet Type<\/strong>/);
+    expect(html).not.toContain(`/characters/${hidden.id}`);
+    expect(html).not.toMatch(/\/couples\/[^"]*/);
+    expect(html.match(/Quiet Type/g)?.length).toBeGreaterThanOrEqual(2); // the board and the graph, by name
   });
 });
 

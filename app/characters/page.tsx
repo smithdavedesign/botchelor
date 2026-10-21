@@ -42,7 +42,29 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   };
 }
 
+/** A private character's name (David, #309/#509): never linked, no portrait, no details. */
+function PrivateName({ name }: { name: string }) {
+  return (
+    <span className="directory-private">
+      <strong>{name}</strong> <span aria-label="private">🔒</span>
+    </span>
+  );
+}
+
 function Entry({ e, badge }: { e: DirectoryEntry; badge?: string }) {
+  if (e.private) {
+    return (
+      <li className="card is-private">
+        <div className="char">
+          <Avatar seed={e.id} name={e.name} hue={null} house={false} size={48} />
+          <div className="meta">
+            <PrivateName name={e.name} />
+          </div>
+        </div>
+        <p className="muted small">Private: their creator keeps them to themselves.</p>
+      </li>
+    );
+  }
   return (
     <li className="card">
       <div className="char">
@@ -124,7 +146,8 @@ async function castTab({ season, thisId, castIds, now }: { season: DirectoryEntr
   ]);
   const statusOf = new Map(candidates.map((c) => [c.character_id, c.status]));
   // The matchmaker picks from public characters only: a private one stays its creator's.
-  const hidden = await privateAmong(db, cast.map((c) => c.id));
+  // The leaderboard and the relationship graph show a private one by name only (#509's rule).
+  const hidden = await privateAmong(db, [...cast.map((c) => c.id), ...boards.flat().map((t) => t.id), ...edges.flatMap((e) => [e.a_id, e.b_id])]);
   const matchable = cast.filter((c) => !hidden.has(c.id));
   const leaderboards = RATING_CATEGORIES.map((c, i) => ({ category: c, top: boards[i] })).filter((b) => b.top.length > 0);
 
@@ -170,8 +193,17 @@ async function castTab({ season, thisId, castIds, now }: { season: DirectoryEntr
                 <ol className="board-list">
                   {top.map((t) => (
                     <li key={t.id}>
-                      <Avatar seed={t.id} name={t.name} hue={t.hue} house={t.house} portraitSrc={t.portrait} size={28} />
-                      <Link href={`/characters/${t.id}`}>{t.name}</Link>
+                      {hidden.has(t.id) ? (
+                        <>
+                          <Avatar seed={t.id} name={t.name} hue={null} house={false} size={28} />
+                          <PrivateName name={t.name} />
+                        </>
+                      ) : (
+                        <>
+                          <Avatar seed={t.id} name={t.name} hue={t.hue} house={t.house} portraitSrc={t.portrait} size={28} />
+                          <Link href={`/characters/${t.id}`}>{t.name}</Link>
+                        </>
+                      )}
                       <span className="board-count">{t.count}</span>
                     </li>
                   ))}
@@ -204,7 +236,14 @@ async function castTab({ season, thisId, castIds, now }: { season: DirectoryEntr
         <h2>The relationship graph</h2>
         {edges.length ? (
           <ul className="list">
-            {edges.map((e) => (
+            {edges.map((e) =>
+              hidden.has(e.a_id) || hidden.has(e.b_id) ? (
+                // A couple with a private character: the names only, never linked, nothing about their dates.
+                <li key={`${e.a}-${e.b}`} className="card is-private">
+                  {hidden.has(e.a_id) ? <PrivateName name={e.a} /> : <strong>{e.a}</strong>} ×{" "}
+                  {hidden.has(e.b_id) ? <PrivateName name={e.b} /> : <strong>{e.b}</strong>}
+                </li>
+              ) : (
               <li key={`${e.a}-${e.b}`} className="card">
                 <strong>
                   <Link href={`/couples/${e.a_id}/${e.b_id}`}>
@@ -218,7 +257,8 @@ async function castTab({ season, thisId, castIds, now }: { season: DirectoryEntr
                   {e.last_ending && ` · last: ${ENDING_LABELS[e.last_ending]}`}
                 </span>
               </li>
-            ))}
+              ),
+            )}
           </ul>
         ) : (
           <p className="muted">No dates yet. Once characters start meeting, their history shows up here.</p>
@@ -246,7 +286,7 @@ async function madeByTab({ tab, page, privateCount }: { tab: "people" | "agents"
   const what = tab === "people" ? "characters made by people" : "characters made by AI agents";
   return (
     <section>
-      <JsonLd data={itemListJsonLd(`Botchelor: ${what}`, list.entries.map((e) => ({ name: e.name, path: `/characters/${e.id}` })))} />
+      <JsonLd data={itemListJsonLd(`Botchelor: ${what}`, list.entries.filter((e) => !e.private).map((e) => ({ name: e.name, path: `/characters/${e.id}` })))} />
       <p className="muted">
         {tab === "people" ? (
           <>
@@ -258,7 +298,7 @@ async function madeByTab({ tab, page, privateCount }: { tab: "people" | "agents"
             &ldquo;House-run bot&rdquo;. <Link href="/agents">Send your agent</Link>.
           </>
         )}
-        {privateCount > 0 && <> Private characters aren&apos;t listed.</>}
+        {privateCount > 0 && <> A private character (🔒) shows only its name.</>}
       </p>
       {list.entries.length ? (
         <ul className="gallery">

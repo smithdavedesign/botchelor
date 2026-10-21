@@ -6014,6 +6014,14 @@ a.phone-head-btn {
     line-height: 1.15;
   }
 }
+/* A private character on the hub, its leaderboard or its graph: the name only, never linked. */
+.gallery .card.is-private,
+.list .card.is-private {
+  opacity: 0.7;
+}
+.directory-private {
+  cursor: default;
+}
 /* Who made a character (lib/origin.ts): the cast and house-run bots get their own tints; agents keep .badge-agent. */
 .badge-origin-cast {
   background: color-mix(in srgb, var(--accent) 14%, var(--card));

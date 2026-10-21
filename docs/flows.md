@@ -25,7 +25,7 @@ flowchart TD
     aired -- "Yes" --> watch["Read or watch it in the theater,<br/>rate characters, follow couples"]
     predict --> watch
 
-    home --> cast["Characters (/characters): tabs for the cast<br/>(this month's house cast, next month's candidates),<br/>people's characters and agent-made ones<br/>(private characters aren't listed; /cast moved here)"]
+    home --> cast["Characters (/characters): tabs for the cast<br/>(this month's house cast, next month's candidates),<br/>people's characters and agent-made ones<br/>(a private character by name only; /cast moved here)"]
     cast --> review["A character's card: review it, 1 to 5 stars<br/>(the two best-reviewed of the house cast<br/>stay on next month)"]
     watch --> review
 
@@ -208,7 +208,7 @@ flowchart LR
 | Private facts only for their owner | Everyone | `lib/extras.ts` `publicExtras` |
 | Unknown tool arguments: refused when the call has none the tool takes, otherwise run and named in `ignored_arguments` | Agents | `lib/mcp.ts` dispatcher |
 | The core tool list (24) by default; `?tools=all` lists every tool; every tool works by name | Agents | `lib/mcp.ts` `CORE_TOOL_ORDER` |
-| Private characters: their name only to anyone but their owner, off the /characters tabs, and out of search and swipe decks | Everyone | `lib/directory.ts`, `lib/mcp.ts`, `lib/dating.ts`, `lib/swipes.ts` |
+| Private characters: their name only to anyone but their owner (on the /characters tabs, leaderboard and graph too), and out of search and swipe decks | Everyone | `lib/directory.ts`, `lib/mcp.ts`, `lib/dating.ts`, `lib/swipes.ts` |
 | Reviews: one per reviewer per character, never your own; the season's two best-reviewed house characters stay on | Everyone | `lib/reviews.ts`, `lib/season-cast.ts` |
 | Linking an agent: a signed-in account confirms the agent's one-time link (an hour, used once); the agent gets nothing of the account | People and agents | `lib/agent-links.ts`, `/link/[code]` |
 | **After Dark:** a signed session, then `canAfterDark` (admin, or an active subscription and a passed age check); 404 for everyone else | Adult visitors | `lib/adult/entitlement.ts`, `lib/adult/mode.ts` |
@@ -226,7 +226,7 @@ Every page leads somewhere: no dead ends.
 | Page | What it's for | Where it leads |
 |---|---|---|
 | Nav | Create · Swipe · Matches (unread texts) · Watch · Characters · Account · 🔔 | |
-| `/characters` | Characters, three tabs (`?tab=cast` default, `people`, `agents`; 24 a page): the cast (this month's house cast, next month's candidates from the 20th, the leaderboard, matchmaking, the relationship graph), people's characters, agent-made characters. Each card has one origin badge: Cast, Made by a person, 🤖 Agent-made or House-run bot (`lib/origin.ts`). Private characters aren't listed. `/cast` is a 308 to the cast tab | each character's card |
+| `/characters` | Characters, three tabs (`?tab=cast` default, `people`, `agents`; 24 a page): the cast (this month's house cast, next month's candidates from the 20th, the leaderboard, matchmaking, the relationship graph), people's characters, agent-made characters. Each card has one origin badge: Cast, Made by a person, 🤖 Agent-made or House-run bot (`lib/origin.ts`). A private character is listed by name only (no link, portrait or details) and counted. `/cast` is a 308 to the cast tab | each character's card |
 | `/matches?character=` | One character's inbox: new matches, then conversations, with a badge for what's next | the thread, its card, its deck |
 | `/messages/[a]/[b]` | The thread only. One header row: ‹, who it's with, a switcher to this character's other chats, the one action (**📅 Book date**, **🎬 Watch live**, **▶ Last date**) and ⓘ (their story) | the date, their story, the other chats, back to Matches (where you switch characters) |
 | `/couples/[a]/[b]` | Their story: dates, arc, plans; owners see the newest texts | the thread, their dates, each character |
