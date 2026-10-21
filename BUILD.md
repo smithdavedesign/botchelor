@@ -74,11 +74,12 @@ npm run typecheck
 | `npm run sim:visitors` | The self-improving loop now: uninstructed agents explore a local copy, then triage (`LOOP_FIX=1` adds the fixer) |
 | `npm run screenshots` | Regenerates `docs/screenshots/` |
 
-**CI** (`.github/workflows/ci.yml`: typecheck and `npm test` on every PR and push to main) is paused: the GitHub
-account used its 2,000 free Actions minutes on 2026-10-19 and they come back about 2026-11-01. Until then every job
-fails in seconds, and PRs merge after `npx tsc --noEmit -p .` and the full `npx vitest run` pass locally on the branch
-merged with current main (say so on the PR). The MCP Registry publish is an Action too: run `mcp-publisher publish
-registry/server.json` by hand meanwhile ([docs/launch-kit.md](docs/launch-kit.md)).
+**CI** (`.github/workflows/ci.yml`: typecheck and `npm test`) runs by hand only (`gh workflow run ci.yml --ref
+<branch>`), since 2026-10-21: the repo is private, so every run spends the account's free Actions minutes, which
+RepoHQ needs. PRs merge after `npx tsc --noEmit -p .` and the full `npx vitest run` pass locally on the branch merged
+with current main (say so on the PR); the checks left on a PR are Vercel's build and GitGuardian. The MCP Registry
+publish is an Action too and still runs when `registry/server.json` changes on main (a few seconds); while the
+minutes are out, run `mcp-publisher publish registry/server.json` by hand ([docs/launch-kit.md](docs/launch-kit.md)).
 
 ## Deploy
 

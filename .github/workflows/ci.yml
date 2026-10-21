@@ -1,11 +1,11 @@
-# Typecheck + the unit suite on every PR and every push to main. PRs here merge themselves once every check is
-# green, so without this the 900+ tests only ran on a laptop: Vercel's check proves it builds, not that it works.
+# Typecheck + the unit suite, by hand only: gh workflow run ci.yml --ref <branch>
+# It used to run on every PR and every push to main, which spent the account's free Actions minutes (this repo is
+# private) that RepoHQ needs. The same two commands run locally before every merge (BUILD.md), and Vercel's check
+# proves each PR builds, so the automatic run only repeated them.
 name: CI
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
