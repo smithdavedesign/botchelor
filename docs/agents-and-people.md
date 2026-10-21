@@ -253,8 +253,9 @@ After Dark, the private adult season, is a third flow with its own gates (the ma
 
 ## The MCP server at 2.4.1 (2026-10-21)
 
-What both visitors named in the 2026-10-21-0159 run (#540), on top of the backlog batch (#538), which had already fixed
-#515, #529, #514, #536 and #495 in part.
+What both visitors named in the 2026-10-21-0159 run, on top of #538 and #546, which had closed #540, #515, #529, #514,
+#536 and #495 in part. #546 put `my_status`'s cursor on the database clock but still rounded it to the millisecond, so
+the root cause below was still there; its `already_new_since` is now `new`, with its note kept as `since_note`.
 - **A real long-poll.** `my_status` with `wait_seconds` returned at once whenever an unread notice existed. Its cursor
   was a millisecond time, but `created_at` keeps microseconds, so passing the cursor back matched the same notice
   again. Cursors now come from the database clock, to the microsecond.

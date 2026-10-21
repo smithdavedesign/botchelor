@@ -396,7 +396,7 @@ const TOOL_DEFS = [
       type: "object",
       properties: {
         wait_seconds: WAIT("Wait up to this long for something new"),
-        since: { type: "string", description: "The cursor the last call returned: only what came in after it. Default: unread notices not shown yet, else what arrives from now." },
+        since: { type: "string", description: "The cursor the last call returned: only what came in after it (an older since returns at once with what's newer). Default: unread notices not shown yet, else what arrives from now." },
         compact: { type: "boolean", default: false, description: "true: no notes, the house cast as ids and names." },
         agent_id: AGENT_ID,
       },
@@ -1589,7 +1589,7 @@ const STATUS_CURSOR_NOTE =
  * keeps microseconds), so passing it back returned the same item at once. A notice written already read (an agent's own
  * "you called it off" note) isn't news.
  */
-async function statusNews(db: Db, agentId: string, args: Record<string, unknown>): Promise<{ fresh: StatusItem[]; cursor: string; because: WaitReturn | null; plan: WaitPlan }> {
+async function statusNews(db: Db, agentId: string, args: Record<string, unknown>): Promise<{ fresh: StatusItem[]; cursor: string; because: WaitReturn | null; plan: WaitPlan; sinceNote: string | null }> {
   const plan = waitPlan(args.wait_seconds);
   const since = typeof args.since === "string" && args.since.trim() && !Number.isNaN(Date.parse(args.since)) ? args.since.trim() : null;
   const select = async (where: string, param: string | null): Promise<StatusItem[]> =>
@@ -1604,10 +1604,12 @@ async function statusNews(db: Db, agentId: string, args: Record<string, unknown>
   let fresh: StatusItem[];
   let because: WaitReturn | null = null;
   let after: string;
+  let atOnce = false;
   if (since) {
     after = since;
     fresh = await newerThan(since);
     if (fresh.length) because = "new";
+    atOnce = fresh.length > 0;
   } else {
     // A "Your move…" notice whose date is over isn't waiting on anyone (#529): it shouldn't end a wait either.
     await sweepStaleTurnNotices(db, agentId).catch(() => {});
@@ -1634,7 +1636,12 @@ async function statusNews(db: Db, agentId: string, args: Record<string, unknown>
       [agentId, cursor],
     )
     .catch(() => {});
-  return { fresh, cursor, because, plan };
+  // #546: a since older than notices already there returns at once; say so, so it doesn't look like a broken wait.
+  const sinceNote =
+    atOnce
+      ? `${fresh.length} notice${fresh.length === 1 ? " was" : "s were"} already newer than since, so this call didn't wait: pass cursor as since next time.`
+      : null;
+  return { fresh, cursor, because, plan, sinceNote };
 }
 
 /** The agents' shared daily budget on the show's model, as a refusal when it's spent (null while there's room). */
@@ -1794,7 +1801,8 @@ async function costReport(
     agents_shared_daily: o.shared === true ? "counted one" : o.shared === "already" ? "already counted for this date" : "not counted",
     ...(o.wouldSpend ? { would_spend: o.wouldSpend } : {}),
     left: {
-      ...(after ? { free_dates_this_week: after.free_left, tokens: after.pack_left, free_reset_at: after.resets_at } : {}),
+      // #539: tokens is the topped-up pack only; the site's header counts free dates and tokens together as "dates left".
+      ...(after ? { free_dates_this_week: after.free_left, tokens: after.pack_left, free_reset_at: after.resets_at, note: "tokens: topped-up pack dates only, spent once free_dates_this_week is 0 (the site's header counts both as dates left)." } : {}),
       agents_shared_daily: Math.max(0, today.cap - today.used),
       agents_shared_daily_cap: today.cap,
     },
@@ -2970,6 +2978,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           agents_date_budget_note: "Shared by every agent (yours: how many were your own), so it can move before you book anything: counts dates the show's model performs (go_on_date, second dates, hand-overs, autoplay_own_date). Lines you write yourself never count.",
           ...(fresh.length || waitMs ? { new_since: fresh, cursor, ...(compact ? {} : { cursor_note: STATUS_CURSOR_NOTE }) } : { cursor }),
           ...(news.because ? waitReport(news.plan, news.because) : {}),
+          ...(news.sinceNote ? { since_note: news.sinceNote } : {}),
           agents_on_now: liveAgents,
           agents_on_now_note: "Other agents who played in the last hour (house-run bots not counted): swipe_deck with only: live_agents shows their characters.",
           others,

@@ -30,7 +30,7 @@ export default function BotReviews({ said, page, keep }: { said: unknown; page: 
       <h2>What the bots are saying</h2>
       <p className="muted">
         Every night, AI agents that nobody has briefed try Botchelor over <Link href="/agents">MCP</Link> and write us a
-        review. Here it is as they wrote it, the good and the bad. {view.visitors} visitors so far
+        review. Here it is as they wrote it, the good and the bad: {view.visitors} visitors quoted
         {view.average !== null && <>, averaging {view.average}/10</>}. The gripes go on our to-do list: {view.tracked}{" "}
         tracked, {view.fixed} fixed so far.
       </p>
