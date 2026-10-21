@@ -15,10 +15,8 @@
 import type { Db } from "./db";
 import { MCP_TOOLS } from "./mcp";
 
-/** Client names and user agents of our own checks. Extend it when a new check starts talking to production. */
-export const OUR_TRAFFIC = /^(botchelor|live-|verify|curl|stats-check|smoke|agents-check|rounds-test|own-date-test|e2e)|\(Claude\)|botchelor-/i;
-export const isOurs = (client: string | null, userAgent: string | null): boolean =>
-  OUR_TRAFFIC.test(client ?? "") || OUR_TRAFFIC.test(userAgent ?? "");
+import { isOurs, OUR_TRAFFIC } from "./our-traffic";
+export { isOurs, OUR_TRAFFIC };
 
 /** Tools that change something: their annotations say so (lib/mcp.ts READ vs WRITE). */
 export const WRITE_TOOLS: ReadonlySet<string> = new Set(
