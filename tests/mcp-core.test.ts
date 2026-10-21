@@ -75,9 +75,10 @@ describe("the tool list: the core by default, everything on request", () => {
     // and sliding_doors joined the core, so the budget moved from 31 KB to 37 KB. 2026-10-21 (#423, #444, #461): the
     // tools replies kept sending agents to (my_matches, my_notifications, export_character, set_date_visibility, the
     // feedback board) joined too, and every tool says what it costs and returns: 46 KB. The #413–#515 batch (waits on
-    // my_notifications and plan_second_date, browse filters, batch steps, compact my_status) brought it to 48 KB, and 2.4.1
-    // (the one-partner rule on go_on_date/swipe/answer_match, why my_status's wait returned) a little more.
-    expect(JSON.stringify(core).length).toBeLessThan(49_000);
+    // my_notifications and plan_second_date, browse filters, batch steps, compact my_status) brought it to 48 KB, and
+    // the visibility rules on set_date_visibility (#543) to 49 KB, and 2.4.1 (the one-partner rule on go_on_date/swipe/answer_match,
+    // why a wait returned) to 49.6 KB.
+    expect(JSON.stringify(core).length).toBeLessThan(50_000);
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.76);
     expect((await rpc("tools/list", { all: true })).result.tools).toHaveLength(PUBLIC_MCP_TOOLS.length);
     expect((await rpc("tools/list", { lean: true, core: true })).result.tools).toHaveLength(CORE_MCP_TOOLS.length);

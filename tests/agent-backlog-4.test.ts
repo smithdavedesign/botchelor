@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { errorCode, handleMcpMessage, nearestTools, type McpContext } from "@/lib/mcp";
+import { errorCode, handleMcpMessage, MCP_TOOLS, nearestTools, type McpContext } from "@/lib/mcp";
 import { bestLine, standsAlone } from "@/lib/conversation";
 import { pairNames, suggestFreeNames } from "@/lib/names";
 import { scoreSheet } from "@/lib/originality";
@@ -639,5 +639,31 @@ describe("the 2026-10-21 runs (#517, #519, #520, #529, #534, #535, #536, #537)",
     const { ctx, id } = await agentWith("Ada Lumen");
     const preview = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, preview: true }, ctx)).structuredContent;
     expect(preview.cost.left).toMatchObject({ free_dates_this_week: 3, tokens: 0, note: expect.stringMatching(/topped-up pack dates only/) });
+  });
+
+  it("a short episode id resolves when one date starts with it, and says the full id is needed otherwise (#542)", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const booked = await houseDate(ctx, id);
+    const short = booked.episode.id.slice(0, 8);
+    const r = (await call("get_episode", { episode_id: short, summary: true }, ctx)).structuredContent;
+    expect(r.episode.id).toBe(booked.episode.id);
+    expect((r.read_arguments_as ?? []).join(" ")).toMatch(new RegExp(`episode_id ${short} → ${booked.episode.id}`));
+    const none = await call("predict", { episode_id: "deadbeef", pick: "friends" }, ctx);
+    expect(none.isError).toBe(true);
+    expect(none.content[0].text).toMatch(/full 36-character id \(got 8 characters, and no date starts with that\)/);
+  });
+
+  it("set_date_visibility says what each visibility changes, before and after (#543)", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const booked = await houseDate(ctx, id);
+    const tool = MCP_TOOLS.find((t) => t.name === "set_date_visibility")!;
+    expect(tool.description).toMatch(/unlisted: anyone with the link; airs on its own like a public date; not in the feed, no predictions or points/);
+    expect(tool.description).toMatch(/private: offline/);
+    const unlisted = (await call("set_date_visibility", { episode_id: booked.episode.id, visibility: "unlisted" }, ctx)).structuredContent;
+    expect(unlisted.now).toMatch(/^unlisted: anyone with the link; airs on its own/);
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [booked.episode.id]);
+    const back = (await call("set_date_visibility", { episode_id: booked.episode.id, visibility: "public" }, ctx)).structuredContent;
+    expect(back.note).toMatch(/had already aired \(airing isn't undone\), so from now on it's in the feed, scoring and counting/);
+    expect(back.now).toMatch(/^public: in the feed/);
   });
 });

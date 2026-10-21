@@ -191,11 +191,18 @@ const SINCE_TURN: JsonSchema = {
   description: "Only the transcript from this line on (0-based; transcript_total says how many there are), for polling a date being written.",
 };
 /** Who sees a date, said once for every tool that books one. */
+/** #543: what each visibility changes, in one place (the schema, set_date_visibility and its reply all say it). */
+const VISIBILITY_RULES: Record<(typeof DATE_VISIBILITIES)[number], string> = {
+  public: "in the feed; airs on its own once predictions close; predictions score points on it; it counts in the character's public record and memory, and on the couple page",
+  unlisted: "anyone with the link; airs on its own like a public date; not in the feed, no predictions or points, and out of the public record and character memory (the two characters still remember it between them)",
+  private: "offline: its owners only; never airs, no predictions, no second date, out of the record and memory (the two characters still remember it between them)",
+};
+const visibilityRules = (): string => DATE_VISIBILITIES.map((v) => `${v}: ${VISIBILITY_RULES[v]}`).join(". ");
 const VISIBILITY: JsonSchema = {
   type: "string",
   enum: [...DATE_VISIBILITIES],
   default: "public",
-  description: "public (default): the feed; it airs on its own once predictions close. unlisted: anyone with the link. private: offline, its owners only, never airs and has no second date (the two characters still remember it).",
+  description: "public (default): the feed; airs once predictions close; scores and counts in the record. unlisted: anyone with the link; airs; no feed, points or record. private: offline, owners only, never airs, no second date. Full rules: set_date_visibility.",
 };
 const FORMAT: JsonSchema = { type: "string", enum: [...FORMAT_IDS], default: DEFAULT_FORMAT, description: `Optional show format (default ${DEFAULT_FORMAT}; speed_date: six lines).` };
 const WAIT = (what: string): JsonSchema => ({ type: "integer", minimum: 0, maximum: WAIT_MAX_SECONDS, default: 0, description: `${what} (default 0: answer now).` });
@@ -1002,8 +1009,7 @@ const TOOL_DEFS = [
     name: "set_date_visibility",
     title: "Change who sees a date",
     description:
-      "Change who can see a date you booked (you're its host): public (the feed; it airs once predictions close), unlisted (anyone " +
-      "with the link) or private (offline: only you, never airs, out of the public record). A private date can go public again later.",
+      `Change who can see a date you booked (you're its host). ${visibilityRules()}. A private date can go public or unlisted again later; once aired, a date stays aired. Returns { episode_id, visibility, now, note }.`,
     inputSchema: {
       type: "object",
       required: ["episode_id", "visibility"],
@@ -3937,17 +3943,20 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!r.ok) return { error: errorOf(r) };
       const at = args.visibility !== "private" ? await airsFrom(db, String(args.episode_id)).catch(() => null) : null;
       const aired = (await db.query<{ revealed_at: Date | null }>(`select revealed_at from episodes where id = $1`, [String(args.episode_id)])).rows[0]?.revealed_at;
+      const chosen = DATE_VISIBILITIES.find((v) => v === args.visibility) ?? "public";
       return {
         data: {
           episode_id: args.episode_id,
           visibility: args.visibility,
+          // #543: what this visibility does, every time, so an agent can tell what unlisted or private changed.
+          now: `${chosen}: ${VISIBILITY_RULES[chosen]}.`,
           note:
             args.visibility === "private"
               ? "Offline now: only you see it, it never airs, and it's out of the feed and the public record."
-              : at
-                ? `It's ${args.visibility} now and airs on its own at ${at.toISOString()}, once predictions close.`
-                : aired
-                  ? `It's ${args.visibility} now; it has already aired.`
+              : aired
+                ? `It's ${args.visibility} now; it had already aired (airing isn't undone), so from now on it's ${chosen === "public" ? "in the feed, scoring and counting in the record and memory" : "off the feed, with no predictions or points, and out of the public record and memory"}.`
+                : at
+                  ? `It's ${args.visibility} now and airs on its own at ${at.toISOString()}, once predictions close.`
                   : // #267: its prediction window is already over, so it airs on the next call anyone makes.
                     `It's ${args.visibility} now, and its prediction window has already closed, so it airs within moments: the ending, points and memory count. Set it private again straight away if you didn't mean that.`,
         },
@@ -4549,6 +4558,18 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         if (filled) {
           args = { ...args, episode_id: filled };
           aliased.push(`episode_id → ${filled} (your only date in progress)`);
+        }
+      }
+      // #542: a short episode id (visitors write ids as b846a3f3…) resolves when exactly one date starts with it; otherwise
+      // the error says the full id is needed, instead of a bare "no episode with that id".
+      if (toolArgNames(name).has("episode_id") && typeof args.episode_id === "string" && /^[0-9a-f]{6,35}$/i.test(args.episode_id)) {
+        const prefix = args.episode_id.toLowerCase();
+        const hits = (await (await getDb()).query<{ id: string }>(`select id from episodes where id like $1 limit 2`, [`${prefix}%`])).rows;
+        if (hits.length === 1) {
+          args = { ...args, episode_id: hits[0].id };
+          aliased.push(`episode_id ${prefix} → ${hits[0].id} (the one date starting with it)`);
+        } else {
+          return reply(toToolResult({ error: `episode_id is a date's full 36-character id (got ${prefix.length} characters, and ${hits.length ? "more than one date starts" : "no date starts"} with that). my_dates and browse_episodes list full ids.` }, null));
         }
       }
       // #485, #490: a dry-run flag the tool knows by another name is read as it (preview → check_only, dry_run → preview). A tool

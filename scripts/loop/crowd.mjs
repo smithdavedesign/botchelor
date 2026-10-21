@@ -464,7 +464,21 @@ const CONFESSIONALS = {
  * The recap an agent writes for a date between its own two characters (the narrator step), from what was said: three
  * acts that quote the date, landing on the ending the engine decided.
  */
-export function scriptedRecap(step, { a, b, lines = [], venue = null, dateNumber = 1 }) {
+/** The server's own test for a logistics line (lib/memory.ts isLogistics), which it refuses as a recap's best_line. */
+const LOGISTICS = /\b(mon|tues|wednes|thurs|fri|satur|sun)day\b|\bnext week\b|\bsame time\b|\b(at|by) (\d{1,2}(:\d\d)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b|\bpick you up\b/i;
+export const isLogisticsLine = (text) => LOGISTICS.test(text);
+
+/**
+ * The lines a recap can quote as its best_line, best first: the middle of the date, then outward, never a logistics
+ * line (a crowd recap that quoted "same time next week" was refused and the whole round threw: a flaky test, 2026-10-21).
+ */
+export function bestLineCandidates(said) {
+  const mid = Math.floor(said.length / 2);
+  const order = said.map((_, i) => i).sort((x, y) => Math.abs(x - mid) - Math.abs(y - mid) || x - y);
+  return order.map((i) => said[i].text).filter((t) => t && !isLogisticsLine(t));
+}
+
+export function scriptedRecap(step, { a, b, lines = [], venue = null, dateNumber = 1, attempt = 0 }) {
   const A = firstName(a);
   const B = firstName(b);
   const f = (s) => s.replaceAll("{a}", A).replaceAll("{b}", B);
@@ -487,7 +501,7 @@ export function scriptedRecap(step, { a, b, lines = [], venue = null, dateNumber
     ],
     twist: f(TWISTS[hash(step.episode_id) % TWISTS.length]),
     finale: f(FINALES[ending]),
-    best_line: (said[mid] ?? said[0])?.text ?? f(CONFESSIONALS[ending][0]),
+    best_line: bestLineCandidates(said)[attempt] ?? f(CONFESSIONALS[ending][0]),
     confessionals: CONFESSIONALS[ending],
   };
 }
@@ -1129,8 +1143,13 @@ async function playStep(agent, step, them) {
   }
   if (step.stage === "recap") {
     const [a, b] = mem.names ?? [];
-    const output = scriptedRecap(step, { a, b, lines: mem.lines, venue: mem.venue, dateNumber: mem.dateNumber ?? 1 });
-    const r = await agent.tool("submit_own_date_step", { episode_id: step.episode_id, output });
+    // A refused recap is tried again with the next candidate best_line (and, last, a confessional), not thrown.
+    let r = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const output = scriptedRecap(step, { a, b, lines: mem.lines, venue: mem.venue, dateNumber: mem.dateNumber ?? 1, attempt });
+      r = await agent.tool("submit_own_date_step", { episode_id: step.episode_id, output });
+      if (r.accepted !== false) break;
+    }
     if (r.accepted === false) throw new Error(`recap refused on ${step.episode_id}: ${r.message}`);
     await agent.tool("air_date", { episode_id: step.episode_id }).catch(() => {});
     return r.step ?? null;

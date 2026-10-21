@@ -10,7 +10,9 @@ import {
   checkLocalAlias,
   cleanReply,
   createBrain,
+  bestLineCandidates,
   crowdRound,
+  isLogisticsLine,
   echoesProfile,
   mergeLastLines,
   nearDuplicate,
@@ -152,6 +154,15 @@ describe("the loop arena's crowd", () => {
     expect(lines).toBe(2);
     expect(modelCalls).toBe(0);
   }, 120_000);
+
+  it("never quotes a logistics line as a recap's best_line (the server refuses it, and a round used to throw: ~15% flaky)", () => {
+    const said = [{ text: "Hi." }, { text: "Same time next week?" }, { text: "Thursday at seven, then." }, { text: "You laugh like a kettle." }, { text: "Bye." }];
+    expect(isLogisticsLine("Same time next week?")).toBe(true);
+    const picks = bestLineCandidates(said);
+    expect(picks).not.toContain("Same time next week?");
+    expect(picks).not.toContain("Thursday at seven, then.");
+    expect(picks[0]).toBe("You laugh like a kettle.");
+  });
 
   it("never repeats a text in a thread, and stops when it runs out", () => {
     const me = { sheet: { name: "Test Person" }, lines: [], texts: ["Hi {them}.", "One more thing."] };
