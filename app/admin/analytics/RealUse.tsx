@@ -1,3 +1,4 @@
+import { keyMetrics, type QualityRun } from "@/lib/quality-runs";
 import type { Metric, MetricDef, RealUse as RealUseData, RealWindow } from "@/lib/real-metrics";
 
 const SECTIONS: { key: MetricDef["section"]; title: string }[] = [
@@ -6,7 +7,10 @@ const SECTIONS: { key: MetricDef["section"]; title: string }[] = [
   { key: "dates", title: "Dates" },
   { key: "money", title: "Money" },
   { key: "engagement", title: "Engagement" },
+  { key: "feedback", title: "Line votes" },
 ];
+
+const KIND_LABEL: Record<QualityRun["kind"], string> = { golden: "Golden A/B", after_dark_observer: "After Dark observer" };
 
 const pct = (num: number, den: number) => `${Math.round((num / den) * 100)}%`;
 const num1 = (n: number | null) => (n === null ? "—" : Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -125,6 +129,61 @@ export default function RealUse({ data }: { data: RealUseData }) {
             </div>
           )}
           <p className="muted small">Each run&apos;s average visitor rating out of 10, overall and for the MCP tools; the last 10 runs.</p>
+        </div>
+        <div>
+          <h3>Quality runs</h3>
+          {(data.quality ?? []).length === 0 ? (
+            <p className="muted small">
+              None posted yet. <code>scripts/eval/golden.mjs --post</code> sends a golden A/B, and{" "}
+              <code>scripts/eval/observer-nightly.mjs</code> the nightly After Dark observer.
+            </p>
+          ) : (
+            <div className="table-scroll">
+              <table className="board">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Run</th>
+                    <th>Key numbers</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.quality.map((r) => (
+                    <tr key={r.id}>
+                      <td className="when small" title={r.at}>
+                        {short(r.at)}
+                      </td>
+                      <td className="wrap">
+                        <strong>{KIND_LABEL[r.kind] ?? r.kind}</strong>
+                        <div className="muted small">
+                          {r.label}
+                          {r.sha ? (
+                            <>
+                              {" "}
+                              · <code>{r.sha.slice(0, 7)}</code>
+                            </>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="wrap small">
+                        {keyMetrics(r).map((m, i) => (
+                          <span key={m.label}>
+                            {i > 0 ? " · " : ""}
+                            {m.label} <strong className={m.bad ? "error" : undefined}>{m.value}</strong>
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="muted small">
+            The golden set: the same fixed cases on two configs, a local model picking the better of each pair twice with the order
+            swapped (B&apos;s win rate, the sign test&apos;s p, the gate). The observer: what its checks flag on After Dark pairs that changed
+            in the last day. The last 10 runs.
+          </p>
         </div>
       </div>
     </>
