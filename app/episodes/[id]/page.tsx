@@ -275,6 +275,7 @@ export default async function EpisodePage({
         <div className="episode-hero-cta">
           {hasTheater && episode.ending && episode.transcript ? (
             <EpisodeTheater
+              episodeId={episode.id}
               characters={episode.characters}
               venue={episode.venue ?? null}
               transcript={episode.transcript}
@@ -365,7 +366,7 @@ export default async function EpisodePage({
               <h2>Read it line by line</h2>
               <span className="muted">The two characters played this out turn by turn: nobody scripted the lines in advance.</span>
             </summary>
-            <ChatThread characters={episode.characters} turns={episode.transcript} />
+            <ChatThread characters={episode.characters} turns={episode.transcript} feedback={{ kind: "episode", refId: episode.id }} />
           </details>
         )}
 

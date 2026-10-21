@@ -11,6 +11,8 @@ import type { CharacterRef } from "@/lib/game";
 import { placeAt, type PlaceId } from "@/lib/venues";
 
 type Props = {
+  /** For the 👍/👎 on each line (lib/line-feedback.ts): line i is transcript[i], and playback shows them from the top. */
+  episodeId: string;
   characters: [CharacterRef, CharacterRef];
   venue: PlaceId | null;
   transcript: Turn[];
@@ -54,7 +56,7 @@ export default function EpisodeTheater(props: Props) {
   );
 }
 
-function Playback({ characters, venue, transcript, endingLabel, autoOpen, startAt, onExit }: Props & { onExit: () => void }) {
+function Playback({ episodeId, characters, venue, transcript, endingLabel, autoOpen, startAt, onExit }: Props & { onExit: () => void }) {
   const replay = useReplay(transcript, true, { startAt });
   const [convo, setConvo] = useState(true);
   const shown = replay.shown;
@@ -75,7 +77,7 @@ function Playback({ characters, venue, transcript, endingLabel, autoOpen, startA
           />
         </div>
         <div className="theater-convo">
-          <ChatThread characters={characters} turns={shown} typing={replay.typing} tone="dark" follow empty="The conversation appears here, line by line." />
+          <ChatThread characters={characters} turns={shown} typing={replay.typing} tone="dark" follow empty="The conversation appears here, line by line." feedback={{ kind: "episode", refId: episodeId }} />
         </div>
 
         <header className="theater-hud">
