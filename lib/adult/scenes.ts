@@ -379,8 +379,12 @@ export function sceneMessages(
     `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text. Write both in English.` +
     (direction
       ? now.steerMode === "direct"
-        ? ` Steer the scene this way, now: ${direction}. Act it out in their own words and actions, as these two characters would; never copy the steer's words into a line or an action.`
-        : ` Lean the scene gently this way, at its own pace (the pace and place rules above still hold; work toward it, don't jump to it): ${direction}. Act it out in their own words; never copy the steer's words into a line or an action.`
+        ? v2
+          ? ` Steer the scene this way, now: ${direction}. Act it out in their own words and actions, as these two characters would; never copy the steer's words into a line or an action.`
+          : ` Steer the scene this way: ${direction}`
+        : v2
+          ? ` Lean the scene gently this way, at its own pace (the pace and place rules above still hold; work toward it, don't jump to it): ${direction}. Act it out in their own words; never copy the steer's words into a line or an action.`
+          : ` Lean the scene gently this way, at its own pace (the pace and place rules above still hold; work toward it, don't jump to it): ${direction}`
       : " Move the scene forward: something new happens in these lines, nothing they've already done or said.") +
     (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
     ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": ${v2 ? (cite ? `"${cite}"` : "null") : '"..."'}}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. his bedroom: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
