@@ -50,5 +50,5 @@ export const POST = handle(async (req: Request) => {
   }
   const r = await continueScene(db, admin, input.a, input.b, input.direction ?? null, input.steer_mode ?? "nudge");
   if (!r.ok) return json({ error: "not_continued", message: r.message }, r.status);
-  return json({ scene: r.scene, added: r.added, held: r.held, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}) });
+  return json({ scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}) });
 });

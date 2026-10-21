@@ -1005,6 +1005,10 @@ create table if not exists place_sets (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- A set whose check couldn't run (a Hive 429, an outage) is tried again with a growing delay (lib/sets.ts), its
+-- picture kept and never shown until it passes.
+alter table place_sets add column if not exists attempts integer not null default 0;
+alter table place_sets add column if not exists retry_at timestamptz;
 -- The looks builder's picture tiles (lib/looks.ts, lib/looks-draw.ts): one per option, drawn once and screened by Hive.
 -- 'nsfw' tiles are After Dark's: served only to an account that can open it.
 create table if not exists look_tiles (
@@ -1064,6 +1068,12 @@ create table if not exists adult_nights (
 alter table adult_nights add column if not exists set_place text;
 alter table adult_nights add column if not exists chapter integer;
 alter table adult_nights add column if not exists recap text;
+-- Continuity (lib/adult/continuity.ts): where the night has been (each stop's place, set, whose home), and the moves the
+-- model reported this chapter, taken or not (the observer reads the ones that weren't, scripts/eval/after-dark-observer.mjs).
+alter table adult_scenes add column if not exists place_history jsonb not null default '[]';
+alter table adult_scenes add column if not exists moves jsonb not null default '[]';
+alter table adult_nights add column if not exists moves jsonb;
+alter table adult_nights add column if not exists place_history jsonb;
 -- What After Dark left behind, in the show's terms (lib/adult/memory.ts): one PG note per character about the other,
 -- carried into their next date and texts. Never a scene line.
 create table if not exists adult_memories (
