@@ -1,4 +1,5 @@
-import { shortName } from "@/lib/names";
+import { pairNames, shortName } from "@/lib/names";
+import { ownDateInProgress, ownDateInProgressMessage } from "@/lib/own-date";
 import { after } from "next/server";
 import { z } from "zod";
 import { releaseEpisode, reserveEpisode, reserveSecondDate, type Reservation } from "@/lib/allowance";
@@ -286,6 +287,18 @@ export const POST = handle(async (req) => {
           message: `${partner.name} is a premium house character. Unlock them in the shop first.`,
         },
         402,
+        sess,
+      );
+    }
+  }
+
+  // #558: one date at a time for a couple, whichever way round it was started: not while their agents are performing one.
+  if (partner) {
+    const performing = await ownDateInProgress(db, own.id, partner.id);
+    if (performing) {
+      return json(
+        { error: "date_in_progress", episode_id: performing.id, message: ownDateInProgressMessage(pairNames(own.name, partner.name).join(" and "), performing.id) },
+        409,
         sess,
       );
     }
