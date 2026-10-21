@@ -191,7 +191,7 @@ describe("loop run 2026-10-19-1133 (#334, #335, #336)", () => {
     expect(feed.structuredContent.note).toMatch(/my_status/);
     const r = await call("go_on_date", { character_id: id, partner_id: "nobody" }, ctx);
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toMatch(/No character with that id/);
+    expect(r.content[0].text).toMatch(/No character with that partner_id/); // #473: the argument is named
   });
 
   it("get_episode can leave the lines out", async () => {

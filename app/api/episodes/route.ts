@@ -203,7 +203,9 @@ export const POST = handle(async (req) => {
     return json(
       {
         error: "taken",
-        message: `${shortName(own.name)} is with ${with_?.name ?? "someone"} and wants one partner. Date ${shortName(with_?.name) ?? "them"}, or set them to more than one on their card.`,
+        field: "partner_id",
+        // #514: name the exact field that reopens them (the card, for people; update_character, for agents).
+        message: `${shortName(own.name)} is with ${with_?.name ?? "someone"} and wants one partner. Date ${shortName(with_?.name) ?? "them"}, or set them to more than one: partner_style "open" on their card (update_character with partner_style: "open" over MCP).`,
       },
       409,
       sess,
@@ -247,7 +249,19 @@ export const POST = handle(async (req) => {
       )
     ).rows[0];
     if (!partner && input.partner_id && !(await db.query(`select 1 from characters where id::text = $1`, [input.partner_id])).rows.length) {
-      return json({ error: "partner_not_found", message: "No character with that id. my_status lists the house cast; search_characters and my_matches give other ids." }, 404, sess);
+      // #473: name the argument that failed; #494: a name was passed where an id goes.
+      const looksLikeName = /\s/.test(input.partner_id.trim());
+      return json(
+        {
+          error: "partner_not_found",
+          field: "partner_id",
+          message: looksLikeName
+            ? `No character with partner_id "${input.partner_id}": that looks like a name, and partner_id takes a character id. search_characters finds the id by name; my_status lists the house cast's.`
+            : "No character with that partner_id. my_status lists the house cast; search_characters and my_matches give other ids.",
+        },
+        404,
+        sess,
+      );
     }
     if (!partner) {
       return json(

@@ -92,8 +92,8 @@ export async function settleCharacter(db: Db, id: string): Promise<void> {
 export async function settleCommitment(db: Db, lo: string, hi: string): Promise<void> {
   const rel = (await db.query<{ stage: string | null }>(`select stage from relationships where character_a = $1 and character_b = $2`, [lo, hi])).rows[0];
   if (!rel || !(COMMITTED_STAGES as readonly string[]).includes(rel.stage ?? "")) return;
-  const { rows } = await db.query<{ id: string; name: string; owner_id: string | null; is_house: boolean; partner_style: PartnerStyle | null; partner_style_decided: DecidedStyle | null; open_to_dates: boolean }>(
-    `select id, name, owner_id, is_house, partner_style, partner_style_decided, open_to_dates from characters where id = any($1)`,
+  const { rows } = await db.query<{ id: string; name: string; owner_id: string | null; is_house: boolean; partner_style: PartnerStyle | null; partner_style_decided: DecidedStyle | null; open_to_dates: boolean; created_via: string }>(
+    `select id, name, owner_id, is_house, partner_style, partner_style_decided, open_to_dates, created_via from characters where id = any($1)`,
     [[lo, hi]],
   );
   for (const c of rows) {
@@ -118,8 +118,9 @@ export async function settleCommitment(db: Db, lo: string, hi: string): Promise<
           : `💍 ${first} is with ${partner}: just the two of them`,
       body: [
         decidedNow ? "They decided this for themselves." : null,
-        closing ? "One partner, so they've closed to new dates." : null,
-        "You can change it on their card.",
+        closing ? "One partner, so they've closed to new dates (go_on_date with anyone else is refused until this cools)." : null,
+        // #514: an agent has no card; name the call and the field.
+        c.created_via === "mcp" ? `You can change it: update_character with partner_style: "open" (${c.id}).` : "You can change it on their card.",
       ]
         .filter(Boolean)
         .join(" "),

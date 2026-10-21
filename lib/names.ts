@@ -26,3 +26,41 @@ export function shortName(name: string | null | undefined): string {
   for (let i = 1; i < words.length && out.length < 3 && out.every(isPrefix); i++) out.push(words[i]);
   return out.join(" ");
 }
+
+/**
+ * Two characters' short names for one sentence ("Mira and Otto"), falling back to their full names when the short
+ * ones are the same (#502: "Marguerite and Marguerite haven't matched yet" named nobody).
+ */
+export function pairNames(a: string | null | undefined, b: string | null | undefined): [string, string] {
+  const x = shortName(a);
+  const y = shortName(b);
+  return x.toLowerCase() === y.toLowerCase() ? [(a ?? "").trim() || x, (b ?? "").trim() || y] : [x, y];
+}
+
+/** First names the show hands out when a name is taken (#477): distinctive, and not one of the house cast's. */
+export const SPARE_FIRST_NAMES = [
+  "Odalys", "Thaddeus", "Winifred", "Caspian", "Marisol", "Ignatius", "Philippa", "Leopold", "Henrietta", "Rafferty",
+  "Clementine", "Barnaby", "Imogen", "Cornelius", "Rosalind", "Fitzgerald", "Seraphina", "Ambrose", "Theodora", "Lysander",
+  "Juniper", "Montgomery", "Wilhelmina", "Octavian", "Perpetua", "Ludovic", "Isadora", "Bartholomew", "Marguerite", "Evander",
+] as const;
+
+/**
+ * A few names like `wanted` that aren't in `taken` (lower-cased full names): the same surname with another first name,
+ * so "Barnaby Quill" taken suggests "Thaddeus Quill" and "Winifred Quill" (#477: agents picking stock names collided
+ * and could only find out by trying). The first name decides which spares come first, so two agents get different ones.
+ */
+export function suggestFreeNames(wanted: string, taken: ReadonlySet<string>, count = 3): string[] {
+  const words = wanted.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const surname = words.length > 1 ? words.slice(1).join(" ") : "";
+  const first = words[0].toLowerCase();
+  const start = [...first].reduce((n, ch) => n + ch.charCodeAt(0), 0) % SPARE_FIRST_NAMES.length;
+  const out: string[] = [];
+  for (let i = 0; i < SPARE_FIRST_NAMES.length && out.length < count; i++) {
+    const given = SPARE_FIRST_NAMES[(start + i) % SPARE_FIRST_NAMES.length];
+    if (given.toLowerCase() === first) continue;
+    const name = surname ? `${given} ${surname}` : given;
+    if (!taken.has(name.toLowerCase())) out.push(name);
+  }
+  return out;
+}

@@ -184,13 +184,41 @@ export async function swipe(db: Db, userId: string, characterId: string, targetI
   if (!target) {
     const exists = (await db.query(`select 1 from characters where id::text = $1`, [targetId])).rows.length > 0;
     if (!exists) return refuse(404, "not_found", "No character has that id: swipe_deck lists the ids you can swipe on.");
-    return refuse(404, "not_in_deck", "They're not in your deck: they may be matched or dated already, taken, out of the deck, or not open to characters like yours.");
+    return refuse(404, "not_in_deck", await notInDeckWhy(db, userId, mine, targetId));
   }
   const stored = await db.query(`insert into swipes (swiper, target, liked) values ($1, $2, $3) on conflict do nothing returning swiper`, [mine.id, target.id, liked]);
   if (!stored.rows.length) return refuse(409, "already_swiped", `${shortName(mine.name)} already swiped on ${shortName(target.name)}, and swipes are final (#221): a like can't be taken back.`);
   if (!liked) return { ok: true, liked: false, match: null };
   const likesBack = target.is_house || (await db.query(`select 1 from swipes where swiper = $1 and target = $2 and liked`, [target.id, mine.id])).rows.length > 0;
   return { ok: true, liked: true, match: likesBack ? await createMatch(db, mine.id, target.id) : null };
+}
+
+/**
+ * Why a character that exists isn't in `mine`'s deck, as the one reason that applied (#492: one message listed four
+ * causes). A block is never named (the generic line covers it), and nor is a private character's privacy.
+ */
+async function notInDeckWhy(db: Db, userId: string, mine: Mine, targetId: string): Promise<string> {
+  const generic = "They're not in your deck: swipe_deck lists who is.";
+  const c = (
+    await db.query<ProfileRow & { owner_id: string | null; visibility: string; taken: boolean; matched: boolean; dated: boolean }>(
+      `select ${PUBLIC_COLUMNS}, c.owner_id, c.visibility, ${takenSql("c")} as taken,
+              exists (select 1 from matches m where (m.character_lo = c.id and m.character_hi = $2) or (m.character_lo = $2 and m.character_hi = c.id)) as matched,
+              exists (select 1 from relationships r where r.dates > 0 and ((r.character_a = c.id and r.character_b = $2) or (r.character_a = $2 and r.character_b = c.id))) as dated
+         from characters c where c.id = $1`,
+      [targetId, mine.id],
+    )
+  ).rows[0];
+  if (!c) return generic;
+  const them = shortName(c.name);
+  if (c.matched) return `${shortName(mine.name)} and ${them} are already matched: text them (send_text), or answer_match about a date.`;
+  if (c.dated) return `${shortName(mine.name)} and ${them} have dated already, so there's nothing to swipe: go_on_date with them books the next one.`;
+  if (c.owner_id === userId) return `${them} is one of your own characters: a character doesn't swipe on its owner's others (start_own_date plays a date between two of yours).`;
+  if (c.is_house) return `${them} is off this season's house cast, so they can't be swiped or booked until they're back on it.`;
+  if (c.taken) return `${them} is with someone and wants one partner, so they're out of every deck for now.`;
+  if (!c.open_to_dates || c.visibility === "private") return `${them} isn't in the swipe deck: their creator hasn't opened them to dates.`;
+  if (!audienceAllows(c.open_audience, mine.created_via)) return `${them} is open only to characters made by ${c.open_audience === "people" ? "people" : "agents"}, not to ${shortName(mine.name)}.`;
+  if (!profileComplete(c.extras)) return `${them} isn't in the deck yet: their dating profile isn't finished.`;
+  return generic;
 }
 
 type Side = { id: string; name: string; owner_id: string | null; is_house: boolean; created_via: string };

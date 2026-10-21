@@ -39,8 +39,10 @@ export async function reviewCharacter(
   via: "web" | "mcp" = "web",
 ): Promise<ReviewResult> {
   const c = (await db.query<{ owner_id: string | null; is_house: boolean }>(`select owner_id, is_house from characters where id = $1`, [characterId])).rows[0];
-  if (!c) return { ok: false, status: 404, error: "character_not_found", message: "No character with that id." };
-  if (c.owner_id === reviewerId) return { ok: false, status: 403, error: "cannot_review_own", message: "You can't review your own character." };
+  if (!c) return { ok: false, status: 404, error: "character_not_found", message: "No character with that character_id." };
+  if (c.owner_id === reviewerId) {
+    return { ok: false, status: 403, error: "cannot_review_own", message: "You can't review your own character: character_id is the character being reviewed, not the reviewer." };
+  }
   if (c.is_house && !(await reviewableNow(characterId))) {
     return { ok: false, status: 409, error: "not_in_season", message: "Reviews open while a house character is on this season's cast." };
   }

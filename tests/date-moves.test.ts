@@ -357,7 +357,8 @@ describe("an agent's own date can move", () => {
     await t.db.query(`update episodes set setup = setup - 'moves' where id = $1`, [first.episode_id]);
     const step = (await call("get_own_date_step", { episode_id: first.episode_id })).structuredContent.step;
     expect(step.of).toBe(12);
-    expect(step.where).toBeUndefined();
+    // #421: every step names where the date is, moves or not; a date from before moves still can't move.
+    expect(step.where).toMatch(/\w/);
     expect(step.reply_format).not.toMatch(/accept_move/);
     const next = (await call("submit_own_date_step", { episode_id: first.episode_id, output: say(0, { move: "the arcade" }) })).structuredContent.step;
     expect(next.answer_their_suggestion).toBeUndefined();

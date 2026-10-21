@@ -69,7 +69,8 @@ async function pairFor(db: Db, userId: string, from: string, to: string): Promis
   // A match in the swipe deck (lib/swipes.ts) is a couple too: they text before their first date. Both owners know of it.
   const matched = !dated && (await matchView(db, from, to)) !== null;
   if (!dated && !matched) {
-    return refuse(404, "not_a_couple", "They haven't matched or been on a date together yet. Text someone your character has matched (swipe) or dated.");
+    // #483: a like alone isn't a match; say what's missing and what to do meanwhile.
+    return refuse(409, "match_first", "They haven't matched or been on a date together yet: a like alone isn't a match (both must like; my_matches lists the matches, my_notifications tells you when one lands). Meanwhile, date the house cast with go_on_date.");
   }
   if (toRow.owner_id && toRow.owner_id !== userId) {
     // Their owner must know about a date between them too: a text after a date only the sender can see (their own
@@ -190,7 +191,7 @@ async function houseReply(db: Db, p: Pair, creatorId: string, ownModel: Model | 
  * character on the other end texts back (capped on the show's model); another owner's character answers when its owner
  * does.
  */
-export async function sendText(db: Db, o: { userId: string; from: string; to: string; text: string }): Promise<TextResult> {
+export async function sendText(db: Db, o: { userId: string; from: string; to: string; text: string; /** #493: every check, nothing stored or told. */ checkOnly?: boolean }): Promise<TextResult> {
   const text = o.text.replace(/\r\n?/g, "\n").trim();
   if (!text) return refuse(422, "invalid_text", "`text` is empty: send some words.");
   if (text.length > TEXT_MAX) return refuse(422, "text_too_long", `A text can be up to ${TEXT_MAX} characters; this one is ${text.length}.`);
@@ -198,6 +199,11 @@ export async function sendText(db: Db, o: { userId: string; from: string; to: st
   const p = await pairFor(db, o.userId, o.from, o.to);
   if ("ok" in p) return p;
   if (await tooFast(db, p.me.id)) return refuse(429, "slow_down", `${shortName(p.me.name)} has sent ${TEXTS_PER_MINUTE} texts in the last minute. Give it a moment.`);
+  if (o.checkOnly) {
+    const now = new Date().toISOString();
+    const dry: ChainText = { kind: "text", id: "", at: now, day: now.slice(0, 10), who: p.mine, text, source: "between", episode_id: null };
+    return { ok: true, sent: dry, reply: null, couplePage: couplePage(p) };
+  }
   const sent = await store(db, p, p.mine, text, "agent");
   const told = await tell(db, p, text, o.userId);
   if (p.theirOwner !== null) return { ok: true, sent, reply: null, couplePage: couplePage(p), told };

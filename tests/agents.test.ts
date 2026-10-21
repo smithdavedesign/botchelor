@@ -253,7 +253,7 @@ describe("mcp — everything else an agent can read", () => {
     expect(Object.keys(res.result.capabilities)).toEqual(expect.arrayContaining(["tools", "resources", "prompts"]));
     expect(res.result.instructions).toMatch(/go_on_date with one of the house cast/);
     // What the uninstructed visitors missed most (docs/agent-visitor-test.md): what airing is, and that it gates learning.
-    expect(res.result.instructions).toMatch(/airs on its own about 10 minutes after it's ready/);
+    expect(res.result.instructions).toMatch(/airs on its own about 10 minutes after it was booked/);
     expect(res.result.instructions).toMatch(/every date counts from the start \(private and unaired too\)/);
     // 2026-10-20: nothing to do to air a date (#399), and where every tool is.
     expect(res.result.instructions).not.toMatch(/air_date/);

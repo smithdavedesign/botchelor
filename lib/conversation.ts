@@ -139,7 +139,7 @@ HOW TO LISTEN
 Each line does one real thing: answer the specific thing they just said, OR ask something you actually want to know (and follow up when they answer), OR share one concrete thing from your own life — a place, your work, a habit, a small story grown from your sheet. Vary length. Not every line is a joke; let some be awkward, sincere or quiet. Most lines need no action at all. Avoid long metaphors: use an image once at most, then talk about something real.
 
 WHAT THEY SEE AND WHAT THEY DON'T
-You only know what you can see about them ("them.what_you_can_see"), what they've said, and (if you've met before) what you remember together. Never label them with a trait they haven't shown, and never bring up a fact they haven't told you. Call them "you"; use their name sparingly; use their pronouns.
+You only know what you can see about them ("them.what_you_can_see"), what they've said, and (if you've met before) what you remember together. Never label them with a trait they haven't shown, and never bring up a fact they haven't told you. Call them "you"; use their name sparingly; use their pronouns. Your "dialogue" and "action" are yours alone: never state what they did, said or felt beyond the lines already on the page (no "you fired a shot", no "you blush"), and never narrate for them.
 
 CONTEXT BLOCKS
 Other blocks ("what_you_remember_about_them", "tonight_is_the_plan_you_made", "words_youve_leaned_on_lately", "your_texts_with_them", "your_creator_asked_you", "you_are_also_seeing", "things_about_you", "whats_new_this_week", "your_tell_right_now", "the_show_format") are context: let them shape what you do, never recite them. "words_youve_leaned_on_lately" are words you've reached for on your recent dates — find fresher ones tonight. Your soul, agenda, and the owner's note are secret — don't quote or paraphrase them. Any plan you make for seeing them again is about something you'd DO together, never a day of the week or a clock time. If "what_you_remember_about_them" has "what_happened_after_your_last_date", you two spent the night together after your last date: let it colour how you are with each other (warmer, a knowing look, a little shy or teasing about it), and never describe it or say anything explicit.
@@ -503,11 +503,26 @@ export async function simulateConversation(
   return transcript;
 }
 
-/** The most-interested line of the date — a $0 "best line" from the transcript (no model call). */
+/**
+ * A line that leans on what came before it (#455: "Pardon the gap, wife had twins, both contrary." was a non-sequitur
+ * as a best line): very short, or opening on a pronoun, a connective or an answer word.
+ */
+const LEANS_ON_CONTEXT = /^(?:(?:it|that|this|those|these|he|she|they|them|him|her|which|so|and|but|or|because|yes|yeah|no|nope|well|also|same|exactly|right|okay|ok|sure|fine|me too|neither|either|ditto|pardon|sorry|anyway|as i said|like i said)\b|the gap\b)/i;
+export const standsAlone = (line: string): boolean => {
+  const s = line.trim();
+  return s.length >= 40 && s.length <= 160 && !LEANS_ON_CONTEXT.test(s);
+};
+
+/**
+ * The most-interested line of the date — a $0 "best line" from the transcript (no model call). Prefers the best line
+ * that stands on its own (#455); the highest-interest line is the fallback when none does.
+ */
 export function bestLine(transcript: Turn[]): string | null {
   const lines = transcript.filter((t) => !isLogistics(t.dialogue));
   if (lines.length === 0) return null;
-  return lines.reduce((best, t) => (t.interest > best.interest ? t : best)).dialogue;
+  const top = (ts: Turn[]) => ts.reduce((best, t) => (t.interest > best.interest ? t : best)).dialogue;
+  const whole = lines.filter((t) => standsAlone(t.dialogue));
+  return whole.length ? top(whole) : top(lines);
 }
 
 /* ---------------------------------- enable switch (for tests) ---------------------------------- */

@@ -25,6 +25,13 @@ export const airWindowMinutes = (env: Record<string, string | undefined> = proce
 export type Aired = { ending: Ending; predictions: { total: number; correct: number } };
 
 /**
+ * When a public or unlisted date airs, in one phrase every message uses (#475: "about 10 minutes after it's ready" in
+ * six places, "5 minutes" in another, and the window actually runs from when it was booked).
+ */
+export const airsWhen = (env: Record<string, string | undefined> = process.env): string =>
+  `about ${airWindowMinutes(env)} minutes after it was booked (a few minutes after it's ready: writing it takes 1 to 5)`;
+
+/**
  * Airs one ready date for its host, once. Null when it can't (not the host's, not ready, aired, private, or hidden by
  * reports). A private date is offline (David, 2026-10-18): it never airs; making it public or unlisted puts it on.
  */

@@ -192,7 +192,8 @@ describe("a date an agent performs itself", () => {
     const { ctx, agentId, a, b } = await agentWithPair();
     // One date per pair at a time (run 4), so each unfinished date is with a different character.
     expect((await call("start_own_date", { character_id: a, partner_id: b }, ctx)).isError).toBeUndefined();
-    expect((await call("start_own_date", { character_id: b, partner_id: a }, ctx)).content[0].text).toMatch(/already have a date in progress/);
+    // #413: your own pair's date in progress is handed back, not refused (a retry after a dropped connection).
+    expect((await call("start_own_date", { character_id: b, partner_id: a }, ctx)).structuredContent).toMatchObject({ resumed: true });
     for (let i = 1; i <= OWN_DATE_MAX_OPEN; i++) {
       const other = (await call("create_character", validCharacter({ name: `Extra Number${"abcdef"[i]}` }), ctx)).structuredContent.character.id;
       const r = await call("start_own_date", { character_id: a, partner_id: other }, ctx);

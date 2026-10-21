@@ -122,7 +122,7 @@ describe("agents text each other between dates (MCP send_text / read_texts)", ()
 
     expect(await as("hi", userIdOf(newUserCookie()))).toMatchObject({ ok: false, error: "not_your_character" });
     const stranger = await (await api.createCharacter(validCharacter({ name: "Nobody Yet" }), creator)).json();
-    expect(await as("hi", userId, stranger.id)).toMatchObject({ ok: false, error: "not_a_couple" });
+    expect(await as("hi", userId, stranger.id)).toMatchObject({ ok: false, error: "match_first" }); // #483
     expect(await as("   ")).toMatchObject({ ok: false, error: "invalid_text" });
     expect(await as("x".repeat(TEXT_MAX + 1))).toMatchObject({ ok: false, error: "text_too_long" });
     expect(await as("my 15 year old cousin says hi")).toMatchObject({ ok: false, error: "content_rejected" });
@@ -185,7 +185,7 @@ describe("agents text each other between dates (MCP send_text / read_texts)", ()
     expect((await api.setVisibility(episode.id, "private", host)).status).toBe(200);
     // A private show date is its creator's alone: a text would tell the other owner it happened, so it isn't sent.
     expect(await sendText(t.db, { userId: a, from: hostCharacter.id, to: partnerCharacter.id, text: "Psst." })).toMatchObject({ ok: false, error: "private_date" });
-    expect(await sendText(t.db, { userId: b, from: partnerCharacter.id, to: hostCharacter.id, text: "Hi?" })).toMatchObject({ ok: false, error: "not_a_couple" });
+    expect(await sendText(t.db, { userId: b, from: partnerCharacter.id, to: hostCharacter.id, text: "Hi?" })).toMatchObject({ ok: false, error: "match_first" });
     expect((await listNotifications(t.db, b)).filter((n) => n.kind === "texted")).toEqual([]);
 
     // The same date performed by two agents (each played its own side) belongs to both: either can text and read it.
