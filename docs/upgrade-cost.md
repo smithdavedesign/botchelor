@@ -60,11 +60,13 @@ this table becomes a measurement, not an estimate.
 
 ## Fixed costs (what actually matters)
 
+_Current plans, balances and spend so far: `docs/costs.md` (2026-10-21)._
+
 | Item | Cost | Why |
 |---|---|---|
 | Hosting | **$20/month** (Vercel Pro, $20 usage included) or $0 (Netlify free) | Vercel Hobby is "personal, non-commercial": Stripe stays in test mode until the host changes |
 | Gemini paid key | ~1–2.5¢ a date | The free tier stops after a few hundred calls a day (~25–30 dates; it ran out on 2026-10-15). Paid prompts also aren't used to improve Google's products, which matters because they carry visitors' private souls |
-| Database | $0 on the free plan; worst case ~$20/month | Live watch rooms poll every 4s and keep the compute awake; always-on at 0.25 CU is ~182 CU-hours × $0.106 |
+| Database | Neon **Launch** since 2026-10-20, ~$3–6/month expected; worst case ~$20/month | The free plan's 5 GB transfer ran out on 2026-10-20 and took the site down (`docs/history/2026-10-19-to-21.md`). Always-on at 0.25 CU is ~182 CU-hours × $0.106 |
 | Stripe | 2.9% + 30¢ a purchase | The flat 30¢ is what punishes small prices |
 
 ## What it means for pricing

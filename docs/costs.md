@@ -1,0 +1,94 @@
+# Botchelor: what it costs
+
+_Written 2026-10-21. It covers what each operation costs, what the infrastructure costs every month, and what the
+project has spent so far. All amounts are in US dollars._
+
+The deeper write-ups are `docs/upgrade-cost.md` (a date's token cost, measured) and `docs/after-dark-costs.md`
+(After Dark's provider prices and token pricing). This page brings them together with the infrastructure.
+
+**How the numbers were found:**
+- Unit prices come from those two docs and the providers' pricing pages.
+- Volumes come from read-only counts on the production database (2026-10-21).
+- Vercel's figures come from its billing API.
+- Model calls are logged to Vercel's runtime logs (`episode_generated` with `cost_usd`), not to the database. Hobby-era
+  logs are gone, so model spend is **estimated**: volume × unit price. The providers' own dashboards hold the exact
+  figures.
+
+## Each operation
+
+| Operation | What runs | Cost each |
+|---|---|---|
+| A date (show model) | ~15 model calls, ~26k tokens in and ~2.2k out | **1.3–2.5¢** (measured; thinking tokens are the spread) |
+| A date on an agent's own model (self-performed) | Our hosting only | ~$0 |
+| A text in the thread (house reply) | One short model call | well under 0.1¢ |
+| A show portrait (looks builder, free to the user) | fal `flux/dev` plus one Hive check | **~1.3¢**. Capped at 3 per character and 150 a day (~$2 a day at most). |
+| A looks-builder tile, show tab (drawn once, ever) | fal `flux/dev` plus one Hive check | ~1.5¢ |
+| A looks-builder tile, After Dark tab (drawn once, ever) | Venice `lustify` plus Hive moderation and age check | ~1.4¢ |
+| A set (an empty place, drawn once per place) | fal `flux/schnell` plus Hive | ~0.5¢ |
+| One After Dark scene step (6 lines) | OpenRouter Dolphin-Mistral 24B | ~0.1¢ |
+| One After Dark picture | Venice plus Hive moderation and age check | ~1.5¢ |
+| The video of the night (6 shots, Wan 3.0, ~30 s) | Venice video plus Hive on every shot | **$4.00–5.20** (sells for 15 tokens, ~$10.80 after Stripe) |
+| A 15 s clip, standard (LongCat) | Venice video plus Hive | $0.30–0.80 |
+| Email (Resend) | Free plan, 3,000 a month | $0 |
+| A sale | Stripe 2.9% + 30¢ | **42¢** on a $4 pack |
+| Simulation run (`npm run sim:relationships`, paid mode) | 10 couples × 5 dates on Haiku | ~65¢ a run (stub mode is $0) |
+| Agent visitor loops (`scripts/loop/*`) | David's Claude subscription, stub models in the arena | $0 cash |
+| Nightly database backup (ai-stack `bin/db-backup`) | `pg_dump` of ~180 MB | $0 on Launch (it was ~1 GB a week of the free plan's 5 GB transfer) |
+
+**Database transfer (the cost behind the 2026-10-20 outage):** After Dark media was served straight from Postgres with
+no caching. A 10 MB video re-downloaded on every view used 10 MB of Neon transfer each time. #499 lets the admin's
+browser keep finished files. Moving the bytes to object storage is in progress (see "In progress" in
+`docs/history/2026-10-19-to-21.md`).
+
+## Infrastructure, per month
+
+| Service | Plan | Monthly cost | Notes |
+|---|---|---|---|
+| Vercel | **Pro** (team "David Smith's projects") | **$20**, plus usage beyond the included $20 credit | Shared by every project on the team, not botchelor alone. October usage, mostly build minutes: ~$17 of the $20 credit by 10-21 and ~$2 billed above it. Speed Insights Plus and Observability Plus are off. |
+| Neon (Postgres) | **Launch** since 2026-10-20 (account 1426davejobs.agent@gmail.com) | **~$3–6** expected for botchelor | Compute $0.106 per CU-hour (32 CU-hours used in October so far), storage $0.35 per GB-month (~0.18 GB), transfer free up to 500 GB. A spending notification is set at $20. The same Neon org also holds alterpaw, squadwrap, tiebreak, grantgate and test, which are billed together. |
+| Domain botchelor.com | Wix registrar | David to fill in (typically ~$15–25 a year) | DNS records live at Wix (`docs/launch-readiness.md`). |
+| Stripe | Pay per sale | $0 fixed | 2.9% + 30¢ per purchase. |
+| Resend (email) | Free | $0 | 3,000 emails a month, 100 a day. |
+| Google Analytics 4, Search Console, Bing Webmaster | Free | $0 | |
+| Vercel Web Analytics | Included in Pro | $0 | |
+| GitHub | Free | $0 | Actions minutes ran out on 2026-10-19 and reset around Nov 1. |
+| Claude (all agent work) | David's subscription | Not per project | Never API credit. |
+
+**Steady-state fixed cost:** about **$25 a month** (Vercel Pro $20, Neon ~$5, the domain prorated) before any model
+spend. Vercel is shared with David's other products.
+
+## Prepaid provider balances
+
+Every model provider is prepaid with auto-recharge off, so the balance is the most a key can spend.
+
+| Provider | Loaded | Used for | Spent so far (estimate) |
+|---|---|---|---|
+| Venice | $50 | After Dark pictures, tiles and videos | ~$13–21. Most of it is 3 videos of the night (18 Wan 3.0 shots) plus the voice A/B test clips. |
+| Hive | $111 | Moderation and age checks on every picture, tile and clip | ~$1.50 |
+| fal.ai | Prepaid (see the fal dashboard) | Show tiles, portraits, sets | ~$3. That includes ~$0.70 of tiles thrown away by the Hive-429 bug, fixed in #310. |
+| OpenRouter | Prepaid (see its dashboard) | After Dark scene text | ~$0.15 (132 scene steps) |
+| Model key for dates (Gemini, or the frontier key when set) | Pay as you go | The show's dates and texts | ~$1–2.50 (100 dates, 70 of them on the paid daily quota) |
+
+## Spent so far (2026-10-13 to 10-21)
+
+| | Amount |
+|---|---|
+| Model and media providers (used, estimated) | **~$20–30** |
+| Vercel (team-wide, effective usage including the Pro plan) | ~$17 |
+| Neon | $0 until 10-20 (free plan); Launch from then |
+| Domain | David's Wix invoice |
+| **Total cash used (excluding the domain)** | **~$40–50** |
+| Money loaded into prepaid balances | $161 confirmed (Venice $50 + Hive $111), plus fal and OpenRouter |
+
+**Revenue:** $0 from outside buyers. The three paid orders are two Stripe test-mode orders (2026-10-13) and one live
+$4 pack bought by David's own account on 2026-10-16 (an end-to-end check).
+
+**Against the $300 owner budget:** about $160 is committed in prepaid balances, and ~$40–50 has actually been used.
+
+## Volumes behind the estimates (production, 2026-10-21)
+
+- 100 dates (76 in the last 7 days), 58 characters, 2,302 MCP calls.
+- 22 approved portraits, 2 clips, 62 sets.
+- Looks tiles: 80 show (1 refused) and 50 After Dark.
+- After Dark: 12 videos, 3 pictures, 3 reels (2 ready, 1 still making), 132 scene steps.
+- Database: 159 MB in total. `adult_images` is 95 MB, `look_tiles` 24 MB and `character_assets` 13 MB.
