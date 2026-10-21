@@ -78,14 +78,17 @@ export class GoldenRefusal extends Error {
 
 /**
  * The deterministic metrics compared per suite, the direction that's better, and the gate's tolerance: a mean per run
- * that moves the wrong way by more than this fails --gate. After Dark's come from the route (lib/adult/quality.ts on the
- * ad-voice-memory branch), matched by name whatever its casing (sheetDetailRate, sheet_detail_rate); the dates' are
- * lib/quality.ts's.
+ * that moves the wrong way by more than this fails --gate. After Dark's come from the route's `metrics`
+ * (lib/adult/quality.ts sceneQuality: sheet_detail_rate is a share of lines, 0 to 1; cliche_rate is stock phrases per 100
+ * lines; repeats, invented_names and unfounded_citations are counts a run), matched by name whatever its casing
+ * (sheetDetailRate, sheet_detail_rate); the dates' are lib/quality.ts's.
  */
 export const METRICS = {
   after_dark: [
     { key: "sheet_detail_rate", label: "Sheet detail rate", better: "higher", gate: 0.05, aliases: ["sheetDetailRate", "sheetDetail"] },
-    { key: "cliche_rate", label: "Cliché rate", better: "lower", gate: 0.02, aliases: ["clicheRate", "clichéRate"] },
+    // Per 100 lines (2026-10-21's review: the five most-used stock words alone came to about 7 per 100 production lines):
+    // 2 more is about one extra stock phrase every two 4-step runs of 24 lines, as a mean over every sample.
+    { key: "cliche_rate", label: "Cliché rate (per 100 lines)", better: "lower", gate: 2, aliases: ["clicheRate", "clichéRate"] },
     { key: "repeats", label: "Repeated lines", better: "lower", gate: 0.5, aliases: ["repeatCount", "repeated", "repeatedLines", "repeatLines"] },
     { key: "invented_names", label: "Invented names", better: "lower", gate: 0.25, aliases: ["inventedNames", "namesInvented"] },
     { key: "unfounded", label: "Unfounded memory citations", better: "lower", gate: 0.25, aliases: ["unfoundedCitations", "unfoundedMemories", "unfoundedMemory"] },

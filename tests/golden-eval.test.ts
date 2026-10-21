@@ -143,14 +143,15 @@ describe("the metrics and their deltas", () => {
   const deltas = (pairs: ReturnType<typeof pair>[], thresholds = {}) => Object.fromEntries(metricDeltas(pairs, "after_dark", thresholds).map((d) => [d.key, d])) as Record<string, Delta>;
 
   it("means per run over the pairs where both ran, and flags a gated metric that moved the wrong way past its tolerance", () => {
-    const d = deltas([pair({ repeats: 0, sheet_detail_rate: 0.5, cliche_rate: 0.1 }, { repeats: 1, sheet_detail_rate: 0.44, cliche_rate: 0.11 }), pair({ repeats: 1, sheet_detail_rate: 0.5, cliche_rate: 0.1 }, { repeats: 1.2, sheet_detail_rate: 0.44, cliche_rate: 0.15 })]);
+    // The cliché rate is stock phrases per 100 lines (lib/adult/quality.ts).
+    const d = deltas([pair({ repeats: 0, sheet_detail_rate: 0.5, cliche_rate: 10 }, { repeats: 1, sheet_detail_rate: 0.44, cliche_rate: 11 }), pair({ repeats: 1, sheet_detail_rate: 0.5, cliche_rate: 10 }, { repeats: 1.2, sheet_detail_rate: 0.44, cliche_rate: 15 })]);
     expect(d.repeats).toMatchObject({ a: 0.5, b: 1.1, delta: 0.6, n: 2, gate: 0.5, regressed: true });
     expect(d.sheet_detail_rate).toMatchObject({ a: 0.5, b: 0.44, delta: -0.06, gate: 0.05, regressed: true });
-    expect(d.cliche_rate).toMatchObject({ delta: 0.03, gate: 0.02, regressed: true });
+    expect(d.cliche_rate).toMatchObject({ delta: 3, gate: 2, regressed: true });
   });
 
   it("stays quiet inside the tolerance, and when a metric improves however far", () => {
-    const d = deltas([pair({ repeats: 1, sheet_detail_rate: 0.5, invented_names: 1, unfounded: 1, cliche_rate: 0.1 }, { repeats: 1.4, sheet_detail_rate: 0.46, invented_names: 1.2, unfounded: 1.25, cliche_rate: 0.115 })]);
+    const d = deltas([pair({ repeats: 1, sheet_detail_rate: 0.5, invented_names: 1, unfounded: 1, cliche_rate: 10 }, { repeats: 1.4, sheet_detail_rate: 0.46, invented_names: 1.2, unfounded: 1.25, cliche_rate: 11.5 })]);
     for (const k of ["repeats", "sheet_detail_rate", "invented_names", "unfounded", "cliche_rate"]) expect(d[k].regressed).toBe(false);
     const better = deltas([pair({ repeats: 5, sheet_detail_rate: 0.1 }, { repeats: 0, sheet_detail_rate: 0.9 })]);
     expect(better.repeats.regressed).toBe(false);
@@ -299,8 +300,8 @@ function fakeRoutes(o: { missing?: boolean; costUsd?: number | null; quota?: str
           { who: "b", text: `${tag} I said yes before you finished asking!`, action: null, why: "her want", memory: "the karaoke", stage: 0 },
         ],
         metrics: b
-          ? { sheetDetailRate: 0.42, clicheRate: 0.04, repeats: 0, inventedNames: 0, unfoundedCitations: 0, unprovokedMoves: 0, alternationViolations: 0, memoryCitationShare: 0.5 }
-          : { sheetDetailRate: 0.3, clicheRate: 0.06, repeats: 1, inventedNames: 0, unfoundedCitations: 1, unprovokedMoves: 1, alternationViolations: 0, memoryCitationShare: 0.25 },
+          ? { sheetDetailRate: 0.42, clicheRate: 4, repeats: 0, inventedNames: 0, unfoundedCitations: 0, unprovokedMoves: 0, alternationViolations: 0, memoryCitationShare: 0.5 }
+          : { sheetDetailRate: 0.3, clicheRate: 6, repeats: 1, inventedNames: 0, unfoundedCitations: 1, unprovokedMoves: 1, alternationViolations: 0, memoryCitationShare: 0.25 },
         dropped: [],
         refusals: 0,
         usage: { input_tokens: 3000, output_tokens: 900, cost_usd: o.costUsd === undefined ? 0.004 : o.costUsd },

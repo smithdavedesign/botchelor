@@ -256,7 +256,7 @@ one: `local-uncensored` for After Dark text, `local-qwen3` for dates.
 | After Dark | repeated lines | +0.5 a run |
 | After Dark | invented names | +0.25 a run |
 | After Dark | unfounded memory citations | +0.25 a run |
-| After Dark | cliché rate | +0.02 |
+| After Dark | cliché rate (stock phrases per 100 lines) | +2 |
 | After Dark | sheet detail rate | −0.05 |
 | Dates | genuineness index | −5 |
 | Dates | near-duplicates, voice breaks, profile reading | +0.5 a date |

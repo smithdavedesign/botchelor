@@ -207,13 +207,16 @@ export function sheetStems(s: QualitySide): Set<string> {
 
 type Line = { who: "a" | "b"; text: string; memory?: string | null };
 
-/** The share of a character's lines (0..1) that use a distinctive word from their own sheet. 0 with no lines. */
-export function sheetDetailRate(lines: readonly Pick<Line, "text">[], side: QualitySide, others: readonly string[] = []): number {
-  if (!lines.length) return 0;
+/** How many of a character's lines use a distinctive word from their own sheet. */
+function sheetHits(lines: readonly Pick<Line, "text">[], side: QualitySide, others: readonly string[] = []): number {
   const own = sheetStems(side);
   const skip = nameWords(side.name, ...others);
-  const hits = lines.filter((l) => [...distinctiveStems(l.text, skip)].some((w) => own.has(w))).length;
-  return round(hits / lines.length);
+  return lines.filter((l) => [...distinctiveStems(l.text, skip)].some((w) => own.has(w))).length;
+}
+
+/** The share of a character's lines (0..1) that use a distinctive word from their own sheet. 0 with no lines. */
+export function sheetDetailRate(lines: readonly Pick<Line, "text">[], side: QualitySide, others: readonly string[] = []): number {
+  return lines.length ? round(sheetHits(lines, side, others) / lines.length) : 0;
 }
 
 /** Stock phrases per 100 lines, and which ones; a phrase the speaker's own sheet owns doesn't count. */
@@ -270,9 +273,13 @@ export type QualityInput = {
 export type SceneQuality = {
   lines: number;
   characters: { a: Drift; b: Drift };
+  /** The share of all lines (0..1) that use their own speaker's sheet: both characters, each against their own. */
+  sheet_detail_rate: number;
   /** Stock phrases per 100 lines, both characters, and which ones. */
   cliche_rate: number;
   cliches: Record<string, number>;
+  /** Lines said before, word for word or nearly (verbatim_repeats + near_repeats). */
+  repeats: number;
   verbatim_repeats: number;
   near_repeats: number;
   unprovoked_moves: number;
@@ -345,11 +352,16 @@ export function sceneQuality(input: QualityInput): SceneQuality {
   });
 
   const refusalLines = lines.filter((l) => refusalIn(l.text)).length;
+  // The share of all lines that use their own speaker's sheet (each character's lines against their own).
+  const ownSheet =
+    sheetHits(lines.filter((l) => l.who === "a"), input.a, [input.b.name]) + sheetHits(lines.filter((l) => l.who === "b"), input.b, [input.a.name]);
   return {
     lines: n,
     characters: drift,
+    sheet_detail_rate: n ? round(ownSheet / n) : 0,
     cliche_rate: n ? round((clicheHits / n) * 100) : 0,
     cliches,
+    repeats: verbatim + near,
     verbatim_repeats: verbatim,
     near_repeats: near,
     unprovoked_moves: observed.summary.unprovoked_moves,

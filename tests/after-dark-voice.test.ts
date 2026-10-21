@@ -391,7 +391,9 @@ describe("the metrics", () => {
       citations: [null, { founded: true, facts: ["f1"] }, null, { founded: false, facts: [] }],
       refusedElsewhere: 1,
     });
-    expect(q).toMatchObject({ lines: 4, verbatim_repeats: 1, invented_names: 1, alternation_violations: 1, memory_notes: 2, memory_citation_share: 0.25, fact_citation_share: 0.25, unfounded_citations: 1, refusals: 2 });
+    expect(q).toMatchObject({ lines: 4, repeats: 1, verbatim_repeats: 1, invented_names: 1, alternation_violations: 1, memory_notes: 2, memory_citation_share: 0.25, fact_citation_share: 0.25, unfounded_citations: 1, refusals: 2 });
+    // One of the four lines uses its own speaker's sheet (Chud's servers).
+    expect(q.sheet_detail_rate).toBe(0.25);
     expect(q.invented).toEqual([{ line: 1, name: "Dex" }]);
     expect(q.characters.b.name).toBe("Chud Mallow");
     expect(refusalIn("I'm sorry, but I can't write that.")).toBe("refusal");

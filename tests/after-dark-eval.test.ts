@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { canonicalMetrics, METRICS } from "../scripts/eval/golden.mjs";
 import { GET, POST } from "@/app/api/jobs/eval-after-dark/route";
 import { EVAL_MODELS, evalCost } from "@/lib/adult/eval";
 import { setAdultModelForTests } from "@/lib/adult/mode";
@@ -206,6 +207,17 @@ describe("a run", () => {
     const dead = await (await run(body({ steps: 3 }))).json();
     expect(dead.stopped).toBe("model_error");
     expect(dead.steps).toHaveLength(1);
+  });
+
+  it("answers with every metric the golden set's gate reads (scripts/eval/golden.mjs), under the names it matches", async () => {
+    await setup();
+    scripted([lines(["a", "Hello again, keeper.", { memory: "F7" }], ["b", "*bows* At your service."], ["a", "I bet Dex would never dare."])]);
+    const r = await (await run(body({ steps: 1 }))).json();
+    expect(r.metrics).toMatchObject({ sheet_detail_rate: expect.any(Number), cliche_rate: expect.any(Number), repeats: 0, invented_names: 0, unfounded_citations: 1 });
+    // As golden.mjs's callAfterDark reads it: the metrics, plus the dropped lines when the metrics don't count them.
+    const read = canonicalMetrics({ ...r.metrics, ...("dropped" in r.metrics ? {} : { dropped: r.dropped }) }, "after_dark");
+    for (const spec of METRICS.after_dark) expect(read, spec.key).toHaveProperty(spec.key);
+    expect(read).toMatchObject({ repeats: 0, invented_names: 0, unfounded: 1, refusals: 0, dropped: 1, alternation_violations: 0 });
   });
 
   it("prices a run from the list when OpenRouter doesn't say", () => {

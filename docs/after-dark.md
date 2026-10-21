@@ -243,3 +243,5 @@ curl -s -X POST https://botchelor.com/api/jobs/eval-after-dark -H "authorization
   quote, uses, cited`), `metrics` (`lib/adult/quality.ts`), `steps`, `dropped`, `refusals`, `usage` (`calls`,
   `input_tokens`, `output_tokens`, `cost_usd` from OpenRouter's own figure, else the list price; `cost_source`),
   `stopped` (`time` or `model_error`) and `extraction_errors`. `GET` lists the models and modes.
+- `scripts/eval/golden.mjs --suite after-dark --a '{"promptVersion":"v1"}' --b '{"promptVersion":"v2"}'` runs it on the
+  golden cases, both arms side by side with a local judge, and gates on these metrics (`docs/date-quality.md`).
