@@ -40,14 +40,22 @@ export default async function NotificationsPage() {
           </p>
         ) : (
           <>
-          <p className="notification-actions">
+          <div className="section-head notification-actions">
+            <h2>Latest</h2>
             <ClearNotifications />
-          </p>
+          </div>
           <ul className="list" aria-label="Notifications">
             {items.map((n) => (
-              <li key={n.id} className={`notification${n.read ? "" : " unread"}`}>
+              <li key={n.id} className={`notification${n.read ? "" : " unread"}${n.booked ? " is-booked" : ""}`}>
                 <strong>{n.link ? <Link href={n.link}>{n.title}</Link> : n.title}</strong>
-                {n.body && <span className="muted">“{n.body}”</span>}
+                {n.booked ? (
+                  // A "Book it" notice whose date has been booked since (lib/notifications.ts withBookings).
+                  <span className="notification-booked">
+                    ✓ {n.body} <Link href={`/episodes/${n.booked.episode_id}`}>{n.booked.status === "ready" ? "Watch it" : "Watch it being filmed"}</Link>
+                  </span>
+                ) : (
+                  n.body && <span className="muted">“{n.body}”</span>
+                )}
                 <span className="muted small">
                   {when(n.created_at)} · <ClearNotifications id={n.id} />
                 </span>
