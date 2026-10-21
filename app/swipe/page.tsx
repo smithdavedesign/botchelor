@@ -8,6 +8,7 @@ import { shortName } from "@/lib/names";
 import CharacterPicker from "@/app/CharacterPicker";
 import { unreadTexts } from "@/lib/inbox";
 import { deckFor } from "@/lib/swipes";
+import { withOrigins } from "@/lib/origin";
 import SwipeDeck from "./SwipeDeck";
 
 export const dynamic = "force-dynamic";
@@ -76,7 +77,7 @@ export default async function SwipePage({ searchParams }: Props) {
         </p>
       </div>
       {deck.ok ? (
-        <SwipeDeck character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={deck.cards} />
+        <SwipeDeck character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={await withOrigins(db, deck.cards)} />
       ) : (
         <section className="card">
           <h2>{deck.error === "profile_incomplete" ? `Finish ${first}'s dating profile` : `${first} can't swipe right now`}</h2>

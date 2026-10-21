@@ -6,6 +6,7 @@
 import { PUBLIC_COLUMNS, toProfile, type MadeBy, type ProfileRow } from "./dating";
 import type { Db } from "./db";
 import { getPublicCharacter } from "./game";
+import { markPairNotices } from "./notifications";
 import { loadRelationship, pairKey, viewRelationship } from "./relationships";
 import { matchView } from "./swipes";
 import { chainPage, loadChain, type ChainItem, type ChainText } from "./text-chain";
@@ -211,9 +212,5 @@ export async function loadThread(db: Db, viewerId: string | null, a: string, b: 
  * date). Matched on every link either kind has carried for the pair.
  */
 export async function markPairNoticesRead(db: Db, userId: string, x: string, y: string, kinds: ("matched" | "date_agreed")[]): Promise<void> {
-  const [lo, hi] = pairKey(x, y);
-  const links = [`/messages/${lo}/${hi}`, `/couples/${lo}/${hi}`, `/couples/${lo}/${hi}#texts`];
-  await db
-    .query(`update notifications set read_at = now() where user_id = $1 and kind = any($2) and read_at is null and link = any($3)`, [userId, kinds, links])
-    .catch(() => {});
+  await markPairNotices(db, userId, x, y, kinds);
 }

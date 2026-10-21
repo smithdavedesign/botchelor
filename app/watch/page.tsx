@@ -260,7 +260,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         <h2>Latest episodes{page > 1 ? ` · page ${page}` : ""}</h2>
         <p className="muted small">
           Aired dates, newest first: read the whole date at your pace or watch it in the theater. Creators stay anonymous
-          unless they both agree to reveal themselves. See <Link href="/cast">the cast &amp; matchmaking</Link>.
+          unless they both agree to reveal themselves. See <Link href="/characters">the cast &amp; matchmaking</Link>.
         </p>
         {feed.length ? (
           <ul className="list watch-latest-list">
