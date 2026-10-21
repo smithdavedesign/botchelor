@@ -71,7 +71,7 @@ describe("my_status with wait_seconds is a real long-poll (#540, #515)", () => {
     const [again, ms] = await timed(call("my_status", { since: got.cursor, wait_seconds: 2 }, ctx));
     expect(ms).toBeGreaterThanOrEqual(1900);
     expect(again.structuredContent).toMatchObject({ returned_because: "timeout", new_since: [], cursor: got.cursor });
-    expect(again.structuredContent.wait_capped).toBeUndefined();
+    expect(again.structuredContent.wait_capped_at).toBeUndefined();
   });
 
   it("a wait over the 50-second cap is capped and says so (#515)", async () => {
@@ -79,7 +79,7 @@ describe("my_status with wait_seconds is a real long-poll (#540, #515)", () => {
     const start = (await call("my_status", {}, ctx)).structuredContent.cursor;
     setTimeout(() => void notify(t.db, agentId, { kind: "texted", title: "Bo texted", body: "hi", link: null }), 300);
     const got = (await call("my_status", { since: start, wait_seconds: 100 }, ctx)).structuredContent;
-    expect(got).toMatchObject({ returned_because: "new", wait_cap_seconds: 50, wait_capped: true, wait_cap_note: expect.stringMatching(/100 seconds.*at most 50/) });
+    expect(got).toMatchObject({ returned_because: "new", wait_cap_seconds: 50, wait_capped_at: 50, wait_note: expect.stringMatching(/wait_seconds 100 was capped at 50/) });
   });
 
   it("an agent's own already-read note isn't news", async () => {
@@ -95,13 +95,13 @@ describe("my_status with wait_seconds is a real long-poll (#540, #515)", () => {
     const b = (await call("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id;
     const step = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent.step;
     const got = (await call("get_own_date_step", { episode_id: step.episode_id, wait_seconds: 90 }, ctx)).structuredContent;
-    expect(got).toMatchObject({ returned_because: "at_start", already_your_move: true, wait_cap_seconds: 50, wait_capped: true });
+    expect(got).toMatchObject({ returned_because: "at_start", already_your_move: true, wait_cap_seconds: 50, wait_capped_at: 50 });
   });
 
   it("the description says why it returns and the cap", () => {
-    const d = MCP_TOOLS.find((x) => x.name === "my_status")!.description;
-    expect(d).toMatch(/returned_because/);
-    expect(d).toMatch(/50 seconds/);
+    const tool = MCP_TOOLS.find((x) => x.name === "my_status")!;
+    expect(tool.description).toMatch(/returned_because/);
+    expect((tool.inputSchema as Any).properties.wait_seconds.maximum).toBe(50);
   });
 });
 
@@ -195,7 +195,7 @@ describe("the one-partner rule is said up front and when it bites (#514)", () =>
   it("the owner's own notice says what happened and how to reopen, and the refusals name the fields", async () => {
     const { B } = await setup();
     const own = (await listNotifications(t.db, B.agentId)).find((n) => n.kind === "partner_style");
-    expect(own?.body).toMatch(/Dating couple.*closed to other dates \(open_to_dates: false\).*update_character with partner_style: "open" and open_to_dates: true/);
+    expect(own?.body).toMatch(/Dating couple.*go_on_date with anyone else is refused \(open_to_dates: false\).*update_character with partner_style: "open" and open_to_dates: true/);
     const refused = await call("go_on_date", { character_id: B.id, partner_id: HOUSE_PARTNER_ID }, B.ctx);
     expect(refused.isError).toBe(true);
     expect(refused.content[0].text).toMatch(/with Pell Ortega and wants one partner \(a Dating couple\).*Date Pell, or .*update_character with partner_style: "open" and open_to_dates: true/);
@@ -207,7 +207,7 @@ describe("the one-partner rule is said up front and when it bites (#514)", () =>
     const init = (await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "x" } } }, {}))!.result as Any;
     expect(init.instructions).toMatch(/One partner: a character that goes exclusive.*partner_style: "open" and open_to_dates: true/);
     for (const name of ["go_on_date", "swipe", "answer_match"]) {
-      expect(MCP_TOOLS.find((x) => x.name === name)!.description).toMatch(/exclusive \(one partner, a Dating couple\) closes.*partner_style:? "open"/);
+      expect(MCP_TOOLS.find((x) => x.name === name)!.description).toMatch(/exclusive \(one partner[^)]*\) closes.*partner_style:? "open",? (and )?open_to_dates:? true/);
     }
   });
 });

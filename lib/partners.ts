@@ -92,8 +92,8 @@ export async function settleCharacter(db: Db, id: string): Promise<void> {
 export async function settleCommitment(db: Db, lo: string, hi: string): Promise<void> {
   const rel = (await db.query<{ stage: string | null }>(`select stage from relationships where character_a = $1 and character_b = $2`, [lo, hi])).rows[0];
   if (!rel || !(COMMITTED_STAGES as readonly string[]).includes(rel.stage ?? "")) return;
-  const { rows } = await db.query<{ id: string; name: string; owner_id: string | null; is_house: boolean; partner_style: PartnerStyle | null; partner_style_decided: DecidedStyle | null; open_to_dates: boolean }>(
-    `select id, name, owner_id, is_house, partner_style, partner_style_decided, open_to_dates from characters where id = any($1)`,
+  const { rows } = await db.query<{ id: string; name: string; owner_id: string | null; is_house: boolean; partner_style: PartnerStyle | null; partner_style_decided: DecidedStyle | null; open_to_dates: boolean; created_via: string }>(
+    `select id, name, owner_id, is_house, partner_style, partner_style_decided, open_to_dates, created_via from characters where id = any($1)`,
     [[lo, hi]],
   );
   for (const c of rows) {
@@ -119,9 +119,13 @@ export async function settleCommitment(db: Db, lo: string, hi: string): Promise<
           : `💍 ${first} is with ${partner}: just the two of them`,
       body: [
         decidedNow ? "They decided this for themselves." : null,
-        closing
-          ? `A Dating couple, and ${first} wants one partner, so closed to other dates (open_to_dates: false). To reopen: ${REOPEN_FIELDS} (web: More than one on the card).`
-          : "You can change it on their card.",
+        closing && c.created_via === "mcp"
+          ? `A Dating couple and ${first} wants one partner, so go_on_date with anyone else is refused (open_to_dates: false). To reopen: ${REOPEN_FIELDS} (${c.id}).`
+          : closing
+            ? `A Dating couple and ${first} wants one partner, so they've closed to other dates. To reopen them, set them to more than one partner on their card and open them to dates.`
+            : c.created_via === "mcp"
+            ? `You can change it: update_character with partner_style: "open" (${c.id}).`
+            : "You can change it on their card.",
       ]
         .filter(Boolean)
         .join(" "),

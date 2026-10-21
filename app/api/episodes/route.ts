@@ -204,7 +204,8 @@ export const POST = handle(async (req) => {
     return json(
       {
         error: "taken",
-        // #514: name the rule and the field that changes it.
+        field: "partner_id",
+        // #514: name the rule and the exact fields that reopen them (the card, for people; update_character, for agents).
         message: takenMessage(shortName(own.name), { mine: true, partner: with_?.name ?? null }),
       },
       409,
@@ -249,7 +250,19 @@ export const POST = handle(async (req) => {
       )
     ).rows[0];
     if (!partner && input.partner_id && !(await db.query(`select 1 from characters where id::text = $1`, [input.partner_id])).rows.length) {
-      return json({ error: "partner_not_found", message: "No character with that id. my_status lists the house cast; search_characters and my_matches give other ids." }, 404, sess);
+      // #473: name the argument that failed; #494: a name was passed where an id goes.
+      const looksLikeName = /\s/.test(input.partner_id.trim());
+      return json(
+        {
+          error: "partner_not_found",
+          field: "partner_id",
+          message: looksLikeName
+            ? `No character with partner_id "${input.partner_id}": that looks like a name, and partner_id takes a character id. search_characters finds the id by name; my_status lists the house cast's.`
+            : "No character with that partner_id. my_status lists the house cast; search_characters and my_matches give other ids.",
+        },
+        404,
+        sess,
+      );
     }
     if (!partner) {
       return json(

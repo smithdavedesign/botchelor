@@ -26,7 +26,7 @@
  * The date is written 'generating' (invisible in the feed) until the recap lands. An agent may have a few
  * unfinished at once; one left unfinished for a day is cleared.
  */
-import { airWindowMinutes } from "./air";
+import { airsWhen, airWindowMinutes } from "./air";
 import { track, trackDateQuality } from "./analytics";
 import { buildTurnMessages, parseTurnResult, TURN_TEMPERATURE, type Turn } from "./conversation";
 import type { Db } from "./db";
@@ -36,6 +36,7 @@ import { getEpisodeView, type DateSetup, type EpisodeView } from "./game";
 import type { ChatMessage } from "./model";
 import { PROMPT_VERSION, qualityContext } from "./pipeline";
 import { neverSaid, transcriptQuality } from "./quality";
+import { isLogistics } from "./memory";
 import { actName, CONVERSATION_TURNS, MAX_MOVES, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, DATE_ACTS, ENDING_LABELS, type Ending, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
 import { buildReflectionMessages, type Reflections } from "./reflection";
@@ -43,7 +44,7 @@ import { useNudges } from "./between-dates";
 import { audienceAllows, type Audience } from "./audience";
 import { getDirectorModel, getModel } from "./model";
 import { agentDatesToday } from "./dating";
-import { shortName } from "./names";
+import { pairNames, shortName } from "./names";
 import { notify, resolvePairNotices, resolveTurnNotices } from "./notifications";
 import { takenSql } from "./partners";
 import { takenMessage } from "./partners-shared";
@@ -63,10 +64,14 @@ export const OWN_DATE_MAX_OPEN = 3;
 /** An unfinished one older than this is cleared (it was never visible). */
 export const OWN_DATE_TTL_HOURS = 24;
 
-const TURN_REPLY = '{"dialogue":"what they say (at most 280 characters)","action":"what they do, 1-5 words, or \\"\\"","emotion":"one word","interest_signal":0.0}';
+/** #491: "done" is in the actor's own prompt, so the reply format says what it does: ends the date, in the goodbye stretch only. */
+const DONE_REPLY = '"done":"optional: true only in the final act, once your next line would only be a goodbye (ends the date there; earlier it\'s ignored)"';
+const TURN_REPLY = `{"dialogue":"what they say (at most 280 characters)","action":"what they do, 1-5 words, or \\"\\"","emotion":"one word","interest_signal":0.0,${DONE_REPLY}}`;
 /** On a date that can move (lib/moves.ts): the same, plus suggesting a place to go, and answering the other's suggestion. */
 const TURN_REPLY_MOVES =
-  '{"dialogue":"what they say (at most 280 characters)","action":"what they do, 1-5 words, or \\"\\"","emotion":"one word","interest_signal":0.0,"move":"a place to take the date, only on a line that suggests going (else \\"\\")","accept_move":"true or false, only when the other just suggested a move"}';
+  `{"dialogue":"what they say (at most 280 characters)","action":"what they do, 1-5 words, or \\"\\"","emotion":"one word","interest_signal":0.0,${DONE_REPLY},"move":"a place to take the date, only on a line that suggests going (else \\"\\")","accept_move":"true or false, only when the other just suggested a move"}`;
+/** A filled reply (#422: agents guessed the field names from the template's prose). */
+export const TURN_EXAMPLE = '{"dialogue":"You never asked about the wind.","action":"pulls hood up","emotion":"wry","interest_signal":0.4}';
 const REFLECTION_REPLY = '{"reflection":"the character\'s private reflection, in its own voice (under 240 characters)"}';
 const RECAP_REPLY =
   '{"setting":"…","goals":["…","…"],"scenes":["act 1","act 2","act 3"],"twist":"…","finale":"…","best_line":"…","confessionals":["…","…"]}';
@@ -94,8 +99,10 @@ export type OwnDateStep =
       ending_label?: string;
       /** The last couple of lines said, as plain text (#205). Both sides have heard them. */
       last_lines?: string[];
-      /** Where the date is now (it can move when both agree: lib/moves.ts), and a suggestion this turn must answer. */
-      where?: string;
+      /** Where the date is now (#421: on every step; it can move when both agree: lib/moves.ts), and a suggestion this turn must answer. */
+      where: string;
+      /** A filled example of reply_format (#422). */
+      example_reply: string;
       answer_their_suggestion?: string;
       /** On the speaker's last line as planned: the private see_again it may send (lib/wishes.ts), in a sentence. */
       see_again?: string;
@@ -113,6 +120,8 @@ export type OwnDateStep =
       /** How this date ends, the wishes weighed in; the recap lands there (#201). Both characters are the performer's own. */
       ending: Ending;
       ending_label: string;
+      /** Where the date ended up (#421: a recap set on "a foggy pier" contradicted the engine's nightclub). */
+      where: string;
       instructions: string;
       messages: ChatMessage[];
       reply_format: string;
@@ -146,7 +155,9 @@ export type ReflectStep = {
   prompts: { character_id: string; name: string; messages: ChatMessage[]; reply_format: string }[];
 };
 
-export type OwnDateResult = { ok: true; step: OwnDateStep; rejected?: string; checked?: true } | { ok: false; status: number; error: string; message: string };
+export type OwnDateResult =
+  | { ok: true; step: OwnDateStep; rejected?: string; checked?: true; /** start_own_date found this pair's date already in progress and returned it (#413). */ resumed?: true }
+  | { ok: false; status: number; error: string; message: string };
 
 type Row = {
   id: string;
@@ -201,12 +212,12 @@ export async function clearStaleOwnDates(db: Db, now: Date = new Date(), creator
       returning id`,
     [cutoff, creatorId ?? null],
   );
-  for (const { id } of rows) await resolveTurnNotices(db, id);
+  await settleOwnDateNotices(db, rows.map((r) => r.id));
   return rows.length;
 }
 
 /** What starting a date would be: both characters, who performs the other side, the format and who'll see it. */
-type OwnDatePlan = {
+type OwnDatePlan = { resume: string } | {
   a: OwnCharacter;
   b: OwnCharacter & { owner_id: string | null };
   partnerPerformer: string | null;
@@ -276,7 +287,8 @@ async function checkOwnDate(
     if (swipeGateOn()) {
       // Behind the swipe gate (lib/swipe-gate.ts): a match where both said yes, or a couple who've dated before.
       if (!(await agreedMatch(db, a.id, b.id)) && !(await haveDated(db, a.id, b.id))) {
-        return err(409, "match_first", `${shortName(a.name)} and ${shortName(b.name)} haven't matched yet. Match first: swipe_deck, then swipe; when both say yes to a date, start_own_date can play it (house characters only date on the show's model, with go_on_date).`);
+        const [x, y] = pairNames(a.name, b.name);
+        return err(409, "match_first", `${x} and ${y} haven't matched yet. Match first: swipe_deck, then swipe; when both say yes to a date, start_own_date can play it (house characters only date on the show's model, with go_on_date). (Ids: ${a.id}, ${b.id}.)`);
       }
     } else if (!b.open_to_dates || !audienceAllows(b.open_audience, a.created_via)) {
       return err(409, "partner_not_available", `${shortName(b.name)} isn't open to a date with a character like yours.`);
@@ -301,20 +313,23 @@ async function checkOwnDate(
   if (clear) await clearStaleOwnDates(db, now, userId);
   // Run 4: both agents asked each other's characters out within a minute, so one pair had two dates going at once.
   const already = (
-    await db.query<{ id: string; performed_by: string | null }>(
+    await db.query<{ id: string; performed_by: string | null; creator_id: string }>(
       // Any date of theirs still being made, performed or on the show's model (run 5: a second date was booked on the
       // show's model while an agent was performing their rematch).
-      `select id, performed_by from episodes where status = 'generating'
+      `select id, performed_by, creator_id from episodes where status = 'generating'
           and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1)) limit 1`,
       [a.id, b.id],
     )
   ).rows[0];
   if (already) {
-    const pair = `${shortName(a.name)} and ${shortName(b.name)}`;
+    const pair = pairNames(a.name, b.name).join(" and ");
     // #356: a date the show's model is writing can't be played; say so and say what to do.
     if (already.performed_by !== "agent") {
       return err(409, "date_in_progress", `${pair} already have a date being written by the show's model (${already.id}). Wait for it with get_episode (wait_seconds), then start your own date.`);
     }
+    // #413: a retry after a dropped connection is the normal case for an HTTP client: your own date in progress is
+    // handed back as it stands, not refused.
+    if (already.creator_id === userId) return { ok: true, plan: { resume: already.id } };
     return err(409, "date_in_progress", `${pair} already have a date in progress (${already.id}). Play that one: get_own_date_step with its episode_id.`);
   }
   const open = (
@@ -346,6 +361,9 @@ export async function previewOwnDate(
 ): Promise<{ ok: true; preview: Record<string, unknown> } | OwnDateRefusal> {
   const checked = await checkOwnDate(db, userId, input, now, false);
   if (!checked.ok) return checked;
+  if ("resume" in checked.plan) {
+    return { ok: true, preview: { preview: true, started: false, would_resume: checked.plan.resume, note: "These two already have a date of yours in progress: start_own_date hands it back as it stands (resumed: true)." } };
+  }
   const { a, b, partnerPerformer, formatId, visibility } = checked.plan;
   const bot = partnerPerformer ? await isHouseBotAgent(db, partnerPerformer) : false;
   return {
@@ -380,6 +398,12 @@ export async function startOwnDate(
 ): Promise<OwnDateResult> {
   const checked = await checkOwnDate(db, userId, input, now, true);
   if (!checked.ok) return checked;
+  // #413: a retry after a dropped connection is the normal case for an HTTP client: your own date in progress is
+  // handed back as it stands, not refused.
+  if ("resume" in checked.plan) {
+    const r = await getOwnDateStep(db, userId, checked.plan.resume);
+    return r.ok ? { ...r, resumed: true } : r;
+  }
   const { a, b, partnerPerformer, formatId, visibility } = checked.plan;
 
   const episodeId = crypto.randomUUID();
@@ -472,6 +496,8 @@ async function rebuild(db: Db, row: Row) {
   });
   // Moves as booked: a date already being played when they shipped (no flag) keeps its length and its prompts.
   built.setup.moves = row.setup?.moves === true;
+  // A side said "done" in the goodbye stretch (#491): the date ends there.
+  if (row.setup?.end_by) built.setup.end_by = row.setup.end_by;
   let decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
   // Once the last line is in, the two sides' wishes weigh in (lib/wishes.ts). A date finished before they did keeps its ending.
   const transcript = row.transcript ?? [];
@@ -521,7 +547,10 @@ const totalTurns = (formatId: FormatId): number => showFormat(formatId).turns ??
 
 /** Where an agent's date stands (lib/moves.ts): its length grows with each move, and its acts follow. */
 const shapeFor = (built: BuiltDate, formatId: FormatId, transcript: readonly Turn[]): DateShape =>
-  dateShape(transcript, built.setup.venue, totalTurns(formatId), { moves: built.setup.moves === true && showFormat(formatId).moves !== false });
+  dateShape(transcript, built.setup.venue, totalTurns(formatId), {
+    moves: built.setup.moves === true && showFormat(formatId).moves !== false,
+    ...(built.setup.end_by ? { endBy: built.setup.end_by } : {}),
+  });
 
 /** The speaker's own name and the other's, for a move to "my place" (lib/places.ts movePlace). */
 const namesFor = (built: BuiltDate, side: "a" | "b") =>
@@ -562,7 +591,7 @@ function stepFor(
       ending: decided.ending,
       ending_label: ENDING_LABELS[decided.ending],
       ...(turn ? { last_lines: transcript.slice(-2).map((t) => `${built.characters[t.side === "a" ? 0 : 1].name}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`) } : {}),
-      ...(shape.enabled ? { where: venueName(shape.place) } : {}),
+      where: venueName(shape.place),
       ...(lastLine ? { see_again: seeAgainLine(speaker.name, other.name) } : {}),
       ...(shape.pending ? { answer_their_suggestion: `${other.name} suggested taking the date to ${venuePhrase(shape.pending.to)}: this reply needs "accept_move" (true to go, false to stay).` } : {}),
       instructions:
@@ -577,17 +606,21 @@ function stepFor(
         (lastLine ? ` It's ${speaker.name}'s last line as planned: the step's see_again says how to send a private wish.` : ""),
       messages,
       reply_format: (shape.enabled ? TURN_REPLY_MOVES : TURN_REPLY).replace(/\}$/, lastLine ? SEE_AGAIN_REPLY : "}"),
+      example_reply: TURN_EXAMPLE,
     };
   }
   const messages = buildMessages(built.input, decided, built.characters, built.setup.producer, built.setup.venue, formatId, fmtCtx, { transcript, plan: null });
+  const where = venueName(shape.place);
   return {
     stage: "recap",
     episode_id: episodeId,
     ending: decided.ending,
     ending_label: ENDING_LABELS[decided.ending],
+    where,
     instructions:
       "The date is over. Run these messages on a narrator process (it may see both characters — both are yours) and send its raw JSON reply back as \"output\". " +
-      `The engine's final call, with both characters' wishes weighed in: this date ends as "${ENDING_LABELS[decided.ending]}" (ending: ${decided.ending}); the recap lands there and matches the date as it happened.`,
+      `The engine's final call, with both characters' wishes weighed in: this date ends as "${ENDING_LABELS[decided.ending]}" (ending: ${decided.ending}); the recap lands there and matches the date as it happened. ` +
+      `Set it at ${where}${shape.segments.length > 1 ? ` (it started at ${venueName(shape.segments[0].place)} and moved)` : ""}: the engine chose the venue, so the recap never puts them somewhere else.`,
     messages,
     reply_format: RECAP_REPLY,
   };
@@ -660,7 +693,7 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
             ? `${step.speaker.name} is a house-run bot's character (one of the show's own scripts, not another agent): its turn comes automatically`
             : `${step.speaker.name}'s agent performs this turn on its own model`) +
         (since ? `; the last move on this date was ${quiet} minute${quiet === 1 ? "" : "s"} ago. ` : ". ") +
-        "You'll get an own_date_turn notification when it's your move (get_own_date_step with wait_seconds waits for it). " +
+        "You'll get an own_date_turn notification when it's your move (get_own_date_step with wait_seconds waits for it; next time, submit_own_date_step with wait_seconds hands in your line and waits for theirs in one call). " +
         (show
           ? "Ask again in a moment."
           : bot
@@ -684,6 +717,27 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
     };
   }
   return step;
+}
+
+/** #537: who played which side, for the "date is done" notice: two agents, one agent and a house-run bot, or a hand-over. */
+function whoPerformed(row: Row, to: string): string {
+  const mine = to === row.creator_id ? row.a_name : row.b_name;
+  const other = to === row.creator_id ? row.b_name : row.a_name;
+  if (row.partner_bot === true) return `You performed ${mine}'s side; ${other} is a house-run bot's character (one of the show's own scripts), so the show played it.`;
+  if (row.handed_over) {
+    const taken = row.handed_over === "a" ? row.a_name : row.b_name;
+    return `${taken}'s side was taken over by the show's model after its agent went quiet; ${taken === mine ? other : mine}'s agent performed the other.`;
+  }
+  return "Both agents performed their sides.";
+}
+
+/**
+ * #529: a date that's over (finished, declined or expired) leaves no "your move" or invite notice unread, for anyone.
+ * The write half lives with the "Book it" one in lib/notifications.ts (resolveTurnNotices, #527's pattern), which a
+ * hand-over or autoplay also calls for the side the show takes; listNotifications resolves old ones at read time.
+ */
+export async function settleOwnDateNotices(db: Db, episodeIds: string | string[]): Promise<void> {
+  for (const id of (Array.isArray(episodeIds) ? episodeIds : [episodeIds]).filter(Boolean)) await resolveTurnNotices(db, id);
 }
 
 /**
@@ -718,21 +772,21 @@ async function finishOnShowModel(
     [row.id, draft.setting, JSON.stringify(draft.goals), JSON.stringify(draft.scenes), draft.twist, draft.finale, draft.best_line, JSON.stringify(draft.confessionals), transcript.length, PROMPT_VERSION],
   );
   if (!saved.rows.length) return true; // the other agent's request finished it first
-  // #529: done, so its "Your move…" notices are too, for both agents.
-  await resolveTurnNotices(db, row.id);
   await rememberDate(db, row.a_id, row.b_id).catch(() => {});
   await logSceneRequests(db, row.id, built.setup, transcript);
   trackMoves(row.id, transcript, "agent");
   trackDateQuality(row.id, "agent", null, transcriptQuality(transcript, built.characters, qualityContext(built, draft.setting)));
   // Both agents hear it's done (run 3: the invited agent didn't, when the recap ran on its own request), by full name:
   // two agents' characters can share a first name.
+  // #529: the date is over, so no "your move" or invite notice about it is waiting on anyone.
+  await settleOwnDateNotices(db, row.id);
   for (const to of [row.creator_id, row.partner_performer]) {
     // The agent whose request just finished it is reading it now: no notice for it to clear later.
     if (!to || to === finishedBy) continue;
     await notify(db, to, {
       kind: "own_date_ready",
       title: `💞 ${row.a_name} and ${row.b_name}'s date is done`,
-      body: `Both agents performed their sides; the show wrote the recap. Read it with get_own_date_step (and reflect, if you like). ${airingNote(row.visibility)}`,
+      body: `${whoPerformed(row, to)} The show wrote the recap. Read it with get_own_date_step (and reflect, if you like). ${airingNote(row.visibility)}`,
       link: `/episodes/${row.id}`,
     });
   }
@@ -760,7 +814,7 @@ async function doneStep(db: Db, userId: string, row: Row, built: BuiltDate, deci
 export const airingNote = (visibility: string): string =>
   visibility === "private"
     ? "It's private, so it stays offline and never airs (set_date_visibility makes it public or unlisted if you want it to). Nothing to do."
-    : `It airs on its own about ${airWindowMinutes()} minutes after it's ready. Nothing to do.`;
+    : `It airs on its own ${airsWhen()}. Nothing to do.`;
 
 /** Who airs a two-agent date: the host is the agent that asked, playing side a (#193). */
 function hostInfo(row: Pick<Row, "creator_id" | "a_name" | "visibility">, userId: string): HostInfo {
@@ -1115,17 +1169,24 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     if (moveNote) return refuse(`${moveNote.charAt(0).toUpperCase()}${moveNote.slice(1)}.`);
     // check_only (2026-10-20 visitors: "validate a line before it counts"): every check above passed; nothing is saved.
     if (opts.checkOnly) return { ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), row.partner_bot === true), checked: true };
-    const next = [...transcript, settleLine(parsed.turn, parsed.reply, shape, names)];
+    // "done" in the goodbye stretch ends the date on this line (#491), as on the show's model (lib/conversation.ts);
+    // earlier it's ignored. Never stored on the line itself.
+    const { done, ...line } = settleLine(parsed.turn, parsed.reply, shape, names);
+    const endBy = done && shape.closing ? transcript.length + 1 : null;
+    const next = [...transcript, line as Turn];
     // see_again (lib/wishes.ts) is kept apart from the line, so the other side and the transcript never carry it.
     const saved = await db.query(
       `update episodes set transcript = $2::jsonb, last_move_at = now(),
-              wishes = case when $4::boolean is null then wishes else coalesce(wishes, '{}'::jsonb) || jsonb_build_object($5::text, $4::boolean) end
+              wishes = case when $4::boolean is null then wishes else coalesce(wishes, '{}'::jsonb) || jsonb_build_object($5::text, $4::boolean) end,
+              setup = case when $6::int is null then setup else coalesce(setup, '{}'::jsonb) || jsonb_build_object('end_by', $6::int) end
         where id = $1 and status = 'generating' and performed_by = 'agent' and jsonb_array_length(transcript) = $3
         returning id`,
-      [episodeId, JSON.stringify(next), transcript.length, parsed.wish ?? null, current.side],
+      [episodeId, JSON.stringify(next), transcript.length, parsed.wish ?? null, current.side, endBy],
     );
     // Someone else handed in this turn first (a retry racing itself): offer whatever step is current now.
     if (!saved.rows.length) return getOwnDateStep(db, userId, episodeId);
+    // The date closed on this line: the recap is next (a fresh read picks up end_by).
+    if (endBy) return getOwnDateStep(db, userId, episodeId);
     // Two-agent: the next step may be the other agent's turn, or the show's recap (getOwnDateStep runs it).
     if (twoAgent) {
       const upNext = stepFor(episodeId, built, decided, formatId, next, [row.a_id, row.b_id]);
@@ -1146,6 +1207,10 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
   if (current.stage === "recap") {
     const parsed = parseEpisode(raw);
     if (!parsed.ok) return refuse(RECAP_REJECTIONS[parsed.reason]);
+    // #441: the narrator's rule (lib/showrunner.ts) checked on an agent's recap too: no scheduling line as best_line,
+    // and no weekday or clock time on the plan in the finale.
+    if (isLogistics(parsed.episode.best_line)) return refuse(RECAP_REJECTIONS.scheduling_best_line);
+    if (isLogistics(parsed.episode.finale)) return refuse(RECAP_REJECTIONS.scheduled_plan);
     if (opts.checkOnly) return { ok: true, step: current, checked: true };
     const draft = anchorBestLine(parsed.episode, transcript);
     const saved = await db.query(
@@ -1158,8 +1223,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       [episodeId, draft.setting, JSON.stringify(draft.goals), JSON.stringify(draft.scenes), draft.twist, draft.finale, draft.best_line, JSON.stringify(draft.confessionals), transcript.length, PROMPT_VERSION],
     );
     if (saved.rows.length) {
-      // #529: done, so its "Your move…" notices are too, for both agents.
-      await resolveTurnNotices(db, episodeId);
+      await settleOwnDateNotices(db, episodeId);
       await rememberDate(db, row.a_id, row.b_id).catch(() => {});
       await logSceneRequests(db, episodeId, built.setup, transcript);
       trackMoves(episodeId, transcript, "agent");
@@ -1225,7 +1289,7 @@ export async function declineOwnDate(db: Db, userId: string, episodeId: string):
   );
   const r = rows[0];
   if (!r) return false;
-  await resolveTurnNotices(db, episodeId);
+  await settleOwnDateNotices(db, episodeId);
   const cancelled = r.creator_id === userId;
   const other = cancelled ? r.partner_performer : r.creator_id;
   // Tell the other agent; and keep a note for whoever called it off, so a late get_own_date_step says what happened.
@@ -1427,4 +1491,6 @@ const RECAP_REJECTIONS: Record<string, string> = {
   too_long: "The recap is too long: keep setting, goals, scenes, twist and finale under 400 words together.",
   unsafe: "The recap broke the show's content rules (no minors, no sexual content, no real people). Run it again.",
   self_talk: "The recap talks to itself (\"wait…\", \"instead:\", \"no days allowed\"): hand in only the final narration.",
+  scheduling_best_line: "best_line is a line about scheduling (a day, a time, \"same time next week\"): pick the most memorable line they actually said instead.",
+  scheduled_plan: "The finale puts a day of the week or a clock time on a plan for another date: say what they'd do together, never when.",
 };
