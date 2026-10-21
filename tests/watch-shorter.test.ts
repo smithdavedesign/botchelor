@@ -24,3 +24,11 @@ describe("Watch stays short", () => {
     expect(page).toMatch(/<details className="watch-league-details">\s*<summary>Start a league with friends<\/summary>/);
   });
 });
+
+describe("the Reunion has its own page again (2026-10-21: the Watch card's link looped back to Watch)", () => {
+  it("renders the special instead of redirecting", () => {
+    const route = readFileSync(new URL("../app/reunion/page.tsx", import.meta.url), "utf8");
+    expect(route).not.toMatch(/redirect\(/);
+    expect(route).toContain("<ReunionPanel reunion={reunion}");
+  });
+});
