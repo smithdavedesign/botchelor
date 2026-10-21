@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
+import { isAdmin } from "@/lib/admins";
 import { listMedia } from "@/lib/adult/media";
 import { listReels } from "@/lib/adult/reels";
 import { listNights, openScene } from "@/lib/adult/scenes";
@@ -45,6 +46,14 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
       <p className="muted">
         {scene.date ? `Picking up from their latest date: ${scene.date.setting ?? "a date"}.` : "They haven't been on a date yet: this is how they meet."}
       </p>
+      {(await isAdmin(db, admin)) && (
+        // The writer's private notes on every line (why it was said, the memory it drew on): admins only, never on stage.
+        <p className="muted small">
+          <a href={`/api/admin/after-dark/why?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`} target="_blank" rel="noreferrer">
+            Why each line was written (admin, JSON)
+          </a>
+        </p>
+      )}
       <SceneWriter
         initial={scene}
         gallery={await listMedia(db, [scene.a.id, scene.b.id])}

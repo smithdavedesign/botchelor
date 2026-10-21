@@ -4,11 +4,13 @@ import { isPlaceholder, placeLabel, setPath, venueBackdropCss, venueName, type P
 import type { CharacterRef } from "@/lib/game";
 
 /** The full-bleed backdrop for the scene: a dark scrim over the venue photo, with the gradient as fallback. */
-export function sceneBackground(venue: PlaceId | null): string {
+export function sceneBackground(venue: PlaceId | null, setUrl?: string | null): string {
+  // A place of its own's drawn set (lib/sets.ts) when there is one; until then it paints nothing and the generic set
+  // shows. `setUrl` overrides it: a set already loaded (After Dark's theater preloads), or null for none at all.
+  const set = setUrl !== undefined ? setUrl : isPlaceholder(venue) && placeLabel(venue) ? setPath(placeLabel(venue)!) : null;
   return [
     "linear-gradient(rgba(12,8,16,0.42), rgba(12,8,16,0.66))",
-    // A place of its own's drawn set (lib/sets.ts) when there is one; until then the request 404s and the generic set shows.
-    isPlaceholder(venue) && placeLabel(venue) ? `url(${setPath(placeLabel(venue)!)})` : null,
+    set ? `url(${set})` : null,
     venueBackdrop(venue) ? `url(${venueBackdrop(venue)})` : null,
     venueBackdropCss(venue),
   ]
@@ -25,6 +27,8 @@ type SceneProps = {
   actLabel?: string | null;
   /** Shown centred before anyone has spoken (e.g. "The date is about to begin"). */
   placeholder?: string | null;
+  /** The drawn set's picture, when the caller has loaded it already; null for none (see sceneBackground). */
+  setUrl?: string | null;
 };
 
 /**
@@ -32,10 +36,10 @@ type SceneProps = {
  * persistent speech bubble. Desktop-first; on a phone the venue becomes a mood banner over
  * the <ChatThread> (David's "chat window with character icons"). Presentational and shared by the watch theater and the episode replay.
  */
-export default function Scene({ characters, venue, lineA, lineB, actLabel, placeholder }: SceneProps) {
+export default function Scene({ characters, venue, lineA, lineB, actLabel, placeholder, setUrl }: SceneProps) {
   const [a, b] = characters;
   return (
-    <div className="scene" style={{ backgroundImage: sceneBackground(venue) }}>
+    <div className="scene" style={{ backgroundImage: sceneBackground(venue, setUrl) }}>
       {actLabel && <p className="scene-act">{actLabel}</p>}
       {/* A venue still waiting for its reviewed backdrop paints only its gradient, and a place of their own (one of their
           homes, somewhere the library has no set for yet) shares a generic one: name the place, so the stage reads as somewhere. */}
