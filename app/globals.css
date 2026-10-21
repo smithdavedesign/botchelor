@@ -6529,3 +6529,224 @@ a.phone-head-btn {
 .looks-dots button {
   width: 100%;
 }
+
+/* ---------------- the episode page (app/episodes/[id]/page.tsx, 2026-10-21) ----------------
+   A hero with the venue's photo behind the pair and the setting, the way to watch on it; then one reading column. */
+main:has(> .episode-page) {
+  max-width: 68rem;
+}
+.episode-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(26rem, 64vh, 38rem);
+  margin: calc(-1 * 1.25rem) calc(-1 * var(--gutter)) var(--space-5);
+  background-color: #1d1030;
+  background-size: cover;
+  background-position: center 35%;
+  color: #fff;
+}
+@media (min-width: 761px) {
+  .episode-hero {
+    margin: 0 0 var(--space-6, 2rem);
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 18px 50px -24px rgba(20, 8, 30, 0.55);
+  }
+}
+.episode-hero-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 46rem;
+  padding: var(--space-6, 2rem) var(--gutter) var(--space-5);
+}
+@media (min-width: 761px) {
+  .episode-hero-inner {
+    padding: 3rem 3rem 2.5rem;
+  }
+}
+.episode-hero-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.82);
+}
+.episode-hero-kicker span + span::before {
+  content: "·";
+  margin-right: 0.9rem;
+  opacity: 0.7;
+}
+.episode-hero-cast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.episode-hero-cast .avatar {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+.episode-hero-x {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.75);
+}
+.episode-hero-cast .episode-hero-x {
+  font-size: 1.6rem;
+}
+.episode-hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.4rem);
+  line-height: 1.05;
+  text-wrap: balance;
+  color: #fff;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
+}
+.episode-hero-setting {
+  margin: 0;
+  max-width: 38rem;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.05rem, 2.4vw, 1.3rem);
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+}
+.episode-hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.episode-hero-cta > button,
+.episode-hero-cta > .button {
+  margin: 0;
+  padding: 0.8rem 1.5rem;
+  font-size: var(--text-md);
+}
+.episode-hero .button-ghost {
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+.episode-hero .button-ghost:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.episode-hero-link {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+}
+.episode-hero-link::after {
+  content: " →";
+}
+.episode-hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.episode-hero-chips li {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.episode-body {
+  max-width: 44rem;
+  margin: 0 auto;
+}
+.episode-wants ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.episode-wants li.card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+}
+.episode-wants li p {
+  margin: 0;
+  min-width: 0;
+}
+.episode-wants li strong {
+  display: block;
+  font-family: "Fraunces", Georgia, serif;
+}
+.episode-bonus {
+  margin: var(--space-3) 0 0;
+}
+.episode-predict {
+  scroll-margin-top: 5rem;
+}
+details.episode-read {
+  scroll-margin-top: 5rem;
+}
+details.episode-read > summary {
+  cursor: pointer;
+  list-style: none;
+}
+details.episode-read > summary::-webkit-details-marker {
+  display: none;
+}
+details.episode-read > summary h2 {
+  margin: 0 0 0.2rem;
+}
+details.episode-read > summary h2::before {
+  content: "▸ ";
+  color: var(--accent-text);
+}
+details.episode-read[open] > summary h2::before {
+  content: "▾ ";
+}
+details.episode-read[open] > summary {
+  margin-bottom: var(--space-3);
+}
+section.make-your-own {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+}
+section.make-your-own h2 {
+  margin: 0 0 0.25rem;
+}
+section.make-your-own p {
+  margin: 0;
+}
+.episode-foot {
+  margin-top: var(--space-6, 2rem);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+details.episode-safety {
+  margin: var(--space-3) 0;
+}
+details.episode-safety > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+details.episode-safety[open] > summary {
+  margin-bottom: var(--space-2);
+}
+details.episode-safety .safety > h2 {
+  display: none; /* the summary already says it */
+}
