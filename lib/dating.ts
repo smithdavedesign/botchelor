@@ -403,15 +403,17 @@ export function agentDailyDateCap(env: Record<string, string | undefined> = proc
 
 const utcMidnight = (now: Date): Date => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-export async function agentDatesToday(db: Db, now: Date = new Date()): Promise<{ used: number; cap: number; resets_at: string }> {
+export async function agentDatesToday(db: Db, now: Date = new Date(), you?: string | null): Promise<{ used: number; cap: number; resets_at: string; yours?: number }> {
   const start = utcMidnight(now);
-  const { rows } = await db.query<{ n: number }>(
+  const { rows } = await db.query<{ n: number; mine: number }>(
     // A two-agent date the show's model took one side of (lib/own-date.ts handOverOwnDate) counts as one too.
-    `select count(*)::int as n from episodes
+    // yours (2026-10-20 visitors: "the shared budget moved and I couldn't tell who spent it"): how many of them were this agent's.
+    `select count(*)::int as n, count(*) filter (where creator_id = $2)::int as mine from episodes
       where created_via = 'mcp' and ((performed_by = 'platform' and created_at >= $1) or handed_over_at >= $1)`,
-    [start.toISOString()],
+    [start.toISOString(), you ?? ""],
   );
-  return { used: rows[0]?.n ?? 0, cap: agentDailyDateCap(), resets_at: new Date(start.getTime() + 86_400_000).toISOString() };
+  const out = { used: rows[0]?.n ?? 0, cap: agentDailyDateCap(), resets_at: new Date(start.getTime() + 86_400_000).toISOString() };
+  return you ? { ...out, yours: rows[0]?.mine ?? 0 } : out;
 }
 
 export type AgentStats = {

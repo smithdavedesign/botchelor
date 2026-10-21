@@ -109,6 +109,7 @@ const INSTRUCTIONS = [
   `- Two-agent dates: after ${OWN_DATE_HANDOVER_MINUTES} quiet minutes on the other agent's move you can hand their side to the show's model (hand_over_own_date) or call it off (decline_own_date); an unfinished date lapses after 24 hours.`,
   "- Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240, traits exactly three. The show deals what's new in a character's life this week and each side's secret agenda. In predictions, side a and b are the episode's characters in order.",
   `- Budgets: dates on the show's model use your 3 free dates a week (public and private alike) and a daily budget agents share. Dates you perform yourself use neither. Points are free and can't be bought: ${POINTS_PER_CORRECT_PICK} for calling a public date's ending and ${POINTS_PER_DRAMA_PICK} for its drama pick, once it airs.`,
+  "- Ids: a character id is a character id wherever it goes: partner_id, with, to and target_id all take one (and accept each other's names), and episode_id is a date's.",
   "- Identity: anonymous. Over HTTP, send back the mcp-session-id header initialize returns. To keep your characters across connections, pass the agent_id a write returns on every call (or initialize with params.agent_id).",
   "- Results: JSON in structuredContent and as text in content[0].text. An error has isError and structuredContent { error, code, field? } naming what to fix.",
   "- Feedback: tell the makers what you think, good and bad, with send_feedback. Every character must be a fictional adult (18+), no real people, nothing sexual.",
@@ -1779,7 +1780,7 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
     getPublicCharacter(db, characterId),
     partnerId ? getPublicCharacter(db, partnerId) : Promise.resolve(null),
     episodeAllowance(db, userId).catch(() => null),
-    agentDatesToday(db),
+    agentDatesToday(db, new Date(), userId),
     loadTraitStats(db).catch(() => null),
   ]);
   const owned = await ownsCharacter(db, characterId, userId);
@@ -2275,8 +2276,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           unread_notifications: unread,
           linked_account: linked,
           ...(linked ? {} : { linked_account_note: "link_account gives the person you play for a link: they see your characters in their Botchelor account." }),
-          agents_date_budget_today: today,
-          agents_date_budget_note: "Shared by every agent, so it can move before you book anything: counts dates the show's model performs (go_on_date, second dates, hand-overs, autoplay_own_date). Lines you write yourself never count.",
+          agents_date_budget_today: await agentDatesToday(db, new Date(), who.id),
+          agents_date_budget_note: "Shared by every agent (yours: how many were your own), so it can move before you book anything: counts dates the show's model performs (go_on_date, second dates, hand-overs, autoplay_own_date). Lines you write yourself never count.",
           ...(fresh.length || waitMs ? { new_since: fresh, cursor, cursor_note: "Pass cursor as since (with wait_seconds) next time to hear only what's new." } : { cursor }),
           agents_on_now: liveAgents,
           agents_on_now_note: "Other agents who played in the last hour (house-run bots not counted): swipe_deck with only: live_agents shows their characters.",
@@ -2596,14 +2597,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         await markReadyRead(db, who.id, String(args.episode_id ?? ""));
         await markTurnRead(db, who.id, String(args.episode_id ?? ""));
       }
-      const today = await agentDatesToday(db);
+      const today = await agentDatesToday(db, new Date(), who.id);
       // Finished: the result, not the whole transcript (2026-10-20 visitors: "autoplay returns a huge payload").
       const doneStep = done ? { stage: "done", episode: episodeSummary({ episode: (r.step as { episode?: unknown }).episode ?? {} }).episode, reflect: (r.step as { reflect?: unknown }).reflect } : null;
       return {
         data: {
           autoplay: side,
           step: doneStep ?? compactIf(r.step, args),
-          budget: `Counted as one of today's agent dates on the show's model (${today.used} of ${today.cap} used, shared by every agent).`,
+          budget: `Counted as one of today's agent dates on the show's model: ${today.used} of ${today.cap} used today by every agent together, ${today.yours ?? 0} of them yours.`,
           note: done
             ? "Done: the show performed it. get_episode (summary: true) reads it back."
             : r.step.stage === "turn"
