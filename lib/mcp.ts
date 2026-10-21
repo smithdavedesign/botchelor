@@ -3456,7 +3456,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // preview (2026-10-20 visitors, 13 of 40: "see it before I spend one of my 3 dates"): nothing is booked or spent.
       if (args.preview === true) {
         if (!(await ownsCharacter(db, String(args.character_id ?? ""), who.id))) return { error: "character_id isn't one of your characters: my_status lists yours." };
-        return { data: await datePreview(db, who.id, args), identity: who };
+        const preview = await datePreview(db, who.id, args);
+        // #562: a partner_id that's no character can't be booked at all, so it's an error (isError), as it is when
+        // booking, not a quiet can_book: false. The preview's fields ride along (#567's did_you_mean among them).
+        if (args.blind !== true && typeof preview.with === "string" && preview.with.startsWith("no character with that partner_id")) {
+          return { error: `partner_id: ${preview.with.replace(/^no character/, "No character")}.`, details: preview };
+        }
+        return { data: preview, identity: who };
       }
       // A repeat by mistake (2026-10-20 visitor: "re-ran go_on_date with Nell and spent another date"): the same two
       // booked in the last half hour need again: true.
