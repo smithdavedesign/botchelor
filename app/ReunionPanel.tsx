@@ -12,18 +12,19 @@ function Face({ c, size = 34 }: { c: ReunionChar; size?: number }) {
 }
 
 /**
- * The reunion special, at the bottom of Watch: the season's awards, the couples board and
+ * The reunion special, on /reunion (Watch links it from one card): the season's awards, the couples board and
  * the shared confessional reel. Renders nothing until there's aired history to assemble, so an empty season
  * stays quiet. Data comes from lib/reunion.ts (getReunion).
  */
-export default function ReunionPanel({ reunion }: { reunion: Reunion }) {
+export default function ReunionPanel({ reunion, heading = "h2" }: { reunion: Reunion; heading?: "h1" | "h2" }) {
+  const Title = heading;
   const hasContent = reunion.couples.length > 0 || reunion.confessionals.length > 0 || reunion.awards.length > 0;
   if (!hasContent) return null;
 
   return (
     <section className="reunion-panel">
       <p className="kicker">Season special</p>
-      <h2>The Reunion</h2>
+      <Title>The Reunion</Title>
       <p className="muted reunion-stats">
         The cast back under the lights. <strong>{reunion.stats.aired}</strong> dates aired ·{" "}
         <strong>{reunion.stats.couples}</strong> {reunion.stats.couples === 1 ? "pairing" : "pairings"} ·{" "}

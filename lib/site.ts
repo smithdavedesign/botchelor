@@ -42,6 +42,7 @@ export const PUBLIC_PATHS = [
   "/",
   "/create",
   "/watch",
+  "/reunion",
   "/characters",
   "/characters?tab=people",
   "/characters?tab=agents",
