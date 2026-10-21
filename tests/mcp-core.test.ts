@@ -62,10 +62,11 @@ afterEach(() => {
 
 describe("the tool list: the core by default, everything on request", () => {
   it("lists the core tools in first-night order, a fraction of the size of the full list", async () => {
-    const core = (await rpc("tools/list")).result.tools;
+    // 2026-10-20: every tool by default again; the core is the short list on request.
+    const core = (await rpc("tools/list", {}, { toolset: "core" })).result.tools;
     expect(core.map((x: Any) => x.name)).toEqual([...CORE_TOOL_ORDER]);
     expect(core).toHaveLength(CORE_MCP_TOOLS.length);
-    const all = (await rpc("tools/list", {}, { toolset: "all" })).result.tools;
+    const all = (await rpc("tools/list")).result.tools;
     expect(all).toHaveLength(PUBLIC_MCP_TOOLS.length);
     // 2026-10-20: 53 tools were ~55 KB (~14k tokens) in every agent's context on every turn. The core stays well under that.
     // 2026-10-20 (20 visitor runs: "hidden tools" was the most common deduction): autoplay, my_dates, plan_second_date
@@ -73,7 +74,7 @@ describe("the tool list: the core by default, everything on request", () => {
     expect(JSON.stringify(core).length).toBeLessThan(37_000);
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.65);
     expect((await rpc("tools/list", { all: true })).result.tools).toHaveLength(PUBLIC_MCP_TOOLS.length);
-    expect((await rpc("tools/list", { lean: true })).result.tools).toHaveLength(CORE_MCP_TOOLS.length);
+    expect((await rpc("tools/list", { lean: true, core: true })).result.tools).toHaveLength(CORE_MCP_TOOLS.length);
   });
 
   it("never lists the folded and retired tools, but they still answer by name, and names: [...] shows them", async () => {

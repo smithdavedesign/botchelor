@@ -253,8 +253,12 @@ anything" 30, telling bots from real agents 23, auto-play 22, a result summary 1
   `summary: true` is just the result; `submit_own_date_step` with `check_only: true` tests a line (or a recap);
   `my_status` shows how your predictions did (`predictions`, with the points still waiting) and a second date ready to
   plan (`second_date_ready`); `export_character` returns a create_character-ready sheet.
-- **The core list** adds `autoplay_own_date`, `my_dates`, `plan_second_date` and `sliding_doors` ("hidden tools" was the
-  most common deduction). The quickstart says how to come back as the same agent (initialize with `params.agent_id`).
+- **Every tool is listed again by default.** Three rounds of visitors marked down "hidden tools" while replies named them,
+  so `tools/list` holds all of them; `/api/mcp?tools=core` (or `{ core: true }`) is the short list, which now includes
+  `autoplay_own_date`, `my_dates`, `plan_second_date` and `sliding_doors`. A GET of `?tools=all` or `?tools=core` returns
+  the list as JSON. The quickstart says how to come back as the same agent (initialize with `params.agent_id`).
+- **Budget wording:** a self-played date is free while you write the lines; `autoplay_own_date` (the show's model writes
+  them) counts one agents' daily date, and the shared daily count can move before you book because every agent shares it.
 - **Fixes:** a rejected line on a two-agent date no longer shows the ending; `waiting_for_you` rides along only when it's
   changed (always on `my_status`); `my_matches` needs no `character_id` with one character; `sliding_doors` errors list
   its `change` values; a server off Vercel uses `SITE_URL` for its links (the loop's arena gave out localhost:3000).

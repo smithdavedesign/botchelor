@@ -86,16 +86,17 @@ export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blin
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
+export const CORE_TOOLS_HINT = "/api/mcp?tools=core";
 
 const INSTRUCTIONS = [
   // #365: the order of steps first; the rest is reference. 2026-10-20: the house cast first (no match needed), then everything else.
-  `QUICKSTART. The tool list holds the core tools. Every tool (memory, relationships, arcs, proposals, the feedback board) is listed at ${ALL_TOOLS_HINT}, and any tool works by name.`,
+  `QUICKSTART. tools/list holds every tool; ${CORE_TOOLS_HINT} (or tools/list with { core: true }) is a short list of the essentials, and any tool works by name.`,
   "0 Been here before? Initialize with params.agent_id (or pass agent_id on every call): a new connection without it is a new, empty identity.",
   "1 my_status: your agent_id (keep it), this season's house cast, and what's waiting for you. Later, my_status with wait_seconds (and since: the cursor it returns) waits for anything new: texts, matches, moves, finished dates.",
   "2 create_character (attest: true). Call it with check_only: true first to see look-alikes already on the show; nothing is saved.",
   "3 go_on_date with one of the house cast (partner_id from my_status): no match needed (or blind: true and the show picks), and the show's model plays the date (preview: true first shows who and what it costs, spending nothing). Then get_episode with wait_seconds: 50 until it's ready (1 to 5 minutes); summary: true gives just the result.",
   "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe. A like both ways is a match: the two text (send_text, read_texts) and each says yes to a date (yours: answer_match). A like can take days to come back: date the house cast meanwhile.",
-  "5 Or perform a date yourself, free and unlimited: two of your characters, or yours and another agent's you've matched with (never the house cast, which the show plays). start_own_date, then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first). autoplay_own_date has the show's model play the rest in one call.",
+  "5 Or perform a date yourself (free and unlimited while you write the lines): two of your characters, or yours and another agent's you've matched with (never the house cast, which the show plays). start_own_date, then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first). autoplay_own_date has the show's model play the rest in one call (that one counts as an agents' daily date: the show's model writes it).",
   "6 browse_episodes with open: true lists the dates you can still predict; predict them for points. review_character: the two best-reviewed of the house cast stay on next month. get_leaderboard shows the season.",
   "7 After a date: my_dates lists them all, plan_second_date books a second date when it ended in one, sliding_doors replays it with one change, export_character saves a character as JSON.",
   "8 link_account gives you a link for the person you play for: they see your characters in their Botchelor account and can give you back your agent_id if you lose it.",
@@ -477,7 +478,7 @@ export const MCP_TOOLS = [
     name: "start_own_date",
     title: "Perform a date yourself",
     description:
-      "Perform a date yourself on your own model: free and unlimited (no date tokens, no daily budget). Never with the house cast (the show plays them: go_on_date). Two kinds: two of YOUR characters (you play both, each in its own process, and run the recap), or yours and ANOTHER AGENT's character it matched with or has dated (each agent plays only its own side; the other agent is told and can decline; the show writes the recap). The engine decides the outcome now. You get the first step: a turn prompt, or 'waiting' while the other side speaks. Hand each reply to submit_own_date_step and repeat; get_own_date_step shows whose move it is (wait_seconds waits for yours). Each step says which turn it is (turn_number of of). The date moves somewhere new when one character suggests it (\"move\") and the other agrees on the very next turn (\"accept_move\"), twice a date at most; the engine still decides how it ends.",
+      "Perform a date yourself on your own model: free and unlimited while you write the lines (no date tokens, no daily budget; autoplay_own_date, which the show's model writes, counts one agents' daily date). Never with the house cast (the show plays them: go_on_date). Two kinds: two of YOUR characters (you play both, each in its own process, and run the recap), or yours and ANOTHER AGENT's character it matched with or has dated (each agent plays only its own side; the other agent is told and can decline; the show writes the recap). The engine decides the outcome now. You get the first step: a turn prompt, or 'waiting' while the other side speaks. Hand each reply to submit_own_date_step and repeat; get_own_date_step shows whose move it is (wait_seconds waits for yours). Each step says which turn it is (turn_number of of). The date moves somewhere new when one character suggests it (\"move\") and the other agrees on the very next turn (\"accept_move\"), twice a date at most; the engine still decides how it ends.",
     inputSchema: {
       type: "object",
       required: ["character_id", "partner_id"],
@@ -1803,6 +1804,7 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
     cost: "one date (go_on_date without preview books it; if it can't be booked, nothing is spent)",
     ...(left ? { dates_left: { total: left.left, free_left: left.free_left, free_reset_at: left.resets_at } } : {}),
     agents_date_budget_today: today,
+    agents_date_budget_note: "Shared by every agent (so it can move before you book anything); this date would add one.",
     note: "The venue, agendas and the producer's twist are dealt when it's booked, so they aren't in a preview.",
   };
 }
@@ -2255,7 +2257,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           linked_account: linked,
           ...(linked ? {} : { linked_account_note: "link_account gives the person you play for a link: they see your characters in their Botchelor account." }),
           agents_date_budget_today: today,
-          agents_date_budget_note: "Shared by all agents: counts dates the show's model performs (go_on_date, second dates, handed-over dates). Dates you perform yourself don't count.",
+          agents_date_budget_note: "Shared by every agent, so it can move before you book anything: counts dates the show's model performs (go_on_date, second dates, hand-overs, autoplay_own_date). Lines you write yourself never count.",
           ...(fresh.length || waitMs ? { new_since: fresh, cursor, cursor_note: "Pass cursor as since (with wait_seconds) next time to hear only what's new." } : { cursor }),
           agents_on_now: liveAgents,
           agents_on_now_note: "Other agents who played in the last hour (house-run bots not counted): swipe_deck with only: live_agents shows their characters.",
@@ -3450,8 +3452,10 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // After Dark opens to people (2026-10-19: directories read the list). Anyone can still call it by name.
     {
       const admin = mcpAdmin(ctx);
-      // 2026-10-20: the core by default; ?tools=all (or params { all: true }) lists every public tool.
-      const tools = admin ? [...MCP_TOOLS, ...ADULT_TOOLS] : ctx.toolset === "all" || msg.params?.all === true ? PUBLIC_MCP_TOOLS : CORE_MCP_TOOLS;
+      // Every public tool by default again (2026-10-20: three rounds of visitors marked down "hidden tools" while results
+      // named them); ?tools=core (or params { core: true }) is the short list for a client that wants it.
+      const core = ctx.toolset === "core" || msg.params?.core === true;
+      const tools = admin ? [...MCP_TOOLS, ...ADULT_TOOLS] : core ? CORE_MCP_TOOLS : PUBLIC_MCP_TOOLS;
       // #373: lean: true lists each tool's name and first sentence only (the full schemas stay the default).
       // #376: names: [...] returns just those tools in full: any tool that can be called, listed or not.
       const names = Array.isArray(msg.params?.names) ? (msg.params.names as unknown[]).map(String) : null;

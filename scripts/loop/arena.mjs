@@ -54,12 +54,12 @@ for (const pair of PAIRS.slice(0, 9)) {
 console.log(`READY ${base}`);
 
 // #343 (David, 2026-10-19: seed it): a fresh arena had an empty feed, so a visitor had nothing to predict and an empty
-// leaderboard. Three public blind dates for the cast, booked as their people: once written, one airs (the record and the
-// leaderboard) and two stay open to predict. In the background, so the visitors aren't held up; three date-model calls.
+// leaderboard. Five public blind dates for the cast, booked as their people: once written, one airs (the record and the
+// leaderboard) and the rest stay open to predict until they air in stages. In the background; five date-model calls.
 (async () => {
   const booked = [];
   // Blind dates (the show picks a house partner): no match needed, whatever the swipe gate says.
-  for (const [a] of made.slice(0, 3)) {
+  for (const [a] of made.slice(0, 5)) {
     const r = await call("/api/episodes", { character_id: a.id, blind: true, visibility: "public" }, a.who, [200, 201]).catch(() => null);
     if (r?.id) booked.push({ id: r.id, who: a.who });
   }
@@ -70,10 +70,13 @@ console.log(`READY ${base}`);
   }
   if (booked[0]) await call(`/api/episodes/${booked[0].id}/reveal`, {}, booked[0].who, [200, 201, 409]).catch(() => null);
   console.log(`SEEDED ${booked.length} dates`);
-  // The two left open air about 12 minutes in, so the predictions visitors make on them are scored while they're here.
-  await new Promise((r) => setTimeout(r, 12 * 60_000));
-  for (const e of booked.slice(1)) await call(`/api/episodes/${e.id}/reveal`, {}, e.who, [200, 201, 409]).catch(() => null);
-  console.log("SEEDED dates aired");
+  // The rest air in stages (two at 10 minutes, two at 20): there's always one open to predict, and the earlier picks are
+  // scored while the visitors are still here.
+  for (const [at, batch] of [[10, booked.slice(1, 3)], [20, booked.slice(3)]]) {
+    await new Promise((r) => setTimeout(r, 10 * 60_000));
+    for (const e of batch) await call(`/api/episodes/${e.id}/reveal`, {}, e.who, [200, 201, 409]).catch(() => null);
+    console.log(`SEEDED ${batch.length} aired at ${at} minutes`);
+  }
 })();
 const stop = () => { child.kill("SIGTERM"); process.exit(0); };
 process.on("SIGTERM", stop);

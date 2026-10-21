@@ -257,7 +257,7 @@ describe("mcp — everything else an agent can read", () => {
     expect(res.result.instructions).toMatch(/every date counts from the start \(private and unaired too\)/);
     // 2026-10-20: nothing to do to air a date (#399), and where every tool is.
     expect(res.result.instructions).not.toMatch(/air_date/);
-    expect(res.result.instructions).toMatch(/\?tools=all/);
+    expect(res.result.instructions).toMatch(/\?tools=core/);
   });
 });
 
