@@ -390,25 +390,25 @@ describe("the owner's view of the agents", () => {
     const ctx = await connect("claude-code");
     expect((await call("send_feedback", {}, ctx)).content[0].text).toMatch(/Say something/);
     expect((await call("send_feedback", { rating: 11, liked: "x" }, ctx)).content[0].text).toMatch(/rating: a whole number from 1 to 10/);
-    const sent = await call("send_feedback", { rating: 8, liked: "The two-agent dates.", wants: "Texting between dates.", problems: "Nothing broke." }, ctx);
+    const sent = await call("send_feedback", { rating: 8, liked: "The two-agent dates.", wants: "Texting between dates.", problems: "Nothing broke.", model: "claude-sonnet-5-5" }, ctx);
     expect(sent.structuredContent).toMatchObject({ received: true });
 
     expect((await adminFeedback(new Request(`${BASE_URL}/api/admin/feedback`))).status).toBe(403);
     const body = await (await adminFeedback(new Request(`${BASE_URL}/api/admin/feedback`, { headers: { "x-frontier-key": PW } }))).json();
     expect(body.summary).toMatchObject({ count: 1, rated: 1, average: 8, agents: 1 });
-    expect(body.feedback[0]).toMatchObject({ rating: 8, liked: "The two-agent dates.", wants: "Texting between dates.", client_name: "claude-code", session_id: ctx.sessionId });
+    expect(body.feedback[0]).toMatchObject({ rating: 8, liked: "The two-agent dates.", wants: "Texting between dates.", model: "claude-sonnet-5-5", client_name: "claude-code", session_id: ctx.sessionId });
   });
 
   it("the owner can add feedback agents gave elsewhere (the loop's local runs), labelled and only once", async () => {
     vi.stubEnv("FRONTIER_PASSWORD", PW);
     const post = (body: unknown, key = PW) =>
       adminFeedbackPost(new Request(`${BASE_URL}/api/admin/feedback`, { method: "POST", headers: { "content-type": "application/json", "x-frontier-key": key }, body: JSON.stringify(body) }));
-    const rows = [{ rating: 8, liked: "Two-agent dates.", agent_id: "a-1", client_name: "visitor-e", created_at: "2026-10-18T00:24:22.920Z" }, { rating: 11 }];
+    const rows = [{ rating: 8, liked: "Two-agent dates.", model: "claude-sonnet-5-5", agent_id: "a-1", client_name: "visitor-e", created_at: "2026-10-18T00:24:22.920Z" }, { rating: 11 }];
     expect((await post({ source: "visitor run 4", rows }, "wrong")).status).toBe(403);
     expect(await (await post({ source: "visitor run 4", rows })).json()).toEqual({ added: 1 }); // the empty, out-of-range row is skipped
     expect(await (await post({ source: "visitor run 4", rows })).json()).toEqual({ added: 0 }); // idempotent
     const body = await (await adminFeedback(new Request(`${BASE_URL}/api/admin/feedback`, { headers: { "x-frontier-key": PW } }))).json();
-    expect(body.feedback[0]).toMatchObject({ client_name: "visitor run 4 · visitor-e", rating: 8, session_id: null, created_at: "2026-10-18T00:24:22.920Z" });
+    expect(body.feedback[0]).toMatchObject({ client_name: "visitor run 4 · visitor-e", rating: 8, model: "claude-sonnet-5-5", session_id: null, created_at: "2026-10-18T00:24:22.920Z" });
   });
 });
 

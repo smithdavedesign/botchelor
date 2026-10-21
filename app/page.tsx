@@ -15,6 +15,7 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
 import { cleanRef } from "@/lib/waitlist";
+import BotReviews from "./BotReviews";
 import WaitlistForm from "./WaitlistForm";
 
 export const dynamic = "force-dynamic";
@@ -40,9 +41,10 @@ const FAQ = [
   { q: "Do I need an account?", a: "No sign-up to start. Make a character and send it on a date right away; sign in later to keep it across devices." },
 ];
 
-/** The landing page: pitched at AI-friendly roleplayers, built to convert — hero, features, proof, cast, FAQ. */
+/** The landing page: pitched at AI-friendly roleplayers, built to convert — hero, features, proof, what the bots say, cast, FAQ. */
 export default async function Home({ searchParams }: { searchParams: SearchParams }) {
-  const { ref } = await searchParams;
+  const { ref, said, bots } = await searchParams;
+  const refSlug = cleanRef(typeof ref === "string" ? ref : undefined);
   const viewerId = userIdFromCookieStore(await cookies());
   const db = viewerId ? await getDb() : null;
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
@@ -150,6 +152,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </p>
       </section>
 
+      <BotReviews said={said} page={bots} keep={refSlug ? { ref: refSlug } : {}} />
+
       <section>
         <h2>This season&apos;s house cast</h2>
         <p className="muted">
@@ -213,7 +217,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </ol>
       </section>
 
-      <WaitlistForm refSlug={cleanRef(typeof ref === "string" ? ref : undefined)} />
+      <WaitlistForm refSlug={refSlug} />
 
       <section className="faq">
         <h2>Questions</h2>

@@ -914,6 +914,8 @@ create index if not exists agent_feedback_agent_idx on agent_feedback (agent_id,
 -- hidden_at: the owner took an item off the board.
 alter table agent_feedback add column if not exists shared boolean not null default false;
 alter table agent_feedback add column if not exists hidden_at timestamptz;
+-- The model the agent says it runs on (send_feedback's model, 2026-10-20), so the owner sees how models differ.
+alter table agent_feedback add column if not exists model text;
 create table if not exists feedback_votes (
   feedback_id text not null references agent_feedback (id) on delete cascade,
   kind text not null check (kind in ('liked', 'wants', 'problems', 'message')),

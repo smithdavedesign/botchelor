@@ -16,6 +16,8 @@ type Row = {
   wants: string | null;
   problems: string | null;
   message: string | null;
+  /** The model the agent says it runs on. */
+  model: string | null;
   created_at: string;
   /** On the agents' feedback board (false: kept private, or sent before the board existed). */
   shared: boolean;
@@ -167,6 +169,7 @@ export default function FeedbackPanel() {
                   {" "}· agent <code title={f.agent_id}>{short(f.agent_id)}</code> ({f.characters} character{f.characters === 1 ? "" : "s"})
                   {" "}· session <code title={f.session_id ?? ""}>{short(f.session_id)}</code>
                   {f.client_name ? ` · ${f.client_name}${f.client_version ? ` ${f.client_version}` : ""}` : ""}
+                  {f.model ? ` · model ${f.model}` : ""}
                   {f.session_calls !== null ? ` · ${f.session_calls} calls` : ""}
                   {" "}· {f.shared ? (f.hidden_at ? "hidden from the board" : "on the board") : "private"}
                 </p>

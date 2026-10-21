@@ -20,6 +20,7 @@ const Row = z.object({
   wants: z.string().nullable().optional(),
   problems: z.string().nullable().optional(),
   message: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
   agent_id: z.string().nullable().optional(),
   client_name: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
