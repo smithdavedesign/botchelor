@@ -1823,43 +1823,21 @@ button.button-ghost:hover:not(:disabled) {
   .watch-dot { animation: none; }
 }
 
-/* The standard watch room is wider than the site's reading column, so the date, the live chat and the voting can sit
-   side by side. Theater mode is full-screen and ignores it. */
+/* The standard watch room is wider than the site's reading column: the date, and beside it one sticky sidebar (the
+   vote and the chat in tabs, app/watch/[id]/WatchRoom.tsx RoomPanel). Theater mode is full-screen and ignores it. */
 main:has(> .watch) {
-  max-width: 84rem;
+  max-width: 76rem;
 }
 .watch-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "stage" "votes" "chat";
   gap: 1rem;
   align-items: start;
 }
-/* Two columns: the date, and beside it the live chat over the voting. */
-@media (min-width: 52rem) {
+@media (min-width: 60rem) {
   .watch-grid {
-    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-    grid-template-areas: "stage chat" "stage votes";
-    grid-template-rows: auto 1fr;
-  }
-}
-/* Three columns: the date, the live chat, the voting. Chat and voting stay in view while the date scrolls. */
-@media (min-width: 72rem) {
-  .watch-grid {
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas: "stage chat votes";
-    grid-template-rows: auto;
-  }
-  .watch-side,
-  .watch-votes {
-    position: sticky;
-    top: 1rem;
-    max-height: calc(100vh - 2rem);
-    overflow-y: auto;
-  }
-  .watch-side .watch-messages {
-    max-height: none;
-    height: max(14rem, calc(100vh - 16rem));
+    grid-template-columns: minmax(0, 1fr) 23rem;
+    gap: 1.25rem;
   }
 }
 .watch-stage,
@@ -1867,16 +1845,6 @@ main:has(> .watch) {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  min-width: 0;
-}
-.watch-stage {
-  grid-area: stage;
-}
-.watch-votes {
-  grid-area: votes;
-}
-.watch-side {
-  grid-area: chat;
   min-width: 0;
 }
 .watch-stage .card,
@@ -6528,4 +6496,276 @@ a.phone-head-btn {
 }
 .looks-dots button {
   width: 100%;
+}
+
+/* ---------------- the watch room's sidebar (RoomPanel) and its theater (2026-10-21) ----------------
+   One column beside the show, in tabs (Chat · The date · Vote), as on Twitch or YouTube Live: the chat reads from the
+   bottom with the composer pinned under it, an empty chat is a welcome by the composer, not a tall empty box. */
+.room-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: min(72vh, 40rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+/* Beside the date (not in the theater): as tall as its tab needs, up to the screen under the site's sticky header;
+   only the chat takes a set height, so it can read from the bottom. */
+.watch-grid > .room-panel {
+  height: auto;
+}
+.watch-grid > .room-panel .room-pane-chat {
+  flex: 0 0 auto;
+  height: min(28rem, 70vh);
+}
+@media (min-width: 60rem) {
+  .watch-grid > .room-panel {
+    position: sticky;
+    top: 5.25rem;
+    max-height: calc(100dvh - 6.5rem);
+  }
+  .watch-grid > .room-panel .room-pane-chat {
+    height: min(26rem, calc(100dvh - 12rem));
+  }
+}
+.room-panel-hidden {
+  height: auto;
+  padding: var(--space-3) var(--space-4);
+}
+.room-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.room-panel button.room-tab,
+.room-panel button.room-hide {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+}
+.room-panel button.room-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.85rem 0.75rem 0.75rem;
+  border-bottom: 2.5px solid transparent;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+.room-panel button.room-tab:hover:not(:disabled) {
+  color: var(--ink);
+  background: none;
+  transform: none;
+}
+.room-panel button.room-tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+}
+.room-tab-count {
+  min-width: 1.2rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--accent-text);
+  font-size: 0.7rem;
+  line-height: 1.2rem;
+  text-align: center;
+}
+.room-tab-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: watch-pulse 1.8s ease-out infinite;
+}
+.room-panel button.room-hide {
+  margin-left: auto;
+  padding: 0 0.5rem;
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+.room-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.room-pane-chat,
+.room-pane-script {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.room-votes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+.room-votes .card {
+  margin: 0;
+}
+.room-empty {
+  margin: var(--space-4) var(--space-2);
+}
+.room-script {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.room-script .chat-thread {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-3) var(--space-4) var(--space-5);
+}
+.room-panel .watch-chat {
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+.room-panel .watch-reactions {
+  flex: 0 0 auto;
+  gap: 0.35rem;
+}
+.room-panel .watch-react {
+  padding: 0.25rem 0.6rem;
+}
+.watch-react-count {
+  margin-left: 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.room-panel .watch-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: none;
+  overscroll-behavior: contain;
+}
+/* Newest at the bottom, by the composer: a short chat sits there rather than at the top of an empty box. */
+.room-panel .watch-messages > :first-child {
+  margin-top: auto;
+}
+.watch-welcome {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.room-panel .watch-compose {
+  flex: 0 0 auto;
+}
+.room-panel .watch-fineprint {
+  flex: 0 0 auto;
+}
+
+/* Dark, in the theater: the site's dark palette, scoped to the sidebar, so the polls and the chat follow it. */
+.room-panel.is-dark {
+  --ink: #f5e9f0;
+  --muted: #b49fbd;
+  --paper-2: #1d1024;
+  --card: #1a1020;
+  --accent: #ff5e8c;
+  --accent-text: #ff7aa3;
+  --accent-btn: #ff5e8c;
+  --accent-2: #a98bff;
+  --accent-ink: #130a16;
+  --line: #34223f;
+  --field: #7a5f93;
+  --soft: #2a1730;
+  color-scheme: dark;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  background: #140c1a;
+  color: var(--ink);
+  box-shadow: none;
+}
+.room-panel.is-dark .card {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.room-panel.is-dark input {
+  background: #221628;
+  color: var(--ink);
+  border-color: var(--field);
+}
+
+/* The watch room's theater: the stage, and the sidebar beside it (360px), or the stage alone once it's hidden. */
+.theater.theater-room {
+  display: flex;
+}
+.theater-room > .room-panel {
+  flex: 0 0 min(360px, 34vw);
+  height: 100%;
+}
+.theater-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  box-shadow: none;
+}
+.theater-pill:hover:not(:disabled) {
+  transform: none;
+  background: rgba(0, 0, 0, 0.6);
+}
+/* While the theater is open the page under it is still: no scrolling it, no rubber-banding on a phone. */
+html.theater-lock,
+html.theater-lock body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+@media (max-width: 760px) {
+  /* A phone: the scene is a short banner with the title and buttons; the sidebar (opening on the date) is the rest. */
+  .theater.theater-room {
+    flex-direction: column;
+  }
+  .theater-room > .theater-stage {
+    flex: 0 0 auto;
+  }
+  .theater-room > .room-panel {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  /* The decision lands over the sidebar, at the foot of the screen, not clipped inside the short banner. */
+  .theater-room .theater-verdict {
+    position: fixed;
+    top: auto;
+    bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(30rem, calc(100% - 2 * var(--gutter)));
+    z-index: 210;
+  }
+}
+/* The live count over the photo: white, like the rest of the theater's header (pink on a busy scene couldn't be read). */
+.theater-hud .watch-live {
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
 }
