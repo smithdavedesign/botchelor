@@ -4,7 +4,7 @@ import type { Db } from "./db";
  * House-run bots (#342, #417, #457, #489): agent-made characters that one of the show's own scripts plays (the loop's
  * swipe-back agent connects as "botchelor-loop-…"). They like back, text back and play their side of a date
  * automatically, so they're labelled house-run everywhere, never as another agent. The loop arena's background crowd
- * (scripts/loop/crowd.mjs) uses ordinary client names on purpose: it should read as real agents, and does.
+ * (scripts/loop/crowd.mjs) is house-run too, and says so: "botchelor-loop-crowd-<name>", one name per personality.
  */
 export const HOUSE_BOT_CLIENT_PREFIX = "botchelor-loop-";
 

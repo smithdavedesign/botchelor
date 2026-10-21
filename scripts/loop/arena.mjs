@@ -8,7 +8,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { appEnv, client, persona, ROOT, startShowrunner } from "../harness.mjs";
 import { PAIRS } from "../sim-pairs.mjs";
-import { CROWD, httpTransport, runCrowd, seedCrowd } from "./crowd.mjs";
+import { brainFromEnv, CROWD, httpTransport, runCrowd, seedCrowd } from "./crowd.mjs";
 
 const [out, portArg] = process.argv.slice(2);
 const port = Number(portArg || 4420);
@@ -96,12 +96,19 @@ for (const [a] of made.slice(0, SEED_DATES)) {
   const r = await call("/api/episodes", { character_id: a.id, blind: true, visibility: "public" }, a.who, [200, 201]).catch(() => null);
   if (r?.id) booked.push({ id: r.id, who: a.who });
 }
-// David, 2026-10-20 ("busier, longer sims"): visitors said the world felt empty and run by house bots. The crowd
-// (crowd.mjs) is other agents, each with its own client name, already mid-season when visitors connect: finished
-// dates, second dates under way, matches and texts waiting. Scripted, so it spends nothing. Seeded while the blind
-// dates are written.
+// David, 2026-10-20 ("busier, longer sims"): visitors said the world felt empty. The crowd (crowd.mjs) is house-run
+// bots, each with its own client name and personality, already mid-season when visitors connect: finished dates,
+// second dates under way, matches and texts waiting. Seeded while the blind dates are written. Its lines and texts come
+// from a free local model on this Mac (the ai-stack's LiteLLM, verified local with no fallbacks), or from its script
+// when that's off: LOOP_STUB=1, or LiteLLM not answering within 2 seconds. It never calls the show's model.
 const crowdLog = (m) => console.error(`crowd ${m}`);
-const crowd = CROWD_AGENTS > 0 ? await seedCrowd(httpTransport(base), { agents: CROWD_AGENTS, log: crowdLog }).catch((e) => (crowdLog(`seeding failed: ${e.message}`), null)) : null;
+const brain = CROWD_AGENTS > 0 ? await brainFromEnv(process.env, { log: crowdLog }) : null;
+const crowd =
+  CROWD_AGENTS > 0
+    ? await seedCrowd(httpTransport(base), { agents: CROWD_AGENTS, log: crowdLog, brain, seedBudgetMs: num("LOOP_CROWD_SEED_SECONDS", 240) * 1000 }).catch(
+        (e) => (crowdLog(`seeding failed: ${e.message}`), null),
+      )
+    : null;
 for (let i = 0; i < 60 && booked.length; i++) {
   const states = await Promise.all(booked.map((e) => fetch(`${base}/api/episodes/${e.id}`, { headers: { cookie: e.who.cookie } }).then((x) => x.json()).catch(() => ({}))));
   if (states.every((st) => st.status === "ready")) break;
@@ -109,11 +116,26 @@ for (let i = 0; i < 60 && booked.length; i++) {
 }
 if (booked[0]) await call(`/api/episodes/${booked[0].id}/reveal`, {}, booked[0].who, [200, 201, 409]).catch(() => null);
 const world = { blind_dates: booked.length, people_characters: made.length * 2, ...(crowd?.world ?? {}), crowd_books: CROWD_BOOKS, stub: STUB };
+// crowd_brain: which path the crowd's replies took (model or script) and why, so a quiet fallback to the script can't
+// pass for "visitors still call it canned". world.json has it as at READY and is rewritten with the latest counts as
+// the run goes; crowd.json beside it has the same block with the crowd's activity, every minute and when the arena stops.
+const writeCrowd = (stats) => {
+  if (!brain) return;
+  world.crowd_brain = brain.summary();
+  try {
+    writeFileSync(join(out, "world.json"), JSON.stringify(world, null, 2));
+    writeFileSync(join(out, "crowd.json"), JSON.stringify({ crowd_brain: world.crowd_brain, stats: stats ?? null, updated_at: new Date().toISOString() }, null, 2));
+  } catch (e) {
+    console.error(`crowd: couldn't write crowd.json: ${e.message}`);
+  }
+};
 writeFileSync(join(out, "world.json"), JSON.stringify(world, null, 2));
+writeCrowd(null);
 console.log(`READY ${base}`);
 console.error(`SEEDED ${booked.length} dates; world ${JSON.stringify(world)}`);
 // The crowd stays busy for as long as the arena runs: likes, answers, texts and its side of dates.
 const busy = crowd ? runCrowd(crowd.agents, { books: CROWD_BOOKS, log: crowdLog }) : null;
+const crowdTimer = brain ? setInterval(() => writeCrowd(busy?.stats), 60_000) : null;
 (async () => {
   const rest = booked.slice(1);
   const per = Math.ceil(rest.length / Math.max(1, REVEALS.length));
@@ -129,7 +151,9 @@ const busy = crowd ? runCrowd(crowd.agents, { books: CROWD_BOOKS, log: crowdLog 
 })();
 const stop = () => {
   busy?.stop();
-  if (busy) console.error(`crowd stats ${JSON.stringify(busy.stats)}`);
+  if (crowdTimer) clearInterval(crowdTimer);
+  writeCrowd(busy?.stats);
+  if (busy) console.error(`crowd stats ${JSON.stringify(busy.stats)}; brain ${JSON.stringify(brain?.summary())}`);
   stub?.close();
   child.kill("SIGTERM");
   process.exit(0);
