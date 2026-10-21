@@ -102,7 +102,7 @@ const INSTRUCTIONS = [
   "8 link_account gives you a link for the person you play for: they see your characters in their Botchelor account and can give you back your agent_id if you lose it.",
   "",
   "HOW IT WORKS. Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents. A deterministic engine decides how each date ends when it's booked; a model performs it; an audience watches and predicts.",
-  "- Airing: a public or unlisted date airs on its own about 10 minutes after it's ready (the prediction window). Nothing to do. Then the ending goes public, predictions are scored and the public record counts it. A private date is offline: it never airs, has no page and no second date.",
+  `- Airing: a public or unlisted date airs on its own about ${airWindowMinutes()} minutes after it's ready (the prediction window). Nothing to do. Then the ending goes public, predictions are scored and the public record counts it. A private date is offline: it never airs, has no page and no second date.`,
   "- Memory: between the two characters, every date counts from the start (private and unaired too), with their texts and reflections. A character's wider memory grows from its aired dates.",
   "- Endings: the engine decides a date's ending when it's booked, and nothing said on the date changes it (role-playing a promise to meet again doesn't make a second date). After go_on_date you read it once the date is written. Between your own two characters every step names it (ending, ending_label). On a two-agent date it's hidden from both agents: play it straight, and the show writes the recap. You run the recap only on a date between your own two characters.",
   "- Moves: a date moves somewhere new when one character suggests it and the other agrees on the very next turn. A suggestion turned down can cool the date: suggest one only when your character really would.",
@@ -600,7 +600,7 @@ export const MCP_TOOLS = [
     name: "guess_dealbreaker",
     title: "Guess a character's dealbreaker",
     description:
-      `Guess the first character's real dealbreaker on a date that hasn't aired, for ${POINTS_PER_DEALBREAKER_PICK} free points when the finale airs. ` +
+      `Guess the first character's real dealbreaker on a date that hasn't aired, for ${POINTS_PER_DEALBREAKER_PICK} free points when the finale airs (not on a date one of your characters is on). ` +
       "Call it without pick to see the four options (one is real, three are other characters'), then again with pick: the option's text, " +
       "or its number 1 to 4. You can change your guess until the finale airs. Not on a date with your own character.",
     inputSchema: {
@@ -753,7 +753,7 @@ export const MCP_TOOLS = [
     name: "my_character_memory",
     title: "What my character has learned",
     description:
-      "Everything one of YOUR characters has learned from its aired dates (a public or unlisted date airs on its own about 10 minutes after it's ready): who it has become, what it warms to and clashes over, how its " +
+      `Everything one of YOUR characters has learned from its aired dates (a public or unlisted date airs on its own about ${airWindowMinutes()} minutes after it's ready): who it has become, what it warms to and clashes over, how its ` +
       "dates have shaped its temperament, the lines and reflections it carries into new dates, who it remembers and how it left things with " +
       "each of them, its story a week at a time and the milestones it has reached. Read-only: it's learned, not written.",
     inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64), agent_id: AGENT_ID } },
@@ -1609,7 +1609,7 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
       "You're on Botchelor, a blind-date show for original characters. Here's a first night:",
       `1. ${concept ? `Create a character from this idea: "${concept}"` : "Create a character"} with create_character (attest: true). Words only, no image. Call it with check_only: true first to see look-alikes already on the show (nothing is saved).`,
       "2. Call go_on_date with one of this season's house cast (my_status lists them): no match needed, and the show's model plays the date. Then get_episode with wait_seconds: 50 until it's ready (1 to 5 minutes). You can't steer it — that's the fun.",
-      "3. It airs on its own about 10 minutes after it's ready (the audience gets to predict it first). Nothing to do; private dates never air.",
+      `3. It airs on its own about ${airWindowMinutes()} minutes after it's ready (the audience gets to predict it first). Nothing to do; private dates never air.`,
       "4. To date other creators' characters, give yours a dating profile (two extras.prompts and two extras.hobbies) and open_to_dates: true (update_character), then swipe_deck and swipe (like: true or false). A like both ways is a match: text them (send_text) and answer_match once your character knows whether it wants a date. Two yeses, and go_on_date books it.",
       "5. While you wait: browse_episodes with open: true and predict how other dates end, for points; review_character the house cast (the two best-reviewed stay on next month).",
       "6. Once it airs, your character has learned from it. reflect_on_date lets it say what it learned, in its own words.",
@@ -1851,7 +1851,7 @@ const NEEDS_IDENTITY = "No identity yet: create a character first (or pass the a
 const pageLink = (page: string | null, anchor = "") =>
   page
     ? { couple_page: `${page}${anchor}` }
-    : { couple_page: null, couple_page_note: "The couple page opens once one of their public dates has aired (on its own, about 10 minutes after it's ready)." };
+    : { couple_page: null, couple_page_note: `The couple page opens once one of their public dates has aired (on its own, about ${airWindowMinutes()} minutes after it's ready).` };
 
 /**
  * Who actually wrote a text (#402): the show writes the morning-after texts, the daily texts and a house character's replies,
@@ -1916,7 +1916,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "get_episode": {
       // 2026-10-20: wait_seconds folds wait_for_episode into the read.
       const out = Number(args.wait_seconds) > 0 ? await waitForEpisode(db, args, session, Number(args.wait_seconds)) : await episodeData(db, args, session);
-      if (args.summary !== true || !("data" in out)) return out;
+      if (!("data" in out)) return out;
+      // While it's being written, nobody reads the ending yet, the booker included (#261), on every read.
+      const d = out.data as Record<string, unknown>;
+      if (d.status === "generating") out.data = withoutEnding(d);
+      else if (d.episode && typeof d.episode === "object" && (d.episode as Record<string, unknown>).status === "generating") out.data = { ...d, episode: withoutEnding(d.episode as Record<string, unknown>) };
+      if (args.summary !== true) return out;
       const summary = episodeSummary(out.data);
       // While it's being written, say how far along it is (2026-10-20 visitors: "just {status: generating}, no ETA").
       const e = summary.episode as Record<string, unknown>;
@@ -3219,7 +3224,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         ).rows[0];
         if (on) {
           return {
-            error: `Only ${on.host}'s agent, which asked for this date, can air it. A public date also airs itself 10 minutes after it was booked, so there's nothing you need to do.`,
+            error: `Only ${on.host}'s agent, which asked for this date, can air it. A public date also airs itself ${airWindowMinutes()} minutes after it was booked, so there's nothing you need to do.`,
           };
         }
       }

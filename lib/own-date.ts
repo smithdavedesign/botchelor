@@ -23,6 +23,7 @@
  * The date is written 'generating' (invisible in the feed) until the recap lands. An agent may have a few
  * unfinished at once; one left unfinished for a day is cleared.
  */
+import { airWindowMinutes } from "./air";
 import { track, trackDateQuality } from "./analytics";
 import { buildTurnMessages, parseTurnResult, TURN_TEMPERATURE, type Turn } from "./conversation";
 import type { Db } from "./db";
@@ -608,7 +609,7 @@ async function doneStep(db: Db, userId: string, row: Row, built: BuiltDate, deci
 export const airingNote = (visibility: string): string =>
   visibility === "private"
     ? "It's private, so it stays offline and never airs (set_date_visibility makes it public or unlisted if you want it to). Nothing to do."
-    : "It airs on its own about 10 minutes after it's ready. Nothing to do.";
+    : `It airs on its own about ${airWindowMinutes()} minutes after it's ready. Nothing to do.`;
 
 /** Who airs a two-agent date: the host is the agent that asked, playing side a (#193). */
 function hostInfo(row: Pick<Row, "creator_id" | "a_name" | "visibility">, userId: string): HostInfo {
@@ -798,7 +799,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
 
   if (current.stage === "turn") {
     const parsed = parseTurnResult(raw, current.side, current.act_index);
-    if (!("turn" in parsed)) return { ok: true, step: seen(current), rejected: TURN_REJECTIONS[parsed.rejected] };
+    if (!("turn" in parsed)) return { ok: true, step: seen(current), rejected: parsed.rejected === "schema" ? turnShapeProblem(raw) : TURN_REJECTIONS[parsed.rejected] };
     const speaker = built.characters[current.side === "a" ? 0 : 1];
     const problem = ownTurnProblem(raw, parsed.turn, speaker.extras?.never_says, transcript);
     if (problem) return { ok: true, step: seen(current), rejected: problem };
@@ -1008,9 +1009,32 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
   return out;
 }
 
+/**
+ * Which field of a turn reply is wrong, by name (2026-10-20 visitor: interest_signal: "curious" was blamed on dialogue,
+ * and the message called required fields optional).
+ */
+export function turnShapeProblem(raw: string): string {
+  let o: Record<string, unknown> = {};
+  try {
+    const t = raw.trim();
+    o = JSON.parse(/^```/.test(t) ? t.replace(/^```(?:json)?\s*|\s*```$/g, "") : t) as Record<string, unknown>;
+  } catch {
+    return TURN_REJECTIONS.json;
+  }
+  const bad: string[] = [];
+  if (typeof o.dialogue !== "string" || !/\p{L}/u.test(o.dialogue)) bad.push('"dialogue" (what they say, in words)');
+  if ("action" in o && typeof o.action !== "string") bad.push('"action" (1-5 words, or "")');
+  if ("emotion" in o && typeof o.emotion !== "string") bad.push('"emotion" (one word)');
+  if ("interest_signal" in o && !Number.isFinite(Number(o.interest_signal))) bad.push(`"interest_signal" (a number from 0 to 1, not ${JSON.stringify(o.interest_signal)})`);
+  if ("accept_move" in o && typeof o.accept_move !== "boolean" && o.accept_move !== "true" && o.accept_move !== "false") bad.push('"accept_move" (true or false)');
+  return bad.length
+    ? `Fix ${bad.join(", ")}. A turn is {dialogue, action, emotion, interest_signal}, all four required (move and accept_move only when they apply).`
+    : TURN_REJECTIONS.schema;
+}
+
 const TURN_REJECTIONS: Record<string, string> = {
   json: "That wasn't a JSON object. Reply with exactly the JSON in reply_format.",
-  schema: 'The reply needs a non-empty "dialogue" string (plus optional action, emotion, interest_signal).',
+  schema: 'The reply needs dialogue (words), action, emotion and interest_signal (a number from 0 to 1): all four.',
   filtered: "That line broke the show's content rules (no minors, no sexual content, no real people). Run the turn again.",
 };
 /**

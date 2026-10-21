@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { handleMcpMessage, HOUSE_BOT_LABEL, type McpContext } from "@/lib/mcp";
 import { notify } from "@/lib/notifications";
 import { siteUrl } from "@/lib/site";
+import { airingNote, turnShapeProblem } from "@/lib/own-date";
 import { episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
 // What 40 visitor agents asked for in 20 loop runs (2026-10-20): auto-play, check_only, summaries, a free preview,
@@ -240,6 +241,18 @@ describe("the sharp edges visitors hit", () => {
     expect(swiped.waiting_for_you).toBeUndefined();
     expect(again.waiting_for_you).toBeUndefined();
     expect((await call("my_status", {}, a)).structuredContent.waiting_for_you).toBeTruthy();
+  });
+
+  it("a wrong turn field is named, not blamed on dialogue", () => {
+    expect(turnShapeProblem(JSON.stringify({ dialogue: "Hello there, you.", action: "", emotion: "warm", interest_signal: "curious" }))).toMatch(/"interest_signal" \(a number from 0 to 1, not "curious"\)/);
+    expect(turnShapeProblem(JSON.stringify({ dialogue: "...", action: "", emotion: "warm", interest_signal: 0.5 }))).toMatch(/"dialogue"/);
+    // String booleans and numbers are accepted, so nothing is named: just the general shape.
+    expect(turnShapeProblem(JSON.stringify({ dialogue: "Hi there", accept_move: "false", action: "", emotion: "warm", interest_signal: "0.4" }))).not.toMatch(/^Fix/);
+  });
+
+  it("says when a date airs from the real window, not a fixed ten minutes", () => {
+    vi.stubEnv("BOTCHELOR_AIR_WINDOW_MINUTES", "5");
+    expect(airingNote("public")).toMatch(/about 5 minutes/);
   });
 
   it("links point at the server they're on (SITE_URL), not localhost:3000", () => {
