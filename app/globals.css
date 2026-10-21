@@ -5038,6 +5038,36 @@ main:has(> .admin-wide) {
 
 /* ---------------- Matches, Messages (lib/inbox.ts; David, 2026-10-18) ---------------- */
 
+/* Whose matches, as faces (app/matches/CharacterTabs.tsx): sideways on a phone, the one on screen marked. */
+.character-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 var(--space-3);
+  padding-bottom: var(--space-1);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.character-tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.25rem 0.75rem 0.25rem 0.3rem;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+.character-tab[aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--accent-text);
+}
+.matches-new {
+  background: var(--accent-btn);
+  color: var(--accent-ink);
+}
 /* Whose matches: a drop-down of the viewer's characters (app/CharacterPicker.tsx). */
 .character-picker select {
   width: auto;

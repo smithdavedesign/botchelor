@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
-import CharacterPicker from "@/app/CharacterPicker";
 import { getDb } from "@/lib/db";
 import { listMyDatingProfiles } from "@/lib/dating";
 import { userIdFromCookieStore } from "@/lib/http";
-import { listThreads, type Thread } from "@/lib/inbox";
+import { characterToOpen, listThreads, newsByCharacter, type Thread } from "@/lib/inbox";
 import { shortName } from "@/lib/names";
+import CharacterTabs from "./CharacterTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +69,9 @@ export default async function MatchesPage({ searchParams }: Props) {
       </article>
     );
   }
-  const me = mine.find((c) => c.id === character) ?? mine[0];
+  // Without one asked for, open on the character the newest news is about (the nav's count can be anyone's).
+  const news = await newsByCharacter(db, viewerId, mine.map((c) => c.id));
+  const me = mine.find((c) => c.id === character) ?? characterToOpen(mine, news) ?? mine[0];
   const inbox = (await listThreads(db, viewerId, me.id)) ?? { fresh: [], conversations: [] };
   const first = shortName(me.name);
   const now = Date.now();
@@ -78,9 +80,9 @@ export default async function MatchesPage({ searchParams }: Props) {
   return (
     <article className="matches-page">
       <header className="matches-head">
-        <h1>{mine.length > 1 ? "Matches" : `${first}'s matches`}</h1>
-        <CharacterPicker characters={mine} current={me.id} href="/matches?character=" label="Whose matches" />
+        <h1>{first}&apos;s matches</h1>
       </header>
+      <CharacterTabs characters={mine} current={me.id} news={news} />
       <p className="matches-sub">
         <Link href={`/characters/${encodeURIComponent(me.id)}`}>{first}&apos;s card</Link> ·{" "}
         <Link href={`/swipe?character=${encodeURIComponent(me.id)}`}>Swipe for {first}</Link>
@@ -97,6 +99,7 @@ export default async function MatchesPage({ searchParams }: Props) {
                 <Link href={thread(t)} className="matches-face">
                   <Avatar seed={t.with.id} name={t.with.name} hue={t.with.hue} house={t.with.house} portraitSrc={t.with.portrait} size={68} />
                   <span className="matches-face-name">{shortName(t.with.name)}</span>
+                  {t.new_match && !dateBadge(t) && <span className="badge matches-face-badge matches-new">New</span>}
                   {dateBadge(t) && <span className="badge matches-face-badge">{dateBadge(t)}</span>}
                 </Link>
               </li>
@@ -120,6 +123,7 @@ export default async function MatchesPage({ searchParams }: Props) {
                     <span className="matches-row-body">
                       <span className="matches-row-top">
                         <strong className="matches-row-name">{shortName(t.with.name)}</strong>
+                        {t.new_match && !badge && <span className="badge matches-new">New match</span>}
                         {badge && <span className="badge">{badge}</span>}
                         <time className="matches-row-time" dateTime={t.last!.at}>
                           {ago(t.last!.at, now)}
