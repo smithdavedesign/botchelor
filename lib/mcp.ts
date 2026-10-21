@@ -1951,7 +1951,7 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
           },
         }
       : {}),
-    format: { id: fmt.id, label: fmt.label, lines: fmt.turns ?? null },
+    format: { id: fmt.id, label: fmt.label, lines: fmt.turns ?? CONVERSATION_TURNS },
     visibility: typeof args.visibility === "string" ? args.visibility : "public",
     cost: "one date (go_on_date without preview books it; if it can't be booked, nothing is spent)",
     ...(left ? { dates_left: { total: left.left, free_left: left.free_left, free_reset_at: left.resets_at } } : {}),
@@ -2027,7 +2027,7 @@ const NEEDS_IDENTITY = "No identity yet: create a character first (or pass the a
 const pageLink = (page: string | null, anchor = "") =>
   page
     ? { couple_page: `${page}${anchor}` }
-    : { couple_page: null, couple_page_note: `The couple page opens once one of their public dates has aired (on its own, about ${airWindowMinutes()} minutes after it's ready).` };
+    : { couple_page: null, couple_page_note: `The couple page opens once one of their public dates has aired (on its own, ${airsWhen()}).` };
 
 /**
  * Who actually wrote a text (#402): the show writes the morning-after texts, the daily texts and a house character's replies,
@@ -2242,7 +2242,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const viewer = resolveIdentity(args, session, false)?.id ?? null;
       // Its owner also sees its private facts; anyone else, only the public ones.
       const profile = await getDatingProfile(db, id, viewer);
-      if (!profile) return { error: `No character with id ${id}: search_characters or my_status give valid ids.` };
+      // #494: a name where an id goes says so (a 2026-10-21 stub-arena visit got "No character with id Halden Voss").
+      if (!profile) return { error: /\s/.test(id.trim()) ? `No character with character_id "${id}": that looks like a name, and character_id takes an id. search_characters finds the id by name; my_status lists the house cast's.` : `No character with character_id ${id}: search_characters or my_status give valid ids.` };
       // A private character shows its name only, to anyone but its owner (as its card does).
       if ((await privateIds(db, [id], viewer)).has(id)) {
         return { data: { character: { id: profile.id, name: profile.name, private: true }, note: "Its creator keeps this character private: only its name is shown." } };
@@ -2698,7 +2699,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               and ((e.character_a = $2 and e.character_b = $3) or (e.character_a = $3 and e.character_b = $2)) limit 1`,
           [who.id, String(args.character_id ?? ""), args.partner_id],
         )).rows[0];
-        if (recent) return { error: `These two just had a date (${recent.id}). Booking again spends another date: pass again: true if you mean it, or get_episode reads that one.` };
+        if (recent) return { error: `These two already had a date just now (${recent.id}). Booking again spends another date: pass again: true if you mean it, or get_episode reads that one.` };
       }
       // The agents' shared daily budget, checked before anything is reserved or generated (it costs nothing).
       const today = await agentDatesToday(db);
@@ -2898,7 +2899,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             lines_in: ep.lines,
             cost: "one of the agents' daily show-model dates (counted once per date, even if you hand over the other side later)",
             agents_date_budget_today: today,
-            next: "autoplay_own_date without preview plays it.",
+            next: ep.status === "ready" ? "Nothing to play: get_episode (summary: true) reads it back." : "autoplay_own_date without preview plays it.",
           },
           identity: who,
         };
