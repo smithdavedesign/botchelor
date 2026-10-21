@@ -730,6 +730,7 @@ describe("set the scene (1 token)", () => {
 
 import { DELETE as reelDelete, GET as reelGet, POST as reelPost } from "@/app/api/admin/after-dark/reel/route";
 import { busyMessage, frameFor, pickLines, setReelFetchForTests, spoken, startFrames, voiceFor, type Reel } from "@/lib/adult/reels";
+import { setFrameExtractorForTests } from "@/lib/adult/frames";
 import { mediaLinkValid, signedMediaUrl } from "@/lib/adult/media";
 import { loadCharacter } from "@/lib/character";
 
@@ -797,8 +798,10 @@ describe("the video of the night", () => {
     const started = await (await make(cookie)).json();
     expect(started.reel).toMatchObject({ status: "making", tokens: 0 });
     expect(started.reel.shots.map((s: { line: number }) => s.line)).toEqual([2, 5, 9]);
+    // Chained: each character's first shot goes now; line 9 waits for line 5 (the same speaker's), to start where it ends.
     const queued = seen.filter((s) => s.path === "/video/queue");
-    expect(queued).toHaveLength(3);
+    expect(queued).toHaveLength(2);
+    expect(started.reel.shots.map((s: { after?: number }) => s.after)).toEqual([undefined, undefined, 1]);
     expect(queued[0].body).toMatchObject({ model: "wan-2.6-image-to-video", audio_url: expect.stringMatching(/^data:audio\/mpeg;base64,/), image_url: expect.stringMatching(/\/api\/admin\/after-dark\/media\/base-[ab]\?until=/) });
     // Line 2 is the first speaker's, line 9 the second's: each shot starts from its speaker's own baseline.
     expect(new Set(queued.map((q) => String(q.body.image_url).match(/media\/(base-[ab])/)?.[1])).size).toBe(2);
@@ -813,6 +816,51 @@ describe("the video of the night", () => {
     const done = await advance(started.reel.id, cookie);
     expect(done.status).toBe("ready");
     expect(done.shots.every((s) => s.status === "ready" && s.media_id)).toBe(true);
+  });
+
+  it("chains each character's shots: the next starts from the last frame of their previous one (David, 2026-10-21)", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    const seen = fakeVenice();
+    setCheckFetchForTests(async () => Response.json(CLEAN_MOD));
+    setFrameExtractorForTests(async () => Buffer.from(PNG));
+    // Lines 2 (a), 5 (b), 9 (b), 10 (a): each character's second shot waits for their first.
+    scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }, { line: 10, motion: "d" }] }));
+    await call(settingsPost, "/api/admin/after-dark/settings", { reel_shots: 4 }, cookie);
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    expect(started.shots.map((s) => s.after)).toEqual([undefined, undefined, 1, 0]);
+    const queuedImages = () => seen.filter((s) => s.path === "/video/queue").map((q) => String(q.body.image_url).match(/media\/([^?]+)/)?.[1]);
+    // Each character's first shot starts from their baseline.
+    expect([...queuedImages()].sort()).toEqual(["base-a", "base-b"]);
+    // Both first shots come back: each one's last frame is kept (never in the gallery), and their next shots start from it.
+    const after1 = await advance(started.id, cookie);
+    const frames = (await t.db.query<{ id: string; source_image: string; character_id: string }>(`select id, source_image, character_id from adult_images where kind = 'frame'`)).rows;
+    expect(frames).toHaveLength(2);
+    expect(after1.shots.slice(0, 2).map((s) => s.last_frame).sort()).toEqual(frames.map((f) => f.id).sort());
+    expect(queuedImages().slice(2).sort()).toEqual(frames.map((f) => f.id).sort());
+    expect(after1.shots[2].media_id).toBe(after1.shots[1].last_frame);
+    const gallery = (await (await get(CAST_A, CAST_B, cookie)).json()).gallery as { id: string; kind: string }[];
+    expect(gallery.some((g) => g.kind === "frame")).toBe(false);
+    expect((await startFrames(t.db, CAST_A, CAST_B)).some((f) => f.kind === "frame")).toBe(false);
+    const done = await advance(started.id, cookie);
+    expect(done.status).toBe("ready");
+    expect(done.shots.every((s) => s.status === "ready")).toBe(true);
+    setFrameExtractorForTests(null);
+  });
+
+  it("starts a chained shot from its own picture when the previous one fails or has no frame", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    const seen = fakeVenice();
+    setCheckFetchForTests(async () => Response.json(CLEAN_MOD));
+    setFrameExtractorForTests(async () => null);
+    scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }] }));
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    const own = started.shots[2].media_id;
+    await advance(started.id, cookie);
+    const third = seen.filter((s) => s.path === "/video/queue")[2];
+    expect(String(third.body.image_url)).toContain(`/media/${own}?`);
+    setFrameExtractorForTests(null);
   });
 
   it("by default has Wan 3.0 speak each line itself, quoted in its prompt (David's pick)", async () => {
@@ -855,9 +903,9 @@ describe("the video of the night", () => {
     const waiting = await advance(started.id, cookie);
     expect(waiting.shots.every((s) => s.status === "queued")).toBe(true);
     expect(waiting.shots.filter((s) => s.retry_at)).toHaveLength(1);
-    // Each poll tries the next shot; once all three are waiting, a poll sends nothing to Hive at all.
-    await advance(started.id, cookie);
-    expect((await advance(started.id, cookie)).shots.filter((s) => s.retry_at)).toHaveLength(3);
+    // Each poll tries the next shot; once both queued ones are waiting (the third waits for its speaker's previous
+    // one), a poll sends nothing to Hive at all.
+    expect((await advance(started.id, cookie)).shots.filter((s) => s.retry_at)).toHaveLength(2);
     const calls = hiveCalls;
     await advance(started.id, cookie);
     expect(hiveCalls).toBe(calls);

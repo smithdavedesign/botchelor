@@ -379,7 +379,7 @@ export async function listMedia(db: Db, ids: string[]): Promise<Media[]> {
   // night with another partner stays on that pair's page).
   const { rows } = await db.query<Media>(
     `select id, character_id, character_b, kind, status, created_at, mime, (kind <> 'video' and remote_url is not null) as clip from adult_images
-      where character_id = any($1) and (character_b is null or character_b = any($1))
+      where character_id = any($1) and (character_b is null or character_b = any($1)) and kind <> 'frame'
       order by created_at desc limit 60`,
     [ids],
   );

@@ -11,6 +11,10 @@
  *    setting (`reel_model`), so the test that sounds more real picks it.
  *  - Start frames: the pair's own pictures (baselines and scene pictures that already passed the age check), rotated, so
  *    the characters look like themselves. Venice fetches each one from a link signed for minutes (lib/adult/media.ts).
+ *  - Chained (David, 2026-10-21: "uses the baseline in between the video switch… make it feel more like a continuous
+ *    movie"): only each character's first shot starts from a picture. Their next one waits for it and starts from its
+ *    last frame (lib/adult/frames.ts), so the pose carries on and the cuts read as shot, reverse shot. The two
+ *    characters' chains run side by side. A shot whose last frame can't be had hands on its own picture instead.
  *  - The check: every shot goes through Hive before it's stored (lib/adult/check.ts); a failed shot is discarded and its
  *    share of the tokens given back.
  *  - The price: `reel_tokens` bought tokens (After Dark's settings), admins free.
@@ -28,6 +32,8 @@ import { checkOutput } from "./check";
 import { adultModel } from "./mode";
 import { ensureBaseline, signedMediaUrl } from "./media";
 import { keepBytes } from "../object-store";
+import { lastFrame } from "./frames";
+import { siteUrl } from "../site";
 import { eligiblePair, type SceneLine } from "./scenes";
 import { adultKeys, getAdultSettings } from "./settings";
 
@@ -65,6 +71,10 @@ export type ReelShot = {
   reason?: string;
   /** After a check that couldn't run: not fetched or sent to Hive again before this time. */
   retry_at?: string;
+  /** Chained: the shot (index) of the same character this one waits for, and starts from the last frame of. */
+  after?: number;
+  /** A ready shot's last frame (an adult_images 'frame'), for the same character's next shot. */
+  last_frame?: string;
 };
 export type Reel = { id: string; status: "making" | "ready" | "failed"; tokens: number; shots: ReelShot[]; created_at: string };
 
@@ -150,7 +160,7 @@ export async function startFrames(db: Db, a: string, b: string): Promise<{ id: s
   return (
     await db.query<{ id: string; character_id: string | null; character_b: string | null; kind: string }>(
       `select id, character_id, character_b, kind from adult_images
-        where status = 'ready' and kind <> 'video'
+        where status = 'ready' and kind in ('baseline', 'scene')
           and ((character_b is null and character_id in ($1, $2))
             or (character_id = $1 and character_b = $2) or (character_id = $2 and character_b = $1))
         order by (kind = 'baseline') desc, created_at desc limit 16`,
@@ -262,6 +272,11 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
       shots.push({ line: p.line, who: l.who, text: speech, motion: p.motion, status: "queued", media_id: frame });
     }
     if (!shots.length) throw new Error("no usable lines");
+    // Each character's later shots wait for their previous one, to start from where it ended.
+    shots.forEach((s, k) => {
+      const prev = shots.slice(0, k).findLastIndex((p) => p.who === s.who);
+      if (prev >= 0) s.after = prev;
+    });
     await db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots) values ($1, $2, $3, $4, 'making', $5, $6::jsonb)`, [
       id,
       ownerId,
@@ -270,8 +285,9 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
       pays ? price : 0,
       JSON.stringify(shots),
     ]);
-    // Queue every shot now (they run in parallel on Venice); a shot that can't be queued is marked failed.
-    for (const s of shots) {
+    // Queue each character's first shot now (the two run in parallel on Venice); a shot that can't be queued is marked
+    // failed. The rest wait for theirs (advanceReel queues them).
+    for (const s of shots.filter((x) => x.after === undefined)) {
       const speaker = s.who === "a" ? ca : cb;
       const listener = s.who === "a" ? cb : ca;
       await queueShot(db, keys.venice, settings.reel_model, s, speaker, listener, baseUrl).catch((err) => {
@@ -322,7 +338,7 @@ async function queueShot(db: Db, key: string, model: string, s: ReelShot, speake
 }
 
 /** Checks a reel's queued shots once: stores each finished one that passes Hive, discards the rest. */
-export async function advanceReel(db: Db, ownerId: string, id: string): Promise<Reel | null> {
+export async function advanceReel(db: Db, ownerId: string, id: string, baseUrl = siteUrl()): Promise<Reel | null> {
   const row = (await db.query<{ owner_id: string; character_a: string; character_b: string; status: string; shots: ReelShot[]; created_at: string | Date }>(`select owner_id, character_a, character_b, status, shots, created_at from adult_reels where id = $1`, [id])).rows[0];
   if (!row || row.owner_id !== ownerId) return null;
   if (row.status !== "making") return getReel(db, id);
@@ -372,8 +388,38 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     s.media_id = mediaId;
     delete s.retry_at;
     delete s.reason;
+    // Where this shot ended, for the same character's next one (a frame of a shot that just passed the check).
+    if (shots.some((x) => x.after === shots.indexOf(s))) {
+      const frame = await lastFrame(bytes);
+      if (frame) {
+        const frameId = crypto.randomUUID();
+        const keptFrame = await keepBytes("after-dark", frameId, frame, "image/jpeg");
+        await db.query(
+          `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image) values ($1, $2, $3, null, 'frame', $4, 'image/jpeg', $5, $6, 'ready', $7)`,
+          [frameId, ownerId, s.who === "a" ? row.character_a : row.character_b, `Last frame: ${s.text}`.slice(0, 500), keptFrame.data, keptFrame.object_key, mediaId],
+        );
+        s.last_frame = frameId;
+      }
+    }
     // Ours now: Venice's copy can go.
     await venice(keys.venice, "/video/retrieve", { model: s.model, queue_id: s.queue_id, delete_media_on_completion: true }).catch(() => {});
+  }
+  // A chained shot whose previous one is done: queued now, from that one's last frame (or its own picture, when the
+  // previous shot failed or its frame couldn't be had).
+  const waiting = shots.filter((s) => s.status === "queued" && !s.queue_id && s.after !== undefined && shots[s.after].status !== "queued");
+  if (waiting.length && keys.venice) {
+    const settings = await getAdultSettings(db);
+    const [ca, cb] = await Promise.all([loadCharacter(db, row.character_a), loadCharacter(db, row.character_b)]);
+    for (const s of waiting) {
+      const prev = shots[s.after!];
+      if (prev.status === "ready" && prev.last_frame) s.media_id = prev.last_frame;
+      const speaker = s.who === "a" ? ca : cb;
+      const listener = s.who === "a" ? cb : ca;
+      await queueShot(db, keys.venice, settings.reel_model, s, speaker, listener, baseUrl).catch((err) => {
+        s.status = "failed";
+        s.reason = err instanceof Error ? err.message.slice(0, 200) : "error";
+      });
+    }
   }
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1`, [id, JSON.stringify(shots)]);
   return settleIfDone(db, id);

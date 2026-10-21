@@ -1163,7 +1163,7 @@ create table if not exists adult_images (
   owner_id text not null,
   character_id text references characters (id) on delete cascade,
   character_b text references characters (id) on delete cascade,
-  kind text not null check (kind in ('baseline', 'scene', 'video')),
+  kind text not null check (kind in ('baseline', 'scene', 'video', 'frame')),
   prompt text not null,
   mime text not null,
   data bytea,
@@ -1178,6 +1178,17 @@ create index if not exists adult_images_character_idx on adult_images (character
 -- only this; one moved by scripts/media-to-object-store.mjs has both until its data is freed. Same for look_tiles.
 alter table adult_images add column if not exists object_key text;
 alter table look_tiles add column if not exists object_key text;
+-- A reel shot's last frame ('frame', lib/adult/frames.ts), for the same character's next shot to start from: widen the
+-- CHECK on an existing database (the inline one above only applies to a fresh table), once.
+do $$ begin
+  if exists (
+    select 1 from pg_constraint where conname = 'adult_images_kind_check'
+       and pg_get_constraintdef(oid) not like '%frame%'
+  ) then
+    alter table adult_images drop constraint if exists adult_images_kind_check;
+    alter table adult_images add constraint adult_images_kind_check check (kind in ('baseline', 'scene', 'video', 'frame'));
+  end if;
+end $$;
 -- Agents (not the admin's) asking for after dark: the admins see them on the settings page.
 create table if not exists adult_access_requests (
   id text primary key,
