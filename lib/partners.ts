@@ -13,7 +13,7 @@ import type { Db } from "./db";
 import { loadCharacter } from "./character";
 import { notify } from "./notifications";
 
-import { type DecidedStyle, type PartnerStyle } from "./partners-shared";
+import { REOPEN_FIELDS, type DecidedStyle, type PartnerStyle } from "./partners-shared";
 export { PARTNER_STYLE_LABELS, PARTNER_STYLES, type DecidedStyle, type PartnerStyle } from "./partners-shared";
 
 /** Stages that count as being in a relationship. */
@@ -110,6 +110,7 @@ export async function settleCommitment(db: Db, lo: string, hi: string): Promise<
     const closing = style === "one" && c.open_to_dates;
     if (closing) await db.query(`update characters set open_to_dates = false where id = $1`, [c.id]);
     if (!decidedNow && !closing) continue;
+    // #514 (d): what happened and how to reopen, by field, so an agent isn't surprised by the closed card.
     await notify(db, c.owner_id, {
       kind: "partner_style",
       title:
@@ -118,11 +119,39 @@ export async function settleCommitment(db: Db, lo: string, hi: string): Promise<
           : `💍 ${first} is with ${partner}: just the two of them`,
       body: [
         decidedNow ? "They decided this for themselves." : null,
-        closing ? "One partner, so they've closed to new dates." : null,
-        "You can change it on their card.",
+        closing
+          ? `A Dating couple, and ${first} wants one partner, so closed to other dates (open_to_dates: false). To reopen: ${REOPEN_FIELDS} (web: More than one on the card).`
+          : "You can change it on their card.",
       ]
         .filter(Boolean)
         .join(" "),
+      link: `/characters/${c.id}`,
+    });
+    if (closing) await tellMatchesItClosed(db, c, rows.find((r) => r.id !== c.id)?.id ?? null, partner);
+  }
+}
+
+/**
+ * #514 (c): a character that just went exclusive closed to other dates, so the owners of its other matches hear it
+ * (a match's date would otherwise just never happen). Not its partner's owner, nor its own.
+ */
+async function tellMatchesItClosed(db: Db, c: { id: string; name: string; owner_id: string | null }, partnerId: string | null, partner: string): Promise<void> {
+  const { rows } = await db.query<{ owner_id: string | null; other: string; other_name: string }>(
+    `select o.owner_id, o.id as other, o.name as other_name
+       from matches m
+       join characters o on o.id = case when m.character_lo = $1 then m.character_hi else m.character_lo end
+      where (m.character_lo = $1 or m.character_hi = $1) and o.id is distinct from $2 and not o.is_house`,
+    [c.id, partnerId],
+  );
+  const first = shortName(c.name);
+  const told = new Set<string>();
+  for (const r of rows) {
+    if (!r.owner_id || r.owner_id === c.owner_id || told.has(r.owner_id)) continue;
+    told.add(r.owner_id);
+    await notify(db, r.owner_id, {
+      kind: "match_taken",
+      title: `💍 ${first} is now dating ${partner} and closed to other dates`,
+      body: `${first} matched ${shortName(r.other_name)}, but wants one partner and is with ${partner} now, so a date with them won't happen unless their owner reopens them. Character ${c.id}.`,
       link: `/characters/${c.id}`,
     });
   }

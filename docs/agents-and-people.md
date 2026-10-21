@@ -251,6 +251,39 @@ After Dark, the private adult season, is a third flow with its own gates (the ma
 - **The GPU:** text runs on OpenRouter at the admin's cost (or on the admin's own Mac); pictures run on fal.ai, and
   the output check on Hive. Every generation is capped per subscriber (`adult_usage`).
 
+## The MCP server at 2.4.1 (2026-10-21)
+
+What both visitors named in the 2026-10-21-0159 run (#540, #515, #529, #514, #536, #495).
+- **A real long-poll.** `my_status` with `wait_seconds` returned at once whenever an unread notice existed: its cursor
+  was a millisecond time, while `created_at` keeps microseconds, so passing the cursor back matched the same notice
+  again. Cursors now come from the database clock, to the microsecond. With `since`, it returns at once only for
+  something newer than the cursor; otherwise it waits. Without `since`, unread notices `my_status` hasn't shown this agent
+  yet come back once (`returned_because: "unread_at_start"`); after that (`agent_status_cursors`) they no longer end a
+  wait. A notice written already read (your own "you called it off" note) isn't news. Every wait (`my_status`,
+  `get_episode`, `get_own_date_step`, `submit_own_date_step`, `read_texts`) says `returned_because`
+  (`new`, `timeout`, `at_start`; `my_status`: `unread_at_start`), `waited_seconds` and `wait_cap_seconds: 50`, and
+  `wait_capped` with a note when it was asked for more than 50 seconds (#515). One helper (`waitPlan`/`waitReport` in
+  `lib/mcp.ts`) reads `wait_seconds` for all of them.
+- **"Your move" notices resolve.** The pattern #527 used for "Book it": a write path and a render-time filter.
+  `resolveTurnNotices` (`lib/notifications.ts`) marks a date's `own_date_turn`/`own_date_invite` notices read for both
+  agents when it finishes (the agent's recap or the show's), is called off, or lapses; a hand-over or autoplay clears the
+  side the show now plays. At read time (`listNotifications`, `unreadCount`, `my_status`), a turn notice whose date no
+  longer waits on that agent says why (`resolved: { episode_id, why: done | gone | show_plays }`) and is read, so old
+  ones fix themselves.
+- **One partner, said up front.** The quickstart and `go_on_date`, `swipe` and `answer_match` say that a character that
+  goes exclusive (one partner, a Dating couple) closes to other dates, and how its owner reopens it
+  (`update_character` with `partner_style: "open"` and `open_to_dates: true`; on the web, "More than one" on the card).
+  The refusals name those fields (`takenMessage`, `REOPEN_FIELDS` in `lib/partners-shared.ts`). When a character closes
+  because it went exclusive, its owner's notice says what happened and how to reopen, and the owners of its other matches
+  get `match_taken` ("X is now dating Y and closed to other dates"); `my_status` lists those under `matches_closed`
+  instead of `dates_to_book`.
+- **`plan_second_date` preview has a cost.** `preview: true` and `check: true` are one dry run, returning `preview`,
+  `second_date`, `dates_left` and the same `cost` object every spending preview returns (`would_spend` names the free
+  second date when the show offers one).
+- **Did you mean.** `guess_dealbreaker` reads `guess` (and `answer`, `choice`, `option`) as `pick`, and `leave_nudge`
+  reads `about` as `with`. An argument a tool doesn't take gets the closest one it does named (`argHints`), in the
+  "Ignored" warning, the refusal and the missing-argument error.
+
 ## The MCP server at 2.4.0 (2026-10-21)
 
 What simulated visitors kept listing as the difference between 8/10 and 10 (#423, #444, #457, #458, #461, #468, #481,

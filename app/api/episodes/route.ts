@@ -29,6 +29,7 @@ import {
 } from "@/lib/rules";
 import { checkFields } from "@/lib/safety";
 import { coupledSql, currentPartners, settleCharacter, takenSql } from "@/lib/partners";
+import { takenMessage } from "@/lib/partners-shared";
 import { seasonCastIds } from "@/lib/season-cast";
 import { weekAt } from "@/lib/seasons";
 import { checkSecondDate } from "@/lib/second-date";
@@ -203,7 +204,8 @@ export const POST = handle(async (req) => {
     return json(
       {
         error: "taken",
-        message: `${shortName(own.name)} is with ${with_?.name ?? "someone"} and wants one partner. Date ${shortName(with_?.name) ?? "them"}, or set them to more than one on their card.`,
+        // #514: name the rule and the field that changes it.
+        message: takenMessage(shortName(own.name), { mine: true, partner: with_?.name ?? null }),
       },
       409,
       sess,

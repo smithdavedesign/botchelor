@@ -133,6 +133,7 @@ export async function startTestDb() {
         "adult_settings",
         "agent_feedback",
         "agent_links",
+        "agent_status_cursors",
         "agent_link_codes",
         "mcp_calls",
         "scene_requests",

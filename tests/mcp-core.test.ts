@@ -74,8 +74,9 @@ describe("the tool list: the core by default, everything on request", () => {
     // 2026-10-20 (20 visitor runs: "hidden tools" was the most common deduction): autoplay, my_dates, plan_second_date
     // and sliding_doors joined the core, so the budget moved from 31 KB to 37 KB. 2026-10-21 (#423, #444, #461): the
     // tools replies kept sending agents to (my_matches, my_notifications, export_character, set_date_visibility, the
-    // feedback board) joined too, and every tool says what it costs and returns: 46 KB.
-    expect(JSON.stringify(core).length).toBeLessThan(46_000);
+    // feedback board) joined too, and every tool says what it costs and returns: 46 KB. 2.4.1 (#514, #540): go_on_date,
+    // swipe and answer_match say the one-partner rule and how to reopen, and my_status says why a wait returned: 47 KB.
+    expect(JSON.stringify(core).length).toBeLessThan(47_000);
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.76);
     expect((await rpc("tools/list", { all: true })).result.tools).toHaveLength(PUBLIC_MCP_TOOLS.length);
     expect((await rpc("tools/list", { lean: true, core: true })).result.tools).toHaveLength(CORE_MCP_TOOLS.length);

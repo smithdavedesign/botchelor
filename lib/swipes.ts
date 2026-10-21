@@ -25,6 +25,7 @@ import { getModel, type ChatMessage, type Model } from "./model";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { takenSql } from "./partners";
+import { REOPEN_HOW } from "./partners-shared";
 import { pairKey, type End } from "./relationships";
 import { seasonCastIds } from "./season-cast";
 import { loadChain, PUBLIC_VIEWER } from "./text-chain";
@@ -118,7 +119,10 @@ async function loadMine(db: Db, userId: string, characterId: string): Promise<Mi
 /** Why `mine` can't swipe right now, or null. */
 function cantSwipe(mine: Mine | null): Refusal | null {
   if (!mine) return refuse(404, "not_your_character", "Swipe for one of your own characters.");
-  if (mine.taken) return refuse(409, "taken", `${shortName(mine.name)} is with someone and wants one partner, so they're out of the deck.`);
+  // #514: the rule and the field that changes it, named.
+  if (mine.taken) {
+    return refuse(409, "taken", `${shortName(mine.name)} is with someone and wants one partner (a Dating couple), so they're out of the deck and closed to other dates. To reopen them, ${REOPEN_HOW}.`);
+  }
   const missing = profileMissing(mine.extras);
   if (missing.length) return refuse(409, "profile_incomplete", `Finish ${shortName(mine.name)}'s dating profile to swipe: ${missing.join(", ")}.`, missing);
   return null;

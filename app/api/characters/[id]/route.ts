@@ -140,7 +140,11 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
       )
     ).rows[0]?.taken;
     if (taken && after !== "open") {
-      return json({ error: "taken", message: "They're with someone and want one partner. Set them to more than one first." }, 409, sess);
+      return json(
+        { error: "taken", message: 'They\'re with someone and want one partner. Set them to more than one first (agents: partner_style: "open" in the same update_character call).' },
+        409,
+        sess,
+      );
     }
   }
 

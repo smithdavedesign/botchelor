@@ -44,8 +44,9 @@ import { audienceAllows, type Audience } from "./audience";
 import { getDirectorModel, getModel } from "./model";
 import { agentDatesToday } from "./dating";
 import { shortName } from "./names";
-import { notify, resolvePairNotices } from "./notifications";
+import { notify, resolvePairNotices, resolveTurnNotices } from "./notifications";
 import { takenSql } from "./partners";
+import { takenMessage } from "./partners-shared";
 import { haveDated, swipeGateOn } from "./swipe-gate";
 import { agreedMatch } from "./swipes";
 import { DATE_VISIBILITIES, DELETED_OWNER } from "./rules";
@@ -200,6 +201,7 @@ export async function clearStaleOwnDates(db: Db, now: Date = new Date(), creator
       returning id`,
     [cutoff, creatorId ?? null],
   );
+  for (const { id } of rows) await resolveTurnNotices(db, id);
   return rows.length;
 }
 
@@ -285,8 +287,9 @@ async function checkOwnDate(
       `select ${takenSql("x", "$2")} as a, ${takenSql("y", "$1")} as b from characters x, characters y where x.id = $1 and y.id = $2`,
       [a.id, b.id],
     );
-    if (taken.rows[0]?.a) return err(409, "taken", `${shortName(a.name)} is with someone else and wants one partner.`);
-    if (taken.rows[0]?.b) return err(409, "taken", `${shortName(b.name)} is with someone else and wants one partner.`);
+    // #514: the rule, and the field that changes it (a is the asker's; b is the other agent's).
+    if (taken.rows[0]?.a) return err(409, "taken", takenMessage(shortName(a.name), { mine: true }));
+    if (taken.rows[0]?.b) return err(409, "taken", takenMessage(shortName(b.name), { mine: false }));
     const invited = (
       await db.query<{ n: number }>(`select count(*)::int as n from episodes where partner_performer = $1 and status = 'generating'`, [partnerPerformer])
     ).rows[0].n;
@@ -715,6 +718,8 @@ async function finishOnShowModel(
     [row.id, draft.setting, JSON.stringify(draft.goals), JSON.stringify(draft.scenes), draft.twist, draft.finale, draft.best_line, JSON.stringify(draft.confessionals), transcript.length, PROMPT_VERSION],
   );
   if (!saved.rows.length) return true; // the other agent's request finished it first
+  // #529: done, so its "Your move…" notices are too, for both agents.
+  await resolveTurnNotices(db, row.id);
   await rememberDate(db, row.a_id, row.b_id).catch(() => {});
   await logSceneRequests(db, row.id, built.setup, transcript);
   trackMoves(row.id, transcript, "agent");
@@ -873,6 +878,10 @@ export async function autoplayOwnDate(db: Db, userId: string, episodeId: string,
       where id = $1 and status = 'generating'`,
     [episodeId, set.autoplay, set.handed_over],
   );
+  // #529: whoever's side the show now plays has no move to make: their "Your move…" notices are done.
+  const nowShow = performersOf({ ...row, autoplay: set.autoplay, handed_over: set.handed_over ?? row.handed_over });
+  const before = performersOf(row);
+  await resolveTurnNotices(db, episodeId, (["a", "b"] as const).filter((s) => nowShow[s] === SHOW && before[s] !== SHOW).map((s) => before[s]));
   track("own_date_autoplay", { episode_id: episodeId, side, two_agent: twoAgent, house_bot: planned.plan.bot });
   // getOwnDateStep plays every turn that's now the show's, one after another, and the recap when it's due.
   return getOwnDateStep(db, userId, episodeId);
@@ -1017,6 +1026,8 @@ async function takeOver(db: Db, row: Row, side: "a" | "b", speaker: string, quie
     [row.id, side, both, row.handed_over, (row.transcript ?? []).length],
   );
   if (!taken.rows.length) return false;
+  // #529: the quiet side's "Your move…" notices are done (the show plays it now).
+  await resolveTurnNotices(db, row.id, [quietAgent]);
   await notify(db, quietAgent, {
     kind: "own_date_handed_over",
     title: `🎬 The show's model took over ${shortName(speaker)}'s side`,
@@ -1147,6 +1158,8 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       [episodeId, draft.setting, JSON.stringify(draft.goals), JSON.stringify(draft.scenes), draft.twist, draft.finale, draft.best_line, JSON.stringify(draft.confessionals), transcript.length, PROMPT_VERSION],
     );
     if (saved.rows.length) {
+      // #529: done, so its "Your move…" notices are too, for both agents.
+      await resolveTurnNotices(db, episodeId);
       await rememberDate(db, row.a_id, row.b_id).catch(() => {});
       await logSceneRequests(db, episodeId, built.setup, transcript);
       trackMoves(episodeId, transcript, "agent");
@@ -1212,6 +1225,7 @@ export async function declineOwnDate(db: Db, userId: string, episodeId: string):
   );
   const r = rows[0];
   if (!r) return false;
+  await resolveTurnNotices(db, episodeId);
   const cancelled = r.creator_id === userId;
   const other = cancelled ? r.partner_performer : r.creator_id;
   // Tell the other agent; and keep a note for whoever called it off, so a late get_own_date_step says what happened.
