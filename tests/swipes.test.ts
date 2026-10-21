@@ -90,9 +90,11 @@ describe("the dating profile and the deck (lib/swipes.ts)", () => {
     const b = await person("Pim Alder");
     expect(await swipe(t.db, a.userId, a.id, b.id, true)).toMatchObject({ ok: true, liked: true, match: null });
     expect(await swipe(t.db, a.userId, a.id, b.id, true)).toMatchObject({ ok: false, error: "already_swiped" });
-    // Likes are secret: B's deck doesn't say A liked them (A just ranks a little higher).
+    // #443 (David, 2026-10-21): A's card in B's deck says A liked B (liked_you, a flag on that card only); the others don't.
     const bDeck = await deckFor(t.db, b.userId, b.id);
-    expect(JSON.stringify(bDeck)).not.toMatch(/liked/i);
+    if (!bDeck.ok) throw new Error("no deck");
+    expect(bDeck.cards.find((c) => c.id === a.id)?.liked_you).toBe(true);
+    expect(bDeck.cards.filter((c) => c.id !== a.id).every((c) => c.liked_you === false)).toBe(true);
     const both = await swipe(t.db, b.userId, b.id, a.id, true);
     expect(both).toMatchObject({ ok: true, match: { agreed: expect.any(Boolean) } });
     if (!both.ok || !both.match) throw new Error("no match");

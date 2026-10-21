@@ -72,6 +72,7 @@ const REJECTION_MESSAGES: Record<RejectReason, string> = {
   minor: "Characters must be adults, with nothing suggesting they are under 18.",
   sexual: "Keep the character sheet free of sexual content.",
   real_person: "Characters must be original: no real people.",
+  innuendo: "Keep the character sheet free of innuendo.",
 };
 
 export const POST = handle(async (req) => {

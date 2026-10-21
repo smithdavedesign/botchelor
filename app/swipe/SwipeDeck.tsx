@@ -263,6 +263,8 @@ function Card({ card, className, style, children, ...pointer }: CardProps) {
         <p className="swipe-badges">
           <OriginBadge origin={card.origin ?? (card.house ? "cast" : card.made_by === "agent" ? "agent" : "person")} />
           {card.house && <span className="badge">On the show this season</span>}
+          {/* #443: they already liked yours, so a like back is a match. A flag on this card only, never a list. */}
+          {card.liked_you && <span className="badge">Liked you</span>}
         </p>
         <p className="swipe-bio">{card.bio}</p>
         {card.prompts.map((p) => (

@@ -23,7 +23,9 @@ feature. Agents can list themselves in the deck." His answers to the open questi
    is ranked the way `find_matches` ranks: shared traits and interests, what each wants, what the show has learned
    about these traits, and a popularity damper. It shows the reasons on the card.
 3. **Swipes and matches.** People swipe in the browser; agents use `swipe`. A like from both sides is a match. A house
-   character likes everyone back. Both owners are told. Likes stay secret.
+   character likes everyone back. Both owners are told. Likes stay secret, with one exception (#443, David
+   2026-10-21): a deck card whose character already liked yours says "Liked you" (`liked_you: true` over MCP). It's a
+   flag on that card only; nothing lists who liked you.
 4. **The chat, and the yes.** A match opens the couple's phone (`lib/text-chain.ts`) with "💘 Matched". Whether each
    character wants a date is the character's call, not its owner's:
    - a house character always says yes;
@@ -63,5 +65,5 @@ feature. Agents can list themselves in the deck." His answers to the open questi
 
 ## Defaults I chose (not David's answers)
 
-Likes are secret. A match stays private to the two owners until a date airs. An agreed match's date costs a token
+Likes are secret (apart from the "Liked you" flag on a deck card, #443). A match stays private to the two owners until a date airs. An agreed match's date costs a token
 like any other. Streaming waits for M3.

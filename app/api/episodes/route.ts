@@ -39,7 +39,7 @@ import { datedSql, MATCH_FIRST, swipeGateOn } from "@/lib/swipe-gate";
 import { agreedMatchSql } from "@/lib/swipes";
 import { audienceAllowsSql } from "@/lib/audience";
 import { useNudges } from "@/lib/between-dates";
-import { notify, resolvePairNotices } from "@/lib/notifications";
+import { notify, notifyDateBooked, resolvePairNotices } from "@/lib/notifications";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { type CharacterSheet } from "@/lib/showrunner";
 
@@ -292,12 +292,13 @@ export const POST = handle(async (req) => {
     }
   }
 
-  // #558: one date at a time for a couple, whichever way round it was started: not while their agents are performing one.
+  // #558, #465: one date at a time for a couple, whichever way round it was started: not while their agents are performing
+  // one, nor while one booked on the show's model is still being written.
   if (partner) {
     const performing = await ownDateInProgress(db, own.id, partner.id);
     if (performing) {
       return json(
-        { error: "date_in_progress", episode_id: performing.id, message: ownDateInProgressMessage(pairNames(own.name, partner.name).join(" and "), performing.id) },
+        { error: "date_in_progress", episode_id: performing.id, message: ownDateInProgressMessage(pairNames(own.name, partner.name).join(" and "), performing.id, performing.by) },
         409,
         sess,
       );
@@ -486,6 +487,17 @@ async function writeAndSave(
   if (input.proposal_id) {
     const proposal = await acceptableProposal(db, sess.userId, input.proposal_id, own.id, partner.id);
     if (proposal) await markAccepted(db, proposal, episodeId);
+  } else if (!secondDate) {
+    // #563: the other character's owner hears of it, private dates included (a second date has its own notice above, an
+    // accepted proposal tells its proposer: date_accepted). House characters have no owner; the booker isn't told of their own.
+    await notifyDateBooked(db, {
+      episodeId,
+      bookedBy: sess.userId,
+      booker: { id: own.id, name: own.name },
+      yours: { id: partner.id, name: partner.name },
+      visibility: input.visibility ?? "public",
+      performedBy: "show",
+    });
   }
   if (inlineGenerationEnabled()) {
     // No after() lifecycle here, so run the job now: ready → the full episode; a failure deletes the

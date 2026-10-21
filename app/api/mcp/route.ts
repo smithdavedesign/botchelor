@@ -1,4 +1,5 @@
 import { handleMcpPost, toolsListResult, type McpContext } from "@/lib/mcp";
+import { visitorKey } from "@/lib/limits";
 import { requestBase } from "@/lib/site";
 
 /**
@@ -43,6 +44,8 @@ export async function POST(req: Request): Promise<Response> {
   const ctx: McpContext = {
     sessionId: req.headers.get("mcp-session-id"),
     userAgent: req.headers.get("user-agent"),
+    // #437: so a probe initialize and the real one from the same client share an agent_id (lib/mcp.ts reusableAgent).
+    visitor: visitorKey(req.headers),
     base: requestBase(req),
     adminKey: req.headers.get("x-frontier-key"),
     // The core tools by default; /api/mcp?tools=all lists every tool (lib/mcp.ts CORE_MCP_TOOLS).

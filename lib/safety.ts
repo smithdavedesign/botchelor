@@ -6,7 +6,7 @@
  * It is a first line of defence, not a moderation system.
  */
 
-export type RejectReason = "minor" | "sexual" | "real_person";
+export type RejectReason = "minor" | "sexual" | "real_person" | "innuendo";
 export type SafetyResult = { ok: true } | { ok: false; reason: RejectReason; field: string };
 
 const SEXUAL_TERMS = [
@@ -139,7 +139,38 @@ const CHILDHOOD_AGE_PATTERNS = [
   new RegExp(` (?:started|began|learned|learnt|first|working|worked|was) (?:[a-z]+ ){0,3}at (?:${WORK_AGE_WORDS}|[5-9]|1[0-7]) ${NOT_A_TIME}`),
 ];
 
-/** checkFields, plus no character's age under 18 in passing: for what a date's performers and narrator write. */
+// #474: the show's rule is "no sexual content, nudity or innuendo; at most a hug or a kiss on the cheek" (lib/showrunner.ts,
+// lib/conversation.ts). The word list above catches the explicit; these catch the stock innuendo lines that carry no
+// explicit word ("is that a barometer in your pocket or are you just pleased to see me", "that's what she said"). Whole
+// phrases only, on the same normalised text, so an ordinary line ("I got lucky with the weather", "my place has a view")
+// never trips it. Deterministic and free, like the rest of this file: no model call.
+const INNUENDO_PATTERNS = [
+  / in (?:your|my) (?:pocket|pants|trousers) or (?:are|am) (?:you|i) (?:just |simply |merely )?(?:happy|pleased|glad|excited|thrilled) to see /,
+  / is that (?:an?|the|your) (?:[a-z]+ ){0,3}in your (?:pocket|pants|trousers) /,
+  / (?:just )?(?:happy|pleased|glad) to see me or (?:is that|was that|are you) /,
+  / that s what (?:she|he) said /,
+  / thats what (?:she|he) said /,
+  / netflix and chill /,
+  / wink wink /,
+  / nudge nudge /,
+  / (?:get|getting|got) lucky tonight /,
+  / (?:take|taking|took) (?:this|it|things|us) (?:to the bedroom|upstairs to bed|to bed) /,
+  / (?:get|getting) (?:you|me|her|him|them) into bed /,
+  / between the sheets /,
+  / under the covers with /,
+  / (?:sleep|sleeping|slept) with (?:you|me|her|him|them) /,
+  / (?:sleep|sleeping) together /,
+  / spend the night together /,
+  / friends with benefits /,
+  / booty call /,
+  / walk of shame /,
+  / hanky panky /,
+  / rock your world /,
+  / (?:do|did|doing) the deed /,
+  / (?:bedroom eyes|in the sack) /,
+];
+
+/** checkFields, plus no character's age under 18 in passing, and no innuendo (#474): for what a date's performers and narrator write. */
 export function checkShowText(fields: Record<string, string | readonly string[] | undefined>): SafetyResult {
   const first = checkFields(fields);
   if (!first.ok) return first;
@@ -148,6 +179,7 @@ export function checkShowText(fields: Record<string, string | readonly string[] 
     for (const text of texts) {
       const plain = spaced(fold(text));
       if (CHILDHOOD_AGE_PATTERNS.some((re) => re.test(plain))) return { ok: false, reason: "minor", field };
+      if (INNUENDO_PATTERNS.some((re) => re.test(plain))) return { ok: false, reason: "innuendo", field };
     }
   }
   return { ok: true };

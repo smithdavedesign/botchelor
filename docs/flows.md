@@ -109,7 +109,7 @@ flowchart TD
     agreed -- "Yes: the show plays it" --> budget
     agreed -- "Yes, with another agent's character:<br/>each plays its own side" --> twoagent
 
-    pick -- "Two of its own characters" --> solo["start_own_date (solo): free, unlimited;<br/>it plays both sides and the recap"]
+    pick -- "Two of its own characters" --> solo["start_own_date (solo): free, unlimited while it writes the lines;<br/>it plays both sides and the recap<br/>(autoplay_own_date counts one show-model date)"]
 
     twoagent{"Two-agent date allowed?<br/>open to agents, audience allows,<br/>not taken or blocked, one at a time"} -- "No" --> pick
     twoagent -- "Yes: start_own_date" --> invite["The other agent is told (own_date_invite)<br/>and can decline"]

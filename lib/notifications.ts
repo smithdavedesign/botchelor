@@ -16,6 +16,7 @@ export type NotificationKind =
   | "date_agreed" // a match where both characters said yes to a date: book it
   | "second_date_yes" // the other owner said yes to a second date, and is waiting for yours
   | "second_date_booked" // a second date was booked with your character
+  | "date_booked_with_yours" // someone else booked a date with your character, private ones included (#563)
   | "stage_up" // a couple you're part of (or follow) moved up a stage
   | "couple_date" // a couple you follow went on another date
   | "arc_resolved" // a prediction you made about a couple's arc came true (or didn't)
@@ -82,12 +83,64 @@ export async function markPairNotices(db: Db, userId: string, x: string, y: stri
 
 /**
  * A date between the pair was booked, by any path (the web's book buttons, the thread's Book date, go_on_date,
- * plan_second_date, a two-agent date): their owners' "Book it" notices are done. A private date only clears the
- * booker's, so the other owner doesn't learn of a date they can't see.
+ * plan_second_date, a two-agent date): their owners' "Book it" notices are done. Since #563 (David, 2026-10-21) the
+ * other owner hears of every date booked with their character, private ones too (they can open it: a private date is
+ * its two owners'), so a private date clears both owners' as well.
  */
 export async function resolvePairNotices(db: Db, x: string, y: string, opts: { bookedBy: string; private?: boolean }): Promise<void> {
-  const others = opts.private ? [] : [...(await ownersOf(db, [x, y]).catch(() => new Map<string, string | null>())).values()];
+  const others = [...(await ownersOf(db, [x, y]).catch(() => new Map<string, string | null>())).values()];
   for (const owner of new Set([opts.bookedBy, ...others])) if (owner) await markPairNotices(db, owner, x, y);
+}
+
+/**
+ * #563 (David, 2026-10-21): another agent or person booked a date with your character, public or private, and you
+ * hear of it: in the inbox (/notifications, my_notifications, my_status) and by email when you've turned email on
+ * (lib/email.ts IMMEDIATE_KINDS; a verified address only, capped, one-click unsubscribe). It says who booked it, with
+ * which character, whether it's private (you can still open it: a private date is its two owners'), and links to it.
+ * Never to the booker, never for a house character (no owner), never to a creator who left.
+ */
+export async function notifyDateBooked(
+  db: Db,
+  d: {
+    episodeId: string;
+    bookedBy: string;
+    booker: { id: string; name: string };
+    yours: { id: string; name: string };
+    visibility: string;
+    /** Who performs it: the show's model, or the agents themselves (an own date). */
+    performedBy: "show" | "agents";
+  },
+): Promise<void> {
+  try {
+    const { rows } = await db.query<{ id: string; owner_id: string | null; created_via: string | null }>(
+      `select id, owner_id, created_via from characters where id = any($1)`,
+      [[d.booker.id, d.yours.id]],
+    );
+    const owner = rows.find((r) => r.id === d.yours.id)?.owner_id;
+    if (!owner || owner === d.bookedBy || owner === "deleted") return;
+    const by = rows.find((r) => r.id === d.booker.id)?.created_via === "mcp" ? "an agent" : "a person";
+    const first = (n: string) => n.trim().split(/\s+/)[0] || n;
+    const isPrivate = d.visibility === "private";
+    await notify(db, owner, {
+      kind: "date_booked_with_yours",
+      title: `📅 ${first(d.booker.name)} booked a${isPrivate ? " private" : ""} date with ${first(d.yours.name)}`,
+      body: [
+        `Booked by ${d.booker.name}'s creator (${by}), with your ${d.yours.name}.`,
+        d.performedBy === "show" ? "The show's model performs it." : null,
+        isPrivate
+          ? "It's private: it never airs, and only its two owners can open it, you included."
+          : d.visibility === "unlisted"
+            ? "It's unlisted: anyone with the link can watch it."
+            : "It's public: it airs once it's ready.",
+        `Episode ${d.episodeId}.`,
+      ]
+        .filter(Boolean)
+        .join(" "),
+      link: `/episodes/${d.episodeId}`,
+    });
+  } catch (err) {
+    console.error("[notify] could not tell the owner of a booking:", err instanceof Error ? err.message : "unknown");
+  }
 }
 
 /** The notices that ask an agent to play a self-performed date, and so go stale once the date isn't waiting on it (#529). */
@@ -263,7 +316,8 @@ export async function withBookings(db: Db, userId: string, items: Notification[]
   const { rows } = await db.query<{ id: string; status: "generating" | "ready"; a: string; b: string; created_at: Date | string; performed_by: string | null; creator_id: string | null; partner_performer: string | null }>(
     `select id, status, character_a as a, character_b as b, created_at, performed_by, creator_id, partner_performer from episodes
       where character_a = any($1) and character_b = any($1) and status in ('generating', 'ready') and varies_episode_id is null
-        and (visibility <> 'private' or creator_id = $2 or partner_performer = $2)
+        and (visibility <> 'private' or creator_id = $2 or partner_performer = $2
+             or exists (select 1 from characters c where c.id in (episodes.character_a, episodes.character_b) and c.owner_id = $2))
       order by created_at desc`,
     [ids, userId],
   );
