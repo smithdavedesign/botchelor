@@ -11,6 +11,11 @@ export async function isAdmin(db: Db, userId: string | null | undefined): Promis
   return rows.length > 0;
 }
 
+/** An admin signed in to their account. A bare user id (a legacy cookie, an unsigned-in session) never counts as one. */
+export async function isSignedInAdmin(db: Db, auth: { userId: string; authenticated: boolean } | null | undefined): Promise<boolean> {
+  return Boolean(auth?.authenticated) && (await isAdmin(db, auth?.userId));
+}
+
 /** Free dates for an admin's own account (testing the show without buying): 20 at a time. */
 export const ADMIN_TOKEN_GRANT = 20;
 

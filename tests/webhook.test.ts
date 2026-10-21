@@ -112,6 +112,22 @@ describe("a webhook with a bad signature returns 400 and grants nothing (exit cr
     expect(await packLeft(buyer)).toBe(PACK.episodes);
   });
 
+  it("never grants a test-mode event on the production site, except during the test-mode proof run", async () => {
+    const buyer = newUserCookie();
+    const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);
+    const payload = JSON.stringify({ ...JSON.parse(paidEvent()), livemode: false });
+    vi.stubEnv("VERCEL_ENV", "production");
+    const ignored = await api.stripeWebhook(payload, await stripeSignature(payload));
+    expect(ignored.status).toBe(200); // so Stripe stops retrying
+    await expectNothingGranted(buyer, orderId);
+
+    vi.stubEnv("STRIPE_ALLOW_TEST_LINK", "1");
+    expect((await api.stripeWebhook(payload, await stripeSignature(payload))).status).toBe(200);
+    expect(await orderStatus(orderId)).toBe("paid");
+    vi.unstubAllEnvs();
+    openPayments(vi.stubEnv);
+  });
+
   it("accepts any matching v1 during a secret rotation", async () => {
     const buyer = newUserCookie();
     const { orderId, paidEvent } = await startCheckout(PACK.sku, buyer);

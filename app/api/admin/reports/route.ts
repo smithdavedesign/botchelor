@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { isAdmin } from "@/lib/admins";
+import { isSignedInAdmin } from "@/lib/admins";
 import { getDb } from "@/lib/db";
-import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
 import { listOpenReports, REVIEW_DECISIONS, reviewReports } from "@/lib/moderation";
 
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 /** The admin password (x-frontier-key, like the other admin tools) or an admin account (lib/admins.ts). */
 async function authorized(req: Request): Promise<boolean> {
   if (frontierAuthorized(req)) return true;
-  return isAdmin(await getDb(), session(req).userId);
+  return isSignedInAdmin(await getDb(), authFromRequest(req));
 }
 
 const NOT_AUTHORIZED = { error: "not_authorized", message: "Needs the admin password or an admin account." };

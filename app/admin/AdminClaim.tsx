@@ -55,7 +55,9 @@ export default function AdminClaim() {
       setNote(
         res?.status === 403
           ? "That isn't the admin password."
-          : "Couldn't change it. Try again.",
+          : res?.status === 401
+            ? "Sign in first: an admin is an account."
+            : "Couldn't change it. Try again.",
       );
     setPassword("");
     await load();
@@ -104,8 +106,7 @@ export default function AdminClaim() {
           <p className="muted small">
             Enter the admin password once to make this account an admin (no clip
             paywall).
-            {!state.signed_in &&
-              " Sign in first so it follows you to every device."}
+            {!state.signed_in && " Sign in first: an admin is a signed-in account."}
           </p>
           <label>
             Admin password

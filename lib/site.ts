@@ -13,6 +13,17 @@ export function siteUrl(env: Record<string, string | undefined> = process.env): 
 }
 
 /**
+ * The site's other addresses: the old one and www. Their pages move to the canonical domain (middleware.ts), and a
+ * player's identity is carried across (app/api/auth/carry), which only ever sends a browser back to one of these.
+ */
+export const OLD_HOSTS: ReadonlySet<string> = new Set(["botchelor.vercel.app", "www.botchelor.com"]);
+
+/** The host a request came in on (Vercel's forwarded host first), lowercased. */
+export function requestHost(req: Request): string {
+  return (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? new URL(req.url).host).toLowerCase();
+}
+
+/**
  * The address to put in links an agent will follow (the guides, the MCP discovery file, the schema's $id): the
  * production domain on Vercel, else the address this request came in on, so a local or preview server never
  * advertises a host it isn't on.

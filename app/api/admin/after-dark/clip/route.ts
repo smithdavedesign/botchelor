@@ -27,5 +27,5 @@ export const GET = handle(async (req: Request) => {
   const admin = await adultViewer(db, req);
   if (!admin) return json({ error: "not_found" }, 404);
   const id = new URL(req.url).searchParams.get("id") ?? "";
-  return json({ status: await pollClip(db, id) });
+  return json({ status: await pollClip(db, id, admin) });
 });

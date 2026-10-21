@@ -11,7 +11,7 @@ import { registerAccount } from "@/lib/auth";
 import { setDbForTests } from "@/lib/db";
 import { saveUserKey } from "@/lib/keys";
 import { downloadVeoClip, pollVeoClip, startVeoClip, veoClipPrompt, VEO_MODEL } from "@/lib/video";
-import { BASE_URL, api, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
+import { BASE_URL, api, newUserCookie, signedInCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push() {}, refresh() {} }) }));
 const { default: OwnerControls } = await import("@/app/characters/[id]/OwnerControls");
@@ -171,11 +171,16 @@ describe("the clip paywall: bought tokens, refunded if the clip fails; none for 
     const { cookie, character, userId } = await owner();
     const bad = await claimRoute.POST(new Request(`${BASE_URL}/api/admin/claim`, { method: "POST", headers: { cookie, "x-frontier-key": "wrong" } }));
     expect(bad.status).toBe(403);
-    const ok = await claimRoute.POST(new Request(`${BASE_URL}/api/admin/claim`, { method: "POST", headers: { cookie, "x-frontier-key": ADMIN_PASSWORD } }));
+    // Only a signed-in account can be an admin: their bare user id is turned away.
+    const bare = await claimRoute.POST(new Request(`${BASE_URL}/api/admin/claim`, { method: "POST", headers: { cookie, "x-frontier-key": ADMIN_PASSWORD } }));
+    expect(bare.status).toBe(401);
+    const ok = await claimRoute.POST(new Request(`${BASE_URL}/api/admin/claim`, { method: "POST", headers: { cookie: signedInCookie(userId), "x-frontier-key": ADMIN_PASSWORD } }));
     expect(ok.status).toBe(200);
     expect(await isAdmin(t.db, userId)).toBe(true);
     stubVeo("done");
-    const started = await post(character.id, cookie);
+    // Only signed in: their bare user id alone is charged like anyone else.
+    expect((await post(character.id, cookie)).status).toBe(402);
+    const started = await post(character.id, signedInCookie(userId));
     expect(started.status).toBe(202);
     expect(await started.json()).toMatchObject({ tokens_spent: 0, admin: true });
     expect((await episodeAllowance(t.db, userId)).pack_left).toBe(0);

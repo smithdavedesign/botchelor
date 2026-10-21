@@ -46,6 +46,7 @@ import { seasonCastCards, seasonCastIds, SURVIVORS } from "./season-cast";
 import { seasonIdOf, seasonLabel, seasonWindow } from "./season-window";
 import { seasonStanding } from "./leagues";
 import { createLinkCode, isLinked } from "./agent-links";
+import { hasAccount } from "./auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "./formats";
 import { compatibility, loadTraitStats } from "./compatibility";
 import { POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, RATING_CATEGORY_IDS, SLIDING_DOOR_IDS, type RatingCategory } from "./rules";
@@ -1803,14 +1804,18 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
     loadTraitStats(db).catch(() => null),
   ]);
   const owned = await ownsCharacter(db, characterId, userId);
+  // A private partner shows its name only, to anyone but its owner, so its traits stay out of the preview and the chemistry.
+  const hidden = partner ? (await privateIds(db, [partner.id], userId)).has(partner.id) : false;
   const fmt = showFormat((typeof args.format === "string" ? args.format : DEFAULT_FORMAT) as FormatId);
-  const fit = mine && partner && stats ? compatibility(stats, mine.traits, partner.traits) : null;
+  const fit = mine && partner && stats && !hidden ? compatibility(stats, mine.traits, partner.traits) : null;
   return {
     preview: true,
     booked: false,
     ...(owned && mine ? { your_character: { id: mine.id, name: mine.name, traits: mine.traits } } : { problem: "character_id isn't one of your characters." }),
     with: partner
-      ? { id: partner.id, name: partner.name, age: partner.age, traits: partner.traits, bio: partner.bio, made_by: partner.house ? "house" : "a creator" }
+      ? hidden
+        ? { id: partner.id, name: partner.name, private: true, note: "Its creator keeps this character private: only its name is shown." }
+        : { id: partner.id, name: partner.name, age: partner.age, traits: partner.traits, bio: partner.bio, made_by: partner.house ? "house" : "a creator" }
       : args.blind === true
         ? "a blind date: the show picks the partner when it's booked"
         : partnerId
@@ -3427,7 +3432,12 @@ async function readResource(uri: string, db: Db, base?: string): Promise<{ mimeT
   const character = /^botchelor:\/\/character\/([\w-]{1,64})$/.exec(uri);
   if (character) {
     const profile = await getDatingProfile(db, character[1]);
-    return profile ? { mimeType: "application/json", text: JSON.stringify(profile, null, 2) } : null;
+    if (!profile) return null;
+    // A private character shows its name only (as get_character and its card do): a resource read has no owner.
+    const shown = (await privateIds(db, [profile.id], null)).has(profile.id)
+      ? { id: profile.id, name: profile.name, private: true, note: "Its creator keeps this character private: only its name is shown." }
+      : profile;
+    return { mimeType: "application/json", text: JSON.stringify(shown, null, 2) };
   }
   const episode = /^botchelor:\/\/episode\/([\w-]{1,64})$/.exec(uri);
   if (episode) {
@@ -3614,6 +3624,13 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // (air_date sweeps its own host's, so it can report the airing it did.)
       if (name !== "air_date") await airDueDates(db, null, 5).catch(() => []);
       const session = await loadSession(db, ctx);
+      // An agent_id is an anonymous identity; a person's account id isn't one, so it can't be played as from here.
+      const acting = resolveIdentity(args, session, false);
+      if (acting && (await hasAccount(db, acting.id))) {
+        return reply(
+          toToolResult({ error: "That agent_id is a person's Botchelor account, and an account is only used signed in. Leave agent_id out for an id of your own, and link_account to show your characters in their account." }, null),
+        );
+      }
       let ran = await runTool(name as ToolName, args, session, db);
       if (args.compact === true && CARD_TOOLS.has(name) && !("error" in ran)) ran = { ...ran, data: compactCards(ran.data) };
       if (!("error" in ran)) {

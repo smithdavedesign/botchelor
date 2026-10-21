@@ -30,6 +30,12 @@ identity, so old sessions and the tests keep working. **Without `SESSION_SECRET`
 behaves exactly as it did before — accounts and BYOK simply report themselves unavailable (the same pattern as
 the frontier gate). `SESSION_SECRET` is set on Vercel production (sensitive, generated into the keychain).
 
+**An account is only used signed in** (security review, 2026-10-20). An anonymous identity (a legacy `bz_uid`, an
+unsigned-in `bz_sess`, an MCP `agent_id`) that names an account's user id gets nothing account-wide: exporting,
+deleting and the email settings answer 401 `sign_in_required` (`lib/auth` `needsSignIn`), MCP refuses that `agent_id`,
+and an admin only counts signed in (`lib/admins` `isSignedInAdmin`; claiming admin needs a signed-in account too). So
+a user id that got out, or one planted on someone before they signed up, can't be used to read or wipe their account.
+
 Server components read identity with `userIdFromCookieStore`; routes use `session(req)` / `authFromRequest(req)`.
 
 ### Sign up / in / out (`/api/auth/*`, `lib/auth`)
@@ -159,7 +165,7 @@ Lite** through the Gemini API (`lib/video.ts`), on the player's own Google key.
 - **What counts:** only tokens from a pack. The weekly free tokens stay for dates.
 - **No tokens:** answers `402 needs_tokens` with a link to the Tokens page.
 - **Refunds:** a clip Google blocks or fails is refunded exactly once (`character_assets.tokens_spent`).
-- **Admins:** skip it (`lib/admins.ts`). An account becomes admin by entering the admin password once on `/admin` (the same password as the admin tools). An admin's clip still runs on their own Google key.
+- **Admins:** skip it (`lib/admins.ts`). A signed-in account becomes admin by entering the admin password once on `/admin` (the same password as the admin tools). An admin's clip still runs on their own Google key.
 
 ### Not yet
 - A blind date between two users where only one has a key: that user's turns use their key; the other's and

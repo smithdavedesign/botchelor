@@ -15,7 +15,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // Or a picture's short-lived signed link (lib/adult/media.ts signedMediaUrl): a video provider fetching a start frame.
   const q = new URL(req.url).searchParams;
   const linked = !admin && mediaLinkValid(id, q.get("until"), q.get("sig"));
-  const file = admin || linked ? await mediaBytes(db, id) : null;
+  const file = admin ? await mediaBytes(db, id, admin) : linked ? await mediaBytes(db, id, null) : null;
   if (linked && file?.mime.startsWith("video/")) return new Response("Not found", { status: 404 });
   if (!file) return new Response("Not found", { status: 404 });
   return new Response(new Uint8Array(file.data), {

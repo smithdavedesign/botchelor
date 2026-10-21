@@ -1,4 +1,4 @@
-import { isAdmin } from "@/lib/admins";
+import { isSignedInAdmin } from "@/lib/admins";
 import { CLIP_TOKEN_COST, episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "@/lib/allowance";
 import { approvedPortraitId, getApprovedAsset, latestClip, recordAsset, reviewAsset, setAssetMedia } from "@/lib/assets";
 import { getDb, type Db } from "@/lib/db";
@@ -43,7 +43,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   if (!character) return json({ error: "character_not_found" }, 404, sess);
 
   // The paywall: bought tokens, spent before the job starts so two clicks can't share one. Admins skip it.
-  const admin = await isAdmin(db, sess.userId);
+  const admin = await isSignedInAdmin(db, sess);
   const cost = admin ? 0 : CLIP_TOKEN_COST;
   if (cost > 0 && !(await spendBoughtTokens(db, sess.userId, cost))) {
     const left = (await episodeAllowance(db, sess.userId)).pack_left;

@@ -282,11 +282,17 @@ export async function ensureBaseline(db: Db, ownerId: string, c: Character): Pro
   return makePicture(db, ownerId, { prompt: baselinePrompt(c), kind: "baseline", character_id: c.id });
 }
 
+/**
+ * A picture or clip is its maker's (an admin's, as moderator, too): `$n` is the viewer. Every by-id lookup carries it, so
+ * once after dark has subscribers one can't open, poll or animate another's by knowing its id.
+ */
+const viewableBy = (n: number) => `(owner_id = $${n} or exists (select 1 from admins a where a.user_id = $${n}))`;
+
 /** Starts a clip from one of the gallery's pictures (fal's queue: it takes a minute or more). */
 export async function startClip(db: Db, ownerId: string, imageId: string, motion: string): Promise<Media> {
   const pic = (await db.query<{ remote_url: string | null; character_id: string | null; character_b: string | null; prompt: string }>(
-    `select remote_url, character_id, character_b, prompt from adult_images where id = $1 and kind <> 'video' and status = 'ready'`,
-    [imageId],
+    `select remote_url, character_id, character_b, prompt from adult_images where id = $1 and kind <> 'video' and status = 'ready' and ${viewableBy(2)}`,
+    [imageId, ownerId],
   )).rows[0];
   if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
   if (!pic) throw new Error("No picture with that id.");
@@ -316,9 +322,14 @@ export async function startClip(db: Db, ownerId: string, imageId: string, motion
   return { id, character_id: pic.character_id, character_b: pic.character_b, kind: "video", status: "pending", created_at: new Date().toISOString(), mime: "video/mp4" };
 }
 
-/** Checks a pending clip once; stores it when fal has finished. */
-export async function pollClip(db: Db, id: string): Promise<string> {
-  const row = (await db.query<{ status: string; request_id: string | null; owner_id: string }>(`select status, request_id, owner_id from adult_images where id = $1 and kind = 'video'`, [id])).rows[0];
+/** Checks one of the viewer's pending clips once; stores it when fal has finished. */
+export async function pollClip(db: Db, id: string, viewerId: string): Promise<string> {
+  const row = (
+    await db.query<{ status: string; request_id: string | null; owner_id: string }>(
+      `select status, request_id, owner_id from adult_images where id = $1 and kind = 'video' and ${viewableBy(2)}`,
+      [id, viewerId],
+    )
+  ).rows[0];
   if (!row || row.status !== "pending" || !row.request_id) return row?.status ?? "missing";
   const key = await falKey(db);
   const { video_model } = await getAdultSettings(db);
@@ -379,7 +390,12 @@ export function mediaLinkValid(id: string, until: string | null, sig: string | n
   return want.length === got.length && timingSafeEqual(want, got);
 }
 
-export async function mediaBytes(db: Db, id: string): Promise<{ data: Buffer; mime: string } | null> {
-  const r = (await db.query<{ data: Buffer | Uint8Array | null; mime: string }>(`select data, mime from adult_images where id = $1 and status = 'ready'`, [id])).rows[0];
+/** A ready file's bytes, to its viewer (null only for a signed link, which names the one picture itself). */
+export async function mediaBytes(db: Db, id: string, viewerId: string | null): Promise<{ data: Buffer; mime: string } | null> {
+  const r = (
+    viewerId === null
+      ? await db.query<{ data: Buffer | Uint8Array | null; mime: string }>(`select data, mime from adult_images where id = $1 and status = 'ready'`, [id])
+      : await db.query<{ data: Buffer | Uint8Array | null; mime: string }>(`select data, mime from adult_images where id = $1 and status = 'ready' and ${viewableBy(2)}`, [id, viewerId])
+  ).rows[0];
   return r?.data ? { data: Buffer.from(r.data), mime: r.mime } : null;
 }
