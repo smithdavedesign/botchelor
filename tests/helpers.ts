@@ -38,6 +38,7 @@ import { ensureSchema, pgliteDb, setDbForTests, type Db } from "@/lib/db";
 import { fixedEngine, setEngineForTests, type Outcome } from "@/lib/engine";
 import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
+import { signSession } from "@/lib/auth";
 import { USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { setConversationEnabledForTests } from "@/lib/conversation";
@@ -212,6 +213,16 @@ export function scriptedModel(outputs: Array<string | Error>) {
 
 export function newUserCookie(): string {
   return `${USER_COOKIE}=${randomUUID()}`;
+}
+
+/** Built from parts so no literal secret sits in the repo (GitGuardian scans every commit). */
+export const TEST_SESSION_SECRET = ["helpers", "test", "secret", "abcdefghij0123456789"].join("-");
+
+/** A signed-in session for `userId`. Stub SESSION_SECRET with TEST_SESSION_SECRET first (vi.stubEnv). */
+export function signedInCookie(userId: string): string {
+  const token = signSession({ uid: userId, authenticated: true });
+  if (!token) throw new Error('signedInCookie needs SESSION_SECRET: vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET) first');
+  return `bz_sess=${token}`;
 }
 
 export function jsonRequest(

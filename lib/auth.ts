@@ -68,34 +68,47 @@ export function verifySession(token: string | null | undefined, env: Record<stri
 /** How long a carry token is good for: it only has to survive one redirect. */
 export const CARRY_TTL_SECONDS = 60;
 
-export type CarryClaims = SessionClaims & { adult: boolean };
+/**
+ * `nonce` is the receiving browser's: botchelor.com puts a random one in a cookie before sending the browser to the
+ * old host, and only accepts a token carrying that same nonce. Without it anyone could mint a token for an identity of
+ * their choosing and hand it to a stranger, who'd land on botchelor.com playing as (or signed in as) the attacker.
+ */
+export type CarryClaims = SessionClaims & { adult: boolean; nonce: string };
+
+/** A carry nonce: 16 random bytes, base64url. */
+export const newCarryNonce = (): string => b64url(randomBytes(16));
+const NONCE = /^[A-Za-z0-9_-]{22}$/;
+export const isCarryNonce = (value: string | null | undefined): value is string => typeof value === "string" && NONCE.test(value);
 
 /**
  * A one-hop token that moves this browser's identity from the old host (botchelor.vercel.app) to the canonical
- * one, since cookies are per host (app/api/auth/carry). `carry.v1.<payload>.<sig>`: its own prefix and HMAC
+ * one, since cookies are per host (app/api/auth/carry). `carry.v2.<payload>.<sig>`: its own prefix and HMAC
  * context, so a carry token is never accepted as a session or a session as a carry; it expires in a minute.
  */
 export function signCarry(claims: CarryClaims, env: Record<string, string | undefined> = process.env, now = Date.now()): string | null {
   const secret = sessionSecret(env);
-  if (!secret) return null;
+  if (!secret || !isCarryNonce(claims.nonce)) return null;
   const payload = b64url(
-    Buffer.from(JSON.stringify({ u: claims.uid, a: claims.authenticated ? 1 : 0, g: claims.adult ? 1 : 0, e: Math.floor(now / 1000) + CARRY_TTL_SECONDS })),
+    Buffer.from(
+      JSON.stringify({ u: claims.uid, a: claims.authenticated ? 1 : 0, g: claims.adult ? 1 : 0, n: claims.nonce, e: Math.floor(now / 1000) + CARRY_TTL_SECONDS }),
+    ),
   );
-  return `carry.v1.${payload}.${b64url(hmac(secret, `carry:${payload}`))}`;
+  return `carry.v2.${payload}.${b64url(hmac(secret, `carry:${payload}`))}`;
 }
 
-/** Verifies a carry token: well formed, correctly signed and unexpired. */
+/** Verifies a carry token: well formed, correctly signed, unexpired and bound to a nonce. */
 export function verifyCarry(token: string | null | undefined, env: Record<string, string | undefined> = process.env, now = Date.now()): CarryClaims | null {
   const secret = sessionSecret(env);
   if (!secret || !token) return null;
   const parts = token.split(".");
-  if (parts.length !== 4 || parts[0] !== "carry" || parts[1] !== "v1") return null;
+  if (parts.length !== 4 || parts[0] !== "carry" || parts[1] !== "v2") return null;
   const [, , payload, sig] = parts;
   if (!safeEqual(sig, b64url(hmac(secret, `carry:${payload}`)))) return null;
   try {
-    const c = JSON.parse(Buffer.from(payload, "base64url").toString()) as { u?: unknown; a?: unknown; g?: unknown; e?: unknown };
+    const c = JSON.parse(Buffer.from(payload, "base64url").toString()) as { u?: unknown; a?: unknown; g?: unknown; n?: unknown; e?: unknown };
     if (typeof c.u !== "string" || !UUID.test(c.u) || typeof c.e !== "number" || c.e < Math.floor(now / 1000)) return null;
-    return { uid: c.u, authenticated: c.a === 1, adult: c.g === 1 };
+    if (typeof c.n !== "string" || !isCarryNonce(c.n)) return null;
+    return { uid: c.u, authenticated: c.a === 1, adult: c.g === 1, nonce: c.n };
   } catch {
     return null;
   }
@@ -147,6 +160,19 @@ const ACCOUNT_COLUMNS = "user_id, handle, handle_display, email, google_sub, pas
 export async function accountForUser(db: Db, userId: string): Promise<Account | null> {
   const { rows } = await db.query<Account>(`select ${ACCOUNT_COLUMNS} from accounts where user_id = $1`, [userId]);
   return rows[0] ?? null;
+}
+
+export async function hasAccount(db: Db, userId: string): Promise<boolean> {
+  return (await db.query(`select 1 from accounts where user_id = $1`, [userId])).rows.length > 0;
+}
+
+/**
+ * True when an anonymous identity (an unsigned legacy cookie, an unsigned-in session, an agent_id) names a user id
+ * that has an account. An account's data is for its sign-in only, so a user id that got out (or was planted before
+ * signing up) can't be used to export, delete or read the account.
+ */
+export async function needsSignIn(db: Db, auth: { userId: string; authenticated: boolean }): Promise<boolean> {
+  return !auth.authenticated && (await hasAccount(db, auth.userId));
 }
 
 async function accountBy(db: Db, column: "handle" | "google_sub" | "email", value: string): Promise<Account | null> {

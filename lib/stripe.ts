@@ -40,6 +40,15 @@ export function paymentLinkFromEnv(env: Env = process.env): URL | null {
 }
 
 /**
+ * Whether a test-mode event (livemode false) may grant: never on the production site, where a test card would get a
+ * real pack if a test endpoint's secret ever ended up in STRIPE_WEBHOOK_SECRET, except during the same test-mode proof
+ * run that STRIPE_ALLOW_TEST_LINK=1 allows.
+ */
+export function testEventsGrant(env: Env = process.env): boolean {
+  return env.VERCEL_ENV !== "production" || env.STRIPE_ALLOW_TEST_LINK === "1";
+}
+
+/**
  * The link for one order: our random order id as client_reference_id, which Stripe copies into the
  * checkout.session.completed event. Never the session cookie: the link is visible to the buyer, Stripe
  * and anyone with dashboard access. Stripe accepts letters, digits, - and _ there, so a UUID fits.

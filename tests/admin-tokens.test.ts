@@ -1,9 +1,9 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as postTokens } from "@/app/api/admin/tokens/route";
 import { claimAdmin } from "@/lib/admins";
 import { episodeAllowance } from "@/lib/allowance";
 import { refundOrder } from "@/lib/payments";
-import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
+import { BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
@@ -14,21 +14,31 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await t.reset();
+  vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
 });
+afterEach(() => vi.unstubAllEnvs());
 
 const topUp = (cookie: string) => postTokens(new Request(`${BASE_URL}/api/admin/tokens`, { method: "POST", headers: { cookie } }));
 
 describe("admin token top-up", () => {
   it("an admin adds 20 free dates to their own account, each time; never an order", async () => {
-    const admin = newUserCookie();
-    await claimAdmin(t.db, userIdOf(admin));
+    const id = userIdOf(newUserCookie());
+    const admin = signedInCookie(id);
+    await claimAdmin(t.db, id);
     const res = await topUp(admin);
     expect(res.status).toBe(200);
     expect((await res.json()).granted).toBe(20);
-    expect((await episodeAllowance(t.db, userIdOf(admin))).pack_left).toBe(20);
+    expect((await episodeAllowance(t.db, id)).pack_left).toBe(20);
     await topUp(admin);
-    expect((await episodeAllowance(t.db, userIdOf(admin))).pack_left).toBe(40);
-    expect((await t.db.query(`select 1 from orders where user_id = $1`, [userIdOf(admin)])).rows).toHaveLength(0);
+    expect((await episodeAllowance(t.db, id)).pack_left).toBe(40);
+    expect((await t.db.query(`select 1 from orders where user_id = $1`, [id])).rows).toHaveLength(0);
+  });
+
+  it("an admin's bare user id, without signing in, is refused", async () => {
+    const bare = newUserCookie();
+    await claimAdmin(t.db, userIdOf(bare));
+    expect((await topUp(bare)).status).toBe(403);
+    expect((await episodeAllowance(t.db, userIdOf(bare))).pack_left).toBe(0);
   });
 
   it("anyone else is refused", async () => {
@@ -38,10 +48,9 @@ describe("admin token top-up", () => {
   });
 
   it("refunding a bought pack keeps the granted dates", async () => {
-    const admin = newUserCookie();
-    const id = userIdOf(admin);
+    const id = userIdOf(newUserCookie());
     await claimAdmin(t.db, id);
-    await topUp(admin);
+    await topUp(signedInCookie(id));
     await t.db.query(
       `insert into orders (id, user_id, sku, kind, amount_cents, currency, status, episodes, paid_at) values ('o1', $1, 'episode_pack_5', 'episode_pack', 400, 'usd', 'paid', 5, now())`,
       [id],

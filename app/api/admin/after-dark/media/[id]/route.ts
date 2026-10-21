@@ -18,7 +18,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // Or a picture's short-lived signed link (lib/adult/media.ts signedMediaUrl): a video provider fetching a start frame.
   const q = new URL(req.url).searchParams;
   const linked = !admin && mediaLinkValid(id, q.get("until"), q.get("sig"));
-  const ref = admin || linked ? await mediaRef(db, id) : null;
+  // The admin sees their own (or, as moderator, anyone's); a signed link names the one picture itself (null viewer).
+  const viewer = admin ?? null;
+  const ref = admin || linked ? await mediaRef(db, id, viewer) : null;
   if (!ref || (linked && ref.mime.startsWith("video/"))) return new Response("Not found", { status: 404 });
   const link = admin && ref.key ? await mediaLink(ref.key) : null;
   if (link) {
@@ -30,7 +32,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
   // A provider gets the bytes from here (a start frame is a picture, never a clip, and a provider may not follow a
   // redirect), as does any file still only in Postgres.
-  const file = await mediaBytes(db, id);
+  const file = await mediaBytes(db, id, viewer);
   if (!file) return new Response("Not found", { status: 404 });
   return new Response(new Uint8Array(file.data), {
     headers: { "content-type": file.mime, "cache-control": admin ? KEEP : "private, no-store", "x-robots-tag": "noindex" },

@@ -1,7 +1,7 @@
 /**
  * The live "Right now" facts for /llms.txt: how many characters are open to dates (and a few of them), and the
  * latest episodes that aired publicly. Public data only — the same things the contestant card and the sitemap
- * already show (name, want; public, aired, unhidden episodes). Best-effort: any failure returns null and
+ * already show (name, want, never a private character's; public, aired, unhidden episodes). Best-effort: any failure returns null and
  * /llms.txt is served without the section, because the front door must never fail.
  */
 import type { Db } from "./db";
@@ -14,9 +14,9 @@ const LATEST_SHOWN = 5;
 export async function llmsLive(db: Db): Promise<LlmsLive | null> {
   try {
     const [count, open, latest] = await Promise.all([
-      db.query<{ n: number }>(`select count(*)::int as n from characters where open_to_dates`),
+      db.query<{ n: number }>(`select count(*)::int as n from characters where open_to_dates and visibility <> 'private'`),
       db.query<{ id: string; name: string; want: string }>(
-        `select id, name, want from characters where open_to_dates order by created_at desc limit $1`,
+        `select id, name, want from characters where open_to_dates and visibility <> 'private' order by created_at desc limit $1`,
         [OPEN_SHOWN],
       ),
       db.query<{ id: string; a: string; b: string; ending: Ending }>(
