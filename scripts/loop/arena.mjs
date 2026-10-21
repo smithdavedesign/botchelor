@@ -49,14 +49,31 @@ Object.assign(env, {
 });
 delete env.BOTCHELOR_INLINE_GENERATION; // like production: dates generate in the background
 
+// Something already answering on the port is another arena (the nightly loop's, on the paid date model): seeding
+// and auditing into it by mistake cost real dates on 2026-10-21. Refuse rather than share it.
+if (await fetch(`http://127.0.0.1:${port}/legal`).then(() => true, () => false)) {
+  console.error(`arena: port ${port} is already in use by another server; pick a free port`);
+  process.exit(2);
+}
 const log = createWriteStream(join(out, "server.log"));
 const child = spawn(process.execPath, [join(ROOT, "node_modules/next/dist/bin/next"), "start", "-p", String(port), "-H", "127.0.0.1"], { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] });
 child.stdout.pipe(log);
 child.stderr.pipe(log);
 const base = `http://127.0.0.1:${port}`;
-for (let i = 0; i < 200; i++) {
-  try { if ((await fetch(`${base}/legal`)).ok) break; } catch {}
-  await new Promise((r) => setTimeout(r, 300));
+let up = false;
+for (let i = 0; i < 200 && !up; i++) {
+  // Our own server must still be running: if it died (EADDRINUSE, a bad build), nothing here is ours to seed.
+  if (child.exitCode !== null) {
+    console.error(`arena: next start exited with code ${child.exitCode}; see ${join(out, "server.log")}`);
+    process.exit(2);
+  }
+  try { up = (await fetch(`${base}/legal`)).ok; } catch {}
+  if (!up) await new Promise((r) => setTimeout(r, 300));
+}
+if (!up) {
+  console.error(`arena: the app never answered on ${base}`);
+  child.kill("SIGTERM");
+  process.exit(2);
 }
 const call = client(base);
 const made = [];

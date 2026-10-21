@@ -220,6 +220,20 @@ export default async function EpisodePage({
           <Link href={afterDarkLink}>🌙 They spent the night together before this date. See their night</Link>
         </p>
       )}
+      {/* The theater first: on a phone it sat ~2,650px down, under a written recap that gives the ending away. */}
+      {episode.ending && episode.transcript && episode.transcript.length > 0 && (
+        <p className="theater-cta theater-cta-top">
+          <EpisodeTheater
+            characters={episode.characters}
+            venue={episode.venue ?? null}
+            transcript={episode.transcript}
+            endingLabel={ENDING_LABELS[episode.ending]}
+            autoOpen={play && episode.is_creator}
+            startAt={play && episode.is_creator ? from : 0}
+          />
+          <span className="muted"> Watch it play out as a scene.</span>
+        </p>
+      )}
       <section className="card">
         <h2>The setting</h2>
         {episode.venue && (
@@ -260,7 +274,7 @@ export default async function EpisodePage({
           {episode.scenes?.map((scene, i) => (
             <div key={i}>
               <h3 className="act">{DATE_ACTS[i] ?? `Act ${i + 1}`}</h3>
-              <p>{scene}</p>
+              <p>{withoutActLabel(scene, DATE_ACTS[i])}</p>
             </div>
           ))}
           <h2>The twist</h2>
@@ -286,19 +300,6 @@ export default async function EpisodePage({
         <section className="card transcript">
           <h2>The date, line by line</h2>
           <p className="muted">The two characters played this out turn by turn — nobody scripted the lines in advance.</p>
-          {episode.ending && (
-            <p className="theater-cta">
-              <EpisodeTheater
-                characters={episode.characters}
-                venue={episode.venue ?? null}
-                transcript={episode.transcript}
-                endingLabel={ENDING_LABELS[episode.ending]}
-                autoOpen={play && episode.is_creator}
-                startAt={play && episode.is_creator ? from : 0}
-              />
-              <span className="muted"> Watch it play out as a scene.</span>
-            </p>
-          )}
           <ChatThread characters={episode.characters} turns={episode.transcript} />
         </section>
       )}
@@ -431,4 +432,12 @@ export default async function EpisodePage({
       </p>
     </article>
   );
+}
+
+/** A recap scene without the "act 1: First impressions." the writer sometimes starts it with, when it repeats the
+ *  heading above it. Only that act's own label is taken off, never a first sentence. */
+function withoutActLabel(scene: string, label: string | undefined): string {
+  if (!label) return scene;
+  const name = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return scene.replace(new RegExp(`^\\s*act\\s*\\d+\\s*[:.\\-–—]\\s*${name}\\s*[.:\\-–—]\\s*`, "i"), "");
 }

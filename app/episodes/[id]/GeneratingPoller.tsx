@@ -167,7 +167,6 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
               typing={typing}
               tone="dark"
               follow
-              empty="They're arriving. The conversation appears here as it's filmed."
             />
           </div>
           <header className="theater-hud">
@@ -199,7 +198,7 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
     <section className="card watch-preshow" aria-live="polite">
       <h2>🎬 Filming the date…</h2>
       <p className="muted">
-        The two characters are on their date right now. This usually takes a few seconds — the page will
+        The two characters are on their date right now. This usually takes under a minute — the page will
         update itself the moment it&apos;s ready.
       </p>
     </section>

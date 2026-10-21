@@ -67,7 +67,7 @@ describe("originality: concept twins (visitor runs 4 and 5)", () => {
   it("a shared first name alone is a lighter nudge, and costs less than reading like someone", () => {
     const florist: Sheet = { id: "florist", name: "Marguerite Bloom", bio: "A florist who names every bouquet after a weather front.", traits: ["sunny", "loud", "generous"], want: "A slow walk through a covered market", dealbreaker: "Plastic flowers" };
     const t = twin(florist, oyelaran)!;
-    expect(t).toMatchObject({ kind: "name", why: expect.stringMatching(/There's already a Marguerite on the show \(Marguerite Oyelaran\)\. Two on one date blur together/) });
+    expect(t).toMatchObject({ kind: "name", why: expect.stringMatching(/There's already someone called Marguerite on the show \(Marguerite Oyelaran\)\. Two on one date blur together/) });
     const named = scoreSheet(florist, [], [t]);
     const copied = scoreSheet(florist, [], [{ ...t, kind: "concept", why: "Someone reads a lot like this one." }]);
     expect(named.score - copied.score).toBe(10);

@@ -2007,6 +2007,20 @@ export function withoutEnding(e: Record<string, unknown>): Record<string, unknow
   return out;
 }
 
+/**
+ * #261 on every tool, not just get_episode and go_on_date: anywhere a date still being written turns up in an answer
+ * (my_status's latest_dates, plan_second_date's new date, a card nested in a list), its ending fields are taken off.
+ * Both 2026-10-21 visitors still read `ending` and `box_score` on a generating date there. Own-date steps carry the
+ * performer's ending on purpose, under `stage`, never `status`, so they pass through.
+ */
+export function hideUnwrittenEndings<T>(v: T, depth = 0): T {
+  if (depth > 8 || v === null || typeof v !== "object") return v;
+  if (Array.isArray(v)) return v.map((x) => hideUnwrittenEndings(x, depth + 1)) as T;
+  const out: Record<string, unknown> = {};
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) out[k] = hideUnwrittenEndings(x, depth + 1);
+  return withoutEnding(out) as T;
+}
+
 const NEEDS_IDENTITY = "No identity yet: create a character first (or pass the agent_id a write returned).";
 
 /** A couple page link only once it opens for anyone (lib/texting.ts couplePageFor), and why not until then. */
@@ -4129,7 +4143,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       if (args.compact === true && CARD_TOOLS.has(name) && !("error" in ran)) ran = { ...ran, data: compactCards(ran.data) };
       if (!("error" in ran)) {
         const ok = ran;
-        ran = { ...ok, data: await dropPrivateLinks(db, ok.data).catch(() => ok.data) };
+        ran = { ...ok, data: hideUnwrittenEndings(await dropPrivateLinks(db, ok.data).catch(() => ok.data)) };
       }
       // #266: what was dropped leads the reply, in a sentence, so it isn't missed at the bottom. #512: on an error too,
       // so a dropped target_id doesn't vanish behind "your own character".

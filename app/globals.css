@@ -457,6 +457,19 @@ h2 {
   .nav-links[data-open="true"] {
     display: flex;
   }
+  /* Under the sticky header (z-index 20), over the page. */
+  .nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: rgba(20, 8, 24, 0.28);
+    box-shadow: none;
+    cursor: default;
+  }
   .nav-links a {
     padding: 0.7rem 0.9rem;
     font-size: 1rem;
@@ -1699,8 +1712,10 @@ button.button-ghost:hover:not(:disabled) {
   .hero {
     grid-template-columns: 1fr;
   }
+  /* The headline and "Make your character" come first on a phone; the box score follows (it used to fill the
+     first screen and push the button below it). */
   .hero-art {
-    order: -1;
+    order: 1;
   }
 }
 
@@ -3413,6 +3428,29 @@ button.rating-chip:hover {
   .theater-hud { padding: var(--space-2) var(--space-3); }
   .theater-tools { gap: var(--space-1); }
 }
+/* On a phone the icons and Exit take the top row and the pair's names get the full width below, two lines at most:
+   squeezed beside five icons they truncated to "Juniper …". */
+@media (max-width: 600px) {
+  .theater-hud {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+  }
+  .theater-tools {
+    order: -1;
+    margin-left: auto;
+  }
+  .theater-id {
+    flex-basis: 100%;
+  }
+  .theater-id strong {
+    font-size: var(--text-md);
+    line-height: 1.25;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
 .theater-icon {
   display: inline-grid;
   place-items: center;
@@ -3429,6 +3467,14 @@ button.rating-chip:hover {
 }
 .theater-icon:hover {
   background: rgba(0, 0, 0, 0.55);
+}
+@media (pointer: coarse) {
+  .theater-icon,
+  .theater-tools .button,
+  .theater-tools button {
+    min-width: 2.75rem;
+    height: 2.75rem;
+  }
 }
 .theater-icon.on {
   border-color: var(--accent);
@@ -5912,4 +5958,108 @@ a.phone-head-btn {
 .ship-cta {
   background: var(--paper-2);
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+
+/* ---------- Mobile audit, 2026-10-21 (docs/mobile-audit-2026-10-21.md) ---------- */
+/* Touch screens get 44px targets on the controls people tap most. */
+@media (pointer: coarse) {
+  .nav-toggle {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  .token-pill {
+    min-height: 2.75rem;
+  }
+  .check {
+    padding-block: 0.55rem;
+  }
+  .faq summary {
+    padding-block: 0.6rem;
+  }
+  .age-gate-leave {
+    display: inline-block;
+    padding: 0.6rem 0.25rem;
+  }
+}
+/* The account panel holds its room while it loads (it used to jump ~1,000px when it arrived). */
+.account-loading {
+  min-height: 70vh;
+}
+/* Exit in the theaters: white on a dark chip, readable over any backdrop photo (it was pink on the picture). */
+.theater-tools .secondary {
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.theater-cta-top {
+  margin: 0.75rem 0 0.5rem;
+}
+.shop-price {
+  margin: 0.25rem 0;
+  font-size: var(--text-lg);
+}
+/* The thread's "only they can text here" is a note, not a text box: it used to look like one, so people tapped it. */
+.phone-compose {
+  border: 0;
+  border-radius: 0;
+  text-align: center;
+  white-space: normal;
+}
+a.phone-head-btn {
+  justify-self: end;
+  color: var(--accent-text);
+  font-size: 1.15rem;
+  text-decoration: none;
+}
+@media (pointer: coarse) {
+  .phone-back,
+  .phone-head-btn {
+    display: inline-grid;
+    place-items: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  .thread-action button,
+  .wizard-rail-dot {
+    min-height: 2.75rem;
+  }
+  .wizard-rail-dot {
+    width: 2.75rem;
+  }
+  .look-chip,
+  .chip-removable button {
+    min-height: 2.75rem;
+  }
+}
+/* A long swipe card scrolls: the fade at its foot says there's more (it used to stop mid-line with no hint). */
+.swipe-body {
+  padding-bottom: 2rem;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
+}
+.swipe-match-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6rem;
+}
+/* By class, to outrank a.button's own margin-top (it dropped "Read their chat" 8px below "Keep swiping"). */
+.swipe-match-buttons > .button,
+.swipe-match-buttons > .button-ghost {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  margin: 0;
+}
+/* The looks steps' dashes share one row and shrink to fit (on a phone the 11th wrapped onto a line of its own). */
+.looks-dots {
+  flex-wrap: nowrap;
+}
+.looks-dots li {
+  flex: 0 1 22px;
+  min-width: 0;
+}
+.looks-dots button {
+  width: 100%;
 }

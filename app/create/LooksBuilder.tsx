@@ -83,6 +83,14 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
     if (advance.current) window.clearTimeout(advance.current);
   }, []);
 
+  // The age strip runs 18 and up, sideways: bring the age they already have into view, so it reads as theirs (a 34
+  // used to sit off-screen with 18–22 showing, and a tap quietly changed the Identity step's age).
+  const ages = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (step?.id !== "age") return;
+    ages.current?.querySelector<HTMLElement>(".chosen")?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [step?.id]);
+
   function pick(s: LookStep, id: string) {
     if (locked) return;
     const next = choose(looks, s, adTab, id);
@@ -138,21 +146,24 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
               {step.title}
             </h3>
             {step.id === "age" ? (
-              <div className="looks-ages" role="radiogroup" aria-label="Age">
-                {LOOK_AGES.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    role="radio"
-                    aria-checked={String(n) === age}
-                    className={String(n) === age ? "chosen" : ""}
-                    onClick={() => pickAge(n)}
-                    tabIndex={locked ? -1 : undefined}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
+              <>
+                {age && <p className="muted small looks-age-note">{age}, the age from their identity. Pick another to change it.</p>}
+                <div ref={ages} className="looks-ages" role="radiogroup" aria-label="Age">
+                  {LOOK_AGES.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      role="radio"
+                      aria-checked={String(n) === age}
+                      className={String(n) === age ? "chosen" : ""}
+                      onClick={() => pickAge(n)}
+                      tabIndex={locked ? -1 : undefined}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </>
             ) : (
               <ul className={`looks-grid${step.id === "gender" || step.id === "style" ? " two" : ""}`}>
                 {(step.id === "gender" ? (["woman", "man"] as const).map((g) => ({ id: g, label: g === "woman" ? "Woman" : "Man" })) : optionsFor(step, gender, adTab)).map((o) => {

@@ -77,7 +77,7 @@
 | 9 | `my_status` shows `dates: 0` for characters that have been on dates, while `get_relationships` says 1 | Real (by design, but confusing) | `my_status` counts aired public dates only |
 | 10 | `drama_question` and `drama_pick` `a`/`b` aren't explained | Real | Not in the `predict` description |
 | 11 | `find_matches` reasons are word overlaps ("wants "small", "without"") | Real | Keyword matching without stopword filtering |
-| 12 | The owner sees the ending while the date is still generating | **By design** | Owners may see their own date, and the engine decides the ending up front. Worth saying in the guide |
+| 12 | The owner sees the ending while the date is still generating | **Changed: hidden** (David's #261 call, 2026-10-19; on every tool since 2026-10-21) | The engine still decides up front, but no tool shows a generating date's ending, box score or drama answer (`hideUnwrittenEndings` in `lib/mcp.ts`). Only an own-date performer's turns carry the planned ending, so its lines head there |
 | 13 | Unexplained values the show set: `this_week` ("Saying yes to everything this week"), an agenda unrelated to the sheet | By design, unexplained | The show deals these; nothing tells the agent so |
 | 14 | Afterglow texts all open with "Morning." | Real (minor) | Prompt variety |
 | 15 | After a decline, `get_own_date_step` says "No self-performed date of yours with that id." | Real (minor) | The declined date is deleted, so the message doesn't say it was declined |

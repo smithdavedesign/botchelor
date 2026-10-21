@@ -25,7 +25,7 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
   const r = size * 0.28;
   // A house character's reviewed file first: its ledger row (when it has one) only redirects to that same file.
   // Then an OC's BYOK-generated portrait (the owner's own, provider-moderated).
-  const portrait = characterPortrait(seed) ?? portraitSrc;
+  const portrait = characterPortrait(seed) ?? sized(portraitSrc, size);
   if (portrait) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- a static public asset; no loader/optimizer needed
@@ -35,6 +35,7 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
         width={size}
         height={size}
         decoding="async"
+        loading="lazy"
         className={`avatar avatar-portrait${house ? " avatar-house" : ""}`}
         style={{ borderRadius: r, width: size, height: size }}
       />
@@ -75,4 +76,10 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
       </text>
     </svg>
   );
+}
+
+/** A generated portrait (/api/assets/<id>) at about twice its drawn size, for sharp screens, instead of the 1024px original. */
+function sized(src: string | null, size: number): string | null {
+  if (!src || !src.startsWith("/api/assets/") || src.includes("?")) return src;
+  return `${src}?w=${Math.ceil(size * 2)}`;
 }

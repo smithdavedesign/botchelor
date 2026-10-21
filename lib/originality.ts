@@ -290,7 +290,7 @@ export function twinWhy(sheet: SheetDraft, other: Compared, terms: Set<string>, 
   }
   if (sameFirst) {
     const cap = first[0].toUpperCase() + first.slice(1);
-    return { ...base, kind: "name", why: `There's already a ${cap} on the show (${other.name}). Two on one date blur together: a different first name keeps them apart.`, score: 0.5 };
+    return { ...base, kind: "name", why: `There's already someone called ${cap} on the show (${other.name}). Two on one date blur together: a different first name keeps them apart.`, score: 0.5 };
   }
   return null;
 }
@@ -314,7 +314,7 @@ export async function findLookalikes(db: Db, sheet: SheetDraft, excludeId: strin
   const found: (Lookalike & { score: number })[] = [];
   rows.forEach((r, i) => {
     if (name && r.name.trim().toLowerCase() === name) {
-      found.push({ id: r.id, name: r.name, kind: "concept", why: `There's already a ${r.name} on the show.`, score: 3 });
+      found.push({ id: r.id, name: r.name, kind: "concept", why: `There's already someone called ${r.name} on the show.`, score: 3 });
       return;
     }
     const twin = twinWhy(sheet, r, terms, rowTerms[i], weight);

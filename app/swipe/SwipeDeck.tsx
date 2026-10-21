@@ -206,7 +206,8 @@ export default function SwipeDeck({ character, initial }: Props) {
             </div>
             <h2 id="its-a-match">It&apos;s a match!</h2>
             <p>
-              {first} and {shortName(matched.name)} are texting now. If they both want a date, you&apos;ll be able to book it.
+              {/* Full names when the first names are the same ("Marisol and Marisol" read as a typo). */}
+              {shortName(matched.name) === first ? `${character.name} and ${matched.name}` : `${first} and ${shortName(matched.name)}`} are texting now. If they both want a date, you&apos;ll be able to book it.
             </p>
             <p className="swipe-match-buttons">
               <Link className="button" href={matchPage}>

@@ -74,12 +74,14 @@ export default function PushToggle({ publicKey }: { publicKey: string }) {
           </button>
         </p>
       ) : (
-        <p>
-          <button type="button" className="primary" onClick={turnOn} disabled={state === "busy"}>
-            {state === "busy" ? "…" : "Turn on browser notifications"}
-          </button>{" "}
-          <span className="muted small">Hear when they text, or when a second date is booked, even with the site closed.</span>
-        </p>
+        <>
+          <p className="muted small">Hear when they text, or when a second date is booked, even with the site closed.</p>
+          <p>
+            <button type="button" className="primary" onClick={turnOn} disabled={state === "busy"}>
+              {state === "busy" ? "…" : "Turn on browser notifications"}
+            </button>
+          </p>
+        </>
       )}
       {error && <p className="error">{error}</p>}
     </section>

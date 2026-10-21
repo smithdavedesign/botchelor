@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 /** The primary nav links (the token meter and the logo sit outside this list). */
 const LINKS = [
@@ -30,7 +31,13 @@ export default function Nav({ tokens, unread = 0, texts = 0, afterDark = false }
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // The page behind an open menu stays put on a phone, instead of scrolling under it.
+    const before = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = before;
+    };
   }, [open]);
 
   const tone = tokens <= 0 ? " empty" : tokens <= 1 ? " low" : "";
@@ -53,6 +60,10 @@ export default function Nav({ tokens, unread = 0, texts = 0, afterDark = false }
         <span className="nav-toggle-bars" aria-hidden="true" data-open={open} />
         {unread + texts > 0 && !open && <span className="nav-dot" aria-label={`${unread + texts} unread`} />}
       </button>
+      {/* A tap anywhere outside the open menu closes it. In <body>, not here: the header's backdrop-filter would
+          clip a fixed layer to the header itself. */}
+      {open &&
+        createPortal(<button type="button" className="nav-backdrop" aria-label="Close menu" tabIndex={-1} onClick={() => setOpen(false)} />, document.body)}
       <div id="nav-menu" className="nav-links" data-open={open}>
         {LINKS.map((l) => (
           <Link key={l.href} href={l.href} aria-current={pathname === l.href || pathname.startsWith(`${l.href}/`) ? "page" : undefined}>

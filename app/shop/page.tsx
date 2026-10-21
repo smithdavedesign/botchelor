@@ -71,7 +71,12 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
             <p>{item.description}</p>
             {owned.includes(item.sku) && <p className="notice">{OWNED_NOTES[item.kind]}</p>}
             {signInToBuy ? (
-              <SignInToBuy google={googleConfigured()} />
+              <>
+                <p className="shop-price">
+                  <strong>{formatPrice(item.price_cents)}</strong>
+                </p>
+                <SignInToBuy google={googleConfigured()} />
+              </>
             ) : (
               <BuyButton
                 sku={item.sku}
