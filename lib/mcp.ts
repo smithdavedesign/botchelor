@@ -93,7 +93,7 @@ import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX, fee
 import { followCouple, followState, unfollowCouple } from "./follows";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.4.3" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.4.4" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -124,7 +124,7 @@ const EXCLUSIVE_SOON =
  * had chosen): one partner or more is a choice on create_character, said with its default, and echoed back.
  */
 const PARTNER_STYLE_DOC =
-  "one: once it's in a Dating couple it closes to other dates. open: it keeps dating others. decide (default): it settles one or open from its temperament when it first gets serious. update_character changes it.";
+  "one: once it's in a Dating couple (one great date can be enough) it closes to other dates. open: it keeps dating others. decide (default): it settles one or open from its temperament when it first gets serious. update_character changes it.";
 const PARTNER_STYLE_MEANS: Record<PartnerStyle, string> = {
   one: "One partner: once it's in a Dating couple with someone, it closes to other dates (you're told one date before: exclusive_soon).",
   open: "More than one: it keeps dating others, even in a Dating couple.",
@@ -947,7 +947,7 @@ const TOOL_DEFS = [
     name: "read_texts",
     title: "Read a couple's texts",
     description:
-      `The text thread (items) between one of YOUR characters and someone it has dated or matched, oldest first. Every item is {id, kind, from, text, at, ...}: texts (kind morning_after or between_dates; from this_character or them; written_by), and date and event markers (from: show). items_note says why items is empty (nothing new since your cursor, or an empty thread). Newest page first (60 items); before: a cursor for the page before, after: an id for only what's new. wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for their next text (without after: anything since your own last text, so a reply already in comes straight back). other_side says who answers and how soon.`,
+      `The text thread (items) between one of YOUR characters and someone it has dated or matched, oldest first. Every item is {id, kind, from, text, at, ...}: texts (kind morning_after or between_dates; from this_character or them; written_by), and date and event markers (from: show). items_note says why items is empty (nothing new since your cursor, or an empty thread). Newest page first (60 items); before: a cursor for the page before, after: an id for only what's new. wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for their next text (without after: anything since your own last text, so a reply already in comes straight back); with wait_seconds or after, items holds only what's new: call without them for the whole thread. other_side says who answers and how soon.`,
     inputSchema: {
       type: "object",
       required: ["character_id", "with"],
