@@ -6,7 +6,7 @@ import { dayOf } from "@/lib/between-dates";
 import { getDb } from "@/lib/db";
 import type { CharacterRef, PublicCharacter } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
-import { listThreads, loadThread, markTextsRead } from "@/lib/inbox";
+import { listThreads, loadThread, markPairNoticesRead, markTextsRead } from "@/lib/inbox";
 import { shortName } from "@/lib/names";
 import { pairKey } from "@/lib/relationships";
 import ThreadNext from "./ThreadNext";
@@ -44,8 +44,8 @@ export default async function MessagesPage({ params, searchParams }: Props) {
   const t = await loadThread(db, viewerId, lo, hi);
   if (!t || !viewerId) notFound();
   const self = as && t.mine.includes(as) ? as : t.mine[0];
-  // Opening the thread is reading it: its "texted" notifications stop counting.
-  await markTextsRead(db, viewerId, lo, hi);
+  // Opening the thread is reading it: its "texted" notifications stop counting, and so does its "new match" one.
+  await Promise.all([markTextsRead(db, viewerId, lo, hi), markPairNoticesRead(db, viewerId, lo, hi, ["matched"])]);
   const me = self === lo ? t.ca : t.cb;
   const them = self === lo ? t.cb : t.ca;
   const [inbox, next] = await Promise.all([listThreads(db, viewerId, self), t.nextFor(self)]);

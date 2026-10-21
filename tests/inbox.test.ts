@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { listThreads, loadThread, markTextsRead, nextStep, textedLinks, unreadTexts } from "@/lib/inbox";
+import { characterToOpen, listThreads, loadThread, markPairNoticesRead, markTextsRead, newsByCharacter, nextStep, textedLinks, unreadTexts } from "@/lib/inbox";
 import { pairKey } from "@/lib/relationships";
 import { api, HOUSE_PARTNER_ID, newUserCookie, setupEpisode, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -149,5 +149,54 @@ describe("what's next for a pair (the thread's action bar)", () => {
     const inbox = await listThreads(t.db, userIdOf(creator), mine.id);
     const thread = [...(inbox?.fresh ?? []), ...(inbox?.conversations ?? [])].find((x) => x.with.id === HOUSE_PARTNER_ID);
     expect(thread?.next ?? null).toBeNull();
+  });
+});
+
+describe("which of your characters the news is for (David, 2026-10-21)", () => {
+  const notify = (userId: string, kind: string, link: string, minutesAgo: number) =>
+    t.db.query(`insert into notifications (id, user_id, kind, title, link, created_at) values (gen_random_uuid()::text, $1, $2, 'n', $3, now() - make_interval(mins => $4))`, [userId, kind, link, minutesAgo]);
+
+  it("counts new texts and new matches per character, and /matches opens on the one with the newest", async () => {
+    const ada = await character("Ada Lumen");
+    const ann = await character("Ann Lumen", ada.cookie);
+    const bo = await character("Bo Quill");
+    const cy = await character("Cy Marr");
+    const [lo, hi] = pairKey(ann.id, bo.id);
+    await t.db.query(`insert into matches (character_lo, character_hi) values ($1, $2)`, [lo, hi]);
+    await text(ada.id, cy.id, cy.id, "Hey Ada.", 30);
+    const [alo, ahi] = pairKey(ada.id, cy.id);
+    await notify(ada.userId, "texted", `/messages/${alo}/${ahi}`, 30);
+    await notify(ada.userId, "matched", `/messages/${lo}/${hi}`, 2);
+    // Someone else's notice never counts for yours.
+    await notify(bo.userId, "matched", `/messages/${lo}/${hi}`, 1);
+
+    const news = await newsByCharacter(t.db, ada.userId, [ada.id, ann.id]);
+    expect(news.get(ada.id)).toMatchObject({ texts: 1, matches: 0 });
+    expect(news.get(ann.id)).toMatchObject({ texts: 0, matches: 1 });
+    expect(characterToOpen([{ id: ada.id }, { id: ann.id }], news)?.id).toBe(ann.id);
+    expect(characterToOpen([{ id: ada.id }], new Map())?.id).toBe(ada.id);
+
+    // The match is marked new on Ann's page until its thread is opened.
+    expect((await listThreads(t.db, ada.userId, ann.id))!.fresh[0]).toMatchObject({ with: { id: bo.id }, new_match: true });
+    await markPairNoticesRead(t.db, ada.userId, lo, hi, ["matched"]);
+    expect((await listThreads(t.db, ada.userId, ann.id))!.fresh[0].new_match).toBe(false);
+    expect((await newsByCharacter(t.db, ada.userId, [ann.id])).get(ann.id)).toMatchObject({ matches: 0, latest: null });
+  });
+
+  it("shows each character as a face with its count, the one on screen marked", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { createElement } = await import("react");
+    const { default: CharacterTabs } = await import("@/app/matches/CharacterTabs");
+    const chars = [
+      { id: "a1", name: "Ada Lumen", hue: 10, portrait: null },
+      { id: "a2", name: "Ann Lumen", hue: 200, portrait: null },
+    ];
+    const news = new Map([["a2", { texts: 1, matches: 1, latest: "2026-10-21T00:00:00.000Z" }]]);
+    const html = renderToStaticMarkup(createElement(CharacterTabs, { characters: chars, current: "a2", news }));
+    const current = html.match(/<a[^>]*aria-current="page"[^>]*>/)?.[0] ?? "";
+    expect(current).toContain('href="/matches?character=a2"');
+    expect(html).toContain('aria-label="1 new match, 1 new text"');
+    expect(html).toContain(">Ann<");
+    expect(renderToStaticMarkup(createElement(CharacterTabs, { characters: chars.slice(0, 1), current: "a1", news }))).toBe("");
   });
 });

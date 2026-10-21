@@ -6,7 +6,7 @@
 import { PUBLIC_COLUMNS, toProfile, type MadeBy, type ProfileRow } from "./dating";
 import type { Db } from "./db";
 import { getPublicCharacter } from "./game";
-import { markPairNotices } from "./notifications";
+import { markPairNotices, pairNoticeLinks } from "./notifications";
 import { loadRelationship, pairKey, viewRelationship } from "./relationships";
 import { matchView } from "./swipes";
 import { chainPage, loadChain, type ChainItem, type ChainText } from "./text-chain";
@@ -25,6 +25,8 @@ export type Thread = {
   dates: number;
   last: { text: string; at: string; mine: boolean } | null;
   unread: number;
+  /** A match whose notice this viewer hasn't seen yet. */
+  new_match: boolean;
   /** When anything last happened between them: the last text, else the match or the last date. */
   at: string;
   /** What happens next: book the date they both want, watch the one being filmed, and so on. */
@@ -91,6 +93,44 @@ export async function markTextsRead(db: Db, userId: string, lo: string, hi: stri
     .catch(() => {});
 }
 
+/**
+ * What's new for each of the viewer's characters (David, 2026-10-21: "my account has a new match but when I go look I
+ * can't tell what character it is for"): unread texts and new-match notices, counted by the pair each notice's link
+ * names. `latest` is the newest of them, so /matches can open on the character it's about.
+ */
+export type CharacterNews = { texts: number; matches: number; latest: string | null };
+
+export async function newsByCharacter(db: Db, userId: string, characterIds: readonly string[]): Promise<Map<string, CharacterNews>> {
+  const news = new Map(characterIds.map((id) => [id, { texts: 0, matches: 0, latest: null as string | null }]));
+  const { rows } = await db.query<{ kind: string; link: string; created_at: string | Date }>(
+    `select kind, link, created_at from notifications where user_id = $1 and read_at is null and kind in ('texted', 'matched') and link is not null`,
+    [userId],
+  );
+  for (const r of rows) {
+    const m = /^\/(?:messages|couples)\/([^/#?]+)\/([^/#?]+)/.exec(r.link);
+    if (!m) continue;
+    const at = new Date(r.created_at).toISOString();
+    for (const id of new Set([decodeURIComponent(m[1]), decodeURIComponent(m[2])])) {
+      const n = news.get(id);
+      if (!n) continue;
+      if (r.kind === "texted") n.texts++;
+      else n.matches++;
+      if (!n.latest || at > n.latest) n.latest = at;
+    }
+  }
+  return news;
+}
+
+/** The character /matches opens on without one asked for: the one with the newest unread news, else the first. */
+export function characterToOpen<T extends { id: string }>(mine: readonly T[], news: Map<string, CharacterNews>): T | undefined {
+  let best: T | undefined;
+  for (const c of mine) {
+    const at = news.get(c.id)?.latest;
+    if (at && (!best || at > news.get(best.id)!.latest!)) best = c;
+  }
+  return best ?? mine[0];
+}
+
 /** Null when the character isn't the viewer's. */
 export async function listThreads(db: Db, userId: string, characterId: string): Promise<Inbox | null> {
   const own = (await db.query(`select 1 from characters where id = $1 and owner_id = $2`, [characterId, userId])).rows.length > 0;
@@ -114,13 +154,14 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
       `select character_lo as lo, character_hi as hi, matched_at, yes_lo, yes_hi from matches where $1 in (character_lo, character_hi)`,
       [characterId],
     ),
-    db.query<{ link: string; n: number }>(
-      `select link, count(*)::int as n from notifications where user_id = $1 and kind = 'texted' and read_at is null and link is not null group by link`,
+    db.query<{ link: string; n: number; kind: string }>(
+      `select link, kind, count(*)::int as n from notifications where user_id = $1 and kind in ('texted', 'matched') and read_at is null and link is not null group by link, kind`,
       [userId],
     ),
     latestDates(db, userId, characterId),
   ]);
-  const unreadBy = new Map(unread.rows.map((r) => [r.link, r.n]));
+  const unreadBy = new Map(unread.rows.filter((r) => r.kind === "texted").map((r) => [r.link, r.n]));
+  const newMatchLinks = new Set(unread.rows.filter((r) => r.kind === "matched").map((r) => r.link));
 
   const threads = await Promise.all(
     others.map(async (row): Promise<Thread | null> => {
@@ -147,6 +188,7 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
         dates,
         last: last ? { text: last.text, at: last.at, mine: last.who === self } : null,
         unread: textedLinks(lo, hi).reduce((n, l) => n + (unreadBy.get(l) ?? 0), 0),
+        new_match: pairNoticeLinks(lo, hi).some((l) => newMatchLinks.has(l)),
         at,
         next: nextStep(match, latest.get(p.id) ?? null),
       };
