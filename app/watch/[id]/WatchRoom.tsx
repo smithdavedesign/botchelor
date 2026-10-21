@@ -7,7 +7,7 @@ import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
 import { requestJson } from "@/app/request";
-import { DATE_ACTS, DATE_VARIABLES, ENDING_LABELS, ENDINGS, VARIABLE_LABELS } from "@/lib/rules";
+import { DATE_ACTS, DATE_VARIABLES, ENDING_LABELS, ENDINGS, formatCountdown, preshowCountdownLabel, VARIABLE_LABELS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { RoomState } from "@/lib/watch";
 import { placeAt } from "@/lib/venues";
@@ -108,9 +108,11 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
   }
 
   const [a, b] = state.characters;
+  // The pre-show countdown to the first lines, from the room's synced clock, ticking locally between syncs.
+  const preshowLeft = useCountdown(state.clock.started && !state.clock.ended ? state.clock.preshow_left : null);
 
   if (theater) {
-    return <Theater state={state} sync={sync} onExit={() => setTheater(false)} />;
+    return <Theater state={state} sync={sync} onExit={() => setTheater(false)} preshowLeft={preshowLeft} />;
   }
 
   return (
@@ -145,7 +147,7 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
           voting), one on a phone (the date, the voting, then the chat). */}
       <div className="watch-grid">
         <section className="watch-stage" aria-label="The date">
-          <Stage state={state} onPredict={sync} />
+          <Stage state={state} onPredict={sync} preshowLeft={preshowLeft} />
         </section>
 
         <section className="watch-votes" aria-label="Voting">
@@ -179,7 +181,17 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
  * typing bubble for whoever speaks next; a room opened after it finished replays the date from the top,
  * paced like it aired. Everything interactive lives in one docked side panel behind a small icon.
  */
-function Theater({ state, sync, onExit }: { state: RoomState; sync: () => void; onExit: () => void }) {
+function Theater({
+  state,
+  sync,
+  onExit,
+  preshowLeft,
+}: {
+  state: RoomState;
+  sync: () => void;
+  onExit: () => void;
+  preshowLeft: number | null;
+}) {
   const [a, b] = state.characters;
   // One docked side panel at a time, opened from a HUD icon, so the scene itself stays free of chrome.
   const [panel, setPanel] = useState<"chat" | "votes" | null>(null);
@@ -205,6 +217,8 @@ function Theater({ state, sync, onExit }: { state: RoomState; sync: () => void; 
         ? state.clock.phase_label
         : null;
   const leadingChemistry = state.chemistry.options.find((o) => o.id === state.chemistry.leading);
+  // Before the first line: a countdown and who's on stage, never an empty thread (a room sat 20+ seconds on one).
+  const preshow = !isReplay && turns.length === 0 && inPreshow(state);
 
   return (
     <div className={`theater${panel ? "" : " theater-clean"}`}>
@@ -216,10 +230,13 @@ function Theater({ state, sync, onExit }: { state: RoomState; sync: () => void; 
             lineA={lastLine(turns, "a")}
             lineB={lastLine(turns, "b")}
             actLabel={actLabel}
-            placeholder={isReplay ? "The replay begins…" : "The date is about to begin…"}
+            placeholder={
+              isReplay ? "The replay begins…" : preshow ? preshowCountdownLabel(state.clock.started ? preshowLeft : null) : "The date is about to begin…"
+            }
           />
         </div>
         <div className="theater-convo">
+          {preshow && <Preshow state={state} left={preshowLeft} tone="dark" />}
           <ChatThread
             characters={state.characters}
             turns={turns}
@@ -227,7 +244,7 @@ function Theater({ state, sync, onExit }: { state: RoomState; sync: () => void; 
             challenge={state.challenge}
             tone="dark"
             follow
-            empty="The conversation appears here, line by line."
+            empty={preshow ? null : "The conversation appears here, line by line."}
           />
         </div>
 
@@ -243,7 +260,10 @@ function Theater({ state, sync, onExit }: { state: RoomState; sync: () => void; 
                 <span className="watch-live">
                   <span className="watch-dot" aria-hidden /> {state.watching}
                 </span>
-                <span className="chip">{state.clock.started ? state.clock.phase_label : "Starting…"}</span>
+                <span className="chip">
+                  {state.clock.started ? state.clock.phase_label : "Starting…"}
+                  {preshow && state.clock.started && preshowLeft !== null && ` · ${formatCountdown(preshowLeft)}`}
+                </span>
               </>
             )}
           </div>
@@ -355,7 +375,37 @@ function Theater({ state, sync, onExit }: { state: RoomState; sync: () => void; 
   );
 }
 
-function Stage({ state, onPredict }: { state: RoomState; onPredict: () => void }) {
+/** Whether the room is before its first lines: its clock not started yet, or in the pre-show phase. */
+function inPreshow(state: RoomState): boolean {
+  return !state.clock.ended && (!state.clock.started || state.clock.phase === "preshow");
+}
+
+/**
+ * The pre-show: "Starts in 0:23" ticking down from the room's synced clock, and who's on stage. It stands in for
+ * the empty conversation until the first line plays.
+ */
+function Preshow({ state, left, tone = "light" }: { state: RoomState; left: number | null; tone?: "light" | "dark" }) {
+  const [a, b] = state.characters;
+  const place = state.place_name ?? state.venue_name;
+  return (
+    <div className={`watch-countdown${tone === "dark" ? " is-dark" : ""}`}>
+      <p className="watch-countdown-time">{preshowCountdownLabel(state.clock.started ? left : null)}</p>
+      <div className="watch-countdown-cast">
+        <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={44} />
+        <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={44} />
+      </div>
+      <p className="watch-countdown-who">
+        On stage: <strong>{a.name}</strong> and <strong>{b.name}</strong>
+        {place ? <> at {place}</> : null}.
+      </p>
+      <p className="watch-countdown-hint">
+        {state.predictions_open ? "Call the ending before the first impressions." : "The first lines play when the countdown ends."}
+      </p>
+    </div>
+  );
+}
+
+function Stage({ state, onPredict, preshowLeft }: { state: RoomState; onPredict: () => void; preshowLeft: number | null }) {
   void onPredict;
   const [a, b] = state.characters;
   const leadingChemistry = state.chemistry.options.find((o) => o.id === state.chemistry.leading);
@@ -373,9 +423,10 @@ function Stage({ state, onPredict }: { state: RoomState; onPredict: () => void }
         </ul>
       </section>
 
-      {!state.clock.started && (
+      {state.turns.length === 0 && inPreshow(state) && (
         <section className="card watch-preshow">
           <h2>The date is about to start</h2>
+          <Preshow state={state} left={preshowLeft} />
           <p className="muted">
             {state.kind === "template"
               ? "You just tapped in — the date is rolling. Call it before it plays out."
@@ -540,7 +591,7 @@ function useCountdown(seconds: number | null): number | null {
   return left;
 }
 
-const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+const fmtClock = formatCountdown;
 
 /**
  * One audience poll. While it's open the options are big tappable choices with a live countdown and a clear

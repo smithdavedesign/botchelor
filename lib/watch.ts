@@ -37,6 +37,7 @@ import {
   WATCH_CHAT_LIMIT,
   chaosChange,
   WATCH_DECISION_INDEX,
+  WATCH_FIRST_LINE_AT,
   WATCH_MESSAGE_MAX,
   WATCH_PHASE_INDEX,
   WATCH_PHASES,
@@ -150,13 +151,19 @@ export type WatchClock = {
   phase_label: string;
   /** True once the clock has run past the final phase: the room is a replay from here on. */
   ended: boolean;
+  /**
+   * Seconds until the first lines play, while the room is in its pre-show (a premiere set for later counts down
+   * to its start plus the pre-show); null once the date is under way or before the clock has started. The room
+   * ticks it down locally between syncs ("Starts in 0:23").
+   */
+  preshow_left: number | null;
 };
 
 /** Which phase a room is in at `now`, from when it started. A pure function of the clock. */
 export function watchClock(startsAt: Date | string | null, now: Date = new Date()): WatchClock {
   if (!startsAt) {
     const first = WATCH_PHASES[0];
-    return { started: false, elapsed: 0, phase: first.id, phase_index: 0, phase_label: first.label, ended: false };
+    return { started: false, elapsed: 0, phase: first.id, phase_index: 0, phase_label: first.label, ended: false, preshow_left: null };
   }
   const start = typeof startsAt === "string" ? new Date(startsAt) : startsAt;
   const elapsed = Math.max(0, Math.floor((now.getTime() - start.getTime()) / 1000));
@@ -165,6 +172,7 @@ export function watchClock(startsAt: Date | string | null, now: Date = new Date(
     if (elapsed >= WATCH_PHASES[i].at) index = i;
   }
   const phase = WATCH_PHASES[index];
+  const firstLineIn = Math.ceil((start.getTime() + WATCH_FIRST_LINE_AT * 1000 - now.getTime()) / 1000);
   return {
     started: true,
     elapsed,
@@ -172,6 +180,7 @@ export function watchClock(startsAt: Date | string | null, now: Date = new Date(
     phase_index: index,
     phase_label: phase.label,
     ended: elapsed >= LAST_AT,
+    preshow_left: index === 0 ? Math.max(0, firstLineIn) : null,
   };
 }
 
