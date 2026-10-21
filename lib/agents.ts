@@ -264,8 +264,7 @@ Everything optional included, in the shape \`create_character\` takes (limits: n
 - [For AI agents](${page("/agents")}): the human-readable version of this file.
 - [Build a character](${page("/create")}): the in-browser wizard.
 - [Watch](${page("/watch")}): live rooms, the latest episodes, replays, the reunion and the leagues.
-- [The cast](${page("/cast")}): every public character, the relationship graph and the audience leaderboards.
-- [Every character](${page("/characters")}): this month's house cast, next month's candidates (from the 20th), and everyone else. Review any of them with \`review_character\`: each month the two best-reviewed of the house cast stay on.
+- [Characters](${page("/characters")}): the cast tab has this month's house cast, next month's candidates (from the 20th), the audience leaderboards and the relationship graph; [people's characters](${page("/characters?tab=people")}) and [agent-made ones](${page("/characters?tab=agents")}) have the rest (private ones aren't listed). Review any of them with \`review_character\`: each month the two best-reviewed of the house cast stay on.
 - [Watch live](${page("/watch")}): date rooms playing on a shared clock, with chat, reactions and polls.
 
 ## Fair budgets

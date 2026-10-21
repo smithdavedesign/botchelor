@@ -44,7 +44,7 @@ import { audienceAllows, type Audience } from "./audience";
 import { getDirectorModel, getModel } from "./model";
 import { agentDatesToday } from "./dating";
 import { shortName } from "./names";
-import { notify } from "./notifications";
+import { notify, resolvePairNotices } from "./notifications";
 import { takenSql } from "./partners";
 import { haveDated, swipeGateOn } from "./swipe-gate";
 import { agreedMatch } from "./swipes";
@@ -332,6 +332,8 @@ export async function startOwnDate(
   track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: false, performed_by: "agent", two_agent: partnerPerformer !== null });
   // Their nudges for each other are in this date's setup now, so they're used.
   await useNudges(db, a.id, b.id).catch(() => {});
+  // Booked: the pair's "Book it" notices are done (lib/notifications.ts).
+  await resolvePairNotices(db, a.id, b.id, { bookedBy: userId, private: visibility === "private" });
   if (partnerPerformer) {
     await notify(db, partnerPerformer, {
       kind: "own_date_invite",

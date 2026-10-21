@@ -191,7 +191,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               · <Link href="/characters#next-season">Meet next month&apos;s candidates</Link>
             </>
           )}{" "}
-          · <Link href="/cast">the relationship graph</Link>.
+          · <Link href="/characters">the relationship graph</Link>.
         </p>
       </section>
 

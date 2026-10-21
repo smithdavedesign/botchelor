@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The character page reads the viewer from next/headers: hand it this cookie store.
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
@@ -13,11 +13,14 @@ vi.mock("next/navigation", async (original) => ({
 }));
 import { renderToStaticMarkup } from "react-dom/server";
 import CharactersPage from "@/app/characters/page";
-import { directoryEntries, listDirectory } from "@/lib/directory";
-import { HOUSE_CHARACTERS } from "@/lib/house";
-import { api, newUserCookie, startTestDb, validCharacter } from "./helpers";
+import CastPage from "@/app/cast/page";
+import { DIRECTORY_PAGE, directoryEntries, listTab, offSeasonHouse, tabCounts } from "@/lib/directory";
+import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
+import { originsOf, parseTab, tabHref, tabOf } from "@/lib/origin";
+import { setSeasonCastForTests } from "@/lib/season-cast";
+import { api, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
-// The /characters directory (lib/directory.ts): everyone, private ones by name only and never linked.
+// The /characters hub (lib/directory.ts, lib/origin.ts): the cast, people's characters, agent-made; private ones on no tab.
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
   t = await startTestDb();
@@ -28,68 +31,178 @@ afterAll(async () => {
 beforeEach(async () => {
   await t.reset();
 });
+afterEach(() => {
+  setSeasonCastForTests(HOUSE_CHARACTERS.map((c) => c.id));
+});
 
 async function made(name: string, cookie = newUserCookie()) {
   return { cookie, id: (await (await api.createCharacter(validCharacter({ name }), cookie)).json()).id as string };
 }
+/** A character its agent made over MCP; `bot` makes the agent one of the show's loop scripts (botchelor-loop-…). */
+async function agentMade(name: string, client = "claude-code") {
+  const c = await made(name);
+  await t.db.query(`update characters set created_via = 'mcp' where id = $1`, [c.id]);
+  await t.db.query(`insert into mcp_sessions (id, agent_id, client_name) values ($1, $2, $3)`, [`s-${c.id}`, userIdOf(c.cookie), client]);
+  return c;
+}
+const render = async (sp: Record<string, string> = {}) => renderToStaticMarkup(await CharactersPage({ searchParams: Promise.resolve(sp) }));
 
-describe("the character directory", () => {
-  it("lists the house first, then everyone else newest first; a private character keeps only its name", async () => {
-    const open = await made("Open Book");
+/** Every public character, by tab, as the hub lists them: the cast tab's season, candidates and off-season house. */
+async function everyTab() {
+  const cast = [...(await directoryEntries(t.db, HOUSE_CHARACTERS.map((c) => c.id))), ...(await offSeasonHouse(t.db, HOUSE_CHARACTERS.map((c) => c.id)))].map((e) => e.id);
+  const people = (await listTab(t.db, "people")).entries.map((e) => e.id);
+  const agents = (await listTab(t.db, "agents")).entries.map((e) => e.id);
+  return { cast, people, agents };
+}
+
+describe("the Characters hub's tabs", () => {
+  it("files every character under exactly one tab by who made it, and a private one under none (nor its counts)", async () => {
+    const person = await made("Open Book");
     const hidden = await made("Quiet Type");
     expect((await api.editCharacter(hidden.id, { visibility: "private" }, hidden.cookie)).status).toBe(200);
-    const { entries, total } = await listDirectory(t.db);
-    expect(total).toBeGreaterThanOrEqual(HOUSE_CHARACTERS.length + 2);
-    expect(entries[0].house).toBe(true);
-    const mine = entries.filter((e) => [open.id, hidden.id].includes(e.id));
-    expect(mine.map((e) => [e.name, e.private, e.traits.length > 0])).toEqual([
-      ["Quiet Type", true, false],
-      ["Open Book", false, true],
-    ]);
-    expect((await directoryEntries(t.db, [hidden.id]))[0]).toMatchObject({ private: true, traits: [], portrait: null });
+    const agent = await agentMade("Ada Lumen");
+    const bot = await agentMade("Bo Quill", "botchelor-loop-swipe-back");
+    const crowd = await agentMade("Cy Fenn", "crowd-agent-7"); // the loop arena's crowd looks like real agents on purpose
+
+    const tabs = await everyTab();
+    expect(tabs.people).toEqual([person.id]);
+    expect(tabs.agents).toEqual([crowd.id, agent.id, bot.id]); // the house-run bot after the real agents
+    expect(tabs.cast).toEqual(expect.arrayContaining(ALL_HOUSE_CHARACTERS.map((c) => c.id)));
+    // A partition: nobody twice, everyone public once, the private one nowhere.
+    const all = [...tabs.cast, ...tabs.people, ...tabs.agents];
+    expect(new Set(all).size).toBe(all.length);
+    expect(all).not.toContain(hidden.id);
+    expect(await tabCounts(t.db)).toEqual({ people: 1, agents: 3, private: 1 });
+
+    const origins = await originsOf(t.db, [person.id, agent.id, bot.id, crowd.id, HOUSE_CHARACTERS[0].id]);
+    expect(Object.fromEntries(origins)).toEqual({ [person.id]: "person", [agent.id]: "agent", [bot.id]: "house_bot", [crowd.id]: "agent", [HOUSE_CHARACTERS[0].id]: "cast" });
+    expect([...origins.values()].map(tabOf).sort()).toEqual(["agents", "agents", "agents", "cast", "people"]);
   });
 
-  it("renders the season, the candidates and everyone, linking public characters and never a private one", async () => {
+  it("reads ?tab= (the cast by default, anything unknown too) and links each tab by a plain address", () => {
+    expect([parseTab(undefined), parseTab("cast"), parseTab("people"), parseTab("agents"), parseTab("nope"), parseTab(["agents"])]).toEqual([
+      "cast",
+      "cast",
+      "people",
+      "agents",
+      "cast",
+      "cast",
+    ]);
+    expect([tabHref("cast"), tabHref("people"), tabHref("agents", 2)]).toEqual(["/characters", "/characters?tab=people", "/characters?tab=agents&page=2"]);
+  });
+
+  it("renders the three tabs as links with counts, the chosen one current, each card with its origin badge", async () => {
+    const person = await made("Open Book");
     const hidden = await made("Quiet Type");
     await api.editCharacter(hidden.id, { visibility: "private" }, hidden.cookie);
-    const html = renderToStaticMarkup(await CharactersPage({ searchParams: Promise.resolve({}) }));
-    expect(html).toMatch(/This season: /);
-    expect(html).toMatch(/Next season&#x27;s candidates: /);
-    expect(html).toContain("Quiet Type");
-    expect(html).not.toContain(`/characters/${hidden.id}`);
-    expect(html).toContain(`/characters/${HOUSE_CHARACTERS[0].id}`);
+    const agent = await agentMade("Ada Lumen");
+    const bot = await agentMade("Bo Quill", "botchelor-loop-swipe-back");
+
+    const cast = await render();
+    expect(cast).toMatch(/<h1>Characters<\/h1>/);
+    expect(cast).toMatch(/class="segmented-tab" aria-current="page" href="\/characters">The cast <span class="segmented-count">\d+<\/span>/);
+    expect(cast).toContain(`class="segmented-tab" href="/characters?tab=people">People&#x27;s characters <span class="segmented-count">1</span>`);
+    expect(cast).toContain(`class="segmented-tab" href="/characters?tab=agents">Agent-made <span class="segmented-count">2</span>`);
+    expect(cast).toMatch(/This season: /);
+    expect(cast).toMatch(/Next season&#x27;s candidates: /);
+    expect(cast).toMatch(/The relationship graph/); // what /cast had moved here
+    expect(cast).toContain(`/characters/${HOUSE_CHARACTERS[0].id}`);
+    expect(cast).toContain(">Cast</span>");
+    expect(cast).not.toContain(`/characters/${person.id}`);
+
+    const people = await render({ tab: "people" });
+    expect(people).toMatch(/class="segmented-tab" aria-current="page" href="\/characters\?tab=people"/);
+    expect(people).toContain(`/characters/${person.id}`);
+    expect(people).toContain(">Made by a person</span>");
+    expect(people).not.toContain(`/characters/${agent.id}`);
+    expect(people).not.toContain(`/characters/${HOUSE_CHARACTERS[0].id}"`);
+
+    const agents = await render({ tab: "agents" });
+    expect(agents).toContain(`/characters/${agent.id}`);
+    expect(agents).toContain(">🤖 Agent-made</span>");
+    expect(agents).toContain(`/characters/${bot.id}`);
+    expect(agents).toContain(">House-run bot</span>");
+
+    for (const html of [cast, people, agents]) {
+      expect(html).not.toContain("Quiet Type");
+      expect(html).not.toContain(hidden.id);
+    }
   });
 
-  it("a private character's card shows only its name to others, and everything to its owner", async () => {
+  it("pages a long tab at 24, newest first", async () => {
+    const first = await made("Ira Fenn");
+    // The rest straight into the table: 24 more of the same person's characters, each newer than the last.
+    for (let i = 0; i < DIRECTORY_PAGE; i++) {
+      await t.db.query(
+        `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, created_at)
+         select $2, owner_id, false, $3, age, bio, traits, want, dealbreaker, now() + ($4 || ' seconds')::interval from characters where id = $1`,
+        [first.id, `copy-${i}`, `Copy ${i}`, String(i + 1)],
+      );
+    }
+    const one = await listTab(t.db, "people", 1);
+    const two = await listTab(t.db, "people", 2);
+    expect([one.total, one.pages, one.entries.length, two.entries.length]).toEqual([25, 2, 24, 1]);
+    expect(one.entries[0].name).toBe(`Copy ${DIRECTORY_PAGE - 1}`);
+    expect(two.entries[0].id).toBe(first.id);
+    expect((await listTab(t.db, "people", 99)).page).toBe(2);
+    const html = await render({ tab: "people", page: "2" });
+    expect(html).toContain('href="/characters?tab=people">← Newer</a>');
+    expect(html).toMatch(/Page 2 of 2/);
+  });
+
+  it("the cast tab is this month's house cast, with the rest of the house folded under Off this season", async () => {
+    setSeasonCastForTests([HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id]);
+    const html = await render();
+    expect(html).toContain(`class="segmented-tab" aria-current="page" href="/characters">The cast <span class="segmented-count">2</span>`);
+    expect(html).toMatch(/<summary>Off this season \(\d+\)<\/summary>/);
+    expect(html).toContain(`/characters/${HOUSE_CHARACTERS[2].id}`);
+  });
+});
+
+describe("/cast", () => {
+  it("is a permanent (308) redirect to the hub's cast tab", () => {
+    let digest = "";
+    try {
+      CastPage();
+    } catch (err) {
+      digest = String((err as { digest?: string }).digest);
+    }
+    expect(digest).toBe("NEXT_REDIRECT;replace;/characters?tab=cast;308;");
+  });
+});
+
+describe("a private character", () => {
+  it("its card shows only its name to others, and everything to its owner", async () => {
     const hidden = await made("Quiet Type");
     await api.editCharacter(hidden.id, { visibility: "private" }, hidden.cookie);
     const { default: CharacterPage } = await import("@/app/characters/[id]/page");
-    const render = async (cookie: string | null) => {
+    const page = async (cookie: string | null) => {
       jar.cookies.clear();
       if (cookie) jar.cookies.set(cookie.split("=")[0], cookie.split("=")[1]);
       return renderToStaticMarkup(await CharacterPage({ params: Promise.resolve({ id: hidden.id }) }));
     };
-    const stranger = await render(newUserCookie());
+    const stranger = await page(newUserCookie());
     expect(stranger).toContain("Quiet Type");
     expect(stranger).toMatch(/keeps this character private/);
     expect(stranger).not.toContain(validCharacter().bio as string);
-    const owner = await render(hidden.cookie);
+    expect(stranger).not.toMatch(/on a date with/);
+    const owner = await page(hidden.cookie);
     expect(owner).toContain(validCharacter().bio as string);
     expect(owner).toMatch(/Make public/);
   });
 
-  it("a private character's relationship board is its name only to others, and the board to its owner", async () => {
+  it("its relationship board is its name only to others, and the board to its owner", async () => {
     const hidden = await made("Quiet Type");
     await api.editCharacter(hidden.id, { visibility: "private" }, hidden.cookie);
     const { default: RelationshipBoard } = await import("@/app/characters/[id]/relationships/page");
-    const render = async (cookie: string) => {
+    const board = async (cookie: string) => {
       jar.cookies.clear();
       jar.cookies.set(cookie.split("=")[0], cookie.split("=")[1]);
       return renderToStaticMarkup(await RelationshipBoard({ params: Promise.resolve({ id: hidden.id }) }));
     };
-    const stranger = await render(newUserCookie());
+    const stranger = await board(newUserCookie());
     expect(stranger).toContain("Quiet Type");
     expect(stranger).toMatch(/keeps this character private/);
-    expect(await render(hidden.cookie)).not.toMatch(/keeps this character private/);
+    expect(await board(hidden.cookie)).not.toMatch(/keeps this character private/);
   });
 });

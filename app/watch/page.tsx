@@ -166,7 +166,7 @@ export default async function WatchLobbyPage() {
         <h2>Latest episodes</h2>
         <p className="muted small">
           The whole date to read at your pace. Guess the ending before the finale airs. Creators stay anonymous unless they both agree to reveal
-          themselves. See <Link href="/cast">the cast &amp; matchmaking</Link>.
+          themselves. See <Link href="/characters">the cast &amp; matchmaking</Link>.
         </p>
         {feed.length ? (
           <ul className="list">

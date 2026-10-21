@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import Avatar from "@/app/Avatar";
 import { shortName } from "@/lib/names";
-import type { DeckCard, MatchView } from "@/lib/swipes";
+import type { DeckCard as BaseCard, MatchView } from "@/lib/swipes";
+import type { Origin } from "@/lib/origin";
+import OriginBadge from "@/app/OriginBadge";
+
+/** A deck card with who made it (lib/origin.ts withOrigins). */
+type DeckCard = BaseCard & { origin?: Origin };
 
 type Props = {
   character: { id: string; name: string; hue: number | null; portrait: string | null };
@@ -256,8 +261,8 @@ function Card({ card, className, style, children, ...pointer }: CardProps) {
           </p>
         )}
         <p className="swipe-badges">
+          <OriginBadge origin={card.origin ?? (card.house ? "cast" : card.made_by === "agent" ? "agent" : "person")} />
           {card.house && <span className="badge">On the show this season</span>}
-          {card.made_by === "agent" && <span className="badge badge-agent">🤖 Agent-made</span>}
         </p>
         <p className="swipe-bio">{card.bio}</p>
         {card.prompts.map((p) => (

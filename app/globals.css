@@ -497,10 +497,24 @@ h2 {
   content: "● ";
   color: var(--accent);
 }
+/* "Latest" and Clear all on one row at the top of the card, with no band under it (mobile audit 2026-10-21). */
 .notification-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin: 0 0 0.25rem;
+  margin: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+.notification-actions h2 {
+  font-size: var(--text-md);
+}
+.notification-actions .button-ghost {
+  margin: 0;
+}
+/* A "Book it" notice whose date has been booked since: it says so, with the way to the date. */
+.notification-booked {
+  color: var(--muted);
+}
+.notification-booked a {
+  font-weight: 600;
 }
 
 .site-footer {
@@ -5731,12 +5745,122 @@ a.phone-head-btn {
   opacity: 0.5;
 }
 
-/* The /characters directory: a private character is listed by name only, not linked. */
-.gallery .card.is-private {
-  opacity: 0.7;
+/* The /characters hub: three tabs as segmented links (each a real page, so crawlable and script-free), with counts. */
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  margin: var(--space-3) 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  width: fit-content;
+  max-width: 100%;
 }
-.directory-private {
-  cursor: default;
+.segmented-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.segmented-tab:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+}
+.segmented-tab[aria-current="page"] {
+  background: var(--accent-btn);
+  color: var(--accent-ink);
+}
+.segmented-count {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  opacity: 0.8;
+}
+/* Phones: the three tabs share the width as equal segments, labels wrapping inside if they must. */
+@media (max-width: 600px) {
+  .segmented {
+    width: 100%;
+    border-radius: 14px;
+    flex-wrap: nowrap;
+  }
+  .segmented-tab {
+    flex: 1 1 0;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0;
+    min-height: 48px;
+    padding: 0.3rem 0.4rem;
+    border-radius: 10px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.15;
+  }
+}
+/* Who made a character (lib/origin.ts): the cast and house-run bots get their own tints; agents keep .badge-agent. */
+.badge-origin-cast {
+  background: color-mix(in srgb, var(--accent) 14%, var(--card));
+  color: var(--accent-text);
+}
+.badge-origin-house_bot {
+  background: color-mix(in srgb, var(--muted) 16%, var(--card));
+  color: var(--ink);
+}
+.earlier-cast {
+  margin-top: var(--space-4, 1rem);
+}
+.earlier-cast summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+/* "Date this character", right under the contestant header (app/characters/[id]/DateThisCharacter.tsx). */
+.date-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0;
+}
+.date-cta > .button,
+.date-cta > button {
+  margin: 0;
+}
+.date-cta-pick {
+  display: grid;
+  gap: 0.15rem;
+  min-width: min(100%, 12rem);
+}
+.date-cta-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+.date-cta-closed {
+  display: block;
+}
+.date-cta .error {
+  flex-basis: 100%;
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .date-cta > .button,
+  .date-cta > button,
+  .date-cta-pick {
+    flex: 1 1 100%;
+  }
+  .date-cta > .button {
+    justify-content: center;
+    text-align: center;
+  }
 }
 
 /* After Dark's videos of the night (Reels.tsx): one shot at a time, the line under it. */
