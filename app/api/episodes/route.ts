@@ -37,7 +37,7 @@ import { datedSql, MATCH_FIRST, swipeGateOn } from "@/lib/swipe-gate";
 import { agreedMatchSql } from "@/lib/swipes";
 import { audienceAllowsSql } from "@/lib/audience";
 import { useNudges } from "@/lib/between-dates";
-import { notify } from "@/lib/notifications";
+import { notify, resolvePairNotices } from "@/lib/notifications";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { type CharacterSheet } from "@/lib/showrunner";
 
@@ -427,6 +427,9 @@ async function writeAndSave(
   saveState.saved = true;
   // Their nudges for each other go into this date (snapshotted on the setup), so they're used now.
   await useNudges(db, own.id, partner.id).catch(() => {});
+  // Booked (the web's book buttons, the thread's Book date, go_on_date and plan_second_date all land here): the pair's
+  // "want to go on a date. Book it" notices are done, for both owners (lib/notifications.ts).
+  await resolvePairNotices(db, own.id, partner.id, { bookedBy: sess.userId, private: (secondDate?.visibility ?? input.visibility) === "private" });
 
   // Queue the slow part (narration + conversation). In production it runs after the response (and the
   // cron route re-runs anything after() misses); inline — tests — it runs now so the episode is ready.

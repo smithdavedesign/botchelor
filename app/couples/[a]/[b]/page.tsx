@@ -23,6 +23,8 @@ import { nextDate } from "@/lib/date-proposals";
 import { arcQuestion } from "@/lib/arcs";
 import { followState } from "@/lib/follows";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
+import OriginBadge from "@/app/OriginBadge";
+import { originOf, originsOf } from "@/lib/origin";
 
 export const dynamic = "force-dynamic";
 
@@ -113,6 +115,7 @@ export default async function CouplePage({ params }: Props) {
   const complicated = [ca, cb].filter((c) => seeing[c.id]?.length);
   const nameOf = (id: string) => (id === ca.id ? ca.name : cb.name);
   const first = (c: PublicCharacter) => shortName(c.name);
+  const origins = await originsOf(await getDb(), [ca.id, cb.id]);
 
   return (
     <>
@@ -133,8 +136,7 @@ export default async function CouplePage({ params }: Props) {
             <span key={c.id}>
               {i > 0 && " and "}
               <Link href={`/characters/${c.id}`}>{c.name}</Link>
-              {c.house && <span className="badge">on the show</span>}
-              {c.made_by_agent && <span className="badge badge-agent">🤖 Agent-made</span>}
+              <OriginBadge origin={origins.get(c.id) ?? originOf({ house: c.house, agent: c.made_by_agent })} />
             </span>
           ))}
         </p>

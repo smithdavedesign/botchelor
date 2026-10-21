@@ -31,6 +31,10 @@ import { isTalkLevel, type TalkLevel } from "@/lib/talk";
 import { partnerStyleOf } from "@/lib/partners";
 import LearnedPanel from "./LearnedPanel";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
+import OriginBadge from "@/app/OriginBadge";
+import { originOf, originsOf } from "@/lib/origin";
+import { ctaMine, dateCta } from "@/lib/date-cta";
+import DateThisCharacter from "./DateThisCharacter";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +69,7 @@ export default async function CharacterPage({ params }: Props) {
         <h1>{c.name}</h1>
         <p className="muted">🔒 Their creator keeps this character private.</p>
         <p>
-          <Link href="/characters">← Every character</Link>
+          <Link href="/characters">← Characters</Link>
         </p>
       </article>
     );
@@ -113,6 +117,18 @@ export default async function CharacterPage({ params }: Props) {
       : null;
   // One partner or more (lib/partners.ts): public as a badge, the setting for the owner.
   const partnerStyle = c.house ? null : await partnerStyleOf(db, id);
+  // Who made them (lib/origin.ts), and the "date this character" call to action under the header (lib/date-cta.ts).
+  const origin = (await originsOf(db, [id])).get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
+  const mine = ratings.is_owner ? [] : await ctaMine(db, viewerId, { id, house: c.house });
+  const takenBy = partnerStyle?.taken && !partnerStyle.partners.some((p) => mine.some((m) => m.id === p.id)) ? shortName(partnerStyle.partners[0]?.name ?? "someone") : null;
+  const cta = dateCta({
+    first: shortName(c.name),
+    isOwner: ratings.is_owner,
+    isPrivate: c.private,
+    available: Boolean(dating?.open_to_dates) || (c.house && PREMIUM_IDS.has(c.id)),
+    takenBy,
+    mine,
+  });
   // Owner only: how much they talk (lib/talk.ts), and whether a text key makes marathon possible.
   const talk =
     ratings.is_owner && !c.house && viewerId
@@ -165,22 +181,21 @@ export default async function CharacterPage({ params }: Props) {
           characterJsonLd(c),
           breadcrumbJsonLd([
             { name: "Botchelor", path: "/" },
-            { name: "The cast", path: "/cast" },
+            { name: "Characters", path: c.house ? "/characters" : `/characters?tab=${origin === "person" ? "people" : "agents"}` },
             { name: c.name, path: `/characters/${c.id}` },
           ]),
         ]}
       />
       <p className="kicker">
-        <Link href="/characters">← Every character</Link> · Contestant card
+        <Link href="/characters">← Characters</Link> · Contestant card
       </p>
       <div className="contestant">
         <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={96} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} />
         <div className="meta">
           <h1>
             {c.name}
-            {c.house && <span className="badge">House character</span>}
+            <OriginBadge origin={origin} />
             {c.house && dating && !dating.can_ask_out && !PREMIUM_IDS.has(c.id) && <span className="badge">Off this season</span>}
-            {dating?.made_by === "agent" && <span className="badge badge-agent">🤖 Agent-made</span>}
             {!c.house && dating?.open_to_dates && <span className="badge badge-open">💌 Open to dates</span>}
             {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">💍 With {shortName(partnerStyle.partners[0].name)}</span>}
             {partnerStyle && !partnerStyle.taken && partnerStyle.effective === "open" && (partnerStyle.choice === "open" || partnerStyle.decided) && (
@@ -200,6 +215,7 @@ export default async function CharacterPage({ params }: Props) {
           )}
         </div>
       </div>
+      <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} />
 
       {ratings.is_owner && !c.house && (
         // The swipe deck (lib/swipes.ts): a complete dating profile to swipe; open to dates to be in others' decks.
@@ -377,11 +393,18 @@ export default async function CharacterPage({ params }: Props) {
         )}
       </section>
 
+      {(cta.kind === "send" || cta.kind === "make") && (
+        <section className="card">
+          <h2>Date {shortName(c.name)}</h2>
+          <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} />
+        </section>
+      )}
+
       <section className="card">
         <h2>Share this contestant</h2>
         <ShareLink path={`/characters/${c.id}`} label="Character link" />
         <p className="muted">
-          <Link href="/">Make your own character</Link> · <Link href="/cast">See the whole cast</Link>
+          <Link href="/">Make your own character</Link> · <Link href="/characters">See every character</Link>
         </p>
       </section>
     </article>
