@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
-import { advanceReel, listReels, makeReel } from "@/lib/adult/reels";
+import { advanceReel, listReels, makeReel, stopReel } from "@/lib/adult/reels";
 import { openScene, type SceneLine } from "@/lib/adult/scenes";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
@@ -29,7 +29,7 @@ export const POST = handle(async (req: Request) => {
   }
   if (!lines) return hidden();
   const r = await makeReel(db, viewer, input.a, input.b, lines, requestBase(req));
-  if (!r.ok) return json({ error: r.error, message: r.message }, r.status);
+  if (!r.ok) return json({ error: r.error, message: r.message, ...(r.busy ? { busy: r.busy } : {}) }, r.status);
   return json({ reel: r.reel });
 });
 
@@ -45,4 +45,13 @@ export const GET = handle(async (req: Request) => {
     return reel ? json({ reel }) : hidden();
   }
   return json({ reels: await listReels(db, viewer, q.get("a") ?? "", q.get("b") ?? "") });
+});
+
+/** Stop a reel that's still being made (?id=): the shots already in are kept, the rest's tokens come back. */
+export const DELETE = handle(async (req: Request) => {
+  const db = await getDb();
+  const viewer = await adultViewer(db, req);
+  if (!viewer) return hidden();
+  const reel = await stopReel(db, viewer, new URL(req.url).searchParams.get("id") ?? "");
+  return reel ? json({ reel }) : hidden();
 });

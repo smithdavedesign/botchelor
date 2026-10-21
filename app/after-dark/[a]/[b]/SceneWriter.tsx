@@ -5,9 +5,10 @@ import { requestJson } from "@/app/request";
 import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import AfterDarkTheater from "./AfterDarkTheater";
-import Reels from "./Reels";
+import Link from "next/link";
+import Reels, { stopReel } from "./Reels";
 import Avatar from "@/app/Avatar";
-import type { Reel } from "@/lib/adult/reels";
+import type { BusyReel, Reel } from "@/lib/adult/reels";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
 
@@ -35,12 +36,14 @@ export default function SceneWriter({
   reelTokens?: number;
 }) {
   const [reelList, setReelList] = useState(reels);
-  const [reelNote, setReelNote] = useState<{ text: string; error?: boolean } | null>(null);
+  const [reelNote, setReelNote] = useState<{ text: string; error?: boolean; busy?: BusyReel } | null>(null);
   const putReel = useCallback((r: Reel) => setReelList((list) => [r, ...list.filter((x) => x.id !== r.id)]), []);
   async function makeVideo(nightId?: string) {
     setReelNote({ text: "Picking the night's best moments and voicing them…" });
     const res = await requestJson("/api/admin/after-dark/reel", { a: scene.a.id, b: scene.b.id, ...(nightId ? { night_id: nightId } : {}) }).catch(() => null);
-    if (!res?.ok) return setReelNote({ text: res?.message ?? "That didn't go through. Try again.", error: true });
+    if (!res) return setReelNote({ text: "That didn't reach the server. Check your connection and try again.", error: true });
+    // One at a time: the refusal names the video in the way (maybe another pair's), so it can be stopped from here.
+    if (!res.ok) return setReelNote({ text: res.message, error: true, busy: (res.data.busy as BusyReel | undefined) ?? undefined });
     putReel(res.data.reel as Reel);
     setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
   }
@@ -64,6 +67,8 @@ export default function SceneWriter({
   const [direction, setDirection] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  // The pair is stored either way round: the same two characters, in any order.
+  const isThisPair = (r: BusyReel) => new Set([r.a, r.b, scene.a.id, scene.b.id]).size === 2;
   const nameOf = (who: "a" | "b") => (who === "a" ? scene.a.name : scene.b.name).split(/\s+/)[0];
 
   async function send(body: Record<string, unknown>) {
@@ -203,9 +208,31 @@ export default function SceneWriter({
         </section>
       )}
       {reelNote && (
-        <p className={reelNote.error ? "error" : "muted small"} role="status">
-          {reelNote.text}
-        </p>
+        <div className={reelNote.error ? "error" : "muted small"} role="status">
+          <p>{reelNote.text}</p>
+          {reelNote.busy && (
+            <p>
+              <button
+                type="button"
+                className="secondary small"
+                onClick={async () => {
+                  const r = await stopReel(reelNote.busy!.id);
+                  if (!r) return setReelNote({ text: "Stopping it didn't go through. Try again.", error: true, busy: reelNote.busy });
+                  if (isThisPair(reelNote.busy!)) putReel(r);
+                  setReelNote({ text: "Stopped: the shots that came through are kept and the rest's tokens are back. You can make a new one now." });
+                }}
+              >
+                Stop that video
+              </button>
+              {!isThisPair(reelNote.busy) && (
+                <>
+                  {" "}
+                  <Link href={`/after-dark/${reelNote.busy.a}/${reelNote.busy.b}`}>Go to {reelNote.busy.names[0]} and {reelNote.busy.names[1]}</Link>
+                </>
+              )}
+            </p>
+          )}
+        </div>
       )}
       <Reels reels={reelList} onChange={putReel} />
       <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} />
