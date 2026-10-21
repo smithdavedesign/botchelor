@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { AgentAnalytics } from "@/lib/agent-analytics";
+import type { RealUse as RealUseData } from "@/lib/real-metrics";
+import RealUse from "./RealUse";
 
 const KIND_LABEL = { crawler: "crawler", explorer: "explorer", player: "player" } as const;
 /** How many crawl-only clients the table shows before "show all". */
@@ -13,6 +15,8 @@ const made = (c: { characters: number; dates: number; feedback: number }) =>
 /** The analytics (owner-only). Signs in like the other admin panels: the saved admin password, or a box to enter it. */
 export default function AnalyticsPanel() {
   const [data, setData] = useState<AgentAnalytics | null>(null);
+  const [real, setReal] = useState<RealUseData | null>(null);
+  const [realError, setRealError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [needsPassword, setNeedsPassword] = useState(false);
@@ -36,8 +40,13 @@ export default function AnalyticsPanel() {
       return;
     }
     try {
-      const res = await fetch(`/api/admin/analytics?days=${window}`, { headers: { "x-frontier-key": key } });
+      const headers = { "x-frontier-key": key };
+      // Real use (lib/real-metrics.ts) has its own fixed windows, 7 and 30 days; it loads alongside, and failing doesn't
+      // stop the rest of the page.
+      const realLoad = loadReal(headers);
+      const res = await fetch(`/api/admin/analytics?days=${window}`, { headers });
       const body = await res.json();
+      await realLoad;
       if (res.ok) {
         setData(body);
         setNeedsPassword(false);
@@ -52,6 +61,19 @@ export default function AnalyticsPanel() {
       }
     } catch {
       setError("Network error.");
+    }
+  }
+  async function loadReal(headers: Record<string, string>) {
+    try {
+      const res = await fetch("/api/admin/real-metrics", { headers });
+      if (res.ok) {
+        setReal(await res.json());
+        setRealError(null);
+      } else if (res.status !== 403) {
+        setRealError(`Real use didn't load (${res.status}).`);
+      }
+    } catch {
+      setRealError("Real use didn't load (network error).");
     }
   }
   useEffect(() => {
@@ -88,7 +110,7 @@ export default function AnalyticsPanel() {
       ) : (
         <div className="analytics-controls">
           <div>
-            <label htmlFor="window">Window</label>
+            <label htmlFor="window">MCP window</label>
             <select
             id="window"
             value={days}
@@ -111,8 +133,11 @@ export default function AnalyticsPanel() {
         </div>
       )}
       {error && <p className="error">{error}</p>}
+      {realError && <p className="error">{realError}</p>}
+      {real && !needsPassword && <RealUse data={real} />}
       {data && f && (
         <>
+          <h2>Who comes in over MCP</h2>
           <div className="stat-tiles">
             {(
               [

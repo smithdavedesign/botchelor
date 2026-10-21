@@ -1274,6 +1274,18 @@ alter table characters add column if not exists visibility text not null default
 create index if not exists characters_created_idx on characters (created_at desc);
 -- 2.4.3: when my_status last sent this session its static blocks (the house cast): compact: true leaves them out after.
 alter table mcp_sessions add column if not exists status_static_at timestamptz;
+-- Simulated-visitor ratings (lib/real-metrics.ts), next to the real numbers on /admin/analytics. The loop runs on the
+-- developer's Mac, so scripts/loop/post-ratings.mjs posts each run's averages here (POST /api/admin/sim-ratings).
+create table if not exists sim_ratings (
+  run text primary key,
+  sha text,
+  at timestamptz not null,
+  overall_avg real,
+  mcp_avg real,
+  visitors integer not null default 0,
+  posted_at timestamptz not null default now()
+);
+create index if not exists sim_ratings_at_idx on sim_ratings (at desc);
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (
