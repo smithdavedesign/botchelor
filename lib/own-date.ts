@@ -84,7 +84,25 @@ export const ONE_LINE_EXAMPLE = '"You never asked about the wind."';
 export const RECAP_EXAMPLE =
   '{"setting":"A ferry bar in fog.","goals":["Ada wants a straight answer.","Bo wants to be surprised."],"scenes":["They meet at the rail.","The foghorn ruins his joke.","They split the last pretzel."],"twist":"The ferry turns back.","finale":"They agree to disagree about fog.","best_line":"Fog is just weather being shy.","confessionals":["He talks too much. I liked it.","She laughed at the horn, not at me."]}';
 /** The examples every turn step carries: the one-line form and the full JSON. */
-export const TURN_EXAMPLES_LINE = `Example turn: ${ONE_LINE_EXAMPLE}, or {"dialogue": ${ONE_LINE_EXAMPLE}} (just the line: action, emotion and interest_signal get defaults), or the full ${TURN_EXAMPLE} (send all four, or only dialogue).`;
+export const TURN_EXAMPLES_LINE = `Example turn: ${ONE_LINE_EXAMPLE}, or {"dialogue": ${ONE_LINE_EXAMPLE}}, or the full ${TURN_EXAMPLE}. Only dialogue is required: any of action, emotion and interest_signal left out gets a default (action "", emotion warm, interest_signal 0.5), and the reply says which (defaults_used).`;
+
+/** Which of action, emotion and interest_signal a turn reply leaves to the defaults (oneLineTurn fills them in). */
+export function turnDefaultsUsed(output: unknown): string[] {
+  let o: unknown = output;
+  if (typeof o === "string") {
+    const t = o.trim();
+    if (!t.startsWith("{")) return t ? [...ONE_LINE_FIELDS] : [];
+    try {
+      o = JSON.parse(t);
+    } catch {
+      return [];
+    }
+  }
+  if (!o || typeof o !== "object" || Array.isArray(o)) return [];
+  const r = o as Record<string, unknown>;
+  if (typeof r.dialogue !== "string" && typeof r.line !== "string") return [];
+  return ONE_LINE_FIELDS.filter((k) => !(k in r));
+}
 
 /** A turn as the one-line mode allows it, as the full JSON object; anything else is passed through unchanged. */
 export function oneLineTurn(output: unknown): unknown {
@@ -115,9 +133,10 @@ export function oneLineTurn(output: unknown): unknown {
   if (output && typeof output === "object" && !Array.isArray(output)) {
     const { line, ...rest } = output as Record<string, unknown>;
     if (typeof line === "string" && rest.dialogue === undefined) return { ...ONE_LINE_DEFAULTS, ...rest, dialogue: line };
-    // {dialogue} with none of action, emotion and interest_signal is the minimal form too (run 2026-10-21-0514: an
-    // agent sent it, as the example suggested, and was refused). Sending some of the three still needs all of them.
-    if (typeof rest.dialogue === "string" && !ONE_LINE_FIELDS.some((k) => k in rest)) return { ...ONE_LINE_DEFAULTS, ...rest };
+    // A turn with dialogue gets a default for each of action, emotion and interest_signal it leaves out (runs 0514 and
+    // 0610: visitors sent {dialogue} and {dialogue, interest_signal} and were refused). submit_own_date_step says which
+    // were filled in (defaults_used), so nothing is silent.
+    if (typeof rest.dialogue === "string" && ONE_LINE_FIELDS.some((k) => !(k in rest))) return { ...ONE_LINE_DEFAULTS, ...rest };
   }
   return output;
 }
@@ -1515,13 +1534,13 @@ export function turnShapeProblem(raw: string): string {
   if ("interest_signal" in o && !Number.isFinite(Number(o.interest_signal))) bad.push(`"interest_signal" (a number from 0 to 1, not ${JSON.stringify(o.interest_signal)})`);
   if ("accept_move" in o && typeof o.accept_move !== "boolean" && o.accept_move !== "true" && o.accept_move !== "false") bad.push('"accept_move" (true or false)');
   return bad.length
-    ? `Fix ${bad.join(", ")}. A turn is {dialogue, action, emotion, interest_signal}, all four required (move and accept_move only when they apply).`
+    ? `Fix ${bad.join(", ")}. A turn is {dialogue, action, emotion, interest_signal}: only dialogue is required, and any of the others left out gets a default (move and accept_move only when they apply).`
     : TURN_REJECTIONS.schema;
 }
 
 const TURN_REJECTIONS: Record<string, string> = {
   json: "That wasn't a JSON object. Reply with exactly the JSON in reply_format.",
-  schema: 'The reply needs dialogue (words), action, emotion and interest_signal (a number from 0 to 1): all four.',
+  schema: 'The reply needs dialogue (words); action, emotion and interest_signal (a number from 0 to 1) are optional and get defaults, but must be the right type when sent.',
   filtered: "That line broke the show's content rules (no minors, no sexual content, no real people). Run the turn again.",
 };
 /**
@@ -1530,7 +1549,8 @@ const TURN_REJECTIONS: Record<string, string> = {
  * or a line that's degenerated (one word over and over, or the same line as before).
  */
 export function ownTurnProblem(raw: string, turn: Turn, never: readonly string[] | undefined, before: Turn[]): string | null {
-  // Run 4: {"dialogue":"hi","emotion":"x"} was accepted. Our model's lines get defaults; an agent's carry all four.
+  // Run 4 wanted an agent's turn to carry all four; since 2.4.5 (runs 0514, 0610) a left-out field gets its default before
+  // this check (oneLineTurn), so what's caught here is a field of the wrong type.
   const missing = missingTurnFields(raw);
   if (missing.length) return `The reply needs dialogue, action, emotion and interest_signal (move and accept_move only when they apply); missing or the wrong type: ${missing.join(", ")}. interest_signal is a number from 0 to 1.`;
   const said = spokenLength(raw);

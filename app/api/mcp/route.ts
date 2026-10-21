@@ -34,8 +34,10 @@ export async function POST(req: Request): Promise<Response> {
     const text = await req.text();
     if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return rpcError(-32600, "request too large", 413);
     body = JSON.parse(text);
-  } catch {
-    return rpcError(-32700, "parse error");
+  } catch (err) {
+    // 2.4.5 (run 0610: "a bare parse error, and I couldn't tell why"): say what the parser hit, and what's expected.
+    const why = err instanceof Error ? err.message.slice(0, 160) : "not JSON";
+    return rpcError(-32700, `parse error: the request body isn't valid JSON (${why}). Send one JSON-RPC object, e.g. {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"my_status","arguments":{}}}; strings inside it (a turn's output too) must be JSON-escaped.`);
   }
 
   const ctx: McpContext = {
