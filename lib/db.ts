@@ -832,6 +832,10 @@ alter table episodes add column if not exists handed_over text check (handed_ove
 alter table episodes add column if not exists handed_over_at timestamptz;
 -- Auto-play (lib/own-date.ts autoplayOwnDate): the show's model performs both sides' remaining turns and the recap.
 alter table episodes add column if not exists autoplay boolean not null default false;
+-- Mutual wishes (lib/wishes.ts): each side's private "want to see them again?". While an agent's date is played, only
+-- what a performer said (see_again); once the last line is in, both wishes as they counted and the engine's own ending.
+-- Never in a view: only a tip is told, with the ending.
+alter table episodes add column if not exists wishes jsonb;
 create index if not exists episodes_air_after_idx on episodes (air_after) where air_after is not null and revealed_at is null;
 create index if not exists episodes_partner_performer_idx on episodes (partner_performer) where partner_performer is not null and status = 'generating';
 -- Who may ask a character out by name when it's open to dates (lib/audience.ts): every character, only characters made

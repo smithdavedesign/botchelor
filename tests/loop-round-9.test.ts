@@ -48,7 +48,7 @@ describe("turn numbers say which is which (#199)", () => {
     const first = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent;
     expect(first.step).toMatchObject({ turn: 0, turn_number: 1, you_are: "a: Ada Lumen" });
     expect(first.step.instructions).toMatch(/^Turn 1 of /);
-    expect(first.ending_note).toMatch(/already decided how this date ends/);
+    expect(first.ending_note).toMatch(/already decided where this date is heading/);
     const second = (await call("submit_own_date_step", { episode_id: first.step.episode_id, output: line(0) }, ctx)).structuredContent.step;
     expect(second).toMatchObject({ turn: 1, turn_number: 2, you_are: "b: Bo Quill" });
   });
@@ -101,12 +101,12 @@ describe("turn steps name the decided ending too (#204)", () => {
     const a = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;
     const b = (await call("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id;
     const started = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent;
-    expect(started.ending_note).toMatch(/every turn step and the recap step name the ending/);
+    expect(started.ending_note).toMatch(/every turn step names it \(ending, ending_label\).*the recap step names the final call/);
     let step = started.step;
     let i = 0;
     while (step.stage === "turn") {
       expect(step).toMatchObject({ ending: "friends", ending_label: expect.any(String) });
-      expect(step.instructions).toMatch(/ends as ".+" \(ending: friends\)/);
+      expect(step.instructions).toMatch(/heading for ".+" \(ending: friends\)/);
       // Outside the character's own prompt: its messages don't change.
       expect(JSON.stringify(step.messages)).not.toMatch(/ending: friends/);
       step = (await call("submit_own_date_step", { episode_id: step.episode_id, output: line(i++) }, ctx)).structuredContent.step;
