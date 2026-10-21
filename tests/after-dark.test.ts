@@ -713,8 +713,8 @@ describe("set the scene (1 token)", () => {
   });
 });
 
-import { GET as reelGet, POST as reelPost } from "@/app/api/admin/after-dark/reel/route";
-import { frameFor, pickLines, setReelFetchForTests, spoken, startFrames, voiceFor, type Reel } from "@/lib/adult/reels";
+import { DELETE as reelDelete, GET as reelGet, POST as reelPost } from "@/app/api/admin/after-dark/reel/route";
+import { busyMessage, frameFor, pickLines, setReelFetchForTests, spoken, startFrames, voiceFor, type Reel } from "@/lib/adult/reels";
 import { mediaLinkValid, signedMediaUrl } from "@/lib/adult/media";
 import { loadCharacter } from "@/lib/character";
 
@@ -873,6 +873,39 @@ describe("the video of the night", () => {
     expect(settled.shots.every((s) => s.status === "failed")).toBe(true);
     scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }] }));
     expect((await make(cookie)).status).toBe(200);
+  });
+
+  it("says which video is in the way and how far along it is, calls it stuck after 30 minutes, and lets the owner stop it (David, 2026-10-21)", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    fakeVenice();
+    scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }] }));
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    const refused = await make(cookie);
+    expect(refused.status).toBe(409);
+    const body = await refused.json();
+    expect(body.busy).toMatchObject({ id: started.id, done: 0, shots: 3, stalled: false });
+    expect([body.busy.a, body.busy.b].sort()).toEqual([CAST_A, CAST_B].sort());
+    expect(body.message).toMatch(/is still being made \(0 of 3 shots, started just now\)\. One video at a time/);
+    await t.db.query(`update adult_reels set created_at = now() - interval '40 minutes' where id = $1`, [started.id]);
+    const stuck = await (await make(cookie)).json();
+    expect(stuck.busy.stalled).toBe(true);
+    expect(stuck.message).toMatch(/started 40 min ago\)\. That's much longer than usual, so it looks stuck: stop it/);
+    // Only the owner can stop it; then the slot is free.
+    const del = (rid: string, c: string) => reelDelete(new Request(`${BASE_URL}/api/admin/after-dark/reel?id=${rid}`, { method: "DELETE", headers: { cookie: c } }));
+    const other = await admin();
+    expect((await del(started.id, other.cookie)).status).toBe(404);
+    const stopped = (await (await del(started.id, cookie)).json()).reel as Reel;
+    expect(stopped.status).toBe("failed");
+    expect(stopped.shots.every((s) => s.status === "failed" && s.reason === "stopped")).toBe(true);
+    scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }] }));
+    expect((await make(cookie)).status).toBe(200);
+  });
+
+  it("words the refusal by age", () => {
+    const r = { id: "r", a: "x", b: "y", names: ["Ada", "Bo"] as [string, string], done: 2, shots: 6, minutes: 150, stalled: true };
+    expect(busyMessage(r)).toBe("A video of Ada and Bo is still being made (2 of 6 shots, started 3 hours ago). That's much longer than usual, so it looks stuck: stop it to get its tokens back, then make a new one.");
+    expect(busyMessage({ ...r, minutes: 4, stalled: false })).toMatch(/started 4 min ago\)\. One video at a time, and they usually take a few minutes\.$/);
   });
 
   it("picks lines across the night when the model's pick can't be read, and cuts what's said to what a shot holds", async () => {

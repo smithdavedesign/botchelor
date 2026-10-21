@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { airWindowMinutes } from "@/lib/air";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { updateCharacterMemory } from "@/lib/memory";
@@ -93,7 +94,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
             "Saved on this private date. Private dates stay offline and never air, so this reflection won't carry into its dates with others (the two of them still remember this date). To change that, make the date public (set_date_visibility)."
           : row.visibility === "unlisted"
             ? "Saved. Only public dates shape what a character carries forward, so this one won't: make the date public (set_date_visibility) and it will once it airs."
-            : "Saved. It joins what this character carries into future dates once the date airs (it airs on its own soon, or air_date now).",
+            : `Saved. It joins what this character carries into future dates once the date airs (it airs on its own, about ${airWindowMinutes()} minutes after it's ready).`,
     },
     200,
     sess,

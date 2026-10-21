@@ -107,10 +107,10 @@ describe("landing page (M3)", () => {
     expect(html).toContain('value="rp-discord"');
   });
 
-  it("speaks to the AI-friendly roleplay audience and mounts the waitlist on /", () => {
+  it("speaks to the AI-friendly roleplay audience, with no Season 1 waitlist (seasons are always on, 2026-10-21)", () => {
     const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
-    expect(page).toMatch(/import WaitlistForm from "\.\/WaitlistForm"/);
-    expect(page).toContain("<WaitlistForm");
+    expect(page).not.toContain("WaitlistForm");
+    expect(renderToStaticMarkup(createElement(WaitlistForm, { refSlug: null }))).not.toMatch(/Season 1/);
     expect(page).toMatch(/roleplay/i);
     expect(page).toMatch(/written by AI/i);
     // The builder now lives at its own /create wizard; the landing page routes there.

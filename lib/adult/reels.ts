@@ -22,6 +22,7 @@ import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import type { Character } from "../character";
 import { loadCharacter } from "../character";
 import type { Db } from "../db";
+import { REEL_STALLED_MS } from "./reel-timing";
 import { checkAdultText } from "../safety";
 import { checkOutput } from "./check";
 import { adultModel } from "./mode";
@@ -166,7 +167,62 @@ export function frameFor(frames: { id: string; character_id: string | null; char
   return pool.length ? pool[k % pool.length].id : null;
 }
 
-export type MakeReelResult = { ok: true; reel: Reel } | { ok: false; status: number; error: string; message: string };
+/** The reel holding the one-at-a-time slot, for the refusal: which pair, how far along, and whether it looks stuck. */
+export type BusyReel = { id: string; a: string; b: string; names: [string, string]; done: number; shots: number; minutes: number; stalled: boolean };
+
+export type MakeReelResult = { ok: true; reel: Reel } | { ok: false; status: number; error: string; message: string; busy?: BusyReel };
+
+/** What the refusal says about the reel in the way: the pair's names, progress, and, once it's stuck, what to do. */
+export function busyMessage(r: BusyReel): string {
+  const of = `${r.done} of ${r.shots} shots`;
+  const age = r.minutes < 1 ? "just now" : r.minutes < 90 ? `${r.minutes} min ago` : `${Math.round(r.minutes / 60)} hours ago`;
+  const what = `A video of ${r.names[0]} and ${r.names[1]} is still being made (${of}, started ${age}).`;
+  return r.stalled
+    ? `${what} That's much longer than usual, so it looks stuck: stop it to get its tokens back, then make a new one.`
+    : `${what} One video at a time, and they usually take a few minutes.`;
+}
+
+/** The owner's reel still making, if any, after giving up on any past REEL_GIVE_UP_MS (no provider is called). */
+async function busyReel(db: Db, ownerId: string): Promise<BusyReel | null> {
+  const { rows } = await db.query<{ id: string; character_a: string; character_b: string; shots: ReelShot[]; created_at: string | Date; a_name: string | null; b_name: string | null }>(
+    `select r.id, r.character_a, r.character_b, r.shots, r.created_at, ca.name as a_name, cb.name as b_name
+       from adult_reels r left join characters ca on ca.id = r.character_a left join characters cb on cb.id = r.character_b
+      where r.owner_id = $1 and r.status = 'making' order by r.created_at`,
+    [ownerId],
+  );
+  for (const r of rows) {
+    const age = Date.now() - new Date(r.created_at).getTime();
+    if (age > REEL_GIVE_UP_MS) {
+      await stopReel(db, ownerId, r.id, "gave up waiting");
+      continue;
+    }
+    const first = (n: string | null) => (n ?? "them").split(/\s+/)[0];
+    return {
+      id: r.id,
+      a: r.character_a,
+      b: r.character_b,
+      names: [first(r.a_name), first(r.b_name)],
+      done: r.shots.filter((s) => s.status !== "queued").length,
+      shots: r.shots.length,
+      minutes: Math.floor(age / 60_000),
+      stalled: age > REEL_STALLED_MS,
+    };
+  }
+  return null;
+}
+
+/**
+ * Stops a reel still being made: its shots still out are given up, the ones already in are kept (a reel with any is
+ * ready), and the share of tokens for the rest comes back. Anything else is left as it is.
+ */
+export async function stopReel(db: Db, ownerId: string, id: string, reason = "stopped"): Promise<Reel | null> {
+  const row = (await db.query<{ owner_id: string; status: string; shots: ReelShot[] }>(`select owner_id, status, shots from adult_reels where id = $1`, [id])).rows[0];
+  if (!row || row.owner_id !== ownerId) return null;
+  if (row.status !== "making") return getReel(db, id);
+  const shots = row.shots.map((s) => (s.status === "queued" ? { ...s, status: "failed" as const, reason } : s));
+  await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'making'`, [id, JSON.stringify(shots)]);
+  return settleIfDone(db, id);
+}
 
 /**
  * Starts a reel of a night: spends the tokens (admins free), picks the lines, voices them and queues one shot per line.
@@ -180,8 +236,8 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
   const keys = await adultKeys(db);
   if (!keys.venice || !keys.hive) return { ok: false, status: 409, error: "not_set_up", message: "Videos need the Venice and Hive keys in After Dark's settings." };
   if (lines.length < 6) return { ok: false, status: 409, error: "too_short", message: "Let the night run a little longer first: a video needs at least six lines." };
-  const busy = await db.query(`select 1 from adult_reels where owner_id = $1 and status = 'making'`, [ownerId]);
-  if (busy.rows.length) return { ok: false, status: 409, error: "busy", message: "A video is already being made. It takes a few minutes." };
+  const busy = await busyReel(db, ownerId);
+  if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
   const pays = !(await isAdmin(db, ownerId));
   const price = settings.reel_tokens;
   if (pays && !(await spendBoughtTokens(db, ownerId, price))) {

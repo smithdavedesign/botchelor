@@ -61,19 +61,22 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("the tool list: everything by default, the core on request", () => {
-  it("lists the core tools in first-night order, a fraction of the size of the full list", async () => {
-    // 2026-10-20: every tool by default again; the core is the short list on request.
-    const core = (await rpc("tools/list", {}, { toolset: "core" })).result.tools;
+describe("the tool list: the core by default, everything on request", () => {
+  it("lists the core tools in first-night order, smaller than the full list", async () => {
+    // #461: the core is the default everywhere (as over HTTP); ?tools=all or { all: true } lists every tool.
+    const core = (await rpc("tools/list")).result.tools;
     expect(core.map((x: Any) => x.name)).toEqual([...CORE_TOOL_ORDER]);
     expect(core).toHaveLength(CORE_MCP_TOOLS.length);
-    const all = (await rpc("tools/list")).result.tools;
+    expect((await rpc("tools/list", {}, { toolset: "core" })).result.tools).toHaveLength(CORE_MCP_TOOLS.length);
+    const all = (await rpc("tools/list", {}, { toolset: "all" })).result.tools;
     expect(all).toHaveLength(PUBLIC_MCP_TOOLS.length);
-    // 2026-10-20: 53 tools were ~55 KB (~14k tokens) in every agent's context on every turn. The core stays well under that.
+    // 2026-10-20: 53 tools were ~55 KB (~14k tokens) in every agent's context on every turn. The core stays under that.
     // 2026-10-20 (20 visitor runs: "hidden tools" was the most common deduction): autoplay, my_dates, plan_second_date
-    // and sliding_doors joined the core, so the budget moved from 31 KB to 37 KB. Still well under the full list.
-    expect(JSON.stringify(core).length).toBeLessThan(37_000);
-    expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.65);
+    // and sliding_doors joined the core, so the budget moved from 31 KB to 37 KB. 2026-10-21 (#423, #444, #461): the
+    // tools replies kept sending agents to (my_matches, my_notifications, export_character, set_date_visibility, the
+    // feedback board) joined too, and every tool says what it costs and returns: 46 KB.
+    expect(JSON.stringify(core).length).toBeLessThan(46_000);
+    expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.76);
     expect((await rpc("tools/list", { all: true })).result.tools).toHaveLength(PUBLIC_MCP_TOOLS.length);
     expect((await rpc("tools/list", { lean: true, core: true })).result.tools).toHaveLength(CORE_MCP_TOOLS.length);
   });
@@ -93,12 +96,13 @@ describe("the tool list: everything by default, the core on request", () => {
     const core = (await rpc("tools/list", { core: true })).result;
     expect(core.more_tools).toMatchObject({ listed: CORE_MCP_TOOLS.length, total: PUBLIC_MCP_TOOLS.length, how: expect.stringMatching(/\{ all: true \}.*\?tools=all/) });
     expect(core.more_tools.not_listed).toHaveLength(PUBLIC_MCP_TOOLS.length - CORE_MCP_TOOLS.length);
-    expect(core.more_tools.not_listed).toEqual(expect.arrayContaining(["my_matches", "feedback_board"]));
+    expect(core.more_tools.not_listed).toEqual(expect.arrayContaining(["find_matches", "my_character_memory"]));
     expect(core.more_tools.not_listed).not.toContain("my_status");
     expect(core.more_tools.not_listed).not.toContain("my_dates"); // #454 moved it into the core
+    expect(core.more_tools.not_listed).not.toContain("my_matches"); // #423
     expect((await rpc("tools/list", { lean: true, core: true })).result.more_tools).toEqual(core.more_tools);
     expect((await rpc("tools/list", {}, { toolset: "core" })).result.more_tools).toEqual(core.more_tools);
-    expect((await rpc("tools/list")).result.more_tools).toBeUndefined();
+    expect((await rpc("tools/list")).result.more_tools).toEqual(core.more_tools);
     // The whole list, or named tools, is complete: no marker.
     expect((await rpc("tools/list", { all: true })).result.more_tools).toBeUndefined();
     expect((await rpc("tools/list", {}, { toolset: "all" })).result.more_tools).toBeUndefined();
@@ -121,7 +125,7 @@ describe("the tool list: everything by default, the core on request", () => {
     expect(stream.status).toBe(405);
     const bare = await get("");
     expect(bare.status).toBe(405);
-    expect((await bare.json()).message).toMatch(/GET \/api\/mcp\?tools=all lists every tool/);
+    expect((await bare.json()).message).toMatch(/GET \/api\/mcp\?tools=all\) for every tool/);
   });
 });
 
