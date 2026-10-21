@@ -1,12 +1,14 @@
 /**
  * RepoHQ's funnel beacon: the owner's portfolio dashboard, whose growth loop reads it (idea-factory lib/growth.js).
  * `visit` once per browser session on any page, `activate` the first time this browser starts a date (the core
- * action, GROWTH.md), and `checkout` when someone clicks Buy, each with the page it happened on (beaconPath).
+ * action, GROWTH.md), and `checkout` when someone clicks Buy, each with the page it happened on (beaconPath). A visit
+ * from a shared episode link also carries its tag, `ref: "share"` (beaconRef).
  * Fire-and-forget POSTs with no cookies; RepoHQ keeps a keyed hash of the IP, never the address. Nothing is sent from
  * previews or local runs, from automated browsers, when localStorage "repohq:notrack" is set (the owner's own
  * browsers), or when the visitor declined analytics cookies.
  */
 import { safeFrom } from "@/lib/age";
+import { SHARE_REF } from "@/lib/episode-share";
 
 export const SIGNAL_URL = "https://repohq.vercel.app/api/ideas/signal";
 export const SLUG = "botchelor";
@@ -39,6 +41,23 @@ export function beaconPath(pathname: string, search = ""): string {
   const from = pathname === "/gate" ? new URLSearchParams(search).get("from") : null;
   if (from) path = safeFrom(from).split(/[?#]/)[0] || "/";
   return path === "/ship" || path.startsWith("/ship/") ? "/ship" : path;
+}
+
+/** The tags a link may carry (?ref=…) and the only ones sent: an episode's share links (lib/episode-share.ts). */
+export const BEACON_REFS: readonly string[] = [SHARE_REF];
+
+/**
+ * The tag a visit came with: this page's ?ref, or on the 18+ gate the ?ref of the page the visitor was headed to (the
+ * gate keeps it in `from`). Only a known tag, so nothing typed into an address reaches the beacon; otherwise null.
+ */
+export function beaconRef(pathname: string, search = ""): string | null {
+  let query = search;
+  if (pathname === "/gate") {
+    const from = new URLSearchParams(search).get("from");
+    query = from ? (safeFrom(from).split("#")[0].split("?")[1] ?? "") : "";
+  }
+  const ref = new URLSearchParams(query).get("ref");
+  return ref && BEACON_REFS.includes(ref) ? ref : null;
 }
 
 /** Set by <FunnelBeacon> from the server: whether this is production, and this visitor's consent default. */
@@ -80,6 +99,8 @@ export function sendFunnel(kind: FunnelKind): void {
       if (store.getItem(`repohq:${kind}`)) return;
       store.setItem(`repohq:${kind}`, "1");
     }
+    // Where a visit came from; a date started or a Buy click is counted as before.
+    const ref = kind === "visit" ? beaconRef(location.pathname, location.search) : null;
     // text/plain keeps it a "simple" cross-origin request (no preflight), which keepalive needs in every browser;
     // RepoHQ parses the body as JSON either way.
     void fetch(SIGNAL_URL, {
@@ -90,6 +111,7 @@ export function sendFunnel(kind: FunnelKind): void {
         kind,
         path: beaconPath(location.pathname, location.search),
         referrer: externalReferrer(document.referrer, location.origin),
+        ...(ref ? { ref } : {}),
       }),
       keepalive: true,
       credentials: "omit",
