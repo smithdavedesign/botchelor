@@ -4,7 +4,7 @@
  */
 import { shortName } from "./names";
 import type { Db } from "./db";
-import { settleCommitment } from "./partners";
+import { settleCommitment, warnBeforeExclusive } from "./partners";
 import { resolveArcs } from "./arcs";
 import { followerIds } from "./follows";
 import { notifyAll, ownersOf } from "./notifications";
@@ -23,7 +23,8 @@ const RANK: Partial<Record<Stage, number>> = { just_met: 1, sparks: 2, dating: 3
  */
 export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { episodeId?: string } = {}): Promise<void> {
   const [lo, hi] = pairKey(x, y);
-  const before = (await db.query<{ public_stage: Stage | null }>(`select public_stage from relationships where character_a = $1 and character_b = $2`, [lo, hi])).rows[0]?.public_stage ?? null;
+  const prior = (await db.query<{ public_stage: Stage | null; stage: Stage | null }>(`select public_stage, stage from relationships where character_a = $1 and character_b = $2`, [lo, hi])).rows[0];
+  const before = prior?.public_stage ?? null;
   const rel = await refreshRelationship(db, lo, hi);
   const after = rel?.public.stage ?? null;
   const names = new Map(
@@ -54,4 +55,7 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
   await resolveArcs(db, lo, hi).catch(() => 0);
   // In a relationship now? Each side settles one partner or more, and a one-partner side closes to dates.
   await settleCommitment(db, lo, hi).catch(() => {});
+  // 2.4.2: just became Sparks (the stage that counts every date, as settleCommitment's does)? One more second date
+  // makes them a Dating couple, so a one-partner side's owner hears it first, with the opt-out.
+  if (rel?.all.stage === "sparks" && prior?.stage !== "sparks") await warnBeforeExclusive(db, lo, hi).catch(() => 0);
 }

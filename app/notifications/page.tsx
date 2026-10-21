@@ -51,7 +51,7 @@ export default async function NotificationsPage() {
                 {n.booked ? (
                   // A "Book it" notice whose date has been booked since (lib/notifications.ts withBookings).
                   <span className="notification-booked">
-                    ✓ {n.body} <Link href={`/episodes/${n.booked.episode_id}`}>{n.booked.status === "ready" ? "Watch it" : "Watch it being filmed"}</Link>
+                    ✓ {n.body} <Link href={`/episodes/${n.booked.episode_id}`}>{n.booked.status === "ready" ? "Watch it" : n.booked.performed === "show" ? "Watch it being filmed" : "See the date"}</Link>
                   </span>
                 ) : (
                   n.body && <span className="muted">“{n.body}”</span>

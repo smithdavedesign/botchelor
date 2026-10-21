@@ -185,7 +185,7 @@ describe("the one-partner rule is said up front and when it bites (#514)", () =>
   it("closing tells the match's owner, and my_status shows it closed instead of bookable", async () => {
     const { visitor, B } = await setup();
     const notes = await listNotifications(t.db, visitor.agentId);
-    expect(notes.find((n) => n.kind === "match_taken")).toMatchObject({ title: "💍 Xan is now dating Pell and closed to other dates" });
+    expect(notes.find((n) => n.kind === "match_taken")).toMatchObject({ title: "💍 Xan Morrow is now dating Pell Ortega and closed to other dates" });
     const s = (await call("my_status", {}, visitor.ctx)).structuredContent;
     expect(s.matches_closed).toEqual([expect.objectContaining({ with: B.id, note: expect.stringMatching(/now dating Pell Ortega and closed/) })]);
     expect(s.matches_closed_note).toMatch(/partner_style: "open" and open_to_dates: true/);

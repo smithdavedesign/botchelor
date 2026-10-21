@@ -157,7 +157,7 @@ export type ReflectStep = {
 
 export type OwnDateResult =
   | { ok: true; step: OwnDateStep; rejected?: string; checked?: true; /** start_own_date found this pair's date already in progress and returned it (#413). */ resumed?: true }
-  | { ok: false; status: number; error: string; message: string };
+  | { ok: false; status: number; error: string; message: string; /** #551: a date_finished refusal names where the date stands. */ state?: FinishedState };
 
 type Row = {
   id: string;
@@ -206,13 +206,26 @@ type OwnCharacter = { id: string; name: string; age: number; bio: string; traits
 /** Clears this identity's (or, with no identity, everyone's) unfinished self-performed dates older than the TTL. */
 export async function clearStaleOwnDates(db: Db, now: Date = new Date(), creatorId?: string): Promise<number> {
   const cutoff = new Date(now.getTime() - OWN_DATE_TTL_HOURS * 3_600_000).toISOString();
-  const { rows } = await db.query<{ id: string }>(
+  const { rows } = await db.query<{ id: string; creator_id: string; partner_performer: string | null }>(
     `delete from episodes
       where performed_by = 'agent' and status = 'generating' and created_at < $1 and ($2::text is null or creator_id = $2)
-      returning id`,
+      returning id, creator_id, partner_performer`,
     [cutoff, creatorId ?? null],
   );
   await settleOwnDateNotices(db, rows.map((r) => r.id));
+  // #551: a note (already read: nothing to do) for each agent in it, so a late line is told the date lapsed.
+  for (const r of rows) {
+    for (const to of new Set([r.creator_id, r.partner_performer].filter((x): x is string => Boolean(x)))) {
+      await db
+        .query(`insert into notifications (id, user_id, kind, title, body, link, read_at) values ($1, $2, 'own_date_lapsed', $3, $4, null, now())`, [
+          crypto.randomUUID(),
+          to,
+          "A date lapsed unfinished",
+          `Date ${r.id} lapsed after ${OWN_DATE_TTL_HOURS} hours unfinished and was removed. Nothing was shown or spent.`,
+        ])
+        .catch(() => {});
+    }
+  }
   return rows.length;
 }
 
@@ -1136,11 +1149,42 @@ async function notFound(db: Db, userId: string, episodeId: string): Promise<OwnD
 
 const asText = (output: unknown): string => (typeof output === "string" ? output : JSON.stringify(output ?? null));
 
+/** Where a date that takes no more lines from this agent stands (#551): finished, called off or lapsed, or the show's. */
+export type FinishedState = "done" | "called_off" | "gone" | "handed_over";
+/** The refusal's code: one for every state, so an agent's line never vanishes behind accepted: true (#551). */
+export const DATE_FINISHED = "date_finished";
+
+/**
+ * #551: a line handed in to a date that's over came back as accepted: true and the line was dropped. Now it's refused,
+ * naming the state: done (finished), called_off (declined or cancelled), gone (lapsed, or no longer there), or
+ * handed_over (the show's model plays every side this agent had). Null while the date still takes this agent's lines.
+ */
+async function finishedRefusal(db: Db, userId: string, episodeId: string, row: Row | null): Promise<OwnDateRefusal | null> {
+  const unused = "Your line wasn't used.";
+  if (row) {
+    if (row.status === "ready") return { ...err(409, DATE_FINISHED, `That date is already finished (state: done). ${unused} get_own_date_step reads the result.`), state: "done" };
+    const performers = performersOf(row);
+    if (performers.a !== userId && performers.b !== userId) {
+      return { ...err(409, DATE_FINISHED, `The show's model plays your side of that date now (state: handed_over): it takes no more lines from you. ${unused} get_own_date_step follows it.`), state: "handed_over" };
+    }
+    return null;
+  }
+  const gone = (await notFound(db, userId, episodeId)) as OwnDateRefusal;
+  if (gone.error === "own_date_declined") {
+    return { ...err(410, DATE_FINISHED, `${gone.message.replace(/ Nothing was shown or spent\.$/, "")} (state: called_off). ${unused}`), state: "called_off" };
+  }
+  // No row: lapsed (an unfinished date goes after OWN_DATE_TTL_HOURS) if this agent ever heard of it, else not theirs.
+  const heard = await db.query(`select 1 from notifications where user_id = $1 and body like $2 limit 1`, [userId, `%${episodeId}%`]).catch(() => ({ rows: [] }));
+  if (!heard.rows.length) return gone;
+  return { ...err(410, DATE_FINISHED, `That date is over (state: gone): it lapsed after ${OWN_DATE_TTL_HOURS} hours unfinished, or was removed. ${unused}`), state: "gone" };
+}
+
 /** Hand in the output for the current step; returns the next one (or the same one, refused, with why). */
 export async function submitOwnDateStep(db: Db, userId: string, episodeId: string, output: unknown, opts: { checkOnly?: boolean } = {}): Promise<OwnDateResult> {
   const row = await load(db, userId, episodeId);
+  const over = await finishedRefusal(db, userId, episodeId, row);
+  if (over) return over;
   if (!row) return notFound(db, userId, episodeId);
-  if (row.status === "ready") return getOwnDateStep(db, userId, episodeId);
   const { built, decided, formatId } = await rebuild(db, row);
   const transcript = row.transcript ?? [];
   const current = stepFor(episodeId, built, decided, formatId, transcript, [row.a_id, row.b_id]);
@@ -1185,6 +1229,9 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     );
     // Someone else handed in this turn first (a retry racing itself): offer whatever step is current now.
     if (!saved.rows.length) return getOwnDateStep(db, userId, episodeId);
+    // 2.4.2 (the 2026-10-21-0319 run): this agent's move is made, so its "Your move…" notice for this date resolves now,
+    // not when the date ends (the shared helper, #527/#548). Before anything below can tell it of its next move.
+    await resolveTurnNotices(db, episodeId, [userId]);
     // The date closed on this line: the recap is next (a fresh read picks up end_by).
     if (endBy) return getOwnDateStep(db, userId, episodeId);
     // Two-agent: the next step may be the other agent's turn, or the show's recap (getOwnDateStep runs it).
@@ -1242,6 +1289,9 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
 /** One reminder per silence to the agent whose move it is: the show's model takes its turns soon. */
 async function nudgeQuiet(db: Db, to: string, row: Row, side: "a" | "b"): Promise<void> {
   const since = lastMove(row).toISOString();
+  // 2.4.2: their line may have landed since this row was read; a nudge after it would be a stale "Still your move".
+  const moved = await db.query(`select 1 from episodes where id = $1 and (status <> 'generating' or jsonb_array_length(transcript) <> $2)`, [row.id, (row.transcript ?? []).length]);
+  if (moved.rows.length) return;
   const already = await db.query(
     `select 1 from notifications where user_id = $1 and kind = 'own_date_turn' and title like '⏰%' and body like $2 and created_at >= $3 limit 1`,
     [to, `%${row.id}%`, since],

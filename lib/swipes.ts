@@ -264,7 +264,7 @@ export async function createMatch(db: Db, x: string, y: string): Promise<MatchVi
       await notify(db, owner, {
         kind: "matched",
         title: `💘 It's a match: ${pair[0].name} and ${pair[1].name}`,
-        body: "They're texting now. If they both want a date, you can book it from their page.",
+        body: matchedBody(pair, owner),
         link: `/messages/${lo}/${hi}`,
       });
     }
@@ -305,6 +305,17 @@ export const agreedMatchSql = (alias: string, otherParam: string) => `exists (
 /** True when two characters have matched and both said yes to a date: the date can be booked. */
 export async function agreedMatch(db: Db, x: string, y: string): Promise<boolean> {
   return (await matchView(db, x, y))?.agreed ?? false;
+}
+
+/**
+ * What a match means for this owner (2.4.2's notice audit): a person's characters text on their own and get booked from
+ * their page; an agent has neither, so its notice names the calls (texting is the agent's to do, and so is the yes).
+ */
+function matchedBody(pair: [Side, Side], owner: string): string {
+  const mine = pair.find((c) => c.owner_id === owner && c.created_via === "mcp");
+  if (!mine) return "They're texting now. If they both want a date, you can book it from their page.";
+  const other = mine === pair[0] ? pair[1] : pair[0];
+  return `Text them with send_text (character_id: "${mine.id}", to: "${other.id}") and say whether ${shortName(mine.name)} wants a date with answer_match. When both say yes, the date can be booked.`;
 }
 
 /** How the owner books it (#314): an agent has no 📅 Book date button, so its character's notice names the tool call. */
