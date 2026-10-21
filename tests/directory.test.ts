@@ -77,4 +77,19 @@ describe("the character directory", () => {
     expect(owner).toContain(validCharacter().bio as string);
     expect(owner).toMatch(/Make public/);
   });
+
+  it("a private character's relationship board is its name only to others, and the board to its owner", async () => {
+    const hidden = await made("Quiet Type");
+    await api.editCharacter(hidden.id, { visibility: "private" }, hidden.cookie);
+    const { default: RelationshipBoard } = await import("@/app/characters/[id]/relationships/page");
+    const render = async (cookie: string) => {
+      jar.cookies.clear();
+      jar.cookies.set(cookie.split("=")[0], cookie.split("=")[1]);
+      return renderToStaticMarkup(await RelationshipBoard({ params: Promise.resolve({ id: hidden.id }) }));
+    };
+    const stranger = await render(newUserCookie());
+    expect(stranger).toContain("Quiet Type");
+    expect(stranger).toMatch(/keeps this character private/);
+    expect(await render(hidden.cookie)).not.toMatch(/keeps this character private/);
+  });
 });
