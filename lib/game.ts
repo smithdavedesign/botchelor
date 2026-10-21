@@ -513,19 +513,108 @@ export async function getEpisodeView(db: Db, id: string, viewerId: string | null
 export async function listFeed(db: Db, viewerId: string | null, limit = FEED_LIMIT): Promise<EpisodeView[]> {
   const { rows } = await db.query<EpisodeRow>(
     `${EPISODE_SELECT}
-      where rep.n < $2::int
+      where ${PUBLIC_FEED_WHERE}
+      order by e.created_at desc, e.id
+      limit $3`,
+    [viewerId, REPORT_HIDE_THRESHOLD, limit],
+  );
+  return rows.map(toView);
+}
+
+/**
+ * What any public list of dates may show ($1 = the viewer, $2 = the report threshold): ready, public, not hidden by
+ * reports, and not involving a creator the viewer blocked (see listFeed). Needs EPISODE_SELECT's `e`, `a`, `b`, `rep`.
+ */
+const PUBLIC_FEED_WHERE = `rep.n < $2::int
         and e.status = 'ready'
         and e.visibility = 'public'
         and not exists (
           select 1 from blocks bl
             join episodes be on be.id = bl.via_episode_id
             join characters bc on bc.id in (be.character_a, be.character_b) and bc.owner_id = bl.blocked_id
-           where bl.blocker_id = $1::text and bc.id in (e.character_a, e.character_b))
-      order by e.created_at desc, e.id
-      limit $3`,
-    [viewerId, REPORT_HIDE_THRESHOLD, limit],
+           where bl.blocker_id = $1::text and bc.id in (e.character_a, e.character_b))`;
+
+/** Not one of the viewer's own dates ($1): those are on their account page, so Watch leaves them out. */
+const NOT_THE_VIEWERS = `not coalesce($1::text in (a.owner_id, b.owner_id), false)`;
+
+/** Watch's "Latest episodes": this many aired dates a page. */
+export const WATCH_PAGE_SIZE = 12;
+/** The highest `?page=` taken at face value; a bigger number is junk and reads as page 1. */
+const MAX_PAGE = 100_000;
+
+/**
+ * A `?page=` search param as a page number: a whole number from 1, else 1. A repeated param uses the first; "0",
+ * "-2", "2.5", "1e3", "abc" and absurdly large numbers all read as 1, so a hand-typed URL never errors.
+ */
+export function parsePage(raw: string | string[] | undefined | null): number {
+  const value = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? "";
+  if (!/^\d{1,9}$/.test(value)) return 1;
+  const n = Number(value);
+  return n >= 1 && n <= MAX_PAGE ? n : 1;
+}
+
+export type EpisodePage = {
+  episodes: EpisodeView[];
+  /** The page asked for (it may be past the last one, which then has no episodes). */
+  page: number;
+  /** How many pages there are, at least 1. */
+  pages: number;
+  total: number;
+  per_page: number;
+};
+
+/**
+ * One page of aired public dates, the most recently aired first (Watch's "Latest episodes", `?page=N`). The viewer's
+ * own dates are left out (their account page lists them). A page past the end comes back empty, with the real count.
+ */
+export async function listAiredPage(db: Db, viewerId: string | null, page = 1, perPage = WATCH_PAGE_SIZE): Promise<EpisodePage> {
+  const where = `${PUBLIC_FEED_WHERE} and e.revealed_at is not null and ${NOT_THE_VIEWERS}`;
+  const total =
+    (
+      await db.query<{ n: number }>(
+        `select count(*)::int as n
+           from episodes e
+           join characters a on a.id = e.character_a
+           join characters b on b.id = e.character_b
+           cross join lateral (select count(*)::int as n from reports r where r.episode_id = e.id) rep
+          where ${where}`,
+        [viewerId, REPORT_HIDE_THRESHOLD],
+      )
+    ).rows[0]?.n ?? 0;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  if (page > pages) return { episodes: [], page, pages, total, per_page: perPage };
+  const { rows } = await db.query<EpisodeRow>(
+    `${EPISODE_SELECT}
+      where ${where}
+      order by e.revealed_at desc, e.created_at desc, e.id
+      limit $3 offset $4`,
+    [viewerId, REPORT_HIDE_THRESHOLD, perPage, (page - 1) * perPage],
   );
-  return rows.map(toView);
+  return { episodes: rows.map(toView), page, pages, total, per_page: perPage };
+}
+
+export type AiringSoon = EpisodeView & {
+  /** When its finale airs on its own: its scheduled time, or its booking plus the prediction window. */
+  airs_at: string;
+};
+
+/**
+ * Public dates that haven't aired, so they're still open to predictions, the soonest to air first (Watch's "Airing
+ * soon: call it before it airs"). A date with a watch room airs in its room, so the rooms list it instead. The
+ * prediction window (lib/air.ts airWindowMinutes) is passed in, so this module needn't import the airing code.
+ */
+export async function listAiringSoon(db: Db, viewerId: string | null, windowMinutes: number, limit = 8): Promise<AiringSoon[]> {
+  const { rows } = await db.query<EpisodeRow & { airs_at: Date | string }>(
+    `select x.*, coalesce(ea.air_after, ea.created_at + $3 * interval '1 minute') as airs_at
+       from (${EPISODE_SELECT}
+              where ${PUBLIC_FEED_WHERE} and e.revealed_at is null and ${NOT_THE_VIEWERS}
+                and not exists (select 1 from watch_parties w where w.episode_id = e.id)) x
+       join episodes ea on ea.id = x.id
+      order by airs_at asc, x.id
+      limit $4`,
+    [viewerId, REPORT_HIDE_THRESHOLD, windowMinutes, limit],
+  );
+  return rows.map((row) => ({ ...toView(row), airs_at: new Date(row.airs_at).toISOString() }));
 }
 
 export type MyEpisodeCard = {

@@ -343,6 +343,29 @@ export type WatchPhaseId = WatchPhase["id"];
 export const WATCH_PHASE_INDEX: Record<WatchPhaseId, number> = Object.fromEntries(
   WATCH_PHASES.map((p, i) => [p.id, i]),
 ) as Record<WatchPhaseId, number>;
+/** When the first lines play: the pre-show ends and first impressions begin, in seconds from the room's start. */
+export const WATCH_FIRST_LINE_AT = WATCH_PHASES[1].at;
+
+/**
+ * A countdown as m:ss ("0:23", "1:05", "12:00"), or h:mm:ss from an hour ("2:00:30", a premiere set for later).
+ * Fractions round up to whole seconds; negatives and junk read as 0.
+ */
+export function formatCountdown(seconds: number): string {
+  const s = Math.max(0, Math.ceil(Number.isFinite(seconds) ? seconds : 0));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (s >= 3600) return `${Math.floor(s / 3600)}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
+  return `${Math.floor(s / 60)}:${pad(s % 60)}`;
+}
+
+/**
+ * The pre-show line in a watch room: "Starts in 0:23" while it counts down to the first lines, "Starting now…" at 0,
+ * and "Starting…" before the room's clock has started (its first viewer starts it on joining).
+ */
+export function preshowCountdownLabel(secondsLeft: number | null): string {
+  if (secondsLeft === null) return "Starting…";
+  return secondsLeft > 0.5 ? `Starts in ${formatCountdown(secondsLeft)}` : "Starting now…";
+}
+
 /** The phase at which the ending is shown and the finale airs (predictions close and resolve). */
 export const WATCH_DECISION_INDEX = WATCH_PHASE_INDEX.decision;
 
