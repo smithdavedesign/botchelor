@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { adminRemoveCharacters } from "@/lib/account";
-import { isAdmin } from "@/lib/admins";
+import { isSignedInAdmin } from "@/lib/admins";
 import { getDb } from "@/lib/db";
-import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 /** The admin password (x-frontier-key, like the other admin tools) or an admin account (lib/admins.ts). */
 async function authorized(req: Request): Promise<boolean> {
   if (frontierAuthorized(req)) return true;
-  return isAdmin(await getDb(), session(req).userId);
+  return isSignedInAdmin(await getDb(), authFromRequest(req));
 }
 
 const Remove = z.object({ remove: z.array(z.string().min(1).max(64)).min(1).max(50) });

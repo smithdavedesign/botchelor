@@ -1,8 +1,8 @@
 import { deleteAccount } from "@/lib/account";
-import { accountForUser, googleConfigured, sessionsSignable } from "@/lib/auth";
+import { accountForUser, googleConfigured, needsSignIn, sessionsSignable } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getPoints } from "@/lib/game";
-import { authFromRequest, handle, json, readJson, userIdFromRequest } from "@/lib/http";
+import { authFromRequest, handle, json, readJson } from "@/lib/http";
 
 /**
  * Who the current session is and its points. Points are read-only (derived from revealed predictions). The
@@ -28,11 +28,12 @@ export const GET = handle(async (req) => {
 /**
  * Delete this account and all its data (PRD §6.1). Requires { "confirm": true } so it can't be triggered
  * by accident. Removes the profile, characters, private souls, predictions, orders and side-game data;
- * characters already in shared episodes keep their fictional sheet but lose the soul and the owner link.
+ * characters already in shared episodes keep their fictional sheet but lose the soul and the owner link. An
+ * account needs its sign-in (lib/auth needsSignIn).
  */
 export const DELETE = handle(async (req) => {
-  const userId = userIdFromRequest(req);
-  if (!userId) return json({ error: "no_account", message: "No account to delete." }, 404);
+  const auth = authFromRequest(req);
+  if (!auth) return json({ error: "no_account", message: "No account to delete." }, 404);
   const body = await readJson(req);
   if (!body || typeof body !== "object" || (body as Record<string, unknown>).confirm !== true) {
     return json(
@@ -40,6 +41,8 @@ export const DELETE = handle(async (req) => {
       422,
     );
   }
-  const result = await deleteAccount(await getDb(), userId);
+  const db = await getDb();
+  if (await needsSignIn(db, auth)) return json({ error: "sign_in_required", message: "This is an account: sign in to do that." }, 401);
+  const result = await deleteAccount(db, auth.userId);
   return json({ deleted: true, ...result });
 });

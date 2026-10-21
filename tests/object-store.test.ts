@@ -213,7 +213,7 @@ describe("After Dark's media in the bucket", () => {
     // A clip from the first picture, stored in the bucket once fal's done.
     fakeProviders();
     const clip = await startClip(t.db, id, pic.id, "a slow turn");
-    expect(await pollClip(t.db, clip.id)).toBe("ready");
+    expect(await pollClip(t.db, clip.id, id)).toBe("ready");
     const c = await row("adult_images", clip.id);
     expect(c.data).toBeNull();
     expect(objects.get(c.object_key!)?.bytes).toEqual(MP4);

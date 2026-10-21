@@ -26,7 +26,9 @@ import {
   scriptedModel,
   scriptOutcome,
   setupEpisode,
+  signedInCookie,
   startTestDb,
+  TEST_SESSION_SECRET,
   userIdOf,
   validCharacter,
 } from "./helpers";
@@ -179,8 +181,11 @@ describe("report review", () => {
     const listed = await (await get({ "x-frontier-key": "owner-pass" })).json();
     expect(listed.episodes.map((e: { episode_id: string }) => e.episode_id)).toEqual([id]);
 
-    const admin = newUserCookie();
-    await claimAdmin(t.db, userIdOf(admin));
+    const bare = newUserCookie();
+    await claimAdmin(t.db, userIdOf(bare));
+    expect((await get({ cookie: bare })).status).toBe(403); // an admin's id alone isn't signed in
+    vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
+    const admin = signedInCookie(userIdOf(bare));
     expect((await get({ cookie: admin })).status).toBe(200);
 
     const review = (decision: string) =>

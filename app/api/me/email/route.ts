@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { needsSignIn } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { emailStatus, startEmailOptIn, turnOffEmail } from "@/lib/email";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
@@ -6,7 +7,9 @@ import { handle, json, parseBody, readJson, session } from "@/lib/http";
 /** Your email notification settings (lib/email.ts). */
 export const GET = handle(async (req: Request) => {
   const sess = session(req);
-  return json(await emailStatus(await getDb(), sess.userId), 200, sess);
+  const db = await getDb();
+  if (await needsSignIn(db, sess)) return json({ error: "sign_in_required", message: "This is an account: sign in to do that." }, 401);
+  return json(await emailStatus(db, sess.userId), 200, sess);
 });
 
 const Input = z.object({ email: z.string().trim().max(254).optional() });
@@ -29,6 +32,7 @@ export const POST = handle(async (req: Request) => {
 export const DELETE = handle(async (req: Request) => {
   const sess = session(req);
   const db = await getDb();
+  if (await needsSignIn(db, sess)) return json({ error: "sign_in_required", message: "This is an account: sign in to do that." }, 401);
   await turnOffEmail(db, sess.userId);
   return json(await emailStatus(db, sess.userId), 200, sess);
 });

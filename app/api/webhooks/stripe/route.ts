@@ -3,7 +3,7 @@ import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { grantOrder, refundForPayment } from "@/lib/payments";
-import { verifyStripeSignature } from "@/lib/stripe";
+import { testEventsGrant, verifyStripeSignature } from "@/lib/stripe";
 
 /** Checkout Session events are a few KB; anything this big isn't one. */
 const MAX_WEBHOOK_BYTES = 256 * 1024;
@@ -14,6 +14,7 @@ const GRANTING_EVENTS = new Set(["checkout.session.completed", "checkout.session
 const StripeEvent = z.object({
   id: z.string(),
   type: z.string(),
+  livemode: z.boolean().optional(),
   data: z.object({ object: z.record(z.string(), z.unknown()) }),
 });
 
@@ -42,7 +43,7 @@ const invalidPayload = () => json({ error: "invalid_payload" }, 400);
  * Stripe's webhook: how a payment on the owner's Payment Link becomes a pack. The signature is checked
  * over the raw text before anything is parsed; a bad one is a 400 that grants nothing. Every verified
  * event gets a 200 (unless malformed), so Stripe stops retrying; each Stripe session is granted at most
- * once (grantOrder). A payment we can't match is logged with its session id, for a grant by hand.
+ * once (grantOrder). A test-mode event changes nothing on production (lib/stripe testEventsGrant). A payment we can't match is logged with its session id, for a grant by hand.
  */
 export const POST = handle(async (req) => {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -66,6 +67,11 @@ export const POST = handle(async (req) => {
   }
   const event = StripeEvent.safeParse(parsed);
   if (!event.success) return invalidPayload();
+
+  if (event.data.livemode === false && !testEventsGrant()) {
+    console.warn(`[stripe] test-mode ${event.data.type} ignored on production (event ${event.data.id})`);
+    return json({ received: true });
+  }
 
   if (GRANTING_EVENTS.has(event.data.type)) {
     const checkout = CheckoutSessionObject.safeParse(event.data.data.object);
