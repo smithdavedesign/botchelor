@@ -4,14 +4,13 @@ import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import EpisodeItem from "@/app/EpisodeItem";
 import JsonLd from "@/app/JsonLd";
-import ReunionPanel from "@/app/ReunionPanel";
 import { airWindowMinutes } from "@/lib/air";
 import { getDb } from "@/lib/db";
 import { listAiredPage, listAiringSoon, parsePage, type AiringSoon } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
 import { listMyLeagues } from "@/lib/leagues";
 import { getProfileName } from "@/lib/people";
-import { getReunion } from "@/lib/reunion";
+import { getReunion, type Reunion } from "@/lib/reunion";
 import { itemListJsonLd } from "@/lib/seo";
 import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch";
 import { dateLabel, ENDING_LABELS } from "@/lib/rules";
@@ -70,6 +69,43 @@ function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
       </div>
       <span className={`watch-lobby-live${room.status === "live" ? " on" : ""}`}>{action}</span>
     </Link>
+  );
+}
+
+/** How many replays the strip carries: the newest, sideways, so they never add to the page's length. */
+const REPLAYS_SHOWN = 12;
+
+/**
+ * The Reunion, as one card (David, 2026-10-21: Watch was "a long scroll"; the whole special sat here, about 4,800px on a
+ * phone). The season's numbers and its first award, then the way to the full special on /reunion.
+ */
+function ReunionTeaser({ reunion }: { reunion: Reunion }) {
+  if (!reunion.couples.length && !reunion.confessionals.length && !reunion.awards.length) return null;
+  const award = reunion.awards[0];
+  return (
+    <section className="watch-section">
+      <Link href="/reunion" className="card watch-reunion-card">
+        <span className="kicker">Season special</span>
+        <strong className="watch-reunion-title">The Reunion</strong>
+        <span className="muted small">
+          {reunion.stats.aired} dates aired · {reunion.stats.couples} {reunion.stats.couples === 1 ? "pairing" : "pairings"} ·{" "}
+          {reunion.stats.second_dates} second dates
+        </span>
+        {award && (
+          <span className="watch-reunion-award">
+            <span className="watch-lobby-avatars">
+              {award.chars.map((c) => (
+                <Avatar key={c.id} seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={32} />
+              ))}
+            </span>
+            <span>
+              <strong>{award.title}:</strong> {award.name}
+            </span>
+          </span>
+        )}
+        <span className="watch-reunion-cta">See the Reunion →</span>
+      </Link>
+    </section>
   );
 }
 
@@ -174,27 +210,34 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       )}
 
       <section className="watch-section">
-        <h2>
-          <span className={`watch-dot${live.length ? "" : " off"}`} aria-hidden /> Live now
-        </h2>
         {live.length ? (
-          <div className="watch-lobby">
-            {live.map((r) => (
-              <RoomCard key={r.id} room={r} action={`● ${r.watching} watching`} />
-            ))}
-          </div>
+          <>
+            <h2>
+              <span className="watch-dot" aria-hidden /> Live now
+            </h2>
+            <div className="watch-lobby">
+              {live.map((r) => (
+                <RoomCard key={r.id} room={r} action={`● ${r.watching} watching`} />
+              ))}
+            </div>
+          </>
         ) : (
-          <p className="muted">
-            Nothing is playing this minute.{" "}
-            {ready.length
-              ? "Start the open room below: anyone who joins in the next few minutes watches it with you."
-              : "A new open room is added every hour."}
+          // Nothing live: one line, not a heading over an empty space.
+          <p className="watch-live-empty">
+            <span className="watch-dot off" aria-hidden /> <strong>Nothing live right now.</strong>{" "}
+            <span className="muted">
+              {ready.length
+                ? "Start an open room: anyone who joins in the next few minutes watches it with you."
+                : upcoming.length
+                  ? `The next premiere starts ${startsIn(upcoming[0].starts_at, now)}.`
+                  : "A new open room is added every hour."}
+            </span>
           </p>
         )}
         {ready.length > 0 && (
           <>
             <h3 className="watch-subhead">Ready to start</h3>
-            <div className="watch-lobby">
+            <div className="watch-lobby watch-strip">
               {ready.map((r) => (
                 <RoomCard key={r.id} room={r} action="Start it" />
               ))}
@@ -204,7 +247,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         {upcoming.length > 0 && (
           <>
             <h3 className="watch-subhead">Premieres coming up</h3>
-            <div className="watch-lobby">
+            <div className="watch-lobby watch-strip">
               {upcoming.map((r) => (
                 <RoomCard key={r.id} room={r} action={`Starts ${startsIn(r.starts_at, now)}`} />
               ))}
@@ -220,7 +263,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           unless they both agree to reveal themselves. See <Link href="/characters">the cast &amp; matchmaking</Link>.
         </p>
         {feed.length ? (
-          <ul className="list">
+          <ul className="list watch-latest-list">
             {feed.map((episode) => (
               <EpisodeItem key={episode.id} episode={episode} />
             ))}
@@ -252,11 +295,16 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       <section className="watch-section">
         <h2>Replays</h2>
         {replays.length ? (
-          <div className="watch-lobby">
-            {replays.map((r) => (
-              <RoomCard key={r.id} room={r} action="Replay" />
-            ))}
-          </div>
+          <>
+            <p className="muted small">
+              Rooms that have ended, in theater mode{replays.length > REPLAYS_SHOWN ? `: the newest ${REPLAYS_SHOWN} of ${replays.length}` : ""}. Swipe for more.
+            </p>
+            <div className="watch-lobby watch-strip">
+              {replays.slice(0, REPLAYS_SHOWN).map((r) => (
+                <RoomCard key={r.id} room={r} action="Replay" />
+              ))}
+            </div>
+          </>
         ) : (
           <p className="muted">No replays yet.</p>
         )}
@@ -279,10 +327,14 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
             ))}
           </ul>
         )}
-        <CreateLeagueForm hasName={profileName !== null} />
+        {/* Folded: the form is tall, and most visitors come to watch (2026-10-21). */}
+        <details className="watch-league-details">
+          <summary>Start a league with friends</summary>
+          <CreateLeagueForm hasName={profileName !== null} />
+        </details>
       </section>
 
-      <ReunionPanel reunion={reunion} />
+      <ReunionTeaser reunion={reunion} />
 
       <details className="watch-how-details" id="how-it-works">
         <summary>How it works</summary>
