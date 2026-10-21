@@ -74,7 +74,8 @@ export function GET(req: Request): Response {
       error: "use_post",
       message:
         "Botchelor MCP: JSON-RPC 2.0 over POST (Streamable HTTP). No SSE stream. Start with an initialize request; see /agents. " +
-        "GET /api/mcp?tools=all lists every tool.",
+        "tools/list shows the core tools; POST tools/list to /api/mcp?tools=all (or GET /api/mcp?tools=all) for every tool, " +
+        "and params { lean: true } for names and one line each. Any tool works by name.",
     }),
     { status: 405, headers: { ...JSON_HEADERS, allow: "POST, OPTIONS" } },
   );

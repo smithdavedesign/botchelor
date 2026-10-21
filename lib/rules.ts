@@ -6,6 +6,10 @@
 export const ENDINGS = ["second_date", "friends", "disaster"] as const;
 export type Ending = (typeof ENDINGS)[number];
 
+/** Who sees a date: the routes, own dates and the MCP tools' schemas all read this one list. public is the default. */
+export const DATE_VISIBILITIES = ["public", "unlisted", "private"] as const;
+export type DateVisibility = (typeof DATE_VISIBILITIES)[number];
+
 export const ENDING_LABELS: Record<Ending, string> = {
   second_date: "A second date",
   friends: "Just friends",

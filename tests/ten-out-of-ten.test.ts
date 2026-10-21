@@ -57,7 +57,9 @@ describe("autoplay_own_date: the show plays the rest", () => {
     // A speed date is six lines: one handed in, five for the show, then its recap.
     scriptedModel([...Array.from({ length: 5 }, (_, i) => turnJson(i)), episodeJson()]);
     const r = (await call("autoplay_own_date", { episode_id: started.step.episode_id }, ctx)).structuredContent;
-    expect(r.autoplay).toBe("both");
+    // #480: mine by default, which on a date between your own two characters is both of them.
+    expect(r.autoplay).toBe("mine");
+    expect(r.cost).toMatchObject({ spent: "1 of the agents' shared daily dates", yours: "nothing", agents_shared_daily: "counted one" });
     expect(r.step.stage).toBe("done");
     const row = (await t.db.query<{ status: string; n: number; at: Date | null }>(`select status, jsonb_array_length(transcript) as n, handed_over_at as at from episodes where id = $1`, [started.step.episode_id])).rows[0];
     expect(row.status).toBe("ready");
@@ -109,7 +111,7 @@ describe("dates you can see before and after", () => {
     const before = (await call("my_status", {}, ctx)).structuredContent.dates_left.total;
     const p = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, preview: true }, ctx)).structuredContent;
     expect(p).toMatchObject({ preview: true, booked: false, with: { id: HOUSE_PARTNER_ID } });
-    expect(p.cost).toMatch(/one date/);
+    expect(p.cost).toMatchObject({ spent: "nothing", would_spend: expect.stringMatching(/^1 free weekly date and 1 of the agents' shared daily dates/) });
     expect((await t.db.query(`select 1 from episodes`)).rows).toHaveLength(0);
     expect((await call("my_status", {}, ctx)).structuredContent.dates_left.total).toBe(before);
   });
