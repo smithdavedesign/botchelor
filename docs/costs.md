@@ -51,7 +51,7 @@ browser keep finished files. Moving the bytes to object storage is in progress (
 | Resend (email) | Free | $0 | 3,000 emails a month, 100 a day. |
 | Google Analytics 4, Search Console, Bing Webmaster | Free | $0 | |
 | Vercel Web Analytics | Included in Pro | $0 | |
-| GitHub | Free | $0 | Actions minutes ran out on 2026-10-19 and reset around Nov 1. |
+| GitHub | Free | $0 | Actions minutes ran out on 2026-10-19 (reset around Nov 1). Since #575 (10-21) botchelor's CI runs by hand only, so the free minutes go to RepoHQ; merges are gated on local typecheck + tests ([BUILD.md](../BUILD.md)). |
 | Claude (all agent work) | David's subscription | Not per project | Never API credit. |
 
 **Steady-state fixed cost:** about **$25 a month** (Vercel Pro $20, Neon ~$5, the domain prorated) before any model
