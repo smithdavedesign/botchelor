@@ -588,6 +588,29 @@ describe("what a picture's prompt knows", () => {
     );
     expect(recentActions([{ text: "*leans in* Hi." }, { text: "No action." }, { text: "*kicks the door open* Home." }, { text: "*laughs* Ok." }])).toEqual(["kicks the door open", "laughs"]);
   });
+
+  const star = (looks: Record<string, unknown>) =>
+    ({ id: "star-1", name: "Star", age: 25, pronouns: "she/her", ownerId: "owner-1", look: { appearance: "Latina, long wavy blonde hair" }, extras: { looks } }) as unknown as Character;
+  const picked = { gender: "woman", ethnicity: "latina", hair_style: "wavy", hair_color: "blonde", eyes: "green", body: "curvy", breasts: "large", outfit: "swim" };
+
+  it("draws a looks-builder character from every pick, and her baseline in the outfit she picked", () => {
+    const p = baselinePrompt(star(picked), "owner-1");
+    expect(p).toMatch(/^Uncensored adult photograph, a 25-year-old adult woman, Latina, .*blonde.*, .*green eyes, a curvy hourglass figure with full hips, a large full bust\. Wearing a one-piece swimsuit, alone, waist-up/);
+    expect(p).not.toMatch(/Nude|Star/);
+    // The After Dark outfit wins over the show's, and Nude (or no outfit) is a nude baseline.
+    expect(baselinePrompt(star({ ...picked, after_dark: { outfit: "bikini", butt: "large" } }), "owner-1")).toMatch(/a large full round butt\. Wearing a tiny string bikini/);
+    expect(baselinePrompt(star({ ...picked, after_dark: { outfit: "nude" } }), "owner-1")).toMatch(/^Explicit, uncensored adult photograph, .*\. Nude, alone/);
+    expect(baselinePrompt(star({ ...picked, outfit: undefined }), "owner-1")).toMatch(/\. Nude, alone/);
+  });
+
+  it("keeps the private After Dark picks to the owner's pictures, and the outfit until they undress", () => {
+    const s = star({ ...picked, after_dark: { outfit: "lingerie", butt: "small" } });
+    const other = baselinePrompt(s, "someone-else");
+    expect(other).not.toMatch(/butt|lingerie/);
+    expect(other).toMatch(/Wearing a one-piece swimsuit/);
+    expect(scenePrompt(chud, s, "b", "by the pool", { place: "the pool", stage: 1, recent: [] }, "owner-1")).toMatch(/a small pert butt, wearing black lace lingerie\. Setting/);
+    expect(scenePrompt(chud, s, "b", "in bed", { place: "his flat", stage: 4, explicit: true, recent: [] }, "owner-1")).not.toMatch(/wearing|lingerie/);
+  });
 });
 
 import { fillerLines, teasersFor } from "@/lib/adult/teaser";
