@@ -59,4 +59,16 @@ describe("a name where go_on_date wants an id gets a did-you-mean", () => {
     expect(p.did_you_mean).toMatchObject({ id: "house-juniper" });
     expect(p.with).toMatch(/takes a character's id, not a name\. Did you mean house-juniper/);
   });
+
+  it("is an error, since nothing can be booked with it, and still carries the preview (#562)", async () => {
+    const ctx = await connect();
+    const mine = (await call("create_character", validCharacter({ name: "Bea Lumen" }), ctx)).structuredContent.character.id;
+    const r = await call("go_on_date", { character_id: mine, partner_id: "Juniper", preview: true }, ctx);
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toMatch(/^Error: partner_id: No character with that partner_id: it takes a character's id, not a name\. Did you mean house-juniper/);
+    // A real partner previews as before.
+    const ok = await call("go_on_date", { character_id: mine, partner_id: "house-juniper", preview: true }, ctx);
+    expect(ok.isError).toBeUndefined();
+    expect(ok.structuredContent.with).toMatchObject({ id: "house-juniper" });
+  });
 });
