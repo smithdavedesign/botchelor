@@ -178,7 +178,8 @@ async function main() {
       arena = startProcess("arena.mjs", [join(RUN, "arena"), String(PORT)], { LOOP_LLM_API_KEY: gatewayKey, LOOP_ADMIN_PASSWORD: arenaPassword }, (l) => {
         if (l.startsWith("READY ")) base = l.slice(6).trim();
       });
-      for (let i = 0; i < 400 && !base; i++) await new Promise((r) => setTimeout(r, 500));
+      // The arena writes its sample dates before READY (up to ~5 minutes), so allow 7.5.
+      for (let i = 0; i < 900 && !base; i++) await new Promise((r) => setTimeout(r, 500));
       if (!base) throw new Error("arena never came up");
       agent = startProcess("swipe-back-agent.mjs", [base, String((VISITOR_MINUTES + 15) * 60)], { LOOP_LLM_API_KEY: gatewayKey }, (l) => log("[agent]", l));
 

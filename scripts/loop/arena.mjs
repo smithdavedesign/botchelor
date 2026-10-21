@@ -51,31 +51,30 @@ for (const pair of PAIRS.slice(0, 9)) {
   }
   made.push(ids);
 }
-console.log(`READY ${base}`);
-
 // #343 (David, 2026-10-19: seed it): a fresh arena had an empty feed, so a visitor had nothing to predict and an empty
-// leaderboard. Five public blind dates for the cast, booked as their people: once written, one airs (the record and the
-// leaderboard) and the rest stay open to predict until they air in stages. In the background; five date-model calls.
-(async () => {
-  const booked = [];
+// leaderboard. Five public blind dates for the cast, booked as their people and written BEFORE the visitors arrive (a
+// visit is 5 to 10 minutes; seeding after READY left them "still being written"). One airs at once (the record and the
+// leaderboard); the rest stay open to predict and air in stages, at 3 and 6 minutes, so a visitor's picks are scored
+// while it's here. Five date-model calls.
+const booked = [];
+for (const [a] of made.slice(0, 5)) {
   // Blind dates (the show picks a house partner): no match needed, whatever the swipe gate says.
-  for (const [a] of made.slice(0, 5)) {
-    const r = await call("/api/episodes", { character_id: a.id, blind: true, visibility: "public" }, a.who, [200, 201]).catch(() => null);
-    if (r?.id) booked.push({ id: r.id, who: a.who });
-  }
-  for (let i = 0; i < 120 && booked.length; i++) {
-    const states = await Promise.all(booked.map((e) => fetch(`${base}/api/episodes/${e.id}`, { headers: { cookie: e.who.cookie } }).then((x) => x.json()).catch(() => ({}))));
-    if (states.every((st) => st.status === "ready")) break;
-    await new Promise((r) => setTimeout(r, 5000));
-  }
-  if (booked[0]) await call(`/api/episodes/${booked[0].id}/reveal`, {}, booked[0].who, [200, 201, 409]).catch(() => null);
-  console.log(`SEEDED ${booked.length} dates`);
-  // The rest air in stages (two at 10 minutes, two at 20): there's always one open to predict, and the earlier picks are
-  // scored while the visitors are still here.
-  for (const [at, batch] of [[10, booked.slice(1, 3)], [20, booked.slice(3)]]) {
-    await new Promise((r) => setTimeout(r, 10 * 60_000));
+  const r = await call("/api/episodes", { character_id: a.id, blind: true, visibility: "public" }, a.who, [200, 201]).catch(() => null);
+  if (r?.id) booked.push({ id: r.id, who: a.who });
+}
+for (let i = 0; i < 60 && booked.length; i++) {
+  const states = await Promise.all(booked.map((e) => fetch(`${base}/api/episodes/${e.id}`, { headers: { cookie: e.who.cookie } }).then((x) => x.json()).catch(() => ({}))));
+  if (states.every((st) => st.status === "ready")) break;
+  await new Promise((r) => setTimeout(r, 5000));
+}
+if (booked[0]) await call(`/api/episodes/${booked[0].id}/reveal`, {}, booked[0].who, [200, 201, 409]).catch(() => null);
+console.log(`READY ${base}`);
+console.error(`SEEDED ${booked.length} dates`);
+(async () => {
+  for (const [at, batch] of [[3, booked.slice(1, 3)], [6, booked.slice(3)]]) {
+    await new Promise((r) => setTimeout(r, 3 * 60_000));
     for (const e of batch) await call(`/api/episodes/${e.id}/reveal`, {}, e.who, [200, 201, 409]).catch(() => null);
-    console.log(`SEEDED ${batch.length} aired at ${at} minutes`);
+    console.error(`SEEDED ${batch.length} aired at ${at} minutes`);
   }
 })();
 const stop = () => { child.kill("SIGTERM"); process.exit(0); };
