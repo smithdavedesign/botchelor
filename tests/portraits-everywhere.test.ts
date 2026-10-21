@@ -67,7 +67,7 @@ describe("an OC's generated portrait shows wherever the character does", () => {
 
   it("the avatar draws it, and a house character still uses its reviewed file", () => {
     const oc = renderToStaticMarkup(createElement(Avatar, { seed: "oc-1", name: "Cass Vega", portraitSrc: "/api/assets/abc" }));
-    expect(oc).toContain('src="/api/assets/abc"');
+    expect(oc).toContain('src="/api/assets/abc?w=96"'); // twice its default 48px, a small copy (app/api/assets/[id])
     const house = renderToStaticMarkup(createElement(Avatar, { seed: "house-dex", name: "Dex Okafor", house: true, portraitSrc: "/api/assets/ledger-row" }));
     expect(house).toContain('src="/cast/house-dex-v3.webp"');
   });

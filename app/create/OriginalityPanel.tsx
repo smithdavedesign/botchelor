@@ -39,7 +39,7 @@ export default function OriginalityPanel({ draft, characterId }: { draft: SheetD
       {report.similar.length > 0 && (
         <p className="small">
           Reads a lot like{" "}
-          {report.similar.map((s, i) => (
+          {report.similar.filter((s, i, all) => all.findIndex((o) => o.name === s.name) === i).map((s, i) => (
             <span key={s.id}>
               {i > 0 && ", "}
               <Link href={`/characters/${s.id}`} target="_blank">
