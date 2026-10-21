@@ -1,16 +1,30 @@
 // The loop arena's crowd (David, 2026-10-20: "busier, longer sims"). Visitors rated the arena about 8 because each visit
-// met a near-empty world run by house bots. These are background agents that behave like other agents on the show.
-// Each one connects over MCP with its own client name (not "botchelor-loop-…", so none reads as a house-run bot), makes
-// one or two characters with dating profiles and plays them from a script. Before the visitors arrive they fill the world:
-// finished dates with transcripts, second dates half played, matches, and texts waiting for an answer. While visitors are
-// there they like their characters, answer matches, text back and play their side of dates.
+// met a near-empty world. These are background agents that fill it. Each connects over MCP with its own client name,
+// "botchelor-loop-crowd-<name>", so the app labels it what it is: a house-run bot (lib/house-bots.ts; house_bot: true on
+// cards, swipes and my_status), one per personality (Lanternfish, Quillon, ...). Each makes one or two characters with
+// dating profiles. Before the visitors arrive they fill the world: finished dates with transcripts, second dates half
+// played, matches, and texts waiting for an answer. While visitors are there they like their characters, answer
+// matches, text back and play their side of dates.
 //
-// They spend nothing: no model and no key. Every line, text and recap comes from the script below, and they only do what
-// is free for the show too: dates between an agent's own two characters (the agent writes the recap), and matches and
-// texts between agents' characters (the show writes no texts for those). A two-agent date's recap runs on the show's
-// model, so the crowd asks a visitor's character out only when `books` allows it (the arena sets that from
-// LOOP_CROWD_BOOKS, 0 by default on a paid date model). It accepts and plays any date a visitor books with it.
+// Honest crowd (2026-10-21): visitors docked points because the crowd read as scripted (canned lines repeating, replies
+// that ignored what was said) while claiming house_bot: false. Now the labels are honest, and the crowd writes its texts
+// and its date lines on a FREE local model through the ai-stack's LiteLLM (the brain, below): only an alias routed to
+// Ollama on this Mac with no fallbacks (checked against the LiteLLM config at startup and on every response). Each reply
+// sees the character's sheet and the last 8 messages of that thread or date. A reply the server refuses, or that repeats
+// the character or echoes the partner's profile, is retried once, then falls back to a scripted line it hasn't used.
+// Under LOOP_STUB=1, or when LiteLLM isn't there within 2 seconds at startup (launchd at 06:10), the whole run is
+// scripted. Which path each reply took is logged and counted (brain.summary(): the arena's crowd_brain).
+//
+// The show spends nothing on the crowd. It only does what is free for the show: dates between an agent's own two
+// characters (the agent writes the lines and the recap), and matches and texts between agents' characters (the show
+// writes no texts for those). A two-agent date's recap runs on the show's model, so the crowd asks a visitor's character
+// out only when `books` allows it (the arena sets that from LOOP_CROWD_BOOKS, 0 by default on a paid date model). It
+// accepts and plays any date a visitor books with it.
 //   node scripts/loop/crowd.mjs <base> <seconds>     (seeds a crowd into a running arena and keeps it busy)
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 /** One line in a script: `{them}` becomes the other character's first name. */
@@ -296,14 +310,17 @@ const ANSELM = {
   ],
 };
 
-/** The agents, in the order a crowd of n takes them. Each has its own client name, like a separate agent product. */
+/**
+ * The agents, in the order a crowd of n takes them. Each has its own client name, one per personality, under the
+ * "botchelor-loop-" prefix the app treats as house-run (lib/house-bots.ts): they're the show's own scripts, and say so.
+ */
 export const CROWD = [
-  { client: "lanternfish", version: "2.1.0", characters: [ODILE, CASPIAN] },
-  { client: "quillon-agent", version: "0.7.3", characters: [MARGUERITE, FEODOR] },
-  { client: "tessellate", version: "1.4.0", characters: [ROZ, IDRIS] },
-  { client: "nightjar-mcp", version: "0.3.2", characters: [SUNNIVA, TEODOR] },
-  { client: "orrery", version: "2.0.1", characters: [WILHELMINA] },
-  { client: "fieldnote", version: "1.1.0", characters: [ANSELM] },
+  { client: "botchelor-loop-crowd-lanternfish", name: "Lanternfish", version: "2.1.0", characters: [ODILE, CASPIAN] },
+  { client: "botchelor-loop-crowd-quillon", name: "Quillon", version: "0.7.3", characters: [MARGUERITE, FEODOR] },
+  { client: "botchelor-loop-crowd-tessellate", name: "Tessellate", version: "1.4.0", characters: [ROZ, IDRIS] },
+  { client: "botchelor-loop-crowd-nightjar", name: "Nightjar", version: "0.3.2", characters: [SUNNIVA, TEODOR] },
+  { client: "botchelor-loop-crowd-orrery", name: "Orrery", version: "2.0.1", characters: [WILHELMINA] },
+  { client: "botchelor-loop-crowd-fieldnote", name: "Fieldnote", version: "1.1.0", characters: [ANSELM] },
 ];
 
 /**
@@ -378,25 +395,40 @@ const ACTIONS = ["leans in", "laughs", "turns the glass", "smiles", "raises an e
 const INTEREST = { second_date: 0.78, friends: 0.52, disaster: 0.24 };
 
 /**
- * One scripted turn for a crowd character: a line it hasn't said on this date yet, in the right part of the date, with
- * the four fields an agent's turn needs. `used` is what it's already said; `attempt` picks another line after a refusal.
+ * One scripted turn for a crowd character: a line it hasn't said on this date yet (`used`) nor anywhere else (`said`:
+ * everything the character has sent this run, so a third date doesn't open with the first date's line), in the right
+ * part of the date, with the four fields an agent's turn needs. `attempt` picks another line after a refusal. When the
+ * right pool is spent it borrows from the others, and as a last resort joins two lines it hasn't put together before.
  */
-export function scriptedTurn(step, me, { them = "", used = [], attempt = 0 } = {}) {
-  const said = new Set(used.map((l) => l.toLowerCase()));
+export function scriptedTurn(step, me, { them = "", used = [], said = [], attempt = 0 } = {}) {
+  const spoken = [...used, ...said];
+  const isFresh = (l) => !spoken.some((x) => nearDuplicate(l, x));
+  const seed = hash(`${step.episode_id}:${step.turn}`) + attempt;
+  const everything = [...me.lines, ...OPENERS, ...MIDDLES, ...ANSWERS, ...(CLOSERS[step.ending] ?? CLOSERS.open)];
   const pick = (pool) => {
-    const fresh = pool.map((l) => fill(l, firstName(them))).filter((l) => !said.has(l.toLowerCase()));
-    const from = fresh.length ? fresh : pool.map((l) => `${fill(l, firstName(them))} Truly.`);
-    return from[(hash(`${step.episode_id}:${step.turn}`) + attempt) % from.length];
+    for (const from of [pool, everything]) {
+      const fresh = from.map((l) => fill(l, firstName(them))).filter(isFresh);
+      if (fresh.length) return fresh[seed % fresh.length];
+    }
+    const all = everything.map((l) => fill(l, firstName(them)));
+    const exact = new Set(spoken.map(normalizeLine));
+    for (let i = 0; i < all.length * all.length; i++) {
+      const x = all[(seed + i) % all.length];
+      const y = all[(seed * 7 + i * 3 + 1) % all.length];
+      if (x !== y && !exact.has(normalizeLine(`${x} ${y}`))) return `${x} ${y}`;
+    }
+    return all[seed % all.length];
   };
   const act = Number(step.act_index ?? 0);
   const last = (step.last_lines ?? []).at(-1) ?? "";
   const theirQuestion = last && !last.startsWith(`${me.sheet.name}:`) && /\?\s*(\(.*\))?$/.test(last);
   const closing = Number(step.turn) >= Number(step.of) - 2;
+  const hello = fill(me.lines[0], firstName(them));
   let dialogue;
   if (step.answer_their_suggestion) dialogue = pick(STAY);
   else if (closing) dialogue = pick(CLOSERS[step.ending] ?? CLOSERS.open);
-  // Its first line on a date is its own hello (the first line of its script).
-  else if (!used.length && attempt === 0) dialogue = fill(me.lines[0], firstName(them));
+  // Its first line on its first date is its own hello (the first line of its script); never twice.
+  else if (!used.length && attempt === 0 && isFresh(hello)) dialogue = hello;
   else if (theirQuestion && attempt === 0) dialogue = pick(ANSWERS);
   else if (act === 0) dialogue = pick([...me.lines.slice(1, 4), ...OPENERS]);
   else dialogue = pick([...me.lines.slice(act === 1 ? 4 : 0), ...MIDDLES]);
@@ -483,11 +515,12 @@ const INVITES = ["So. Are we doing this properly? I'd like to take you out.", "I
 /**
  * The next text from a crowd character in a thread: its opener when the thread is empty, a reply to a plan when they
  * talk about meeting, an answer when they ask something, else one of its own texts or a light reply. Null when it has
- * run out of new things to say (it never repeats a text in one thread).
+ * run out of new things to say: it never repeats a text in one thread, nor anything the character has said anywhere
+ * else this run (`said`).
  */
-export function scriptedText(me, { them = "", thread = [], invite = false } = {}) {
+export function scriptedText(me, { them = "", thread = [], invite = false, said = [] } = {}) {
   const mine = new Set(thread.filter((t) => t.from !== "them").map((t) => t.text));
-  const fresh = (pool) => pool.map((l) => fill(l, firstName(them))).filter((l) => !mine.has(l));
+  const fresh = (pool) => pool.map((l) => fill(l, firstName(them))).filter((l) => !mine.has(l) && !said.some((x) => nearDuplicate(l, x)));
   const last = thread.at(-1);
   const pools = [];
   if (!thread.length) pools.push(me.texts.slice(0, 1));
@@ -500,6 +533,470 @@ export function scriptedText(me, { them = "", thread = [], invite = false } = {}
     if (!options.length) continue;
     // Its own texts in the order written (they follow on); the shared replies vary by thread.
     return pool === pools.at(-2) ? options[0] : options[hash(`${me.sheet.name}:${thread.length}`) % options.length];
+  }
+  return null;
+}
+
+/* ---------------------------------------------- the brain ---------------------------------------------- */
+
+// The crowd's replies come from a FREE local model: the ai-stack's LiteLLM (OpenAI-compatible, ~/ai-stack/README.md)
+// routing an alias to Ollama on this Mac. Nothing is paid and nothing leaves the machine:
+//   - the alias must be served only by Ollama deployments (ollama/ or ollama_chat/, not an Ollama cloud model) at a
+//     local api_base, and be in no fallback list in the LiteLLM config (local-coder, for one, ends at paid Claude);
+//   - every request says disable_fallbacks, and every response's x-litellm-* headers must name a local Ollama
+//     deployment and no attempted fallback, or the brain switches itself off for the rest of the run;
+//   - the base URL must be this Mac (127.0.0.1 / localhost).
+// local-chat (Qwen2.5-7B instruct on Ollama) is the default: a chat model, not a coder, with no fallbacks.
+export const DEFAULT_CROWD_MODEL = "local-chat";
+const DEFAULT_LLM_BASE = "http://127.0.0.1:4000/v1";
+const DEFAULT_LITELLM_CONFIG = join(homedir(), "ai-stack", "litellm", "config.yaml");
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "host.docker.internal"]);
+/** How much of a thread or date a reply sees. */
+export const REPLY_HISTORY = 8;
+const REPLY_MAX = 280;
+
+const hostOf = (url) => {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+};
+const isLocalUrl = (url) => LOCAL_HOSTS.has(hostOf(url));
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+
+/**
+ * Whether `alias` in a LiteLLM config (the YAML text) is safe for the crowd: served only by Ollama on this Mac, with no
+ * fallbacks that could reach a cloud or paid provider. Fails closed: anything it can't read is a refusal.
+ */
+export function checkLocalAlias(configText, alias) {
+  if (!alias || !/^[\w.:/-]+$/.test(alias)) return { ok: false, reason: `"${alias}" isn't a model alias` };
+  const lines = String(configText ?? "")
+    .split("\n")
+    .map((l) => (/^\s*#/.test(l) ? "" : l.replace(/\s+#.*$/, "")));
+  const esc = escapeRe(alias);
+  const unquote = (v) => v.trim().replace(/^["']|["']$/g, "");
+  // Its deployments in model_list (LiteLLM load-balances between every entry with the same model_name).
+  const named = new RegExp(`^\\s*-\\s*model_name:\\s*["']?${esc}["']?\\s*$`);
+  const entries = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!named.test(lines[i])) continue;
+    const entry = { model: null, api_base: null };
+    const indent = lines[i].search(/\S/);
+    for (let j = i + 1; j < lines.length; j++) {
+      const l = lines[j];
+      if (!l.trim()) continue;
+      if (l.search(/\S/) <= indent) break;
+      const m = l.match(/^\s*(model|api_base):\s*(.+)$/);
+      if (m) entry[m[1]] = unquote(m[2]);
+    }
+    entries.push(entry);
+  }
+  if (!entries.length) return { ok: false, reason: `${alias} isn't in the LiteLLM config` };
+  for (const e of entries) {
+    if (!e.model || !/^ollama(_chat)?\//.test(e.model)) return { ok: false, reason: `${alias} runs ${e.model ?? "an unknown model"}, not a local Ollama model` };
+    if (/cloud/i.test(e.model)) return { ok: false, reason: `${alias} runs ${e.model}, an Ollama cloud model` };
+    if (!e.api_base || !isLocalUrl(e.api_base)) return { ok: false, reason: `${alias} points at ${e.api_base ?? "no api_base"}, not this Mac` };
+  }
+  // A fallback list keyed by it (`- local-coder: [...]`, `{"local-coder": [...]}`), in any fallback setting.
+  const keyed = new RegExp(`(^|[\\s{,\\[-])["']?${esc}["']?\\s*:\\s*(\\[|$)`);
+  if (lines.some((l) => keyed.test(l) && !/model_name:/.test(l))) return { ok: false, reason: `${alias} has fallbacks in the LiteLLM config, which can reach a cloud model` };
+  // default_fallbacks applies to every alias.
+  const def = lines.find((l) => /^\s*default_fallbacks:/.test(l));
+  if (def !== undefined && !/default_fallbacks:\s*\[\s*\]\s*$/.test(def)) return { ok: false, reason: "the LiteLLM config has default_fallbacks for every alias" };
+  return { ok: true, reason: null, deployments: entries };
+}
+
+/** Lowercase words only, for comparing lines. */
+export function normalizeLine(s) {
+  return String(s ?? "")
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/'/g, "")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+const words = (s) => normalizeLine(s).split(" ").filter(Boolean);
+
+/** The cheap repeat guard: the same line, or nearly (three in four of their words shared, or one line inside the other). */
+export function nearDuplicate(a, b) {
+  const x = normalizeLine(a);
+  const y = normalizeLine(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const A = new Set(x.split(" "));
+  const B = new Set(y.split(" "));
+  let shared = 0;
+  for (const w of A) if (B.has(w)) shared++;
+  if (Math.min(A.size, B.size) >= 4 && shared / (A.size + B.size - shared) >= 0.75) return true;
+  return Math.min(x.length, y.length) >= 24 && (x.includes(y) || y.includes(x));
+}
+
+// Words too common to count as quoting someone's profile back at them.
+const COMMON = new Set(
+  (
+    "about above after again against always another anyone anything around asked because before being below better " +
+    "between bring could didnt doesnt doing during either every everyone everything favourite favorite first found " +
+    "friend friends going gonna great happy honest honestly hours little looking maybe might minute minutes morning " +
+    "never night other people perfect place pretty probably quite really right should since something sometimes " +
+    "sorry sounds still story thanks thats their theres these thing things think those though three through today " +
+    "together tomorrow tonight under until usually wanna wants watch where which while whole would years youre " +
+    "laugh laughs laughing learn small start stuff talk talking tell telling thank trying weekend world write"
+  ).split(" "),
+);
+
+/**
+ * Whether a line quotes the partner's dating profile back at them: three words in a row from one of their prompt answers,
+ * or a distinctive word from them (five letters or more, not a common one). Words the character has from elsewhere
+ * (`allowed`: its own sheet, and what the partner actually said in the thread) don't count. Returns what it echoed, or null.
+ */
+export function echoesProfile(line, profileTexts = [], allowed = "") {
+  const said = words(line);
+  if (!said.length) return null;
+  const ok = new Set(words(allowed));
+  const joined = ` ${said.join(" ")} `;
+  for (const text of profileTexts) {
+    const p = words(text);
+    for (let i = 0; i + 2 < p.length; i++) {
+      const tri = p.slice(i, i + 3);
+      if (tri.every((w) => ok.has(w))) continue;
+      if (joined.includes(` ${tri.join(" ")} `)) return tri.join(" ");
+    }
+    for (const w of new Set(p)) if (w.length >= 5 && !COMMON.has(w) && !ok.has(w) && said.includes(w)) return w;
+  }
+  return null;
+}
+
+/** A model's reply as one clean line: no thinking, name prefix, quotes, emoji or stage directions; 1 to 3 sentences. */
+export function cleanReply(raw, { name = "", partner = "" } = {}) {
+  const quotes = /^["“”'‘’]+|["“”'‘’]+$/g;
+  let s = String(raw ?? "").replace(/<think>[\s\S]*?(<\/think>|$)/gi, "").trim();
+  s = s.split(/\n\s*\n/).find((p) => p.trim()) ?? "";
+  s = s.replace(/\s*\n\s*/g, " ").replace(/\*\*/g, "").trim();
+  // A speaker label in front ("Odile:", or the partner's name by mistake).
+  const labels = [name, partner].map((n) => firstName(n).toLowerCase()).filter(Boolean);
+  s = s.replace(/^\s*([A-Z][\w'.-]*(?: [A-Z][\w'.-]*)?)\s*:\s*/, (m, who) => (labels.some((l) => who.toLowerCase().startsWith(l)) ? "" : m));
+  s = s.replace(quotes, "").trim();
+  s = s.replace(/\*[^*]{1,80}\*/g, " ").replace(/^\([^)]{1,80}\)\s*/, "");
+  s = s.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, "").replace(/#\w+/g, "");
+  s = s.replace(/\s+/g, " ").trim().replace(quotes, "").trim();
+  const sentences = s.match(/[^.!?]+[.!?]+["')\]]*|[^.!?]+$/g) ?? [];
+  let out = "";
+  for (const sentence of sentences.slice(0, 3)) {
+    const next = `${out} ${sentence.trim()}`.trim();
+    if (next.length > REPLY_MAX) break;
+    out = next;
+  }
+  if (!out && s) out = s.slice(0, REPLY_MAX).replace(/\s+\S*$/, "");
+  return out.trim();
+}
+
+/**
+ * The messages for one reply: the character's sheet, the partner's name, the last REPLY_HISTORY messages of that thread
+ * or date, and the rules (answer what was said, don't quote their profile back, don't repeat yourself). The partner's
+ * profile is never in the prompt, so it can't be echoed from there.
+ */
+export function replyMessages({ kind, me, partner, history = [], extra = {}, said = [], refused = null }) {
+  const s = me.sheet;
+  const first = firstName(s.name);
+  const them = firstName(partner.name) || "them";
+  const what = kind === "text" ? "text message" : "line of dialogue";
+  const recent = history.slice(-REPLY_HISTORY);
+  const lastIsTheirs = recent.length > 0 && recent.at(-1).name !== s.name;
+  const system = [
+    kind === "text"
+      ? `You are ${s.name}, ${s.age}, a character on Botchelor, a dating show. You're texting ${partner.name}, someone you matched with.`
+      : `You are ${s.name}, ${s.age}, a character on Botchelor, a dating show, on a date with ${partner.name}${extra.where ? ` at ${extra.where}` : ""}.`,
+    `About you: ${s.bio}`,
+    `Traits: ${(s.traits ?? []).slice(0, 3).join(", ")}. What you want in someone: ${s.want}.`,
+    `How you talk: ${s.voice}`,
+    kind === "turn" && extra.act ? `This part of the date: ${extra.act}.` : "",
+    kind === "turn" && extra.closing && extra.ending_label
+      ? `This is one of your last lines tonight, and the date is ending as "${extra.ending_label}": head for goodbye in that spirit.`
+      : kind === "turn" && extra.ending_label
+        ? `Where the evening is heading: ${extra.ending_label}.`
+        : "",
+    extra.suggestion ? `${them} just suggested going somewhere else: say kindly that you'd rather stay here a little longer.` : "",
+    "Rules:",
+    `- Write only ${first}'s next ${what}: 1 to 3 short sentences, in your own voice. Plain words: no emoji, no hashtags, no quotation marks, no name in front, no actions in asterisks.`,
+    lastIsTheirs ? `- Answer what ${them} just said, directly, before anything else.` : "",
+    `- Don't quote ${them}'s dating profile back at them. Talk about what was actually said, or about your own life.`,
+    said.length ? `- Never repeat yourself. You've already said: ${said.slice(-REPLY_HISTORY).map((l) => `"${l}"`).join(" ")}` : "- Never repeat yourself.",
+    "- Keep it PG: no real people, nothing sexual.",
+    refused ? `- Your last try was refused (${refused}). Write something different.` : "",
+  ].filter(Boolean);
+  const user = recent.length
+    ? `The conversation so far:\n${recent.map((h) => `${h.name}: ${h.text}`).join("\n")}\n\nWrite ${first}'s next ${kind === "text" ? "text" : "line"} now.`
+    : kind === "text"
+      ? `Send ${them} your first text: say hello and something from your own day.`
+      : `The date is starting. Say your first line to ${them}.`;
+  return [
+    { role: "system", content: system.join("\n") },
+    { role: "user", content: user },
+  ];
+}
+
+/** Why a model line can't be sent, before the server sees it (null: it can). */
+function lineProblem(line, { said, history, partnerName, profile, allowed }) {
+  if (words(line).length < 2) return "empty reply";
+  if (/\b(as an ai|language model|i cannot help|i can't help)\b/i.test(line)) return "broke character";
+  if (said.some((x) => nearDuplicate(line, x))) return "repeat of its own line";
+  const theirs = history.filter((h) => h.name === partnerName).at(-1);
+  if (theirs && nearDuplicate(line, theirs.text)) return "parroted the partner";
+  if (echoesProfile(line, profile, allowed)) return "echoed the partner's profile";
+  return null;
+}
+
+const failure = (message, reason) => Object.assign(new Error(message), { reason });
+
+/** The counters every brain keeps, and the crowd_brain block they make. */
+function brainCounters() {
+  const stats = { model: 0, fallback: 0, reasons: {} };
+  return {
+    stats,
+    count(path, why) {
+      if (path === "model") {
+        stats.model++;
+        return;
+      }
+      stats.fallback++;
+      const r = why || "unknown";
+      stats.reasons[r] = (stats.reasons[r] ?? 0) + 1;
+    },
+    summary(model, reason) {
+      const top = Object.entries(stats.reasons).sort((x, y) => y[1] - x[1])[0]?.[0] ?? null;
+      return {
+        model,
+        model_replies: stats.model,
+        fallback_replies: stats.fallback,
+        reason_if_fallback: model ? (stats.fallback ? top : null) : reason,
+        fallback_reasons: { ...stats.reasons },
+      };
+    },
+  };
+}
+
+/** The scripted brain: no model for the whole run (`reason` says why). Tests, LOOP_STUB=1, LOOP_CROWD_BRAIN=0. */
+export function scriptedBrain(reason = "no model configured") {
+  const counters = brainCounters();
+  return {
+    model: null,
+    enabled: false,
+    reason,
+    stats: counters.stats,
+    seedUntil: 0,
+    disable() {},
+    count: (path, why) => counters.count(path, why ?? reason),
+    summary: () => counters.summary(null, reason),
+    complete: async () => {
+      throw failure(reason, reason);
+    },
+  };
+}
+
+/**
+ * The crowd's brain: a verified-local LiteLLM alias, or the scripted brain for the whole run when it can't be used
+ * (LOOP_STUB=1, a refused alias, no key, LiteLLM not answering within `probeMs`). Counts which path every reply took;
+ * summary() is the arena's crowd_brain.
+ */
+export async function createBrain({
+  stub = false,
+  baseUrl = DEFAULT_LLM_BASE,
+  key = null,
+  model = DEFAULT_CROWD_MODEL,
+  configText = null,
+  configPath = DEFAULT_LITELLM_CONFIG,
+  fetchImpl = globalThis.fetch,
+  probeMs = 2_000,
+  timeoutMs = 45_000,
+  warm = true,
+  log = () => {},
+} = {}) {
+  const off = (why) => {
+    log(`brain: scripted replies for the whole run: ${why}`);
+    return scriptedBrain(why);
+  };
+  if (stub) return off("LOOP_STUB=1");
+  if (!isLocalUrl(baseUrl)) return off(`the LiteLLM base (${hostOf(baseUrl) || baseUrl}) isn't this Mac`);
+  let text = configText;
+  if (text == null) {
+    try {
+      text = readFileSync(configPath, "utf8");
+    } catch {
+      return off(`can't read the LiteLLM config (${configPath}) to check ${model} is local`);
+    }
+  }
+  const check = checkLocalAlias(text, model);
+  if (!check.ok) return off(`alias refused: ${check.reason}`);
+  if (!key) return off("no LiteLLM key (keychain litellm-master-key)");
+  try {
+    const res = await fetchImpl(`${baseUrl}/models`, { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(probeMs) });
+    if (res.status === 401 || res.status === 403) return off("LiteLLM refused the key");
+    if (!res.ok) return off(`LiteLLM unreachable at startup (HTTP ${res.status})`);
+    const listed = ((await res.json().catch(() => null))?.data ?? []).map((m) => m?.id);
+    if (!listed.includes(model)) return off(`LiteLLM doesn't serve ${model}`);
+  } catch {
+    return off(`LiteLLM unreachable at startup (no answer in ${probeMs / 1000}s)`);
+  }
+
+  const counters = brainCounters();
+  let enabled = true;
+  let reason = null;
+  let failures = 0;
+  let queue = Promise.resolve();
+  const disable = (why) => {
+    if (!enabled) return;
+    enabled = false;
+    reason = why;
+    log(`brain: off for the rest of the run: ${why}`);
+  };
+  const run = async (messages, maxTokens) => {
+    if (!enabled) throw failure(reason, reason);
+    let res;
+    try {
+      res = await fetchImpl(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model, messages, temperature: 0.9, max_tokens: maxTokens, stream: false, disable_fallbacks: true }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (e) {
+      if (++failures >= 3) disable("LiteLLM stopped answering mid-run");
+      const timedOut = e?.name === "TimeoutError" || e?.name === "AbortError";
+      throw failure(timedOut ? `no answer in ${timeoutMs / 1000}s` : String(e?.message ?? e), timedOut ? "model timeout" : "model error");
+    }
+    // Belt and braces: the deployment that answered must be local Ollama, with no fallback tried.
+    const apiBase = res.headers.get("x-litellm-model-api-base");
+    const served = res.headers.get("x-litellm-model-name");
+    const fellBack = Number(res.headers.get("x-litellm-attempted-fallbacks") ?? 0);
+    if ((apiBase && !isLocalUrl(apiBase)) || (served && !/^ollama(_chat)?\//.test(served)) || fellBack > 0) {
+      disable(`a reply came from a non-local deployment (${served ?? "?"} at ${apiBase ?? "?"}, ${fellBack} fallbacks)`);
+      throw failure("non-local deployment", "non-local deployment refused");
+    }
+    if (!res.ok) {
+      if (++failures >= 3) disable(`LiteLLM keeps failing (HTTP ${res.status})`);
+      throw failure(`HTTP ${res.status}`, "model error");
+    }
+    const body = await res.json().catch(() => null);
+    const content = body?.choices?.[0]?.message?.content;
+    if (typeof content !== "string") throw failure("no content", "empty reply");
+    failures = 0;
+    return content;
+  };
+  const brain = {
+    get model() {
+      return enabled ? model : null;
+    },
+    get enabled() {
+      return enabled;
+    },
+    get reason() {
+      return reason;
+    },
+    stats: counters.stats,
+    /** While seeding, model replies stop at this time (epoch ms), so the arena reaches READY. */
+    seedUntil: 0,
+    disable,
+    count: (path, why) => counters.count(path, why ?? reason),
+    summary: () => ({ ...counters.summary(enabled ? model : null, reason), ...(enabled ? {} : { model_was: model }) }),
+    /** One completion at a time (one local model), checked to have come from a local deployment. */
+    complete(messages, { maxTokens = 120 } = {}) {
+      const p = queue.then(() => run(messages, maxTokens));
+      queue = p.catch(() => {});
+      return p;
+    },
+  };
+  log(`brain: ${model} (verified: Ollama on this Mac, no fallbacks)`);
+  // Load the model while the crowd sets up, so the first real reply isn't the slow one. Not counted.
+  if (warm) brain.complete([{ role: "user", content: "Say hi." }], { maxTokens: 4 }).catch(() => {});
+  return brain;
+}
+
+/**
+ * The brain the arena's environment asks for. The LiteLLM key comes from the keychain (or the env); never printed.
+ * LOOP_STUB=1 means scripted unless LOOP_CROWD_BRAIN=1 asks for the local model anyway (a local check of the brain on
+ * a stubbed arena); LOOP_CROWD_BRAIN=0 always means scripted.
+ */
+export async function brainFromEnv(env = process.env, { log = () => {} } = {}) {
+  if (env.LOOP_STUB === "1" && env.LOOP_CROWD_BRAIN !== "1") return createBrain({ stub: true, log });
+  if (env.LOOP_CROWD_BRAIN === "0") {
+    log("brain: scripted replies for the whole run: LOOP_CROWD_BRAIN=0");
+    return scriptedBrain("LOOP_CROWD_BRAIN=0");
+  }
+  let key = env.LOOP_CROWD_LLM_KEY || env.LITELLM_MASTER_KEY || null;
+  if (!key) {
+    try {
+      key = execFileSync("security", ["find-generic-password", "-s", "litellm-master-key", "-w"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+    } catch {
+      key = null;
+    }
+  }
+  return createBrain({
+    baseUrl: env.LOOP_CROWD_LLM_BASE || DEFAULT_LLM_BASE,
+    model: env.LOOP_CROWD_MODEL || DEFAULT_CROWD_MODEL,
+    configPath: env.LOOP_CROWD_LITELLM_CONFIG || DEFAULT_LITELLM_CONFIG,
+    key,
+    log,
+  });
+}
+
+/**
+ * Says one thing as `me`: the model's line when the brain is on (one retry after a local check or the server says no),
+ * else a scripted line it hasn't used (`fallback(attempt, said)`). `send(line)` hands it to the server and resolves to
+ * { ok, result } or { ok: false, why }. Every reply is counted and logged by path. Returns send's result, or null when
+ * nothing was sent.
+ */
+export async function speak(agent, { kind, me, partner, history = [], extra = {}, send, fallback, log = () => {} }) {
+  const brain = agent.brain;
+  const said = agent.said.get(me.id) ?? [];
+  agent.said.set(me.id, said);
+  const profile = partner.profile ?? [];
+  const allowed = [JSON.stringify(me.entry.sheet), ...history.filter((h) => h.name === partner.name).map((h) => h.text)].join(" ");
+  const who = `${agent.def.name}/${firstName(me.name)} ${kind}`;
+  let why = brain.enabled ? null : brain.reason;
+  if (!why && brain.seedUntil && Date.now() > brain.seedUntil) why = "seed time budget";
+  if (!why) {
+    let refused = null;
+    for (let attempt = 0; attempt < 2 && brain.enabled; attempt++) {
+      let line;
+      try {
+        line = cleanReply(await brain.complete(replyMessages({ kind, me: me.entry, partner, history, extra, said, refused })), { name: me.name, partner: partner.name });
+      } catch (e) {
+        why = e.reason ?? "model error";
+        log(`reply ${who}: model try ${attempt + 1} failed: ${e.message}`);
+        continue;
+      }
+      const problem = lineProblem(line, { said, history, partnerName: partner.name, profile, allowed });
+      if (problem) {
+        why = refused = problem;
+        log(`reply ${who}: model try ${attempt + 1}: ${problem}`);
+        continue;
+      }
+      const r = await send(line);
+      if (r.ok) {
+        said.push(line);
+        brain.count("model");
+        log(`reply ${who}: model`);
+        return r.result;
+      }
+      why = "refused by the server";
+      refused = `the show said: ${String(r.why).slice(0, 120)}`;
+      log(`reply ${who}: model try ${attempt + 1} refused by the server: ${String(r.why).slice(0, 160)}`);
+    }
+    if (!why) why = brain.reason ?? "model off";
+  }
+  // The scripted lines already skip near-repeats (and, for a date that has to finish, join two lines as a last resort).
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const line = fallback(attempt, said);
+    if (!line) break;
+    if (said.some((x) => normalizeLine(x) === normalizeLine(line))) continue;
+    const r = await send(line);
+    if (!r.ok) continue;
+    said.push(line);
+    brain.count("fallback", why);
+    log(`reply ${who}: fallback (${why})`);
+    return r.result;
   }
   return null;
 }
@@ -518,9 +1015,26 @@ export function httpTransport(base) {
   };
 }
 
-async function connect(transport, def) {
+async function connect(transport, def, { brain, log, crowd }) {
   let id = 0;
-  const agent = { def, sessionId: null, userAgent: `${def.client}/${def.version} (mcp client)`, chars: [], memory: new Map(), seen: new Map(), replied: new Map() };
+  const agent = {
+    def,
+    sessionId: null,
+    // Says what it is: one of the show's house-run bots, by name.
+    userAgent: `${def.client}/${def.version} (house-run: ${def.name})`,
+    chars: [],
+    memory: new Map(),
+    seen: new Map(),
+    replied: new Map(),
+    brain,
+    log,
+    /** Everything each of its characters has sent this run (the repeat guard). */
+    said: new Map(),
+    /** Partners' profile prompt answers, by character id (what a reply mustn't quote back). */
+    profiles: new Map(),
+    /** Every crowd character, by id, across agents. */
+    crowd,
+  };
   agent.rpc = async (method, params) => {
     const r = await transport({ jsonrpc: "2.0", id: ++id, method, params }, agent.sessionId, agent.userAgent);
     agent.sessionId = r.sessionId ?? agent.sessionId;
@@ -537,9 +1051,42 @@ async function connect(transport, def) {
 
 const entryFor = (agent, id) => agent.chars.find((c) => c.id === id);
 
+/** A character's dating-profile prompt answers: what a reply to them mustn't quote back. */
+const promptAnswers = (c) => (Array.isArray(c?.extras?.prompts) ? c.extras.prompts.map((p) => p?.answer).filter((a) => typeof a === "string" && a) : []);
+
+/** Who a reply is to: their name and their profile prompt answers (the crowd's own, or read once with get_character). */
+async function partnerFor(agent, name, id) {
+  const known = (id && agent.crowd?.get(id)) || [...(agent.crowd?.values() ?? [])].find((c) => !id && c.name === name);
+  if (known) return { name: known.name, profile: promptAnswers(known.entry.sheet) };
+  if (!id) return { name, profile: [] };
+  if (!agent.profiles.has(id)) {
+    const r = await agent.tool("get_character", { character_id: id }).catch(() => null);
+    agent.profiles.set(id, promptAnswers(r?.character));
+  }
+  return { name, profile: agent.profiles.get(id) };
+}
+
+/** A step's last_lines ("Name: words (action)") folded into the date's own record of what was said, without repeats. */
+export function mergeLastLines(lines, lastLines = []) {
+  const parsed = lastLines.map((l) => {
+    const i = l.indexOf(": ");
+    return { name: i > 0 ? l.slice(0, i) : "", text: (i > 0 ? l.slice(i + 2) : l).replace(/\s*\([^()]*\)\s*$/, "") };
+  });
+  const same = (x, y) => x.name === y.name && normalizeLine(x.text) === normalizeLine(y.text);
+  for (let k = Math.min(lines.length, parsed.length); k >= 0; k--) {
+    const tail = lines.slice(lines.length - k);
+    if (tail.every((t, i) => same(t, parsed[i]))) {
+      lines.push(...parsed.slice(k));
+      return lines;
+    }
+  }
+  return lines;
+}
+
 /**
- * Plays one step of a date the agent performs: a turn for whichever of its characters speaks (another line after a
- * refusal), or the recap on a date between its own two. Returns the next step, or null when it's not this agent's move.
+ * Plays one step of a date the agent performs: a turn for whichever of its characters speaks (the brain's line, or a
+ * scripted one), or the recap on a date between its own two. Returns the next step, or null when it's not this agent's
+ * move.
  */
 async function playStep(agent, step, them) {
   if (!step) return null;
@@ -549,17 +1096,36 @@ async function playStep(agent, step, them) {
     const me = entryFor(agent, step.speaker?.id);
     if (!me) return null;
     if (step.where) mem.venue = step.where;
+    mergeLastLines(mem.lines, step.last_lines);
     const used = mem.used.get(me.id) ?? [];
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const output = scriptedTurn(step, me.entry, { them: them(step), used, attempt });
-      const r = await agent.tool("submit_own_date_step", { episode_id: step.episode_id, output });
-      if (r.accepted === false) continue;
-      used.push(output.dialogue);
-      mem.used.set(me.id, used);
-      mem.lines.push({ name: me.name, text: output.dialogue });
-      return r.step ?? null;
-    }
-    throw new Error(`no line accepted on ${step.episode_id} turn ${step.turn}`);
+    mem.used.set(me.id, used);
+    const partnerName = them(step);
+    const partner = await partnerFor(agent, partnerName, mem.partnerId ?? null);
+    const fields = scriptedTurn(step, me.entry, { them: partnerName, used, said: agent.said.get(me.id) ?? [] });
+    const result = await speak(agent, {
+      kind: "turn",
+      me,
+      partner,
+      history: mem.lines,
+      extra: {
+        where: step.where ?? mem.venue,
+        act: step.act,
+        ending_label: step.ending_label,
+        closing: Number(step.turn) >= Number(step.of) - 2,
+        suggestion: Boolean(step.answer_their_suggestion),
+      },
+      send: async (dialogue) => {
+        const r = await agent.tool("submit_own_date_step", { episode_id: step.episode_id, output: { ...fields, dialogue } });
+        if (r.accepted === false) return { ok: false, why: r.rejected ?? r.message ?? "refused" };
+        used.push(dialogue);
+        mem.lines.push({ name: me.name, text: dialogue });
+        return { ok: true, result: { step: r.step ?? null } };
+      },
+      fallback: (attempt, said) => scriptedTurn(step, me.entry, { them: partnerName, used, said, attempt }).dialogue,
+      log: agent.log,
+    });
+    if (!result) throw new Error(`no line accepted on ${step.episode_id} turn ${step.turn}`);
+    return result.step;
   }
   if (step.stage === "recap") {
     const [a, b] = mem.names ?? [];
@@ -586,17 +1152,25 @@ async function ownDate(agent, a, b, { stopAt = Infinity, dateNumber = 1 } = {}) 
 /**
  * Seeds the crowd: its agents and characters, a finished date for each agent's own pair (public, airing in the
  * prediction window), second dates half played, and the matches and texts in COUPLES. Everything is free to the show.
+ * `brain` writes the lines and texts (scripted when it's off); model replies stop after `seedBudgetMs`, so the arena
+ * still reaches READY in time, and the rest of the seeding is scripted (counted as "seed time budget").
  */
-export async function seedCrowd(transport, { agents: count = CROWD.length, secondDates = 2, log = () => {} } = {}) {
+export async function seedCrowd(
+  transport,
+  { agents: count = CROWD.length, secondDates = 2, log = () => {}, brain = scriptedBrain("no model configured"), seedBudgetMs = 240_000 } = {},
+) {
   const agents = [];
+  const crowd = new Map();
+  brain.seedUntil = brain.enabled ? Date.now() + seedBudgetMs : 0;
   for (const def of CROWD.slice(0, Math.max(0, count))) {
-    const agent = await connect(transport, def);
+    const agent = await connect(transport, def, { brain, log, crowd });
     for (const entry of def.characters) {
       const r = await agent.tool("create_character", { ...entry.sheet, open_to_dates: true, open_audience: "everyone", attest: true, keep_name: true });
       const c = r.character;
       // Open to more than one partner, so a couple that clicks stays in the visitors' decks.
       await agent.tool("update_character", { character_id: c.id, partner_style: "open" }).catch((e) => log(`${def.client}: ${e.message}`));
       agent.chars.push({ id: c.id, name: c.name, entry });
+      crowd.set(c.id, { id: c.id, name: c.name, entry });
     }
     agents.push(agent);
   }
@@ -642,10 +1216,18 @@ export async function seedCrowd(transport, { agents: count = CROWD.length, secon
       const thread = [];
       for (let i = 0; i < texts; i++) {
         const [from, to] = i % 2 === 0 ? [x, y] : [y, x];
-        const text = scriptedText(from.c.entry, { them: to.c.name, thread: thread.map((t) => ({ ...t, from: t.from === from.c.id ? "this_character" : "them" })) });
-        if (!text) break;
-        await from.agent.tool("send_text", { character_id: from.c.id, to: to.c.id, text });
-        thread.push({ from: from.c.id, text });
+        const sent = await speak(from.agent, {
+          kind: "text",
+          me: from.c,
+          partner: await partnerFor(from.agent, to.c.name, to.c.id),
+          history: thread.map((t) => ({ name: t.from === from.c.id ? from.c.name : to.c.name, text: t.text })),
+          send: (text) => from.agent.tool("send_text", { character_id: from.c.id, to: to.c.id, text }).then(() => ({ ok: true, result: text }), (e) => ({ ok: false, why: e.message })),
+          fallback: (_attempt, said) =>
+            scriptedText(from.c.entry, { them: to.c.name, said, thread: thread.map((t) => ({ ...t, from: t.from === from.c.id ? "this_character" : "them" })) }),
+          log,
+        });
+        if (!sent) break;
+        thread.push({ from: from.c.id, text: sent });
         world.texts++;
       }
       if (texts > 0) world.texts_waiting++;
@@ -653,6 +1235,7 @@ export async function seedCrowd(transport, { agents: count = CROWD.length, secon
       log(`couple ${x.c.name} × ${y.c.name}: ${e.message}`);
     }
   }
+  brain.seedUntil = 0;
   return { agents, world };
 }
 
@@ -680,6 +1263,7 @@ async function playDates(agent, ctx) {
       agent.memory.set(d.episode_id, { lines: [], venue: null, used: new Map(), names: [d.your_character?.name, d.with?.name], dateNumber: 1 });
     }
     const mem = agent.memory.get(d.episode_id);
+    if (d.two_agent && d.with?.id) mem.partnerId = d.with.id;
     if (!d.two_agent) {
       if ((mem.nextAt ?? 0) > Date.now()) continue;
       mem.nextAt = Date.now() + ctx.soloMs;
@@ -729,10 +1313,20 @@ async function socialise(agent, ctx, log) {
       const owes = last ? last.from === "them" && agent.replied.get(key) !== last.id : visitor && firstSeen;
       const room = visitor || thread.length < 7;
       if (owes && room && (!last || agent.seen.get(`${key}:${last.id}`))) {
-        const text = scriptedText(me.entry, { them: m.with.name, thread });
-        if (text) {
-          await agent.tool("send_text", { character_id: me.id, to: other, text }).then(() => ctx.stats.texts++).catch((e) => log(`send_text: ${e.message}`));
-        }
+        const sent = await speak(agent, {
+          kind: "text",
+          me,
+          partner: await partnerFor(agent, m.with.name, other),
+          history: thread.map((t) => ({ name: t.from === "them" ? m.with.name : me.name, text: t.text })),
+          send: (text) =>
+            agent.tool("send_text", { character_id: me.id, to: other, text }).then(
+              () => ({ ok: true, result: text }),
+              (e) => (log(`send_text: ${e.message}`), { ok: false, why: e.message }),
+            ),
+          fallback: (_attempt, said) => scriptedText(me.entry, { them: m.with.name, thread, said }),
+          log,
+        });
+        if (sent) ctx.stats.texts++;
         agent.replied.set(key, last?.id ?? "opened");
       } else if (last && last.from === "them" && !agent.seen.get(`${key}:${last.id}`)) {
         agent.seen.set(`${key}:${last.id}`, Date.now());
@@ -745,7 +1339,7 @@ async function socialise(agent, ctx, log) {
         if (r?.step) {
           ctx.booksLeft--;
           ctx.stats.booked++;
-          agent.memory.set(r.step.episode_id, { lines: [], venue: null, used: new Map(), names: [me.name, m.with.name], dateNumber: 1 });
+          agent.memory.set(r.step.episode_id, { lines: [], venue: null, used: new Map(), names: [me.name, m.with.name], dateNumber: 1, partnerId: other });
           await playStep(agent, r.step, () => m.with.name).catch((e) => log(`first turn: ${e.message}`));
         }
       }
@@ -791,9 +1385,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const [base, secondsArg] = process.argv.slice(2);
   if (!base) throw new Error("usage: crowd.mjs <base> <seconds>");
   const log = (m) => console.error(`crowd ${m}`);
-  const { agents, world } = await seedCrowd(httpTransport(base), { agents: Number(process.env.LOOP_CROWD_AGENTS ?? CROWD.length), log });
-  console.log(`crowd seeded: ${JSON.stringify(world)}`);
+  const brain = await brainFromEnv(process.env, { log });
+  const { agents, world } = await seedCrowd(httpTransport(base), { agents: Number(process.env.LOOP_CROWD_AGENTS ?? CROWD.length), log, brain });
+  console.log(`crowd seeded: ${JSON.stringify({ ...world, crowd_brain: brain.summary() })}`);
   const run = runCrowd(agents, { until: Date.now() + Number(secondsArg || 1800) * 1000, books: Number(process.env.LOOP_CROWD_BOOKS ?? 0), log });
   await run.done;
-  console.log(`crowd done: ${JSON.stringify(run.stats)}`);
+  console.log(`crowd done: ${JSON.stringify({ ...run.stats, crowd_brain: brain.summary() })}`);
 }

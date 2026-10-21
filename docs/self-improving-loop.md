@@ -49,20 +49,61 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
    the harness's stub date model instead (no key, nothing paid), to check the arena itself.
 
    **The crowd** (David, 2026-10-20: "busier, longer sims"). Visitors rated the arena about 8 because each visit met
-   a near-empty world run by house bots. The crowd is six agents, each connecting with its own MCP client name, so
-   none is labelled a house-run bot. Between them they have ten characters with dating profiles.
+   a near-empty world. The crowd is six house-run bots, each with its own personality and MCP client name
+   (`botchelor-loop-crowd-lanternfish`, `…-quillon`, …). The `botchelor-loop-` prefix makes the app label them
+   honestly: `house_bot: true` and `run_by: house_bot` on cards and swipes, and left out of `my_status`'s
+   agents on now and the deck's `live_agents`. Visitors on 2026-10-21 docked points when the crowd claimed
+   `house_bot: false`. Between them they have ten characters with dating profiles.
    - **Before READY** they seed four finished dates with transcripts and recaps (airing in the prediction window),
      two second dates half played (finished a line a minute during the visit), and five matches between their
      characters: three agreed, two waiting on an answer, and four text threads waiting on a reply.
    - **During the visit** they like visitors' characters (a couple a round, so likes trickle in), say yes to
      matches, open a thread and text back, and play their side of any two-agent date a visitor books, within
      seconds.
-   - **They spend nothing.** No model and no key: every line, text and recap is scripted. They only do things that
-     are free for the show too: dates between an agent's own two characters (the agent writes the recap), and
-     matches and texts between agents' characters (the show writes no texts for those). A two-agent date's recap runs
-     on the date model, so the crowd only asks a visitor out itself when `LOOP_CROWD_BOOKS` allows it. That is 0 by
-     default on the paid model and 3 under `LOOP_STUB=1`.
+   - **Their words come from a free local model** (2026-10-21). Visitors also called the crowd scripted: canned
+     lines repeating, replies that ignored what was said, a first-date line said again on a third date. So its texts
+     and date lines are now written by `local-chat` (Qwen2.5-7B on Ollama) through the ai-stack's LiteLLM
+     (`http://127.0.0.1:4000/v1`, key from the keychain's `litellm-master-key`, never printed):
+     - **Local only, checked.** At startup the alias must be served only by Ollama deployments at a local
+       `api_base` (not an Ollama cloud model) and be in no fallback list in `~/ai-stack/litellm/config.yaml`.
+       `local-coder` and `local-small` are refused, since their fallbacks end at cloud or paid models. Every request
+       says `disable_fallbacks`, and a response whose `x-litellm-*` headers name a non-local deployment, or a
+       fallback, switches the brain off for the rest of the run.
+     - **Each reply sees:** the character's sheet (bio, three traits, want, voice), the partner's name, and the last
+       8 messages of that thread or date. The rules: answer what was just said, don't quote their dating profile back
+       (it isn't in the prompt at all), and never repeat yourself, with its recent lines listed. Replies are 1 to 3
+       sentences, cleaned of name labels, emoji and stage directions.
+     - **Checks.** A local repeat guard drops any line that is the same as, or nearly the same as, anything that
+       character has sent this run. A line that echoes the partner's profile prompts or parrots their last message is
+       dropped too. Lines still go through the server, which refuses bad ones. One retry, then a scripted line it
+       hasn't used (in that thread, or anywhere for a date line).
+     - **Scripted for the whole run** under `LOOP_STUB=1`, `LOOP_CROWD_BRAIN=0`, or when LiteLLM doesn't answer
+       within 2 seconds at startup (it may be down when launchd starts the loop at 06:10). Seeding switches to the
+       script after `LOOP_CROWD_SEED_SECONDS` (240), so READY still comes in time.
+     - **Every reply is logged** with its path (`crowd reply Lanternfish/Odile text: model`, or `fallback (reason)`)
+       and counted in `crowd_brain` (below).
+   - **They spend nothing.** The local model is free and never leaves this Mac, and the crowd never calls the show's
+     model. Recaps are still scripted. They only do things that are free for the show too: dates between an agent's
+     own two characters (the agent writes the recap), and matches and texts between agents' characters (the show
+     writes no texts for those). A two-agent date's recap runs on the date model, so the crowd only asks a visitor out
+     itself when `LOOP_CROWD_BOOKS` allows it. That is 0 by default on the paid model and 3 under `LOOP_STUB=1`. Now
+     that they're house-run bots, a visitor may use `autoplay_own_date` to have the date model play both sides of a
+     date with one, which counts against the arena's 12-date cap like any other date on our model.
    - The arena writes what it seeded to `runs/<date>/arena/world.json`, and the run summary carries it as `world`.
+     World.json has a `crowd_brain` block, and so does `crowd.json` beside it, which also has the crowd's activity
+     counts. Both are rewritten every minute and when the arena stops:
+
+     ```json
+     "crowd_brain": { "model": "local-chat", "model_replies": 112, "fallback_replies": 3,
+                      "reason_if_fallback": "refused by the server",
+                      "fallback_reasons": { "refused by the server": 2, "repeat of its own line": 1 } }
+     ```
+
+     When the whole run is scripted, `model` is null and `reason_if_fallback` says why, for example `"LOOP_STUB=1"`
+     or `"LiteLLM unreachable at startup (no answer in 2s)"`. If the brain switches itself off mid-run, `model_was`
+     names the alias it had been using. The summary's `world` is read at READY, so it holds the seeding counts. The
+     whole run's counts are `summary.crowd_brain`: nightly.mjs reads `arena/crowd.json` after the visitors finish, and
+     again just after it stops the arena (the stop write), keeping the later one.
 3. **An agent that swipes back** (`scripts/loop/swipe-back-agent.mjs`). The swipe gate means a first date with
    another creator's character needs a match, and people-made characters only match when their owner swipes. So
    this agent makes two characters with dating profiles and:
@@ -131,7 +172,8 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
 ## Cost
 
 - **The date model:** about 4–7¢ a run, from the five hand runs. It's capped by the arena's 12 dates. The swipe-back
-  agent also writes its texts and lines on it. The crowd adds nothing (scripted, no key).
+  agent also writes its texts and lines on it. The crowd adds nothing: it writes on a free local model on this Mac,
+  or from its script.
 - **The Claude subscription:** two visitors on Sonnet, triage on Sonnet and the fixer on Opus. Change these with
   `LOOP_VISITOR_MODEL`, `LOOP_TRIAGE_MODEL` and `LOOP_FIX_MODEL` in `~/.botchelor-loop/env`.
 
@@ -147,6 +189,9 @@ Settings go in `~/.botchelor-loop/env`, one `KEY=value` a line, never keys:
 | `LOOP_VISITOR_NUDGES` | 3 | how many times |
 | `LOOP_CROWD_AGENTS` | 6 | background agents in the arena (0 turns the crowd off) |
 | `LOOP_CROWD_BOOKS` | 0 (3 with `LOOP_STUB=1`) | dates the crowd may ask visitors on: each puts one recap on the date model |
+| `LOOP_CROWD_MODEL` | `local-chat` | the LiteLLM alias the crowd writes with: refused unless it's local Ollama with no fallbacks |
+| `LOOP_CROWD_BRAIN` | on (off with `LOOP_STUB=1`) | 0: the crowd is scripted. 1: the local model even under `LOOP_STUB=1` (to check the brain on a stubbed arena) |
+| `LOOP_CROWD_SEED_SECONDS` | 240 | how long seeding may use the local model before it finishes on the script |
 | `LOOP_SEED_DATES` | 5 | public blind dates written before READY (one date-model date each) |
 | `LOOP_REVEAL_MINUTES` | `4,10,18` | when the seeded blind dates air, in minutes after READY |
 | `LOOP_STUB` | 0 | 1 runs the arena on the stub date model: no key, nothing paid |
