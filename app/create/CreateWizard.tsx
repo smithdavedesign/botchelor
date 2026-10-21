@@ -107,8 +107,14 @@ function words(s: string): number {
 
 /** The build steps, shown as a tappable progress rail. */
 function Stepper({ step, max, onJump, labels }: { step: number; max: number; onJump: (i: number) => void; labels: readonly string[] }) {
+  // Seven steps don't fit a 375px phone: the rail scrolls sideways, so bring the current step into view.
+  const rail = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    const current = rail.current?.querySelector<HTMLElement>(".wizard-rail-step.current");
+    current?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  }, [step]);
   return (
-    <ol className="wizard-rail" aria-label="Progress">
+    <ol ref={rail} className="wizard-rail" aria-label="Progress">
       {labels.map((label, i) => {
         const state = i === step ? "current" : i < max ? "done" : "todo";
         return (

@@ -83,7 +83,7 @@ describe("the originality check", () => {
     const twin = await (await check({ ...SPECIFIC, name: "Iris Fen" })).json();
     expect(twin.similar).toEqual([{ id, name: "Ira Fenn", kind: "concept", why: expect.stringMatching(/^Ira Fenn reads a lot like this one/) }]);
     expect(twin.tips[0]).toMatch(/What makes yours different\?/);
-    expect((await (await check({ name: "ira fenn", bio: "Something else entirely." })).json()).similar[0].why).toBe("There's already a Ira Fenn on the show.");
+    expect((await (await check({ name: "ira fenn", bio: "Something else entirely." })).json()).similar[0].why).toBe("There's already someone called Ira Fenn on the show.");
     expect((await (await check({ ...SPECIFIC, character_id: id }, owner)).json()).similar).toEqual([]);
     // Someone else can't use character_id to hide a lookalike.
     expect((await (await check({ ...SPECIFIC, character_id: id })).json()).similar).toHaveLength(1);

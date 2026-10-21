@@ -148,7 +148,8 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
     }
   }
 
-  if (!me) return <p className="muted">Loading…</p>;
+  // Holds the panel's room while it loads, so the page doesn't jump by ~1,000px when it arrives (a layout shift of 0.61).
+  if (!me) return <p className="muted account-loading" aria-busy="true">Loading…</p>;
 
   const authCard =
     me.authenticated && me.account ? (

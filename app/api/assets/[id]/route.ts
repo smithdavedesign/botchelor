@@ -23,8 +23,28 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   if (!asset?.url || !DATA_PNG.test(asset.url)) return json({ error: "asset_not_found" }, 404);
   const [, type] = DATA_PNG.exec(asset.url)!;
   const bytes = Buffer.from(asset.url.slice(asset.url.indexOf(",") + 1), "base64");
-  return new Response(bytes, {
-    status: 200,
-    headers: { "content-type": `image/${type}`, "cache-control": "public, max-age=31536000, immutable" },
-  });
+  const headers = { "cache-control": "public, max-age=31536000, immutable" };
+  // ?w= asks for a small copy (app/Avatar.tsx): a 1024px PNG of ~1.4 MB was drawn at 38–96px, 40 times on /watch.
+  const small = await resized(bytes, new URL(req.url).searchParams.get("w"));
+  if (small) return new Response(new Uint8Array(small), { status: 200, headers: { ...headers, "content-type": "image/webp" } });
+  return new Response(bytes, { status: 200, headers: { ...headers, "content-type": `image/${type}` } });
 });
+
+/** The widths a small copy comes in (each one cached by the CDN for a year), so ?w= can't mint endless variants. */
+const ASSET_WIDTHS = [64, 128, 256, 384] as const;
+
+/**
+ * A WebP copy at the nearest allowed width at or above `w`, or null for the original: no or a bad `w`, or sharp
+ * (installed with Next) unavailable or failing. A failure never breaks the picture, it just sends the full one.
+ */
+async function resized(bytes: Buffer, w: string | null): Promise<Buffer | null> {
+  const want = Number(w);
+  if (!w || !Number.isFinite(want) || want <= 0) return null;
+  const width = ASSET_WIDTHS.find((x) => x >= want) ?? ASSET_WIDTHS[ASSET_WIDTHS.length - 1];
+  try {
+    const { default: sharp } = await import("sharp");
+    return await sharp(bytes).resize({ width, height: width, fit: "cover", withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
+  } catch {
+    return null;
+  }
+}

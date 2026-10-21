@@ -22,7 +22,7 @@ export type SetExtras = (update: (prev: CharacterExtras) => CharacterExtras) => 
 
 const PLACEHOLDERS: Partial<Record<TextDetail, string>> = {
   occupation: "Lighthouse keeper",
-  hometown: "a fishing village with one traffic light",
+  hometown: "a fishing village",
   style: "Thrifted cardigans and mismatched socks",
   signature_item: "a yellow raincoat",
   go_to_order: "Two desserts, no main",
