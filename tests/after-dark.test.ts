@@ -425,7 +425,11 @@ describe("the scene prompt", () => {
     await step(1);
     const scene = await step(5, "They go straight back to hers and into bed.");
     expect(scene.lines.slice(0, 6).every((l: { stage?: number }) => l.stage === 0)).toBe(true);
-    expect(scene.lines.slice(6).every((l: { stage?: number }) => l.stage === 4)).toBe(true);
+    // The steered batch's lines show nothing explicit, so they keep the stage until its last line, which carries the
+    // scene's (the stage floor, lib/adult/stage-floor.ts, only raises a claim the words outrun).
+    expect(scene.lines.slice(6, -1).every((l: { stage?: number }) => l.stage === 0)).toBe(true);
+    expect(scene.lines.at(-1).stage).toBe(4);
+    expect(scene.stage).toBe(4);
     // Still no private notes on the page.
     expect(scene.lines.every((l: Record<string, unknown>) => !("why" in l) && !("memory" in l))).toBe(true);
   });
@@ -1086,7 +1090,7 @@ describe("the steer: a nudge by default, direct on request", () => {
     expect(prompt).toMatch(/Lean the scene gently this way, at its own pace/);
     expect(nudged.scene.stage).toBe(0);
     const direct = await (await post({ a: CAST_A, b: CAST_B, direction: "they go straight to bed", steer_mode: "direct" }, cookie)).json();
-    expect(prompt).toMatch(/Steer the scene this way: they go straight to bed/);
+    expect(prompt).toMatch(/Steer the scene this way, now: they go straight to bed\. Act it out in their own words/);
     expect(direct.scene.stage).toBe(4);
   });
 });
