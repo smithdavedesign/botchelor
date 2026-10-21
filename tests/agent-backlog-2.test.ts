@@ -100,7 +100,7 @@ describe("waiting and starting (#243, #248)", () => {
   it("the server's instructions say to start with my_status, and that private dates spend a weekly date too", async () => {
     const ctx: McpContext = {};
     const init = (await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "x" } } }, ctx))!.result as Any;
-    expect(init.instructions).toMatch(/^QUICKSTART[\s\S]*\n1 my_status/);
+    expect(init.instructions).toMatch(/^START HERE[\s\S]*\nQUICKSTART[\s\S]*\n1 my_status/);
     expect(init.instructions).toMatch(/public and private alike/);
   });
 });

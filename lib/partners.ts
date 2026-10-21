@@ -98,7 +98,9 @@ export async function settleCommitment(db: Db, lo: string, hi: string): Promise<
   );
   for (const c of rows) {
     if (c.is_house) continue;
-    const partner = shortName(rows.find((r) => r.id !== c.id)?.name) || "someone";
+    // #553: the partner by full name (first names collide), and whether it's one of the house cast.
+    const other = rows.find((r) => r.id !== c.id);
+    const partner = other ? partnerLabel(other) : "someone";
     let style: DecidedStyle | null = c.partner_style === "one" || c.partner_style === "open" ? c.partner_style : c.partner_style_decided;
     const decidedNow = !style;
     if (!style) {
@@ -118,6 +120,7 @@ export async function settleCommitment(db: Db, lo: string, hi: string): Promise<
           ? `🌈 ${first} is seeing ${partner}, and wants to keep dating others too`
           : `💍 ${first} is with ${partner}: just the two of them`,
       body: [
+        other ? `Partner: ${partner}, character ${other.id}.` : null,
         decidedNow ? "They decided this for themselves." : null,
         closing && c.created_via === "mcp"
           ? `A Dating couple and ${first} wants one partner, so go_on_date with anyone else is refused (open_to_dates: false). To reopen: ${REOPEN_FIELDS} (${c.id}).`
@@ -131,31 +134,77 @@ export async function settleCommitment(db: Db, lo: string, hi: string): Promise<
         .join(" "),
       link: `/characters/${c.id}`,
     });
-    if (closing) await tellMatchesItClosed(db, c, rows.find((r) => r.id !== c.id)?.id ?? null, partner);
+    if (closing) await tellMatchesItClosed(db, c, other ?? null);
   }
+}
+
+/** #553: a partner as notices name it: full name, and "(house cast)" when it's one of the show's own characters. */
+export const partnerLabel = (p: { name: string; is_house: boolean }): string => `${p.name}${p.is_house ? " (house cast)" : ""}`;
+
+/**
+ * The owner's heads-up before exclusivity (2.4.2, the 2026-10-21-0319 run: a character closed to other dates with no
+ * warning). A couple that has just become Sparks (a date ending in a second date) is one more such date from a Dating
+ * couple, and a one-partner character closes to other dates then (settleCommitment). Each owner whose character would
+ * close hears it now, with the opt-out: partner_style "open" (more than one partner), which keeps it open. A character
+ * already open, already closed, or set to more than one partner isn't told. The rule itself doesn't change.
+ */
+export async function warnBeforeExclusive(db: Db, lo: string, hi: string): Promise<number> {
+  const { rows } = await db.query<{ id: string; name: string; owner_id: string | null; is_house: boolean; partner_style: PartnerStyle | null; partner_style_decided: DecidedStyle | null; open_to_dates: boolean; created_via: string }>(
+    `select id, name, owner_id, is_house, partner_style, partner_style_decided, open_to_dates, created_via from characters where id = any($1)`,
+    [[lo, hi]],
+  );
+  let told = 0;
+  for (const c of rows) {
+    const other = rows.find((r) => r.id !== c.id);
+    if (c.is_house || !c.owner_id || !other || !c.open_to_dates || c.partner_style === "open") continue;
+    // Its own choice, else what it decided, else what it would decide now (the same deterministic rule settle uses).
+    let style: DecidedStyle | null = c.partner_style === "one" ? "one" : c.partner_style_decided;
+    if (!style) {
+      const loaded = await loadCharacter(db, c.id);
+      style = loaded ? decideFromTemperament(loaded.signals) : "one";
+    }
+    if (style !== "one") continue;
+    const first = shortName(c.name);
+    const why = c.partner_style === "one" ? "you set them to one partner" : "they want one partner (their own call, from their temperament)";
+    await notify(db, c.owner_id, {
+      kind: "exclusive_soon",
+      title: `⏳ ${first} is one date from going exclusive with ${other.name}`,
+      body:
+        `${c.name} and ${partnerLabel(other)} are Sparks: one more date that ends in a second date makes them a Dating couple, and ${why}, ` +
+        `so ${first} would then close to other dates. ` +
+        (c.created_via === "mcp"
+          ? `To keep ${first} open: update_character with partner_style: "open" (character ${c.id}).`
+          : `To keep ${first} open, set them to more than one partner on their card.`),
+      link: `/characters/${c.id}`,
+    });
+    told++;
+  }
+  return told;
 }
 
 /**
  * #514 (c): a character that just went exclusive closed to other dates, so the owners of its other matches hear it
  * (a match's date would otherwise just never happen). Not its partner's owner, nor its own.
  */
-async function tellMatchesItClosed(db: Db, c: { id: string; name: string; owner_id: string | null }, partnerId: string | null, partner: string): Promise<void> {
+async function tellMatchesItClosed(db: Db, c: { id: string; name: string; owner_id: string | null }, partner: { id: string; name: string; is_house: boolean } | null): Promise<void> {
   const { rows } = await db.query<{ owner_id: string | null; other: string; other_name: string }>(
     `select o.owner_id, o.id as other, o.name as other_name
        from matches m
        join characters o on o.id = case when m.character_lo = $1 then m.character_hi else m.character_lo end
       where (m.character_lo = $1 or m.character_hi = $1) and o.id is distinct from $2 and not o.is_house`,
-    [c.id, partnerId],
+    [c.id, partner?.id ?? null],
   );
-  const first = shortName(c.name);
+  // #553: who took the match, by full name and id, and whether it's one of the house cast ("dating Orin" named nobody).
+  const who = partner ? partnerLabel(partner) : "someone";
+  const whoId = partner ? ` (character ${partner.id})` : "";
   const told = new Set<string>();
   for (const r of rows) {
     if (!r.owner_id || r.owner_id === c.owner_id || told.has(r.owner_id)) continue;
     told.add(r.owner_id);
     await notify(db, r.owner_id, {
       kind: "match_taken",
-      title: `💍 ${first} is now dating ${partner} and closed to other dates`,
-      body: `${first} matched ${shortName(r.other_name)}, but wants one partner and is with ${partner} now, so a date with them won't happen unless their owner reopens them. Character ${c.id}.`,
+      title: `💍 ${c.name} is now dating ${who} and closed to other dates`,
+      body: `${c.name} (character ${c.id}) matched ${r.other_name}, but wants one partner and is with ${who}${whoId} now, so a date with them won't happen unless their owner reopens them.`,
       link: `/characters/${c.id}`,
     });
   }

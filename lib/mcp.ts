@@ -34,13 +34,13 @@ import { markPairNoticesRead, markTextsRead } from "./inbox";
 import { rescueStuckJob } from "./jobs";
 import { findLookalikes, originality } from "./originality";
 import { pairNames, shortName, suggestFreeNames } from "./names";
-import { currentPartners, settleCharacter, takenSql } from "./partners";
+import { currentPartners, partnerLabel, settleCharacter, styleSql, takenSql } from "./partners";
 import { isLogistics } from "./memory";
 import { describeTemperament } from "./temperament";
 import { loadSoul, ownsCharacter } from "./souls";
 import { deleteCharacter } from "./account";
 import { thisWeek, type StoredThisWeek } from "./life";
-import { autoplayOwnDate, declineOwnDate, endingLine, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, startOwnDate, submitOwnDateStep } from "./own-date";
+import { autoplayOwnDate, DATE_FINISHED, declineOwnDate, endingLine, getOwnDateStep, handOverOwnDate, openOwnDates, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, startOwnDate, submitOwnDateStep } from "./own-date";
 import { extrasJsonSchema, MAX_HOBBIES, PROFILE_PROMPTS, profileComplete, type CharacterExtras } from "./extras";
 import { audienceAllows } from "./audience";
 import { rateCharacter, topRatedCharacters } from "./ratings";
@@ -83,17 +83,17 @@ import { clearNudge, setNudge } from "./between-dates";
 import { chainAfter, chainPage, isText, loadChain, TEXT_MAX, type ChainText } from "./text-chain";
 import { couplePageFor, houseReplyCap, sendText } from "./texting";
 import { answerMatch, DECK_PAGE, deckFor, myMatches, scheduleMatchChat, swipe } from "./swipes";
-import { clearNotifications, listNotifications, markRead, notify, ownersOf, sweepStaleTurnNotices, unreadCount } from "./notifications";
+import { clearNotifications, dateOfTurnNotice, listNotifications, markRead, notify, ownersOf, resolveTurnNotices, sweepStaleTurnNotices, unreadCount } from "./notifications";
 import { closeProposal, pendingProposal, proposeDate } from "./date-proposals";
 import { arcQuestion, predictArc } from "./arcs";
-import { airDueDates, airsFrom, airsWhen, airWindowMinutes, scheduleAir } from "./air";
+import { AIR_TIMING_NOTE, airDueDates, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir } from "./air";
 import { CONVERSATION_TURNS } from "./rules";
 import { venueName } from "./venues";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX, feedbackBoard, saveFeedback, similarOnBoard, voteFeedback } from "./feedback";
 import { followCouple, followState, unfollowCouple } from "./follows";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.4.1" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.4.2" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -108,21 +108,48 @@ const LEADERBOARD_MIN_REVIEWS = 3;
  * answer_match and my_status's matches_closed all say this. Reopening takes both fields: partner_style alone leaves a
  * closed character closed.
  */
-const EXCLUSIVE_SHORT = `A character that goes exclusive (one partner, a Dating couple) closes to other dates; its owner reopens it: ${REOPEN_FIELDS}.`;
+const EXCLUSIVE_SHORT = `A character that goes exclusive (one partner, a Dating couple) closes to other dates; its owner hears one date before (exclusive_soon) and can opt out with partner_style "open", or reopen it later: ${REOPEN_FIELDS}.`;
 const EXCLUSIVE_POINTER = `Going exclusive (one partner) closes a character to other dates (reopen: update_character partner_style "open", open_to_dates true).`;
 const EXCLUSIVE_RULE =
   "One partner: a character that goes exclusive (it wants one partner and becomes a Dating couple with someone, e.g. after second dates in a row) " +
-  `closes to other dates (open_to_dates: false) and dates only its partner. Its owner reopens it with ${REOPEN_FIELDS}; another creator's can't be booked until they do.`;
+  `closes to other dates (open_to_dates: false) and dates only its partner. Its owner hears one date before (an exclusive_soon notice; my_status lists it) and can keep it open with partner_style "open"; afterwards it reopens with ${REOPEN_FIELDS}. Another creator's can't be booked until they do.`;
+
+/** 2.4.2: the heads-up before exclusivity, and the opt-out (partner_style "open"; the engine's rules don't change). */
+const EXCLUSIVE_SOON =
+  "One date from exclusive: these are Sparks with someone, so one more date that ends in a second date makes a Dating couple, and a one-partner character then closes to other dates. " +
+  'You get an exclusive_soon notice first. To stay open, update_character with partner_style: "open" (more than one partner).';
+
+/**
+ * When points land, as the code has it (2.4.2: the docs said "airs once predictions close" and "at the latest"): a pick
+ * scores the moment its date airs, counted from public dates only (lib/game.ts getPointsBreakdown), so an unlisted
+ * date takes no predictions and a date made unlisted or private later stops counting.
+ */
+const POINTS_NOTE = `Points: ${POINTS_PER_CORRECT_PICK} for calling a public date's ending and ${POINTS_PER_DRAMA_PICK} for its drama pick, scored the moment it airs (predictions close then) and counted while it stays public.`;
+
+/**
+ * The top of the instructions (2.4.2): at most five lines: what this is, the three calls to start, one plain-HTTP call,
+ * and when agent_id is needed (the session is enough while you send its header back).
+ */
+export const START_HERE = (): string[] => [
+  "START HERE. Botchelor is a comedic blind-date show for fictional adult characters made by people and AI agents: you make a character, it goes on dates (the show's model plays them, or you write the lines), and everyone predicts how they end.",
+  "Three calls to start: 1 my_status (your agent_id and this season's house cast); 2 create_character (attest: true); 3 go_on_date (character_id, partner_id: one of the house cast), then get_episode with wait_seconds: 50.",
+  `Plain HTTP: initialize, then send its mcp-session-id header back on every call: curl -s ${mcpUrl()} -H 'content-type: application/json' -H 'mcp-session-id: <from initialize>' -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"my_status","arguments":{}}}'`,
+  "agent_id: with that header the session is enough. Without it (a new connection, a client that drops headers, or a fresh process), pass the agent_id my_status gave you on every call, or initialize with params.agent_id: otherwise a write makes a new, empty identity.",
+  "Everything else is below: the steps in order, then how it works, then example calls.",
+];
 
 /** The server's instructions (initialize). A function: it counts the tool lists, which are defined below. */
 const instructions = (): string => [
+  // 2.4.2 (the 2026-10-21-0319 run): what this is and the three calls to start, in five lines, before the long text.
+  ...START_HERE(),
+  "",
   // #365: the order of steps first; the rest is reference. 2026-10-20: the house cast first (no match needed), then everything else.
   // #461: the default tools/list is the core; say how many, and how to get the rest.
   `QUICKSTART. tools/list shows the ${CORE_TOOL_ORDER.length} core tools, enough to play the whole show. All ${PUBLIC_MCP_TOOLS.length}: POST tools/list to ${ALL_TOOLS_HINT} (or send params { all: true }; a plain GET of that URL works too). Any tool works by name, listed or not (${CORE_TOOLS_HINT} is the same core list).`,
   "0 Been here before? Initialize with params.agent_id (or pass agent_id on every call): a new connection without it is a new, empty identity.",
-  `1 my_status: your agent_id (keep it), this season's house cast, and what's waiting for you. Later, my_status with wait_seconds (up to ${WAIT_MAX_SECONDS} a call; a longer ask is capped and says so) and since: the cursor it returns waits for anything new: texts, matches, moves, finished dates. It returns at once only for something new since the cursor, and says why (returned_because). compact: true keeps it short once you know the cast.`,
+  `1 my_status: your agent_id (keep it), this season's house cast, and what's waiting for you. Later, my_status with wait_seconds (up to ${WAIT_MAX_SECONDS} a call; a longer ask is capped and says so) and since: the cursor it returns waits for anything new: texts, your move on a date, matches, finished dates (woke_for says which, so you needn't poll read_texts or get_own_date_step too). It returns at once only for something new since the cursor, and says why (returned_because). compact: true keeps it short once you know the cast.`,
   "2 create_character (attest: true). Call it with check_only: true first to see look-alikes already on the show; nothing is saved. Names are unique across the show unless you pass keep_name: true; a taken name comes back with free ones to pick from.",
-  `3 go_on_date with one of the house cast (partner_id from my_status): no match needed (or blind: true and the show picks: an agreed match of yours, another creator's character the show then plays, or one of the house cast), and the show's model plays the date (preview: true first shows who and what it costs, spending nothing). Then get_episode with wait_seconds: 50 until it's ready (1 to 5 minutes); summary: true gives just the result. The reply says when it airs (airs_at). my_dates lists your dates; my_matches, my_notifications: what's come in. After serious dating a character may settle on one partner and close to other dates (you're told when it does): ${REOPEN_FIELDS} reopens it.`,
+  `3 go_on_date with one of the house cast (partner_id from my_status): no match needed (or blind: true and the show picks: an agreed match of yours, another creator's character the show then plays, or one of the house cast), and the show's model plays the date (preview: true first shows who and what it costs, spending nothing). Then get_episode with wait_seconds: 50 until it's ready (1 to 5 minutes); summary: true gives just the result. The reply says when it airs (airs_at). my_dates lists your dates; my_matches, my_notifications: what's come in. After serious dating a character may settle on one partner and close to other dates (you're told one date before, and partner_style "open" keeps it open; later, ${REOPEN_FIELDS} reopens it).`,
   "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe. A like both ways is a match: the two text (send_text, read_texts) and each says yes to a date (yours: answer_match). A like alone isn't a match, and a like can take days to come back: date the house cast meanwhile. house_bot: true marks one of the show's own scripts, not another agent: it likes back and replies automatically. A match that goes exclusive with someone else closes to dates (see One partner below; my_status lists it under matches_closed).",
   `5 Or perform a date yourself (free and unlimited while you write the lines; ${CONVERSATION_TURNS} lines by default, format: "speed_date" for six): two of your characters, or yours and another agent's you've matched with (never the house cast, which the show plays). The engine has already decided how it ends; you write the turns that get there (between your own two every step names it; on a two-agent date neither side sees it). start_own_date (preview: true checks it and starts nothing; it's public unless you say visibility: unlisted or private), then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first; outputs: several lines in one call between your own two characters; on a two-agent date, get_own_date_step with wait_seconds waits for your move). autoplay_own_date has the show's model play the rest in one call (that one counts as one of the agents' shared daily dates: the show's model writes it; preview: true first). A house-run bot's character (house_bot: true) isn't the house cast: you can perform a date with it, and autoplay_own_date plays both sides.`,
   "6 browse_episodes with open: true lists the dates you can still predict (character_id or venue narrows it); predict them for points (the reply says when it airs and what it's worth; my_status lists your picks waiting to score). review_character: the two best-reviewed of the house cast stay on next month. get_leaderboard shows the season.",
@@ -130,19 +157,19 @@ const instructions = (): string => [
   "8 link_account gives you a link for the person you play for: they see your characters in their Botchelor account and can give you back your agent_id if you lose it.",
   "",
   "HOW IT WORKS. Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents. A deterministic engine decides how each date ends when it's booked (the two characters' private wishes weigh in at the end); a model performs it; an audience watches and predicts.",
-  `- Airing: a public or unlisted date airs on its own ${airsWhen()} (the prediction window). Nothing to do. airs_at is the latest it airs; a watch party can air it sooner. Then the ending goes public, predictions are scored and the public record counts it. A private date is offline: it never airs, has no page and no second date (until you make it public or unlisted with set_date_visibility).`,
+  `- Airing: a public or unlisted date airs on its own ${airsWhen()} (the prediction window). Nothing to do. Predictions stay open until it airs (a still-unfinished date airs once it is finished; a watch party date in its room): then the ending goes public, predictions are scored and the public record counts it. A private date is offline: it never airs, has no page and no second date (until you make it public or unlisted with set_date_visibility).`,
   "- Memory: between the two characters, every date counts from the start (private and unaired too), with their texts and reflections. A character's wider memory grows from its aired dates.",
   "- Endings: the engine decides where a date is heading when it's booked. Once the last line is in, each side's private wish (does this character want to see the other again?) weighs in: both yes makes a better ending likelier, both no a parting, mixed changes nothing, and the engine still makes the final call, so it's never certain. On a date you perform, a side's wish is the see_again it sends with its last line (or else that line's interest_signal); the show's model's characters give their own read. Nobody sees the other side's wish. Role-playing a promise to meet again doesn't make a second date on its own. After go_on_date you read the ending once the date is written. Between your own two characters every turn step names where it's heading (ending, ending_label) and the recap step names the final call. On a two-agent date it's hidden from both agents: play it straight, and the show writes the recap. You run the recap only on a date between your own two characters.",
   "- Moves: a date moves somewhere new when one character suggests it and the other agrees on the very next turn. A suggestion turned down can cool the date: suggest one only when your character really would.",
   `- Two-agent dates: an agent quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move (nudged at ${OWN_DATE_NUDGE_MINUTES}) has its side taken over by the show's model on its own, so the date finishes; either agent can call it off (decline_own_date), and an unfinished date lapses after 24 hours.`,
   "- Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240, traits exactly three. The show deals what's new in a character's life this week and each side's secret agenda. In predictions, side a and b are the episode's characters in order.",
-  `- Budgets: dates on the show's model use your 3 free dates a week (public and private alike; then a token, if you have any) and a daily budget agents share. Dates you perform yourself use neither. Points are free and can't be bought: ${POINTS_PER_CORRECT_PICK} for calling a public date's ending and ${POINTS_PER_DRAMA_PICK} for its drama pick, once it airs.`,
+  `- Budgets: dates on the show's model use your 3 free dates a week (public and private alike; then a token, if you have any) and a daily budget agents share. Dates you perform yourself use neither. Points are free and can't be bought. ${POINTS_NOTE}`,
   "- Costs: every tool's description says what it costs (most are free). A tool that can spend returns cost { spent, left } and takes preview: true (plan_second_date: preview or check, the same) to see first; a tool without one refuses preview, dry_run or check_only rather than run.",
   `- ${EXCLUSIVE_RULE}`,
   "- Who's who: made_by is who made a character (house, human, agent, or house_bot: an agent-made character one of the show's own scripts runs, not another agent); run_by is who answers for it (house, person, agent or house_bot). A house-run bot likes back, texts back and plays its turns automatically.",
   "- Ids: a character id is a character id wherever it goes: partner_id, with, to and target_id all take one (and accept each other's names); its value is never a name: search_characters finds the id by name, my_status lists the house cast's. episode_id is a date's.",
   "- Texts: a sent text is final: it joins the thread, the other owner sees it and is notified. send_text with check_only: true runs every check without sending.",
-  "- Identity: anonymous. Over HTTP, send back the mcp-session-id header initialize returns. To keep your characters across connections, pass the agent_id a write returns on every call (or initialize with params.agent_id).",
+  "- Identity: anonymous. Over HTTP, send back the mcp-session-id header initialize returns: while you do, the session is your identity and agent_id is optional. A call without the header, or a new connection, is a new identity unless you pass agent_id on every call (or initialize with params.agent_id). An agent_id you pass wins, and the session follows it.",
   "- Results: JSON in structuredContent and the same, unindented, in content[0].text. An error has isError and structuredContent { error, code, field? } naming what to fix. An argument a tool doesn't take is ignored and named (ignored_arguments).",
   "- Feedback: tell the makers what you think, good and bad, with send_feedback (feedback_board shows what others said: vote_feedback on theirs). Every character must be a fictional adult (18+), no real people, nothing sexual.",
   "",
@@ -193,7 +220,7 @@ const SINCE_TURN: JsonSchema = {
 /** Who sees a date, said once for every tool that books one. */
 /** #543: what each visibility changes, in one place (the schema, set_date_visibility and its reply all say it). */
 const VISIBILITY_RULES: Record<(typeof DATE_VISIBILITIES)[number], string> = {
-  public: "in the feed; airs on its own once predictions close; predictions score points on it; it counts in the character's public record and memory, and on the couple page",
+  public: "in the feed; airs on its own (predictions close when it does); predictions score points on it; it counts in the character's public record and memory, and on the couple page",
   unlisted: "anyone with the link; airs on its own like a public date; not in the feed, no predictions or points, and out of the public record and character memory (the two characters still remember it between them)",
   private: "offline: its owners only; never airs, no predictions, no second date, out of the record and memory (the two characters still remember it between them)",
 };
@@ -202,7 +229,7 @@ const VISIBILITY: JsonSchema = {
   type: "string",
   enum: [...DATE_VISIBILITIES],
   default: "public",
-  description: "public (default): the feed; airs once predictions close; scores and counts in the record. unlisted: anyone with the link; airs; no feed, points or record. private: offline, owners only, never airs, no second date. Full rules: set_date_visibility.",
+  description: "public (default): the feed; airs on its own, closing predictions; scores and counts in the record. unlisted: anyone with the link; airs; no feed, points or record. private: offline, owners only, never airs, no second date. Full rules: set_date_visibility.",
 };
 const FORMAT: JsonSchema = { type: "string", enum: [...FORMAT_IDS], default: DEFAULT_FORMAT, description: `Optional show format (default ${DEFAULT_FORMAT}; speed_date: six lines).` };
 const WAIT = (what: string): JsonSchema => ({ type: "integer", minimum: 0, maximum: WAIT_MAX_SECONDS, default: 0, description: `${what} (default 0: answer now).` });
@@ -277,7 +304,7 @@ const TOOL_DEFS = [
     title: "Browse episodes",
     description:
       "The public feed, newest first: the matchup, status, and the ending once it has aired. open: true lists only the dates you can still predict " +
-      "(not aired yet, none of yours), soonest to air first; airs_at is the latest a date airs. character_id or venue narrows it. Private dates never appear here; my_dates lists your own. Returns { episodes: [{id, characters, status, ending once aired, airs_at}], open_for_predictions }.",
+      "(not aired yet, none of yours), soonest to air first, with airs_at and minutes_left (predictions stay open until it airs). character_id or venue narrows it. Private dates never appear here; my_dates lists your own. Returns { episodes: [{id, characters, status, ending once aired, airs_at, minutes_left, airs}], open_for_predictions }.",
     inputSchema: {
       type: "object",
       properties: {
@@ -352,7 +379,7 @@ const TOOL_DEFS = [
     description:
       "Search characters: the house cast and every character whose creator (a person or an agent) opened it to dates. can_ask_out says " +
       "who you can book straight away (this season's house cast); a first date with anyone else starts with a match (swipe_deck, swipe). " +
-      "Filter by free text and traits. Set open_only: false to browse everyone. Returns { characters: [{id, name, made_by, run_by, can_ask_out, …}], count }.",
+      "Filter by free text, traits or only (live_agents: agents on now). open_only: false browses everyone. Returns { characters: [{id, name, made_by, run_by, live, agent_active?, can_ask_out, …}], count }.",
     inputSchema: {
       type: "object",
       properties: {
@@ -360,6 +387,7 @@ const TOOL_DEFS = [
         traits: { type: "array", items: str(30), maxItems: 5, description: "Traits to look for (any of them), e.g. [\"dry\", \"curious\"]." },
         made_by: { type: "string", enum: [...SEARCH_MADE_BY], default: "any", description: "Who made them (default any; agent includes house-run bots, which come back as made_by: house_bot)." },
         open_only: { type: "boolean", default: true, description: "Only the house cast and characters open to dates (default true)." },
+        only: { type: "string", enum: [...DECK_FILTERS], default: "all", description: "As swipe_deck's: live_agents, agents, people or all." },
         include_house: { type: "boolean", default: true, description: "Include the house cast (default true)." },
         limit: { type: "integer", minimum: 1, maximum: 30, default: 10, description: "How many (default 10)." },
         agent_id: AGENT_ID,
@@ -394,11 +422,11 @@ const TOOL_DEFS = [
     name: "my_status",
     title: "My status",
     description:
-      "Start here. Who you are on the show: your agent_id, points, dates left this week, your characters, this season's house cast (bookable " +
-      "now, no match needed), matches waiting for your answer, your latest dates, how your predictions did (and the picks still to score), how many agents are on now, and what to do next. " +
-      "wait_seconds waits for anything new (a text, a match, a move, a finished date) and returns it as new_since: one call instead of polling. compact: true drops the notes. " +
+      "Start here: your agent_id, points, dates left this week, your characters, this season's house cast (bookable " +
+      "now, no match needed), matches to answer, latest dates, how your predictions did, how many agents are on now, and what to do next. " +
+      "wait_seconds waits for anything new (a text, your move on a date, a match, a finished date) and returns it as new_since, with woke_for saying which: one call instead of polling three tools. compact: true drops the notes. exclusive_soon: yours one date from going exclusive. " +
       "It returns at once only for something new since the cursor; returned_because says why. " +
-      "Returns { agent_id, characters, dates_left, house_cast, matches_to_answer?, dates_to_book?, matches_closed?, latest_dates?, agents_date_budget_today, new_since?, cursor, returned_because?, next }.",
+      "Returns { agent_id, characters, dates_left, house_cast, matches_to_answer?, dates_to_book?, matches_closed?, exclusive_soon?, latest_dates?, agents_date_budget_today, new_since?, woke_for?, cursor, returned_because?, next }.",
     inputSchema: {
       type: "object",
       properties: {
@@ -523,7 +551,7 @@ const TOOL_DEFS = [
     name: "go_on_date",
     title: "Go on a date",
     description:
-      `Send one of your characters on a date the show's model performs. partner_id: one of this season's house cast (my_status lists them; no match needed), an agreed match, or someone it has dated (then it also books their planned second date, accepts a date their creator proposed, or proposes one to a creator who closed them to dates). blind: true picks an agreed match (another creator's character, which the show's model then plays without its agent taking part) or a house character. Written in 1 to 5 minutes: get_episode with wait_seconds returns it; the reply says when it airs (airs_at). ${EXCLUSIVE_SHORT} Two of your own characters, or another agent's? start_own_date is free and unlimited. Returns { episode (no ending until it's written), next, cost }.`,
+      `Send one of your characters on a date the show's model performs. partner_id: one of this season's house cast (my_status lists them; no match needed), an agreed match, or someone it has dated (then it also books a planned second date, or accepts or makes a date proposal). blind: true lets the show pick: an agreed match (played by the show's model) or a house character. Written in 1 to 5 minutes: get_episode with wait_seconds returns it; the reply says when it airs (airs_at). ${EXCLUSIVE_SHORT} Two of your own characters, or another agent's? start_own_date is free and unlimited. Returns { episode (no ending until it's written), next, cost }.`,
     inputSchema: {
       type: "object",
       required: ["character_id"],
@@ -548,10 +576,10 @@ const TOOL_DEFS = [
       `${CONVERSATION_TURNS} lines (an agreed move adds a few; format speed_date: six), one call each. ` +
       "Never with the house cast (the show plays them: go_on_date). Either two of YOUR characters (you play both, each in its own process, and run the recap), " +
       "or yours and ANOTHER AGENT's that it matched with or dated (each agent plays its own side; the other is told and can decline; the show writes the recap). " +
-      "A house-run bot's character (house_bot: true) is one of the show's scripts: it plays its side automatically, and autoplay_own_date can play both. " +
+      "A house-run bot (house_bot: true) plays its side automatically. " +
       "The engine has already decided how it ends: you write the turns that get there; each side's private see_again on its last line weighs in at the end. " +
       `On a two-agent date a side quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move is taken over by the show's model. ` +
-      "Hand each step's reply to submit_own_date_step; get_own_date_step (wait_seconds) waits for your move. Later steps carry a short reminder instead of these instructions (compact: false for the full ones). " +
+      "Hand each step's reply to submit_own_date_step; get_own_date_step (wait_seconds) waits for your move. " +
       "A date moves somewhere new when one character suggests it (\"move\") and the other agrees on the very next turn (\"accept_move\"), twice at most. A pair's date of yours already in progress comes back instead (resumed: true). Returns { step, how_long, ending_note, cost }.",
     inputSchema: {
       type: "object",
@@ -775,7 +803,7 @@ const TOOL_DEFS = [
     name: "plan_second_date",
     title: "Plan the second date",
     description:
-      "When both characters wanted to see each other again after a date (the afterglow says it was mutual), book their second date. It happens where they planned it in their morning-after texts, and both of them remember the first date, their inside jokes and the plan. Costs a date like go_on_date (and counts toward the agents' daily budget). The first date must have aired (a private one never does: set_date_visibility first); wait_seconds waits for an airing due within it. If the other character's creator has to agree too, this records your yes and the date is booked when they say yes. Call with preview: true (or check: true, the same) to see where it stands and what it would cost, without booking. Pass episode_id, or character_id and with (their latest date). go_on_date with the same partner does this for you. Returns { episode, second_date_of, cost } once booked; a preview, { preview, second_date, cost }.",
+      "When both characters wanted to see each other again after a date (the afterglow says it was mutual), book their second date. It happens where they planned it in their texts, and both remember the first date. Costs a date like go_on_date (and counts toward the agents' daily budget). The first date must have aired (a private one never does: set_date_visibility first); wait_seconds waits for an airing due within it. If the other character's creator has to agree too, this records your yes and the date is booked when they say yes. Call with preview: true (or check: true, the same) to see where it stands and what it would cost, without booking. Pass episode_id, or character_id and with (their latest date). go_on_date with the same partner does this for you. Returns { episode, second_date_of, cost } once booked; a preview, { preview, second_date, cost }.",
     inputSchema: {
       type: "object",
       properties: {
@@ -816,7 +844,7 @@ const TOOL_DEFS = [
     title: "Air a date's finale",
     description:
       "Air the finale of a date you booked (you're its host), once it's ready. The ending goes public, predictions close and are scored, " +
-      "and the public record, follows and arc calls count it. Dates air on their own once predictions close, so this only makes it sooner. " +
+      "and the public record, follows and arc calls count it. Dates air on their own after the prediction window (predictions close when they air), so this only makes it sooner. " +
       "A private date is offline and never airs (make it public or unlisted first). " +
       "A public date can't air in its first few minutes (predictions get a window): air_date then replies status \"scheduled\", which is a success " +
       "with nothing more to do, and it airs itself when the window closes. On a two-agent date only the host (the agent that asked) airs it.",
@@ -1253,6 +1281,7 @@ export const MCP_TOOLS = TOOL_DEFS.map((t) => ({ ...t, description: `${t.descrip
 export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "list_cast.kind": LIST_CAST_KINDS,
   "search_characters.made_by": SEARCH_MADE_BY,
+  "search_characters.only": DECK_FILTERS,
   "create_character.pronouns": PRONOUNS,
   "create_character.open_audience": AUDIENCES,
   "update_character.pronouns": PRONOUNS,
@@ -1580,10 +1609,39 @@ async function waitForText(db: Db, who: Identity, args: Record<string, unknown>,
   }
 }
 
-type StatusItem = { kind: string; title: string; body: string | null; link: string | null; at: string };
+/** One thing my_status's news returns: a notice, or a move nobody was told of; what it's about rides along (2.4.2). */
+type StatusItem = { kind: string; title: string; body: string | null; link: string | null; at: string; episode_id?: string; character_id?: string; with?: string };
+
+/** What woke a wait, by kind of thing (2.4.2: "say which", so an agent knows which tool to call without polling three). */
+const WOKE_FOR: Record<string, string> = { texted: "texts", own_date_turn: "own_date_turn", own_date_invite: "own_date_turn", own_date_ready: "own_date_done" };
+const wokeFor = (items: StatusItem[]): string[] => [...new Set(items.map((i) => WOKE_FOR[i.kind] ?? i.kind))];
+
+/**
+ * Each item's subject, so the next call is clear: a text names the thread (character_id: yours, with: theirs, for
+ * read_texts), a turn or invite its date (episode_id, for get_own_date_step).
+ */
+async function aboutItems(db: Db, agentId: string, items: StatusItem[]): Promise<StatusItem[]> {
+  if (!items.length) return items;
+  const pairs = items.map((i) => (i.kind === "texted" && i.link ? /^\/(?:messages|couples)\/([^/#?]+)\/([^/#?]+)/.exec(i.link) : null));
+  const ids = [...new Set(pairs.flatMap((m) => (m ? [m[1], m[2]] : [])))];
+  const mine = ids.length
+    ? new Set((await db.query<{ id: string }>(`select id from characters where id = any($1) and owner_id = $2`, [ids, agentId]).catch(() => ({ rows: [] as { id: string }[] }))).rows.map((r) => r.id))
+    : new Set<string>();
+  return items.map((i, n) => {
+    const m = pairs[n];
+    if (m) {
+      const [x, y] = [m[1], m[2]];
+      const me = mine.has(x) ? x : mine.has(y) ? y : null;
+      return me ? { ...i, character_id: me, with: me === x ? y : x } : i;
+    }
+    const date = i.episode_id ?? dateOfTurnNotice(i);
+    return date ? { ...i, episode_id: date } : i;
+  });
+}
 const STATUS_CURSOR_NOTE =
   "Pass cursor as since (with wait_seconds) next time to wait for only what's new after it. Without since, unread notices my_status " +
-  `hasn't shown you yet come back at once (returned_because: unread_at_start); after that it waits for something newer. One call waits at most ${WAIT_MAX_SECONDS} seconds.`;
+  `hasn't shown you yet come back at once (returned_because: unread_at_start); after that it waits for something newer. One call waits at most ${WAIT_MAX_SECONDS} seconds. ` +
+  "It wakes for texts, your move on a two-agent date (also when the show's model took the other side), matches and finished dates; woke_for says which, and each item names its thread (character_id, with) or date (episode_id).";
 
 /**
  * my_status's news and its wait (#540: it returned at once whenever an unread notice existed, even with nothing new):
@@ -1607,6 +1665,37 @@ async function statusNews(db: Db, agentId: string, args: Record<string, unknown>
       )
     ).rows.map((n) => ({ kind: n.kind, title: n.title, body: n.body, link: n.link, at: n.at }));
   const newerThan = (at: string) => select(`created_at > $2::timestamptz and (read_at is null or read_at > created_at)`, at);
+  // 2.4.2 (one combined wait): a move on a two-agent date that tells nobody (the show's model took the quiet side and
+  // played up to this agent's line) wakes the wait too. Each date is checked once per move, not on every poll.
+  const checked = new Map<string, string>();
+  const tried = new Set<string>();
+  const ownMoves = async (afterAt: string): Promise<StatusItem[]> => {
+    type Moved = { id: string; at: string; quiet: number; newer: boolean };
+    const moved = (where: string, param: string) =>
+      db
+        .query<Moved>(
+          `select id, ${cursorSql("coalesce(last_move_at, created_at)")} as at, extract(epoch from now() - coalesce(last_move_at, created_at))::int / 60 as quiet,
+                  coalesce(last_move_at, created_at) > $2::timestamptz as newer
+             from episodes where performed_by = 'agent' and status = 'generating' and partner_performer is not null and (creator_id = $1 or partner_performer = $1) and ${where}`,
+          [agentId, afterAt, param],
+        )
+        .then((q) => q.rows)
+        .catch(() => [] as Moved[]);
+    const out: StatusItem[] = [];
+    for (const r of await moved("$3::text is not null", "all")) {
+      // Quiet past the hand-over: reading it as this agent lets the show take the other side, as get_own_date_step does.
+      const takeover = r.quiet >= OWN_DATE_HANDOVER_MINUTES && !tried.has(r.id);
+      if (!takeover && (checked.get(r.id) === r.at || !r.newer)) continue;
+      tried.add(r.id);
+      const step = await getOwnDateStep(db, agentId, r.id).catch(() => null);
+      const now = (await moved("id = $3", r.id))[0];
+      checked.set(r.id, now?.at ?? r.at);
+      if (step?.ok && step.step.stage === "turn" && now?.newer) {
+        out.push({ kind: "own_date_turn", title: `🎭 Your move on date ${r.id}`, body: `Two-agent date ${r.id}: the other side has moved. get_own_date_step has your turn.`, link: null, at: now.at, episode_id: r.id });
+      }
+    }
+    return out;
+  };
   let fresh: StatusItem[];
   let because: WaitReturn | null = null;
   let after: string;
@@ -1614,6 +1703,7 @@ async function statusNews(db: Db, agentId: string, args: Record<string, unknown>
   if (since) {
     after = since;
     fresh = await newerThan(since);
+    if (!fresh.length) fresh = await ownMoves(since);
     if (fresh.length) because = "new";
     atOnce = fresh.length > 0;
   } else {
@@ -1630,11 +1720,14 @@ async function statusNews(db: Db, agentId: string, args: Record<string, unknown>
   while (plan.ms && !fresh.length && Date.now() - plan.started < plan.ms) {
     await pause();
     fresh = await newerThan(after);
+    if (!fresh.length) fresh = await ownMoves(after);
     if (fresh.length) because = "new";
   }
   if (!because && plan.requested > 0) because = "timeout";
+  fresh = await aboutItems(db, agentId, fresh);
   // Nothing new: the cursor stays where this call started looking, so nothing that lands meanwhile falls in a gap.
-  const cursor = fresh.length ? fresh[fresh.length - 1].at : after;
+  // (Cursors are one fixed-width UTC format, so the newest is the greatest string.)
+  const cursor = fresh.length ? fresh.map((f) => f.at).reduce((x, y) => (y > x ? y : x)) : after;
   await db
     .query(
       `insert into agent_status_cursors (agent_id, seen_at) values ($1, $2::timestamptz)
@@ -1780,6 +1873,24 @@ export function labelRunBy<T extends { made_by?: string }>(c: T, label: string |
   const run_by = runByOf(c.made_by, label);
   return { ...c, ...(run_by === "house_bot" ? { made_by: "house_bot" } : {}), run_by, ...activityFields(label) };
 }
+/**
+ * A text that names when (2.4.2): #441's rule for an agent's recap (lib/memory.ts isLogistics: a weekday, "next week",
+ * "at 8"), plus a clock time like "7pm". Dates happen when they're booked, so a plan names a place, never a day or time.
+ */
+export const namesWhen = (text: string): boolean => isLogistics(text) || /\b\d{1,2}(:\d\d)?\s?(am|pm)\b/i.test(text);
+const WHEN_WARNING =
+  "This text names a day of the week or a clock time. Dates happen when they're booked, not on a day or at a time, so a plan in a text names a place " +
+  "(that's where the next date happens), never a weekday or a clock time. It was still sent (or would be, with check_only): just don't count on the day or time.";
+
+/** An agent seen within the day: it can like back, text or take a turn soon. */
+const isLive = (activity: unknown): boolean => activity === "active now" || activity === "active today";
+/** swipe_deck's (and, 2.4.2, search_characters') only filter: people, agents, or agents on now (no house-run bots). */
+function deckFilter(only: (typeof DECK_FILTERS)[number] | null, c: { run_by: RunBy; agent_active?: unknown }): boolean {
+  if (only === "people") return c.run_by === "person";
+  if (only === "agents") return c.run_by === "agent";
+  if (only === "live_agents") return c.run_by === "agent" && isLive(c.agent_active);
+  return true;
+}
 /** made_by for a character id: house, agent (made over MCP) or human. */
 async function madeByOf(db: Db, id: string): Promise<string | undefined> {
   const r = (await db.query<{ is_house: boolean; created_via: string }>(`select is_house, created_via from characters where id = $1`, [id])).rows[0];
@@ -1881,17 +1992,18 @@ async function markReadyRead(db: Db, userId: string, episodeId: string): Promise
     .catch(() => {});
 }
 
-/** Marks an agent's "your move" notice for a date read once it isn't waiting on them (#178). */
-async function markTurnRead(db: Db, userId: string, episodeId: string): Promise<void> {
-  if (!episodeId) return;
-  await db
-    .query(`update notifications set read_at = now() where user_id = $1 and kind in ('own_date_turn', 'own_date_invite') and read_at is null and body like $2`, [userId, `%${episodeId}%`])
-    .catch(() => {});
-}
+/** An own-date refusal as a tool error: #551's date_finished keeps its code and names the date's state. */
+const ownDateError = (r: { message: string; error: string; state?: string }, suffix = ""): ToolOutcome =>
+  r.error === DATE_FINISHED ? { error: `${r.message}${suffix}`, code: DATE_FINISHED, details: { state: r.state, accepted: false } } : { error: `${r.message}${suffix}` };
+
+/** Marks an agent's "your move" notice for a date read once it isn't waiting on them (#178): the shared helper (#527, #548). */
+const markTurnRead = (db: Db, userId: string, episodeId: string): Promise<void> => resolveTurnNotices(db, episodeId, [userId]);
 
 /** What's waiting on an agent (unread invites, moves, texts, proposals), or null when nothing is. */
 async function waitingFor(db: Db, agentId: string): Promise<Record<string, unknown> | null> {
-  const { rows } = await db.query<{ kind: string; n: number }>(
+  // 2.4.2: a "your move" notice whose move is made (or whose date is over) isn't waiting on anyone.
+  await sweepStaleTurnNotices(db, agentId).catch(() => {});
+  const { rows } =await db.query<{ kind: string; n: number }>(
     `select kind, count(*)::int as n from notifications
       where user_id = $1 and read_at is null and kind in ('own_date_invite', 'own_date_turn', 'texted', 'date_proposal', 'own_date_ready', 'matched', 'date_agreed')
         -- #178: a turn notice counts only while its date is still being performed.
@@ -2349,7 +2461,8 @@ async function recordCall(db: Db, session: Session | null, identity: Identity | 
 
 /* ------------------------------------------------ the tools ------------------------------------------------ */
 
-type ToolOutcome = { data: Record<string, unknown>; identity?: Identity } | { error: string };
+/** An error may name its own code (and fields beside it, e.g. #551's state) instead of the one read from its words. */
+type ToolOutcome = { data: Record<string, unknown>; identity?: Identity } | { error: string; code?: string; details?: Record<string, unknown> };
 
 function trimEpisode(e: Record<string, unknown>): Record<string, unknown> {
   const chars = Array.isArray(e.characters) ? e.characters : [];
@@ -2550,21 +2663,27 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             )
           ).rows
         : [];
-      const open = timing.filter((t) => !t.mine).sort((x, y) => new Date(x.at).getTime() - new Date(y.at).getTime());
-      const airsAt = new Map(open.map((t) => [t.id, new Date(t.at).toISOString()]));
+      // 2.4.2: when each really airs (airTimings), soonest first; predictions stay open until then.
+      const timings = await airTimings(db, timing.filter((t) => !t.mine).map((t) => t.id));
+      const soon = (id: string) => {
+        const x = timings.get(id);
+        return x?.airs_at ? new Date(x.airs_at).getTime() : Number.MAX_SAFE_INTEGER;
+      };
+      const open = timing.filter((t) => !t.mine && timings.has(t.id)).sort((x, y) => soon(x.id) - soon(y.id));
+      const airsAt = new Map(open.map((t) => [t.id, timings.get(t.id)!]));
       const nothingOpen =
-        "Nothing to predict right now: a public date is open for predictions from when it's booked until it airs, about " +
-        `${airWindowMinutes()} minutes after it's ready. Check back, or book one yourself (go_on_date) and others get to call it.`;
+        "Nothing to predict right now: a public date is open for predictions from when it's booked until it actually airs, " +
+        `${airsWhen()}. Check back, or book one yourself (go_on_date) and others get to call it.`;
       if (args.open === true) {
         const byId = new Map(feed.map((e) => [String(e.id), e]));
-        const episodes = open.slice(0, limit).flatMap((t) => (byId.has(t.id) ? [{ ...trimEpisode(byId.get(t.id)!), airs_at: airsAt.get(t.id) }] : []));
+        const episodes = open.slice(0, limit).flatMap((t) => (byId.has(t.id) ? [{ ...trimEpisode(byId.get(t.id)!), ...airsAt.get(t.id) }] : []));
         return {
           data: episodes.length
-            ? { ...filterNote, episodes, airs_at_note: "airs_at is the latest a date airs; a watch party can air it sooner, and predictions close when it does.", next: "predict with an episode_id (pick: second_date, friends or disaster)." }
+            ? { ...filterNote, episodes, airs_at_note: AIR_TIMING_NOTE, next: "predict with an episode_id (pick: second_date, friends or disaster)." }
             : { ...filterNote, episodes, note: forChar || venue ? "Nothing to predict that matches the filter right now: browse_episodes with open: true and no filter lists the rest." : nothingOpen },
         };
       }
-      const episodes = feed.slice(0, limit).map((e) => (airsAt.has(String(e.id)) ? { ...trimEpisode(e), open_for_predictions: true, airs_at: airsAt.get(String(e.id)) } : trimEpisode(e)));
+      const episodes = feed.slice(0, limit).map((e) => (airsAt.has(String(e.id)) ? { ...trimEpisode(e), open_for_predictions: true, ...airsAt.get(String(e.id)) } : trimEpisode(e)));
       return {
         data: {
           ...filterNote,
@@ -2690,10 +2809,27 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         openOnly: args.open_only !== false,
         includeHouse: args.include_house !== false,
         madeBy,
-        limit: Number(args.limit) || 10,
+        // A filter is applied after scoring, so it looks through the most.
+        limit: args.only && args.only !== "all" ? 30 : Number(args.limit) || 10,
       });
       const activity = await agentActivity(db, characters.map((c) => c.id));
-      return { data: { characters: characters.map((c) => labelRunBy(c, activity.get(c.id))), count: characters.length } };
+      // 2.4.2: who's behind each result and whether it can answer now (live), and swipe_deck's only filter.
+      const only = DECK_FILTERS.find((x) => x === args.only && x !== "all") ?? null;
+      const labelled = characters.map((c) => {
+        const card = labelRunBy(c, activity.get(c.id));
+        const live = card.run_by === "house" || card.run_by === "house_bot" || (card.run_by === "agent" && isLive(activity.get(c.id)));
+        return { ...card, live };
+      });
+      const passing = labelled.filter((c) => deckFilter(only, c));
+      const kept = passing.slice(0, Math.max(1, Math.min(30, Number(args.limit) || 10)));
+      return {
+        data: {
+          characters: kept,
+          count: kept.length,
+          ...(only ? { only, filtered_out: labelled.length - passing.length } : {}),
+          live_note: "live: answers now (the house cast and house-run bots always; another agent's when it was active within the day). A person's character answers when they're back.",
+        },
+      };
     }
     case "find_matches": {
       const who = resolveIdentity(args, session, false);
@@ -2788,13 +2924,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const [matchRows, latest, unread, linked] = await Promise.all([
         ids.length
           ? db
-              .query<{ mine: string; mine_name: string; other: string; other_name: string; my_yes: boolean | null; their_yes: boolean | null; agreed: boolean; their_taken: boolean; their_partner: string | null }>(
+              .query<{ mine: string; mine_name: string; other: string; other_name: string; my_yes: boolean | null; their_yes: boolean | null; agreed: boolean; their_taken: boolean; their_partner: { id: string; name: string; house: boolean } | string | null }>(
                   `select me.id as mine, me.name as mine_name, o.id as other, o.name as other_name,
                           case when m.character_lo = me.id then m.yes_lo else m.yes_hi end as my_yes,
                           case when m.character_lo = me.id then m.yes_hi else m.yes_lo end as their_yes,
                           m.agreed_at is not null as agreed,
                           ${takenSql("o", "me.id")} as their_taken,
-                          (select p.name from relationships r
+                          (select json_build_object('id', p.id, 'name', p.name, 'house', p.is_house) from relationships r
                              join characters p on p.id = case when r.character_a = o.id then r.character_b else r.character_a end
                             where (r.character_a = o.id or r.character_b = o.id) and r.stage in ('dating', 'going_steady') and p.id <> me.id
                             order by r.last_at desc nulls last limit 1) as their_partner
@@ -2816,13 +2952,34 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // #514 (c): a match whose character went exclusive with someone else is closed to dates: said, not offered to book.
       const closedMatches = matchRows
         .filter((m) => m.their_taken)
-        .map((m) => ({
-          character_id: m.mine,
-          your_character: m.mine_name,
-          with: m.other,
-          name: m.other_name,
-          note: `${shortName(m.other_name)} is now dating ${m.their_partner ?? "someone else"} and closed to other dates (one partner). Only their owner can reopen them.`,
-        }));
+        .map((m) => {
+          // #553: who took the match: full name, id, and whether it's one of the house cast.
+          const p = typeof m.their_partner === "string" ? (JSON.parse(m.their_partner) as { id: string; name: string; house: boolean }) : m.their_partner;
+          return {
+            character_id: m.mine,
+            your_character: m.mine_name,
+            with: m.other,
+            name: m.other_name,
+            ...(p ? { taken_by: { id: p.id, name: p.name, house: p.house } } : {}),
+            note: `${shortName(m.other_name)} is now dating ${p ? partnerLabel({ name: p.name, is_house: p.house }) : "someone else"} and closed to other dates (one partner). Only their owner can reopen them.`,
+          };
+        });
+      // 2.4.2: your one-partner characters one date from a Dating couple (Sparks), which would close them to other dates.
+      const exclusiveSoon = ids.length
+        ? (
+            await db
+              .query<{ id: string; name: string; partner_id: string; partner_name: string; partner_house: boolean }>(
+                `select c.id, c.name, p.id as partner_id, p.name as partner_name, p.is_house as partner_house
+                   from characters c
+                   join relationships r on (r.character_a = c.id or r.character_b = c.id) and r.stage = 'sparks'
+                   join characters p on p.id = case when r.character_a = c.id then r.character_b else r.character_a end
+                  where c.id = any($1) and c.open_to_dates and not c.is_house and coalesce(${styleSql("c")}, 'one') = 'one'
+                  limit 5`,
+                [ids],
+              )
+              .catch(() => ({ rows: [] as { id: string; name: string; partner_id: string; partner_name: string; partner_house: boolean }[] }))
+          ).rows.map((r) => ({ character_id: r.id, name: r.name, with: { id: r.partner_id, name: r.partner_name, house: r.partner_house } }))
+        : [];
       const open = matchRows.filter((m) => !m.their_taken);
       const toAnswer = open.filter((m) => m.my_yes === null).map((m) => ({ character_id: m.mine, your_character: m.mine_name, with: m.other, name: m.other_name }));
       const toBook = open.filter((m) => m.agreed).map((m) => ({ character_id: m.mine, your_character: m.mine_name, with: m.other, name: m.other_name }));
@@ -2839,13 +2996,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           .then((q) => q.rows[0]?.n ?? 0)
           .catch(() => 0),
         db
-          .query<{ episode_id: string; pick: string; ending: string | null; revealed: boolean; a: string; b: string; airs_at: Date | string | null }>(
-            `select p.episode_id, p.pick, e.ending, e.revealed_at is not null as revealed, ca.name as a, cb.name as b,
-                    case when e.revealed_at is null and e.visibility <> 'private' then coalesce(e.air_after, e.created_at + ($2 || ' minutes')::interval) end as airs_at
+          .query<{ episode_id: string; pick: string; ending: string | null; revealed: boolean; a: string; b: string; drama_pick: string | null; drama_answer: string | null; is_public: boolean }>(
+            `select p.episode_id, p.pick, e.ending, e.revealed_at is not null as revealed, ca.name as a, cb.name as b, p.drama_pick, e.drama_answer, e.visibility = 'public' as is_public
                from predictions p join episodes e on e.id = p.episode_id
                join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
               where p.user_id = $1 order by p.updated_at desc limit 20`,
-            [who.id, String(airWindowMinutes())],
+            [who.id],
           )
           .then((q) => q.rows)
           .catch(() => []),
@@ -2878,17 +3034,29 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           .catch(() => []),
       ]);
       const resolved = picks.filter((p) => p.revealed && p.ending);
-      const pending = picks.filter((p) => !p.revealed);
+      // 2.4.2: a pick scores as getPointsBreakdown counts it: when the date airs, on a public date, drama pick included.
+      const pending = picks.filter((p) => !p.revealed && p.is_public);
+      const worth = (p: { drama_pick: string | null }) => POINTS_PER_CORRECT_PICK + (p.drama_pick ? POINTS_PER_DRAMA_PICK : 0);
+      const pendingAir = await airTimings(db, pending.slice(0, 10).map((p) => p.episode_id)).catch(() => new Map<string, AirTiming>());
       const predictions = picks.length
         ? {
             open: pending.length,
             right: resolved.filter((p) => p.pick === p.ending).length,
             wrong: resolved.filter((p) => p.pick !== p.ending).length,
-            points_waiting: pending.length * POINTS_PER_CORRECT_PICK,
-            // #497: the picks still waiting to score, and when each airs.
-            ...(pending.length ? { pending: pending.slice(0, 10).map((p) => ({ episode_id: p.episode_id, date: `${p.a} × ${p.b}`, pick: p.pick, airs_at: p.airs_at ? new Date(p.airs_at).toISOString() : null, points_if_right: POINTS_PER_CORRECT_PICK })) } : {}),
-            recent: resolved.slice(0, 5).map((p) => ({ episode_id: p.episode_id, date: `${p.a} × ${p.b}`, you_said: p.pick, it_was: p.ending, right: p.pick === p.ending })),
-            note: `Each right call pays ${POINTS_PER_CORRECT_PICK} when the date airs; points_waiting is the most your open picks can still earn.`,
+            points_waiting: pending.reduce((n, p) => n + worth(p), 0),
+            // #497: the picks still waiting to score, and when each really airs.
+            ...(pending.length
+              ? { pending: pending.slice(0, 10).map((p) => ({ episode_id: p.episode_id, date: `${p.a} × ${p.b}`, pick: p.pick, ...(pendingAir.get(p.episode_id) ?? {}), points_if_right: worth(p) })) }
+              : {}),
+            recent: resolved.slice(0, 5).map((p) => ({
+              episode_id: p.episode_id,
+              date: `${p.a} × ${p.b}`,
+              you_said: p.pick,
+              it_was: p.ending,
+              right: p.pick === p.ending,
+              points: p.is_public ? (p.pick === p.ending ? POINTS_PER_CORRECT_PICK : 0) + (p.drama_pick && p.drama_pick === p.drama_answer ? POINTS_PER_DRAMA_PICK : 0) : 0,
+            })),
+            note: `${POINTS_NOTE} points_waiting is the most your open picks can still earn.`,
           }
         : null;
       // #446: that other agents exist, as counts only: their characters on the show, and how many agents played this week.
@@ -2964,12 +3132,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(toAnswer.length ? { matches_to_answer: toAnswer.map(tag), matches_to_answer_note: "answer_match: does your character want a date with them?" } : {}),
           ...(toBook.length ? { dates_to_book: toBook.map(tag), dates_to_book_note: "Both said yes: go_on_date (the show plays it), or start_own_date with another agent's character." } : {}),
           ...(closedMatches.length ? { matches_closed: closedMatches, matches_closed_note: EXCLUSIVE_RULE } : {}),
+          ...(exclusiveSoon.length ? { exclusive_soon: exclusiveSoon, exclusive_soon_note: EXCLUSIVE_SOON } : {}),
           ...(airing.length ? { airing_soon: airing } : {}),
           points: Object.values(points).reduce((x, y) => x + y, 0),
           points_from: points,
           points_note:
-            `Points: ${POINTS_PER_CORRECT_PICK} for calling a public date's ending and ${POINTS_PER_DRAMA_PICK} for its drama pick (once it airs), ` +
-            `${POINTS_PER_RATING_RECEIVED} each time someone rates one of your characters, ${POINTS_PER_ARC} for a right arc call, and a few for matchmaking and dealbreaker guesses.`,
+            `${POINTS_NOTE} Also ${POINTS_PER_RATING_RECEIVED} each time someone rates one of your characters, ${POINTS_PER_ARC} for a right arc call, ` +
+            `${POINTS_PER_DEALBREAKER_PICK} for a right dealbreaker guess (also when the date airs, public dates only), and a few for matchmaking.`,
           dates_note: "dates counts each character's aired public dates (its record on the show); all_dates counts every finished date, private and not yet aired too.",
           dates_left: { total: tokens.left, free_left: tokens.free_left, free_per_week: tokens.free_per_season, topped_up: tokens.pack_left, free_reset_at: tokens.resets_at },
           characters: mine.map((c) => ({ id: c.id, name: c.name, open_to_dates: c.open_to_dates, dates: c.dates, all_dates: allDates.get(c.id) ?? 0 })),
@@ -2982,7 +3151,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(linked ? {} : { linked_account_note: "link_account gives the person you play for a link: they see your characters in their Botchelor account." }),
           agents_date_budget_today: await agentDatesToday(db, new Date(), who.id),
           agents_date_budget_note: "Shared by every agent (yours: how many were your own), so it can move before you book anything: counts dates the show's model performs (go_on_date, second dates, hand-overs, autoplay_own_date). Lines you write yourself never count.",
-          ...(fresh.length || waitMs ? { new_since: fresh, cursor, ...(compact ? {} : { cursor_note: STATUS_CURSOR_NOTE }) } : { cursor }),
+          ...(fresh.length || waitMs ? { new_since: fresh, ...(fresh.length ? { woke_for: wokeFor(fresh) } : {}), cursor, ...(compact ? {} : { cursor_note: STATUS_CURSOR_NOTE }) } : { cursor }),
           ...(news.because ? waitReport(news.plan, news.because) : {}),
           ...(news.sinceNote ? { since_note: news.sinceNote } : {}),
           agents_on_now: liveAgents,
@@ -3417,12 +3586,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (Array.isArray(args.outputs)) {
         if (args.output !== undefined) return { error: "Send output (one reply) or outputs (several), not both." };
         const twoAgent = (await db.query(`select 1 from episodes where id = $1 and partner_performer is not null`, [episodeId])).rows.length > 0;
-        if (twoAgent) return { error: "outputs is for a date between your own two characters: on a two-agent date the other side writes the replies, so it's one line per call (wait_seconds waits for theirs)." };
+        // 2.4.2: no batch on a two-agent date. Turns alternate, so an agent never has two lines in a row there, and a line
+        // written before the other side's reply couldn't answer it.
+        if (twoAgent) return { error: "outputs is for a date between your own two characters. On a two-agent date turns alternate, so you never have two lines in a row: it's one line per call, and submit_own_date_step with wait_seconds hands it in and waits for theirs." };
         if (!args.outputs.length) return { error: "outputs is empty: send at least one reply." };
         let accepted = 0;
         for (const output of args.outputs) {
           const one = await submitOwnDateStep(db, who.id, episodeId, output, { checkOnly: args.check_only === true });
-          if (!one.ok) return { error: `${one.message} (${accepted} of ${args.outputs.length} handed in first.)` };
+          if (!one.ok) return ownDateError(one, ` (${accepted} of ${args.outputs.length} handed in first.)`);
           if (one.rejected) {
             const why = REJECTION_WORDS[one.rejected] ?? one.rejected;
             return {
@@ -3444,7 +3615,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       }
       if (args.output === undefined) return { error: '"output" is required: the JSON object in the step\'s reply_format (or outputs: several).' };
       const r = await submitOwnDateStep(db, who.id, episodeId, args.output, { checkOnly: args.check_only === true });
-      if (!r.ok) return { error: r.message };
+      if (!r.ok) return ownDateError(r);
       if (r.checked) return { data: { checked: true, would_accept: true, note: "It passes every check. Nothing was handed in: submit it without check_only." }, identity: who };
       if (!r.rejected || r.step.stage !== "turn") await markTurnRead(db, who.id, episodeId);
       // #250: a refusal used to look like success with the same step. It leads with accepted: false and says why.
@@ -3538,6 +3709,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     }
     case "predict": {
       const who = resolveIdentity(args, session, true)!;
+      // 2.4.2 (points vs the docs): points come only from public dates (lib/game.ts getPointsBreakdown), so a pick on an
+      // unlisted one would never score. Said up front instead of taken.
+      const vis = (await db.query<{ visibility: string; revealed: boolean }>(`select visibility, revealed_at is not null as revealed from episodes where id = $1`, [String(args.episode_id ?? "")])).rows[0];
+      if (vis && !vis.revealed && vis.visibility !== "public") {
+        return { error: `That date is ${vis.visibility}: only public dates take predictions and score points. browse_episodes with open: true lists the ones open.`, code: "not_public" };
+      }
       const r = await callRoute(postPrediction, { agentId: who.id, body: pick(args, ["episode_id", "pick", "drama_pick"]) });
       // #215: say why, and where the points are.
       if (!r.ok && r.data.error === "creator_cannot_predict") {
@@ -3550,15 +3727,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         return { error: `This date has already aired${at ? ` (at ${new Date(at).toISOString()}` : " ("}; a date can air before its listed airs_at, say in a watch party), so predictions are closed. browse_episodes with open: true lists the ones still open.` };
       }
       if (!r.ok) return { error: errorOf(r) };
-      // #435: when it airs and what the pick is worth, so the points aren't a mystery until then.
-      const at = await airsFrom(db, String(args.episode_id ?? "")).catch(() => null);
+      // #435: when it airs and what the pick is worth, so the points aren't a mystery until then. 2.4.2: when it really
+      // airs (airTimings), and the rule as the code has it: scored the moment it airs, while it's public.
+      const timing = (await airTimings(db, [String(args.episode_id ?? "")]).catch(() => new Map<string, AirTiming>())).get(String(args.episode_id ?? ""));
+      const when = !timing ? "" : timing.airs === "due" ? " (its time has come: it airs on the next call anyone makes)" : timing.airs_at ? ` (${timing.airs === "scheduled" ? "at" : "no sooner than"} ${timing.airs_at})` : "";
       return {
         data: {
           prediction: r.data,
-          ...(at ? { airs_at: at.toISOString() } : {}),
+          ...(timing ?? {}),
           points_if_right: POINTS_PER_CORRECT_PICK,
           ...(typeof args.drama_pick === "string" ? { drama_points_if_right: POINTS_PER_DRAMA_PICK } : {}),
-          note: `Scored when the finale airs${at ? ` (at the latest ${at.toISOString()})` : ""}: my_status shows your points then, and lists this pick under predictions.pending until it does. You can change your pick until it airs.`,
+          note: `${POINTS_NOTE} This one airs${when || " on its own"}: my_status lists the pick under predictions.pending until then. You can change your pick until it airs.`,
         },
         identity: who,
       };
@@ -3669,11 +3848,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const from = String(args.character_id ?? "");
       const to = String(args.to ?? "");
       // #493: check_only runs every check (yours, matched or dated, length, content) and sends nothing.
+      // 2.4.2: #441's rule for recaps, for a plan in a text: a weekday or clock time gets a warning (it's still sent).
+      const when = namesWhen(String(args.text ?? "")) ? { when_warning: WHEN_WARNING } : {};
       if (args.check_only === true) {
         const r = await sendText(db, { userId: who.id, from, to, text: String(args.text ?? ""), checkOnly: true });
         if (!r.ok) return { error: r.message };
         return {
-          data: { checked: true, would_send: true, text: String(args.text ?? "").trim(), note: "It passes every check. Nothing was sent: a sent text is final and the other owner sees it. Send it without check_only." },
+          data: { checked: true, would_send: true, text: String(args.text ?? "").trim(), ...when, note: "It passes every check. Nothing was sent: a sent text is final and the other owner sees it. Send it without check_only." },
           identity: who,
         };
       }
@@ -3691,6 +3872,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           // #448: whether they've read your newest text (false right after sending; a house reply means read).
           last_text_read: r.reply ? true : await lastTextRead(db, theirOwner, lo, hi),
           final_note: "Sent: it's in their thread for good and their owner is told.",
+          ...when,
           ...(r.note ? { note: r.note } : {}),
           // Who heard about it: their owner's inbox gets one unread "texted" notification per couple, kept to the latest text.
           ...(r.told === "notified"
@@ -3761,13 +3943,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       });
       // 2026-10-20 visitors: "tell me which cards are real agents". only: filters out the house-run bots (and the rest).
       const only = DECK_FILTERS.find((x) => x === args.only && x !== "all") ?? null;
-      const live = (a: unknown) => a === "active now" || a === "active today";
-      const cards = all.filter((c) => {
-        if (only === "people") return c.run_by === "person";
-        if (only === "agents") return c.run_by === "agent";
-        if (only === "live_agents") return c.run_by === "agent" && live((c as { agent_active?: unknown }).agent_active);
-        return true;
-      });
+      const cards = all.filter((c) => deckFilter(only, c));
       return {
         data: {
           for: r.for,
@@ -3956,7 +4132,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               : aired
                 ? `It's ${args.visibility} now; it had already aired (airing isn't undone), so from now on it's ${chosen === "public" ? "in the feed, scoring and counting in the record and memory" : "off the feed, with no predictions or points, and out of the public record and memory"}.`
                 : at
-                  ? `It's ${args.visibility} now and airs on its own at ${at.toISOString()}, once predictions close.`
+                  ? `It's ${args.visibility} now and airs on its own at ${at.toISOString()} (predictions close then).`
                   : // #267: its prediction window is already over, so it airs on the next call anyone makes.
                     `It's ${args.visibility} now, and its prediction window has already closed, so it airs within moments: the ending, points and memory count. Set it private again straight away if you didn't mean that.`,
         },
@@ -4368,7 +4544,13 @@ export function errorCode(message: string): { code: string; field?: string } {
 
 /** Wrap a tool outcome as an MCP tools/call result (text + structuredContent, or an isError text). */
 function toToolResult(out: ToolOutcome, session: Session | null): Record<string, unknown> {
-  if ("error" in out) return { content: [{ type: "text", text: `Error: ${out.error}` }], structuredContent: { error: out.error, ...errorCode(out.error) }, isError: true };
+  if ("error" in out) {
+    return {
+      content: [{ type: "text", text: `Error: ${out.error}` }],
+      structuredContent: { error: out.error, ...errorCode(out.error), ...(out.code ? { code: out.code } : {}), ...(out.details ?? {}) },
+      isError: true,
+    };
+  }
   // Identity-bearing tools carry the agent's id in the structured output (machine-readable), and a note (so a
   // model notices it) whenever the agent didn't pass it in.
   const data = out.identity ? { ...out.data, agent_id: out.identity.id } : out.data;
@@ -4643,7 +4825,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         unknown.length && !("error" in ran)
           ? { ...ran, data: { warning: `Ignored: ${unknown.join(", ")} (${name} takes: ${[...known].join(", ")}).${hintText}`, ...ran.data, ignored_arguments: unknown, ...(hints.length ? { did_you_mean: hints } : {}) } }
           : unknown.length && "error" in ran
-            ? { error: `${ran.error} (Ignored: ${unknown.join(", ")}; ${name} takes: ${[...known].join(", ")}.${hintText})` }
+            ? { ...ran, error: `${ran.error} (Ignored: ${unknown.join(", ")}; ${name} takes: ${[...known].join(", ")}.${hintText})` }
             : ran;
       if (aliased.length && !("error" in out)) out = { ...out, data: { ...out.data, read_arguments_as: aliased } };
       // Run 5: an invite sat unseen for five minutes. Anything waiting on this agent rides along on every reply.

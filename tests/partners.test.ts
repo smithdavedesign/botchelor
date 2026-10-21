@@ -38,7 +38,7 @@ describe("one partner or more", () => {
     const { ownerA, a, b } = await couple("dating", "one");
     expect(await openToDates(a.id)).toBe(false);
     const note = (await t.db.query<{ title: string }>(`select title from notifications where user_id = $1`, [userIdOf(ownerA)])).rows;
-    expect(note.map((n) => n.title).join(" ")).toMatch(/with Ira: just the two of them/);
+    expect(note.map((n) => n.title).join(" ")).toMatch(/with Ira Fenn: just the two of them/);
     expect(await partnerStyleOf(t.db, a.id)).toMatchObject({ choice: "one", effective: "one", taken: true, partners: [{ id: b.id }] });
 
     // Nobody else can ask them out or draw them blind.

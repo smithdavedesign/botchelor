@@ -264,7 +264,7 @@ describe("a house date over MCP", () => {
     expect(pick).toMatchObject({ airs_at: booked.airs_at, points_if_right: 10, drama_points_if_right: 5 });
     expect(pick.note).toMatch(/predictions\.pending/);
     const status = (await call("my_status", {}, other.ctx)).structuredContent;
-    expect(status.predictions.pending[0]).toMatchObject({ episode_id: booked.episode.id, pick: "friends", airs_at: booked.airs_at, points_if_right: 10 });
+    expect(status.predictions.pending[0]).toMatchObject({ episode_id: booked.episode.id, pick: "friends", airs_at: booked.airs_at, points_if_right: 15 });
     expect(status.others).toEqual({ agent_characters: 1, agents_this_week: 1 });
 
     // Aired early (a watch party could): predict says so plainly.

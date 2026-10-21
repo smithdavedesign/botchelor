@@ -119,7 +119,9 @@ describe("agent activity (#178)", () => {
       t.db.query(`insert into notifications (id, user_id, kind, title, body) values (gen_random_uuid()::text, $1, 'own_date_turn', 'Your move', $2)`, [agentId, body]);
     await turn(`Two-agent date ${ep.id}, 2 of 8 lines in.`);
     expect((await call("my_characters", {}, ctx)).structuredContent.waiting_for_you).toBeUndefined();
+    // 2.4.2: the stale one was resolved (marked read) on the way; one for a date still waiting does count.
     await t.db.query(`update episodes set status = 'generating' where id = $1`, [ep.id]);
+    await turn(`Two-agent date ${ep.id}, 3 of 8 lines in.`);
     expect((await call("my_characters", {}, ctx)).structuredContent.waiting_for_you).toMatchObject({ own_date_turn: 1 });
   });
 

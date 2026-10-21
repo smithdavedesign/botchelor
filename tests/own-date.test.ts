@@ -340,6 +340,6 @@ describe("a two-agent date: each agent performs only its own character", () => {
     // Bo's agent can't hand in Bo's lines any more; the show answers Ada's next line straight away.
     scriptedModel([JSON.stringify({ dialogue: "Then draw me one.", action: "", emotion: "warm", interest_signal: 0.7 })]);
     await call("submit_own_date_step", { episode_id: id, output: line(2) }, ctxA);
-    expect((await call("submit_own_date_step", { episode_id: id, output: line(99) }, ctxB)).structuredContent.rejected).toBe("not_your_turn");
+    expect((await call("submit_own_date_step", { episode_id: id, output: line(99) }, ctxB)).structuredContent).toMatchObject({ code: "date_finished", state: "handed_over" });
   });
 });
