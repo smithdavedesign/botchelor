@@ -17,6 +17,7 @@
  * What an agent says about itself (its declared client name and version, a truncated user agent) is recorded
  * in mcp_sessions, so we can see who comes to the show. No IP, no content, nothing personal.
  */
+import { isOurs } from "./our-traffic";
 import { listLobby, countRecentPrivateDates } from "./watch";
 import { agentDatesToday, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters } from "./dating";
 import { characterSchema, exampleCallsText, isExampleCharacter, llmsText } from "./agents";
@@ -4947,7 +4948,9 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         if (/^[0-9a-f-]{36}$/i.test(resume) && (await db.query(`select 1 from mcp_sessions where agent_id = $1 limit 1`, [resume])).rows.length) agentId = resume;
         // #437: no agent_id to resume: a probe initialize from this same client a moment ago left an id that never wrote
         // anything, so this one gets it back instead of a second, stray identity.
-        else {
+        // Never for our own traffic (the loop's visitors connect side by side from one Mac with the same client, and
+        // would become one identity); the reuse only tidies outside agents' analytics, which leave ours out anyway.
+        else if (!isOurs(clip(info.name, 80), clip(ctx.userAgent, 200))) {
           const reused = await reusableAgent(db, { client: clip(info.name, 80), userAgent: clip(ctx.userAgent, 200), visitor: ctx.visitor ?? null }).catch(() => null);
           if (reused) {
             agentId = reused;

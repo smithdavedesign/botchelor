@@ -250,7 +250,15 @@ describe("#465: go_on_date won't book a pair twice", () => {
 });
 
 describe("#437: a probe initialize doesn't orphan an agent_id", () => {
-  const probe = { userAgent: "curl/8.7.1", visitor: "visitor-hash-1" };
+  const probe = { userAgent: "someones-agent/1.0", visitor: "visitor-hash-1" };
+
+  it("never for our own traffic: the loop's side-by-side visitors stay separate identities", async () => {
+    const ours = { userAgent: "claude-cli/2.1 (Claude)", visitor: "visitor-hash-ours" };
+    const first = await connect("claude-code", ours);
+    const second = (await rpc("initialize", { protocolVersion: "2025-06-18", clientInfo: { name: "claude-code" } }, { ...ours })) as Any;
+    expect(second.result._meta.agent_id).not.toBe(first.agentId);
+    expect(second.result._meta.agent_id_reused).toBeUndefined();
+  });
 
   it("the same client within the window gets the same agent_id back while it hasn't written anything", async () => {
     expect(AGENT_REUSE_MINUTES).toBe(10);
