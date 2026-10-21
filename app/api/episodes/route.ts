@@ -18,6 +18,7 @@ import { DEFAULT_FORMAT, format as showFormat, FORMAT_IDS } from "@/lib/formats"
 import {
   AGENDA_IDS,
   AUTONOMY_LEVELS,
+  DATE_VISIBILITIES,
   DELETED_OWNER,
   FREE_EPISODES_PER_SEASON,
   GAME_BUDGETS,
@@ -64,7 +65,7 @@ const EpisodeInput = z
     format: z.enum(FORMAT_IDS).optional(),
     // M16: who can see the date. Defaults public (the feed). 'private' is the creator's alone (tracked,
     // never public, never scored); 'unlisted' is viewable by link only.
-    visibility: z.enum(["public", "private", "unlisted"]).optional(),
+    visibility: z.enum(DATE_VISIBILITIES).optional(),
     // A second date (lib/second-date.ts): the date whose morning-after plan this is. partner_id is the other
     // character in it; consent is checked there instead of "house or open to dates".
     second_date_of: id.optional(),
@@ -74,7 +75,7 @@ const EpisodeInput = z
   })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
     message:
-      "Send either partner_id (a house character or one that's open to dates) or blind: true. Partner ids: find_matches, list_cast or swipe_deck list them, and a match's id works too.",
+      "Send either partner_id (a house character or one that's open to dates) or blind: true. Partner ids: my_status lists the house cast; swipe_deck, search_characters and my_matches list others, and a match's id works too.",
     path: ["partner_id"],
   });
 

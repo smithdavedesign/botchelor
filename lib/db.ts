@@ -241,7 +241,7 @@ create table if not exists orders (
 );
 create index if not exists orders_user_idx on orders (user_id, status);
 
--- Landing-page waitlist for Season 1. Emails are stored lowercased; nothing is sent from the app.
+-- The waitlist (once the home page's Season 1 signup, now After Dark's). Emails are stored lowercased; nothing is sent from the app.
 create table if not exists waitlist (
   email text primary key,
   community text,

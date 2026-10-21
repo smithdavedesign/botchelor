@@ -1,34 +1,54 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import EpisodeItem from "@/app/EpisodeItem";
 import JsonLd from "@/app/JsonLd";
 import ReunionPanel from "@/app/ReunionPanel";
+import { airWindowMinutes } from "@/lib/air";
 import { getDb } from "@/lib/db";
-import { listFeed } from "@/lib/game";
+import { listAiredPage, listAiringSoon, parsePage, type AiringSoon } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
 import { listMyLeagues } from "@/lib/leagues";
 import { getProfileName } from "@/lib/people";
 import { getReunion } from "@/lib/reunion";
 import { itemListJsonLd } from "@/lib/seo";
 import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch";
-import { dateLabel } from "@/lib/rules";
+import { dateLabel, ENDING_LABELS } from "@/lib/rules";
 import { CreateLeagueForm } from "./WatchActions";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Watch AI blind dates: live rooms, episodes and leagues · Botchelor",
-  description:
-    "Watch AI blind dates between original characters, human-made and agent-made: live rooms with chat and reactions, the latest episodes, replays, and friend leagues where you call the ending before the finale airs.",
-  alternates: { canonical: "/watch" },
-};
+type Search = Promise<{ [key: string]: string | string[] | undefined }>;
+
+const TITLE = "Watch AI blind dates: live rooms, episodes and leagues · Botchelor";
+const DESCRIPTION =
+  "Watch AI blind dates between original characters, human-made and agent-made: live rooms with chat and reactions, the latest episodes, replays, and friend leagues where you call the ending before the finale airs.";
+
+/** Page 1 is plain /watch (the canonical URL); later pages are /watch?page=N, each its own crawlable page. */
+const pagePath = (page: number) => (page <= 1 ? "/watch" : `/watch?page=${page}`);
+
+export async function generateMetadata({ searchParams }: { searchParams: Search }): Promise<Metadata> {
+  const page = parsePage((await searchParams).page);
+  return {
+    title: page > 1 ? `${TITLE.replace(" · Botchelor", "")} (page ${page}) · Botchelor` : TITLE,
+    description: DESCRIPTION,
+    alternates: { canonical: pagePath(page) },
+  };
+}
 
 /** "in 2h 10m", "in 4 min", for a premiere's start. */
 function startsIn(iso: string | null, now: number): string {
   if (!iso) return "soon";
   const mins = Math.max(1, Math.round((new Date(iso).getTime() - now) / 60_000));
   return mins >= 60 ? `in ${Math.floor(mins / 60)}h ${mins % 60}m` : `in ${mins} min`;
+}
+
+/** "Airs in 6 min", or "Airs any minute" once its window has closed and it's waiting for its turn on air. */
+function airsIn(iso: string, now: number): string {
+  const mins = Math.round((new Date(iso).getTime() - now) / 60_000);
+  if (mins < 1) return "Airs any minute";
+  return mins >= 60 ? `Airs in ${Math.floor(mins / 60)}h ${mins % 60}m` : `Airs in ${mins} min`;
 }
 
 function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
@@ -53,25 +73,74 @@ function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
   );
 }
 
+/** One unaired date in the "Airing soon" strip: the pair, when it airs, and the call to predict it. */
+function AiringCard({ episode, now }: { episode: AiringSoon; now: number }) {
+  const [a, b] = episode.characters;
+  return (
+    <li>
+      <Link href={episode.share_path} className="card watch-airing-card">
+        <span className="watch-airing-avatars">
+          <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={36} />
+          <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={36} />
+        </span>
+        <strong className="watch-airing-names">
+          {a.name} × {b.name}
+        </strong>
+        <span className="chip watch-airing-when">{airsIn(episode.airs_at, now)}</span>
+        <span className="watch-airing-call">
+          {episode.my_pick ? `You picked ${ENDING_LABELS[episode.my_pick]}` : "Call it →"}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+/** Prev / "Page 2 of 5" / Next under the latest episodes: plain links, so every page renders and crawls without JS. */
+function Pager({ page, pages }: { page: number; pages: number }) {
+  if (pages <= 1 && page <= 1) return null;
+  const prev = Math.min(page - 1, pages);
+  return (
+    <nav className="watch-pager" aria-label="Latest episodes pages">
+      {page > 1 ? (
+        <Link className="button-ghost small" href={`${pagePath(prev)}#latest`} rel="prev">
+          ← Newer
+        </Link>
+      ) : (
+        <span className="watch-pager-gap" aria-hidden />
+      )}
+      <span className="muted small">{page <= pages ? `Page ${page} of ${pages}` : `${pages} ${pages === 1 ? "page" : "pages"}`}</span>
+      {page < pages ? (
+        <Link className="button-ghost small" href={`${pagePath(page + 1)}#latest`} rel="next">
+          Older →
+        </Link>
+      ) : (
+        <span className="watch-pager-gap" aria-hidden />
+      )}
+    </nav>
+  );
+}
+
 /**
- * Everything to watch, on one page (David, 2026-10-18: Watch and "Episodes & leagues" merged; /feed redirects here):
- * live rooms (join in), open rooms nobody has started (the first visitor starts the clock for everyone who joins in the
- * next few minutes; the hourly job keeps one ready), premieres with a set start, the latest episodes, replays, and
- * friend leagues. A viewer's own dates, badges and blocks are on their account page.
+ * Everything to watch, on one page (David, 2026-10-18: Watch and "Episodes & leagues" merged; /feed redirects here),
+ * laid out so a phone sees something to watch on its first screen (2026-10-21): a one-line intro; dates airing soon
+ * that you can still call; the live rooms (live now, open rooms nobody has started, premieres with a set start); the
+ * latest aired episodes, 12 a page (?page=N); a one-line note about private dates; then replays, friend leagues, the
+ * reunion and, folded away, how it all works. A viewer's own dates, badges and blocks are on their account page.
  */
-export default async function WatchLobbyPage() {
+export default async function WatchLobbyPage({ searchParams }: { searchParams: Search }) {
+  const page = parsePage((await searchParams).page);
   const db = await getDb();
   const viewerId = userIdFromCookieStore(await cookies());
-  const [rooms, privateDates, all, leagues, profileName, reunion] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion] = await Promise.all([
     listLobby(db),
     countRecentPrivateDates(db),
-    listFeed(db, viewerId),
+    listAiringSoon(db, viewerId, airWindowMinutes()),
+    listAiredPage(db, viewerId, page),
     viewerId ? listMyLeagues(db, viewerId) : Promise.resolve([]),
     getProfileName(db, viewerId),
     getReunion(db),
   ]);
-  // The viewer's own dates are on their account page, so the public list skips them.
-  const feed = all.filter((episode) => !episode.is_creator);
+  const feed = latest.episodes;
   const now = Date.now();
   const live = rooms.filter((r) => r.status === "live");
   const ready = rooms.filter((r) => r.status === "ready");
@@ -82,42 +151,26 @@ export default async function WatchLobbyPage() {
     <article className="watch-page">
       <JsonLd
         data={itemListJsonLd(
-          "Latest Botchelor episodes",
+          page > 1 ? `Latest Botchelor episodes, page ${page}` : "Latest Botchelor episodes",
           feed.map((e) => ({ name: `${e.characters[0].name} × ${e.characters[1].name}`, path: e.share_path })),
         )}
       />
       <p className="kicker">The Botchelor · watch</p>
       <h1>Watch a date</h1>
-      <p className="lede">
-        Nobody steers a date, not even the audience. Watch one with the room: chat, react, and call the ending before the
-        characters decide for themselves.
+      <p className="lede watch-intro">
+        AI characters on blind dates nobody steers. Call the ending before it airs.{" "}
+        <a href="#how-it-works">How it works</a>
       </p>
 
-      <ul className="watch-how">
-        <li>
-          <strong>Live room.</strong> A date plays on one shared clock for everyone in the room: chat, react and vote
-          before the decision.
-        </li>
-        <li>
-          <strong>Replay.</strong> A room that has ended, any time, in theater mode.
-        </li>
-        <li>
-          <strong>Episode page.</strong> The whole date to read at your pace; predict the ending before it airs.
-        </li>
-        <li>
-          <strong>Second date.</strong> When both characters want another, an owner books it. It&apos;s marked and follows
-          the first.
-        </li>
-      </ul>
-
-      {privateDates > 0 && (
-        <p className="private-teaser" aria-live="polite">
-          <span className="private-teaser-lock" aria-hidden="true">🔒</span>
-          <span>
-            <strong>{privateDates}</strong> private {privateDates === 1 ? "date is" : "dates are"} playing out behind
-            closed doors this week. You&apos;ll never see {privateDates === 1 ? "it" : "them"} — only the creators do.
-          </span>
-        </p>
+      {airing.length > 0 && (
+        <section className="watch-section" aria-labelledby="airing-soon">
+          <h2 id="airing-soon">Airing soon: call it before it airs</h2>
+          <ul className="watch-airing">
+            {airing.map((episode) => (
+              <AiringCard key={episode.id} episode={episode} now={now} />
+            ))}
+          </ul>
+        </section>
       )}
 
       <section className="watch-section">
@@ -138,35 +191,33 @@ export default async function WatchLobbyPage() {
               : "A new open room is added every hour."}
           </p>
         )}
+        {ready.length > 0 && (
+          <>
+            <h3 className="watch-subhead">Ready to start</h3>
+            <div className="watch-lobby">
+              {ready.map((r) => (
+                <RoomCard key={r.id} room={r} action="Start it" />
+              ))}
+            </div>
+          </>
+        )}
+        {upcoming.length > 0 && (
+          <>
+            <h3 className="watch-subhead">Premieres coming up</h3>
+            <div className="watch-lobby">
+              {upcoming.map((r) => (
+                <RoomCard key={r.id} room={r} action={`Starts ${startsIn(r.starts_at, now)}`} />
+              ))}
+            </div>
+          </>
+        )}
       </section>
 
-      {ready.length > 0 && (
-        <section className="watch-section">
-          <h2>Ready to start</h2>
-          <div className="watch-lobby">
-            {ready.map((r) => (
-              <RoomCard key={r.id} room={r} action="Start it" />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {upcoming.length > 0 && (
-        <section className="watch-section">
-          <h2>Premieres coming up</h2>
-          <div className="watch-lobby">
-            {upcoming.map((r) => (
-              <RoomCard key={r.id} room={r} action={`Starts ${startsIn(r.starts_at, now)}`} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className="watch-section">
-        <h2>Latest episodes</h2>
+      <section className="watch-section" id="latest">
+        <h2>Latest episodes{page > 1 ? ` · page ${page}` : ""}</h2>
         <p className="muted small">
-          The whole date to read at your pace. Guess the ending before the finale airs. Creators stay anonymous unless they both agree to reveal
-          themselves. See <Link href="/characters">the cast &amp; matchmaking</Link>.
+          Aired dates, newest first: read the whole date at your pace or watch it in the theater. Creators stay anonymous
+          unless they both agree to reveal themselves. See <Link href="/characters">the cast &amp; matchmaking</Link>.
         </p>
         {feed.length ? (
           <ul className="list">
@@ -174,12 +225,29 @@ export default async function WatchLobbyPage() {
               <EpisodeItem key={episode.id} episode={episode} />
             ))}
           </ul>
+        ) : latest.total > 0 ? (
+          <p className="muted">
+            There&apos;s no page {page}: the latest episodes run to page {latest.pages}.{" "}
+            <Link href={`${pagePath(latest.pages)}#latest`}>Go to page {latest.pages}</Link>.
+          </p>
         ) : (
           <p className="muted">
-            Nothing on yet. <Link href="/create">Send a character on a date</Link>.
+            Nothing has aired yet. <Link href="/create">Send a character on a date</Link>.
           </p>
         )}
+        <Pager page={page} pages={latest.pages} />
       </section>
+
+      {privateDates > 0 && (
+        <p className="private-teaser private-teaser-compact">
+          <span className="private-teaser-lock" aria-hidden="true">🔒</span>
+          <span>
+            <strong>{privateDates}</strong> private {privateDates === 1 ? "date" : "dates"} this week, seen only by
+            {privateDates === 1 ? " its creators" : " their creators"}. Yours are in{" "}
+            <Link href="/account#your-dates">your dates</Link>.
+          </span>
+        </p>
+      )}
 
       <section className="watch-section">
         <h2>Replays</h2>
@@ -215,6 +283,34 @@ export default async function WatchLobbyPage() {
       </section>
 
       <ReunionPanel reunion={reunion} />
+
+      <details className="watch-how-details" id="how-it-works">
+        <summary>How it works</summary>
+        <p>
+          Nobody steers a date, not even the audience. Watch one with the room: chat, react, and call the ending before
+          the characters decide for themselves.
+        </p>
+        <ul className="watch-how">
+          <li>
+            <strong>Live room.</strong> A date plays on one shared clock for everyone in the room: chat, react and vote
+            before the decision.
+          </li>
+          <li>
+            <strong>Replay.</strong> A room that has ended, any time, in theater mode.
+          </li>
+          <li>
+            <strong>Episode page.</strong> The whole date to read at your pace; predict the ending before it airs.
+          </li>
+          <li>
+            <strong>Second date.</strong> When both characters want another, an owner books it. It&apos;s marked and
+            follows the first.
+          </li>
+          <li>
+            <strong>Private dates.</strong> They play out behind closed doors: you&apos;ll never see one unless it&apos;s
+            yours. Only their creators do.
+          </li>
+        </ul>
+      </details>
 
       <p className="muted small">
         Premiere your own date: open it from <Link href="/account#your-dates">your dates</Link> and press &ldquo;Start the

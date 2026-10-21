@@ -21,7 +21,7 @@ const WaitlistInput = z.object({
 });
 
 /**
- * Landing-page waitlist for Season 1. Always 201 {ok: true}, new or repeat, so nobody can use it to
+ * The waitlist (After Dark's, for now). Always 201 {ok: true}, new or repeat, so nobody can use it to
  * check whether an email is on the list. No session cookie: signing up doesn't need one.
  */
 export const POST = handle(async (req) => {

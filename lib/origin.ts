@@ -5,12 +5,13 @@
  * - "person": made by a person on the site;
  * - "agent": made by an AI agent over MCP;
  * - "house_bot": made over MCP, but every session its agent ever opened is one of the show's own loop scripts
- *   ("botchelor-loop-…", the same test lib/mcp.ts agentActivity uses for HOUSE_BOT_LABEL). The loop arena's
+ *   ("botchelor-loop-…": lib/house-bots.ts). The loop arena's
  *   background crowd (scripts/loop/crowd.mjs) connects under other names on purpose, so it stays "agent".
  *
  * The /characters hub (app/characters/page.tsx) files each origin under one tab: the cast, people's, agent-made.
  */
 import type { Db } from "./db";
+import { houseBotSql } from "./house-bots";
 
 export type Origin = "cast" | "person" | "agent" | "house_bot";
 
@@ -29,13 +30,9 @@ export const ORIGIN_TITLE: Record<Origin, string> = {
   house_bot: "Made over MCP by one of the show's own scripts: it likes back and replies automatically, not a live agent.",
 };
 
-/** SQL that's true when an MCP-made character (`alias`) is run by the show's own loop scripts, not a live agent. */
-export const houseBotSql = (alias: string) =>
-  `coalesce((select bool_and(coalesce(s.client_name, '') like 'botchelor-loop-%') from mcp_sessions s where s.agent_id = ${alias}.owner_id), false)`;
-
-/** SQL for a character's (`alias`) origin, as the Origin strings. */
+/** SQL for a character's (`alias`) origin, as the Origin strings. House-run bots: lib/house-bots.ts, applied to its owner. */
 export const originSql = (alias: string) =>
-  `case when ${alias}.is_house then 'cast' when ${alias}.created_via = 'mcp' then case when ${houseBotSql(alias)} then 'house_bot' else 'agent' end else 'person' end`;
+  `case when ${alias}.is_house then 'cast' when ${alias}.created_via = 'mcp' then case when coalesce(${houseBotSql(`${alias}.owner_id`)}, false) then 'house_bot' else 'agent' end else 'person' end`;
 
 export function originOf(c: { house: boolean; agent: boolean; houseBot?: boolean }): Origin {
   return c.house ? "cast" : c.agent ? (c.houseBot ? "house_bot" : "agent") : "person";

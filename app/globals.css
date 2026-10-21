@@ -2222,6 +2222,151 @@ button.poll-option.chosen {
 .watch-lobby-live.on {
   color: var(--accent-text);
 }
+/* Watch's order (2026-10-21): a one-line intro, then something to watch on the first screen of a phone. */
+.watch-intro {
+  margin-bottom: var(--space-2);
+}
+.watch-intro a {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.watch-subhead {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-md);
+}
+/* "Airing soon": a horizontal strip of unaired dates to call, swiped sideways on a phone. */
+.watch-airing {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(11.5rem, 14rem);
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-1) 0 var(--space-3);
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+}
+.watch-airing > li {
+  scroll-snap-align: start;
+}
+.watch-airing-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  text-decoration: none;
+  color: inherit;
+}
+.watch-airing-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+.watch-airing-avatars {
+  display: flex;
+  gap: var(--space-1);
+}
+.watch-airing-names {
+  font-size: var(--text-md);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.watch-airing-when {
+  align-self: flex-start;
+}
+.watch-airing-call {
+  margin-top: auto;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--accent-text);
+}
+/* Prev / page n of N / Next under the latest episodes. */
+.watch-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+}
+.watch-pager .button-ghost {
+  margin: 0;
+}
+.watch-pager-gap {
+  min-width: 5rem;
+}
+/* The private-dates note, as one line under the latest episodes instead of a card on top. */
+.private-teaser.private-teaser-compact {
+  margin: var(--space-5) 0 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.private-teaser-compact .private-teaser-lock {
+  font-size: var(--text-md);
+}
+.private-teaser-compact a {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+/* "How it works", folded away near the bottom. */
+.watch-how-details {
+  margin: var(--space-5) 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
+}
+.watch-how-details > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--accent-text);
+}
+.watch-how-details[open] > summary {
+  margin-bottom: var(--space-2);
+}
+.watch-how-details .watch-how {
+  margin-bottom: 0;
+}
+/* The watch room's pre-show (app/watch/[id]/WatchRoom.tsx): a countdown to the first lines and who's on stage,
+   in place of an empty conversation. */
+.watch-countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  text-align: center;
+}
+.watch-countdown-time {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-text);
+}
+.watch-countdown-cast {
+  display: flex;
+  gap: var(--space-2);
+}
+.watch-countdown-who,
+.watch-countdown-hint {
+  margin: 0;
+}
+.watch-countdown-hint {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.watch-countdown.is-dark {
+  margin: var(--space-6) var(--space-4) 0;
+  color: #fff;
+}
+.watch-countdown.is-dark .watch-countdown-time {
+  color: #fff;
+}
+.watch-countdown.is-dark .watch-countdown-hint {
+  color: rgba(255, 255, 255, 0.65);
+}
 
 /* A format badge reads as the episode's billing, so it takes the second accent to stand apart from the
    status badge next to it. */
@@ -3797,6 +3942,34 @@ button.link-button.danger {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+/* The episode page's written recap and ending reveals, closed behind one toggle when the theater can play the date
+   (app/episodes/[id]/RecapToggle.tsx). */
+details.recap-toggle {
+  margin: var(--space-4) 0;
+}
+details.recap-toggle > summary {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
+  color: var(--accent-text);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+details.recap-toggle > summary::-webkit-details-marker {
+  display: none;
+}
+details.recap-toggle > summary::before {
+  content: "▸ ";
+}
+details.recap-toggle[open] > summary::before {
+  content: "▾ ";
+}
+details.recap-toggle[open] > summary {
+  margin-bottom: var(--space-3);
 }
 
 /* Account page (M16): auth forms + links. */

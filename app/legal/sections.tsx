@@ -83,8 +83,8 @@ export function PrivacySections() {
           up when you ask us to.
         </li>
         <li>
-          For the Season 1 waitlist: your email, where you roleplay if you tell us, and which link brought you. We use
-          the email once, to tell you Season 1 is open. We never sell or share it, and we delete it if you ask.
+          For a waitlist (After Dark&apos;s, for now): your email, where you roleplay if you tell us, and which link brought
+          you. We use the email once, to tell you it&apos;s open. We never sell or share it, and we delete it if you ask.
         </li>
       </ul>
 
