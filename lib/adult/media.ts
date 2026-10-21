@@ -14,6 +14,7 @@
 import type { Character } from "../character";
 import type { Db } from "../db";
 import { ALL_HOUSE_CHARACTERS } from "../house";
+import { looksPictureWords } from "../looks";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { dataColumn, keepBytes, objectStore, readBytes } from "../object-store";
 import { checkAdultText } from "../safety";
@@ -119,9 +120,16 @@ export function physicalLook(c: Character, undressed = false): string {
   return kept.join(", ");
 }
 
-const person = (c: Character, undressed: boolean) => {
+/**
+ * A character built in the looks builder (lib/looks.ts) is drawn from every pick, its outfit included until they
+ * undress; the private After Dark picks only in a picture its owner (`viewer`) makes.
+ */
+const picks = (c: Character, viewer?: string | null) => looksPictureWords(c.extras?.looks, Boolean(viewer) && c.ownerId === viewer);
+
+const person = (c: Character, undressed: boolean, viewer?: string | null) => {
   const p = c.pronouns?.startsWith("she") ? "woman" : c.pronouns?.startsWith("he") ? "man" : "person";
-  const look = physicalLook(c, undressed);
+  const picked = picks(c, viewer);
+  const look = picked.body ? [picked.body, !undressed && picked.outfit ? `wearing ${picked.outfit}` : ""].filter(Boolean).join(", ") : physicalLook(c, undressed);
   return `a ${Math.max(18, c.age)}-year-old adult ${p}${look ? `, ${look}` : ""}`;
 };
 
@@ -145,16 +153,20 @@ const UNDRESSED_FROM = 3;
 
 /**
  * The first explicit picture of a character, from their own sheet. Facing the camera, face clear, waist up: it's the
- * face reference for every later picture of them, and a face-detection model needs to find it.
+ * face reference for every later picture of them, and a face-detection model needs to find it. In the outfit they
+ * picked (a swimsuit stays a swimsuit), nude when they picked none or Nude.
  */
-export function baselinePrompt(c: Character): string {
-  return `Explicit, uncensored adult photograph, ${person(c, true)}. Nude, alone, waist-up, facing the camera, face clearly visible, natural light, photorealistic. Everyone shown is an adult.`;
+export function baselinePrompt(c: Character, viewer?: string | null): string {
+  const { outfit } = picks(c, viewer);
+  const [opener, worn] = outfit ? ["Uncensored adult photograph", `Wearing ${outfit}`] : ["Explicit, uncensored adult photograph", "Nude"];
+  return `${opener}, ${person(c, true, viewer)}. ${worn}, alone, waist-up, facing the camera, face clearly visible, natural light, photorealistic. Everyone shown is an adult.`;
 }
 
 /** A picture the scene asked for, of one or both of them: what it shows first, then who, then where and what just happened. */
-export function scenePrompt(a: Character, b: Character, of: "a" | "b" | "both", description: string, ctx?: PictureContext): string {
+export function scenePrompt(a: Character, b: Character, of: "a" | "b" | "both", description: string, ctx?: PictureContext, viewer?: string | null): string {
   const undressed = !ctx || ctx.explicit === true || ctx.stage >= UNDRESSED_FROM;
-  const people = of === "a" ? person(a, undressed) : of === "b" ? person(b, undressed) : `${person(a, undressed)} and ${person(b, undressed)}`;
+  const who = (c: Character) => person(c, undressed, viewer);
+  const people = of === "a" ? who(a) : of === "b" ? who(b) : `${who(a)} and ${who(b)}`;
   const opener = undressed ? "Explicit, uncensored adult photograph" : "Candid adult photograph";
   return [
     `${opener}: ${description.trim().replace(/\.$/, "")}.`,
@@ -283,7 +295,7 @@ async function storePicture(
 export async function ensureBaseline(db: Db, ownerId: string, c: Character): Promise<Media | null> {
   const have = (await db.query<{ id: string }>(`select id from adult_images where character_id = $1 and kind = 'baseline' and status = 'ready' limit 1`, [c.id])).rows[0];
   if (have) return null;
-  return makePicture(db, ownerId, { prompt: baselinePrompt(c), kind: "baseline", character_id: c.id });
+  return makePicture(db, ownerId, { prompt: baselinePrompt(c, ownerId), kind: "baseline", character_id: c.id });
 }
 
 /**

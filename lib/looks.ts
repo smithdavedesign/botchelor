@@ -320,12 +320,29 @@ export function looksAppearance(l: Looks | undefined): string {
 }
 
 /**
- * After Dark's words for the body (for lib/adult's picture prompts): the bust and butt picks, plus the normal look.
- * Empty when there are none.
+ * Every pick, for After Dark's pictures (lib/adult/media.ts): the body's words, and the outfit apart so a picture can
+ * leave it out once they undress (null: nude, or none picked). The After Dark picks (butt, outfit) are private, so
+ * `own` says whether the picture is the owner's; the After Dark outfit wins over the show's. Realistic only: After
+ * Dark never draws anime.
  */
-export function adultLookWords(l: Looks | undefined): string {
-  if (!l?.gender) return "";
-  return [pick("breasts", l.gender, l.breasts)?.prompt, pick("butt", l.gender, l.after_dark?.butt, true)?.prompt].filter(Boolean).join(", ");
+export function looksPictureWords(l: Looks | undefined, own: boolean): { body: string; outfit: string | null } {
+  if (!l?.gender) return { body: "", outfit: null };
+  const g = l.gender;
+  const body = [
+    l.ethnicity ? optionLabel(pick("ethnicity", g, l.ethnicity)!, g).replace(" / Afro", "") : "",
+    hairWords(g, l.hair_style, l.hair_color),
+    pick("eyes", g, l.eyes)?.prompt,
+    pick("facial_hair", g, l.facial_hair)?.prompt,
+    pick("body", g, l.body)?.prompt,
+    pick("breasts", g, l.breasts)?.prompt,
+    own ? pick("butt", g, l.after_dark?.butt, true)?.prompt : undefined,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const adOutfit = own ? pick("outfit", g, l.after_dark?.outfit, true) : undefined;
+  if (adOutfit) return { body, outfit: adOutfit.id === "nude" ? null : optionPrompt(adOutfit, g) };
+  const outfit = pick("outfit", g, l.outfit);
+  return { body, outfit: outfit ? optionPrompt(outfit, g) : null };
 }
 
 /* ---------------------------------------------- the tiles ---------------------------------------------- */
