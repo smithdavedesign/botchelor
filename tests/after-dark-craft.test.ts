@@ -687,7 +687,8 @@ describe("(3d) the metrics, in the eval route's response and the observer", () =
       question_ending_share: 0.5,
       sensory_detail_share: 0.25,
       why_restates_trait: 1,
-      generic_whys: 1,
+      // "the moment", and (v2.2) three fragments: "Juniper is curious." and "his job" are short, "his bio: the rainy bakery" has no verb.
+      generic_whys: 4,
       sheet_citations: 2,
       limits: 1,
       limit_overridden: 0,

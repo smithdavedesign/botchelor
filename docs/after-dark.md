@@ -392,3 +392,49 @@ feel slower. DeepSeek is the better writer of the two, though, and worth a read 
 The judge picked the first transcript in 14 of 16 decided passes in each comparison. #594 (the public cap and the place
 go by the same signal) went live at 01:07 UTC, during the last runs of the DeepSeek comparison; it only acts when a move
 the lines agreed to isn't taken, which a four-step run from the date's venue rarely reaches.
+
+### Prompt v2.2: continuity (2026-10-22)
+
+v2 changed in place again (still `prompt_version: "v2"`; v1 is untouched, word for word). A production night, Lexi × Dex
+(3 chapters, about 298 lines, chapter 3 written after v2.1 went live), found: chapter 2 filed with chapter 1's recap word
+for word (and chapter 3 running on it too), so chapter 3 began the foreplay again though they were in her bed; pie,
+crust, oven or cream in 137 lines and pottery in 73; her pencil-spinning tell 31 times, during sex too; the same action on
+lines 36 and 38 and the same opening on 37 and 39; sex resuming straight after an aftercare beat, "eyes locked on hers"
+from behind, and "almost there" three times before the climax; whys like "The climax, the shared moment" and facts cited
+on lines that never use them; and the set shown as "Lexis bedroom".
+
+- **The recap** (`writeRecap` in `lib/adult/scenes.ts`): the reply is read even inside a code fence or after a sentence.
+  When it can't be used (no answer, no JSON, no recap in it, or over the two lines) the log says why
+  (`[after-dark] chapter N's recap: …`, never the reply), and the recap is never left as it was: the last one plus a
+  sentence from the chapter's own record ("Later, at Lexi's bedroom, it went as far as sex."), the newest kept under
+  1,200 characters. The PG note written at the same close reads a fenced reply too.
+- **Hooks, enforced** (`lib/adult/quality.ts`): a theme word flagged at any point tonight (in 30% of a character's last 16
+  lines; three letters is enough now, for "pie") gets one of their lines in 6 over the chapter at most. Past that, the
+  sentence or the action with it is cut, and the line goes if nothing's left. The hook note says so.
+- **Tells**: a sheet tell shows in 2 of a character's lines a chapter at most, matched by its own words ("spin" and
+  "pencil"); past that, what shows it is cut, and the prompt names it like a used catchphrase. From undressing on, the
+  prompt says tells are for the talking. The voice rule asks for their job or a hobby now and then, not in every line,
+  where it used to say "their job, hobbies, humour and tells still show".
+- **Repeated actions and openings**: an action from the last 10 lines again, word for word or nearly (most of its words
+  in order), is cut and what they say stays; a line that was only that action goes. A line opening with the same four
+  words as one of the last four lines (one of them more than glue) loses those sentences, and goes if nothing's left.
+- **The arc**: from undressing on, the prompt keeps track of their positions (from behind, their eyes don't meet). At the
+  last stage the build-up ("almost there", "so close") is said once, and after an afterglow or aftercare it only picks
+  up again when one of them starts it in a line and the other answers. The build-up said again by the same speaker within
+  10 lines is cut, like a worn phrase at its second use.
+- **Loose citations** (`citeMemory` in `lib/adult/facts.ts`): a cited fact has to share a distinctive word with what the
+  line says or does. Otherwise it's loose: not one of the line's facts (so its `uses` isn't bumped), not founded in the
+  metrics, and counted apart from the unfounded ones. A fact with no words of its own counts as used.
+- **Whys**: `generic_whys` also counts a fragment, a why under five words or with no verb (a heuristic, for both prompt
+  versions). The v2 prompt asks for a whole sentence about the character's own reason, even at the climax, and a memory
+  the line uses.
+- **Possessive sets** (`drawLabel` in `lib/sets.ts`, `closestSet` in `lib/adult/continuity.ts`, `possessiveNames` in
+  `lib/adult/craft.ts`): a set keeps whose it is ("Lexi's bedroom", "Chud's living room" for his place) in `set_place`,
+  `place_history` and the theater, and reuses only a drawn set of the same owner, so an owner's room is drawn once and an
+  unowned "bedroom glow" never lands in Lexi's. Prod's "Lexis bedroom" was typed into set the scene without its
+  apostrophe, which `setSceneTo` stores as typed; the next step now puts a lost apostrophe back on either of their names,
+  in the prompt and in what's stored.
+- **New metrics** (`sceneQuality`, so the eval route and the golden set get them, ungated): `loose_citations`,
+  `tell_uses`, `tell_uses_explicit` (at undressing or sex), and per character `hook` (the theme word in most of their
+  lines, and its share) and `tell_uses`. The step flags, and so the admin's step log, add `hooks_cut`, `tells_cut`,
+  `actions_cut`, `openings_cut` and `build_ups_cut`.

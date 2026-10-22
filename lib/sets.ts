@@ -225,10 +225,26 @@ export async function retryDueSets(db: Db, limit = 2, pauseMs = 1500): Promise<{
   return out;
 }
 
-/** The name to draw a place's set under: its canonical name ("bedroom"), and a home as the room you'd walk into. */
+/** The owner's possessive as the label writes it ("Lexi's", "James'"), apostrophe straightened, for canonicalSet's owner. */
+function ownerAsWritten(label: string, owner: string): string {
+  for (const m of label.matchAll(/[\p{L}\p{N}-]+['’]s?(?![\p{L}])/gu)) {
+    const said = m[0].replace(/’/g, "'");
+    if (said.toLowerCase().replace(/'s?$/, "") === owner) return said;
+  }
+  return `${owner.charAt(0).toUpperCase()}${owner.slice(1)}'s`;
+}
+
+/**
+ * The name to draw a place's set under: its canonical name ("bedroom"), and a home as the room you'd walk into. Whose it
+ * is stays (v2.2, Lexi × Dex on prod, 2026-10-22, a night shown in "Lexis bedroom"): a move to "Lexi's bedroom" used to
+ * come out as plain "bedroom", or another pair's drawn one; now it's "Lexi's bedroom", and "Lexi's living room" for her
+ * place. The set's key is its normalized name (lib/venues.ts normalizeScene), the one the theater asks for, so what's
+ * stored, what's shown and what's drawn all say "Lexi's".
+ */
 export function drawLabel(label: string): string {
   const c = canonicalSet(label);
-  if (!c.known) return label.trim();
+  if (!c.known) return label.trim().replace(/’/g, "'");
+  if (c.owner) return `${ownerAsWritten(label, c.owner)} ${c.canonical === "home" ? "living room" : c.canonical}`;
   return c.canonical === "home" ? "apartment living room" : c.canonical;
 }
 

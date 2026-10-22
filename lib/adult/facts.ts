@@ -426,30 +426,64 @@ export function sheetMemories(a: Character | null, b: Character | null, per = SH
   return out;
 }
 
-export type Citation = { facts: string[]; founded: boolean | null; sheet?: string[] };
+/** `loose` (v2.2): facts the memory cites that the line doesn't use; not in `facts`, so they're never bumped or stored. */
+export type Citation = { facts: string[]; founded: boolean | null; sheet?: string[]; loose?: string[] };
+
+/** A fact's or a line's distinctive words, as stems (lib/adult/quality.ts distinctiveStems), the pair's names left out. */
+const stemsOf = (text: string, names: readonly string[]): Set<string> => {
+  const skip = new Set(names.flatMap((n) => n.toLowerCase().split(/\s+/)));
+  return new Set([...distinctiveStems(text, skip)].filter((s) => !skip.has(s)));
+};
+
+/**
+ * Whether a line uses a fact (v2.2, Lexi × Dex's climax: F13, F14 and F5 cited on lines that never touch them): the
+ * line, what it says or does, shares a distinctive word with the fact or its quote. A fact with no words of its own
+ * can't be told apart, so it counts as used.
+ */
+export function usesFact(text: string, fact: Pick<AdultFact, "fact" | "quote">, names: readonly string[] = []): boolean {
+  const own = stemsOf(`${fact.fact} ${fact.quote ?? ""}`, names);
+  if (!own.size) return true;
+  const said = stemsOf(text, names);
+  return [...own].some((s) => said.has(s));
+}
 
 /**
  * What a line's private "memory" cites: the facts it names by label (or quotes, or plainly matches), the sheet details it
  * names ([S2], when a new pair was shown some), and whether all of it is in what they can remember (the facts shown, the
  * other memories and sheet details, or what's already happened tonight). null: no note. A label right after an apostrophe
- * isn't one ("I'm 30", "Sable's 41 hats").
+ * isn't one ("I'm 30", "Sable's 41 hats"). With the `line` (its text, and the pair's names), a cited fact the line
+ * doesn't use is loose (v2.2): it's left out of `facts`, and a citation of nothing else isn't founded.
  */
-export function citeMemory(memory: string | null | undefined, shown: readonly ShownFact[], others: readonly { label: string; text: string }[], context: string): Citation {
+export function citeMemory(
+  memory: string | null | undefined,
+  shown: readonly ShownFact[],
+  others: readonly { label: string; text: string }[],
+  context: string,
+  line?: { text: string; names: readonly string[] },
+): Citation {
   const note = memory?.trim();
   if (!note) return { facts: [], founded: null };
   const ids: string[] = [];
   const sheet: string[] = [];
+  const loose: string[] = [];
+  const cite = (f: ShownFact) => (line && !usesFact(line.text, f.fact, line.names) ? loose : ids).push(f.fact.id);
   let unknown = false;
+  let other = false;
   const labels = [...note.matchAll(/(?<!['’])\b([FMS])\s?-?(\d{1,3})\b/gi)].map((m) => `${m[1].toUpperCase()}${Number(m[2])}`);
   for (const label of new Set(labels)) {
     const fact = shown.find((s) => s.label === label);
-    if (fact) ids.push(fact.fact.id);
+    if (fact) cite(fact);
     else if (!others.some((o) => o.label === label)) unknown = true;
     else if (label.startsWith("S")) sheet.push(label);
+    else other = true;
   }
-  if (labels.length) return { facts: ids, founded: !unknown, ...(sheet.length ? { sheet } : {}) };
-  for (const s of shown) if (memoryFounded(note, `${s.fact.fact} ${s.fact.quote ?? ""}`)) ids.push(s.fact.id);
-  if (ids.length) return { facts: ids, founded: true };
+  const withLoose = loose.length ? { loose } : {};
+  // An id that isn't there is the worse fault: such a citation counts as unfounded, loose facts or not.
+  if (unknown) return { facts: ids, founded: false, ...(sheet.length ? { sheet } : {}) };
+  if (labels.length) return { facts: ids, founded: ids.length > 0 || sheet.length > 0 || other || !loose.length, ...(sheet.length ? { sheet } : {}), ...withLoose };
+  for (const s of shown) if (memoryFounded(note, `${s.fact.fact} ${s.fact.quote ?? ""}`)) cite(s);
+  if (ids.length) return { facts: ids, founded: true, ...withLoose };
+  if (loose.length) return { facts: [], founded: false, loose };
   // A sheet detail named in words ("her party hats"), when the note has words of its own to match: the detail itself, not
   // its label ("Sable's hobby:"), or every detail of hers would match a note with her name in it.
   const detail = (text: string) => text.slice(text.indexOf(": ") + 2);

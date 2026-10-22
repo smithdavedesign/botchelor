@@ -105,7 +105,8 @@ describe("stable sets: a set is a place, not a mood", () => {
     expect(closestSet("balcony", ["cozy bedroom"])).toBeNull();
     await t.db.query(`insert into place_sets (normalized, label, status, mime, data) values ('cozy bedroom', 'cozy bedroom', 'ready', 'image/jpeg', '\\x00'), ('his apartment', 'his apartment', 'ready', 'image/jpeg', '\\x00')`);
     expect(await resolveSet(t.db, "bedroom ambiance")).toBe("cozy bedroom");
-    expect(await resolveSet(t.db, "Chud's place")).toBe("his apartment");
+    // v2.2: whose it is stays, so Chud's place is his own set, not anyone's "his apartment".
+    expect(await resolveSet(t.db, "Chud's place")).toBe("Chud's living room");
     // No ready set for it: its canonical name, drawn once (no keys here, so it's only claimed and fails).
     expect(await resolveSet(t.db, "the moonlit balcony glow")).toBe("balcony");
   });

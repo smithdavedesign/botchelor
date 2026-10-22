@@ -12,6 +12,7 @@
 import type { Character } from "../character";
 import type { Db } from "../db";
 import { checkShowText } from "../safety";
+import { jsonOf } from "./facts";
 import { adultModel } from "./mode";
 import type { SceneLine } from "./scenes";
 
@@ -47,7 +48,8 @@ export async function rememberAfterDark(db: Db, ownerId: string, a: Character | 
       ],
       { temperature: 0.4, maxTokens: 300 },
     );
-    notes = JSON.parse(raw.trim()) as { a?: unknown; b?: unknown };
+    // The JSON even inside a code fence or after a sentence (v2.2: the recap at the same chapter close lost its reply to one).
+    notes = (jsonOf(raw) as { a?: unknown; b?: unknown } | null) ?? {};
   } catch {
     /* the fallbacks below */
   }
