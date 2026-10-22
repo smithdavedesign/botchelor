@@ -1439,23 +1439,17 @@ create table if not exists analytics_events (
 create unique index if not exists analytics_events_firsts_idx on analytics_events (user_id, event)
   where event in ('agent_initialize', 'agent_first_character', 'agent_first_date', 'agent_day_7_return');
 create index if not exists analytics_events_event_idx on analytics_events (event, created_at desc);
--- The cross-species north-star (lib/agent-funnel.ts recordCrossSpecies), once per pair: 'pair:<lo>:<hi>'. The rows from
--- before it (keyed by episode id, with both owners in props) fall outside this index and outside the count; their owner
--- ids are stripped below. The backfill re-counts every past web × MCP pair once, from its first date.
+-- The cross-species booking log (lib/agent-funnel.ts recordCrossSpecies), once per pair: 'pair:<lo>:<hi>'. The rows from
+-- before it are keyed by episode id and fall outside this index.
+--
+-- The north-star COUNT doesn't read these rows: it's derived from the dates themselves at query time
+-- (lib/agent-funnel.ts crossSpeciesPairs), so private, unfinished, our own and self-linked pairs never count, whatever
+-- was logged. That matters because #666 (2026-10-22) ran two one-way statements here on prod: it stripped the owner ids
+-- from the old episode-keyed rows (they can't be restored, so those rows can't be told apart as ours or real), and it
+-- backfilled a 'pair:' row for every past web × MCP pair, private and test pairs included. Both are gone from this
+-- schema (a backfill doesn't belong in ensureSchema); the count reads correctly without either. docs/data-plan.md.
 create unique index if not exists analytics_events_cross_species_pair_idx on analytics_events (user_id, event)
   where event = 'cross_species_match' and user_id like 'pair:%';
-update analytics_events set props = props - 'human' - 'agent'
- where event = 'cross_species_match' and (props ? 'human' or props ? 'agent');
-insert into analytics_events (user_id, event, props, created_at)
-select distinct on (x.pair) x.pair, 'cross_species_match', jsonb_build_object('episode_id', x.id, 'via', 'backfill'), x.created_at
-  from (select 'pair:' || least(e.character_a, e.character_b) || ':' || greatest(e.character_a, e.character_b) as pair, e.id, e.created_at
-          from episodes e
-          join characters ca on ca.id = e.character_a
-          join characters cb on cb.id = e.character_b
-         where ca.owner_id is not null and cb.owner_id is not null and ca.owner_id <> cb.owner_id
-           and (ca.created_via = 'mcp') <> (cb.created_via = 'mcp')) x
- order by x.pair, x.created_at
-on conflict (user_id, event) where event = 'cross_species_match' and user_id like 'pair:%' do nothing;
 
 -- Opt-in consent to use a person's data for machine learning (lib/ml-consent.ts; David, 2026-10-22). Recording never
 -- depends on it: only what goes into a training or evaluation dataset does. No row means no. An agent linked to an
@@ -1497,7 +1491,7 @@ create table if not exists relationship_events (
 );
 create index if not exists relationship_events_pair on relationship_events (character_a, character_b, at);
 -- What a deck actually showed (lib/swipes.ts logImpressions): rank, score, surface. With swipes, the shown-and-skipped
--- record a preference model needs. Pruned after 400 days (the daily job, lib/swipes.ts pruneImpressions).
+-- record a preference model needs. Pruned after 400 days (the daily job, lib/retention.ts).
 create table if not exists swipe_impressions (
   id bigserial primary key,
   viewer text not null references characters (id) on delete cascade,
@@ -1566,6 +1560,13 @@ create table if not exists episode_variations (
   created_at timestamptz not null default now(),
   primary key (varies_episode_id, variation)
 );
+-- Retention (lib/retention.ts, docs/data-plan.md): the daily job prunes the data plan's kept data after 400 days by its
+-- time column. These tables are new (#667, #668), so the indexes build on next to nothing.
+create index if not exists choice_history_at on choice_history (at);
+create index if not exists swipe_impressions_at on swipe_impressions (at);
+create index if not exists turn_drafts_created on turn_drafts (created_at);
+create index if not exists relationship_events_at on relationship_events (at);
+create index if not exists episode_variations_created on episode_variations (created_at);
 
 -- Marketing posters (scripts/post/*.mjs): a stamp per channel so cron re-runs are idempotent.
 alter table episodes add column if not exists last_posted_discord_at timestamptz;

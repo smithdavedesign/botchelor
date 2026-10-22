@@ -1660,10 +1660,10 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       return refuse(why);
     }
     const speaker = built.characters[current.side === "a" ? 0 : 1];
-    const problem = ownTurnProblem(raw, parsed.turn, speaker.extras?.never_says, transcript);
+    const problem = ownTurnCheck(raw, parsed.turn, speaker.extras?.never_says, transcript);
     if (problem) {
-      await draft("agent_refused", problem, parsed.turn.dialogue);
-      return refuse(problem);
+      await draft("agent_refused", problem.stored, parsed.turn.dialogue);
+      return refuse(problem.message);
     }
     // A move (lib/moves.ts): a suggestion must be answered, and a new one has to fit where the date stands.
     const shape = shapeFor(built, formatId, transcript);
@@ -2027,18 +2027,30 @@ export const filteredRefusal = (reason?: RejectReason): string =>
  * or a line that's degenerated (one word over and over, or the same line as before).
  */
 export function ownTurnProblem(raw: string, turn: Turn, never: readonly string[] | undefined, before: Turn[]): string | null {
+  return ownTurnCheck(raw, turn, never, before)?.message ?? null;
+}
+
+/**
+ * The reason a refused line is kept with (lib/turn-drafts.ts). A never_says catch is kept as a generic reason, never the
+ * sheet's phrase word for word: the agent is told which phrase it was, the stored record isn't.
+ */
+export const NEVER_SAYS_REASON = "The line used a phrase on the character's never_says list.";
+
+/** ownTurnProblem, with what to store beside what to tell the agent. */
+function ownTurnCheck(raw: string, turn: Turn, never: readonly string[] | undefined, before: Turn[]): { message: string; stored: string } | null {
+  const same = (message: string) => ({ message, stored: message });
   // Run 4 wanted an agent's turn to carry all four; since 2.4.5 (runs 0514, 0610) a left-out field gets its default before
   // this check (oneLineTurn), so what's caught here is a field of the wrong type.
   const missing = missingTurnFields(raw);
-  if (missing.length) return `The reply needs dialogue, action, emotion and interest_signal (move and accept_move only when they apply); missing or the wrong type: ${missing.join(", ")}. interest_signal is a number from 0 to 1.`;
+  if (missing.length) return same(`The reply needs dialogue, action, emotion and interest_signal (move and accept_move only when they apply); missing or the wrong type: ${missing.join(", ")}. interest_signal is a number from 0 to 1.`);
   const said = spokenLength(raw);
-  if (said > TURN_DIALOGUE_MAX) return `That line is ${said} characters; a spoken line is at most ${TURN_DIALOGUE_MAX}. Say it shorter.`;
+  if (said > TURN_DIALOGUE_MAX) return same(`That line is ${said} characters; a spoken line is at most ${TURN_DIALOGUE_MAX}. Say it shorter.`);
   const phrase = neverSaid(turn.dialogue, never);
-  if (phrase) return `This character never says "${phrase}" (their sheet's never_says). Run the turn again without it.`;
-  if (degenerate(turn.dialogue)) return "That line repeats itself. Run the turn again: one natural spoken line.";
+  if (phrase) return { message: `This character never says "${phrase}" (their sheet's never_says). Run the turn again without it.`, stored: NEVER_SAYS_REASON };
+  if (degenerate(turn.dialogue)) return same("That line repeats itself. Run the turn again: one natural spoken line.");
   const plain = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   if (before.some((t) => t.side === turn.side && plain(t.dialogue) === plain(turn.dialogue))) {
-    return "That's word for word a line this character already said on this date. Say something new.";
+    return same("That's word for word a line this character already said on this date. Say something new.");
   }
   return null;
 }

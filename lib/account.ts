@@ -69,6 +69,10 @@ export type AccountExport = {
   choice_history: Record<string, unknown>[];
   /** Lines on their characters' sides that didn't go in: critic-replaced drafts, refused and checked lines (lib/turn-drafts.ts). */
   turn_drafts: Record<string, unknown>[];
+  /** Their 👍 and 👎 on lines (lib/line-feedback.ts). */
+  line_feedback: Record<string, unknown>[];
+  /** Sliding Doors runs on their dates (lib/simulation.ts saveDoors): what was changed and how the alternate ended. */
+  episode_variations: Record<string, unknown>[];
 };
 
 /** Everything stored under this user id, as JSON. Owner-only (the route checks the cookie is the user). */
@@ -187,8 +191,37 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
         order by d.created_at`,
       [userId],
     ),
+    line_feedback: await q("select kind, ref_id, line_index, vote, created_at, updated_at from line_feedback where user_id = $1 order by created_at", [userId]),
+    // The run's trace is left out: its numbers average both characters' temperaments, so it isn't one person's to take.
+    episode_variations: await q(
+      `select v.varies_episode_id as episode_id, v.variation, v.engine_version, v.base_ending, v.stored_ending, v.alt_ending,
+              v.alt_box_score, v.alt_sides, v.faithful, v.requests, v.created_at
+         from episode_variations v join episodes e on e.id = v.varies_episode_id
+        where e.creator_id = $1
+           or exists (select 1 from characters c where c.id in (e.character_a, e.character_b) and c.owner_id = $1 and not c.is_house)
+        order by v.created_at`,
+      [userId],
+    ),
   };
 }
+
+/**
+ * The numbers in an engine trace (lib/engine.ts EngineTrace) that come from the characters' temperaments, read off their
+ * private souls and learned memory: the averaged signals and every term that's a multiple of one. A forgotten
+ * character's soul and memory are deleted, so these go with them; the margin, the score and the other terms stay
+ * (they're sums over everything, and explain the aired ending).
+ */
+export const TRACE_SOUL_PATHS = [
+  ["signals"],
+  ["terms", "chemistry", "humor"],
+  ["terms", "chemistry", "warmth"],
+  ["terms", "attraction", "openness"],
+  ["terms", "trust", "warmth"],
+  ["terms", "trust", "guarded"],
+  ["terms", "awkwardness", "guarded"],
+  ["terms", "awkwardness", "humor"],
+] as const;
+const stripTraceSql = (col: string) => TRACE_SOUL_PATHS.reduce<string>((sql, path) => `(${sql} #- '{${path.join(",")}}')`, col);
 
 /**
  * Removes a character's private learned layer: its memory (which holds how it felt about each person), what it was
@@ -208,9 +241,29 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   await db.query("delete from swipe_impressions where viewer = any($1) or card = any($1)", [characterIds]);
   await db.query("delete from relationship_events where character_a = any($1) or character_b = any($1)", [characterIds]);
   await db.query("delete from choice_history where character_id = any($1) or other_id = any($1)", [characterIds]);
-  // Lines that didn't go in on their dates: the dates themselves stay (shared), the drafts about them don't.
+  // Lines on their side that didn't go in: the dates themselves stay (shared), and so do the other side's drafts.
   await db.query(
-    "delete from turn_drafts d using episodes e where e.id = d.episode_id and (e.character_a = any($1) or e.character_b = any($1))",
+    `delete from turn_drafts d using episodes e
+      where e.id = d.episode_id and ((d.side = 'a' and e.character_a = any($1)) or (d.side = 'b' and e.character_b = any($1)))`,
+    [characterIds],
+  );
+  // Sliding Doors runs on their dates (lib/simulation.ts): a replay built on their soul's numbers, so it goes whole.
+  await db.query(
+    "delete from episode_variations v using episodes e where e.id = v.varies_episode_id and (e.character_a = any($1) or e.character_b = any($1))",
+    [characterIds],
+  );
+  // The soul-derived numbers on their dates (data plan Tier 1, episodes.engine_trace: the temperament signals and the
+  // terms built from them), and their side's signal snapshot on the setup (setup.signals_a/b, what a replay reads). The
+  // soul is deleted, so what was read off it goes too. A date still being written keeps its snapshot until it's done.
+  await db.query(
+    `update episodes set engine_trace = ${stripTraceSql("engine_trace")}
+      where engine_trace is not null and (character_a = any($1) or character_b = any($1))`,
+    [characterIds],
+  );
+  await db.query(
+    `update episodes set setup = setup - (case when character_a = any($1) then 'signals_a' else '' end)
+                                       - (case when character_b = any($1) then 'signals_b' else '' end)
+      where status = 'ready' and ((character_a = any($1) and setup ? 'signals_a') or (character_b = any($1) and setup ? 'signals_b'))`,
     [characterIds],
   );
   await db.query(
@@ -310,6 +363,11 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from identity_consents where user_id = $1", [userId]);
   await run("delete from ml_consents where user_id = $1", [userId]);
   await run("delete from choice_history where user_id = $1", [userId]);
+  await run("delete from line_feedback where user_id = $1", [userId]);
+  // Sliding Doors runs they asked for on a date they booked (their own characters' went with forgetEverything above).
+  await run("delete from episode_variations v using episodes e where e.id = v.varies_episode_id and e.creator_id = $1", [userId]);
+  // The agents linked to this account: the link is the account's, so it (and the consent it carried) goes with it.
+  await run("delete from agent_links where user_id = $1", [userId]);
   await run("delete from reports where reporter_id = $1", [userId]);
   await run("delete from reports_reviewed where reporter_id = $1", [userId]);
   await run("delete from blocks where blocker_id = $1", [userId]);

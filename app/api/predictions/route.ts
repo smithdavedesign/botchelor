@@ -46,8 +46,13 @@ export const POST = handle(async (req) => {
   const saved = rows[0];
   if (saved) {
     track("prediction_submitted", { episode_id: input.episode_id, pick: saved.pick });
-    // Every pick, not just the last: a changed mind is a signal too (lib/choice-history.ts).
-    await recordChoice(db, { kind: "prediction", userId: sess.userId, episodeId: input.episode_id, value: { pick: saved.pick, drama_pick: saved.drama_pick } });
+    // Every change of pick, not just the last: a changed mind is a signal too (lib/choice-history.ts). The same pick sent
+    // again isn't one, so it adds nothing.
+    await recordChoice(
+      db,
+      { kind: "prediction", userId: sess.userId, episodeId: input.episode_id, value: { pick: saved.pick, drama_pick: saved.drama_pick } },
+      { onlyIfChanged: true },
+    );
     const body = saved.drama_pick
       ? { episode_id: input.episode_id, pick: saved.pick, drama_pick: saved.drama_pick }
       : { episode_id: input.episode_id, pick: saved.pick };

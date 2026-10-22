@@ -206,16 +206,11 @@ export async function deckFor(db: Db, userId: string, characterId: string, limit
   };
 }
 
-/** Deck impressions older than this go (the daily job), like mcp_calls: 13 months keeps the year-over-year view. */
-export const IMPRESSIONS_KEEP_DAYS = 400;
-export async function pruneImpressions(db: Db): Promise<void> {
-  await db.query(`delete from swipe_impressions where at < now() - ($1 || ' days')::interval`, [String(IMPRESSIONS_KEEP_DAYS)]);
-}
-
 /**
  * Logs the cards a deck actually showed (data plan Tier 1): who saw whom, at what rank and score, on which surface.
  * With the swipes, that's the shown-and-skipped record a preference model needs (a swipe alone has no negatives).
- * One insert per serve; best effort, so a failed log never costs anyone their deck. Pruned after 400 days.
+ * One insert per serve; best effort, so a failed log never costs anyone their deck. Pruned after 400 days
+ * (lib/retention.ts).
  */
 export async function logImpressions(
   db: Db,
