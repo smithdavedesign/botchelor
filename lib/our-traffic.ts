@@ -52,8 +52,9 @@ export function setPublicLaunchDayForTests(day: string | null): void {
  * Every identity that's ours, for the analytics to leave out (Real use, lib/real-metrics.ts; the insights overview,
  * lib/insights.ts): admin accounts and any agent linked to one, every agent that ever connected as one of our checks or
  * as the loop's house-run bots and crowd, the owners of our scripts' and tests' characters (OUR_TEST_NAMES, test-style
- * names), people first active before the public launch (PUBLIC_LAUNCH_DAY), the deleted owner (a deleted account's kept
- * characters) and the show itself.
+ * names) and whoever booked a date for one (only a character's owner can: a deleted account's kept characters move to
+ * the deleted owner, but its dates keep their creator, as David's "Wren Kestrel" runs did), people first active before
+ * the public launch (PUBLIC_LAUNCH_DAY), the deleted owner (a deleted account's kept characters) and the show itself.
  */
 export async function loadOurIds(db: Db): Promise<string[]> {
   const ourClient = `(coalesce(client_name, '') ~* $1 or coalesce(user_agent, '') ~* $1 or coalesce(client_name, '') like $2)`;
@@ -63,6 +64,8 @@ export async function loadOurIds(db: Db): Promise<string[]> {
      union select agent_id from mcp_sessions where ${ourClient}
      union select agent_id from mcp_calls where agent_id is not null and ${ourClient}
      union select owner_id from characters where owner_id is not null and (name = any($5::text[]) or name ~* $6)
+     union select e.creator_id from episodes e join characters c on c.id = e.character_a
+            where e.creator_id is not null and (c.name = any($5::text[]) or c.name ~* $6)
      union select a.id from (${PEOPLE_ACTS_SQL}) a
             where a.id is not null and a.at < $7::timestamptz and not exists (select 1 from mcp_sessions s where s.agent_id = a.id)
      union select $3::text
