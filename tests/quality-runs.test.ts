@@ -1,12 +1,14 @@
 // Quality runs (lib/quality-runs.ts, POST/GET /api/admin/quality): the golden set's verdicts and the nightly After Dark
-// observer's counts, posted from the developer's Mac and shown on /admin/analytics next to Real use.
+// observer's counts, posted from the developer's Mac and shown on /admin/analytics (the Quality tab).
 import { randomUUID } from "node:crypto";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { RunsTable } from "@/app/admin/analytics/QualityTab";
 import RealUse from "@/app/admin/analytics/RealUse";
 import { GET as getQuality, POST as postQuality } from "@/app/api/admin/quality/route";
 import { claimAdmin } from "@/lib/admins";
+import { loadInsights } from "@/lib/insights";
 import { keyMetrics, listQualityRuns, saveQualityRun, type QualityRun } from "@/lib/quality-runs";
 import { realUse } from "@/lib/real-metrics";
 import { BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
@@ -125,27 +127,28 @@ describe("what the analytics page shows for a run", () => {
     ]);
   });
 
-  it("Real use carries the last 10 runs, and the page shows them next to the simulated visitors", async () => {
+  it("Real use carries the last 10 runs, and the Quality tab lists the period's runs (numbers, never their cost)", async () => {
     for (let d = 1; d <= 11; d++) await saveQualityRun(t.db, { ...observerRun(`nightly-${d}`, `2026-10-${String(d).padStart(2, "0")}T06:00:00Z`), kind: "after_dark_observer", sha: null });
     await saveQualityRun(t.db, { ...golden("ad-v1-v2", "2026-10-21T10:00:00Z"), kind: "golden", sha: "abc1234def" });
-    const data = await realUse(t.db, new Date("2026-10-21T12:00:00Z"));
+    const now = new Date("2026-10-21T12:00:00Z");
+    const data = await realUse(t.db, now);
     expect(data.quality).toHaveLength(10);
     expect(data.quality[0].label).toBe("ad-v1-v2");
     expect(await listQualityRuns(t.db, { limit: 100 })).toHaveLength(12);
-    const html = renderToStaticMarkup(createElement(RealUse, { data }));
-    expect(html).toContain("<h3>Quality runs</h3>");
+    const insights = await loadInsights(t.db, { from: "2026-10-01", to: "2026-10-21", segment: "all", includeOurs: false }, now);
+    expect(insights.quality.runs).toHaveLength(12);
+    const html = renderToStaticMarkup(createElement(RunsTable, { rows: insights.quality.runs }));
     expect(html).toContain("Golden A/B");
     expect(html).toContain("After Dark observer");
     expect(html).toContain("<code>abc1234</code>");
     expect(html).toContain("62% (n 8, p 0.69)");
-    expect(html).toContain("<h3>Line votes</h3>");
+    expect(html).not.toContain("$0.19");
+    expect(renderToStaticMarkup(createElement(RealUse, { data }))).toContain("<h3>Line votes</h3>");
   });
 
   it("an empty table says how runs get there", async () => {
-    const data = await realUse(t.db, new Date("2026-10-21T12:00:00Z"));
-    expect(data.quality).toEqual([]);
-    const html = renderToStaticMarkup(createElement(RealUse, { data }));
-    expect(html).toContain("None posted yet.");
+    const html = renderToStaticMarkup(createElement(RunsTable, { rows: [] }));
+    expect(html).toContain("None in this period.");
     expect(html).toContain("scripts/eval/golden.mjs --post");
   });
 });

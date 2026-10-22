@@ -66,7 +66,7 @@ export type AgentAnalytics = {
   window_days: number;
   since: string;
   totals: { connections: number; clients: number; crawlers: number; explorers: number; players: number; ours: number };
-  /** Outside agents only (not ours): how far they got. */
+  /** Outside agents only (not ours, unless our own traffic is asked for): how far they got. */
   funnel: { connected: number; listed_tools: number; called_a_tool: number; made_a_character: number; went_on_a_date: number; aired_a_date: number; sent_feedback: number };
   clients: ClientRow[];
   tools: ToolRow[];
@@ -78,8 +78,20 @@ export type AgentAnalytics = {
 
 const iso = (d: Date | string | null) => (d ? new Date(d).toISOString() : null);
 
-export async function agentAnalytics(db: Db, windowDays = 7, now = new Date()): Promise<AgentAnalytics> {
+/**
+ * The window is the `windowDays` before `now`. `until` (the end of the analytics page's date range, midnight after its
+ * last day) also cuts off everything after it; without it (a plain ?days= window) nothing is cut, so a call logged a
+ * moment ago is never lost to clock skew. `includeOurs` counts our own checks in the totals, the funnel and the days as
+ * well (they're always listed, marked).
+ */
+export async function agentAnalytics(
+  db: Db,
+  windowDays = 7,
+  now = new Date(),
+  { until = null, includeOurs = false }: { until?: Date | null; includeOurs?: boolean } = {},
+): Promise<AgentAnalytics> {
   const since = new Date(now.getTime() - windowDays * 86_400_000);
+  const end = until ? until.toISOString() : null;
   const writes = [...WRITE_TOOLS];
   const { rows } = await db.query<{
     id: string; agent_id: string; client_name: string | null; client_version: string | null; user_agent: string | null; calls: number;
@@ -93,7 +105,7 @@ export async function agentAnalytics(db: Db, windowDays = 7, now = new Date()): 
               bool_or(ok and tool = any($2)) as wrote,
               count(*) filter (where not ok)::int as errors,
               bool_or(method = 'tools/list') as listed
-         from mcp_calls where created_at >= $1 group by session_id
+         from mcp_calls where created_at >= $1 and ($3::timestamptz is null or created_at < $3) group by session_id
      )
      select s.id, s.agent_id, s.client_name, s.client_version, s.user_agent, s.calls, s.created_at, s.last_seen,
             coalesce(c.logged, 0) as logged, c.tools, coalesce(c.wrote, false) as wrote, coalesce(c.errors, 0) as errors,
@@ -104,10 +116,10 @@ export async function agentAnalytics(db: Db, windowDays = 7, now = new Date()): 
             (select count(*)::int from agent_feedback f where f.agent_id = s.agent_id) as feedback
        from mcp_sessions s
        left join c on c.session_id = s.id
-      where s.last_seen >= $1
+      where s.last_seen >= $1 and ($3::timestamptz is null or s.created_at < $3)
       order by s.last_seen desc
       limit 5000`,
-    [since.toISOString(), writes],
+    [since.toISOString(), writes, end],
   );
 
   // With two facts only the funnel needs: did it list the tools, and how many dates did it air.
@@ -124,12 +136,13 @@ export async function agentAnalytics(db: Db, windowDays = 7, now = new Date()): 
     };
   });
 
-  const outside = sessions.filter((s) => !s.ours);
-  const agentsWith = (pred: (s: (typeof outside)[number]) => boolean) => new Set(outside.filter(pred).map((s) => s.agent_id)).size;
+  // What the totals, the funnel and the days count: outside agents, or everyone when our own traffic is asked for.
+  const counted = includeOurs ? sessions : sessions.filter((s) => !s.ours);
+  const agentsWith = (pred: (s: (typeof counted)[number]) => boolean) => new Set(counted.filter(pred).map((s) => s.agent_id)).size;
   const funnel = {
-    connected: outside.length,
-    listed_tools: outside.filter((s) => s.listed || s.calls > 0).length,
-    called_a_tool: outside.filter((s) => s.tools.length > 0 || s.kind !== "crawler").length,
+    connected: counted.length,
+    listed_tools: counted.filter((s) => s.listed || s.calls > 0).length,
+    called_a_tool: counted.filter((s) => s.tools.length > 0 || s.kind !== "crawler").length,
     made_a_character: agentsWith((s) => s.characters > 0),
     went_on_a_date: agentsWith((s) => s.dates > 0),
     aired_a_date: agentsWith((s) => s.aired > 0),
@@ -159,9 +172,10 @@ export async function agentAnalytics(db: Db, windowDays = 7, now = new Date()): 
     await db.query<{ tool: string; calls: number; agents: number; errors: number; last_error: string | null }>(
       `select tool, count(*)::int as calls, count(distinct agent_id)::int as agents, count(*) filter (where not ok)::int as errors,
               (array_agg(error order by created_at desc) filter (where not ok))[1] as last_error
-         from mcp_calls where created_at >= $1 and tool is not null and not ($2::text <> '' and (coalesce(client_name, '') ~* $2 or coalesce(user_agent, '') ~* $2))
+         from mcp_calls where created_at >= $1 and ($3::timestamptz is null or created_at < $3) and tool is not null
+          and not ($2::text <> '' and (coalesce(client_name, '') ~* $2 or coalesce(user_agent, '') ~* $2))
         group by tool order by calls desc`,
-      [since.toISOString(), OUR_TRAFFIC.source],
+      [since.toISOString(), includeOurs ? "" : OUR_TRAFFIC.source, end],
     )
   ).rows;
 
@@ -175,7 +189,7 @@ export async function agentAnalytics(db: Db, windowDays = 7, now = new Date()): 
     if (!d) continue;
     if (s.ours) {
       d.ours++;
-      continue;
+      if (!includeOurs) continue;
     }
     d.connections++;
     d[`${s.kind}s` as "crawlers" | "explorers" | "players"]++;
@@ -187,12 +201,12 @@ export async function agentAnalytics(db: Db, windowDays = 7, now = new Date()): 
     window_days: windowDays,
     since: since.toISOString(),
     totals: {
-      connections: outside.length,
-      clients: new Set(outside.map((s) => s.client)).size,
-      crawlers: outside.filter((s) => s.kind === "crawler").length,
-      explorers: outside.filter((s) => s.kind === "explorer").length,
-      players: outside.filter((s) => s.kind === "player").length,
-      ours: sessions.length - outside.length,
+      connections: counted.length,
+      clients: new Set(counted.map((s) => s.client)).size,
+      crawlers: counted.filter((s) => s.kind === "crawler").length,
+      explorers: counted.filter((s) => s.kind === "explorer").length,
+      players: counted.filter((s) => s.kind === "player").length,
+      ours: sessions.filter((s) => s.ours).length,
     },
     funnel,
     clients,

@@ -19,7 +19,7 @@ export default function AdminPage() {
       <h1>Behind the scenes</h1>
       <AdminClaim />
       <p>
-        <Link href="/admin/analytics">Agent analytics →</Link> <span className="muted">who connects over MCP and what they do</span>
+        <Link href="/admin/analytics">Analytics →</Link> <span className="muted">people, agents and quality: trends, the funnel, top characters, and who connects over MCP</span>
       </p>
       <p>
         <Link href="/admin/season">Seasons →</Link> <span className="muted">this month&apos;s cast and next month&apos;s newcomers to approve</span>

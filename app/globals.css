@@ -77,6 +77,16 @@
   --text-lg: clamp(1.08rem, 1rem + 0.4vw, 1.2rem);
   --text-xl: clamp(1.3rem, 1.1rem + 0.9vw, 1.6rem);
   --text-2xl: clamp(1.5rem, 1.2rem + 1.4vw, 2rem);
+  /*
+   * Chart series (the admin analytics charts), in this fixed order, never cycled. Checked with the dataviz palette
+   * validator against the card in both themes: neighbours stay apart for colour-blind readers too. Series 4 is under 3:1
+   * on white, so every chart also has a table. --viz-prev is the previous period's line: recessive, but 3:1 or better.
+   */
+  --viz-1: #e5356b;
+  --viz-2: #2a78d6;
+  --viz-3: #eb6834;
+  --viz-4: #1baf7a;
+  --viz-prev: #8f7f8e;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -104,6 +114,11 @@
     --bad-text: #ff6b6b;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 40px -18px rgba(0, 0, 0, 0.7);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    /* The same chart hues, stepped for the dark card (--viz-1 holds in both). */
+    --viz-2: #3987e5;
+    --viz-3: #d95926;
+    --viz-4: #199e70;
+    --viz-prev: #7d6c87;
     --constellation-bg: #0e0712;
     --constellation-line: #43304f;
     --constellation-label: #b49fbd;
@@ -5547,6 +5562,427 @@ main:has(> .admin-wide) {
   overflow-wrap: anywhere;
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--line);
+}
+
+/* ---------------- admin insights (app/admin/analytics: filters, tabs, cards, charts, tables) ---------------- */
+
+/* One filter row above everything it scopes; it wraps on a phone. */
+.insights-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3) var(--space-4);
+  margin: var(--space-4) 0 var(--space-2);
+}
+.insights-filters label {
+  margin-top: 0;
+  font-size: var(--text-sm);
+}
+.insights-filters .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  max-width: 100%;
+}
+.insights-filters .filter-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.insights-filters .segmented {
+  margin: 0;
+}
+.insights-filters input[type="date"] {
+  width: auto;
+  margin-top: 0.2rem;
+}
+.insights-filters select {
+  margin-top: 0.2rem;
+}
+.insights-filters .check {
+  align-items: center;
+  min-height: var(--control-h);
+  margin: 0;
+}
+.custom-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+.insights-range {
+  margin: 0 0 var(--space-3);
+}
+
+/* The segmented look of the /characters tabs, as toggle buttons: they reset the default filled pill. */
+.segmented button.segmented-tab {
+  margin: 0;
+  padding: 0 0.9rem;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: 1.2;
+}
+.segmented button.segmented-tab:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+}
+.segmented button.segmented-tab[aria-pressed="true"] {
+  background: var(--accent-btn);
+  color: var(--accent-ink);
+}
+
+/* Tabs: underlined, a 44px target each; the row scrolls inside itself, never the page. */
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin: var(--space-4) 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.tabs button[role="tab"] {
+  flex: none;
+  margin: 0 0 -1px;
+  padding: 0 0.85rem;
+  min-height: 44px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.tabs button[role="tab"]:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  color: var(--ink);
+}
+.tabs button[role="tab"][aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+.tabs button[role="tab"]:focus-visible {
+  outline-offset: -3px;
+}
+/* While a new range loads, the old numbers stay in place, dimmed: no flash, no jump. */
+.insights-body {
+  transition: opacity 0.2s ease;
+}
+.insights-body.is-loading {
+  opacity: 0.55;
+}
+
+/* Plain-sentence callouts at the top. The mark beside each says up, down, look or note; a word says it for screen readers. */
+.insight-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3) 0 var(--space-5);
+  display: grid;
+  gap: var(--space-2);
+}
+.insight {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent-2);
+  border-radius: 12px;
+  background: var(--card);
+}
+.insight.is-up {
+  border-left-color: var(--ok);
+}
+.insight.is-down {
+  border-left-color: var(--bad);
+}
+.insight.is-warn {
+  border-left-color: var(--warn);
+}
+.insight-mark {
+  flex: none;
+  width: 1.1rem;
+  text-align: center;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* KPI cards: two to a row on a phone. Big numbers keep proportional figures; columns of numbers use tabular ones. */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0 var(--space-5);
+}
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+.kpi-label {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.kpi-value {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.15;
+}
+.kpi-delta,
+.kpi-sub,
+.kpi-note {
+  font-size: var(--text-xs);
+  line-height: 1.35;
+}
+.kpi-delta.is-up {
+  color: var(--ok-text);
+}
+.kpi-delta.is-down {
+  color: var(--bad-text);
+}
+.kpi-delta.is-quiet,
+.kpi-sub,
+.kpi-note {
+  color: var(--muted);
+}
+.kpi .sparkline {
+  display: block;
+  width: 100%;
+  height: 24px;
+  margin-top: auto;
+  padding-top: 0.35rem;
+}
+.kpi-definitions {
+  margin: calc(-1 * var(--space-3)) 0 var(--space-5);
+}
+.kpi-definitions dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-3) 0 0;
+}
+.kpi-definitions dd {
+  margin: 0.1rem 0 0;
+}
+
+/* Charts: a legend above, the plot (it measures its own width, so text never scales), the numbers in a table below. */
+.chart {
+  position: relative;
+  margin: 0 0 var(--space-5);
+  min-width: 0;
+}
+.chart h3 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+.chart-caption {
+  margin: 0.2rem 0 0;
+}
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.9rem;
+  margin: 0.4rem 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.chart-key {
+  display: inline-block;
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+}
+.chart-key.is-line {
+  width: 1rem;
+  height: 2px;
+  border-radius: 1px;
+}
+.chart-key.is-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+}
+.chart-key.is-reference {
+  width: 1rem;
+  height: 0;
+  border-top: 2px dashed var(--muted);
+  border-radius: 0;
+}
+.chart-plot {
+  position: relative;
+}
+.chart svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+  touch-action: pan-y;
+}
+.chart svg text {
+  fill: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.chart svg:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.chart-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.chart-cross {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+.chart-reference {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+.chart-tooltip {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  min-width: 8.5rem;
+  max-width: 14rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  pointer-events: none;
+}
+.chart-tooltip .tip-title {
+  margin-bottom: 0.15rem;
+  color: var(--muted);
+}
+.chart-tooltip .tip-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.chart-tooltip .tip-row strong {
+  font-variant-numeric: tabular-nums;
+}
+.chart-tooltip .tip-row span:last-child {
+  color: var(--muted);
+}
+.chart-table summary,
+.table-tools button {
+  font-size: var(--text-sm);
+}
+.chart-table summary {
+  min-height: 24px;
+  color: var(--accent-text);
+  cursor: pointer;
+}
+.chart-empty {
+  margin: 0.5rem 0 0;
+  padding: 1.25rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+.chart-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 0 var(--space-6);
+  align-items: start;
+}
+
+/* Sortable tables: the header is a button per column; the download sits above, out of the way. */
+.table-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.table-tools p {
+  margin: 0;
+}
+button.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+}
+button.sort-button:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  color: var(--accent-text);
+}
+.board th.num button.sort-button {
+  margin-left: auto;
+}
+.swatch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.sort-mark {
+  color: var(--muted);
+  font-size: 0.75em;
+}
+/* "Show all" sits right under its table (the table's own bottom margin would push it away). */
+button.table-more {
+  margin: -0.75rem 0 1.5rem;
+}
+
+/* Retention: each cell shaded by its share in the first series' hue, never past a third, so the number stays readable. */
+.cohort-cell {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--viz-1) calc(var(--share, 0) * 34%), var(--card));
+}
+.cohort-cell.is-pending {
+  color: var(--muted);
+  background: none;
+}
+
+/* The people funnel: the existing funnel rows, with each step's conversion under its label. */
+.funnel-row .funnel-step small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
 }
 
 /* ---------------- the builder's facts step (app/create/FactsStep.tsx) ---------------- */
