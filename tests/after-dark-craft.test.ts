@@ -437,8 +437,19 @@ describe("a move the lines show (Cass × Chud on prod: 'restaurant' for sixteen 
     expect(shownMove([...lines(["a", "Let's get out of here?"], ["b", "God, yes."], ["a", "*pulls her out into the night*"])], 0, "restaurant", names)?.to).toBe("the street");
     // Home: whose.
     expect(shownMove([...lines(["b", "Back to my place?"], ["a", "Yes, please."], ["b", "*leads her out of the bar*"])], 0, "bar", names)).toMatchObject({ to: "Sable's place", home: "b" });
-    const settled = settlePlace({ current: { place: "the restaurant", set: "restaurant" }, claimed: { place: "the restaurant", set: "restaurant" }, lines: [...banter(6), ...leaving], from: 6, movesThisChapter: 2, homeNow: null, names });
-    expect(settled).toMatchObject({ moved: null, rejected: { to: "balcony", reason: "cap" } });
+    const base = { current: { place: "the restaurant", set: "restaurant" }, claimed: { place: "the restaurant", set: "restaurant" }, lines: [...banter(6), ...leaving], from: 6, homeNow: null, names };
+    expect(settlePlace({ ...base, movesThisChapter: 2, fromLines: true })).toMatchObject({ moved: null, rejected: { to: "balcony", reason: "cap" } });
+    // Without it (v1, and every caller from before), the model's place is all that counts, as before.
+    expect(settlePlace({ ...base, movesThisChapter: 0 })).toMatchObject({ moved: null, rejected: null, set: "restaurant" });
+  });
+
+  it("v1 is as it was: no move from the lines, and no place repaired", async () => {
+    const { model } = scripted(reply(leaving, { place: "still in the restaurant", set: "restaurant" }));
+    const r = await step(model, { scene: atRestaurant, promptVersion: "v1" });
+    expect(r.ok && r.next).toMatchObject({ place: "still in the restaurant", set_place: "restaurant", moves: [] });
+    const { model: m2 } = scripted(reply(lines(["a", "*leans on the door frame* Took you long enough."]), { place: "his apartment entrance", set: "apartment entrance" }));
+    const r2 = await step(m2, { promptVersion: "v1" });
+    expect(r2.ok && r2.next.place).toBe("his apartment entrance");
   });
 });
 

@@ -1064,11 +1064,12 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     movesThisChapter: movesTaken,
     homeNow,
     names,
+    fromLines: v2,
   });
   let set_place = settled.set;
   // v2.1: a possessive neither of them goes by is put right ("his apartment entrance" with two women; their sheets'
   // pronouns, lib/adult/craft.ts). Lines are only flagged (the observer, the metrics).
-  const place = repairPlacePronouns(settled.place, { a: a?.pronouns, b: b?.pronouns }, names, settled.moved ? settled.moved.home : homeNow).text;
+  const place = v2 ? repairPlacePronouns(settled.place, { a: a?.pronouns, b: b?.pronouns }, names, settled.moved ? settled.moved.home : homeNow).text : settled.place;
   let place_history = scene.place_history;
   const moves = [...scene.moves];
   if (settled.moved) {

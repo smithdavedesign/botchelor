@@ -386,13 +386,15 @@ export function settlePlace(input: {
   /** Whose home they're in now, when they're in one (the last stop's). */
   homeNow: "a" | "b" | null;
   names: { a: string; b: string };
+  /** v2.1: also take a move the lines show when the model's place says nothing new (shownMove). */
+  fromLines?: boolean;
 }): Settled {
   const { current, claimed } = input;
   const keep = (rejected: Settled["rejected"] = null): Settled => ({ place: placeDetail(current, claimed), set: current.set, moved: null, rejected });
   const here = current.set ?? current.place;
   // v2.1: the model's place said nothing new, but the lines may have taken them somewhere (shownMove), by the same rules.
   const orShown = (otherwise: Settled): Settled => {
-    const shown = shownMove(input.lines, input.from, here, input.names);
+    const shown = input.fromLines ? shownMove(input.lines, input.from, here, input.names) : null;
     if (!shown) return otherwise;
     if (shown.home && shown.home === input.homeNow) return keep({ to: shown.to, reason: "already_there" });
     if (input.movesThisChapter >= MAX_SCENE_MOVES) return keep({ to: shown.to, reason: "cap" });
