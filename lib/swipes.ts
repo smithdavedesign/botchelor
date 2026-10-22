@@ -21,6 +21,7 @@ import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { factLine, PROFILE_PROMPTS, profileComplete, profileMissing } from "./extras";
 import { inlineGenerationEnabled } from "./jobs";
+import { isHouseBotAgent } from "./house-bots";
 import { getModel, type ChatMessage, type Model } from "./model";
 import { shortName } from "./names";
 import { notify } from "./notifications";
@@ -72,7 +73,8 @@ export type DeckCard = {
 type Refusal = { ok: false; status: number; error: string; message: string; missing?: string[] };
 const refuse = (status: number, error: string, message: string, missing?: string[]): Refusal => ({ ok: false, status, error, message, ...(missing ? { missing } : {}) });
 
-export type DeckResult = { ok: true; for: { id: string; name: string }; cards: DeckCard[] } | Refusal;
+/** `scores`: each card's deck score, for the impression log only (callers send `for` and `cards`, never these). */
+export type DeckResult = { ok: true; for: { id: string; name: string }; cards: DeckCard[]; scores: Record<string, number> } | Refusal;
 
 /** A match as its owners see it: the two characters (lower id first), each one's answer about a date, and the state. */
 export type MatchView = {
@@ -171,7 +173,7 @@ export async function deckFor(db: Db, userId: string, characterId: string, limit
   const no = cantSwipe(mine);
   if (no || !mine) return no!;
   const pool = (await deckPool(db, userId, mine)).map((r) => toProfile(r));
-  if (!pool.length) return { ok: true, for: { id: mine.id, name: mine.name }, cards: [] };
+  if (!pool.length) return { ok: true, for: { id: mine.id, name: mine.name }, cards: [], scores: {} };
   const [ranked, likers] = await Promise.all([
     rankFor(db, userId, toProfile(mine), pool),
     db.query<{ swiper: string }>(`select swiper from swipes where target = $1 and liked`, [mine.id]),
@@ -179,7 +181,42 @@ export async function deckFor(db: Db, userId: string, characterId: string, limit
   const likedMine = new Set(likers.rows.map((r) => r.swiper));
   const boost = (id: string) => (likedMine.has(id) ? 2 : 0);
   ranked.sort((a, b) => b.score + boost(b.id) - (a.score + boost(a.id)));
-  return { ok: true, for: { id: mine.id, name: mine.name }, cards: ranked.slice(0, Math.max(1, Math.min(30, limit))).map((m) => toCard(m, m.why, likedMine.has(m.id))) };
+  const dealt = ranked.slice(0, Math.max(1, Math.min(30, limit)));
+  return {
+    ok: true,
+    for: { id: mine.id, name: mine.name },
+    cards: dealt.map((m) => toCard(m, m.why, likedMine.has(m.id))),
+    scores: Object.fromEntries(dealt.map((m) => [m.id, m.score + boost(m.id)])),
+  };
+}
+
+/** Deck impressions older than this go (the daily job), like mcp_calls: 13 months keeps the year-over-year view. */
+export const IMPRESSIONS_KEEP_DAYS = 400;
+export async function pruneImpressions(db: Db): Promise<void> {
+  await db.query(`delete from swipe_impressions where at < now() - ($1 || ' days')::interval`, [String(IMPRESSIONS_KEEP_DAYS)]);
+}
+
+/**
+ * Logs the cards a deck actually showed (data plan Tier 1): who saw whom, at what rank and score, on which surface.
+ * With the swipes, that's the shown-and-skipped record a preference model needs (a swipe alone has no negatives).
+ * One insert per serve; best effort, so a failed log never costs anyone their deck. Pruned after 400 days.
+ */
+export async function logImpressions(
+  db: Db,
+  viewer: string,
+  cards: { id: string; liked_you: boolean }[],
+  scores: Record<string, number>,
+  via: "web" | "mcp",
+): Promise<void> {
+  if (!cards.length) return;
+  await db
+    .query(
+      `insert into swipe_impressions (viewer, card, serve_id, rank, score, liked_you, served_via)
+       select $1, x.card, $2, x.rank, x.score, x.liked_you, $3
+         from unnest($4::text[], $5::int[], $6::real[], $7::boolean[]) as x(card, rank, score, liked_you)`,
+      [viewer, crypto.randomUUID(), via, cards.map((c) => c.id), cards.map((_, i) => i + 1), cards.map((c) => scores[c.id] ?? null), cards.map((c) => c.liked_you)],
+    )
+    .catch(() => {});
 }
 
 /**
@@ -244,11 +281,24 @@ async function personAnswers(db: Db, me: Side, other: Side, lo: string, hi: stri
   return (seedFrom("match-yes", lo, hi, me.id) % 10_000) / 10_000 < chance;
 }
 
+/**
+ * Where a match answer came from (matches.answer_source_*): the house character's automatic yes, the seeded coin that
+ * answers for a person's character (`personAnswers`: synthetic, not a choice anyone made), or an agent (answerMatch;
+ * house_bot when it's one of the show's own scripts). Only the agent's is a real decision, which is what a model of
+ * who wants whom must know. 'person' is kept for when people answer for their own characters.
+ */
+export type AnswerSource = "house" | "synthetic" | "agent" | "house_bot" | "person";
+
 /** Each side's answer about a date: a house character says yes, a person's character decides, an agent's waits for its agent. */
-async function decideAnswers(db: Db, lo: Side, hi: Side): Promise<{ lo: boolean | null; hi: boolean | null }> {
+async function decideAnswers(
+  db: Db,
+  lo: Side,
+  hi: Side,
+): Promise<{ lo: boolean | null; hi: boolean | null; source_lo: AnswerSource | null; source_hi: AnswerSource | null }> {
   const answer = async (me: Side, other: Side) =>
     me.is_house ? true : me.created_via === "mcp" ? null : await personAnswers(db, me, other, lo.id, hi.id);
-  return { lo: await answer(lo, hi), hi: await answer(hi, lo) };
+  const source = (me: Side): AnswerSource | null => (me.is_house ? "house" : me.created_via === "mcp" ? null : "synthetic");
+  return { lo: await answer(lo, hi), hi: await answer(hi, lo), source_lo: source(lo), source_hi: source(hi) };
 }
 
 async function sides(db: Db, lo: string, hi: string): Promise<[Side, Side] | null> {
@@ -265,7 +315,10 @@ export async function createMatch(db: Db, x: string, y: string): Promise<MatchVi
   const pair = await sides(db, lo, hi);
   if (made.rows.length && pair) {
     const answers = await decideAnswers(db, pair[0], pair[1]);
-    await db.query(`update matches set yes_lo = $3, yes_hi = $4 where character_lo = $1 and character_hi = $2`, [lo, hi, answers.lo, answers.hi]);
+    await db.query(
+      `update matches set yes_lo = $3, yes_hi = $4, answer_source_lo = $5, answer_source_hi = $6 where character_lo = $1 and character_hi = $2`,
+      [lo, hi, answers.lo, answers.hi, answers.source_lo, answers.source_hi],
+    );
     const owners = new Set([pair[0].owner_id, pair[1].owner_id].filter((o): o is string => Boolean(o)));
     for (const owner of owners) {
       await notify(db, owner, {
@@ -429,7 +482,13 @@ export async function answerMatch(db: Db, userId: string, characterId: string, w
   if (!m) return refuse(404, "no_match", "They haven't matched. Swipe first (swipe_deck, swipe).");
   const side: End = characterId === m.lo ? "lo" : "hi";
   if ((side === "lo" ? m.yes_lo : m.yes_hi) !== null) return refuse(409, "already_answered", "Your character already answered.");
-  await db.query(`update matches set ${side === "lo" ? "yes_lo" : "yes_hi"} = $3 where character_lo = $1 and character_hi = $2`, [m.lo, m.hi, yes]);
+  // A real decision, unlike a person's character's synthetic answer: tagged so a preference model can tell (AnswerSource).
+  const source: AnswerSource = (await isHouseBotAgent(db, userId).catch(() => false)) ? "house_bot" : "agent";
+  await db.query(
+    `update matches set ${side === "lo" ? "yes_lo" : "yes_hi"} = $3, ${side === "lo" ? "answer_source_lo" : "answer_source_hi"} = $4
+      where character_lo = $1 and character_hi = $2`,
+    [m.lo, m.hi, yes, source],
+  );
   await settleAgreement(db, m.lo, m.hi);
   const after = (await matchView(db, m.lo, m.hi))!;
   const [you, them] = side === "lo" ? [after.yes_lo, after.yes_hi] : [after.yes_hi, after.yes_lo];

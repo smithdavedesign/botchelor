@@ -426,7 +426,7 @@ const REL_EPISODES = `
 export async function refreshRelationship(db: Db, x: string, y: string): Promise<Relationship | null> {
   if (x === y) return null;
   const [lo, hi] = pairKey(x, y);
-  const [{ rows }, nameRows, textRows] = await Promise.all([
+  const [{ rows }, nameRows, textRows, beforeRows] = await Promise.all([
     db.query<RelEpisode>(REL_EPISODES, [lo, hi, REPORT_HIDE_THRESHOLD]),
     db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[lo, hi]]),
     // Their texts between dates, for the plans: only the start of each (a plan is at most PLAN_MAX characters), newest 2000.
@@ -434,9 +434,13 @@ export async function refreshRelationship(db: Db, x: string, y: string): Promise
       `select who, left(text, ${PLAN_MAX}) as text, created_at from couple_texts where character_lo = $1 and character_hi = $2 order by created_at desc limit 2000`,
       [lo, hi],
     ),
+    // The stages before this refresh, so a change is appended to the pair's timeline (relationship_events).
+    db.query<{ stage: Stage | null; public_stage: Stage | null }>(`select stage, public_stage from relationships where character_a = $1 and character_b = $2`, [lo, hi]),
   ]);
+  const before = beforeRows.rows[0] ?? { stage: null, public_stage: null };
   if (!rows.length) {
     await db.query(`delete from relationships where character_a = $1 and character_b = $2`, [lo, hi]);
+    await logStageEvents(db, lo, hi, before, { stage: null, public_stage: null }, { all: null, public: null });
     return null;
   }
   const name = (id: string) => nameRows.rows.find((r) => r.id === id)?.name ?? "";
@@ -462,7 +466,34 @@ export async function refreshRelationship(db: Db, x: string, y: string): Promise
       JSON.stringify({ history: rel.history, facts: rel.facts, jokes: rel.jokes, plans: rel.plans }),
     ],
   );
+  const newest = rel.history[rel.history.length - 1]?.episode_id ?? null;
+  const newestPublic = [...rel.history].reverse().find((h) => h.public)?.episode_id ?? null;
+  await logStageEvents(db, lo, hi, before, { stage: a.stage, public_stage: p.stage }, { all: newest, public: newestPublic });
   return rel;
+}
+
+/**
+ * The pair's timeline (relationship_events): one row per layer whose stage changed in this refresh — first met,
+ * became exes, rekindled — so a stage is a history, not just its latest value. Best effort: a failed append never
+ * breaks a refresh. The 'all' layer can reflect private dates, so like the edge's own all-dates columns it's for owners
+ * and the engine, never a public page.
+ */
+async function logStageEvents(
+  db: Db,
+  lo: string,
+  hi: string,
+  before: { stage: Stage | null; public_stage: Stage | null },
+  after: { stage: Stage | null; public_stage: Stage | null },
+  episodes: { all: string | null; public: string | null },
+): Promise<void> {
+  const changes: [layer: "all" | "public", from: Stage | null, to: Stage | null, episode: string | null][] = [];
+  if (before.stage !== after.stage) changes.push(["all", before.stage, after.stage, episodes.all]);
+  if (before.public_stage !== after.public_stage) changes.push(["public", before.public_stage, after.public_stage, episodes.public]);
+  for (const [layer, from, to, episode] of changes) {
+    await db
+      .query(`insert into relationship_events (character_a, character_b, layer, from_stage, to_stage, episode_id) values ($1, $2, $3, $4, $5, $6)`, [lo, hi, layer, from, to, episode])
+      .catch(() => {});
+  }
 }
 
 /** Refreshes the edge of the pair in one date (after it airs, changes visibility, or is reported or moderated). */

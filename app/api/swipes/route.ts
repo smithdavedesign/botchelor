@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { withOrigins } from "@/lib/origin";
-import { DECK_PAGE, deckFor, scheduleMatchChat, swipe } from "@/lib/swipes";
+import { DECK_PAGE, deckFor, logImpressions, scheduleMatchChat, swipe } from "@/lib/swipes";
 
 /**
  * The swipe deck (lib/swipes.ts, docs/swipes.md): `GET ?character_id=` deals the next cards for one of your characters;
@@ -15,6 +15,8 @@ export const GET = handle(async (req: Request) => {
   const db = await getDb();
   const r = await deckFor(db, sess.userId, params.get("character_id")?.slice(0, 64) ?? "", Number.isFinite(limit) ? limit : DECK_PAGE);
   if (!r.ok) return json({ error: r.error, message: r.message, ...(r.missing ? { missing: r.missing } : {}) }, r.status, sess);
+  // A Next.js prefetch isn't a person looking at the deck: only real serves are logged.
+  if (!req.headers.get("next-router-prefetch")) await logImpressions(db, r.for.id, r.cards, r.scores, "web");
   return json({ for: r.for, cards: await withOrigins(db, r.cards) }, 200, sess);
 });
 

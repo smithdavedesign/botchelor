@@ -14,7 +14,7 @@
  *    plays on one shared clock — "join and the date starts" — so there is always something to drop into.
  */
 import { getDb, type Db } from "./db";
-import { getEngine, seedFrom } from "./engine";
+import { decideTraced, seedFrom } from "./engine";
 import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { failureReason } from "./jobs";
 import { seasonCastIds } from "./season-cast";
@@ -793,7 +793,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   const forDate = (c: HouseRow): CharacterForDate => ({ id: c.id, sheet: houseSheet(c) });
   // A house room has no owner: its characters bring in only their public history together.
   const built = await buildDate(db, episodeId, forDate(a), forDate(b), DEFAULT_DATE_REQUEST, undefined, undefined, { creatorId: PUBLIC_ONLY });
-  const decided = getEngine().decide(built.input, built.seed, built.setup.engine_version);
+  const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
   // The shared pipeline (lib/pipeline.ts): the recap, plus the turn-by-turn conversation so template rooms
   // play the date line by line too. Pre-generated system content; the conversation is best-effort and gated
   // off in tests. Template rooms have no owners, so no afterglow.
@@ -843,8 +843,8 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
 
   await db.query(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
-                           drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup, transcript, generated_with)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb, $18::jsonb, $19::jsonb, $20::jsonb)`,
+                           drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup, transcript, generated_with, engine_trace)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb, $18::jsonb, $19::jsonb, $20::jsonb, $21::jsonb)`,
     [
       episodeId,
       SYSTEM_CREATOR_ID,
@@ -866,6 +866,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
       JSON.stringify(built.setup),
       JSON.stringify(transcript),
       JSON.stringify(gen.generatedWith),
+      trace ? JSON.stringify(trace) : null,
     ],
   );
   await rememberDate(db, a.id, b.id).catch(() => {});

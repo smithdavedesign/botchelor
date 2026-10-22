@@ -311,9 +311,34 @@ function readSide(self: SideSetup, other: SideSetup): SideRead {
   };
 }
 
-/** The pure deterministic engine. Everything here is a function of (input, seed). */
-export const deterministicEngine: Engine = {
-  decide(input: DateInput, seed: number, version: EngineVersion = CURRENT_ENGINE_VERSION): Outcome {
+/**
+ * Why the engine decided what it did (data plan Tier 1, episodes.engine_trace): the margin, reason codes and each
+ * variable's terms, so a date's outcome can be explained and studied without re-running it. Never a cue word — a
+ * dealbreaker is secret, so the trace says *that* one tripped (dealbreaker:a), never on what. Small (~1.5KB), versioned.
+ */
+export type EngineTrace = {
+  v: 1;
+  engine_version: number;
+  strategy: Strategy;
+  /** The engine's own ending (before any wishes tip it: lib/wishes.ts). */
+  ending: Ending;
+  margin: number;
+  score: number;
+  thresholds: { friends: number; second_date: number } | { friends_at: number; second_date_at: number };
+  reasons: string[];
+  counts: { dealbreakers: number; wants_met: number; agendas_met: number; clashes: number; trait_resonance: number; familiarity: number };
+  signals: { warmth: number; openness: number; guardedness: number; humor: number };
+  /** Each variable's raw sum, term by term (before clamping to 0..100). */
+  terms: Record<DateVariable, Record<string, number>>;
+  /** Each part of the deciding score (they sum to `margin`'s unrounded value on v2+). */
+  contributions: { chemistry: number; attraction: number; trust: number; awkwardness: number; dealbreakers: number; neutral: number };
+  sat: { a: number; b: number };
+};
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** The deterministic engine's core: the outcome, and (when asked) the trace of how it got there. Same draws either way. */
+function decideCore(input: DateInput, seed: number, version: EngineVersion, withTrace: boolean): { outcome: Outcome; trace: EngineTrace | null } {
     const v2 = version >= 2;
     // v2 reads a blank temperament (no soul, no trained image) as unremarkable rather than as zero.
     const sig = (side: SideSetup): SoulSignals => (v2 && isBlank(side.signals) ? UNREMARKABLE_SIGNALS : side.signals);
@@ -366,20 +391,26 @@ export const deterministicEngine: Engine = {
         : hist.last_ending === "disaster" ? -8 : hist.last_ending === "second_date" ? 6 : 0;
     const histTrust = hist.trust !== undefined ? bounded(Math.round((hist.trust - 50) * 0.12), 6) : 0;
 
+    // Each jitter is drawn exactly where the expression used to draw it (the same order of rand() calls), so a date
+    // decided before the trace existed replays to the same outcome.
+    const jChem = jitter(input.a.autonomy);
     const chemistry = clamp(
       START.chemistry + 6 * traitResonance + 12 * humor + 9 * warmth + budget + strategyChem +
-        3 * noteBump - 13 * dealbreakers + histChem + jitter(input.a.autonomy),
+        3 * noteBump - 13 * dealbreakers + histChem + jChem,
     );
+    const jAttr = jitter(input.b.autonomy);
     const attraction = clamp(
-      START.attraction + 11 * openness + 8 * wantsMet + 5 * agendasMet - 6 * dealbreakers + jitter(input.b.autonomy),
+      START.attraction + 11 * openness + 8 * wantsMet + 5 * agendasMet - 6 * dealbreakers + jAttr,
     );
+    const jTrust = jitter(input.a.autonomy);
     const trust = clamp(
       START.trust + 13 * warmth - 15 * guarded + strategyTrust + 3 * noteBump - 10 * dealbreakers +
-        4 * familiarity + histTrust + jitter(input.a.autonomy),
+        4 * familiarity + histTrust + jTrust,
     );
+    const jAwk = jitter(input.b.autonomy);
     const awkwardness = clamp(
       START.awkwardness + 15 * dealbreakers + 12 * guarded + 7 * clashes - 11 * humor - 4 * noteBump -
-        3 * familiarity + jitter(input.b.autonomy),
+        3 * familiarity + jAwk,
     );
 
     // v3: a couple that has dated before starts tonight where they left off: chemistry and trust carry from the running
@@ -416,9 +447,14 @@ export const deterministicEngine: Engine = {
     // wants_another: satisfied and the date didn't blow up — but an "unpredictable" AI may flip, so it
     // surprises its owner either way (PRD: "an AI can ask for another date even when its owner expected
     // the opposite").
-    const wantsAnother = (self: SideSetup, sat: number): boolean => {
+    const flipped: string[] = [];
+    const wantsAnother = (self: SideSetup, sat: number, label: "a" | "b"): boolean => {
       const base = sat > 8 && ending !== ENDINGS[2];
-      return self.autonomy === "unpredictable" && rand() < 0.3 ? !base : base;
+      if (self.autonomy === "unpredictable" && rand() < 0.3) {
+        flipped.push(label);
+        return !base;
+      }
+      return base;
     };
 
     // Drama. A tripped dealbreaker means a rejection; otherwise someone leaves first (or they leave together).
@@ -437,7 +473,7 @@ export const deterministicEngine: Engine = {
 
     const sides: [SideOutcome, SideOutcome] = [
       {
-        wants_another: wantsAnother(input.a, satA),
+        wants_another: wantsAnother(input.a, satA, "a"),
         agenda_met: ra.agendaMet,
         satisfied: satA > 8,
         dealbreaker_hit: ra.dealbreakerCue,
@@ -445,7 +481,7 @@ export const deterministicEngine: Engine = {
         note_followed: aNote,
       },
       {
-        wants_another: wantsAnother(input.b, satB),
+        wants_another: wantsAnother(input.b, satB, "b"),
         agenda_met: rb.agendaMet,
         satisfied: satB > 8,
         dealbreaker_hit: rb.dealbreakerCue,
@@ -454,9 +490,101 @@ export const deterministicEngine: Engine = {
       },
     ];
 
-    return { ending, drama_question, drama_answer, variables, sides, seed, margin: Math.round(rel * 10) / 10 };
+    const outcome: Outcome = { ending, drama_question, drama_answer, variables, sides, seed, margin: Math.round(rel * 10) / 10 };
+    if (!withTrace) return { outcome, trace: null };
+
+    // The trace reads what was already computed: no rand() past this point.
+    const reasons: string[] = [];
+    if (ra.wantCue) reasons.push("want_met:a");
+    if (rb.wantCue) reasons.push("want_met:b");
+    if (ra.dealbreakerCue) reasons.push("dealbreaker:a");
+    if (rb.dealbreakerCue) reasons.push("dealbreaker:b");
+    if (ra.agendaMet) reasons.push("agenda_met:a");
+    if (rb.agendaMet) reasons.push("agenda_met:b");
+    if (ra.agendaClash) reasons.push("agenda_clash:a");
+    if (rb.agendaClash) reasons.push("agenda_clash:b");
+    if (aNote !== null) reasons.push(aNote ? "note_followed:a" : "note_ignored:a");
+    if (bNote !== null) reasons.push(bNote ? "note_followed:b" : "note_ignored:b");
+    if (traitResonance > 0) reasons.push("shared_traits");
+    if (hist.dates > 0) reasons.push("history_carry");
+    for (const side of flipped) reasons.push(`unpredictable_flip:${side}`);
+    const endingFor = (relOrScore: number): Ending =>
+      v2
+        ? relOrScore >= V2_SECOND_DATE_REL ? ENDINGS[0] : relOrScore >= V2_FRIENDS_REL ? ENDINGS[1] : ENDINGS[2]
+        : relOrScore >= SECOND_DATE_AT ? ENDINGS[0] : relOrScore >= FRIENDS_AT ? ENDINGS[1] : ENDINGS[2];
+    const decider = v2 ? rel : score;
+    const near = v2
+      ? Math.min(Math.abs(rel - V2_SECOND_DATE_REL), Math.abs(rel - V2_FRIENDS_REL))
+      : Math.min(Math.abs(score - SECOND_DATE_AT), Math.abs(score - FRIENDS_AT));
+    if (near < 2) reasons.push("near_threshold");
+    // Would the ending have differed with no luck at all (every jitter zero)?
+    const calm = { chemistry: clamp(chemistry - jChem), attraction: clamp(attraction - jAttr), trust: clamp(trust - jTrust), awkwardness: clamp(awkwardness - jAwk) };
+    const calmScore = wc * calm.chemistry + wa * calm.attraction + wt * calm.trust - wk * calm.awkwardness - DEALBREAKER_PENALTY * dealbreakers;
+    const calmDecider = v2 ? endingScore(input.a.strategy, calm, dealbreakers).rel : calmScore;
+    if (endingFor(calmDecider) !== endingFor(decider)) reasons.push("jitter_swing");
+
+    const trace: EngineTrace = {
+      v: 1,
+      engine_version: version,
+      strategy: input.a.strategy,
+      ending,
+      margin: outcome.margin ?? 0,
+      score: r2(score),
+      thresholds: v2 ? { friends: V2_FRIENDS_REL, second_date: V2_SECOND_DATE_REL } : { friends_at: FRIENDS_AT, second_date_at: SECOND_DATE_AT },
+      reasons,
+      counts: { dealbreakers, wants_met: wantsMet, agendas_met: agendasMet, clashes, trait_resonance: traitResonance, familiarity },
+      signals: { warmth: r2(warmth), openness: r2(openness), guardedness: r2(guarded), humor: r2(humor) },
+      terms: {
+        chemistry: {
+          base: START.chemistry, traits: 6 * traitResonance, humor: r2(12 * humor), warmth: r2(9 * warmth), budget: r2(budget),
+          strategy: strategyChem, note: 3 * noteBump, dealbreakers: -13 * dealbreakers, history: histChem, jitter: r2(jChem),
+        },
+        attraction: {
+          base: START.attraction, openness: r2(11 * openness), wants: 8 * wantsMet, agendas: 5 * agendasMet, dealbreakers: -6 * dealbreakers, jitter: r2(jAttr),
+        },
+        trust: {
+          base: START.trust, warmth: r2(13 * warmth), guarded: r2(-15 * guarded), strategy: strategyTrust, note: 3 * noteBump,
+          dealbreakers: -10 * dealbreakers, familiarity: 4 * familiarity, history: histTrust, jitter: r2(jTrust),
+        },
+        awkwardness: {
+          base: START.awkwardness, dealbreakers: 15 * dealbreakers, guarded: r2(12 * guarded), clashes: 7 * clashes, humor: r2(-11 * humor),
+          note: -4 * noteBump, familiarity: -3 * familiarity, jitter: r2(jAwk),
+        },
+      },
+      contributions: {
+        chemistry: r2(wc * chemistry),
+        attraction: r2(wa * attraction),
+        trust: r2(wt * trust),
+        awkwardness: r2(-wk * awkwardness),
+        dealbreakers: -DEALBREAKER_PENALTY * dealbreakers,
+        // rel = score - neutralScore(strategy): the neutral date's score, subtracted.
+        neutral: r2(rel - score),
+      },
+      sat: { a: r2(satA), b: r2(satB) },
+    };
+    return { outcome, trace };
+}
+
+/** The pure deterministic engine. Everything here is a function of (input, seed). */
+export const deterministicEngine: Engine = {
+  decide(input: DateInput, seed: number, version: EngineVersion = CURRENT_ENGINE_VERSION): Outcome {
+    return decideCore(input, seed, version, false).outcome;
   },
 };
+
+/**
+ * The outcome and its trace, for storing at booking (episodes.engine_trace). Null trace under a test engine (tests'
+ * fixed outcomes have no reasoning to record). Never throws: a trace is a nice-to-have, the outcome is the date.
+ */
+export function decideTraced(input: DateInput, seed: number, version: EngineVersion = CURRENT_ENGINE_VERSION): { outcome: Outcome; trace: EngineTrace | null } {
+  const engine = getEngine();
+  if (engine !== deterministicEngine) return { outcome: engine.decide(input, seed, version), trace: null };
+  try {
+    return decideCore(input, seed, version, true);
+  } catch {
+    return { outcome: deterministicEngine.decide(input, seed, version), trace: null };
+  }
+}
 
 /* ---------------------------------- injection (mirrors lib/model.ts) ---------------------------------- */
 // (CURRENT_ENGINE_VERSION is what new dates are decided with; see EngineVersion above.)

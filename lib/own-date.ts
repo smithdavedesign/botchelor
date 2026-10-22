@@ -31,7 +31,7 @@ import { track, trackDateQuality } from "./analytics";
 import { recordCrossSpecies } from "./agent-funnel";
 import { buildTurnMessages, parseTurnResult, TURN_TEMPERATURE, type Turn } from "./conversation";
 import type { Db } from "./db";
-import { getEngine, type CharacterSheet, type Outcome } from "./engine";
+import { decideTraced, getEngine, type CharacterSheet, type Outcome } from "./engine";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "./formats";
 import { getEpisodeView, type DateSetup, type EpisodeView } from "./game";
 import type { ChatMessage } from "./model";
@@ -554,14 +554,15 @@ export async function startOwnDate(
   });
   const request: DateRequest = { autonomy: DEFAULT_AUTONOMY, strategy: DEFAULT_STRATEGY, gameBudget: DEFAULT_GAME_BUDGET, agendaId: null, note: null, format: formatId };
   const built = await buildDate(db, episodeId, toDate(a), toDate(b), request, undefined, undefined, { creatorId: userId });
-  const decided = getEngine().decide(built.input, built.seed, built.setup.engine_version);
+  // The outcome, and why (episodes.engine_trace): decided before any line, as every date is.
+  const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
 
   await db.query(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
                            drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup,
-                           transcript, status, visibility, created_via, performed_by, partner_performer)
+                           transcript, status, visibility, created_via, performed_by, partner_performer, engine_trace)
      values ($1, $2, $3, $4, '', '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, $7, $8, $9::jsonb, $10::jsonb, null,
-             '[]'::jsonb, $11::jsonb, '[]'::jsonb, 'generating', $12, 'mcp', 'agent', $13)`,
+             '[]'::jsonb, $11::jsonb, '[]'::jsonb, 'generating', $12, 'mcp', 'agent', $13, $14::jsonb)`,
     [
       episodeId,
       userId,
@@ -576,6 +577,7 @@ export async function startOwnDate(
       JSON.stringify(built.setup),
       visibility,
       partnerPerformer,
+      trace ? JSON.stringify(trace) : null,
     ],
   );
   track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: false, performed_by: "agent", two_agent: partnerPerformer !== null });
@@ -1269,8 +1271,12 @@ async function showTurn(
     // The same move rules as the agent's side (lib/moves.ts): an unanswered suggestion is a no.
     const turn = settleLine(parsed.turn, parsed.reply, shape, names);
     // Saved, or a request racing this one saved the turn first: either way the date has moved on.
+    // turn_meta (episodes.turn_meta): this line was the show's, appended only while it stays aligned with the transcript.
     await db.query(
-      `update episodes set transcript = $2::jsonb, last_move_at = now()
+      `update episodes set transcript = $2::jsonb, last_move_at = now(),
+              turn_meta = case when jsonb_array_length(coalesce(turn_meta, '[]'::jsonb)) = $3
+                               then coalesce(turn_meta, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'show'))
+                               else turn_meta end
         where id = $1 and status = 'generating' and jsonb_array_length(transcript) = $3`,
       [row.id, JSON.stringify([...transcript, turn]), transcript.length],
     );
@@ -1488,7 +1494,10 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     const saved = await db.query(
       `update episodes set transcript = $2::jsonb, last_move_at = now(),
               wishes = case when $4::boolean is null then wishes else coalesce(wishes, '{}'::jsonb) || jsonb_build_object($5::text, $4::boolean) end,
-              setup = case when $6::int is null then setup else coalesce(setup, '{}'::jsonb) || jsonb_build_object('end_by', $6::int) end
+              setup = case when $6::int is null then setup else coalesce(setup, '{}'::jsonb) || jsonb_build_object('end_by', $6::int) end,
+              turn_meta = case when jsonb_array_length(coalesce(turn_meta, '[]'::jsonb)) = $3
+                               then coalesce(turn_meta, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'agent'))
+                               else turn_meta end
         where id = $1 and status = 'generating' and performed_by = 'agent' and jsonb_array_length(transcript) = $3
         returning id`,
       [episodeId, JSON.stringify(next), transcript.length, parsed.wish ?? null, current.side, endBy],

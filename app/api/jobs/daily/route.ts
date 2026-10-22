@@ -10,6 +10,7 @@ import { internalJobAuthorized, runQueuedJobs } from "@/lib/jobs";
 import { pruneServerErrors } from "@/lib/errors";
 import { pruneRateHits } from "@/lib/limits";
 import { pruneMcpCalls } from "@/lib/agent-analytics";
+import { pruneImpressions } from "@/lib/swipes";
 import { getModel } from "@/lib/model";
 import { relationshipMetrics } from "@/lib/relationship-metrics";
 import { clearStaleOwnDates } from "@/lib/own-date";
@@ -53,6 +54,7 @@ async function run(req: Request): Promise<Response> {
   // Rate-limit rows only live as long as their longest window (lib/limits.ts).
   await pruneRateHits(db).catch(() => {});
   await pruneMcpCalls(db).catch(() => {});
+  await pruneImpressions(db).catch(() => {});
   await pruneServerErrors(db).catch(() => {});
   // Push the last day's newly public pages to IndexNow (Bing → ChatGPT search, Copilot; Yandex). Opt-in by key.
   const indexnow = await recentPublicUrls(db, new Date(Date.now() - 26 * 60 * 60 * 1000))

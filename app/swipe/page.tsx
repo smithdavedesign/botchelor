@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { getDb } from "@/lib/db";
 import { listMyDatingProfiles } from "@/lib/dating";
@@ -7,7 +7,7 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { shortName } from "@/lib/names";
 import CharacterPicker from "@/app/CharacterPicker";
 import { unreadTexts } from "@/lib/inbox";
-import { deckFor } from "@/lib/swipes";
+import { deckFor, logImpressions } from "@/lib/swipes";
 import { withOrigins } from "@/lib/origin";
 import SwipeDeck from "./SwipeDeck";
 
@@ -47,6 +47,8 @@ export default async function SwipePage({ searchParams }: Props) {
   }
   const me = mine.find((c) => c.id === character) ?? mine[0];
   const [deck, texts] = await Promise.all([deckFor(db, viewerId, me.id), unreadTexts(db, viewerId).catch(() => 0)]);
+  // The deck a person actually opened (not a link prefetch): logged for the preference data (lib/swipes.ts logImpressions).
+  if (deck.ok && !(await headers()).get("next-router-prefetch")) await logImpressions(db, deck.for.id, deck.cards, deck.scores, "web");
   const first = shortName(me.name);
   const matchesHref = `/matches?character=${encodeURIComponent(me.id)}`;
 
