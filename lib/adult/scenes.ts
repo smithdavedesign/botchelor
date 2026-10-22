@@ -23,6 +23,7 @@ import { afterDarkNote, rememberAfterDark } from "./memory";
 import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
 import { activeLimit, linesAtPlace, objectOf, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
 import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
+import { fileSteps, logStep, stepIndexOf, stepsOf, type StepRow } from "./steps";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 import {
   bumpFacts,
@@ -1145,11 +1146,21 @@ export async function stepContext(db: Db, ownerId: string, aId: string, bId: str
 export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null, steerMode: SteerMode = "nudge"): Promise<ContinueResult> {
   const scene = await loadScene(db, adminId, x, y);
   if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: this season's cast, or ones you've switched on." };
+  // Every step goes in the admin's log (lib/adult/steps.ts): what was asked, and what came of it or the error.
+  const pairIds = { a: scene.a.id, b: scene.b.id };
+  const failed = async (http: number, message: string, extra: { direction?: string | null; dropped?: DroppedLine[]; flags?: StepFlags } = {}) => {
+    await logStep(db, adminId, pairIds, scene.id, {
+      kind: "write", direction: extra.direction ?? null, steer_mode: extra.direction ? steerMode : null, status: "error", http, message, chapter: scene.chapter,
+      line_from: null, line_to: null, added: 0, dropped: extra.dropped ?? [], flags: extra.flags ?? null,
+    });
+    return { ok: false as const, status: http, message };
+  };
   const capped = await overCap(db, adminId, "writes");
-  if (capped) return { ok: false, status: 429, message: capped };
+  if (capped) return failed(429, capped);
   const steer = direction?.trim().slice(0, DIRECTION_MAX) || null;
   if (steer && !checkAdultText({ direction: steer }).ok) {
-    return { ok: false, status: 422, message: "That steer crosses one of the two lines (nobody under 18, no real people)." };
+    // Never stored: only that a steer was refused.
+    return failed(422, "That steer crosses one of the two lines (nobody under 18, no real people).", { direction: "[a steer refused by the two lines]" });
   }
   const ctx = await stepContext(db, adminId, scene.a.id, scene.b.id);
   const { a, b } = ctx;
@@ -1170,8 +1181,12 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     cast: ctx.cast,
     resolveSet: (label) => resolveSet(db, label),
   });
-  if (!step.ok) return { ok: false, status: step.status, message: step.message };
+  if (!step.ok) return failed(step.status, step.message, { direction: steer, dropped: step.dropped, flags: step.flags });
   const { meta, next } = step;
+  await logStep(db, adminId, pairIds, scene.id, {
+    kind: "write", direction: steer, steer_mode: steer ? steerMode : null, status: "ok", http: null, message: null, chapter: scene.chapter,
+    line_from: scene.lines.length, line_to: scene.lines.length + step.lines.length - 1, added: step.lines.length, dropped: step.dropped, flags: step.flags,
+  });
   const { lines, place, stage, stage_from, set_place, place_history, moves } = next;
   await db.query(
     `update adult_scenes set lines = $2::jsonb, place = $3, stage = $4, stage_from = $5, set_place = $6, cut_to = null, place_history = $7::jsonb, moves = $8::jsonb, updated_at = now() where id = $1`,
@@ -1275,8 +1290,10 @@ async function nextChapter(db: Db, ownerId: string, scene: AdultScene, a: Charac
       JSON.stringify(scene.place_history),
     ],
   );
-  // The lines' thumbs (lib/line-feedback.ts) go with them to the saved night, before the scene's lines are cleared.
+  // The lines' thumbs (lib/line-feedback.ts) and the steps that wrote them (lib/adult/steps.ts) go with them to the
+  // saved night, before the scene's lines are cleared.
   await moveLineFeedback(db, scene.id, nightId);
+  await fileSteps(db, scene.id, scene.chapter, nightId);
   await rememberAfterDark(db, ownerId, a, b, recap, scene.lines);
   // The chapter's concrete facts, for the scene prompt from now on (lib/adult/facts.ts; After Dark only).
   await rememberFacts(db, ownerId, a, b, scene.lines);
@@ -1317,6 +1334,10 @@ export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, 
     JSON.stringify(moves.slice(-40)),
   ]);
   await ensureSet(db, set_place);
+  await logStep(db, ownerId, { a: scene.a.id, b: scene.b.id }, scene.id, {
+    kind: "set_scene", direction: label, steer_mode: null, status: "ok", http: null, message: null, chapter: scene.chapter,
+    line_from: null, line_to: null, added: 0, dropped: [], flags: null,
+  });
   return { ok: true, scene: publicScene({ ...scene, place: label, set_place, cut_to: label, place_history, moves }) };
 }
 
@@ -1335,16 +1356,19 @@ export async function listNights(db: Db, ownerId: string, x: string, y: string):
 }
 
 /** One line with its private notes, for an admin reading why it was written. */
-export type LineNote = { i: number; who: string; text: string; why: string | null; memory: string | null; moved_to: string | null; facts: string[] | null };
+/** `step`: which of `steps` wrote the line (null for lines from before steps were logged, 2026-10-22). */
+export type LineNote = { i: number; who: string; text: string; why: string | null; memory: string | null; moved_to: string | null; facts: string[] | null; step: number | null };
 export type SceneNotes = {
   a: { id: string; name: string };
   b: { id: string; name: string };
-  current: { chapter: number; place: string | null; set_place: string | null; place_history: PlaceStop[]; moves: MoveLog[]; lines: LineNote[] };
-  nights: { id: string; chapter: number | null; created_at: string; set_place: string | null; moves: MoveLog[] | null; lines: LineNote[] }[];
+  current: { chapter: number; place: string | null; set_place: string | null; place_history: PlaceStop[]; moves: MoveLog[]; steps: StepRow[]; lines: LineNote[] };
+  nights: { id: string; chapter: number | null; created_at: string; set_place: string | null; moves: MoveLog[] | null; steps: StepRow[]; lines: LineNote[] }[];
 };
 
-const notesOf = (lines: readonly SceneLine[], names: { a: string; b: string }): LineNote[] =>
-  lines.map((l, i) => ({ i, who: l.who === "a" ? names.a : names.b, text: l.text, why: l.why ?? null, memory: l.memory ?? null, moved_to: l.moved_to ?? null, facts: l.fact_ids ?? null }));
+const notesOf = (lines: readonly SceneLine[], names: { a: string; b: string }, steps: readonly StepRow[] = []): LineNote[] => {
+  const by = stepIndexOf(steps, lines.length);
+  return lines.map((l, i) => ({ i, who: l.who === "a" ? names.a : names.b, text: l.text, why: l.why ?? null, memory: l.memory ?? null, moved_to: l.moved_to ?? null, facts: l.fact_ids ?? null, step: by[i] }));
+};
 
 /**
  * Every line of the pair's scene and saved nights with its private "why" and "memory" (David, 2026-10-21), for the
@@ -1358,11 +1382,19 @@ export async function sceneNotes(db: Db, ownerId: string, x: string, y: string):
     `select id, chapter, created_at, set_place, moves, lines from adult_nights where owner_id = $1 and character_a = $2 and character_b = $3 order by created_at desc limit 50`,
     [ownerId, scene.a.id, scene.b.id],
   );
+  // What was asked at each step, and what came of it or the error (lib/adult/steps.ts).
+  const steps = await stepsOf(db, ownerId, scene.a.id, scene.b.id);
   return {
     a: scene.a,
     b: scene.b,
-    current: { chapter: scene.chapter, place: scene.place, set_place: scene.set_place, place_history: scene.place_history, moves: scene.moves, lines: notesOf(scene.lines, names) },
-    nights: rows.map((r) => ({ ...r, created_at: new Date(r.created_at).toISOString(), lines: notesOf(r.lines ?? [], names) })),
+    current: {
+      chapter: scene.chapter, place: scene.place, set_place: scene.set_place, place_history: scene.place_history, moves: scene.moves,
+      steps: steps.running, lines: notesOf(scene.lines, names, steps.running),
+    },
+    nights: rows.map((r) => {
+      const own = steps.byNight.get(r.id) ?? [];
+      return { ...r, created_at: new Date(r.created_at).toISOString(), steps: own, lines: notesOf(r.lines ?? [], names, own) };
+    }),
   };
 }
 
@@ -1381,8 +1413,14 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
       `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place, chapter, recap, moves, place_history) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb)`,
       [nightId, adminId, ...pair, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null, scene.set_place, scene.chapter, scene.recap, JSON.stringify(scene.moves), JSON.stringify(scene.place_history)],
     );
-    // The lines' thumbs (lib/line-feedback.ts) go with them to the saved night.
+    // The lines' thumbs (lib/line-feedback.ts) and their steps (lib/adult/steps.ts) go with them to the saved night.
     await moveLineFeedback(db, scene.id, nightId);
+    await fileSteps(db, scene.id, scene.chapter, nightId);
+  }
+  if (scene) {
+    await logStep(db, adminId, { a: pair[0], b: pair[1] }, scene.id, {
+      kind: "reset", direction: null, steer_mode: null, status: "ok", http: null, message: null, chapter: 1, line_from: null, line_to: null, added: 0, dropped: [], flags: null,
+    });
   }
   await db.query(
     `update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, set_place = null, cut_to = null, chapter = 1, recap = null, prev_tail = '[]'::jsonb, place_history = '[]'::jsonb, moves = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
