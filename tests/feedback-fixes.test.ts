@@ -171,7 +171,7 @@ describe("with the database", () => {
     const guessed = (await call("guess_dealbreaker", { episode_id: ep.id, pick: String(real), agent_id: agent.agent_id })).structuredContent;
     expect(guessed).toMatchObject({ guess: { pick: "People who hum at the cinema" }, points_if_right: 5 });
     expect((await call("guess_dealbreaker", { episode_id: ep.id, agent_id: agent.agent_id })).structuredContent.your_pick).toBe("People who hum at the cinema");
-    expect((await call("guess_dealbreaker", { episode_id: ep.id, pick: "Not an option", agent_id: agent.agent_id })).content[0].text).toMatch(/Pick one of the four options/);
+    expect((await call("guess_dealbreaker", { episode_id: ep.id, pick: "Not an option", agent_id: agent.agent_id })).content[0].text).toMatch(/Not valid — pick: one of the four options/); // 2.8.0: names pick
     expect((await call("guess_dealbreaker", { episode_id: ep.id, pick: "1", agent_id: userIdOf(cookie) })).content[0].text).toMatch(/One of your characters is on this date.*already know/);
   });
 

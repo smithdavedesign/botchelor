@@ -312,7 +312,8 @@ describe("booking honours the plan they agreed to by text", () => {
     const end = (id: string): End => (id === l ? "lo" : "hi");
     await text(x, y, end(x), "Let's go to the planetarium.", daysAgo(0.2));
     await text(x, y, end(y), "Sounds perfect.", daysAgo(0.1));
-    // After the first step, an agent's steps are compact (no system prompt): the data is the user message.
+    // After the first step, an agent's steps are compact (no system prompt; 2.8.0: no prompt at all unless compact: true): the
+    // data is the user message.
     const data = (step: Any) => JSON.parse(step.messages.find((m: Any) => m.role === "user").content.replace(/^[^\n]*\n/, ""));
     const started = (await call("start_own_date", { character_id: x, partner_id: y })).structuredContent.step;
     expect(data(started)).toMatchObject({ where: "the planetarium", tonight_is_the_plan_you_made: [expect.stringContaining("planetarium"), expect.any(String)] });
@@ -320,14 +321,14 @@ describe("booking honours the plan they agreed to by text", () => {
     // A new plan texted mid-date is in their texts, but tonight is still the plan it was booked with.
     await text(x, y, end(x), "Next time, the aquarium?", daysAgo(0.01));
     await text(x, y, end(y), "Absolutely.", daysAgo(0.005));
-    const next = (await call("submit_own_date_step", { episode_id: started.episode_id, output: { dialogue: "So, the planetarium. Do you know any constellations?", action: "", emotion: "curious", interest_signal: 0.6 } })).structuredContent.step;
+    const next = (await call("submit_own_date_step", { episode_id: started.episode_id, output: { dialogue: "So, the planetarium. Do you know any constellations?", action: "", emotion: "curious", interest_signal: 0.6 }, compact: true })).structuredContent.step;
     expect(next.stage).toBe("turn");
     expect(data(next).where).toBe("the planetarium");
     expect(JSON.stringify(data(next).tonight_is_the_plan_you_made)).not.toContain("aquarium");
 
     // A date stored before plans existed has none to snapshot: its next step doesn't read the texts for one.
     await t.db.query(`update episodes set setup = setup - 'agreed_plan' where id = $1`, [started.episode_id]);
-    const legacy = (await call("get_own_date_step", { episode_id: started.episode_id })).structuredContent.step;
+    const legacy = (await call("get_own_date_step", { episode_id: started.episode_id, compact: true })).structuredContent.step;
     expect(data(legacy).tonight_is_the_plan_you_made).toBeUndefined();
   });
 });

@@ -74,7 +74,8 @@ describe("a date an agent performs itself", () => {
     const firstPrompt = JSON.stringify(step.messages);
     expect(firstPrompt).toContain("secret-alpha-values");
     expect(firstPrompt).not.toContain("secret-bravo-values");
-    step = (await call("submit_own_date_step", { episode_id: episodeId, output: line(0) }, ctx)).structuredContent.step;
+    // 2.8.0: later steps leave the prompt out unless asked; compact: true sends this turn's.
+    step = (await call("submit_own_date_step", { episode_id: episodeId, output: line(0), compact: true }, ctx)).structuredContent.step;
     expect(step).toMatchObject({ stage: "turn", turn: 1, side: "b", speaker: { id: b } });
     const secondPrompt = JSON.stringify(step.messages);
     expect(secondPrompt).toContain("secret-bravo-values");

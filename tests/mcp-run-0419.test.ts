@@ -76,7 +76,8 @@ describe("1. exclusivity is a visible choice on create_character (#555)", () => 
     expect(checked).toMatchObject({ saved: false, partner_style: "one", partner_style_note: expect.stringMatching(/One partner: once it's in a Dating couple/) });
     const bad = await call("create_character", validCharacter({ name: "Cy Moss", partner_style: "poly" }), ctx);
     expect(bad.isError).toBe(true);
-    expect(bad.content[0].text).toMatch(/partner_style is one of one, open, decide \(default decide\)/);
+    // 2.8.0 (#650): refused by the enum check every tool shares, with what each value means.
+    expect(bad.content[0].text).toMatch(/Not valid — partner_style: one of one, open, decide; got "poly"\. one: once it's in a Dating couple/);
   });
 
   it("one closes to other dates in a Dating couple; open doesn't; get_character says what decide settled on", async () => {
@@ -339,7 +340,8 @@ describe("8. a one-line mode for own dates", () => {
     expect(step.instructions).toContain(`Example turn: "You never asked about the wind.", or {"dialogue": "You never asked about the wind."}, or the full`);
     expect(step.instructions).toContain(TURN_EXAMPLE);
     let s = (await call("submit_own_date_step", { episode_id: id, output: "First line, honestly." }, A.ctx)).structuredContent.step;
-    expect(s.instructions).toMatch(/or just the line, as "output"/);
+    // 2.8.0: later steps leave the prompt out and say a bare line works.
+    expect(s.instructions).toMatch(/Write Bo Quill's line as output \(just the dialogue works/);
     let i = 0;
     while (s.stage === "turn") s = (await call("submit_own_date_step", { episode_id: id, output: `Line number ${i++}, about the tide tables and the ferry.` }, A.ctx)).structuredContent.step;
     expect(s.stage).toBe("recap");

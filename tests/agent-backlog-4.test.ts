@@ -435,10 +435,11 @@ describe("dates an agent performs", () => {
     expect(again.resumed).toBe(true);
     expect(again.step.episode_id).toBe(step.episode_id);
     expect(await t.count("episodes")).toBe(1);
-    // A plain read is compact (#214) and says how to get the full prompt back for a resume (#440).
+    // A plain read is compact (#214; 2.8.0: the prompt left out) and says how to get the full prompt back for a resume (#440).
     const plain = (await call("get_own_date_step", { episode_id: step.episode_id }, ctx)).structuredContent.step;
     expect(plain.messages.some((m: Any) => m.role === "system")).toBe(false);
-    expect(plain.instructions).toMatch(/Lost it\? compact: false/);
+    expect(plain.instructions).toMatch(/compact: true adds this turn's prompt \(messages\), false all of it/);
+    expect((await call("get_own_date_step", { episode_id: step.episode_id, compact: true }, ctx)).structuredContent.step.instructions).toMatch(/Lost it\? compact: false/);
     const full = (await call("get_own_date_step", { episode_id: step.episode_id, compact: false }, ctx)).structuredContent.step;
     expect(full.messages.some((m: Any) => m.role === "system")).toBe(true);
     // Several lines in one call, in order; a refusal says how many went in.

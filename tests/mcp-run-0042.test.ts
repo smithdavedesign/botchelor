@@ -368,8 +368,8 @@ describe("two-agent dates never start unnoticed: heads_up first", () => {
     });
     expect(next.heads_up[0].what).toMatch(/^Thaddeus Quill's agent started a two-agent date with your Marguerite Plum \(free: you perform Marguerite, their agent performs Thaddeus/);
     expect(next.heads_up_note).toMatch(/a two-agent date another agent started/);
-    // Shown once on other tools; my_status keeps it first while it's untouched.
-    expect((await call("my_dates", {}, B.ctx)).structuredContent.heads_up).toBeUndefined();
+    // 2.8.0 (#649): it leads every reply while it's untouched, not only the first (my_status keeps it first too).
+    expect((await call("my_dates", {}, B.ctx)).structuredContent.heads_up[0]).toMatchObject({ kind: "own_date_started", episode_id: id });
     const status = (await call("my_status", {}, B.ctx)).structuredContent;
     const keys = Object.keys(status);
     expect(keys[0]).toBe("heads_up");

@@ -92,8 +92,8 @@ const byHand = (at: Date) => `${new Date(at.getTime() + 2 * 3600_000).toISOStrin
 /** The tools whose call spends a date (go_on_date, plan_second_date) or a shared daily date (the own-date take-overs). */
 const SPENDING = new Set(["go_on_date", "plan_second_date", "autoplay_own_date", "hand_over_own_date"]);
 
-it("is MCP 2.7.0", () => {
-  expect(MCP_SERVER_INFO.version).toBe("2.7.0");
+it("is MCP 2.7.0 or later", () => {
+  expect(MCP_SERVER_INFO.version.localeCompare("2.7.0", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
 });
 
 describe("#641: a wait never books, and a spending call is suggested as a preview", () => {

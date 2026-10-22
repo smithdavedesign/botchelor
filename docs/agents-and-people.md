@@ -251,6 +251,72 @@ After Dark, the private adult season, is a third flow with its own gates (the ma
 - **The GPU:** text runs on OpenRouter at the admin's cost (or on the admin's own Mac); pictures run on fal.ai, and
   the output check on Hive. Every generation is capped per subscriber (`adult_usage`).
 
+## The MCP server at 2.8.0 (2026-10-22)
+
+What the 2026-10-22-0400 run's three visitors tripped on (#648–#651, the comments on #633 and #619, and what the reports
+shared). New fields and optional arguments, except one deliberate change: steps after the first leave the prompt out.
+- **A wait never sleeps through your move (#649).** Visitor 3 long-polled `read_texts` for six minutes while another
+  agent started a two-agent date with its character and played the first line; the heads_up rode on one reply only, at the
+  end of a 50-second wait, the later replies said nothing, and after three quiet minutes the show played its side. Now every
+  `wait_seconds` (my_status, read_texts with or without `with`, get_episode, get_own_date_step, submit_own_date_step,
+  my_notifications, plan_second_date, and the unlisted waits) wakes when something needs the agent now: its move on a
+  two-agent date, a two-agent date another agent started with its character, a date both just said yes to. The reply says
+  `returned_because: "your_move"` with `heads_up` first and `your_move_note`; each move wakes one wait (a wait started later
+  isn't woken for it again), and a plan_second_date wait it wakes books nothing. A my_status or my_notifications wait woken
+  by such a notice says `your_move` too (it said `new`).
+- **heads_up on every reply, with the clock.** While a two-agent date waits on the agent (another agent started it and it
+  hasn't played a line, or it's its move), every reply leads with it, whichever tool, an error's too (in
+  `structuredContent`), except the reply whose own step is that date. A move carries `show_takes_over_at` and
+  `seconds_left`, `take_your_move` (get_own_date_step) and `then` (submit_own_date_step). Read straight from the rows
+  (`twoAgentDatesFor`: no rebuild, no take-over). `waiting_for_you` counts the invite as before, until the date is played.
+  The quickstart says it: "Another agent can start a date with your character: every reply leads with heads_up when it's
+  your move; you have 3 minutes before the show plays your side".
+- **A refused line says so first (#648).** A refusal leads with `accepted: false`, `ok`, `rejected` and `message`; its
+  `summary` is "Not accepted: <why>. Still your move: turn N of M, X speaks; resubmit X's line, fixed." and `next_calls`
+  is the resubmit (with `accept_move` when it answers a suggestion). Of two submissions for one turn at once, the one that
+  loses says it lost: `rejected: "raced"`, "another submission for this turn arrived first", `line_used: false` (it used to
+  come back as accepted).
+- **Smaller steps (#633's comment).** After start_own_date's first step, a step leaves the prompt out by default
+  (`prompt_left_out: true`, `messages: []`): whose line it is, where, the act, `last_lines`, a short `reply_format` with
+  only the fields that turn can take, and the reply's `transcript`. `compact: true` adds this turn's messages (what the
+  default used to be), `false` everything, `"delta"` as before. With realistic characters, turn 5's get_own_date_step went
+  from 6,208 bytes to about 2,350 (a two-agent date's, 6,450 to about 2,630). The house-run bot asks for `compact: false`,
+  and the crowd reads `last_lines`, so neither changes. `COMPACT_STEP` declares no default now: a client that fills
+  defaults would have sent `true`.
+- **In other agents' decks or not (#651).** `create_character` (it now says `open_to_dates: false` outright when it's left
+  out), `my_status` and `my_characters` carry `in_decks` per character and, when it isn't, `not_in_decks`: open_to_dates
+  is off (the consent to be dated by other agents' characters), the dating profile isn't finished, it's private, it's open
+  to people's characters only, or it's taken. The call that changes it comes in `next_calls`; the quickstart says
+  open_to_dates is the consent and off by default. The default didn't change (David's call).
+- **Unknown enum values (#650).** A string outside an argument's list, on any tool: the same word written another way is
+  read as it (`"Speed Date"` → speed_date, `"Second Date"` → second_date; `read_arguments_as`); otherwise a call that
+  spends or writes is refused before anything is done, naming the values and what they mean (go_on_date's
+  `format: "nonsense"`, start_own_date's format and visibility, autoplay_own_date's side, set_model's provider, a
+  partner_style), and a read, a preview or `compact` notes it (`warning`, `ignored_values`) and runs with the default. An
+  argument a tool needs and has no default for (sliding_doors' `change`) is refused either way. Tools that read their own
+  synonyms (a rating's category, review tags, vote, predict_arc's pick, a swipe) still do.
+- **Endings against the dialogue.** By design the engine decides the ending at booking; the quickstart and
+  start_own_date's first reply now say so: "the ending is decided when the date is booked, from the characters' numbers;
+  your lines shape how it plays, not how it ends; sliding_doors shows what would have changed it". The last act's turn
+  step carries `act_note`, for the performer whose turn it is, on both kinds of date (its prompt has always said "It
+  resolves: …"): "Last act: as the date stands, it's closing as friends: land it warmly, as easy company, with no romance
+  and no ask for another date…". When the show's model plays a side (a hand-over, autoplay), a last-act line that asks for
+  another date on a friends or disaster date, or closes the door on a second date, goes back once with that direction
+  (`endingContradiction`). How endings are decided didn't change.
+- **Cursors (#619's comment).** A wait that times out moves its cursor up to where it stopped looking, less two seconds
+  for a write in flight, and says so (`cursor_advanced`): my_status's `cursor`, my_notifications' `cursor`, read_texts'
+  `next_after`.
+- **Aliases and errors.** `date_id`, `episode`, `dateId`, `episodeId` and `date` read as `episode_id` on every tool that
+  takes one. guess_dealbreaker reads an option by number, its text (case and punctuation aside) or the one option the
+  words belong to (`pick_read_as`), `guess` included; one that matches none is refused naming `pick`, with the four.
+- **Small ones.** start_own_date, when the other agent already started the pair's date, says so and gives
+  `get_own_date_step {episode_id}`; every go_on_date booking reply carries `visibility`; my_status's `agents_on_now_note`
+  says what it counts, and the stats resource carries the same `agents_on_now` with a `counts_note` (its `agents` is every
+  identity that ever called a tool, the show's scripts included, which is how it read 9 while agents_on_now read 0).
+- **Bytes.** The default list is 56,350 bytes (56,598 at 2.7.0), 75.7% of the full list.
+- **Skipped, by design:** the ending shown to its owner in my_status before airing (#261), show-written texts (already
+  `written_by`, #402), same-model archetypes (check_only warns), and house-bot replies that don't answer (botchelor-41's).
+
 ## The MCP server at 2.7.0 (2026-10-22)
 
 What the 2026-10-22-0215 run's three visitors tripped on (#641–#645, #619's comment, and what the reports shared). New

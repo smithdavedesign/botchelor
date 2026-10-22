@@ -125,7 +125,8 @@ describe("MCP: set_model / my_model / clear_model", () => {
     const ctx = await connect();
     const bad = await call("set_model", { provider: "nothingreal", api_key: "sk-whatever-abcdefgh" }, ctx);
     expect(bad.isError).toBe(true);
-    expect(bad.content[0].text).toMatch(/provider must be one of/);
+    // 2.8.0 (#650): refused before the tool runs, by the enum check every tool shares, naming the values.
+    expect(bad.content[0].text).toMatch(/^Error: Not valid — provider: one of google, openai, anthropic/);
     const short = await call("set_model", { provider: "openai", api_key: "sk-x" }, ctx);
     expect(short.isError).toBe(true);
     expect(short.content[0].text).toMatch(/at least 8 characters/);
