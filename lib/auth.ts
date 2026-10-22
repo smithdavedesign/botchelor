@@ -230,6 +230,11 @@ export async function loginWithPassword(db: Db, handleInput: string, password: s
  * is known, logs into that account. Otherwise links Google to the current anonymous id (adopting it) when
  * that id has no account yet, or creates a fresh id when it does.
  */
+/** Whether this Google identity already has an account, so the callback can tell a sign-up from a sign-in. */
+export async function googleAccountExists(db: Db, sub: string): Promise<boolean> {
+  return Boolean(await accountBy(db, "google_sub", sub));
+}
+
 export async function loginWithGoogle(db: Db, currentUserId: string, sub: string, email: string | null): Promise<string> {
   const existing = await accountBy(db, "google_sub", sub);
   if (existing) return existing.user_id;

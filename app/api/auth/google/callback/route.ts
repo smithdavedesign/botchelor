@@ -1,5 +1,5 @@
 import { safeFrom } from "@/lib/age";
-import { exchangeGoogleCode, googleConfigured, loginWithGoogle, oauthRedirectUri, verifyOAuthState } from "@/lib/auth";
+import { exchangeGoogleCode, googleAccountExists, googleConfigured, loginWithGoogle, oauthRedirectUri, verifyOAuthState } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, sessionCookies } from "@/lib/http";
 
@@ -46,8 +46,12 @@ export const GET = handle(async (req) => {
   try {
     const identity = await exchangeGoogleCode(code, oauthRedirectUri(req));
     const current = authFromRequest(req)?.userId ?? crypto.randomUUID();
-    const userId = await loginWithGoogle(await getDb(), current, identity.sub, identity.email);
-    return redirect(next ?? "/account?signed_in=1", sessionCookies({ userId, authenticated: true }));
+    const db = await getDb();
+    const isNew = !(await googleAccountExists(db, identity.sub));
+    const userId = await loginWithGoogle(db, current, identity.sub, identity.email);
+    // A one-shot, readable cookie so the next page sends GA4's sign_up event (app/FunnelBeacon.tsx).
+    const signup = isNew ? ["bz_signup=google; Path=/; SameSite=Lax; Max-Age=600"] : [];
+    return redirect(next ?? "/account?signed_in=1", [...sessionCookies({ userId, authenticated: true }), ...signup]);
   } catch {
     return failed("google_failed");
   }

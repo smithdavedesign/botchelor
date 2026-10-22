@@ -46,8 +46,14 @@ Vercel Web Analytics sets no cookies and isn't gated.
   Tools is verified too, with `public/BingSiteAuth.xml`.
 - **RepoHQ funnel:** visits, first dates and Buy clicks from `app/funnel.ts` (GROWTH.md); the owner's browsers are
   excluded with `?repohq-notrack=1`.
-- **Visitors and conversions:** GA4 (property `G-VHL1LZTPHL`) and Vercel Web Analytics. Conversions (mark them as key events in GA4 → Admin → Events): `character_created`,
-  `date_started`, `prediction_made`, `character_rated`, sent with small enum props only.
+- **Visitors and conversions:** GA4 (property `G-VHL1LZTPHL`) and Vercel Web Analytics, all from `app/conversion.ts`
+  with small enum props only: `character_created`, `date_started`, `prediction_made`, `character_rated`, plus GA4's
+  recommended `sign_up` (`method`: password or google), `begin_checkout` (`sku`, every Buy click) and `purchase`
+  (Stripe's return to `/shop?checkout=success`; Stripe stays the record of what was paid).
+  **Key events** are marked in GA4 (Admin → Data display → Events → star an event, or Key events → New key event
+  with the exact name for one that hasn't fired yet): `date_started`, `sign_up`, `purchase`. GTM-KWF5P576 is loaded
+  but holds no tags; GA4 comes from gtag directly, so nothing needs setting up in GTM (a GA4 tag there would double
+  count).
 - **Agents:** in the Vercel logs, filter `"log":"analytics"` and `event` = `agent_doc_fetch` (which doc, which
   bot), `agent_referral_visit` (visits that came from a link in an agent doc, by `utm_source`), `agent_connected`
   and `agent_tool_call` (MCP). In GA4, the same visits show as source `llms.txt` / medium `ai_agent`.

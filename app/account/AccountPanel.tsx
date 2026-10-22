@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { trackConversion } from "../conversion";
 import { requestJson } from "../request";
 import EmailNotifications from "./EmailNotifications";
 
@@ -77,6 +78,7 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
         : { handle: String(form.get("handle") ?? ""), password: String(form.get("password") ?? "") };
     const { ok, message } = await requestJson(`/api/auth/${mode}`, body).catch(() => ({ ok: false, message: "Network error." }));
     setBusy(false);
+    if (ok && mode === "register") trackConversion("sign_up", { method: "password" });
     if (ok && next) window.location.assign(next); // back where they were going (the shop, to buy)
     else if (ok) await load();
     else setError(message);
