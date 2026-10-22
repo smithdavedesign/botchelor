@@ -49,7 +49,8 @@ describe("initialize capabilities and _meta", () => {
     ))!.result as Any;
     expect(res.capabilities.tools.listChanged).toBe(true);
     expect(res.capabilities.resources.listChanged).toBe(true);
-    expect(res.capabilities.resources.subscribe).toBe(false);
+    // subscribe: true now that resources/subscribe is implemented (lib/mcp-subscriptions.ts).
+    expect(res.capabilities.resources.subscribe).toBe(true);
     expect(res.capabilities.logging).toEqual({});
     expect(res._meta["botchelor/transport"]).toBe("streamable-http-post");
     expect(res._meta["botchelor/notifications_pushed"]).toBe(false);

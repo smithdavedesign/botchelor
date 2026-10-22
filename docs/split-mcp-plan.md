@@ -1,6 +1,23 @@
 # A plan to split `lib/mcp.ts`
 
-_2026-10-22. Not implemented. Written so the split goes into one focused PR instead of being half-done in several._
+_2026-10-22. Phase 1 landed; the rest is scoped below as its own future PRs._
+
+## Phase 1 ✅ landed (schemas + annotations + edit-distance)
+
+`lib/mcp/` now exists with three modules the dispatcher imports from:
+
+- `lib/mcp/schemas.ts` — JsonSchema building blocks (`WAIT_MAX_SECONDS`, `WAIT_POLL_MS`, `LEADERBOARD_MIN_REVIEWS`, `str`, `AGENT_ID`, `COMPACT_STEP`, `COMPACT_STEP_VALUES`, `PREVIEW`, `SINCE_TURN`, `VISIBILITY`, `VISIBILITY_RULES`, `visibilityRules`, `FORMAT`, `WAIT`, `PARTNER_STYLE_MEANS`).
+- `lib/mcp/annotations.ts` — `READ`, `WRITE`, `SET` tool-annotation presets.
+- `lib/mcp/edit-distance.ts` — the pure `editDistance` helper for did-you-mean.
+- `lib/mcp/index.ts` — barrel re-export.
+
+No behaviour change. Every test passes.
+
+**Why these first:** they have zero circular dependencies (upstream constants only), zero handler coupling, and together carry ~90 lines of noise out of the dispatcher. They establish the pattern (`lib/mcp/<topic>.ts` with a sibling barrel) that the later phases follow.
+
+## Future phases
+
+The remaining four phases keep the same pattern. Each lands in its own focused PR, run during a short fixer-PR freeze so the inevitable rename conflicts resolve cleanly.
 
 ## The problem
 

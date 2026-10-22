@@ -25,6 +25,30 @@ import { episodeAllowance, secondDateFreeNow, type Allowance } from "./allowance
 import { track } from "./analytics";
 import { recordAgentEvent } from "./agent-funnel";
 import { checkRateLimit, rateLimitInfo, rateLimitMessage, type RateLimitBucket } from "./rate-limit";
+import { drainPending, isSubscribable, subscribe as subscribeResource, SUBSCRIBABLE, unsubscribe as unsubscribeResource } from "./mcp-subscriptions";
+// First phase of the lib/mcp.ts split (docs/split-mcp-plan.md): schemas, annotations, edit-distance.
+import {
+  AGENT_ID,
+  COMPACT_STEP,
+  COMPACT_STEP_VALUES,
+  FORMAT,
+  type JsonSchema,
+  LEADERBOARD_MIN_REVIEWS,
+  PARTNER_STYLE_MEANS,
+  PREVIEW,
+  READ,
+  SET,
+  SINCE_TURN,
+  str,
+  VISIBILITY,
+  VISIBILITY_RULES,
+  visibilityRules,
+  WAIT,
+  WAIT_MAX_SECONDS,
+  WAIT_POLL_MS,
+  WRITE,
+  editDistance,
+} from "./mcp/index";
 import { detectBot } from "./bots";
 import { getDb, type Db } from "./db";
 import { getCharacterHistory, getPoints, getPointsBreakdown, getPublicCharacter, listMyEpisodes, type EpisodeView } from "./game";
@@ -102,9 +126,7 @@ export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blin
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
 export const CORE_TOOLS_HINT = "/api/mcp?tools=core";
 
-const WAIT_MAX_SECONDS = 50;
-/** #488: a leaderboard place held on fewer reviews than this is provisional. */
-const LEADERBOARD_MIN_REVIEWS = 3;
+// WAIT_MAX_SECONDS and LEADERBOARD_MIN_REVIEWS now live in lib/mcp/schemas.ts (first phase of the split).
 
 /**
  * The one-partner rule, said where agents meet it (#514: they found it by hitting it). The quickstart, go_on_date, swipe,
@@ -128,11 +150,7 @@ const EXCLUSIVE_SOON =
  */
 const PARTNER_STYLE_DOC =
   "one: once it's in a Dating couple (one great date can be enough) it closes to other dates. open: it keeps dating others. decide (default): it settles one or open from its temperament when it first gets serious. update_character changes it.";
-const PARTNER_STYLE_MEANS: Record<PartnerStyle, string> = {
-  one: "One partner: once it's in a Dating couple with someone, it closes to other dates (you're told one date before: exclusive_soon).",
-  open: "More than one: it keeps dating others, even in a Dating couple.",
-  decide: "Its own call (the default): it settles one partner or more from its temperament when it first gets serious. If it settles on one, it closes to other dates once it's in a Dating couple.",
-};
+// PARTNER_STYLE_MEANS now lives in lib/mcp/schemas.ts (first phase of the split).
 /** The choice, what it settled on (decide only), and what it means: create_character's and get_character's echo. */
 export function partnerStyleEcho(choice: PartnerStyle, decided: DecidedStyle | null = null): Record<string, unknown> {
   return {
@@ -203,10 +221,7 @@ const instructions = (): string => [
 
 /* ------------------------------------------- the tools ------------------------------------------- */
 
-type JsonSchema = Record<string, unknown>;
-const str = (max: number, description?: string): JsonSchema => ({ type: "string", maxLength: max, ...(description ? { description } : {}) });
-// Repeated in ~46 tools, so kept short (#222); the welcome text says what it's for.
-const AGENT_ID: JsonSchema = { type: "string", description: "Optional within a session." };
+// JsonSchema, str, AGENT_ID now live in lib/mcp/schemas.ts (first phase of the split).
 /** #347: cards cut to who they are, for an agent whose tool output is limited. */
 const COMPACT_CARDS = { type: "boolean", default: false, description: "true: each card is just its id, name, age, who made it, who runs it, a one-line bio, agent_active, house_bot and its top reason (much smaller)." };
 /**
@@ -223,42 +238,10 @@ export const FEEDBACK_VOTES = ["up", "down", "none"] as const;
 export const ARC_PICKS = ["yes", "no"] as const;
 /** guess_dealbreaker's pick by number: the quiz always has four options (lib/mechanics.ts getDealbreakerQuiz). */
 export const DEALBREAKER_PICK_NUMBERS = [1, 2, 3, 4] as const;
-export const COMPACT_STEP_VALUES = [true, false, "delta"] as const;
-const COMPACT_STEP: JsonSchema = {
-  type: ["boolean", "string"],
-  enum: [...COMPACT_STEP_VALUES],
-  default: true,
-  description:
-    "true (default): after start_own_date's first step, each step carries a short reminder instead of the full instructions, and no system " +
-    "message (both never change: keep the first step's). \"delta\": also drop the messages, if you keep each side's conversation (send it last_lines). " +
-    "false: the full instructions and messages again.",
-};
-/** #485/#490: a dry run on a tool that spends or starts something. */
-const PREVIEW = (what: string): JsonSchema => ({ type: "boolean", default: false, description: `true: ${what}, and nothing is started or spent.` });
-const SINCE_TURN: JsonSchema = {
-  type: "integer",
-  minimum: 0,
-  description: "Only the transcript from this line on (0-based; transcript_total says how many there are), for polling a date being written.",
-};
-/** Who sees a date, said once for every tool that books one. */
-/** #543: what each visibility changes, in one place (the schema, set_date_visibility and its reply all say it). */
-const VISIBILITY_RULES: Record<(typeof DATE_VISIBILITIES)[number], string> = {
-  public: "in the feed; airs on its own (predictions close when it does); predictions score points on it; it counts in the character's public record and memory, and on the couple page",
-  unlisted: "anyone with the link; airs on its own like a public date; not in the feed, no predictions or points, and out of the public record and character memory (the two characters still remember it between them)",
-  private: "offline: its owners only; never airs, no predictions, no second date, out of the record and memory (the two characters still remember it between them)",
-};
-const visibilityRules = (): string => DATE_VISIBILITIES.map((v) => `${v}: ${VISIBILITY_RULES[v]}`).join(". ");
-const VISIBILITY: JsonSchema = {
-  type: "string",
-  enum: [...DATE_VISIBILITIES],
-  default: "public",
-  description: "public (default): the feed; airs on its own, closing predictions; scores and counts in the record. unlisted: anyone with the link; airs; no feed, points or record. private: offline, owners only, never airs, no second date. Full rules: set_date_visibility.",
-};
-const FORMAT: JsonSchema = { type: "string", enum: [...FORMAT_IDS], default: DEFAULT_FORMAT, description: `Optional show format (default ${DEFAULT_FORMAT}; speed_date: six lines).` };
-const WAIT = (what: string): JsonSchema => ({ type: "integer", minimum: 0, maximum: WAIT_MAX_SECONDS, default: 0, description: `${what} (default 0: answer now).` });
-const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
-const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
-const SET = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
+// COMPACT_STEP, PREVIEW, SINCE_TURN, VISIBILITY, FORMAT, WAIT, READ, WRITE, SET now live in lib/mcp/
+// (first phase of the lib/mcp.ts split, docs/split-mcp-plan.md). Export the step-values constant for the
+// backlog test file that reads it.
+export { COMPACT_STEP_VALUES } from "./mcp/schemas";
 
 /**
  * A schema without its descriptions. A tool that takes the same fields as create_character (update_character,
@@ -1409,7 +1392,7 @@ const MORE_TOOLS = {
 };
 const TOOL_NAMES = new Set<string>(MCP_TOOLS.map((t) => t.name));
 /** wait_for_my_turn: the longest one call waits, and how often it looks. */
-const WAIT_POLL_MS = 2000;
+// WAIT_POLL_MS now lives in lib/mcp/schemas.ts.
 
 /**
  * One wait_seconds, read the same way by every tool that waits (my_status, get_episode, get_own_date_step,
@@ -2172,20 +2155,7 @@ const SAFETY_FLAGS = ["preview", "check_only", "check", "dry_run", "dryrun", "dr
 const truthy = (v: unknown): boolean => v === true || v === "true" || v === 1;
 const toolIsReadOnly = (name: string): boolean => Boolean(MCP_TOOLS.find((t) => t.name === name)?.annotations.readOnlyHint);
 
-/** Edit distance, for the unknown-tool did-you-mean (#468). */
-function editDistance(a: string, b: string): number {
-  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    let prev = row[0];
-    row[0] = i;
-    for (let j = 1; j <= b.length; j++) {
-      const was = row[j];
-      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
-      prev = was;
-    }
-  }
-  return row[b.length];
-}
+// editDistance now lives in lib/mcp/edit-distance.ts (first phase of the split).
 
 /** The tools whose names are close to a mistyped one, best first (listed tools before by-name ones). */
 export function nearestTools(name: string, max = 3): string[] {
@@ -2559,6 +2529,8 @@ export type McpContext = {
   toolset?: "core" | "all";
   /** logging/setLevel sets this; the server records it per connection (notifications/message isn't pushed on this transport). */
   logLevel?: string;
+  /** The client's declared capabilities from initialize (sampling, elicitation, roots, …). Spec: ClientCapabilities. */
+  clientCapabilities?: Record<string, unknown>;
 };
 
 /** The call carries the admin key (the admin's own agents). */
@@ -5035,6 +5007,10 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
   switch (msg?.method) {
     case "initialize": {
       const info = (msg.params?.clientInfo ?? {}) as Record<string, unknown>;
+      // Record the client's capabilities so later code can decide whether to request sampling or elicitation
+      // (not used today — the transport doesn't push server-to-client requests — but future-safe).
+      const clientCaps = (msg.params?.capabilities ?? {}) as Record<string, unknown>;
+      ctx.clientCapabilities = clientCaps;
       const sessionId = crypto.randomUUID();
       let agentId = crypto.randomUUID();
       let recorded = false;
@@ -5074,8 +5050,10 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           // listChanged: true — adult tools (lib/adult/mcp.ts) unlock mid-session when the account is entitled, so
           // the tool list a client holds can go stale. A client that opts into listChanged can refresh on notice.
           tools: { listChanged: true },
-          // listChanged: true for resources too (botchelor://docs/* re-rendering on new episodes).
-          resources: { subscribe: false, listChanged: true },
+          // subscribe: true — resource subscriptions are accepted and tracked per-session (lib/mcp-subscriptions.ts).
+          // Pushes land when the SSE transport is wired; until then, pending updates ride along in tool replies'
+          // `_meta.botchelor/pending_updates`, so a polling client never misses one.
+          resources: { subscribe: true, listChanged: true },
           prompts: { listChanged: false },
           // Accept logging/setLevel from clients; the transport (POST, single JSON response) doesn't push
           // notifications/message, so the level is recorded and used for the response-side trace block only.
@@ -5097,6 +5075,13 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           "botchelor/notifications_pushed_note": "This server returns one JSON response per request (no SSE). notifications/progress isn't pushed; progressToken on a request is echoed back in the response _meta so clients can correlate.",
           "botchelor/tools_core_count": CORE_TOOL_ORDER.length,
           "botchelor/tools_total_count": PUBLIC_MCP_TOOLS.length,
+          // Reflects what the client offered, so an operator can audit what the integration gave the server access to.
+          "botchelor/client_capabilities": {
+            sampling: Boolean((clientCaps as { sampling?: unknown }).sampling),
+            elicitation: Boolean((clientCaps as { elicitation?: unknown }).elicitation),
+            roots: Boolean((clientCaps as { roots?: unknown }).roots),
+          },
+          "botchelor/subscribable_resources": SUBSCRIBABLE,
         },
         instructions: instructions(),
       });
@@ -5119,6 +5104,27 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       return reply({ resources: MCP_RESOURCES });
     case "resources/templates/list":
       return reply({ resourceTemplates: MCP_RESOURCE_TEMPLATES });
+    case "resources/subscribe": {
+      const uri = typeof msg.params?.uri === "string" ? msg.params.uri : "";
+      const sid = ctx.sessionId ?? ctx.issuedSessionId ?? "";
+      if (!sid) return fail(-32602, "resources/subscribe needs an initialized session (send mcp-session-id).");
+      if (!isSubscribable(uri)) return fail(-32602, `resources/subscribe doesn't accept ${uri || "(none)"}. Subscribable: ${SUBSCRIBABLE.join(", ")}.`);
+      subscribeResource(sid, uri);
+      // The spec says subscribe returns an empty result; add _meta hint about push availability for clients that read it.
+      return reply({
+        _meta: {
+          "botchelor/pushed": false,
+          "botchelor/pushed_note": "This transport returns one JSON response per request (no SSE). The subscription is recorded; pending updates ride along in tool-reply _meta until the SSE transport is wired.",
+        },
+      });
+    }
+    case "resources/unsubscribe": {
+      const uri = typeof msg.params?.uri === "string" ? msg.params.uri : "";
+      const sid = ctx.sessionId ?? ctx.issuedSessionId ?? "";
+      if (!sid) return fail(-32602, "resources/unsubscribe needs an initialized session.");
+      unsubscribeResource(sid, uri);
+      return reply({});
+    }
     case "resources/read": {
       const uri = typeof msg.params?.uri === "string" ? msg.params.uri : "";
       const found = await readResource(uri, await getDb(), ctx.base);
@@ -5262,6 +5268,10 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // HTTP). On a future SSE/streamable transport, the server will push notifications/progress keyed by this token.
       const progressToken = (msg.params?._meta as { progressToken?: string | number } | undefined)?.progressToken;
       const result = toToolResult(out, session);
+      // Resource-subscription pending updates: a client that subscribed to a URI gets its id in every tool reply's
+      // `_meta.botchelor/pending_updates` on the next call after the resource moved. Idempotent: drains them.
+      const sid = ctx.sessionId ?? ctx.issuedSessionId ?? "";
+      const pending = sid ? drainPending(sid) : [];
       if (progressToken !== undefined && progressToken !== null) {
         const existingMeta = (result._meta ?? {}) as Record<string, unknown>;
         result._meta = {
@@ -5269,6 +5279,14 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           progressToken,
           "botchelor/progress_pushed": false,
           "botchelor/progress_note": "This transport returns one JSON response per request; notifications/progress isn't pushed. The response reflects the finished state.",
+        };
+      }
+      if (pending.length) {
+        const existingMeta = (result._meta ?? {}) as Record<string, unknown>;
+        result._meta = {
+          ...existingMeta,
+          "botchelor/pending_updates": pending,
+          "botchelor/pending_updates_note": "Resources you subscribed to have moved on. Re-read them (resources/read).",
         };
       }
       return reply(result);
