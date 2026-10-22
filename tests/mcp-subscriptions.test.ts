@@ -27,8 +27,8 @@ describe("resources/subscribe", () => {
       { jsonrpc: "2.0", id: 1, method: "resources/subscribe", params: { uri: SUBSCRIBABLE[0] } },
       ctx,
     ))!.result as Any;
-    expect(res._meta["botchelor/pushed"]).toBe(false);
-    expect(res._meta["botchelor/pushed_note"]).toMatch(/no SSE/);
+    expect(res._meta["botchelor/pushed"]).toBe(true);
+    expect(res._meta["botchelor/pushed_note"]).toMatch(/SSE stream/);
   });
 
   it("refuses an unknown URI with a list of what's subscribable", async () => {

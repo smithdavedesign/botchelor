@@ -1,4 +1,5 @@
 import { handleMcpPost, toolsListResult, type McpContext } from "@/lib/mcp";
+import { attachStream, sseFrame } from "@/lib/mcp-stream";
 import { visitorKey } from "@/lib/limits";
 import { requestBase } from "@/lib/site";
 
@@ -64,24 +65,69 @@ export function OPTIONS(): Response {
 }
 
 /**
- * No server-initiated stream: a GET for one (Accept: text/event-stream) returns 405 (spec-compliant for a server without
- * SSE). #412: the quickstart's /api/mcp?tools=all reads like a URL, so a GET with ?tools=all (or ?tools=core) answers
- * with the same list tools/list gives.
+ * GET /api/mcp:
+ *  - with Accept: text/event-stream and a session id, opens a server-sent-events stream so the server can push
+ *    notifications/resources/updated, notifications/progress, sampling/createMessage and elicitation/create to
+ *    the client. Needs an initialized session (mcp-session-id header or ?session=id query).
+ *  - with ?tools=all or ?tools=core, returns the same list tools/list gives (quickstart convenience).
+ *  - otherwise, 405 with a hint.
  */
 export function GET(req: Request): Response {
-  const toolset = new URL(req.url).searchParams.get("tools");
+  const url = new URL(req.url);
+  const toolset = url.searchParams.get("tools");
   const wantsStream = (req.headers.get("accept") ?? "").includes("text/event-stream");
-  if (!wantsStream && (toolset === "all" || toolset === "core")) {
+  if (wantsStream) {
+    const sessionId = req.headers.get("mcp-session-id") ?? url.searchParams.get("session") ?? "";
+    if (!sessionId) {
+      return new Response(JSON.stringify({ error: "need_session", message: "Open a GET stream with mcp-session-id (or ?session=<id>) from your initialize." }), { status: 400, headers: JSON_HEADERS });
+    }
+    const encoder = new TextEncoder();
+    let detach: (() => void) | null = null;
+    let eventId = 0;
+    const stream = new ReadableStream({
+      start(controller) {
+        // Opening frame so clients get something right away.
+        controller.enqueue(encoder.encode(`:ok\n\n`));
+        detach = attachStream(sessionId, (msg) => {
+          eventId += 1;
+          controller.enqueue(encoder.encode(sseFrame(msg, eventId)));
+        });
+        // Keep-alive comment every 25 s (under most proxies' 30 s idle cutoff).
+        const keepAlive = setInterval(() => {
+          try { controller.enqueue(encoder.encode(`:ka\n\n`)); } catch { /* already closed */ }
+        }, 25_000);
+        req.signal.addEventListener("abort", () => {
+          clearInterval(keepAlive);
+          if (detach) detach();
+          try { controller.close(); } catch { /* already closed */ }
+        });
+      },
+      cancel() {
+        if (detach) detach();
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-store, no-transform",
+        connection: "keep-alive",
+        "x-accel-buffering": "no",
+        ...CORS,
+      },
+    });
+  }
+  if (toolset === "all" || toolset === "core") {
     return new Response(JSON.stringify(toolsListResult({}, { toolset })), { status: 200, headers: JSON_HEADERS });
   }
   return new Response(
     JSON.stringify({
       error: "use_post",
       message:
-        "Botchelor MCP: JSON-RPC 2.0 over POST (Streamable HTTP). No SSE stream. Start with an initialize request; see /agents. " +
+        "Botchelor MCP: JSON-RPC 2.0 over POST (Streamable HTTP). Open a GET stream with Accept: text/event-stream and your mcp-session-id for server-initiated notifications. See /agents. " +
         "tools/list shows the core tools; POST tools/list to /api/mcp?tools=all (or GET /api/mcp?tools=all) for every tool, " +
         "and params { lean: true } for names and one line each. Any tool works by name.",
     }),
-    { status: 405, headers: { ...JSON_HEADERS, allow: "POST, OPTIONS" } },
+    { status: 405, headers: { ...JSON_HEADERS, allow: "POST, GET, OPTIONS" } },
   );
 }
