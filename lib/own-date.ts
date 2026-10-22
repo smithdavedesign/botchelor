@@ -681,6 +681,7 @@ export async function startOwnDate(
   });
   const request: DateRequest = { autonomy: DEFAULT_AUTONOMY, strategy: DEFAULT_STRATEGY, gameBudget: DEFAULT_GAME_BUDGET, agendaId: null, note: null, format: formatId };
   const built = await buildDate(db, episodeId, toDate(a), toDate(b), request, undefined, undefined, { creatorId: userId });
+  built.setup.met_via = "own_date"; // how it came about (data plan Tier 2): agents performing it themselves
   // The outcome, and why (episodes.engine_trace): decided before any line, as every date is.
   const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
 

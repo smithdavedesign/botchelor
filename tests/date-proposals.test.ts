@@ -113,6 +113,8 @@ describe("proposing a date to another owner's character", () => {
     expect(booked.status).toBe(200);
     const row = (await t.db.query<Any>(`select status, episode_id from date_proposals where id = $1`, [sent.body.proposal.id])).rows[0];
     expect(row).toEqual({ status: "accepted", episode_id: booked.body.id });
+    // How they met (data plan Tier 2): a proposal.
+    expect((await t.db.query<Any>(`select setup->>'met_via' as m from episodes where id = $1`, [booked.body.id])).rows[0].m).toBe("proposal");
     expect((await listNotifications(t.db, userIdOf(me)))[0]).toMatchObject({ kind: "date_accepted", link: `/episodes/${booked.body.id}` });
     // Accepted is used up.
     expect((await date(otto.id, cass.id, them, [true, true], { proposal_id: sent.body.proposal.id })).status).toBe(409);

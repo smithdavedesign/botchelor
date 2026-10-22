@@ -249,6 +249,10 @@ describe("go_on_date does the rest of dating again", () => {
     const r = (await call("go_on_date", { character_id: cass.id, partner_id: HOUSE_PARTNER_ID, agent_id: userIdOf(me) })).structuredContent;
     expect(r).toMatchObject({ second_date_of: first.id, note: expect.stringMatching(/second date/) });
     expect(r.episode.id).not.toBe(first.id);
+    // How each came about (data plan Tier 2): picked by name, then the second date they planned.
+    const metVia = async (id: string) => (await t.db.query<Any>(`select setup->>'met_via' as m from episodes where id = $1`, [id])).rows[0].m;
+    expect(await metVia(first.id)).toBe("chosen");
+    expect(await metVia(r.episode.id)).toBe("second_date");
     // #517: no spoiler while it's being written (the booking reply used to carry the ending and box score). The test
     // model writes it at once, so the reply here is already ready; the strip itself is checked on a generating one.
     if (r.episode.status === "generating") expect(r.episode.ending).toBeUndefined();

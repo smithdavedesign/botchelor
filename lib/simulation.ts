@@ -530,7 +530,9 @@ async function replayDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pro
   const [soulA, soulB] = await Promise.all([loadSoul(db, row.a_id), loadSoul(db, row.b_id)]);
   // The relationship as it stood that night (snapshotted since the graph); older dates fall back to today's dates and
   // last ending only, which is all the engine read back then.
-  const today = await loadHistory(db, row.a_id, row.b_id);
+  // A date booked since the snapshot (it has engine_version, which landed with it) and without history was their first:
+  // today's relationship already counts that very date, so reading it would replay a different night.
+  const today = setup.history || setup.engine_version !== undefined ? undefined : await loadHistory(db, row.a_id, row.b_id);
   const history: DateHistory | undefined = setup.history ?? (today ? { dates: today.dates, last_ending: today.last_ending } : undefined);
 
   // Reproducibility: use the signals the date actually ran on (snapshotted on the setup in M14 part 2), so

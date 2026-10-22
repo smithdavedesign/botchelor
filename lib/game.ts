@@ -54,6 +54,10 @@ export type CharacterRef = {
 export type CreatorRef = { character_id: string; name: string };
 
 /** The per-date settings the owner chose (PRD budget & autonomy). Stored as episodes.setup (jsonb). */
+/** How a date came about (DateSetup.met_via). */
+export const MET_VIA = ["blind", "match", "proposal", "chosen", "second_date", "own_date", "show"] as const;
+export type MetVia = (typeof MET_VIA)[number];
+
 export type DateSetup = {
   autonomy: Autonomy;
   strategy: Strategy;
@@ -138,6 +142,12 @@ export type DateSetup = {
   show_from_line?: number;
   /** Which date this is in the couple's run (2 for the second date, 3 for the third...). Set when one is booked. */
   date_number?: number;
+  /**
+   * How this date came about (data plan Tier 2), set when it's booked: a blind date, a swipe match, a proposal, a
+   * partner picked by name, a second date from a morning-after plan, a date agents perform, or a show room. Absent on
+   * dates booked before 2026-10-22. Server-side only: no public view carries it.
+   */
+  met_via?: MetVia;
   /** Each owner's standing nudge about the other, as booked (lib/between-dates.ts). Private, flavour only. */
   nudge_a?: string;
   nudge_b?: string;

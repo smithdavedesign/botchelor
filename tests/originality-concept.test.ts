@@ -28,5 +28,9 @@ describe("originality-concept", () => {
     expect(conceptEnabled({ ORIGINALITY_CONCEPT: "1", GOOGLE_API_KEY: "k" })).toBe(true);
     expect(conceptEnabled({ ORIGINALITY_CONCEPT: "0", GOOGLE_API_KEY: "k" })).toBe(false);
     expect(conceptEnabled({ ORIGINALITY_CONCEPT: "1", EMBED_API_KEY: "k" })).toBe(true);
+    // The show's own Google key through LLM_API_KEY counts (lib/model.ts), another provider's doesn't.
+    expect(conceptEnabled({ ORIGINALITY_CONCEPT: "1", LLM_API_KEY: "k" })).toBe(true);
+    expect(conceptEnabled({ ORIGINALITY_CONCEPT: "1", LLM_API_KEY: "k", LLM_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai" })).toBe(true);
+    expect(conceptEnabled({ ORIGINALITY_CONCEPT: "1", LLM_API_KEY: "k", LLM_BASE_URL: "https://api.example.com/v1" })).toBe(false);
   });
 });

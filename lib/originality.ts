@@ -11,6 +11,7 @@
 import type { Db } from "./db";
 import { publicExtras, type CharacterExtras } from "./extras";
 import { contentWords, EVERYDAY_WORDS } from "./quality";
+import { DELETED_OWNER } from "./rules";
 
 export type SheetDraft = {
   name?: string;
@@ -405,19 +406,21 @@ async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string
   const extra = `created_via = 'mcp' and not is_house as agent, to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as made_at`;
   const [main, fresh] = await Promise.all([
     db.query<Row>(
+      // Only characters anyone can see (data plan Tier 2): a twin note names the other character and the terms it
+      // shares, so a private character or a deleted account's never takes part.
       `select id, name, bio, traits, want, voice, extras, ${recentSql} and not is_house and visibility = 'public' as recent, ${extra} from characters
-        where ($1::text is null or id <> $1)
+        where ($1::text is null or id <> $1) and visibility = 'public' and owner_id is distinct from $2
         order by is_house desc, created_at desc
         limit 500`,
-      [excludeId],
+      [excludeId, DELETED_OWNER],
     ),
     // 2.4.3: every public character made in the last RECENT_HOURS, by anyone (characters_created_idx), whatever the cap above left out.
     db.query<Row>(
       `select id, name, bio, traits, want, voice, extras, true as recent, ${extra} from characters
-        where ${recentSql} and not is_house and visibility = 'public' and ($1::text is null or id <> $1)
+        where ${recentSql} and not is_house and visibility = 'public' and owner_id is distinct from $2 and ($1::text is null or id <> $1)
         order by created_at desc
         limit ${RECENT_LIMIT}`,
-      [excludeId],
+      [excludeId, DELETED_OWNER],
     ),
   ]);
   const seen = new Set(main.rows.map((r) => r.id));
@@ -543,9 +546,21 @@ export function scoreSheet(sheet: SheetDraft, cliches: Cliche[], similar: Lookal
   };
 }
 
-/** The whole check, with lookalikes from the database (2.4.3: and a suggestion when a name and job are too close to a recent one's). */
-export async function originality(db: Db, sheet: SheetDraft, excludeId: string | null = null): Promise<OriginalityReport> {
-  const { found, recent, rows } = await lookalikesWithRecent(db, sheet, excludeId, 3);
+/**
+ * The whole check, with lookalikes from the database (2.4.3: and a suggestion when a name and job are too close to a
+ * recent one's). `also`: more look-alikes to weigh after the word-based ones, each character once: the twins by meaning
+ * that server callers pass in (lib/originality-concept.ts originalityWithConcepts). This file stays free of server-only
+ * imports because the builder imports it in the browser (findCliches).
+ */
+export async function originality(
+  db: Db,
+  sheet: SheetDraft,
+  excludeId: string | null = null,
+  also: Lookalike[] | Promise<Lookalike[]> = [],
+): Promise<OriginalityReport> {
+  const [words, more] = await Promise.all([lookalikesWithRecent(db, sheet, excludeId, 3), Promise.resolve(also).catch(() => [])]);
+  const { recent, rows } = words;
+  const found = [...words.found, ...more.filter((c) => !words.found.some((f) => f.id === c.id))].slice(0, 3);
   const report = scoreSheet(sheet, findCliches(sheet), found);
   const close = found.filter((f) => f.name_and_job).flatMap((f) => rows.filter((r) => r.id === f.id));
   if (!close.length) return report;

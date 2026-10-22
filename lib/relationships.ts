@@ -21,6 +21,7 @@ import type { Db } from "./db";
 import type { DateHistory, SideOutcome, VariableArc } from "./engine";
 import type { Turn } from "./conversation";
 import type { AfterglowLine } from "./afterglow";
+import type { MetVia } from "./game";
 import { contentWords, tokens } from "./quality";
 import { ENDING_LABELS, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 import { checkFields } from "./safety";
@@ -56,6 +57,11 @@ export type HistoryItem = {
   followup_of: string | null;
   /** Which date this was for the couple (2, 3, ...) when it followed another; absent on a first date. */
   date_number?: number;
+  /**
+   * How this date came about (DateSetup.met_via; data plan Tier 2): absent on dates booked before it was recorded.
+   * Server-side: viewRelationship never shows it (a "match" or "proposal" is its owners' business).
+   */
+  met_via?: MetVia;
 };
 
 /** Something one of them said about themselves on a date. `about` is the end that said it. */
@@ -128,6 +134,7 @@ export type RelEpisode = {
   venue: PlaceId | null;
   followup_of: string | null;
   date_number?: number | null;
+  met_via?: MetVia | null;
 };
 
 const iso = (d: string | Date | null): string | null => (d === null ? null : new Date(d).toISOString());
@@ -378,6 +385,7 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
       ...(e.partner_performer ? { performer: e.partner_performer } : {}),
       followup_of: e.followup_of,
       ...(e.followup_of ? { date_number: e.date_number ?? 2 } : {}),
+      ...(e.met_via ? { met_via: e.met_via } : {}),
     };
   });
   const endOf = (e: RelEpisode) => (side: "a" | "b"): End => ((side === "a") === (e.character_a === lo) ? "lo" : "hi");
@@ -413,7 +421,7 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
 const REL_EPISODES = `
   select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.partner_performer, e.character_a, e.character_b, e.ending,
          e.sides, e.box_score, e.transcript, e.afterglow, e.setup->>'venue' as venue, e.followup_of,
-         (e.setup->>'date_number')::int as date_number,
+         (e.setup->>'date_number')::int as date_number, e.setup->>'met_via' as met_via,
          (select count(*)::int from reports r where r.episode_id = e.id) >= $3 as hidden
     from episodes e
    where e.status = 'ready' and e.varies_episode_id is null

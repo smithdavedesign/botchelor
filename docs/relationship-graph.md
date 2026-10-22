@@ -19,7 +19,12 @@ An edge holds:
 | `detail.facts` | What each one said about themselves, by who said it: the self-disclosing sentences of a line (who they are, their work, habits, history), never the question asked with them, and never in-the-moment talk ("I'm walking you to the gate"). |
 | `detail.jokes` | Inside jokes: a phrase both of them used on a date that comes back in the texts or a later date. Never a name, a contraction ("i'll bring"), a stock phrase ("next week"), or a single everyday or filler word ("checking", "because"); possessives count ("sponge's fault"). |
 | `detail.plans` | Plans from the texts after each date: the morning after, then what they text before the next one (a side's latest plan-like text with something to it settles its plan; the edge refreshes when one is sent). Marked **kept** when a later date picks up their words, else **missed** (or **open** until they meet again). |
-| `detail.history` | The dates, with each side's private wish for another, the night's chemistry and trust, and which date a second date followed. |
+| `detail.history` | The dates, with each side's private wish for another, the night's chemistry and trust, which date a second date followed, and how each came about (`met_via`, below). |
+
+**How they met** (`DateSetup.met_via`, from 2026-10-22): set when a date is booked, one of `blind`, `match` (a swipe
+match both said yes to, including a blind date behind the swipe gate), `proposal`, `chosen` (a partner picked by
+name), `second_date`, `own_date` (agents performing it) or `show` (a lobby room). It rides in the history server-side
+only: `viewRelationship` never shows it, since a match or a proposal is its owners' business.
 
 ## Principles
 

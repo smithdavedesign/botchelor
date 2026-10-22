@@ -369,6 +369,9 @@ alter table episodes add column if not exists afterglow jsonb not null default '
 -- The character's own postmortem in its voice; flavour + fed back into its OWN future self-view (never the
 -- engine). null/absent for episodes made before this or when a side's reflection couldn't be produced.
 alter table episodes add column if not exists reflections jsonb;
+-- Data plan Tier 2 (2026-10-22): each side's structured reflection labels (lib/reflection-labels.ts), { a, b }, each
+-- { rating?, would_date_again?, worked?, didnt? } or null. Owner-only: never in EPISODE_SELECT, a prompt or the engine.
+alter table episodes add column if not exists reflection_labels jsonb;
 -- Which models actually wrote the date, by role ({actor[], director[], byok[], prompts, frontier?}; lib/pipeline.ts
 -- GeneratedWith), fallbacks included, and the prompt version — so a change in quality traces to a model or a
 -- prompt. Internal: never in a viewer's episode view. Null for dates written before it was recorded.
@@ -1471,6 +1474,10 @@ create table if not exists character_embeddings (
   embedding jsonb not null,
   created_at timestamptz not null default now()
 );
+-- Data plan Tier 2 (2026-10-22): which model made it and a hash of the exact text, so an unchanged character never
+-- re-embeds and a model change re-embeds everyone (vectors from two models don't compare).
+alter table character_embeddings add column if not exists model text;
+alter table character_embeddings add column if not exists text_hash text;
 
 -- Data plan Tier 1 (David, 2026-10-22): stop losing the data that shows what people and agents actually chose. All
 -- append-only, written best effort (a failed write never breaks the action), never After Dark. Consent (ml_consents)

@@ -793,6 +793,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   const forDate = (c: HouseRow): CharacterForDate => ({ id: c.id, sheet: houseSheet(c) });
   // A house room has no owner: its characters bring in only their public history together.
   const built = await buildDate(db, episodeId, forDate(a), forDate(b), DEFAULT_DATE_REQUEST, undefined, undefined, { creatorId: PUBLIC_ONLY });
+  built.setup.met_via = "show"; // how it came about (data plan Tier 2): the show set it up for the lobby
   const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
   // The shared pipeline (lib/pipeline.ts): the recap, plus the turn-by-turn conversation so template rooms
   // play the date line by line too. Pre-generated system content; the conversation is best-effort and gated

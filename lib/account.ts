@@ -38,6 +38,7 @@ export type AccountExport = {
   memory_forgets: Record<string, unknown>[];
   /** Their characters' reflections on each date (show-written or their own), by episode and character. */
   reflections: Record<string, unknown>[];
+  reflection_labels: Record<string, unknown>[];
   /** Saved provider keys: the provider, last four and model only (the key itself is never exported or shown). */
   provider_keys: Record<string, unknown>[];
   /** Between dates (lib/between-dates.ts): their characters' texts, the nudges they left, their second-date yeses. */
@@ -115,6 +116,16 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
          from episodes e join characters c on c.id in (e.character_a, e.character_b)
         where c.owner_id = $1 and not c.is_house and e.reflections is not null
           and (case when e.character_a = c.id then e.reflections->>'a' else e.reflections->>'b' end) is not null
+        order by e.created_at`,
+      [userId],
+    ),
+    // How each of their characters rated its dates (data plan Tier 2): rating, would date again, what worked and didn't.
+    reflection_labels: await q(
+      `select e.id as episode_id, c.id as character_id,
+              case when e.character_a = c.id then e.reflection_labels->'a' else e.reflection_labels->'b' end as labels
+         from episodes e join characters c on c.id in (e.character_a, e.character_b)
+        where c.owner_id = $1 and not c.is_house and e.reflection_labels is not null
+          and jsonb_typeof(case when e.character_a = c.id then e.reflection_labels->'a' else e.reflection_labels->'b' end) = 'object'
         order by e.created_at`,
       [userId],
     ),
@@ -209,6 +220,16 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
       where reflections is not null and (character_a = any($1) or character_b = any($1))`,
     [characterIds],
   );
+  // Their side's reflection labels (data plan Tier 2), like the reflection text above.
+  await db.query(
+    `update episodes set reflection_labels = jsonb_build_object(
+        'a', case when character_a = any($1) then null else reflection_labels->'a' end,
+        'b', case when character_b = any($1) then null else reflection_labels->'b' end)
+      where reflection_labels is not null and (character_a = any($1) or character_b = any($1))`,
+    [characterIds],
+  );
+  // Their concept embedding (lib/originality-concept.ts): a tombstone keeps the row, so the cascade wouldn't take it.
+  await db.query("delete from character_embeddings where character_id = any($1)", [characterIds]);
 }
 
 export type CharacterDeletion = { deleted: boolean; anonymized: boolean };

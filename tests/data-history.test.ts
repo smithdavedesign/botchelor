@@ -140,6 +140,19 @@ describe("episode_variations: an owner's Sliding Doors runs, kept", () => {
     for (const s of rows[0].alt_sides) expect(typeof s.dealbreaker_hit).toBe("boolean");
   });
 
+  it("a first date replays as it stood that night, even once the pair's relationship counts it", async () => {
+    // Before the fix, the replay of a first date read today's relationship (which already holds that very date), so
+    // for some seeds its "unchanged" replay came out different and the row said faithful: false.
+    for (let i = 0; i < 8; i++) {
+      const { owner, cookie, episode } = await bookedDate({ realEngine: true });
+      await api.reveal(episode, cookie);
+      await slidingDoors(t.db, episode, owner, "bolder");
+    }
+    const rows = (await t.db.query<Any>(`select faithful from episode_variations`)).rows;
+    expect(rows).toHaveLength(8);
+    expect(rows.every((r: Any) => r.faithful === true)).toBe(true);
+  });
+
   it("the chaos replay a watch party polls is never stored", async () => {
     const { episode } = await bookedDate({ realEngine: true });
     expect(await chaosReplay(t.db, episode, "bolder")).not.toBeNull();
