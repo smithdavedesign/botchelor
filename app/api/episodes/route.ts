@@ -6,7 +6,7 @@ import { releaseEpisode, reserveEpisode, reserveSecondDate, type Reservation } f
 import { portraitPathSql } from "@/lib/assets";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb, type Db } from "@/lib/db";
-import { getEngine } from "@/lib/engine";
+import { decideTraced } from "@/lib/engine";
 import { getEpisodeView, listFeed, toEpisodeJson, type CharacterRef, type StoredEpisode } from "@/lib/game";
 import { handle, json, parseBody, readJson, session, userIdFromRequest, type Session } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
@@ -405,7 +405,8 @@ async function writeAndSave(
   });
   // Which date this is for the couple (lib/rules dateLabel): the badge says "Third date", not always "Second".
   if (secondDate) built.setup.date_number = secondDate.dateNumber;
-  const decided = getEngine().decide(built.input, built.seed, built.setup.engine_version);
+  // The outcome, and why (episodes.engine_trace: margin, reason codes, terms; never a cue word).
+  const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
 
   // Write the episode 'generating' with the engine outcome but placeholder narration; the background job
   // fills the scenes + transcript and flips it to 'ready'. The block re-check stays here, so a blocked
@@ -413,9 +414,9 @@ async function writeAndSave(
   const saved = await db.query<{ id: string }>(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
                            drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup,
-                           note, self_pick, transcript, status, visibility, followup_of)
+                           note, self_pick, transcript, status, visibility, followup_of, engine_trace)
      select $1, $2, $3, $4, '', '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, $7, $8, $9::jsonb, $10::jsonb, null,
-            '[]'::jsonb, $11::jsonb, $12, $13, '[]'::jsonb, 'generating', $14, $15
+            '[]'::jsonb, $11::jsonb, $12, $13, '[]'::jsonb, 'generating', $14, $15, $16::jsonb
       where not exists (
         select 1 from characters pc
           join blocks bl on (bl.blocker_id = $2 and bl.blocked_id = pc.owner_id)
@@ -438,6 +439,7 @@ async function writeAndSave(
       input.self_pick ?? null,
       secondDate?.visibility ?? input.visibility ?? "public",
       secondDate?.followupOf ?? null,
+      trace ? JSON.stringify(trace) : null,
     ],
   ).catch((err: unknown) => {
     // Two owners booking the same second date at once: the unique followup_of lets exactly one through.

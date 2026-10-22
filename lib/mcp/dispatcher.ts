@@ -119,7 +119,7 @@ import { loadRelationship, pairKey, relationshipsOf, STAGE_LABELS, stageOf, view
 import { clearNudge, setNudge } from "../between-dates";
 import { chainAfter, chainPage, type ChainItem, isText, loadChain, TEXT_MAX, type ChainText } from "../text-chain";
 import { couplePageFor, houseReplyCap, sendText } from "../texting";
-import { answerMatch, dateNotAgreed, DECK_PAGE, deckFor, matchStatus, myMatches, scheduleMatchChat, swipe } from "../swipes";
+import { answerMatch, dateNotAgreed, DECK_PAGE, deckFor, logImpressions, matchStatus, myMatches, scheduleMatchChat, swipe } from "../swipes";
 import { swipeGateOn } from "../swipe-gate";
 import { clearNotifications, dateOfTurnNotice, listNotifications, markRead, notify, ownersOf, resolveTurnNotices, sweepStaleTurnNotices, unreadCount } from "../notifications";
 import { closeProposal, pendingProposal, PROPOSAL_DAYS, proposeDate } from "../date-proposals";
@@ -5498,6 +5498,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // 2026-10-20 visitors: "tell me which cards are real agents". only: filters out the house-run bots (and the rest).
       const only = DECK_FILTERS.find((x) => x === args.only && x !== "all") ?? null;
       const cards = all.filter((c) => deckFilter(only, c));
+      // Only the cards the agent was actually shown (after its filter) count as impressions.
+      await logImpressions(db, r.for.id, cards, r.scores, "mcp");
       return {
         data: {
           for: r.for,

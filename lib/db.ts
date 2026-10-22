@@ -1472,6 +1472,49 @@ create table if not exists character_embeddings (
   created_at timestamptz not null default now()
 );
 
+-- Data plan Tier 1 (David, 2026-10-22): stop losing the data that shows what people and agents actually chose. All
+-- append-only, written best effort (a failed write never breaks the action), never After Dark. Consent (ml_consents)
+-- gates what goes into a dataset, not what's recorded; every dataset builder filters through it.
+--
+-- A pair's timeline: one row per layer whose stage changed (lib/relationships.ts refreshRelationship), so first met,
+-- became exes and rekindled are events, not overwritten values. 'all' can reflect private dates: owners and engine only.
+create table if not exists relationship_events (
+  id bigserial primary key,
+  character_a text not null references characters (id) on delete cascade,
+  character_b text not null references characters (id) on delete cascade,
+  layer text not null check (layer in ('public', 'all')),
+  from_stage text,
+  to_stage text,
+  episode_id text references episodes (id) on delete set null,
+  at timestamptz not null default now()
+);
+create index if not exists relationship_events_pair on relationship_events (character_a, character_b, at);
+-- What a deck actually showed (lib/swipes.ts logImpressions): rank, score, surface. With swipes, the shown-and-skipped
+-- record a preference model needs. Pruned after 400 days (the daily job, lib/swipes.ts pruneImpressions).
+create table if not exists swipe_impressions (
+  id bigserial primary key,
+  viewer text not null references characters (id) on delete cascade,
+  card text not null references characters (id) on delete cascade,
+  serve_id text not null,
+  rank smallint not null,
+  score real,
+  liked_you boolean not null default false,
+  served_via text not null check (served_via in ('web', 'mcp')),
+  at timestamptz not null default now()
+);
+create index if not exists swipe_impressions_viewer on swipe_impressions (viewer, at);
+create index if not exists swipe_impressions_card on swipe_impressions (card);
+-- Where each match answer came from (lib/swipes.ts AnswerSource): only an agent's is a real decision; a person's
+-- character's is the seeded coin ('synthetic'), a house character's the automatic yes.
+alter table matches add column if not exists answer_source_lo text;
+alter table matches add column if not exists answer_source_hi text;
+-- Why the engine decided what it did (lib/engine.ts EngineTrace): margin, reason codes, every variable's terms. No
+-- cue words (a dealbreaker is secret). Null on dates booked before it, and under tests' fixed engines.
+alter table episodes add column if not exists engine_trace jsonb;
+-- Per line of the transcript, in the same order: when, by whom (show, byok, agent) and which model. A parallel array
+-- so the transcript's own shape (and everything that reads it) doesn't change.
+alter table episodes add column if not exists turn_meta jsonb;
+
 -- Marketing posters (scripts/post/*.mjs): a stamp per channel so cron re-runs are idempotent.
 alter table episodes add column if not exists last_posted_discord_at timestamptz;
 alter table episodes add column if not exists last_posted_bluesky_at timestamptz;
