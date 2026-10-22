@@ -12,6 +12,20 @@
  * ends. Pure data + zod, no server imports: the builder (a client component) and the API share this file.
  */
 import { z } from "zod";
+import {
+  ARCHETYPE_IDS,
+  archetypeLabel,
+  DRAWN_TO_IDS,
+  DRAWN_TO_MAX,
+  goalLabel,
+  GOAL_IDS,
+  KIND_IDS,
+  KIND_LABEL_MAX,
+  kindLabel,
+  type ArchetypeId,
+  type GoalId,
+  type KindId,
+} from "./kinds";
 import { LOOK_STEPS, LooksInput, normaliseLooks, publicLooks, type Looks } from "./looks";
 
 export const STAR_SIGNS = [
@@ -123,6 +137,12 @@ export const ExtrasInput = z
     ...(Object.fromEntries(TEXT_DETAIL_KEYS.map((k) => [k, opt(TEXT_DETAILS[k].max)])) as Record<TextDetail, ReturnType<typeof opt>>),
     star_sign: z.enum(STAR_SIGNS).optional(),
     love_language: z.enum(LOVE_LANGUAGES).optional(),
+    /** Who they are (lib/kinds.ts): what they are, the type they play, what they're here for, the kinds they're drawn to. */
+    kind: z.enum(KIND_IDS).optional(),
+    kind_label: z.string().trim().max(KIND_LABEL_MAX, `At most ${KIND_LABEL_MAX} characters.`).optional(),
+    archetype: z.enum(ARCHETYPE_IDS).optional(),
+    here_for: z.enum(GOAL_IDS).optional(),
+    drawn_to: z.array(z.enum(DRAWN_TO_IDS)).max(DRAWN_TO_MAX, `At most ${DRAWN_TO_MAX} kinds.`).optional(),
     hobbies: z.array(z.string().trim().min(1).max(30)).max(MAX_HOBBIES, `At most ${MAX_HOBBIES} hobbies.`).optional(),
     prompts: z
       .array(z.object({ id: z.enum(PROMPT_IDS), answer: z.string().trim().min(1).max(160) }))
@@ -153,6 +173,13 @@ export type ExtrasInputType = z.infer<typeof ExtrasInput>;
 export type CharacterExtras = Partial<Record<TextDetail, string>> & {
   star_sign?: (typeof STAR_SIGNS)[number];
   love_language?: (typeof LOVE_LANGUAGES)[number];
+  /** What they are (lib/kinds.ts); `kind_label` names an "other" in the owner's words. */
+  kind?: KindId;
+  kind_label?: string;
+  archetype?: ArchetypeId;
+  here_for?: GoalId;
+  /** The kinds they're drawn to: a small nudge in their swipe deck's order, never a filter. */
+  drawn_to?: Exclude<KindId, "other">[];
   hobbies?: string[];
   prompts?: { id: PromptId; answer: string }[];
   /** Sample lines in their voice (see SAMPLE_LINES). */
@@ -186,7 +213,17 @@ export function normaliseExtras(input: ExtrasInputType | null | undefined): Char
   }
   if (input.star_sign) out.star_sign = input.star_sign;
   if (input.love_language) out.love_language = input.love_language;
-  const hobbies = [...new Set((input.hobbies ?? []).map((h) => h.trim()).filter(Boolean))];
+  if (input.kind) out.kind = input.kind;
+  // A label only names an "other": with any listed kind it would just contradict it.
+  const kindLabelText = input.kind_label?.trim();
+  if (input.kind === "other" && kindLabelText) out.kind_label = kindLabelText;
+  if (input.archetype) out.archetype = input.archetype;
+  if (input.here_for) out.here_for = input.here_for;
+  const drawnTo = [...new Set(input.drawn_to ?? [])];
+  if (drawnTo.length) out.drawn_to = drawnTo;
+  // "Chess" and "chess" are one hobby: the first spelling stays.
+  const hobbySeen = new Set<string>();
+  const hobbies = (input.hobbies ?? []).map((h) => h.trim()).filter((h) => h && !hobbySeen.has(h.toLowerCase()) && hobbySeen.add(h.toLowerCase()));
   if (hobbies.length) out.hobbies = hobbies;
   const seen = new Set<string>();
   const prompts = (input.prompts ?? []).filter((p) => p.answer.trim() && !seen.has(p.id) && seen.add(p.id));
@@ -250,6 +287,7 @@ export const hasExtras = (e: CharacterExtras | null | undefined): boolean => Boo
 export function extrasFields(e: CharacterExtras): Record<string, string | readonly string[] | undefined> {
   return {
     ...Object.fromEntries(TEXT_DETAIL_KEYS.map((k) => [k, e[k]])),
+    kind_label: e.kind_label,
     hobbies: e.hobbies,
     prompts: e.prompts?.map((p) => p.answer),
     lines: e.lines ? Object.values(e.lines) : undefined,
@@ -273,6 +311,11 @@ export function extrasForPrompt(e: CharacterExtras): Record<string, unknown> {
   for (const k of TEXT_DETAIL_KEYS) if (e[k]) out[k] = e[k];
   if (e.star_sign) out.star_sign = e.star_sign;
   if (e.love_language) out.love_language = e.love_language;
+  // What they are flavours how they talk (a vampire avoids the garlic bread); a human says nothing new. Drawn-to is
+  // left out: it's a deck preference, not something to say on a date.
+  if (e.kind && e.kind !== "human") out.what_you_are = kindLabel(e)?.replace(/^\S+\s/, "");
+  if (e.archetype) out.archetype = archetypeLabel(e.archetype);
+  if (e.here_for) out.here_for = goalLabel(e.here_for);
   if (e.hobbies?.length) out.hobbies = e.hobbies;
   if (e.prompts?.length) out.profile_answers = e.prompts.map((p) => `${promptLabel(p.id)} ${p.answer}`);
   return out;
@@ -320,7 +363,13 @@ export const profileComplete = (e: CharacterExtras | null | undefined): boolean 
 
 /** What the other character can see at a glance: only the visible details. */
 export function extrasVisible(e: CharacterExtras): string[] {
-  return [e.style ? `dressed: ${e.style}` : null, e.signature_item ? `has ${e.signature_item.replace(/^(A|An|The)\b/, (w) => w.toLowerCase())}` : null].filter((s): s is string => Boolean(s));
+  // A robot or a ghost is plain to see across the table; "human" goes without saying.
+  const what = e.kind && e.kind !== "human" ? kindLabel(e)?.replace(/^\S+\s/, "").toLowerCase() : null;
+  return [
+    what ? `is ${/^[aeiou]/.test(what) ? "an" : "a"} ${what}` : null,
+    e.style ? `dressed: ${e.style}` : null,
+    e.signature_item ? `has ${e.signature_item.replace(/^(A|An|The)\b/, (w) => w.toLowerCase())}` : null,
+  ].filter((s): s is string => Boolean(s));
 }
 
 /** Text worth searching (lib/dating.ts): everything public (private facts never). */
@@ -328,6 +377,9 @@ export function extrasText(e: CharacterExtras): string {
   return [
     ...(publicExtras(e).facts ?? []).map(factLine),
     ...TEXT_DETAIL_KEYS.map((k) => e[k] ?? ""),
+    // So a search for "vampire" or "the drifter" finds them.
+    kindLabel(e)?.replace(/^\S+\s/, "") ?? "",
+    archetypeLabel(e.archetype) ?? "",
     ...(e.hobbies ?? []),
     ...(e.prompts ?? []).map((p) => p.answer),
     ...Object.values(e.lines ?? {}),
@@ -346,6 +398,17 @@ export function extrasJsonSchema(): Record<string, unknown> {
       ...Object.fromEntries(TEXT_DETAIL_KEYS.map((k) => [k, { type: "string", maxLength: TEXT_DETAILS[k].max, description: TEXT_DETAILS[k].label }])),
       star_sign: { type: "string", enum: [...STAR_SIGNS] },
       love_language: { type: "string", enum: [...LOVE_LANGUAGES] },
+      kind: { type: "string", enum: [...KIND_IDS], description: "What they are. Use other with kind_label for anything not listed." },
+      kind_label: { type: "string", maxLength: KIND_LABEL_MAX, description: "What an other is, in your words (only with kind: other)." },
+      archetype: { type: "string", enum: [...ARCHETYPE_IDS], description: "The type they play: the show's house archetypes." },
+      here_for: { type: "string", enum: [...GOAL_IDS], description: "What they're here for." },
+      drawn_to: {
+        type: "array",
+        items: { type: "string", enum: [...DRAWN_TO_IDS] },
+        maxItems: DRAWN_TO_MAX,
+        uniqueItems: true,
+        description: "Kinds they're drawn to: nudges their swipe deck's order, never filters it.",
+      },
       hobbies: { type: "array", items: { type: "string", maxLength: 30 }, maxItems: MAX_HOBBIES },
       prompts: {
         type: "array",

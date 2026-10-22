@@ -4716,6 +4716,27 @@ button.dice:hover:not(:disabled) {
   background: var(--soft);
   box-shadow: none;
 }
+/* Drawn-to toggles (lib/kinds.ts): a chip that's a button. Off is the plain chip with an outline; on fills with the accent. */
+.drawn-to .chips button.chip {
+  margin: 0;
+  padding: 0.3rem 0.75rem;
+  border: 1.5px solid var(--line);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--text-xs);
+}
+.drawn-to .chips button.chip:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--accent);
+}
+.drawn-to .chips button.chip-on {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.drawn-to .chips button.chip:disabled {
+  cursor: not-allowed;
+}
 .prompt-edit {
   margin: 0.6rem 0;
   padding: 0.6rem 0.75rem;

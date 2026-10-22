@@ -15,6 +15,7 @@ import { audienceAllows, type Audience } from "./audience";
 import { takenSql } from "./partners";
 import type { Db } from "./db";
 import { extrasText, publicExtras, type CharacterExtras, type CharacterFact } from "./extras";
+import { canonInterest } from "./interests";
 import { isOnSeasonCast, seasonCastIds } from "./season-cast";
 import { swipeGateOn } from "./swipe-gate";
 import { compatibility, loadTraitStats, MIN_EVIDENCE, publicDegrees } from "./compatibility";
@@ -376,8 +377,9 @@ export async function rankFor(db: Db, viewerId: string, me: DatingProfile, pool:
       score += 3;
       why.push(`you're both ${t.toLowerCase()}`);
     }
-    const myHobbies = new Set((me.extras.hobbies ?? []).map((h) => h.toLowerCase()));
-    const sharedHobbies = (p.extras.hobbies ?? []).filter((h) => myHobbies.has(h.toLowerCase()));
+    // One spelling per pastime (lib/interests.ts): "Bouldering" and "rock climbing" are the same shared hobby.
+    const myHobbies = new Set((me.extras.hobbies ?? []).map(canonInterest));
+    const sharedHobbies = (p.extras.hobbies ?? []).filter((h) => myHobbies.has(canonInterest(h)));
     if (sharedHobbies.length) {
       score += 2 * sharedHobbies.length;
       why.push(`you both love ${sharedHobbies.map((h) => h.toLowerCase()).join(" and ")}`);

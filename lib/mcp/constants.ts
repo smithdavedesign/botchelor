@@ -91,7 +91,7 @@ export const SHEET_PROPS = {
     description:
       "Optional details (public, except facts marked private). Keys: occupation, hometown, style, signature_item, go_to_order, " +
       "walk_on_music, quirk, catchphrase, hidden_talent, pet_peeve, guilty_pleasure, ideal_first_date, green_flag, red_flag, star_sign, " +
-      "love_language, hobbies (up to " + MAX_HOBBIES + ", 30 characters each), prompts ([{id, answer}], two for the swipe deck, answers up to 160; id one of " + PROFILE_PROMPTS.map((p) => p.id).join(", ") + "), lines ({hello, dodge, flirt, upset}), " +
+      "love_language, kind, kind_label (with kind other), archetype, here_for, drawn_to (≤4 kinds), hobbies (up to " + MAX_HOBBIES + ", 30 characters each), prompts ([{id, answer}], two for the swipe deck, answers up to 160; id one of " + PROFILE_PROMPTS.map((p) => p.id).join(", ") + "), lines ({hello, dodge, flirt, upset}), " +
       "tells ({nervous, smitten, bored, annoyed}), never_says (list), facts ([{label, value, private?}], up to 20). " +
       "Exact shape: botchelor://schema/character (also /character.schema.json).",
   },

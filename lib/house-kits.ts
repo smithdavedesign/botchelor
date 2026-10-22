@@ -8,7 +8,9 @@
  * card and "When you're nervous, you …" in the character's own prompt (lib/personality.ts).
  */
 import type { CharacterExtras } from "./extras";
+import { ALL_HOUSE_CHARACTERS } from "./house";
 import { HOUSE_PROFILES } from "./house-profiles";
+import { archetypeId } from "./kinds";
 
 const VOICE_KITS: Record<string, CharacterExtras> = {
   "house-rafe": {
@@ -268,7 +270,18 @@ const VOICE_KITS: Record<string, CharacterExtras> = {
   },
 };
 
+/**
+ * Who each house character is (lib/kinds.ts): all human, each with its own archetype from the cast sheet. Part of
+ * HOUSE_KITS, which schemaVersion() hashes, so a deployed database picks it up on its next start.
+ */
+const WHO: Record<string, Pick<CharacterExtras, "kind" | "archetype">> = Object.fromEntries(
+  ALL_HOUSE_CHARACTERS.map((c) => {
+    const archetype = archetypeId(c.archetype);
+    return [c.id, { kind: "human" as const, ...(archetype ? { archetype } : {}) }];
+  }),
+);
+
 /** Each house character's public details: its voice kit, and its dating profile for the swipe deck (lib/house-profiles.ts). */
 export const HOUSE_KITS: Record<string, CharacterExtras> = Object.fromEntries(
-  Object.entries(VOICE_KITS).map(([id, kit]) => [id, { ...HOUSE_PROFILES[id], ...kit }]),
+  Object.entries(VOICE_KITS).map(([id, kit]) => [id, { ...HOUSE_PROFILES[id], ...WHO[id], ...kit }]),
 );

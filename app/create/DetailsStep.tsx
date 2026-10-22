@@ -17,6 +17,7 @@ import {
   type PromptId,
   type TextDetail,
 } from "@/lib/extras";
+import { ARCHETYPES, DRAWN_TO_MAX, GOALS, KIND_LABEL_MAX, KINDS } from "@/lib/kinds";
 
 export type SetExtras = (update: (prev: CharacterExtras) => CharacterExtras) => void;
 
@@ -143,6 +144,101 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
           🎲 Surprise me — fill the blanks
         </button>
       </p>
+
+      <Group title="Who they are" filled={filledOf(extras, ["kind", "archetype", "here_for", "drawn_to"])} open>
+        <div className="detail-pair">
+          <label>
+            What they are
+            <select
+              name="extra_kind"
+              value={extras.kind ?? ""}
+              onChange={(e) => setExtras((p) => ({ ...p, kind: (e.target.value || undefined) as CharacterExtras["kind"], ...(e.target.value === "other" ? {} : { kind_label: undefined }) }))}
+            >
+              <option value="">—</option>
+              {KINDS.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.emoji} {k.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {extras.kind === "other" && (
+            <label>
+              Which is…
+              <input
+                type="text"
+                name="extra_kind_label"
+                maxLength={KIND_LABEL_MAX}
+                placeholder="A lighthouse spirit"
+                value={extras.kind_label ?? ""}
+                onChange={(e) => setExtras((p) => ({ ...p, kind_label: e.target.value }))}
+              />
+            </label>
+          )}
+        </div>
+        <div className="detail-pair">
+          <label>
+            The type they play
+            <select
+              name="extra_archetype"
+              value={extras.archetype ?? ""}
+              onChange={(e) => setExtras((p) => ({ ...p, archetype: (e.target.value || undefined) as CharacterExtras["archetype"] }))}
+            >
+              <option value="">—</option>
+              {ARCHETYPES.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Here for
+            <select
+              name="extra_here_for"
+              value={extras.here_for ?? ""}
+              onChange={(e) => setExtras((p) => ({ ...p, here_for: (e.target.value || undefined) as CharacterExtras["here_for"] }))}
+            >
+              <option value="">—</option>
+              {GOALS.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <fieldset className="drawn-to">
+          <legend>
+            Drawn to <span className="muted">(up to {DRAWN_TO_MAX}; they show up a little earlier in the swipe deck, nobody&apos;s hidden)</span>
+          </legend>
+          <ul className="chips">
+            {KINDS.filter((k) => k.id !== "other").map((k) => {
+              const on = (extras.drawn_to ?? []).includes(k.id as never);
+              const full = (extras.drawn_to ?? []).length >= DRAWN_TO_MAX;
+              return (
+                <li key={k.id}>
+                  <button
+                    type="button"
+                    className={on ? "chip chip-on" : "chip"}
+                    aria-pressed={on}
+                    disabled={!on && full}
+                    onClick={() =>
+                      setExtras((p) => {
+                        const cur = p.drawn_to ?? [];
+                        const next = on ? cur.filter((x) => x !== k.id) : [...cur, k.id as (typeof cur)[number]];
+                        return { ...p, drawn_to: next.length ? next : undefined };
+                      })
+                    }
+                  >
+                    {k.emoji} {k.label}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </fieldset>
+      </Group>
 
       <Group title="The basics" filled={filledOf(extras, ["occupation", "hometown", "star_sign", "love_language"])} open>
         <DetailField k="occupation" extras={extras} setExtras={setExtras} />
