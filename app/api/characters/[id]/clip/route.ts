@@ -2,7 +2,8 @@ import { isSignedInAdmin } from "@/lib/admins";
 import { CLIP_TOKEN_COST, episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "@/lib/allowance";
 import { approvedPortraitId, getApprovedAsset, latestClip, recordAsset, reviewAsset, setAssetMedia } from "@/lib/assets";
 import { getDb, type Db } from "@/lib/db";
-import { handle, json, session } from "@/lib/http";
+import { handle, json, readJson, session } from "@/lib/http";
+import { DEFAULT_PORTRAIT_STYLE, isPortraitStyle } from "@/lib/image";
 import { userVideoKey } from "@/lib/keys";
 import { ownsCharacter } from "@/lib/souls";
 import { CLIP_PROMPT_VERSION_VEO, downloadVeoClip, pollVeoClip, startVeoClip, VideoError } from "@/lib/video";
@@ -42,6 +43,27 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const character = (await db.query<Row>(`select name, age, bio, traits, appearance, pronouns from characters where id = $1`, [id])).rows[0];
   if (!character) return json({ error: "character_not_found" }, 404, sess);
 
+  // Baseline-still gate: Veo drifts badly without an image anchor (an anime character drifts to a generic
+  // anime), so require an approved portrait first. The portrait page already lets the owner generate and
+  // regenerate on their own key before committing to the clip, so there's no reason to spend clip tokens
+  // on a text-only generation that is unlikely to match the character.
+  const portraitId = await approvedPortraitId(db, id);
+  if (!portraitId) {
+    return json(
+      {
+        error: "needs_portrait",
+        message: "Approve a portrait first — the clip's first frame starts from it. Without a portrait Veo drifts to a generic look.",
+      },
+      409,
+      sess,
+    );
+  }
+
+  // Optional { style } body: carried through to Veo so the clip prompt matches the portrait the user picked.
+  // Unknown values fall back to the default (illustrated) rather than refusing.
+  const bodyIn = (await readJson(req).catch(() => null)) as { style?: unknown } | null;
+  const style = isPortraitStyle(bodyIn?.style) ? bodyIn.style : DEFAULT_PORTRAIT_STYLE;
+
   // The paywall: bought tokens, spent before the job starts so two clicks can't share one. Admins skip it.
   const admin = await isSignedInAdmin(db, sess);
   const cost = admin ? 0 : CLIP_TOKEN_COST;
@@ -59,11 +81,10 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     );
   }
 
-  const portraitId = await approvedPortraitId(db, id);
-  const portrait = portraitId ? (await getApprovedAsset(db, portraitId))?.url ?? null : null;
+  const portrait = (await getApprovedAsset(db, portraitId))?.url ?? null;
   let job;
   try {
-    job = await startVeoClip(apiKey, character, portrait);
+    job = await startVeoClip(apiKey, character, portrait, undefined, style);
   } catch (err) {
     if (cost > 0) await refundBoughtTokens(db, sess.userId, cost);
     return json({ error: "generation_failed", message: err instanceof VideoError ? err.message : "Google couldn't start the clip." }, 502, sess);

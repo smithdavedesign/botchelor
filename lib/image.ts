@@ -48,12 +48,38 @@ export type PortraitInput = {
   pronouns?: string | null;
 };
 
-/** The generation prompt, from filtered sheet fields only. A fictional adult; a tasteful character portrait. */
-export function portraitPrompt(c: PortraitInput): string {
+/**
+ * Visual style of a generated portrait. The user picks per generation, so an anime character gets an anime
+ * baseline and a photoreal one gets photoreal; both the still and the Veo clip read from this choice so the
+ * clip's first frame matches what the user approved. `illustrated` is the historical default (non-photorealistic
+ * drawn style); `anime` leans into cel-shaded manga/anime; `semi_real` is stylised realism; `photoreal` is
+ * photographic. Prompts stay tasteful and non-explicit at every setting — the sheet-text filter still applies.
+ */
+export const PORTRAIT_STYLES = ["illustrated", "anime", "semi_real", "photoreal"] as const;
+export type PortraitStyle = (typeof PORTRAIT_STYLES)[number];
+export const DEFAULT_PORTRAIT_STYLE: PortraitStyle = "illustrated";
+export const PORTRAIT_STYLE_LABELS: Record<PortraitStyle, string> = {
+  illustrated: "Illustrated",
+  anime: "Anime / manga",
+  semi_real: "Semi-realistic",
+  photoreal: "Photorealistic",
+};
+export const isPortraitStyle = (s: unknown): s is PortraitStyle =>
+  typeof s === "string" && (PORTRAIT_STYLES as readonly string[]).includes(s);
+
+const STYLE_PROMPT: Record<PortraitStyle, string> = {
+  illustrated: "A tasteful, non-photorealistic illustrated character portrait",
+  anime: "A tasteful anime-style character portrait (cel-shaded, clean linework, manga/anime aesthetic)",
+  semi_real: "A tasteful semi-realistic illustrated character portrait (painterly, stylised realism)",
+  photoreal: "A tasteful photorealistic character portrait (photographic, natural skin and lighting)",
+};
+
+/** The generation prompt, from filtered sheet fields and the chosen style. A fictional adult; a tasteful character portrait. */
+export function portraitPrompt(c: PortraitInput, style: PortraitStyle = DEFAULT_PORTRAIT_STYLE): string {
   const who = c.pronouns ? ` (${c.pronouns})` : "";
   const look = c.appearance ? ` They look like: ${c.appearance}.` : "";
   return (
-    `A tasteful, non-photorealistic illustrated character portrait for a fictional adult dating-show contestant. ` +
+    `${STYLE_PROMPT[style]} for a fictional adult dating-show contestant. ` +
     `${c.name}${who}, an adult around ${Math.max(18, c.age)}, described as ${c.traits.join(", ")}.${look} ` +
     `Head and shoulders, warm studio lighting, friendly expression, clean simple background. ` +
     `No text, no watermark, fully clothed, suitable for all audiences.`
@@ -71,8 +97,9 @@ export async function generatePortrait(
   character: PortraitInput,
   model: string = DEFAULT_IMAGE_MODEL,
   fetchImpl: typeof fetch = fetch,
+  style: PortraitStyle = DEFAULT_PORTRAIT_STYLE,
 ): Promise<GeneratedPortrait> {
-  const prompt = portraitPrompt(character);
+  const prompt = portraitPrompt(character, style);
   const body: Record<string, unknown> = { model, prompt, size: "1024x1024", n: 1 };
   // dall-e models need an explicit b64 format; the gpt-image models always return b64_json.
   if (/^dall-e/.test(model)) body.response_format = "b64_json";

@@ -113,7 +113,14 @@ export default async function CharacterPage({ params }: Props) {
           isAdmin(db, viewerId),
           episodeAllowance(db, viewerId),
           db.query("select 1 from user_keys where user_id = $1 and provider = 'google' limit 1", [viewerId]),
-        ]).then(([admin, tokens, key]) => ({ admin, boughtTokens: tokens.pack_left, hasKey: key.rows.length > 0, cost: CLIP_TOKEN_COST }))
+        ]).then(([admin, tokens, key]) => ({
+          admin,
+          boughtTokens: tokens.pack_left,
+          hasKey: key.rows.length > 0,
+          cost: CLIP_TOKEN_COST,
+          // Baseline-still gate: Veo drifts without an image anchor, so a clip now needs an approved portrait first.
+          hasPortrait: Boolean(c.portrait_asset_id),
+        }))
       : null;
   // One partner or more (lib/partners.ts): public as a badge, the setting for the owner.
   const partnerStyle = c.house ? null : await partnerStyleOf(db, id);

@@ -4176,20 +4176,24 @@ details.recap-toggle[open] > summary {
   container-type: inline-size;
 }
 /* How much they talk (lib/talk.ts): a label over its select, the explanation under it. */
-.owner-talk {
+.owner-talk,
+.owner-style {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
   margin: var(--space-3) 0 0;
 }
-.owner-talk label {
+.owner-talk label,
+.owner-style label {
   font-weight: 600;
 }
-.owner-talk select {
+.owner-talk select,
+.owner-style select {
   width: 100%;
   max-width: 100%;
 }
-.owner-talk p {
+.owner-talk p,
+.owner-style p {
   margin: 0;
 }
 .owner-actions {
