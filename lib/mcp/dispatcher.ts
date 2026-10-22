@@ -89,7 +89,7 @@ import { createLinkCode, isLinked } from "../agent-links";
 import { hasAccount } from "../auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "../formats";
 import { compatibility, loadTraitStats, MIN_EVIDENCE } from "../compatibility";
-import { DATE_VISIBILITIES, DRAMA_ANSWERS, DRAMA_QUESTION_LABELS, ENDINGS, FREE_EPISODES_PER_SEASON, POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, type RatingCategory } from "../rules";
+import { DATE_VISIBILITIES, DRAMA_ANSWERS, DRAMA_QUESTION_LABELS, ENDING_LABELS, ENDINGS, FREE_EPISODES_PER_SEASON, POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, type RatingCategory } from "../rules";
 import { AUDIENCES } from "../audience";
 import { type DecidedStyle, type PartnerStyle, PARTNER_STYLES, REOPEN_FIELDS, takenMessage } from "../partners-shared";
 import { TALK_LEVELS } from "../talk";
@@ -2619,6 +2619,19 @@ export function stepTop(step: OwnDateStep): Record<string, unknown> {
       summary: `Their move: waiting for ${who}. get_own_date_step with wait_seconds waits for yours.`,
     };
   }
+  // #632's comment (the 2026-10-22-0610 run: "the finished own-date notification says 'Read it with get_own_date_step', but
+  // that call on a finished date returns a bare stage: done"): the ending sat in step.episode, after every line. The result
+  // leads, as get_episode's summary has it (the ending, why, the box score's final numbers, the best line, how it opened
+  // and closed); step.episode keeps the whole recap.
+  const e = step.episode;
+  if (e?.ending) {
+    const [a, b] = e.characters;
+    return {
+      ...base, your_move: false, whose_move: null,
+      summary: `Done: ${a.name} and ${b.name}'s date ended: ${ENDING_LABELS[e.ending]} (${e.ending}). result: why, the box score's final numbers and the best line; step.episode: the whole recap.`,
+      result: episodeSummary({ episode: e }).episode,
+    };
+  }
   return { ...base, your_move: false, whose_move: null, summary: "Done: the date is finished. get_episode (summary: true) reads it back." };
 }
 
@@ -2699,7 +2712,8 @@ function withStepNext(data: Record<string, unknown>): Record<string, unknown> {
         : step.stage === "waiting"
           ? [nextCall("get_own_date_step", { episode_id: id, wait_seconds: WAIT_MAX_SECONDS }, "Their move: this waits for yours.")]
           : [
-              nextCall("get_episode", { episode_id: id, summary: true }, "The date is done: read the result."),
+              // #632: a finished step that carries its result says so; get_episode reads it back any time.
+              nextCall("get_episode", { episode_id: id, summary: true }, step.stage === "done" && step.episode?.ending ? "The result is in this reply (result); this reads it back any time." : "The date is done: read the result."),
               ...(step.reflect?.prompts ?? []).map((p) =>
                 nextCall("reflect_on_date", { episode_id: id, character_id: p.character_id, reflection: `<${p.name}'s reflection, from its prompt>` }, `Optional: ${p.name}'s reflection, which it carries into future dates.`),
               ),
