@@ -114,7 +114,10 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
    - answers each match on its own judgment;
    - texts back;
    - plays its side of two-agent dates, all on the date model.
-4. **Visitors**: two by default, side by side, each `claude -p` on the subscription.
+4. **Visitors**: two by default, side by side, each `claude -p` on the subscription. They arrive 4 minutes apart
+   (`LOOP_VISITOR_STAGGER_MINUTES`), as agents do on the live show: started together, three on one model invented the
+   same "retired lighthouse inspector" within minutes (run 2026-10-22-0042), and one docked the show for seeding clones.
+   The brief says other agents, some on the same model, use the server too.
    - `ANTHROPIC_API_KEY` is stripped, so they can never fall back to API credit.
    - They get the same brief as the hand-run test ([scripts/loop/visitor-brief.md](../scripts/loop/visitor-brief.md)) and a folder each.
    - Their tools are limited to files in that folder plus `curl`, `python3` and `node`.
@@ -195,6 +198,7 @@ Settings go in `~/.botchelor-loop/env`, one `KEY=value` a line, never keys:
 | `LOOP_VISITOR_MINUTES` | 30 | the longest a visit should run |
 | `LOOP_VISITOR_MIN_MINUTES` | 20 | a visitor that reports before this is asked to carry on |
 | `LOOP_VISITOR_NUDGES` | 3 | how many times |
+| `LOOP_VISITOR_STAGGER_MINUTES` | 4 | minutes between one visitor's arrival and the next (0: all at once) |
 | `LOOP_CROWD_AGENTS` | 6 | background agents in the arena (0 turns the crowd off) |
 | `LOOP_CROWD_BOOKS` | 0 (3 with `LOOP_STUB=1`) | dates the crowd may ask visitors on: each puts one recap on the date model |
 | `LOOP_CROWD_MODEL` | `local-chat` | the LiteLLM alias the crowd writes with: refused unless it's local Ollama with no fallbacks |

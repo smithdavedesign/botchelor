@@ -52,10 +52,10 @@ import {
   type Newcomer,
 } from "@/lib/insights";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import { SYSTEM_ID } from "@/lib/our-traffic";
+import { loadOurIds, PUBLIC_LAUNCH_DAY, setPublicLaunchDayForTests, SYSTEM_ID } from "@/lib/our-traffic";
 import { saveQualityRun } from "@/lib/quality-runs";
 import { MIN_N as REAL_MIN_N, saveSimRating } from "@/lib/real-metrics";
-import type { Ending } from "@/lib/rules";
+import { DELETED_OWNER, type Ending } from "@/lib/rules";
 import { SYSTEM_CREATOR_ID } from "@/lib/watch";
 import { BASE_URL, HOUSE_PARTNER_ID, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
@@ -353,14 +353,102 @@ describe("our own traffic", () => {
     expect(kpi(all, "mcp_agents").current).toBe(1);
     expect(kpi(all, "new_people").current).toBe(2); // the admin now; never "system" or an agent
   });
+
+  it("counts the owners of our scripts' and tests' characters as ours (the 2026-10-14 harness run on production)", async () => {
+    const named = (id: string, owner: string, name: string) =>
+      t.db.query(
+        `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, created_via, created_at, visibility)
+         values ($1, $2, false, $3, 30, 'A bio.', '[]'::jsonb, 'Love.', 'Rudeness.', 'web', $4, 'public')`,
+        [id, owner, name, at("2026-10-16")],
+      );
+    await named("fixture", "fresh-browser-1", "Mira Quell");
+    await named("tester", "fresh-browser-2", "Quinn Tester");
+    await named("testwell", "fresh-browser-3", "Planna Testwell");
+    await named("person", "person-x", "Juniper Testarossa"); // a real name that only starts like "test"
+    await date("fresh-browser-1", "fixture", HOUSE_A, "2026-10-16");
+
+    const ours = await loadOurIds(t.db);
+    expect(ours).toEqual(expect.arrayContaining(["fresh-browser-1", "fresh-browser-2", "fresh-browser-3"]));
+    expect(ours).not.toContain("person-x");
+    const out = await loadInsights(t.db, WEEK, NOW);
+    expect(kpi(out, "characters").current).toBe(1);
+    expect(kpi(out, "new_people").current).toBe(1);
+    expect(kpi(out, "dates_started").current).toBe(0);
+  });
+
+  it("counts whoever booked a date for one of our test characters as ours, after the account that made it was deleted", async () => {
+    // A deleted account's kept characters move to the deleted owner, but its dates keep their creator.
+    await t.db.query(
+      `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, created_via, created_at, visibility)
+       values ('kept', $1, false, 'Wren Kestrel', 30, 'A bio.', '[]'::jsonb, 'Love.', 'Rudeness.', 'web', $2, 'public')`,
+      [DELETED_OWNER, at("2026-10-18")],
+    );
+    await date("old-browser", "kept", HOUSE_A, "2026-10-18");
+    await character("mine", "person-y", "2026-10-18");
+    await date("person-y", "mine", "kept", "2026-10-18"); // dating one of our characters doesn't make a person ours
+
+    const ours = await loadOurIds(t.db);
+    expect(ours).toContain("old-browser");
+    expect(ours).not.toContain("person-y");
+    expect(kpi(await loadInsights(t.db, WEEK, NOW), "new_people").current).toBe(1);
+  });
+
+  it("counts people first active before the public launch as ours, and doesn't compare a people card across it", async () => {
+    const profile = (user: string, day: string) =>
+      t.db.query(`insert into profiles (user_id, name, attested_adult_at, updated_at) values ($1, 'Someone', $2, $2)`, [user, at(day)]);
+    setPublicLaunchDayForTests(PUBLIC_LAUNCH_DAY);
+    try {
+      await profile("gate-only", "2026-10-14"); // passed the age gate and nothing else, like the harness's fresh browsers
+      await rate("early-rater", HOUSE_A, "2026-10-14");
+      await rate("early-rater", HOUSE_B, "2026-10-17"); // first active before the launch: still ours after it
+      await profile("newcomer", "2026-10-17");
+      await session("early-agent", "claude-code", "2026-10-14");
+      await rate("early-agent", HOUSE_A, "2026-10-14"); // an agent isn't ours for being early
+
+      const ours = await loadOurIds(t.db);
+      expect(ours).toEqual(expect.arrayContaining(["gate-only", "early-rater"]));
+      expect(ours).not.toContain("newcomer");
+      expect(ours).not.toContain("early-agent");
+
+      // Oct 15 to 21 against Oct 8 to 14, a week before the launch: counted, but not compared, and no "rose" callout.
+      const week = await loadInsights(t.db, WEEK, NOW);
+      expect(kpi(week, "new_people")).toMatchObject({ current: 1, previous: 0, comparable: false });
+      expect(kpi(week, "new_people").note).toContain("Oct 16");
+      expect(week.insights.map((i) => i.text).join(" ")).not.toContain("New people");
+      // A segment card is a people card under the People lens only.
+      expect(kpi(await loadInsights(t.db, q({ segment: "people" }), NOW), "characters").comparable).toBe(false);
+      expect(kpi(week, "characters").comparable).toBe(true);
+      // With our traffic in, the raw numbers are compared.
+      expect(kpi(await loadInsights(t.db, q({ includeOurs: true }), NOW), "new_people")).toMatchObject({ current: 1, previous: 2, comparable: true });
+      // A week whose previous one starts on the launch day is compared as usual.
+      const later = await loadInsights(t.db, q({ from: "2026-10-23", to: "2026-10-29" }), new Date("2026-10-30T12:00:00Z"));
+      expect(kpi(later, "new_people").comparable).toBe(true);
+    } finally {
+      setPublicLaunchDayForTests(null);
+    }
+  });
 });
 
 describe("segments are lenses", () => {
+  it("counts a house character as created only when a season drew it, not when the code-defined cast is written", async () => {
+    // The cast written when production's schema was made (2026-10-13 and 14) read as 17 house characters "created".
+    await t.db.query(`update characters set created_at = $1 where is_house`, [at("2026-10-16")]);
+    await character("drawn", null, "2026-10-17", { house: true });
+    await character("pending", null, "2026-10-17", { house: true });
+    await character("turned-down", null, "2026-10-17", { house: true });
+    await t.db.query(
+      `insert into season_candidates (character_id, season_id, status) values ('drawn', '2026-11-01', 'approved'), ('pending', '2026-11-01', 'pending'), ('turned-down', '2026-11-01', 'rejected')`,
+    );
+    expect(kpi(await loadInsights(t.db, q({ segment: "house" }), NOW), "characters").current).toBe(2);
+    expect(kpi(await loadInsights(t.db, WEEK, NOW), "characters").current).toBe(2);
+  });
+
   it("People and Agents split by who did it; House is anything with a house character in it", async () => {
     await character("pc", "person-1", "2026-10-15");
     await session("agent-1", "claude-code", "2026-10-15");
     await character("ac", "agent-1", "2026-10-15", { via: "mcp" });
     await character("newhouse", null, "2026-10-16", { house: true }); // a season's generated newcomer
+    await t.db.query(`insert into season_candidates (character_id, season_id, status) values ('newhouse', '2026-11-01', 'approved')`);
     await date("person-1", "pc", HOUSE_A, "2026-10-16"); // people + house
     await date("agent-1", "ac", "pc", "2026-10-17", { via: "mcp" }); // agents only
     await date(SYSTEM_ID, HOUSE_A, HOUSE_B, "2026-10-18"); // the show's own: house, and ours

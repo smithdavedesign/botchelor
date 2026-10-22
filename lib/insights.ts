@@ -7,8 +7,10 @@
  * How it counts:
  *  - Days are UTC days, both ends included. The previous period is the same number of days just before.
  *  - Our own traffic is left out unless asked for: the identities lib/our-traffic.ts loadOurIds names (admins and agents
- *    linked to them, the loop's house-run bots and crowd, our checks, the deleted owner, the show's own "system" dates)
- *    and whatever they made. After Dark is admin-only, so its numbers are our own use and are never left out.
+ *    linked to them, the loop's house-run bots and crowd, our checks, our scripts' characters' owners, people first
+ *    active before the public launch, the deleted owner, the show's own "system" dates) and whatever they made. A people
+ *    card whose previous period starts before the launch isn't compared. After Dark is admin-only, so its numbers are
+ *    our own use and are never left out.
  *  - Segments are lenses, not slices: People and Agents split by who did it (on the web or over MCP); House is
  *    everything with a house character in it (a date with one, a swipe on one, their texts). All is everything.
  *  - Each additive measure comes back from one SQL statement as a small grid (measure × day × people × agents × house ×
@@ -22,7 +24,8 @@
  */
 import { addDays, dayDiff, daysBetween, isDay, isoDay, weekOf } from "./chart";
 import type { Db } from "./db";
-import { loadOurIds, OUR_TRAFFIC, SYSTEM_ID } from "./our-traffic";
+import { loadOurIds, OUR_TRAFFIC, peopleCountedFrom, SYSTEM_ID } from "./our-traffic";
+import { PEOPLE_ACTS_SQL } from "./people-acts";
 import { keyMetrics, type KeyMetric, type QualityRun, type QualityRunKind } from "./quality-runs";
 import { DELETED_OWNER, ENDINGS, type Ending } from "./rules";
 import { DATE_VENUES, EXTRA_VENUES, placeParts, venueName } from "./venues";
@@ -114,11 +117,15 @@ const OUR_DATE = `(e.creator_id = any($3::text[]) or coalesce(a.owner_id, '') = 
 const FOLLOWED = `exists (select 1 from episodes f where f.followup_of = e.id and f.created_at < e.revealed_at + interval '${SECOND_DATE_DAYS} days')`;
 
 const GRID_SQL: Record<Measure, string> = {
-  // Characters: made on the web, over MCP, or a house character (the seasons' generated newcomers).
+  // Characters: made on the web, over MCP, or a house character (the seasons' generated newcomers). The code-defined
+  // house cast is written when the schema is made (on production, 2026-10-13 and 14), so a house character only counts
+  // as created when the season generator drew it (season_candidates) and it wasn't rejected.
   characters: `select 'characters'::text as measure, ${DAY("c.created_at")} as day,
       (not c.is_house and c.created_via = 'web') as people, (not c.is_house and c.created_via = 'mcp') as agents, c.is_house as house,
       coalesce(c.owner_id = any($3::text[]), false) as ours, ''::text as key, count(*)::int as n
-    from characters c where c.created_at >= $1 and c.created_at < $2 group by 2, 3, 4, 5, 6`,
+    from characters c where c.created_at >= $1 and c.created_at < $2
+      and (not c.is_house or exists (select 1 from season_candidates sc where sc.character_id = c.id and sc.status <> 'rejected'))
+    group by 2, 3, 4, 5, 6`,
   // Dates started (booked), by the ending the engine decided.
   dates: `select 'dates', ${DAY("e.created_at")}, ${DATE_LENSES}, e.ending, count(*)::int
     from ${DATE_JOIN} where e.created_at >= $1 and e.created_at < $2 group by 2, 3, 4, 5, 6, 7`,
@@ -238,34 +245,6 @@ const pickSplit = (s: Split["current"], includeOurs: boolean) => s.outside + (in
 
 /* --------------------------------------------- people: first seen --------------------------------------------- */
 
-/**
- * Everything a person does on purpose that has a time, as (id, at): what "first seen", the funnel and retention are read
- * from. A visit that does nothing leaves no trace (page views aren't stored). Sitting in a watch room isn't counted
- * either: its heartbeat can't tell a person from a crawler that runs the page's scripts (on 2026-10-22, 41 of the 44
- * watch-room identities had done nothing else). Chatting, reacting or voting in a room is.
- */
-const ACTS_SQL = `
-  select owner_id as id, created_at as at from characters where not is_house and created_via = 'web' and owner_id is not null
-  union all select creator_id, created_at from episodes where created_via = 'web'
-  union all select user_id, created_at from predictions
-  union all select user_id, created_at from arc_predictions
-  union all select user_id, created_at from dealbreaker_guesses
-  union all select proposer_id, created_at from matchmaker_proposals
-  union all select rater_id, created_at from character_ratings
-  union all select reviewer_id, created_at from character_reviews where via = 'web'
-  union all select user_id, created_at from couple_follows
-  union all select user_id, created_at from line_feedback
-  union all select user_id, created_at from watch_messages
-  union all select user_id, created_at from watch_reactions
-  union all select user_id, updated_at from watch_poll_votes
-  union all select user_id, created_at from accounts
-  union all select user_id, attested_adult_at from profiles
-  union all select user_id, joined_at from league_members
-  union all select c.owner_id, s.created_at from swipes s join characters c on c.id = s.swiper
-            where c.created_via = 'web' and not c.is_house and c.owner_id is not null
-  union all select c.owner_id, t.created_at from couple_texts t join characters c on c.id = case when t.who = 'lo' then t.character_lo else t.character_hi end
-            where t.via = 'own_key' and c.owner_id is not null`;
-
 /** A person first seen in either period: the day, every day they did something, and how far they've got (as of now). */
 export type Newcomer = {
   first_day: string;
@@ -281,7 +260,7 @@ export type Newcomer = {
 export async function loadNewcomers(db: Db, w: Window, ours: readonly string[], includeOurs: boolean): Promise<Newcomer[]> {
   const theirs = `(e.creator_id = c.id or a.owner_id = c.id or b.owner_id = c.id)`;
   const { rows } = await db.query<Newcomer>(
-    `with acts as materialized (${ACTS_SQL}),
+    `with acts as materialized (${PEOPLE_ACTS_SQL}),
      firsts as (select id, min(at) as first from acts where id is not null group by id),
      cohort as (
        select f.id, f.first from firsts f
@@ -844,7 +823,15 @@ export async function loadInsights(db: Db, q: InsightsQuery, now = new Date()): 
     };
   };
 
-  const kpis: Kpi[] = [
+  // People are counted from the public launch (lib/our-traffic.ts PUBLIC_LAUNCH_DAY): a people card whose previous period
+  // starts before it has nothing fair to compare with, so it says so rather than calling the change a rise.
+  const launch = peopleCountedFrom();
+  const fromLaunch = (k: Kpi): Kpi =>
+    !q.includeOurs && launch !== null && p.previous[0] < launch && k.comparable && (k.scope === "people" || (k.scope === "segment" && q.segment === "people"))
+      ? { ...k, comparable: false, note: `People are counted from the public launch on ${shortDate(launch)}; before it, everyone was us testing.` }
+      : k;
+
+  const cards: Kpi[] = [
     {
       key: "new_people", label: "New people", scope: "people", format: "count",
       definition: "People first seen in the period: their first action (a character, a date, a prediction, a rating or review, a follow, a vote, a chat, reaction or poll vote in a watch room, an account). Visits that do nothing aren't stored, and only watching a room doesn't count: crawlers that run scripts look the same.",
@@ -887,6 +874,7 @@ export async function loadInsights(db: Db, q: InsightsQuery, now = new Date()): 
       sub: ratings("feedback"),
     }),
   ];
+  const kpis = cards.map(fromLaunch);
 
   const runs = runRows.rows.map(toRun);
   const inCurrent = (at: Date | string) => new Date(at).toISOString().slice(0, 10) >= q.from;

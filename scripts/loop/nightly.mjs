@@ -26,6 +26,9 @@ const VISITOR_MINUTES = Number(env("LOOP_VISITOR_MINUTES", "30"));
 // before this many minutes is asked to carry on (VISITOR_NUDGES times at most), in the same conversation.
 const VISITOR_MIN_MINUTES = Math.min(VISITOR_MINUTES, Number(env("LOOP_VISITOR_MIN_MINUTES", "20")));
 const VISITOR_NUDGES = Number(env("LOOP_VISITOR_NUDGES", "3"));
+// Visitors arrive a few minutes apart, as agents do on the live show. Side by side, three on one model invented the same
+// "retired lighthouse inspector" within minutes (2026-10-22-0042), and one docked the show for seeding clones.
+const VISITOR_STAGGER_MINUTES = Number(env("LOOP_VISITOR_STAGGER_MINUTES", "4"));
 const MAX_ISSUES = Number(env("LOOP_MAX_ISSUES", "5"));
 const MAX_FIXES = Number(env("LOOP_MAX_FIXES", "3"));
 const FIX = env("LOOP_FIX", "1") !== "0";
@@ -207,12 +210,15 @@ async function main() {
       } catch {
         /* an older arena writes none */
       }
-      agent =startProcess("swipe-back-agent.mjs", [base, String((VISITOR_MINUTES + 15) * 60)], { LOOP_LLM_API_KEY: gatewayKey }, (l) => log("[agent]", l));
+      const lastArrival = Math.max(0, VISITORS - 1) * VISITOR_STAGGER_MINUTES;
+      agent = startProcess("swipe-back-agent.mjs", [base, String((VISITOR_MINUTES + 15 + lastArrival) * 60)], { LOOP_LLM_API_KEY: gatewayKey }, (l) => log("[agent]", l));
 
-      // 3. The visitors, side by side, each in its own folder, for VISITOR_MIN_MINUTES to VISITOR_MINUTES each.
+      // 3. The visitors, side by side, each in its own folder, for VISITOR_MIN_MINUTES to VISITOR_MINUTES each, arriving
+      // VISITOR_STAGGER_MINUTES apart.
       const brief = readFileSync(join(HERE, "visitor-brief.md"), "utf8");
       const clock = (ms) => new Date(ms).toTimeString().slice(0, 5);
       const visit = async (i) => {
+        if (i && VISITOR_STAGGER_MINUTES > 0) await new Promise((ok) => setTimeout(ok, i * VISITOR_STAGGER_MINUTES * 60_000));
         const dir = join(RUN, `visitor-${i + 1}`);
         mkdirSync(dir, { recursive: true });
         const started = Date.now();
