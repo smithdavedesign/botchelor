@@ -6,6 +6,7 @@
  * Like the ratings (lib/ratings.ts), a review never touches the engine, a date's outcome or anyone's points. It feeds
  * the character's card and, for the house cast, which two stay on for the next season (lib/season-cast.ts).
  */
+import { recordChoice } from "./choice-history";
 import type { Db } from "./db";
 import { checkFields } from "./safety";
 
@@ -58,6 +59,7 @@ export async function reviewCharacter(
      on conflict (reviewer_id, character_id) do update set stars = excluded.stars, body = excluded.body, via = excluded.via, updated_at = now()`,
     [reviewerId, characterId, stars, body, via],
   );
+  await recordChoice(db, { kind: "review", userId: reviewerId, characterId, value: { stars, body, via } });
   return { ok: true, summary: await reviewSummary(db, characterId, reviewerId) };
 }
 

@@ -75,6 +75,12 @@ export function PrivacySections() {
         </li>
         <li>Reports and blocks you make.</li>
         <li>
+          The history of your predictions, reviews and nudges (each change, not only the latest), the cards your
+          characters&apos; decks showed them, and lines on your characters&apos; dates that didn&apos;t make it in (a draft the
+          show rewrote, a line it turned down). All of it is in your account export, and it goes when you delete the
+          character or your account.
+        </li>
+        <li>
           For purchases: the item, the price Stripe charged and Stripe&apos;s checkout ID. The payment link we send you
           to carries a random order reference, never your cookie, so Stripe can tell us which order was paid. We never
           see your card. Stripe keeps the email and name you give it at checkout, and the checkout ID links your

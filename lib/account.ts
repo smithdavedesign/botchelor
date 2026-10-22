@@ -64,6 +64,10 @@ export type AccountExport = {
   swipe_impressions: Record<string, unknown>[];
   /** Their characters' pairs' stage changes over time (lib/relationships.ts). */
   relationship_events: Record<string, unknown>[];
+  /** Every prediction, nudge, review and consent decision they made, not just the latest (lib/choice-history.ts). */
+  choice_history: Record<string, unknown>[];
+  /** Lines on their characters' sides that didn't go in: critic-replaced drafts, refused and checked lines (lib/turn-drafts.ts). */
+  turn_drafts: Record<string, unknown>[];
 };
 
 /** Everything stored under this user id, as JSON. Owner-only (the route checks the cookie is the user). */
@@ -164,6 +168,14 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       [userId],
     ),
     ml_consent: await q("select granted, version, decided_at from ml_consents where user_id = $1", [userId]),
+    choice_history: await q("select kind, episode_id, character_id, other_id, value, at from choice_history where user_id = $1 order by at", [userId]),
+    turn_drafts: await q(
+      `select d.episode_id, d.turn_index, d.side, d.source, d.reason, d.rejected, d.created_at from turn_drafts d join episodes e on e.id = d.episode_id
+        where exists (select 1 from characters c where c.owner_id = $1 and not c.is_house
+                        and c.id = case when d.side = 'a' then e.character_a else e.character_b end)
+        order by d.created_at`,
+      [userId],
+    ),
   };
 }
 
@@ -184,6 +196,12 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   // The data plan's logs about them (lib/db.ts, Tier 1): the decks they saw and were shown in, and their pairs' timelines.
   await db.query("delete from swipe_impressions where viewer = any($1) or card = any($1)", [characterIds]);
   await db.query("delete from relationship_events where character_a = any($1) or character_b = any($1)", [characterIds]);
+  await db.query("delete from choice_history where character_id = any($1) or other_id = any($1)", [characterIds]);
+  // Lines that didn't go in on their dates: the dates themselves stay (shared), the drafts about them don't.
+  await db.query(
+    "delete from turn_drafts d using episodes e where e.id = d.episode_id and (e.character_a = any($1) or e.character_b = any($1))",
+    [characterIds],
+  );
   await db.query(
     `update episodes set reflections = jsonb_build_object(
         'a', case when character_a = any($1) then null else reflections->'a' end,
@@ -270,6 +288,7 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from predictions where user_id = $1", [userId]);
   await run("delete from identity_consents where user_id = $1", [userId]);
   await run("delete from ml_consents where user_id = $1", [userId]);
+  await run("delete from choice_history where user_id = $1", [userId]);
   await run("delete from reports where reporter_id = $1", [userId]);
   await run("delete from reports_reviewed where reporter_id = $1", [userId]);
   await run("delete from blocks where blocker_id = $1", [userId]);

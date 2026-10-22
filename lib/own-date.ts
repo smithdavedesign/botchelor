@@ -29,6 +29,7 @@
 import { airsWhen, airWindowMinutes } from "./air";
 import { track, trackDateQuality } from "./analytics";
 import { recordCrossSpecies } from "./agent-funnel";
+import { logTurnDraft } from "./turn-drafts";
 import { buildTurnMessages, parseTurnResult, TURN_TEMPERATURE, type Turn } from "./conversation";
 import type { Db } from "./db";
 import { decideTraced, getEngine, type CharacterSheet, type Outcome } from "./engine";
@@ -1471,20 +1472,34 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
   if (raw.length > 20_000) return refuse("too_long");
 
   if (current.stage === "turn") {
+    // Lines that didn't go in are data too (lib/turn-drafts.ts): the refused text (never one a safety filter caught) and why.
+    const draft = (source: "agent_refused" | "agent_check", reason: string, rejected: string | null) =>
+      logTurnDraft(db, { episodeId, turnIndex: transcript.length, side: current.side, source, reason, rejected });
     const parsed = parseTurnResult(raw, current.side, current.act_index);
     if (!("turn" in parsed)) {
-      return refuse(parsed.rejected === "schema" ? turnShapeProblem(raw) : parsed.rejected === "filtered" ? filteredRefusal(parsed.reason) : TURN_REJECTIONS[parsed.rejected]);
+      const why = parsed.rejected === "schema" ? turnShapeProblem(raw) : parsed.rejected === "filtered" ? filteredRefusal(parsed.reason) : TURN_REJECTIONS[parsed.rejected];
+      await draft("agent_refused", parsed.rejected, null);
+      return refuse(why);
     }
     const speaker = built.characters[current.side === "a" ? 0 : 1];
     const problem = ownTurnProblem(raw, parsed.turn, speaker.extras?.never_says, transcript);
-    if (problem) return refuse(problem);
+    if (problem) {
+      await draft("agent_refused", problem, parsed.turn.dialogue);
+      return refuse(problem);
+    }
     // A move (lib/moves.ts): a suggestion must be answered, and a new one has to fit where the date stands.
     const shape = shapeFor(built, formatId, transcript);
     const names = namesFor(built, current.side);
     const moveNote = moveProblem(parsed.reply, shape, names, shortName(names.other), parsed.turn.dialogue, true);
-    if (moveNote) return refuse(`${moveNote.charAt(0).toUpperCase()}${moveNote.slice(1)}.`);
+    if (moveNote) {
+      await draft("agent_refused", moveNote, parsed.turn.dialogue);
+      return refuse(`${moveNote.charAt(0).toUpperCase()}${moveNote.slice(1)}.`);
+    }
     // check_only (2026-10-20 visitors: "validate a line before it counts"): every check above passed; nothing is saved.
-    if (opts.checkOnly) return { ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), row.partner_bot === true), checked: true };
+    if (opts.checkOnly) {
+      await draft("agent_check", "passed_check", parsed.turn.dialogue);
+      return { ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), row.partner_bot === true), checked: true };
+    }
     // "done" in the goodbye stretch ends the date on this line (#491), as on the show's model (lib/conversation.ts);
     // earlier it's ignored. Never stored on the line itself.
     const { done, ...line } = settleLine(parsed.turn, parsed.reply, shape, names);

@@ -11,11 +11,13 @@ import {
   CURRENT_ENGINE_VERSION,
   deriveSoulSignals,
   deterministicEngine,
+  deterministicTraced,
   NEUTRAL_SIGNALS,
   seedFrom,
   type CharacterSheet,
   type DateHistory,
   type DateInput,
+  type EngineTrace,
   type Outcome,
   type SideSetup,
   type SoulSignals,
@@ -437,11 +439,14 @@ function varySetup(setup: DateSetup, change: SlidingDoorChange): DateSetup {
 }
 
 type DoorRow = {
+  episode_id: string;
   seed: string | null;
   setup: DateSetup | null;
   note: string | null;
   ending: Ending;
   box_score: BoxScore | null;
+  /** The wishes that may have tipped the stored ending; `engine` is the engine's own (lib/wishes.ts). */
+  wishes: { engine?: Ending } | null;
   a_id: string;
   a_name: string;
   a_age: number;
@@ -487,7 +492,7 @@ const CHANGE_SAYS: Record<SlidingDoorChange, string> = {
 };
 
 const DOORS_SELECT = `
-  select e.seed::text as seed, e.setup, e.note, e.ending, e.box_score,
+  select e.id as episode_id, e.seed::text as seed, e.setup, e.note, e.ending, e.box_score, e.wishes,
          a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want,
          a.dealbreaker a_dealbreaker, a.is_house a_house,
          b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want,
@@ -496,8 +501,29 @@ const DOORS_SELECT = `
     join characters a on a.id = e.character_a
     join characters b on b.id = e.character_b`;
 
+/**
+ * A stored counterfactual (episode_variations): the engine's own replay of the date as booked, the alternate with one
+ * thing changed, and whether the replay reproduced the engine's original ending (`faithful`; false when a character
+ * was edited since, or the date predates the setup snapshots). The comparison that's fair is replay vs alternate —
+ * the aired ending may also carry a wish's tip. Sides keep only booleans: no cue word (a dealbreaker is secret).
+ */
+type DoorsRecord = {
+  engine_version: number;
+  base_ending: Ending;
+  stored_ending: Ending;
+  alt_ending: Ending;
+  alt_box_score: BoxScore;
+  alt_sides: { wants_another: boolean; satisfied: boolean; agenda_met: boolean; dealbreaker_hit: boolean; want_met: boolean; note_followed: boolean | null }[];
+  alt_trace: EngineTrace | null;
+  faithful: boolean;
+};
+
 /** Recompute the one-thing-changed alternate for a loaded date row. No model call; deterministic. */
 async function computeDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Promise<SlidingDoorsResult | null> {
+  return (await replayDoors(db, row, change))?.result ?? null;
+}
+
+async function replayDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Promise<{ result: SlidingDoorsResult; record: DoorsRecord } | null> {
   if (!row.setup || row.seed === null || !row.box_score) return null;
   const seed = Number(row.seed);
   const setup = row.setup;
@@ -537,16 +563,49 @@ async function computeDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pr
   });
 
   // Replay under the calibration the date was decided with (v1 for dates from before versioning).
+  const version = setup.engine_version ?? 1;
   const varied = varySetup(setup, change);
-  const alt = deterministicEngine.decide(build(varied), seed, setup.engine_version ?? 1);
+  const { outcome: alt, trace: altTrace } = deterministicTraced(build(varied), seed, version);
   const baseWhy = endingWhy(row.ending, row.box_score, null, setup.strategy);
   const altWhy = endingWhy(alt.ending, alt.variables, alt.sides, varied.strategy, setup.engine_version);
-  return {
+  const result: SlidingDoorsResult = {
     change,
     what_changed: `${shortName(row.a_name)}'s side was ${CHANGE_SAYS[change]}; ${shortName(row.b_name)}'s stayed as it was. Same seed, so nothing else moved.`,
     base: { ending: row.ending, box_score: row.box_score, ...(baseWhy ? { why: baseWhy } : {}) },
     alternate: { ending: alt.ending, box_score: alt.variables, ...(altWhy ? { why: altWhy } : {}) },
   };
+  const replay = deterministicEngine.decide(build(setup), seed, version);
+  const record: DoorsRecord = {
+    engine_version: version,
+    base_ending: replay.ending,
+    stored_ending: row.ending,
+    alt_ending: alt.ending,
+    alt_box_score: alt.variables,
+    alt_sides: alt.sides.map((s) => ({
+      wants_another: s.wants_another,
+      satisfied: s.satisfied,
+      agenda_met: s.agenda_met,
+      dealbreaker_hit: s.dealbreaker_hit !== null,
+      want_met: s.want_met !== null,
+      note_followed: s.note_followed,
+    })),
+    alt_trace: altTrace,
+    faithful: replay.ending === (row.wishes?.engine ?? row.ending),
+  };
+  return { result, record };
+}
+
+/** Keeps one owner's Sliding Doors run (episode_variations); asking again counts, never duplicates. Best effort. */
+async function saveDoors(db: Db, episodeId: string, change: SlidingDoorChange, r: DoorsRecord): Promise<void> {
+  await db
+    .query(
+      `insert into episode_variations (varies_episode_id, variation, engine_version, base_ending, stored_ending, alt_ending,
+                                       alt_box_score, alt_sides, alt_trace, faithful)
+       values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10)
+       on conflict (varies_episode_id, variation) do update set requests = episode_variations.requests + 1`,
+      [episodeId, change, r.engine_version, r.base_ending, r.stored_ending, r.alt_ending, JSON.stringify(r.alt_box_score), JSON.stringify(r.alt_sides), r.alt_trace ? JSON.stringify(r.alt_trace) : null, r.faithful],
+    )
+    .catch(() => {});
 }
 
 /**
@@ -561,7 +620,12 @@ export async function slidingDoors(
   change: SlidingDoorChange,
 ): Promise<SlidingDoorsResult | null> {
   const row = (await db.query<DoorRow>(`${DOORS_SELECT} where e.id = $1 and e.creator_id = $2`, [episodeId, userId])).rows[0];
-  return row ? computeDoors(db, row, change) : null;
+  if (!row) return null;
+  const doors = await replayDoors(db, row, change);
+  // The owner's what-if is kept as a counterfactual (data plan Tier 1). The chaos replay below never is: a watch party
+  // polls it constantly, and it isn't anyone's question about their own date.
+  if (doors) await saveDoors(db, row.episode_id, change, doors.record);
+  return doors?.result ?? null;
 }
 
 /**

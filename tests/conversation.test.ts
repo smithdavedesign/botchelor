@@ -182,6 +182,30 @@ describe("the turn critic", () => {
     expect(calls[2].at(-1)?.content).toMatch(/^Revise that line:/);
   });
 
+  it("hands the replaced draft to onDraft — the rejected half of a pair — and nothing when the draft stood", async () => {
+    const drafts: unknown[] = [];
+    const { model } = turnModel([
+      turnJson("Hi. I'm Mira. I brought a compass, just in case."),
+      turnJson("A cartographer who wants a map reader, huh?"), // sent back
+      turnJson("So what do you do when you're not on a date?"), // the revision wins
+      ...Array.from({ length: CONVERSATION_TURNS }, (_, i) => turnJson(`Line ${i}: something friendly to say.`)),
+    ]);
+    await simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE, undefined, undefined, undefined, undefined, undefined, undefined, {
+      onDraft: (d) => drafts.push(d),
+    });
+    expect(drafts).toEqual([{ turn_index: 1, side: "b", reason: expect.stringMatching(/haven't told you/), rejected: "A cartographer who wants a map reader, huh?" }]);
+
+    const kept: unknown[] = [];
+    const { model: m2 } = turnModel([
+      turnJson("hello there, stranger"),
+      turnJson("A cartographer who wants a map reader, huh?"),
+      "not json", // the revision fails, so the draft stands: no rejected pair
+      ...Array.from({ length: CONVERSATION_TURNS }, (_, i) => turnJson(`Line ${i}: something friendly to say.`)),
+    ]);
+    await simulateConversation(m2, INPUT, OUTCOME, CHARS, PRODUCER, VENUE, undefined, undefined, undefined, undefined, undefined, undefined, { onDraft: (d) => kept.push(d) });
+    expect(kept).toEqual([]);
+  });
+
   it("keeps the first draft when the revision doesn't parse (the critic never costs a date, or a third call)", async () => {
     const { model, calls } = turnModel([
       turnJson("hello there, stranger"),

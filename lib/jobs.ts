@@ -56,6 +56,7 @@ import { logSceneRequests, trackMoves } from "./scenes";
 import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { ShowrunnerError } from "./showrunner";
 import type { DateSetup } from "./game";
+import { logTurnDraft } from "./turn-drafts";
 
 /**
  * Production defers generation to after(); tests (and anywhere without the request lifecycle) run it
@@ -239,6 +240,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     void ensureSet(db, built.setup.venue);
     // When each line was written (episodes.turn_meta), stamped as the theater saves it.
     const lineAt: string[] = [];
+    // Lines the critic sent back and a revision replaced: stored as turn_drafts once the date is saved.
+    const drafts: { turn_index: number; side: "a" | "b"; reason: string; rejected: string }[] = [];
     const gen = await generateDate(models, built, decided, {
       formatId,
       talk,
@@ -255,6 +258,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       onSuggestionProposed: (id) => markProposed(db, id),
       // David 2026-10-20: each character's own last read of the other weighs in on how it ends (lib/wishes.ts).
       wishes: true,
+      onDraft: (d) => void drafts.push(d),
       // The creator's theater plays the date while it's filmed: each line is saved as it's written (only the
       // creator sees a transcript before it airs, lib/game.ts), and the finished date overwrites it below.
       onTurn: (lines) => {
@@ -309,6 +313,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       ],
     );
     if (saved.rows.length) {
+      for (const d of drafts) await logTurnDraft(db, { episodeId, turnIndex: d.turn_index, side: d.side, source: "critic", reason: d.reason, rejected: d.rejected });
       await rememberDate(db, row.a_id, row.b_id).catch(() => {});
       await logSceneRequests(db, episodeId, built.setup, transcript);
       await settleSuggestions(db, episodeId, transcript);

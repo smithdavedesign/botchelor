@@ -411,6 +411,11 @@ export type ConversationOptions = {
    */
   suggestion?: () => Promise<{ id: string; to: PlaceId } | null>;
   onSuggestionProposed?: (id: string) => Promise<void>;
+  /**
+   * A line the critic sent back and its revision replaced (data plan Tier 1, turn_drafts): the rejected draft, why,
+   * and where. With the kept line at the same index, a chosen/rejected pair. Not called when the draft stood.
+   */
+  onDraft?: (d: { turn_index: number; side: "a" | "b"; reason: string; rejected: string }) => void;
 };
 
 /** The producer's note to the next speaker when the creator has set the scene. */
@@ -469,6 +474,7 @@ export async function simulateConversation(
     const turnModel = actorForSide?.(side) ?? model;
     let line: { turn: Turn; reply: MoveReply } | null = null;
     let draft: { turn: Turn; reply: MoveReply } | null = null; // a parsed line the critic sent back: kept if the revision doesn't work out
+    let draftNotes = "";
     let prompt = messages;
     for (let attempt = 0; attempt < TURN_ATTEMPTS && !line; attempt++) {
       let raw: string;
@@ -489,10 +495,19 @@ export async function simulateConversation(
       const notes = draft ? [] : [critiqueTurn(transcript, parsed.turn, input, characters, venueId), moveProblem(parsed.reply, shape, names, shortName(names.other), parsed.turn.dialogue)].filter(Boolean);
       if (notes.length && attempt + 1 < TURN_ATTEMPTS) {
         draft = parsed;
+        draftNotes = notes.join("; ");
         prompt = [...messages, { role: "assistant", content: raw }, { role: "user", content: `Revise that line: ${notes.join("; ")}. Reply with the JSON again.` }];
         continue;
       }
       line = parsed;
+    }
+    // The revision won: the draft it replaced is the rejected half of a pair (never throws into the date).
+    if (line && draft && line !== draft && opts.onDraft) {
+      try {
+        opts.onDraft({ turn_index: i, side, reason: draftNotes.slice(0, 300), rejected: draft.turn.dialogue.slice(0, 600) });
+      } catch {
+        /* a lost draft never costs the date */
+      }
     }
     line ??= draft;
     if (!line) throw new ConversationError(reasons);
