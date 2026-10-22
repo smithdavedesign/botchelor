@@ -1,7 +1,7 @@
 import { recordAsset, reviewAsset } from "@/lib/assets";
 import { getDb } from "@/lib/db";
-import { handle, json, session } from "@/lib/http";
-import { imageModelFor, PROMPT_VERSION, generatePortrait } from "@/lib/image";
+import { handle, json, readJson, session } from "@/lib/http";
+import { DEFAULT_PORTRAIT_STYLE, imageModelFor, isPortraitStyle, PROMPT_VERSION, generatePortrait } from "@/lib/image";
 import { IMAGE_PROVIDERS, userImageKey } from "@/lib/keys";
 import { ownsCharacter } from "@/lib/souls";
 
@@ -30,9 +30,14 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const character = (await db.query<Row>(`select name, age, bio, traits, appearance, pronouns from characters where id = $1`, [id])).rows[0];
   if (!character) return json({ error: "character_not_found" }, 404, sess);
 
+  // Optional { style } body: anime, semi_real, photoreal or illustrated (default). Unknown values fall back to
+  // the default so a bad client input is a soft miss, not a 400. GET has no body, so a bare POST still works.
+  const body = (await readJson(req).catch(() => null)) as { style?: unknown } | null;
+  const style = isPortraitStyle(body?.style) ? body.style : DEFAULT_PORTRAIT_STYLE;
+
   let portrait;
   try {
-    portrait = await generatePortrait(key.apiKey, character, imageModelFor(key.model));
+    portrait = await generatePortrait(key.apiKey, character, imageModelFor(key.model), undefined, style);
   } catch (err) {
     return json({ error: "generation_failed", message: err instanceof Error ? err.message : "The image couldn't be generated." }, 502, sess);
   }

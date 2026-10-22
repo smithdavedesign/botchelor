@@ -22,16 +22,34 @@ export const CLIP_PROMPT_VERSION_VEO = "clip-veo-v1";
 export const CLIP_PROVIDER_COST_USD = 0.05 * CLIP_SECONDS;
 
 /** The clip prompt, from filtered sheet fields only; written to animate the portrait when there is one. */
-export function veoClipPrompt(c: PortraitInput, fromPortrait: boolean): string {
+import { DEFAULT_PORTRAIT_STYLE, type PortraitStyle } from "./image";
+
+const CLIP_STYLE_LEAD: Record<PortraitStyle, string> = {
+  illustrated: "A short, tasteful, illustrated animated introduction of a fictional adult dating-show contestant: ",
+  anime: "A short, tasteful anime-style animated introduction of a fictional adult dating-show contestant: ",
+  semi_real: "A short, tasteful semi-realistic animated introduction of a fictional adult dating-show contestant: ",
+  photoreal: "A short, tasteful photorealistic introduction of a fictional adult dating-show contestant: ",
+};
+
+/**
+ * Build the Veo prompt. When a portrait anchors the first frame we lean on that frame for style/identity
+ * ("keep the first frame's style and features") rather than the model's prior for the trait list, which is
+ * what causes an anime character to drift to a generic anime baseline. Without a portrait we steer with the
+ * chosen style word.
+ */
+export function veoClipPrompt(c: PortraitInput, fromPortrait: boolean, style: PortraitStyle = DEFAULT_PORTRAIT_STYLE): string {
   const who = c.pronouns ? ` (${c.pronouns})` : "";
   const look = c.appearance ? ` They look like: ${c.appearance}.` : "";
   const lead = fromPortrait
-    ? `Bring this illustrated portrait to life as a short intro for a dating-show contestant: `
-    : `A short, tasteful, non-photorealistic animated introduction of a fictional adult dating-show contestant: `;
+    ? `Bring this portrait to life as a short intro for a dating-show contestant — stay on the first frame's identity, style, outfit, hair and face: `
+    : CLIP_STYLE_LEAD[style];
+  const styleHold = fromPortrait
+    ? "Keep the first frame's exact style and features throughout; no restyling, no identity drift."
+    : `Keep the same ${style === "illustrated" ? "illustrated" : style === "anime" ? "anime" : style === "semi_real" ? "semi-realistic" : "photorealistic"} style throughout.`;
   return (
     `${lead}${c.name}${who}, an adult around ${Math.max(18, c.age)}, described as ${c.traits.join(", ")}.${look} ` +
     `They look at the camera, smile and give a small friendly wave; gentle camera push-in; warm studio light. ` +
-    `Keep the same illustrated style. No text, no captions, no watermark, fully clothed, suitable for all audiences.`
+    `${styleHold} No text, no captions, no watermark, fully clothed, suitable for all audiences.`
   );
 }
 
@@ -65,9 +83,10 @@ export async function startVeoClip(
   character: PortraitInput,
   portrait: string | null,
   fetchImpl: typeof fetch = fetch,
+  style: PortraitStyle = DEFAULT_PORTRAIT_STYLE,
 ): Promise<VeoStart> {
   const image = portrait ? /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(portrait) : null;
-  const prompt = veoClipPrompt(character, Boolean(image));
+  const prompt = veoClipPrompt(character, Boolean(image), style);
   const instance: Record<string, unknown> = { prompt };
   // The predict endpoint takes the image as bytesBase64Encoded; it answers 400 "`inlineData` isn't supported by this
   // model" to the inlineData shape in Google's docs (checked against the live API, 2026-10-16). durationSeconds is a

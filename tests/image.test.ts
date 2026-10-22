@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { GET as getAsset } from "@/app/api/assets/[id]/route";
 import { POST as generateRoute } from "@/app/api/characters/[id]/portrait/route";
 import { setDbForTests } from "@/lib/db";
-import { generatePortrait, imageModelFor, portraitPrompt } from "@/lib/image";
+import { generatePortrait, imageModelFor, isPortraitStyle, PORTRAIT_STYLES, portraitPrompt } from "@/lib/image";
 import { recordAsset, reviewAsset } from "@/lib/assets";
 import { saveUserKey } from "@/lib/keys";
 import { registerAccount } from "@/lib/auth";
@@ -47,6 +47,18 @@ describe("the portrait prompt (built only from filtered sheet text)", () => {
     expect(p).toMatch(/all audiences/i);
     // An underage age is floored to 18 in the prompt (characters are 18+, but belt and braces).
     expect(portraitPrompt({ name: "X", age: 12, bio: "", traits: ["a", "b", "c"] })).toContain("around 18");
+  });
+
+  it("steers the style word on the user's pick (illustrated, anime, semi-real, photoreal) and defaults to illustrated", () => {
+    const c = { name: "Mira", age: 27, bio: "", traits: ["curious", "warm", "bold"] };
+    expect(portraitPrompt(c)).toMatch(/non-photorealistic illustrated/i);
+    expect(portraitPrompt(c, "anime")).toMatch(/anime-style/i);
+    expect(portraitPrompt(c, "semi_real")).toMatch(/semi-realistic/i);
+    expect(portraitPrompt(c, "photoreal")).toMatch(/photorealistic/i);
+    expect(PORTRAIT_STYLES).toEqual(["illustrated", "anime", "semi_real", "photoreal"]);
+    expect(isPortraitStyle("anime")).toBe(true);
+    expect(isPortraitStyle("watercolour")).toBe(false);
+    expect(isPortraitStyle(undefined)).toBe(false);
   });
 });
 

@@ -67,13 +67,17 @@ function stubVeo(poll: "done" | "rendering" | "filtered" = "done", seen: { start
   });
 }
 
-/** A signed-in owner with a character and, optionally, a Google key and bought tokens. */
-async function owner(opts: { key?: boolean; bought?: number } = {}) {
+/** A signed-in owner with a character, an approved portrait (clips now need one as a baseline) and, optionally, a Google key and bought tokens. */
+async function owner(opts: { key?: boolean; bought?: number; portrait?: boolean } = {}) {
   const cookie = newUserCookie();
   const userId = userIdOf(cookie);
   const character = await (await api.createCharacter(validCharacter(), cookie)).json();
   await registerAccount(t.db, userId, `clipper${Math.floor(Math.random() * 1e6)}`, ["a", "good", "password"].join("-"));
   if (opts.key !== false) await saveUserKey(t.db, userId, "google", "text", GOOGLE_KEY, null, { SESSION_SECRET: SECRET });
+  if (opts.portrait !== false) {
+    const p = await recordAsset(t.db, { character_id: character.id, kind: "portrait", source_type: "generated", source_model: "openai:gpt-image-2", url: PNG });
+    await reviewAsset(t.db, p, "approved", "test fixture");
+  }
   if (opts.bought) {
     await t.db.query(
       `insert into orders (id, user_id, sku, kind, amount_cents, currency, status, episodes) values ($1, $2, 'pack_5', 'episode_pack', 400, 'usd', 'paid', $3)`,
@@ -93,7 +97,7 @@ describe("Veo on the player's Google key (lib/video.ts)", () => {
     expect(job.operation).toBe(OP);
     // The live API refuses the docs' inlineData shape ("`inlineData` isn't supported by this model").
     expect(seen.start.instances[0].image).toEqual({ bytesBase64Encoded: PNG.split(",")[1], mimeType: "image/png" });
-    expect(seen.start.instances[0].prompt).toMatch(/Bring this illustrated portrait to life/);
+    expect(seen.start.instances[0].prompt).toMatch(/Bring this portrait to life.*stay on the first frame/i);
     expect(seen.start.parameters).toEqual({ aspectRatio: "9:16", durationSeconds: 4, resolution: "720p" });
     expect(veoClipPrompt({ name: "X", age: 17, bio: "", traits: ["a"] }, false)).toMatch(/an adult around 18/);
   });
@@ -132,7 +136,8 @@ describe("the clip paywall: bought tokens, refunded if the clip fails; none for 
     const res = await post(character.id, cookie);
     expect(res.status).toBe(402);
     expect(await res.json()).toMatchObject({ error: "needs_tokens", shop: "/shop", bought_tokens: 0 });
-    expect(await t.count("character_assets")).toBe(0);
+    // No clip asset was recorded — the portrait fixture row doesn't count.
+    expect((await t.db.query("select count(*)::int as n from character_assets where kind = 'clip'")).rows[0].n).toBe(0);
   });
 
   it("spends a bought token, renders, stores the MP4 with us and plays it (with byte ranges for Safari)", async () => {
@@ -202,12 +207,60 @@ describe("the clip paywall: bought tokens, refunded if the clip fails; none for 
 
 describe("the clip button on the card", () => {
   it("shows the token price, or the admin note, and points to adding a Google key", () => {
-    const html = (clip: { admin: boolean; boughtTokens: number; hasKey: boolean; cost: number }) =>
+    const html = (clip: { admin: boolean; boughtTokens: number; hasKey: boolean; cost: number; hasPortrait: boolean }) =>
       renderToStaticMarkup(createElement(OwnerControls, { id: "c1", name: "Ira Fenn", openToDates: false, clip }));
-    const player = html({ admin: false, boughtTokens: 3, hasKey: false, cost: 1 });
-    expect(player).toMatch(/<button[^>]*>Generate a 4-second clip<\/button>/);
+    const player = html({ admin: false, boughtTokens: 3, hasKey: false, cost: 1, hasPortrait: true });
+    expect(player).toMatch(/<button[^>]*>Make a 4-second clip from the portrait<\/button>/);
     expect(player).toContain("1 bought token + ~$0.20 on your Google key; you have 3");
     expect(player).toContain('href="/account"');
-    expect(html({ admin: true, boughtTokens: 0, hasKey: true, cost: 1 })).toContain("admin: no tokens");
+    expect(html({ admin: true, boughtTokens: 0, hasKey: true, cost: 1, hasPortrait: true })).toContain("admin: no tokens");
+  });
+
+  it("disables the clip button and nudges to approve a portrait first when none exists", () => {
+    const html = renderToStaticMarkup(
+      createElement(OwnerControls, { id: "c1", name: "Ira Fenn", openToDates: false, clip: { admin: false, boughtTokens: 5, hasKey: true, cost: 1, hasPortrait: false } }),
+    );
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Make a 4-second clip from the portrait<\/button>/);
+    expect(html).toContain("approve a portrait first");
+  });
+
+  it("renders the portrait-and-clip style dropdown with every option", () => {
+    const html = renderToStaticMarkup(
+      createElement(OwnerControls, { id: "c1", name: "Ira Fenn", openToDates: false, clip: { admin: false, boughtTokens: 1, hasKey: true, cost: 1, hasPortrait: true } }),
+    );
+    expect(html).toContain("Portrait &amp; clip style");
+    for (const label of ["Illustrated", "Anime / manga", "Semi-realistic", "Photorealistic"]) expect(html).toContain(label);
+  });
+});
+
+describe("the baseline-still gate on the clip route", () => {
+  it("refuses the clip when the character has no approved portrait, and nothing is charged", async () => {
+    const { cookie, character, userId } = await owner({ bought: 2, portrait: false });
+    const res = await post(character.id, cookie);
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe("needs_portrait");
+    expect(body.message).toMatch(/portrait/i);
+    expect((await episodeAllowance(t.db, userId)).pack_left).toBe(2);
+    expect(await t.count("character_assets")).toBe(0);
+  });
+
+  it("passes the chosen style through to Veo so the clip prompt matches the portrait's style", async () => {
+    const seen: { start?: Any } = {};
+    stubVeo("done", seen);
+    const { cookie, character } = await owner({ bought: 1 });
+    const res = await clipRoute.POST(
+      new Request(`${BASE_URL}/api/characters/${character.id}/clip`, {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({ style: "anime" }),
+      }),
+      params(character.id),
+    );
+    expect(res.status).toBe(202);
+    // The portrait anchors the first frame, so the "stay on the first frame" phrasing wins over the per-style lead,
+    // but the Veo call's instance still carries the portrait bytes — that was the whole point of this change.
+    expect(seen.start.instances[0].image).toBeDefined();
+    expect(seen.start.instances[0].prompt).toMatch(/stay on the first frame/i);
   });
 });

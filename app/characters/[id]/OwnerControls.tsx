@@ -8,6 +8,7 @@ import { requestJson } from "../../request";
 import { TALK, TALK_LEVELS, type TalkLevel } from "@/lib/talk";
 import { PARTNER_STYLE_LABELS, PARTNER_STYLES, type PartnerStyle } from "@/lib/partners-shared";
 import { AUDIENCE_LABELS, AUDIENCES, type Audience } from "@/lib/audience";
+import { DEFAULT_PORTRAIT_STYLE, PORTRAIT_STYLE_LABELS, PORTRAIT_STYLES, type PortraitStyle } from "@/lib/image";
 
 type Props = {
   id: string;
@@ -16,8 +17,8 @@ type Props = {
   openToDates: boolean;
   /** Who may swipe for them while they're open (lib/audience.ts). */
   audience?: Audience;
-  /** Intro clips (Veo on the owner's Google key): whether they're an admin (no tokens), their bought tokens, and whether they have a Google key. */
-  clip?: { admin: boolean; boughtTokens: number; hasKey: boolean; cost: number };
+  /** Intro clips (Veo on the owner's Google key): whether they're an admin (no tokens), their bought tokens, whether they have a Google key, and whether an approved portrait exists (the clip's required first frame). */
+  clip?: { admin: boolean; boughtTokens: number; hasKey: boolean; cost: number; hasPortrait: boolean };
   /** How much they talk (lib/talk.ts), and whether the owner has a text key (marathon runs on it). */
   talk?: { level: TalkLevel; hasTextKey: boolean };
   /** Private: listed by name only in the directory, and the card shows just the name to everyone else. */
@@ -107,13 +108,15 @@ export default function OwnerControls(props: Props) {
     }
   }
 
+  const [style, setStyle] = useState<PortraitStyle>(DEFAULT_PORTRAIT_STYLE);
+
   async function generatePortrait() {
     setBusy(true);
-    setMessage({ text: "Generating a portrait on your key…" });
-    const { ok, status, message } = await requestJson(`/api/characters/${props.id}/portrait`, {}, "POST").catch(() => ({ ok: false, status: 0, message: "Network error." }));
+    setMessage({ text: `Generating a ${PORTRAIT_STYLE_LABELS[style].toLowerCase()} portrait on your key…` });
+    const { ok, status, message } = await requestJson(`/api/characters/${props.id}/portrait`, { style }, "POST").catch(() => ({ ok: false, status: 0, message: "Network error." }));
     setBusy(false);
     if (ok) {
-      setMessage(null);
+      setMessage({ text: "Portrait updated. Regenerate until it looks right, then make the clip from it." });
       router.refresh();
     } else if (status === 400) {
       setMessage({ text: "Add an OpenAI image key on your account first.", error: true });
@@ -123,12 +126,17 @@ export default function OwnerControls(props: Props) {
   }
 
   async function generateClip() {
+    if (props.clip && !props.clip.hasPortrait) {
+      setMessage({ text: "Approve a portrait first — the clip's first frame starts from it.", error: true });
+      return;
+    }
     setBusy(true);
     setMessage({ text: "Starting a clip on your Google key (Veo takes a minute or two)…" });
-    const start = await requestJson(`/api/characters/${props.id}/clip`, {}, "POST").catch(() => ({ ok: false, status: 0, message: "Network error.", data: {} as Record<string, unknown> }));
+    const start = await requestJson(`/api/characters/${props.id}/clip`, { style }, "POST").catch(() => ({ ok: false, status: 0, message: "Network error.", data: {} as Record<string, unknown> }));
     if (!start.ok) {
       setBusy(false);
       if (start.status === 402) setMessage({ text: start.message ?? "A clip costs bought tokens.", error: true, link: { href: "/shop", label: "Get tokens" } });
+      else if (start.status === 409) setMessage({ text: start.message ?? "Approve a portrait first.", error: true });
       else if (start.status === 400) setMessage({ text: start.message ?? "Add a Google key first.", error: true, link: { href: "/account", label: "Add a Google key" } });
       else setMessage({ text: start.message ?? "Google couldn't start the clip.", error: true });
       return;
@@ -246,22 +254,37 @@ export default function OwnerControls(props: Props) {
       )}
       <div className="owner-actions">
         <span className="pro-tag">✨ Pro</span>
+        <div className="owner-style">
+          <label htmlFor={`style-${props.id}`}>Portrait &amp; clip style</label>
+          <select id={`style-${props.id}`} value={style} disabled={busy} onChange={(e) => setStyle(e.target.value as PortraitStyle)}>
+            {PORTRAIT_STYLES.map((s) => (
+              <option key={s} value={s}>
+                {PORTRAIT_STYLE_LABELS[s]}
+              </option>
+            ))}
+          </select>
+          <p className="muted small">
+            The portrait generates in this style, and the clip starts from the portrait and stays on it. Pick anime for an
+            anime character and Veo won&apos;t drift to a generic look.
+          </p>
+        </div>
         <ul className="owner-action-list">
           <li>
             <button type="button" className="link-button" onClick={generatePortrait} disabled={busy}>
-              Generate a portrait
+              {props.clip?.hasPortrait ? "Regenerate the portrait" : "Generate a portrait"}
             </button>{" "}
-            <span className="owner-hint">(on your own key)</span>
+            <span className="owner-hint">(on your own key — regenerate until it looks right)</span>
           </li>
           {props.clip && (
             <li>
-              <button type="button" className="link-button" onClick={generateClip} disabled={busy}>
-                Generate a 4-second clip
+              <button type="button" className="link-button" onClick={generateClip} disabled={busy || !props.clip.hasPortrait}>
+                Make a 4-second clip from the portrait
               </button>{" "}
               <span className="owner-hint">
                 {props.clip.admin
                   ? "(admin: no tokens; ~$0.20 on your Google key)"
                   : `(${props.clip.cost} bought token${props.clip.cost === 1 ? "" : "s"} + ~$0.20 on your Google key; you have ${props.clip.boughtTokens})`}
+                {!props.clip.hasPortrait && <> · approve a portrait first</>}
                 {!props.clip.hasKey && (
                   <>
                     {" "}
