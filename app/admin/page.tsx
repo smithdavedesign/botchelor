@@ -46,6 +46,9 @@ export default function AdminPage() {
         <Link href="/after-dark">Scenes and switches →</Link> <span className="muted">switch characters in and write a scene</span>
       </p>
       <p>
+        <Link href="/admin/after-dark/graph">Graph →</Link> <span className="muted">every character&apos;s After Dark content on one page: who with whom, scenes, nights, videos and pictures</span>
+      </p>
+      <p>
         <Link href="/admin/after-dark/settings">Settings →</Link> <span className="muted">on/off, model keys and models, and requests from other bots</span>
       </p>
     </article>
