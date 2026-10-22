@@ -285,6 +285,11 @@ describe("the KPI cards", () => {
       [at("2026-10-18")],
     ); // f4 was imported from the loop's local run (no session): ours
     await t.db.query(
+      `insert into user_feedback (id, user_id, rating, category, message, ours, created_at) values
+         ('u1', 'person-u', 8, 'love', 'Nice.', false, $1), ('u2', 'person-v', null, 'idea', 'More.', false, $1), ('u3', 'tester', 10, 'love', 'Ours.', true, $1)`,
+      [at("2026-10-18")],
+    ); // u3 is marked ours when it was saved
+    await t.db.query(
       `insert into adult_steps (id, owner_id, character_a, character_b, kind, status, created_at) values ('st1', 'admin-x', $1, $2, 'steer', 'ok', $3), ('st2', 'admin-x', $1, $2, 'steer', 'ok', $3)`,
       [HOUSE_A, HOUSE_B, at("2026-10-19")],
     );
@@ -299,6 +304,7 @@ describe("the KPI cards", () => {
     expect(kpi(data, "thumbs_up")).toMatchObject({ current: 0.8, base: { current: 5, previous: 0, unit: "votes" } });
     expect(kpi(data, "thumbs_up").verdict.tooFew).toBe(true);
     expect(kpi(data, "agent_feedback")).toMatchObject({ current: 3, sub: "avg rating 7.0 of 10 (2 rated)" });
+    expect(kpi(data, "people_feedback")).toMatchObject({ current: 2, scope: "people", sub: "avg rating 8.0 of 10 (1 rated)" });
     expect(kpi(data, "after_dark_steps")).toMatchObject({ current: 2, sub: "in 1 scene" });
     // Steps were first logged inside this period, so the previous one isn't a fair comparison.
     expect(kpi(data, "after_dark_steps").comparable).toBe(false);

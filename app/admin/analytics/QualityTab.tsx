@@ -42,7 +42,7 @@ export default function QualityTab({ data, interval }: { data: Insights; interva
   const findings = { unprovoked: view(s.observer.unprovoked, "sum"), repeats: view(s.observer.repeats, "sum"), unfounded: view(s.observer.unfounded, "sum") };
   const loop = { overall: view(s.loop.overall, "mean"), mcp: view(s.loop.mcp, "mean") };
   const noteFor = (partial: boolean[]) => (i: number) => (partial[i] ? "partial week" : null);
-  const feedbackKpis = data.kpis.filter((k) => k.key === "thumbs_up" || k.key === "agent_feedback");
+  const feedbackKpis = data.kpis.filter((k) => ["thumbs_up", "people_feedback", "agent_feedback"].includes(k.key));
 
   return (
     <>
@@ -140,8 +140,8 @@ export default function QualityTab({ data, interval }: { data: Insights; interva
         <section className="chart">
           <h3>Feedback from people and agents</h3>
           <p className="chart-caption muted small">
-            Thumbs on lines from real people, and what agents send over MCP. What agents wrote is on{" "}
-            <Link href="/admin/feedback">/admin/feedback</Link>.
+            Thumbs on lines from real people, the notes people send from the site, and what agents send over MCP. What they
+            wrote is on <Link href="/admin/feedback?tab=people">/admin/feedback</Link>.
           </p>
           <div className="kpi-grid">
             {feedbackKpis.map((k) => (

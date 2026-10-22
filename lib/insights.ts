@@ -82,7 +82,7 @@ function windowOf(q: InsightsQuery): Window {
 
 /* ------------------------------------------------- the grids ------------------------------------------------- */
 
-const MEASURES = ["characters", "dates", "aired", "first_dates", "texts", "swipes", "matches", "accounts", "sessions", "calls", "votes", "feedback", "steps"] as const;
+const MEASURES = ["characters", "dates", "aired", "first_dates", "texts", "swipes", "matches", "accounts", "sessions", "calls", "votes", "feedback", "people_feedback", "steps"] as const;
 export type Measure = (typeof MEASURES)[number];
 
 /** One day's count of one measure, for one combination of who did it, whether a house character was in it, and whether it was ours. */
@@ -167,6 +167,11 @@ const GRID_SQL: Record<Measure, string> = {
   feedback: `select 'feedback', ${DAY("f.created_at")}, false, true, false,
       (f.session_id is null or f.agent_id = any($3::text[]) or coalesce(f.client_name, '') ~* $4), coalesce(f.rating::text, ''), count(*)::int
     from agent_feedback f where f.created_at >= $1 and f.created_at < $2 group by 2, 6, 7`,
+  // What people send with "Give us feedback" (lib/user-feedback.ts), keyed by its 0-10 rating. Read only: it marks its own
+  // traffic as it's saved (ours), and our identities count as ours here too.
+  people_feedback: `select 'people_feedback', ${DAY("uf.created_at")}, true, false, false, (uf.ours or uf.user_id = any($3::text[])),
+      coalesce(uf.rating::text, ''), count(*)::int
+    from user_feedback uf where uf.created_at >= $1 and uf.created_at < $2 group by 2, 6, 7`,
   // After Dark steps: admin-only, so all of it is our own use. Never marked ours, or the default view would hide it.
   steps: `select 'steps', ${DAY("st.created_at")}, false, false, false, false, '', count(*)::int
     from adult_steps st where st.created_at >= $1 and st.created_at < $2 group by 2`,
@@ -810,16 +815,17 @@ export async function loadInsights(db: Db, q: InsightsQuery, now = new Date()): 
   const sessions = both("sessions", false);
   const calls = both("calls", false);
   const votes = both("votes", false);
-  const feedback = both("feedback", false);
 
   const current = newcomers.filter((n) => n.first_day >= q.from);
   const previous = newcomers.filter((n) => n.first_day < q.from);
   const funnel = funnelSteps(current, previous);
 
-  // Agents' average rating in the period, from the rating each feedback cell is keyed by.
-  const rated = cells.filter((c) => c.measure === "feedback" && c.key !== "" && c.day >= q.from && keep(c, q, false));
-  const ratedCount = sum(rated.map((c) => c.n));
-  const averageRating = ratedCount ? sum(rated.map((c) => Number(c.key) * c.n)) / ratedCount : null;
+  // A feedback measure's average rating in the period, from the rating each of its cells is keyed by ('' is unrated).
+  const ratings = (measure: Measure): string => {
+    const rated = cells.filter((c) => c.measure === measure && c.key !== "" && c.day >= q.from && keep(c, q, false));
+    const n = sum(rated.map((c) => c.n));
+    return n ? `avg rating ${(sum(rated.map((c) => Number(c.key) * c.n)) / n).toFixed(1)} of 10 (${n} rated)` : "no ratings";
+  };
 
   const count = (key: string, label: string, definition: string, scope: KpiScope, s: SeriesPair, extra: Partial<Kpi> = {}): Kpi => {
     const [c, pr] = [sum(s.current), sum(s.previous)];
@@ -874,8 +880,11 @@ export async function loadInsights(db: Db, q: InsightsQuery, now = new Date()): 
         : { note: loggedSince.after_dark_steps ? `Logged since ${loggedSince.after_dark_steps.slice(0, 10)}.` : "Steps are logged from 2026-10-22; none yet." }),
     }),
     rate("thumbs_up", "Thumbs-up share", "Of the line votes cast or changed in the period, the share that are 👍.", "people", both("votes", false, (k) => k === "up"), votes, "votes"),
-    count("agent_feedback", "Agent feedback", "Feedback agents sent over MCP (send_feedback). Our checks and feedback imported from the loop's local visitor runs are left out.", "agents", feedback, {
-      sub: averageRating === null ? "no ratings" : `avg rating ${averageRating.toFixed(1)} of 10 (${ratedCount} rated)`,
+    count("people_feedback", "People's feedback", "Notes people sent with “Give us feedback” on the site, with their 0-10 rating. Our own are left out.", "people", both("people_feedback", false), {
+      sub: ratings("people_feedback"),
+    }),
+    count("agent_feedback", "Agent feedback", "Feedback agents sent over MCP (send_feedback). Our checks and feedback imported from the loop's local visitor runs are left out.", "agents", both("feedback", false), {
+      sub: ratings("feedback"),
     }),
   ];
 

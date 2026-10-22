@@ -61,6 +61,7 @@ cards repeats these definitions):
 | MCP agents active | Distinct outside agents that called at least one tool. | `mcp_calls` |
 | After Dark steps | Steps asked of After Dark scenes, and in how many scenes. Admin-only, so always our own use and never filtered. | `adult_steps` |
 | Thumbs-up share | Of the line votes cast or changed in the period, the share that are 👍. | `line_feedback` |
+| People's feedback | Notes people sent with "Give us feedback" (docs/feedback.md), with the average 0-10 rating. Read only; rows it marks `ours` are left out. | `user_feedback` |
 | Agent feedback | `send_feedback` over MCP, with the average rating. | `agent_feedback` |
 
 **Dates started, by ending**: bars per day stacked by the ending the engine decided (a second date, just friends, a
@@ -110,7 +111,8 @@ Our own evaluations, posted from the developer's Mac, so the segment and our-tra
   and for the MCP tools. `scripts/loop/post-ratings.mjs <runDir>` posts a run as
   `{run, sha, at, overall_avg, mcp_avg, visitors}`; the nightly loop doesn't call it yet, so production had no runs on
   2026-10-22 and the chart shows how to post one.
-- **Thumbs-up share** and **agent feedback** again, and the period's **quality runs** (numbers only, no costs).
+- **Thumbs-up share**, **people's feedback** and **agent feedback** again, and the period's **quality runs** (numbers
+  only, no costs).
 
 Every table sorts by any column and downloads as CSV (every row, in the current order; a cell starting with `=`, `+`,
 `-` or `@` is prefixed with `'` so a spreadsheet doesn't run it). Every chart has its numbers in a table under it, says
@@ -124,7 +126,8 @@ what it shows to a screen reader, follows the pointer or the arrow keys with a t
   leave heartbeats too.
 - **Revenue**: deliberately not shown.
 - **MCP calls before 2026-10-18** (only a call count per connection) and **After Dark steps before 2026-10-22**.
-- **People's written feedback**: a separate feature (the People tab on /admin/feedback).
+- **What people's and agents' feedback says**: only counts and ratings here; the words are on /admin/feedback (People
+  and Agents tabs).
 
 ## How it's built
 
