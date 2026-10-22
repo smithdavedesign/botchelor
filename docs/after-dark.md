@@ -494,6 +494,11 @@ transcripts, in `docs/eval/after-dark-sim-2026-10-22.json`):
 - The composite still ranks them close, because it rewards a character's sheet words (which Dolphin repeats as
   hooks) and loose memory citations. Read the blind scores, and the guard counts, before it.
 
-So After Dark stays on DeepSeek V3.1. What it costs is time: 40 to 55 seconds a step in this run (Dolphin 7 or 8),
-under the 120-second limit but slow to watch. Worth trying next: OpenRouter's provider routing for the faster
-DeepSeek hosts, and sending a step's lines to the theater as they come, as the show's dates do.
+So After Dark stays on DeepSeek V3.1. What it cost was time: 40 to 55 seconds a step in this run (Dolphin 7 or 8).
+
+**The routing** (the same day): the time was OpenRouter's default routing, which favours DeepSeek's cheapest host.
+Timed on the scene prompt (about 1,400 tokens in, 600 out): DeepInfra 65–151 s (4–8 tokens a second, and 429s),
+SiliconFlow about 30 s, CoreWeave 6–7.6 s (about 90 tokens a second); SambaNova answered 429 every time. So
+`text_model` is `deepseek/deepseek-chat-v3.1:nitro`, OpenRouter's throughput-first routing, which picked CoreWeave each
+time: two production steps through the eval route took 11 seconds, at about 0.2¢ a step (twice DeepInfra's price). A
+setting, not code: the plain id goes back to the cheapest-first routing.
