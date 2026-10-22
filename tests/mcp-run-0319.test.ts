@@ -67,7 +67,8 @@ async function finishedOwnDate() {
 }
 
 it("is MCP 2.4.x (2.4.2 at the time)", () => {
-  expect(MCP_SERVER_INFO.version).toMatch(/^2\.4\./);
+  // 2.5.0 (the 2026-10-21-2300 run) and later keep what 2.4.2 shipped.
+  expect(MCP_SERVER_INFO.version.localeCompare("2.4.2", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
 });
 
 describe("1. a 'your move' notice resolves as soon as its move is made", () => {

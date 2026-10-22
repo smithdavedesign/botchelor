@@ -94,6 +94,45 @@ export async function markTextsRead(db: Db, userId: string, lo: string, hi: stri
 }
 
 /**
+ * #619 (the 2026-10-21-2300 run: waiting_for_you "kept showing texted: 2 after I'd read the texts"): a "texted" notice is
+ * done once this viewer's own character has texted that pair since it (lib/texting.ts tell() moves the notice's time to
+ * their newest text, so a text of yours after it is an answer to all of it). Marked read before anything counts them.
+ */
+export async function sweepAnsweredTexts(db: Db, userId: string): Promise<void> {
+  await db
+    .query(
+      `update notifications n set read_at = now()
+        where n.user_id = $1 and n.kind = 'texted' and n.read_at is null and n.link is not null
+          and exists (
+            select 1 from couple_texts t
+              join characters c on c.id = case when t.who = 'lo' then t.character_lo else t.character_hi end and c.owner_id = $1
+             where n.link in ('/messages/' || t.character_lo || '/' || t.character_hi, '/couples/' || t.character_lo || '/' || t.character_hi || '#texts')
+               and t.created_at > n.created_at)`,
+      [userId],
+    )
+    .catch(() => {});
+}
+
+/**
+ * How many texts each pair has that this viewer hasn't read, by the pair's thread link (#620: read_texts without `with`
+ * lists the threads with an unread count). One unread notice per couple counts what came in since it was read ("(3 new)").
+ */
+export async function unreadTextsByPair(db: Db, userId: string): Promise<Map<string, number>> {
+  const { rows } = await db.query<{ link: string; title: string }>(
+    `select link, title from notifications where user_id = $1 and kind = 'texted' and read_at is null and link is not null`,
+    [userId],
+  );
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    const m = /^\/(?:messages|couples)\/([^/#?]+)\/([^/#?]+)/.exec(r.link);
+    if (!m) continue;
+    const key = `/messages/${decodeURIComponent(m[1])}/${decodeURIComponent(m[2])}`;
+    out.set(key, (out.get(key) ?? 0) + Number(/\((\d+) new\)$/.exec(r.title)?.[1] ?? 1));
+  }
+  return out;
+}
+
+/**
  * What's new for each of the viewer's characters (David, 2026-10-21: "my account has a new match but when I go look I
  * can't tell what character it is for"): unread texts and new-match notices, counted by the pair each notice's link
  * names. `latest` is the newest of them, so /matches can open on the character it's about.

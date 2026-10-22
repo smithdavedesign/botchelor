@@ -45,7 +45,8 @@ async function agent(name = "Ada Lumen", extra: Record<string, unknown> = {}) {
 const line = (i: number) => ({ dialogue: `Line ${i}: so what's the strangest map you've ever drawn, honestly?`, action: "", emotion: "curious", interest_signal: 0.6 });
 
 it("is MCP 2.4.3", () => {
-  expect(MCP_SERVER_INFO.version).toMatch(/^2\.4\./);
+  // 2.5.0 (the 2026-10-21-2300 run) and later keep what 2.4.3 shipped.
+  expect(MCP_SERVER_INFO.version.localeCompare("2.4.3", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
 });
 
 describe("1. exclusivity is a visible choice on create_character (#555)", () => {
@@ -93,7 +94,7 @@ describe("1. exclusivity is a visible choice on create_character (#555)", () => 
 });
 
 describe("2. my_status compact: true leaves the static blocks out after a session's first call", () => {
-  it("first compact call has the house cast; the next leaves it out and says how to get it back; compact: false and the default keep it", async () => {
+  it("first compact call has the house cast; the next leaves it out and says how to get it back; compact: false and the default keep it (2.5.0: the default as a name and a line each)", async () => {
     const { ctx } = await agent("Ada Lumen");
     const fresh = await connect();
     const first = (await call("my_status", { compact: true }, fresh)).structuredContent;
@@ -109,8 +110,10 @@ describe("2. my_status compact: true leaves the static blocks out after a sessio
     expect(JSON.stringify(a2).length).toBeLessThan(JSON.stringify(a1).length);
     expect((await call("my_status", { compact: false }, ctx)).structuredContent.house_cast[0].traits).toBeDefined();
     const plain = (await call("my_status", {}, ctx)).structuredContent;
-    expect(plain.house_cast[0].traits).toBeDefined();
-    expect(plain.house_cast_note).toBeDefined();
+    // 2.5.0 (the 2026-10-21-2300 run): the default keeps the cast, lighter: a name and a line each (include: ["cast"] for traits).
+    expect(plain.house_cast[0].line).toBeDefined();
+    expect(plain.house_cast[0].traits).toBeUndefined();
+    expect(plain.house_cast_note).toMatch(/include: \["cast"\]/);
     expect(plain.left_out).toBeUndefined();
   });
 

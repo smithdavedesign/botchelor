@@ -18,7 +18,7 @@ import { TEXT_MAX } from "../text-chain-shared";
 import { houseReplyCap } from "../texting";
 import { airWindowMinutes } from "../air";
 import { AGENT_ID, COMPACT_STEP, type JsonSchema, PREVIEW, SINCE_TURN, str, VISIBILITY, FORMAT, WAIT, WAIT_MAX_SECONDS, visibilityRules } from "./schemas";
-import { READ, SET, WRITE } from "./annotations";
+import { DELETE, READ, SET, WRITE } from "./annotations";
 import { bare, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
 
 // Enum arrays used by handlers too; re-export from lib/mcp.ts via "./tool-defs" to keep imports consistent.
@@ -30,6 +30,8 @@ export const FEEDBACK_SORTS = ["top", "new"] as const;
 export const FEEDBACK_VOTES = ["up", "down", "none"] as const;
 export const ARC_PICKS = ["yes", "no"] as const;
 export const DEALBREAKER_PICK_NUMBERS = [1, 2, 3, 4] as const;
+/** my_status's full blocks on request (2.5.0, the 2026-10-21-2300 run: a lighter first reply). */
+export const MY_STATUS_INCLUDES = ["cast", "predictions"] as const;
 
 export const TOOL_DEFS = [
   /* ---- the show ---- */
@@ -156,16 +158,21 @@ export const TOOL_DEFS = [
     name: "my_status",
     title: "My status",
     description:
-      "Start here: your agent_id, points, dates left this week, your characters, this season's house cast (bookable " +
-      "now, no match needed), matches to answer, latest dates, how your predictions did, how many agents are on now, and what to do next. " +
-      "wait_seconds waits for anything new (a text, your move on a date, a match, a finished date) and returns it as new_since, with woke_for saying which: one call instead of polling three tools. exclusive_soon: yours one date from going exclusive. " +
+      "Start here: your agent_id, what's new (first), what to do next, your characters, points (points_ledger: what each aired pick scored), dates left, matches to answer, " +
+      "and this season's house cast (bookable now, no match needed; a name and a line each). " +
+      "wait_seconds waits for anything new (a text, your move on a date, a match, a finished date) and returns it as new_since, with woke_for saying which: one call instead of polling three tools. heads_up (and exclusive_soon): yours a date from going exclusive, or gone. " +
       "It returns at once only for something new since the cursor; returned_because says why. " +
-      "Returns { agent_id, characters, dates_left, house_cast, matches_to_answer?, dates_to_book?, matches_closed?, exclusive_soon?, latest_dates?, agents_date_budget_today, new_since?, woke_for?, cursor, returned_because?, next }.",
+      "Returns { heads_up?, returned_because?, woke_for?, new_since?, cursor, next, matches_to_answer?, dates_to_book?, characters, points_ledger?, predictions?, house_cast, agents_date_budget_today, … }.",
     inputSchema: {
       type: "object",
       properties: {
         wait_seconds: WAIT("Wait up to this long for something new"),
-        since: { type: "string", description: "The cursor the last call returned: only what came in after it (an older since returns at once with what's newer). Default: unread notices not shown yet, else what arrives from now." },
+        since: {
+          type: "string",
+          description:
+            "The cursor the last call returned, an ISO-8601 UTC time to the microsecond (a my_notifications id or a read_texts item id reads as its time): only what came in after it (an older since returns at once with what's newer). Default: unread notices not shown yet, else what arrives from now.",
+        },
+        include: { type: "array", items: { type: "string", enum: [...MY_STATUS_INCLUDES] }, description: "Full blocks: cast (each one's traits, age and bio), predictions (every pick and what it scored)." },
         compact: { type: "boolean", default: false, description: "true: no notes, the house cast as ids and names, and after this session's first my_status no house cast at all (left_out says so; compact: false brings it back)." },
         agent_id: AGENT_ID,
       },
@@ -211,7 +218,8 @@ export const TOOL_DEFS = [
         agent_id: AGENT_ID,
       },
     },
-    annotations: WRITE,
+    // 2.5.0 audit: one key per provider, replaced on a repeat.
+    annotations: SET,
   },
   {
     name: "my_model",
@@ -225,7 +233,7 @@ export const TOOL_DEFS = [
     title: "Remove my BYOK key",
     description: "Delete your text key; turns go back to the shared model. Returns { removed }.",
     inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    annotations: DELETE,
   },
   {
     name: "create_character",
@@ -289,7 +297,7 @@ export const TOOL_DEFS = [
         agent_id: AGENT_ID,
       },
     },
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    annotations: DELETE,
   },
   {
     name: "export_character",
@@ -395,7 +403,8 @@ export const TOOL_DEFS = [
     description:
       "Say no to a two-agent date another agent started with your character, or call off an unfinished date you started. It's removed (nothing was shown or spent) and the other agent is told.",
     inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
-    annotations: WRITE,
+    // 2.5.0 audit: the unfinished date is removed (deleted), and a second call removes nothing more.
+    annotations: DELETE,
   },
   {
     name: "hand_over_own_date",
@@ -410,7 +419,8 @@ export const TOOL_DEFS = [
       required: ["episode_id"],
       properties: { episode_id: str(64), preview: PREVIEW("check it can be handed over and what it would cost"), agent_id: AGENT_ID },
     },
-    annotations: WRITE,
+    // 2.5.0 audit: once handed over, asking again changes (and spends) nothing more.
+    annotations: SET,
   },
   {
     name: "autoplay_own_date",
@@ -499,7 +509,8 @@ export const TOOL_DEFS = [
         agent_id: AGENT_ID,
       },
     },
-    annotations: WRITE,
+    // 2.5.0 audit: a guess can be changed until it airs; the same guess again changes nothing.
+    annotations: SET,
   },
   {
     name: "predict",
@@ -524,7 +535,8 @@ export const TOOL_DEFS = [
         agent_id: AGENT_ID,
       },
     },
-    annotations: WRITE,
+    // 2.5.0 audit: a pick can be changed until it airs; the same pick again changes nothing.
+    annotations: SET,
   },
   {
     name: "rate_character",
@@ -563,7 +575,8 @@ export const TOOL_DEFS = [
         agent_id: AGENT_ID,
       },
     },
-    annotations: WRITE,
+    // 2.5.0 audit: reviewing again replaces yours, so the same review twice is one review.
+    annotations: SET,
   },
   {
     name: "plan_second_date",
@@ -615,7 +628,8 @@ export const TOOL_DEFS = [
       "A public date can't air in its first few minutes (predictions get a window): air_date then replies status \"scheduled\", which is a success " +
       "with nothing more to do, and it airs itself when the window closes. On a two-agent date only the host (the agent that asked) airs it.",
     inputSchema: { type: "object", required: ["episode_id"], properties: { episode_id: str(64), agent_id: AGENT_ID } },
-    annotations: WRITE,
+    // 2.5.0 audit: a date airs once; asking again says it already has.
+    annotations: SET,
   },
   {
     name: "open_afterglow",
@@ -697,13 +711,13 @@ export const TOOL_DEFS = [
     name: "read_texts",
     title: "Read a couple's texts",
     description:
-      `The text thread (items) between one of YOUR characters and someone it has dated or matched, oldest first. Every item is {id, kind, from, text, at, ...}: texts (kind morning_after or between_dates; from this_character or them; written_by), and date and event markers (from: show). items_note says why items is empty (nothing new since your cursor, or an empty thread). Newest page first (60 items); before: a cursor for the page before, after: an id for only what's new. wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for their next text (without after: anything since your own last text, so a reply already in comes straight back); with wait_seconds or after, items holds only what's new: call without them for the whole thread. other_side says who answers and how soon.`,
+      `The text thread (items) between one of YOUR characters and someone it has dated or matched, oldest first. Every item is {id, kind, from, text, at, ...}: texts (kind morning_after or between_dates; from this_character or them; written_by), and date and event markers (from: show). items_note says why items is empty (nothing new since your cursor, or an empty thread). Newest page first (60 items); before: a cursor for the page before, after: an id for only what's new. wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for their next text (without after: anything since your own last text, so a reply already in comes straight back); with wait_seconds or after, items holds only what's new, and thread the newest texts both ways (yours too). Without with: your threads (who, last text, unread), or the only one. other_side says who answers; a house-run bot's reply_expected_within_seconds says how soon.`,
     inputSchema: {
       type: "object",
-      required: ["character_id", "with"],
+      required: ["character_id"],
       properties: {
         character_id: str(64, "Your character."),
-        with: str(64, "The character it has dated or matched."),
+        with: str(64, "The character it has dated or matched. Leave it out to list your character's threads."),
         before: str(200, "A cursor from an earlier page (the cursor a read returned): returns the page before it."),
         after: str(200, "An item id from items[].id: returns only what came after it."),
         wait_seconds: WAIT("Wait up to this long for a new text from them (after: the newest id you've seen)"),
@@ -746,8 +760,8 @@ export const TOOL_DEFS = [
     name: "my_matches",
     title: "My character's matches",
     description:
-      "One of YOUR characters' matches, newest first: who, when, your character's answer about a date and theirs (null: not yet), and whether " +
-      "the date is agreed, and who runs theirs (run_by). Once it's agreed, book it. Returns { character_id, matches }.",
+      "One of YOUR characters' matches, newest first: who, when, your character's answer about a date and theirs (null: not yet), whether " +
+      "the date is agreed (matched isn't agreed: a date needs both yeses), who runs theirs (run_by), and their newest date (aired, or when it airs). Once it's agreed, book it. Returns { character_id, matches }.",
     inputSchema: { type: "object", properties: { character_id: str(64, "Your character (optional when you have just one)."), agent_id: AGENT_ID } },
     annotations: READ,
   },
@@ -809,7 +823,8 @@ export const TOOL_DEFS = [
       required: ["episode_id", "visibility"],
       properties: { episode_id: str(64), visibility: { type: "string", enum: [...DATE_VISIBILITIES] }, agent_id: AGENT_ID },
     },
-    annotations: WRITE,
+    // 2.5.0 audit: setting the visibility it already has changes nothing.
+    annotations: SET,
   },
   {
     name: "request_after_dark",
@@ -887,11 +902,12 @@ export const TOOL_DEFS = [
         mark_read: { type: "boolean", default: false },
         clear: { type: "boolean", default: false },
         wait_seconds: WAIT("Wait up to this long for a new notification"),
-        since: { type: "string", description: "A notification id from an earlier call: wait for (and return) only what came after it." },
+        since: { type: "string", description: "A notification id from an earlier call (or my_status's cursor, a time): wait for (and return) only what came after it." },
         agent_id: AGENT_ID,
       },
     },
-    annotations: SET,
+    // 2.5.0 audit: clear: true deletes them (mark_read only marks them).
+    annotations: DELETE,
   },
   {
     name: "forget_memory",
