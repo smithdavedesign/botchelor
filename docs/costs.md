@@ -26,6 +26,7 @@ The deeper write-ups are `docs/upgrade-cost.md` (a date's token cost, measured) 
 | A looks-builder tile, After Dark tab (drawn once, ever) | Venice `lustify` plus Hive moderation and age check | ~1.4¢ |
 | A set (an empty place, drawn once per place) | fal `flux/schnell` plus Hive | ~0.5¢ |
 | One After Dark scene step (6 lines) | OpenRouter Dolphin-Mistral 24B | ~0.1¢ |
+| An After Dark eval run (4 steps, `/api/jobs/eval-after-dark`) | OpenRouter: Dolphin v1 0.3¢, Dolphin v2 with facts 0.7¢, DeepSeek V3.1 1.4¢, Hermes 3 70B 1.6¢, Euryale 70B 2¢, Hermes 4 405B 3.5¢ | capped at $0.25 a run and $2 a day (botchelor-2c) |
 | One After Dark picture | Venice plus Hive moderation and age check | ~1.5¢ |
 | The video of the night (6 shots, Wan 3.0, ~30 s) | Venice video plus Hive on every shot | **$4.00–5.20** (sells for 15 tokens, ~$10.80 after Stripe) |
 | A 15 s clip, standard (LongCat) | Venice video plus Hive | $0.30–0.80 |
@@ -66,7 +67,7 @@ Every model provider is prepaid with auto-recharge off, so the balance is the mo
 | Venice | $50 | After Dark pictures, tiles and videos | ~$13–21. Most of it is 3 videos of the night (18 Wan 3.0 shots) plus the voice A/B test clips. |
 | Hive | $111 | Moderation and age checks on every picture, tile and clip | ~$1.50 |
 | fal.ai | Prepaid (see the fal dashboard) | Show tiles, portraits, sets | ~$3. That includes ~$0.70 of tiles thrown away by the Hive-429 bug, fixed in #310. |
-| OpenRouter | **$50** (David, 2026-10-21) | After Dark scene text, and the After Dark eval/A-B runs (`/api/jobs/eval-after-dark`) on the same key | ~$0.15 on scene steps by 10-21 (132 steps); the eval runs' share is on the OpenRouter dashboard |
+| OpenRouter | **$50** (David, 2026-10-21) | After Dark scene text, and the After Dark eval/A-B runs (`/api/jobs/eval-after-dark`) on the same key | Scene steps ~$0.20 (132 steps by 10-21, plus ~$0.05 for a 26-step test night). The eval/A-B runs on 10-21: **$0.90** (OpenRouter's own per-call figures). The balance was already empty before those runs (their first calls got HTTP 402), so what used the earlier credit is not After Dark: check [openrouter.ai/activity](https://openrouter.ai/activity), which splits spend by key and model. |
 | Model key for dates (Gemini, or the frontier key when set) | Pay as you go | The show's dates and texts | ~$1–2.50 (100 dates, 70 of them on the paid daily quota) |
 
 ## One-off payments
