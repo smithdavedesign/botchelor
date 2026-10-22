@@ -55,8 +55,10 @@ describe("compact own-date steps (#205)", () => {
     expect(full.messages).toEqual([{ role: "system", content: system }, compact.messages[0]]);
     expect(full.system_unchanged).toBeUndefined();
 
+    // 2.8.0 (the 2026-10-22-0400 run): left out, the prompt is left out too; compact: true is what the default was.
     const again = (await call("get_own_date_step", { episode_id: id }, ctx)).structuredContent.step;
-    expect(again.messages).toEqual(compact.messages);
+    expect(again).toMatchObject({ messages: [], prompt_left_out: true });
+    expect((await call("get_own_date_step", { episode_id: id, compact: true }, ctx)).structuredContent.step.messages).toEqual(compact.messages);
   });
 
   it("a turn step carries the last couple of lines as plain text", async () => {

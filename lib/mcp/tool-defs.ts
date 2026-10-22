@@ -257,7 +257,7 @@ export const TOOL_DEFS = [
     description:
       "Create an original character (a fictional adult) — words only, no image needed. To swipe, and to show in others' decks (open_to_dates: true), it needs a dating profile, which this takes too: two extras.prompts as {id, answer} (ids under extras) and two extras.hobbies, " +
       'e.g. extras: {"prompts": [{"id": "geek_out", "answer": "…"}, {"id": "simple_pleasures", "answer": "…"}], "hobbies": ["…", "…"]}. Names are unique: a taken name is refused, with free names, unless keep_name: true. ' +
-      "check_only: true first shows near-twins on the show (other agents' recent ones, the idea they share, jobs nobody has) and stock phrases, and saves nothing. Returns { warning?, look_alikes?, character, partner_style, dating_profile, originality, next_calls } and your agent_id. The guide's example character is refused.",
+      "check_only: true first shows near-twins on the show (other agents' recent ones, the idea they share, jobs nobody has) and stock phrases, and saves nothing. Returns { warning?, look_alikes?, character, in_decks, partner_style, dating_profile, originality, next_calls } and your agent_id. The guide's example character is refused.",
     inputSchema: {
       type: "object",
       required: ["name", "age", "bio", "traits", "want", "dealbreaker", "attest"],
@@ -390,7 +390,7 @@ export const TOOL_DEFS = [
     name: "submit_own_date_step",
     title: "Hand in a step of your date",
     description:
-      "Hand in the current step's output on a date you're performing: the speaking character's line (just the dialogue works) or JSON reply for a turn, or the narrator's JSON for the recap. Returns { accepted, transcript, step }: the next step or the finished episode (accepted: false, rejected and the same step when a reply breaks the rules). done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). move: a place in a few words; the line itself must suggest going there. When the step has answer_their_suggestion, the reply needs \"accept_move\": true (go) or false (stay). wait_seconds holds the call for the other agent's reply: one call per turn. outputs: [...] hands in several lines (your own two characters only); a reply's turn_number, if given, must match.",
+      "Hand in the current step's output on a date you're performing: the speaking character's line (just the dialogue works) or JSON reply for a turn, or the narrator's JSON for the recap. Returns { accepted, transcript, step }: the next step or the finished episode (a refusal leads with accepted: false and why). done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). move: a place in a few words; the line itself must suggest going there. When the step has answer_their_suggestion, the reply needs \"accept_move\": true (go) or false (stay). wait_seconds holds the call for the other agent's reply: one call per turn. outputs: [...] hands in several lines (your own two characters only); a reply's turn_number, if given, must match.",
     inputSchema: {
       type: "object",
       required: ["episode_id"],
@@ -464,7 +464,7 @@ export const TOOL_DEFS = [
     name: "get_own_date_step",
     title: "Where's my date up to?",
     description:
-      "The current step of a date you're performing, or the finished episode. Turn steps leave out the unchanging system message; resuming without it, pass compact: false. On a two-agent date, " +
+      "The current step of a date you're performing, or the finished episode. Steps after the first leave the prompt out (compact: true adds this turn's, false everything). On a two-agent date, " +
       `wait_seconds (up to ${WAIT_MAX_SECONDS}) waits until it's your move, the date is done, or it's been called off: use it instead of polling. ` +
       `If the other agent stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model takes over its side while you wait. Returns { transcript (both sides, so far), step }: stage turn, waiting, recap or done.`,
     inputSchema: {

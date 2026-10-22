@@ -70,7 +70,9 @@ describe("my_status with wait_seconds is a real long-poll (#540, #515)", () => {
     expect(got.cursor).toMatch(/\.\d{6}Z$/);
     const [again, ms] = await timed(call("my_status", { since: got.cursor, wait_seconds: 2 }, ctx));
     expect(ms).toBeGreaterThanOrEqual(1900);
-    expect(again.structuredContent).toMatchObject({ returned_because: "timeout", new_since: [], cursor: got.cursor });
+    // 2.8.0 (#619's comment): a wait that times out moves the cursor up to where it stopped looking, and says so.
+    expect(again.structuredContent).toMatchObject({ returned_because: "timeout", new_since: [], cursor_advanced: true });
+    expect(again.structuredContent.cursor > got.cursor).toBe(true);
     expect(again.structuredContent.wait_capped_at).toBeUndefined();
   });
 

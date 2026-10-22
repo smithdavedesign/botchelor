@@ -35,7 +35,7 @@ import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from 
 import { getEpisodeView, type DateSetup, type EpisodeView } from "./game";
 import type { ChatMessage } from "./model";
 import { PROMPT_VERSION, qualityContext } from "./pipeline";
-import { neverSaid, selfAddress, transcriptQuality } from "./quality";
+import { endingContradiction, neverSaid, selfAddress, transcriptQuality } from "./quality";
 import { isLogistics } from "./memory";
 import { actName, CONVERSATION_TURNS, MAX_MOVES, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, DATE_ACTS, ENDING_LABELS, type Ending, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
@@ -194,6 +194,8 @@ export type OwnDateStep =
       last_lines?: string[];
       /** Where the date is now (#421: on every step; it can move when both agree: lib/moves.ts), and a suggestion this turn must answer. */
       where: string;
+      /** 2.8.0: in the last act, which way the date lands (actNote), for the performer whose turn it is. */
+      act_note?: string;
       /** A filled example of reply_format (#422). */
       example_reply: string;
       answer_their_suggestion?: string;
@@ -260,6 +262,8 @@ export type OwnDateResult =
       /** #618: a match_first refusal says where the pair stands (lib/swipes.ts dateNotAgreed) and whose yes is missing. */
       match_status?: string;
       waiting_on?: "you" | "them" | "both";
+      /** 2.8.0: a date already in progress for the pair (the other agent's, waiting on you): the one to play. */
+      episode_id?: string;
     };
 
 type Row = {
@@ -461,7 +465,12 @@ async function checkOwnDate(
     // #413: a retry after a dropped connection is the normal case for an HTTP client: your own date in progress is
     // handed back as it stands, not refused.
     if (already.creator_id === userId) return { ok: true, plan: { resume: already.id } };
-    return err(409, "date_in_progress", `${pair} already have a date in progress (${already.id}). Play that one: get_own_date_step with its episode_id.`);
+    // 2.8.0 (the 2026-10-22-0400 run: a conflict, when the other agent had just started a date with yours): it's their date
+    // with your character, waiting on you, so the refusal says so and names the call that plays it.
+    return {
+      ...err(409, "date_in_progress", `${shortName(b.name)}'s agent already started a date between ${pair} (${already.id}), and you play ${shortName(a.name)} in it: get_own_date_step with episode_id "${already.id}" takes your move (decline_own_date passes).`),
+      episode_id: already.id,
+    };
   }
   const open = (
     await db.query<{ n: number }>(
@@ -670,6 +679,21 @@ export const endingLine = (ending: Ending) =>
   `The engine has this date heading for "${ENDING_LABELS[ending]}" (ending: ${ending}): let the turns head there, without announcing it. The recap step names the final call.`;
 
 /**
+ * How the last act lands, by where the date is heading, in the words its prompt uses (lib/beats.ts closingMove). 2.8.0 (the
+ * 2026-10-22-0400 run: "Thaddeus's closing line asked for a second date while the ending said friends"): an agent writing its
+ * own line never read the prompt, so the last act's step says it plainly (act_note), and the show's model is held to it
+ * when it plays a side (showTurn).
+ */
+export const LAST_ACT: Record<Ending, string> = {
+  second_date: "heading for a second date: let the warmth show, and if your character wants more it can say so (something to do together, never a day or a time)",
+  friends: "closing as friends: land it warmly, as easy company, with no romance and no ask for another date",
+  disaster: "ending badly: close it plainly, for the reason that came out tonight, with no ask for another date and no pretending it went well",
+};
+/** The last act's note on a turn step, for the performer whose turn it is (both kinds of date: its prompt says the same). */
+export const actNote = (ending: Ending): string =>
+  `Last act: as the date stands, it's ${LAST_ACT[ending]}. Your lines shape how it plays, not how it ends (a side's private see_again on its last line can still tip it).`;
+
+/**
  * On a side's last line as planned: the private "want to see them again?" it may send (lib/wishes.ts). Shown on both
  * kinds of date; on a two-agent date it's the only say an agent has in the ending, and the other side never sees it.
  */
@@ -810,6 +834,8 @@ function stepFor(
       ending_label: ENDING_LABELS[decided.ending],
       ...(turn ? { last_lines: transcript.slice(-2).map((t) => `${built.characters[t.side === "a" ? 0 : 1].name}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`) } : {}),
       where: venueName(shape.place),
+      // 2.8.0: the last act says which way it lands, for whoever's turn it is (the prompt's messages say it too).
+      ...(act === DATE_ACTS.length - 1 ? { act_note: actNote(decided.ending) } : {}),
       ...(lastLine ? { see_again: seeAgainLine(speaker.name, other.name) } : {}),
       ...(shape.pending ? { answer_their_suggestion: `${other.name} suggested taking the date to ${venuePhrase(shape.pending.to)}: this reply needs "accept_move" (true to go, false to stay).` } : {}),
       instructions:
@@ -1080,7 +1106,7 @@ export async function getOwnDateStep(db: Db, userId: string, episodeId: string):
   }
   // The show's model has this side (the other agent went quiet): it performs the turn now, then it's someone else's.
   if (step.stage === "turn" && performersOf(row)[step.side] === SHOW) {
-    const done = await showTurn(db, row, step.side, step.act_index, step.messages, transcript, shapeFor(built, formatId, transcript), namesFor(built, step.side));
+    const done = await showTurn(db, row, step.side, step.act_index, step.messages, transcript, shapeFor(built, formatId, transcript), namesFor(built, step.side), decided.ending);
     if (done) return getOwnDateStep(db, userId, episodeId);
   }
   if (twoAgent && step.stage === "turn") {
@@ -1212,6 +1238,7 @@ async function showTurn(
   transcript: Turn[],
   shape: DateShape,
   names: { self: string; other: string },
+  ending?: Ending,
 ): Promise<boolean> {
   const model = getModel();
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -1228,6 +1255,13 @@ async function showTurn(
     const self = attempt < 2 ? selfAddress(parsed.turn.dialogue, names.self, names.other, { firstLine: !transcript.some((t) => t.side === side) }) : null;
     if (self) {
       messages = [...messages, { role: "assistant", content: raw }, { role: "user", content: `Revise that line: you called yourself by name ("${self}"). You are ${names.self}, talking to ${names.other}. Reply with the JSON again.` }];
+      continue;
+    }
+    // 2.8.0 (the 2026-10-22-0400 run: closing lines that asked for a second date on a date that ended as friends): in the
+    // last act, a line that pulls against where the date is heading goes back once, with the direction (lib/quality.ts).
+    const clash = attempt < 2 && ending && act === DATE_ACTS.length - 1 ? endingContradiction(parsed.turn.dialogue, ending) : null;
+    if (clash) {
+      messages = [...messages, { role: "assistant", content: raw }, { role: "user", content: `Revise that line: "${clash}" doesn't fit how this date closes. As it stands it's ${LAST_ACT[ending!]}. Reply with the JSON again.` }];
       continue;
     }
     // The same move rules as the agent's side (lib/moves.ts): an unanswered suggestion is a no.
@@ -1371,6 +1405,9 @@ async function notFound(db: Db, userId: string, episodeId: string): Promise<OwnD
 
 const asText = (output: unknown): string => (typeof output === "string" ? output : JSON.stringify(output ?? null));
 
+/** A submission for a turn another submission filled first (2.8.0, #648): refused, with the date as it is now. */
+export const RACED = "raced";
+
 /** Where a date that takes no more lines from this agent stands (#551): finished, called off or lapsed, or the show's. */
 export type FinishedState = "done" | "called_off" | "gone" | "handed_over";
 /** The refusal's code: one for every state, so an agent's line never vanishes behind accepted: true (#551). */
@@ -1454,8 +1491,9 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
         returning id`,
       [episodeId, JSON.stringify(next), transcript.length, parsed.wish ?? null, current.side, endBy],
     );
-    // Someone else handed in this turn first (a retry racing itself): offer whatever step is current now.
-    if (!saved.rows.length) return getOwnDateStep(db, userId, episodeId);
+    // Someone else handed in this turn first (a retry racing itself): offer whatever step is current now. 2.8.0 (#648, the
+    // 2026-10-22-0400 run: "one of my parallel submissions was silently ignored"): refused as raced, so it says it lost.
+    if (!saved.rows.length) return getOwnDateStep(db, userId, episodeId).then((r) => (r.ok ? { ...r, rejected: RACED } : r));
     // 2.4.2 (the 2026-10-21-0319 run): this agent's move is made, so its "Your move…" notice for this date resolves now,
     // not when the date ends (the shared helper, #527/#548). Before anything below can tell it of its next move.
     await resolveTurnNotices(db, episodeId, [userId]);
@@ -1668,6 +1706,55 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
     });
   }
   return out;
+}
+
+/**
+ * 2.8.0 (#649, the 2026-10-22-0400 run: a read_texts wait slept through a two-agent date another agent started, and the
+ * show played the visitor's side): this agent's two-agent dates still being played and whose move each is, read straight
+ * from the rows, with no rebuild and no take-over, so every reply and every poll of a wait can afford to look. Whose turn
+ * it is follows from the line count (sides alternate, a first), and the date's length from its shape, as stepFor has them.
+ * openOwnDates is the full read (it also hands a quiet side to the show).
+ */
+export async function twoAgentDatesFor(db: Db, userId: string): Promise<OpenOwnDate[]> {
+  type Light = Pick<Row, "id" | "creator_id" | "created_at" | "last_move_at" | "handed_over" | "autoplay" | "visibility" | "a_id" | "a_name" | "b_id" | "b_name"> & {
+    partner_performer: string;
+    transcript: Turn[] | null;
+    setup: DateSetup | null;
+  };
+  const { rows } = await db.query<Light>(
+    `select e.id, e.creator_id, e.partner_performer, e.transcript, e.setup, e.created_at, e.last_move_at, e.handed_over, e.autoplay, e.visibility,
+            a.id a_id, a.name a_name, b.id b_id, b.name b_name
+       from episodes e join characters a on a.id = e.character_a join characters b on b.id = e.character_b
+      where e.performed_by = 'agent' and e.status = 'generating' and e.partner_performer is not null and (e.creator_id = $1 or e.partner_performer = $1)
+      order by e.created_at`,
+    [userId],
+  );
+  return rows.map((r) => {
+    const transcript = r.transcript ?? [];
+    const formatId = (r.setup?.format ?? DEFAULT_FORMAT) as FormatId;
+    const of = dateShape(transcript, (r.setup?.venue ?? "elsewhere") as PlaceId, totalTurns(formatId), {
+      moves: r.setup?.moves === true && showFormat(formatId).moves !== false,
+      ...(r.setup?.end_by ? { endBy: r.setup.end_by } : {}),
+    }).total;
+    const performers = performersOf(r);
+    const mineSide: "a" | "b" = r.creator_id === userId ? "a" : "b";
+    const other = mineSide === "a" ? "b" : "a";
+    const shown = r.autoplay ? mineSide : r.handed_over;
+    return {
+      episode_id: r.id,
+      two_agent: true,
+      host: hostInfo(r, userId),
+      your_character: { id: r[`${mineSide}_id`], name: r[`${mineSide}_name`] },
+      with: { id: r[`${other}_id`], name: r[`${other}_name`] },
+      turn: transcript.length,
+      of,
+      your_move: transcript.length < of && performers[transcript.length % 2 === 0 ? "a" : "b"] === userId,
+      started_at: new Date(r.created_at).toISOString(),
+      last_move_at: lastMove(r).toISOString(),
+      quiet_minutes: minutesSince(lastMove(r)),
+      ...(shown ? { show_plays: { id: r[`${shown}_id`], name: r[`${shown}_name`] } } : {}),
+    };
+  });
 }
 
 /**

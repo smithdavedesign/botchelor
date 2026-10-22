@@ -28,14 +28,16 @@ export const str = (max: number, description?: string): JsonSchema => ({
 export const AGENT_ID: JsonSchema = { type: "string", description: "Optional within a session." };
 
 export const COMPACT_STEP_VALUES = [true, false, "delta"] as const;
+/**
+ * 2.8.0 (the 2026-10-22-0400 run, #633's comment: "drop the repeated step.messages prompt after the first turn"): left out,
+ * a step after start_own_date's first leaves the prompt out (lib/mcp/dispatcher.ts compactIf); true is what the default was.
+ */
 export const COMPACT_STEP: JsonSchema = {
   type: ["boolean", "string"],
   enum: [...COMPACT_STEP_VALUES],
-  default: true,
   description:
-    "true (default): after start_own_date's first step, each step carries a short reminder instead of the full instructions, and no system " +
-    "message (both never change: keep the first step's). \"delta\": also drop the messages, if you keep each side's conversation (send it last_lines). " +
-    "false: the full instructions and messages again.",
+    "Left out: after start_own_date's first step, no prompt (write the line from transcript). true: this turn's messages, minus the " +
+    "unchanging system message. \"delta\": no messages (keep each side's conversation: last_lines). false: everything.",
 };
 
 /** #485/#490: a dry run on a tool that spends or starts something. */
@@ -82,7 +84,8 @@ export const WAIT = (what: string): JsonSchema => ({
   minimum: 0,
   maximum: WAIT_MAX_SECONDS,
   default: 0,
-  description: `${what} (default 0: answer now).`,
+  // 2.8.0 (#649): every wait also wakes when something needs you now (returned_because: your_move, heads_up first).
+  description: `${what} (default 0: answer now; your move wakes it early).`,
 });
 
 /** What a PARTNER_STYLE choice means, used by create_character's reply (lib/mcp.ts partnerStyleEcho). */

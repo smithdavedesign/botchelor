@@ -303,7 +303,8 @@ describe("7. one wait: my_status wakes for texts and own-date moves, and says wh
     const start = (await call("my_status", {}, A.ctx)).structuredContent.cursor;
     setTimeout(() => void call("submit_own_date_step", { episode_id: id, output: line(1) }, B.ctx), 800);
     const got = (await call("my_status", { since: start, wait_seconds: 6 }, A.ctx)).structuredContent;
-    expect(got).toMatchObject({ returned_because: "new", woke_for: ["own_date_turn"] });
+    // 2.8.0 (#649): a move for this agent is returned_because your_move (it was new).
+    expect(got).toMatchObject({ returned_because: "your_move", woke_for: ["own_date_turn"] });
     expect(got.new_since[0]).toMatchObject({ kind: "own_date_turn", episode_id: id });
   });
 
@@ -313,7 +314,8 @@ describe("7. one wait: my_status wakes for texts and own-date moves, and says wh
     await t.db.query(`update episodes set last_move_at = now() - interval '4 minutes' where id = $1`, [id]);
     scriptedModel([showLine(1)]);
     const got = (await call("my_status", { since: start, wait_seconds: 6 }, A.ctx)).structuredContent;
-    expect(got).toMatchObject({ returned_because: "new", woke_for: ["own_date_turn"] });
+    // 2.8.0 (#649): a move for this agent is returned_because your_move (it was new).
+    expect(got).toMatchObject({ returned_because: "your_move", woke_for: ["own_date_turn"] });
     expect(got.new_since.find((x: Any) => x.episode_id === id)).toMatchObject({ kind: "own_date_turn" });
     // Passing the cursor back doesn't wake for the same move again.
     const again = (await call("my_status", { since: got.cursor, wait_seconds: 1 }, A.ctx)).structuredContent;

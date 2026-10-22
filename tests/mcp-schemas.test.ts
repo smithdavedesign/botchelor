@@ -67,7 +67,9 @@ describe("enums: every schema lists the values its handler takes, from one const
     expect(d("swipe_deck", "only")).toBe("all");
     expect(d("search_characters", "open_only")).toBe(true);
     expect(d("feedback_board", "sort")).toBe("top");
-    expect(d("submit_own_date_step", "compact")).toBe(true);
+    // 2.8.0: compact left out leaves the prompt out, which no value of the enum names, so no default is declared (a client
+    // that fills defaults would send true, the old default, and never get the smaller step).
+    expect(d("submit_own_date_step", "compact")).toBeUndefined();
   });
 
   it("a free-text field with an expected shape gives an example", () => {

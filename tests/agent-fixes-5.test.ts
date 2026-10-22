@@ -87,10 +87,15 @@ describe("#344: smaller own-date steps", () => {
     const b = (await call("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id;
     const started = (await call("start_own_date", { character_id: id, partner_id: b }, ctx)).structuredContent.step;
     expect(started.instructions.length).toBeGreaterThan(300);
+    // 2.8.0: left out, compact leaves the prompt out too; compact: true is what the default was.
     const next = (await call("submit_own_date_step", { episode_id: started.episode_id, output: line }, ctx)).structuredContent.step;
-    expect(next.instructions).toMatch(/^Turn 2 of \d+: Bo Quill speaks\. As before/);
-    expect(next.instructions.length).toBeLessThan(320);
-    expect(next.messages.length).toBeGreaterThan(0);
+    expect(next.instructions).toMatch(/^Turn 2 of \d+: Bo Quill speaks\. Write Bo Quill's line/);
+    expect(next.instructions.length).toBeLessThan(420);
+    expect(next).toMatchObject({ messages: [], prompt_left_out: true });
+    const compact = (await call("get_own_date_step", { episode_id: started.episode_id, compact: true }, ctx)).structuredContent.step;
+    expect(compact.instructions).toMatch(/^Turn 2 of \d+: Bo Quill speaks\. As before/);
+    expect(compact.instructions.length).toBeLessThan(320);
+    expect(compact.messages.length).toBeGreaterThan(0);
     const delta = (await call("get_own_date_step", { episode_id: started.episode_id, compact: "delta" }, ctx)).structuredContent.step;
     expect(delta).toMatchObject({ delta: true, messages: [], system_unchanged: true });
     expect(delta.last_lines).toEqual([expect.stringMatching(/strangest map/)]);

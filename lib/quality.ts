@@ -164,6 +164,24 @@ export function selfAddress(text: string, self: string, other: string, opts: { f
   return m ? m[0].replace(/^[\s.!?…]+/, "").trim() : null;
 }
 
+/** A romantic ask to meet again: out of place on a date that closes as friends (2.8.0). */
+const ASKS_FOR_A_DATE = /\b(?:second date|another date|a real date|date (?:you |me )?again|go out again|go out with me|when can i see you|kiss (?:you|me))\b/i;
+/** Any plan to meet again: out of place on a date that ends badly (2.8.0). */
+const ASKS_TO_MEET = /\b(?:see (?:you|each other) again|do (?:this|it) again|next time we|let's meet again|same time next)\b/i;
+/** A line that closes the door: out of place on a date heading for a second date (2.8.0). */
+const CLOSES_THE_DOOR = /\b(?:just (?:be )?friends|let's be friends|(?:only|just) as friends|not (?:a|the) match|(?:isn't|is not) working|never see (?:you|each other) again|this was a mistake)\b/i;
+
+/**
+ * A last-act line that pulls against where the date is heading (2.8.0, the 2026-10-22-0400 run: "Thaddeus's closing line
+ * asked for a second date while the ending said friends"): asking for another date on a friends or disaster date, any plan
+ * to meet again on a disaster, or closing the door on a second date. The words that clash, or null. A word list, so it's
+ * kept to plain asks: the show's model gets one more try when it plays a side (lib/own-date.ts showTurn).
+ */
+export function endingContradiction(text: string, ending: "second_date" | "friends" | "disaster"): string | null {
+  const m = ending === "second_date" ? CLOSES_THE_DOOR.exec(text) : ASKS_FOR_A_DATE.exec(text) ?? (ending === "disaster" ? ASKS_TO_MEET.exec(text) : null);
+  return m ? m[0] : null;
+}
+
 /** The never-say phrase a line uses, matched on whole words (case-insensitive), or null. */
 export function neverSaid(text: string, never: readonly string[] | undefined): string | null {
   const said = ` ${tokens(text).join(" ")} `;
