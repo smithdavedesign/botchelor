@@ -233,7 +233,9 @@ export function samePlace(x: string | null | undefined, y: string | null | undef
 
 /**
  * The closest ready set for a place among the sets already drawn: the same canonical name first, then the same place
- * noun with the most words in common, then the shortest name. Null when none is the same place.
+ * noun with the most words in common, then the shortest name. Null when none is the same place. v2.2 (Lexi × Dex,
+ * 2026-10-22): whose it is counts, both ways, so "Lexi's bedroom" keeps its name instead of becoming "the cozy bedroom",
+ * and an unowned "bedroom glow" never lands in Lexi's.
  */
 export function closestSet(label: string, ready: readonly string[]): string | null {
   const want = canonicalSet(label);
@@ -242,7 +244,7 @@ export function closestSet(label: string, ready: readonly string[]): string | nu
   const said = new Set(words(label));
   const scored = ready
     .map((r) => ({ r, c: canonicalSet(r) }))
-    .filter(({ c }) => c.known && c.head === want.head && (!want.owner || !c.owner || c.owner === want.owner))
+    .filter(({ c }) => c.known && c.head === want.head && c.owner === want.owner)
     .map(({ r, c }) => ({
       r,
       exact: c.canonical === want.canonical ? 1 : 0,
@@ -513,6 +515,35 @@ export function withoutPhrase(text: string, has: (sentence: string) => boolean):
   const speech = text.slice(action.length);
   const kept = sentences(speech).filter((s) => !has(s));
   const rest = kept.join(" ").trim();
+  if (!rest || speechOf(rest).split(" ").filter(Boolean).length < 2) return null;
+  return `${action}${rest}`.trim();
+}
+
+/**
+ * The line without whatever `has` flags in it: its leading action, and the sentences of what it says (withoutPhrase).
+ * Null when nothing's left of what it says, or when it was only an action and that went. v2.2's hooks and tells show in
+ * what a line does as often as in what it says ("*spins her pencil*").
+ */
+export function withoutPart(text: string, has: (part: string) => boolean): string | null {
+  const action = /^\*[^*]+\*\s*/.exec(text)?.[0] ?? "";
+  const speech = text.slice(action.length).trim();
+  const act = action && has(action) ? "" : action.trim();
+  const said = !speech ? "" : sentences(speech).some(has) ? withoutPhrase(speech, has) : speech;
+  if (said === null) return null;
+  return `${act} ${said}`.trim() || null;
+}
+
+/**
+ * The line without its first sentences, up to `n` words of what it says (v2.2: an opening said just before can't be
+ * rephrased, only cut); null when nothing's left of what it says. The action stays.
+ */
+export function withoutOpening(text: string, n: number): string | null {
+  const action = /^\*[^*]+\*\s*/.exec(text)?.[0] ?? "";
+  const parts = sentences(text.slice(action.length));
+  let said = 0;
+  let i = 0;
+  while (i < parts.length && said < n) said += speechOf(parts[i++]).split(" ").filter(Boolean).length;
+  const rest = parts.slice(i).join(" ").trim();
   if (!rest || speechOf(rest).split(" ").filter(Boolean).length < 2) return null;
   return `${action}${rest}`.trim();
 }

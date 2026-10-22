@@ -103,7 +103,9 @@ describe("prompt v2: their own voice", () => {
 
   it("adds the voice kit, the style examples, the stay-yourself rule and the banned stock phrases; v1 has none of them", () => {
     const [system, user] = v2().map((m) => m.content);
-    expect(system).toContain("Stay this person when it gets intimate: their job, hobbies, humour and tells still show; no generic romance-novel phrasing.");
+    expect(system).toContain(
+      "Stay this person when it gets intimate: their humour and the way they talk still show, and their job or a hobby comes up now and then, not in every line; no generic romance-novel phrasing.",
+    );
     expect(system).toMatch(/Never write these stock phrases, or anything in their register: symphony, soul, intertwined/);
     expect(system).toContain("your heart echoes mine");
     expect(system).toContain("Only the two of them are in this scene: Rafe Calloway and Sable Quist.");

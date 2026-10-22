@@ -116,6 +116,10 @@ export const METRICS = {
     { key: "wrong_pronouns", label: "Possessives neither goes by", better: "lower", aliases: ["wrongPronouns"] },
     { key: "why_restates_trait", label: "Whys only restating a trait", better: "lower", aliases: ["whyRestatesTrait"] },
     { key: "generic_whys", label: "Generic whys", better: "lower", aliases: ["genericWhys"] },
+    // Prompt v2.2's (Lexi × Dex on prod, 2026-10-22), shown the same way.
+    { key: "loose_citations", label: "Facts cited on lines that don't use them", better: "lower", aliases: ["looseCitations"] },
+    { key: "tell_uses", label: "Lines showing a tell", better: "lower", aliases: ["tellUses"] },
+    { key: "tell_uses_explicit", label: "Tells at undressing or sex", better: "lower", aliases: ["tellUsesExplicit"] },
   ],
   dates: [
     { key: "index", label: "Genuineness index (0-100)", better: "higher", gate: 5, aliases: [] },

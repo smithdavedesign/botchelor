@@ -288,6 +288,24 @@ export function repairPlacePronouns(
   return { text, repaired };
 }
 
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The label with a lost apostrophe put back on one of their names (Lexi × Dex on prod, 2026-10-22: the set was "Lexis
+ * bedroom", typed into set the scene without one): a given name with an "s" stuck on, before another word, becomes the
+ * possessive ("Lexi's bedroom"). Never when that word is the other one's name ("Lexis" next to a "Lexi").
+ */
+export function possessiveNames(label: string | null, names: { a: string; b: string }): string | null {
+  if (!label) return label;
+  const given = [givenName(names.a), givenName(names.b)].filter((n) => n.length >= 2);
+  let text = label;
+  for (const n of given) {
+    if (given.some((m) => m.toLowerCase() === `${n}s`.toLowerCase())) continue;
+    text = text.replace(new RegExp(`\\b(${escapeRe(n)})s\\b(?=\\s+[A-Za-z])`, "gi"), "$1's");
+  }
+  return text;
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Threshold places
 // ---------------------------------------------------------------------------------------------------------------------

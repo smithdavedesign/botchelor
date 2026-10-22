@@ -30,6 +30,15 @@
  *  - sheet_citations: lines whose memory cites one of their own sheet details ([S1]…, shown to a new pair);
  *  - limits and limit_overridden, and wrong_pronouns (lib/adult/craft.ts, through the observer).
  *
+ * Prompt v2.2 (Lexi × Dex on prod, 2026-10-22, 298 lines: pie, crust, oven or cream in 137 of them, pottery in 73, her
+ * pencil-spinning tell 31 times and during sex, the same action twice in three lines, "almost there" three times, whys
+ * like "The climax, the shared moment", and facts cited on lines that don't use them) adds:
+ *
+ *  - per character, `hook` (the theme word in most of their lines, and its share) and `tell_uses` (lines showing one of
+ *    their sheet's tells); for the scene, `tell_uses` and `tell_uses_explicit` (at undressing or sex);
+ *  - loose_citations: lines citing a fact they don't use (no distinctive word in common, lib/adult/facts.ts citeMemory);
+ *  - generic_whys now counts a fragment too: a why under five words, or with no verb.
+ *
  * Heuristics, like lib/quality.ts: a word list can't read a scene. They're for comparing prompts, models and settings over
  * many lines, not for judging one line.
  */
@@ -38,6 +47,7 @@ import { publicExtras, TEXT_DETAIL_KEYS } from "../extras";
 import { EVERYDAY_WORDS, tokens } from "../quality";
 import { placeIn, repeatOf } from "./continuity";
 import { strangerIn } from "./guards";
+import { STAGES } from "./stages";
 // observer.ts reads the drift from here too: each side only calls the other inside functions, so the cycle is harmless.
 import { memoryFounded, observeNight, type ObservedSide } from "./observer";
 
@@ -398,32 +408,35 @@ export const HOOK_WINDOW = 16;
 const HOOK_MIN_LINES = 6;
 const HOOK_SHARE = 0.3;
 const HOOK_MIN = 4;
-/** Words that recur in any scene that goes there, interjections and pet names: never a theme of their own. */
+/**
+ * Words that recur in any scene that goes there, interjections, pet names and bodies: never a theme of their own. (v2.2
+ * reads three-letter words too, for "pie", so the short words of an explicit scene are here as well.)
+ */
 const HOOK_SKIP = new Set(
-  "god gods fuck fucking fucked shit damn yes please more harder faster deeper inside wet hard cock pussy breast breasts nipple nipples moan moans moaning groan groans gasp gasps mmm ohh ahh baby babe darling honey sweetheart".split(
-    " ",
-  ),
+  (
+    "god gods fuck fucking fucked shit damn yes please more harder faster deeper inside wet hard cock pussy breast breasts nipple nipples moan moans moaning groan groans gasp gasps mmm ohh ahh baby babe darling honey sweetheart " +
+    "hot sex ass cum hip hips thigh thighs leg legs waist jaw ear ears toe toes rub rubs hug hugs tip tongue mouth throat shoulder shoulders stomach belly naked " +
+    "hey wow huh hmm yeah yep nah"
+  ).split(" "),
 );
 
 export type Hook = { word: string; stem: string; lines: number; of: number };
 
 /**
- * The theme a character keeps coming back to (Star on control, Sable on surprises, 2026-10-21): a distinctive word (as a
- * stem, so "surprise" and "surprised" are one) in many of their last lines, what they say and do. Not their names, the
- * scene's own vocabulary (GENERIC), a place (the threshold check has those) or the words any explicit scene repeats.
+ * Per theme word (as a stem, so "surprise" and "surprised" are one): how many of these lines say or do it, and the forms
+ * it takes. Not their names, the scene's own vocabulary (GENERIC), a place (the threshold check has those) or the words
+ * any explicit scene repeats. v2.2: three letters is enough ("pie", 2026-10-22).
  */
-export function hooksOf(lines: readonly Pick<Line, "who" | "text">[], who: "a" | "b", names: readonly string[], max = 2): Hook[] {
-  const theirs = lines.filter((l) => l.who === who).slice(-HOOK_WINDOW);
-  if (theirs.length < HOOK_MIN_LINES) return [];
+function themes(theirs: readonly Pick<Line, "text">[], names: readonly string[]): Map<string, { lines: number; forms: Map<string, number> }> {
   const skip = phraseNames(...names);
   const per = new Map<string, { lines: number; forms: Map<string, number> }>();
   for (const l of theirs) {
     const seen = new Set<string>();
     for (const t of tokens(l.text)) {
       const w = t.replace(/'s$/, "");
-      if (w.length < 4 || GENERIC.has(w) || EVERYDAY_WORDS.has(w) || skip.has(w) || HOOK_SKIP.has(w) || /\d/.test(w) || placeIn(w)) continue;
+      if (w.length < 3 || GENERIC.has(w) || EVERYDAY_WORDS.has(w) || skip.has(w) || HOOK_SKIP.has(w) || /\d/.test(w) || placeIn(w)) continue;
       const s = stem(w);
-      if (s.length < 4 || GENERIC.has(s) || skip.has(s)) continue;
+      if (s.length < 3 || GENERIC.has(s) || skip.has(s) || HOOK_SKIP.has(s)) continue;
       const e = per.get(s) ?? { lines: 0, forms: new Map<string, number>() };
       e.forms.set(w, (e.forms.get(w) ?? 0) + 1);
       if (!seen.has(s)) e.lines++;
@@ -431,20 +444,151 @@ export function hooksOf(lines: readonly Pick<Line, "who" | "text">[], who: "a" |
       per.set(s, e);
     }
   }
+  return per;
+}
+
+const mostSaid = (forms: ReadonlyMap<string, number>) => [...forms.entries()].sort((x, y) => y[1] - x[1] || x[0].length - y[0].length)[0][0];
+
+/**
+ * The theme a character keeps coming back to (Star on control, Sable on surprises, 2026-10-21): a distinctive word in many
+ * of their last lines, what they say and do (themes).
+ */
+export function hooksOf(lines: readonly Pick<Line, "who" | "text">[], who: "a" | "b", names: readonly string[], max = 2): Hook[] {
+  const theirs = lines.filter((l) => l.who === who).slice(-HOOK_WINDOW);
+  if (theirs.length < HOOK_MIN_LINES) return [];
   const need = Math.max(HOOK_MIN, Math.ceil(theirs.length * HOOK_SHARE));
-  return [...per.entries()]
+  return [...themes(theirs, names).entries()]
     .filter(([, e]) => e.lines >= need)
     .sort((x, y) => y[1].lines - x[1].lines || x[0].localeCompare(y[0]))
     .slice(0, max)
-    .map(([s, e]) => ({ stem: s, word: [...e.forms.entries()].sort((x, y) => y[1] - x[1] || x[0].length - y[0].length)[0][0], lines: e.lines, of: theirs.length }));
+    .map(([s, e]) => ({ stem: s, word: mostSaid(e.forms), lines: e.lines, of: theirs.length }));
 }
 
-/** Whether a text touches a hook: a word whose stem is the hook's, or starts with it ("surpriser" for "surpris"). */
+/**
+ * Every hook flagged at some point in these lines (hooksOf as each of the speaker's lines came), the first time each
+ * was: v2.2 holds a hook to its share once it's been flagged, even after the cuts bring it under the flag again.
+ */
+export function flaggedHooks(lines: readonly Pick<Line, "who" | "text">[], who: "a" | "b", names: readonly string[]): Hook[] {
+  const out = new Map<string, Hook>();
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].who !== who) continue;
+    for (const h of hooksOf(lines.slice(0, i + 1), who, names)) if (!out.has(h.stem)) out.set(h.stem, h);
+  }
+  return [...out.values()];
+}
+
+/**
+ * v2.2 (Lexi × Dex, 2026-10-22: Dolphin read "show other sides of them" and wrote pie in 137 of 298 lines anyway): once
+ * flagged, a hook is in one of a character's lines in HOOK_EVERY over the chapter at most, and a line past that loses
+ * the sentence with it (lib/adult/scenes.ts dropRepeats).
+ */
+export const HOOK_EVERY = 6;
+/** The lines a flagged hook may be in this chapter, with the next one counted: one in HOOK_EVERY, and one at least. */
+export const hookAllowance = (theirLines: number): number => Math.max(1, Math.floor((theirLines + 1) / HOOK_EVERY));
+
+/** The theme word in most of a character's lines (themes), and its share of them; null under HOOK_MIN_LINES lines, or none twice. */
+export function topHook(theirs: readonly Pick<Line, "text">[], names: readonly string[]): { word: string; share: number } | null {
+  if (theirs.length < HOOK_MIN_LINES) return null;
+  const [best] = [...themes(theirs, names).entries()].sort((x, y) => y[1].lines - x[1].lines || x[0].localeCompare(y[0]));
+  return best && best[1].lines >= 2 ? { word: mostSaid(best[1].forms), share: round(best[1].lines / theirs.length) } : null;
+}
+
+/**
+ * Whether a text touches a hook: a word whose stem is the hook's, or starts with it ("surpriser" for "surpris"). A
+ * three-letter hook only as itself ("pie" isn't "piece").
+ */
 export function touchesHook(text: string, hook: Pick<Hook, "stem">): boolean {
   return tokens(text).some((t) => {
     const s = stem(t.replace(/'s$/, ""));
-    return s === hook.stem || (s.length >= 4 && (s.startsWith(hook.stem) || hook.stem.startsWith(s)));
+    return s === hook.stem || (s.length >= 4 && hook.stem.length >= 4 && (s.startsWith(hook.stem) || hook.stem.startsWith(s)));
   });
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Tells, repeated actions and openings, the build-up (prompt v2.2)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** A sheet tell shows in this many of a character's lines a chapter at most, like a catchphrase's once (v2.2: 31 pencil spins). */
+export const TELL_CAP = 2;
+
+/**
+ * Whether a text shows a tell, by the tell's own words ("spin" and "pencil" in "spin a pencil"): most of them, two at
+ * least (all of a one-word tell). A tell with no words of its own is never matched.
+ */
+export function showsTell(text: string, tell: string): boolean {
+  const own = [...distinctiveStems(tell)];
+  if (!own.length) return false;
+  const said = distinctiveStems(text);
+  const need = own.length === 1 ? 1 : Math.max(2, Math.ceil(own.length / 2));
+  return own.filter((s) => said.has(s)).length >= need;
+}
+
+/** How far back an action can't come again, and an opening (v2.2). */
+export const ACTION_WINDOW = 10;
+export const OPENING_WINDOW = 4;
+const OPENING_WORDS = 4;
+/** An action sharing this much of the shorter one's words, in order, is the same action again (four words or more). */
+const ACTION_NEAR = 0.75;
+
+/** A line's leading *action*, without its asterisks; "" when it has none. */
+export const actionOf = (text: string): string => /^\s*\*([^*]+)\*/.exec(text)?.[1]?.trim() ?? "";
+
+/** The most words two lists share in the same order (not necessarily next to each other). */
+function inOrder(x: readonly string[], y: readonly string[]): number {
+  const row = new Array<number>(y.length + 1).fill(0);
+  for (let i = 1; i <= x.length; i++) {
+    let diag = 0;
+    for (let j = 1; j <= y.length; j++) {
+      const up = row[j];
+      row[j] = x[i - 1] === y[j - 1] ? diag + 1 : Math.max(row[j], row[j - 1]);
+      diag = up;
+    }
+  }
+  return row[y.length];
+}
+
+/**
+ * The earlier action this one repeats (v2.2, Lexi × Dex lines 36 and 38: "*Increases his pace, growing larger inside
+ * her*" twice): the same words, three or more, or most of the same words in order (ACTION_NEAR), four or more. Null when
+ * it's new. The repeat guard reads what they say, so an action was never checked.
+ */
+export function actionRepeatOf(action: string, earlier: readonly string[]): string | null {
+  const mine = wordsSaid(action);
+  if (mine.length < 3) return null;
+  for (const e of earlier) {
+    const theirs = wordsSaid(e);
+    if (theirs.length < 3) continue;
+    if (theirs.join(" ") === mine.join(" ")) return e;
+    const shorter = Math.min(mine.length, theirs.length);
+    if (shorter >= 4 && inOrder(mine, theirs) / shorter >= ACTION_NEAR) return e;
+  }
+  return null;
+}
+
+/**
+ * The opening a line's words share with one of `earlier` (v2.2, lines 37 and 39 opened alike): its first four words said,
+ * one of them more than glue ("I want you to" is nobody's tic), or null.
+ */
+export function openingRepeatOf(text: string, earlier: readonly string[]): string | null {
+  const mine = wordsSaid(text).slice(0, OPENING_WORDS);
+  if (mine.length < OPENING_WORDS || mine.every((w) => GLUE.has(w))) return null;
+  const opening = mine.join(" ");
+  return earlier.some((e) => wordsSaid(e).slice(0, OPENING_WORDS).join(" ") === opening) ? opening : null;
+}
+
+/**
+ * Saying the climax is near, out loud: once it's the build-up, again soon after it's a loop (v2.2: "almost there" three
+ * times before Lexi × Dex's climax). Not "so close to you", which is only where someone is.
+ */
+const BUILD_UP =
+  /\b(?:almost there|nearly there|so close(?! to\b)|(?:i'm|i am) (?:so |really |getting |almost )?close(?! to\b)|close to (?:coming|cumming|the edge)|(?:right )?on the edge|(?:about to|going to|gonna) (?:come|cum)\b)/;
+/** A build-up said by the same speaker within this many lines is cut: the worn-phrase rule, at its second use. */
+export const BUILD_UP_WINDOW = 10;
+
+/** The build-up a line says ("almost there"), what it says only (its *actions* out); null when none. */
+export function buildUpIn(text: string): string | null {
+  const said = text.replace(/\*[^*]*\*/g, " ").toLowerCase().replace(/[’‘`]/g, "'");
+  return BUILD_UP.exec(said)?.[0] ?? null;
 }
 
 /** A concrete detail of where they are: the light, a sound, a texture, the temperature, a smell or a taste. */
@@ -505,10 +649,54 @@ export function whyRestatesTrait(why: string | null | undefined, side: Pick<Qual
 /** Words a why can be made of and still say nothing about this line ("the moment" on all six lines of a step, 2026-10-21). */
 const VAGUE_WHY = new Set("moment mood vibe vibes chemistry tension attraction desire lust passion connection spark sparks heat instinct impulse feeling feelings".split(" "));
 
-/** Whether a private "why" is generic: with the filler out, only words like "moment", "mood" or "chemistry" are left. */
-export function whyIsGeneric(why: string | null | undefined): boolean {
-  const left = tokens(why ?? "").filter((w) => !WHY_FILLER.has(w));
-  return left.length > 0 && left.every((w) => VAGUE_WHY.has(w));
+/** A why shorter than this is a fragment ("his job", "the climax"), too short to say a reason (v2.2). */
+const WHY_MIN_WORDS = 5;
+/** Words that are a verb wherever they stand: auxiliaries, and a pronoun's contraction ("she's", "they'd"). */
+const AUX = new Set(
+  (
+    "is are was were am be been has have had does do did can could will would shall should may might must isn't aren't wasn't weren't hasn't " +
+    "haven't hadn't doesn't don't didn't can't couldn't won't wouldn't shouldn't i'm i've i'd i'll you're you've you'd you'll he's he'd he'll " +
+    "she's she'd she'll it's it'd it'll we're we've we'd we'll they're they've they'd they'll that's there's here's what's who's let's"
+  ).split(" "),
+);
+/** Verbs a why reaches for, as they'd be said of the character ("wants", "remembers", "felt"). */
+const WHY_VERBS = new Set(
+  (
+    "wants needs knows feels thinks remembers recalls likes loves hopes tries gives takes makes gets lets keeps says asks tells uses shows sees " +
+    "hears finds means brings reminds wonders decides realises realizes notices admits confesses leans reaches holds pulls pushes moves slips " +
+    "starts stops turns smiles laughs teases jokes answers matches mirrors echoes returns follows calls deflects softens opens invites offers " +
+    "presses tests checks owns craves misses worries trusts fears buys savours savors relishes enjoys refuses " +
+    "wanted needed knew felt thought remembered liked loved hoped tried gave took made got let kept said asked told used showed saw heard found " +
+    "meant brought came went began left met sat stood ran held put caught taught bought fell"
+  ).split(" "),
+);
+/** Who a why's sentence is about, when it says so with a pronoun: the next word is then its verb, or an adverb before it. */
+const SUBJECTS = new Set("i you he she it we they".split(" "));
+
+/**
+ * Whether a why says it with a verb: an auxiliary or a contraction, a verb whys use, or a word after its subject that
+ * reads as one ("she wants", "Lexi spins", "Dex noticed"). A heuristic: "The climax, the shared moment" has none.
+ */
+function hasVerb(words: readonly string[], names: ReadonlySet<string>): boolean {
+  return words.some((w, i) => {
+    if (AUX.has(w) || WHY_VERBS.has(w)) return true;
+    const prev = words[i - 1];
+    if (prev && SUBJECTS.has(prev)) return true;
+    return Boolean(prev && names.has(prev) && /(?:[^s']s|ed)$/.test(w));
+  });
+}
+
+/**
+ * Whether a private "why" is generic: with the filler out, only words like "moment", "mood" or "chemistry" are left; or
+ * (v2.2, Lexi × Dex's climax: "The climax, the shared moment") a fragment, under WHY_MIN_WORDS words or with no verb.
+ * `names` are the pair's, so "Lexi spins" reads as a sentence.
+ */
+export function whyIsGeneric(why: string | null | undefined, names: readonly string[] = []): boolean {
+  const words = tokens(why ?? "");
+  if (!words.length) return false;
+  const left = words.filter((w) => !WHY_FILLER.has(w));
+  if (left.length > 0 && left.every((w) => VAGUE_WHY.has(w))) return true;
+  return words.length < WHY_MIN_WORDS || !hasVerb(words, phraseNames(...names));
 }
 
 /** One character's phrase habits over their lines (after `before`'s): lines reusing a worn phrase, endings on a question, top phrases. */
@@ -523,9 +711,14 @@ function phraseHabits(lines: readonly Line[], before: readonly Line[], who: "a" 
   return { lines: theirs.length, worn, questions: theirs.filter((l) => endsOnQuestion(l.text)).length, top: topPhrases(countPhrases(theirs, names)) };
 }
 
+/** The lines (of these) that show one of a character's sheet tells (showsTell). */
+const tellLines = <T extends Pick<Line, "text">>(lines: readonly T[], tells: readonly string[] = []): T[] =>
+  tells.length ? lines.filter((l) => tells.some((t) => showsTell(l.text, t))) : [];
+
 /**
- * Per character: their lines, how much of their sheet shows, how often they reach for a stock phrase, and (v2.1) how often
- * they reuse a worn phrase, end on a question, and which phrases they lean on most.
+ * Per character: their lines, how much of their sheet shows, how often they reach for a stock phrase, (v2.1) how often
+ * they reuse a worn phrase, end on a question, and which phrases they lean on most, and (v2.2) the theme word in most of
+ * their lines with its share, and how many of their lines show one of their tells.
  */
 export type Drift = {
   name: string;
@@ -536,6 +729,8 @@ export type Drift = {
   worn_phrase_rate: number;
   question_ending_share: number;
   top_phrases: TopPhrase[];
+  hook: { word: string; share: number } | null;
+  tell_uses: number;
 };
 
 export function driftOf(lines: readonly Line[], a: QualitySide, b: QualitySide, before: readonly Line[] = []): { a: Drift; b: Drift } {
@@ -554,6 +749,8 @@ export function driftOf(lines: readonly Line[], a: QualitySide, b: QualitySide, 
       worn_phrase_rate: h.lines ? round(h.worn / h.lines) : 0,
       question_ending_share: h.lines ? round(h.questions / h.lines) : 0,
       top_phrases: h.top,
+      hook: topHook(theirs, [a.name, b.name]),
+      tell_uses: tellLines(theirs, side.tells).length,
     };
   };
   return { a: one("a"), b: one("b") };
@@ -565,9 +762,10 @@ export function driftOf(lines: readonly Line[], a: QualitySide, b: QualitySide, 
 
 /**
  * How one line's private "memory" resolved when it was written (lib/adult/facts.ts citeMemory); null: no note. `sheet`:
- * the sheet details it cited ([S1]…, v2.1's memory for a new pair).
+ * the sheet details it cited ([S1]…, v2.1's memory for a new pair). `loose` (v2.2): facts it cited that the line doesn't
+ * use; a citation of nothing else isn't founded, and is counted apart from the unfounded ones.
  */
-export type CitationStatus = { founded: boolean | null; facts: readonly string[]; sheet?: readonly string[] };
+export type CitationStatus = { founded: boolean | null; facts: readonly string[]; sheet?: readonly string[]; loose?: readonly string[] };
 
 export type QualityInput = {
   a: QualitySide;
@@ -623,7 +821,10 @@ export type SceneQuality = {
   question_ending_share: number;
   /** v2.1: the share of lines (0..1) with a concrete detail of the place: light, sound, texture, temperature (SENSORY). */
   sensory_detail_share: number;
-  /** v2.1: private whys that only restate a trait ("Sable is warm"), and whys that say nothing of the line ("the moment"). */
+  /**
+   * v2.1: private whys that only restate a trait ("Sable is warm"), and whys that say nothing of the line ("the moment");
+   * v2.2: or are a fragment (under five words, or no verb: "The climax, the shared moment").
+   */
   why_restates_trait: number;
   generic_whys: number;
   /** v2.1: limits voiced ("slow down", "wait", "not yet"…), and the ones the other side went past before a yes (lib/adult/craft.ts). */
@@ -631,7 +832,15 @@ export type SceneQuality = {
   limit_overridden: number;
   /** v2.1: lines with a possessive that fits neither character's pronouns, on a place or a body ("his apartment", both she/her). */
   wrong_pronouns: number;
+  /** v2.2: lines whose memory cites a fact the line doesn't use (no distinctive word in common), not founded. */
+  loose_citations: number;
+  /** v2.2: lines showing one of their speaker's sheet tells, and the ones of those at undressing or sex. */
+  tell_uses: number;
+  tell_uses_explicit: number;
 };
+
+/** "undressing" (STAGES): from here on a tell is out of place (v2.2). */
+const UNDRESSING = STAGES.indexOf("undressing");
 
 export function sceneQuality(input: QualityInput): SceneQuality {
   const lines = input.lines;
@@ -683,6 +892,7 @@ export function sceneQuality(input: QualityInput): SceneQuality {
   let founded = 0;
   let withFacts = 0;
   let unfounded = 0;
+  let loose = 0;
   let sheetCited = 0;
   const corpus = (i: number) => [...(input.memories ?? []), ...before.map((l) => l.text), ...lines.slice(0, i).map((l) => l.text)].join("\n");
   lines.forEach((l, i) => {
@@ -691,12 +901,16 @@ export function sceneQuality(input: QualityInput): SceneQuality {
     if (!note && !c?.facts.length) return;
     notes++;
     const ok = c ? c.founded !== false : memoryFounded(note ?? "", corpus(i));
+    // v2.2: a fact cited on a line that doesn't use it is loose: never founded, and not an unfounded one either.
+    if (c?.loose?.length) loose++;
     if (ok) founded++;
-    else unfounded++;
+    else if (!c?.loose?.length) unfounded++;
     if (c?.facts.length) withFacts++;
     // A sheet detail ([S2]): as resolved at write time, else by its label.
     if (c ? c.sheet?.length : /(?<!['’])\bS\s?-?\d{1,2}\b/.test(note ?? "")) sheetCited++;
   });
+  const tells = (who: "a" | "b") => tellLines(lines.filter((l) => l.who === who), (who === "a" ? input.a : input.b).tells);
+  const told = [...tells("a"), ...tells("b")];
 
   const refusalLines = lines.filter((l) => refusalIn(l.text)).length;
   // The share of all lines that use their own speaker's sheet (each character's lines against their own).
@@ -730,10 +944,13 @@ export function sceneQuality(input: QualityInput): SceneQuality {
     question_ending_share: n ? round(questions / n) : 0,
     sensory_detail_share: n ? round(lines.filter((l) => sensoryDetail(l.text)).length / n) : 0,
     why_restates_trait: restated,
-    generic_whys: lines.filter((l) => whyIsGeneric(l.why)).length,
+    generic_whys: lines.filter((l) => whyIsGeneric(l.why, [input.a.name, input.b.name])).length,
     limits: observed.summary.limits,
     limit_overridden: observed.summary.limit_overridden,
     wrong_pronouns: observed.summary.wrong_pronouns,
+    loose_citations: loose,
+    tell_uses: told.length,
+    tell_uses_explicit: told.filter((l) => (l.stage ?? 0) >= UNDRESSING).length,
   };
 }
 

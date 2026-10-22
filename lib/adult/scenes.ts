@@ -20,8 +20,8 @@ import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
 import type { Turn } from "../conversation";
 import { afterDarkNote, rememberAfterDark } from "./memory";
-import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
-import { activeLimit, linesAtPlace, objectOf, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
+import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
+import { activeLimit, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
 import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
 import { fileSteps, logStep, stepIndexOf, stepsOf, type StepRow } from "./steps";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
@@ -29,6 +29,7 @@ import {
   bumpFacts,
   citeMemory,
   factLine,
+  jsonOf,
   loadPairFacts,
   memoryLabels,
   RECENT_LINES,
@@ -43,7 +44,34 @@ import {
   type ShownFact,
 } from "./facts";
 import { guardAlternation, guardNames } from "./guards";
-import { bannedPhrases, copiedRun, countPhrases, hooksOf, phraseNames, phrasesIn, questionHabit, refusalIn, sheetText, sideOfCharacter, topPhrases, touchesHook, WORN_AT, wornIn } from "./quality";
+import {
+  ACTION_WINDOW,
+  actionOf,
+  actionRepeatOf,
+  bannedPhrases,
+  BUILD_UP_WINDOW,
+  buildUpIn,
+  copiedRun,
+  countPhrases,
+  flaggedHooks,
+  HOOK_EVERY,
+  hookAllowance,
+  hooksOf,
+  OPENING_WINDOW,
+  openingRepeatOf,
+  phraseNames,
+  phrasesIn,
+  questionHabit,
+  refusalIn,
+  sheetText,
+  showsTell,
+  sideOfCharacter,
+  TELL_CAP,
+  topPhrases,
+  touchesHook,
+  WORN_AT,
+  wornIn,
+} from "./quality";
 import { DEFAULT_PROMPT_VERSION, getAdultSettings, type AdultSettings, type PromptVersion } from "./settings";
 import { castNames, sceneCharacter, styleExamples, voiceKitLines } from "./voice";
 export { SOFT_CHAPTERS } from "./stages";
@@ -227,6 +255,13 @@ export const placeOf = (scene: Pick<AdultScene, "place">, date: { setting: strin
 /** Their tells (lib/extras.ts), so they still sound like themselves after dark. */
 const tellsOf = (c: Character): string[] => Object.values(c.extras.tells ?? {}).filter((t): t is string => typeof t === "string" && Boolean(t)).slice(0, 3);
 
+/** All four of their tells, as v2's sheet lists them: what v2.2 holds to TELL_CAP lines a chapter. */
+const sheetTells = (c: Character | null): string[] => Object.values(c?.extras.tells ?? {}).filter((t): t is string => typeof t === "string" && Boolean(t.trim()));
+
+/** Their tells already shown in TELL_CAP of their lines this chapter (lib/adult/quality.ts showsTell). */
+const tellsAtCap = (chapter: readonly SceneLine[], who: "a" | "b", c: Character | null): string[] =>
+  sheetTells(c).filter((t) => chapter.filter((l) => l.who === who && showsTell(l.text, t)).length >= TELL_CAP);
+
 /** Once a chapter at most (Star said "That's a problem for future me" again and again). */
 const catchphraseLine = (c: Character, used: boolean) =>
   c.extras.catchphrase
@@ -276,14 +311,16 @@ const sheetV2 = (c: Character | null, side: "a" | "b", catchphraseUsed = false, 
 
 /**
  * Prompt v2's rules for staying themselves: only the two of them, their sheets when it heats up, no stock phrasing, and
- * (v2.1: a v2 night put two women in "his apartment entrance") their pronouns, from their sheets only.
+ * (v2.1: a v2 night put two women in "his apartment entrance") their pronouns, from their sheets only. v2.2 (Lexi × Dex
+ * on prod, 2026-10-22: her bakery in 137 of 298 lines, his pottery in 73, her pencil spun 31 times, during sex too): their
+ * job and hobbies come up now and then, not in every line, and their tells are left to the craft rules.
  */
 function voiceRules(a: Character | null, b: Character | null, names: { a: string; b: string }): string[] {
   const banned = bannedPhrases([a, b].filter((c): c is Character => Boolean(c)).map((c) => sheetText(sideOfCharacter(c))));
   const pronouns = (c: Character | null, name: string) => `${name.split(/\s+/)[0]}: ${c?.pronouns?.trim() || "none given, so use their name"}`;
   return [
     `Only the two of them are in this scene: ${names.a} and ${names.b}. Nobody else speaks, arrives or is named, and each calls the other by their own name.`,
-    "Stay this person when it gets intimate: their job, hobbies, humour and tells still show; no generic romance-novel phrasing. They sound like their sheets, not like a paperback.",
+    "Stay this person when it gets intimate: their humour and the way they talk still show, and their job or a hobby comes up now and then, not in every line; no generic romance-novel phrasing. They sound like their sheets, not like a paperback.",
     `Never write these stock phrases, or anything in their register: ${banned.join(", ")}.`,
     `Their pronouns, from their sheets: ${pronouns(a, names.a)}; ${pronouns(b, names.b)}. Use only these, for them, their bodies and their places.`,
   ];
@@ -300,18 +337,26 @@ const THRESHOLD_DETAIL: Record<string, string> = {
 };
 const facetPhrase = (poss: string, f: SheetFacet) => `${poss} ${f.name} (${f.text.length > 90 ? `${f.text.slice(0, 89).replace(/\s+\S*$/, "")}…` : f.text})`;
 
+/** "undressing" (STAGES): from here on a tell is out of place and how they're positioned matters (v2.2). */
+const UNDRESSING = STAGES.indexOf("undressing");
+
 /**
  * Prompt v2.1's craft (David's review of a v2 night, Star Dust × Sable Quist, 2026-10-21: a limit overridden, the place
  * stuck in a doorway, tics, no arc). The rules that always hold: limits, a detail of the place, the rhythm, answering each
  * other, a repeat with a new action is still a repeat, and the last stage's arc. Then tonight's notes, from the lines so
  * far (lib/adult/craft.ts, lib/adult/quality.ts): a limit still standing, each one's worn phrases, question endings and
  * hook (with the other sides of them their sheet shows), and a threshold they've stood at too long.
+ *
+ * v2.2 (Lexi × Dex on prod, 2026-10-22): once they're undressing, tells are for the talking and their positions hold
+ * ("eyes locked on hers" from behind); at the last stage the build-up is said once, and after an afterglow or aftercare
+ * it only picks up again when one of them starts it in a line (it resumed with no transition after lines 28–33). The
+ * notes name a tell already shown TELL_CAP times this chapter, and that a hook past its share is cut.
  */
 function craftLines(
   a: Character | null,
   b: Character | null,
   lines: readonly SceneLine[],
-  now: { place: string; set?: string | null; stage: number; movesLeft?: number; linesHere?: number; publicPlace?: boolean },
+  now: { place: string; set?: string | null; stage: number; movesLeft?: number; linesHere?: number; publicPlace?: boolean; tellsUsed?: { a: readonly string[]; b: readonly string[] } },
 ): string[] {
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
   const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
@@ -327,12 +372,19 @@ function craftLines(
     "- A new action in front of a line already said doesn't make it new: what's been said tonight isn't said again, in any words close to it.",
     '- When these lines take them somewhere (one suggests it, the other says yes, they go), "place" and "set" in your reply are where they are by the end of them.',
   ];
+  if (now.stage >= UNDRESSING) {
+    rules.push(
+      "- Their tells (the habits on their sheets) are for the talking: now it's gone this far they don't show, unless one truly fits the moment.",
+      "- Keep track of how they're positioned: once a line sets it (on top, from behind, against the wall), the lines only show what each of them could see, reach or do from there (from behind, their eyes don't meet), until a line changes it.",
+    );
+  }
   if (now.stage >= STAGES.length - 1) {
     const climax = recentClimax(lines);
+    const again = "one of them starts it in a line (asks, or reaches for the other) and the other answers";
     rules.push(
       climax
-        ? `- They've reached a climax (${first(climax.who)}: "${climax.text.replace(/\*[^*]*\*/g, "").trim().slice(0, 60)}"): now the afterglow, a resolution. They check in with each other, stay warm, make each other laugh; it doesn't start over.`
-        : "- This is the last stage: write toward a climax, then a resolution or an afterglow beat (checking in, warmth, a joke), instead of looping.",
+        ? `- They've reached a climax (${first(climax.who)}: "${climax.text.replace(/\*[^*]*\*/g, "").trim().slice(0, 60)}"): now the afterglow, a resolution. They check in with each other, stay warm, make each other laugh; it doesn't start over unless ${again}.`
+        : `- This is the last stage: write toward a climax, then a resolution or an afterglow beat (checking in, warmth, a joke), instead of looping. The build-up ("almost there", "so close") is said once, not again and again: then the climax comes. After an afterglow or aftercare it only picks up again when ${again}; it never just resumes.`,
     );
   }
   const notes: string[] = [];
@@ -357,10 +409,17 @@ function craftLines(
     const [hook] = hooksOf(lines, who, names, 1);
     if (!hook || !c) continue;
     const kinds = new Set<string>();
-    const sides = sheetFacets(c).filter((f) => !touchesHook(f.text, hook) && !kinds.has(f.kind) && kinds.add(f.kind)).slice(0, 3);
+    // v2.2: never a tell that's had its TELL_CAP this chapter, as another side to show.
+    const spent = new Set(now.tellsUsed?.[who] ?? []);
+    const sides = sheetFacets(c).filter((f) => !touchesHook(f.text, hook) && !(f.kind === "tell" && spent.has(f.text)) && !kinds.has(f.kind) && kinds.add(f.kind)).slice(0, 3);
     notes.push(
-      `- ${first(who)} keeps coming back to "${hook.word}" (${hook.lines} of ${poss(who)} last ${hook.of} lines). Show other sides of ${objectOf(kind(who))}, from ${poss(who)} sheet, and name the one a line uses in its "why": ${sides.length ? sides.map((f) => facetPhrase(poss(who), f)).join("; ") : `${poss(who)} work, hobbies, humour and tells`}.`,
+      `- ${first(who)} keeps coming back to "${hook.word}" (${hook.lines} of ${poss(who)} last ${hook.of} lines). Show other sides of ${objectOf(kind(who))}, from ${poss(who)} sheet, and name the one a line uses in its "why": ${sides.length ? sides.map((f) => facetPhrase(poss(who), f)).join("; ") : `${poss(who)} work, hobbies, humour and tells`}. "${hook.word}" now gets one of ${poss(who)} lines in ${HOOK_EVERY} at most; a line past that loses it.`,
     );
+  }
+  // v2.2: a tell is TELL_CAP lines a chapter, like a catchphrase's once.
+  const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
+  for (const who of ["a", "b"] as const) {
+    for (const tell of now.tellsUsed?.[who] ?? []) notes.push(`- ${first(who)} has shown ${poss(who)} tell (${tell}) ${times(TELL_CAP)} this chapter: not again.`);
   }
   if (now.publicPlace && now.stage >= 1) {
     notes.push(
@@ -425,13 +484,17 @@ export function sceneMessages(
     /** v2.1: a new pair's own sheet details ([S1]…, lib/adult/facts.ts sheetMemories), and the lines they've been where they are. */
     sheetItems?: readonly SheetItem[];
     linesHere?: number;
+    /** v2.2: each one's tells already shown TELL_CAP times this chapter. */
+    tellsUsed?: { a: readonly string[]; b: readonly string[] };
   } = { place: "wherever they've just met", stage: 0 },
 ): ChatMessage[] {
   const v2 = (now.promptVersion ?? DEFAULT_PROMPT_VERSION) === "v2";
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
   const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
-  // v2.1: where they are, with a possessive neither of them goes by put right ("his apartment entrance", two women).
-  const fixPlace = (label: string) => repairPlacePronouns(label, { a: a?.pronouns, b: b?.pronouns }, { a: nameOf("a"), b: nameOf("b") }, now.homeNow ?? null).text ?? label;
+  // v2.1: where they are, with a possessive neither of them goes by put right ("his apartment entrance", two women);
+  // v2.2: and a name that lost its apostrophe ("Lexis bedroom").
+  const names = { a: nameOf("a"), b: nameOf("b") };
+  const fixPlace = (label: string) => repairPlacePronouns(possessiveNames(label, names), { a: a?.pronouns, b: b?.pronouns }, names, now.homeNow ?? null).text ?? label;
   const where = v2 ? { place: fixPlace(now.place), set: now.set ? fixPlace(now.set) : now.set } : { place: now.place, set: now.set };
   const sheetItems = v2 ? (now.sheetItems ?? []) : [];
   // A date's sides are its own a and b; map them onto the scene's (the pair is stored lower id first).
@@ -496,6 +559,7 @@ export function sceneMessages(
           movesLeft: now.movesLeft,
           linesHere: now.linesHere,
           publicPlace: !(direction && now.steerMode === "direct") && isPublicPlace(where.set ?? where.place, now.homeNow ?? null),
+          tellsUsed: now.tellsUsed,
         })
       : []),
   ]
@@ -511,7 +575,7 @@ export function sceneMessages(
   const user =
     `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}${v2 ? `, starting with ${first(next)}` : ""}. ` +
     `Each line is ${v2 ? "a few words to 3 sentences (now and then only an action)" : "1 to 3 sentences"} in that character's own voice, vivid and specific, never a stock line ("you feel amazing"). ` +
-    (v2 ? "As it heats up they stay themselves: their work, their hobbies, their humour and their tells keep showing, and nothing reads like a romance novel. " : "") +
+    (v2 ? "As it heats up they stay themselves: their humour and their way of talking keep showing, their work or a hobby now and then (not in every line), and nothing reads like a romance novel. " : "") +
     `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text. Write both in English.` +
     (direction
       ? now.steerMode === "direct"
@@ -525,7 +589,10 @@ export function sceneMessages(
     (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
     ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": ${v2 ? (cite ? `"${cite}"` : "null") : '"..."'}}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. ${v2 ? "the bedroom" : "his bedroom"}: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
     (v2
-      ? ` On every line, "why" is one short private sentence on why this character says or does this now, naming the specific thing behind it: a memory, a detail from their sheet (their job, a hobby, a tell, a line of their bio), what they want, or what just happened; never a trait word on its own ("${first("b")} is ${trait}" says nothing), and each line's why is its own ("the moment" says nothing either). "memory" is the id of the memory it draws on from what they can remember (like "F3" or "M1"), or null.${sheetItems.length ? ` One of their own sheet details ("${sheetItems[0].label}"…) counts as a memory too.` : ""} Nobody sees these notes but the writer.`
+      ? ` On every line, "why" is one short private sentence on why this character says or does this now, naming the specific thing behind it: a memory, a detail from their sheet (their job, a hobby, a tell, a line of their bio), what they want, or what just happened; never a trait word on its own ("${first("b")} is ${trait}" says nothing), and each line's why is its own ("the moment" says nothing either).` +
+        // v2.2: Lexi × Dex's climax gave whys like "The climax, the shared moment" (2026-10-22).
+        ` It's a whole sentence about this character's own reason, with a verb, even at the climax: never a fragment ("the climax, the shared moment").` +
+        ` "memory" is the id of the memory it draws on from what they can remember (like "F3" or "M1"), or null, and only one this line uses.${sheetItems.length ? ` One of their own sheet details ("${sheetItems[0].label}"…) counts as a memory too.` : ""} Nobody sees these notes but the writer.`
       : ` On every line, "why" is one short private sentence on why this character says or does this now: the memory it draws on, a trait or tell from their sheet, what they want, or "the moment"; and "memory" is the memory it draws on, quoted or named from what they can remember, or null. Nobody sees these notes but the writer.`) +
     ` Set "explicit" to true once the scene is sexually explicit. Set "picture" only when, in these lines, one of them asks the other for a picture or to be shown something and the other agrees:` +
     ` {"of": "a", "b" or "both", "description": "what the picture shows, in one sentence: the pose, what they're wearing or not, the expression, the framing"}; otherwise null.`;
@@ -643,11 +710,19 @@ const CRITIC_WINDOW = SCENE_IN_PROMPT;
 
 export type DroppedLine = { who: "a" | "b"; text: string; reason: string };
 
+/** What v2.2's craft guards took out on the way in, in lines that lost a part or went (dropRepeats). */
+export type CraftCuts = { hooks: number; tells: number; actions: number; openings: number; build_ups: number };
+
 /**
  * The new lines minus repeats (David, 2026-10-21: Star × Chud's lines 102–106 were 84–88 again): a line said before
  * tonight, word for word or nearly (lib/adult/continuity.ts repeatOf), or one the dates' near-duplicate critic flags is
  * dropped; a catchphrase past its once a chapter, or a tic the catchphrase critic flags, loses its sentence (the line
  * goes if nothing's left). `night` is everything said tonight that's at hand; `chapter` is this chapter's lines.
+ *
+ * `craft` (v2.2, Lexi × Dex on prod, 2026-10-22) adds, each cutting the part that does it and dropping the line when
+ * nothing it says is left: a tell past TELL_CAP lines this chapter; an action from the last ACTION_WINDOW lines again
+ * (only the action goes); an opening from the last OPENING_WINDOW lines again; the build-up ("almost there") again within
+ * BUILD_UP_WINDOW lines; and a flagged hook past its share of the chapter (lib/adult/quality.ts hookAllowance).
  */
 export function dropRepeats(
   written: readonly SceneLine[],
@@ -655,8 +730,8 @@ export function dropRepeats(
   chapter: readonly SceneLine[],
   a: Character | null,
   b: Character | null,
-  opts: { worn?: boolean } = {},
-): { kept: SceneLine[]; dropped: DroppedLine[]; worn: number } {
+  opts: { worn?: boolean; craft?: boolean } = {},
+): { kept: SceneLine[]; dropped: DroppedLine[]; worn: number; cuts: CraftCuts } {
   const kept: SceneLine[] = [];
   const dropped: DroppedLine[] = [];
   const drop = (l: SceneLine, reason: string) => dropped.push({ who: l.who, text: l.text, reason });
@@ -664,8 +739,14 @@ export function dropRepeats(
   const named = phraseNames(a?.name ?? "", b?.name ?? "");
   const counts = opts.worn ? { a: countPhrases(night.filter((l) => l.who === "a"), named), b: countPhrases(night.filter((l) => l.who === "b"), named) } : null;
   let worn = 0;
+  // v2.2: the hooks flagged tonight (once flagged, held to their share), and each one's tells.
+  const cuts: CraftCuts = { hooks: 0, tells: 0, actions: 0, openings: 0, build_ups: 0 };
+  const pair = [a?.name ?? "", b?.name ?? ""];
+  const hooks = opts.craft ? { a: flaggedHooks(night, "a", pair), b: flaggedHooks(night, "b", pair) } : { a: [], b: [] };
+  const tells = { a: sheetTells(a), b: sheetTells(b) };
   for (const l of written) {
     const before = [...night, ...kept];
+    const mine = [...chapter, ...kept].filter((x) => x.who === l.who);
     // The catchphrase first (it would make any short line that says it look like the last one that did).
     let text: string | null = l.text;
     const phrase = (l.who === "a" ? a : b)?.extras.catchphrase;
@@ -674,6 +755,29 @@ export function dropRepeats(
       if (!text) {
         drop(l, "the catchphrase again this chapter");
         continue;
+      }
+    }
+    if (opts.craft) {
+      // v2.2: a tell already in TELL_CAP of their lines this chapter loses what shows it (Lexi spun her pencil 31 times).
+      const tell = tells[l.who].find((t) => showsTell(text!, t) && mine.filter((x) => showsTell(x.text, t)).length >= TELL_CAP);
+      if (tell) {
+        cuts.tells++;
+        text = withoutPart(text, (s) => showsTell(s, tell));
+        if (!text) {
+          drop(l, `a tell past ${TELL_CAP} lines this chapter ("${tell}")`);
+          continue;
+        }
+      }
+      // v2.2: an action from the last ACTION_WINDOW lines again goes; what they say stays (lines 36 and 38, the same action).
+      const act = actionOf(text);
+      const again = act ? actionRepeatOf(act, before.slice(-ACTION_WINDOW).map((x) => actionOf(x.text)).filter(Boolean)) : null;
+      if (again) {
+        cuts.actions++;
+        text = text.replace(/^\s*\*[^*]+\*\s*/, "");
+        if (!text.trim()) {
+          drop(l, `the same action again ("${again.slice(0, 80)}")`);
+          continue;
+        }
       }
     }
     const rep = repeatOf(text, before.map((x) => x.text));
@@ -699,16 +803,52 @@ export function dropRepeats(
         }
       }
     }
+    if (opts.craft) {
+      // v2.2: a line opening like one of the last OPENING_WINDOW lines can't be rephrased here, only cut (lines 37 and 39).
+      const opening = openingRepeatOf(text, before.slice(-OPENING_WINDOW).map((x) => x.text));
+      if (opening) {
+        cuts.openings++;
+        text = withoutOpening(text, opening.split(" ").length);
+        if (!text) {
+          drop(l, `opens like a line just said ("${opening}")`);
+          continue;
+        }
+      }
+    }
     // v2.1: a phrase this speaker has already said in WORN_AT lines tonight ("let's see" in 23 of 59) loses its sentence;
     // the line goes if nothing's left. The v2.1 prompt lists these phrases, so the model was told.
     if (counts) {
-      const mine = counts[l.who];
-      const hit = wornIn(text, mine, named);
+      const phrases = counts[l.who];
+      const hit = wornIn(text, phrases, named);
       if (hit) {
         worn++;
-        text = withoutPhrase(text, (s) => wornIn(s, mine, named) !== null);
+        text = withoutPhrase(text, (s) => wornIn(s, phrases, named) !== null);
         if (!text) {
           drop(l, `a worn phrase ("${hit.phrase}", already in ${hit.count} of their lines tonight)`);
+          continue;
+        }
+      }
+    }
+    if (opts.craft) {
+      // v2.2: the build-up said again by the same speaker within BUILD_UP_WINDOW lines: worn at its second use ("almost
+      // there" three times before the climax).
+      const up = buildUpIn(text);
+      if (up && before.slice(-BUILD_UP_WINDOW).some((x) => x.who === l.who && buildUpIn(x.text))) {
+        cuts.build_ups++;
+        text = withoutPhrase(text, (s) => buildUpIn(s) !== null);
+        if (!text) {
+          drop(l, `the build-up again ("${up}")`);
+          continue;
+        }
+      }
+      // v2.2: a hook flagged tonight, past its share of their lines this chapter, loses the part with it (pie in 137 of 298).
+      const over = hooks[l.who].filter((h) => touchesHook(text!, h) && mine.filter((x) => touchesHook(x.text, h)).length >= hookAllowance(mine.length));
+      if (over.length) {
+        cuts.hooks++;
+        text = withoutPart(text, (s) => over.some((h) => touchesHook(s, h)));
+        if (!text) {
+          const used = mine.filter((x) => touchesHook(x.text, over[0])).length;
+          drop(l, `a theme past its share this chapter ("${over[0].word}", in ${used} of their ${mine.length} lines)`);
           continue;
         }
       }
@@ -717,7 +857,7 @@ export function dropRepeats(
     kept.push(line);
     if (counts) for (const p of phrasesIn(line.text, named)) counts[l.who].set(p, (counts[l.who].get(p) ?? 0) + 1);
   }
-  return { kept, dropped, worn };
+  return { kept, dropped, worn, cuts };
 }
 
 export type ContinueResult =
@@ -804,6 +944,15 @@ export type StepFlags = {
   show_copies_cut: number;
   /** v2.1: lines dropped for going past kissing in a public place. */
   public_dropped: number;
+  /**
+   * v2.2: lines that lost a part, or went, to dropRepeats' craft guards: a hook past its share, a tell past TELL_CAP, an
+   * action or an opening said again, the build-up again.
+   */
+  hooks_cut: number;
+  tells_cut: number;
+  actions_cut: number;
+  openings_cut: number;
+  build_ups_cut: number;
 };
 
 /** "kissing" (STAGES): as far as it goes in a public place (David, 2026-10-18). */
@@ -891,11 +1040,14 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     styles,
     sheetItems,
     linesHere: linesAtPlace(scene),
+    // v2.2: a tell that's had its TELL_CAP lines this chapter is named, like a catchphrase that's had its once.
+    ...(v2 ? { tellsUsed: { a: tellsAtCap(scene.lines, "a", a), b: tellsAtCap(scene.lines, "b", b) } } : {}),
   });
   const usage: Usage[] = [];
   const flags: StepFlags = {
     calls: 0, retried: false, held: 0, repeats: 0, names_repaired: 0, names_dropped: 0, alternation_merged: 0, alternation_dropped: 0, alternation_boundary: 0,
     refused: 0, moralising: 0, refusal_reply: false, citations: [], worn_phrases: 0, show_copies_cut: 0, public_dropped: 0,
+    hooks_cut: 0, tells_cut: 0, actions_cut: 0, openings_cut: 0, build_ups_cut: 0,
   };
   const { temperature, frequency_penalty, presence_penalty, repetition_penalty } = input.sampling;
   const options: ModelOptions = {
@@ -969,7 +1121,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
             drops.push({ who: l.who, text: l.text, reason: `went past kissing in a public place (${scene.set_place ?? scene.place ?? date?.setting ?? "where they are"})` });
             return false;
           });
-    const reps = dropRepeats(inPlace, night, scene.lines, a, b, { worn: v2 });
+    const reps = dropRepeats(inPlace, night, scene.lines, a, b, { worn: v2, craft: v2 });
     const fresh = reps.kept.flatMap((l): SceneLine[] => {
       const copy = showLines.length ? repeatOf(l.text, showLines) : null;
       if (copy) {
@@ -992,6 +1144,11 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     flags.public_dropped += publicDropped;
     flags.repeats += reps.dropped.length;
     flags.worn_phrases += reps.worn;
+    flags.hooks_cut += reps.cuts.hooks;
+    flags.tells_cut += reps.cuts.tells;
+    flags.actions_cut += reps.cuts.actions;
+    flags.openings_cut += reps.cuts.openings;
+    flags.build_ups_cut += reps.cuts.build_ups;
     flags.alternation_merged += turns.merged;
     flags.alternation_dropped += turns.dropped.length;
     dropped.push(...drops, ...reps.dropped, ...turns.dropped);
@@ -1046,20 +1203,23 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     };
   }
   // What each line's memory cites: a fact shown (by its id, a quote or its words), another memory, a new pair's sheet
-  // detail (v2.1), or tonight so far.
+  // detail (v2.1), or tonight so far. v2.2: a fact the line doesn't use is loose, never one of its fact_ids (not bumped).
   const others = [...memoryLabels(input.memories), ...sheetItems];
   const context = [scene.recap ?? "", ...(date?.transcript ?? []).map((t) => t.dialogue), ...night.slice(-SCENE_IN_PROMPT).map((l) => l.text)].join("\n");
-  flags.citations = out.kept.map((l) => citeMemory(l.memory, shown, others, context));
+  flags.citations = out.kept.map((l) => citeMemory(l.memory, shown, others, context, { text: l.text, names: [names.a, names.b] }));
   let kept = out.kept.map((l, i) => (flags.citations[i].facts.length ? { ...l, fact_ids: flags.citations[i].facts } : l));
 
   const meta = parseSceneMeta(raw);
   const resolve = async (label: string) => (input.resolveSet ? await input.resolveSet(label) : drawLabel(label).slice(0, 40));
+  // v2.2 (Lexi × Dex on prod, 2026-10-22: "Lexis bedroom", typed into set the scene without its apostrophe): a name that
+  // lost its apostrophe gets it back, where they are and in what the model claims, so the set they're on is put right too.
+  const named = (label: string | null) => possessiveNames(label, names);
   // Where they are now (lib/adult/continuity.ts): a rewording keeps the set; a move needs one to propose and the other
   // to agree in these lines, a move left this chapter, and somewhere they aren't already. Anything else is ignored.
   const settled = settlePlace({
     // Before the model has named a place, they're where their date was (they don't leave it unprompted either).
-    current: { place: scene.place ?? date?.setting ?? null, set: scene.set_place },
-    claimed: { place: meta.place, set: meta.set ?? null },
+    current: { place: named(scene.place ?? date?.setting ?? null), set: named(scene.set_place) },
+    claimed: { place: named(meta.place), set: named(meta.set ?? null) },
     lines: [...night, ...kept],
     from: night.length,
     movesThisChapter: movesTaken,
@@ -1094,9 +1254,10 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     moves.push({ chapter: scene.chapter, at: scene.lines.length + settled.moved.at, from: scene.set_place ?? scene.place, to: set_place, taken: true, reason: "agreed" });
     place_history = [...place_history, { place: place ?? set_place, set: set_place, home: settled.moved.home, chapter: scene.chapter }];
   } else if (set_place && set_place !== scene.set_place) {
-    // The scene's first set (or one named where the old one named nowhere): the closest drawn one, no move.
+    // The scene's first set (or one named where the old one named nowhere, or v2.2's "Lexis bedroom" put right): the
+    // closest drawn one, no move. The stop is the same one renamed, so it keeps the chapter they got there in.
     set_place = await resolve(set_place);
-    place_history = [...place_history.slice(0, -1), { place: place ?? set_place, set: set_place, home: homeNow, chapter: scene.chapter }];
+    place_history = [...place_history.slice(0, -1), { place: place ?? set_place, set: set_place, home: homeNow, chapter: place_history.at(-1)?.chapter ?? scene.chapter }];
   }
   if (settled.rejected) moves.push({ chapter: scene.chapter, at: scene.lines.length, from: scene.set_place ?? scene.place, to: settled.rejected.to, taken: false, reason: settled.rejected.reason });
   if (!place_history.length && (place || set_place)) place_history = [{ place: place ?? set_place!, set: set_place, home: null, chapter: scene.chapter }];
@@ -1239,9 +1400,57 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   };
 }
 
-/** The running recap: the night so far, from the last recap and the chapter just finished. Falls back to the old one. */
-export async function writeRecap(db: Db, a: Character | null, b: Character | null, before: string | null, lines: SceneLine[]): Promise<string | null> {
+/** What a chapter's close knows for certain, for a recap the model couldn't write: which chapter, where it ended, how far it went. */
+export type ChapterEnd = Pick<AdultScene, "chapter" | "place" | "set_place" | "stage">;
+
+/**
+ * The recap in the model's reply: its JSON, even inside a code fence or after a sentence (lib/adult/facts.ts jsonOf), cut
+ * to RECAP_MAX and held to the two lines; else why it can't be used (said in the log, never the reply itself).
+ */
+export function recapFrom(raw: string): { recap: string } | { reason: string } {
+  const j = jsonOf(raw);
+  if (!j || typeof j !== "object") return { reason: "the reply had no JSON object in it" };
+  const recap = (j as { recap?: unknown }).recap;
+  if (typeof recap !== "string" || !recap.trim()) return { reason: "the reply's JSON had no recap in it" };
+  const text = recap.trim().slice(0, RECAP_MAX);
+  return checkAdultText({ recap: text }).ok ? { recap: text } : { reason: "the recap crossed one of the two lines" };
+}
+
+/** Where a recap says they ended up: "at Lexi's bedroom", "at the street", "outside the truck" (a place that says its own preposition). */
+const atPlace = (label: string) =>
+  /^(?:in|on|at|by|near|under|inside|outside|behind|against|beside|next to|across)\b/i.test(label) ? label : /^(?:the|a|an|his|her|their|my|your|our)\b|['’]/i.test(label) ? `at ${label}` : `at the ${label}`;
+
+/** The text at most `max` long, its oldest sentences dropped first, so the newest stays. */
+function keepNewest(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const parts = text.split(/(?<=[.!?])\s+/);
+  while (parts.length > 1 && parts.join(" ").length > max) parts.shift();
+  return parts.join(" ").slice(-max);
+}
+
+/**
+ * The recap when the model's can't be used (v2.2; Lexi × Dex on prod, 2026-10-22: chapter 2 was filed with chapter 1's
+ * recap word for word, so chapter 3 began the foreplay again though they were in her bed): the one before, never left as
+ * it was, with a sentence from the chapter's own record ("Later, at Lexi's bedroom, it went as far as sex."), the newest
+ * kept under RECAP_MAX. A place that wouldn't pass the two lines is left out of it.
+ */
+export function recapFallback(before: string | null, end: Pick<ChapterEnd, "place" | "set_place" | "stage">): string {
+  const where = end.set_place?.trim() || end.place?.trim() || null;
+  const sentence = (at: string | null) => {
+    const s = `${at ? `${atPlace(at)}, ` : ""}it went as far as ${STAGES[end.stage] ?? STAGES[0]}.`;
+    return before ? `Later, ${s}` : `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
+  };
+  const said = where && checkAdultText({ recap: sentence(where) }).ok ? sentence(where) : sentence(null);
+  return keepNewest(before ? `${before.trim()} ${said}` : said, RECAP_MAX);
+}
+
+/**
+ * The running recap: the night so far, from the last recap and the chapter just finished. When the model's can't be used
+ * (no answer, no JSON, nothing in it, or over the two lines) it says why in the log and falls back (recapFallback).
+ */
+export async function writeRecap(db: Db, a: Character | null, b: Character | null, before: string | null, lines: SceneLine[], end: ChapterEnd): Promise<string> {
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
+  let reason: string;
   try {
     const raw = await (await adultModel(db)).complete(
       [
@@ -1257,18 +1466,19 @@ export async function writeRecap(db: Db, a: Character | null, b: Character | nul
       ],
       { temperature: 0.3, maxTokens: 400 },
     );
-    const recap = (JSON.parse(raw.trim()) as { recap?: unknown }).recap;
-    if (typeof recap !== "string" || !recap.trim()) return before;
-    const text = recap.trim().slice(0, RECAP_MAX);
-    return checkAdultText({ recap: text }).ok ? text : before;
-  } catch {
-    return before;
+    const got = recapFrom(raw);
+    if ("recap" in got) return got.recap;
+    reason = got.reason;
+  } catch (err) {
+    reason = `the model didn't answer (${err instanceof Error ? err.message.slice(0, 160) : "error"})`;
   }
+  console.warn(`[after-dark] chapter ${end.chapter}'s recap: ${reason}; kept the last one and added where the chapter ended`);
+  return recapFallback(before, end);
 }
 
 /** Files a full chapter as a saved night and starts the next one, carrying the recap and the last few lines. */
 async function nextChapter(db: Db, ownerId: string, scene: AdultScene, a: Character | null, b: Character | null): Promise<AdultScene> {
-  const recap = await writeRecap(db, a, b, scene.recap, scene.lines);
+  const recap = await writeRecap(db, a, b, scene.recap, scene.lines, scene);
   const nightId = crypto.randomUUID();
   await db.query(
     `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place, chapter, recap, moves, place_history)
