@@ -19,6 +19,7 @@ import { createHash } from "node:crypto";
 import type { Db } from "./db";
 import type { CharacterExtras } from "./extras";
 import { kindLabel } from "./kinds";
+import { originality, type Lookalike, type OriginalityReport, type SheetDraft } from "./originality";
 import { DELETED_OWNER } from "./rules";
 
 type Vec = number[];
@@ -29,7 +30,12 @@ export const DEFAULT_EMBED_MODEL = "gemini-embedding-001";
 /** Truncated output: a quarter of the model's 3072 dimensions keeps each cached row small (~8 KB) and costs little recall. */
 export const EMBED_DIMS = 768;
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
-const EMBED_KEY = (env: Env) => env.EMBED_API_KEY ?? env.GOOGLE_API_KEY ?? "";
+/**
+ * EMBED_API_KEY, else the Google key the show's own model uses (lib/model.ts): GOOGLE_API_KEY, or LLM_API_KEY while it
+ * points at Google's endpoint (another provider's key would be refused by Gemini).
+ */
+const EMBED_KEY = (env: Env): string =>
+  env.EMBED_API_KEY || env.GOOGLE_API_KEY || (!env.LLM_BASE_URL || env.LLM_BASE_URL.startsWith(GEMINI_BASE) ? env.LLM_API_KEY : "") || "";
 export const embedModel = (env: Env = process.env): string => env.EMBED_MODEL || DEFAULT_EMBED_MODEL;
 /** How alike two characters must read to be called twins. Tunable from the `[embed] twins` log line's top scores. */
 export const twinThreshold = (env: Env = process.env): number => Number(env.CONCEPT_TWIN_MIN) || 0.88;
@@ -242,4 +248,13 @@ export async function conceptLookalikes(
   if (!conceptEnabled() || !sheet.bio?.trim()) return [];
   const vec = await embed(conceptText({ bio: sheet.bio, traits: sheet.traits ?? [], want: sheet.want ?? "", extras: sheet.extras }));
   return vec ? conceptTwinsOf(db, vec, excludeId) : [];
+}
+
+/**
+ * The originality check (lib/originality.ts) with twins by meaning weighed in when concept checks are on: what every
+ * server caller runs (the route, MCP create_character and check_originality). Server-only, like this whole module.
+ */
+export function originalityWithConcepts(db: Db, sheet: SheetDraft, excludeId: string | null = null): Promise<OriginalityReport> {
+  const twins = conceptLookalikes(db, sheet, excludeId).then((list) => list.map((c): Lookalike => ({ id: c.id, name: c.name, kind: "concept", why: c.why })));
+  return originality(db, sheet, excludeId, twins);
 }

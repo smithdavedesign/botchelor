@@ -10,7 +10,6 @@
  */
 import type { Db } from "./db";
 import { publicExtras, type CharacterExtras } from "./extras";
-import { conceptLookalikes } from "./originality-concept";
 import { contentWords, EVERYDAY_WORDS } from "./quality";
 import { DELETED_OWNER } from "./rules";
 
@@ -547,12 +546,21 @@ export function scoreSheet(sheet: SheetDraft, cliches: Cliche[], similar: Lookal
   };
 }
 
-/** The whole check, with lookalikes from the database (2.4.3: and a suggestion when a name and job are too close to a recent one's). */
-export async function originality(db: Db, sheet: SheetDraft, excludeId: string | null = null): Promise<OriginalityReport> {
-  const [words, concept] = await Promise.all([lookalikesWithRecent(db, sheet, excludeId, 3), conceptLookalikes(db, sheet, excludeId).catch(() => [])]);
+/**
+ * The whole check, with lookalikes from the database (2.4.3: and a suggestion when a name and job are too close to a
+ * recent one's). `also`: more look-alikes to weigh after the word-based ones, each character once: the twins by meaning
+ * that server callers pass in (lib/originality-concept.ts originalityWithConcepts). This file stays free of server-only
+ * imports because the builder imports it in the browser (findCliches).
+ */
+export async function originality(
+  db: Db,
+  sheet: SheetDraft,
+  excludeId: string | null = null,
+  also: Lookalike[] | Promise<Lookalike[]> = [],
+): Promise<OriginalityReport> {
+  const [words, more] = await Promise.all([lookalikesWithRecent(db, sheet, excludeId, 3), Promise.resolve(also).catch(() => [])]);
   const { recent, rows } = words;
-  // Twins by meaning (lib/originality-concept.ts, when on) after the word-based ones, each character once.
-  const found = [...words.found, ...concept.filter((c) => !words.found.some((f) => f.id === c.id)).map((c): Lookalike => ({ id: c.id, name: c.name, kind: "concept", why: c.why }))].slice(0, 3);
+  const found = [...words.found, ...more.filter((c) => !words.found.some((f) => f.id === c.id))].slice(0, 3);
   const report = scoreSheet(sheet, findCliches(sheet), found);
   const close = found.filter((f) => f.name_and_job).flatMap((f) => rows.filter((r) => r.id === f.id));
   if (!close.length) return report;

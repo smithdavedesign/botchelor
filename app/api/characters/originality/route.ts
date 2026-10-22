@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { ExtrasInput, normaliseExtras } from "@/lib/extras";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
-import { originality } from "@/lib/originality";
+import { originalityWithConcepts } from "@/lib/originality-concept";
 import { VOICE_MAX } from "@/lib/rules";
 import { ownsCharacter } from "@/lib/souls";
 
@@ -28,6 +28,6 @@ export const POST = handle(async (req: Request) => {
   const draft = parseBody(Draft, await readJson(req), "invalid_character");
   const db = await getDb();
   const exclude = draft.character_id && (await ownsCharacter(db, draft.character_id, sess.userId)) ? draft.character_id : null;
-  const report = await originality(db, { ...draft, extras: draft.extras ? normaliseExtras(draft.extras) : null }, exclude);
+  const report = await originalityWithConcepts(db, { ...draft, extras: draft.extras ? normaliseExtras(draft.extras) : null }, exclude);
   return json(report, 200, sess);
 });

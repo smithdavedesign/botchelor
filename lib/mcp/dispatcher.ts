@@ -69,7 +69,8 @@ import { loadCharacter, pronounWarnings } from "../character";
 import { ADULT_TOOL_NAMES, ADULT_TOOLS, runAdultTool } from "../adult/mcp";
 import { listThreads, markPairNoticesRead, markTextsRead, sweepAnsweredTexts, unreadTextsByPair } from "../inbox";
 import { rescueStuckJob } from "../jobs";
-import { findLookalikes, type Lookalike, originality, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS } from "../originality";
+import { findLookalikes, type Lookalike, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS } from "../originality";
+import { originalityWithConcepts } from "../originality-concept";
 import { pairNames, shortName, suggestFreeNames } from "../names";
 import { currentPartners, partnerLabel, partnerStyleOf, settleCharacter, styleSql, takenSql } from "../partners";
 import { isLogistics } from "../memory";
@@ -4936,7 +4937,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // Agent funnel: first character per agent (idempotent).
       await recordAgentEvent(db, who.id, "agent_first_character", { character_id: String(r.data.id) });
       const sheet = r.data as Record<string, unknown>;
-      const report = await originality(
+      const report = await originalityWithConcepts(
         db,
         { name: String(sheet.name ?? ""), bio: String(sheet.bio ?? ""), traits: (sheet.traits as string[]) ?? [], want: String(sheet.want ?? ""), dealbreaker: String(sheet.dealbreaker ?? ""), voice: (sheet.voice as string) ?? null, extras: (sheet.extras as CharacterExtras) ?? null },
         String(sheet.id),
@@ -6826,13 +6827,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "check_originality": {
       const who = resolveIdentity(args, session, false);
       const id = typeof args.character_id === "string" ? args.character_id : "";
-      let report: Awaited<ReturnType<typeof originality>> | Record<string, unknown> | null = null;
+      let report: Awaited<ReturnType<typeof originalityWithConcepts>> | Record<string, unknown> | null = null;
       let subject: { name: string; bio: string; traits: readonly string[]; want: string } | null = null;
       if (id) {
         if (!who || !(await ownsCharacter(db, id, who.id))) return { error: "That character isn't yours (or doesn't exist). my_status lists yours." };
         const c = await loadCharacter(db, id);
         if (!c) return { error: "No such character." };
-        report = await originality(db, { name: c.name, bio: c.bio, traits: c.persona.traits, want: c.persona.want, dealbreaker: c.dealbreaker, voice: c.voice, extras: c.extras }, id);
+        report = await originalityWithConcepts(db, { name: c.name, bio: c.bio, traits: c.persona.traits, want: c.persona.want, dealbreaker: c.dealbreaker, voice: c.voice, extras: c.extras }, id);
         subject = { name: c.name, bio: c.bio, traits: c.persona.traits, want: c.persona.want };
       } else {
         const r = await callRoute(postOriginality, { agentId: who?.id, body: pick(args, ["name", "bio", "traits", "want", "dealbreaker", "voice", "extras"]) });
