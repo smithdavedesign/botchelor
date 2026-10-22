@@ -211,8 +211,17 @@ export type SearchOptions = {
   limit?: number;
 };
 
-/** The candidate pool, newest first, bounded so a search stays cheap however big the cast grows. */
-async function candidates(db: Db, viewerId: string | null, openOnly: boolean, includeHouse: boolean): Promise<ProfileRow[]> {
+/** A LIKE pattern for a word, its wildcards taken literally. */
+const likePattern = (w: string) => `%${w.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+/** Every word a search can match on, as one lowercase text (a superset: the scoring below decides). Needs `c`. */
+const SEARCH_TEXT = `lower(concat_ws(' ', c.name, c.bio, c.want, c.appearance, c.voice, c.traits::text, c.extras::text))`;
+
+/**
+ * The candidate pool, newest first, bounded so a search stays cheap however big the cast grows. 2.6.0 (the 2026-10-22-0042
+ * run: "search_characters should include every agent-made character open to dates"): with words to look for, the bound
+ * comes after a first cut on them, so a match never falls off the end of the 300 newest.
+ */
+async function candidates(db: Db, viewerId: string | null, openOnly: boolean, includeHouse: boolean, words: string[] = []): Promise<ProfileRow[]> {
   const { rows } = await db.query<ProfileRow>(
     `select ${PUBLIC_COLUMNS}
        from characters c
@@ -221,32 +230,81 @@ async function candidates(db: Db, viewerId: string | null, openOnly: boolean, in
         and ($1::text is null or c.is_house or (c.owner_id <> $1 and ${NOT_BLOCKED}))
         -- A private character (characters.visibility) is never found by anyone else: it's listed by name only.
         and c.visibility <> 'private'
+        and (cardinality($5::text[]) = 0 or ${SEARCH_TEXT} like any($5::text[]))
       order by c.is_house, c.created_at desc, c.id
       limit 300`,
-    [viewerId, includeHouse, openOnly, seasonCastIds()],
+    [viewerId, includeHouse, openOnly, seasonCastIds(), words.map(likePattern)],
   );
   return rows;
 }
 
+/** How well a profile matches a search's words and traits (0: not at all). */
+function searchScore(p: DatingProfile, terms: string[], wanted: string[]): number {
+  const words = keywords(haystack(p));
+  const termHits = terms.filter((t) => words.has(t) || p.name.toLowerCase().includes(t)).length;
+  const traitHits = wanted.filter((w) => p.traits.some((t) => t.toLowerCase().includes(w))).length;
+  return termHits + 2 * traitHits;
+}
+
+const searchWords = (opts: Pick<SearchOptions, "query" | "traits">) => ({
+  terms: [...keywords(opts.query ?? "")],
+  wanted: (opts.traits ?? []).map((t) => t.trim().toLowerCase()).filter(Boolean),
+});
+
 export async function searchCharacters(db: Db, opts: SearchOptions): Promise<DatingProfile[]> {
   const limit = Math.max(1, Math.min(30, opts.limit ?? 10));
-  const pool = (await candidates(db, opts.viewerId, opts.openOnly ?? true, opts.includeHouse ?? true)).map((r) => toProfile(r));
-  const terms = [...keywords(opts.query ?? "")];
-  const wanted = (opts.traits ?? []).map((t) => t.trim().toLowerCase()).filter(Boolean);
+  const { terms, wanted } = searchWords(opts);
   const filtering = terms.length > 0 || wanted.length > 0;
+  const pool = (await candidates(db, opts.viewerId, opts.openOnly ?? true, opts.includeHouse ?? true, [...terms, ...wanted])).map((r) => toProfile(r));
 
   const scored = pool
     .filter((p) => !opts.madeBy || opts.madeBy === "any" || p.made_by === opts.madeBy)
-    .map((p) => {
-      const words = keywords(haystack(p));
-      const termHits = terms.filter((t) => words.has(t) || p.name.toLowerCase().includes(t)).length;
-      const traitHits = wanted.filter((w) => p.traits.some((t) => t.toLowerCase().includes(w))).length;
-      return { p, score: termHits + 2 * traitHits };
-    })
+    .map((p) => ({ p, score: searchScore(p, terms, wanted) }))
     .filter((s) => !filtering || s.score > 0);
   // Best match first; among equals, people and agents before the house cast, then the busiest.
   scored.sort((a, b) => b.score - a.score || Number(a.p.made_by === "house") - Number(b.p.made_by === "house") || b.p.dates - a.p.dates);
   return scored.slice(0, limit).map((s) => s.p);
+}
+
+/**
+ * 2.6.0 (the 2026-10-22-0042 run: "search_characters missed my own character, and a character in a Dating couple, and
+ * nothing said why"): the characters a search's words match that it didn't return, and why: your own (a search never
+ * lists yours), not open to dates right now (closed, or settled on one partner), off this season's house cast, or past
+ * the limit. Private characters and anyone across a block are never named, and the made_by filter stays a filter.
+ */
+export async function searchLeftOut(db: Db, opts: SearchOptions, shown: ReadonlySet<string>, max = 5): Promise<{ id: string; name: string; why: string }[]> {
+  const { terms, wanted } = searchWords(opts);
+  if (!terms.length && !wanted.length) return [];
+  const { rows } = await db.query<ProfileRow & { mine: boolean; taken: boolean }>(
+    `select ${PUBLIC_COLUMNS}, coalesce(c.owner_id = $1, false) as mine, ${takenSql("c")} as taken
+       from characters c
+      where c.visibility <> 'private' and c.owner_id is distinct from 'deleted' and c.premium_sku is null
+        and ${SEARCH_TEXT} like any($2::text[])
+        and ($1::text is null or c.is_house or c.owner_id = $1 or ${NOT_BLOCKED})
+      order by c.created_at desc, c.id
+      limit 200`,
+    [opts.viewerId, [...terms, ...wanted].map(likePattern)],
+  );
+  const openOnly = opts.openOnly ?? true;
+  const out: { id: string; name: string; why: string }[] = [];
+  for (const r of rows) {
+    if (shown.has(r.id) || out.length >= max) continue;
+    const p = toProfile(r);
+    if (searchScore(p, terms, wanted) === 0) continue;
+    if (opts.madeBy && opts.madeBy !== "any" && p.made_by !== opts.madeBy) continue;
+    if (r.is_house && opts.includeHouse === false) continue;
+    const why = r.mine
+      ? "yours: a search never lists your own characters (my_status lists them)"
+      : r.is_house
+        ? isOnSeasonCast(r.id)
+          ? "further down the list: a larger limit shows it"
+          : "off this season's house cast, so it can't be booked now"
+        : openOnly && (!r.open_to_dates || r.taken)
+          ? "not open to dates right now (closed, or settled on one partner): open_only: false lists it"
+          : "further down the list: a larger limit shows it";
+    out.push({ id: r.id, name: r.name, why });
+  }
+  return out;
 }
 
 /** Characters other creators opened to dates (no house cast), for the builder's "ask someone out" gallery. */

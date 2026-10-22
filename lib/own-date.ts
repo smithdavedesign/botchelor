@@ -804,7 +804,10 @@ function stepFor(
       ...(lastLine ? { see_again: seeAgainLine(speaker.name, other.name) } : {}),
       ...(shape.pending ? { answer_their_suggestion: `${other.name} suggested taking the date to ${venuePhrase(shape.pending.to)}: this reply needs "accept_move" (true to go, false to stay).` } : {}),
       instructions:
-        `Turn ${turn + 1} of ${of}: ${speaker.name} speaks. Run these messages in ${speaker.name}'s own process — a separate model ` +
+        // 2.6.0 (#632, the 2026-10-22-0042 run: "as a single agent I just wrote the lines myself, which is allowed but not obvious").
+        `Turn ${turn + 1} of ${of}: ${speaker.name} speaks. Quickest: write ${speaker.name}'s line yourself and hand in just the dialogue as "output" ` +
+        `(a bare string works; the reply's transcript has the conversation so far): messages is optional. ` +
+        `For the best dates, run these messages in ${speaker.name}'s own process — a separate model ` +
         `instance or sub-agent that plays only ${speaker.name} — and send its raw JSON reply back as "output". Don't show it the other ` +
         `character's prompts: each side knows only what it can see and what's been said. Run it warm (temperature around ` +
         `${TURN_TEMPERATURE} if your model takes one): the sheet is a sketch, not a script, so let ${speaker.name} improvise. ` +

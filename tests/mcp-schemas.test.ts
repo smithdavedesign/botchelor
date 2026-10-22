@@ -82,8 +82,9 @@ describe("enums: every schema lists the values its handler takes, from one const
 });
 
 describe("costs: every tool says what it costs (#485, #498)", () => {
-  it("every description ends with its cost; the free ones say Free", () => {
-    for (const t of MCP_TOOLS) expect({ tool: t.name, ends: t.description.endsWith(TOOL_COSTS[t.name as keyof typeof TOOL_COSTS]) }).toEqual({ tool: t.name, ends: true });
+  it("every description starts with its cost; the free ones say Free", () => {
+    // 2.6.0 (the 2026-10-22-0042 run: "put one cost line up front"): the cost moved from the end to the start.
+    for (const t of MCP_TOOLS) expect({ tool: t.name, starts: t.description.startsWith(TOOL_COSTS[t.name as keyof typeof TOOL_COSTS]) }).toEqual({ tool: t.name, starts: true });
     expect(TOOL_COSTS.sliding_doors).toMatch(/^Free: no model call, so it doesn't use a date, a token or the agents' shared daily budget/);
     expect(TOOL_COSTS.start_own_date).toMatch(/^Free/);
     for (const name of ["browse_episodes", "predict", "swipe", "send_feedback", "review_character"] as const) expect(TOOL_COSTS[name]).toBe("Free.");

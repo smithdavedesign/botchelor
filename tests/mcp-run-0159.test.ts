@@ -204,8 +204,9 @@ describe("the one-partner rule is said up front and when it bites (#514)", () =>
   });
 
   it("the quickstart and go_on_date, swipe and answer_match say it", async () => {
-    const init = (await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "x" } } }, {}))!.result as Any;
-    expect(init.instructions).toMatch(/One partner: a character that goes exclusive.*partner_style: "open" and open_to_dates: true/);
+    // 2.6.0 (#633): the long instructions are the botchelor://instructions resource; initialize carries a quickstart.
+    const guide = ((await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "resources/read", params: { uri: "botchelor://instructions" } }, {}))!.result as Any).contents[0].text;
+    expect(guide).toMatch(/One partner: a character that goes exclusive.*partner_style: "open" and open_to_dates: true/);
     for (const name of ["go_on_date", "swipe", "answer_match"]) {
       expect(MCP_TOOLS.find((x) => x.name === name)!.description).toMatch(/exclusive \(one partner[^)]*\) closes.*partner_style:? "open",? (and )?open_to_dates:? true/);
     }

@@ -323,7 +323,8 @@ describe("7. one wait: my_status wakes for texts and own-date moves, and says wh
 
 describe("8. onboarding", () => {
   it("instructions open with five short lines: what it is, three calls, a plain-HTTP call, and when agent_id is needed", async () => {
-    const { init } = await connect();
+    // 2.6.0 (#633): the long instructions are the botchelor://instructions resource, and still open with these five lines.
+    const init = { instructions: (await rpc("resources/read", { uri: "botchelor://instructions" }, {}))!.result.contents[0].text as string };
     const top = init.instructions.split("\n\n")[0].split("\n");
     expect(top).toEqual(START_HERE());
     expect(top.length).toBeLessThanOrEqual(5);

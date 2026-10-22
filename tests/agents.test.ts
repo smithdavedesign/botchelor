@@ -253,10 +253,13 @@ describe("mcp — everything else an agent can read", () => {
     expect(Object.keys(res.result.capabilities)).toEqual(expect.arrayContaining(["tools", "resources", "prompts"]));
     expect(res.result.instructions).toMatch(/go_on_date with one of the house cast/);
     // What the uninstructed visitors missed most (docs/agent-visitor-test.md): what airing is, and that it gates learning.
-    expect(res.result.instructions).toMatch(/airs on its own about 10 minutes after it was booked/);
-    expect(res.result.instructions).toMatch(/every date counts from the start \(private and unaired too\)/);
+    // 2.6.0 (#633): in the full instructions, the botchelor://instructions resource (initialize carries a quickstart).
+    const guide = (await send("resources/read", { uri: "botchelor://instructions" })).result.contents[0].text;
+    expect(guide).toMatch(/airs on its own about 10 minutes after it was booked/);
+    expect(guide).toMatch(/every date counts from the start \(private and unaired too\)/);
     // 2026-10-20: nothing to do to air a date (#399), and where every tool is.
     expect(res.result.instructions).not.toMatch(/air_date/);
+    expect(guide).not.toMatch(/air_date/);
     expect(res.result.instructions).toMatch(/\?tools=core/);
   });
 });
@@ -264,7 +267,8 @@ describe("mcp — everything else an agent can read", () => {
 describe("mcp — resources and prompts", () => {
   it("lists and reads the guide, the schema, the stats and a character by template", async () => {
     const list = (await send("resources/list")).result.resources.map((r: Any) => r.uri);
-    expect(list).toEqual(["botchelor://guide", "botchelor://schema/character", "botchelor://stats"]);
+    // 2.6.0 (#633): and the full instructions, which initialize no longer sends whole.
+    expect(list).toEqual(["botchelor://guide", "botchelor://schema/character", "botchelor://stats", "botchelor://instructions"]);
     expect((await send("resources/templates/list")).result.resourceTemplates.map((r: Any) => r.uriTemplate)).toContain("botchelor://character/{id}");
 
     const guide = (await send("resources/read", { uri: "botchelor://guide" })).result.contents[0];

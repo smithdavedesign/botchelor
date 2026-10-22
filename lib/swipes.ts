@@ -373,10 +373,12 @@ function matchedBody(pair: [Side, Side], owner: string): string {
 }
 
 /** How the owner books it (#314): an agent has no 📅 Book date button, so its character's notice names the tool call. */
-function agreedBody(pair: [Side, Side], owner: string, starter: Side | null): string {
-  // 2.4.3 (the 2026-10-21-0419 run): who started it (whose like came first) and who performs each side, however it's
-  // booked. A body keeps to 300 characters (lib/notifications.ts), ids included.
-  const started = starter ? `Started by ${shortName(starter.name)} (liked first). ` : "Started by both (a match, then two yeses). ";
+function agreedBody(pair: [Side, Side], owner: string, starter: Side | null, texter: Side | null = null): string {
+  // 2.4.3 (the 2026-10-21-0419 run): whose like came first and who performs each side, however it's booked. A body keeps
+  // to 300 characters (lib/notifications.ts), ids included. 2.6.0 (the 2026-10-22-0042 run: "Started by Hector (liked
+  // first)" read as "Hector started the conversation", when Hollis had texted first): each said as what it is.
+  const liked = starter ? `${shortName(starter.name)} liked first` : "They liked each other";
+  const started = `${liked}${texter ? `; ${shortName(texter.name)} texted first` : ""}. `;
   const mine = pair.find((c) => c.owner_id === owner && c.created_via === "mcp");
   if (!mine) return `${started}Book it from their chat: 📅 Book date, at the top. The show's model performs both sides.`;
   const other = mine === pair[0] ? pair[1] : pair[0];
@@ -401,11 +403,14 @@ export async function settleAgreement(db: Db, x: string, y: string): Promise<boo
     const owners = new Set([pair[0].owner_id, pair[1].owner_id].filter((o): o is string => Boolean(o)));
     const first = (await db.query<{ swiper: string }>(`select swiper from swipes where liked and ((swiper = $1 and target = $2) or (swiper = $2 and target = $1)) order by created_at limit 1`, [lo, hi]).catch(() => ({ rows: [] as { swiper: string }[] }))).rows[0]?.swiper;
     const starter = pair.find((c) => c.id === first) ?? null;
+    // 2.6.0: and whose text came first, when they've texted.
+    const firstText = (await db.query<{ who: "lo" | "hi" }>(`select who from couple_texts where character_lo = $1 and character_hi = $2 order by created_at, day, seq limit 1`, [lo, hi]).catch(() => ({ rows: [] as { who: "lo" | "hi" }[] }))).rows[0]?.who;
+    const texter = firstText === "lo" ? pair[0] : firstText === "hi" ? pair[1] : null;
     for (const owner of owners) {
       await notify(db, owner, {
         kind: "date_agreed",
         title: `📅 ${pair[0].name} and ${pair[1].name} want to go on a date`,
-        body: agreedBody(pair, owner, starter),
+        body: agreedBody(pair, owner, starter, texter),
         link: `/messages/${lo}/${hi}`,
       });
     }

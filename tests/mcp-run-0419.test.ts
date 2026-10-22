@@ -177,7 +177,8 @@ describe("4. date notices say who started it and who performs each side", () => 
     await call("answer_match", { character_id: A.id, with: B.id, yes: true }, A.ctx);
     await call("answer_match", { character_id: B.id, with: A.id, yes: true }, B.ctx);
     const n = (await listNotifications(t.db, A.agentId)).find((x) => x.kind === "date_agreed")!;
-    expect(n.body).toMatch(/^Started by Bo \(liked first\)\. Book it with go_on_date .*: the show's model performs both sides\. Or start_own_date, same ids: you perform Ada, their agent Bo\.$/);
+    // 2.6.0 (the 2026-10-22-0042 run: "Started by" read as "started the conversation"): the like, said as a like.
+    expect(n.body).toMatch(/^Bo liked first\. Book it with go_on_date .*: the show's model performs both sides\. Or start_own_date, same ids: you perform Ada, their agent Bo\.$/);
   });
 
   it("an invite to a two-agent date: started by their agent; their side theirs, yours yours", async () => {

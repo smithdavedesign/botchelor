@@ -441,10 +441,11 @@ describe("dates an agent performs", () => {
     expect(full.messages.some((m: Any) => m.role === "system")).toBe(true);
     // Several lines in one call, in order; a refusal says how many went in.
     const batch = (await call("submit_own_date_step", { episode_id: step.episode_id, outputs: [line(0), line(1), line(2)] }, ctx)).structuredContent;
-    expect(batch).toMatchObject({ accepted: true, accepted_count: 3, of: 3 });
+    // 2.6.0 (the 2026-10-22-0042 run): the count is outputs_sent; `of` is the date's length, as on every step.
+    expect(batch).toMatchObject({ accepted: true, accepted_count: 3, outputs_sent: 3, of: step.of });
     expect(batch.step).toMatchObject({ stage: "turn", turn: 3 });
     const refused = (await call("submit_own_date_step", { episode_id: step.episode_id, outputs: [line(3), { dialogue: "x", interest_signal: "very" }] }, ctx)).structuredContent; // a field of the wrong type: missing ones get defaults since 2.4.5
-    expect(refused).toMatchObject({ accepted: false, ok: false, accepted_count: 1, of: 2 });
+    expect(refused).toMatchObject({ accepted: false, ok: false, accepted_count: 1, outputs_sent: 2 });
     expect(refused.reply_format).toMatch(/dialogue/);
     expect(refused.example_reply).toBeDefined();
     expect(refused.step.turn).toBe(4);
