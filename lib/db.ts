@@ -1177,6 +1177,30 @@ create index if not exists adult_images_character_idx on adult_images (character
 -- Where a file's bytes are when they're in the private bucket (lib/object-store.ts), not in data: a new file has
 -- only this; one moved by scripts/media-to-object-store.mjs has both until its data is freed. Same for look_tiles.
 alter table adult_images add column if not exists object_key text;
+-- Every step of an After Dark scene, for the admin's /why view (lib/adult/steps.ts, 2026-10-22): the steer or place
+-- asked for, what came of it (the lines added, the ones dropped and why) or the error. night_id once its chapter is filed.
+create table if not exists adult_steps (
+  id text primary key,
+  owner_id text not null,
+  character_a text not null,
+  character_b text not null,
+  scene_id text,
+  night_id text,
+  chapter integer not null default 1,
+  kind text not null,
+  direction text,
+  steer_mode text,
+  status text not null,
+  http integer,
+  message text,
+  line_from integer,
+  line_to integer,
+  added integer not null default 0,
+  dropped jsonb not null default '[]',
+  flags jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists adult_steps_pair on adult_steps (owner_id, character_a, character_b, created_at);
 alter table look_tiles add column if not exists object_key text;
 -- A reel shot's last frame ('frame', lib/adult/frames.ts), for the same character's next shot to start from: widen the
 -- CHECK on an existing database (the inline one above only applies to a fresh table), once.
