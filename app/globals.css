@@ -38,6 +38,10 @@
   --medal-silver-ink: #495057;
   --medal-bronze: #ffe8cc;
   --medal-bronze-ink: #a14d00;
+  /* The Constellation (/graph): the canvas night sky. Dark in both themes (it's a sky), but tinted to match. */
+  --constellation-bg: #1b0f20;
+  --constellation-line: #4d3a58;
+  --constellation-label: #cbb8d4;
   --frame-rose: #e64980;
   --frame-rose-bg: #fff0f6;
   --frame-gold: #e0a100;
@@ -100,6 +104,9 @@
     --bad-text: #ff6b6b;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 40px -18px rgba(0, 0, 0, 0.7);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --constellation-bg: #0e0712;
+    --constellation-line: #43304f;
+    --constellation-label: #b49fbd;
   }
 }
 
@@ -7093,4 +7100,218 @@ details.episode-safety[open] > summary {
 }
 details.episode-safety .safety > h2 {
   display: none; /* the summary already says it */
+}
+
+/* ------------------------------- The Constellation (/graph): the social graph ------------------------------- */
+/* The stage breaks out of main's 46rem cap to full viewport width; the site chrome stays. */
+.constellation-page .constellation-stage {
+  position: relative;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  height: clamp(420px, 72vh, 820px);
+  background: var(--constellation-bg);
+  overflow: hidden;
+  touch-action: none;
+}
+.constellation-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+.constellation-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--constellation-label);
+}
+.constellation-header {
+  text-align: center;
+  margin-bottom: var(--space-4);
+}
+.constellation-stats {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2) var(--space-4);
+  padding: 0;
+  margin: var(--space-3) 0 var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.constellation-stats strong {
+  color: var(--ink);
+}
+/* The HUD floats over the sky; its own colors are fixed to the sky, not the page theme. */
+.constellation-hud {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: flex-start;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.constellation-hud > * {
+  pointer-events: auto;
+}
+.constellation-search {
+  position: relative;
+  min-width: 14rem;
+}
+.constellation-search input {
+  width: 100%;
+}
+.constellation-search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 3;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  display: grid;
+  gap: var(--space-1);
+}
+.constellation-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: flex-end;
+}
+.constellation-segmented {
+  margin: 0;
+}
+/* The origin filter reuses the segmented-tab look on buttons (the tabs elsewhere are links). */
+.constellation-segmented .segmented-tab {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  min-height: 32px;
+}
+.constellation-segmented .segmented-tab[aria-current="page"] {
+  background: var(--accent-btn);
+  color: var(--accent-ink);
+}
+.constellation-filter {
+  color: var(--constellation-label);
+  font-size: var(--text-sm);
+  background: color-mix(in srgb, var(--constellation-bg) 72%, transparent);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.constellation-legend {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--space-2);
+  text-align: center;
+  color: var(--constellation-label);
+  pointer-events: none;
+  padding: 0 var(--gutter);
+}
+.constellation-panel {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  top: auto;
+  max-width: min(22rem, calc(100vw - 2 * var(--space-3)));
+  max-height: min(60%, 24rem);
+  overflow: auto;
+  z-index: 4;
+}
+.constellation-close {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-2);
+  background: none;
+  border: 0;
+  font-size: var(--text-lg);
+  color: var(--muted);
+  cursor: pointer;
+}
+.constellation-panel-head {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+.constellation-panel-head h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+.constellation-tile {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: inline-grid;
+  place-items: center;
+  color: #ffffff;
+  font-weight: 600;
+  flex: none;
+}
+.constellation-pair {
+  display: inline-flex;
+}
+.constellation-pair .constellation-tile:last-child {
+  margin-left: -16px;
+}
+.constellation-panel-list {
+  margin: 0 0 var(--space-2);
+}
+.constellation-panel-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+}
+.constellation-tie {
+  display: grid;
+  gap: 4px;
+  margin-bottom: var(--space-2);
+}
+.constellation-tie-track {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--soft);
+  overflow: hidden;
+}
+.constellation-tie-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--grad);
+}
+.constellation-ledger,
+.constellation-missing {
+  margin-top: var(--space-5);
+}
+.constellation-singles {
+  line-height: 1.9;
+}
+@media (max-width: 640px) {
+  .constellation-page .constellation-stage {
+    height: clamp(380px, 62vh, 560px);
+  }
+  .constellation-filters {
+    justify-content: flex-start;
+  }
+  .constellation-panel {
+    left: var(--space-3);
+    max-width: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .constellation-canvas {
+    cursor: default;
+  }
 }
