@@ -38,7 +38,7 @@ function lastLine(turns: Turn[], side: "a" | "b"): string | null {
 
 const POLL_MS = 4000;
 const CHAT_HIDDEN_KEY = "bz_watch_chat_hidden";
-/** "standard" once this browser stepped out of theater mode; a date opens in theater mode otherwise. */
+/** "theater" once this browser chose theater mode; a date opens in the standard view otherwise (David, 2026-10-22). */
 const VIEW_KEY = "bz_watch_view";
 /** "0" once this browser hid the theater's sidebar on a wide screen. */
 const SIDE_KEY = "bz_watch_side";
@@ -143,8 +143,8 @@ function readChatHidden(): boolean {
 export default function WatchRoom({ initial }: { initial: RoomState }) {
   const [state, setState] = useState<RoomState>(initial);
   const [chatHidden, setChatHidden] = useState(false);
-  // A date opens in theater mode (the "window into the date"); stepping out is remembered in this browser.
-  const [theater, setTheaterState] = useState(true);
+  // A date opens in the standard view (David, 2026-10-22); theater mode is a button, and choosing it is remembered here.
+  const [theater, setTheaterState] = useState(false);
   const busy = useRef(false);
 
   // The heartbeat: register presence, advance the template clock / air the finale, pull fresh tallies.
@@ -168,9 +168,9 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
   useEffect(() => {
     setChatHidden(readChatHidden());
     try {
-      if (localStorage.getItem(VIEW_KEY) === "standard") setTheaterState(false);
+      if (localStorage.getItem(VIEW_KEY) === "theater") setTheaterState(true);
     } catch {
-      /* no storage: theater mode, the default */
+      /* no storage: the standard view, the default */
     }
     void sync();
     const timer = setInterval(() => void sync(), POLL_MS);
