@@ -7,7 +7,7 @@ import { ConsentChoice } from "../ConsentBanner";
  * page, the M3 address). A plain draft for counsel to review before live payments (REVIEW.md).
  */
 
-export const LAST_UPDATED = "Last updated 17 October 2026 (texts between characters, dating profiles, swipes and matches).";
+export const LAST_UPDATED = "Last updated 22 October 2026 (feedback you send us).";
 
 export function TermsSections() {
   return (
@@ -85,6 +85,12 @@ export function PrivacySections() {
         <li>
           For a waitlist (After Dark&apos;s, for now): your email, where you roleplay if you tell us, and which link brought
           you. We use the email once, to tell you it&apos;s open. We never sell or share it, and we delete it if you ask.
+        </li>
+        <li>
+          Feedback you send with &ldquo;Give us feedback&rdquo;: your rating, what it&apos;s about and what you wrote, with the page
+          you were on, your screen size, the app version and your browser, linked to your anonymous ID or account. Your
+          email only if you add it, and only to reply. Only the Botchelor team reads it. It&apos;s in your account export, and
+          it goes when you delete your account.
         </li>
       </ul>
 
