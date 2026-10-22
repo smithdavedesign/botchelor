@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Reel, ReelShot } from "@/lib/adult/reels";
+import { reelFailureNote } from "@/lib/adult/reel-failure";
 import { REEL_STALLED_MS } from "@/lib/adult/reel-timing";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
@@ -103,14 +104,24 @@ function ReelPlayer({ reel, onChange }: { reel: Reel; onChange: (r: Reel) => voi
       </div>
     );
   }
+  // What a provider said when shots failed (Venice out of credits, say), so a failure says what to do.
+  const why = reelFailureNote(reel.shots);
   if (!shots.length) {
     const stopped = reel.shots.some((s) => s.reason === "stopped");
-    return <p className="muted small">{stopped ? "Stopped before any shot came through. Its tokens are back." : "That video didn't come through, and its tokens are back."}</p>;
+    if (stopped && !why) return <p className="muted small">Stopped before any shot came through. Its tokens are back.</p>;
+    return <p className={why ? "error small" : "muted small"}>That video didn&apos;t come through, and its tokens are back.{why && ` ${why}`}</p>;
   }
+  const discarded = reel.shots.filter((s) => s.status === "discarded").length;
+  const failed = reel.shots.filter((s) => s.status === "failed").length;
   return (
     <>
       <SeamlessPlayer shots={shots} />
-      {reel.shots.length > shots.length && <p className="muted small">{reel.shots.length - shots.length} shot(s) discarded by the check.</p>}
+      {discarded > 0 && <p className="muted small">{discarded} shot(s) discarded by the check.</p>}
+      {failed > 0 && (
+        <p className={why ? "error small" : "muted small"}>
+          {failed} shot(s) didn&apos;t come through, and their share of the tokens is back.{why && ` ${why}`}
+        </p>
+      )}
     </>
   );
 }
