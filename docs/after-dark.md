@@ -351,3 +351,44 @@ every verdict is a tie and the metrics carry the decision. A stronger local judg
   - the copying, as a stop: step 17 came back all repeats twice ("The model only repeated lines already said
     tonight") until it was steered somewhere new;
   - the whole first step of chapter 2 gave "the moment" as every line's why.
+
+**The observer on that night** (read-only, 140 lines, 2 chapters): stock phrases per 100 lines 1.45 for Chud (33.1 in
+Star × Chud's nights on the old prompt) and 2.82 for Cass (7.8 with Sable); sheet detail 0.48–0.55 (0.17–0.27 before);
+no unfounded memories, no verbatim repeats, no catchphrase overuse; one unagreed move, refused by the engine. Its
+set-churn finding (92 sets for 39 places) counts every scene's and date's sets in the chapter's window, because
+place_sets is shared: a false alarm to fix.
+
+### The final check: v2.1 (2026-10-22, #593)
+
+Production's eval route after #593, on Star × Chud and Chud × Sable (Cass Vega had been switched out of After Dark), 4
+steps a run, 4 runs a pair, $0.22 in all, posted to `/admin/analytics`. The numbers without the transcripts are in
+`docs/eval/after-dark-final-2026-10-22.json`.
+
+| | v1 | v2.1 |
+|---|---|---|
+| Lines per run (24 asked) | 18.9 | 22.1 |
+| Lines the guards dropped (8 runs) | 4 | 4 |
+| Stock phrases per 100 lines | 4.27 | 2.23 |
+| Citations of a memory that isn't there, per run | 1.1 | 0 |
+| Lines citing a stored fact | 0 | 30% |
+| Whys that only restate a trait, or say "the moment", per run | 0.375 and 0.125 | 0 and 0 |
+| Lines using a detail from the speaker's own sheet | 45% | 45% |
+| Lines citing any memory | 45% | 33% |
+| Limits set, and overridden, per run | 0 and 0 | 0.375 and 0.125 |
+
+v2's copying is gone: v2.1 writes more lines than v1 (22.1 against 18.9) where v2 wrote a fifth fewer (15.9 against 20),
+and the guards dropped 4 lines in 8 runs (17 under v2). The whys now name something. What it didn't move: sheet detail
+(level with v1 on these two pairs) and the place's concrete details (3% of lines, against v1's 6%). v1 cites a memory in
+more lines, mostly their date's ending and the PG notes, which are easy to cite and say little. One limit was overridden
+in 8 runs; the observer's `limit_overridden` will show whether that holds in real nights.
+
+**DeepSeek V3.1 on v2.1** (against Dolphin on v2.1, the same runs): sheet detail 61% (46%), stock phrases 0 (1.1), the
+place's details in 21% of lines (3%), questions ending 6% of lines (20%), no turn-taking slips (0.375 a run); but memory
+cited in 23% of lines (37%) and stored facts in 15% (32%), half the lines a step (11.8 a run against 22.3), and 0.25
+moves nobody agreed to a run (0.125), at the same cost. The judge picked Dolphin twice and tied six, and the gate failed
+on that vote. Dolphin stays the setting: memory is the point of v2, and a step that writes half the lines makes a night
+feel slower. DeepSeek is the better writer of the two, though, and worth a read side by side.
+
+The judge picked the first transcript in 14 of 16 decided passes in each comparison. #594 (the public cap and the place
+go by the same signal) went live at 01:07 UTC, during the last runs of the DeepSeek comparison; it only acts when a move
+the lines agreed to isn't taken, which a four-step run from the date's venue rarely reaches.
