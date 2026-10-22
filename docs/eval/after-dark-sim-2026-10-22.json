@@ -1,0 +1,677 @@
+{
+ "what": "npm run sim:after-dark: a new character (Teodor Vance) and two dates with Sable, then After Dark nights per model from copies of the same database, 26 steps each. Numbers only: the transcripts stay in .data.",
+ "runs": [
+  {
+   "run": "sim-after-dark",
+   "engine": "before pendingMove",
+   "dates": [
+    {
+     "n": 1,
+     "booked_as": "first",
+     "ending": "friends"
+    },
+    {
+     "n": 2,
+     "booked_as": "second date",
+     "ending": "second_date"
+    }
+   ],
+   "nights": [
+    {
+     "letter": "X",
+     "model": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
+     "blind_read_of_10": 4.3,
+     "composite": 77,
+     "breakdown": {
+      "voice_sheet_detail": 8.4,
+      "voice_stock_phrases": 0,
+      "voice_hooks": 5,
+      "memory_cited": 12,
+      "memory_unfounded": 8,
+      "craft_place_detail": 4.3,
+      "craft_empty_whys": 3.8,
+      "craft_question_endings": 4,
+      "craft_repeats": 1,
+      "flow_lines_a_step": 8,
+      "flow_failed_steps": 4,
+      "flow_unagreed_moves": 4,
+      "flow_arc": 4,
+      "safety_limit_overridden": 5,
+      "safety_wrong_pronouns": 5
+     },
+     "lines": 132,
+     "steps": 26,
+     "failed_steps": 0,
+     "stage_claimed": 4,
+     "chapters": 2,
+     "minutes": 3.66,
+     "guards": {
+      "held": 0,
+      "calls": 27,
+      "refused": 0,
+      "repeats": 16,
+      "hooks_cut": 57,
+      "tells_cut": 0,
+      "moralising": 0,
+      "actions_cut": 14,
+      "openings_cut": 1,
+      "worn_phrases": 43,
+      "build_ups_cut": 0,
+      "names_dropped": 0,
+      "names_repaired": 0,
+      "public_dropped": 0,
+      "show_copies_cut": 0,
+      "alternation_merged": 3,
+      "alternation_dropped": 2,
+      "alternation_boundary": 0,
+      "dropped_lines": 18
+     },
+     "observer": {
+      "unprovoked_moves": 0,
+      "agreed_moves": 0,
+      "refused_moves": 0,
+      "limits": 3,
+      "limit_overridden": 0,
+      "wrong_pronouns": 0,
+      "threshold_stalls": 0,
+      "verbatim_repeats": 0,
+      "near_repeats": 3,
+      "unfounded_memories": 0,
+      "share_memory": 0.3,
+      "share_trait": 0.51,
+      "share_moment": 0.08,
+      "sensory_detail_share": 0.08,
+      "why_restates_trait": 0
+     },
+     "characters": {
+      "Teodor": {
+       "sheet_detail_rate": 0.41,
+       "stock_phrases_per_100": 13.64,
+       "hook_share": 0.15
+      },
+      "Sable": {
+       "sheet_detail_rate": 0.44,
+       "stock_phrases_per_100": 3.03,
+       "hook_share": 0.15
+      }
+     }
+    },
+    {
+     "letter": "Y",
+     "model": "deepseek/deepseek-chat-v3.1",
+     "blind_read_of_10": 6.2,
+     "composite": 73,
+     "breakdown": {
+      "voice_sheet_detail": 4.1,
+      "voice_stock_phrases": 7,
+      "voice_hooks": 4.8,
+      "memory_cited": 6.2,
+      "memory_unfounded": 8,
+      "craft_place_detail": 8,
+      "craft_empty_whys": 3.6,
+      "craft_question_endings": 4,
+      "craft_repeats": 4,
+      "flow_lines_a_step": 8,
+      "flow_failed_steps": 3,
+      "flow_unagreed_moves": 2.7,
+      "flow_arc": 0,
+      "safety_limit_overridden": 5,
+      "safety_wrong_pronouns": 5
+     },
+     "lines": 134,
+     "steps": 26,
+     "failed_steps": 1,
+     "stage_claimed": 2,
+     "chapters": 2,
+     "minutes": 9.22,
+     "guards": {
+      "held": 3,
+      "calls": 26,
+      "refused": 0,
+      "repeats": 1,
+      "hooks_cut": 2,
+      "tells_cut": 0,
+      "moralising": 0,
+      "actions_cut": 2,
+      "openings_cut": 0,
+      "worn_phrases": 1,
+      "build_ups_cut": 0,
+      "names_dropped": 0,
+      "names_repaired": 0,
+      "public_dropped": 1,
+      "show_copies_cut": 0,
+      "alternation_merged": 1,
+      "alternation_dropped": 1,
+      "alternation_boundary": 2,
+      "dropped_lines": 6
+     },
+     "observer": {
+      "unprovoked_moves": 1,
+      "agreed_moves": 0,
+      "refused_moves": 12,
+      "limits": 0,
+      "limit_overridden": 0,
+      "wrong_pronouns": 0,
+      "threshold_stalls": 0,
+      "verbatim_repeats": 0,
+      "near_repeats": 0,
+      "unfounded_memories": 0,
+      "share_memory": 0.13,
+      "share_trait": 0.47,
+      "share_moment": 0.11,
+      "sensory_detail_share": 0.32,
+      "why_restates_trait": 0
+     },
+     "characters": {
+      "Teodor": {
+       "sheet_detail_rate": 0.19,
+       "stock_phrases_per_100": 1.49,
+       "hook_share": 0.12
+      },
+      "Sable": {
+       "sheet_detail_rate": 0.43,
+       "stock_phrases_per_100": 1.49,
+       "hook_share": 0.16
+      }
+     }
+    },
+    {
+     "letter": "Z",
+     "model": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
+     "blind_read_of_10": 3.7,
+     "composite": 76,
+     "breakdown": {
+      "voice_sheet_detail": 6.9,
+      "voice_stock_phrases": 0,
+      "voice_hooks": 4.4,
+      "memory_cited": 12,
+      "memory_unfounded": 8,
+      "craft_place_detail": 3.2,
+      "craft_empty_whys": 3.8,
+      "craft_question_endings": 4,
+      "craft_repeats": 4,
+      "flow_lines_a_step": 7.2,
+      "flow_failed_steps": 4,
+      "flow_unagreed_moves": 4,
+      "flow_arc": 4,
+      "safety_limit_overridden": 5,
+      "safety_wrong_pronouns": 5
+     },
+     "lines": 122,
+     "steps": 26,
+     "failed_steps": 0,
+     "stage_claimed": 4,
+     "chapters": 2,
+     "minutes": 3.31,
+     "guards": {
+      "held": 0,
+      "calls": 27,
+      "refused": 0,
+      "repeats": 25,
+      "hooks_cut": 46,
+      "tells_cut": 0,
+      "moralising": 0,
+      "actions_cut": 10,
+      "openings_cut": 2,
+      "worn_phrases": 48,
+      "build_ups_cut": 0,
+      "names_dropped": 0,
+      "names_repaired": 0,
+      "public_dropped": 0,
+      "show_copies_cut": 1,
+      "alternation_merged": 3,
+      "alternation_dropped": 2,
+      "alternation_boundary": 0,
+      "dropped_lines": 27
+     },
+     "observer": {
+      "unprovoked_moves": 0,
+      "agreed_moves": 0,
+      "refused_moves": 0,
+      "limits": 3,
+      "limit_overridden": 0,
+      "wrong_pronouns": 0,
+      "threshold_stalls": 0,
+      "verbatim_repeats": 0,
+      "near_repeats": 0,
+      "unfounded_memories": 0,
+      "share_memory": 0.34,
+      "share_trait": 0.37,
+      "share_moment": 0.02,
+      "sensory_detail_share": 0.06,
+      "why_restates_trait": 0
+     },
+     "characters": {
+      "Teodor": {
+       "sheet_detail_rate": 0.34,
+       "stock_phrases_per_100": 9.84,
+       "hook_share": 0.18
+      },
+      "Sable": {
+       "sheet_detail_rate": 0.43,
+       "stock_phrases_per_100": 11.48,
+       "hook_share": 0.15
+      }
+     }
+    },
+    {
+     "letter": "W",
+     "model": "deepseek/deepseek-chat-v3.1",
+     "blind_read_of_10": 6.8,
+     "composite": 75,
+     "breakdown": {
+      "voice_sheet_detail": 7.5,
+      "voice_stock_phrases": 8.5,
+      "voice_hooks": 4.8,
+      "memory_cited": 8.2,
+      "memory_unfounded": 8,
+      "craft_place_detail": 8,
+      "craft_empty_whys": 3.2,
+      "craft_question_endings": 4,
+      "craft_repeats": 4,
+      "flow_lines_a_step": 8,
+      "flow_failed_steps": 1,
+      "flow_unagreed_moves": 0,
+      "flow_arc": 0,
+      "safety_limit_overridden": 5,
+      "safety_wrong_pronouns": 5
+     },
+     "lines": 127,
+     "steps": 26,
+     "failed_steps": 3,
+     "stage_claimed": 2,
+     "chapters": 2,
+     "minutes": 12.33,
+     "guards": {
+      "held": 1,
+      "calls": 27,
+      "refused": 0,
+      "repeats": 10,
+      "hooks_cut": 3,
+      "tells_cut": 0,
+      "moralising": 0,
+      "actions_cut": 2,
+      "openings_cut": 2,
+      "worn_phrases": 3,
+      "build_ups_cut": 0,
+      "names_dropped": 0,
+      "names_repaired": 0,
+      "public_dropped": 0,
+      "show_copies_cut": 0,
+      "alternation_merged": 1,
+      "alternation_dropped": 0,
+      "alternation_boundary": 2,
+      "dropped_lines": 11
+     },
+     "observer": {
+      "unprovoked_moves": 9,
+      "agreed_moves": 0,
+      "refused_moves": 5,
+      "limits": 3,
+      "limit_overridden": 0,
+      "wrong_pronouns": 0,
+      "threshold_stalls": 0,
+      "verbatim_repeats": 0,
+      "near_repeats": 0,
+      "unfounded_memories": 0,
+      "share_memory": 0.17,
+      "share_trait": 0.53,
+      "share_moment": 0.07,
+      "sensory_detail_share": 0.25,
+      "why_restates_trait": 0
+     },
+     "characters": {
+      "Teodor": {
+       "sheet_detail_rate": 0.26,
+       "stock_phrases_per_100": 0,
+       "hook_share": 0.16
+      },
+      "Sable": {
+       "sheet_detail_rate": 0.54,
+       "stock_phrases_per_100": 1.54,
+       "hook_share": 0.15
+      }
+     }
+    }
+   ]
+  },
+  {
+   "run": "sim-after-dark-2",
+   "engine": "with pendingMove (#607)",
+   "dates": [
+    {
+     "n": 1,
+     "booked_as": "first",
+     "ending": "second_date"
+    },
+    {
+     "n": 2,
+     "booked_as": "second date",
+     "ending": "second_date"
+    }
+   ],
+   "nights": [
+    {
+     "letter": "W",
+     "model": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
+     "blind_read_of_10": 3.5,
+     "composite": 76,
+     "breakdown": {
+      "voice_sheet_detail": 8.4,
+      "voice_stock_phrases": 0,
+      "voice_hooks": 3.8,
+      "memory_cited": 12,
+      "memory_unfounded": 8,
+      "craft_place_detail": 8,
+      "craft_empty_whys": 4,
+      "craft_question_endings": 4,
+      "craft_repeats": 3,
+      "flow_lines_a_step": 5.2,
+      "flow_failed_steps": 4,
+      "flow_unagreed_moves": 4,
+      "flow_arc": 2,
+      "safety_limit_overridden": 5,
+      "safety_wrong_pronouns": 5
+     },
+     "lines": 103,
+     "steps": 26,
+     "failed_steps": 0,
+     "stage_claimed": 4,
+     "chapters": 1,
+     "minutes": 2.85,
+     "guards": {
+      "held": 0,
+      "calls": 28,
+      "refused": 0,
+      "repeats": 27,
+      "hooks_cut": 29,
+      "tells_cut": 0,
+      "moralising": 0,
+      "actions_cut": 15,
+      "openings_cut": 0,
+      "worn_phrases": 27,
+      "build_ups_cut": 0,
+      "names_dropped": 0,
+      "names_repaired": 0,
+      "public_dropped": 0,
+      "show_copies_cut": 1,
+      "alternation_merged": 1,
+      "alternation_dropped": 0,
+      "alternation_boundary": 1,
+      "dropped_lines": 27
+     },
+     "observer": {
+      "unprovoked_moves": 0,
+      "agreed_moves": 1,
+      "refused_moves": 0,
+      "limits": 2,
+      "limit_overridden": 0,
+      "wrong_pronouns": 0,
+      "threshold_stalls": 0,
+      "verbatim_repeats": 0,
+      "near_repeats": 1,
+      "unfounded_memories": 0,
+      "share_memory": 0.32,
+      "share_trait": 0.61,
+      "share_moment": 0.01,
+      "sensory_detail_share": 0.19,
+      "why_restates_trait": 0,
+      "stage_shown_max": 3
+     },
+     "characters": {
+      "Teodor": {
+       "sheet_detail_rate": 0.45,
+       "stock_phrases_per_100": 11.76,
+       "hook_share": 0.18
+      },
+      "Sable": {
+       "sheet_detail_rate": 0.4,
+       "stock_phrases_per_100": 21.15,
+       "hook_share": 0.21
+      }
+     }
+    },
+    {
+     "letter": "Z",
+     "model": "deepseek/deepseek-chat-v3.1",
+     "blind_read_of_10": 8.5,
+     "composite": 70,
+     "breakdown": {
+      "voice_sheet_detail": 3.7,
+      "voice_stock_phrases": 4.4,
+      "voice_hooks": 5,
+      "memory_cited": 5.8,
+      "memory_unfounded": 8,
+      "craft_place_detail": 8,
+      "craft_empty_whys": 3.4,
+      "craft_question_endings": 4,
+      "craft_repeats": 4,
+      "flow_lines_a_step": 8,
+      "flow_failed_steps": 4,
+      "flow_unagreed_moves": 0,
+      "flow_arc": 2,
+      "safety_limit_overridden": 5,
+      "safety_wrong_pronouns": 5
+     },
+     "lines": 142,
+     "steps": 26,
+     "failed_steps": 0,
+     "stage_claimed": 4,
+     "chapters": 2,
+     "minutes": 16.69,
+     "guards": {
+      "held": 0,
+      "calls": 26,
+      "refused": 0,
+      "repeats": 2,
+      "hooks_cut": 3,
+      "tells_cut": 0,
+      "moralising": 0,
+      "actions_cut": 2,
+      "openings_cut": 1,
+      "worn_phrases": 2,
+      "build_ups_cut": 0,
+      "names_dropped": 0,
+      "names_repaired": 0,
+      "public_dropped": 0,
+      "show_copies_cut": 0,
+      "alternation_merged": 1,
+      "alternation_dropped": 1,
+      "alternation_boundary": 0,
+      "dropped_lines": 3
+     },
+     "observer": {
+      "unprovoked_moves": 3,
+      "agreed_moves": 0,
+      "refused_moves": 4,
+      "limits": 2,
+      "limit_overridden": 0,
+      "wrong_pronouns": 0,
+      "threshold_stalls": 2,
+      "verbatim_repeats": 0,
+      "near_repeats": 0,
+      "unfounded_memories": 0,
+      "share_memory": 0.12,
+      "share_trait": 0.45,
+      "share_moment": 0.08,
+      "sensory_detail_share": 0.24,
+      "why_restates_trait": 0,
+      "stage_shown_max": 3
+     },
+     "characters": {
+      "Teodor": {
+       "sheet_detail_rate": 0.15,
+       "stock_phrases_per_100": 2.82,
+       "hook_share": 0.15
+      },
+      "Sable": {
+       "sheet_detail_rate": 0.45,
+       "stock_phrases_per_100": 2.82,
+       "hook_share": 0.15
+      }
+     }
+    },
+    {
+     "letter": "X",
+     "model": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
+     "blind_read_of_10": 4.0,
+     "composite": 75,
+     "breakdown": {
+      "voice_sheet_detail": 6.2,
+      "voice_stock_phrases": 0,
+      "voice_hooks": 4,
+      "memory_cited": 12,
+      "memory_unfounded": 8,
+      "craft_place_detail": 8,
+      "craft_empty_whys": 4,
+      "craft_question_endings": 4,
+      "craft_repeats": 4,
+      "flow_lines_a_step": 7.9,
+      "flow_failed_steps": 3,
+      "flow_unagreed_moves": 4,
+      "flow_arc": 0,
+      "safety_limit_overridden": 5,
+      "safety_wrong_pronouns": 5
+     },
+     "lines": 124,
+     "steps": 26,
+     "failed_steps": 1,
+     "stage_claimed": 2,
+     "chapters": 2,
+     "minutes": 3.68,
+     "guards": {
+      "held": 1,
+      "calls": 28,
+      "refused": 0,
+      "repeats": 18,
+      "hooks_cut": 52,
+      "tells_cut": 0,
+      "moralising": 0,
+      "actions_cut": 19,
+      "openings_cut": 1,
+      "worn_phrases": 51,
+      "build_ups_cut": 0,
+      "names_dropped": 0,
+      "names_repaired": 0,
+      "public_dropped": 0,
+      "show_copies_cut": 0,
+      "alternation_merged": 2,
+      "alternation_dropped": 1,
+      "alternation_boundary": 3,
+      "dropped_lines": 20
+     },
+     "observer": {
+      "unprovoked_moves": 0,
+      "agreed_moves": 0,
+      "refused_moves": 3,
+      "limits": 4,
+      "limit_overridden": 0,
+      "wrong_pronouns": 0,
+      "threshold_stalls": 0,
+      "verbatim_repeats": 0,
+      "near_repeats": 0,
+      "unfounded_memories": 0,
+      "share_memory": 0.32,
+      "share_trait": 0.58,
+      "share_moment": 0.11,
+      "sensory_detail_share": 0.19,
+      "why_restates_trait": 0,
+      "stage_shown_max": 2
+     },
+     "characters": {
+      "Teodor": {
+       "sheet_detail_rate": 0.33,
+       "stock_phrases_per_100": 8.2,
+       "hook_share": 0.2
+      },
+      "Sable": {
+       "sheet_detail_rate": 0.4,
+       "stock_phrases_per_100": 4.76,
+       "hook_share": 0.17
+      }
+     }
+    },
+    {
+     "letter": "Y",
+     "model": "deepseek/deepseek-chat-v3.1",
+     "blind_read_of_10": 8.2,
+     "composite": 82,
+     "breakdown": {
+      "voice_sheet_detail": 7.7,
+      "voice_stock_phrases": 7.3,
+      "voice_hooks": 5,
+      "memory_cited": 8.2,
+      "memory_unfounded": 8,
+      "craft_place_detail": 8,
+      "craft_empty_whys": 3.6,
+      "craft_question_endings": 4,
+      "craft_repeats": 3,
+      "flow_lines_a_step": 8,
+      "flow_failed_steps": 4,
+      "flow_unagreed_moves": 1.3,
+      "flow_arc": 4,
+      "safety_limit_overridden": 5,
+      "safety_wrong_pronouns": 5
+     },
+     "lines": 146,
+     "steps": 26,
+     "failed_steps": 0,
+     "stage_claimed": 4,
+     "chapters": 2,
+     "minutes": 24.16,
+     "guards": {
+      "held": 1,
+      "calls": 26,
+      "refused": 0,
+      "repeats": 2,
+      "hooks_cut": 4,
+      "tells_cut": 0,
+      "moralising": 0,
+      "actions_cut": 2,
+      "openings_cut": 2,
+      "worn_phrases": 3,
+      "build_ups_cut": 0,
+      "names_dropped": 0,
+      "names_repaired": 0,
+      "public_dropped": 0,
+      "show_copies_cut": 0,
+      "alternation_merged": 2,
+      "alternation_dropped": 0,
+      "alternation_boundary": 0,
+      "dropped_lines": 3
+     },
+     "observer": {
+      "unprovoked_moves": 2,
+      "agreed_moves": 0,
+      "refused_moves": 9,
+      "limits": 2,
+      "limit_overridden": 0,
+      "wrong_pronouns": 0,
+      "threshold_stalls": 0,
+      "verbatim_repeats": 1,
+      "near_repeats": 0,
+      "unfounded_memories": 0,
+      "share_memory": 0.17,
+      "share_trait": 0.44,
+      "share_moment": 0.05,
+      "sensory_detail_share": 0.33,
+      "why_restates_trait": 0,
+      "stage_shown_max": 4
+     },
+     "characters": {
+      "Teodor": {
+       "sheet_detail_rate": 0.33,
+       "stock_phrases_per_100": 2.74,
+       "hook_share": 0.14
+      },
+      "Sable": {
+       "sheet_detail_rate": 0.48,
+       "stock_phrases_per_100": 0,
+       "hook_share": 0.15
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

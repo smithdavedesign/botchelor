@@ -468,4 +468,32 @@ environment: `AD_OPENROUTER_KEY` and, for the paid date model, `SIM_LLM_API_KEY`
 **The switch** (David: "choose the better model"): `text_model` is `deepseek/deepseek-chat-v3.1`. What it costs: about
 twice Dolphin's price a step (still under half a cent), about three times as slow, and an empty reply on about one step
 in thirteen (the next step tries again). Dolphin stays in the eval's models, so the two can still be run side by side.
-The second run, on the fixed engine, checks how each writes the explicit stages.
+
+**The second run** (the fixed engine, #607; both dates ended wanting another; two nights a model; the numbers, without
+transcripts, in `docs/eval/after-dark-sim-2026-10-22.json`):
+
+| | DeepSeek V3.1 | Dolphin-Mistral 24B |
+|---|---|---|
+| Read blind, of 10 | 8.2, 8.5 | 3.5, 4.0 |
+| Furthest stage the lines show | 4, 3 (sex, then afterglow; one a second round) | 3, 2 (undressing at most) |
+| Stock phrases per 100 lines (a night's two characters) | 0–2.7, 2.8 | 11.8–21.2, 4.8–8.2 |
+| What the guards cut a night (hooks, worn phrases, repeats) | 3–4, 2–3, 2 | 29–52, 27–51, 18–27 |
+| Lines a night (26 steps) | 142, 146 | 103, 124 |
+| Failed steps | 0, 0 | 0, 1 |
+| Minutes for 26 steps | 17, 24 | 3, 4 |
+| Composite | 82, 70 | 76, 75 |
+
+- DeepSeek's nights went where they agreed to (the café, the walk, her stairs or the lift, her flat), and from there
+  to undressing, sex, a climax and an afterglow, frank and still themselves: him terse and exact, her loud and
+  daring. His habit of naming vases after storms became theirs ("Hurricane Gloria", "Drizzle", "Hurricane Sable made
+  landfall at ten forty-seven"); a "not yet" was heard and kept; a second round started with one of them asking. What
+  it got wrong: a scar of his put on her hip in chapter 2, a note that was a B and later a C-sharp, two climaxes close
+  together.
+- Dolphin's nights stayed in a soft, purple register ("a symphony of surprises", "a testament to your resilience"),
+  stalled before anything explicit, and needed the guards on every step; one had a Japanese word in a line's why.
+- The composite still ranks them close, because it rewards a character's sheet words (which Dolphin repeats as
+  hooks) and loose memory citations. Read the blind scores, and the guard counts, before it.
+
+So After Dark stays on DeepSeek V3.1. What it costs is time: 40 to 55 seconds a step in this run (Dolphin 7 or 8),
+under the 120-second limit but slow to watch. Worth trying next: OpenRouter's provider routing for the faster
+DeepSeek hosts, and sending a step's lines to the theater as they come, as the show's dates do.
