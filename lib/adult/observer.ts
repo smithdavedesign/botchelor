@@ -22,6 +22,7 @@
  */
 import { agreedMove, canonicalSet, HOME_ROOMS, homeProposed, placeIn, proposesMove, repeatOf, samePlace, saysCatchphrase, speechOf, type MoveLog } from "./continuity";
 import { limitsIn, pronounKind, THRESHOLD_LINES, thresholdOf, wrongPossessives } from "./craft";
+import { stageShown } from "./stage-floor";
 import { driftOf, sensoryDetail, sideOfObserved, whyRestatesTrait, type Drift } from "./quality";
 
 export type ObservedLine = { who: "a" | "b"; text: string; why?: string | null; memory?: string | null; moved_to?: string | null; stage?: number | null };
@@ -73,6 +74,8 @@ export type ObserverReport = {
     /** v2.1: the share of lines with a sensory detail of the place, and the whys that only restate a trait. */
     sensory_detail_share: number;
     why_restates_trait: number;
+    /** The furthest stage the lines themselves show (stage-floor.ts stageShown), whatever the model claimed (the model simulation, 2026-10-22: a model claimed stage 4 for a night that never went past a kiss). */
+    stage_shown_max: number;
   };
 };
 
@@ -130,6 +133,7 @@ export function observeNight(input: ObserverInput): ObserverReport {
     threshold_stalls: 0,
     sensory_detail_share: 0,
     why_restates_trait: 0,
+    stage_shown_max: 0,
   };
   const kinds = [pronounKind(input.a.pronouns), pronounKind(input.b.pronouns)] as const;
   const pronounsSaid = `${first("a")}: ${input.a.pronouns ?? "?"}, ${first("b")}: ${input.b.pronouns ?? "?"}`;
@@ -284,6 +288,7 @@ export function observeNight(input: ObserverInput): ObserverReport {
       add("threshold_stall", ch.chapter, since, lines.length - 1, `${lines.length - since} lines at ${threshold} with no move inside agreed (${ch.place ?? ch.set_place})`);
     }
     sensory += lines.filter((l) => sensoryDetail(l.text)).length;
+    for (const l of lines) summary.stage_shown_max = Math.max(summary.stage_shown_max, stageShown(l.text) ?? 0);
   }
 
   summary.lines_with_why = withWhy;

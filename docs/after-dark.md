@@ -438,3 +438,34 @@ on lines that never use them; and the set shown as "Lexis bedroom".
   `tell_uses`, `tell_uses_explicit` (at undressing or sex), and per character `hook` (the theme word in most of their
   lines, and its share) and `tell_uses`. The step flags, and so the admin's step log, add `hooks_cut`, `tells_cut`,
   `actions_cut`, `openings_cut` and `build_ups_cut`.
+
+### The model simulation, and the move to DeepSeek V3.1 (2026-10-22)
+
+`npm run sim:after-dark` (scripts/sim-after-dark.mjs) plays the whole path on a fresh local app with a throwaway
+database: an owner signs up and creates a new character, who goes on two dates with a house character (on the show's
+date model); the database is copied once per model, so each model's night starts from the same two dates; After Dark
+runs the same steers for 26 steps (a chapter and a bit); and each night gets the observer's report, a composite 0–100
+and a transcript for a blind read (X/Y/Z/W, the key kept apart; everything stays in `.data`). Keys come from the
+environment: `AD_OPENROUTER_KEY` and, for the paid date model, `SIM_LLM_API_KEY`.
+
+**The first run** (Teodor Vance, a new glassblower, and Sable; two nights a model):
+
+- Read blind, DeepSeek's nights were far better (6.8 and 6.2 of 10 against Dolphin's 4.3 and 3.7): both of them
+  sounded like their sheets (him terse and deadpan, her loud and daring), answered each other, and the places were
+  concrete. Dolphin's slid into a soft, therapeutic register on its hook words (Tempest, storm, glass, surprise), with
+  10–14 stock phrases per 100 lines left after the guards cut about 100 hooks and worn phrases a night, and two
+  glitches (a line of Italian, a stray character).
+- The composite had them level (Dolphin 77 and 76, DeepSeek 73 and 75) for two reasons it no longer has: Dolphin
+  claimed stage 4 for nights that never went past a kiss (the observer now reports `stage_shown_max`, the furthest the
+  lines show, and the composite reads it), and it cites a memory on a third of its lines, loosely.
+- DeepSeek's nights looped, from an engine bug: the pair agreed in the bookshop to go to her place, in words
+  `agreedMove` doesn't read as a proposal ("My place has party lighting. It's a five-minute walk. Yes or no?"), walked
+  there over several steps, and every arrival was refused (`no_agreement`, 12 in one night). The set stayed "street",
+  the public cap held them at kissing, and each prompt said they were on the street, so the next step arrived again.
+  Now a move agreed earlier tonight, or an invitation to the speaker's own home that nobody turned down, counts when
+  they arrive within 60 lines, at that home or the place proposed (`pendingMove`, v2).
+
+**The switch** (David: "choose the better model"): `text_model` is `deepseek/deepseek-chat-v3.1`. What it costs: about
+twice Dolphin's price a step (still under half a cent), about three times as slow, and an empty reply on about one step
+in thirteen (the next step tries again). Dolphin stays in the eval's models, so the two can still be run side by side.
+The second run, on the fixed engine, checks how each writes the explicit stages.

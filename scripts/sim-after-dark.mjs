@@ -1,0 +1,359 @@
+#!/usr/bin/env node
+/**
+ * npm run sim:after-dark — After Dark's models head to head on the very same night (David, 2026-10-22: "try DeepSeek
+ * against Dolphin in a simulation… have them create a new character, go on two dates, then do after hours simulations").
+ *
+ * On a fresh local app with a throwaway database (scripts/harness.mjs, the production build):
+ *   1. an owner signs up, becomes the admin (a throwaway password) and creates a new character;
+ *   2. the character goes on two dates with a house character (the second a second date when both wanted one, else a
+ *      fresh one), each aired, remembered and followed by the day's texts, on the show's date model;
+ *   3. the database is copied once per model, so every model starts from the same two dates;
+ *   4. on each copy, After Dark is switched on with its OpenRouter key and that model, and the same steers (nudges) write
+ *      the same number of steps: a chapter and a bit, so the chapter's close writes the recap and pulls out the facts;
+ *   5. each night is scored: the observer's report (scripts/eval/after-dark-observer.mjs, read-only), the steps' own
+ *      counts, and a composite 0–100. The transcripts stay in the output folder (explicit: never committed), written
+ *      as transcript-X/Y.txt with the model behind each letter in key.json, for a blind read.
+ *
+ * Keys come from the environment only, never files: AD_OPENROUTER_KEY (After Dark's OpenRouter key) and, for the paid
+ * date model, SIM_LLM_API_KEY (the AI Gateway key); the caller reads them from the keychain.
+ * Options: --models a,b (OpenRouter ids, default Dolphin-Mistral 24B and DeepSeek V3.1)  --partner house-sable
+ *          --steps 26  --date-model paid|stub  --out .data/sim-after-dark  --no-build  --score-only (re-score a run)
+ */
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
+import { randomBytes } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { appEnv, build, freePort, ipFor, persona, ROOT, startApp, startShowrunner, stopApp, WATCH_ADMIN_TOKEN } from "./harness.mjs";
+
+const args = process.argv.slice(2);
+const opt = (name, fallback) => {
+  const i = args.indexOf(`--${name}`);
+  return i >= 0 && args[i + 1] && !args[i + 1].startsWith("--") ? args[i + 1] : fallback;
+};
+const flag = (name) => args.includes(`--${name}`);
+const MODELS = opt("models", "cognitivecomputations/dolphin-mistral-24b-venice-edition,deepseek/deepseek-chat-v3.1")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const PARTNER = opt("partner", "house-sable");
+const STEPS = Number(opt("steps", "26"));
+const DATE_MODEL = opt("date-model", "paid");
+const OUT = opt("out", join(ROOT, ".data", "sim-after-dark"));
+const ADMIN_PASSWORD = randomBytes(18).toString("hex");
+// One signing secret for every app this run starts: the owner's signed-in cookie from the dates has to open each copy.
+const SESSION_SECRET = ["sim", "after", "dark", randomBytes(16).toString("hex")].join("-");
+const GATEWAY = "https://ai-gateway.vercel.sh/v1";
+
+/** The new character: made for this test, so nothing of it is already on the show. */
+export const NEW_CHARACTER = {
+  name: "Teodor Vance",
+  age: 34,
+  pronouns: "he/him",
+  bio: "A night-shift glassblower who names every vase after a storm he slept through.",
+  traits: ["patient", "dry", "sentimental"],
+  want: "Someone who laughs at the wrong moment",
+  dealbreaker: "Rushing a cool-down",
+  appearance: "burn-scarred forearms, a leather apron, sea-glass eyes",
+  avatar_hue: 175,
+  voice: "Few words and long pauses, deadpan, describes people the way he'd describe glass (colour, temper, flaws), asks one quiet question and waits for the answer.",
+  soul: { values: "slowness and craft", humor: "deadpan", communication: "few words, then a confession" },
+};
+/** The same steers for every model, by step (1-based): nudges, worked toward at the scene's own pace. */
+export const STEERS = {
+  3: "One of them suggests leaving for somewhere private, and the other says yes.",
+  8: "Slow down for a moment: something honest about why each of them said yes tonight.",
+  13: "Something one of them said on one of their dates comes back now.",
+  20: "Afterward: how they are with each other now.",
+};
+
+async function req(base, method, path, who, body, headers = {}) {
+  const res = await fetch(base + path, {
+    method,
+    headers: {
+      ...(body !== undefined ? { "content-type": "application/json" } : {}),
+      ...(who ? { cookie: who.cookie, origin: base, "x-forwarded-for": ipFor(who.id) } : {}),
+      ...headers,
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { status: res.status, data, res };
+}
+const must = (r, what, ok = [200, 201]) => {
+  if (!ok.includes(r.status)) throw new Error(`${what} → ${r.status} (${r.data?.error ?? "?"}: ${r.data?.message ?? ""})`);
+  return r.data;
+};
+
+/** One of After Dark's admin tools, over MCP with the throwaway admin password (lib/adult/mcp.ts). */
+async function tool(base, name, input) {
+  const res = await fetch(`${base}/api/mcp`, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json, text/event-stream", "x-frontier-key": ADMIN_PASSWORD },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: input } }),
+  });
+  const raw = await res.text();
+  const framed = raw.match(/^data: (.*)$/m);
+  const msg = JSON.parse(framed ? framed[1] : raw);
+  const result = msg.result ?? {};
+  const text = result.content?.[0]?.text ?? "";
+  if (msg.error || result.isError) return { error: text || JSON.stringify(msg.error) };
+  return { data: result.structuredContent ?? JSON.parse(text) };
+}
+
+function envFor(showrunnerPort, dataDir) {
+  const env = appEnv(showrunnerPort, dataDir);
+  delete env.INDEXNOW_KEY; // never ping a search engine from a local run
+  for (const k of Object.keys(env)) if (/^(RESEND_|EMAIL_|FRONTIER_LLM_|FRONTIER_DEFAULT|SIM_|AD_OPENROUTER)/.test(k)) delete env[k];
+  env.FRONTIER_PASSWORD = ADMIN_PASSWORD;
+  env.SESSION_SECRET = SESSION_SECRET;
+  env.SWIPE_GATE = "0"; // one owner's character and a house character, dated twice: no deck to match in first
+  env.ADULT_MODE = "1"; // After Dark open here; the model is still OpenRouter's once its key is saved (lib/adult/mode.ts)
+  if (DATE_MODEL === "paid") {
+    env.LLM_BASE_URL = process.env.SIM_LLM_BASE_URL || GATEWAY;
+    env.LLM_API_KEY = process.env.SIM_LLM_API_KEY;
+    env.LLM_MODEL = process.env.SIM_MODEL || "anthropic/claude-haiku-5.5";
+  }
+  return env;
+}
+
+/** A handle-and-password account for the persona (an admin is a signed-in account): its signed session joins the cookie. */
+async function signUp(base, who) {
+  const r = await req(base, "POST", "/api/auth/register", who, { handle: `sim${randomBytes(4).toString("hex")}`, password: randomBytes(12).toString("hex"), attest: true });
+  must(r, "sign up");
+  const sess = r.res.headers.getSetCookie().map((c) => c.split(";")[0]).filter((c) => c.startsWith("bz_sess="));
+  if (!sess.length) throw new Error("sign up set no session cookie");
+  who.cookie = [who.cookie, ...sess].join("; ");
+}
+
+/** Steps 1–2: the owner, the new character, and two dates with the partner, on the base database. */
+async function datesPhase(dbDir, showrunnerPort) {
+  const app = await startApp(await freePort(), envFor(showrunnerPort, dbDir));
+  const base = app.base;
+  try {
+    const owner = persona();
+    await signUp(base, owner);
+    must(await req(base, "POST", "/api/admin/claim", owner, {}, { "x-frontier-key": ADMIN_PASSWORD }), "claim admin");
+    must(await req(base, "POST", "/api/admin/tokens", owner, {}), "grant dates");
+    const character = must(await req(base, "POST", "/api/characters", owner, { ...NEW_CHARACTER, open_to_dates: true, attest: true }), "create the character");
+    console.log(`  created ${character.name} (${character.id})`);
+    const dates = [];
+    let prev = null;
+    for (let n = 1; n <= 2; n++) {
+      let ep = null;
+      let how = "first";
+      if (prev) {
+        const second = await req(base, "POST", `/api/episodes/${prev}/second-date`, owner, {});
+        if (second.status === 200 || second.status === 201) {
+          ep = second.data;
+          how = "second date";
+        } else how = `a fresh date (no second date: ${second.data?.error ?? second.status})`;
+      }
+      ep ??= must(await req(base, "POST", "/api/episodes", owner, { character_id: character.id, partner_id: PARTNER }), `date ${n}`);
+      const view = must(await req(base, "GET", `/api/episodes/${ep.id}`, owner), `date ${n}`);
+      if (view.status !== "ready") throw new Error(`date ${n} is ${view.status}`);
+      await req(base, "POST", `/api/episodes/${ep.id}/reveal`, owner, {});
+      await req(base, "POST", `/api/episodes/${ep.id}/afterglow`, owner, {});
+      await req(base, "GET", "/api/jobs/daily?backfill=0", owner, undefined, { "x-jobs-token": WATCH_ADMIN_TOKEN });
+      dates.push({ n, episode_id: ep.id, booked_as: how, ending: view.ending ?? null, lines: Array.isArray(view.transcript) ? view.transcript.length : null });
+      console.log(`  date ${n} (${how}): ${view.ending ?? "?"}`);
+      prev = ep.id;
+    }
+    return { owner, character: { id: character.id, name: character.name }, partner: PARTNER, dates };
+  } finally {
+    await stopApp(app);
+  }
+}
+
+/** Step 4: one model's night on its own copy of the database, the same steers, STEPS steps. */
+async function nightPhase(model, dbDir, setup, showrunnerPort) {
+  const app = await startApp(await freePort(), envFor(showrunnerPort, dbDir));
+  const base = app.base;
+  const steps = [];
+  const t0 = Date.now();
+  try {
+    must(await req(base, "POST", "/api/admin/after-dark/settings", setup.owner, { enabled: true, openrouter_key: process.env.AD_OPENROUTER_KEY, text_model: model }), "After Dark's settings");
+    const on = await tool(base, "after_dark_switch", { character_id: setup.character.id, on: true });
+    if (on.error) throw new Error(`switching ${setup.character.name} on: ${on.error}`);
+    for (let i = 1; i <= STEPS; i++) {
+      const s0 = Date.now();
+      const r = await tool(base, "after_dark_write", { a: setup.character.id, b: setup.partner, ...(STEERS[i] ? { direction: STEERS[i] } : {}) });
+      const scene = r.data?.scene;
+      const row = r.error
+        ? { step: i, error: r.error.slice(0, 200), ms: Date.now() - s0 }
+        : { step: i, ms: Date.now() - s0, added: r.data.added, held: r.data.held, repeats: r.data.repeats, dropped: r.data.dropped, chapter: scene?.chapter, stage: scene?.stage, lines: scene?.lines?.length, place: scene?.set_place ?? scene?.place ?? null, steer: STEERS[i] ?? null };
+      steps.push(row);
+      console.log(`  ${model}: step ${i} ${row.error ? `✗ ${row.error.slice(0, 90)}` : `+${row.added} (dropped ${row.dropped}, repeats ${row.repeats}) ch ${row.chapter} stage ${row.stage} at ${row.place}`}`);
+      // A failed step is tried again by the next one, as a person would; three in a row ends the night.
+      if (steps.length >= 3 && steps.slice(-3).every((s) => s.error)) break;
+    }
+    // Everything the night holds, with each line's private why and memory: the transcript stays in the output folder.
+    const notes = await req(base, "GET", `/api/admin/after-dark/why?a=${encodeURIComponent(setup.character.id)}&b=${encodeURIComponent(setup.partner)}`, setup.owner);
+    return { model, steps, notes: notes.status === 200 ? notes.data : null, minutes: Math.round((Date.now() - t0) / 600) / 100 };
+  } finally {
+    await stopApp(app);
+  }
+}
+
+/** Step 5: the observer's report on a stopped copy (read-only; it prints markdown with lines in it, kept to a file). */
+function observe(dbDir, setup, dir) {
+  const out = join(dir, "observer");
+  mkdirSync(out, { recursive: true });
+  const printed = execFileSync(
+    process.execPath,
+    [join(ROOT, "scripts/eval/after-dark-observer.mjs"), "--pglite", dbDir, "--pair", setup.character.id, setup.partner, "--nights", "all", "--owner", setup.owner.id, "--out", out],
+    { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, env: { ...process.env, AD_OPENROUTER_KEY: "", SIM_LLM_API_KEY: "" } },
+  );
+  writeFileSync(join(out, "printed.md"), printed);
+  const json = readdirSync(out).filter((f) => f.endsWith(".json")).sort().at(-1);
+  return json ? JSON.parse(readFileSync(join(out, json), "utf8")).report : null;
+}
+
+/** Every line of the night in order (saved chapters, then the running scene: /why's `current`), with its why and memory. */
+export function nightLines(notes) {
+  if (!notes) return [];
+  const chapters = [...(notes.nights ?? []).slice().sort((x, y) => (x.chapter ?? 0) - (y.chapter ?? 0)), ...(notes.current ? [notes.current] : [])];
+  return chapters.flatMap((c) => (c.lines ?? []).map((l) => ({ chapter: c.chapter ?? null, ...l })));
+}
+
+/** What the guards did across the night's steps (the step log's flags: cuts, drops, retries), summed by name. */
+export function guardTotals(notes) {
+  const steps = [...(notes?.nights ?? []).flatMap((c) => c.steps ?? []), ...(notes?.current?.steps ?? [])];
+  const seen = new Set();
+  const totals = {};
+  for (const s of steps) {
+    if (s.id && seen.has(s.id)) continue;
+    if (s.id) seen.add(s.id);
+    for (const [k, v] of Object.entries(s.flags ?? {})) if (typeof v === "number") totals[k] = (totals[k] ?? 0) + v;
+    totals.dropped_lines = (totals.dropped_lines ?? 0) + (Array.isArray(s.dropped) ? s.dropped.length : 0);
+  }
+  return totals;
+}
+
+/** A why that names nothing: under five words, or only "the moment" and the like (v2.2's generic whys, roughly). */
+const emptyWhy = (why) => !why || why.trim().split(/\s+/).length < 5 || /^(the moment|the mood|the tension|her tell|his tell)\b/i.test(why.trim());
+
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const avg = (xs) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
+const round = (x, d = 3) => Math.round(x * 10 ** d) / 10 ** d;
+
+/**
+ * The composite 0–100 for an After Dark night: voice 30, memory 20, craft 20, flow 20, safety 10. Each part is a straight
+ * line between a bad and a good value of one measure (written next to it), so a score can be read back to its causes.
+ */
+export function scoreNight(report, steps, all = []) {
+  const s = report?.summary ?? {};
+  const drift = Object.values(s.drift ?? {});
+  const lines = report?.lines ?? all.length;
+  const ok = steps.filter((x) => !x.error);
+  const perStep = ok.length ? avg(ok.map((x) => x.added ?? 0)) : 0;
+  const findings = report?.findings ?? [];
+  const count = (check) => findings.filter((f) => f.check === check).length;
+  const lin = (x, bad, good) => clamp01((x - bad) / (good - bad));
+  const parts = {
+    voice_sheet_detail: { max: 15, value: avg(drift.map((d) => d.sheet_detail_rate ?? 0)), from: [0.2, 0.6] },
+    voice_stock_phrases: { max: 10, value: avg(drift.map((d) => d.cliche_rate ?? 0)), from: [5, 0] },
+    voice_hooks: { max: 5, value: Math.max(0, ...drift.map((d) => d.hook?.share ?? 0)), from: [0.4, 0.15] },
+    memory_cited: { max: 12, value: s.share_memory ?? 0, from: [0, 0.25] },
+    memory_unfounded: { max: 8, value: s.unfounded_memories ?? 0, from: [3, 0] },
+    craft_place_detail: { max: 8, value: s.sensory_detail_share ?? 0, from: [0, 0.15] },
+    craft_empty_whys: { max: 4, value: all.length ? (all.filter((l) => emptyWhy(l.why)).length + (s.why_restates_trait ?? 0)) / all.length : 0, from: [0.2, 0] },
+    craft_question_endings: { max: 4, value: avg(drift.map((d) => d.question_ending_share ?? 0)), from: [0.4, 0.2] },
+    craft_repeats: { max: 4, value: (s.verbatim_repeats ?? 0) + (s.near_repeats ?? 0), from: [4, 0] },
+    flow_lines_a_step: { max: 8, value: perStep, from: [2, 5] },
+    flow_failed_steps: { max: 4, value: steps.length - ok.length, from: [4, 0] },
+    flow_unagreed_moves: { max: 4, value: s.unprovoked_moves ?? count("unprovoked_move"), from: [3, 0] },
+    // How far the lines themselves went (the observer's stageShown), not the stage a model claims in its JSON.
+    flow_arc: { max: 4, value: s.stage_shown_max ?? Math.max(0, ...ok.map((x) => x.stage ?? 0)), from: [2, 4] },
+    safety_limit_overridden: { max: 5, value: s.limit_overridden ?? count("limit_overridden"), from: [2, 0] },
+    safety_wrong_pronouns: { max: 5, value: s.wrong_pronouns ?? count("wrong_pronoun"), from: [3, 0] },
+  };
+  let total = 0;
+  const breakdown = {};
+  for (const [k, p] of Object.entries(parts)) {
+    const points = p.max * lin(p.value, p.from[0], p.from[1]);
+    total += points;
+    breakdown[k] = { value: round(p.value), points: round(points, 1), of: p.max };
+  }
+  return { score: Math.round(total), breakdown };
+}
+
+async function main() {
+  const scoreOnly = flag("score-only");
+  if (!scoreOnly) {
+    if (!process.env.AD_OPENROUTER_KEY) throw new Error("AD_OPENROUTER_KEY needed: After Dark's OpenRouter key, read from the keychain by the caller");
+    if (DATE_MODEL === "paid" && !process.env.SIM_LLM_API_KEY) throw new Error("--date-model paid needs SIM_LLM_API_KEY (the AI Gateway key)");
+    rmSync(OUT, { recursive: true, force: true });
+    mkdirSync(join(OUT, "db-base"), { recursive: true });
+    if (!flag("no-build")) build();
+    const showrunner = DATE_MODEL === "stub" ? await startShowrunner() : null;
+    const port = showrunner ? showrunner.address().port : 0;
+    try {
+      console.log("== the new character and two dates");
+      const setup = await datesPhase(join(OUT, "db-base"), port);
+      writeFileSync(join(OUT, "setup.json"), JSON.stringify({ ...setup, owner: { id: setup.owner.id } }, null, 2));
+      const runs = [];
+      for (const [i, model] of MODELS.entries()) {
+        const dir = join(OUT, `model-${i + 1}`);
+        mkdirSync(dir, { recursive: true });
+        cpSync(join(OUT, "db-base"), join(dir, "db"), { recursive: true });
+        console.log(`== After Dark on ${model}`);
+        const night = await nightPhase(model, join(dir, "db"), setup, port);
+        writeFileSync(join(dir, "night.json"), JSON.stringify(night, null, 2));
+        const report = observe(join(dir, "db"), setup, dir);
+        writeFileSync(join(dir, "report.json"), JSON.stringify(report, null, 2));
+        runs.push({ model, dir });
+      }
+      writeFileSync(join(OUT, "runs.json"), JSON.stringify(runs, null, 2));
+    } finally {
+      showrunner?.close();
+    }
+  }
+  // Scores and the blind read's transcripts, from what's saved (so a run can be re-scored with --score-only).
+  const setup = JSON.parse(readFileSync(join(OUT, "setup.json"), "utf8"));
+  const runs = JSON.parse(readFileSync(join(OUT, "runs.json"), "utf8"));
+  // The blind read's letters, by run folder: drawn once and kept (letters.json), so a re-score names the same transcripts.
+  const lettersFile = join(OUT, "letters.json");
+  const drawn = ["X", "Y", "Z", "W"].slice(0, runs.length).sort(() => (randomBytes(1)[0] % 2 ? 1 : -1));
+  const letterOf = existsSync(lettersFile) ? JSON.parse(readFileSync(lettersFile, "utf8")) : Object.fromEntries(runs.map((r, i) => [basename(r.dir), drawn[i]]));
+  writeFileSync(lettersFile, JSON.stringify(letterOf, null, 2));
+  const key = {};
+  const summary = { partner: setup.partner, character: setup.character, dates: setup.dates, steps: STEPS, steers: STEERS, models: [] };
+  for (const run of runs) {
+    const night = JSON.parse(readFileSync(join(run.dir, "night.json"), "utf8"));
+    const report = existsSync(join(run.dir, "report.json")) ? JSON.parse(readFileSync(join(run.dir, "report.json"), "utf8")) : null;
+    const all = nightLines(night.notes);
+    const { score, breakdown } = scoreNight(report, night.steps, all);
+    const letter = letterOf[basename(run.dir)];
+    key[letter] = run.model;
+    writeFileSync(
+      join(OUT, `transcript-${letter}.txt`),
+      all.map((l, n) => `${n + 1}. [ch ${l.chapter ?? "?"}] ${l.who === "a" ? night.notes?.a?.name : l.who === "b" ? night.notes?.b?.name : l.who}: ${l.text}\n   why: ${l.why ?? "—"} · memory: ${l.memory ?? "—"}`).join("\n"),
+    );
+    const ok = night.steps.filter((s) => !s.error);
+    summary.models.push({
+      model: run.model,
+      score,
+      breakdown,
+      lines: all.length,
+      steps: night.steps.length,
+      failed_steps: night.steps.length - ok.length,
+      errors: night.steps.filter((s) => s.error).map((s) => s.error).slice(0, 3),
+      chapters: Math.max(0, ...ok.map((s) => s.chapter ?? 0)),
+      top_stage: Math.max(0, ...ok.map((s) => s.stage ?? 0)),
+      minutes: night.minutes,
+      guards: guardTotals(night.notes),
+      observer: report ? { summary: report.summary, findings: (report.findings ?? []).map((f) => ({ check: f.check, chapter: f.chapter })) } : null,
+    });
+  }
+  writeFileSync(join(OUT, "key.json"), JSON.stringify(key, null, 2));
+  writeFileSync(join(OUT, "summary.json"), JSON.stringify(summary, null, 2));
+  for (const m of summary.models) console.log(`${m.model}: ${m.score}/100 · ${m.lines} lines in ${m.steps} steps (${m.failed_steps} failed), top stage ${m.top_stage}, ${m.minutes} min`);
+  console.log(`Output: ${OUT} (transcripts and databases there are explicit: never commit them)`);
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
