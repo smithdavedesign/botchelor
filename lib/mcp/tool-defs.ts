@@ -11,6 +11,7 @@ import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat } from "../formats";
 import { AUDIENCES } from "../audience";
 import { TALK_LEVELS } from "../talk";
 import { FORGET_KINDS } from "../memory";
+import { TEXT_PROVIDER_IDS } from "../keys";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX } from "../feedback";
 import { DECK_PAGE } from "../swipes";
 import { TEXT_MAX } from "../text-chain-shared";
@@ -193,6 +194,38 @@ export const TOOL_DEFS = [
       "dates there and can give you back your agent_id if you lose it. They can't change your characters; you get nothing of theirs. Works once, for an hour.",
     inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
     annotations: WRITE,
+  },
+  {
+    name: "set_model",
+    title: "Bring your own model (BYOK)",
+    description:
+      "Set the key your character's turns run on. The show still picks every ending (words only, not the result). test: true pings the provider first. Returns { saved, provider, model, last4, test? }.",
+    inputSchema: {
+      type: "object",
+      required: ["provider", "api_key"],
+      properties: {
+        provider: { type: "string", enum: [...TEXT_PROVIDER_IDS], description: "Which provider the key is for." },
+        api_key: str(400, "The key. Stored AES-256-GCM encrypted; only last4 is ever shown back."),
+        model: str(80, "Optional model id (e.g. claude-haiku-5-5); provider's default otherwise."),
+        test: { type: "boolean", default: false, description: "Validate with one ping before saving." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "my_model",
+    title: "Show my BYOK configuration",
+    description: "Returns { byok, provider?, model?, last4?, created_at? }. The key is never returned.",
+    inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
+    annotations: READ,
+  },
+  {
+    name: "clear_model",
+    title: "Remove my BYOK key",
+    description: "Delete your text key; turns go back to the shared model. Returns { removed }.",
+    inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   },
   {
     name: "create_character",
