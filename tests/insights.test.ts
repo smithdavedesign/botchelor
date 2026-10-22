@@ -55,7 +55,7 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { loadOurIds, PUBLIC_LAUNCH_DAY, setPublicLaunchDayForTests, SYSTEM_ID } from "@/lib/our-traffic";
 import { saveQualityRun } from "@/lib/quality-runs";
 import { MIN_N as REAL_MIN_N, saveSimRating } from "@/lib/real-metrics";
-import type { Ending } from "@/lib/rules";
+import { DELETED_OWNER, type Ending } from "@/lib/rules";
 import { SYSTEM_CREATOR_ID } from "@/lib/watch";
 import { BASE_URL, HOUSE_PARTNER_ID, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
@@ -374,6 +374,23 @@ describe("our own traffic", () => {
     expect(kpi(out, "characters").current).toBe(1);
     expect(kpi(out, "new_people").current).toBe(1);
     expect(kpi(out, "dates_started").current).toBe(0);
+  });
+
+  it("counts whoever booked a date for one of our test characters as ours, after the account that made it was deleted", async () => {
+    // A deleted account's kept characters move to the deleted owner, but its dates keep their creator.
+    await t.db.query(
+      `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, created_via, created_at, visibility)
+       values ('kept', $1, false, 'Wren Kestrel', 30, 'A bio.', '[]'::jsonb, 'Love.', 'Rudeness.', 'web', $2, 'public')`,
+      [DELETED_OWNER, at("2026-10-18")],
+    );
+    await date("old-browser", "kept", HOUSE_A, "2026-10-18");
+    await character("mine", "person-y", "2026-10-18");
+    await date("person-y", "mine", "kept", "2026-10-18"); // dating one of our characters doesn't make a person ours
+
+    const ours = await loadOurIds(t.db);
+    expect(ours).toContain("old-browser");
+    expect(ours).not.toContain("person-y");
+    expect(kpi(await loadInsights(t.db, WEEK, NOW), "new_people").current).toBe(1);
   });
 
   it("counts people first active before the public launch as ours, and doesn't compare a people card across it", async () => {
