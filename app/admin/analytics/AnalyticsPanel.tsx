@@ -120,7 +120,7 @@ export default function AnalyticsPanel() {
               void load(undefined, d);
             }}
           >
-            {[1, 7, 14, 30, 60].map((d) => (
+            {[1, 7, 14, 30, 60, 90, 180, 365].map((d) => (
               <option key={d} value={d}>
                 {d === 1 ? "last day" : `last ${d} days`}
               </option>

@@ -204,8 +204,14 @@ export async function agentAnalytics(db: Db, windowDays = 7, now = new Date()): 
   };
 }
 
-/** Per-call rows older than this go (the daily job). */
-export const MCP_CALLS_KEEP_DAYS = 60;
+/**
+ * Per-call rows older than this go (the daily job). 13 months, like Google Analytics' longest setting (David,
+ * 2026-10-22: 60 days lost the long view). Cheap: about 0.35 KB a call, 3,248 calls in 1.2 MB, so ~100 MB a year at
+ * October's pace (a few cents a month on Neon).
+ */
+export const MCP_CALLS_KEEP_DAYS = 400;
+/** The longest window the analytics page offers: the calls it's built from are kept this long. */
+export const MCP_WINDOW_MAX_DAYS = 365;
 export async function pruneMcpCalls(db: Db): Promise<void> {
   await db.query(`delete from mcp_calls where created_at < now() - ($1 || ' days')::interval`, [String(MCP_CALLS_KEEP_DAYS)]);
 }

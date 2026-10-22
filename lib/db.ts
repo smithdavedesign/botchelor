@@ -886,7 +886,7 @@ create table if not exists agent_link_codes (
 );
 create index if not exists agent_link_codes_agent_idx on agent_link_codes (agent_id);
 -- Every MCP call (lib/mcp.ts logCall), for the owner's analytics page (lib/agent-analytics.ts, /admin/analytics):
--- the method or tool and whether it worked, never its arguments. Pruned after 60 days by the daily job.
+-- the method or tool and whether it worked, never its arguments. Pruned after 400 days (13 months) by the daily job.
 create table if not exists mcp_calls (
   id bigserial primary key,
   session_id text,
