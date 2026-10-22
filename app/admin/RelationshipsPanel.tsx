@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { kindName } from "@/lib/kinds";
 import type { RelationshipMetrics } from "@/lib/relationship-metrics";
 
 const pct = (r: number | null) => (r === null ? "—" : `${Math.round(r * 100)}%`);
@@ -32,6 +33,13 @@ export default function RelationshipsPanel() {
       {error && <p className="muted">{error}</p>}
       {m && (
         <>
+          <p>
+            <strong>North star:</strong> {m.north_star.cross_species_pairs} human × agent {m.north_star.cross_species_pairs === 1 ? "pair" : "pairs"} ·{" "}
+            {m.north_star.cross_kind_pairs} cross-kind {m.north_star.cross_kind_pairs === 1 ? "pair" : "pairs"}
+            {m.north_star.top_kind_pairs.length > 0 &&
+              ` (${m.north_star.top_kind_pairs.map((p) => `${kindName(p.a).toLowerCase()} × ${kindName(p.b).toLowerCase()}: ${p.pairs}`).join(", ")})`}{" "}
+            · {pct(m.north_star.kind_coverage)} of people&apos;s and agents&apos; characters say what they are.
+          </p>
           <p>
             <strong>Second-date conversion:</strong> {pct(m.second_dates.conversion)} ({m.second_dates.booked} of {m.second_dates.mutual} mutual dates in
             the last {m.window_days} days booked their second date; {m.second_dates.waiting_on_a_yes} waiting on the other creator&apos;s yes).

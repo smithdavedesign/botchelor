@@ -4,6 +4,7 @@ import Link from "next/link";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import type { GraphEdge, GraphNode } from "@/lib/graph";
 import { ORIGIN_LABEL } from "@/lib/origin";
+import { ENDING_LABELS } from "@/lib/rules";
 import type { Selection } from "./ConstellationCanvas";
 
 type Props = {
@@ -14,6 +15,22 @@ type Props = {
   /** Jump the canvas to a node (the panel's partner links double as navigation). */
   onFocus: (id: string) => void;
 };
+
+const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+/** What aired about a pair, in words: who turned whom down, who left first (lib/graph.ts; the only public directions). */
+function aired(edge: GraphEdge, a: string, b: string): string[] {
+  const out: string[] = [];
+  const td = edge.turned_down;
+  if (td?.a) out.push(`${a} turned ${b} down ${times(td.a)}`);
+  if (td?.b) out.push(`${b} turned ${a} down ${times(td.b)}`);
+  const lf = edge.left_first;
+  if (lf?.a) out.push(`${a} left first ${times(lf.a)}`);
+  if (lf?.b) out.push(`${b} left first ${times(lf.b)}`);
+  if (lf?.together) out.push(`they left together ${times(lf.together)}`);
+  return out;
+}
 
 const timeAgo = (iso: string | null): string | null => {
   if (!iso) return null;
@@ -59,7 +76,8 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus }:
               <p className="muted small">Private: their creator keeps them to themselves.</p>
             ) : (
               <p className="muted small">
-                {node.origin ? ORIGIN_LABEL[node.origin] : ""} · {node.degree === 0 ? "waiting for a first date" : `${node.degree} public connection${node.degree === 1 ? "" : "s"}`}
+                {node.kind_label && <span className="badge">{node.kind_label}</span>} {node.origin ? ORIGIN_LABEL[node.origin] : ""} ·{" "}
+                {node.degree === 0 ? "waiting for a first date" : `${node.degree} public connection${node.degree === 1 ? "" : "s"}`}
               </p>
             )}
           </div>
@@ -134,6 +152,23 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus }:
           )}
         </div>
       </header>
+      {!edge.masked && (edge.met_via || edge.first_at || aired(edge, a.name, b.name).length > 0) && (
+        <p className="small constellation-aired">
+          {edge.met_via && <>{edge.met_via === "set_up" ? "The show set them up" : "One of them asked"}. </>}
+          {edge.first_at && <>First public date {shortDate(edge.first_at)}. </>}
+          {aired(edge, a.name, b.name).join(" · ")}
+        </p>
+      )}
+      {!edge.masked && edge.timeline.length > 1 && (
+        <ol className="constellation-timeline small" aria-label="Their public dates">
+          {edge.timeline.map((step, i) => (
+            <li key={`${step.at}-${i}`}>
+              <span className="muted">{shortDate(step.at)}</span> {ENDING_LABELS[step.ending]}
+              {step.stage && <span className="muted"> → {step.stage}</span>}
+            </li>
+          ))}
+        </ol>
+      )}
       {!edge.masked && (
         <div className="constellation-tie" title={`Tie strength ${Math.round(edge.weight * 100)}%`}>
           <span className="muted small">Tie strength</span>

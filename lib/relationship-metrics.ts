@@ -10,7 +10,9 @@
  *    after (D1), and within a week (D7). "Anything" is a date, a second-date yes, a nudge, an episode or arc
  *    prediction, a follow, or opening a notification.
  */
+import { agentFunnel } from "./agent-funnel";
 import type { Db } from "./db";
+import { DELETED_OWNER } from "./rules";
 
 export type RelationshipMetrics = {
   window_days: number;
@@ -37,6 +39,17 @@ export type RelationshipMetrics = {
     push_subscriptions: number;
   };
   owners: { cohort: number; d1: number; d7: number; d1_rate: number | null; d7_rate: number | null };
+  /**
+   * The north star (data plan Tier 0 + 2): pairs across the human × agent line (lib/agent-funnel.ts, pair-keyed), and
+   * pairs across kinds (a vampire and a robot, lib/kinds.ts), counted at query time over every pair that has dated.
+   */
+  north_star: {
+    cross_species_pairs: number;
+    cross_kind_pairs: number;
+    top_kind_pairs: { a: string; b: string; pairs: number }[];
+    /** The share of people's and agents' live characters that say what they are. */
+    kind_coverage: number | null;
+  };
 };
 
 const bucket = (rows: { n: number; c: number }[]): Record<"1" | "2" | "3" | "4" | "5+", number> => {
@@ -111,6 +124,26 @@ export async function relationshipMetrics(db: Db, now = new Date(), windowDays =
        from cohort c`,
     [at],
   );
+  const [kindPairs, coverage, funnel] = await Promise.all([
+    many<{ a: string; b: string; pairs: number }>(
+      `select least(ca.extras->>'kind', cb.extras->>'kind') as a, greatest(ca.extras->>'kind', cb.extras->>'kind') as b, count(*)::int as pairs
+         from relationships r
+         join characters ca on ca.id = r.character_a
+         join characters cb on cb.id = r.character_b
+        where r.dates > 0 and ca.owner_id is distinct from $1 and cb.owner_id is distinct from $1
+          and ca.extras->>'kind' is not null and cb.extras->>'kind' is not null
+        group by 1, 2
+        order by pairs desc, a, b`,
+      [DELETED_OWNER],
+    ),
+    one<{ made: number; said: number }>(
+      `select count(*)::int as made, count(*) filter (where extras->>'kind' is not null)::int as said
+         from characters where not is_house and owner_id is distinct from $1`,
+      [DELETED_OWNER],
+    ),
+    agentFunnel(db),
+  ]);
+  const crossKind = kindPairs.filter((p) => p.a !== p.b);
   return {
     window_days: windowDays,
     second_dates: { mutual: sd.mutual, booked: sd.booked, conversion: rate(sd.booked, sd.mutual), waiting_on_a_yes: sd.waiting },
@@ -124,5 +157,11 @@ export async function relationshipMetrics(db: Db, now = new Date(), windowDays =
     },
     between_dates: bd,
     owners: { cohort: owners.cohort, d1: owners.d1, d7: owners.d7, d1_rate: rate(owners.d1, owners.cohort), d7_rate: rate(owners.d7, owners.cohort) },
+    north_star: {
+      cross_species_pairs: funnel.cross_species,
+      cross_kind_pairs: crossKind.reduce((sum, p) => sum + p.pairs, 0),
+      top_kind_pairs: crossKind.slice(0, 5),
+      kind_coverage: rate(coverage.said, coverage.made),
+    },
   };
 }

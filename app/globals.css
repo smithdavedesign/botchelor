@@ -5645,10 +5645,15 @@ main:has(> .admin-wide) {
   font-size: var(--text-sm);
   line-height: 1.2;
 }
-.segmented button.segmented-tab:hover:not(:disabled) {
+/* Hover never repaints the selected tab: it outranks [aria-pressed], and a tap leaves :hover stuck on a phone. */
+.segmented button.segmented-tab:hover:not(:disabled):not([aria-pressed="true"]) {
   transform: none;
   box-shadow: none;
   background: color-mix(in srgb, var(--accent) 8%, var(--card));
+}
+.segmented button.segmented-tab[aria-pressed="true"]:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
 }
 .segmented button.segmented-tab[aria-pressed="true"] {
   background: var(--accent-btn);
@@ -8131,7 +8136,8 @@ details.episode-safety .safety > h2 {
   cursor: pointer;
   min-height: 32px;
 }
-.constellation-segmented .segmented-tab[aria-current="page"] {
+.constellation-segmented .segmented-tab[aria-current="page"],
+.constellation-segmented .segmented-tab[aria-pressed="true"] {
   background: var(--accent-btn);
   color: var(--accent-ink);
 }
@@ -8227,8 +8233,66 @@ details.episode-safety .safety > h2 {
   background: var(--grad);
 }
 .constellation-ledger,
-.constellation-missing {
+.constellation-missing,
+.constellation-kinds {
   margin-top: var(--space-5);
+}
+/* The colour key (kind or cluster), bottom-left of the stage above the legend line. */
+.constellation-key {
+  position: absolute;
+  left: var(--space-3);
+  bottom: calc(var(--space-2) + 1.8rem);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  max-width: min(36rem, calc(100% - 2 * var(--space-3)));
+  margin: 0;
+  padding: 6px 10px;
+  list-style: none;
+  border-radius: var(--control-radius);
+  background: color-mix(in srgb, var(--constellation-bg) 78%, transparent);
+  color: var(--constellation-label);
+}
+.constellation-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.constellation-swatch.is-grey {
+  background: var(--constellation-line);
+}
+.constellation-aired {
+  margin: 0 0 var(--space-2);
+}
+.constellation-timeline {
+  max-height: 9rem;
+  overflow-y: auto;
+  margin: 0 0 var(--space-2);
+  padding-left: 1.2rem;
+}
+.constellation-kind-table {
+  width: 100%;
+  max-width: 36rem;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.constellation-kind-table th,
+.constellation-kind-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.constellation-kind-table td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.constellation-kind-table thead th:not(:first-child) {
+  text-align: right;
+}
+.constellation-kind-table tr.is-cross th {
+  color: var(--accent-text);
 }
 .constellation-singles {
   line-height: 1.9;

@@ -64,6 +64,17 @@ only: `viewRelationship` never shows it, since a match or a proposal is its owne
 - **The Reunion and the cast page:** only the public layer. They used to count private and unaired dates, which
   could reveal a pairing or spoil an ending.
 - **The ex-returns format:** it uses public edges only.
+- **The Constellation (`/graph`, `lib/graph.ts`):** the whole public layer on one canvas. A private character is name
+  only and its pairs are existence only (`maskNode` / `maskEdge` null every other field, and `tests/graph.test.ts`
+  checks that for any field added later); a deleted account's characters vanish. From 2026-10-22 it also shows:
+  - each star's **kind** (`lib/kinds.ts`), with "Colour by" character, kind or cluster (`communities`: deterministic
+    label propagation over the masked graph), a kind filter, and a **who-dates-whom-by-kind** table;
+  - per pair: the **public timeline** (stage after each public date), the first public date, **who turned whom down
+    and who left first** (from aired public dates' `drama_answer` only, the one public directional signal: never a
+    wish, a match or a line's interest), and **how they met** coarsely (`set_up` or `asked`, only when their first
+    public date was their first date);
+  - stats: cross-kind pairs, triangles, clusters and how many characters say what they are. The admin's north star
+    (`relationshipMetrics().north_star`) puts the human × agent count next to cross-kind pairs.
 
 ## The second date (`lib/second-date.ts`)
 

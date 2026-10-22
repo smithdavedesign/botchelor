@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { avatarPalette, initials } from "@/lib/avatar";
+import { starHue, type ColorBy } from "./colors";
 import type { GraphEdge, GraphNode } from "@/lib/graph";
 import { ALPHA_MIN, createSim, pick, REHEAT, settle, tick, type Sim } from "./sim";
 
@@ -15,6 +16,8 @@ type Props = {
   onSelect: (s: Selection) => void;
   /** Search-to-focus: pan/zoom to this node and select it (cleared by the wrapper after use). */
   focusId: string | null;
+  /** What a star's colour means (./colors.ts): its own hue, its kind, or its cluster. */
+  colorBy?: ColorBy;
 };
 
 type View = { zoom: number; panX: number; panY: number };
@@ -27,7 +30,7 @@ const edgeKey = (e: GraphEdge) => `${e.a_id}~${e.b_id}`;
  * portraits drawn in circular clips with the avatar gradient as fallback. All per-frame state lives in refs — React
  * renders this component exactly once per data change. Colors come from the CSS tokens so both themes just work.
  */
-export default function ConstellationCanvas({ nodes, edges, selection, onSelect, focusId }: Props) {
+export default function ConstellationCanvas({ nodes, edges, selection, onSelect, focusId, colorBy = "character" }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const simRef = useRef<Sim | null>(null);
   const viewRef = useRef<View>({ zoom: 1, panX: 0, panY: 0 });
@@ -37,8 +40,8 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
   const themeRef = useRef<Theme | null>(null);
   const sizeRef = useRef<{ w: number; h: number }>({ w: 900, h: 600 });
   const reducedRef = useRef(false);
-  const propsRef = useRef({ nodes, edges, selection, onSelect });
-  propsRef.current = { nodes, edges, selection, onSelect };
+  const propsRef = useRef({ nodes, edges, selection, onSelect, colorBy });
+  propsRef.current = { nodes, edges, selection, onSelect, colorBy };
 
   // One effect owns everything (strict-mode double-invoke safe: full teardown, idempotent setup).
   useEffect(() => {
@@ -103,8 +106,13 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       const { w, h } = sizeRef.current;
       const dpr = window.devicePixelRatio || 1;
       const v = viewRef.current;
-      const { nodes: ns, edges: es, selection: sel } = propsRef.current;
+      const { nodes: ns, edges: es, selection: sel, colorBy: by } = propsRef.current;
       const byId = new Map(ns.map((n, i) => [n.id, i]));
+      // A star's palette under the chosen colouring: its own, a kind's or a cluster's hue, or null for the neutral grey.
+      const paletteOf = (id: string, n: GraphNode) => {
+        const h = starHue(n, by);
+        return h === null ? null : avatarPalette(id, h === "own" ? n.hue : h);
+      };
 
       // The ego set: hovered or selected node + its neighbours (and a selected edge's two ends).
       const ego = new Set<string>();
@@ -151,6 +159,25 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
         ctx.stroke();
+        // One-sided turn-downs (their aired "who gets rejected?"): a chevron pointing at the one turned down more.
+        const td = data.turned_down;
+        if (td && td.a !== td.b) {
+          const [from, to] = td.a > td.b ? [a, b] : [b, a];
+          const len = Math.hypot(to.x - from.x, to.y - from.y);
+          if (len > from.r + to.r + 12) {
+            const ux = (to.x - from.x) / len;
+            const uy = (to.y - from.y) / len;
+            const tipX = from.x + ux * len * 0.62;
+            const tipY = from.y + uy * len * 0.62;
+            const s = 5 / Math.sqrt(v.zoom) + 2;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(tipX - ux * s - uy * s * 0.8, tipY - uy * s + ux * s * 0.8);
+            ctx.lineTo(tipX, tipY);
+            ctx.lineTo(tipX - ux * s + uy * s * 0.8, tipY - uy * s - ux * s * 0.8);
+            ctx.stroke();
+          }
+        }
       }
       ctx.setLineDash([]);
 
@@ -167,9 +194,9 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
         if (data.portrait && !data.private && img === undefined) loadImage(sn.id, data.portrait);
 
         // Soft glow behind connected nodes (the constellation look).
-        if (!sn.orbit && !dim) {
+        const p = paletteOf(sn.id, data);
+        if (!sn.orbit && !dim && p) {
           const glow = ctx.createRadialGradient(sn.x, sn.y, sn.r * 0.4, sn.x, sn.y, sn.r * 2.2);
-          const p = avatarPalette(sn.id, data.hue);
           glow.addColorStop(0, p.from);
           glow.addColorStop(1, "transparent");
           ctx.globalAlpha = dim ? 0.05 : 0.25;
@@ -187,10 +214,17 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
           ctx.clip();
           ctx.drawImage(img, sn.x - sn.r, sn.y - sn.r, sn.r * 2, sn.r * 2);
           ctx.restore();
+          // A portrait keeps its face; under kind or cluster colouring a ring says which.
+          if (by !== "character") {
+            ctx.strokeStyle = p ? p.from : theme.line;
+            ctx.lineWidth = 3 / v.zoom + 1;
+            ctx.beginPath();
+            ctx.arc(sn.x, sn.y, sn.r, 0, Math.PI * 2);
+            ctx.stroke();
+          }
         } else {
-          const p = avatarPalette(sn.id, data.hue);
           const grad = ctx.createLinearGradient(sn.x - sn.r, sn.y - sn.r, sn.x + sn.r, sn.y + sn.r);
-          if (data.private) {
+          if (!p) {
             grad.addColorStop(0, theme.line);
             grad.addColorStop(1, theme.muted);
           } else {
@@ -376,6 +410,11 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
     const scheme = window.matchMedia("(prefers-color-scheme: dark)");
 
     const onWake = () => wake(1);
+    // A new colouring or selection only repaints: the layout stays where it is.
+    const onRedraw = () => {
+      if (!rafRef.current) draw();
+    };
+    canvas.addEventListener("constellation:redraw", onRedraw);
     const ro = new ResizeObserver(resize);
     ro.observe(canvas.parentElement ?? canvas);
     resize();
@@ -394,6 +433,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       rafRef.current = 0;
       ro.disconnect();
       canvas.removeEventListener("constellation:wake", onWake);
+      canvas.removeEventListener("constellation:redraw", onRedraw);
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", onPointerUp);
@@ -424,6 +464,10 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
     canvas.dispatchEvent(new Event("constellation:wake"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataKey]);
+
+  useEffect(() => {
+    canvasRef.current?.dispatchEvent(new Event("constellation:redraw"));
+  }, [colorBy]);
 
   // Search-to-focus: center and zoom on the node, without fighting the user's own panning afterwards.
   useEffect(() => {

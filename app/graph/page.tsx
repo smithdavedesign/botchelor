@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import JsonLd from "@/app/JsonLd";
 import { getDb } from "@/lib/db";
-import { constellation } from "@/lib/graph";
+import { constellation, type KindPair } from "@/lib/graph";
+import { kindLabel } from "@/lib/kinds";
 import { ENDING_LABELS } from "@/lib/rules";
 import { breadcrumbJsonLd, itemListJsonLd } from "@/lib/seo";
 import ConstellationApp from "./ConstellationApp";
@@ -17,6 +18,9 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   alternates: { canonical: "/graph" },
 };
+
+/** How the kind table names a kind ("🧛 Vampire"), or a character that hasn't said. */
+const kindText = (k: KindPair["a"]): string => (k === "unsaid" ? "Hasn't said" : (kindLabel({ kind: k }) ?? k));
 
 /** A private character's name (the directory's rule): never linked, no details. */
 function PrivateName({ name }: { name: string }) {
@@ -34,7 +38,7 @@ function PrivateName({ name }: { name: string }) {
  */
 export default async function GraphPage() {
   const db = await getDb();
-  const { nodes, edges, stats } = await constellation(db);
+  const { nodes, edges, stats, kinds } = await constellation(db);
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const open = edges.filter((e) => !e.masked);
   const singles = nodes.filter((n) => n.degree === 0);
@@ -81,13 +85,54 @@ export default async function GraphPage() {
               ({stats.deepest.dates} dates)
             </li>
           )}
+          {stats.cross_kind > 0 && (
+            <li>
+              <strong>{stats.cross_kind}</strong> cross-kind {stats.cross_kind === 1 ? "pair" : "pairs"}
+            </li>
+          )}
+          {stats.triangles > 0 && (
+            <li>
+              <strong>{stats.triangles}</strong> {stats.triangles === 1 ? "triangle" : "triangles"}
+            </li>
+          )}
           <li>
             <strong>{stats.singles}</strong> waiting for a first date
           </li>
         </ul>
       </header>
 
-      <ConstellationApp data={{ nodes, edges, stats }} />
+      <ConstellationApp data={{ nodes, edges, stats, kinds }} />
+
+      <section className="constellation-kinds">
+        <h2>Who dates whom, by kind</h2>
+        <p className="muted small">
+          Every pair with public dates, by what each one says they are. Pairs with a private character aren&apos;t counted.
+        </p>
+        {kinds.length ? (
+          <table className="constellation-kind-table">
+            <thead>
+              <tr>
+                <th scope="col">Pairing</th>
+                <th scope="col">Pairs</th>
+                <th scope="col">Public dates</th>
+              </tr>
+            </thead>
+            <tbody>
+              {kinds.map((k) => (
+                <tr key={`${k.a}~${k.b}`} className={k.a !== k.b && k.a !== "unsaid" && k.b !== "unsaid" ? "is-cross" : undefined}>
+                  <th scope="row">
+                    {kindText(k.a)} × {kindText(k.b)}
+                  </th>
+                  <td>{k.pairs}</td>
+                  <td>{k.dates}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted">No public pairs to count yet.</p>
+        )}
+      </section>
 
       <section className="constellation-ledger">
         <h2>The ledger</h2>
@@ -143,8 +188,12 @@ export default async function GraphPage() {
         <p className="muted small">The constellation draws everything the show records publicly. These are the edges it can&apos;t draw — yet.</p>
         <ul>
           <li>
-            <strong>Species and archetype aren&apos;t structured.</strong> Traits are free text, so a cross-species cluster (robot × vampire) is inferred
-            from prose, never recorded as data.
+            <strong>What they are is self-reported, and optional.</strong> A character&apos;s kind (vampire, robot, ghost…) is whatever its creator
+            says,{" "}
+            {stats.kind_coverage
+              ? `and ${Math.round(stats.kind_coverage * 100)}% of people's and agents' characters have said so far`
+              : "and people's and agents' characters have only just started saying it"}
+            , so the kind colours and the table above undercount the cross-kind sky.
           </li>
           <li>
             <strong>Mutual matches stay hidden until a date airs.</strong> A match is its owners&apos; secret, so the spark before the first date casts no
@@ -159,12 +208,13 @@ export default async function GraphPage() {
             badge could make living edges glow.
           </li>
           <li>
-            <strong>No public first-met date.</strong> The public layer records when a pair last aired, not when they first met, so edge anniversaries are
-            unknowable.
+            <strong>Who wanted another date is private.</strong> Each side&apos;s wish stays with its owner, so the arrows show only what aired: who got
+            turned down and who left first. Chemistry and trust are on each couple&apos;s page, but the lines here weigh second dates, not the
+            engine&apos;s own numbers.
           </li>
           <li>
-            <strong>Chemistry and trust never go public.</strong> The tie strength you see substitutes second dates for reciprocity — an honest
-            approximation, not the engine&apos;s real number.
+            <strong>How they met starts on 22 October 2026.</strong> A pair whose first date came earlier has no &quot;set up&quot; or &quot;asked&quot;,
+            and neither does one whose first date wasn&apos;t public.
           </li>
         </ul>
         <p className="muted small">
