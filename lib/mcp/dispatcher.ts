@@ -143,10 +143,10 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // waiting on you leads every reply with a countdown; a refused step says so first; steps after the first leave the prompt
 // out unless asked (compact: true or false: the one deliberate change); an unknown enum value is refused on a call that
 // spends or writes, and noted on a read or a preview; and the rest of what the run tripped on, additive otherwise.
-// 2.9.0 (the 2026-10-22-0610 run): your_move only for a move that's still yours (two 2.8.0 regressions fixed: stale wakes),
-// exclusive_soon when the date that makes it true airs (2.7.0's ran ahead of it), every advertised resource listed and readable,
-// a finished own date's recap, one set of names for the other character, look-alikes read through the dating profile, and
-// how an ending is made said before booking, with go_on_date's date settings listed: new fields and optional arguments.
+// 2.9.0 (the 2026-10-22-0610 run): your_move only for a move that's still yours (2.8.0's stale wakes), exclusive_soon when the
+// date that makes it true airs (2.7.0's ran ahead of it), every advertised resource listed and readable, a finished own date's
+// next calls, one set of names for the other character, the look-alike archetype named from one twin, and how an ending is
+// made said before booking, with go_on_date's date settings listed: new fields and optional arguments.
 export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.9.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
@@ -1200,19 +1200,25 @@ async function waitForText(db: Db, who: Identity, args: Record<string, unknown>,
   const self = id === lo ? "lo" : "hi";
   const texts = async () => (await loadChain(db, id, withId, { userId: who.id, owner: true })).filter((i): i is ChainText => i.kind === "text");
   const start = await texts();
-  // 2.9.0: how many of theirs were unread (one notice per couple counts them), before reading the thread marks them read.
+  // #620's comment (the 2026-10-22-0610 run: a wait "returned [] right after Odalys had texted, so I didn't see the thread"):
+  // how many of theirs were unread before this call (one notice per couple counts them), taken before reading the thread
+  // marks them read. 2.9.0: those come back in items whatever the cursor.
   const unreadCount = (await unreadTextsByPair(db, who.id).catch(() => new Map<string, number>())).get(`/messages/${lo}/${hi}`) ?? 0;
+  const unreadAtStart = unreadCount > 0;
   const unread = unreadCount ? start.filter((t) => t.who !== self).slice(-unreadCount) : [];
   // #619 (the 2026-10-21-2300 run: waiting_for_you kept "texted: 2" after the texts were read): reading the thread is reading
   // its notice, with a wait as without one (#219). The reply carries the thread's newest texts, theirs included.
   await markTextsRead(db, who.id, lo, hi);
   // Chain ids start with the text's time. With no `after`, the marker is this character's own newest text (#415: a reply
-  // that landed between send_text and this call was counted as already seen and never returned), else the database's
-  // now (never "", which would read back as "from the newest" on the next call and skip their reply).
+  // that landed between send_text and this call was counted as already seen and never returned). A character that hasn't
+  // texted the thread yet has nothing to answer to but their unread texts, so those are new (#620: the opener after a
+  // match). Else the database's now (never "", which would read back as "from the newest" on the next call and skip their
+  // reply; "" here is only ever compared, as their texts come straight back).
   const now = async () => new Date((await db.query<{ now: string | Date }>(`select now() as now`)).rows[0].now).toISOString();
   // 2.7.0 (#619's comment): after may be a time written by hand, in any ISO-8601 form: read as the time an item id starts with.
   const afterCursor = textCursor(args.after, "after");
-  const after = afterCursor.value ?? (start.filter((t) => t.who === self).at(-1)?.id ?? (await now()));
+  const unanswered = unreadAtStart && start.length > 0 && start.every((t) => t.who !== self);
+  const after = afterCursor.value ?? (start.filter((t) => t.who === self).at(-1)?.id ?? (unanswered ? "" : await now()));
   const plan = waitPlan(seconds || WAIT_MAX_SECONDS);
   const limit = Math.max(1000, plan.ms);
   // #472: who answers on the other side, and how soon to expect it.
@@ -2748,29 +2754,22 @@ export function stepTop(step: OwnDateStep): Record<string, unknown> {
       summary: `Their move: waiting for ${who}. get_own_date_step with wait_seconds waits for yours.`,
     };
   }
-  // 2.9.0 (#632's comment, the 2026-10-22-0610 run: a finished date read back as a bare stage: done): how it ended, first.
-  const ending = (step as { episode?: { ending?: unknown } }).episode?.ending;
-  const label = typeof ending === "string" && ending in ENDING_LABELS ? ENDING_LABELS[ending as keyof typeof ENDING_LABELS] : null;
-  return {
-    ...base, your_move: false, whose_move: null,
-    summary: label ? `Done: it ended as ${label} (recap: the box score, why, how it opened and closed). get_episode reads it in full.` : "Done: the date is finished. get_episode (summary: true) reads it back.",
-  };
-}
-
-/**
- * A finished date's recap (2.9.0, #632's comment: "get_own_date_step on a finished date returns a bare stage: done" while the
- * notice says to read it there): the ending, the box score, why, how it opened and closed, and the share path, as get_episode
- * with summary: true reads a date the show wrote: a date played by hand is scored and explained the same way. Null before
- * it's done.
- */
-function recapOf(step: OwnDateStep): Record<string, unknown> | null {
-  if (step.stage !== "done") return null;
-  const episode = (step as { episode?: Record<string, unknown> | null }).episode;
-  if (!episode || typeof episode !== "object") return null;
-  // autoplay hands back a summary already (no transcript, the box score as finals).
-  const summary = Array.isArray(episode.transcript) ? (episodeSummary({ episode }).episode as Record<string, unknown>) : episode;
-  const ending = typeof summary.ending === "string" && summary.ending in ENDING_LABELS ? (summary.ending as keyof typeof ENDING_LABELS) : null;
-  return { ...(ending ? { ending, ending_label: ENDING_LABELS[ending] } : {}), ...summary };
+  // #632's comment (the 2026-10-22-0610 run: "the finished own-date notification says 'Read it with get_own_date_step', but
+  // that call on a finished date returns a bare stage: done"): the ending sat in step.episode, after every line. The result
+  // leads, as get_episode's summary has it (the ending, why, the box score's final numbers, the best line, how it opened
+  // and closed); step.episode keeps the whole recap. A date played by hand is scored and explained the same way.
+  const e = step.episode;
+  if (e?.ending) {
+    const [a, b] = e.characters;
+    // autoplay_own_date's done step carries that summary already (the box score as its final numbers): read as it is.
+    const summarised = Object.values((e.box_score ?? {}) as Record<string, unknown>).some((v) => typeof v === "number");
+    return {
+      ...base, your_move: false, whose_move: null,
+      summary: `Done: ${a.name} and ${b.name}'s date ended: ${ENDING_LABELS[e.ending]} (${e.ending}). result: why, the box score's final numbers and the best line; step.episode: the whole recap.`,
+      result: summarised ? e : episodeSummary({ episode: e }).episode,
+    };
+  }
+  return { ...base, your_move: false, whose_move: null, summary: "Done: the date is finished. get_episode (summary: true) reads it back." };
 }
 
 /**
@@ -2782,9 +2781,6 @@ function withStepTop(data: Record<string, unknown>): Record<string, unknown> {
   const step = data.step as OwnDateStep | undefined;
   if (!step || typeof step !== "object" || typeof (step as { stage?: unknown }).stage !== "string" || typeof (step as { episode_id?: unknown }).episode_id !== "string") return data;
   const top = stepTop(step);
-  // 2.9.0: a finished date leads with its recap, right after the summary.
-  const recap = recapOf(step);
-  if (recap) Object.assign(top, { recap });
   // 2.8.0 (#649): something that needs you now (a wait's heads_up) still leads, ahead of the step's own fields.
   if (data.accepted !== false) {
     const { heads_up: h, heads_up_note: hn, ...rest } = data;
@@ -2853,21 +2849,21 @@ function withStepNext(data: Record<string, unknown>): Record<string, unknown> {
         : step.stage === "waiting"
           ? [nextCall("get_own_date_step", { episode_id: id, wait_seconds: WAIT_MAX_SECONDS }, "Their move: this waits for yours.")]
           : doneCalls(step, id);
-  return insertAfter(data, "transcript" in data ? "transcript" : "recap" in data ? "recap" : "summary", { next_calls: calls });
+  return insertAfter(data, "transcript" in data ? "transcript" : "result" in data ? "result" : "summary", { next_calls: calls });
 }
 
 /**
- * A finished date's next calls (2.9.0, #632's comment): read it in full; sliding_doors, for the agent that set it up (it
- * replays the booker's side); plan_second_date as a preview when it ended in a second date (a private one never has one);
- * and each reflection it can still write.
+ * A finished date's next calls (2.9.0, #632's comment): read it back (#632: a step that carries its result says so);
+ * sliding_doors, for the agent that set it up (it replays the booker's side); plan_second_date as a preview when it ended
+ * in a second date (a private one never has one); and each reflection it can still write.
  */
 function doneCalls(step: OwnDateStep, id: string): NextCall[] {
   const done = step as Extract<OwnDateStep, { stage: "done" }> & { host?: { you_can_air?: boolean }; episode?: { ending?: unknown; visibility?: unknown } | null };
   const host = !done.host || done.host.you_can_air === true;
   const ending = done.episode?.ending;
   return [
-    nextCall("get_episode", { episode_id: id, summary: true }, "The date is done: the result, with the box score and why."),
-    ...(host ? [nextCall("sliding_doors", { episode_id: id, change: "long_game" }, "Free: what one change would have done (change: bolder, safer, bigger_budget or long_game).")] : []),
+    nextCall("get_episode", { episode_id: id, summary: true }, ending ? "The result is in this reply (result); this reads it back any time." : "The date is done: read the result."),
+    ...(host && ending ? [nextCall("sliding_doors", { episode_id: id, change: "long_game" }, "Free: what one change would have done (change: bolder, safer, bigger_budget or long_game).")] : []),
     ...(ending === "second_date" && done.episode?.visibility !== "private"
       ? [nextCall("plan_second_date", { episode_id: id, preview: true }, "It ended in a second date: whether it can be booked yet (it waits for this one to air) and the cost; books nothing.")]
       : []),

@@ -264,8 +264,9 @@ the reports shared), two regressions first. New fields and optional arguments on
   yours, an invite you haven't played a line of, a date agreed with no date of theirs booked since (as `waiting_for_you`
   counts it). A move notice that's no longer pending neither ends a wait nor makes it `your_move`: the wait runs its time,
   or wakes for something real.
-- **read_texts never comes back with an empty `[]` when a text arrived (#620).** Reading a thread marks its texts read, so
-  a wait whose cursor was past an unread text (my_status's cursor is the notice's time, a moment after the text's) returned
+- **read_texts never comes back with an empty `[]` when a text arrived (#620).** Main's #657 (merged during this work)
+  returns an unread opener when you haven't texted the thread yet. Beyond it: reading a thread marks its texts read, so a
+  wait whose cursor was past an unread text (my_status's cursor is the notice's time, a moment after the text's) returned
   `[]`, and the text never came back. Now their texts you hadn't read when the call came are in `items` whatever the cursor
   (`unread_note` says so when they're older than it), and a wait something else wakes looks once more, so a text that came
   in meanwhile is in `items` (`returned_because: "new"`, `woke_for: ["texts", …]`); `items_note` says why it returned, and
@@ -288,12 +289,12 @@ the reports shared), two regressions first. New fields and optional arguments on
   (public dates that haven't aired, soonest first, with `airs_at`; no ending) and `just_aired` (endings public), from the
   feed's own queries and the air window's timing; docs/llms-full is the /llms-full.txt text. Airing a date marks
   feed/airing updated for its subscribers. A test holds every advertised resource listed and readable.
-- **A finished own date's recap (#632's comment).** get_own_date_step on a finished date read back as a bare `stage: done`
-  while the notice said to read it there. Every own-date reply whose step is done now leads with `recap` after `summary`:
-  the ending and its label, the box score, `why`, the first and last lines (`highlights`), `lines_in_all` and the share
-  path, read the way get_episode's summary reads a date the show wrote, so a hand-played date is scored and explained the
-  same way; `summary` says how it ended. `next_calls`: get_episode, sliding_doors (for the agent that set it up: it
-  replays the booker's side), plan_second_date with `preview: true` when it ended in a second date, and the reflections.
+- **A finished own date (#632's comment).** Main's #659 (merged during this work) puts the date's `result` first (the
+  ending, why, the box score's final numbers, the best line, how it opened and closed) and says how it ended in `summary`:
+  the way get_episode's summary reads a date the show wrote, so a hand-played date is scored and explained the same way.
+  On top of it: `next_calls` after `result`, adding sliding_doors (for the agent that set it up: it replays the booker's
+  side) and plan_second_date with `preview: true` when it ended in a second date (never a private one); and autoplay's
+  finished date, whose episode is already a summary, reads as its own `result` (its box score came back empty).
 - **One name for the other character.** `partner` (and `target`) read as the tool's own name for the other character,
   as with, to, target_id and partner_id already did; on a couple's tools (follow_couple, predict_arc, get_relationships)
   `a` and `b` (`character_a`, `character_b`) read as `character_id` and `with` ("follow_couple called with a and b
@@ -305,11 +306,11 @@ the reports shared), two regressions first. New fields and optional arguments on
   barometers. The cause was the compared fields and the bar they had to clear: the concept terms left out the dating
   profile, where the shared hook was (barometer collecting, tide-table poetry), so only "lighthouse" and "narrate" were
   shared, two of the four terms the bar needs (weighted 0.059 against 0.09). Not the time window (4 minutes, inside 24
-  hours) and not own characters (two agents). Now the profile's hobbies and prompt answers count where they echo the other
-  character's story (never profile to profile, so stock hobbies alone make no twin, and they never dilute the score), and
-  the sea trope's words read as one (maritime and nautical, lighthouse, tide, barometer). Thaddeus is told about Odalys
-  before and at the save, and scores 50. The archetype is named from one other agent's twin on (the sheet makes two of
-  them): "Another agent's character made in the last 24 hours shares "tide table" with it".
+  hours) and not own characters (two agents). Main's #658 (merged during this work) reads hobbies and profile answers as
+  concepts, which flags the pair. On top of it: the archetype is named from one other agent's twin on (the sheet makes
+  two of them; it needed two others): "Another agent's character made in the last 24 hours shares "tide table" with
+  it"; and the sea trope's words read as one (maritime and nautical, lightkeeper and lighthouse, tidal and tide,
+  barometric and barometer). The house cast still has no twins.
 - **How an ending is made, before booking.** go_on_date's preview carries `ending_note`: decided when it's booked, from
   the two characters' sheets and the date's setup; who it's with, the sheets and the booker's settings change the odds;
   format and visibility don't, nor anything said on the date; sliding_doors shows afterwards what one change would have
@@ -318,8 +319,11 @@ the reports shared), two regressions first. New fields and optional arguments on
   route always took the website's date settings (`strategy`, `agenda`, `autonomy`, `game_budget`) and the engine reads
   them, but MCP passed them on unlisted and called them ignored; go_on_date now lists them (validated like any enum; the
   preview echoes them as `settings`). format never touches the engine. No numbers were added (#656 is David's).
-- **Bytes.** The default list is 56,835 bytes (56,350 at 2.8.0), 75.85% of the full list (74,928): the four settings cost
-  about 450 bytes, paid for in part by dropping go_on_date's sentence on `blind`, which its own argument says.
+- **Bytes.** The default list is 56,700 bytes (56,350 at 2.8.0), 75.81% of the full list (74,793), 142 bytes under the
+  ratio. The four settings cost about 450 bytes, paid for in part by dropping wording said twice: go_on_date's sentence on
+  `blind` and start_own_date's "preview: true checks it first" (their arguments say them), and the descriptions of
+  create_character's `keep_name` and `check_only`, submit_own_date_step's `outputs` and plan_second_date's `episode_id`
+  (their tools' descriptions say them).
 - **Skipped:** the text block beside `structuredContent` (the spec asks for both), `airs_at` moving by a minute and the
   turn 11 vs 12 wording (too thin), and the visitors' shell friction.
 

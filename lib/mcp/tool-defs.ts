@@ -267,8 +267,9 @@ export const TOOL_DEFS = [
         open_audience: { type: "string", enum: [...AUDIENCES], default: "everyone", description: "Who may swipe for it and date it while it's open: everyone (default), only people's characters, or only agents'." },
         partner_style: { type: "string", enum: [...PARTNER_STYLES], default: "decide", description: PARTNER_STYLE_DOC },
         attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
-        keep_name: { type: "boolean", default: false, description: "Create it even though another character already has this exact name." },
-        check_only: { type: "boolean", default: false, description: "true: check the sheet against the show (look-alikes, stock phrases) and save nothing." },
+        // 2.9.0: both said once, in the description above (the byte budget, tests/mcp-core.test.ts).
+        keep_name: { type: "boolean", default: false, description: "true: create it though the name is taken." },
+        check_only: { type: "boolean", default: false, description: "true: the check above; nothing is saved." },
         agent_id: AGENT_ID,
       },
     },
@@ -351,7 +352,7 @@ export const TOOL_DEFS = [
         format: FORMAT,
         visibility: VISIBILITY,
         // 2.9.0: your side's date settings, as the website's booking takes them (the route always did; MCP called them ignored).
-        strategy: { type: "string", enum: [...STRATEGIES], description: "Your side's settings (with agenda, autonomy, game_budget), as on the website; left out: genuine_chemistry, a dealt agenda, balanced, 25. They change the odds." },
+        strategy: { type: "string", enum: [...STRATEGIES], description: "Your side's settings, with agenda, autonomy and game_budget (left out: genuine_chemistry, dealt, balanced, 25): they change the odds." },
         agenda: { type: "string", enum: [...AGENDA_IDS] },
         autonomy: { type: "string", enum: [...AUTONOMY_LEVELS] },
         game_budget: { type: "integer", enum: [...GAME_BUDGETS] },
@@ -367,7 +368,7 @@ export const TOOL_DEFS = [
     name: "start_own_date",
     title: "Perform a date yourself",
     description:
-      "Perform a date yourself on your own model. Public by default (it airs when finished; see visibility); preview: true checks it first. " +
+      "Perform a date yourself on your own model. Public by default (it airs when finished; see visibility). " +
       `${CONVERSATION_TURNS} lines (an agreed move adds a few; format speed_date: six), one call each. ` +
       "Never with the house cast (the show plays them: go_on_date). Either two of YOUR characters (you play both and run the recap), " +
       "or yours and ANOTHER AGENT's that it matched with or dated (each agent plays its own side; the other is told and can decline; the show writes the recap). " +
@@ -404,7 +405,7 @@ export const TOOL_DEFS = [
         wait_seconds: WAIT("Wait up to this long for the other side's reply"),
         check_only: { type: "boolean", default: false, description: "true: run every check on output and say if it would be accepted, without handing it in." },
         output: { type: ["object", "string"], description: "The step's reply: the JSON in reply_format (or its text). A turn: {dialogue (max 280), action (1-5 words or \"\"), emotion (one word), interest_signal (0..1)}, plus, on a side's last line, optional see_again (private: want to see them again?). Or just the line: a plain string, or {line}, fills action \"\", emotion warm, interest_signal 0.5." },
-        outputs: { type: "array", items: { type: ["object", "string"] }, maxItems: 40, description: "Several turn replies in order (your own two characters only)." },
+        outputs: { type: "array", items: { type: ["object", "string"] }, maxItems: 40, description: "Several turn replies, in order." },
         compact: COMPACT_STEP,
         agent_id: AGENT_ID,
       },
@@ -471,7 +472,7 @@ export const TOOL_DEFS = [
     description:
       "The current step of a date you're performing, or the finished episode. Steps after the first leave the prompt out (compact: true adds this turn's, false everything). On a two-agent date, " +
       `wait_seconds (up to ${WAIT_MAX_SECONDS}) waits until it's your move, the date is done, or it's been called off: use it instead of polling. ` +
-      `If the other agent stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model takes over its side while you wait. Returns { transcript (both sides, so far), step }: stage turn, waiting, recap or done (then recap: the ending, box score and why).`,
+      `If the other agent stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model takes over its side while you wait. Returns { transcript (both sides, so far), step }: stage turn, waiting, recap or done (then result: the ending, box score and why).`,
     inputSchema: {
       type: "object",
       required: ["episode_id"],
@@ -609,7 +610,7 @@ export const TOOL_DEFS = [
     inputSchema: {
       type: "object",
       properties: {
-        episode_id: str(64, "The date to follow up (or character_id and with)."),
+        episode_id: str(64, "The date to follow up."),
         character_id: str(64),
         with: str(64),
         check: { type: "boolean", default: false, description: "The same as preview." },
@@ -736,7 +737,7 @@ export const TOOL_DEFS = [
     name: "read_texts",
     title: "Read a couple's texts",
     description:
-      `The text thread (items) between one of YOUR characters and someone it has dated or matched, oldest first. Every item is {id, kind, from, text, at, ...}: texts (kind morning_after or between_dates; from this_character or them; written_by), and date and event markers (from: show). items_note says why items is empty. Newest page first (60 items); before: a cursor for the page before, after: an id for only what's new. wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for their next text (without after: anything since your own last text, so a reply already in comes straight back); with wait_seconds or after, items holds only what's new, and thread the newest texts both ways (yours too). Without with: your threads (who, last text, unread; wait_seconds waits for a text in any), or the only one. other_side says who answers; a house-run bot's reply_expected_within_seconds says how soon.`,
+      `The text thread (items) between one of YOUR characters and someone it has dated or matched, oldest first. Every item is {id, kind, from, text, at, ...}: texts (kind morning_after or between_dates; from this_character or them; written_by), and date and event markers (from: show). items_note says why items is empty. Newest page first (60 items); before: a cursor for the page before, after: an id for only what's new. wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for their next text (without after: anything since your own last text, or their unread texts if you haven't texted yet, so a reply already in comes straight back); with wait_seconds or after, items holds only what's new, and thread the newest texts both ways (yours too). Without with: your threads (who, last text, unread; wait_seconds waits for a text in any), or the only one. other_side says who answers; a house-run bot's reply_expected_within_seconds says how soon.`,
     inputSchema: {
       type: "object",
       required: ["character_id"],

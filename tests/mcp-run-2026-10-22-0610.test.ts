@@ -9,7 +9,7 @@ import { BOOKED_ENDING_NOTE, ENDING_RULE, normaliseArgs, otherCharacterAlias, OW
 import { MCP_RESOURCES } from "@/lib/mcp/resources";
 import { resetSubscriptionsForTests, SUBSCRIBABLE } from "@/lib/mcp-subscriptions";
 import { notify } from "@/lib/notifications";
-import { conceptTerms, profileTerms, type SheetDraft, termWeights, twinWhy } from "@/lib/originality";
+import { conceptTerms, type SheetDraft, termWeights, twinWhy } from "@/lib/originality";
 import { warnWhenSparksOut } from "@/lib/partners";
 import { refreshAndAnnounce } from "@/lib/relationship-events";
 import { stageOf } from "@/lib/relationships";
@@ -18,7 +18,7 @@ import { episodeJson, scriptedModel, scriptOutcome, startTestDb, validCharacter,
 
 // MCP 2.9.0, from the 2026-10-22-0610 run (the launchd morning run: two uninstructed visitors on 2.8.0, 8 and 8 overall; MCP
 // 8.5 and 8). Run folder: ~/.botchelor-loop/runs/2026-10-22-0610. Two regressions (2.8.0's stale your_move wakes, 2.7.0's
-// exclusive_soon ahead of the airing), #654 the advertised resources, #632's comment (a finished own date's recap), one set of
+// exclusive_soon ahead of the airing), #654 the advertised resources, #632's comment (a finished own date's result), one set of
 // names for the other character, #655 the near-twin the look-alike check missed, and the ending said before booking.
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
@@ -356,7 +356,7 @@ describe("3. #654: every resource initialize advertises is listed and readable",
   });
 });
 
-describe("4. #632's comment: a finished own date returns its recap", () => {
+describe("4. #632's comment: a finished own date returns its result (main's #659) and the calls that fit next", () => {
   async function ownPair() {
     const ctx = await connect();
     const a = (await call("create_character", validCharacter({ name: "Ada Lumen", keep_name: true }), ctx)).structuredContent.character.id;
@@ -364,7 +364,7 @@ describe("4. #632's comment: a finished own date returns its recap", () => {
     return { ctx, a, b };
   }
 
-  it("get_own_date_step on a done date: the ending, box score, why, how it opened and closed, the share path, and the calls that fit next", async () => {
+  it("get_own_date_step on a done date: the ending, box score, why, how it opened and closed, the share path, then next_calls: get_episode, sliding_doors, plan_second_date as a preview", async () => {
     const { ctx, a, b } = await ownPair();
     scriptOutcome({ ending: "second_date" });
     const id = (await call("start_own_date", { character_id: a, partner_id: b, format: "speed_date" }, ctx)).structuredContent.step.episode_id;
@@ -372,34 +372,48 @@ describe("4. #632's comment: a finished own date returns its recap", () => {
     expect((await call("submit_own_date_step", { episode_id: id, output: validEpisodeDraft() }, ctx)).structuredContent.stage).toBe("done");
     const got = (await call("get_own_date_step", { episode_id: id }, ctx)).structuredContent;
     expect(got.stage).toBe("done");
-    expect(got.summary).toMatch(/^Done: it ended as A second date \(recap: the box score, why, how it opened and closed\)/);
-    expect(Object.keys(got).indexOf("recap")).toBe(Object.keys(got).indexOf("summary") + 1);
-    expect(got.recap).toMatchObject({ ending: "second_date", ending_label: "A second date", share_path: `/episodes/${id}`, lines_in_all: 6 });
-    expect(got.recap.box_score).toEqual({ chemistry: 60, attraction: 55, trust: 50, awkwardness: 30 });
-    expect(got.recap.why).toMatch(/^A second date: /);
-    expect(got.recap.highlights).toHaveLength(4);
+    expect(got.summary).toMatch(/^Done: Ada Lumen and Bo Quill's date ended: A second date \(second_date\)\. result: why, the box score's final numbers and the best line/);
+    const keys = Object.keys(got);
+    expect(keys.indexOf("result")).toBe(keys.indexOf("summary") + 1);
+    expect(keys.indexOf("next_calls")).toBe(keys.indexOf("result") + 1);
+    expect(got.result).toMatchObject({ ending: "second_date", share_path: `/episodes/${id}`, lines_in_all: 6 });
+    expect(got.result.box_score).toEqual({ chemistry: 60, attraction: 55, trust: 50, awkwardness: 30 });
+    expect(got.result.why).toMatch(/^A second date: /);
+    expect(got.result.highlights).toHaveLength(4);
     expect(got.next_calls.map((c: Any) => c.tool)).toEqual(["get_episode", "sliding_doors", "plan_second_date", "reflect_on_date", "reflect_on_date"]);
     expect(got.next_calls[2].args).toEqual({ episode_id: id, preview: true });
     // Scored and explained the same way as a date the show writes: what get_episode's summary says.
     const ep = (await call("get_episode", { episode_id: id, summary: true }, ctx)).structuredContent.episode;
-    expect(got.recap.why).toBe(ep.why);
-    expect(got.recap.box_score).toEqual(ep.box_score);
+    expect(got.result.why).toBe(ep.why);
+    expect(got.result.box_score).toEqual(ep.box_score);
     // The sliding_doors it suggests works for the one who set it up.
     expect((await call("sliding_doors", got.next_calls[1].args, ctx)).isError).toBeUndefined();
   });
 
-  it("on a two-agent date both agents get the recap; sliding_doors is offered to the agent that set it up only", async () => {
+  it("on a two-agent date both agents get the result; sliding_doors is offered to the agent that set it up only", async () => {
     const { A, B } = await agreed();
     scriptOutcome({ ending: "friends" });
     scriptedModel([episodeJson(), episodeJson()]);
     const id = (await call("start_own_date", { character_id: A.id, partner_id: B.id, format: "speed_date" }, A.ctx)).structuredContent.step.episode_id;
     for (let i = 0; i < 6; i++) await call("submit_own_date_step", { episode_id: id, output: line(i) }, (i % 2 === 0 ? A : B).ctx);
     const theirs = (await call("get_own_date_step", { episode_id: id }, B.ctx)).structuredContent;
-    expect(theirs.recap).toMatchObject({ ending: "friends", ending_label: "Just friends" });
+    expect(theirs.result).toMatchObject({ ending: "friends" });
     expect(theirs.next_calls.map((c: Any) => c.tool)).not.toContain("sliding_doors");
     expect(theirs.next_calls.map((c: Any) => c.tool)).not.toContain("plan_second_date");
     const mine = (await call("get_own_date_step", { episode_id: id }, A.ctx)).structuredContent;
     expect(mine.next_calls.map((c: Any) => c.tool)).toContain("sliding_doors");
+  });
+
+  it("autoplay's finished date (already a summary) reads as its own result, box score and all", async () => {
+    const { ctx, a, b } = await ownPair();
+    scriptOutcome({ ending: "friends" });
+    const id = (await call("start_own_date", { character_id: a, partner_id: b, format: "speed_date" }, ctx)).structuredContent.step.episode_id;
+    const turn = (i: number) => JSON.stringify({ dialogue: `Autoplayed line ${i} about the tide tables and the ferry.`, action: "", emotion: "warm", interest_signal: 0.6 });
+    scriptedModel([turn(0), turn(1), turn(2), turn(3), turn(4), turn(5), episodeJson()]);
+    const played = (await call("autoplay_own_date", { episode_id: id }, ctx)).structuredContent;
+    expect(played.stage).toBe("done");
+    expect(played.result).toMatchObject({ ending: "friends", why: expect.stringMatching(/^Just friends: /) });
+    expect(played.result.box_score).toEqual({ chemistry: 60, attraction: 55, trust: 50, awkwardness: 30 });
   });
 });
 
@@ -474,18 +488,17 @@ describe("6. #655: the look-alike check finds a same-hook twin made minutes earl
     expect(saved.warning).toMatch(/^Saved, but it reads a lot like Odalys Oyelaran/);
   });
 
-  it("the dating profile counts where it echoes the other's story, never profile to profile: the same stock hobbies alone aren't a twin", () => {
-    type Sheet = SheetDraft & { id: string; name: string };
-    const bee = { id: "bee", name: "Wren Halloway", bio: "Keeps forty beehives on a council estate roof and names every queen after a weather front.", traits: ["patient", "nosy", "warm"], want: "someone who isn't scared of bees", dealbreaker: "pesticide talk", extras: PROFILE } as Sheet;
-    const tram = { id: "tram", name: "Corin Vale", bio: "Drives the last tram of the night and keeps a list of every song passengers hum.", traits: ["quiet", "wry", "loyal"], want: "a duet at the depot", dealbreaker: "people who never say thank you", extras: PROFILE } as Sheet;
-    const docs = [bee, tram].map((s) => new Set([...conceptTerms(s), ...profileTerms(s)]));
-    const weight = termWeights(docs);
-    expect(twinWhy(bee, tram, conceptTerms(bee), conceptTerms(tram), weight)).toBeNull();
-    // Odalys's hobbies echo Thaddeus's story (tide tables), which is what made them twins; maritime reads as nautical.
+  it("the sea trope reads as one concept however it's worded (maritime and nautical, lightkeeper and lighthouse, tidal and tide); the house cast still has no twins", () => {
     const [odalys, thaddeus] = [ODALYS as SheetDraft, THADDEUS as SheetDraft];
-    expect([...profileTerms(odalys)]).toEqual(expect.arrayContaining(["barometer", "tide table"]));
-    expect([...conceptTerms(thaddeus)]).toEqual(expect.arrayContaining(["tide table", "nautical"]));
-    expect([...conceptTerms(odalys)]).toContain("nautical");
+    // maritime (Odalys) and nautical (Thaddeus) meet; the profile's barometers and tide tables count as concepts (main's #658).
+    expect([...conceptTerms(odalys)]).toEqual(expect.arrayContaining(["nautical", "barometer", "tide table"]));
+    expect([...conceptTerms(thaddeus)]).toEqual(expect.arrayContaining(["nautical", "barometer", "tide table"]));
+    expect([...conceptTerms({ bio: "A lightkeeper who logs the tidal surge." })]).toEqual(expect.arrayContaining(["lighthouse", "tide"]));
+    type Sheet = SheetDraft & { id: string; name: string };
+    const house: Sheet[] = HOUSE_CHARACTERS.map((c) => ({ id: c.id, name: c.name, bio: c.bio, traits: [...c.traits], want: c.want, dealbreaker: c.dealbreaker, voice: c.voice }));
+    const weight = termWeights(house.map((h) => conceptTerms(h)));
+    const flagged = house.flatMap((x, i) => house.slice(i + 1).flatMap((y) => (twinWhy(x, y, conceptTerms(x), conceptTerms(y), weight) ? [`${x.name} × ${y.name}`] : [])));
+    expect(flagged).toEqual([]);
   });
 });
 
