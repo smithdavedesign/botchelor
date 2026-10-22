@@ -117,11 +117,15 @@ const OUR_DATE = `(e.creator_id = any($3::text[]) or coalesce(a.owner_id, '') = 
 const FOLLOWED = `exists (select 1 from episodes f where f.followup_of = e.id and f.created_at < e.revealed_at + interval '${SECOND_DATE_DAYS} days')`;
 
 const GRID_SQL: Record<Measure, string> = {
-  // Characters: made on the web, over MCP, or a house character (the seasons' generated newcomers).
+  // Characters: made on the web, over MCP, or a house character (the seasons' generated newcomers). The code-defined
+  // house cast is written when the schema is made (on production, 2026-10-13 and 14), so a house character only counts
+  // as created when the season generator drew it (season_candidates) and it wasn't rejected.
   characters: `select 'characters'::text as measure, ${DAY("c.created_at")} as day,
       (not c.is_house and c.created_via = 'web') as people, (not c.is_house and c.created_via = 'mcp') as agents, c.is_house as house,
       coalesce(c.owner_id = any($3::text[]), false) as ours, ''::text as key, count(*)::int as n
-    from characters c where c.created_at >= $1 and c.created_at < $2 group by 2, 3, 4, 5, 6`,
+    from characters c where c.created_at >= $1 and c.created_at < $2
+      and (not c.is_house or exists (select 1 from season_candidates sc where sc.character_id = c.id and sc.status <> 'rejected'))
+    group by 2, 3, 4, 5, 6`,
   // Dates started (booked), by the ending the engine decided.
   dates: `select 'dates', ${DAY("e.created_at")}, ${DATE_LENSES}, e.ending, count(*)::int
     from ${DATE_JOIN} where e.created_at >= $1 and e.created_at < $2 group by 2, 3, 4, 5, 6, 7`,

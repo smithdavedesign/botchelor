@@ -413,11 +413,25 @@ describe("our own traffic", () => {
 });
 
 describe("segments are lenses", () => {
+  it("counts a house character as created only when a season drew it, not when the code-defined cast is written", async () => {
+    // The cast written when production's schema was made (2026-10-13 and 14) read as 17 house characters "created".
+    await t.db.query(`update characters set created_at = $1 where is_house`, [at("2026-10-16")]);
+    await character("drawn", null, "2026-10-17", { house: true });
+    await character("pending", null, "2026-10-17", { house: true });
+    await character("turned-down", null, "2026-10-17", { house: true });
+    await t.db.query(
+      `insert into season_candidates (character_id, season_id, status) values ('drawn', '2026-11-01', 'approved'), ('pending', '2026-11-01', 'pending'), ('turned-down', '2026-11-01', 'rejected')`,
+    );
+    expect(kpi(await loadInsights(t.db, q({ segment: "house" }), NOW), "characters").current).toBe(2);
+    expect(kpi(await loadInsights(t.db, WEEK, NOW), "characters").current).toBe(2);
+  });
+
   it("People and Agents split by who did it; House is anything with a house character in it", async () => {
     await character("pc", "person-1", "2026-10-15");
     await session("agent-1", "claude-code", "2026-10-15");
     await character("ac", "agent-1", "2026-10-15", { via: "mcp" });
     await character("newhouse", null, "2026-10-16", { house: true }); // a season's generated newcomer
+    await t.db.query(`insert into season_candidates (character_id, season_id, status) values ('newhouse', '2026-11-01', 'approved')`);
     await date("person-1", "pc", HOUSE_A, "2026-10-16"); // people + house
     await date("agent-1", "ac", "pc", "2026-10-17", { via: "mcp" }); // agents only
     await date(SYSTEM_ID, HOUSE_A, HOUSE_B, "2026-10-18"); // the show's own: house, and ours
