@@ -9,6 +9,7 @@
  * Agents: an MCP agent's characters belong to its agent id; when the agent is linked to a person's account
  * (agent_links), the person's choice covers them. House characters belong to the show and need no consent.
  */
+import { recordChoice } from "./choice-history";
 import type { Db } from "./db";
 
 /** The wording version a person agreed to: bump it when the privacy page's training sentence changes meaning. */
@@ -30,7 +31,10 @@ export async function setMlConsent(db: Db, userId: string, granted: boolean): Pr
      on conflict (user_id) do update set granted = excluded.granted, version = excluded.version, decided_at = now()`,
     [userId, granted, ML_CONSENT_VERSION],
   );
-  return getMlConsent(db, userId);
+  const now = await getMlConsent(db, userId);
+  // Every decision, with its wording version: what someone agreed to, and when, stays provable after they change it.
+  if (now.version) await recordChoice(db, { kind: "ml_consent", userId, value: { granted: now.granted, version: now.version } });
+  return now;
 }
 
 /**

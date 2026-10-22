@@ -75,6 +75,8 @@ export type GenerateOptions = {
   onSuggestionProposed?: (id: string) => Promise<void>;
   /** Let the two characters' wishes weigh in on the ending (lib/wishes.ts): a show date's job, not the evals. */
   wishes?: boolean;
+  /** Critic-rejected drafts, as they're replaced (lib/conversation.ts onDraft; stored as turn_drafts by the job). */
+  onDraft?: (d: { turn_index: number; side: "a" | "b"; reason: string; rejected: string }) => void;
 };
 
 export type GeneratedDate = {
@@ -169,6 +171,7 @@ export async function generateDate(
         deadline: opts.deadline,
         suggestion: opts.suggestion,
         onSuggestionProposed: opts.onSuggestionProposed,
+        onDraft: opts.onDraft,
       });
     } catch (err) {
       conversationError = err;

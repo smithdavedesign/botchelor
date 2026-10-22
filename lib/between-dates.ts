@@ -14,6 +14,7 @@
 import { afterDarkNote, withAfterDark } from "./adult/memory";
 import { shortName } from "./names";
 import { characterBlindView, characterSelfView, loadCharacter, type Character } from "./character";
+import { recordChoice } from "./choice-history";
 import type { Db } from "./db";
 import type { ChatMessage, Model } from "./model";
 import { notifyAll } from "./notifications";
@@ -77,11 +78,13 @@ export async function setNudge(db: Db, userId: string, characterId: string, othe
      on conflict (character_id, other_id) do update set note = excluded.note, user_id = excluded.user_id, created_at = now(), used_at = null`,
     [characterId, otherId, userId, text],
   );
+  await recordChoice(db, { kind: "nudge", userId, characterId, otherId, value: { note: text } });
   return { ok: true, note: text };
 }
 
 export async function clearNudge(db: Db, userId: string, characterId: string, otherId: string): Promise<void> {
-  await db.query(`delete from nudges where character_id = $1 and other_id = $2 and user_id = $3`, [characterId, otherId, userId]);
+  const cleared = await db.query(`delete from nudges where character_id = $1 and other_id = $2 and user_id = $3 returning 1`, [characterId, otherId, userId]);
+  if (cleared.rows.length) await recordChoice(db, { kind: "nudge_cleared", userId, characterId, otherId, value: {} });
 }
 
 /** A date between them was booked: their nudges for each other have been used. */

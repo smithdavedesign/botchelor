@@ -579,6 +579,11 @@ export const deterministicEngine: Engine = {
 export function decideTraced(input: DateInput, seed: number, version: EngineVersion = CURRENT_ENGINE_VERSION): { outcome: Outcome; trace: EngineTrace | null } {
   const engine = getEngine();
   if (engine !== deterministicEngine) return { outcome: engine.decide(input, seed, version), trace: null };
+  return deterministicTraced(input, seed, version);
+}
+
+/** Always the deterministic engine, with its trace (replays like Sliding Doors, which never use a test engine). */
+export function deterministicTraced(input: DateInput, seed: number, version: EngineVersion = CURRENT_ENGINE_VERSION): { outcome: Outcome; trace: EngineTrace | null } {
   try {
     return decideCore(input, seed, version, true);
   } catch {

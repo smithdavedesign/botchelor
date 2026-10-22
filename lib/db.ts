@@ -1515,6 +1515,51 @@ alter table episodes add column if not exists engine_trace jsonb;
 -- so the transcript's own shape (and everything that reads it) doesn't change.
 alter table episodes add column if not exists turn_meta jsonb;
 
+-- Data plan Tier 1, part two. Choices that used to be overwritten (lib/choice-history.ts): every prediction, nudge, review
+-- and consent decision, not just the latest. Owner data: exported, and gone with the account or the character.
+create table if not exists choice_history (
+  id bigserial primary key,
+  kind text not null check (kind in ('prediction', 'nudge', 'nudge_cleared', 'review', 'ml_consent')),
+  user_id text not null,
+  episode_id text references episodes (id) on delete cascade,
+  character_id text references characters (id) on delete cascade,
+  other_id text references characters (id) on delete cascade,
+  value jsonb not null,
+  at timestamptz not null default now()
+);
+create index if not exists choice_history_user on choice_history (user_id, at);
+-- Lines that didn't go in (lib/turn-drafts.ts): critic-replaced drafts, agents' refused lines and check_only tries. With
+-- the line that did go in at the same turn, chosen/rejected pairs. Filtered text is never kept (rejected = null).
+create table if not exists turn_drafts (
+  id bigserial primary key,
+  episode_id text not null references episodes (id) on delete cascade,
+  turn_index integer not null,
+  side text not null check (side in ('a', 'b')),
+  source text not null check (source in ('critic', 'agent_refused', 'agent_check')),
+  reason text not null,
+  rejected text,
+  created_at timestamptz not null default now()
+);
+create index if not exists turn_drafts_episode on turn_drafts (episode_id, turn_index);
+-- An owner's Sliding Doors runs, kept (lib/simulation.ts saveDoors): the engine's replay of the date as booked, the
+-- one-thing-changed alternate (sides as booleans, never a cue word), and whether the replay reproduced the original.
+-- A counterfactual is not a date, so it's its own table: no feed, graph or memory reads it.
+create table if not exists episode_variations (
+  varies_episode_id text not null references episodes (id) on delete cascade,
+  variation text not null,
+  engine_version integer not null,
+  base_ending text not null,
+  stored_ending text not null,
+  alt_ending text not null,
+  alt_box_score jsonb not null,
+  alt_sides jsonb not null,
+  alt_trace jsonb,
+  faithful boolean not null,
+  requests integer not null default 1,
+  created_at timestamptz not null default now(),
+  primary key (varies_episode_id, variation)
+);
+
 -- Marketing posters (scripts/post/*.mjs): a stamp per channel so cron re-runs are idempotent.
 alter table episodes add column if not exists last_posted_discord_at timestamptz;
 alter table episodes add column if not exists last_posted_bluesky_at timestamptz;
