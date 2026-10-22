@@ -16,6 +16,7 @@ import { relationshipMetrics } from "@/lib/relationship-metrics";
 import { clearStaleOwnDates } from "@/lib/own-date";
 import { refreshLobby } from "@/lib/watch";
 import { ensureCastBaselines, seasonGenerationDue } from "@/lib/season-gen";
+import { backfillEmbeddings } from "@/lib/originality-concept";
 
 // A fresh template date (~10 model calls) plus a few backfilled conversations (~8 calls each).
 export const maxDuration = 300;
@@ -63,10 +64,14 @@ async function run(req: Request): Promise<Response> {
   // Monthly seasons (lib/season-gen.ts): from the 20th, next month's candidates; and the cast's After Dark baselines.
   const candidates = await seasonGenerationDue(db).catch((e: unknown) => ({ season: "", made: [], errors: [e instanceof Error ? e.message : "error"] }));
   const baselines = await ensureCastBaselines(db).catch(() => ({ made: 0, errors: ["error"] }));
+  // Concept embeddings (lib/originality-concept.ts): characters that have none from the current model yet. Off unless enabled.
+  const embeddings = await backfillEmbeddings(db).catch(() => ({ made: 0, failed: 0 }));
   track("daily_job", {
     season_candidates_made: candidates?.made.length ?? 0,
     season_candidate_errors: candidates?.errors.length ?? 0,
     cast_baselines_made: baselines.made,
+    embeddings_made: embeddings.made,
+    embeddings_failed: embeddings.failed,
     room_created: Boolean(lobby.created),
     lobby_reason: lobby.reason ?? null,
     backfilled: backfill.filled.length,
@@ -98,7 +103,7 @@ async function run(req: Request): Promise<Response> {
       owner_d7_rate: metrics.owners.d7_rate,
     });
   }
-  return json({ lobby, backfill, jobs_ran: jobsRan, own_dates_cleared: ownDatesCleared, indexnow, texts, arcs_settled: arcsSettled });
+  return json({ lobby, backfill, jobs_ran: jobsRan, own_dates_cleared: ownDatesCleared, indexnow, texts, arcs_settled: arcsSettled, embeddings });
 }
 
 // Vercel Cron sends GET; POST is for a manual trigger.

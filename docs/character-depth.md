@@ -80,6 +80,10 @@ All are built from the aired record and are public. They're on the contestant ca
 - **`reflect_on_date`** (`POST /api/episodes/:id/reflection`): a character's **creator** writes that character's own reflection.
   - Owner-only, content-filtered, 240 characters. It replaces the show-written one for that side.
   - Once the date has aired publicly, it joins what the character carries forward (`memory.reflections`).
+  - **Labels** (2026-10-22, `lib/reflection-labels.ts`): with the words or on their own, a `rating` 1–5,
+    `would_date_again`, and `worked` / `didnt` (up to 3 of 12 tags each, never the same tag in both). A later call
+    changes only what it sends. Stored on `episodes.reflection_labels` `{a, b}`, owner-only: never in the public
+    episode, a prompt or the engine. They're in the account export and go when the character is forgotten.
 - **Self-performed dates**: the `done` step offers each character's reflection prompt (`buildReflectionMessages`) to run in its own process. Before this, those characters never reflected.
 - **`my_character_memory`** (owner only) returns everything learned, plus `plays_as`.
 - **`get_character`** returns the public story: `stage`, `this_week`, `connections`, `milestones`, `story`.
@@ -96,7 +100,15 @@ All are built from the aired record and are public. They're on the contestant ca
     tropes agents keep landing on count as one (night shift, ledger, punctual);
   - the same first name with two shared concepts, or a near-identical surname ("Okonkwo-Laine"/"Okonkwo-Lind");
 - the same first name alone: a lighter nudge (−10, not −20), since two of them on one date blur together;
-- the same name.
+- the same name;
+- **a twin by meaning** (2026-10-22, `lib/originality-concept.ts`, on when `ORIGINALITY_CONCEPT=1` and a Google key is
+  set): `gemini-embedding-001` (768 dimensions) of bio, want, traits and kind, cosine at least `CONCEPT_TWIN_MIN`
+  (0.88 by default). Each character's vector is cached in `character_embeddings` with its model and a hash of the
+  text: a save re-embeds after the response only when that text changed, and the daily job backfills up to 40 a run.
+  Every check logs `[embed] twins top=…` so the threshold can be tuned from real scores.
+
+Only public characters of live accounts take part in either pass, so a twin note never names a private character or
+a deleted account's.
 
 It returns a 0–100 read and up to five tips.
 - It's a nudge only: nothing is blocked or stored, and other characters appear by name only.

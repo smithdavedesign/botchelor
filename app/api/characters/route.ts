@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { ExtrasInput, extrasFields, normaliseExtras } from "@/lib/extras";
+import { scheduleConceptEmbedding } from "@/lib/originality-concept";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { checkFields, type RejectReason } from "@/lib/safety";
@@ -130,6 +131,8 @@ export const POST = handle(async (req) => {
   const signals = input.temperament ?? input.image_signals ?? null;
   // Save a soul row when there is soul text OR image-trained signals (so the image can shape behaviour).
   if (hasSoul || signals) await saveSoul(db, id, soul ?? normaliseSoul({}), input.soul?.local_only ?? false, signals);
+  // Its concept embedding, after the response (lib/originality-concept.ts; off unless enabled).
+  await scheduleConceptEmbedding(db, id);
 
   const { attest: _attest, soul: _soul, image_signals: _sig, temperament: _temp, extras: _extras, this_week: _week, ...character } = input;
   return json(

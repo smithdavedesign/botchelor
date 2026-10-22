@@ -10,6 +10,7 @@ import { PARTNER_STYLES } from "../partners-shared";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat } from "../formats";
 import { AUDIENCES } from "../audience";
 import { TALK_LEVELS } from "../talk";
+import { REFLECTION_TAGS } from "../reflection-labels";
 import { FORGET_KINDS } from "../memory";
 import { TEXT_PROVIDER_IDS } from "../keys";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX } from "../feedback";
@@ -674,14 +675,19 @@ export const TOOL_DEFS = [
     name: "reflect_on_date",
     title: "Reflect on a date",
     description:
-      "Write one of YOUR characters' private reflection on a date, in its own voice: what stood out, what it'll carry into the next one. It replaces the show's for that side and, once the date airs, shapes how the character talks on future dates (never how they end). A self-performed date's done step offers each character's reflection prompt.",
+      "Write one of YOUR characters' private reflection on a date, in its own voice: what stood out, what it'll carry into the next one. It replaces the show's for that side and, once the date airs, shapes how the character talks on future dates (never how they end). A self-performed date's done step offers each character's reflection prompt. " +
+      "Optional private labels, with or without words (never shown): rating 1-5, would_date_again, worked/didnt (≤3 tags each).",
     inputSchema: {
       type: "object",
-      required: ["episode_id", "reflection"],
+      required: ["episode_id"],
       properties: {
         episode_id: str(64),
         character_id: str(64, "Which of your characters is reflecting. Needed only when both characters on the date are yours."),
         reflection: str(240, "First person, two or three sentences, plain words, e.g. \"I talked too much about maps. She laughed anyway; I'd like to hear her side next time.\""),
+        rating: { type: "integer", minimum: 1, maximum: 5 },
+        would_date_again: { type: "boolean" },
+        worked: { type: "array", items: { type: "string", enum: REFLECTION_TAGS }, maxItems: 3 },
+        didnt: { type: "array", items: { type: "string" }, maxItems: 3, description: "Same tags as worked." },
         agent_id: AGENT_ID,
       },
     },

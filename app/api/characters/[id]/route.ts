@@ -10,6 +10,7 @@ import { checkFields, type RejectReason } from "@/lib/safety";
 import type { ImageSignals } from "@/lib/avatar";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { ExtrasInput, extrasFields, normaliseExtras, type ExtrasInputType } from "@/lib/extras";
+import { scheduleConceptEmbedding } from "@/lib/originality-concept";
 import { stampThisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { assertSafeSoul, clearSignals, isEmptySoul, normaliseSoul, ownsCharacter, saveSignals, saveSoul, SoulInput } from "@/lib/souls";
 
@@ -187,6 +188,8 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   if (input.temperament) await saveSignals(db, id, input.temperament as ImageSignals);
   else if (input.temperament === null) await clearSignals(db, id);
   const signalsChanged = Boolean(input.image_signals) || input.temperament !== undefined;
+  // What it's like changed: refresh its concept embedding after the response (an unchanged text costs nothing).
+  if (["bio", "traits", "want", "extras"].some((k) => k in input)) await scheduleConceptEmbedding(db, id);
 
   return json({ id, updated: columns, soul_changed: input.soul !== undefined, signals_changed: signalsChanged }, 200, sess);
 });

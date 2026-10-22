@@ -4,15 +4,23 @@ import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { updateCharacterMemory } from "@/lib/memory";
 import { REFLECTION_TEXT_MAX } from "@/lib/reflection";
+import { labelsOf, ReflectionLabelsInput } from "@/lib/reflection-labels";
 import { checkFields } from "@/lib/safety";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-const ReflectionInput = z.object({
-  /** Which of your characters is reflecting; needed only when both characters on the date are yours. */
-  character_id: z.string().trim().min(1).max(64).optional(),
-  reflection: z.string().trim().min(1, "Write a sentence or two.").max(REFLECTION_TEXT_MAX, `At most ${REFLECTION_TEXT_MAX} characters.`),
-});
+const ReflectionInput = z
+  .object({
+    /** Which of your characters is reflecting; needed only when both characters on the date are yours. */
+    character_id: z.string().trim().min(1).max(64).optional(),
+    reflection: z.string().trim().min(1, "Write a sentence or two.").max(REFLECTION_TEXT_MAX, `At most ${REFLECTION_TEXT_MAX} characters.`).optional(),
+  })
+  // The structured labels (lib/reflection-labels.ts): with the words, or on their own.
+  .and(ReflectionLabelsInput)
+  .refine((r) => r.reflection !== undefined || labelsOf(r) !== null, {
+    message: "Send a reflection, or at least one label (rating, would_date_again, worked, didnt).",
+    path: ["reflection"],
+  });
 
 type Row = {
   status: string;
@@ -68,14 +76,42 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   }
   if (row.status !== "ready") return json({ error: "not_ready", message: "The date isn't finished yet. Reflect once it's ready." }, 409, sess);
 
-  const verdict = checkFields({ reflection: input.reflection });
-  if (!verdict.ok) return json({ error: "content_rejected", reason: verdict.reason, message: "Keep it within the show's rules: adults only, nothing sexual, no real people." }, 422, sess);
+  if (input.reflection !== undefined) {
+    const verdict = checkFields({ reflection: input.reflection });
+    if (!verdict.ok) return json({ error: "content_rejected", reason: verdict.reason, message: "Keep it within the show's rules: adults only, nothing sexual, no real people." }, 422, sess);
+  }
+
+  const characterId = side === "a" ? row.character_a : row.character_b;
+  // The labels first: owner-only data, merged into what this side already set (a later call changes only what it sends).
+  const sent = labelsOf(input);
+  let labels: Record<string, unknown> | null = null;
+  if (sent) {
+    const saved = await db.query<{ labels: Record<string, unknown> }>(
+      `update episodes set reflection_labels = coalesce(reflection_labels, '{"a": null, "b": null}'::jsonb)
+              || jsonb_build_object($2::text, (case when jsonb_typeof(reflection_labels->$2::text) = 'object' then reflection_labels->$2::text else '{}'::jsonb end) || $3::jsonb)
+        where id = $1
+        returning reflection_labels->$2::text as labels`,
+      [id, side, JSON.stringify(sent)],
+    );
+    labels = saved.rows[0]?.labels ?? sent;
+  }
+  if (input.reflection === undefined) {
+    return json(
+      {
+        episode_id: id,
+        character_id: characterId,
+        labels,
+        note: "Saved. Labels are yours alone: they never show on the date or change how your character talks, and they're in your account export.",
+      },
+      200,
+      sess,
+    );
+  }
 
   await db.query(
     `update episodes set reflections = coalesce(reflections, '{"a": null, "b": null}'::jsonb) || jsonb_build_object($2::text, $3::text) where id = $1`,
     [id, side, input.reflection],
   );
-  const characterId = side === "a" ? row.character_a : row.character_b;
   // A fresh reflection on a date is one its creator wants kept, even if they'd told it to forget the last one.
   await db.query(`delete from memory_forgets where character_id = $1 and kind = 'reflection' and item = $2`, [characterId, id]);
   // Memory only learns from aired, public dates (the same rule as the record): fold it in now if this one has.
@@ -86,6 +122,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       episode_id: id,
       character_id: characterId,
       reflection: input.reflection,
+      ...(labels ? { labels } : {}),
       carried_forward: learns,
       note: learns
         ? `${side === "a" ? row.name_a : row.name_b} will carry this into its next dates.`

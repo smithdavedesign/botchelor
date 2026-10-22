@@ -93,6 +93,7 @@ import { AGENDA_IDS, AUTONOMY_LEVELS, DATE_VISIBILITIES, DRAMA_ANSWERS, DRAMA_QU
 import { AUDIENCES } from "../audience";
 import { type DecidedStyle, type PartnerStyle, PARTNER_STYLES, REOPEN_FIELDS, takenMessage } from "../partners-shared";
 import { TALK_LEVELS } from "../talk";
+import { REFLECTION_TAGS } from "../reflection-labels";
 import { FORGET_KINDS } from "../memory";
 import { HOUSE_BOT_CLIENT_PREFIX } from "../house-bots";
 import { siteUrl } from "../site";
@@ -554,6 +555,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "check_originality.open_audience": AUDIENCES,
   "sliding_doors.change": SLIDING_DOOR_IDS,
   "my_status.include": MY_STATUS_INCLUDES,
+  "reflect_on_date.worked": REFLECTION_TAGS,
 };
 /**
  * Tools that work for anyone but are never listed, asked for by name only: request_after_dark until After Dark opens to
@@ -6762,7 +6764,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "reflect_on_date": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
-      const body = pick(args, ["character_id", "reflection"]);
+      const body = pick(args, ["character_id", "reflection", "rating", "would_date_again", "worked", "didnt"]);
       const r = await callRoute(postReflection as unknown as RouteHandler, { agentId: who.id, body, params: { id: String(args.episode_id ?? "") } });
       return r.ok ? { data: r.data, identity: who } : { error: errorOf(r) };
     }
