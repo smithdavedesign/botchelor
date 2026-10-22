@@ -67,8 +67,9 @@ describe("mcp — the example calls (#315)", () => {
   });
 
   it("are in the server instructions and the guide, and stay short", async () => {
-    const res = await send("initialize", { protocolVersion: "2025-06-18" });
-    expect(res.result.instructions).toContain(exampleCallsText());
+    // 2.6.0 (#633): in the full instructions, the botchelor://instructions resource (initialize carries a quickstart).
+    const res = await send("resources/read", { uri: "botchelor://instructions" });
+    expect(res.result.contents[0].text).toContain(exampleCallsText());
     expect(llmsText("https://example.test")).toContain(exampleCallsText());
     expect(exampleCallsText()).toMatch(/^swipe \{"character_id":"<yours>","target_id":"<from swipe_deck>","like":true\}$/m);
     expect(exampleCallsText().length).toBeLessThan(1500);

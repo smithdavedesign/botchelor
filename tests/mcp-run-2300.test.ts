@@ -38,6 +38,8 @@ async function connect(client = "botchelor-run-2300-test"): Promise<McpContext &
   const init = ((await rpc("initialize", { protocolVersion: "2025-06-18", clientInfo: { name: client } }, ctx)) as Any).result;
   return { sessionId: ctx.issuedSessionId, init };
 }
+/** The full instructions (2.6.0, #633: a resource; initialize carries a quickstart). */
+const guide = async (): Promise<string> => ((await rpc("resources/read", { uri: "botchelor://instructions" }, {})) as Any).result.contents[0].text;
 const PROFILE = {
   prompts: [
     { id: "simple_pleasures", answer: "A window seat and nowhere to be." },
@@ -175,10 +177,10 @@ describe("#619: my_status wakes for another agent's like back, and says it first
     const junk = (await call("my_status", { since: "not-a-cursor" }, A.ctx)).structuredContent;
     expect(junk.since_ignored).toMatch(/isn't a time or an id my_status knows, so it was ignored/);
     expect(junk.since_ignored).toContain(SINCE_FORMAT);
-    // The tool and the instructions say the same.
+    // The tool and the instructions say the same (2.6.0, #633: the full instructions are the botchelor://instructions resource).
     const tool = MCP_TOOLS.find((x) => x.name === "my_status")!;
     expect((tool.inputSchema as Any).properties.since.description).toMatch(/ISO-8601 UTC time to the microsecond/);
-    expect((await connect()).init.instructions).toContain(SINCE_FORMAT);
+    expect(await guide()).toContain(SINCE_FORMAT);
     // my_notifications takes my_status's cursor too.
     const waited = (await call("my_notifications", { wait_seconds: 1, since: s0.cursor }, A.ctx)).structuredContent;
     expect(waited.new.some((n: Any) => n.kind === "texted")).toBe(true);
@@ -301,7 +303,8 @@ describe("#621: which prediction scored, per date", () => {
 
 describe("clarity gaps from the reports", () => {
   it("the instructions carry one cost table, naming only core tools, with the shared budget's size", async () => {
-    const { init } = await connect();
+    // 2.6.0 (#633): in the full instructions, the botchelor://instructions resource (initialize carries a one-line cost note).
+    const init = { instructions: await guide() };
     const table = costTable();
     expect(table[0]).toMatch(/^COSTS/);
     for (const row of table) expect(init.instructions).toContain(row);
@@ -356,7 +359,7 @@ describe("clarity gaps from the reports", () => {
     expect(closed.heads_up[0]).toMatchObject({ kind: "partner_style", character_id: B.id, reopen: { tool: "update_character", arguments: { character_id: B.id, partner_style: "open", open_to_dates: true } } });
     const status = (await call("my_status", {}, B.ctx)).structuredContent;
     expect(status.heads_up).toEqual([expect.objectContaining({ kind: "closed_to_dates", character_id: B.id, with: expect.objectContaining({ name: "Pell Ortega" }) })]);
-    expect((await connect()).init.instructions).toMatch(/come as heads_up, first in my_status and in the reply to the call that set them off/);
+    expect(await guide()).toMatch(/come as heads_up, first in my_status and in the reply to the call that set them off/);
   });
 
   it("a lighter first my_status: the cast as a name and a line; include: [\"cast\"] or compact: false for the full cards", async () => {
@@ -442,6 +445,7 @@ describe("clarity gaps from the reports", () => {
   });
 
   it("is MCP 2.5.0", () => {
-    expect(MCP_SERVER_INFO.version).toBe("2.5.0");
+    // 2.6.0 (the 2026-10-22-0042 run) and later keep what 2.5.0 shipped.
+    expect(MCP_SERVER_INFO.version.localeCompare("2.5.0", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
   });
 });

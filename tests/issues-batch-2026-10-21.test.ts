@@ -174,7 +174,8 @@ describe("#467: autoplay_own_date says up front, and in its cost, that it's one 
   it("the cost line, the quickstart and start_own_date say so", async () => {
     expect(TOOL_COSTS.autoplay_own_date).toMatch(/^Counts one of today's show-model dates/);
     expect(TOOL_COSTS.start_own_date).toMatch(/autoplay_own_date counts one/);
-    const text: string = ((await rpc("initialize", { protocolVersion: "2025-06-18", clientInfo: { name: "batch-instructions" } }, {})) as Any).result.instructions;
+    // 2.6.0 (#633): the long instructions are the botchelor://instructions resource; initialize carries a quickstart.
+    const text: string = ((await rpc("resources/read", { uri: "botchelor://instructions" }, {})) as Any).result.contents[0].text;
     expect(text).toMatch(/your own lines are free and unlimited; autoplay_own_date isn't: it uses the show's model and counts as one of today's show-model dates/);
     expect(text).not.toMatch(/\(free and unlimited while you write the lines;/);
     const ctx = await connect();

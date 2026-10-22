@@ -321,6 +321,13 @@ const JOB_IDEAS = [
 /** Spare first names, for "pick a different name" (none of them is offered if the show already has it). */
 const NAME_IDEAS = ["Wren", "Tamsin", "Ottoline", "Bastien", "Leocadia", "Hollis", "Ysolde", "Casimir", "Peregrine", "Delphine", "Ambrose", "Sabine", "Lucan", "Mireille", "Thaddeus", "Ingrid"];
 
+/** Jobs to offer instead (a spread of them, rotated by the sheet's name): none shares a word with what these others do or say. */
+export function freshJobs(sheet: SheetDraft, others: SheetDraft[], n = 3): string[] {
+  const seed = [...(sheet.name ?? "x")].reduce((k, ch) => k + ch.charCodeAt(0), 0);
+  const used = new Set(others.flatMap((r) => [...workWords(r), ...bioWords(r)]));
+  return JOB_IDEAS.map((_, i) => JOB_IDEAS[(seed + i) % JOB_IDEAS.length]).filter((j) => !contentWords(j, 4).some((w) => used.has(w) || used.has(stem(w)))).slice(0, n);
+}
+
 /** The concrete suggestion: free names (keeping nothing that's close to the twin's) and jobs nobody recent has. */
 async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], recent: Compared[]): Promise<RenameSuggestion> {
   const seed = [...(sheet.name ?? "x")].reduce((n, ch) => n + ch.charCodeAt(0), 0);
@@ -335,8 +342,7 @@ async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], re
     ? new Set((await db.query<{ name: string }>(`select lower(trim(name)) as name from characters where lower(trim(name)) = any($1)`, [candidates.map((n) => n.toLowerCase())])).rows.map((r) => r.name))
     : new Set<string>();
   const names = candidates.filter((n) => !taken.has(n.toLowerCase())).slice(0, 3);
-  const used = new Set([...recent, ...twins].flatMap((r) => [...workWords(r), ...bioWords(r)]));
-  const jobs = rotate(JOB_IDEAS).filter((j) => !contentWords(j, 4).some((w) => used.has(w) || used.has(stem(w)))).slice(0, 3);
+  const jobs = freshJobs(sheet, [...recent, ...twins]);
   const who = twins.map((t) => t.name).join(", ");
   return {
     names,
@@ -374,18 +380,22 @@ export function twinWhy(sheet: SheetDraft, other: Compared, terms: Set<string>, 
   return null;
 }
 
-type Row = { id: string; name: string; bio: string; traits: string[]; want: string; voice: string | null; extras: CharacterExtras | null; recent: boolean };
+/** `agent`: made over MCP (not the house cast); `made_at`: when it was made (2.6.0, for the recent-twin warning). */
+type Row = { id: string; name: string; bio: string; traits: string[]; want: string; voice: string | null; extras: CharacterExtras | null; recent: boolean; agent: boolean; made_at: string };
 
 /** Characters already on the show that read almost the same (or share the name). Excludes `excludeId` (the one being edited). */
 export async function findLookalikes(db: Db, sheet: SheetDraft, excludeId: string | null = null, limit = 3): Promise<Lookalike[]> {
   return (await lookalikesWithRecent(db, sheet, excludeId, limit)).found;
 }
 
-async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string | null, limit: number): Promise<{ found: Lookalike[]; recent: Compared[]; rows: Compared[] }> {
+type Found = Lookalike & { score: number; shared: string[]; row: Row };
+
+async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string | null, limit: number): Promise<{ found: Lookalike[]; recent: Compared[]; rows: Compared[]; all: Found[] }> {
   const recentSql = `created_at > now() - interval '${RECENT_HOURS} hours'`;
+  const extra = `created_via = 'mcp' and not is_house as agent, to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as made_at`;
   const [main, fresh] = await Promise.all([
     db.query<Row>(
-      `select id, name, bio, traits, want, voice, extras, ${recentSql} and not is_house and visibility = 'public' as recent from characters
+      `select id, name, bio, traits, want, voice, extras, ${recentSql} and not is_house and visibility = 'public' as recent, ${extra} from characters
         where ($1::text is null or id <> $1)
         order by is_house desc, created_at desc
         limit 500`,
@@ -393,7 +403,7 @@ async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string
     ),
     // 2.4.3: every public character made in the last RECENT_HOURS, by anyone (characters_created_idx), whatever the cap above left out.
     db.query<Row>(
-      `select id, name, bio, traits, want, voice, extras, true as recent from characters
+      `select id, name, bio, traits, want, voice, extras, true as recent, ${extra} from characters
         where ${recentSql} and not is_house and visibility = 'public' and ($1::text is null or id <> $1)
         order by created_at desc
         limit ${RECENT_LIMIT}`,
@@ -409,26 +419,65 @@ async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string
   for (const r of rows) r.extras = publicExtras(r.extras);
   const rowTerms = rows.map((r) => conceptTerms(r));
   const weight = termWeights([terms, ...rowTerms]);
-  const found: (Lookalike & { score: number })[] = [];
+  const found: Found[] = [];
   rows.forEach((r, i) => {
+    // The concepts the two share (the rarest first), kept for the archetype a recent-twin warning names (2.6.0).
+    const shared = () => conceptSimilarity(terms, rowTerms[i], weight).shared;
     if (name && r.name.trim().toLowerCase() === name) {
-      found.push({ id: r.id, name: r.name, kind: "concept", why: `There's already someone called ${r.name} on the show.`, score: 3 });
+      found.push({ id: r.id, name: r.name, kind: "concept", why: `There's already someone called ${r.name} on the show.`, score: 3, shared: shared(), row: r });
       return;
     }
     // 2.4.3: a recent character with a close name doing the same job reads as the same one, whatever else differs.
     const job = r.recent ? nameAndJobClose(sheet, r) : null;
     if (job) {
-      found.push({ id: r.id, name: r.name, kind: "concept", recent: true, name_and_job: true, why: `${r.name}, made in the last ${RECENT_HOURS} hours, has a close name and the same job (${job.slice(0, 2).join(", ")}).`, score: 2.5 });
+      found.push({ id: r.id, name: r.name, kind: "concept", recent: true, name_and_job: true, why: `${r.name}, made in the last ${RECENT_HOURS} hours, has a close name and the same job (${job.slice(0, 2).join(", ")}).`, score: 2.5, shared: shared(), row: r });
       return;
     }
     const twin = twinWhy(sheet, r, terms, rowTerms[i], weight);
-    if (twin) found.push(twin);
+    if (twin) found.push({ ...twin, shared: shared(), row: r });
   });
+  const sorted = found.sort((x, y) => y.score - x.score);
   return {
-    found: found.sort((x, y) => y.score - x.score).slice(0, limit).map(({ score: _s, ...l }) => l),
+    found: sorted.slice(0, limit).map(({ score: _s, shared: _t, row: _r, ...l }) => l),
     recent: rows.filter((r) => r.recent),
     rows,
+    all: sorted,
   };
+}
+
+/* --------------------------------------- recent agents' twins (2.6.0) --------------------------------------- */
+/*
+ * The 2026-10-22-0042 run: three visitors on the same model started at once and each made a retired lighthouse inspector
+ * within minutes. The look-alike check named at most three (the house cast first), the first of them heard nothing, and
+ * the warning came after saving. Agents on one model converge on archetypes, on production too, so create_character
+ * names every other agent's character made lately that reads like the sheet, the idea several of them share, and jobs
+ * nobody recent has: before saving (check_only) and again at the save.
+ */
+export const TWIN_WARN_HOURS = 24;
+export type RecentTwin = { id: string; name: string; why: string; shared: string[]; made_at: string };
+
+/**
+ * Agent-made characters made in the last `hours` that read like `sheet` (concept twins, not just a shared first name),
+ * closest first; `archetype` is the concept the most of them share with it (when at least two do), and `sharing` how many
+ * do. `jobs`: lines of work none of them (nor anyone recent) has. Public sheets only, as every look-alike check.
+ */
+export async function recentAgentTwins(
+  db: Db,
+  sheet: SheetDraft,
+  excludeId: string | null = null,
+  hours = TWIN_WARN_HOURS,
+): Promise<{ twins: RecentTwin[]; archetype: string | null; sharing: number; jobs: string[] }> {
+  const { all, recent } = await lookalikesWithRecent(db, sheet, excludeId, 3);
+  const since = Date.now() - hours * 3_600_000;
+  const twins = all
+    .filter((x) => x.kind === "concept" && x.row.agent && Date.parse(x.row.made_at) >= since)
+    .map((x) => ({ id: x.id, name: x.name, why: x.why, shared: x.shared, made_at: x.row.made_at }));
+  // The idea several share: the shared concept the most twins have in common (a phrase over a single word on a tie).
+  const counts = new Map<string, number>();
+  for (const t of twins) for (const term of new Set(t.shared)) counts.set(term, (counts.get(term) ?? 0) + 1);
+  const best = [...counts].sort((x, y) => y[1] - x[1] || y[0].split(" ").length - x[0].split(" ").length || y[0].length - x[0].length)[0];
+  const archetype = best && best[1] >= 2 ? best[0] : null;
+  return { twins, archetype, sharing: archetype ? best[1] : 0, jobs: twins.length ? freshJobs(sheet, [...recent, ...all.map((x) => x.row)]) : [] };
 }
 
 const words = (s: string | undefined) => (s ?? "").trim().split(/\s+/).filter(Boolean).length;

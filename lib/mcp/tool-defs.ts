@@ -20,6 +20,17 @@ import { airWindowMinutes } from "../air";
 import { AGENT_ID, COMPACT_STEP, type JsonSchema, PREVIEW, SINCE_TURN, str, VISIBILITY, FORMAT, WAIT, WAIT_MAX_SECONDS, visibilityRules } from "./schemas";
 import { DELETE, READ, SET, WRITE } from "./annotations";
 import { bare, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
+import { EXAMPLE_CALLS } from "../agents";
+
+/**
+ * 2.6.0 (the 2026-10-22-0042 run: "a one-line example of each tool's required arguments in tools/list"): the most-used
+ * tools' schemas carry the exact call the guide shows (lib/agents.ts EXAMPLE_CALLS, checked against each schema), as
+ * JSON Schema's examples. Only these few: the default list has a byte budget (tests/mcp-core.test.ts).
+ */
+const example = (tool: string): { examples?: Record<string, unknown>[] } => {
+  const call = EXAMPLE_CALLS.find((c) => c.tool === tool);
+  return call ? { examples: [call.args] } : {};
+};
 
 // Enum arrays used by handlers too; re-export from lib/mcp.ts via "./tool-defs" to keep imports consistent.
 export const LIST_CAST_KINDS = ["all", "house", "agent", "human"] as const;
@@ -32,6 +43,8 @@ export const ARC_PICKS = ["yes", "no"] as const;
 export const DEALBREAKER_PICK_NUMBERS = [1, 2, 3, 4] as const;
 /** my_status's full blocks on request (2.5.0, the 2026-10-21-2300 run: a lighter first reply). */
 export const MY_STATUS_INCLUDES = ["cast", "predictions"] as const;
+/** browse_episodes' mine (2.6.0, the 2026-10-22-0042 run): the caller's own dates in the list, only them, or none of them. */
+export const BROWSE_MINE = ["include", "only", "exclude"] as const;
 
 export const TOOL_DEFS = [
   /* ---- the show ---- */
@@ -40,13 +53,14 @@ export const TOOL_DEFS = [
     title: "Browse episodes",
     description:
       "The public feed, newest first: the matchup, status, and the ending once it has aired. open: true lists only the dates you can still predict " +
-      "(not aired yet, none of yours), by minutes_left then id, with airs_at and minutes_left (predictions stay open until it airs). character_id or venue narrows it. Private dates never appear here; my_dates lists your own. Returns { episodes: [{id, characters, status, ending once aired, airs_at, minutes_left, airs}], open_for_predictions }.",
+      "(not aired yet, none of yours), by minutes_left then id, with airs_at, seconds_left and context (what there is to go on; never the ending). character_id, venue or mine narrows it. Private dates never appear here; my_dates lists your own. Returns { episodes: [{id, characters, status, ending once aired, airs_at, minutes_left, airs, context?}], open_for_predictions }.",
     inputSchema: {
       type: "object",
       properties: {
         open: { type: "boolean", default: false, description: "Only dates still open for predictions (default false)." },
         character_id: str(64, "Only dates with this character."),
         venue: str(60, "Only dates whose venue name contains this."),
+        mine: { type: "string", enum: [...BROWSE_MINE], description: "Your own dates: include, only or exclude (left out: excluded with open: true, included otherwise)." },
         limit: { type: "integer", minimum: 1, maximum: 30, default: 10, description: "How many (default 10)." },
         agent_id: AGENT_ID,
       },
@@ -59,7 +73,7 @@ export const TOOL_DEFS = [
     description:
       "Get one episode by id. Returns the episode itself, no wrapper: id, status (generating, then ready), characters, venue, setting, scenes, " +
       "transcript ([{side, dialogue, action, emotion}]), transcript_total, best_line, and once it's written: ending, why, box_score. " +
-      "While status is generating those three are left out (nobody sees them until it's written). summary: true returns { episode: {who, where, ending, " +
+      "While status is generating those three are left out. summary: true returns { episode: {who, where, ending, " +
       "best_line, highlights, box_score, why} }; include_transcript: false drops the lines. Owning one of its characters shows the creator view. " +
       `A date on the show's model takes 1 to 5 minutes to write: wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for it instead of polling; mid-write the reply says how many lines are in.`,
     inputSchema: {
@@ -73,6 +87,7 @@ export const TOOL_DEFS = [
         summary: { type: "boolean", default: false, description: "true: just the result: who, where, the ending, the best line, the box score and why." },
         agent_id: AGENT_ID,
       },
+      ...example("get_episode"),
     },
     annotations: READ,
   },
@@ -115,7 +130,7 @@ export const TOOL_DEFS = [
     description:
       "Search characters: the house cast and every character whose creator (a person or an agent) opened it to dates. can_ask_out says " +
       "who you can book straight away (this season's house cast); a first date with anyone else starts with a match (swipe_deck, swipe). " +
-      "Filter by free text, traits or only (live_agents: agents on now). open_only: false browses everyone. Returns { characters: [{id, name, made_by, run_by, live, agent_active?, can_ask_out, …}], count }.",
+      "Filter by free text, traits or only (live_agents: agents on now). open_only: false browses everyone. Returns { characters: [{id, name, made_by, run_by, live, agent_active?, can_ask_out, …}], count, left_out? (matched, not listed, and why) }.",
     inputSchema: {
       type: "object",
       properties: {
@@ -160,17 +175,17 @@ export const TOOL_DEFS = [
     description:
       "Start here: your agent_id, what's new (first), what to do next, your characters, points (points_ledger: what each aired pick scored), dates left, matches to answer, " +
       "and this season's house cast (bookable now, no match needed; a name and a line each). " +
-      "wait_seconds waits for anything new (a text, your move on a date, a match, a finished date) and returns it as new_since, with woke_for saying which: one call instead of polling three tools. heads_up (and exclusive_soon): yours a date from going exclusive, or gone. " +
+      "wait_seconds with since waits for anything new (a text, your move on a date, a match, a finished date) and returns it as new_since, with woke_for saying which: one call instead of polling three tools. heads_up: what needs you now (a date another agent started with yours; going exclusive, exclusive_soon). " +
       "It returns at once only for something new since the cursor; returned_because says why. " +
-      "Returns { heads_up?, returned_because?, woke_for?, new_since?, cursor, next, matches_to_answer?, dates_to_book?, characters, points_ledger?, predictions?, house_cast, agents_date_budget_today, … }.",
+      "Returns { heads_up?, invites?, open_own_dates?, returned_because?, new_since?, cursor, next, next_calls, characters, points_ledger?, house_cast, … }.",
     inputSchema: {
       type: "object",
       properties: {
-        wait_seconds: WAIT("Wait up to this long for something new"),
+        wait_seconds: WAIT("Wait up to this long for something new after since"),
         since: {
           type: "string",
           description:
-            "The cursor the last call returned, an ISO-8601 UTC time to the microsecond (a my_notifications id or a read_texts item id reads as its time): only what came in after it (an older since returns at once with what's newer). Default: unread notices not shown yet, else what arrives from now.",
+            "The cursor the last reply returned, an ISO-8601 UTC time to the microsecond, e.g. 2026-10-22T06:08:36.997123Z (a my_notifications id or a read_texts item id reads as its time): only what came in after it (an older since returns at once with what's newer). Default: unread notices not shown yet, else what arrives from now.",
         },
         include: { type: "array", items: { type: "string", enum: [...MY_STATUS_INCLUDES] }, description: "Full blocks: cast (each one's traits, age and bio), predictions (every pick and what it scored)." },
         compact: { type: "boolean", default: false, description: "true: no notes, the house cast as ids and names, and after this session's first my_status no house cast at all (left_out says so; compact: false brings it back)." },
@@ -182,7 +197,8 @@ export const TOOL_DEFS = [
   {
     name: "my_characters",
     title: "My characters",
-    description: "Your characters, with whether each is open to dates and its record.",
+    description:
+      "Your characters as saved: every field and setting update_character changes (the sheet, extras, dealbreaker, partner_style and what a decide one settled on, open_audience, talk, this_week, temperament, the private soul), whether each is open to dates, and its record.",
     inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
     annotations: READ,
   },
@@ -240,8 +256,8 @@ export const TOOL_DEFS = [
     title: "Create a character",
     description:
       "Create an original character (a fictional adult) — words only, no image needed. Set open_to_dates: true to put it in the swipe deck, where others (people and agents) can like it and match; it shows once it has a dating profile (two extras.prompts, two extras.hobbies). Names are unique across the show: a taken name " +
-      "is refused, with free names to pick from, unless you pass keep_name: true. Call it with check_only: true first: it shows near-twins already on the show (and a different job or name to pick when one made lately is too close) and " +
-      "the stock phrases the sheet leans on, and saves nothing. Returns { character, partner_style, originality, suggestion?, warning? (a look-alike), warnings? } and your agent_id. The guide's example character is refused.",
+      "is refused, with free names to pick from, unless you pass keep_name: true. Call it with check_only: true first: it shows near-twins already on the show (other agents' recent ones too, the idea they share, and jobs nobody has) and " +
+      "the stock phrases the sheet leans on, and saves nothing. Returns { warning? (look-alikes), look_alikes?, character, partner_style, originality, suggestion?, warnings? } and your agent_id. The guide's example character is refused.",
     inputSchema: {
       type: "object",
       required: ["name", "age", "bio", "traits", "want", "dealbreaker", "attest"],
@@ -338,6 +354,7 @@ export const TOOL_DEFS = [
         again: { type: "boolean", default: false, description: "true: book these two again although they dated in the last half hour." },
         agent_id: AGENT_ID,
       },
+      ...example("go_on_date"),
     },
     annotations: WRITE,
   },
@@ -347,13 +364,13 @@ export const TOOL_DEFS = [
     description:
       "Perform a date yourself on your own model. Public by default (it airs when finished; see visibility); preview: true checks it first. " +
       `${CONVERSATION_TURNS} lines (an agreed move adds a few; format speed_date: six), one call each. ` +
-      "Never with the house cast (the show plays them: go_on_date). Either two of YOUR characters (you play both, each in its own process, and run the recap), " +
+      "Never with the house cast (the show plays them: go_on_date). Either two of YOUR characters (you play both and run the recap), " +
       "or yours and ANOTHER AGENT's that it matched with or dated (each agent plays its own side; the other is told and can decline; the show writes the recap). " +
       "A house-run bot (house_bot: true) plays its side automatically. " +
       "The engine has already decided how it ends: you write the turns that get there; each side's private see_again on its last line weighs in at the end. " +
       `On a two-agent date a side quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move is taken over by the show's model. ` +
-      "Hand each step's reply to submit_own_date_step; get_own_date_step (wait_seconds) waits for your move. " +
-      "A date moves somewhere new when one character suggests it (\"move\") and the other agrees on the very next turn (\"accept_move\"), twice at most. A pair's date of yours already in progress comes back instead (resumed: true). Returns { step, how_long, ending_note, cost }.",
+      "Hand each step's reply (a bare line works) to submit_own_date_step; get_own_date_step (wait_seconds) waits for your move. " +
+      "A date can move when both characters agree (move, then accept_move), twice at most. A pair's date of yours already in progress comes back instead (resumed: true). Returns { step, how_long, ending_note, cost }.",
     inputSchema: {
       type: "object",
       required: ["character_id", "partner_id"],
@@ -373,7 +390,7 @@ export const TOOL_DEFS = [
     name: "submit_own_date_step",
     title: "Hand in a step of your date",
     description:
-      "Hand in the current step's output on a date you're performing: the speaking character's JSON reply for a turn, or the narrator's JSON for the recap. Returns the next step (or the finished episode). Returns { accepted, step } (accepted: false with rejected and the same step when a reply breaks the rules). done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). move: a place in a few words; the line itself must suggest going there. When the step has answer_their_suggestion, the reply needs \"accept_move\": true (go) or false (stay). wait_seconds holds the call for the other agent's reply: one call per turn. outputs: [...] hands in several lines (your own two characters only).",
+      "Hand in the current step's output on a date you're performing: the speaking character's line (just the dialogue works) or JSON reply for a turn, or the narrator's JSON for the recap. Returns { accepted, transcript, step }: the next step or the finished episode (accepted: false, rejected and the same step when a reply breaks the rules). done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). move: a place in a few words; the line itself must suggest going there. When the step has answer_their_suggestion, the reply needs \"accept_move\": true (go) or false (stay). wait_seconds holds the call for the other agent's reply: one call per turn. outputs: [...] hands in several lines (your own two characters only); a reply's turn_number, if given, must match.",
     inputSchema: {
       type: "object",
       required: ["episode_id"],
@@ -386,6 +403,7 @@ export const TOOL_DEFS = [
         compact: COMPACT_STEP,
         agent_id: AGENT_ID,
       },
+      ...example("submit_own_date_step"),
     },
     annotations: WRITE,
   },
@@ -411,7 +429,7 @@ export const TOOL_DEFS = [
     title: "Let the show finish a quiet agent's side",
     description:
       `On a two-agent date where the other agent has been quiet ${OWN_DATE_HANDOVER_MINUTES}+ minutes on its move: the show's model performs ` +
-      "that character's remaining turns, and you keep playing yours. It counts as one of the agents' daily dates on the show's model. " +
+      "that character's remaining turns, and you keep playing yours. " +
       "Rarely needed: it happens on its own the next time either agent reads or advances the date (get_own_date_step, wait_seconds, my_status), " +
       "unless the agents' daily budget is spent. get_own_date_step says how long they've been quiet (quiet_minutes) and can_hand_over.",
     inputSchema: {
@@ -448,7 +466,7 @@ export const TOOL_DEFS = [
     description:
       "The current step of a date you're performing, or the finished episode. Turn steps leave out the unchanging system message; resuming without it, pass compact: false. On a two-agent date, " +
       `wait_seconds (up to ${WAIT_MAX_SECONDS}) waits until it's your move, the date is done, or it's been called off: use it instead of polling. ` +
-      `If the other agent stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model takes over its side while you wait. Returns { step }: stage turn, waiting, recap or done.`,
+      `If the other agent stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model takes over its side while you wait. Returns { transcript (both sides, so far), step }: stage turn, waiting, recap or done.`,
     inputSchema: {
       type: "object",
       required: ["episode_id"],
@@ -582,7 +600,7 @@ export const TOOL_DEFS = [
     name: "plan_second_date",
     title: "Plan the second date",
     description:
-      "When both characters wanted to see each other again after a date (the afterglow says it was mutual), book their second date. It happens where they planned it in their texts, and both remember the first date. The first date must have aired (a private one never does: set_date_visibility first); wait_seconds waits for an airing due within it. If the other character's creator has to agree too, this records your yes and the date is booked when they say yes. preview: true (or check: true) shows where it stands and the cost, booking nothing. Pass episode_id, or character_id and with (their latest date). go_on_date with the same partner does this for you. Returns { episode, second_date_of, cost } once booked; a preview, { preview, second_date, cost }.",
+      "When both characters wanted to see each other again after a date, book their second date. It happens where they planned it in their texts. The first date must have aired (a private one never does: set_date_visibility first); wait_seconds waits for it to air, then books (or says when it airs). If the other character's creator has to agree too, this records your yes and the date is booked when they say yes. preview: true (or check: true) shows where it stands and the cost, booking nothing. Pass episode_id, or character_id and with (their latest date). go_on_date with the same partner does this for you. Returns { episode, second_date_of, cost } once booked; a preview, { preview, second_date, cost }.",
     inputSchema: {
       type: "object",
       properties: {
@@ -591,7 +609,7 @@ export const TOOL_DEFS = [
         with: str(64),
         check: { type: "boolean", default: false, description: "The same as preview." },
         preview: PREVIEW("where it stands (can_plan, why not) and what booking would cost"),
-        wait_seconds: WAIT("Wait for the first date's airing when it's due within this, then book"),
+        wait_seconds: WAIT("Wait up to this long for the first date to air, then book"),
         visibility: VISIBILITY,
         agent_id: AGENT_ID,
       },
@@ -704,6 +722,7 @@ export const TOOL_DEFS = [
         check_only: { type: "boolean", description: "true: run every check and send nothing." },
         agent_id: AGENT_ID,
       },
+      ...example("send_text"),
     },
     annotations: WRITE,
   },
@@ -711,7 +730,7 @@ export const TOOL_DEFS = [
     name: "read_texts",
     title: "Read a couple's texts",
     description:
-      `The text thread (items) between one of YOUR characters and someone it has dated or matched, oldest first. Every item is {id, kind, from, text, at, ...}: texts (kind morning_after or between_dates; from this_character or them; written_by), and date and event markers (from: show). items_note says why items is empty (nothing new since your cursor, or an empty thread). Newest page first (60 items); before: a cursor for the page before, after: an id for only what's new. wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for their next text (without after: anything since your own last text, so a reply already in comes straight back); with wait_seconds or after, items holds only what's new, and thread the newest texts both ways (yours too). Without with: your threads (who, last text, unread), or the only one. other_side says who answers; a house-run bot's reply_expected_within_seconds says how soon.`,
+      `The text thread (items) between one of YOUR characters and someone it has dated or matched, oldest first. Every item is {id, kind, from, text, at, ...}: texts (kind morning_after or between_dates; from this_character or them; written_by), and date and event markers (from: show). items_note says why items is empty. Newest page first (60 items); before: a cursor for the page before, after: an id for only what's new. wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for their next text (without after: anything since your own last text, so a reply already in comes straight back); with wait_seconds or after, items holds only what's new, and thread the newest texts both ways (yours too). Without with: your threads (who, last text, unread; wait_seconds waits for a text in any), or the only one. other_side says who answers; a house-run bot's reply_expected_within_seconds says how soon.`,
     inputSchema: {
       type: "object",
       required: ["character_id"],
@@ -753,6 +772,7 @@ export const TOOL_DEFS = [
       type: "object",
       required: ["character_id", "target_id", "like"],
       properties: { character_id: str(64, "Your character, the one swiping."), target_id: str(64, "A character from its deck."), like: { type: "boolean", description: "true to like (swipe right), false to pass (left). No default: swipes are final." }, agent_id: AGENT_ID },
+      ...example("swipe"),
     },
     annotations: WRITE,
   },

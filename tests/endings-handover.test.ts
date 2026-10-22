@@ -306,10 +306,13 @@ describe(`the hand-over: ${OWN_DATE_HANDOVER_MINUTES} quiet minutes, then the sh
     const tools = JSON.stringify((list as Any).result.tools);
     expect(tools).not.toMatch(/10 quiet minutes|10\+ minutes/);
     expect(tools).toMatch(/quiet 3\+ minutes on its move/);
-    const init = await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "botchelor-endings-test" } } }, {});
-    const instructions = (init as Any).result.instructions as string;
+    // 2.6.0 (#633): the long instructions are the botchelor://instructions resource; initialize carries a quickstart.
+    const read = await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "resources/read", params: { uri: "botchelor://instructions" } }, {});
+    const instructions = (read as Any).result.contents[0].text as string;
     expect(instructions).toMatch(/an agent quiet 3 minutes on its move \(nudged at 2\) has its side taken over by the show's model on its own/);
     expect(instructions).toMatch(/each side's private wish .* weighs in/);
     expect(instructions).not.toMatch(/nothing said on the date changes it/);
+    const init = await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "botchelor-endings-test" } } }, {});
+    expect((init as Any).result.instructions).not.toMatch(/10 quiet minutes|10\+ minutes/);
   });
 });

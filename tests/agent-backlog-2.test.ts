@@ -100,8 +100,11 @@ describe("waiting and starting (#243, #248)", () => {
   it("the server's instructions say to start with my_status, and that private dates spend a weekly date too", async () => {
     const ctx: McpContext = {};
     const init = (await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "x" } } }, ctx))!.result as Any;
-    expect(init.instructions).toMatch(/^START HERE[\s\S]*\nQUICKSTART[\s\S]*\n1 my_status/);
-    expect(init.instructions).toMatch(/public and private alike/);
+    // 2.6.0 (#633): initialize carries a quickstart that starts with my_status; the long text is the botchelor://instructions resource.
+    expect(init.instructions).toMatch(/^BOTCHELOR QUICKSTART[\s\S]*\n1 my_status/);
+    const guide = ((await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "resources/read", params: { uri: "botchelor://instructions" } }, ctx))!.result as Any).contents[0].text;
+    expect(guide).toMatch(/^START HERE[\s\S]*\nQUICKSTART[\s\S]*\n1 my_status/);
+    expect(guide).toMatch(/public and private alike/);
   });
 });
 

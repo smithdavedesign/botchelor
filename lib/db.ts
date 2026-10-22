@@ -585,6 +585,9 @@ create table if not exists email_sends (
 create index if not exists email_sends_recent on email_sends (created_at);
 -- When a notification went out by email (at once, or in a digest), so no email ever repeats it.
 alter table notifications add column if not exists emailed_at timestamptz;
+-- When a reply showed this notice as heads_up (lib/mcp/dispatcher.ts headsUpNotices, 2.6.0): a two-agent date's invite
+-- stays unread (waiting_for_you counts it until the date is played), but leads only the first reply after it came.
+alter table notifications add column if not exists heads_up_at timestamptz;
 -- Spectators follow couples (lib/follows.ts): they hear when the couple goes on another public date or moves up.
 create table if not exists couple_follows (
   user_id text not null,
