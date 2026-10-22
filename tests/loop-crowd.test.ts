@@ -200,7 +200,7 @@ const LOCAL_HEADERS = { "x-litellm-model-name": "ollama_chat/qwen2.5:7b", "x-lit
 let server: Server;
 let base = "";
 let requests: Any[] = [];
-let reply: (body: Any, n: number) => Reply = () => ({ content: "Hello there, nice to meet you." });
+let reply: (body: Any, n: number) => Reply | Promise<Reply> = () => ({ content: "Hello there, nice to meet you." });
 const readBody = (req: IncomingMessage) => new Promise<string>((r) => { let s = ""; req.on("data", (c) => (s += c)); req.on("end", () => r(s)); });
 const KEY = ["fake", "litellm", "key"].join("-");
 const CONFIG = [
@@ -259,7 +259,7 @@ describe("the crowd's brain", () => {
       if (req.url?.startsWith("/v1/hang")) return; // never answers
       const body = JSON.parse(await readBody(req));
       requests.push(body);
-      const r = reply(body, requests.length);
+      const r = await reply(body, requests.length);
       res.writeHead(r.status ?? 200, { "content-type": "application/json", ...LOCAL_HEADERS, ...(r.headers ?? {}) });
       res.end(JSON.stringify({ model: body.model, choices: [{ message: { role: "assistant", content: r.content ?? "" } }] }));
     });
@@ -334,6 +334,38 @@ describe("the crowd's brain", () => {
     expect(brain.summary()).toMatchObject({ model: "local-chat", fallback_replies: 0, reason_if_fallback: null });
     expect(brain.summary().model_replies).toBeGreaterThanOrEqual(2);
     expect(modelCalls).toBe(0); // and never the show's model
+  }, 120_000);
+
+  // 2026-10-22-0400: Feodor's answer landed under a newer text it never saw (model calls queue up) and read as off-topic.
+  it("drops a reply the thread moved past while it was written, then answers the newest text", async () => {
+    let at: { v: McpContext; mine: string; them: string } | null = null;
+    let interrupted = false;
+    reply = async (body, n) => {
+      const said = lastSaid(body);
+      if (said.includes("teapot") && !interrupted) {
+        interrupted = true;
+        // The visitor texts again while the crowd's model is still writing its answer to the teapot.
+        await call("send_text", { character_id: at!.mine, to: at!.them, text: "Also: do you collect anything yourself?" }, at!.v);
+        return { content: "A teapot fossil? Bring it to the arch and I'll light it properly." };
+      }
+      if (said.includes("collect anything")) return { content: "Old lighthouse keys, oddly enough. Forty-one of them." };
+      return { content: smallTalk(n) };
+    };
+    const brain = await brainOn();
+    const { v, mine, them, agents, texts } = await matched(brain);
+    at = { v, mine, them: them.id };
+    await call("send_text", { character_id: mine, to: them.id, text: "I found a fossil shaped like a teapot on the beach today." }, v);
+    for (let round = 0; round < 4; round++) await crowdRound(agents);
+    const thread = (await texts()).map((i) => i.text);
+    expect(interrupted).toBe(true);
+    // The teapot answer never went out under the newer question, and nothing canned went in its place.
+    expect(thread).not.toContain("A teapot fossil? Bring it to the arch and I'll light it properly.");
+    expect(thread.slice(-3)).toEqual([
+      "I found a fossil shaped like a teapot on the beach today.",
+      "Also: do you collect anything yourself?",
+      "Old lighthouse keys, oddly enough. Forty-one of them.",
+    ]);
+    expect(brain.summary()).toMatchObject({ stale_replies: 1, fallback_replies: 0 });
   }, 120_000);
 
   it("never quotes the partner's profile prompts back (their profile isn't even in the prompt)", async () => {
@@ -439,7 +471,7 @@ describe("the crowd's brain", () => {
     expect(brain.summary()).toMatchObject({ model: null, model_was: "local-chat", model_replies: 0, fallback_replies: 3, reason_if_fallback: "LiteLLM keeps failing (HTTP 500)" });
 
     // LOOP_STUB=1, or LiteLLM not there within the probe: scripted for the whole run, and crowd_brain says so.
-    expect((await brainFromEnv({ LOOP_STUB: "1" })).summary()).toEqual({ model: null, model_replies: 0, fallback_replies: 0, reason_if_fallback: "LOOP_STUB=1", fallback_reasons: {} });
+    expect((await brainFromEnv({ LOOP_STUB: "1" })).summary()).toEqual({ model: null, model_replies: 0, fallback_replies: 0, stale_replies: 0, reason_if_fallback: "LOOP_STUB=1", fallback_reasons: {} });
     const hanging = await brainOn({ baseUrl: `${base}/v1/hang`, probeMs: 200 });
     expect(hanging.enabled).toBe(false);
     expect(hanging.summary().reason_if_fallback).toMatch(/^LiteLLM unreachable at startup/);
