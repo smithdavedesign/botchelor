@@ -195,3 +195,138 @@ the price.
 - `npm run screenshots:share` runs the same checks over HTTP against the production build, as Reddit's, Discord's and
   Bluesky's fetchers. Then it captures the six README screenshots and checks in a real browser that the button is in
   the first screen (also with long names) and that every share link carries `?ref=share`.
+
+## 2026-10-22: the OC chemistry test, "will these two make it?"
+
+**Mission.** Writers search for character chemistry tests and OC relationship generators (Jenova, Taskade and
+Headcanon Generator all target that search). Botchelor already had the inputs (three traits, a want, a dealbreaker)
+and a rules engine that decides second date, friends or disaster. Offered as a free test, the engine becomes a page
+for that search and a teaser for the show, and its "Watch the real date" turns a curious visitor into a character in
+the builder. The playbook's rule applies: under 50 visitors a week, a mission brings visitors (a search page) rather
+than changing the landing page or the price.
+
+**The number.** 47 unique visitors a week now (RepoHQ's `visit`; 46 of them "direct"). The target is 50 a week within
+14 days of the merge.
+
+**What changed, and why**
+- **`/tools/oc-chemistry-test`**, the page for the search. It has an "OC Chemistry Test" heading, "Chemistry Test" in
+  its `<title>`, and a form for two characters. Each has a name, an optional age, three traits, a want and a
+  dealbreaker, with `/create`'s limits: 40 characters for a name, 30 for a trait, 140 for a want or a dealbreaker, ages
+  18 to 1000. The page explains how the test works and links an example result. It has its own description, canonical
+  link and share card, it's in `sitemap.xml`, and it's linked from every page's footer and from a new "Free tools for
+  OC writers" list near the bottom of the home page, next to the ship name generator.
+- **The result, `/tools/oc-chemistry-test/result?a_name=…&b_…`.** The form is a plain GET, so a result's address is
+  the two sheets: it works without JavaScript, and anyone who opens the link sees the same result. The page
+  server-renders both names, the score out of 100, the predicted ending and three one-line reasons, plus a copyable
+  link and the sheets to change and test again. Its og:title is "Mira Quell × Otto Brand: 73/100, a second date", and
+  its og:image is the result's own card (`/api/og/chemistry?…`, the same query): the pair, the score and the ending.
+- **The test** (`lib/chemistry.ts`) runs the show's own engine (`lib/engine.ts`) on the two sheets, the way it would
+  decide a first date between two new characters. Each side plays the temperament its traits describe
+  (`lib/temperament.ts`, as for a character with no soul) on a new character's settings. The secret agendas and the
+  night's roll of the dice are seeded from the two sheets, so the same two always get the same result, in either
+  order, and case and spacing don't matter. No model, no database, no network: it works with every LLM variable unset.
+- **The score** is the engine's deciding number (`endingScore`'s `rel`, the same one the box score's "why" explains),
+  scaled onto each ending's stretch of 0–100: under 40 is a disaster, 40 to 69 just friends, 70 and up a second date.
+  So the number and the ending can never disagree.
+- **The reasons** say what the engine read: whose dealbreaker tripped, and on what word; who has what the other
+  wants; and a shared trait, or the temperament their traits describe ("quick to joke, which eases the awkward
+  moments"). Each word is quoted as the visitor wrote it, not as the engine's stem ("curious", not "curiou").
+- **"Watch the real date"** goes to `/create` with both sheets in its address. The builder opens with the first
+  character's name, age, traits, want and dealbreaker filled in. A note says where the sheet came from and links
+  "Build Otto Brand instead", which opens it with the second sheet filled in. `/create` takes only sheets that pass
+  the test's checks, and without them it's unchanged (the ship page's `?name=` still works).
+- **The show's rules, with `/create`'s messages.** An age under 18 gets "Characters must be adults (18+).", a minor in
+  the words gets "Characters must be adults, with nothing suggesting they are under 18.", a real person gets
+  "Characters must be original: no real people." and sexual content gets "Keep the character sheet free of sexual
+  content." The limits get the builder's own messages too ("At most 40 characters.", "At most 5 words.", "Required.").
+  The test calls `POST /api/characters` with the same sheets and holds every message equal. A refused field is never
+  put back in the form, and a refused pair gets no score, no link to `/create`, `noindex` and the test's own title
+  and card.
+
+**How it's measured**
+- **The headline:** unique `visit`s a week on RepoHQ, as before. Success is 50 a week or more within 14 days of the
+  merge.
+- **Attribution:** `visit`s with `path` `/tools/oc-chemistry-test` (search arrivals) and
+  `/tools/oc-chemistry-test/result` (shared results), with their referrers (google.com, bing.com, reddit.com,
+  discord.com). The beacon sends a page's path without its query (`beaconPath`, also through the 18+ gate), so nothing
+  typed into the sheets reaches RepoHQ. If the week reaches 50 but these paths add little, the rise came from
+  somewhere else.
+- **Downstream:** `activate` (a first date) can't be tied to a visitor without cookies. The read is whether
+  activations rise alongside the test's visits.
+- **Caveats:**
+  - Ranking for a new page can take longer than 14 days. If the window closes with impressions in Search Console but
+    few clicks, read it as "not yet", not "no".
+  - Google Analytics, when it's on, records page addresses, so it sees the sheets in a result's address, as it sees
+    the names in a ship page's. They're fictional characters' sheets, and the RepoHQ beacon never gets them.
+
+**Decisions made without asking** (no one to ask; recorded here):
+1. **The real date can't be the two of them.** On the website a person's own two characters can't date each other
+   (`POST /api/episodes`; `tests/episodes.test.ts` "can't ask out your own character"). Changing that is a product
+   rule, not this mission's. So "Watch the real date" opens the builder with the first sheet in and the second one
+   click away, and the copy says so plainly: "Your characters date the show's house cast and other creators'
+   characters, not each other". It also says a real date reads more than the test does (a bio, a private soul, the
+   settings you pick), so it can end differently. If the clicks show people want this pair on a date, "date your own
+   two" is the experiment to propose next.
+2. **One rule is the test's own: a tripped dealbreaker is always a disaster.** The engine usually agrees, but a warm,
+   funny pair can pull through to "friends" with one tripped. The test also matches a dealbreaker to the other's traits
+   as a phrase ("loud" in "loud people", "liar" in "compulsive liar"), because the engine reads word by word and skips
+   its stopwords ("loud" is one, from "out loud").
+3. **The age is on the form, and optional.** `/create` asks for one and the engine never reads it. When it's given,
+   the test holds it to `/create`'s 18 to 1000 and carries it into the builder.
+4. **Results are `noindex, follow`.** Each one is free text in a long address. The tool page is the one for search,
+   and a result is for sharing, with its own card.
+5. **The 18+ gate stays on these pages**, as on the ship name generator, for the same reason (GROWTH 2026-10-20,
+   decision 1). Crawlers pass it, and a person's visit counts for the page they were headed to.
+6. **No new dependency, and nothing to provision** (no `.provision` line). Checkout, Stripe and prices are untouched.
+7. **Step 0 (gstack):**
+   - It reuses what was there: the engine and its `endingScore`, the temperament from traits, the content filter,
+     `pairNames`, `ShareLink`, `next/og`, the ship generator's shape (a GET form, a shareable result, one click into
+     `/create`), the sitemap's `PUBLIC_PATHS`, the beacon's path and the screenshot harness. The engine's only change
+     is one `export` (`cues`, so a reason can name the word that matched).
+   - It's more than 8 files, but each is small: one library, the tool and result pages, their form, a card with two
+     routes (the tool's `opengraph-image` and the result's `/api/og/chemistry`), and small changes to `/create`, the
+     footer, the home page, the sitemap list and the CSS. One new library and no new service.
+   - The web search check wasn't run. Everything is a Next built-in (pages, route handlers, `generateMetadata`,
+     `ImageResponse`) or existing code. The one framework question (a parent segment's `opengraph-image` against a
+     page's own `openGraph.images`) was checked against the production build: exactly one og:image, the result's card.
+8. **The sweep test is `tests/zz-scratch-chem.test.ts`.** It began as a scratch file, and this sandbox blocks `rm`
+   and `mv`, so it was made into a real test under the name it had: every result well-formed and in its band, the
+   same in either order, every ending reachable. Renaming it to `zz-chemistry-sweep.test.ts` is a safe one-line
+   follow-up.
+
+**Self-review** against gstack's checklist:
+- **Pass 1 (CRITICAL):** nothing found.
+  - No SQL and no database writes; `/create`'s queries are unchanged.
+  - No `dangerouslySetInnerHTML`. Names and reasons render as React text. Every address is built with
+    `URLSearchParams` onto a fixed path (`/tools/…`, `/create`, `/api/og/chemistry`), so there's no open redirect.
+  - No model output anywhere.
+  - Every new `Record` covers its whole enum: the endings' score bands, the content filter's reasons and the field
+    labels. The new public path has one consumer (the sitemap), and the sitemap test's list gained it.
+- **Pass 2:** four fixes.
+  - The engine skips its stopwords, so "loud people" didn't trip a "loud" trait. The test now also matches phrases,
+    with fixed cases and 256 generated pairs.
+  - The reasons quoted the engine's stems ("curiou"). They now quote the word as the visitor wrote it.
+  - "Build Otto Brand instead" kept Mira's sheet on a client-side navigation, because the builder's state is set
+    once. The builder is now keyed by the pair.
+  - The tool page said the agendas are seeded "the way the show does it", but the show seeds each date from the
+    date itself. It now says they come from the two sheets.
+- **Found in the screenshots:** three fixes.
+  - With the sheets side by side, three traits in a row cut words off, so the traits stack, as on a phone.
+  - On a phone, the note on `/create` pushed the filled-in sheet out of the first screen, so it's shorter.
+  - The tool's shot hid its heading under the sticky header, so the script now scrolls each heading to just under
+    it.
+
+**Proof**
+- `tests/oc-chemistry-test.test.ts` covers all five acceptance criteria, in 33 tests:
+  - the form, its limits against `/create`'s rendered inputs, the `<title>` and the gate;
+  - the same result twice, with no model or network call;
+  - the dealbreaker rule on fixed cases and over 256 generated pairs, all three endings and their bands, and the
+    reasons;
+  - the address round trip, the rendered result, og:title, the cards and `noindex`;
+  - "Watch the real date" through `/create` and back to the second sheet, every refusal's message against
+    `POST /api/characters`, and the limits;
+  - the sitemap, the home page, the footer rendered on `/create`, and the beacon's path.
+- `tests/zz-scratch-chem.test.ts` checks the test over a sweep of generated pairs. `npm test` passes in full (2,211
+  tests), and `tsc --noEmit` is clean.
+- `npm run screenshots:chemistry` runs the same checks over HTTP against the production build, then captures the six
+  README screenshots and follows "Watch the real date" and "Build Otto Brand instead" in a real browser.

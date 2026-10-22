@@ -10,6 +10,7 @@ import { seasonCastCards } from "@/lib/season-cast";
 import { swipeGateOn } from "@/lib/swipe-gate";
 import { authFromCookieStore } from "@/lib/http";
 import { builderLooks } from "@/lib/looks-draw";
+import { createHref, hasChemistryFields, readPair, sheetValues } from "@/lib/chemistry";
 import { ownedSkus } from "@/lib/payments";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import CreateWizard, { type Partner } from "./CreateWizard";
@@ -70,12 +71,18 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
     })),
   ];
   const looks = await builderLooks(db ?? (await getDb()), auth);
+  // From the OC chemistry test's "Watch the real date" (app/tools/oc-chemistry-test): the first sheet is the one to
+  // build, the second comes along. Only sheets that pass the test's checks (the builder's limits and content filter).
+  const chemistry = hasChemistryFields(sp) ? readPair(sp) : null;
+  const pair = chemistry?.ok ? chemistry : null;
   const offer = paymentLinkFromEnv()
     ? priceLabelFromEnv(process.env, `${PACK_5.name} for ${formatPrice(PACK_5.price_cents)}`)
     : null;
 
   return (
     <CreateWizard
+      // A new pair (the note's "Build … instead" swaps them) starts the builder afresh rather than keeping the last sheet.
+      key={pair ? createHref(pair.a, pair.b) : undefined}
       partners={partners}
       openCharacters={openCharacters}
       swipeGate={swipeGate}
@@ -85,6 +92,8 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       startSample={sp.sample === "1"}
       startCharacterId={typeof sp.character === "string" ? sp.character : null}
       startName={typeof sp.name === "string" ? sp.name.trim().slice(0, 40) || null : null}
+      startSheet={pair ? sheetValues(pair.a) : null}
+      startPair={pair ? { name: pair.b.name, href: createHref(pair.b, pair.a) } : null}
       lookTiles={looks.tiles}
       afterDark={looks.afterDark}
     />

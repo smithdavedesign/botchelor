@@ -6505,6 +6505,115 @@ a.phone-head-btn {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
 }
 
+/* ---------------- the OC chemistry test (/tools/oc-chemistry-test, its results) ---------------- */
+
+.chem-tool h1 {
+  margin-bottom: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+/* Two character sheets side by side; stacked on a phone. */
+.chem-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.chem-side {
+  margin: 0;
+  padding: var(--space-2) var(--space-4) var(--space-4);
+}
+.chem-side > legend {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-lg);
+  color: var(--accent-text);
+}
+/* "Three traits" reads as a label over its three inputs, not as a box in a box. */
+.chem-traits {
+  border: 0;
+  padding: 0;
+  margin: 0.85rem 0 0;
+}
+.chem-traits > legend {
+  padding: 0;
+}
+/* Side by side, a sheet is too narrow for three traits in a row: they stack, as they do on a phone. */
+.chem-side .traits {
+  grid-template-columns: 1fr;
+}
+@media (max-width: 720px) {
+  .chem-sides {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The verdict: the score big, the predicted ending beside it in its ending's colour. */
+.chem-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+  margin: var(--space-4) 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: var(--radius);
+  background: var(--paper-2);
+}
+.chem-score {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin: 0;
+}
+.chem-score strong {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(3.5rem, 12vw, 5rem);
+  line-height: 1;
+}
+.chem-score span {
+  font-size: var(--text-xl);
+  color: var(--muted);
+}
+.chem-ending {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.chem-ending strong {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-2xl);
+  color: var(--accent-text);
+}
+.chem-second_date .chem-ending strong {
+  color: var(--ok-text);
+}
+.chem-disaster .chem-ending strong {
+  color: var(--bad-text);
+}
+.chem-reasons,
+.chem-problems,
+.tools-list {
+  padding-left: 1.25rem;
+}
+.chem-reasons li + li,
+.chem-problems li + li,
+.tools-list li + li {
+  margin-top: var(--space-2);
+}
+.chem-again > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* On /create, opened from a result's "Watch the real date": where the sheet came from, and the other one. */
+.notice.chem-from {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-weight: 400;
+}
+
 /* ---------- Mobile audit, 2026-10-21 (docs/mobile-audit-2026-10-21.md) ---------- */
 /* Touch screens get 44px targets on the controls people tap most. */
 @media (pointer: coarse) {

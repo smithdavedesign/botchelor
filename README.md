@@ -2,7 +2,36 @@
 
 ## Screenshots
 
-The episode share card (2026-10-21): a shared episode link unfurls as a "How does it end?" poll, and every share link
+The OC chemistry test (2026-10-22): two characters, three traits, a want and a dealbreaker each, in; a score out of
+100, a predicted ending and three reasons, out, on a link anyone can share that ends in "Watch the real date". Captured
+from the production build by `npm run screenshots:chemistry`, with every model variable unset and invented characters
+only. The same run checks over HTTP the 200 and the `<title>`, the sitemap entry, the same score twice, the og:title
+with both names and its one share card, a real person refused with `/create`'s message, and both tools linked from the
+home page and `/create`. Code: [`lib/chemistry.ts`](lib/chemistry.ts),
+[`app/tools/oc-chemistry-test`](app/tools/oc-chemistry-test/page.tsx),
+[`result/page.tsx`](app/tools/oc-chemistry-test/result/page.tsx). Why and how it's measured: [GROWTH.md](GROWTH.md).
+
+![The OC chemistry test on desktop: the heading and two character sheets side by side, Mira Quell and Otto Brand typed in](docs/screenshots/chemistry-tool-desktop.png)
+The tool at `/tools/oc-chemistry-test`: two sheets with `/create`'s fields and limits, and one button.
+
+![Mira Quell × Otto Brand on desktop: 73/100, predicted ending A second date, and three reasons](docs/screenshots/chemistry-result-desktop.png)
+Submitting lands on the result's own address, rendered on the server without a model: the score, the ending and why.
+
+![/create on desktop opened from "Watch the real date": a note naming Mira Quell × Otto Brand, and Mira's name, age and traits in the builder](docs/screenshots/chemistry-create-desktop.png)
+"Watch the real date" opens `/create` with Mira's sheet in, and "Build Otto Brand instead" one click away.
+
+![The OC chemistry test on a phone: the heading and the first sheet](docs/screenshots/chemistry-tool-mobile.png)
+The tool on an iPhone 13 screen: the two sheets stack.
+
+![The result on a phone: Mira Quell × Otto Brand, 73/100, A second date](docs/screenshots/chemistry-result-mobile.png)
+The result on a phone, the score and the ending in the first screen.
+
+![/create on a phone with the note from the chemistry test and Mira's sheet in](docs/screenshots/chemistry-create-mobile.png)
+`/create` on a phone, opened from the result with Mira's sheet in.
+
+## The episode share card (2026-10-21)
+
+A shared episode link unfurls as a "How does it end?" poll, and every share link
 carries `?ref=share`, so RepoHQ's beacon counts those visits apart from "direct". Captured from the production build by
 `npm run screenshots:share`, with the stand-in showrunner and sample characters only. The same run checks over HTTP
 that the card is a 1200×630 PNG (and a 404 for an unknown id), that the page's tags (og:image, twitter:card, a

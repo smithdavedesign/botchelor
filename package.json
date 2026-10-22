@@ -20,6 +20,7 @@
     "screenshots:moves": "node scripts/move-screenshots.mjs",
     "screenshots:ship": "node scripts/ship-screenshots.mjs",
     "screenshots:share": "node scripts/share-screenshots.mjs",
+    "screenshots:chemistry": "node scripts/chemistry-screenshots.mjs",
     "portraits": "node scripts/portraits.mjs",
     "payment:live": "node scripts/payment-live.mjs",
     "typecheck": "tsc --noEmit"

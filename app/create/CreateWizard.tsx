@@ -21,6 +21,7 @@ import { hasExtras, LOVE_LANGUAGES, normaliseExtras, promptLabel, sampleLineLabe
 import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
 import { DEFAULT_FORMAT, FORMATS, type FormatId } from "@/lib/formats";
 import { trackConversion } from "@/app/conversion";
+import type { FieldValues } from "@/lib/chemistry";
 import {
   AGENDAS,
   AUTONOMY_BLURBS,
@@ -148,6 +149,8 @@ export default function CreateWizard({
   startSample = false,
   startCharacterId = null,
   startName = null,
+  startSheet = null,
+  startPair = null,
   lookTiles = [],
   afterDark = false,
   edit,
@@ -163,6 +166,10 @@ export default function CreateWizard({
   startCharacterId?: string | null;
   /** A new character with this name already in (/create?name=, from a ship name page: app/ship/[a]/[b]). */
   startName?: string | null;
+  /** A new character with this sheet already in (name, age, traits, want, dealbreaker), from the OC chemistry test. */
+  startSheet?: FieldValues | null;
+  /** The other character from that test: named in a note, with a link that builds them instead. */
+  startPair?: { name: string; href: string } | null;
   /** The looks builder's tiles that have a picture (lib/looks-draw.ts readyTiles). */
   lookTiles?: readonly string[];
   /** This viewer can open After Dark, so its looks tab is unlocked (lib/adult/entitlement.ts). */
@@ -181,12 +188,20 @@ export default function CreateWizard({
   const [sheet, setSheet] = useState<Sheet>(
     init
       ? { name: init.name, age: String(init.age), bio: init.bio, want: init.want, dealbreaker: init.dealbreaker }
-      : startName
-        ? { ...EMPTY_SHEET, name: startName }
-        : EMPTY_SHEET,
+      : startSheet
+        ? { ...EMPTY_SHEET, name: startSheet.name, age: startSheet.age, want: startSheet.want, dealbreaker: startSheet.dealbreaker }
+        : startName
+          ? { ...EMPTY_SHEET, name: startName }
+          : EMPTY_SHEET,
   );
   const [pronouns, setPronouns] = useState(init?.pronouns ?? "");
-  const [traits, setTraits] = useState(init ? [init.traits[0] ?? "", init.traits[1] ?? "", init.traits[2] ?? ""] : ["", "", ""]);
+  const [traits, setTraits] = useState(
+    init
+      ? [init.traits[0] ?? "", init.traits[1] ?? "", init.traits[2] ?? ""]
+      : startSheet
+        ? [startSheet.trait1, startSheet.trait2, startSheet.trait3]
+        : ["", "", ""],
+  );
   const [voice, setVoice] = useState(init?.voice ?? "");
   const [appearance, setAppearance] = useState(init?.appearance ?? "");
   const [hue, setHue] = useState(init?.hue ?? 0);
@@ -239,8 +254,8 @@ export default function CreateWizard({
       applySample();
       return;
     }
-    // Arrived with a name to make (a ship name page): start that character fresh, not an older draft.
-    if (startName) return;
+    // Arrived with a name or a sheet to make (a ship name page, the chemistry test): start that character fresh, not an older draft.
+    if (startName || startSheet) return;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -531,6 +546,13 @@ export default function CreateWizard({
             its dates end, and nobody (not even you) can steer them. Takes about a minute.
           </p>
         </>
+      )}
+
+      {!edit && startSheet && startPair && step === S.identity && (
+        <p className="notice chem-from">
+          {`From the OC chemistry test: ${startSheet.name} × ${startPair.name}. ${shortName(startSheet.name)}'s sheet is in: add a short bio${startSheet.age ? "" : " and an age"}. Your characters date the house cast and other creators' characters, not each other.`}{" "}
+          <Link href={startPair.href}>{`Build ${startPair.name} instead`}</Link>
+        </p>
       )}
 
       {!edit && myCharacters.length > 0 && step === S.identity && (

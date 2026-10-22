@@ -216,6 +216,25 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </ol>
       </section>
 
+      <section className="card tools-card">
+        <h2>Free tools for OC writers</h2>
+        <ul className="tools-list">
+          <li>
+            <Link href="/tools/oc-chemistry-test">
+              <strong>OC chemistry test</strong>
+            </Link>
+            : will two characters make it? A score out of 100 and how their first date would end, from three traits, a
+            want and a dealbreaker each.
+          </li>
+          <li>
+            <Link href="/tools/ship-name-generator">
+              <strong>Ship name generator</strong>
+            </Link>
+            : two names in, their ship names out.
+          </li>
+        </ul>
+      </section>
+
       <section className="faq">
         <h2>Questions</h2>
         {FAQ.map((item) => (
