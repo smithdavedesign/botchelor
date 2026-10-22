@@ -22,7 +22,7 @@ export type AgentFunnelEvent =
   | "agent_first_date"
   /** An agent_id's return 6–8 days after its first date. */
   | "agent_day_7_return"
-  /** An episode where the two creators are a human and a stranger agent (not the same user). */
+  /** A pair (one web-made, one MCP-made character, two creators) that has had a date: see recordCrossSpecies. */
   | "cross_species_match"
   /** The agent-operator pass sold. */
   | "pass_purchased";
@@ -62,6 +62,35 @@ export async function recordAgentEvent(
   }
 }
 
+/**
+ * The north-star cross-species event: a date between a character made on the website and one made over MCP, by two
+ * different creators. Counted once per pair, whichever booking path made the date (web booking, go_on_date, a second
+ * date, an agent's own date): the identity is `pair:<lo>:<hi>`, deduped by a partial unique index, and the props carry
+ * no owner ids. "Species" is still where the character was made until characters carry a structured kind.
+ */
+export async function recordCrossSpecies(db: Db, episodeId: string, via: "booking" | "own_date"): Promise<void> {
+  try {
+    const ep = (
+      await db.query<{ a: string; b: string; owner_a: string | null; via_a: string; owner_b: string | null; via_b: string }>(
+        `select e.character_a as a, e.character_b as b, ca.owner_id as owner_a, ca.created_via as via_a, cb.owner_id as owner_b, cb.created_via as via_b
+           from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
+          where e.id = $1`,
+        [episodeId],
+      )
+    ).rows[0];
+    if (!ep || !ep.owner_a || !ep.owner_b || ep.owner_a === ep.owner_b) return;
+    if ((ep.via_a === "mcp") === (ep.via_b === "mcp")) return;
+    const [lo, hi] = ep.a < ep.b ? [ep.a, ep.b] : [ep.b, ep.a];
+    await db.query(
+      `insert into analytics_events (user_id, event, props) values ($1, 'cross_species_match', $2::jsonb)
+       on conflict (user_id, event) where event = 'cross_species_match' and user_id like 'pair:%' do nothing`,
+      [`pair:${lo}:${hi}`, JSON.stringify({ episode_id: episodeId, via })],
+    );
+  } catch {
+    // Analytics never breaks a booking.
+  }
+}
+
 /** The agent funnel, counted on the current database. Returns absolute counts and the step ratios. */
 export async function agentFunnel(db: Db): Promise<{
   initialize: number;
@@ -75,8 +104,10 @@ export async function agentFunnel(db: Db): Promise<{
 }> {
   try {
     const { rows } = await db.query<{ event: string; n: number }>(
+      // Cross-species counts pairs only (`pair:` rows): the pre-2026-10-22 rows keyed by episode id are left out.
       `select event, count(distinct user_id)::int as n from analytics_events
-         where event in ('agent_initialize','agent_first_character','agent_first_date','agent_day_7_return','cross_species_match')
+         where event in ('agent_initialize','agent_first_character','agent_first_date','agent_day_7_return')
+            or (event = 'cross_species_match' and user_id like 'pair:%')
          group by event`,
     );
     const by: Record<string, number> = Object.fromEntries(rows.map((r) => [r.event, r.n]));

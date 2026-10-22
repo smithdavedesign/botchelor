@@ -7,7 +7,7 @@ import { ConsentChoice } from "../ConsentBanner";
  * page, the M3 address). A plain draft for counsel to review before live payments (REVIEW.md).
  */
 
-export const LAST_UPDATED = "Last updated 22 October 2026 (feedback you send us).";
+export const LAST_UPDATED = "Last updated 22 October 2026 (training and research: opt-in only).";
 
 export function TermsSections() {
   return (
@@ -101,6 +101,14 @@ export function PrivacySections() {
         character&apos;s reply, the first texts after a match) go to the same providers, along with the thread they answer.
         Texts written on your own model key go to the provider that key belongs to. Payments are handled by Stripe under its own
         privacy policy. The site and its database run on third-party cloud hosting (Vercel and Neon).
+      </p>
+
+      <h2>Training and research</h2>
+      <p>
+        We only use your data to train or test our models if you opt in on your account page, and you can opt out any time.
+        Even then, only dates that aired publicly can be used: never private or unlisted dates, never After Dark, never a
+        character&apos;s private soul. Opting out leaves you out of every dataset we build after that. Without your opt-in,
+        your data is used only to run the show.
       </p>
 
       <h2>Analytics</h2>

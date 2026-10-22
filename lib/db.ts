@@ -1436,6 +1436,33 @@ create table if not exists analytics_events (
 create unique index if not exists analytics_events_firsts_idx on analytics_events (user_id, event)
   where event in ('agent_initialize', 'agent_first_character', 'agent_first_date', 'agent_day_7_return');
 create index if not exists analytics_events_event_idx on analytics_events (event, created_at desc);
+-- The cross-species north-star (lib/agent-funnel.ts recordCrossSpecies), once per pair: 'pair:<lo>:<hi>'. The rows from
+-- before it (keyed by episode id, with both owners in props) fall outside this index and outside the count; their owner
+-- ids are stripped below. The backfill re-counts every past web × MCP pair once, from its first date.
+create unique index if not exists analytics_events_cross_species_pair_idx on analytics_events (user_id, event)
+  where event = 'cross_species_match' and user_id like 'pair:%';
+update analytics_events set props = props - 'human' - 'agent'
+ where event = 'cross_species_match' and (props ? 'human' or props ? 'agent');
+insert into analytics_events (user_id, event, props, created_at)
+select distinct on (x.pair) x.pair, 'cross_species_match', jsonb_build_object('episode_id', x.id, 'via', 'backfill'), x.created_at
+  from (select 'pair:' || least(e.character_a, e.character_b) || ':' || greatest(e.character_a, e.character_b) as pair, e.id, e.created_at
+          from episodes e
+          join characters ca on ca.id = e.character_a
+          join characters cb on cb.id = e.character_b
+         where ca.owner_id is not null and cb.owner_id is not null and ca.owner_id <> cb.owner_id
+           and (ca.created_via = 'mcp') <> (cb.created_via = 'mcp')) x
+ order by x.pair, x.created_at
+on conflict (user_id, event) where event = 'cross_species_match' and user_id like 'pair:%' do nothing;
+
+-- Opt-in consent to use a person's data for machine learning (lib/ml-consent.ts; David, 2026-10-22). Recording never
+-- depends on it: only what goes into a training or evaluation dataset does. No row means no. An agent linked to an
+-- account (agent_links) follows its person's choice.
+create table if not exists ml_consents (
+  user_id text primary key,
+  granted boolean not null,
+  version text not null,
+  decided_at timestamptz not null default now()
+);
 
 -- Concept embeddings for the originality-by-concept check (lib/originality-concept.ts). One row per
 -- character; absence means "not yet embedded" and the word-based check still runs.

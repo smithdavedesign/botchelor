@@ -5,6 +5,7 @@ import Link from "next/link";
 import { trackConversion } from "../conversion";
 import { requestJson } from "../request";
 import EmailNotifications from "./EmailNotifications";
+import MlConsent from "./MlConsent";
 
 type Account = { handle: string | null; has_password: boolean; has_google: boolean };
 type Me = {
@@ -237,6 +238,7 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
     <>
       {authCard}
       {me.authenticated && <EmailNotifications confirmed={emailConfirmed} />}
+      {me.authenticated && <MlConsent />}
 
       <section className="card">
         <h2>Your characters</h2>
