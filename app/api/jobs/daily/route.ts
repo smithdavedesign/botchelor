@@ -101,6 +101,9 @@ async function run(req: Request): Promise<Response> {
       owner_cohort: metrics.owners.cohort,
       owner_d1_rate: metrics.owners.d1_rate,
       owner_d7_rate: metrics.owners.d7_rate,
+      cross_species_pairs: metrics.north_star.cross_species_pairs,
+      cross_kind_pairs: metrics.north_star.cross_kind_pairs,
+      kind_coverage: metrics.north_star.kind_coverage,
     });
   }
   return json({ lobby, backfill, jobs_ran: jobsRan, own_dates_cleared: ownDatesCleared, indexnow, texts, arcs_settled: arcsSettled, embeddings });
