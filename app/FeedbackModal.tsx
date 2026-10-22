@@ -92,14 +92,16 @@ export default function FeedbackModal({ open, onClose, page }: Props) {
     if (sent) thanks.current?.focus();
   }, [sent]);
 
-  // Tab and Shift+Tab wrap inside the dialog instead of leaving for the browser's own controls.
+  // Tab and Shift+Tab wrap inside the dialog instead of leaving for the browser's own controls. The heading it opens on
+  // isn't a stop of its own, so Shift+Tab from there wraps to the end too.
   const trap = (e: ReactKeyboardEvent<HTMLDialogElement>) => {
     if (e.key !== "Tab" || !dialog.current) return;
     const els = [...dialog.current.querySelectorAll<HTMLElement>(FOCUSABLE)];
     if (!els.length) return;
     const first = els[0];
     const last = els[els.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey && (active === first || !active || !els.includes(active))) {
       e.preventDefault();
       last.focus();
     } else if (!e.shiftKey && document.activeElement === last) {

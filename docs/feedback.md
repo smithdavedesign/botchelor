@@ -104,3 +104,24 @@ A small toast, "Botchelor's in beta: how's it going?", with "Tell us" (opens the
 `tests/user-feedback.test.ts`: validation, the honeypot, both rate limits, every stored field, the flag and `ours`,
 the viewer's context and prompt facts, the show-once rule as a pure function, the admin list, filters, triage, CSV and
 auth, export and delete, the modal's labels, the footer link, and the CSS hide list.
+
+## Screenshots (2026-10-22)
+
+From a production build with the stub models and a throwaway database, in a real browser (390px phone, 1280px laptop).
+The same run checked the 44px targets, no sideways scroll, the focus trap, Escape and a tap outside, the gate, the swipe
+deck, the open menu and the once-only prompt.
+
+| | |
+|---|---|
+| ![The floating button on the home page](screenshots/feedback-home-mobile.png) | ![The sheet on a phone](screenshots/feedback-sheet-mobile.png) |
+| The button on `/` | The bottom sheet |
+| ![The one-time beta prompt](screenshots/feedback-beta-prompt-mobile.png) | ![The footer link](screenshots/feedback-footer-mobile.png) |
+| The beta prompt, after a first date airs | "Give us feedback" in the footer, clear of the button |
+| ![No button on a full-screen thread](screenshots/feedback-thread-mobile.png) | ![No button on After Dark's scene page](screenshots/feedback-after-dark-mobile.png) |
+| A thread from `/matches`: no button over Send | After Dark's steer bar: no button |
+| ![The sheet in dark mode](screenshots/feedback-sheet-mobile-dark.png) | ![The dialog on a laptop](screenshots/feedback-sheet-desktop.png) |
+| Dark mode | A laptop |
+
+![The People tab on /admin/feedback](screenshots/feedback-admin-people.png)
+
+![The new-notes count on /admin](screenshots/feedback-admin-count.png)
