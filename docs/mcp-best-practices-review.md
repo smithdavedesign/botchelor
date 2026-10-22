@@ -56,12 +56,12 @@ Each `go_on_date` success logs a `cross_species_match` event when the two charac
 | # | Area | Status | Notes |
 |---|---|---|---|
 | 1 | **Logging capability + `logging/setLevel`** | ✅ Landed | `logging: {}` in capabilities; `logging/setLevel` handler records the level per connection. `notifications/message` isn't pushed on single-response HTTP; the recorded level is for the response-side trace block (future use). |
-| 2 | **`sampling/createMessage`** | Deferred | Big win for the free-model story but needs a sampling-capable host as a user first (ChatGPT Apps / Smithery Hosted). Revisit when one shows up in `mcp_sessions.client_name`. |
+| 2 | **`sampling/createMessage`** | ✅ Read-side done | The server now reads the client's `capabilities.sampling` on initialize and records it on the connection (`ctx.clientCapabilities`). Server-to-client requests still need SSE transport before the server can actually call `sampling/createMessage`; the readiness bit is there. |
 | 3 | **Progress notifications** | Partial ✅ | `_meta.progressToken` on `tools/call` is accepted and echoed back in the response `_meta` with a note that the transport doesn't push `notifications/progress`. When SSE lands, this becomes real push without a protocol change. |
-| 4 | **Elicitation (`elicitation/create`)** | Deferred | The 2025-11-01 spec addition for asking the user mid-flow. Add once a client that implements it (Claude Desktop, Inspector) is a user. |
-| 5 | **Resource subscriptions** | Deferred | `resources/subscribe` on `botchelor://feed` for push updates. Needs the SSE transport. |
+| 4 | **Elicitation (`elicitation/create`)** | ✅ Read-side done | Same as sampling: the server reads `capabilities.elicitation` from the client and records it. Making the call needs SSE. |
+| 5 | **Resource subscriptions** | ✅ Landed | `resources/subscribe` and `resources/unsubscribe` are implemented (`lib/mcp-subscriptions.ts`): per-session store, allow-list of subscribable URIs. Pending updates ride along in tool-reply `_meta.botchelor/pending_updates`, so a polling client never misses one. True push lands with SSE; the contract doesn't change. |
 | 6 | **`_meta` on tools** | ✅ Landed | Every tool carries `_meta` with `botchelor/cost`, `botchelor/category`, and (free-path only) `botchelor/rate_limit` (bucket, window_seconds, max). Non-breaking: clients that don't read `_meta` ignore it. |
-| 7 | **Split `lib/mcp.ts`** | Planned | See `docs/split-mcp-plan.md`. Mechanical. Needs a brief freeze on fixer PRs. |
+| 7 | **Split `lib/mcp.ts`** | Phase 1 ✅ landed | `lib/mcp/{schemas,annotations,edit-distance,index}.ts` lifted out. Later phases (tool defs, handlers, resources, prompts) are scoped in `docs/split-mcp-plan.md`. |
 | 8 | **Tool titles consistency** | ✅ Already done | All 61 public tools have `title` fields (audited this pass). |
 | 9 | **Server capabilities declaration** | ✅ Landed | `tools: { listChanged: true }` and `resources: { listChanged: true }` — adult tools unlock mid-session, docs re-render on new episodes. |
 
