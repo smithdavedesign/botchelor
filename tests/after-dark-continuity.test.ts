@@ -8,7 +8,7 @@ import AfterDarkTheater from "@/app/after-dark/[a]/[b]/AfterDarkTheater";
 import SceneWriter from "@/app/after-dark/[a]/[b]/SceneWriter";
 import { nextShown, type Shown } from "@/app/after-dark/[a]/[b]/useSteadySet";
 import { HIVE_MODERATION, setCheckFetchForTests } from "@/lib/adult/check";
-import { agreedMove, canonicalSet, closestSet, MAX_SCENE_MOVES, repeatOf, samePlace, settlePlace } from "@/lib/adult/continuity";
+import { agreedMove, canonicalSet, closestSet, MAX_SCENE_MOVES, pendingMove, repeatOf, samePlace, settlePlace } from "@/lib/adult/continuity";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { observeNight, reportMarkdown, type ObserverInput } from "@/lib/adult/observer";
 import { dropRepeats, type AdultScene } from "@/lib/adult/scenes";
@@ -184,6 +184,53 @@ describe("provoked moves", () => {
       ["bathroom", false, "cap"],
     ]);
     expect(s.set_place).toBe("balcony");
+  });
+});
+
+describe("a move agreed earlier, arrived at now (the model simulation, 2026-10-22)", () => {
+  const names = { a: "Teodor Vance", b: "Sable Quist" };
+  // DeepSeek's night: the offer in the bookshop (two sentences, so agreedMove doesn't read it as a proposal), a yes,
+  // then a walk under the streetlamps, and the arrival steps later. Every arrival used to be refused (no_agreement).
+  const offer = [
+    { who: "b" as const, text: "So we need a better light source. My place has industrial-grade party lighting. It's a five-minute walk. Yes or no?" },
+    { who: "a" as const, text: "Industrial lighting. That sounds like a dare I can't hear the end of." },
+    { who: "b" as const, text: "The plan involves zero chandeliers and a hundred percent not being in a bookshop." },
+    { who: "a" as const, text: "Yes." },
+  ];
+  const walk = (n: number) => Array.from({ length: n }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: i % 2 ? "*laughs, picking up the pace* Two more blocks." : "*matches her stride under the streetlamps* Lead on." }));
+  const arrival = [
+    { who: "b" as const, text: "*pulls him through the green door* Welcome to my place. No table, as promised." },
+    { who: "a" as const, text: "Forty-one hats and no table. I see the priorities." },
+  ];
+
+  it("takes an invitation home from earlier tonight when they arrive there, and only there", () => {
+    const night = [...offer, ...walk(20)];
+    expect(pendingMove([...night, ...arrival], night.length, "apartment entryway", names)).toMatchObject({ home: "b", by: "b" });
+    expect(pendingMove([...night, ...arrival], night.length, "the apartment: empty main room", names)).toMatchObject({ home: "b" });
+    // His place isn't where she invited him.
+    expect(pendingMove([...night, ...arrival], night.length, "Teodor's apartment", names)).toBeNull();
+    // Turned down, or too long ago, it's no invitation.
+    const declined = [offer[0], { who: "a" as const, text: "No. Not tonight." }, ...walk(10)];
+    expect(pendingMove([...declined, ...arrival], declined.length, "apartment entryway", names)).toBeNull();
+    const longAgo = [...offer, ...walk(70)];
+    expect(pendingMove([...longAgo, ...arrival], longAgo.length, "apartment entryway", names)).toBeNull();
+  });
+
+  it("settles the arrival as a move (v2), where these lines show them going in; v1 still wants a yes in these lines", () => {
+    const night = [...offer, ...walk(20)];
+    const input = {
+      current: { place: "walking down the street toward her apartment", set: "street" },
+      claimed: { place: "her apartment: main room", set: "apartment entryway" },
+      lines: [...night, ...arrival],
+      from: night.length,
+      movesThisChapter: 0,
+      homeNow: null,
+      names,
+    };
+    expect(settlePlace({ ...input, fromLines: true })).toMatchObject({ set: "apartment entryway", moved: { at: 0, to: "apartment entryway", home: "b" }, rejected: null });
+    expect(settlePlace(input)).toMatchObject({ set: "street", moved: null, rejected: { reason: "no_agreement" } });
+    // The cap still holds.
+    expect(settlePlace({ ...input, fromLines: true, movesThisChapter: MAX_SCENE_MOVES })).toMatchObject({ moved: null, rejected: { reason: "cap" } });
   });
 });
 

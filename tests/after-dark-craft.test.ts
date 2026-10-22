@@ -500,13 +500,18 @@ describe("public places: nothing past kissing, by where they are", () => {
     expect(r.next).toMatchObject({ set_place: "bar", stage: 2 });
     expect(r.next.moves.at(-1)).toMatchObject({ taken: false, reason: "cap" });
     // The agreement here is a word-for-word repeat (the repeat guard drops it after the public filter let the next line
-    // through), so no move is taken, and the line past kissing goes too: nothing's left, refused like any step with none.
+    // through), and the place claimed isn't the one agreed earlier (Sable's, not Juniper's: no pending move either), so
+    // no move is taken, and the line past kissing goes too: nothing's left, refused like any step with none.
     const ask = "Back to my place? It's ten minutes from here and the wine is better.";
     const yes = "Yes. Lead the way, I'm right behind you, and bring that wine.";
     const said = { ...atBar, lines: [...atBar.lines, ...lines(["a", ask, { stage: 2 }], ["b", yes, { stage: 2 }], ["a", "Actually, one more drink first.", { stage: 2 }], ["b", "One more, then.", { stage: 2 }])] };
-    const only = await step(scripted(reply(lines(["a", ask], ["b", yes], ["a", "*pulls her blouse off* Finally."]), { place: "Juniper's place", set: "Juniper's place", stage: 3 })).model, { scene: said });
+    const only = await step(scripted(reply(lines(["a", ask], ["b", yes], ["a", "*pulls her blouse off* Finally."]), { place: "Sable's place", set: "Sable's place", stage: 3 })).model, { scene: said });
     expect(only.ok).toBe(false);
     expect(!only.ok && only.message).toBe("Their lines went past kissing somewhere public without leaving it. Try again, or steer them somewhere private.");
+    // Claiming the place agreed earlier tonight, they've arrived (pendingMove): the move is taken and the line stays.
+    const home = await step(scripted(reply(lines(["a", ask], ["b", yes], ["a", "*pulls her blouse off* Finally."]), { place: "Juniper's place", set: "Juniper's place", stage: 3 })).model, { scene: said });
+    expect(home.ok && home.next.place).toBe("Juniper's place");
+    expect(home.ok && home.lines.map((l) => l.text)).toEqual(["*pulls her blouse off* Finally."]);
   });
 
   it("the v2 prompt says so once it heats up", () => {

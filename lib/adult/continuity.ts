@@ -319,6 +319,36 @@ export function agreedMove(lines: readonly PlaceLine[], from: number): AgreedMov
   return found;
 }
 
+/** How long an agreed move, or an invitation home, stays good while they get there: a walk, a kiss on the way, the stairs. */
+const PENDING_REACH = 60;
+/** Turning an invitation down: a reply that opens with it ("No.", "Not tonight"), not any "I can't" in passing. */
+const DECLINES = /^\s*(?:\*[^*]*\*\s*)?(?:no\b|nope|nah|not tonight|not yet|not this time|maybe not|another time|i'd rather not|i'll pass|rain ?check)/i;
+
+/**
+ * Where they agreed to go, earlier tonight, now that they're arriving: an agreed move (agreedMove) in the last
+ * PENDING_REACH lines, or the latest invitation to the speaker's own home there ("My place has party lighting. Yes or
+ * no?", "My place has no corners") that nobody turned down. Only for where it was: that home (any room of it), or a
+ * place the proposal names. The model simulation (2026-10-22): the pair agreed in the bookshop and arrived steps
+ * later, past AGREE_REACH (and in words agreedMove doesn't read as a proposal), so every arrival was refused and the
+ * night looped on the street, held at kissing by the public cap.
+ */
+export function pendingMove(lines: readonly PlaceLine[], from: number, claim: string, names: { a: string; b: string }): AgreedMove | null {
+  const want = canonicalSet(claim);
+  const homeish = want.canonical === "home" || HOME_ROOMS.has(want.canonical) || (want.head !== null && HOME_ROOMS.has(want.head));
+  const owner = homeFromOwner(want, names);
+  const fits = (home: "a" | "b" | null, proposal: string) => (home ? homeish && (!owner || owner === home) : placesIn(proposal).some((p) => samePlace(p, claim)));
+  const start = Math.max(0, from - PENDING_REACH);
+  const agreed = agreedMove(lines, start);
+  if (agreed && agreed.agree < from && fits(agreed.home, lines[agreed.proposal].text)) return agreed;
+  for (let i = from - 1; i >= start; i--) {
+    const l = lines[i];
+    if (!MY_HOME.test(l.text) || NOT_GOING.test(l.text)) continue;
+    const turnedDown = lines.slice(i + 1, i + 1 + AGREE_REACH).some((r) => r.who !== l.who && DECLINES.test(r.text));
+    return !turnedDown && fits(l.who, l.text) ? { proposal: i, agree: i, by: l.who, home: l.who } : null;
+  }
+  return null;
+}
+
 /** Them going, in what a line does: heading somewhere, out of a place, through a door, arriving ("*leads him out of the restaurant*"). */
 const GOING = new RegExp(
   [
@@ -410,12 +440,16 @@ export function settlePlace(input: {
   // The first set of the scene, or one so vague it named nowhere: the model's names it, and that's no move.
   if (!here || !now.known) return { place: claimed.place ?? current.place, set: claimed.set ?? (claimed.place ? want.canonical : current.set), moved: null, rejected: null };
   if (samePlace(here, claim) && !ownerChanged(now, want, input.homeNow, input.names)) return orShown(keep());
-  const move = agreedMove(input.lines, input.from);
+  const agreedHere = agreedMove(input.lines, input.from);
   const to = claimed.set ?? want.canonical;
+  // v2 (fromLines): a move agreed earlier tonight, or an invitation home, that they're only now arriving at (pendingMove).
+  const move = agreedHere ?? (input.fromLines ? pendingMove(input.lines, input.from, claim, input.names) : null);
   if (!move) return keep({ to, reason: "no_agreement" });
   if (move.home && move.home === input.homeNow) return keep({ to, reason: "already_there" });
   if (input.movesThisChapter >= MAX_SCENE_MOVES) return keep({ to, reason: "cap" });
-  return { place: claimed.place ?? to, set: to, moved: { at: move.agree - input.from, to, home: move.home ?? homeFromOwner(want, input.names) }, rejected: null };
+  // An agreement in these lines moves them there; one from before moves them where these lines show them going, else at the start.
+  const at = agreedHere ? agreedHere.agree - input.from : Math.max(0, input.lines.slice(input.from).findIndex((l) => GOING.test(actionsOf(l.text)) || ARRIVING.test(l.text)));
+  return { place: claimed.place ?? to, set: to, moved: { at, to, home: move.home ?? homeFromOwner(want, input.names) }, rejected: null };
 }
 
 /** The place text for a kept set: the model's detail ("on the bed") when it names nowhere else, else what it was. */
