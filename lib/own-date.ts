@@ -28,6 +28,7 @@
  */
 import { airsWhen, airWindowMinutes } from "./air";
 import { track, trackDateQuality } from "./analytics";
+import { recordCrossSpecies } from "./agent-funnel";
 import { buildTurnMessages, parseTurnResult, TURN_TEMPERATURE, type Turn } from "./conversation";
 import type { Db } from "./db";
 import { getEngine, type CharacterSheet, type Outcome } from "./engine";
@@ -578,6 +579,7 @@ export async function startOwnDate(
     ],
   );
   track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: false, performed_by: "agent", two_agent: partnerPerformer !== null });
+  await recordCrossSpecies(db, episodeId, "own_date");
   // Their nudges for each other are in this date's setup now, so they're used.
   await useNudges(db, a.id, b.id).catch(() => {});
   // Booked: the pair's "Book it" notices are done (lib/notifications.ts).

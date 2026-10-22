@@ -261,6 +261,7 @@ describe("line votes in Real use", () => {
 
 describe("the preference export", () => {
   const query = async (sql: string, params: unknown[] = []) => (await t.db.query(sql, params)).rows as Record<string, unknown>[];
+  const UNGATED = { includeAfterDark: true, publicOnly: false, consentOnly: false };
 
   it("one record per rated line: votes, words, context, the After Dark notes and observer flags, never who voted", async () => {
     const owner = userIdOf(newUserCookie());
@@ -273,7 +274,8 @@ describe("the preference export", () => {
     await setLineVote(t.db, { userId: admin.id, kind: "after_dark", refId: admin.sceneId, lineIndex: 1, vote: -1 });
     await setLineVote(t.db, { userId: admin.id, kind: "after_dark", refId: "night-gone", lineIndex: 0, vote: 1 }); // its night is gone
 
-    const { records, skipped, votes: rated } = await collectPreferences(query, { lib: observer, context: 2 });
+    // The record shape, with the dataset gates off (tests/ml-consent.test.ts covers the gates).
+    const { records, skipped, votes: rated } = await collectPreferences(query, { lib: observer, context: 2, ...UNGATED });
     expect(rated).toBe(4);
     expect(skipped).toBe(1);
     expect(records).toHaveLength(3);
@@ -326,12 +328,12 @@ describe("the preference export", () => {
     const dir = mkdtempSync(join(tmpdir(), "prefs-"));
     try {
       const out = join(dir, "sub", "prefs.jsonl");
-      const r = await exportPreferences({ query, lib: null, out });
+      const r = await exportPreferences({ query, lib: null, out, ...UNGATED });
       expect(r.count).toBe(2);
       const lines = readFileSync(out, "utf8").trim().split("\n").map((l) => JSON.parse(l));
       expect(lines.map((l) => l.kind).sort()).toEqual(["after_dark", "episode"]);
       expect(lines.find((l) => l.kind === "after_dark")).toMatchObject({ ref_id: admin.nightId, action: "straightens his collar", text: "You came.", observer_flags: null, source: { kind: "night" } });
-      expect((await collectPreferences(query, { kind: "episode" })).records.map((x) => x.kind)).toEqual(["episode"]);
+      expect((await collectPreferences(query, { kind: "episode", ...UNGATED })).records.map((x) => x.kind)).toEqual(["episode"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

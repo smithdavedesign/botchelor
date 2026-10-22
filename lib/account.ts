@@ -58,6 +58,8 @@ export type AccountExport = {
   email: Record<string, unknown>[];
   /** Feedback they sent from the site (lib/user-feedback.ts): what they wrote and what was captured with it. */
   feedback: Record<string, unknown>[];
+  /** Their choice on machine-learning use of their data (lib/ml-consent.ts). */
+  ml_consent: Record<string, unknown>[];
 };
 
 /** Everything stored under this user id, as JSON. Owner-only (the route checks the cookie is the user). */
@@ -146,6 +148,7 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       "select created_at, category, rating, message, email, page, viewport, version, user_agent from user_feedback where user_id = $1 order by created_at",
       [userId],
     ),
+    ml_consent: await q("select granted, version, decided_at from ml_consents where user_id = $1", [userId]),
   };
 }
 
@@ -248,6 +251,7 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from leagues where owner_id = $1", [userId]); // cascades its remaining members
   await run("delete from predictions where user_id = $1", [userId]);
   await run("delete from identity_consents where user_id = $1", [userId]);
+  await run("delete from ml_consents where user_id = $1", [userId]);
   await run("delete from reports where reporter_id = $1", [userId]);
   await run("delete from reports_reviewed where reporter_id = $1", [userId]);
   await run("delete from blocks where blocker_id = $1", [userId]);

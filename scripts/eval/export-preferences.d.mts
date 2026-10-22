@@ -29,7 +29,15 @@ type Deps = {
   kind?: "episode" | "after_dark" | null;
   context?: number;
   observer?: boolean;
+  /** Default false: After Dark votes are left out (and with it, only opted-in owners' scenes). */
+  includeAfterDark?: boolean;
+  /** Default true: only public, aired, ready, unhidden, non-After-Dark dates. Tests only, never a CLI flag. */
+  publicOnly?: boolean;
+  /** Default true: both characters the show's own or their owners opted in (lib/ml-consent.ts). Tests only. */
+  consentOnly?: boolean;
 };
 
-export function collectPreferences(query: Query, deps?: Deps): Promise<{ records: PreferenceRecord[]; skipped: number; votes: number }>;
-export function exportPreferences(opts: Deps & { query: Query; out: string; log?: (m: string) => void }): Promise<{ file: string; count: number; skipped: number; records: PreferenceRecord[] }>;
+export function collectPreferences(query: Query, deps?: Deps): Promise<{ records: PreferenceRecord[]; skipped: number; excluded: number; votes: number }>;
+export function exportPreferences(
+  opts: Deps & { query: Query; out: string; log?: (m: string) => void },
+): Promise<{ file: string; count: number; skipped: number; excluded: number; records: PreferenceRecord[] }>;
