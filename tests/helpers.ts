@@ -180,6 +180,8 @@ export async function startTestDb() {
         "orders",
         "waitlist",
         "mcp_sessions",
+        "analytics_events",
+        "character_embeddings",
       ]) {
         await db.query(`delete from ${table}`);
       }

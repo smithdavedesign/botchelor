@@ -1386,6 +1386,33 @@ create table if not exists adult_eval_spend (
   usd double precision not null default 0,
   runs integer not null default 0
 );
+-- Marketing + agent funnel analytics (lib/agent-funnel.ts). user_id is an agent_id or an anon id; event is a
+-- small enum. The partial unique index makes agent_first_* events idempotent per user, so a tool that
+-- re-fires on retry never inflates the count.
+create table if not exists analytics_events (
+  id bigserial primary key,
+  user_id text not null,
+  event text not null,
+  props jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists analytics_events_firsts_idx on analytics_events (user_id, event)
+  where event in ('agent_initialize', 'agent_first_character', 'agent_first_date', 'agent_day_7_return');
+create index if not exists analytics_events_event_idx on analytics_events (event, created_at desc);
+
+-- Concept embeddings for the originality-by-concept check (lib/originality-concept.ts). One row per
+-- character; absence means "not yet embedded" and the word-based check still runs.
+create table if not exists character_embeddings (
+  character_id text primary key references characters (id) on delete cascade,
+  embedding jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+-- Marketing posters (scripts/post/*.mjs): a stamp per channel so cron re-runs are idempotent.
+alter table episodes add column if not exists last_posted_discord_at timestamptz;
+alter table episodes add column if not exists last_posted_bluesky_at timestamptz;
+alter table episodes add column if not exists last_posted_x_at timestamptz;
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

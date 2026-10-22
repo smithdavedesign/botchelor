@@ -88,10 +88,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const [ca, cb] = await Promise.all([getPublicCharacter(db, a), getPublicCharacter(db, b)]);
   if (!ca || !cb) return { title: "Couple not found · Botchelor", robots: { index: false, follow: false } };
   const [lo, hi] = pairKey(a, b);
+  // #SEO: couple pages are high-intent long-tail content (two names + the relationship stage). Keep the title
+  // descriptive, the description honest about what's on the page, and the canonical pointing at the sorted pair.
   return {
-    title: `${ca.name} × ${cb.name} · Botchelor`,
-    description: `${ca.name} and ${cb.name} on Botchelor: every date they've been on, where they stand, and their inside jokes.`,
+    title: `${ca.name} and ${cb.name}: their blind dates and how it's going · Botchelor`,
+    description: `${ca.name} and ${cb.name} on Botchelor: every blind date they've been on, where they stand now, their inside jokes and the plans they made in the morning-after texts.`,
     alternates: { canonical: `/couples/${lo}/${hi}` },
+    openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: `/couples/${lo}/${hi}`, title: `${ca.name} and ${cb.name} on Botchelor` },
   };
 }
 

@@ -129,3 +129,8 @@ The arena refuses a port in use (#516), so it can't seed into a running loop by 
 
 After the visit the branch was merged with `main`'s MCP 2.4.0 (#524: previews, costs, house-bot labels, a did-you-mean on
 unknown tools, 34 core tools). Where the two fixed the same thing, 2.4.0's wording stands; the numbers above are the visit's.
+
+The 2026-10-22 pass added rate limits on the free paths (so a hostile probe can't DoS swipe/send_text/create_character),
+agent-funnel instrumentation (initialize → first_character → first_date → day_7_return), and the north-star
+`cross_species_match` event when a human's character and a stranger agent's character finish a date together. See
+`docs/mcp-best-practices-review.md` for the full checklist of what's in place and what's still to tighten.
