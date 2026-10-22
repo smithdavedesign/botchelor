@@ -116,7 +116,7 @@ describe("the tool list: the core by default, everything on request", () => {
     expect((await rpc("tools/list", { names: ["my_dates"] })).result.more_tools).toBeUndefined();
   });
 
-  it("a GET of /api/mcp?tools=all returns the list, as the quickstart's URL suggests; a stream request still gets 405 (#412)", async () => {
+  it("a GET of /api/mcp?tools=all returns the list; a stream request without a session gets 400, with a session streams events (#412)", async () => {
     const get = (query: string, headers: Record<string, string> = {}) => mcpGet(new Request(`${BASE_URL}/api/mcp${query}`, { headers }));
     const all = await get("?tools=all", { accept: "*/*" });
     expect(all.status).toBe(200);
@@ -127,9 +127,11 @@ describe("the tool list: the core by default, everything on request", () => {
     const core = await (await get("?tools=core")).json();
     expect(core.tools.map((x: Any) => x.name)).toEqual([...CORE_TOOL_ORDER]);
     expect(core.more_tools.listed).toBe(CORE_MCP_TOOLS.length);
-    // An MCP client opening a server stream (none here), and a bare GET: 405, which now says where the list is.
-    const stream = await get("?tools=all", { accept: "text/event-stream" });
-    expect(stream.status).toBe(405);
+    // The SSE transport is now wired. A stream request without an initialized session gets 400 with a hint.
+    const streamNoSession = await get("?tools=all", { accept: "text/event-stream" });
+    expect(streamNoSession.status).toBe(400);
+    expect((await streamNoSession.json()).error).toBe("need_session");
+    // A bare GET without ?tools and no stream header: 405, with the pointer to the list.
     const bare = await get("");
     expect(bare.status).toBe(405);
     expect((await bare.json()).message).toMatch(/GET \/api\/mcp\?tools=all\) for every tool/);

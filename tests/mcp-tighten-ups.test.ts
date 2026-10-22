@@ -52,8 +52,8 @@ describe("initialize capabilities and _meta", () => {
     // subscribe: true now that resources/subscribe is implemented (lib/mcp-subscriptions.ts).
     expect(res.capabilities.resources.subscribe).toBe(true);
     expect(res.capabilities.logging).toEqual({});
-    expect(res._meta["botchelor/transport"]).toBe("streamable-http-post");
-    expect(res._meta["botchelor/notifications_pushed"]).toBe(false);
+    expect(res._meta["botchelor/transport"]).toBe("streamable-http");
+    expect(res._meta["botchelor/notifications_pushed"]).toBe(true);
     expect(res._meta["botchelor/tools_core_count"]).toBeGreaterThan(0);
     expect(res._meta["botchelor/tools_total_count"]).toBeGreaterThanOrEqual(res._meta["botchelor/tools_core_count"]);
   });
@@ -94,8 +94,8 @@ describe("progressToken echo", () => {
       ctx,
     ))!.result as Any;
     expect(res._meta.progressToken).toBe("abc-123");
-    expect(res._meta["botchelor/progress_pushed"]).toBe(false);
-    expect(res._meta["botchelor/progress_note"]).toMatch(/one JSON response/);
+    expect(res._meta["botchelor/progress_pushed"]).toBe(true);
+    expect(res._meta["botchelor/progress_note"]).toMatch(/SSE stream/);
   });
 
   it("a numeric progressToken is echoed verbatim", async () => {

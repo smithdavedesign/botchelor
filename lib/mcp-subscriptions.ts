@@ -12,6 +12,8 @@
  *  - the moment SSE is wired, pushes come from this same table.
  */
 
+import { queueFor } from "./mcp-stream";
+
 type SessionId = string;
 type ResourceUri = string;
 
@@ -46,7 +48,11 @@ export function unsubscribe(sessionId: SessionId, uri: ResourceUri): boolean {
   return had;
 }
 
-/** Record that a URI has moved on, for every session subscribed to it. Called by the writer, not the reader. */
+/**
+ * Record that a URI has moved on, for every session subscribed to it. Called by the writer, not the reader.
+ * Pushes a `notifications/resources/updated` to any open SSE stream for that session (lib/mcp-stream.ts); the
+ * `_meta.botchelor/pending_updates` ride-along is kept for clients that don't use the stream.
+ */
 export function markResourceUpdated(uri: ResourceUri): number {
   let hits = 0;
   for (const [sid, uris] of SUBS) {
@@ -54,6 +60,7 @@ export function markResourceUpdated(uri: ResourceUri): number {
       const pending = PENDING.get(sid) ?? new Set();
       pending.add(uri);
       PENDING.set(sid, pending);
+      queueFor(sid, { jsonrpc: "2.0", method: "notifications/resources/updated", params: { uri } });
       hits++;
     }
   }
