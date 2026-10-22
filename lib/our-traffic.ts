@@ -5,6 +5,7 @@
  */
 import type { Db } from "./db";
 import { HOUSE_BOT_CLIENT_PREFIX } from "./house-bots";
+import { PEOPLE_ACTS_SQL } from "./people-acts";
 import { DELETED_OWNER } from "./rules";
 
 export const OUR_TRAFFIC = /^(botchelor|live-|verify|curl|stats-check|smoke|agents-check|rounds-test|own-date-test|e2e)|\(Claude\)|botchelor-/i;
@@ -32,10 +33,27 @@ export const OUR_TEST_NAMES: readonly string[] = [
 export const TEST_NAME_SQL = "\\m(test|tester|testwell|e2e)\\M";
 
 /**
+ * botchelor.com went public on this day. Before it the app lived only at its vercel.app address and everyone on it was
+ * us: harness runs, e2e checks, David's own testing. The 2026-10-14 harness run also left 23 identities that never made a
+ * character (eleven passed the age gate in the same second; five predicted four seconds after the harness cast), which
+ * the names above can't catch, and nothing stores a web visitor's user agent. So a person first active before this day
+ * is ours. Agents keep their own rules: an MCP identity is never ours for being early.
+ */
+export const PUBLIC_LAUNCH_DAY = "2026-10-16";
+let launchDay: string | null = PUBLIC_LAUNCH_DAY;
+/** The UTC day people are counted from, or null for no such floor (the shared test harness). */
+export const peopleCountedFrom = (): string | null => launchDay;
+/** The shared test harness counts people from any day, so its fixtures can sit before the launch; launch tests set it. */
+export function setPublicLaunchDayForTests(day: string | null): void {
+  launchDay = day;
+}
+
+/**
  * Every identity that's ours, for the analytics to leave out (Real use, lib/real-metrics.ts; the insights overview,
  * lib/insights.ts): admin accounts and any agent linked to one, every agent that ever connected as one of our checks or
  * as the loop's house-run bots and crowd, the owners of our scripts' and tests' characters (OUR_TEST_NAMES, test-style
- * names), the deleted owner (a deleted account's kept characters) and the show itself.
+ * names), people first active before the public launch (PUBLIC_LAUNCH_DAY), the deleted owner (a deleted account's kept
+ * characters) and the show itself.
  */
 export async function loadOurIds(db: Db): Promise<string[]> {
   const ourClient = `(coalesce(client_name, '') ~* $1 or coalesce(user_agent, '') ~* $1 or coalesce(client_name, '') like $2)`;
@@ -45,9 +63,11 @@ export async function loadOurIds(db: Db): Promise<string[]> {
      union select agent_id from mcp_sessions where ${ourClient}
      union select agent_id from mcp_calls where agent_id is not null and ${ourClient}
      union select owner_id from characters where owner_id is not null and (name = any($5::text[]) or name ~* $6)
+     union select a.id from (${PEOPLE_ACTS_SQL}) a
+            where a.id is not null and a.at < $7::timestamptz and not exists (select 1 from mcp_sessions s where s.agent_id = a.id)
      union select $3::text
      union select $4::text`,
-    [OUR_TRAFFIC.source, `${HOUSE_BOT_CLIENT_PREFIX}%`, DELETED_OWNER, SYSTEM_ID, OUR_TEST_NAMES, TEST_NAME_SQL],
+    [OUR_TRAFFIC.source, `${HOUSE_BOT_CLIENT_PREFIX}%`, DELETED_OWNER, SYSTEM_ID, OUR_TEST_NAMES, TEST_NAME_SQL, launchDay && `${launchDay}T00:00:00Z`],
   );
   return rows.map((r) => r.id);
 }
