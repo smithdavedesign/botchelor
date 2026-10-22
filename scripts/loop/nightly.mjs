@@ -6,7 +6,8 @@
 //      (crowd.mjs, free), plus a seeded agent that swipes back;
 //   3. a few uninstructed visitors (claude -p, on the subscription) explore it for 20 to 30 minutes and report;
 //   4. triage (claude -p) turns their feedback, and real agents' feedback from botchelor.com, into GitHub issues;
-//   5. one fixer (claude -p) works the top issues: a PR each, merged once every check is green.
+//   5. one fixer (claude -p) works the top issues: a PR each, merged once every check is green;
+//   then the visitors' ratings go to botchelor.com for /admin/analytics (post-ratings.mjs).
 // One run at a time (a lock), events to the system log, and a summary under ~/.botchelor-loop/runs/<date>/.
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -337,6 +338,16 @@ async function main() {
     // The arena rewrites crowd.json as it stops: give it a moment, so the summary has the whole run's counts.
     if (arena) await new Promise((ok) => setTimeout(ok, 1500));
     summary.crowd_brain = crowdBrain() ?? summary.crowd_brain;
+    writeFileSync(join(RUN, "summary.json"), JSON.stringify(summary, null, 2));
+    // 7. The visitors' ratings to botchelor.com, for the Quality tab on /admin/analytics (sim_ratings). post-ratings.mjs
+    // reads the summary just written (sha, times), so it runs after it, failed runs included; a run without reports
+    // posts nothing. Its outcome goes in the summary, a minute at most.
+    try {
+      const out = sh("node", [join(HERE, "post-ratings.mjs"), RUN], { timeout: 60_000 });
+      summary.ratings_posted = out.trim().split("\n").at(-1)?.slice(0, 200) || "ok";
+    } catch (err) {
+      summary.ratings_posted = `failed: ${(err instanceof Error ? err.message : String(err)).split("\n")[0].slice(0, 200)}`;
+    }
     writeFileSync(join(RUN, "summary.json"), JSON.stringify(summary, null, 2));
     writeFileSync(STATE, JSON.stringify(state, null, 2));
     rmSync(join(RUN, "arena", "db"), { recursive: true, force: true }); // the throwaway database

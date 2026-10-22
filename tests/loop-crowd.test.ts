@@ -276,10 +276,19 @@ describe("the crowd's brain", () => {
   async function matched(brain: CrowdBrain) {
     const { agents } = await seedCrowd(transport, { agents: 3, secondDates: 0 });
     const v = await visitor();
-    const mine = (await call("create_character", validCharacter({ name: "Vera Atlas", extras: profile, open_to_dates: true }), v)).structuredContent.character.id;
-    await crowdRound(agents);
-    const likers = (await t.db.query<{ swiper: string }>(`select swiper from swipes where target = $1 and liked`, [mine])).rows.map((r) => r.swiper);
-    const them = agents.flatMap((a) => a.chars).find((c) => likers.includes(c.id))!;
+    // The crowd likes about seven in ten, by a hash of the two random ids, and swipes are final, so all six of it can
+    // pass on Vera (about 1 time in 1,300: the one-off failure botchelor-2c saw). Then the visitor makes her again
+    // under a new id, as someone might, until one of the crowd likes her.
+    let mine = "";
+    let them: (typeof agents)[number]["chars"][number] | undefined;
+    for (let tries = 0; !them && tries < 4; tries++) {
+      const sheet = validCharacter({ name: "Vera Atlas", extras: profile, open_to_dates: true, ...(tries ? { keep_name: true } : {}) });
+      mine = (await call("create_character", sheet, v)).structuredContent.character.id;
+      await crowdRound(agents);
+      const likers = (await t.db.query<{ swiper: string }>(`select swiper from swipes where target = $1 and liked`, [mine])).rows.map((r) => r.swiper);
+      them = agents.flatMap((a) => a.chars).find((c) => likers.includes(c.id));
+    }
+    if (!them) throw new Error("none of the crowd liked Vera in four tries");
     await call("swipe", { character_id: mine, target_id: them.id, like: true }, v);
     for (const a of agents) a.brain = brain; // from here on the crowd talks through the brain
     await crowdRound(agents);
