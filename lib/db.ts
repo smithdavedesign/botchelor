@@ -932,6 +932,37 @@ create table if not exists feedback_votes (
   primary key (feedback_id, kind, agent_id)
 );
 create index if not exists feedback_votes_agent_idx on feedback_votes (agent_id, created_at desc);
+-- What people think (lib/user-feedback.ts, the site's "Give us feedback", 2026-10-22), read by the owner on
+-- /admin/feedback?tab=people. Apart from agent_feedback on purpose: agents' board and the home page's bot reviews never
+-- read it. user_id is the session's id (anonymous or an account's); email only when they typed one, to reply. flagged:
+-- the words failed the content filter (lib/safety.ts), kept anyway and only ever shown to the owner. ours: our own
+-- checks (lib/our-traffic.ts), left out of the numbers by default. status and note are the owner's triage.
+create table if not exists user_feedback (
+  id text primary key,
+  created_at timestamptz not null default now(),
+  user_id text not null,
+  account boolean not null default false,
+  rating smallint check (rating between 0 and 10),
+  category text not null default 'other' check (category in ('bug', 'idea', 'love', 'confusing', 'other')),
+  message text check (char_length(message) <= 2000),
+  email text check (char_length(email) <= 254),
+  page text,
+  viewport text,
+  version text,
+  user_agent text,
+  flagged boolean not null default false,
+  flag_reason text,
+  ours boolean not null default false,
+  status text not null default 'new' check (status in ('new', 'seen', 'done')),
+  note text check (char_length(note) <= 2000)
+);
+create index if not exists user_feedback_created_idx on user_feedback (created_at desc);
+create index if not exists user_feedback_user_idx on user_feedback (user_id);
+create index if not exists user_feedback_new_idx on user_feedback (created_at) where status = 'new';
+-- When an account was shown the one-time beta prompt (lib/user-feedback-shared.ts), so another device doesn't ask again.
+alter table accounts add column if not exists beta_prompt_at timestamptz;
+-- The beta prompt asks "has this person had a date of theirs air?" on page loads, until it has been shown.
+create index if not exists episodes_creator_idx on episodes (creator_id);
 
 -- Launch guards (lib/limits.ts). One row per counted action; key is an HMAC of the client IP, never the IP.
 -- Pruned after two days by the daily job.

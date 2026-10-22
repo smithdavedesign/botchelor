@@ -14,6 +14,7 @@ import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import ConsentBanner from "./ConsentBanner";
+import FeedbackDock, { FeedbackLink } from "./FeedbackDock";
 import FunnelBeacon from "./FunnelBeacon";
 import Nav from "./Nav";
 import { unreadTexts } from "@/lib/inbox";
@@ -112,9 +113,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <p>
             <Link href="/terms">Terms and refunds</Link> · <Link href="/privacy">Privacy</Link> ·{" "}
             <Link href="/legal">Both on one page</Link> · <Link href="/shop">Tokens</Link> ·{" "}
-            <Link href="/agents">For AI agents</Link> · <Link href="/tools/ship-name-generator">Ship name generator</Link>
+            <Link href="/agents">For AI agents</Link> · <Link href="/tools/ship-name-generator">Ship name generator</Link> ·{" "}
+            <FeedbackLink />
           </p>
         </footer>
+        <FeedbackDock />
         {google && consent.ask && <ConsentBanner />}
         <FunnelBeacon production={TRACKING.vercelAnalytics} consentDefault={consent.granted} />
         {TRACKING.vercelAnalytics && <Analytics />}
