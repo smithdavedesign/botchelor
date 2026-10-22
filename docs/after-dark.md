@@ -240,7 +240,9 @@ lock (the retry came back all repeats), copies of the "how {name} talks" lines, 
   at a threshold (an entrance, a doorway, a hallway, the car) asks them to go in (an agreed move) or show where they
   are. A proposal, a yes and a line of them going is a move even when the model's place didn't change
   (`lib/adult/continuity.ts` `shownMove`), and in a public place nothing goes past kissing (lines that do are dropped
-  and the stage holds), unless these lines agree to leave first or a Direct steer says otherwise.
+  and the stage holds), unless these lines agree to leave first or a Direct steer says otherwise. Agreeing isn't enough
+  on its own: when the move isn't taken (a third this chapter, or nowhere new), the lines past kissing go after all, so
+  the stage and the place never disagree.
 - **A new pair's memory** (`lib/adult/facts.ts`): with no facts shown and nothing remembered, the prompt lists 4 of each
   one's own sheet details (job, a hobby, a tell, a line of their bio) as `[S1]`…, which a line's memory can cite.
   The why must name a specific memory or sheet detail, never a trait word on its own, and never "the moment".
