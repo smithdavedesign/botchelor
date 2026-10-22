@@ -374,6 +374,12 @@ export function critiqueTurn(
   const shared = `${venue(venueId).prompt} ${sharedHistory(a.memory, b.id)} ${sharedHistory(b.memory, a.id)} ${a.pairShared ?? ""}`;
   const issues = lineIssues(before, turn, characters, { shared, secrets });
   const notes: string[] = [];
+  // 2.7.0 (#645): a line that calls its own speaker by name is the other side's line on this turn ("The wattage is forty,
+  // Ottoline…" from Ottoline). First, because the rest of the critique reads it as this speaker's.
+  if (issues.self_address) {
+    const me = characters[turn.side === "a" ? 0 : 1];
+    notes.push(`you called yourself by name ("${issues.self_address}"): you are ${shortName(me.name)}, talking to ${shortName(them.name)} — write ${shortName(me.name)}'s own line, and use ${shortName(them.name)}'s name if you mean them`);
+  }
   if (issues.profile_reading) notes.push(`you brought up something about ${them.name} they haven't told you — you only know what you can see and what they've said tonight`);
   if (issues.self_label) notes.push("don't describe yourself with your trait words — show it instead");
   if (issues.self_quote) notes.push("don't recite your private notes; let them shape what you do instead");

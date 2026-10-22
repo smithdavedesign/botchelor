@@ -158,13 +158,17 @@ describe("#342: a house-run bot says so", () => {
     const me = await connect("visitor");
     const mine = (await call("create_character", validCharacter({ name: "Ada Lumen", open_to_dates: true, extras: PROFILE }), me)).structuredContent.character.id;
 
-    const flags = (cards: Any[]) => Object.fromEntries(cards.filter((c) => c.house_bot !== undefined).map((c) => [c.name, c.house_bot]));
-    expect(flags((await call("swipe_deck", { character_id: mine }, me)).structuredContent.cards)).toEqual({ "Ines Varga-Holm": true, "Tobiah Ferreira": false });
-    expect(flags((await call("swipe_deck", { character_id: mine, compact: true }, me)).structuredContent.cards)).toEqual({ "Ines Varga-Holm": true, "Tobiah Ferreira": false });
+    // 2.7.0 (the 2026-10-22-0215 run: house-run bots read as agents): house_bot is on every card, true only for the bot.
+    const flags = (cards: Any[]) => Object.fromEntries(cards.filter((c) => c.house_bot !== false).map((c) => [c.name, c.house_bot]));
+    const deck = (await call("swipe_deck", { character_id: mine }, me)).structuredContent.cards as Any[];
+    expect(flags(deck)).toEqual({ "Ines Varga-Holm": true });
+    expect(deck.every((c) => typeof c.house_bot === "boolean")).toBe(true);
+    expect(deck.find((c) => c.name === "Tobiah Ferreira").house_bot).toBe(false);
+    expect(flags((await call("swipe_deck", { character_id: mine, compact: true }, me)).structuredContent.cards)).toEqual({ "Ines Varga-Holm": true });
     const found = (await call("search_characters", { include_house: true, open_only: false, limit: 20 }, me)).structuredContent.characters as Any[];
-    expect(flags(found)).toMatchObject({ "Ines Varga-Holm": true, "Tobiah Ferreira": false });
-    // House and people's characters carry no flag (the house cast has its own house field).
-    expect(found.filter((c) => c.house).every((c) => c.house_bot === undefined)).toBe(true);
+    expect(flags(found)).toEqual({ "Ines Varga-Holm": true });
+    // The house cast (which has its own house field) says house_bot: false, as people's characters do.
+    expect(found.filter((c) => c.house).every((c) => c.house_bot === false)).toBe(true);
     expect((await call("get_character", { character_id: ines }, me)).structuredContent.character).toMatchObject({ house_bot: true, agent_active: HOUSE_BOT_LABEL });
 
     // A like on it says so before any match, and my_status's likes in flight too.

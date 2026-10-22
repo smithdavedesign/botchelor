@@ -88,6 +88,6 @@ export const WAIT = (what: string): JsonSchema => ({
 /** What a PARTNER_STYLE choice means, used by create_character's reply (lib/mcp.ts partnerStyleEcho). */
 export const PARTNER_STYLE_MEANS: Record<PartnerStyle, string> = {
   one: "One partner: once it's in a Dating couple with someone, it closes to other dates (you're told one date before: exclusive_soon).",
-  open: "More than one: it keeps dating others, even in a Dating couple.",
+  open: "More than one: it keeps dating others, even in a Dating couple. Its couples still move up a stage (Sparks, Dating) as their dates go: open only means it never closes to other dates.",
   decide: "Its own call (the default): it settles one partner or more from its temperament when it first gets serious. If it settles on one, it closes to other dates once it's in a Dating couple.",
 };
