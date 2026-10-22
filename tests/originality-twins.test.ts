@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { HOUSE_KITS } from "@/lib/house-kits";
-import { handleMcpMessage } from "@/lib/mcp";
+import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { conceptTerms, scoreSheet, surnamesClose, termWeights, twinWhy, type SheetDraft } from "@/lib/originality";
 import { startTestDb, validCharacter } from "./helpers";
 
@@ -29,10 +29,29 @@ const oyelaran: Sheet = {
   traits: ["exact", "deadpan", "tender"], want: "Someone who is on time without trying", dealbreaker: "Lateness without an apology",
   extras: { occupation: "Toll collector", lines: { hello: "You're five minutes early." }, tells: { smitten: "stops checking the time" } },
 };
+// #655, the 2026-10-22-0610 run: two agents' lighthouse characters, four minutes apart (their sheets as made). Neither
+// gave an occupation; the shared idea (barometers, tide tables) was in their hobbies and profile answers.
+const odalysLamp: Sheet = {
+  id: "odalys-lamp", name: "Odalys Oyelaran", bio: "A lighthouse-lamp restorer who narrates her own life in maritime weather warnings.",
+  traits: ["dry", "meticulous", "secretly sentimental"], want: "someone who will sit through a whole storm without checking their phone",
+  dealbreaker: "people who say they are fine with silence and then fill it",
+  extras: {
+    hobbies: ["barometer collecting", "tide-table poetry"],
+    prompts: [{ id: "geek_out", answer: "Fresnel lens prisms and how one bulb becomes a beam" }, { id: "simple_pleasures", answer: "Tea going cold because the barometer is more interesting" }],
+  },
+};
+const thaddeusTides: Sheet = {
+  id: "thaddeus-tides", name: "Thaddeus Quillfeather", bio: "A retired lighthouse-keeper turned municipal tide-table auditor who still narrates his commute in nautical bearings.",
+  traits: ["pedantic", "tender", "superstitious"], want: "someone who will argue about knots with him without winning", dealbreaker: "anyone who whistles on a boat",
+  extras: {
+    hobbies: ["knot tying", "barometer collecting"],
+    prompts: [{ id: "geek_out", answer: "Tide tables and the exact moment slack water turns" }, { id: "simple_pleasures", answer: "Thermos tea on a cold jetty" }],
+  },
+};
 const house: Sheet[] = [...HOUSE_CHARACTERS, ...PREMIUM_HOUSE_CHARACTERS].map((c) => ({
   id: c.id, name: c.name, bio: c.bio, traits: c.traits, want: c.want, dealbreaker: c.dealbreaker, voice: c.voice, extras: HOUSE_KITS[c.id],
 }));
-const everyone = [...house, bertrand, okonkwoLind, ostrowski, oyelaran];
+const everyone = [...house, bertrand, okonkwoLind, ostrowski, oyelaran, odalysLamp, thaddeusTides];
 const terms = new Map(everyone.map((s) => [s.id, conceptTerms(s)]));
 const weight = termWeights([...terms.values()]);
 const twin = (a: Sheet, b: Sheet) => twinWhy(a, b, terms.get(a.id) ?? conceptTerms(a), terms.get(b.id) ?? conceptTerms(b), weight);
@@ -48,7 +67,7 @@ describe("originality: concept twins (visitor runs 4 and 5)", () => {
 
   it("flags the runs' twins, by a cluster of shared concepts or by a shared name and some of the story", () => {
     expect(twin(bertrand, okonkwoLind)).toMatchObject({ kind: "concept", why: expect.stringMatching(/Marguerite Okonkwo-Lind/) });
-    expect(twin(okonkwoLind, oyelaran)).toMatchObject({ kind: "concept", why: expect.stringMatching(/reads a lot like this one \(both: night shift, .+\)\.$/) });
+    expect(twin(okonkwoLind, oyelaran)).toMatchObject({ kind: "concept", why: expect.stringMatching(/reads a lot like this one \(both: .*night shift.*\)\.$/) });
     expect(twin(bertrand, oyelaran)?.kind).toBe("concept");
     // Two Marguerites with a ledger and a night shift between them.
     expect(twin(ostrowski, oyelaran)).toMatchObject({ kind: "concept", why: expect.stringMatching(/a name and a story close to this one's/) });
@@ -62,6 +81,14 @@ describe("originality: concept twins (visitor runs 4 and 5)", () => {
       if (t) flagged.push(`${house[i].name} × ${house[j].name}: ${t.why}`);
     }
     expect(flagged).toEqual([]);
+  });
+
+  it("reads hobbies and profile answers: the 0610 run's two lighthouse characters are twins (#655)", () => {
+    expect(twin(thaddeusTides, odalysLamp)).toMatchObject({ kind: "concept", why: expect.stringMatching(/^Odalys Oyelaran reads a lot like this one \(both: .*(barometer|tide table).*\)\.$/) });
+    expect(twin(odalysLamp, thaddeusTides)?.kind).toBe("concept");
+    // Without them, all the two shared was "lighthouse" and "narrate".
+    const bare = (x: Sheet): Sheet => ({ ...x, id: `${x.id}-bare`, extras: {} });
+    expect(twin(bare(thaddeusTides), bare(odalysLamp))).toBeNull();
   });
 
   it("a shared first name alone is a lighter nudge, and costs less than reading like someone", () => {
@@ -97,5 +124,22 @@ describe("check_originality and create_character see them on the show", () => {
     const checked = (await call("check_originality", sheet(ostrowski))).structuredContent.originality;
     expect(checked.similar).toEqual([expect.objectContaining({ id: first.character.id, name: "Marguerite Oyelaran", kind: "concept" })]);
     expect(checked.score).toBeLessThan(100);
+  });
+
+  it("an agent making the 0610 run's lighthouse-keeper minutes after another agent's hears about it, before and at the save (#655)", async () => {
+    const session = async (): Promise<McpContext> => {
+      const ctx: McpContext = {};
+      await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "botchelor-originality-test" } } }, ctx);
+      return { sessionId: ctx.issuedSessionId };
+    };
+    const as = async (ctx: McpContext, name: string, args: Record<string, unknown>): Promise<Any> =>
+      ((await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, ctx)) as Any).result;
+    const first = (await as(await session(), "create_character", sheet(odalysLamp))).structuredContent;
+    const second = await session();
+    const checked = (await as(second, "check_originality", sheet(thaddeusTides))).structuredContent.originality;
+    expect(checked.similar).toEqual([expect.objectContaining({ id: first.character.id, name: "Odalys Oyelaran", kind: "concept" })]);
+    expect(checked.score).toBeLessThan(70); // 70 in the run, with nothing flagged
+    const made = (await as(second, "create_character", sheet(thaddeusTides))).structuredContent;
+    expect(made.look_alikes).toEqual([expect.objectContaining({ id: first.character.id, name: "Odalys Oyelaran", both: expect.arrayContaining([expect.stringMatching(/barometer|tide table/)]) })]);
   });
 });

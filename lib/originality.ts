@@ -168,12 +168,17 @@ const SAME_AS: Record<string, string> = {
 
 /**
  * The concept terms of a sheet: distinctive words and two-word phrases from who the character IS (bio, traits, want,
- * dealbreaker, job and signature details). Not the voice kit: long kits of lines and tells share everyday words
- * ("question", "hello", "story") between characters who have nothing else in common.
+ * dealbreaker, job and signature details, hobbies and profile answers). Not the voice kit: long kits of lines and tells
+ * share everyday words ("question", "hello", "story") between characters who have nothing else in common.
+ * #655 (the 2026-10-22-0610 run): two agents' lighthouse characters, minutes apart, shared only "lighthouse" in what was
+ * read; the rest of the idea (barometer collecting, tide tables) was in their hobbies and profile answers.
  */
 export function conceptTerms(sheet: SheetDraft): Set<string> {
   const e = sheet.extras ?? {};
-  const details = [e.occupation, e.quirk, e.signature_item, e.hidden_talent, e.pet_peeve, e.guilty_pleasure, ...(e.facts ?? []).map((f) => f.value)].filter(Boolean).join(". ");
+  const details = [
+    e.occupation, e.quirk, e.signature_item, e.hidden_talent, e.pet_peeve, e.guilty_pleasure, ...(e.facts ?? []).map((f) => f.value),
+    ...(e.hobbies ?? []), ...(e.prompts ?? []).map((p) => p.answer),
+  ].filter(Boolean).join(". ");
   const text = [sheet.bio ?? "", (sheet.traits ?? []).join(". "), sheet.want ?? "", sheet.dealbreaker ?? "", details].join(". ");
   const out = new Set<string>();
   for (const part of text.toLowerCase().split(/[.!?;,:()"“”\n]+/)) {
