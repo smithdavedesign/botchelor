@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { PROFILE_PROMPTS } from "@/lib/extras";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { setModelForTests } from "@/lib/model";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
@@ -18,6 +19,7 @@ import {
   fixNames,
   mergeLastLines,
   replyMessages,
+  PROMPT_LABELS,
   nearDuplicate,
   scriptedText,
   scriptedTurn,
@@ -321,7 +323,7 @@ describe("the crowd's brain", () => {
     const asked = requests.find((b) => lastSaid(b).includes("teapot"))!;
     expect(asked.model).toBe("local-chat");
     expect(asked.disable_fallbacks).toBe(true);
-    const [system, user] = asked.messages;
+    const [system, ...turns] = asked.messages;
     const who = agents.flatMap((a) => a.chars).find((c) => c.id === them.id)!;
     expect(system.content).toContain(who.entry.sheet.name);
     expect(system.content).toContain(String(who.entry.sheet.voice));
@@ -329,7 +331,12 @@ describe("the crowd's brain", () => {
     expect(system.content).toMatch(/Don't quote Vera's dating profile back/);
     expect(system.content).toContain("Never repeat yourself. You've already said: ");
     expect(system.content).toContain(`"${thread[0].text}"`);
-    expect(user.content).toContain(`${who.name}: ${thread[0].text}\nVera Atlas: I found a fossil shaped like a teapot on the beach today.`);
+    // The thread as turns: its own opener as the assistant's, the visitor's text as the user's, last (2026-10-22-0800).
+    expect(turns).toEqual([
+      { role: "user", content: "(You matched with Vera.)" },
+      { role: "assistant", content: thread[0].text },
+      { role: "user", content: "I found a fossil shaped like a teapot on the beach today." },
+    ]);
     // Every crowd reply in the meantime (to the visitor and to each other) came from the model.
     expect(brain.summary()).toMatchObject({ model: "local-chat", fallback_replies: 0, reason_if_fallback: null });
     expect(brain.summary().model_replies).toBeGreaterThanOrEqual(2);
@@ -413,6 +420,33 @@ describe("the crowd's brain", () => {
     expect(sent).toEqual(["Warm white or cool white? Important question."]);
     expect(agent.said.get("c1")).toHaveLength(2);
     expect(brain.summary()).toMatchObject({ model: "local-chat", model_replies: 0, fallback_replies: 1, reason_if_fallback: "repeat of its own line" });
+  });
+
+  // 2026-10-22-0800: Rosalind praised a visitor's "lighthouse poems" when the visitor had said Rosalind wrote them.
+  it("knows its own profile, and gets the date as turns: its lines its own, theirs theirs", () => {
+    const roz = CROWD.flatMap((d) => d.characters).find((c) => c.sheet.name === "Rosalind Achterberg")!;
+    const partner = { name: "Ottoline Brack", profile: [] };
+    const date = (history: { name: string; text: string }[]) => replyMessages({ kind: "turn", me: roz, partner, history, extra: { where: "the ferry café" } });
+    const [system, ...turns] = date([
+      { name: "Rosalind Achterberg", text: "I've parked the van round the corner." },
+      { name: "Ottoline Brack", text: "I keep the lamp at Skellig light." },
+      { name: "Ottoline Brack", text: "The poem you wrote on my overdue notice is pinned above it." },
+    ]);
+    // Its own profile, each answer with its question (so "Two truths and a lie…" isn't three truths).
+    expect(system.content).toContain("Your own dating profile, which they may have read: I geek out on… Overdue notices. I write them as tiny threatening poems.");
+    expect(system.content).toContain("Hobbies: kayaking, crosswords.");
+    // Its first line leads, so a cue starts the chat; two in a row from one side are one turn; theirs is last.
+    expect(turns).toEqual([
+      { role: "user", content: "(The date starts at the ferry café.)" },
+      { role: "assistant", content: "I've parked the van round the corner." },
+      { role: "user", content: "I keep the lamp at Skellig light.\nThe poem you wrote on my overdue notice is pinned above it." },
+    ]);
+    // Its own line last: a cue to carry on, so the chat still ends on the side the model answers.
+    expect(date([{ name: "Ottoline Brack", text: "Hello." }, { name: "Rosalind Achterberg", text: "Evening." }]).at(-1)).toEqual({ role: "user", content: "(Ottoline is listening. Carry on.)" });
+    // No lines yet: the opener ask, as before.
+    expect(date([]).slice(1)).toEqual([{ role: "user", content: "The date is starting. Say your first line to Ottoline." }]);
+    // The labels are lib/extras.ts's, word for word.
+    expect(PROMPT_LABELS).toEqual(Object.fromEntries(PROFILE_PROMPTS.map((q) => [q.id, q.label])));
   });
 
   // 2026-10-21-0419: a crowd character called the visitor's Odalys "Odile" (its own name). MCP 2.4.3.

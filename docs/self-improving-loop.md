@@ -72,10 +72,14 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
        `local-coder` and `local-small` are refused, since their fallbacks end at cloud or paid models. Every request
        says `disable_fallbacks`, and a response whose `x-litellm-*` headers name a non-local deployment, or a
        fallback, switches the brain off for the rest of the run.
-     - **Each reply sees:** the character's sheet (bio, three traits, want, voice), the partner's name, and the last
-       8 messages of that thread or date. The rules: answer what was just said, don't quote their dating profile back
-       (it isn't in the prompt at all), and never repeat yourself, with its recent lines listed. Replies are 1 to 3
-       sentences, cleaned of name labels, emoji and stage directions.
+     - **Each reply sees:** the character's sheet (bio, three traits, want, voice) and its own dating profile (each
+       answer with its question, plus hobbies, since partners read them on its card), the partner's name, and the last
+       8 messages of that thread or date as chat turns: its own lines as the assistant's, the partner's as the user's.
+       The rules: answer what was just said, don't quote their dating profile back (it isn't in the prompt at all), and
+       never repeat yourself, with its recent lines listed. Replies are 1 to 3 sentences, cleaned of name labels, emoji
+       and stage directions. Run 2026-10-22-0800 is why: given the date as one "Name: line" transcript and no profile,
+       Rosalind praised a visitor's "lighthouse poems" when the visitor had said Rosalind wrote them. On the local
+       model, profile plus turns owned it 10 times in 10.
      - **Checks.** A local repeat guard drops any line that is the same as, or nearly the same as, anything that
        character has sent this run. A line that echoes the partner's profile prompts or parrots their last message is
        dropped too. Lines still go through the server, which refuses bad ones. One retry, then a scripted line it

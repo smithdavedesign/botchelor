@@ -1436,6 +1436,33 @@ create table if not exists analytics_events (
 create unique index if not exists analytics_events_firsts_idx on analytics_events (user_id, event)
   where event in ('agent_initialize', 'agent_first_character', 'agent_first_date', 'agent_day_7_return');
 create index if not exists analytics_events_event_idx on analytics_events (event, created_at desc);
+-- The cross-species north-star (lib/agent-funnel.ts recordCrossSpecies), once per pair: 'pair:<lo>:<hi>'. The rows from
+-- before it (keyed by episode id, with both owners in props) fall outside this index and outside the count; their owner
+-- ids are stripped below. The backfill re-counts every past web × MCP pair once, from its first date.
+create unique index if not exists analytics_events_cross_species_pair_idx on analytics_events (user_id, event)
+  where event = 'cross_species_match' and user_id like 'pair:%';
+update analytics_events set props = props - 'human' - 'agent'
+ where event = 'cross_species_match' and (props ? 'human' or props ? 'agent');
+insert into analytics_events (user_id, event, props, created_at)
+select distinct on (x.pair) x.pair, 'cross_species_match', jsonb_build_object('episode_id', x.id, 'via', 'backfill'), x.created_at
+  from (select 'pair:' || least(e.character_a, e.character_b) || ':' || greatest(e.character_a, e.character_b) as pair, e.id, e.created_at
+          from episodes e
+          join characters ca on ca.id = e.character_a
+          join characters cb on cb.id = e.character_b
+         where ca.owner_id is not null and cb.owner_id is not null and ca.owner_id <> cb.owner_id
+           and (ca.created_via = 'mcp') <> (cb.created_via = 'mcp')) x
+ order by x.pair, x.created_at
+on conflict (user_id, event) where event = 'cross_species_match' and user_id like 'pair:%' do nothing;
+
+-- Opt-in consent to use a person's data for machine learning (lib/ml-consent.ts; David, 2026-10-22). Recording never
+-- depends on it: only what goes into a training or evaluation dataset does. No row means no. An agent linked to an
+-- account (agent_links) follows its person's choice.
+create table if not exists ml_consents (
+  user_id text primary key,
+  granted boolean not null,
+  version text not null,
+  decided_at timestamptz not null default now()
+);
 
 -- Concept embeddings for the originality-by-concept check (lib/originality-concept.ts). One row per
 -- character; absence means "not yet embedded" and the word-based check still runs.
@@ -1444,6 +1471,49 @@ create table if not exists character_embeddings (
   embedding jsonb not null,
   created_at timestamptz not null default now()
 );
+
+-- Data plan Tier 1 (David, 2026-10-22): stop losing the data that shows what people and agents actually chose. All
+-- append-only, written best effort (a failed write never breaks the action), never After Dark. Consent (ml_consents)
+-- gates what goes into a dataset, not what's recorded; every dataset builder filters through it.
+--
+-- A pair's timeline: one row per layer whose stage changed (lib/relationships.ts refreshRelationship), so first met,
+-- became exes and rekindled are events, not overwritten values. 'all' can reflect private dates: owners and engine only.
+create table if not exists relationship_events (
+  id bigserial primary key,
+  character_a text not null references characters (id) on delete cascade,
+  character_b text not null references characters (id) on delete cascade,
+  layer text not null check (layer in ('public', 'all')),
+  from_stage text,
+  to_stage text,
+  episode_id text references episodes (id) on delete set null,
+  at timestamptz not null default now()
+);
+create index if not exists relationship_events_pair on relationship_events (character_a, character_b, at);
+-- What a deck actually showed (lib/swipes.ts logImpressions): rank, score, surface. With swipes, the shown-and-skipped
+-- record a preference model needs. Pruned after 400 days (the daily job, lib/swipes.ts pruneImpressions).
+create table if not exists swipe_impressions (
+  id bigserial primary key,
+  viewer text not null references characters (id) on delete cascade,
+  card text not null references characters (id) on delete cascade,
+  serve_id text not null,
+  rank smallint not null,
+  score real,
+  liked_you boolean not null default false,
+  served_via text not null check (served_via in ('web', 'mcp')),
+  at timestamptz not null default now()
+);
+create index if not exists swipe_impressions_viewer on swipe_impressions (viewer, at);
+create index if not exists swipe_impressions_card on swipe_impressions (card);
+-- Where each match answer came from (lib/swipes.ts AnswerSource): only an agent's is a real decision; a person's
+-- character's is the seeded coin ('synthetic'), a house character's the automatic yes.
+alter table matches add column if not exists answer_source_lo text;
+alter table matches add column if not exists answer_source_hi text;
+-- Why the engine decided what it did (lib/engine.ts EngineTrace): margin, reason codes, every variable's terms. No
+-- cue words (a dealbreaker is secret). Null on dates booked before it, and under tests' fixed engines.
+alter table episodes add column if not exists engine_trace jsonb;
+-- Per line of the transcript, in the same order: when, by whom (show, byok, agent) and which model. A parallel array
+-- so the transcript's own shape (and everything that reads it) doesn't change.
+alter table episodes add column if not exists turn_meta jsonb;
 
 -- Marketing posters (scripts/post/*.mjs): a stamp per channel so cron re-runs are idempotent.
 alter table episodes add column if not exists last_posted_discord_at timestamptz;

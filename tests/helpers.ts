@@ -127,6 +127,10 @@ export async function startTestDb() {
     db,
     async reset() {
       for (const table of [
+        // The data plan's tables: rows between two house characters would otherwise outlive a reset.
+        "ml_consents",
+        "relationship_events",
+        "swipe_impressions",
         "adult_rejections",
         "adult_usage",
         "adult_switches",

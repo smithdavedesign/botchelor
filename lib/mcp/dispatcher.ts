@@ -119,7 +119,7 @@ import { loadRelationship, pairKey, relationshipsOf, STAGE_LABELS, stageOf, view
 import { clearNudge, setNudge } from "../between-dates";
 import { chainAfter, chainPage, type ChainItem, isText, loadChain, TEXT_MAX, type ChainText } from "../text-chain";
 import { couplePageFor, houseReplyCap, sendText } from "../texting";
-import { answerMatch, dateNotAgreed, DECK_PAGE, deckFor, matchStatus, myMatches, scheduleMatchChat, swipe } from "../swipes";
+import { answerMatch, dateNotAgreed, DECK_PAGE, deckFor, logImpressions, matchStatus, myMatches, scheduleMatchChat, swipe } from "../swipes";
 import { swipeGateOn } from "../swipe-gate";
 import { clearNotifications, dateOfTurnNotice, listNotifications, markRead, notify, ownersOf, resolveTurnNotices, sweepStaleTurnNotices, unreadCount } from "../notifications";
 import { closeProposal, pendingProposal, PROPOSAL_DAYS, proposeDate } from "../date-proposals";
@@ -4945,25 +4945,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!r.ok) return { error: errorOf(r) };
       await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
       if (typeof args.partner_id === "string") await markPairNoticesRead(db, who.id, String(args.character_id ?? ""), args.partner_id, ["date_agreed", "matched"]);
-      // Agent funnel: first date per agent (idempotent) + cross-species event when the two creators are
-      // different users and at least one of them is a human (created_via != 'mcp').
+      // Agent funnel: first date per agent (idempotent). The cross-species event is recorded where every booking
+      // lands (writeAndSave, startOwnDate: lib/agent-funnel.ts recordCrossSpecies), so web bookings count too.
       await recordAgentEvent(db, who.id, "agent_first_date", { episode_id: String(r.data.id) });
-      try {
-        const ep = (await db.query<{ owner_a: string | null; via_a: string; owner_b: string | null; via_b: string }>(
-          `select ca.owner_id as owner_a, ca.created_via as via_a, cb.owner_id as owner_b, cb.created_via as via_b
-             from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
-            where e.id = $1`, [String(r.data.id)],
-        )).rows[0];
-        if (ep && ep.owner_a && ep.owner_b && ep.owner_a !== ep.owner_b && ((ep.via_a !== "mcp") !== (ep.via_b !== "mcp"))) {
-          // The two creators are different and one made its character on the website, the other over MCP.
-          await db.query(
-            `insert into analytics_events (user_id, event, props) values ($1, 'cross_species_match', $2::jsonb)`,
-            [String(r.data.id), JSON.stringify({ human: ep.via_a === "mcp" ? ep.owner_b : ep.owner_a, agent: ep.via_a === "mcp" ? ep.owner_a : ep.owner_b })],
-          );
-        }
-      } catch {
-        // Analytics never breaks a booking.
-      }
       // #217: say what it cost, and what's left.
       const left = await episodeAllowance(db, who.id).catch(() => null);
       // #496: when it airs, so an agent can plan the second date without polling.
@@ -5779,6 +5763,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // 2026-10-20 visitors: "tell me which cards are real agents". only: filters out the house-run bots (and the rest).
       const only = DECK_FILTERS.find((x) => x === args.only && x !== "all") ?? null;
       const cards = all.filter((c) => deckFilter(only, c));
+      // Only the cards the agent was actually shown (after its filter) count as impressions.
+      await logImpressions(db, r.for.id, cards, r.scores, "mcp");
       return {
         data: {
           for: r.for,

@@ -58,6 +58,12 @@ export type AccountExport = {
   email: Record<string, unknown>[];
   /** Feedback they sent from the site (lib/user-feedback.ts): what they wrote and what was captured with it. */
   feedback: Record<string, unknown>[];
+  /** Their choice on machine-learning use of their data (lib/ml-consent.ts). */
+  ml_consent: Record<string, unknown>[];
+  /** The cards their characters' decks showed them (lib/swipes.ts logImpressions). */
+  swipe_impressions: Record<string, unknown>[];
+  /** Their characters' pairs' stage changes over time (lib/relationships.ts). */
+  relationship_events: Record<string, unknown>[];
 };
 
 /** Everything stored under this user id, as JSON. Owner-only (the route checks the cookie is the user). */
@@ -122,8 +128,19 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
         where exists (select 1 from characters c where c.id = s.swiper and c.owner_id = $1 and not c.is_house) order by s.created_at`,
       [userId],
     ),
+    swipe_impressions: await q(
+      `select i.viewer, i.card, i.rank, i.served_via, i.at from swipe_impressions i
+        where exists (select 1 from characters c where c.id = i.viewer and c.owner_id = $1 and not c.is_house) order by i.at`,
+      [userId],
+    ),
+    relationship_events: await q(
+      `select e.character_a, e.character_b, e.layer, e.from_stage, e.to_stage, e.episode_id, e.at from relationship_events e
+        where exists (select 1 from characters c where c.id in (e.character_a, e.character_b) and c.owner_id = $1 and not c.is_house)
+        order by e.at`,
+      [userId],
+    ),
     matches: await q(
-      `select m.character_lo, m.character_hi, m.matched_at, m.yes_lo, m.yes_hi, m.agreed_at from matches m
+      `select m.character_lo, m.character_hi, m.matched_at, m.yes_lo, m.yes_hi, m.answer_source_lo, m.answer_source_hi, m.agreed_at from matches m
         where exists (select 1 from characters c where c.id in (m.character_lo, m.character_hi) and c.owner_id = $1 and not c.is_house)
         order by m.matched_at`,
       [userId],
@@ -146,6 +163,7 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       "select created_at, category, rating, message, email, page, viewport, version, user_agent from user_feedback where user_id = $1 order by created_at",
       [userId],
     ),
+    ml_consent: await q("select granted, version, decided_at from ml_consents where user_id = $1", [userId]),
   };
 }
 
@@ -163,6 +181,9 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   await db.query("delete from nudges where character_id = any($1) or other_id = any($1)", [characterIds]);
   await db.query("delete from swipes where swiper = any($1) or target = any($1)", [characterIds]);
   await db.query("delete from matches where character_lo = any($1) or character_hi = any($1)", [characterIds]);
+  // The data plan's logs about them (lib/db.ts, Tier 1): the decks they saw and were shown in, and their pairs' timelines.
+  await db.query("delete from swipe_impressions where viewer = any($1) or card = any($1)", [characterIds]);
+  await db.query("delete from relationship_events where character_a = any($1) or character_b = any($1)", [characterIds]);
   await db.query(
     `update episodes set reflections = jsonb_build_object(
         'a', case when character_a = any($1) then null else reflections->'a' end,
@@ -248,6 +269,7 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from leagues where owner_id = $1", [userId]); // cascades its remaining members
   await run("delete from predictions where user_id = $1", [userId]);
   await run("delete from identity_consents where user_id = $1", [userId]);
+  await run("delete from ml_consents where user_id = $1", [userId]);
   await run("delete from reports where reporter_id = $1", [userId]);
   await run("delete from reports_reviewed where reporter_id = $1", [userId]);
   await run("delete from blocks where blocker_id = $1", [userId]);

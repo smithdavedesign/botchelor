@@ -38,7 +38,7 @@ async function sideSettings(
   };
   return { owners: [row(aId)?.owner_id ?? null, row(bId)?.owner_id ?? null], talk: [talk(aId), talk(bId)] };
 }
-import { getEngine, type CharacterSheet } from "./engine";
+import { decideTraced, type CharacterSheet } from "./engine";
 import { DEFAULT_FORMAT, format as showFormat } from "./formats";
 import { claimPaidDate } from "./limits";
 import { frontierConfigured, getDirectorModel, getFrontierModel, getModel, roleReasoning } from "./model";
@@ -206,7 +206,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // Moves as booked: a date stored before them (no flag) runs without, like the format that keeps one table.
     built.setup.moves = row.setup?.moves === true;
     // Re-decide under the calibration POST stored (a deploy between POST and this worker can't change it).
-    const decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
+    const { outcome: decided, trace } = decideTraced(built.input, built.seed, row.setup?.engine_version ?? 1);
 
     // Dates on the show's model always use the frontier when it's configured (David 2026-10-18, after
     // Cass×Dex's ten dates: no free model for a show date — the show always uses a capable paid model). The
@@ -237,6 +237,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     const talk = talkFor(sides.talk, Boolean(keyForSide?.("a") && keyForSide?.("b")), showFormat(formatId).turns);
     // A place they planned by text with no set yet: draw it while the date is filmed (lib/sets.ts). Never awaited.
     void ensureSet(db, built.setup.venue);
+    // When each line was written (episodes.turn_meta), stamped as the theater saves it.
+    const lineAt: string[] = [];
     const gen = await generateDate(models, built, decided, {
       formatId,
       talk,
@@ -256,6 +258,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       // The creator's theater plays the date while it's filmed: each line is saved as it's written (only the
       // creator sees a transcript before it airs, lib/game.ts), and the finished date overwrites it below.
       onTurn: (lines) => {
+        while (lineAt.length < lines.length) lineAt.push(new Date().toISOString());
         // A move somewhere new: start drawing its set now, so it's there by the time they arrive (lib/sets.ts).
         const to = lines[lines.length - 1]?.move?.to;
         if (to) void ensureSet(db, to);
@@ -267,6 +270,9 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     }
     if (gen.quality) trackDateQuality(episodeId, "job", gen.plan?.source ?? null, gen.quality);
     const { draft, transcript, afterglow, reflections, outcome } = gen;
+    // Per line, aligned with the transcript: when, and whether the show's model or an owner's own key spoke it.
+    const doneAt = new Date().toISOString();
+    const turnMeta = transcript.map((t, i) => ({ at: lineAt[i] ?? doneAt, by: keyForSide?.(t.side === "b" ? "b" : "a") ? "byok" : "show" }));
 
     // The ending as it stands once the wishes weighed in (the engine's own, unless they tipped it), with its drama and sides.
     const saved = await db.query<{ id: string }>(
@@ -274,7 +280,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
           set setting = $2, goals = $3::jsonb, scenes = $4::jsonb, twist = $5, finale = $6,
               best_line = $7, confessionals = $8::jsonb, transcript = $9::jsonb, afterglow = $10::jsonb,
               reflections = $11::jsonb, generated_with = $12::jsonb, status = 'ready',
-              ending = $13, drama_question = $14, drama_answer = $15, sides = $16::jsonb, wishes = $17::jsonb
+              ending = $13, drama_question = $14, drama_answer = $15, sides = $16::jsonb, wishes = $17::jsonb,
+              engine_trace = coalesce(engine_trace, $18::jsonb), turn_meta = $19::jsonb
         where id = $1 and status = 'generating'
         returning id`,
       [
@@ -296,6 +303,9 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
         outcome.drama_answer,
         JSON.stringify(outcome.sides),
         gen.wishes ? JSON.stringify(gen.wishes) : null,
+        // A date booked before traces existed gets one now (same inputs, same outcome); a stored one is kept.
+        trace ? JSON.stringify(trace) : null,
+        JSON.stringify(turnMeta),
       ],
     );
     if (saved.rows.length) {
