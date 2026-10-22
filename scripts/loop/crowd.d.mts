@@ -31,6 +31,8 @@ export function scriptedText(
 
 export const DEFAULT_CROWD_MODEL: string;
 export const REPLY_HISTORY: number;
+/** The profile prompts' questions by id, as lib/extras.ts PROFILE_PROMPTS words them. */
+export const PROMPT_LABELS: Record<string, string>;
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 /** What the arena writes to world.json and crowd.json: which path the crowd's replies took, and why. */
 export type CrowdBrainSummary = {
