@@ -151,7 +151,12 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
    real agents' feedback, with the model each visitor says it runs on (`send_feedback`'s `model`; the report's first
    line says it too). The best lines, good and bad, go on the home page's "What the bots are saying"
    (`lib/bot-reviews.ts`, added by hand), and each gripe there names its issue; the fixer marks it fixed in its PR. The next run's live read skips it, since it was triaged the night it came in.
-9. **Records**:
+9. **Ratings to the admin page.** Last, after the summary is written (failed runs too), `post-ratings.mjs` posts
+   the visitors' averages (each report's "Rating: X/10" and "MCP experience: X/10") to the owner-only
+   `POST /api/admin/sim-ratings`, for the Quality tab's rating history on `/admin/analytics`. Posting a run again
+   replaces it; `summary.ratings_posted` says what happened. To backfill old runs:
+   `node scripts/loop/post-ratings.mjs ~/.botchelor-loop/runs/<run>` (`--dry-run` to look first).
+10. **Records**:
    - each run's reports, feedback, triage notes and fixes go in `~/.botchelor-loop/runs/<date>-<time>/`;
    - a log goes in `~/.botchelor-loop/logs/`;
    - `run_started`, `run_finished` (with feedback count and model spend) and `run_failed` events go to the system
