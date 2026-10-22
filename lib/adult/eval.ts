@@ -29,8 +29,12 @@ import { refusalIn, sceneQuality, sideOfCharacter, type CitationStatus, type Sce
 import { CHAPTER_LINES, eligiblePair, emptyScene, samplingOf, stepContext, writeSceneStep, type DroppedLine, type SceneLine, type SceneState } from "./scenes";
 import { getAdultSettings, type PromptVersion } from "./settings";
 
-/** The OpenRouter models an eval may run besides the current setting (David's shortlist, 2026-10-21). */
+/**
+ * The OpenRouter models an eval may run besides the current setting (David's shortlist, 2026-10-21), Dolphin among them
+ * since After Dark moved to DeepSeek V3.1 (2026-10-22), so the two can still be run side by side.
+ */
 export const EVAL_MODELS = [
+  "cognitivecomputations/dolphin-mistral-24b-venice-edition",
   "nousresearch/hermes-3-llama-3.1-70b",
   "sao10k/l3.1-euryale-70b",
   "deepseek/deepseek-chat-v3.1",
