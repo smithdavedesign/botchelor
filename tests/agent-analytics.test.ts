@@ -67,13 +67,18 @@ describe("agent analytics", () => {
     expect(WRITE_TOOLS.has("list_cast")).toBe(false);
   });
 
-  it("is owner-only, and old calls are pruned", async () => {
+  it("is owner-only, offers up to a year, and calls older than 13 months are pruned", async () => {
     vi.stubEnv("FRONTIER_PASSWORD", ["an", "pass"].join("-"));
     expect((await adminAnalytics(new Request(`${BASE_URL}/api/admin/analytics`))).status).toBe(403);
     const ok = await adminAnalytics(new Request(`${BASE_URL}/api/admin/analytics?days=30`, { headers: { "x-frontier-key": "an-pass" } }));
     expect((await ok.json()).window_days).toBe(30);
-    await t.db.query(`insert into mcp_calls (method, ok, created_at) values ('tools/list', true, now() - interval '90 days'), ('tools/list', true, now())`);
+    const year = await adminAnalytics(new Request(`${BASE_URL}/api/admin/analytics?days=9999`, { headers: { "x-frontier-key": "an-pass" } }));
+    expect((await year.json()).window_days).toBe(365);
+    await t.db.query(
+      `insert into mcp_calls (method, ok, created_at) values ('tools/list', true, now() - interval '500 days'), ('tools/list', true, now() - interval '200 days'), ('tools/list', true, now())`,
+    );
     await pruneMcpCalls(t.db);
-    expect((await t.db.query<Any>(`select count(*)::int as n from mcp_calls`)).rows[0].n).toBe(1);
+    // The 500-day-old call goes; the 200-day-old one stays for the year view.
+    expect((await t.db.query<Any>(`select count(*)::int as n from mcp_calls`)).rows[0].n).toBe(2);
   });
 });
