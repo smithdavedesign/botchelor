@@ -56,6 +56,8 @@ export type AccountExport = {
   push_subscriptions: Record<string, unknown>[];
   /** Email notifications: the address, whether it's on, and how many emails were sent (lib/email.ts). */
   email: Record<string, unknown>[];
+  /** Feedback they sent from the site (lib/user-feedback.ts): what they wrote and what was captured with it. */
+  feedback: Record<string, unknown>[];
 };
 
 /** Everything stored under this user id, as JSON. Owner-only (the route checks the cookie is the user). */
@@ -138,6 +140,10 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
     email: await q(
       `select p.email, p.status, p.confirmed_at, p.last_digest_at, (select count(*)::int from email_sends s where s.user_id = p.user_id) as emails_sent
          from email_prefs p where p.user_id = $1`,
+      [userId],
+    ),
+    feedback: await q(
+      "select created_at, category, rating, message, email, page, viewport, version, user_agent from user_feedback where user_id = $1 order by created_at",
       [userId],
     ),
   };
@@ -267,6 +273,7 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from nudges where user_id = $1", [userId]);
   await run("delete from second_date_requests where user_id = $1", [userId]);
   await run("delete from date_proposals where from_user = $1 or to_user = $1", [userId]);
+  await run("delete from user_feedback where user_id = $1", [userId]);
   await run("delete from profiles where user_id = $1", [userId]);
   await run("delete from accounts where user_id = $1", [userId]);
 

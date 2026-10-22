@@ -25,6 +25,7 @@ export type AnalyticsEvent =
   | "agent_tool_call" // one MCP tool call: the tool, the client and whether it succeeded — never arguments
   | "agent_date_capped" // an agent's date was refused because the agents' daily date cap was reached
   | "agent_feedback" // an agent sent feedback over MCP (lib/feedback.ts)
+  | "user_feedback" // a person sent a note from the site (lib/user-feedback.ts): category, rated, flagged, ours, account; never the words
   | "own_date_handed_over" // a two-agent date's quiet side was handed to the show's model (lib/own-date.ts)
   | "own_date_autoplay" // an agent had the show's model play the rest of a self-played date (lib/own-date.ts)
   | "agent_doc_fetch" // someone fetched an agent-facing doc (/llms.txt, /llms-full.txt, the MCP discovery doc, the schema, robots, sitemap): which doc, and the bot's name/kind
