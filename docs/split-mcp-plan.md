@@ -1,6 +1,6 @@
-# A plan to split `lib/mcp.ts`
+# The lib/mcp.ts split: complete
 
-_2026-10-22. Phases 1, 2 and 3 landed; the handler extraction is scoped below as its own PR._
+_2026-10-22. All four phases landed. This doc is kept as the record of what moved and why; the layout it describes is live._
 
 ## Phases 1–3 ✅ landed
 
@@ -17,14 +17,27 @@ _2026-10-22. Phases 1, 2 and 3 landed; the handler extraction is scoped below as
 
 The dispatcher in `lib/mcp.ts` imports from these modules; no behaviour change. The file dropped from ~5,300 lines to ~4,250, and every merge conflict inside the tool-defs region now lands in its own small file instead of the dispatcher.
 
-## Phase 4 — handler extraction
+## Phase 4 ✅ landed — handlers out of lib/mcp.ts
 
-The ~72 `case` blocks in the dispatcher's `tools/call` switch and the `runTool` helper still live in `lib/mcp.ts`. Each case closes over many module-local helpers (`writingProgress`, `twinsOf`, `lastTextRead`, `otherSideNote`, `partnerStyleEcho`, `privateIds`, `callRoute`, `resolveIdentity`, …) and the full set of `TOOL_COSTS` → cost rendering helpers. Extracting them requires either:
+`lib/mcp.ts` is now a 55-line re-export shim. The whole dispatcher (helpers, `runTool`'s 72 case blocks, `handleMessage`, `handleMcpMessage`, `handleMcpPost`, `toolsListResult`) lives in `lib/mcp/dispatcher.ts`. Every `import { … } from "@/lib/mcp"` elsewhere in the codebase stays as it was; the shim re-exports the full public surface.
 
-- **Option A (helper lift first):** move every helper the handlers use to `lib/mcp/helpers.ts`, then each handler imports what it needs. ~400 lines of helpers to lift; the risk is in getting every import right.
-- **Option B (context parameter):** package the helpers into a `HandlerContext` object the dispatcher builds once and passes in. Each handler becomes `handle<ToolName>(args, ctx)` and reads helpers off `ctx`. Looser coupling but a bigger diff.
+A future PR can further split the dispatcher by topic (`handlers/characters.ts`, `handlers/dating.ts`, …) with no behaviour risk — it's a mechanical move within one directory. There's no urgency: the file-level unit for conflicts is now the submodule, not the dispatcher, so concurrent agent-feedback PRs no longer collide on the tool-defs region.
 
-Both land in their own PR behind a short fixer-PR freeze (same reason as the earlier phases: concurrent agent-feedback PRs touching handler cases will conflict until the move finishes). The in-session feedback-loop uses handler cases heavily; freezing it for 2–3h is far cheaper than merging the inevitable 50+ conflicts PR-by-PR.
+## What the directory looks like
+
+```
+lib/mcp.ts                        — public API shim (55 lines)
+lib/mcp/
+├── annotations.ts                — READ / WRITE / SET
+├── constants.ts                  — EXCLUSIVE_*, PARTNER_STYLE_DOC, POINTS_NOTE, SHEET_PROPS, bare, thin, COMPACT_CARDS
+├── dispatcher.ts                 — the whole former lib/mcp.ts (handlers, helpers, JSON-RPC dispatch)
+├── edit-distance.ts              — pure helper for did-you-mean
+├── index.ts                      — barrel for schemas/annotations/prompts/resources
+├── prompts.ts                    — MCP_PROMPTS + promptText
+├── resources.ts                  — MCP_RESOURCES + MCP_RESOURCE_TEMPLATES
+├── schemas.ts                    — JsonSchema building blocks
+└── tool-defs.ts                  — all 61 TOOL_DEFS + the small enum arrays
+```
 
 ## The problem
 
