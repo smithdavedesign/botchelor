@@ -1105,16 +1105,22 @@ async function waitForText(db: Db, who: Identity, args: Record<string, unknown>,
   const self = id === lo ? "lo" : "hi";
   const texts = async () => (await loadChain(db, id, withId, { userId: who.id, owner: true })).filter((i): i is ChainText => i.kind === "text");
   const start = await texts();
+  // #620's comment (the 2026-10-22-0610 run: a wait "returned [] right after Odalys had texted, so I didn't see the thread"):
+  // whether their texts were unread before this call, taken before reading the thread marks them read.
+  const unreadAtStart = (await unreadTextsByPair(db, who.id)).has(`/messages/${lo}/${hi}`);
   // #619 (the 2026-10-21-2300 run: waiting_for_you kept "texted: 2" after the texts were read): reading the thread is reading
   // its notice, with a wait as without one (#219). The reply carries the thread's newest texts, theirs included.
   await markTextsRead(db, who.id, lo, hi);
   // Chain ids start with the text's time. With no `after`, the marker is this character's own newest text (#415: a reply
-  // that landed between send_text and this call was counted as already seen and never returned), else the database's
-  // now (never "", which would read back as "from the newest" on the next call and skip their reply).
+  // that landed between send_text and this call was counted as already seen and never returned). A character that hasn't
+  // texted the thread yet has nothing to answer to but their unread texts, so those are new (#620: the opener after a
+  // match). Else the database's now (never "", which would read back as "from the newest" on the next call and skip their
+  // reply; "" here is only ever compared, as their texts come straight back).
   const now = async () => new Date((await db.query<{ now: string | Date }>(`select now() as now`)).rows[0].now).toISOString();
   // 2.7.0 (#619's comment): after may be a time written by hand, in any ISO-8601 form: read as the time an item id starts with.
   const afterCursor = textCursor(args.after, "after");
-  const after = afterCursor.value ?? (start.filter((t) => t.who === self).at(-1)?.id ?? (await now()));
+  const unanswered = unreadAtStart && start.length > 0 && start.every((t) => t.who !== self);
+  const after = afterCursor.value ?? (start.filter((t) => t.who === self).at(-1)?.id ?? (unanswered ? "" : await now()));
   const plan = waitPlan(seconds || WAIT_MAX_SECONDS);
   const limit = Math.max(1000, plan.ms);
   // #472: who answers on the other side, and how soon to expect it.
