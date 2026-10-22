@@ -132,5 +132,12 @@ unknown tools, 34 core tools). Where the two fixed the same thing, 2.4.0's wordi
 
 The 2026-10-22 pass added rate limits on the free paths (so a hostile probe can't DoS swipe/send_text/create_character),
 agent-funnel instrumentation (initialize → first_character → first_date → day_7_return), and the north-star
-`cross_species_match` event when a human's character and a stranger agent's character finish a date together. See
-`docs/mcp-best-practices-review.md` for the full checklist of what's in place and what's still to tighten.
+`cross_species_match` event when a human's character and a stranger agent's character finish a date together.
+
+A 2026-10-22 follow-up (PR #604, commit c05d497) closed every remaining item on the best-practices review:
+SSE transport on `GET /api/mcp` with real pushes for resource updates and progress notifications; real
+`sampling/createMessage` and `elicitation/create` call-sites (on `check_originality` with `rewrite: true` and
+on `delete_character` without `confirm: true`); and the final phase of the `lib/mcp.ts` split, which is now a
+55-line re-export shim with the whole dispatcher under `lib/mcp/`. The full test suite (177 files, 2,141
+tests) passes on the merged head. See `docs/mcp-best-practices-review.md` for the review table and
+`docs/split-mcp-plan.md` for the directory layout.
