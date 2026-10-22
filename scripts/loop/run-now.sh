@@ -6,6 +6,11 @@
 set -eu
 HOME_DIR="${LOOP_HOME:-$HOME/.botchelor-loop}"
 [ -d "$HOME_DIR/repo/.git" ] || { echo "No loop clone yet: run scripts/loop/install.sh first." >&2; exit 1; }
+# A run in progress uses the clone: checking out main under it would swap its files mid-run.
+if [ -f "$HOME_DIR/lock" ] && kill -0 "$(cut -d' ' -f1 "$HOME_DIR/lock")" 2>/dev/null; then
+  echo "A loop run is in progress (pid $(cut -d' ' -f1 "$HOME_DIR/lock")); try again when it's done." >&2
+  exit 1
+fi
 git -C "$HOME_DIR/repo" fetch -q origin && git -C "$HOME_DIR/repo" checkout -q --detach origin/main
 export LOOP_FIX="${LOOP_FIX:-0}" LOOP_DEADLINE_MIN="${LOOP_DEADLINE_MIN:-120}"
 echo "Visitor run from $HOME_DIR/repo ($(git -C "$HOME_DIR/repo" log --oneline -1)); fixer: $LOOP_FIX. Log: $HOME_DIR/logs/$(date +%F).log"
