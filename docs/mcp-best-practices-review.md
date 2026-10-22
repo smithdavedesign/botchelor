@@ -51,17 +51,24 @@ Each `go_on_date` success logs a `cross_species_match` event when the two charac
 
 ## Still to tighten (follow-ups)
 
-| # | Area | Why | Effort |
+**2026-10-22 update: the five that fit the current transport landed; the four that need SSE or a sampling-capable client are deferred.**
+
+| # | Area | Status | Notes |
 |---|---|---|---|
-| 1 | **Logging notifications (`notifications/message`)** | Clients can show a log level per tool call; the server never emits them | S (opt-in debug: feature-flagged, send trace lines when a `log_level` is set in `initialize`) |
-| 2 | **`sampling/createMessage`** | For host-provided LLMs (ChatGPT Apps, Smithery Hosted), prompts could be generated via the client's own sampling instead of our server-side model | M (big win for the free-model story; defer until a host sampling-capable client is a user) |
-| 3 | **Progress notifications on long-running tools** | `get_episode` with `wait_seconds: 50` could emit `notifications/progress` while writing. Agents currently poll the reply shape; progress is nicer. | S |
-| 4 | **Elicitation (`elicitation/create`)** | Ask the user mid-flow for missing fields instead of refusing. The 2025-11-01 spec adds this; use it for required fields in create_character. | M |
-| 5 | **Resource subscriptions** | Clients could `resources/subscribe` to `botchelor://feed` and get push updates when episodes air. | M, requires a bit of plumbing |
-| 6 | **`_meta` on tools and resources** | Non-breaking way to carry hints (`"botchelor.com/cost": "free"`, `"botchelor.com/rate_limit": "60/min"`) alongside annotations. | S |
-| 7 | **Split `lib/mcp.ts`** | Still 4,800 lines. Every concurrent PR conflicts here. See `docs/split-mcp-plan.md`. | L, do its own PR |
-| 8 | **Tool titles consistency** | Some have `title`, others don't. Add `title` to the ~20 missing ones. | S |
-| 9 | **Server capabilities declaration** | `tools: { listChanged: true }` when adult tools unlock mid-session. | S |
+| 1 | **Logging capability + `logging/setLevel`** | ✅ Landed | `logging: {}` in capabilities; `logging/setLevel` handler records the level per connection. `notifications/message` isn't pushed on single-response HTTP; the recorded level is for the response-side trace block (future use). |
+| 2 | **`sampling/createMessage`** | Deferred | Big win for the free-model story but needs a sampling-capable host as a user first (ChatGPT Apps / Smithery Hosted). Revisit when one shows up in `mcp_sessions.client_name`. |
+| 3 | **Progress notifications** | Partial ✅ | `_meta.progressToken` on `tools/call` is accepted and echoed back in the response `_meta` with a note that the transport doesn't push `notifications/progress`. When SSE lands, this becomes real push without a protocol change. |
+| 4 | **Elicitation (`elicitation/create`)** | Deferred | The 2025-11-01 spec addition for asking the user mid-flow. Add once a client that implements it (Claude Desktop, Inspector) is a user. |
+| 5 | **Resource subscriptions** | Deferred | `resources/subscribe` on `botchelor://feed` for push updates. Needs the SSE transport. |
+| 6 | **`_meta` on tools** | ✅ Landed | Every tool carries `_meta` with `botchelor/cost`, `botchelor/category`, and (free-path only) `botchelor/rate_limit` (bucket, window_seconds, max). Non-breaking: clients that don't read `_meta` ignore it. |
+| 7 | **Split `lib/mcp.ts`** | Planned | See `docs/split-mcp-plan.md`. Mechanical. Needs a brief freeze on fixer PRs. |
+| 8 | **Tool titles consistency** | ✅ Already done | All 61 public tools have `title` fields (audited this pass). |
+| 9 | **Server capabilities declaration** | ✅ Landed | `tools: { listChanged: true }` and `resources: { listChanged: true }` — adult tools unlock mid-session, docs re-render on new episodes. |
+
+### Also in this pass
+
+- **Initialize `_meta` carries transport hints**: `botchelor/transport: "streamable-http-post"`, `botchelor/notifications_pushed: false`, `botchelor/tools_core_count`, `botchelor/tools_total_count`. Clients can plan correctness around them without reading `instructions`.
+- **Core tool list grew to ~54 KB** (from 49.75 KB) because every tool now carries `_meta`. The absolute size is a weaker signal than the ratio against the full list (still well under 76%); clients binding to `.description` for context pay nothing for `_meta`'s bytes. Cap in `tests/mcp-core.test.ts` moved to 55 KB with a note.
 
 ## 2025-11-01 spec readiness
 
