@@ -37,15 +37,21 @@ export default function SceneWriter({
 }) {
   const [reelList, setReelList] = useState(reels);
   const [reelNote, setReelNote] = useState<{ text: string; error?: boolean; busy?: BusyReel } | null>(null);
-  const putReel = useCallback((r: Reel) => setReelList((list) => [r, ...list.filter((x) => x.id !== r.id)]), []);
+  const putReel = useCallback((r: Reel) => {
+    setReelList((list) => [r, ...list.filter((x) => x.id !== r.id)]);
+    // Done, either way: the "it's being made" note would contradict the video below (a failure says why there).
+    if (r.status !== "making") setReelNote((n) => (n && !n.error && !n.busy ? null : n));
+  }, []);
   async function makeVideo(nightId?: string) {
     setReelNote({ text: "Picking the night's best moments and voicing them…" });
     const res = await requestJson("/api/admin/after-dark/reel", { a: scene.a.id, b: scene.b.id, ...(nightId ? { night_id: nightId } : {}) }).catch(() => null);
     if (!res) return setReelNote({ text: "That didn't reach the server. Check your connection and try again.", error: true });
     // One at a time: the refusal names the video in the way (maybe another pair's), so it can be stopped from here.
     if (!res.ok) return setReelNote({ text: res.message, error: true, busy: (res.data.busy as BusyReel | undefined) ?? undefined });
-    putReel(res.data.reel as Reel);
-    setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
+    const reel = res.data.reel as Reel;
+    putReel(reel);
+    // A video can be done already (every shot refused at once, say): then its own line below says how it went.
+    if (reel.status === "making") setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
   }
   const [theater, setTheater] = useState(play);
   // A steer is a nudge by default (worked toward at the scene's own pace); direct does it now.

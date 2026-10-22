@@ -64,7 +64,7 @@ Every model provider is prepaid with auto-recharge off, so the balance is the mo
 
 | Provider | Loaded | Used for | Spent so far (estimate) |
 |---|---|---|---|
-| Venice | $50 | After Dark pictures, tiles and videos | ~$13–21. Most of it is 3 videos of the night (18 Wan 3.0 shots) plus the voice A/B test clips. |
+| Venice | $50 | After Dark pictures, tiles and videos | **Used up.** Venice has refused every request with 402 "Insufficient USD or Diem balance" since 2026-10-21 23:51 UTC, so no video has come through since. Production made 25 video shots, 39 pictures and 131 tiles, about $20–25 at the prices above. Venice's usage page (venice.ai/settings/api) shows where the rest of the $50 went: the voice A/B clips, or higher video prices than these. A top-up is David's call. |
 | Hive | $111 | Moderation and age checks on every picture, tile and clip | ~$1.50 |
 | fal.ai | Prepaid (see the fal dashboard) | Show tiles, portraits, sets | ~$3. That includes ~$0.70 of tiles thrown away by the Hive-429 bug, fixed in #310. |
 | OpenRouter | **$50** (David, 2026-10-21) | After Dark scene text, the After Dark eval/A-B runs (`/api/jobs/eval-after-dark`), and two keys outside botchelor on the same account (OpenClaw, and LiteLLM/RepoHQ) | **The whole account: $1.50** (OpenRouter's dashboard, 2026-10-22: 2K requests, 8.84M tokens, $0.17 per million blended). By key: NSFW Botchelor 3.93M tokens (most of the $1.50: the eval runs' $0.90 on pricier models, plus the scenes), OpenClaw 2.59M, LiteLLM + RepoHQ 2.33M. So almost all of the $50 is still there, shared by the three keys. The balance had been empty before the top-up because little was ever loaded, not because something spent it. |
