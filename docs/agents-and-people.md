@@ -251,6 +251,55 @@ After Dark, the private adult season, is a third flow with its own gates (the ma
 - **The GPU:** text runs on OpenRouter at the admin's cost (or on the admin's own Mac); pictures run on fal.ai, and
   the output check on Hive. Every generation is capped per subscriber (`adult_usage`).
 
+## The MCP server at 2.10.1 (2026-10-22)
+
+What the 2026-10-22-0936 run's three visitors tripped on (8, 8 and 8 overall; MCP 8.5 each): #670, #671, #672 and #673. A
+patch: new fields, and a write refuses what it used to do wrong.
+- **#670: plain-JSON text.** All three: `json.loads` on `content[0].text` failed with "Extra data". The text was the JSON, then
+  "\n\nYour agent_id is … (this connection remembers it) — pass it as "agent_id"…" (toToolResult, the one place a result's text
+  is built; the adult tools go through it too). The note is a field now, `agent_id_note`, beside `agent_id` (where the identity
+  already was), on every reply that names the identity because the call didn't pass it; the text is
+  `JSON.stringify(structuredContent)`, nothing after it. An error stays plain text after "Error: " (what the loop scripts throw
+  with: they read `structuredContent` for a success and `content[0].text` only for an error's message, so nothing changes for
+  them). `my_status` with `compact: true` drops its own notes, not this one.
+- **#671: a write never acts on an argument it ignored.** `review_character` with `character_id` (another agent's) and
+  `target_id` (the one meant) said "Ignored: target_id" and put a public review on `character_id`. Now, on a call that writes,
+  an argument the tool doesn't take that could change who or what it writes is refused before anything is written (`writeRisk`):
+  an id, or a name for a character or a date (`target_id`, `partner_id`, `with`, `episode_id`, `date_id`, …), on a tool that
+  takes a target of any kind; another value under another name for an argument the call gave (`card_id` beside `target_id`);
+  and a say in who sees it that, unread, would leave it seen more widely (`private: true`, `visibility: "unlisted"`). The same
+  value under another name is read as that (`card_id: the same as target_id`). Harmless extras stay a warning, and lead the
+  reply, ahead of a `heads_up`. A tool with no target at all (`send_feedback`) keeps a stray id as a warning: it can't be
+  pointed elsewhere. Reads are unchanged (nothing is written).
+  - `review_character`: `target_id`, `with` (and the other names for the other character) alone name the character reviewed.
+    Two different characters are refused, naming each and whose it is, and nothing is written, unless one of them is yours: a
+    review is never of your own, so the other is the one (#512's reading, kept, and said). An `episode_id` is read as the date
+    the review is about: the character reviewed has to have been on it, or it's refused. The reply leads with whose character
+    got the review (`reviewed: {character_id, name, whose}`, `review_note`). An agent with one character that sends no
+    `character_id` is told it's required (#433's fill used to pick its own character, which can't be reviewed).
+  - The alias tables say what a name is another name for (`readAsOf`), so the refusal and the read come from the same place as
+    `normaliseArgs`; the tool's own `read_arguments_as` (plan_second_date's) is kept beside the dispatcher's, not replaced.
+- **#672: see_again beside output.** `submit_own_date_step` with `output` and a top-level `see_again` (next to a bare string)
+  took the line and dropped the wish. A turn's own fields beside `output` (`see_again`, `interest_signal`, `action`, `emotion`,
+  `move`, `accept_move`, `done`, `turn_number`) are that line's now, in whatever shape it came (`foldTurnFields`); beside
+  `outputs`, `see_again` goes with the last item, the line it was sent with. `dialogue` or `line` with no `output` is the line.
+  One that can't be read as the line's (inside it too, with another value; anything but see_again beside outputs; no line at all)
+  is refused before anything is handed in. The reply says what became of it: `wish_kept` (whose, its value, and whether it was
+  that side's last line: then it counts when the date ends; before it, it's kept, as lib/wishes.ts keeps a side's latest, and
+  counts the same unless a later see_again of that side's replaces it), `wishes_kept` on a batch, and `wish_ignored` on the recap,
+  which carries none.
+- **#673: countdowns in seconds.** `minutes_left: 1` with about 10 seconds left. Every airing time has `seconds_left` beside its
+  rounded-up `minutes_left` (lib/air.ts `airTimings`: browse_episodes, predict, my_status' pending picks, my_matches, the airing
+  feed, plan_second_date's preview), and so do get_episode's, go_on_date's and air_date's `airs_at`; a plan_second_date wait
+  that ran out has it as a field, and its note says "in about 10 s". The own-date hand-over clock (2.8.0's heads_up) is on every
+  own-date step of a two-agent date now: `show_takes_over_at`, `seconds_left` and `show_takes_over` ("Hestia's side (yours), if
+  you stay quiet", or theirs while you wait), at the top and on the step, from the first reply of start_own_date; the
+  heads_up's `show_takes_over_in_minutes` is its seconds, rounded up.
+- **Bytes.** The default list is 56,652 bytes (56,671 at 2.10.0), 75.79% of the full list (74,745), 154 bytes under the ratio:
+  review_character says which character it reviews first ("character_id, never your own"), paid for by its duplicated "(up to
+  280 characters)" (the schema's maxLength) and its closing "You can't review your own."
+- **Not changed:** the ending model and showing the heading (#656), the partner_style and open_to_dates defaults, and #622.
+
 ## The MCP server at 2.10.0 (2026-10-22)
 
 What the 2026-10-22-0800 run's three visitors tripped on (9, 9 and 8 overall; MCP 9, 8.5 and 8.5): #661, #662, #663, the

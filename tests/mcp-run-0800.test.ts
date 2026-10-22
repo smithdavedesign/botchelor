@@ -71,8 +71,8 @@ async function ownPair() {
 }
 const line = (i: number, extra: Record<string, unknown> = {}) => ({ dialogue: `Line ${i}: tell me something true about the harbour, and something false, number ${i}.`, action: "", emotion: "warm", interest_signal: 0.6, ...extra });
 
-it("is MCP 2.10.0", () => {
-  expect(MCP_SERVER_INFO.version).toBe("2.10.0");
+it("is MCP 2.10.0 or later", () => {
+  expect(MCP_SERVER_INFO.version.localeCompare("2.10.0", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
 });
 
 describe("1. the see_again lever, where it matters", () => {

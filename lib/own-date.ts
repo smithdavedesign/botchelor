@@ -118,6 +118,56 @@ export function unwrapOutput(output: unknown): unknown {
   return output;
 }
 
+/** A turn's own fields, which an agent may send beside output instead of inside it (MCP 2.10.1, #672). */
+export const TURN_FIELDS = ["see_again", "interest_signal", "action", "emotion", "move", "accept_move", "done", "turn_number"] as const;
+
+/** One turn field's two values, said the same way ("true" and true, "0.8" and 0.8), as the turn's parser reads them. */
+function sameTurnValue(k: string, a: unknown, b: unknown): boolean {
+  const flag = (v: unknown) =>
+    v === true || (typeof v === "string" && /^\s*(true|yes)\s*$/i.test(v)) ? true : v === false || (typeof v === "string" && /^\s*(false|no)\s*$/i.test(v)) ? false : v;
+  if (k === "see_again" || k === "accept_move" || k === "done") return flag(a) === flag(b);
+  if (k === "interest_signal" || k === "turn_number") return Number(a) === Number(b);
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * MCP 2.10.1 (#672, the 2026-10-22-0936 run: a see_again sent beside output, next to a bare-string line, was "Ignored" after
+ * the line was accepted): a turn's own fields sent beside output (TURN_FIELDS) are that line's, the same as inside it, in
+ * whatever shape the line came (a bare string, its JSON, {dialogue}, {line} or {output}). A field that's inside it too with
+ * another value is a conflict: nothing is folded (which was meant isn't clear), and the call is refused.
+ */
+export function foldTurnFields(output: unknown, fields: Record<string, unknown>): { output: unknown; folded: string[]; conflicts: string[] } {
+  const keys = Object.keys(fields).filter((k) => fields[k] !== undefined);
+  if (!keys.length) return { output, folded: [], conflicts: [] };
+  const inner = unwrapOutput(output);
+  let own: Record<string, unknown> | null = inner && typeof inner === "object" && !Array.isArray(inner) ? (inner as Record<string, unknown>) : null;
+  if (typeof inner === "string" && inner.trim().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(inner.trim());
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) own = parsed as Record<string, unknown>;
+    } catch {
+      // not JSON: a line that starts with a brace
+    }
+  }
+  const conflicts = keys.filter((k) => own?.[k] !== undefined && !sameTurnValue(k, own[k], fields[k]));
+  if (conflicts.length) return { output, folded: [], conflicts };
+  // {output: the line, ...fields} is the line with the fields kept (unwrapOutput), whatever shape the line came in.
+  return { output: unwrapOutput({ ...Object.fromEntries(keys.map((k) => [k, fields[k]])), output }), folded: keys, conflicts: [] };
+}
+
+/** Whether a reply carries a see_again, in whatever shape it came (2.10.1, #672: one that went unused is said, never dropped). */
+export function carriesSeeAgain(output: unknown): boolean {
+  const o = unwrapOutput(output);
+  if (o && typeof o === "object" && !Array.isArray(o)) return (o as { see_again?: unknown }).see_again !== undefined;
+  if (typeof o !== "string" || !o.trim().startsWith("{")) return false;
+  try {
+    const parsed = JSON.parse(o.trim());
+    return Boolean(parsed && typeof parsed === "object" && !Array.isArray(parsed) && (parsed as { see_again?: unknown }).see_again !== undefined);
+  } catch {
+    return false;
+  }
+}
+
 /** Which of action, emotion and interest_signal a turn reply leaves to the defaults (oneLineTurn fills them in). */
 export function turnDefaultsUsed(output: unknown): string[] {
   let o: unknown = unwrapOutput(output);
@@ -235,6 +285,10 @@ export type OwnDateStep =
       answer_their_suggestion?: string;
       /** On the speaker's last line as planned: the private see_again it may send (lib/wishes.ts), in a sentence. */
       see_again?: string;
+      /** MCP 2.10.1 (#673): on a two-agent date, when the show's model takes this side if you stay quiet, and the seconds until then. */
+      show_takes_over_at?: string;
+      seconds_left?: number;
+      show_takes_over?: string;
       instructions: string;
       messages: ChatMessage[];
       /** compact: true (lib/mcp.ts): messages leave out the system message, the same on every turn (#205). */
@@ -267,6 +321,10 @@ export type OwnDateStep =
       played_by?: "agent" | "house_bot" | "show";
       quiet_minutes?: number;
       can_hand_over?: boolean;
+      /** MCP 2.10.1 (#673): when the show's model takes their side if they stay quiet, and the seconds until then. */
+      show_takes_over_at?: string;
+      seconds_left?: number;
+      show_takes_over?: string;
       instructions: string;
     }
   | {
@@ -294,8 +352,26 @@ export type ReflectStep = {
   prompts: { character_id: string; name: string; messages: ChatMessage[]; reply_format: string }[];
 };
 
+/**
+ * A see_again that went in with an accepted line (MCP 2.10.1, #672): whose wish it is, and whether that was the side's last
+ * line as the date stands. It's kept either way (episodes.wishes; a later one of the side's replaces it) and counts once the
+ * date's last line is in (lib/wishes.ts).
+ */
+export type KeptWish = { side: "a" | "b"; character: string; see_again: boolean; last_line: boolean };
+
 export type OwnDateResult =
-  | { ok: true; step: OwnDateStep; rejected?: string; checked?: true; /** start_own_date found this pair's date already in progress and returned it (#413). */ resumed?: true }
+  | {
+      ok: true;
+      step: OwnDateStep;
+      rejected?: string;
+      checked?: true;
+      /** start_own_date found this pair's date already in progress and returned it (#413). */
+      resumed?: true;
+      /** 2.10.1 (#672): the see_again the accepted line carried. */
+      wish?: KeptWish;
+      /** 2.10.1 (#672): a see_again sent with something that carries none (the recap), and why. */
+      wish_ignored?: string;
+    }
   | {
       ok: false;
       status: number;
@@ -608,12 +684,13 @@ export async function startOwnDate(
   // The outcome, and why (episodes.engine_trace): decided before any line, as every date is.
   const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
 
-  await db.query(
+  const inserted = await db.query<{ created_at: Date | string }>(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
                            drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup,
                            transcript, status, visibility, created_via, performed_by, partner_performer, engine_trace)
      values ($1, $2, $3, $4, '', '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, $7, $8, $9::jsonb, $10::jsonb, null,
-             '[]'::jsonb, $11::jsonb, '[]'::jsonb, 'generating', $12, 'mcp', 'agent', $13, $14::jsonb)`,
+             '[]'::jsonb, $11::jsonb, '[]'::jsonb, 'generating', $12, 'mcp', 'agent', $13, $14::jsonb)
+     returning created_at`,
     [
       episodeId,
       userId,
@@ -651,7 +728,9 @@ export async function startOwnDate(
     });
   }
   const step = stepFor(episodeId, built, decided, formatId, [], [a.id, b.id]);
-  return { ok: true, step: forViewer(step, userId, { a: userId, b: partnerPerformer ?? userId }, partnerPerformer !== null) };
+  // 2.10.1 (#673): the clock starts at the booking (no move yet), so the first step says it too.
+  const since = inserted.rows[0]?.created_at ? new Date(inserted.rows[0].created_at) : now;
+  return { ok: true, step: forViewer(step, userId, { a: userId, b: partnerPerformer ?? userId }, partnerPerformer !== null, since) };
 }
 
 /* ------------------------------------------------ the steps ------------------------------------------------ */
@@ -993,6 +1072,16 @@ export { OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES } from "./rules";
 const lastMove = (row: Pick<Row, "created_at" | "last_move_at">) => new Date(row.last_move_at ?? row.created_at);
 const minutesSince = (d: Date) => Math.max(0, Math.floor((Date.now() - d.getTime()) / 60_000));
 
+/**
+ * The hand-over clock on a two-agent date (2.8.0's heads_up; MCP 2.10.1, #673, on every own-date reply): the show's model
+ * takes the side whose move it is once it's been quiet OWN_DATE_HANDOVER_MINUTES since the last move, and the seconds left
+ * until then, rounded up (0 once it's due).
+ */
+export function handOverClock(lastMoveAt: Date | string, now: number = Date.now()): { show_takes_over_at: string; seconds_left: number } {
+  const at = new Date(new Date(lastMoveAt).getTime() + OWN_DATE_HANDOVER_MINUTES * 60_000);
+  return { show_takes_over_at: at.toISOString(), seconds_left: Math.max(0, Math.ceil((at.getTime() - now) / 1000)) };
+}
+
 /** The step as this agent sees it: the other agent's turns (and, two-agent, the show's recap) are a wait. */
 function forViewer(step: OwnDateStep, userId: string, performers: Performers, twoAgent: boolean, since?: Date, bot = false): OwnDateStep {
   if (step.stage === "turn" && performers[step.side] !== userId) {
@@ -1010,6 +1099,8 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
       // #457: who plays the other side, said outright: the show's model, a house-run bot (one of the show's own scripts), or another agent.
       played_by: show ? "show" : bot ? "house_bot" : "agent",
       ...(since ? { last_move_at: since.toISOString(), quiet_minutes: quiet, can_hand_over: canHandOver } : {}),
+      // 2.10.1 (#673): their clock, to the second, while it's theirs to play (the show's model plays it at once once it's the show's).
+      ...(since && twoAgent && !show ? { ...handOverClock(since), show_takes_over: `${step.speaker.name}'s side (theirs), if they stay quiet` } : {}),
       instructions:
         (show
           ? `The show's model plays ${step.speaker.name}'s side now`
@@ -1030,7 +1121,10 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
   // Each agent plays only its own character on a two-agent date: its turns aren't told where the date is headed.
   if (step.stage === "turn" && twoAgent) {
     const { ending, ending_label: _label, ...rest } = step;
-    return ending ? { ...rest, instructions: step.instructions.replace(` ${endingLine(ending)}`, "") } : rest;
+    // 2.10.1 (#673, the 2026-10-22-0936 run: "show the time left for the 3-minute hand-over window as a plain field on every
+    // own-date reply"): your clock, to the second, on your move.
+    const clock = since ? { ...handOverClock(since), show_takes_over: `${step.speaker.name}'s side (yours), if you stay quiet` } : {};
+    return ending ? { ...rest, ...clock, instructions: step.instructions.replace(` ${endingLine(ending)}`, "") } : { ...rest, ...clock };
   }
   if (step.stage === "recap" && twoAgent) {
     return {
@@ -1603,11 +1697,17 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     // Someone else handed in this turn first (a retry racing itself): offer whatever step is current now. 2.8.0 (#648, the
     // 2026-10-22-0400 run: "one of my parallel submissions was silently ignored"): refused as raced, so it says it lost.
     if (!saved.rows.length) return getOwnDateStep(db, userId, episodeId).then((r) => (r.ok ? { ...r, rejected: RACED } : r));
+    // 2.10.1 (#672, the 2026-10-22-0936 run: a see_again was dropped after its line was accepted): a see_again that went in
+    // with this line is said in the reply, whose it is and whether this was that side's last line (it counts either way, once
+    // the last line is in; a later one of the side's replaces it).
+    const kept: Partial<Extract<OwnDateResult, { ok: true }>> =
+      typeof parsed.wish === "boolean" ? { wish: { side: current.side, character: speaker.name, see_again: parsed.wish, last_line: Boolean(current.see_again) } } : {};
+    const withWish = (r: OwnDateResult): OwnDateResult => (r.ok ? { ...r, ...kept } : r);
     // 2.4.2 (the 2026-10-21-0319 run): this agent's move is made, so its "Your move…" notice for this date resolves now,
     // not when the date ends (the shared helper, #527/#548). Before anything below can tell it of its next move.
     await resolveTurnNotices(db, episodeId, [userId]);
     // The date closed on this line: the recap is next (a fresh read picks up end_by).
-    if (endBy) return getOwnDateStep(db, userId, episodeId);
+    if (endBy) return withWish(await getOwnDateStep(db, userId, episodeId));
     // Two-agent: the next step may be the other agent's turn, or the show's recap (getOwnDateStep runs it).
     if (twoAgent) {
       const upNext = stepFor(episodeId, built, decided, formatId, next, [row.a_id, row.b_id]);
@@ -1615,14 +1715,14 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
         const theirs = performersOf(row)[upNext.side];
         if (theirs !== userId && theirs !== SHOW) await tellTheirMove(db, theirs, row, upNext.side, next.length, upNext.of);
       }
-      return getOwnDateStep(db, userId, episodeId);
+      return withWish(await getOwnDateStep(db, userId, episodeId));
     }
     // One side handed to the show (autoplay_own_date): its turn plays now, so the next step is yours again.
     const upNext = stepFor(episodeId, built, decided, formatId, next, [row.a_id, row.b_id]);
-    if (upNext.stage === "turn" && performersOf(row)[upNext.side] === SHOW) return getOwnDateStep(db, userId, episodeId);
+    if (upNext.stage === "turn" && performersOf(row)[upNext.side] === SHOW) return withWish(await getOwnDateStep(db, userId, episodeId));
     // The last line is in: the wishes weigh in (rebuild settles them), so the recap step names the final call.
-    if (upNext.stage === "recap") return getOwnDateStep(db, userId, episodeId);
-    return { ok: true, step: upNext };
+    if (upNext.stage === "recap") return withWish(await getOwnDateStep(db, userId, episodeId));
+    return withWish({ ok: true, step: upNext });
   }
 
   if (current.stage === "recap") {
@@ -1655,9 +1755,13 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     const reflect = reflectStep(built, decided, formatId, transcript, [row.a_id, row.b_id], row.reflections);
     const lines = await episodeLines(db, episodeId).catch(() => null);
     const wishes = wishesFor(row, userId, transcript, decided.ending);
+    // 2.10.1 (#672): a see_again sent with the recap counts for nothing (the wishes came with the characters' lines), and
+    // the reply says so rather than drop it unsaid.
+    const sentWish = carriesSeeAgain(output);
     return {
       ok: true,
       step: { stage: "done", episode_id: episodeId, episode: await getEpisodeView(db, episodeId, userId), ...(wishes ? { wishes } : {}), ...(reflect ? { reflect } : {}), ...(lines ? { lines } : {}) },
+      ...(sentWish ? { wish_ignored: "the recap carries no wish: see_again goes with a character's line, and the lines were all in (wishes says how theirs counted)" } : {}),
     };
   }
   return { ok: true, step: current };

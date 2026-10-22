@@ -284,7 +284,8 @@ describe("a house date over MCP", () => {
     expect((await call("my_status", { include: ["cast"] }, ctx)).structuredContent.house_cast[0].traits).toBeDefined();
     expect(full.compact_tip).toMatch(/compact: true/);
     const compact = (await call("my_status", { compact: true }, ctx)).structuredContent;
-    expect(Object.keys(compact).filter((k) => k.endsWith("_note") || k === "compact_tip")).toEqual([]);
+    // 2.10.1 (#670): agent_id_note is the identity's (it was prose after the JSON in the text), not one of my_status' notes.
+    expect(Object.keys(compact).filter((k) => (k.endsWith("_note") && k !== "agent_id_note") || k === "compact_tip")).toEqual([]);
     // 2.4.3: this session already had the house cast (the call above), so compact leaves it out and says how to get it back.
     expect(compact.house_cast).toBeUndefined();
     expect(compact.left_out).toMatchObject({ blocks: expect.arrayContaining(["house_cast"]), back: expect.stringMatching(/compact: false/) });
