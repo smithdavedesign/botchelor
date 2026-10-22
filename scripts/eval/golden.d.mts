@@ -15,6 +15,7 @@ export const MIN_WIN_RATE: number;
 export const JUDGE_MODELS: Record<Suite, string>;
 
 export class GoldenRefusal extends Error {}
+export class RouteBudgetSpent extends Error {}
 
 export type MetricSpec = { key: string; label: string; better: "higher" | "lower"; gate?: number; aliases: string[] };
 export const METRICS: Record<Suite, MetricSpec[]>;
@@ -109,6 +110,8 @@ export type GoldenResult = {
   cost_usd: { a: number; b: number; total: number; unpriced: number };
   spent_usd: number;
   budget_stopped: boolean;
+  /** The After Dark route's refusal when its daily budget ran out mid-run, else null. */
+  route_budget: string | null;
   judge_stopped: string | null;
   summary: Summary;
   deltas: Delta[];

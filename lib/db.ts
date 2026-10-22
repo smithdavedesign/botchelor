@@ -1355,6 +1355,13 @@ create table if not exists adult_facts (
   uses integer not null default 0
 );
 create index if not exists adult_facts_pair on adult_facts (owner_id, character_id, other_id);
+-- After Dark's A/B (lib/adult/eval.ts): what the eval route spent each day (UTC), so its runs can't drain the OpenRouter
+-- balance live scenes need. A run holds its share of the day before it starts and books what it really cost after.
+create table if not exists adult_eval_spend (
+  day text primary key,
+  usd double precision not null default 0,
+  runs integer not null default 0
+);
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

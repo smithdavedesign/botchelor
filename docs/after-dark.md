@@ -220,9 +220,15 @@ a memory of two generic sentences. What runs now:
 ### The A/B: `POST /api/jobs/eval-after-dark`
 
 Same gate as `/api/jobs/eval` (`Authorization: Bearer $CRON_SECRET`, else 404). It runs `steps` steps of the
-production step from an empty scene where the pair's latest date ended and **writes nothing** (no scene, facts, uses,
-sets or usage counts). It spends on After Dark's OpenRouter key: a call a step (two at most), plus one per chunk of
-stored lines with `memory: "extracted"`.
+production step from an empty scene where the pair's latest date ended and **writes nothing** but its own spend (no
+scene, facts, uses, sets or usage counts). It spends on After Dark's OpenRouter key: a call a step (two at most), plus
+one per chunk of stored lines with `memory: "extracted"`.
+
+**Its budget** (2026-10-21, so the A/B can't drain the balance live scenes need): at most $0.25 a run, and
+`AD_EVAL_DAILY_USD` (else $2; 0 stops it) across all runs in a UTC day. A run holds its share of the day before its first
+call (`adult_eval_spend`, so runs side by side can't overshoot together), stops starting calls once it has spent that
+(`stopped: "budget"`), and books what it really cost. Past the day's budget the route answers 429 `eval_budget`, and
+golden.mjs stops there and says so. `GET` shows today's spend.
 
 ```sh
 curl -s -X POST https://botchelor.com/api/jobs/eval-after-dark -H "authorization: Bearer $CRON_SECRET" \

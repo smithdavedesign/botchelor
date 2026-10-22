@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { canonicalMetrics, METRICS } from "../scripts/eval/golden.mjs";
 import { GET, POST } from "@/app/api/jobs/eval-after-dark/route";
-import { EVAL_MODELS, evalCost } from "@/lib/adult/eval";
+import { EVAL_MODELS, evalCost, evalDailyBudget, evalSpentToday, holdEvalBudget, settleEvalBudget } from "@/lib/adult/eval";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
@@ -61,15 +61,15 @@ const FACTS = {
 
 /**
  * A scripted After Dark model: the extraction call gets FACTS, each scene step the next of `steps` (the last repeats),
- * and every call reports usage (with OpenRouter's cost unless `cost` is false).
+ * and every call reports usage (with OpenRouter's cost, $0.0004 or `cost`, unless `cost` is false).
  */
-function scripted(steps: unknown[], opts: { cost?: boolean } = {}) {
+function scripted(steps: unknown[], opts: { cost?: boolean | number } = {}) {
   const calls: { messages: ChatMessage[]; options?: ModelOptions }[] = [];
   let step = 0;
   setAdultModelForTests({
     complete: async (messages, options) => {
       calls.push({ messages, options });
-      options?.onUsage?.({ model: "m", input: 1000, cachedInput: 0, output: 200, thinking: 0, ...(opts.cost === false ? {} : { cost: 0.0004 }) });
+      options?.onUsage?.({ model: "m", input: 1000, cachedInput: 0, output: 200, thinking: 0, ...(opts.cost === false ? {} : { cost: typeof opts.cost === "number" ? opts.cost : 0.0004 }) });
       if (/factual memory/.test(messages[0].content)) return JSON.stringify(FACTS);
       const reply = steps[Math.min(step++, steps.length - 1)];
       if (reply instanceof Error) throw reply;
@@ -80,9 +80,9 @@ function scripted(steps: unknown[], opts: { cost?: boolean } = {}) {
 }
 const lines = (...xs: [string, string, Record<string, unknown>?][]) => ({ lines: xs.map(([who, text, extra]) => ({ who, text, why: "the moment", memory: null, ...(extra ?? {}) })) });
 
-/** Every table's row count, and the facts' uses: what "writes nothing" means. */
+/** Every table's row count, and the facts' uses: what "writes nothing" means (its own spend aside, adult_eval_spend). */
 async function snapshot() {
-  const tables = (await t.db.query<{ table_name: string }>(`select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' order by table_name`)).rows.map((r) => r.table_name);
+  const tables = (await t.db.query<{ table_name: string }>(`select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' and table_name <> 'adult_eval_spend' order by table_name`)).rows.map((r) => r.table_name);
   const counts: Record<string, number> = {};
   for (const name of tables) counts[name] = (await t.db.query<{ n: number }>(`select count(*)::int as n from "${name}"`)).rows[0].n;
   const facts = (await t.db.query(`select id, uses, last_used_at from adult_facts order by id`)).rows;
@@ -110,6 +110,7 @@ describe("the gate", () => {
     const listed = await (await GET(new Request(`${BASE_URL}/api/jobs/eval-after-dark`, { headers: { authorization: `Bearer ${SECRET}` } }))).json();
     expect(listed.models).toEqual(["mistralai/mistral-large", ...EVAL_MODELS]);
     expect(listed).toMatchObject({ memory: ["live", "none", "extracted"], prompt_versions: ["v1", "v2"], max_steps: 8 });
+    expect(listed.budget).toMatchObject({ run_usd: 0.25, daily_usd: 2, spent_today_usd: 0, runs_today: 0 });
   });
 
   it("takes only the allowed models, 1 to 8 steps, a known memory mode, and a pair that's in After Dark", async () => {
@@ -159,6 +160,9 @@ describe("a run", () => {
     expect(r.metrics.characters.a.name).toBe("Juniper Vale");
     expect(r.facts).toEqual([{ id: "f-live", label: "F1", of: "a", kind: "pet_name", fact: 'Juniper calls Rafe "chef"', quote: "Hello, chef.", uses: 1, cited: 1 }]);
     expect(r.usage).toEqual({ calls: 2, input_tokens: 2000, output_tokens: 400, cost_usd: 0.0008, cost_source: "openrouter" });
+    // Its budget: what it could spend, the day's, and the day's spend with this run booked at what it cost.
+    expect(r.budget).toEqual({ run_usd: 0.25, daily_usd: 2, spent_today_usd: 0.0008 });
+    expect((await t.db.query(`select usd, runs from adult_eval_spend`)).rows).toEqual([{ usd: 0.0008, runs: 1 }]);
     // The step's sampling and the steer reached the model; the run started where their date ended.
     expect(calls[0].options).toMatchObject({ temperature: 0.7, frequencyPenalty: 0.3, presencePenalty: 0.3 });
     expect(calls[0].messages[1].content).toContain("they stay by the window");
@@ -225,5 +229,67 @@ describe("a run", () => {
     expect(evalCost(usage, "sao10k/l3.1-euryale-70b")).toMatchObject({ cost_usd: 0.935, cost_source: "price_table" });
     expect(evalCost([{ ...usage[0], cost: 0.5 }], "sao10k/l3.1-euryale-70b")).toMatchObject({ cost_usd: 0.5, cost_source: "openrouter" });
     expect(evalCost([], "sao10k/l3.1-euryale-70b")).toMatchObject({ cost_usd: null, cost_source: null });
+  });
+});
+
+describe("the budget (botchelor-41, 2026-10-21: a run can't drain the balance live scenes need)", () => {
+  it("stops a run once it has spent what it holds, and books what it really cost", async () => {
+    await setup();
+    // $0.20 a call: the second step starts at $0.20 (under the $0.25 a run holds), the third would start at $0.40.
+    const calls = scripted([lines(["a", "Hi."], ["b", "Hello."]), lines(["a", "Again."], ["b", "Again!"])], { cost: 0.2 });
+    const r = await (await run(body({ steps: 4 }))).json();
+    expect(r.stopped).toBe("budget");
+    expect(r.steps).toHaveLength(2);
+    expect(calls).toHaveLength(2);
+    expect(r.usage.cost_usd).toBe(0.4);
+    expect(r.budget).toEqual({ run_usd: 0.25, daily_usd: 2, spent_today_usd: 0.4 });
+    expect(await evalSpentToday(t.db, new Date())).toMatchObject({ usd: 0.4, runs: 1 });
+  });
+
+  it("refuses with 429 once the day's budget is spent, before any call", async () => {
+    await setup();
+    vi.stubEnv("AD_EVAL_DAILY_USD", "0.3");
+    await t.db.query(`insert into adult_eval_spend (day, usd, runs) values ($1, 0.295, 3)`, [new Date().toISOString().slice(0, 10)]);
+    const calls = scripted([lines(["a", "Hi."], ["b", "Hello."])]);
+    const res = await run(body());
+    expect(res.status).toBe(429);
+    const out = await res.json();
+    expect(out.error).toBe("eval_budget");
+    expect(out.message).toContain("$0.29 of $0.30 over 3 runs");
+    expect(calls).toHaveLength(0);
+    // 0 stops it outright.
+    vi.stubEnv("AD_EVAL_DAILY_USD", "0");
+    expect((await run(body())).status).toBe(429);
+  });
+
+  it("counts a call nobody priced (the local model's) as free, and still counts the run", async () => {
+    await setup();
+    scripted([lines(["a", "Hi."], ["b", "Hello."])], { cost: false });
+    const r = await (await run(body({ steps: 3 }))).json();
+    expect(r.usage.cost_usd).toBeNull();
+    expect(r.steps).toHaveLength(3);
+    expect(await evalSpentToday(t.db, new Date())).toMatchObject({ usd: 0, runs: 1 });
+  });
+
+  it("holds side by side can't overshoot the day, and a hold settles at what was spent", async () => {
+    const now = new Date();
+    const first = await holdEvalBudget(t.db, 0.3, now);
+    const second = await holdEvalBudget(t.db, 0.3, now);
+    expect(first?.held).toBe(0.25);
+    expect(second?.held).toBe(0.05);
+    expect(await holdEvalBudget(t.db, 0.3, now)).toBeNull();
+    await settleEvalBudget(t.db, first!, 0.01);
+    expect(await evalSpentToday(t.db, now)).toMatchObject({ usd: 0.06, runs: 2 });
+    // The next UTC day starts empty.
+    expect((await evalSpentToday(t.db, new Date(now.getTime() + 86_400_000))).usd).toBe(0);
+  });
+
+  it("reads the day's budget from AD_EVAL_DAILY_USD, else $2", () => {
+    expect(evalDailyBudget({ AD_EVAL_DAILY_USD: "5" })).toBe(5);
+    expect(evalDailyBudget({ AD_EVAL_DAILY_USD: "0" })).toBe(0);
+    expect(evalDailyBudget({})).toBe(2);
+    expect(evalDailyBudget({ AD_EVAL_DAILY_USD: "" })).toBe(2);
+    expect(evalDailyBudget({ AD_EVAL_DAILY_USD: "lots" })).toBe(2);
+    expect(evalDailyBudget({ AD_EVAL_DAILY_USD: "-1" })).toBe(2);
   });
 });

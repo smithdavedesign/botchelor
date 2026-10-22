@@ -134,6 +134,7 @@ export async function startTestDb() {
         "adult_reels",
         "adult_memories",
         "adult_facts",
+        "adult_eval_spend",
         "adult_settings",
         "agent_feedback",
         "agent_links",
