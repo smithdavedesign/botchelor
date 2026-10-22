@@ -768,9 +768,16 @@ export function cleanReply(raw, { name = "", partner = "" } = {}) {
 }
 
 /**
- * The messages for one reply: the character's sheet, the partner's name, the last REPLY_HISTORY messages of that thread
- * or date, and the rules (answer what was said, don't quote their profile back, don't repeat yourself). The partner's
- * profile is never in the prompt, so it can't be echoed from there.
+ * The messages for one reply: the character's sheet (its own dating profile too), the partner's name, the rules (answer
+ * what was said, don't quote their profile back, don't repeat yourself), then the last REPLY_HISTORY messages of that
+ * thread or date as turns: its own lines as the assistant's, the partner's as the user's. The partner's profile is never
+ * in the prompt, so it can't be echoed from there.
+ *
+ * 2026-10-22-0800: Rosalind praised a visitor's "lighthouse poems" when the visitor had said Rosalind wrote them. Her
+ * profile (the poems are in it) wasn't in her prompt, though visitors read it on her card, and the date came as one
+ * "Name: line" transcript. On the local model, with a partner praising the poem Rosalind wrote: the transcript gave
+ * vague replies, her profile alone still flipped once in 10 ("a poet and a librarian"), her profile plus turns owned it
+ * 10 times in 10 and answered what was said.
  */
 export function replyMessages({ kind, me, partner, history = [], extra = {}, said = [], refused = null }) {
   const s = me.sheet;
@@ -786,6 +793,7 @@ export function replyMessages({ kind, me, partner, history = [], extra = {}, sai
     `About you: ${s.bio}`,
     `Traits: ${(s.traits ?? []).slice(0, 3).join(", ")}. What you want in someone: ${s.want}.`,
     `How you talk: ${s.voice}`,
+    ownProfile(s),
     kind === "turn" && extra.act ? `This part of the date: ${extra.act}.` : "",
     kind === "turn" && extra.closing && extra.ending_label
       ? `This is one of your last lines tonight, and the date is ending as "${extra.ending_label}": head for goodbye in that spirit.`
@@ -802,16 +810,53 @@ export function replyMessages({ kind, me, partner, history = [], extra = {}, sai
     said.length ? `- Never repeat yourself. You've already said: ${said.slice(-REPLY_HISTORY).map((l) => `"${l}"`).join(" ")}` : "- Never repeat yourself.",
     "- Keep it PG: no real people, nothing sexual.",
     refused ? `- Your last try was refused (${refused}). Write something different.` : "",
+    recent.length ? `The ${kind === "text" ? "texts" : "date"} so far follow: ${them}'s are theirs, yours are yours. Write only ${first}'s next ${what}.` : "",
   ].filter(Boolean);
-  const user = recent.length
-    ? `The conversation so far:\n${recent.map((h) => `${h.name}: ${h.text}`).join("\n")}\n\nWrite ${first}'s next ${kind === "text" ? "text" : "line"} now.`
-    : kind === "text"
-      ? `Send ${them} your first text: say hello and something from your own day.`
-      : `The date is starting. Say your first line to ${them}.`;
-  return [
-    { role: "system", content: system.join("\n") },
-    { role: "user", content: user },
-  ];
+  if (!recent.length) {
+    const opener = kind === "text" ? `Send ${them} your first text: say hello and something from your own day.` : `The date is starting. Say your first line to ${them}.`;
+    return [
+      { role: "system", content: system.join("\n") },
+      { role: "user", content: opener },
+    ];
+  }
+  // Turns: its lines as the assistant's, theirs as the user's (two in a row from one side are one turn). A chat starts
+  // with the user and ends on the side the model answers, so a leading or trailing line of its own gets a short cue.
+  const turns = [];
+  for (const h of recent) {
+    const role = h.name === s.name ? "assistant" : "user";
+    if (turns.at(-1)?.role === role) turns.at(-1).content += `\n${h.text}`;
+    else turns.push({ role, content: h.text });
+  }
+  if (turns[0].role === "assistant") turns.unshift({ role: "user", content: kind === "text" ? `(You matched with ${them}.)` : `(The date starts${extra.where ? ` at ${extra.where}` : ""}.)` });
+  if (turns.at(-1).role === "assistant") turns.push({ role: "user", content: `(${them} is listening. Carry on.)` });
+  return [{ role: "system", content: system.join("\n") }, ...turns];
+}
+
+/** The profile prompts' questions, as lib/extras.ts PROFILE_PROMPTS words them (tests keep the two the same). */
+export const PROMPT_LABELS = {
+  win_me_over: "The way to win me over is…",
+  irrational_fear: "My most irrational fear…",
+  weirdly_attracted: "I'm weirdly attracted to…",
+  two_truths: "Two truths and a lie…",
+  simple_pleasures: "My simple pleasures…",
+  fall_for_you: "I'll fall for you if…",
+  dating_me_is_like: "Dating me is like…",
+  geek_out: "I geek out on…",
+  worst_first_date: "My worst first-date story…",
+  shower_thought: "A shower thought I recently had…",
+  together_we_could: "Together, we could…",
+  unpopular_opinion: "My most unpopular opinion…",
+};
+
+/**
+ * The character's own dating profile, which a partner may have read on its card: it should know what it says. Each
+ * answer goes with its question, so "Two truths and a lie…" isn't read as three truths.
+ */
+function ownProfile(s) {
+  const end = (t) => (/[.!?…]$/.test(t) ? t : `${t}.`);
+  const parts = (s.extras?.prompts ?? []).filter((p) => p?.answer).map((p) => end(`${PROMPT_LABELS[p.id] ?? ""} ${p.answer.trim()}`.trim()));
+  if (s.extras?.hobbies?.length) parts.push(`Hobbies: ${s.extras.hobbies.join(", ")}.`);
+  return parts.length ? `Your own dating profile, which they may have read: ${parts.join(" / ")} That's you: own it if they bring it up.` : "";
 }
 
 /** Why a model line can't be sent, before the server sees it (null: it can). */
