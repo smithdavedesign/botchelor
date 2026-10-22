@@ -41,6 +41,9 @@ const LIMITS: Record<RateLimitBucket, { windowSeconds: number; max: number }> = 
 type Entry = { timestamps: number[] };
 const BUCKETS: Map<string, Entry> = new Map();
 
+/** Public read of a bucket's config, for the MCP tool `_meta` hints (`docs/mcp-best-practices-review.md`). */
+export const rateLimitInfo = (kind: RateLimitBucket): { windowSeconds: number; max: number } => LIMITS[kind];
+
 export type RateDecision =
   | { ok: true; remaining: number }
   | { ok: false; retry_after_seconds: number; limit: number; kind: RateLimitBucket };

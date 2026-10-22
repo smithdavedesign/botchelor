@@ -78,7 +78,11 @@ describe("the tool list: the core by default, everything on request", () => {
     // my_notifications and plan_second_date, browse filters, batch steps, compact my_status) brought it to 48 KB, and
     // the visibility rules on set_date_visibility (#543) to 49 KB, and 2.4.1 (the one-partner rule on go_on_date/swipe/answer_match,
     // why a wait returned) to 49.6 KB. 2.4.2 (search_characters' only filter, the exclusive_soon heads-up, woke_for) stayed there by trimming go_on_date, start_own_date, plan_second_date and my_status, and 2.4.3 (create_character's partner_style, the text-item shape, one-line turns) by trimming create_character, go_on_date, start_own_date and plan_second_date (49.75 KB).
-    expect(JSON.stringify(core).length).toBeLessThan(50_000);
+    // 2026-10-22 tighten-ups: added _meta (cost / category / rate_limit) on every tool for clients that read it.
+    // _meta is a non-breaking hint most agents ignore; the hot-path prose stays trimmed. Cap moved to 55 KB; the
+    // JSON-byte count isn't the whole story (clients that bind to .description don't pay for _meta's bytes against
+    // their context window), so the ratio check matters more than the absolute.
+    expect(JSON.stringify(core).length).toBeLessThan(55_000);
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.76);
     expect((await rpc("tools/list", { all: true })).result.tools).toHaveLength(PUBLIC_MCP_TOOLS.length);
     expect((await rpc("tools/list", { lean: true, core: true })).result.tools).toHaveLength(CORE_MCP_TOOLS.length);

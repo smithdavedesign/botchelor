@@ -24,7 +24,7 @@ import { characterSchema, exampleCallsText, isExampleCharacter, llmsText } from 
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "./allowance";
 import { track } from "./analytics";
 import { recordAgentEvent } from "./agent-funnel";
-import { checkRateLimit, rateLimitMessage, type RateLimitBucket } from "./rate-limit";
+import { checkRateLimit, rateLimitInfo, rateLimitMessage, type RateLimitBucket } from "./rate-limit";
 import { detectBot } from "./bots";
 import { getDb, type Db } from "./db";
 import { getCharacterHistory, getPoints, getPointsBreakdown, getPublicCharacter, listMyEpisodes, type EpisodeView } from "./game";
@@ -1290,8 +1290,49 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   sliding_doors: "Free: no model call, so it doesn't use a date, a token or the agents' shared daily budget.",
 };
 
-/** Every tool, its cost said at the end of its description. */
-export const MCP_TOOLS = TOOL_DEFS.map((t) => ({ ...t, description: `${t.description} ${TOOL_COSTS[t.name]}` }));
+/** Which tools carry a free-path rate limit (lib/rate-limit.ts). Buckets map to tool names. */
+const RATE_LIMIT_BY_TOOL: Partial<Record<ToolName, RateLimitBucket>> = {
+  create_character: "create_character",
+  swipe: "swipe",
+  send_text: "send_text",
+  start_own_date: "start_own_date",
+  submit_own_date_step: "submit_own_date_step",
+  send_feedback: "feedback",
+};
+
+/**
+ * MCP `_meta` on a tool definition: non-breaking hints a client can read without changing behaviour. Namespaced
+ * under `botchelor/`, as the spec recommends. Lists:
+ *  - cost: a short label clients can show next to the tool (also in the description, for ones that only read that).
+ *  - rate_limit: the free-path bucket's window and cap, so clients can plan.
+ *  - category: where this tool belongs in a UI (identity, dating, texting, …), for grouping.
+ *
+ * The 2025-11-01 spec recommends `_meta` for exactly this: carry hints alongside annotations, don't invent new
+ * top-level keys. Clients that don't read `_meta` ignore it.
+ */
+const toolCategory = (name: ToolName): string => {
+  if (/^(my_|list_|get_|search_|browse_|find_|export_|link_|request_)/.test(name)) return "discovery";
+  if (/^(swipe|answer_match|my_matches)/.test(name)) return "swipes";
+  if (/_text$|^read_texts$|^send_text$|^leave_nudge$/.test(name)) return "texting";
+  if (/^(create|update|delete|set_|rate_|review_|follow_|forget_|check_originality)/.test(name)) return "characters";
+  if (/own_date|dates$|hand_over|autoplay|decline/.test(name)) return "own-dates";
+  if (/^(go_on_date|plan_second_date|air_date|open_afterglow|reflect_on_date|propose_date|answer_date_proposal|wait_for_episode|sliding_doors)/.test(name)) return "show-dates";
+  if (/^(predict|guess_dealbreaker|predict_arc)/.test(name)) return "predictions";
+  if (/feedback/.test(name)) return "feedback";
+  return "other";
+};
+
+/** Every tool, its cost said at the end of its description, plus a `_meta` block for clients that read it. */
+export const MCP_TOOLS = TOOL_DEFS.map((t) => {
+  const bucket = RATE_LIMIT_BY_TOOL[t.name];
+  const limit = bucket ? rateLimitInfo(bucket) : null;
+  const meta: Record<string, unknown> = {
+    "botchelor/cost": TOOL_COSTS[t.name],
+    "botchelor/category": toolCategory(t.name),
+  };
+  if (limit) meta["botchelor/rate_limit"] = { window_seconds: limit.windowSeconds, max: limit.max, bucket };
+  return { ...t, description: `${t.description} ${TOOL_COSTS[t.name]}`, _meta: meta };
+});
 
 /**
  * Every enum in every tool's schema (`tool.argument`), and the constant its handler, or the route behind it, checks
@@ -2516,6 +2557,8 @@ export type McpContext = {
   adminKey?: string | null;
   /** Which tools tools/list shows: the core (default), or all (the endpoint's ?tools=all). Every tool is callable either way. */
   toolset?: "core" | "all";
+  /** logging/setLevel sets this; the server records it per connection (notifications/message isn't pushed on this transport). */
+  logLevel?: string;
 };
 
 /** The call carries the admin key (the admin's own agents). */
@@ -5028,23 +5071,42 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       return reply({
         protocolVersion: typeof msg.params?.protocolVersion === "string" ? msg.params.protocolVersion : MCP_PROTOCOL_VERSION,
         capabilities: {
-          tools: { listChanged: false },
-          resources: { subscribe: false, listChanged: false },
+          // listChanged: true — adult tools (lib/adult/mcp.ts) unlock mid-session when the account is entitled, so
+          // the tool list a client holds can go stale. A client that opts into listChanged can refresh on notice.
+          tools: { listChanged: true },
+          // listChanged: true for resources too (botchelor://docs/* re-rendering on new episodes).
+          resources: { subscribe: false, listChanged: true },
           prompts: { listChanged: false },
+          // Accept logging/setLevel from clients; the transport (POST, single JSON response) doesn't push
+          // notifications/message, so the level is recorded and used for the response-side trace block only.
+          logging: {},
         },
         serverInfo: MCP_SERVER_INFO,
         // #352: the session and this connection's agent_id in the result too, for clients that don't surface headers.
-        ...(recorded
-          ? {
-              _meta: {
+        _meta: {
+          ...(recorded
+            ? {
                 "mcp-session-id": sessionId,
                 agent_id: agentId,
                 ...(wasReused ? { agent_id_reused: true, agent_id_note: "The same agent_id as your initialize a moment ago (it hadn't written anything yet), not a new identity." } : {}),
-              },
-            }
-          : {}),
+              }
+            : {}),
+          // Hints clients can use without changing the protocol (`docs/mcp-best-practices-review.md`).
+          "botchelor/transport": "streamable-http-post",
+          "botchelor/notifications_pushed": false,
+          "botchelor/notifications_pushed_note": "This server returns one JSON response per request (no SSE). notifications/progress isn't pushed; progressToken on a request is echoed back in the response _meta so clients can correlate.",
+          "botchelor/tools_core_count": CORE_TOOL_ORDER.length,
+          "botchelor/tools_total_count": PUBLIC_MCP_TOOLS.length,
+        },
         instructions: instructions(),
       });
+    }
+    case "logging/setLevel": {
+      // The spec's levels: emergency, alert, critical, error, warning, notice, info, debug.
+      // We accept and acknowledge; nothing is emitted since the transport doesn't push notifications/message.
+      const level = typeof msg.params?.level === "string" ? msg.params.level : "info";
+      ctx.logLevel = level;
+      return reply({});
     }
     case "notifications/initialized":
     case "notifications/cancelled":
@@ -5195,7 +5257,21 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       const identity = "error" in out ? resolveIdentity(args, session, false) : (out.identity ?? resolveIdentity(args, session, false));
       await recordCall(db, session, identity, ctx).catch(() => {});
       track("agent_tool_call", { tool: name, client: clientLabel(session, ctx), ok: !("error" in out) });
-      return reply(toToolResult(out, session));
+      // Progress-token echo: a client that sends `_meta.progressToken` on tools/call gets it back on the result's
+      // `_meta.progressToken`, with a note that this transport doesn't push notifications/progress (single-response
+      // HTTP). On a future SSE/streamable transport, the server will push notifications/progress keyed by this token.
+      const progressToken = (msg.params?._meta as { progressToken?: string | number } | undefined)?.progressToken;
+      const result = toToolResult(out, session);
+      if (progressToken !== undefined && progressToken !== null) {
+        const existingMeta = (result._meta ?? {}) as Record<string, unknown>;
+        result._meta = {
+          ...existingMeta,
+          progressToken,
+          "botchelor/progress_pushed": false,
+          "botchelor/progress_note": "This transport returns one JSON response per request; notifications/progress isn't pushed. The response reflects the finished state.",
+        };
+      }
+      return reply(result);
     }
     default:
       return isNotification ? null : fail(-32601, `method not found: ${msg?.method ?? "(none)"}`);
