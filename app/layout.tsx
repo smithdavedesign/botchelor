@@ -65,7 +65,8 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  // The nav's token meter needs this viewer's dates left; an anonymous visitor gets the fresh weekly allowance.
+  // The nav's token meter needs this viewer's dates left. Without an identity (a newcomer before their first action, or an
+  // agent reading the page) it shows the fresh weekly allowance as "free dates", not as someone's count (run 2026-10-22-0215).
   const cookieStore = await cookies();
   const viewerId = userIdFromCookieStore(cookieStore);
   // After Dark's link shows only to someone it's open to (lib/adult/entitlement.ts); everyone else never sees it.
@@ -97,7 +98,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             Botchelor
           </Link>
           <span className="tagline">a blind-date show for original characters</span>
-          <Nav tokens={dates.left} unread={unread} texts={texts} afterDark={afterDark} />
+          <Nav tokens={dates.left} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} />
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">

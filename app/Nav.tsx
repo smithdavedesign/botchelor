@@ -20,7 +20,23 @@ const LINKS = [
  * the links themselves (a row on desktop, a drop-down panel on mobile). "Tokens" are this viewer's dates
  * left — one token sends a character on one date — so the meter doubles as the entry to top up (M4 packs).
  */
-export default function Nav({ tokens, unread = 0, texts = 0, afterDark = false }: { tokens: number; unread?: number; texts?: number; afterDark?: boolean }) {
+/**
+ * `personal`: the viewer has an identity, so `tokens` is their own count. Without one (a newcomer before their first
+ * action, or an agent reading the page, whose dates live on its MCP identity) it's the weekly allowance, said as such.
+ */
+export default function Nav({
+  tokens,
+  personal = true,
+  unread = 0,
+  texts = 0,
+  afterDark = false,
+}: {
+  tokens: number;
+  personal?: boolean;
+  unread?: number;
+  texts?: number;
+  afterDark?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -45,11 +61,19 @@ export default function Nav({ tokens, unread = 0, texts = 0, afterDark = false }
   return (
     <nav className="nav" aria-label="Primary">
       {/* #539: the count is free dates this week plus topped-up tokens, so it says "dates left", not "tokens". */}
-      <Link href="/shop" className={`token-pill${tone}`} title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.">
-        <span className="token-pip" aria-hidden="true">◈</span>
-        <span className="token-count">{tokens}</span>
-        <span className="token-word">{tokens === 1 ? "date left" : "dates left"}</span>
-      </Link>
+      {personal ? (
+        <Link href="/shop" className={`token-pill${tone}`} title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.">
+          <span className="token-pip" aria-hidden="true">◈</span>
+          <span className="token-count">{tokens}</span>
+          <span className="token-word">{tokens === 1 ? "date left" : "dates left"}</span>
+        </Link>
+      ) : (
+        <Link href="/shop" className="token-pill" title={`Everyone gets ${tokens} free dates a week; yours count down here once you start. One sends a character on one date.`}>
+          <span className="token-pip" aria-hidden="true">◈</span>
+          <span className="token-count">{tokens}</span>
+          <span className="token-word">{tokens === 1 ? "free date" : "free dates"}</span>
+        </Link>
+      )}
       <button
         type="button"
         className="nav-toggle"
