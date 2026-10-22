@@ -70,6 +70,15 @@ describe("the step log in /why", () => {
     expect(notes.current.lines.map((l: { step: number | null }) => l.step)).toEqual([0, 0]);
   });
 
+  it("puts back a name's lost apostrophe in set the scene (Lexi × Dex: \"Lexis bedroom\")", async () => {
+    const { cookie } = await admin();
+    const first = HOUSE_CHARACTERS.find((c) => c.id === CAST_A)!.name.split(/\s+/)[0];
+    expect((await post({ a: CAST_A, b: CAST_B, set_scene: `${first}s kitchen` }, cookie)).status).toBe(200);
+    const notes = await why(cookie);
+    expect(notes.current.set_place).toBe(`${first}'s kitchen`);
+    expect(notes.current.steps[0]).toMatchObject({ kind: "set_scene", direction: `${first}'s kitchen` });
+  });
+
   it("never stores a steer the two lines refused, only that one was refused", async () => {
     const { cookie } = await admin();
     expect((await post({ a: CAST_A, b: CAST_B, direction: "she is only 15 years old" }, cookie)).status).toBe(422);
