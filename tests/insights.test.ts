@@ -52,7 +52,7 @@ import {
   type Newcomer,
 } from "@/lib/insights";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import { loadOurIds, SYSTEM_ID } from "@/lib/our-traffic";
+import { loadOurIds, PUBLIC_LAUNCH_DAY, setPublicLaunchDayForTests, SYSTEM_ID } from "@/lib/our-traffic";
 import { saveQualityRun } from "@/lib/quality-runs";
 import { MIN_N as REAL_MIN_N, saveSimRating } from "@/lib/real-metrics";
 import type { Ending } from "@/lib/rules";
@@ -374,6 +374,41 @@ describe("our own traffic", () => {
     expect(kpi(out, "characters").current).toBe(1);
     expect(kpi(out, "new_people").current).toBe(1);
     expect(kpi(out, "dates_started").current).toBe(0);
+  });
+
+  it("counts people first active before the public launch as ours, and doesn't compare a people card across it", async () => {
+    const profile = (user: string, day: string) =>
+      t.db.query(`insert into profiles (user_id, name, attested_adult_at, updated_at) values ($1, 'Someone', $2, $2)`, [user, at(day)]);
+    setPublicLaunchDayForTests(PUBLIC_LAUNCH_DAY);
+    try {
+      await profile("gate-only", "2026-10-14"); // passed the age gate and nothing else, like the harness's fresh browsers
+      await rate("early-rater", HOUSE_A, "2026-10-14");
+      await rate("early-rater", HOUSE_B, "2026-10-17"); // first active before the launch: still ours after it
+      await profile("newcomer", "2026-10-17");
+      await session("early-agent", "claude-code", "2026-10-14");
+      await rate("early-agent", HOUSE_A, "2026-10-14"); // an agent isn't ours for being early
+
+      const ours = await loadOurIds(t.db);
+      expect(ours).toEqual(expect.arrayContaining(["gate-only", "early-rater"]));
+      expect(ours).not.toContain("newcomer");
+      expect(ours).not.toContain("early-agent");
+
+      // Oct 15 to 21 against Oct 8 to 14, a week before the launch: counted, but not compared, and no "rose" callout.
+      const week = await loadInsights(t.db, WEEK, NOW);
+      expect(kpi(week, "new_people")).toMatchObject({ current: 1, previous: 0, comparable: false });
+      expect(kpi(week, "new_people").note).toContain("Oct 16");
+      expect(week.insights.map((i) => i.text).join(" ")).not.toContain("New people");
+      // A segment card is a people card under the People lens only.
+      expect(kpi(await loadInsights(t.db, q({ segment: "people" }), NOW), "characters").comparable).toBe(false);
+      expect(kpi(week, "characters").comparable).toBe(true);
+      // With our traffic in, the raw numbers are compared.
+      expect(kpi(await loadInsights(t.db, q({ includeOurs: true }), NOW), "new_people")).toMatchObject({ current: 1, previous: 2, comparable: true });
+      // A week whose previous one starts on the launch day is compared as usual.
+      const later = await loadInsights(t.db, q({ from: "2026-10-23", to: "2026-10-29" }), new Date("2026-10-30T12:00:00Z"));
+      expect(kpi(later, "new_people").comparable).toBe(true);
+    } finally {
+      setPublicLaunchDayForTests(null);
+    }
   });
 });
 

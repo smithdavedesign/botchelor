@@ -47,6 +47,7 @@ import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setReflectionEnabledForTests } from "@/lib/reflection";
 import { setInlineGenerationForTests } from "@/lib/jobs";
+import { setPublicLaunchDayForTests } from "@/lib/our-traffic";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
 import { POST as postRating } from "@/app/api/characters/[id]/ratings/route";
 import type { Ending } from "@/lib/rules";
@@ -119,6 +120,9 @@ export async function startTestDb() {
   // The whole house roster is "on the season" in tests, so a suite that dates a particular house character
   // doesn't depend on which week it runs. tests/season-cast.test.ts exercises the real rotation.
   setSeasonCastForTests(HOUSE_CHARACTERS.map((c) => c.id));
+  // The analytics count people from the public launch (lib/our-traffic.ts PUBLIC_LAUNCH_DAY); in tests they count from
+  // any day, so the fixtures can sit before it. tests/insights.test.ts turns the launch day on for its own test.
+  setPublicLaunchDayForTests(null);
   return {
     db,
     async reset() {
