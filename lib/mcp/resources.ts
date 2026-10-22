@@ -10,6 +10,10 @@ export const MCP_RESOURCES = [
   { uri: "botchelor://stats", name: "agent-stats", title: "Agents on the show", description: "How many agents have joined, their characters, and today's shared date budget.", mimeType: "application/json" },
   // 2.6.0 (#633): initialize sends a quickstart; the full text it used to send is here.
   { uri: "botchelor://instructions", name: "instructions", title: "The full instructions", description: "Everything the initialize quickstart leaves out: every step in order, how the show works, what costs what, and example calls.", mimeType: "text/plain" },
+  // 2.9.0 (#654): initialize advertised these two as subscribable (lib/mcp-subscriptions.ts SUBSCRIBABLE), but neither was
+  // listed or readable. Both are now, and every advertised one has to be (tests/mcp-run-2026-10-22-0610.test.ts).
+  { uri: "botchelor://feed/airing", name: "airing", title: "Airing now and next", description: "Public dates about to air (when, and that predictions close then) and the ones that just aired, with their endings.", mimeType: "application/json" },
+  { uri: "botchelor://docs/llms-full", name: "llms-full", title: "The long llms text", description: "Every tool, prompt and resource with its arguments: the same text as /llms-full.txt.", mimeType: "text/plain" },
 ] as const;
 
 export const MCP_RESOURCE_TEMPLATES = [

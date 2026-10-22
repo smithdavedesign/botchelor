@@ -12,6 +12,7 @@ import { shortName } from "./names";
 import type { Db } from "./db";
 import { loadCharacter } from "./character";
 import { notify } from "./notifications";
+import { loadRelationship, type Relationship } from "./relationships";
 
 import { REOPEN_FIELDS, type DecidedStyle, type PartnerStyle } from "./partners-shared";
 export { PARTNER_STYLE_LABELS, PARTNER_STYLES, type DecidedStyle, type PartnerStyle } from "./partners-shared";
@@ -147,8 +148,10 @@ export const partnerLabel = (p: { name: string; is_house: boolean }): string => 
  * couple, and a one-partner character closes to other dates then (settleCommitment). Each owner whose character would
  * close hears it now, with the opt-out: partner_style "open" (more than one partner), which keeps it open. A character
  * already open, already closed, or set to more than one partner isn't told. The rule itself doesn't change.
+ * `since` (2.9.0): an owner already told about this partner since then (a warning 2.7.0 sent when the date was written)
+ * isn't told again.
  */
-export async function warnBeforeExclusive(db: Db, lo: string, hi: string): Promise<number> {
+export async function warnBeforeExclusive(db: Db, lo: string, hi: string, opts: { since?: string } = {}): Promise<number> {
   const { rows } = await db.query<{ id: string; name: string; owner_id: string | null; is_house: boolean; partner_style: PartnerStyle | null; partner_style_decided: DecidedStyle | null; open_to_dates: boolean; created_via: string }>(
     `select id, name, owner_id, is_house, partner_style, partner_style_decided, open_to_dates, created_via from characters where id = any($1)`,
     [[lo, hi]],
@@ -165,6 +168,13 @@ export async function warnBeforeExclusive(db: Db, lo: string, hi: string): Promi
     }
     if (style !== "one") continue;
     const first = shortName(c.name);
+    if (opts.since) {
+      const told = await db.query(
+        `select 1 from notifications where user_id = $1 and kind = 'exclusive_soon' and link = $2 and position($3 in title) > 0 and created_at >= $4::timestamptz limit 1`,
+        [c.owner_id, `/characters/${c.id}`, `with ${other.name}`, opts.since],
+      );
+      if (told.rows.length) continue;
+    }
     const why = c.partner_style === "one" ? "you set them to one partner" : "they want one partner (their own call, from their temperament)";
     await notify(db, c.owner_id, {
       kind: "exclusive_soon",
@@ -180,6 +190,30 @@ export async function warnBeforeExclusive(db: Db, lo: string, hi: string): Promi
     told++;
   }
   return told;
+}
+
+/**
+ * When exclusive_soon goes out (2.9.0, the 2026-10-22-0610 run: "heads_up said Thaddeus was one date from going exclusive
+ * with Nell before the first date had even aired"). 2.7.0 sent it when the date that made the couple Sparks was written,
+ * because on airing the couple was Sparks already; that ran ahead of the date the owner could point to. Now it goes when
+ * that date is out: when it airs (refreshAndAnnounce), or, for a private date, which never airs and whose owners see its
+ * ending at once, when it's written (rememberDate) or made private. Once per couple and date: relationships.
+ * exclusive_warned_for holds the date it went out for, claimed in one update, so it never repeats. The rule doesn't change:
+ * Sparks is one second date, Dating two in a row (lib/relationships.ts stageOf), and a one-partner side closes at Dating.
+ */
+export async function warnWhenSparksOut(db: Db, x: string, y: string, rel?: Relationship | null): Promise<number> {
+  const [lo, hi] = x < y ? [x, y] : [y, x];
+  const r = rel === undefined ? await loadRelationship(db, lo, hi) : rel;
+  if (!r || r.all.stage !== "sparks") return 0;
+  // Sparks means the newest date ended in a second date, the first of a streak: that's the date that made it so.
+  const last = r.history.at(-1);
+  if (!last || last.ending !== "second_date" || (last.aired_at === null && last.private !== true)) return 0;
+  const claimed = await db.query(
+    `update relationships set exclusive_warned_for = $3 where character_a = $1 and character_b = $2 and exclusive_warned_for is distinct from $3 returning 1`,
+    [lo, hi, last.episode_id],
+  );
+  if (!claimed.rows.length) return 0;
+  return warnBeforeExclusive(db, lo, hi, { since: last.at });
 }
 
 /**

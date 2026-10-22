@@ -98,8 +98,8 @@ const RICH = {
   },
 };
 
-it("is MCP 2.8.0", () => {
-  expect(MCP_SERVER_INFO.version).toBe("2.8.0");
+it("is MCP 2.8.0 or later", () => {
+  expect(MCP_SERVER_INFO.version.localeCompare("2.8.0", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
 });
 
 describe("#649: a wait never sleeps through your move on a two-agent date", () => {
@@ -463,14 +463,15 @@ describe("#650: an unknown enum value is never quietly swapped for the default",
 
 describe("endings that read against the dialogue", () => {
   it("the quickstart and start_own_date's first reply say how an ending is made", async () => {
-    expect(ENDING_RULE).toBe("the ending is decided when the date is booked, from the characters' numbers; your lines shape how it plays, not how it ends; sliding_doors shows what would have changed it");
+    // 2.9.0 (the 2026-10-22-0610 run): from the sheets and the date's setup, with the levers that move it (tests/mcp-run-2026-10-22-0610.test.ts).
+    expect(ENDING_RULE).toMatch(/^the ending is decided when the date is booked, from the two characters' sheets and the date's setup: .*your lines don't .*sliding_doors shows what one change would have done$/);
     expect((await connect()).init.instructions).toContain(`Endings: ${ENDING_RULE}.`);
     scriptOutcome({ ending: "friends" });
     const ctx = await connect();
     const x = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;
     const y = (await call("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id;
     const started = (await call("start_own_date", { character_id: x, partner_id: y }, ctx)).structuredContent;
-    expect(started.ending_note.startsWith("The ending is decided when the date is booked, from the characters' numbers; your lines shape how it plays, not how it ends")).toBe(true);
+    expect(started.ending_note.startsWith("How it ends: decided now, at booking, from the two characters' sheets and the date's setup.")).toBe(true);
     expect(started.ending_note).toMatch(/In the last act every step says which way it lands \(act_note\)/);
   });
 

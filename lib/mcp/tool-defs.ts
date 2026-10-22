@@ -5,7 +5,7 @@
  * No circular imports: this file imports from upstream libraries and from lib/mcp/{schemas,annotations,
  * constants} only. lib/mcp.ts imports TOOL_DEFS from here.
  */
-import { OWN_DATE_HANDOVER_MINUTES, DATE_VISIBILITIES, DRAMA_ANSWERS, ENDINGS, POINTS_PER_DEALBREAKER_PICK, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS } from "../rules";
+import { AGENDA_IDS, AUTONOMY_LEVELS, OWN_DATE_HANDOVER_MINUTES, DATE_VISIBILITIES, DRAMA_ANSWERS, ENDINGS, GAME_BUDGETS, POINTS_PER_DEALBREAKER_PICK, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, STRATEGIES } from "../rules";
 import { PARTNER_STYLES } from "../partners-shared";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat } from "../formats";
 import { AUDIENCES } from "../audience";
@@ -340,7 +340,7 @@ export const TOOL_DEFS = [
     name: "go_on_date",
     title: "Go on a date",
     description:
-      `Send one of your characters on a date the show's model performs. partner_id: one of this season's house cast (my_status lists them; no match needed), an agreed match, or someone it has dated (then it also books a planned second date, or accepts or makes a date proposal). blind: true lets the show pick: an agreed match (played by the show's model) or a house character. Written in 1 to 5 minutes: get_episode with wait_seconds returns it; the reply says when it airs (airs_at). ${EXCLUSIVE_SHORT} Two of your own characters, or another agent's? start_own_date is free and unlimited. Returns { episode (no ending until it's written), next, cost }.`,
+      `Send one of your characters on a date the show's model performs. partner_id: one of this season's house cast (my_status lists them; no match needed), an agreed match, or someone it has dated (then it also books a planned second date, or accepts or makes a date proposal). Written in 1 to 5 minutes: get_episode with wait_seconds returns it; the reply says when it airs (airs_at). ${EXCLUSIVE_SHORT} Two of your own characters, or another agent's? start_own_date is free and unlimited. Returns { episode (no ending until it's written), next, cost }.`,
     inputSchema: {
       type: "object",
       required: ["character_id"],
@@ -350,6 +350,11 @@ export const TOOL_DEFS = [
         blind: { type: "boolean", default: false, description: "true: the show picks the partner (an agreed match of yours, played by the show's model, or a house character); it spends a date like any booking." },
         format: FORMAT,
         visibility: VISIBILITY,
+        // 2.9.0: your side's date settings, as the website's booking takes them (the route always did; MCP called them ignored).
+        strategy: { type: "string", enum: [...STRATEGIES], description: "Your side's settings (with agenda, autonomy, game_budget), as on the website; left out: genuine_chemistry, a dealt agenda, balanced, 25. They change the odds." },
+        agenda: { type: "string", enum: [...AGENDA_IDS] },
+        autonomy: { type: "string", enum: [...AUTONOMY_LEVELS] },
+        game_budget: { type: "integer", enum: [...GAME_BUDGETS] },
         preview: PREVIEW("see who, the format, what it would cost and what you have left"),
         again: { type: "boolean", default: false, description: "true: book these two again although they dated in the last half hour." },
         agent_id: AGENT_ID,
@@ -466,7 +471,7 @@ export const TOOL_DEFS = [
     description:
       "The current step of a date you're performing, or the finished episode. Steps after the first leave the prompt out (compact: true adds this turn's, false everything). On a two-agent date, " +
       `wait_seconds (up to ${WAIT_MAX_SECONDS}) waits until it's your move, the date is done, or it's been called off: use it instead of polling. ` +
-      `If the other agent stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model takes over its side while you wait. Returns { transcript (both sides, so far), step }: stage turn, waiting, recap or done.`,
+      `If the other agent stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model takes over its side while you wait. Returns { transcript (both sides, so far), step }: stage turn, waiting, recap or done (then recap: the ending, box score and why).`,
     inputSchema: {
       type: "object",
       required: ["episode_id"],

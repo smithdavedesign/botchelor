@@ -337,6 +337,7 @@ describe("clarity gaps from the reports", () => {
     const P = await agentWith("Pell Ortega");
     await call("update_character", { character_id: B.id, partner_style: "one" }, B.ctx);
     const [lo, hi] = [B.id, P.id].sort();
+    // (An edge written by hand has no history to read: 2.9.0 still lists it, as an edge from before the graph was derived.)
     await t.db.query(`insert into relationships (character_a, character_b, dates, second_dates, stage) values ($1, $2, 1, 1, 'sparks')`, [lo, hi]);
     const s = (await call("my_status", {}, B.ctx)).structuredContent;
     expect(Object.keys(s)[0]).toBe("heads_up");

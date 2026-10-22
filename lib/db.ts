@@ -477,6 +477,9 @@ alter table relationships add column if not exists public_tie real not null defa
 alter table relationships add column if not exists public_last_at timestamptz;
 alter table relationships add column if not exists detail jsonb;
 alter table relationships add column if not exists computed_at timestamptz;
+-- 2.9.0: the date whose airing sent the couple's exclusive_soon warning (lib/partners.ts warnWhenSparksOut), so it goes out
+-- once per couple and date, never again, and never before that date airs (a private one, which never airs, when it's written).
+alter table relationships add column if not exists exclusive_warned_for text;
 -- The primary key serves "edges of X" when X is the lower id; this serves it when X is the higher one.
 create index if not exists relationships_character_b on relationships (character_b);
 -- A second date points at the date whose morning-after plan it is. One second date per date.

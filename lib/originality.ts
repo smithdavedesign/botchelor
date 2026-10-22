@@ -163,6 +163,11 @@ const SAME_AS: Record<string, string> = {
   punctual: "punctual", punctuality: "punctual", prompt: "punctual", timekeeping: "punctual", early: "punctual", late: "punctual",
   lateness: "punctual", latecomer: "punctual", tardy: "punctual",
   tollbooth: "toll", toll: "toll",
+  // 2.9.0 (#655): the sea trope every run of 2026-10-22 landed on (lighthouses, tide tables, barometers), however it's worded.
+  maritime: "nautical", nautical: "nautical", naval: "nautical", seafaring: "nautical", seafarer: "nautical",
+  lighthouse: "lighthouse", lightkeeper: "lighthouse", lighthouseman: "lighthouse",
+  tide: "tide", tidal: "tide",
+  barometer: "barometer", barometric: "barometer",
 };
 
 
@@ -194,6 +199,19 @@ export function conceptTerms(sheet: SheetDraft): Set<string> {
   return out;
 }
 
+/**
+ * 2.9.0 (#655, the 2026-10-22-0610 run: a retired lighthouse-keeper turned tide-table auditor scored 70, no look-alike, four
+ * minutes after another agent's lighthouse-lamp restorer, both collecting barometers): the dating profile (hobbies and
+ * prompt answers), where agents often put the hook, as concept terms. conceptSimilarity counts them only where they echo
+ * the other character's story (its bio, traits, want, dealbreaker or details), never profile to profile, so two characters
+ * with the same stock hobbies aren't twins for it, and a profile never dilutes the score.
+ */
+export function profileTerms(sheet: SheetDraft): Set<string> {
+  const e = sheet.extras ?? {};
+  const text = [...(e.hobbies ?? []), ...(e.prompts ?? []).map((p) => p?.answer ?? "")].filter(Boolean).join(". ");
+  return text.trim() ? conceptTerms({ bio: text }) : new Set();
+}
+
 /** How rare each term is among `docs` (the sheets compared against): a word everyone uses counts for little. */
 export function termWeights(docs: Set<string>[]): (term: string) => number {
   const df = new Map<string, number>();
@@ -202,8 +220,16 @@ export function termWeights(docs: Set<string>[]): (term: string) => number {
   return (t) => Math.log(1 + n / (df.get(t) ?? 1));
 }
 
-/** Rarity-weighted overlap of two sheets' concept terms, 0..1 (a weighted cosine), how many they share, and the rarest. */
-export function conceptSimilarity(a: Set<string>, b: Set<string>, weight: (term: string) => number): { score: number; count: number; shared: string[] } {
+/**
+ * Rarity-weighted overlap of two sheets' concept terms, 0..1 (a weighted cosine), how many they share, and the rarest.
+ * `echo` (2.9.0): each side's profile terms (profileTerms), which count as shared where the other side's story has them.
+ */
+export function conceptSimilarity(
+  a: Set<string>,
+  b: Set<string>,
+  weight: (term: string) => number,
+  echo?: { a?: Set<string>; b?: Set<string> },
+): { score: number; count: number; shared: string[] } {
   let both = 0;
   let wa = 0;
   let wb = 0;
@@ -211,13 +237,20 @@ export function conceptSimilarity(a: Set<string>, b: Set<string>, weight: (term:
   for (const t of a) {
     const w = weight(t) ** 2;
     wa += w;
-    if (b.has(t)) {
+    if (b.has(t) || echo?.b?.has(t)) {
       both += w;
       shared.push(t);
     }
   }
-  for (const t of b) wb += weight(t) ** 2;
-  const score = wa && wb ? both / Math.sqrt(wa * wb) : 0;
+  for (const t of b) {
+    const w = weight(t) ** 2;
+    wb += w;
+    if (!a.has(t) && echo?.a?.has(t)) {
+      both += w;
+      shared.push(t);
+    }
+  }
+  const score = wa && wb ? Math.min(1, both / Math.sqrt(wa * wb)) : 0;
   // The rarest first; a phrase stands in for the words inside it.
   const named = shared.sort((x, y) => weight(y) - weight(x)).filter((t, i, all) => !all.slice(0, i).some((u) => u.split(" ").includes(t)));
   return { score, count: shared.length, shared: named.slice(0, 3) };
@@ -353,10 +386,20 @@ async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], re
   };
 }
 
-/** Why `sheet` reads like `other`, from every signal, with a score for ordering; or null. Pure, given the term weights. */
-export function twinWhy(sheet: SheetDraft, other: Compared, terms: Set<string>, otherTerms: Set<string>, weight: (term: string) => number): (Lookalike & { score: number }) | null {
+/**
+ * Why `sheet` reads like `other`, from every signal, with a score for ordering; or null. Pure, given the term weights.
+ * 2.9.0: each side's dating profile counts where it echoes the other's story (profileTerms; left out, read from the sheets).
+ */
+export function twinWhy(
+  sheet: SheetDraft,
+  other: Compared,
+  terms: Set<string>,
+  otherTerms: Set<string>,
+  weight: (term: string) => number,
+  echo: { a?: Set<string>; b?: Set<string> } = { a: profileTerms(sheet), b: profileTerms(other) },
+): (Lookalike & { score: number }) | null {
   const base = { id: other.id, name: other.name };
-  const concept = conceptSimilarity(terms, otherTerms, weight);
+  const concept = conceptSimilarity(terms, otherTerms, weight, echo);
   const both = concept.shared.length ? ` (both: ${concept.shared.join(", ")})` : "";
   if (concept.score >= CONCEPT_TWIN_AT && concept.count >= CONCEPT_TWIN_TERMS) {
     return { ...base, kind: "concept", why: `${other.name} reads a lot like this one${both}.`, score: 1 + concept.score };
@@ -418,11 +461,15 @@ async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string
   // (guess_dealbreaker is a game), and the twin note names shared terms, so it mustn't reveal them.
   for (const r of rows) r.extras = publicExtras(r.extras);
   const rowTerms = rows.map((r) => conceptTerms(r));
-  const weight = termWeights([terms, ...rowTerms]);
+  // 2.9.0 (#655): each one's dating profile, which counts where it echoes the other's story; its words weigh by rarity too.
+  const profile = profileTerms(sheet);
+  const rowProfiles = rows.map((r) => profileTerms(r));
+  const weight = termWeights([new Set([...terms, ...profile]), ...rowTerms.map((t, i) => new Set([...t, ...rowProfiles[i]]))]);
   const found: Found[] = [];
   rows.forEach((r, i) => {
+    const echo = { a: profile, b: rowProfiles[i] };
     // The concepts the two share (the rarest first), kept for the archetype a recent-twin warning names (2.6.0).
-    const shared = () => conceptSimilarity(terms, rowTerms[i], weight).shared;
+    const shared = () => conceptSimilarity(terms, rowTerms[i], weight, echo).shared;
     if (name && r.name.trim().toLowerCase() === name) {
       found.push({ id: r.id, name: r.name, kind: "concept", why: `There's already someone called ${r.name} on the show.`, score: 3, shared: shared(), row: r });
       return;
@@ -433,7 +480,7 @@ async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string
       found.push({ id: r.id, name: r.name, kind: "concept", recent: true, name_and_job: true, why: `${r.name}, made in the last ${RECENT_HOURS} hours, has a close name and the same job (${job.slice(0, 2).join(", ")}).`, score: 2.5, shared: shared(), row: r });
       return;
     }
-    const twin = twinWhy(sheet, r, terms, rowTerms[i], weight);
+    const twin = twinWhy(sheet, r, terms, rowTerms[i], weight, echo);
     if (twin) found.push({ ...twin, shared: shared(), row: r });
   });
   const sorted = found.sort((x, y) => y.score - x.score);
@@ -458,8 +505,9 @@ export type RecentTwin = { id: string; name: string; why: string; shared: string
 
 /**
  * Agent-made characters made in the last `hours` that read like `sheet` (concept twins, not just a shared first name),
- * closest first; `archetype` is the concept the most of them share with it (when at least two do), and `sharing` how many
- * do. `jobs`: lines of work none of them (nor anyone recent) has. Public sheets only, as every look-alike check.
+ * closest first; `archetype` is the concept the most of them share with it, and `sharing` how many do (2.9.0, #655: one is
+ * enough, as the sheet makes two: the morning's two lighthouse characters never heard the idea named). `jobs`: lines of work
+ * none of them (nor anyone recent) has. Public sheets only, as every look-alike check.
  */
 export async function recentAgentTwins(
   db: Db,
@@ -476,7 +524,7 @@ export async function recentAgentTwins(
   const counts = new Map<string, number>();
   for (const t of twins) for (const term of new Set(t.shared)) counts.set(term, (counts.get(term) ?? 0) + 1);
   const best = [...counts].sort((x, y) => y[1] - x[1] || y[0].split(" ").length - x[0].split(" ").length || y[0].length - x[0].length)[0];
-  const archetype = best && best[1] >= 2 ? best[0] : null;
+  const archetype = best && best[1] >= 1 ? best[0] : null;
   return { twins, archetype, sharing: archetype ? best[1] : 0, jobs: twins.length ? freshJobs(sheet, [...recent, ...all.map((x) => x.row)]) : [] };
 }
 

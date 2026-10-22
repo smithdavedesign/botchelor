@@ -110,7 +110,11 @@ describe("#641: a wait never books, and a spending call is suggested as a previe
     expect(s).toMatchObject({ preview: true, booked: false, returned_because: "new", waited_for: "the first date to air", second_date: { can_plan: true } });
     expect(s.wait_note).toBe(`A wait never books: this is the preview. ${BOOKING_RULE} plan_second_date with episode_id (no preview) books it; wait_seconds with confirm: true waits, then books.`);
     expect(s.cost).toMatchObject({ spent: "nothing", would_spend: expect.stringMatching(/^1 free weekly date and 1 of the agents' shared daily dates/) });
-    expect(s.next_calls).toEqual([{ tool: "plan_second_date", args: { episode_id: booked.episode.id }, why: expect.stringMatching(/^Books it: spends 1 free weekly date/) }]);
+    expect(s.next_calls[0]).toEqual({ tool: "plan_second_date", args: { episode_id: booked.episode.id }, why: expect.stringMatching(/^Books it: spends 1 free weekly date/) });
+    // 2.9.0: the first date aired during this wait, which is when its exclusive_soon goes out now: it leads this reply, with
+    // its call (it used to go out when the date was written, before it aired).
+    expect(s.heads_up).toContainEqual(expect.objectContaining({ kind: "exclusive_soon", character_id: A.id }));
+    expect(s.next_calls.slice(1)).toEqual([expect.objectContaining({ tool: "update_character", args: { character_id: A.id, partner_style: "open" } })]);
     expect(await t.count("episodes")).toBe(episodes);
     expect(await freeLeft(A.ctx)).toBe(free);
 
@@ -356,22 +360,27 @@ describe("exclusivity said where it bites, and a closed character can't be dated
 
   it("exclusive_soon names partner_style and puts the call that keeps it open in next_calls, in my_status and in the reply a notice leads", async () => {
     const A = await agentWith("Ada Lumen");
-    // The date that makes them Sparks is written in this call (inline here): its warning leads this very reply.
+    const count = async () => (await t.db.query<Any>(`select count(*)::int as n from notifications where user_id = $1 and kind = 'exclusive_soon'`, [A.agentId])).rows[0].n;
+    // 2.9.0 (the 2026-10-22-0610 run): the date that makes them Sparks is written in this call (inline here), but its warning
+    // waits for the date to air (2.7.0 sent it now, ahead of the airing).
     const booked = await houseDate(A.ctx, A.id, "second_date");
-    const notice = booked.heads_up.find((h: Any) => h.kind === "exclusive_soon");
+    expect((booked.heads_up ?? []).some((h: Any) => h.kind === "exclusive_soon")).toBe(false);
+    expect(await count()).toBe(0);
+    expect((await call("my_status", {}, A.ctx)).structuredContent.exclusive_soon).toBeUndefined();
+    // It airs (its window closed) on the next call anyone makes: the warning leads that call's reply, once.
+    await t.db.query(`update episodes set created_at = now() - interval '11 minutes' where creator_id = $1`, [A.agentId]);
+    const aired = (await call("my_dates", {}, A.ctx)).structuredContent;
+    const notice = aired.heads_up.find((h: Any) => h.kind === "exclusive_soon");
     expect(notice).toMatchObject({ character_id: A.id, stay_open: { tool: "update_character", arguments: { character_id: A.id, partner_style: "open" } } });
     expect(notice.stay_open_note).toBe('partner_style "open": more than one partner: it stays open to other dates, and its couples still move up a stage (Sparks, Dating) as their dates go.');
-    expect(booked.next_calls).toContainEqual(expect.objectContaining({ tool: "update_character", args: { character_id: A.id, partner_style: "open" } }));
+    expect(aired.next_calls).toContainEqual(expect.objectContaining({ tool: "update_character", args: { character_id: A.id, partner_style: "open" } }));
     // Shown once as a notice; my_status says the state while it lasts, with the same call.
     const status = (await call("my_status", {}, A.ctx)).structuredContent;
     const soon = status.heads_up.find((h: Any) => h.kind === "exclusive_soon");
     expect(soon).toMatchObject({ character_id: A.id, partner_style: "decide", stay_open: { tool: "update_character", arguments: { character_id: A.id, partner_style: "open" } } });
     expect(soon.what).toMatch(/\(partner_style decide, and it would settle on one\)\. partner_style "open" keeps Ada open \(more than one partner: it stays open to other dates, and its couples still move up a stage/);
     expect(status.next_calls).toContainEqual({ tool: "update_character", args: { character_id: A.id, partner_style: "open" }, why: expect.stringMatching(/^Ada is one date from going exclusive: partner_style "open" keeps it open/) });
-    // It airs (its window closed): no second warning (the couple was Sparks already).
-    await t.db.query(`update episodes set created_at = now() - interval '11 minutes' where creator_id = $1`, [A.agentId]);
-    await call("my_dates", {}, A.ctx);
-    expect((await t.db.query<Any>(`select count(*)::int as n from notifications where user_id = $1 and kind = 'exclusive_soon'`, [A.agentId])).rows[0].n).toBe(1);
+    expect(await count()).toBe(1);
   });
 
   it("a character whose couple just became a Dating couple settles before a two-agent date, as go_on_date does: closed, the refusal says why, both ways", async () => {
