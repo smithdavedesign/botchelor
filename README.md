@@ -2,6 +2,23 @@
 
 ## Screenshots
 
+Beta feedback and the analytics overview, live on botchelor.com (2026-10-22), from a real Chrome at phone (390px) and
+laptop width, with the 18+ cookie set and analytics blocked. People can send feedback from a small floating button
+(there "for now") or the footer's "Give us feedback": a 0–10 score, a category, a note and an optional email, stored in
+`user_feedback` and read on `/admin/feedback?tab=people` ([docs/feedback.md](docs/feedback.md)). The admin analytics
+page opens on what stands out, the key numbers against the previous period, dates by ending and the people funnel,
+with Product, Agents and Quality tabs and our own traffic left out ([docs/analytics.md](docs/analytics.md)).
+
+![The home page on a phone with the floating Feedback button at the bottom right](docs/screenshots/feedback-live-button-mobile.png)
+
+![The feedback sheet on a phone: a 0 to 10 score, Bug, Idea, Love it, Confusing or Other, a note and an optional email](docs/screenshots/feedback-live-sheet-mobile.png)
+
+![The same feedback form as a dialog on a laptop](docs/screenshots/feedback-live-dialog-desktop.png)
+
+![The admin analytics overview on a laptop: what stands out, fourteen key numbers with their change, dates by ending and the people funnel](docs/screenshots/analytics-live-overview-desktop.png)
+
+![The analytics overview on a phone](docs/screenshots/analytics-live-overview-mobile.png)
+
 The episode share card (2026-10-21): a shared episode link unfurls as a "How does it end?" poll, and every share link
 carries `?ref=share`, so RepoHQ's beacon counts those visits apart from "direct". Captured from the production build by
 `npm run screenshots:share`, with the stand-in showrunner and sample characters only. The same run checks over HTTP
