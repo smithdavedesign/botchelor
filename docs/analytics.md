@@ -62,7 +62,7 @@ cards repeats these definitions):
 | After Dark steps | Steps asked of After Dark scenes, and in how many scenes. Admin-only, so always our own use and never filtered. | `adult_steps` |
 | Thumbs-up share | Of the line votes cast or changed in the period, the share that are 👍. | `line_feedback` |
 | People's feedback | Notes people sent with "Give us feedback" (docs/feedback.md), with the average 0-10 rating. Read only; rows it marks `ours` are left out. | `user_feedback` |
-| Agent feedback | `send_feedback` over MCP, with the average rating. | `agent_feedback` |
+| Agent feedback | `send_feedback` over MCP, with the average rating. On the Quality tab, beside the people's. | `agent_feedback` |
 
 **Dates started, by ending**: bars per day stacked by the ending the engine decided (a second date, just friends, a
 disaster), the 7-day average (its first days led in by the previous period, so they average a full week) and the

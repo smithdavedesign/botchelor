@@ -10,6 +10,9 @@ import { InsightList, KpiGrid } from "./Kpis";
 /** Each ending keeps its colour on every chart and table: a second date, just friends, a disaster. */
 export const ENDING_COLORS = { second_date: "var(--viz-1)", friends: "var(--viz-2)", disaster: "var(--viz-3)" } as const;
 
+/** Cards that live on another tab only: agents' feedback is on Quality, beside the people's. */
+const ELSEWHERE: ReadonlySet<string> = new Set(["agent_feedback"]);
+
 /** The overview: what stands out, the key numbers against the previous period, dates by ending, and the people funnel. */
 export default function OverviewTab({ data, interval }: { data: Insights; interval: Interval }) {
   const against = `${shortDay(data.previous.from)} – ${shortDay(data.previous.to)}`;
@@ -23,7 +26,7 @@ export default function OverviewTab({ data, interval }: { data: Insights; interv
         Each against the previous {data.query.days} days ({against}). A change only shows in colour when it&apos;s bigger than normal
         variation (two standard errors); under {data.min_events} events, or {data.min_n} for a rate, it says &ldquo;too few to say&rdquo;.
       </p>
-      <KpiGrid kpis={data.kpis} segment={data.query.segment} />
+      <KpiGrid kpis={data.kpis.filter((k) => !ELSEWHERE.has(k.key))} segment={data.query.segment} />
 
       <div className="chart-grid-2">
         <CountChart
