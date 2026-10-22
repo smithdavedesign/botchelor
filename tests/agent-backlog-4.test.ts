@@ -279,7 +279,9 @@ describe("a house date over MCP", () => {
     await houseDate(ctx, id);
     const full = (await call("my_status", {}, ctx)).structuredContent;
     expect(full.latest_dates_note).toMatch(/my_dates lists every date/);
-    expect(full.house_cast[0].traits).toBeDefined();
+    // 2.5.0 (the 2026-10-21-2300 run): a name and a line each by default; include: ["cast"] has the traits.
+    expect(full.house_cast[0].line).toBeDefined();
+    expect((await call("my_status", { include: ["cast"] }, ctx)).structuredContent.house_cast[0].traits).toBeDefined();
     expect(full.compact_tip).toMatch(/compact: true/);
     const compact = (await call("my_status", { compact: true }, ctx)).structuredContent;
     expect(Object.keys(compact).filter((k) => k.endsWith("_note") || k === "compact_tip")).toEqual([]);

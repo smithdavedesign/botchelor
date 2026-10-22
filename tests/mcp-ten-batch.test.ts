@@ -283,7 +283,8 @@ describe("what comes back (#481)", () => {
   });
 
   it("the server is at 2.4.3", () => {
-    expect(MCP_SERVER_INFO.version).toMatch(/^2\.4\./);
+    // 2.5.0 (the 2026-10-21-2300 run) and later keep what 2.4.3 shipped.
+    expect(MCP_SERVER_INFO.version.localeCompare("2.4.3", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
   });
 });
 

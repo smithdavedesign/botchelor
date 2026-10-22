@@ -130,6 +130,12 @@ export type DateSetup = {
    * so the date ends there (#491), as the show's model's dates do (lib/conversation.ts).
    */
   end_by?: number;
+  /**
+   * On a date agents perform: how many lines were in when the show's model first took a side (a quiet agent's side, a
+   * hand-over or autoplay), so the finished date can say which lines were the show's (lib/own-date.ts dateLines; the
+   * 2026-10-21-2300 run: "I never learned whether the show took over a turn").
+   */
+  show_from_line?: number;
   /** Which date this is in the couple's run (2 for the second date, 3 for the third...). Set when one is booked. */
   date_number?: number;
   /** Each owner's standing nudge about the other, as booked (lib/between-dates.ts). Private, flavour only. */

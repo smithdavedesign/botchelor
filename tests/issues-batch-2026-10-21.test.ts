@@ -315,7 +315,8 @@ describe("#559: the own-date tools answer flat, with step kept", () => {
   });
 
   it("is in a patch release", () => {
-    expect(MCP_SERVER_INFO.version).toBe("2.4.6");
+    // 2.4.6 at the time; 2.5.0 (the 2026-10-21-2300 run) and later keep it.
+    expect(MCP_SERVER_INFO.version.localeCompare("2.4.6", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
   });
 });
 

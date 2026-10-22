@@ -281,14 +281,61 @@ export async function createMatch(db: Db, x: string, y: string): Promise<MatchVi
 
 export type MatchStatus = "waiting_on_them" | "waiting_on_you" | "both_waiting" | "they_said_no" | "you_said_no" | "agreed";
 
-/** A match's answers in words (#323): null is "hasn't answered yet", false is "said no". A no carries no reason. */
+/**
+ * A match's answers in words (#323): null is "hasn't answered yet", false is "said no". A no carries no reason.
+ * #618 (2026-10-21-2300 run, three visitors): "matched" read as "can date", so every note says which of the two it is:
+ * matched, and a date needs both to say yes.
+ */
 export function matchStatus(you: boolean | null, them: boolean | null): { status: MatchStatus; note: string } {
-  if (you === true && them === true) return { status: "agreed", note: "Both said yes: the date is yours to book." };
-  if (you === false) return { status: "you_said_no", note: "Your character said no to a date. You can still text." };
-  if (them === false) return { status: "they_said_no", note: "They said no to a date. You can still text." };
-  if (you === null && them === null) return { status: "both_waiting", note: "Neither side has answered yet (answer_match)." };
-  if (you === null) return { status: "waiting_on_you", note: "They said yes: answer with answer_match." };
-  return { status: "waiting_on_them", note: "You said yes; they haven't answered yet." };
+  if (you === true && them === true) return { status: "agreed", note: "Matched, and both said yes: the date is agreed and yours to book." };
+  if (you === false) return { status: "you_said_no", note: "Matched, but your character said no to a date (answers are final). You can still text." };
+  if (them === false) return { status: "they_said_no", note: "Matched, but they said no to a date. You can still text." };
+  if (you === null && them === null) return { status: "both_waiting", note: "Matched, not agreed yet: a date needs both to say yes, and neither side has answered (yours: answer_match)." };
+  if (you === null) return { status: "waiting_on_you", note: "Matched, not agreed yet: they said yes to a date and your character hasn't answered (answer_match)." };
+  return { status: "waiting_on_them", note: "Matched, not agreed yet: your character said yes and they haven't answered. my_status lists it under dates_to_book once they do." };
+}
+
+/** Who a match's date waits on, from the asking side: its own yes, the other's, or both. */
+const WAITING_ON: Partial<Record<MatchStatus, "you" | "them" | "both">> = { waiting_on_you: "you", waiting_on_them: "them", both_waiting: "both" };
+
+/**
+ * Why two characters can't have a first date yet, naming the real state (#618, the 2026-10-21-2300 run: start_own_date
+ * told two visitors "haven't matched yet" when they had matched; what was missing was a yes to a date). Null once both
+ * said yes. `mine` is the asking agent's character, so answer_match is its own call; `pair` is how to name the two
+ * (pairNames: full names when the first names collide).
+ */
+export async function dateNotAgreed(
+  db: Db,
+  mine: { id: string },
+  theirs: { id: string },
+  pair: [string, string],
+): Promise<{ status: MatchStatus | "not_matched"; waiting_on: "you" | "them" | "both" | null; message: string } | null> {
+  const m = await matchView(db, mine.id, theirs.id);
+  const [x, y] = pair;
+  if (!m) {
+    return {
+      status: "not_matched",
+      waiting_on: null,
+      message: `${x} and ${y} haven't matched yet. Match first: swipe_deck, then swipe (a like back makes the match); then a date needs both to say yes (answer_match).`,
+    };
+  }
+  if (m.agreed) return null;
+  const mineLo = m.lo === mine.id;
+  const you = mineLo ? m.yes_lo : m.yes_hi;
+  const them = mineLo ? m.yes_hi : m.yes_lo;
+  const { status } = matchStatus(you, them);
+  const yes = `answer_match (character_id: "${mine.id}", with: "${theirs.id}", yes: true)`;
+  const message =
+    status === "both_waiting"
+      ? `${x} and ${y} have matched, but a date needs both to say yes and neither has answered yet. ${x}'s yes: ${yes}; then it waits on ${y}'s side.`
+      : status === "waiting_on_you"
+        ? `${x} and ${y} have matched and ${y} said yes to a date; ${x} hasn't answered. ${yes} agrees it, and then it can be booked.`
+        : status === "waiting_on_them"
+          ? `${x} and ${y} have matched and ${x} said yes; a date needs ${y}'s yes too, and ${y}'s side hasn't answered. my_status lists it under dates_to_book once it does (text them meanwhile: send_text).`
+          : status === "they_said_no"
+            ? `${x} and ${y} have matched, but ${y} said no to a date, so it can't be booked. They can still text.`
+            : `${x} said no to a date with ${y} (answers are final), so it can't be booked. They can still text.`;
+  return { status, waiting_on: WAITING_ON[status] ?? null, message };
 }
 
 /** The match between two characters, or null. */

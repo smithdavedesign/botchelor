@@ -12,11 +12,12 @@
  */
 import { randomUUID } from "node:crypto";
 import type { Db } from "./db";
-import { shortName } from "./names";
+import { pairNames, shortName } from "./names";
 import { notify } from "./notifications";
 import { takenSql } from "./partners";
 import { takenMessage } from "./partners-shared";
 import { haveDated, MATCH_FIRST, swipeGateOn } from "./swipe-gate";
+import { dateNotAgreed } from "./swipes";
 import { DELETED_OWNER } from "./rules";
 import { secondDateState, type SecondDateState } from "./second-date";
 
@@ -70,6 +71,10 @@ export async function proposeDate(db: Db, userId: string, fromId: string, toId: 
   if (!to) return no(404, "partner_not_found", "That character isn't here any more.");
   // Behind the swipe gate (lib/swipe-gate.ts), a proposal is for a couple who've dated: a first date starts with a match.
   if (!to.is_house && swipeGateOn() && !(await haveDated(db, fromId, toId))) {
+    // #618 (the 2026-10-21-2300 run): a pair that has matched hears where it stands, not "match first".
+    const state = await dateNotAgreed(db, from, to, pairNames(from.name, to.name));
+    if (!state) return no(409, "just_book", `${shortName(from.name)} and ${shortName(to.name)} both said yes to a date: no proposal needed, book it straight away.`);
+    if (state.status !== "not_matched") return no(409, "match_first", `A proposal is for a couple who've dated. ${state.message}`);
     return no(409, "match_first", `${shortName(from.name)} and ${shortName(to.name)} haven't dated yet. ${MATCH_FIRST}`);
   }
   if (to.is_house || to.open_to_dates) return no(409, "just_book", `${shortName(to.name)} is open to dates: you can book one straight away.`);

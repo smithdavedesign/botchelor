@@ -49,7 +49,7 @@ import { notify, resolvePairNotices, resolveTurnNotices } from "./notifications"
 import { takenSql } from "./partners";
 import { takenMessage } from "./partners-shared";
 import { haveDated, swipeGateOn } from "./swipe-gate";
-import { agreedMatch } from "./swipes";
+import { agreedMatch, dateNotAgreed } from "./swipes";
 import { DATE_VISIBILITIES, DELETED_OWNER } from "./rules";
 import { houseBotSql, isHouseBotAgent } from "./house-bots";
 import type { RejectReason } from "./safety";
@@ -57,7 +57,7 @@ import { narrateEpisode } from "./showrunner";
 import { logSceneRequests, trackMoves } from "./scenes";
 import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { dateShape, moveProblem, segmentBudget, settleLine, type DateShape } from "./moves";
-import { venueName, venuePhrase } from "./venues";
+import { venueName, venuePhrase, type PlaceId } from "./venues";
 import { applyWishes, resolveWishes, settledWishes, type StoredWishes } from "./wishes";
 
 /** How many unfinished self-performed dates one identity may have at once. */
@@ -233,7 +233,7 @@ export type OwnDateStep =
       can_hand_over?: boolean;
       instructions: string;
     }
-  | { stage: "done"; episode_id: string; episode: EpisodeView | null; reflect?: ReflectStep; host?: HostInfo };
+  | { stage: "done"; episode_id: string; episode: EpisodeView | null; reflect?: ReflectStep; host?: HostInfo; /** Lines planned and in all, and why they differ (the 2026-10-21-2300 run). */ lines?: DateLines };
 
 /** On a two-agent date: whose date it is to air (#193). A character's name only, never an agent id. */
 export type HostInfo = { character: string; you_can_air: boolean; airs: string };
@@ -250,7 +250,17 @@ export type ReflectStep = {
 
 export type OwnDateResult =
   | { ok: true; step: OwnDateStep; rejected?: string; checked?: true; /** start_own_date found this pair's date already in progress and returned it (#413). */ resumed?: true }
-  | { ok: false; status: number; error: string; message: string; /** #551: a date_finished refusal names where the date stands. */ state?: FinishedState };
+  | {
+      ok: false;
+      status: number;
+      error: string;
+      message: string;
+      /** #551: a date_finished refusal names where the date stands. */
+      state?: FinishedState;
+      /** #618: a match_first refusal says where the pair stands (lib/swipes.ts dateNotAgreed) and whose yes is missing. */
+      match_status?: string;
+      waiting_on?: "you" | "them" | "both";
+    };
 
 type Row = {
   id: string;
@@ -393,8 +403,14 @@ async function checkOwnDate(
     if (swipeGateOn()) {
       // Behind the swipe gate (lib/swipe-gate.ts): a match where both said yes, or a couple who've dated before.
       if (!(await agreedMatch(db, a.id, b.id)) && !(await haveDated(db, a.id, b.id))) {
-        const [x, y] = pairNames(a.name, b.name);
-        return err(409, "match_first", `${x} and ${y} haven't matched yet. Match first: swipe_deck, then swipe; when both say yes to a date, start_own_date can play it (house characters only date on the show's model, with go_on_date). (Ids: ${a.id}, ${b.id}.)`);
+        // #618 (2026-10-21-2300 run): name the real state (no match, or matched but a yes missing, and whose), with the call.
+        const why = await dateNotAgreed(db, a, b, pairNames(a.name, b.name));
+        const state = why ?? { message: `${pairNames(a.name, b.name).join(" and ")} haven't both said yes to a date yet.`, status: "both_waiting" as const, waiting_on: null };
+        return {
+          ...err(409, "match_first", `${state.message} When both have said yes, start_own_date can play it (house characters only date on the show's model, with go_on_date). (Ids: ${a.id}, ${b.id}.)`),
+          match_status: state.status,
+          ...(state.waiting_on ? { waiting_on: state.waiting_on } : {}),
+        };
       }
     } else if (!b.open_to_dates || !audienceAllows(b.open_audience, a.created_via)) {
       return err(409, "partner_not_available", `${shortName(b.name)} isn't open to a date with a character like yours.`);
@@ -656,6 +672,88 @@ const SEE_AGAIN_REPLY = ',"see_again":"optional and private: true or false, does
 
 const totalTurns = (formatId: FormatId): number => showFormat(formatId).turns ?? CONVERSATION_TURNS;
 
+/**
+ * A date's line count against its plan, and why they differ (the 2026-10-21-2300 run: a speed date "promises 6 lines",
+ * the finished one said lines_in_all: 5, and the visitor "never learned whether the show took over a turn"). A move adds
+ * lines; a side's goodbye ("done") in the goodbye stretch ends the date on that line; the show's model may play a side.
+ */
+export type DateLines = {
+  /** As booked: the format's length. */
+  planned: number;
+  in_all: number;
+  /** A move added lines: the length the date then ran to. */
+  grew_to?: number;
+  ended_early?: { at_line: number; by: string; why: string };
+  show_played?: { name: string; from_line: number | null }[];
+  /** Only when the count isn't simply the plan. */
+  note?: string;
+};
+
+export function dateLines(o: {
+  format: FormatId;
+  venue: PlaceId | null | undefined;
+  moves: boolean;
+  endBy?: number | null;
+  transcript: readonly Turn[];
+  names: [string, string];
+  finished: boolean;
+  /** Sides the show's model played on a date agents perform (a hand-over or autoplay), and from which line. */
+  showSides?: readonly ("a" | "b")[];
+  showFromLine?: number | null;
+}): DateLines {
+  const planned = totalTurns(o.format);
+  const moves = o.moves && showFormat(o.format).moves !== false;
+  const full = dateShape(o.transcript, (o.venue ?? "elsewhere") as PlaceId, planned, { moves }).total;
+  const inAll = o.transcript.length;
+  const nameOf = (side: "a" | "b") => o.names[side === "a" ? 0 : 1];
+  const out: DateLines = { planned, in_all: inAll };
+  const moved = o.transcript.filter((t) => t.moved_to).length;
+  if (full > planned) out.grew_to = full;
+  if (o.finished && inAll < full && inAll > 0) {
+    const at = o.endBy && o.endBy <= inAll ? o.endBy : inAll;
+    out.ended_early = {
+      at_line: at,
+      by: nameOf(o.transcript[at - 1].side),
+      why: o.endBy
+        ? "said goodbye (done: true) in the goodbye stretch, which ends a date on that line"
+        : "said goodbye, and the show's model closed the date there (it may, in a date's last stretch or when it runs long)",
+    };
+  }
+  if (o.showSides?.length) out.show_played = o.showSides.map((side) => ({ name: nameOf(side), from_line: typeof o.showFromLine === "number" ? o.showFromLine + 1 : null }));
+  const parts: string[] = [];
+  if (out.grew_to) parts.push(`${moved === 1 ? "a move" : `${moved} moves`} took it to ${out.grew_to}`);
+  if (out.ended_early) parts.push(`it ended at line ${out.ended_early.at_line}: ${out.ended_early.by} ${out.ended_early.why}`);
+  else if (o.finished && inAll !== planned && !out.grew_to) parts.push(`it has ${inAll}`);
+  for (const s of out.show_played ?? []) parts.push(`the show's model played ${s.name}'s side${s.from_line ? ` from line ${s.from_line}` : ""} (a quiet agent's side, a hand-over or autoplay)`);
+  if (parts.length) out.note = `${planned} lines planned (${showFormat(o.format).label}); ${parts.join("; ")}.`;
+  return out;
+}
+
+/** dateLines for a stored episode, either kind (null for one with no transcript yet). */
+export async function episodeLines(db: Db, episodeId: string): Promise<DateLines | null> {
+  const r = (
+    await db.query<{ setup: DateSetup | null; transcript: Turn[] | null; status: string; performed_by: string | null; handed_over: "a" | "b" | null; autoplay: boolean | null; a: string; b: string }>(
+      `select e.setup, e.transcript, e.status, e.performed_by, e.handed_over, e.autoplay, ca.name as a, cb.name as b
+         from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b where e.id = $1`,
+      [episodeId],
+    )
+  ).rows[0];
+  if (!r || !r.transcript?.length) return null;
+  const agents = r.performed_by === "agent";
+  const showSides: ("a" | "b")[] = agents ? (r.autoplay ? ["a", "b"] : r.handed_over ? [r.handed_over] : []) : [];
+  return dateLines({
+    format: (r.setup?.format ?? DEFAULT_FORMAT) as FormatId,
+    venue: r.setup?.venue,
+    moves: r.setup?.moves === true,
+    endBy: agents ? (r.setup?.end_by ?? null) : null,
+    transcript: r.transcript,
+    names: [r.a, r.b],
+    finished: r.status === "ready",
+    showSides,
+    showFromLine: r.setup?.show_from_line ?? null,
+  });
+}
+
 /** Where an agent's date stands (lib/moves.ts): its length grows with each move, and its acts follow. */
 const shapeFor = (built: BuiltDate, formatId: FormatId, transcript: readonly Turn[]): DateShape =>
   dateShape(transcript, built.setup.venue, totalTurns(formatId), {
@@ -911,12 +1009,14 @@ async function doneStep(db: Db, userId: string, row: Row, built: BuiltDate, deci
   const performers = performersOf(row);
   const mine = (["a", "b"] as const).filter((side) => performers[side] === userId);
   const reflect = reflectStep(built, decided, formatId, transcript, [row.a_id, row.b_id], row.reflections, mine);
+  const lines = await episodeLines(db, row.id).catch(() => null);
   return {
     stage: "done",
     episode_id: row.id,
     episode: await getEpisodeView(db, row.id, userId),
     ...(reflect ? { reflect } : {}),
     ...(row.partner_performer ? { host: hostInfo(row, userId) } : {}),
+    ...(lines ? { lines } : {}),
   };
 }
 
@@ -1040,8 +1140,10 @@ export async function autoplayOwnDate(db: Db, userId: string, episodeId: string,
     const today = await agentDatesToday(db);
     if (today.used >= today.cap) return err(429, "agent_budget", `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}, or keep playing it yourself.`);
   }
+  // show_from_line (the 2026-10-21-2300 run): the line the show's model starts playing from, kept for the finished date's line count.
   await db.query(
-    `update episodes set autoplay = $2, handed_over = coalesce($3, handed_over), handed_over_at = coalesce(handed_over_at, now())
+    `update episodes set autoplay = $2, handed_over = coalesce($3, handed_over), handed_over_at = coalesce(handed_over_at, now()),
+            setup = coalesce(setup, '{}'::jsonb) || jsonb_build_object('show_from_line', coalesce((setup->>'show_from_line')::int, jsonb_array_length(coalesce(transcript, '[]'::jsonb))))
       where id = $1 and status = 'generating'`,
     [episodeId, set.autoplay, set.handed_over],
   );
@@ -1186,7 +1288,8 @@ async function takeOver(db: Db, row: Row, side: "a" | "b", speaker: string, quie
   }
   const both = row.handed_over !== null && row.handed_over !== side;
   const taken = await db.query(
-    `update episodes set handed_over = coalesce(handed_over, $2), autoplay = $3, handed_over_at = coalesce(handed_over_at, now())
+    `update episodes set handed_over = coalesce(handed_over, $2), autoplay = $3, handed_over_at = coalesce(handed_over_at, now()),
+            setup = coalesce(setup, '{}'::jsonb) || jsonb_build_object('show_from_line', coalesce((setup->>'show_from_line')::int, $5::int))
       where id = $1 and status = 'generating' and autoplay = false and handed_over is not distinct from $4
         and jsonb_array_length(transcript) = $5
       returning id`,
@@ -1381,7 +1484,8 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       }
     }
     const reflect = reflectStep(built, decided, formatId, transcript, [row.a_id, row.b_id], row.reflections);
-    return { ok: true, step: { stage: "done", episode_id: episodeId, episode: await getEpisodeView(db, episodeId, userId), ...(reflect ? { reflect } : {}) } };
+    const lines = await episodeLines(db, episodeId).catch(() => null);
+    return { ok: true, step: { stage: "done", episode_id: episodeId, episode: await getEpisodeView(db, episodeId, userId), ...(reflect ? { reflect } : {}), ...(lines ? { lines } : {}) } };
   }
   return { ok: true, step: current };
 }
