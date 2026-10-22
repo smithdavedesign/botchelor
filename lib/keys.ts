@@ -14,11 +14,75 @@ import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "node:cr
 import type { Db } from "./db";
 import { openAICompatibleModel, type Model, type ReasoningEffort } from "./model";
 
-/** Providers whose chat API is OpenAI-compatible at a known base URL. No custom endpoints (SSRF / prompt theft). */
+/**
+ * Providers whose chat API is OpenAI-compatible at a known base URL. No custom endpoints (SSRF / prompt theft).
+ * Each entry declares a short list of recommended models the UI shows: curated so users don't paste an id a
+ * provider doesn't have. The `defaultModel` is used when a user picks a provider but doesn't name a model.
+ *
+ * Adding a provider? Pick one that's genuinely OpenAI-compatible at `/chat/completions`, add it below, and keep
+ * the entry a single line. The validate ping and MCP's `set_model` pick it up automatically.
+ */
 export const TEXT_PROVIDERS = {
-  google: { label: "Google Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", defaultModel: "gemini-3.5-flash-lite" },
-  openai: { label: "OpenAI", baseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4.1-mini" },
-  openrouter: { label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", defaultModel: "openai/gpt-4.1-mini" },
+  google: {
+    label: "Google Gemini",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    defaultModel: "gemini-3.5-flash-lite",
+    models: [
+      { id: "gemini-3.5-flash-lite", note: "the free-tier default; cheap and fast" },
+      { id: "gemini-3.5-flash", note: "a step up in writing, still cheap" },
+      { id: "gemini-3.5-pro", note: "best Gemini writing; more expensive" },
+    ],
+  },
+  openai: {
+    label: "OpenAI",
+    baseUrl: "https://api.openai.com/v1",
+    defaultModel: "gpt-4.1-mini",
+    models: [
+      { id: "gpt-4.1-mini", note: "the default; cheap, strong at dialogue" },
+      { id: "gpt-4.1", note: "flagship; best writing, highest cost" },
+      { id: "gpt-5-mini", note: "newer reasoning model" },
+    ],
+  },
+  anthropic: {
+    label: "Anthropic Claude",
+    baseUrl: "https://api.anthropic.com/v1",
+    defaultModel: "claude-haiku-5-5",
+    models: [
+      { id: "claude-haiku-5-5", note: "cheap, fast; strong dialogue" },
+      { id: "claude-sonnet-5-5", note: "the balanced pick for writing" },
+      { id: "claude-opus-5-5", note: "best writing; expensive" },
+    ],
+  },
+  deepseek: {
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com",
+    defaultModel: "deepseek-chat",
+    models: [
+      { id: "deepseek-chat", note: "very cheap; good at English + Chinese" },
+      { id: "deepseek-reasoner", note: "reasoning model; more thought, slower" },
+    ],
+  },
+  groq: {
+    label: "Groq",
+    baseUrl: "https://api.groq.com/openai/v1",
+    defaultModel: "llama-3.3-70b-versatile",
+    models: [
+      { id: "llama-3.3-70b-versatile", note: "fast inference (~500 tok/s)" },
+      { id: "llama-3.1-8b-instant", note: "smaller, cheaper, fastest" },
+      { id: "openai/gpt-oss-120b", note: "open-weights GPT; largest Groq hosts" },
+    ],
+  },
+  openrouter: {
+    label: "OpenRouter",
+    baseUrl: "https://openrouter.ai/api/v1",
+    defaultModel: "openai/gpt-4.1-mini",
+    models: [
+      { id: "openai/gpt-4.1-mini", note: "route to OpenAI, pay by usage" },
+      { id: "anthropic/claude-haiku-5-5", note: "route to Anthropic Claude" },
+      { id: "deepseek/deepseek-chat", note: "route to DeepSeek" },
+      { id: "x-ai/grok-4", note: "route to xAI Grok" },
+    ],
+  },
 } as const;
 
 /**
@@ -36,6 +100,9 @@ export const IMAGE_PROVIDERS = {
 
 export type TextProvider = keyof typeof TEXT_PROVIDERS;
 export type KeyKind = "text" | "image";
+
+/** The ids the set_model schema accepts — one source for the schema enum and the dispatcher's ENUM_SOURCES. */
+export const TEXT_PROVIDER_IDS = Object.keys(TEXT_PROVIDERS) as readonly TextProvider[];
 
 export const isTextProvider = (p: string): p is TextProvider => p in TEXT_PROVIDERS;
 export const isImageProvider = (p: string): boolean => p in IMAGE_PROVIDERS;
@@ -109,6 +176,50 @@ export async function saveUserKey(
     [userId, provider, kind, ciphertext, nonce, last4(apiKey), model],
   );
   return { provider, kind, last4: last4(apiKey), model, created_at: new Date().toISOString() };
+}
+
+/**
+ * Validate a key by making one tiny chat-completions call to the provider at a sub-1¢ cost. Returns the model
+ * that actually answered, the latency, and whether it worked. Called before `saveUserKey` on request, and from
+ * the MCP `set_model` tool with `test: true`. Never logs the key.
+ */
+export async function pingKey(
+  provider: string,
+  apiKey: string,
+  model: string | null = null,
+  opts: { fetchImpl?: typeof fetch; timeoutMs?: number } = {},
+): Promise<{ ok: true; model: string; latency_ms: number } | { ok: false; status?: number; error: string }> {
+  if (!isTextProvider(provider)) return { ok: false, error: `Unknown provider: ${provider}. Supported: ${Object.keys(TEXT_PROVIDERS).join(", ")}.` };
+  const p = TEXT_PROVIDERS[provider];
+  const chosen = model || p.defaultModel;
+  const doFetch = opts.fetchImpl ?? fetch;
+  const timeout = opts.timeoutMs ?? 10_000;
+  const started = Date.now();
+  try {
+    const res = await doFetch(`${p.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        model: chosen,
+        messages: [{ role: "user", content: "Reply with just: ok" }],
+        max_tokens: 4,
+        temperature: 0,
+      }),
+      signal: AbortSignal.timeout(timeout),
+    });
+    const latency_ms = Date.now() - started;
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const body = await res.json() as { error?: { message?: string } | string };
+        detail = typeof body?.error === "string" ? body.error : body?.error?.message ?? "";
+      } catch { /* body wasn't JSON */ }
+      return { ok: false, status: res.status, error: `${res.status} ${res.statusText}${detail ? `: ${detail}` : ""}` };
+    }
+    return { ok: true, model: chosen, latency_ms };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 export async function deleteUserKey(db: Db, userId: string, provider: string, kind: KeyKind): Promise<boolean> {

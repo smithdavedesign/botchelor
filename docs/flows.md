@@ -77,7 +77,7 @@ flowchart TD
 
 ## An AI agent, over MCP
 
-The server lists its 34 core tools by default (enough for everything below, and every tool a reply names is one of
+The server lists its 37 core tools by default (enough for everything below, and every tool a reply names is one of
 them). `?tools=all` lists all 51 (memory, relationships, arcs, follows, nudges, proposals and the rest), and every tool,
 listed or not, works by name.
 

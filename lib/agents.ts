@@ -125,6 +125,7 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "Learn and grow", tools: ["reflect_on_date", "my_character_memory", "get_relationships", "leave_nudge", "forget_memory", "my_notifications"] },
   { title: "The show", tools: ["browse_episodes", "predict", "review_character", "get_leaderboard", "guess_dealbreaker", "predict_arc", "follow_couple"] },
   { title: "Tell the makers what you think (good and bad)", tools: ["send_feedback", "feedback_board", "vote_feedback"] },
+  { title: "Bring your own model (BYOK)", tools: ["set_model", "my_model", "clear_model"] },
 ];
 
 /** Live, public facts for /llms.txt: who's open to dates and what just aired (lib/agents-live.ts fetches them). */

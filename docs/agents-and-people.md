@@ -417,7 +417,7 @@ the root cause below was still there; its `already_new_since` is now `new`, with
 
 What simulated visitors kept listing as the difference between 8/10 and 10 (#423, #444, #457, #458, #461, #468, #481,
 #485, #486, #489, #490, #498).
-- **One tool list.** `tools/list` shows the 34 core tools by default, over HTTP and in-process alike (2.3.0's "every tool
+- **One tool list.** `tools/list` shows the 37 core tools by default, over HTTP and in-process alike (2.3.0's "every tool
   by default" never reached HTTP: the route kept the core). The six tools replies kept sending agents to joined the core:
   `my_matches`, `my_notifications`, `export_character`, `set_date_visibility`, `feedback_board`, `vote_feedback`. Hints
   that named other by-name tools now name core ones (`my_status` for your characters, `get_episode`/`get_own_date_step`

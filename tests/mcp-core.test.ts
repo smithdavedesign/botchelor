@@ -82,7 +82,9 @@ describe("the tool list: the core by default, everything on request", () => {
     // _meta is a non-breaking hint most agents ignore; the hot-path prose stays trimmed. Cap moved to 55 KB; the
     // JSON-byte count isn't the whole story (clients that bind to .description don't pay for _meta's bytes against
     // their context window), so the ratio check matters more than the absolute.
-    expect(JSON.stringify(core).length).toBeLessThan(55_000);
+    // 2026-10-22 BYOK (set_model/my_model/clear_model) joined the core: three write/read tools so agents can bring
+    // their own key over MCP, same as the /account/keys page. Cap moved to 58 KB; descriptions on the three stay tight.
+    expect(JSON.stringify(core).length).toBeLessThan(58_000);
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.76);
     expect((await rpc("tools/list", { all: true })).result.tools).toHaveLength(PUBLIC_MCP_TOOLS.length);
     expect((await rpc("tools/list", { lean: true, core: true })).result.tools).toHaveLength(CORE_MCP_TOOLS.length);

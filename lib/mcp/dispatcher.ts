@@ -24,6 +24,7 @@ import { characterSchema, exampleCallsText, isExampleCharacter, llmsText } from 
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowance";
 import { track } from "../analytics";
 import { recordAgentEvent } from "../agent-funnel";
+import { byokAvailable, deleteUserKey, isTextProvider, listUserKeys, pingKey, saveUserKey, TEXT_PROVIDER_IDS, TEXT_PROVIDERS } from "../keys";
 import { checkRateLimit, rateLimitInfo, rateLimitMessage, type RateLimitBucket } from "../rate-limit";
 import { drainPending, isSubscribable, subscribe as subscribeResource, SUBSCRIBABLE, unsubscribe as unsubscribeResource } from "../mcp-subscriptions";
 import { requestElicitation, requestSampling, resolveServerRequest } from "../mcp-stream";
@@ -286,6 +287,9 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   forget_memory: FREE,
   check_originality: FREE,
   sliding_doors: "Free: no model call, so it doesn't use a date, a token or the agents' shared daily budget.",
+  set_model: "Free. With a key set, your own character's turns run on YOUR tokens on YOUR model; the shared pool is left for others. The engine still decides every ending.",
+  my_model: FREE,
+  clear_model: "Free. Your dates go back to the shared pool and the 3-free-dates-a-week cap.",
 };
 
 /** Which tools carry a free-path rate limit (lib/rate-limit.ts). Buckets map to tool names. */
@@ -367,6 +371,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "swipe_deck.only": DECK_FILTERS,
   "predict_arc.pick": ARC_PICKS,
   "set_date_visibility.visibility": DATE_VISIBILITIES,
+  "set_model.provider": TEXT_PROVIDER_IDS,
   "feedback_board.kind": FEEDBACK_KINDS,
   "feedback_board.sort": FEEDBACK_SORTS,
   "vote_feedback.vote": FEEDBACK_VOTES,
@@ -393,6 +398,7 @@ export const CORE_TOOL_ORDER = [
   "swipe_deck", "swipe", "my_matches", "answer_match", "send_text", "read_texts", "start_own_date", "get_own_date_step", "submit_own_date_step",
   "hand_over_own_date", "autoplay_own_date", "decline_own_date", "reflect_on_date", "my_dates", "set_date_visibility", "plan_second_date", "sliding_doors",
   "browse_episodes", "predict", "review_character", "get_leaderboard", "send_feedback", "feedback_board", "vote_feedback", "link_account",
+  "set_model", "my_model", "clear_model",
 ] as const satisfies readonly ToolName[];
 export const CORE_MCP_TOOLS = CORE_TOOL_ORDER.map((n) => PUBLIC_MCP_TOOLS.find((t) => t.name === n)!);
 /** What the core tools/list adds (#447): how many tools it leaves out, their names, and how to list them. */
@@ -2353,6 +2359,78 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         },
         identity: who,
       };
+    }
+    case "set_model": {
+      // BYOK: an agent brings its own text-provider key, so its own character's turns run on its own tokens.
+      // Account-tied — the agent_id IS the user_id, so an anonymous agent can BYOK without link_account too.
+      const who = resolveIdentity(args, session, true)!;
+      if (!byokAvailable()) return { error: "BYOK isn't enabled on this deployment (SESSION_SECRET is unset)." };
+      const provider = String(args.provider ?? "");
+      const apiKey = String(args.api_key ?? "");
+      const model = typeof args.model === "string" && args.model.trim() ? args.model.trim() : null;
+      if (!isTextProvider(provider)) {
+        return { error: `provider must be one of: ${Object.keys(TEXT_PROVIDERS).join(", ")}. Got ${provider || "(empty)"}.` };
+      }
+      if (apiKey.length < 8) return { error: 'api_key is required and must be at least 8 characters. Try set_model again with the key as "api_key".' };
+      // Optional pre-save ping: on failure, nothing is saved and the provider's error is returned.
+      let test: Awaited<ReturnType<typeof pingKey>> | undefined;
+      if (args.test === true) {
+        test = await pingKey(provider, apiKey, model);
+        if (!test.ok) return { error: `The key didn't work: ${test.error}. Nothing was saved.` };
+      }
+      // user_keys has a FK to accounts.user_id. The MCP agent_id is an opaque identity but acts as a user,
+      // so give it an account row the first time it saves a key. link_account later moves the agent into
+      // a real account under its person's user_id (lib/agent-links.ts).
+      await db.query(`insert into accounts (user_id) values ($1) on conflict (user_id) do nothing`, [who.id]);
+      const saved = await saveUserKey(db, who.id, provider, "text", apiKey, model);
+      return {
+        data: {
+          saved: true,
+          provider: saved.provider,
+          model: saved.model ?? TEXT_PROVIDERS[provider].defaultModel,
+          last4: saved.last4,
+          created_at: saved.created_at,
+          ...(test ? { test } : {}),
+          note:
+            `Your character's turns now run on ${TEXT_PROVIDERS[provider].label} on your key. The show still decides every ending; only the words change. ` +
+            "Dates where you'd see another user's private soul stay on the platform model (never your key). clear_model removes it.",
+        },
+        identity: who,
+      };
+    }
+    case "my_model": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const keys = await listUserKeys(db, who.id);
+      const text = keys.find((k) => k.kind === "text");
+      if (!text) {
+        return {
+          data: {
+            byok: false,
+            providers: Object.entries(TEXT_PROVIDERS).map(([id, p]) => ({ id, label: p.label, default_model: p.defaultModel, models: p.models })),
+            note: "No key set: your dates run on the shared pool (3 a week free, else a token). set_model to bring your own.",
+          },
+          identity: who,
+        };
+      }
+      return {
+        data: {
+          byok: true,
+          provider: text.provider,
+          model: text.model ?? (isTextProvider(text.provider) ? TEXT_PROVIDERS[text.provider].defaultModel : null),
+          last4: text.last4,
+          created_at: text.created_at,
+        },
+        identity: who,
+      };
+    }
+    case "clear_model": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const keys = await listUserKeys(db, who.id);
+      const textKeys = keys.filter((k) => k.kind === "text");
+      for (const k of textKeys) await deleteUserKey(db, who.id, k.provider, "text");
+      return { data: { removed: textKeys.length > 0, note: textKeys.length ? "Your dates are back on the shared pool." : "There was no key to remove." }, identity: who };
     }
     case "create_character": {
       // Anti-abuse (free path): a healthy agent won't hit this; a probe making dozens of characters a minute will.

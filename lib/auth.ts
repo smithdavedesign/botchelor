@@ -163,7 +163,14 @@ export async function accountForUser(db: Db, userId: string): Promise<Account | 
 }
 
 export async function hasAccount(db: Db, userId: string): Promise<boolean> {
-  return (await db.query(`select 1 from accounts where user_id = $1`, [userId])).rows.length > 0;
+  // A real account has at least one credential. A shell row (user_id only, no handle/email/google_sub/password_hash)
+  // is a non-account — the BYOK path writes one so user_keys's FK is satisfied for an anonymous MCP agent.
+  const { rows } = await db.query(
+    `select 1 from accounts where user_id = $1
+       and (handle is not null or email is not null or google_sub is not null or password_hash is not null)`,
+    [userId],
+  );
+  return rows.length > 0;
 }
 
 /**
