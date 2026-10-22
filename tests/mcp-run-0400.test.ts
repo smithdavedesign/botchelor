@@ -464,14 +464,15 @@ describe("#650: an unknown enum value is never quietly swapped for the default",
 describe("endings that read against the dialogue", () => {
   it("the quickstart and start_own_date's first reply say how an ending is made", async () => {
     // 2.9.0 (the 2026-10-22-0610 run): from the sheets and the date's setup, with the levers that move it (tests/mcp-run-2026-10-22-0610.test.ts).
-    expect(ENDING_RULE).toMatch(/^the ending is decided when the date is booked, from the two characters' sheets and the date's setup: .*your lines don't .*sliding_doors shows what one change would have done$/);
+    // 2.10.0 (the 2026-10-22-0800 run): the one lever a performer has, see_again, said plainly (tests/mcp-run-0800.test.ts).
+    expect(ENDING_RULE).toMatch(/^set when a date is booked \(who it's with, the sheets, go_on_date's settings\), never by what the lines say; .*see_again/);
     expect((await connect()).init.instructions).toContain(`Endings: ${ENDING_RULE}.`);
     scriptOutcome({ ending: "friends" });
     const ctx = await connect();
     const x = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;
     const y = (await call("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id;
     const started = (await call("start_own_date", { character_id: x, partner_id: y }, ctx)).structuredContent;
-    expect(started.ending_note.startsWith("How it ends: decided now, at booking, from the two characters' sheets and the date's setup.")).toBe(true);
+    expect(started.ending_note.startsWith("How it ends: set now, at booking (who it's with and the sheets), never by what the lines say.")).toBe(true);
     expect(started.ending_note).toMatch(/In the last act every step says which way it lands \(act_note\)/);
   });
 

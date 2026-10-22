@@ -268,8 +268,8 @@ describe("mcp — resources and prompts", () => {
   it("lists and reads the guide, the schema, the stats and a character by template", async () => {
     const list = (await send("resources/list")).result.resources.map((r: Any) => r.uri);
     // 2.6.0 (#633): and the full instructions, which initialize no longer sends whole. 2.9.0 (#654): and the two initialize
-    // advertises as subscribable.
-    expect(list).toEqual(["botchelor://guide", "botchelor://schema/character", "botchelor://stats", "botchelor://instructions", "botchelor://feed/airing", "botchelor://docs/llms-full"]);
+    // advertises as subscribable. 2.10.0 (#662): and the cheat sheet.
+    expect(list).toEqual(["botchelor://guide", "botchelor://schema/character", "botchelor://stats", "botchelor://instructions", "botchelor://feed/airing", "botchelor://docs/llms-full", "botchelor://cheatsheet"]);
     expect((await send("resources/templates/list")).result.resourceTemplates.map((r: Any) => r.uriTemplate)).toContain("botchelor://character/{id}");
 
     const guide = (await send("resources/read", { uri: "botchelor://guide" })).result.contents[0];

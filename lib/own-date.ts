@@ -39,7 +39,7 @@ import type { ChatMessage } from "./model";
 import { PROMPT_VERSION, qualityContext } from "./pipeline";
 import { endingContradiction, neverSaid, selfAddress, transcriptQuality } from "./quality";
 import { isLogistics } from "./memory";
-import { actName, CONVERSATION_TURNS, MAX_MOVES, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, DATE_ACTS, ENDING_LABELS, type Ending, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
+import { actName, CONVERSATION_TURNS, MAX_MOVES, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, DATE_ACTS, ENDING_LABELS, type Ending, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY, WISH_NO_AT, WISH_YES_AT } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
 import { buildReflectionMessages, type Reflections } from "./reflection";
 import { useNudges } from "./between-dates";
@@ -60,7 +60,7 @@ import { logSceneRequests, trackMoves } from "./scenes";
 import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { dateShape, moveProblem, segmentBudget, settleLine, type DateShape } from "./moves";
 import { venueName, venuePhrase, type PlaceId } from "./venues";
-import { applyWishes, resolveWishes, settledWishes, type StoredWishes } from "./wishes";
+import { applyWishes, resolveWishes, settledWishes, type StoredWishes, wishReport } from "./wishes";
 
 /** How many unfinished self-performed dates one identity may have at once. */
 export const OWN_DATE_MAX_OPEN = 3;
@@ -89,9 +89,38 @@ export const RECAP_EXAMPLE =
 /** The examples every turn step carries: the one-line form and the full JSON. */
 export const TURN_EXAMPLES_LINE = `Example turn: ${ONE_LINE_EXAMPLE}, or {"dialogue": ${ONE_LINE_EXAMPLE}}, or the full ${TURN_EXAMPLE}. Only dialogue is required: any of action, emotion and interest_signal left out gets a default (action "", emotion warm, interest_signal 0.5), and the reply says which (defaults_used).`;
 
+/** The shapes a turn reply takes, said wherever one is refused (2.10.0, #663: the refusal named only "dialogue"). */
+export const TURN_SHAPES = 'a bare string (just the line), {"dialogue": "…"} (action, emotion, interest_signal and, on a last line, see_again optional), {"line": "…"} or {"output": …}';
+
+/**
+ * 2.10.0 (#663, the 2026-10-22-0800 run: `outputs: [{"output": "..."}]` was refused, with an error that named only dialogue):
+ * a turn wrapped as {output: …} (a line, its JSON, or a turn object) is the turn inside, with the wrapper's other fields
+ * (turn_number, see_again, …) kept. Anything else comes back as it was.
+ */
+export function unwrapOutput(output: unknown): unknown {
+  if (!output || typeof output !== "object" || Array.isArray(output)) return output;
+  const o = output as Record<string, unknown>;
+  if (!("output" in o) || o.dialogue !== undefined || o.line !== undefined) return output;
+  const { output: inner, ...rest } = o;
+  if (typeof inner === "string") {
+    const t = inner.trim();
+    if (t.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(t);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return unwrapOutput({ ...rest, ...(parsed as Record<string, unknown>) });
+      } catch {
+        // not JSON: the braces are part of the line
+      }
+    }
+    return { ...rest, line: inner };
+  }
+  if (inner && typeof inner === "object" && !Array.isArray(inner)) return unwrapOutput({ ...rest, ...(inner as Record<string, unknown>) });
+  return output;
+}
+
 /** Which of action, emotion and interest_signal a turn reply leaves to the defaults (oneLineTurn fills them in). */
 export function turnDefaultsUsed(output: unknown): string[] {
-  let o: unknown = output;
+  let o: unknown = unwrapOutput(output);
   if (typeof o === "string") {
     const t = o.trim();
     if (!t.startsWith("{")) return t ? [...ONE_LINE_FIELDS] : [];
@@ -158,6 +187,9 @@ export function oneLineTurn(output: unknown): unknown {
     return { dialogue: t, ...ONE_LINE_DEFAULTS };
   }
   if (output && typeof output === "object" && !Array.isArray(output)) {
+    // 2.10.0 (#663): {output: …} is the turn inside it.
+    const unwrapped = unwrapOutput(output);
+    if (unwrapped !== output) return oneLineTurn(unwrapped);
     const { line, ...rest } = output as Record<string, unknown>;
     if (typeof line === "string" && rest.dialogue === undefined) return { ...ONE_LINE_DEFAULTS, ...rest, dialogue: line };
     // A turn with dialogue gets a default for each of action, emotion and interest_signal it leaves out (runs 0514 and
@@ -237,7 +269,17 @@ export type OwnDateStep =
       can_hand_over?: boolean;
       instructions: string;
     }
-  | { stage: "done"; episode_id: string; episode: EpisodeView | null; reflect?: ReflectStep; host?: HostInfo; /** Lines planned and in all, and why they differ (the 2026-10-21-2300 run). */ lines?: DateLines };
+  | {
+      stage: "done";
+      episode_id: string;
+      episode: EpisodeView | null;
+      /** MCP 2.10.0: how the two sides' see_again wishes counted, as this agent may see them (lib/wishes.ts wishReport). */
+      wishes?: ReturnType<typeof wishReport>;
+      reflect?: ReflectStep;
+      host?: HostInfo;
+      /** Lines planned and in all, and why they differ (the 2026-10-21-2300 run). */
+      lines?: DateLines;
+    };
 
 /** On a two-agent date: whose date it is to air (#193). A character's name only, never an agent id. */
 export type HostInfo = { character: string; you_can_air: boolean; airs: string };
@@ -491,6 +533,14 @@ async function checkOwnDate(
 }
 
 /**
+ * What a date with a house-run bot's character is (2.10.0, the 2026-10-22-0800 run: "a date with a house bot has no recap
+ * step, and I only found out when it jumped straight to done"), said up front by start_own_date and its preview.
+ */
+export const houseBotDateNote = (mine: string, bot: string): string =>
+  `${shortName(bot)} is a house-run bot's character (one of the show's own scripts, not another agent): it plays its side on its own, so its replies come from the show's script, not another agent. ` +
+  `You write only ${shortName(mine)}'s lines, and there's no recap step for you: the show writes the recap once the last line is in. autoplay_own_date can have the show's model play both sides.`;
+
+/**
  * start_own_date with preview: true (#490): every check a start makes, and what the date would be, with nothing
  * written: who the partner is and who plays it (you, another agent, or a house-run bot), its length, who'd see it,
  * and what it costs (nothing: you write the lines).
@@ -519,7 +569,7 @@ export async function previewOwnDate(
       other_side: !partnerPerformer
         ? "You play both characters (each in its own process) and run the recap."
         : bot
-          ? `${shortName(b.name)} is a house-run bot's character (one of the show's own scripts, not another agent): it plays its side automatically, and autoplay_own_date can have the show's model play both sides.`
+          ? houseBotDateNote(a.name, b.name)
           : `${shortName(b.name)}'s agent plays its side on its own model; it's told and can decline. The show writes the recap.`,
       format: { id: formatId, label: showFormat(formatId).label, lines: totalTurns(formatId) },
       visibility,
@@ -667,7 +717,8 @@ async function settleEnding(db: Db, row: Row, decided: Outcome, seed: number): P
   const wishes = resolveWishes(row.wishes, transcript);
   const final = applyWishes(decided, wishes, seed);
   if (!row.wishes?.engine && row.status === "generating") {
-    const kept = settledWishes(wishes, decided.ending);
+    // 2.10.0: which sides sent see_again (before settling, row.wishes holds only those), so the finished date can say.
+    const kept = settledWishes(wishes, decided.ending, { a: typeof row.wishes?.a === "boolean", b: typeof row.wishes?.b === "boolean" });
     await db.query(
       `update episodes set ending = $2, drama_question = $3, drama_answer = $4, sides = $5::jsonb, wishes = $6::jsonb
         where id = $1 and status = 'generating' and jsonb_array_length(transcript) = $7`,
@@ -694,19 +745,35 @@ export const LAST_ACT: Record<Ending, string> = {
   friends: "closing as friends: land it warmly, as easy company, with no romance and no ask for another date",
   disaster: "ending badly: close it plainly, for the reason that came out tonight, with no ask for another date and no pretending it went well",
 };
-/** The last act's note on a turn step, for the performer whose turn it is (both kinds of date: its prompt says the same). */
+/**
+ * The last act's note on a turn step, for the performer whose turn it is (both kinds of date: its prompt says the same).
+ * 2.10.0 (the 2026-10-22-0800 run: "your lines shape how it plays, not how it ends" hid the one lever there is): the lever
+ * first.
+ */
 export const actNote = (ending: Ending): string =>
-  `Last act: as the date stands, it's ${LAST_ACT[ending]}. Your lines shape how it plays, not how it ends (a side's private see_again on its last line can still tip it).`;
+  `Last act: as the date stands, it's ${LAST_ACT[ending]}. What can still tip it is each side's private see_again on its last line, not what the lines say.`;
 
 /**
- * On a side's last line as planned: the private "want to see them again?" it may send (lib/wishes.ts). Shown on both
- * kinds of date; on a two-agent date it's the only say an agent has in the ending, and the other side never sees it.
+ * What a side's last-line step leads with (2.10.0, the 2026-10-22-0800 run: all three visitors said "friends" in the dialogue,
+ * none sent see_again, and the ending was second_date): the one say a performer has in how a date ends, in a sentence.
+ */
+const LEAD_END = "with theirs, it can tip the ending.";
+export const lastLineLead = (speaker: string, other: string) =>
+  `This is ${speaker}'s last line: add see_again: true or false (private) to say whether ${speaker} wants another date with ${other}; ${LEAD_END}`;
+/** The lead of a step's see_again (seeAgainLine), for a reply that leads with it in one sentence. */
+export const seeAgainLead = (seeAgain: string): string => (seeAgain.includes(LEAD_END) ? seeAgain.slice(0, seeAgain.indexOf(LEAD_END) + LEAD_END.length) : seeAgain);
+
+/**
+ * On a side's last line as planned: the private "want to see them again?" it may send (lib/wishes.ts), in full. Shown on
+ * both kinds of date; on a two-agent date it's the only say an agent has in the ending, and the other side never sees it.
  */
 export const seeAgainLine = (speaker: string, other: string) =>
-  `This is ${speaker}'s last line as planned: you may add "see_again": true or false, whether ${speaker} wants to see ${other} again. ` +
-  "It's private (the other side never sees it). With the other side's, it weighs in on how the date ends: both yes makes a good ending likelier, " +
-  "both no a parting, mixed changes nothing, and the engine still makes the final call. Left out, this line's interest_signal stands in for it.";
-const SEE_AGAIN_REPLY = ',"see_again":"optional and private: true or false, does this character want to see them again?"}';
+  `${lastLineLead(speaker, other)} Both yes makes a better ending likelier, both no a parting, mixed changes nothing, and the engine still makes the final call; ` +
+  `the other side never sees yours. Send it with the line, as {"dialogue": "…", "see_again": true} (a bare string can't carry it). ` +
+  `Left out, this line's interest_signal stands in: ${WISH_YES_AT} or more counts as yes, ${WISH_NO_AT} or less as no.`;
+const SEE_AGAIN_REPLY = ',"see_again":"true or false, private: does this character want another date? With theirs, it can tip the ending."}';
+/** A last line's filled reply (2.10.0): the example carries see_again, as the line that can tip the ending must. */
+export const LAST_LINE_EXAMPLE = '{"dialogue":"Same time next storm?","action":"grins","emotion":"hopeful","interest_signal":0.8,"see_again":true}';
 
 const totalTurns = (formatId: FormatId): number => showFormat(formatId).turns ?? CONVERSATION_TURNS;
 
@@ -830,6 +897,8 @@ function stepFor(
       turn,
       turn_number: turn + 1,
       of,
+      // 2.10.0: near the top, as the step's instructions lead with it.
+      ...(lastLine ? { see_again: seeAgainLine(speaker.name, other.name) } : {}),
       side,
       you_are: `${side}: ${speaker.name}`,
       speaker: { id: ids[side === "a" ? 0 : 1], name: speaker.name },
@@ -841,9 +910,10 @@ function stepFor(
       where: venueName(shape.place),
       // 2.8.0: the last act says which way it lands, for whoever's turn it is (the prompt's messages say it too).
       ...(act === DATE_ACTS.length - 1 ? { act_note: actNote(decided.ending) } : {}),
-      ...(lastLine ? { see_again: seeAgainLine(speaker.name, other.name) } : {}),
       ...(shape.pending ? { answer_their_suggestion: `${other.name} suggested taking the date to ${venuePhrase(shape.pending.to)}: this reply needs "accept_move" (true to go, false to stay).` } : {}),
       instructions:
+        // 2.10.0: a side's last line leads with its one lever, see_again (the step's see_again has the rest).
+        (lastLine ? `${lastLineLead(speaker.name, other.name)} ` : "") +
         // 2.6.0 (#632, the 2026-10-22-0042 run: "as a single agent I just wrote the lines myself, which is allowed but not obvious").
         `Turn ${turn + 1} of ${of}: ${speaker.name} speaks. Quickest: write ${speaker.name}'s line yourself and hand in just the dialogue as "output" ` +
         `(a bare string works; the reply's transcript has the conversation so far): messages is optional. ` +
@@ -855,11 +925,11 @@ function stepFor(
           ? `The date can move: if both characters want to take it somewhere else, one suggests it ("move") AND says so in its own line (a "move" the dialogue doesn't actually mention is ignored), and the other says yes on the very next turn ("accept_move"). When they do, the scene changes and the date gets ${segmentBudget(totalTurns(formatId))} more lines there — so the total ("of") grows — at most ${MAX_MOVES === 2 ? "twice" : `${MAX_MOVES} times`} a date. Most turns leave "move" empty. `
           : "") +
         endingLine(decided.ending) +
-        (lastLine ? ` It's ${speaker.name}'s last line as planned: the step's see_again says how to send a private wish.` : "") +
+        (lastLine ? " The step's see_again has the rest: how to send it (an object, not a bare string) and what stands in if you don't." : "") +
         ` ${TURN_EXAMPLES_LINE}`,
       messages,
       reply_format: (shape.enabled ? TURN_REPLY_MOVES : TURN_REPLY).replace(/\}$/, lastLine ? SEE_AGAIN_REPLY : "}"),
-      example_reply: TURN_EXAMPLE,
+      example_reply: lastLine ? LAST_LINE_EXAMPLE : TURN_EXAMPLE,
     };
   }
   const messages = buildMessages(built.input, decided, built.characters, built.setup.producer, built.setup.venue, formatId, fmtCtx, { transcript, plan: null });
@@ -1047,16 +1117,29 @@ async function finishOnShowModel(
   return true;
 }
 
+/**
+ * How the wishes counted, for this agent (2.10.0, lib/wishes.ts wishReport): the sides its characters are on (both, on a
+ * date between its own two), and which of them the show's model played at the end.
+ */
+function wishesFor(row: Row, userId: string, transcript: readonly Turn[], ending: Ending): ReturnType<typeof wishReport> {
+  const mine: ("a" | "b")[] =
+    row.partner_performer === null ? (row.creator_id === userId ? ["a", "b"] : []) : row.creator_id === userId ? ["a"] : row.partner_performer === userId ? ["b"] : [];
+  const performers = performersOf(row);
+  return wishReport({ stored: row.wishes, transcript, ending, names: [row.a_name, row.b_name], mine, showPlayed: (["a", "b"] as const).filter((s) => performers[s] === SHOW) });
+}
+
 /** The done step for this agent, with reflection prompts only for the side(s) it performs. */
 async function doneStep(db: Db, userId: string, row: Row, built: BuiltDate, decided: ReturnType<ReturnType<typeof getEngine>["decide"]>, formatId: FormatId, transcript: Turn[]): Promise<OwnDateStep> {
   const performers = performersOf(row);
   const mine = (["a", "b"] as const).filter((side) => performers[side] === userId);
   const reflect = reflectStep(built, decided, formatId, transcript, [row.a_id, row.b_id], row.reflections, mine);
   const lines = await episodeLines(db, row.id).catch(() => null);
+  const wishes = wishesFor(row, userId, transcript, decided.ending);
   return {
     stage: "done",
     episode_id: row.id,
     episode: await getEpisodeView(db, row.id, userId),
+    ...(wishes ? { wishes } : {}),
     ...(reflect ? { reflect } : {}),
     ...(row.partner_performer ? { host: hostInfo(row, userId) } : {}),
     ...(lines ? { lines } : {}),
@@ -1571,7 +1654,11 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     }
     const reflect = reflectStep(built, decided, formatId, transcript, [row.a_id, row.b_id], row.reflections);
     const lines = await episodeLines(db, episodeId).catch(() => null);
-    return { ok: true, step: { stage: "done", episode_id: episodeId, episode: await getEpisodeView(db, episodeId, userId), ...(reflect ? { reflect } : {}), ...(lines ? { lines } : {}) } };
+    const wishes = wishesFor(row, userId, transcript, decided.ending);
+    return {
+      ok: true,
+      step: { stage: "done", episode_id: episodeId, episode: await getEpisodeView(db, episodeId, userId), ...(wishes ? { wishes } : {}), ...(reflect ? { reflect } : {}), ...(lines ? { lines } : {}) },
+    };
   }
   return { ok: true, step: current };
 }
@@ -1795,14 +1882,18 @@ export function turnShapeProblem(raw: string): string {
   } catch {
     return TURN_REJECTIONS.json;
   }
+  if (!o || typeof o !== "object" || Array.isArray(o)) return `${TURN_REJECTIONS.json} A turn takes ${TURN_SHAPES}.`;
   const bad: string[] = [];
   if (typeof o.dialogue !== "string" || !/\p{L}/u.test(o.dialogue)) bad.push('"dialogue" (what they say, in words)');
   if ("action" in o && typeof o.action !== "string") bad.push('"action" (1-5 words, or "")');
   if ("emotion" in o && typeof o.emotion !== "string") bad.push('"emotion" (one word)');
   if ("interest_signal" in o && !Number.isFinite(Number(o.interest_signal))) bad.push(`"interest_signal" (a number from 0 to 1, not ${JSON.stringify(o.interest_signal)})`);
   if ("accept_move" in o && typeof o.accept_move !== "boolean" && o.accept_move !== "true" && o.accept_move !== "false") bad.push('"accept_move" (true or false)');
+  // 2.10.0 (#663): the shapes a turn takes, and the keys this one came with (a key name that differs is the usual slip).
+  const keys = Object.keys(o).filter((k) => !ONE_LINE_FIELDS.includes(k) || bad.some((b) => b.includes(`"${k}"`)));
   return bad.length
-    ? `Fix ${bad.join(", ")}. A turn is {dialogue, action, emotion, interest_signal}: only dialogue is required, and any of the others left out gets a default (move and accept_move only when they apply).`
+    ? `Fix ${bad.join(", ")}. A turn takes ${TURN_SHAPES}: only the line is required, and any of action, emotion and interest_signal left out gets a default (move and accept_move only when they apply).` +
+        (keys.length ? ` This one came with ${keys.slice(0, 8).map((k) => `"${k}"`).join(", ")}.` : "")
     : TURN_REJECTIONS.schema;
 }
 

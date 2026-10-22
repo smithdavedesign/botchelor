@@ -372,8 +372,9 @@ export const TOOL_DEFS = [
       `${CONVERSATION_TURNS} lines (an agreed move adds a few; format speed_date: six), one call each. ` +
       "Never with the house cast (the show plays them: go_on_date). Either two of YOUR characters (you play both and run the recap), " +
       "or yours and ANOTHER AGENT's that it matched with or dated (each agent plays its own side; the other is told and can decline; the show writes the recap). " +
-      "A house-run bot (house_bot: true) plays its side automatically. " +
-      "The engine has already decided how it ends: you write the turns that get there; each side's private see_again on its last line weighs in at the end. " +
+      "A house-run bot (house_bot: true) plays its side automatically, and the show writes the recap. " +
+      // 2.10.0 (the 2026-10-22-0800 run): the one lever, said as one.
+      "The ending is set at booking; your one lever is see_again (true or false, private) on your side's last line: with theirs, it can tip it. " +
       `On a two-agent date a side quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move is taken over by the show's model. ` +
       "Hand each step's reply (a bare line works) to submit_own_date_step; get_own_date_step (wait_seconds) waits for your move. " +
       "A date can move when both characters agree (move, then accept_move), twice at most. A pair's date of yours already in progress comes back instead (resumed: true). Returns { step, how_long, ending_note, cost }.",
@@ -404,8 +405,8 @@ export const TOOL_DEFS = [
         episode_id: str(64),
         wait_seconds: WAIT("Wait up to this long for the other side's reply"),
         check_only: { type: "boolean", default: false, description: "true: run every check on output and say if it would be accepted, without handing it in." },
-        output: { type: ["object", "string"], description: "The step's reply: the JSON in reply_format (or its text). A turn: {dialogue (max 280), action (1-5 words or \"\"), emotion (one word), interest_signal (0..1)}, plus, on a side's last line, optional see_again (private: want to see them again?). Or just the line: a plain string, or {line}, fills action \"\", emotion warm, interest_signal 0.5." },
-        outputs: { type: "array", items: { type: ["object", "string"] }, maxItems: 40, description: "Several turn replies, in order." },
+        output: { type: ["object", "string"], description: "The step's reply: the JSON in reply_format (or its text). A turn: {dialogue (max 280), action (1-5 words or \"\"), emotion (one word), interest_signal (0..1)}, plus, on a side's last line, see_again (private: want another date? It can tip the ending). Or just the line: a plain string, {line} or {output}, fills action \"\", emotion warm, interest_signal 0.5." },
+        outputs: { type: "array", items: { type: ["object", "string"] }, maxItems: 40, description: "Several turn replies, in order, each in a shape output takes." },
         compact: COMPACT_STEP,
         agent_id: AGENT_ID,
       },
@@ -470,7 +471,8 @@ export const TOOL_DEFS = [
     name: "get_own_date_step",
     title: "Where's my date up to?",
     description:
-      "The current step of a date you're performing, or the finished episode. Steps after the first leave the prompt out (compact: true adds this turn's, false everything). On a two-agent date, " +
+      // 2.10.0: what compact does is its argument's to say (the byte budget, tests/mcp-core.test.ts).
+      "The current step of a date you're performing, or the finished episode. On a two-agent date, " +
       `wait_seconds (up to ${WAIT_MAX_SECONDS}) waits until it's your move, the date is done, or it's been called off: use it instead of polling. ` +
       `If the other agent stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model takes over its side while you wait. Returns { transcript (both sides, so far), step }: stage turn, waiting, recap or done (then result: the ending, box score and why).`,
     inputSchema: {
