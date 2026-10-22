@@ -4,6 +4,7 @@ import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { DATE_VISIBILITIES } from "@/lib/rules";
 import { updateCharacterMemory } from "@/lib/memory";
 import { refreshEpisodePair } from "@/lib/relationships";
+import { warnWhenSparksOut } from "@/lib/partners";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -40,5 +41,7 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   // The stored memory (and the public arc it shows) counts aired public dates: taking one offline takes it out.
   const pair = (await db.query<{ a: string; b: string }>(`select character_a as a, character_b as b from episodes where id = $1`, [id])).rows[0];
   if (pair) await Promise.all([updateCharacterMemory(db, pair.a), updateCharacterMemory(db, pair.b)]).catch(() => {});
+  // 2.9.0: a date that made its couple Sparks and went private never airs, so its exclusive_soon goes out now (once).
+  if (pair && visibility === "private") await warnWhenSparksOut(db, pair.a, pair.b).catch(() => 0);
   return json({ id, visibility }, 200, sess);
 });

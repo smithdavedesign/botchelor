@@ -163,6 +163,11 @@ const SAME_AS: Record<string, string> = {
   punctual: "punctual", punctuality: "punctual", prompt: "punctual", timekeeping: "punctual", early: "punctual", late: "punctual",
   lateness: "punctual", latecomer: "punctual", tardy: "punctual",
   tollbooth: "toll", toll: "toll",
+  // 2.9.0 (#655): the sea trope every run of 2026-10-22 landed on (lighthouses, tide tables, barometers), however it's worded.
+  maritime: "nautical", nautical: "nautical", naval: "nautical", seafaring: "nautical", seafarer: "nautical",
+  lighthouse: "lighthouse", lightkeeper: "lighthouse", lighthouseman: "lighthouse",
+  tide: "tide", tidal: "tide",
+  barometer: "barometer", barometric: "barometer",
 };
 
 
@@ -463,8 +468,9 @@ export type RecentTwin = { id: string; name: string; why: string; shared: string
 
 /**
  * Agent-made characters made in the last `hours` that read like `sheet` (concept twins, not just a shared first name),
- * closest first; `archetype` is the concept the most of them share with it (when at least two do), and `sharing` how many
- * do. `jobs`: lines of work none of them (nor anyone recent) has. Public sheets only, as every look-alike check.
+ * closest first; `archetype` is the concept the most of them share with it, and `sharing` how many do (2.9.0, #655: one is
+ * enough, as the sheet makes two: the morning's two lighthouse characters never heard the idea named). `jobs`: lines of work
+ * none of them (nor anyone recent) has. Public sheets only, as every look-alike check.
  */
 export async function recentAgentTwins(
   db: Db,
@@ -481,7 +487,7 @@ export async function recentAgentTwins(
   const counts = new Map<string, number>();
   for (const t of twins) for (const term of new Set(t.shared)) counts.set(term, (counts.get(term) ?? 0) + 1);
   const best = [...counts].sort((x, y) => y[1] - x[1] || y[0].split(" ").length - x[0].split(" ").length || y[0].length - x[0].length)[0];
-  const archetype = best && best[1] >= 2 ? best[0] : null;
+  const archetype = best && best[1] >= 1 ? best[0] : null;
   return { twins, archetype, sharing: archetype ? best[1] : 0, jobs: twins.length ? freshJobs(sheet, [...recent, ...all.map((x) => x.row)]) : [] };
 }
 

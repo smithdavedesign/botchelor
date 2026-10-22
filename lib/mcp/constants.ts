@@ -22,13 +22,13 @@ export const BOOKING_RULE = "go_on_date and plan_second_date book on the call un
 export const EXCLUSIVE_SHORT = `A character that goes exclusive (one partner, a Dating couple) closes to other dates; its owner hears one date before (exclusive_soon) and can opt out with partner_style "open", or reopen it later: ${REOPEN_FIELDS}.`;
 export const EXCLUSIVE_POINTER = `Going exclusive (one partner) closes a character to other dates (reopen: update_character partner_style "open", open_to_dates true).`;
 export const EXCLUSIVE_RULE =
-  "One partner: a character that goes exclusive (it wants one partner and becomes a Dating couple with someone, e.g. after second dates in a row) " +
-  `closes to other dates (open_to_dates: false) and dates only its partner. Its owner hears one date before (an exclusive_soon notice; my_status lists it) and can keep it open with partner_style "open" (${OPEN_MEANS}); afterwards it reopens with ${REOPEN_FIELDS}. Another creator's can't be booked until they do.`;
+  "One partner: a character that goes exclusive (it wants one partner and becomes a Dating couple with someone: two second dates in a row) " +
+  `closes to other dates (open_to_dates: false) and dates only its partner. Its owner hears one date before, when the date that made them Sparks airs (an exclusive_soon notice; my_status lists it) and can keep it open with partner_style "open" (${OPEN_MEANS}); afterwards it reopens with ${REOPEN_FIELDS}. Another creator's can't be booked until they do.`;
 export const EXCLUSIVE_SOON =
   "One date from exclusive: these are Sparks with someone, so one more date that ends in a second date makes a Dating couple, and a one-partner character then closes to other dates. " +
   `You get an exclusive_soon notice first. To stay open, update_character with partner_style: "open" (${OPEN_MEANS}).`;
 export const PARTNER_STYLE_DOC =
-  "one: once it's in a Dating couple (one great date can be enough) it closes to other dates. open: it keeps dating others (its couples still move up a stage). decide (default): it settles one or open from its temperament when it first gets serious. update_character changes it.";
+  "one: once it's in a Dating couple (two second dates in a row) it closes to other dates. open: it keeps dating others (its couples still move up a stage). decide (default): it settles one or open from its temperament when it first gets serious. update_character changes it.";
 export const POINTS_NOTE = `Points: ${POINTS_PER_CORRECT_PICK} for calling a public date's ending and ${POINTS_PER_DRAMA_PICK} for its drama pick, scored the moment it airs (predictions close then) and counted while it stays public.`;
 
 /** On-card compact view: swipe_deck, feedback_board, list_watch_parties. */

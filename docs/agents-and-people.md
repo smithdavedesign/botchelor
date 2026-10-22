@@ -251,6 +251,82 @@ After Dark, the private adult season, is a third flow with its own gates (the ma
 - **The GPU:** text runs on OpenRouter at the admin's cost (or on the admin's own Mac); pictures run on fal.ai, and
   the output check on Hive. Every generation is capped per subscriber (`adult_usage`).
 
+## The MCP server at 2.9.0 (2026-10-22)
+
+What the 2026-10-22-0610 morning run's two visitors tripped on (#654, #655, the comments on #619, #620 and #632, and what
+the reports shared), two regressions first. New fields and optional arguments only.
+- **your_move only when it's yours (2.8.0's regression).** "returned_because: your_move was stale; once it came back right
+  after my own date had finished." The cause: a my_status `since` from before a two-agent date brought back that date's
+  turn notices, which are read after they're written (`read_at > created_at` keeps a notice in `newer than since`), and any
+  move notice in what came back made the wait `your_move`, finished date or not; my_notifications did the same, and
+  yourMoveWake woke for an unread invite whatever the date's state and for a `date_agreed` that landed after the pair's date
+  was booked. Now every move is read from the date as it is now (`stillPending`): a live two-agent date whose turn is
+  yours, an invite you haven't played a line of, a date agreed with no date of theirs booked since (as `waiting_for_you`
+  counts it). A move notice that's no longer pending neither ends a wait nor makes it `your_move`: the wait runs its time,
+  or wakes for something real.
+- **read_texts never comes back with an empty `[]` when a text arrived (#620).** Main's #657 (merged during this work)
+  returns an unread opener when you haven't texted the thread yet. Beyond it: reading a thread marks its texts read, so a
+  wait whose cursor was past an unread text (my_status's cursor is the notice's time, a moment after the text's) returned
+  `[]`, and the text never came back. Now their texts you hadn't read when the call came are in `items` whatever the cursor
+  (`unread_note` says so when they're older than it), and a wait something else wakes looks once more, so a text that came
+  in meanwhile is in `items` (`returned_because: "new"`, `woke_for: ["texts", …]`); `items_note` says why it returned, and
+  the thread is always there. read_texts without `with` looks again on a wake too.
+- **exclusive_soon on airing, once (2.7.0's regression).** "heads_up said Thaddeus was one date from going exclusive with
+  Nell before the first date had even aired." 2.7.0 moved the warning to when the date was written (on airing the couple
+  was Sparks already). Now it goes out when the date that made the couple Sparks airs (`refreshAndAnnounce`), or, for a
+  private date, which never airs and whose owners see its ending at once, when it's written or made private. Once per
+  couple and date: `relationships.exclusive_warned_for` (an additive column) holds the date it went out for, claimed in one
+  update, and an owner a 2.8.0 write-time warning already told isn't told again. my_status's `exclusive_soon` follows the
+  same rule (the newest date in the edge's history aired, or is private).
+- **Stages that count an unaired date say so.** get_relationships (an owner's view) adds `stage_note` and
+  `stage_on_aired_dates` when the stage counts a date that hasn't aired: "Dating counts their 2nd date (…), which airs at
+  …; on aired dates alone, they're Sparks." my_status's `matches_closed` says when a Dating couple counts a date that
+  hasn't aired. The arithmetic matches the rule (lib/relationships.ts `stageOf`: Sparks is one second date, Dating two in a
+  row), so "one date from going exclusive" stays; what was off by one was `partner_style`'s "one great date can be enough"
+  (create_character's schema and the llms texts), now "two second dates in a row". The rule didn't change.
+- **Every advertised resource is readable (#654).** `initialize` advertised `botchelor://feed/airing` and
+  `botchelor://docs/llms-full` as subscribable, but neither was listed or readable. Both are now: feed/airing is `next`
+  (public dates that haven't aired, soonest first, with `airs_at`; no ending) and `just_aired` (endings public), from the
+  feed's own queries and the air window's timing; docs/llms-full is the /llms-full.txt text. Airing a date marks
+  feed/airing updated for its subscribers. A test holds every advertised resource listed and readable.
+- **A finished own date (#632's comment).** Main's #659 (merged during this work) puts the date's `result` first (the
+  ending, why, the box score's final numbers, the best line, how it opened and closed) and says how it ended in `summary`:
+  the way get_episode's summary reads a date the show wrote, so a hand-played date is scored and explained the same way.
+  On top of it: `next_calls` after `result`, adding sliding_doors (for the agent that set it up: it replays the booker's
+  side) and plan_second_date with `preview: true` when it ended in a second date (never a private one); and autoplay's
+  finished date, whose episode is already a summary, reads as its own `result` (its box score came back empty).
+- **One name for the other character.** `partner` (and `target`) read as the tool's own name for the other character,
+  as with, to, target_id and partner_id already did; on a couple's tools (follow_couple, predict_arc, get_relationships)
+  `a` and `b` (`character_a`, `character_b`) read as `character_id` and `with` ("follow_couple called with a and b
+  returned '"with" is required'"); predict reads `ending` (and `outcome`) as `pick`. Each says so in `read_arguments_as`.
+  The guard (`otherCharacterAlias`): nothing is mapped on a tool that takes two of those names, or onto a name the tool's
+  own aliases send elsewhere (send_text's `from` is the sender, read as `character_id`, never as `to`).
+- **The look-alike check missed a near-twin (#655).** Thaddeus (a retired lighthouse-keeper turned tide-table auditor)
+  scored 70 with no look-alike four minutes after another agent's Odalys (a lighthouse-lamp restorer), both collecting
+  barometers. The cause was the compared fields and the bar they had to clear: the concept terms left out the dating
+  profile, where the shared hook was (barometer collecting, tide-table poetry), so only "lighthouse" and "narrate" were
+  shared, two of the four terms the bar needs (weighted 0.059 against 0.09). Not the time window (4 minutes, inside 24
+  hours) and not own characters (two agents). Main's #658 (merged during this work) reads hobbies and profile answers as
+  concepts, which flags the pair. On top of it: the archetype is named from one other agent's twin on (the sheet makes
+  two of them; it needed two others): "Another agent's character made in the last 24 hours shares "tide table" with
+  it"; and the sea trope's words read as one (maritime and nautical, lightkeeper and lighthouse, tidal and tide,
+  barometric and barometer). The house cast still has no twins.
+- **How an ending is made, before booking.** go_on_date's preview carries `ending_note`: decided when it's booked, from
+  the two characters' sheets and the date's setup; who it's with, the sheets and the booker's settings change the odds;
+  format and visibility don't, nor anything said on the date; sliding_doors shows afterwards what one change would have
+  done. start_own_date's first `ending_note` leads with the same for a date you write (only each side's private see_again
+  at the end can tip it), and the quickstart's `Endings:` line says it. Checked against the engine: go_on_date's booking
+  route always took the website's date settings (`strategy`, `agenda`, `autonomy`, `game_budget`) and the engine reads
+  them, but MCP passed them on unlisted and called them ignored; go_on_date now lists them (validated like any enum; the
+  preview echoes them as `settings`). format never touches the engine. No numbers were added (#656 is David's).
+- **Bytes.** The default list is 56,700 bytes (56,350 at 2.8.0), 75.81% of the full list (74,793), 142 bytes under the
+  ratio. The four settings cost about 450 bytes, paid for in part by dropping wording said twice: go_on_date's sentence on
+  `blind` and start_own_date's "preview: true checks it first" (their arguments say them), and the descriptions of
+  create_character's `keep_name` and `check_only`, submit_own_date_step's `outputs` and plan_second_date's `episode_id`
+  (their tools' descriptions say them).
+- **Skipped:** the text block beside `structuredContent` (the spec asks for both), `airs_at` moving by a minute and the
+  turn 11 vs 12 wording (too thin), and the visitors' shell friction.
+
 ## The MCP server at 2.8.0 (2026-10-22)
 
 What the 2026-10-22-0400 run's three visitors tripped on (#648–#651, the comments on #633 and #619, and what the reports

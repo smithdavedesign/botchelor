@@ -30,7 +30,7 @@ import { agreedPlan, planLines, type AgreedPlan, type PlanText } from "./plans";
 import { afterDarkNote, withAfterDark } from "./adult/memory";
 import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, type End, type Relationship } from "./relationships";
 import { planPlace } from "./places";
-import { warnBeforeExclusive } from "./partners";
+import { warnWhenSparksOut } from "./partners";
 import { loadSoul, type StoredSoul } from "./souls";
 import { isText, loadChain, promptTexts, type ChainItem, type PromptTexts } from "./text-chain";
 import type { Turn } from "./conversation";
@@ -580,10 +580,9 @@ export async function chaosReplay(db: Db, episodeId: string, change: SlidingDoor
  */
 export async function rememberDate(db: Db, aId: string, bId: string): Promise<void> {
   const [lo, hi] = pairKey(aId, bId);
-  const prior = (await db.query<{ stage: string | null }>(`select stage from relationships where character_a = $1 and character_b = $2`, [lo, hi])).rows[0]?.stage ?? null;
   const rel = await refreshRelationship(db, aId, bId);
-  // 2.7.0 (the 2026-10-22-0215 run's exclusivity surprises): the stage that counts every date moves here, when a date is
-  // written, so a couple just made Sparks gets its warning (exclusive_soon) here. refreshAndAnnounce, on airing, only ever saw
-  // a couple that was Sparks already, so the notice, and the heads_up it leads a reply with, never went out.
-  if (rel?.all.stage === "sparks" && prior !== "sparks") await warnBeforeExclusive(db, lo, hi).catch(() => 0);
+  // 2.7.0 sent exclusive_soon here, when the date that made a couple Sparks was written, which ran ahead of its airing
+  // (the 2026-10-22-0610 run). 2.9.0: it goes out when that date airs (lib/relationship-events.ts), once; here only for a
+  // private date, which never airs and whose owners see its ending now (lib/partners.ts warnWhenSparksOut).
+  await warnWhenSparksOut(db, lo, hi, rel).catch(() => 0);
 }

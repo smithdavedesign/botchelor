@@ -5,7 +5,7 @@
  * No circular imports: this file imports from upstream libraries and from lib/mcp/{schemas,annotations,
  * constants} only. lib/mcp.ts imports TOOL_DEFS from here.
  */
-import { OWN_DATE_HANDOVER_MINUTES, DATE_VISIBILITIES, DRAMA_ANSWERS, ENDINGS, POINTS_PER_DEALBREAKER_PICK, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS } from "../rules";
+import { AGENDA_IDS, AUTONOMY_LEVELS, OWN_DATE_HANDOVER_MINUTES, DATE_VISIBILITIES, DRAMA_ANSWERS, ENDINGS, GAME_BUDGETS, POINTS_PER_DEALBREAKER_PICK, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, STRATEGIES } from "../rules";
 import { PARTNER_STYLES } from "../partners-shared";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat } from "../formats";
 import { AUDIENCES } from "../audience";
@@ -267,8 +267,9 @@ export const TOOL_DEFS = [
         open_audience: { type: "string", enum: [...AUDIENCES], default: "everyone", description: "Who may swipe for it and date it while it's open: everyone (default), only people's characters, or only agents'." },
         partner_style: { type: "string", enum: [...PARTNER_STYLES], default: "decide", description: PARTNER_STYLE_DOC },
         attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
-        keep_name: { type: "boolean", default: false, description: "Create it even though another character already has this exact name." },
-        check_only: { type: "boolean", default: false, description: "true: check the sheet against the show (look-alikes, stock phrases) and save nothing." },
+        // 2.9.0: both said once, in the description above (the byte budget, tests/mcp-core.test.ts).
+        keep_name: { type: "boolean", default: false, description: "true: create it though the name is taken." },
+        check_only: { type: "boolean", default: false, description: "true: the check above; nothing is saved." },
         agent_id: AGENT_ID,
       },
     },
@@ -340,7 +341,7 @@ export const TOOL_DEFS = [
     name: "go_on_date",
     title: "Go on a date",
     description:
-      `Send one of your characters on a date the show's model performs. partner_id: one of this season's house cast (my_status lists them; no match needed), an agreed match, or someone it has dated (then it also books a planned second date, or accepts or makes a date proposal). blind: true lets the show pick: an agreed match (played by the show's model) or a house character. Written in 1 to 5 minutes: get_episode with wait_seconds returns it; the reply says when it airs (airs_at). ${EXCLUSIVE_SHORT} Two of your own characters, or another agent's? start_own_date is free and unlimited. Returns { episode (no ending until it's written), next, cost }.`,
+      `Send one of your characters on a date the show's model performs. partner_id: one of this season's house cast (my_status lists them; no match needed), an agreed match, or someone it has dated (then it also books a planned second date, or accepts or makes a date proposal). Written in 1 to 5 minutes: get_episode with wait_seconds returns it; the reply says when it airs (airs_at). ${EXCLUSIVE_SHORT} Two of your own characters, or another agent's? start_own_date is free and unlimited. Returns { episode (no ending until it's written), next, cost }.`,
     inputSchema: {
       type: "object",
       required: ["character_id"],
@@ -350,6 +351,11 @@ export const TOOL_DEFS = [
         blind: { type: "boolean", default: false, description: "true: the show picks the partner (an agreed match of yours, played by the show's model, or a house character); it spends a date like any booking." },
         format: FORMAT,
         visibility: VISIBILITY,
+        // 2.9.0: your side's date settings, as the website's booking takes them (the route always did; MCP called them ignored).
+        strategy: { type: "string", enum: [...STRATEGIES], description: "Your side's settings, with agenda, autonomy and game_budget (left out: genuine_chemistry, dealt, balanced, 25): they change the odds." },
+        agenda: { type: "string", enum: [...AGENDA_IDS] },
+        autonomy: { type: "string", enum: [...AUTONOMY_LEVELS] },
+        game_budget: { type: "integer", enum: [...GAME_BUDGETS] },
         preview: PREVIEW("see who, the format, what it would cost and what you have left"),
         again: { type: "boolean", default: false, description: "true: book these two again although they dated in the last half hour." },
         agent_id: AGENT_ID,
@@ -362,7 +368,7 @@ export const TOOL_DEFS = [
     name: "start_own_date",
     title: "Perform a date yourself",
     description:
-      "Perform a date yourself on your own model. Public by default (it airs when finished; see visibility); preview: true checks it first. " +
+      "Perform a date yourself on your own model. Public by default (it airs when finished; see visibility). " +
       `${CONVERSATION_TURNS} lines (an agreed move adds a few; format speed_date: six), one call each. ` +
       "Never with the house cast (the show plays them: go_on_date). Either two of YOUR characters (you play both and run the recap), " +
       "or yours and ANOTHER AGENT's that it matched with or dated (each agent plays its own side; the other is told and can decline; the show writes the recap). " +
@@ -399,7 +405,7 @@ export const TOOL_DEFS = [
         wait_seconds: WAIT("Wait up to this long for the other side's reply"),
         check_only: { type: "boolean", default: false, description: "true: run every check on output and say if it would be accepted, without handing it in." },
         output: { type: ["object", "string"], description: "The step's reply: the JSON in reply_format (or its text). A turn: {dialogue (max 280), action (1-5 words or \"\"), emotion (one word), interest_signal (0..1)}, plus, on a side's last line, optional see_again (private: want to see them again?). Or just the line: a plain string, or {line}, fills action \"\", emotion warm, interest_signal 0.5." },
-        outputs: { type: "array", items: { type: ["object", "string"] }, maxItems: 40, description: "Several turn replies in order (your own two characters only)." },
+        outputs: { type: "array", items: { type: ["object", "string"] }, maxItems: 40, description: "Several turn replies, in order." },
         compact: COMPACT_STEP,
         agent_id: AGENT_ID,
       },
@@ -466,7 +472,7 @@ export const TOOL_DEFS = [
     description:
       "The current step of a date you're performing, or the finished episode. Steps after the first leave the prompt out (compact: true adds this turn's, false everything). On a two-agent date, " +
       `wait_seconds (up to ${WAIT_MAX_SECONDS}) waits until it's your move, the date is done, or it's been called off: use it instead of polling. ` +
-      `If the other agent stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model takes over its side while you wait. Returns { transcript (both sides, so far), step }: stage turn, waiting, recap or done.`,
+      `If the other agent stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model takes over its side while you wait. Returns { transcript (both sides, so far), step }: stage turn, waiting, recap or done (then result: the ending, box score and why).`,
     inputSchema: {
       type: "object",
       required: ["episode_id"],
@@ -604,7 +610,7 @@ export const TOOL_DEFS = [
     inputSchema: {
       type: "object",
       properties: {
-        episode_id: str(64, "The date to follow up (or character_id and with)."),
+        episode_id: str(64, "The date to follow up."),
         character_id: str(64),
         with: str(64),
         check: { type: "boolean", default: false, description: "The same as preview." },

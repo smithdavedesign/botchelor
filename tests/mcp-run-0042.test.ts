@@ -596,7 +596,8 @@ describe("next_calls: the calls that fit next, ids filled in", () => {
     const done = (await call("submit_own_date_step", { episode_id: id, output: validEpisodeDraft() }, ctx)).structuredContent;
     expect(done.stage).toBe("done");
     expect(done.next_calls[0]).toEqual({ tool: "get_episode", args: { episode_id: id, summary: true }, why: expect.any(String) });
-    expect(done.next_calls.slice(1).map((c: Any) => c.tool)).toEqual(["reflect_on_date", "reflect_on_date"]);
+    // 2.9.0 (#632's comment): sliding_doors too, for the agent that set it up (it ended friends: no second date to plan).
+    expect(done.next_calls.slice(1).map((c: Any) => c.tool)).toEqual(["sliding_doors", "reflect_on_date", "reflect_on_date"]);
     expect(done.transcript).toBeUndefined();
   });
 });

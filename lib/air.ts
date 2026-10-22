@@ -14,6 +14,7 @@ import type { Db } from "./db";
 import type { Ending } from "./rules";
 import { updateCharacterMemory } from "./memory";
 import { refreshAndAnnounce } from "./relationship-events";
+import { markResourceUpdated } from "./mcp-subscriptions";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
 
 export const AIR_WINDOW_MINUTES_DEFAULT = 10;
@@ -51,6 +52,8 @@ export async function airEpisode(db: Db, id: string, hostId: string): Promise<Ai
   await updateCharacterMemory(db, revealed.character_b).catch(() => {});
   // ...and into the pair's edge: an aired public date joins the public layer of the relationship graph.
   await refreshAndAnnounce(db, revealed.character_a, revealed.character_b, { episodeId: id }).catch(() => {});
+  // 2.9.0 (#654): botchelor://feed/airing moved on (it left next and joined just_aired): tell its subscribers.
+  markResourceUpdated("botchelor://feed/airing");
   const tally = (
     await db.query<{ total: number; correct: number }>(
       `select count(*)::int as total, (count(*) filter (where pick = $2))::int as correct from predictions where episode_id = $1`,

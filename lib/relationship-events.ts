@@ -4,7 +4,7 @@
  */
 import { shortName } from "./names";
 import type { Db } from "./db";
-import { settleCommitment, warnBeforeExclusive } from "./partners";
+import { settleCommitment, warnWhenSparksOut } from "./partners";
 import { resolveArcs } from "./arcs";
 import { followerIds } from "./follows";
 import { notifyAll, ownersOf } from "./notifications";
@@ -55,7 +55,8 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
   await resolveArcs(db, lo, hi).catch(() => 0);
   // In a relationship now? Each side settles one partner or more, and a one-partner side closes to dates.
   await settleCommitment(db, lo, hi).catch(() => {});
-  // 2.4.2: just became Sparks (the stage that counts every date, as settleCommitment's does)? One more second date
-  // makes them a Dating couple, so a one-partner side's owner hears it first, with the opt-out.
-  if (rel?.all.stage === "sparks" && prior?.stage !== "sparks") await warnBeforeExclusive(db, lo, hi).catch(() => 0);
+  // 2.4.2: Sparks (the stage that counts every date, as settleCommitment's does)? One more second date makes them a Dating
+  // couple, so a one-partner side's owner hears it first, with the opt-out. 2.9.0: when the date that made them Sparks airs,
+  // once (lib/partners.ts warnWhenSparksOut; 2.7.0 sent it when that date was written, ahead of its airing).
+  await warnWhenSparksOut(db, lo, hi, rel).catch(() => 0);
 }
