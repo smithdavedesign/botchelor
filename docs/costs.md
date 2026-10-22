@@ -60,11 +60,11 @@ spend. Vercel is shared with David's other products.
 
 ## Prepaid provider balances
 
-Every model provider is prepaid with auto-recharge off, so the balance is the most a key can spend.
+Every model provider is prepaid with auto-recharge off, so the balance is the most a key can spend, except Venice: since 2026-10-22 it tops itself up by $10 whenever the balance runs out (David's call), so its spend is open-ended. Each $10 recharge comes out of the owner budget below.
 
 | Provider | Loaded | Used for | Spent so far (estimate) |
 |---|---|---|---|
-| Venice | $50 | After Dark pictures, tiles and videos | **Used up.** Venice has refused every request with 402 "Insufficient USD or Diem balance" since 2026-10-21 23:51 UTC, so no video has come through since. Production made 25 video shots, 39 pictures and 131 tiles, about $20–25 at the prices above. Venice's usage page (venice.ai/settings/api) shows where the rest of the $50 went: the voice A/B clips, or higher video prices than these. A top-up is David's call. |
+| Venice | **$75** ($50, then $25 on 2026-10-22, David), **auto-recharge $10** | After Dark pictures, tiles and videos | **The first $50 is used up.** From 2026-10-21 23:51 UTC Venice refused every request with 402 "Insufficient USD or Diem balance" until the 2026-10-22 top-up, so no video came through. Production had made 25 video shots, 39 pictures and 131 tiles, about $20–25 at the prices above. Venice's usage page (venice.ai/settings/api) shows where the rest went: the voice A/B clips, or higher video prices than these. |
 | Hive | $111 | Moderation and age checks on every picture, tile and clip | ~$1.50 |
 | fal.ai | Prepaid (see the fal dashboard) | Show tiles, portraits, sets | ~$3. That includes ~$0.70 of tiles thrown away by the Hive-429 bug, fixed in #310. |
 | OpenRouter | **$50** (David, 2026-10-21) | After Dark scene text, the After Dark eval/A-B runs (`/api/jobs/eval-after-dark`), and two keys outside botchelor on the same account (OpenClaw, and LiteLLM/RepoHQ) | **The whole account: $1.50** (OpenRouter's dashboard, 2026-10-22: 2K requests, 8.84M tokens, $0.17 per million blended). By key: NSFW Botchelor 3.93M tokens (most of the $1.50: the eval runs' $0.90 on pricier models, plus the scenes), OpenClaw 2.59M, LiteLLM + RepoHQ 2.33M. So almost all of the $50 is still there, shared by the three keys. The balance had been empty before the top-up because little was ever loaded, not because something spent it. |
@@ -76,24 +76,24 @@ Every model provider is prepaid with auto-recharge off, so the balance is the mo
 |---|---|---|
 | 2026-10-21 | MCP directory listings: [mcp.so](https://mcp.so) and [Glama](https://glama.ai/mcp/connectors/com.botchelor/botcherlor) (com.botchelor) | **$20** (David) |
 
-## Spent so far (2026-10-13 to 10-21)
+## Spent so far (2026-10-13 to 10-22)
 
 | | Amount |
 |---|---|
-| Model and media providers (used, estimated) | **~$20–30** |
+| Model and media providers (used, estimated) | **~$55–60** (Venice's first $50, all of it; Hive ~$1.50, fal ~$3, OpenRouter ~$1.50) |
 | Vercel (team-wide, effective usage including the Pro plan) | ~$17 |
 | Neon | $0 until 10-20 (free plan); Launch from then |
 | Domain | David's Wix invoice |
 | MCP directory listings (one-off) | $20 |
-| **Total cash used (excluding the domain)** | **~$60–70** |
-| Money loaded into prepaid balances | $211 confirmed (Venice $50 + Hive $111 + OpenRouter $50), plus fal |
+| **Total cash used (excluding the domain)** | **~$90–100** |
+| Money loaded into prepaid balances | $236 confirmed (Venice $75 + Hive $111 + OpenRouter $50), plus fal and Venice's $10 auto-recharges |
 
 **Revenue:** $0 from outside buyers. The three paid orders are two Stripe test-mode orders (2026-10-13) and one live
 $4 pack bought by David's own account on 2026-10-16 (an end-to-end check).
 
-**Against the $300 owner budget:** about $231 is committed (prepaid balances $211 + the $20 listing), not counting fal or
-the shared Vercel and Neon bills, and ~$60–70 has actually been used. That leaves roughly **$70** of the budget for new
-commitments before David decides whether to raise it.
+**Against the $300 owner budget:** about $256 is committed (prepaid balances $236 + the $20 listing), not counting fal or
+the shared Vercel and Neon bills, and ~$90–100 has actually been used. That leaves roughly **$44** of the budget for new
+commitments before David decides whether to raise it, and each Venice auto-recharge takes $10 of that: about four.
 
 ## Volumes behind the estimates (production, 2026-10-21)
 
