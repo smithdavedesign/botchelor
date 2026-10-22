@@ -487,6 +487,28 @@ describe("public places: nothing past kissing, by where they are", () => {
     expect(home.ok && home.next).toMatchObject({ place: "Juniper's place", stage: 3 });
   });
 
+  it("drops lines past kissing when the lines agree to leave but the move isn't taken (botchelor-41: a third this chapter)", async () => {
+    const capped = { ...atBar, moves: [1, 2].map((at) => ({ chapter: atBar.chapter, at, from: "cafe", to: "bar", taken: true, reason: "agreed" as const })) };
+    const leave = reply(lines(["a", "Back to my place?"], ["b", "Yes. Lead the way."], ["a", "*unbuttons her blouse in the cab*"]), { place: "Juniper's place", set: "Juniper's place", stage: 3 });
+    const r = await step(scripted(leave).model, { scene: capped });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.lines.map((l) => l.text)).toEqual(["Back to my place?", "Yes. Lead the way."]);
+    expect(r.dropped.at(-1)?.reason).toBe("went past kissing in a public place (bar): the move they agreed to wasn't taken");
+    expect(r.flags.public_dropped).toBe(1);
+    expect(r.flags.citations).toHaveLength(2);
+    expect(r.next).toMatchObject({ set_place: "bar", stage: 2 });
+    expect(r.next.moves.at(-1)).toMatchObject({ taken: false, reason: "cap" });
+    // The agreement here is a word-for-word repeat (the repeat guard drops it after the public filter let the next line
+    // through), so no move is taken, and the line past kissing goes too: nothing's left, refused like any step with none.
+    const ask = "Back to my place? It's ten minutes from here and the wine is better.";
+    const yes = "Yes. Lead the way, I'm right behind you, and bring that wine.";
+    const said = { ...atBar, lines: [...atBar.lines, ...lines(["a", ask, { stage: 2 }], ["b", yes, { stage: 2 }], ["a", "Actually, one more drink first.", { stage: 2 }], ["b", "One more, then.", { stage: 2 }])] };
+    const only = await step(scripted(reply(lines(["a", ask], ["b", yes], ["a", "*pulls her blouse off* Finally."]), { place: "Juniper's place", set: "Juniper's place", stage: 3 })).model, { scene: said });
+    expect(only.ok).toBe(false);
+    expect(!only.ok && only.message).toBe("Their lines went past kissing somewhere public without leaving it. Try again, or steer them somewhere private.");
+  });
+
   it("the v2 prompt says so once it heats up", () => {
     expect(v2(banter(4), { place: "the bar", set: "bar", stage: 2 })[0].content).toContain("- They're somewhere public (bar): it goes no further than kissing here.");
     expect(v2(banter(4), { place: "the bar", set: "bar", stage: 0 })[0].content).not.toContain("somewhere public");

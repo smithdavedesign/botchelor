@@ -1049,7 +1049,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   const others = [...memoryLabels(input.memories), ...sheetItems];
   const context = [scene.recap ?? "", ...(date?.transcript ?? []).map((t) => t.dialogue), ...night.slice(-SCENE_IN_PROMPT).map((l) => l.text)].join("\n");
   flags.citations = out.kept.map((l) => citeMemory(l.memory, shown, others, context));
-  const kept = out.kept.map((l, i) => (flags.citations[i].facts.length ? { ...l, fact_ids: flags.citations[i].facts } : l));
+  let kept = out.kept.map((l, i) => (flags.citations[i].facts.length ? { ...l, fact_ids: flags.citations[i].facts } : l));
 
   const meta = parseSceneMeta(raw);
   const resolve = async (label: string) => (input.resolveSet ? await input.resolveSet(label) : drawLabel(label).slice(0, 40));
@@ -1066,6 +1066,20 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     names,
     fromLines: v2,
   });
+  // The public cap goes by the same signal as the place (botchelor-41, 2026-10-22): a line past kissing that the guard let
+  // through because these lines agreed to go goes after all when the move wasn't taken (a third this chapter, or nowhere
+  // new), so the stage can't climb past the cap while they're still somewhere public.
+  if (publicCap !== null && !settled.moved) {
+    const over = kept.map((l) => (stageShown(l.text) ?? 0) > publicCap);
+    if (over.some(Boolean)) {
+      const where = scene.set_place ?? scene.place ?? date?.setting ?? "where they are";
+      kept.forEach((l, i) => over[i] && dropped.push({ who: l.who, text: l.text, reason: `went past kissing in a public place (${where}): the move they agreed to wasn't taken` }));
+      flags.public_dropped += over.filter(Boolean).length;
+      flags.citations = flags.citations.filter((_, i) => !over[i]);
+      kept = kept.filter((_, i) => !over[i]);
+      if (!kept.length) return { ok: false, status: 422, message: "Their lines went past kissing somewhere public without leaving it. Try again, or steer them somewhere private.", dropped, flags, shown, usage };
+    }
+  }
   let set_place = settled.set;
   // v2.1: a possessive neither of them goes by is put right ("his apartment entrance" with two women; their sheets'
   // pronouns, lib/adult/craft.ts). Lines are only flagged (the observer, the metrics).
