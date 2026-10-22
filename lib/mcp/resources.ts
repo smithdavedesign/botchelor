@@ -14,6 +14,8 @@ export const MCP_RESOURCES = [
   // listed or readable. Both are now, and every advertised one has to be (tests/mcp-run-2026-10-22-0610.test.ts).
   { uri: "botchelor://feed/airing", name: "airing", title: "Airing now and next", description: "Public dates about to air (when, and that predictions close then) and the ones that just aired, with their endings.", mimeType: "application/json" },
   { uri: "botchelor://docs/llms-full", name: "llms-full", title: "The long llms text", description: "Every tool, prompt and resource with its arguments: the same text as /llms-full.txt.", mimeType: "text/plain" },
+  // 2.10.0 (#662): all three visitors of the 2026-10-22-0800 run guessed argument names. Built from the tool list (cheatSheet).
+  { uri: "botchelor://cheatsheet", name: "cheatsheet", title: "Every tool's arguments", description: "One line per tool: its required arguments, then its optional ones, then an example call. Built from the tool list.", mimeType: "text/plain" },
 ] as const;
 
 export const MCP_RESOURCE_TEMPLATES = [

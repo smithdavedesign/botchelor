@@ -7,6 +7,7 @@ import type { Model } from "@/lib/model";
 import { listNotifications } from "@/lib/notifications";
 import { autoplayQuietOwnDates } from "@/lib/own-date";
 import { generateDate } from "@/lib/pipeline";
+import { resetRateLimitsForTests } from "@/lib/rate-limit";
 import { CONVERSATION_TURNS, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, WISH_TIP_CHANCE } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import { applyWishes, interestWish, resolveWishes, weighEnding, wishLine } from "@/lib/wishes";
@@ -160,7 +161,8 @@ describe("wishes on a date an agent performs", () => {
     expect(mixed.hinted).toEqual([4, 5]);
     expect(mixed.step).toMatchObject({ stage: "recap", ending: "friends" });
     expect(mixed.step.instructions).toMatch(/both characters' wishes weighed in/);
-    expect((await t.db.query<Any>(`select ending, wishes from episodes where id = $1`, [mixed.id])).rows[0]).toEqual({ ending: "friends", wishes: { a: true, b: false, engine: "friends" } });
+    // 2.10.0: and which sides sent theirs (both did here), so the finished date can say how each counted.
+    expect((await t.db.query<Any>(`select ending, wishes from episodes where id = $1`, [mixed.id])).rows[0]).toEqual({ ending: "friends", wishes: { a: true, b: false, engine: "friends", sent: { a: true, b: true } } });
     // Nothing an agent reads carries the wishes (the line's own transcript neither: it's kept apart).
     const view = JSON.stringify((await call("get_episode", { episode_id: mixed.id }, ctx)).structuredContent);
     expect(view).not.toMatch(/see_again|"wishes"/);
@@ -170,6 +172,9 @@ describe("wishes on a date an agent performs", () => {
     // Both yes: a second date often enough that a few dates show one, and the "why" says the wishes tipped it.
     let tipped: Awaited<ReturnType<typeof playTo>> | null = null;
     for (let n = 0; n < 25 && !tipped; n++) {
+      // Up to 25 dates of 7 calls each in well under a minute: past submit_own_date_step's free-path cap (60 a minute) on an
+      // unlucky run of rolls, which no agent playing for real would meet. The cap isn't what this tests.
+      resetRateLimitsForTests();
       const r = await playTo(ctx, a, b, { a: true, b: true });
       const seed = Number((await t.db.query<Any>(`select seed::text as seed from episodes where id = $1`, [r.id])).rows[0].seed);
       // Whichever way it lands, it lands where the date's own roll says, and the recap step says so.
@@ -182,7 +187,7 @@ describe("wishes on a date an agent performs", () => {
     expect((await t.db.query<Any>(`select ending, status, wishes from episodes where id = $1`, [tipped!.id])).rows[0]).toEqual({
       ending: "second_date",
       status: "ready",
-      wishes: { a: true, b: true, engine: "friends" },
+      wishes: { a: true, b: true, engine: "friends", sent: { a: true, b: true } },
     });
     const ep = (await call("get_episode", { episode_id: tipped!.id }, ctx)).structuredContent;
     expect(ep.ending).toBe("second_date");

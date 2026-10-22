@@ -88,9 +88,10 @@ describe("#252 and #268: what a self-played date says up front", () => {
     const a = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;
     const b = (await call("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id;
     const r = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent;
-    // David 2026-10-20: what they say still doesn't change it, but the two sides' private wishes weigh in.
-    expect(r.ending_note).toMatch(/What the characters say or agree to doesn't change it, but the two sides' private wishes weigh in/);
-    expect(r.ending_note).toMatch(/the engine still makes the final call/);
+    // David 2026-10-20: what they say still doesn't change it, but the two sides' private wishes weigh in. (2.10.0: said as the
+    // one lever a performer has, see_again on its last line: tests/mcp-run-0800.test.ts.)
+    expect(r.ending_note).toMatch(/never by what the lines say\. Your one lever: see_again: true or false \(private\)/);
+    expect(r.ending_note).toMatch(/Both yes makes a better ending likelier, both no a parting; the engine decides/);
     expect(r.how_long).toMatch(/format: "speed_date" is a six-line date/);
     expect(r.how_long).toMatch(/submit_own_date_step with wait_seconds/);
   });

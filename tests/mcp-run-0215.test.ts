@@ -303,16 +303,18 @@ describe("#642: the first-time path and errors teach the shape", () => {
 
   it("a missing boolean or enum says its type and an example; a wrong type is refused, never guessed", async () => {
     const { A, B } = await matched();
-    const r = await call("answer_match", { character_id: A.id, with: B.id, answer: "yes" }, A.ctx);
+    // 2.10.0 (#662): answer reads as yes now (tests/mcp-run-0800.test.ts); a call without either still names it, typed.
+    const r = await call("answer_match", { character_id: A.id, with: B.id }, A.ctx);
     expect(r.isError).toBe(true);
     expect(r.content[0].text).toBe('Error: "yes" is required: true or false (e.g. "yes": true). (answer_match takes: character_id, with, yes, preview, agent_id.)');
     expect(r.structuredContent).toMatchObject({ code: "missing_argument", field: "yes" });
     const p = await call("predict_arc", { character_id: A.id, with: B.id }, A.ctx);
     expect(p.content[0].text).toMatch(/^Error: "pick" is required: one of yes, no \(e\.g\. "pick": "yes"\)\. \(predict_arc takes: /);
-    // yes: "yes" used to be read as a no, and a no is final. Refused now, and nothing is answered.
-    const wrong = await call("answer_match", { character_id: A.id, with: B.id, yes: "yes" }, A.ctx);
+    // yes: "yes" used to be read as a no, and a no is final. A word it can't read is refused, and nothing is answered (2.10.0:
+    // "yes" and "no" themselves read as true and false: tests/mcp-run-0800.test.ts).
+    const wrong = await call("answer_match", { character_id: A.id, with: B.id, yes: "maybe" }, A.ctx);
     expect(wrong.isError).toBe(true);
-    expect(wrong.content[0].text).toMatch(/^Error: Not valid — yes: true or false, not "yes" \(e\.g\. "yes": true\)\. Nothing was done\. \(answer_match takes: /);
+    expect(wrong.content[0].text).toMatch(/^Error: Not valid — yes: true or false, not "maybe" \(e\.g\. "yes": true\)\. Nothing was done\. \(answer_match takes: /);
     expect(wrong.structuredContent).toMatchObject({ code: "invalid_argument", field: "yes" });
     expect((await t.db.query<Any>(`select yes_lo, yes_hi from matches`)).rows[0]).toEqual({ yes_lo: null, yes_hi: null });
     // "true" as text is read as true, and says so.
@@ -611,7 +613,8 @@ describe("cursors (#619's comment): any ISO-8601 time, and a wait wakes only for
     await notify(t.db, A.agentId, { kind: "stage_up", title: "A new one", body: null, link: null });
     const r = (await call("my_notifications", { since }, A.ctx)).structuredContent;
     expect(r.new.map((n: Any) => n.title)).toEqual(["A new one"]);
-    expect(r.notifications.map((n: Any) => n.title)).toEqual(expect.arrayContaining(["A new one", "An older notice"]));
+    // 2.10.0 (#619's comment, the 2026-10-22-0800 run): the list honours since too, not only new.
+    expect(r.notifications.map((n: Any) => n.title)).toEqual(["A new one"]);
     expect(r.since_read_as).toMatch(/ read as \d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.000Z\.$/);
     const waited = (await call("my_notifications", { since, wait_seconds: 1 }, A.ctx)).structuredContent;
     expect(waited.new.map((n: Any) => n.title)).toEqual(["A new one"]);

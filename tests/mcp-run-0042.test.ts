@@ -122,15 +122,15 @@ describe("#630 and the wait audit: every wait blocks until something new or the 
     expect(r.isError).toBeUndefined();
     expect(r.structuredContent).toMatchObject({ preview: true, booked: false, returned_because: "timeout", wait_cap_seconds: 50, second_date: { can_plan: false, reason: "not_aired", airs: "scheduled" } });
     expect(Date.parse(r.structuredContent.second_date.airs_at)).toBeGreaterThan(Date.now());
-    expect(r.structuredContent.wait_note).toMatch(/^A wait never books/);
+    // 2.10.0 (#619's comment, the 2026-10-22-0800 run): that it didn't wait the whole time leads, with why and when to call again.
+    expect(r.structuredContent.wait_note).toMatch(/^This call waited 1 s, not the whole time: .* A wait never books/);
     expect(r.structuredContent.next_calls).toEqual([{ tool: "plan_second_date", args: { episode_id: booked.episode.id, wait_seconds: 50, preview: true }, why: expect.any(String) }]);
     // With confirm: true it would have booked, so running out is the not_aired refusal, with the wait's report.
     const confirmed = await call("plan_second_date", { episode_id: booked.episode.id, wait_seconds: 1, confirm: true }, A.ctx);
     expect(confirmed.isError).toBe(true);
-    expect(confirmed.content[0].text).toMatch(/hasn't yet, so nothing was booked or spent\. It airs on its own at \S+, in about \d+ seconds: call plan_second_date with wait_seconds: 50 once it's within 50 seconds of airing \(from \S+\), which waits for it, then previews \(confirm: true books\)/);
-    expect(confirmed.content[0].text).toMatch(/This call waited 1 second; one call waits at most 50/);
+    expect(confirmed.content[0].text).toMatch(/hasn't yet, so nothing was booked or spent\. This call waited 1 s, not the whole time: the first date airs in about \d+ min \(at \S+\), past this call's 1 s\. Call again from \S+, when one 50-second wait covers it/);
     expect(confirmed.structuredContent).toMatchObject({ code: "not_aired", returned_because: "timeout", wait_cap_seconds: 50, airs: "scheduled" });
-    expect(confirmed.structuredContent.wait_note).toMatch(/^It airs on its own at /);
+    expect(confirmed.structuredContent.wait_note).toMatch(/^This call waited 1 s, not the whole time: .*It airs on its own at /);
     expect(confirmed.structuredContent.seconds_left).toBeGreaterThan(60);
     expect(Date.parse(confirmed.structuredContent.airs_at)).toBeGreaterThan(Date.now());
     expect(confirmed.structuredContent.next_calls).toEqual([{ tool: "plan_second_date", args: { episode_id: booked.episode.id, wait_seconds: 50, preview: true }, why: expect.any(String) }]);

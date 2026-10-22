@@ -65,7 +65,8 @@ describe("#632: a finished own date's step leads with its result", () => {
     const r = await call("get_own_date_step", { episode_id: id }, B.ctx);
     const s = r.structuredContent;
     expect(s).toMatchObject({ stage: "done", episode_id: id, your_move: false });
-    expect(s.summary).toMatch(/^Done: Odalys Oyelaran and Thaddeus Quillfeather's date ended: Just friends \(friends\)\. result: why, the box score's final numbers and the best line; step\.episode: the whole recap\.$/);
+    // 2.10.0 (the 2026-10-22-0800 run): and how the see_again wishes counted (wishes).
+    expect(s.summary).toMatch(/^Done: Odalys Oyelaran and Thaddeus Quillfeather's date ended: Just friends \(friends\)\. result: why, the box score's final numbers and the best line; wishes: how the see_again wishes counted; step\.episode: the whole recap\.$/);
     expect(s.result).toMatchObject({ id, ending: "friends", why: expect.any(String), best_line: expect.any(String), lines_in_all: 6 });
     expect(Object.values(s.result.box_score).every((n) => typeof n === "number")).toBe(true);
     expect(s.result.why).toBe(s.step.episode.why);

@@ -88,8 +88,8 @@ async function startsAndPlays(A: Agent, B: Agent, extra: Record<string, unknown>
 const cursorOf = async (B: Agent): Promise<string> => (await call("my_status", {}, B.ctx)).structuredContent.cursor;
 const pair = (x: string, y: string) => [x, y].sort() as [string, string];
 
-it("is MCP 2.9.0", () => {
-  expect(MCP_SERVER_INFO.version).toBe("2.9.0");
+it("is MCP 2.9.0 or later", () => {
+  expect(MCP_SERVER_INFO.version.localeCompare("2.9.0", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
 });
 
 describe("1. your_move only when it's yours (2.8.0's yourMoveWake fired on stale notices)", () => {
@@ -375,7 +375,9 @@ describe("4. #632's comment: a finished own date returns its result (main's #659
     expect(got.summary).toMatch(/^Done: Ada Lumen and Bo Quill's date ended: A second date \(second_date\)\. result: why, the box score's final numbers and the best line/);
     const keys = Object.keys(got);
     expect(keys.indexOf("result")).toBe(keys.indexOf("summary") + 1);
-    expect(keys.indexOf("next_calls")).toBe(keys.indexOf("result") + 1);
+    // 2.10.0 (the 2026-10-22-0800 run): how the see_again wishes counted sits beside the result, then the calls.
+    expect(keys.indexOf("wishes")).toBe(keys.indexOf("result") + 1);
+    expect(keys.indexOf("next_calls")).toBe(keys.indexOf("wishes") + 1);
     expect(got.result).toMatchObject({ ending: "second_date", share_path: `/episodes/${id}`, lines_in_all: 6 });
     expect(got.result.box_score).toEqual({ chemistry: 60, attraction: 55, trust: 50, awkwardness: 30 });
     expect(got.result.why).toMatch(/^A second date: /);
@@ -522,7 +524,8 @@ describe("7. how an ending is made, said before booking", () => {
     scriptOutcome({ ending: "friends" });
     const started = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent;
     expect(started.ending_note.startsWith(`${OWN_ENDING_NOTE} In the last act every step says which way it lands (act_note).`)).toBe(true);
-    expect(OWN_ENDING_NOTE).toMatch(/your lines don't \(only each side's private see_again on its last line can tip it\)/);
+    // 2.10.0 (the 2026-10-22-0800 run): the one lever, said as one (tests/mcp-run-0800.test.ts).
+    expect(OWN_ENDING_NOTE).toMatch(/never by what the lines say\. Your one lever: see_again: true or false \(private\) with your character's last line/);
   });
 
   it("the levers are real: go_on_date's settings reach the date (not 'Ignored'), the preview echoes them, and a value outside the list is refused before anything is spent", async () => {

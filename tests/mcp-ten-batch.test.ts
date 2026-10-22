@@ -307,8 +307,9 @@ describe("leaner own-date steps", () => {
     let step = (await call("start_own_date", { character_id: a, partner_id: b, format: "speed_date" }, ctx)).structuredContent.step;
     let i = 0;
     while (step.stage === "turn" && !step.see_again) step = (await call("submit_own_date_step", { episode_id: step.episode_id, output: line(i++) }, ctx)).structuredContent.step;
-    expect(step.see_again).toMatch(/last line as planned/);
-    expect(step.instructions).toMatch(/see_again says how to send a private wish/);
+    // 2.10.0 (the 2026-10-22-0800 run): the reminder leads with the one-line lead, and points at the rest.
+    expect(step.see_again).toMatch(/^This is Ada Lumen's last line: add see_again/);
+    expect(step.instructions).toMatch(/step\.see_again has the rest/);
     expect(step.instructions).not.toContain(step.see_again);
   });
 });

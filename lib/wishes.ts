@@ -25,8 +25,10 @@ export type Wishes = { a: Wish; b: Wish };
 /**
  * What an episode keeps (episodes.wishes). While the date is played: only what a performer said (see_again). Once the
  * last line is in: both sides' wishes as they counted, and the engine's own ending (`engine`), so a tip can be told.
+ * `sent` (MCP 2.10.0): which sides' wishes were a see_again their performer sent, the rest read from that side's last
+ * interest_signal, so the finished date can tell its owner which (wishReport). Dates settled before it have none.
  */
-export type StoredWishes = { a?: Wish; b?: Wish; engine?: Ending };
+export type StoredWishes = { a?: Wish; b?: Wish; engine?: Ending; sent?: { a: boolean; b: boolean } };
 
 /** A side's interest_signal read as a wish. */
 export function interestWish(interest: number | undefined): Wish {
@@ -72,8 +74,100 @@ export function applyWishes(outcome: Outcome, wishes: Wishes, seed: number): Out
   return { ...outcome, ending, sides, ...drama };
 }
 
-/** What to keep on the episode once the wishes have counted. */
-export const settledWishes = (wishes: Wishes, engineEnding: Ending): StoredWishes => ({ a: wishes.a, b: wishes.b, engine: engineEnding });
+/** What to keep on the episode once the wishes have counted (and, on an agent's date, which sides sent theirs). */
+export const settledWishes = (wishes: Wishes, engineEnding: Ending, sent?: { a: boolean; b: boolean }): StoredWishes => ({
+  a: wishes.a,
+  b: wishes.b,
+  engine: engineEnding,
+  ...(sent ? { sent } : {}),
+});
+
+/** A wish in words. */
+const wishWord = (w: Wish): string => (w === true ? "yes" : w === false ? "no" : "no wish either way");
+
+/** What a side's last interest_signal read as, standing in for a see_again it didn't send, with the bars. */
+function standIn(interest: number | undefined): string {
+  if (typeof interest !== "number" || !Number.isFinite(interest)) return "it counted as no wish either way";
+  const w = interestWish(interest);
+  return `its interest_signal (${interest}) stood in: ${w === null ? "no wish either way" : `a ${wishWord(w)}`} (${WISH_YES_AT} or more counts as yes, ${WISH_NO_AT} or less as no)`;
+}
+
+/** One side's wish on a finished date, as that side's own owner reads it (wishReport). */
+export type SeenWish = {
+  character: string;
+  see_again: Wish;
+  /** The see_again its performer sent, its last line's interest_signal standing in, the show's model's line, or unknown (settled before 2.10.0). */
+  from: "see_again" | "interest_signal" | "the_show" | "unknown";
+  interest_signal?: number;
+};
+
+/**
+ * How the wishes counted on a finished date, for one owner (MCP 2.10.0, the 2026-10-22-0800 run: all three visitors wrote
+ * "friends" into the dialogue, never sent see_again, and the engine said second_date). Each side this owner's characters
+ * are on is told: its wish, and whether it was the see_again its performer sent or that side's last interest_signal standing
+ * in (with how to steer next time). The other side's wish stays private, as it always has (lib/game.ts: never which way a
+ * lone wish went), unless the two agreed and tipped the ending, which the ending's why tells anyone. Null until they count.
+ */
+export function wishReport(o: {
+  stored: StoredWishes | null | undefined;
+  transcript: readonly Turn[];
+  ending: Ending;
+  names: readonly [string, string];
+  /** The sides this owner's characters are on: both on a date between its own two. */
+  mine: readonly ("a" | "b")[];
+  /** Sides whose lines the show's model played at the end (a hand-over, autoplay). */
+  showPlayed?: readonly ("a" | "b")[];
+}): { tipped: boolean; engine_ending?: Ending; yours: SeenWish[]; theirs?: "private" | { character: string; see_again: Wish }; note: string } | null {
+  const s = o.stored;
+  if (!s?.engine || !o.mine.length) return null;
+  const tipped = s.engine !== o.ending;
+  const wish = (x: "a" | "b"): Wish => (typeof s[x] === "boolean" ? (s[x] as boolean) : null);
+  const name = (x: "a" | "b") => o.names[x === "a" ? 0 : 1];
+  const first = (x: "a" | "b") => name(x).split(" ")[0];
+  const seen = (x: "a" | "b"): SeenWish => {
+    const from: SeenWish["from"] = !s.sent ? "unknown" : s.sent[x] ? "see_again" : o.showPlayed?.includes(x) ? "the_show" : "interest_signal";
+    const interest = [...o.transcript].reverse().find((t) => t.side === x)?.interest;
+    return { character: name(x), see_again: wish(x), from, ...(from !== "see_again" && typeof interest === "number" ? { interest_signal: interest } : {}) };
+  };
+  const yours = o.mine.map(seen);
+  const said = yours.map((y, i) => {
+    const who = first(o.mine[i]);
+    if (y.from === "see_again") return `${who} said ${wishWord(y.see_again)} (see_again: ${String(y.see_again)}).`;
+    if (y.from === "the_show") return `The show's model played ${who}'s last line, so ${standIn(y.interest_signal)}.`;
+    if (y.from === "interest_signal") return `No see_again on ${who}'s last line, so ${standIn(y.interest_signal)}. Next time, send see_again: true or false with that line: it's how you steer.`;
+    return `${who}'s wish counted as ${wishWord(y.see_again)}.`;
+  });
+  const solo = o.mine.length === 2;
+  const other = solo ? null : o.mine[0] === "a" ? "b" : "a";
+  const edge = (w: Wish) => (w === true && o.ending === "second_date") || (w === false && o.ending === "disaster");
+  const own = `${o.ending} is the engine's own ending`;
+  let outcome: string;
+  if (tipped) {
+    outcome = `Both said ${wishWord(s.a ?? null)}: it tipped toward ${s.a ? "a better ending" : "a parting"}: ${o.ending}, where the engine alone had ${s.engine}.`;
+  } else if (solo) {
+    const [wa, wb] = [wish("a"), wish("b")];
+    outcome =
+      wa !== null && wa === wb
+        ? edge(wa)
+          ? `Both said ${wishWord(wa)}, but ${o.ending} is already the ${wa ? "best" : "worst"} ending: nothing to tip.`
+          : `Both said ${wishWord(wa)}, but the engine kept ${o.ending} this time (a tip comes only some of the time).`
+        : wa === null || wb === null
+          ? `With no wish either way on one side, nothing could tip it: ${own}.`
+          : `${first("a")} said ${wishWord(wa)}, ${first("b")} ${wishWord(wb)}: mixed, so no tip; ${own}.`;
+  } else {
+    const mine = wish(o.mine[0]);
+    outcome = edge(mine)
+      ? `${o.ending} is already the ${mine ? "best" : "worst"} ending, so ${first(o.mine[0])}'s ${wishWord(mine)} had nothing to tip.`
+      : `${first(other!)}'s wish stays private (only an agreement that tips the ending is told). The wishes tip an ending only when both agree, and then only some of the time: they didn't tip this one, so ${own}.`;
+  }
+  return {
+    tipped,
+    ...(tipped ? { engine_ending: s.engine } : {}),
+    yours,
+    ...(other ? { theirs: tipped ? { character: name(other), see_again: wish(other) } : ("private" as const) } : {}),
+    note: [...said, outcome].join(" "),
+  };
+}
 
 /** One line beside the ending's "why", only when the wishes tipped it (and so only ever after the ending). */
 export function wishLine(stored: StoredWishes | null | undefined, ending: Ending): string | null {

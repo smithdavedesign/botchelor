@@ -354,7 +354,8 @@ describe("8. a one-line mode for own dates", () => {
   it("the schema says output takes a plain string", () => {
     const schema = (MCP_TOOLS.find((x) => x.name === "submit_own_date_step")!.inputSchema as Any).properties.output;
     expect(schema.type).toEqual(["object", "string"]);
-    expect(schema.description).toMatch(/Or just the line: a plain string, or \{line\}, fills action "", emotion warm, interest_signal 0\.5/);
+    // 2.10.0 (#663): and {output}, which outputs' items take too.
+    expect(schema.description).toMatch(/Or just the line: a plain string, \{line\} or \{output\}, fills action "", emotion warm, interest_signal 0\.5/);
   });
 });
 
