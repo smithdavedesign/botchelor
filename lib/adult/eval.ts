@@ -201,6 +201,8 @@ export async function runAfterDarkEval(db: Db, req: EvalRequest, clock: () => nu
   const refusals: EvalResult["refusals"] = [];
   const steps: EvalResult["steps"] = [];
   let refusedElsewhere = 0;
+  // v2.1: lines its guard cut or dropped for a worn phrase, which the kept lines can't show (lib/adult/quality.ts worn_phrases_cut).
+  let wornCut = 0;
   let stopped: EvalResult["stopped"] = null;
   for (let i = 0; i < req.steps; i++) {
     if (clock() - started > START_BY_MS) {
@@ -226,6 +228,7 @@ export async function runAfterDarkEval(db: Db, req: EvalRequest, clock: () => nu
       now: new Date(clock()),
     });
     calls += step.flags.calls;
+    wornCut += step.flags.worn_phrases;
     usage.push(...step.usage);
     dropped.push(...step.dropped.map((d) => ({ step: i + 1, ...d })));
     for (const d of step.dropped) {
@@ -268,6 +271,7 @@ export async function runAfterDarkEval(db: Db, req: EvalRequest, clock: () => nu
     cast: ctx.cast,
     refusedElsewhere,
     start: ctx.date?.setting ?? null,
+    wornCut,
   });
   return {
     ok: true,

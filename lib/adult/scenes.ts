@@ -20,12 +20,29 @@ import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
 import type { Turn } from "../conversation";
 import { afterDarkNote, rememberAfterDark } from "./memory";
-import { historyPhrase, MAX_SCENE_MOVES, repeatOf, saysCatchphrase, settlePlace, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
-import { stagesFor, withoutSteerCopy } from "./stage-floor";
+import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
+import { activeLimit, linesAtPlace, objectOf, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
+import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
-import { bumpFacts, citeMemory, factLine, loadPairFacts, memoryLabels, RECENT_LINES, rememberFacts, retrieveFacts, type AdultFact, type Citation, type ShownFact } from "./facts";
+import {
+  bumpFacts,
+  citeMemory,
+  factLine,
+  loadPairFacts,
+  memoryLabels,
+  RECENT_LINES,
+  rememberFacts,
+  retrieveFacts,
+  sheetFacets,
+  sheetMemories,
+  type AdultFact,
+  type Citation,
+  type SheetFacet,
+  type SheetItem,
+  type ShownFact,
+} from "./facts";
 import { guardAlternation, guardNames } from "./guards";
-import { bannedPhrases, refusalIn, sheetText, sideOfCharacter } from "./quality";
+import { bannedPhrases, copiedRun, countPhrases, hooksOf, phraseNames, phrasesIn, questionHabit, refusalIn, sheetText, sideOfCharacter, topPhrases, touchesHook, WORN_AT, wornIn } from "./quality";
 import { DEFAULT_PROMPT_VERSION, getAdultSettings, type AdultSettings, type PromptVersion } from "./settings";
 import { castNames, sceneCharacter, styleExamples, voiceKitLines } from "./voice";
 export { SOFT_CHAPTERS } from "./stages";
@@ -246,21 +263,118 @@ const sheetV2 = (c: Character | null, side: "a" | "b", catchphraseUsed = false, 
         c.voice ? `Voice: ${c.voice}` : "",
         ...voiceKitLines(c),
         catchphraseLine(c, catchphraseUsed),
-        styles.length ? `How ${c.name.split(/\s+/)[0]} talks (their own lines from their show dates: keep this voice, never repeat one):\n${styles.map((s) => `- "${s}"`).join("\n")}` : "",
+        // v2.1: Dolphin copied these word for word (the A/B of 2026-10-21 dropped three): they show the voice, nothing more.
+        styles.length
+          ? `How ${c.name.split(/\s+/)[0]} talks (their own lines from their show dates, only to show the voice: never reuse one, or any part of one):\n${styles.map((s) => `- "${s}"`).join("\n")}`
+          : "",
         c.look.appearance ? `Looks: ${c.look.appearance}` : "",
       ]
         .filter(Boolean)
         .join("\n")
     : `${side.toUpperCase()}: unknown`;
 
-/** Prompt v2's rules for staying themselves: only the two of them, their sheets when it heats up, no stock phrasing. */
+/**
+ * Prompt v2's rules for staying themselves: only the two of them, their sheets when it heats up, no stock phrasing, and
+ * (v2.1: a v2 night put two women in "his apartment entrance") their pronouns, from their sheets only.
+ */
 function voiceRules(a: Character | null, b: Character | null, names: { a: string; b: string }): string[] {
   const banned = bannedPhrases([a, b].filter((c): c is Character => Boolean(c)).map((c) => sheetText(sideOfCharacter(c))));
+  const pronouns = (c: Character | null, name: string) => `${name.split(/\s+/)[0]}: ${c?.pronouns?.trim() || "none given, so use their name"}`;
   return [
     `Only the two of them are in this scene: ${names.a} and ${names.b}. Nobody else speaks, arrives or is named, and each calls the other by their own name.`,
     "Stay this person when it gets intimate: their job, hobbies, humour and tells still show; no generic romance-novel phrasing. They sound like their sheets, not like a paperback.",
     `Never write these stock phrases, or anything in their register: ${banned.join(", ")}.`,
+    `Their pronouns, from their sheets: ${pronouns(a, names.a)}; ${pronouns(b, names.b)}. Use only these, for them, their bodies and their places.`,
   ];
+}
+
+/** The worn phrases the prompt lists per character, at most (the most worn first). */
+const WORN_SHOWN = 8;
+/** What a threshold looks like, for the lines to show it when they stay there. */
+const THRESHOLD_DETAIL: Record<string, string> = {
+  "the car": "the seatbelt, the fogged windscreen, the engine ticking as it cools",
+  "the elevator": "the hum of the cables, the floor numbers, the doors",
+  "the lobby": "the doorman's desk, the marble, the lift chiming",
+  "the porch": "the porch light, the night air, the boards creaking",
+};
+const facetPhrase = (poss: string, f: SheetFacet) => `${poss} ${f.name} (${f.text.length > 90 ? `${f.text.slice(0, 89).replace(/\s+\S*$/, "")}…` : f.text})`;
+
+/**
+ * Prompt v2.1's craft (David's review of a v2 night, Star Dust × Sable Quist, 2026-10-21: a limit overridden, the place
+ * stuck in a doorway, tics, no arc). The rules that always hold: limits, a detail of the place, the rhythm, answering each
+ * other, a repeat with a new action is still a repeat, and the last stage's arc. Then tonight's notes, from the lines so
+ * far (lib/adult/craft.ts, lib/adult/quality.ts): a limit still standing, each one's worn phrases, question endings and
+ * hook (with the other sides of them their sheet shows), and a threshold they've stood at too long.
+ */
+function craftLines(
+  a: Character | null,
+  b: Character | null,
+  lines: readonly SceneLine[],
+  now: { place: string; set?: string | null; stage: number; movesLeft?: number; linesHere?: number; publicPlace?: boolean },
+): string[] {
+  const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
+  const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
+  const kind = (who: "a" | "b") => pronounKind((who === "a" ? a : b)?.pronouns);
+  const poss = (who: "a" | "b") => possessiveOf(kind(who));
+  const other = (who: "a" | "b") => (who === "a" ? "b" : "a");
+  const rules = [
+    "Craft:",
+    "- Limits hold. When one of them says slow down, wait, stop, not yet or anything like it, the next lines honour it: they slow down, stop going further, and ask. It goes further only once the one who asked says yes, on the page.",
+    "- Ground the place: every few lines, one concrete detail of where they are (the light, a sound, a texture, the temperature), a new one each time.",
+    "- Vary the rhythm: some lines are a few words, some run to two or three sentences, and now and then a line is only an action.",
+    "- Each line answers what the other just said or did; nobody reacts to something that wasn't said.",
+    "- A new action in front of a line already said doesn't make it new: what's been said tonight isn't said again, in any words close to it.",
+    '- When these lines take them somewhere (one suggests it, the other says yes, they go), "place" and "set" in your reply are where they are by the end of them.',
+  ];
+  if (now.stage >= STAGES.length - 1) {
+    const climax = recentClimax(lines);
+    rules.push(
+      climax
+        ? `- They've reached a climax (${first(climax.who)}: "${climax.text.replace(/\*[^*]*\*/g, "").trim().slice(0, 60)}"): now the afterglow, a resolution. They check in with each other, stay warm, make each other laugh; it doesn't start over.`
+        : "- This is the last stage: write toward a climax, then a resolution or an afterglow beat (checking in, warmth, a joke), instead of looping.",
+    );
+  }
+  const notes: string[] = [];
+  const names = [nameOf("a"), nameOf("b")];
+  const limit = activeLimit(lines, names);
+  if (limit) notes.push(`- ${first(limit.who)} asked to slow down ("${limit.said}"): honour it, or have ${first(other(limit.who))} ask and get a yes, before going further.`);
+  const named = phraseNames(...names);
+  const worn = (["a", "b"] as const)
+    .map((who) => ({ who, list: topPhrases(countPhrases(lines.filter((l) => l.who === who), named), WORN_SHOWN, WORN_AT) }))
+    .filter((x) => x.list.length);
+  if (worn.length) {
+    notes.push(
+      `- Worn phrases (each already in ${WORN_AT} or more of their lines tonight; don't use them again, or anything close): ${worn.map((x) => `${first(x.who)}: ${x.list.map((p) => `"${p.phrase}"`).join(", ")}`).join("; ")}.`,
+    );
+  }
+  for (const who of ["a", "b"] as const) {
+    const q = questionHabit(lines, who);
+    if (q) notes.push(`- ${first(who)} has ended ${q.questions} of ${poss(who)} last ${q.of} lines on a question: vary it, with a statement, an action or a silence.`);
+  }
+  for (const who of ["a", "b"] as const) {
+    const c = who === "a" ? a : b;
+    const [hook] = hooksOf(lines, who, names, 1);
+    if (!hook || !c) continue;
+    const kinds = new Set<string>();
+    const sides = sheetFacets(c).filter((f) => !touchesHook(f.text, hook) && !kinds.has(f.kind) && kinds.add(f.kind)).slice(0, 3);
+    notes.push(
+      `- ${first(who)} keeps coming back to "${hook.word}" (${hook.lines} of ${poss(who)} last ${hook.of} lines). Show other sides of ${objectOf(kind(who))}, from ${poss(who)} sheet, and name the one a line uses in its "why": ${sides.length ? sides.map((f) => facetPhrase(poss(who), f)).join("; ") : `${poss(who)} work, hobbies, humour and tells`}.`,
+    );
+  }
+  if (now.publicPlace && now.stage >= 1) {
+    notes.push(
+      `- They're somewhere public (${now.set ?? now.place}): it goes no further than kissing here. Going further means one of them suggests somewhere private, the other says yes, and they go.`,
+    );
+  }
+  const threshold = thresholdOf(now.place, now.set ?? null);
+  const here = now.linesHere ?? 0;
+  if (threshold && here > THRESHOLD_LINES) {
+    const goIn = threshold === "the car" ? "getting out and going inside" : "going inside";
+    notes.push(
+      `- They've been at ${threshold} for ${here} lines. ${now.movesLeft === 0 ? "They can't move again in this part of the night, so" : `In these lines, either one of them suggests ${goIn} and the other says yes (then they're in), or`} the lines show where they are: ${THRESHOLD_DETAIL[threshold] ?? "the door at someone's back, the light from the hall, a neighbour's footsteps"}.`,
+    );
+  }
+  return [...rules, ...(notes.length ? ["Tonight so far (notes from the lines already written; follow them in these lines):", ...notes] : [])];
 }
 
 const COMMON = new Set(
@@ -307,11 +421,18 @@ export function sceneMessages(
     /** v2: the facts this step brings back (lib/adult/facts.ts retrieveFacts), and each one's best show lines. */
     facts?: readonly ShownFact[];
     styles?: { a?: readonly string[]; b?: readonly string[] };
+    /** v2.1: a new pair's own sheet details ([S1]…, lib/adult/facts.ts sheetMemories), and the lines they've been where they are. */
+    sheetItems?: readonly SheetItem[];
+    linesHere?: number;
   } = { place: "wherever they've just met", stage: 0 },
 ): ChatMessage[] {
   const v2 = (now.promptVersion ?? DEFAULT_PROMPT_VERSION) === "v2";
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
   const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
+  // v2.1: where they are, with a possessive neither of them goes by put right ("his apartment entrance", two women).
+  const fixPlace = (label: string) => repairPlacePronouns(label, { a: a?.pronouns, b: b?.pronouns }, { a: nameOf("a"), b: nameOf("b") }, now.homeNow ?? null).text ?? label;
+  const where = v2 ? { place: fixPlace(now.place), set: now.set ? fixPlace(now.set) : now.set } : { place: now.place, set: now.set };
+  const sheetItems = v2 ? (now.sheetItems ?? []) : [];
   // A date's sides are its own a and b; map them onto the scene's (the pair is stored lower id first).
   const flip = date && aId ? date.character_a !== aId : false;
   const dateTail = (date?.transcript ?? []).slice(-10).map((t) => {
@@ -336,14 +457,16 @@ export function sceneMessages(
     v2
       ? remembered.length
         ? `What they can remember (draw on these when it fits; a line that uses one puts its id in "memory"):\n${remembered.join("\n")}`
-        : ""
+        : sheetItems.length
+          ? `Nothing shared to remember yet (no facts, no memories between them). What each of them brings of their own life, to draw on (a line that uses one puts its id in "memory"):\n${sheetItems.map((s) => `[${s.label}] ${s.text}`).join("\n")}`
+          : ""
       : now.memories?.length
         ? `What they can remember (draw on these; name the one a line uses in its "memory"):\n${now.memories.map((m, i) => `${i + 1}. ${m}`).join("\n")}`
         : "",
     now.recap ? `Earlier tonight (what's happened so far, keep it in mind and don't repeat it):\n${now.recap}` : "",
     sceneTail.length ? `The scene so far:\n${sceneTail.join("\n")}` : "The scene starts now, picking up where their date ended.",
     "",
-    `Where they are now: ${now.place}${now.set && now.set.toLowerCase() !== now.place.toLowerCase() ? ` (the set: ${now.set})` : ""}. How far it's gone: ${STAGES[now.stage]} (stage ${now.stage + 1} of ${STAGES.length}: ${STAGES.join(" → ")}).`,
+    `Where they are now: ${where.place}${where.set && where.set.toLowerCase() !== where.place.toLowerCase() ? ` (the set: ${where.set})` : ""}. How far it's gone: ${STAGES[now.stage]} (stage ${now.stage + 1} of ${STAGES.length}: ${STAGES.join(" → ")}).`,
     // The night's places, so nobody asks "my place?" once they're there (Star × Chud, 2026-10-21, asked it at his place).
     (now.history?.length ?? 0) > 1 ? `Where they've been tonight, in order: ${historyPhrase(now.history!)}. They're at the last one now.` : "",
     now.homeNow ? `They're in ${nameOf(now.homeNow)}'s home now: nobody asks "my place?" or "your place?" again.` : "",
@@ -364,6 +487,16 @@ export function sceneMessages(
       : "- Once they've agreed to go somewhere, getting there takes a line or two at most; then the scene picks up at the new place. Don't keep saying \"let's go\".",
     "- Never say a line that's already been said tonight, word for word or nearly: every line is new.",
     "- Respect where they are. In a public place (a cafe, a bar, a restaurant, a street, a park, a venue) they can flirt, touch discreetly and, at most, kiss; other people are around and they act like it. Going further means one suggests leaving, the other agrees, and the lines show them going somewhere private (one of their places, a hotel). Only then does it go past kissing.",
+    ...(v2
+      ? craftLines(a, b, lines, {
+          place: where.place,
+          set: where.set,
+          stage: now.stage,
+          movesLeft: now.movesLeft,
+          linesHere: now.linesHere,
+          publicPlace: !(direction && now.steerMode === "direct") && isPublicPlace(where.set ?? where.place, now.homeNow ?? null),
+        })
+      : []),
   ]
     .filter((x) => x !== "")
     .join("\n");
@@ -371,10 +504,12 @@ export function sceneMessages(
   const avoid = overusedWords(lines, [nameOf("a"), nameOf("b")]);
   // v2 says who speaks first (whoever didn't speak last), so a reply doesn't open on the same speaker twice.
   const next: "a" | "b" = lines.at(-1)?.who === "a" ? "b" : "a";
-  const cite = now.facts?.[0]?.label ?? (now.memories?.length ? "M1" : null);
+  const cite = now.facts?.[0]?.label ?? (now.memories?.length ? "M1" : (sheetItems[0]?.label ?? null));
+  // v2.1's why: a specific memory or sheet detail, never a trait word on its own ("Sable is warm" said nothing, 2026-10-21).
+  const trait = (b?.persona.traits[0] ?? "warm").toLowerCase();
   const user =
     `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}${v2 ? `, starting with ${first(next)}` : ""}. ` +
-    `Each line is 1 to 3 sentences in that character's own voice, vivid and specific, never a stock line ("you feel amazing"). ` +
+    `Each line is ${v2 ? "a few words to 3 sentences (now and then only an action)" : "1 to 3 sentences"} in that character's own voice, vivid and specific, never a stock line ("you feel amazing"). ` +
     (v2 ? "As it heats up they stay themselves: their work, their hobbies, their humour and their tells keep showing, and nothing reads like a romance novel. " : "") +
     `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text. Write both in English.` +
     (direction
@@ -387,9 +522,9 @@ export function sceneMessages(
           : ` Lean the scene gently this way, at its own pace (the pace and place rules above still hold; work toward it, don't jump to it): ${direction}`
       : " Move the scene forward: something new happens in these lines, nothing they've already done or said.") +
     (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
-    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": ${v2 ? (cite ? `"${cite}"` : "null") : '"..."'}}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. his bedroom: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
+    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": ${v2 ? (cite ? `"${cite}"` : "null") : '"..."'}}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. ${v2 ? "the bedroom" : "his bedroom"}: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
     (v2
-      ? ` On every line, "why" is one short private sentence on why this character says or does this now: the memory it draws on, a trait or tell from their sheet, what they want, or "the moment"; and "memory" is the id of the memory it draws on from what they can remember (like "F3" or "M1"), or null. Nobody sees these notes but the writer.`
+      ? ` On every line, "why" is one short private sentence on why this character says or does this now, naming the specific thing behind it: a memory, a detail from their sheet (their job, a hobby, a tell, a line of their bio), what they want, or what just happened; never a trait word on its own ("${first("b")} is ${trait}" says nothing), and each line's why is its own ("the moment" says nothing either). "memory" is the id of the memory it draws on from what they can remember (like "F3" or "M1"), or null.${sheetItems.length ? ` One of their own sheet details ("${sheetItems[0].label}"…) counts as a memory too.` : ""} Nobody sees these notes but the writer.`
       : ` On every line, "why" is one short private sentence on why this character says or does this now: the memory it draws on, a trait or tell from their sheet, what they want, or "the moment"; and "memory" is the memory it draws on, quoted or named from what they can remember, or null. Nobody sees these notes but the writer.`) +
     ` Set "explicit" to true once the scene is sexually explicit. Set "picture" only when, in these lines, one of them asks the other for a picture or to be shown something and the other agrees:` +
     ` {"of": "a", "b" or "both", "description": "what the picture shows, in one sentence: the pose, what they're wearing or not, the expression, the framing"}; otherwise null.`;
@@ -513,10 +648,21 @@ export type DroppedLine = { who: "a" | "b"; text: string; reason: string };
  * dropped; a catchphrase past its once a chapter, or a tic the catchphrase critic flags, loses its sentence (the line
  * goes if nothing's left). `night` is everything said tonight that's at hand; `chapter` is this chapter's lines.
  */
-export function dropRepeats(written: readonly SceneLine[], night: readonly SceneLine[], chapter: readonly SceneLine[], a: Character | null, b: Character | null): { kept: SceneLine[]; dropped: DroppedLine[] } {
+export function dropRepeats(
+  written: readonly SceneLine[],
+  night: readonly SceneLine[],
+  chapter: readonly SceneLine[],
+  a: Character | null,
+  b: Character | null,
+  opts: { worn?: boolean } = {},
+): { kept: SceneLine[]; dropped: DroppedLine[]; worn: number } {
   const kept: SceneLine[] = [];
   const dropped: DroppedLine[] = [];
   const drop = (l: SceneLine, reason: string) => dropped.push({ who: l.who, text: l.text, reason });
+  // v2.1's worn phrases (lib/adult/quality.ts): each speaker's phrases tonight, so a fourth use loses its sentence.
+  const named = phraseNames(a?.name ?? "", b?.name ?? "");
+  const counts = opts.worn ? { a: countPhrases(night.filter((l) => l.who === "a"), named), b: countPhrases(night.filter((l) => l.who === "b"), named) } : null;
+  let worn = 0;
   for (const l of written) {
     const before = [...night, ...kept];
     // The catchphrase first (it would make any short line that says it look like the last one that did).
@@ -552,9 +698,25 @@ export function dropRepeats(written: readonly SceneLine[], night: readonly Scene
         }
       }
     }
-    kept.push(text === l.text ? l : { ...l, text });
+    // v2.1: a phrase this speaker has already said in WORN_AT lines tonight ("let's see" in 23 of 59) loses its sentence;
+    // the line goes if nothing's left. The v2.1 prompt lists these phrases, so the model was told.
+    if (counts) {
+      const mine = counts[l.who];
+      const hit = wornIn(text, mine, named);
+      if (hit) {
+        worn++;
+        text = withoutPhrase(text, (s) => wornIn(s, mine, named) !== null);
+        if (!text) {
+          drop(l, `a worn phrase ("${hit.phrase}", already in ${hit.count} of their lines tonight)`);
+          continue;
+        }
+      }
+    }
+    const line = text === l.text ? l : { ...l, text };
+    kept.push(line);
+    if (counts) for (const p of phrasesIn(line.text, named)) counts[l.who].set(p, (counts[l.who].get(p) ?? 0) + 1);
   }
-  return { kept, dropped };
+  return { kept, dropped, worn };
 }
 
 export type ContinueResult =
@@ -636,7 +798,47 @@ export type StepFlags = {
   refusal_reply: boolean;
   /** Per kept line, in order: what its private "memory" cited (lib/adult/facts.ts citeMemory). */
   citations: Citation[];
+  /** v2.1: lines that lost a sentence, or went, for reusing a worn phrase (dropRepeats), or part of a show or sample line. */
+  worn_phrases: number;
+  show_copies_cut: number;
+  /** v2.1: lines dropped for going past kissing in a public place. */
+  public_dropped: number;
 };
+
+/** "kissing" (STAGES): as far as it goes in a public place (David, 2026-10-18). */
+const KISSING = STAGES.indexOf("kissing");
+
+/** A character's own sample lines (lib/extras.ts), raw: v2.1 cuts a sentence that copies part of one. */
+const sampleLines = (c: Character | null): string[] => Object.values(c?.extras.lines ?? {}).filter((x): x is string => typeof x === "string" && Boolean(x.trim()));
+
+/** The first few words a line says (its action out), to name it without repeating all of it. */
+const openingOf = (text: string): string => {
+  const words = text.replace(/\*[^*]*\*/g, " ").trim().split(/\s+/).filter(Boolean);
+  return words.length ? `${words.slice(0, 6).join(" ")}${words.length > 6 ? "…" : ""}` : "";
+};
+
+/**
+ * v2.1's note when a reply only repeated what's been said tonight (the prod repeat lock, 2026-10-21): the lines that can't
+ * come back, by how they open, and the worn phrases that cost a line.
+ */
+function repeatNote(repeated: readonly DroppedLine[]): string {
+  const openings = [...new Set(repeated.map((d) => openingOf(d.text)).filter(Boolean))].slice(0, 6);
+  const worn = [...new Set(repeated.map((d) => /^a worn phrase \("([^"]+)"/.exec(d.reason)?.[1]).filter((x): x is string => Boolean(x)))];
+  return (
+    `Your last reply only said again what's been said tonight, and a new action in front doesn't make a line new.` +
+    (openings.length ? ` These can't come back, in any form: ${openings.map((o) => `"${o}"`).join(", ")}.` : "") +
+    (worn.length ? ` These phrases are worn out: ${worn.map((w) => `"${w}"`).join(", ")}.` : "") +
+    ` Write ${LINES_PER_TURN} new lines that move the scene on, with something they haven't said or done yet. Reply with the JSON again.`
+  );
+}
+
+/** The retry after nothing but repeats runs a little hotter, with stronger penalties (v2.1). */
+const hotter = (o: ModelOptions): ModelOptions => ({
+  ...o,
+  temperature: Math.min(1.2, (o.temperature ?? 0.8) + 0.2),
+  frequencyPenalty: Math.min(1.2, (o.frequencyPenalty ?? 0) + 0.4),
+  presencePenalty: Math.min(1.2, (o.presencePenalty ?? 0) + 0.4),
+});
 
 export type StepResult =
   | { ok: true; lines: SceneLine[]; meta: SceneMeta; dropped: DroppedLine[]; flags: StepFlags; next: SceneState; shown: ShownFact[]; usage: Usage[] }
@@ -663,6 +865,12 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   // v2 brings back the facts that fit the last few lines, and their show lines; v1 is the prompt as it was.
   const shown = v2 ? retrieveFacts(input.facts, night.slice(-RECENT_LINES).map((l) => l.text), { now: input.now, names: [names.a, names.b] }) : [];
   const styles = v2 ? input.styles : { a: [], b: [] };
+  // v2.1: a new pair (no facts shown, nothing remembered) draws on their own sheets instead, numbered S1… (lib/adult/facts.ts).
+  const sheetItems = v2 && !shown.length && !input.memories.length ? sheetMemories(a, b) : [];
+  // v2.1: nothing past kissing in a public place (David, 2026-10-18), by where they are, not the model's claim; never
+  // below how far it had already gone, and not under a Direct steer (which can jump).
+  const publicCap =
+    v2 && !(steer && steerMode === "direct") && isPublicPlace(scene.set_place ?? scene.place ?? date?.setting ?? null, homeNow) ? Math.max(KISSING, scene.stage) : null;
   const messages = sceneMessages(a, b, date, night, steer, pair.a.id, {
     place: placeOf(scene, date),
     stage: scene.stage,
@@ -680,11 +888,13 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     promptVersion: input.promptVersion,
     facts: shown,
     styles,
+    sheetItems,
+    linesHere: linesAtPlace(scene),
   });
   const usage: Usage[] = [];
   const flags: StepFlags = {
     calls: 0, retried: false, held: 0, repeats: 0, names_repaired: 0, names_dropped: 0, alternation_merged: 0, alternation_dropped: 0, alternation_boundary: 0,
-    refused: 0, moralising: 0, refusal_reply: false, citations: [],
+    refused: 0, moralising: 0, refusal_reply: false, citations: [], worn_phrases: 0, show_copies_cut: 0, public_dropped: 0,
   };
   const { temperature, frequency_penalty, presence_penalty, repetition_penalty } = input.sampling;
   const options: ModelOptions = {
@@ -698,6 +908,8 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   // A copy of one of their own show lines is a repeat too: v2 shows them to match the voice, never to say again. (Checked
   // on its own: in dropRepeats' window the critic would read their signature words as a tic.)
   const showLines = [...styles.a, ...styles.b];
+  // v2.1: part of one copied counts too (COPIED_RUN words in a row), from their show lines or their sheet's sample lines.
+  const ownLines = { a: v2 ? [...styles.a, ...sampleLines(a)] : [], b: v2 ? [...styles.b, ...sampleLines(b)] : [] };
   const dropped: DroppedLine[] = [];
 
   const guard = (raw: string) => {
@@ -735,21 +947,55 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
       }
       inScene.push(own.text === l.text ? l : { ...l, text: own.text });
     }
-    const reps = dropRepeats(inScene, night, scene.lines, a, b);
-    const fresh = reps.kept.filter((l) => {
+    // v2.1: in a public place, a line showing more than kissing goes (publicCap), until these lines agree to go somewhere
+    // (a yes here, or one just before and them going here: lib/adult/continuity.ts shownMove).
+    let publicDropped = 0;
+    const heard = [...night, ...inScene];
+    const leaveAt =
+      publicCap === null
+        ? -1
+        : Math.min(
+            agreedMove(heard, night.length)?.agree ?? Infinity,
+            shownMove(heard, night.length, scene.set_place ?? scene.place ?? date?.setting ?? null, names)?.at ?? Infinity,
+          ) - night.length;
+    const inPlace =
+      publicCap === null
+        ? inScene
+        : inScene.filter((l, i) => {
+            const shownStage = i < leaveAt ? stageShown(l.text) : null;
+            if (shownStage === null || shownStage <= publicCap) return true;
+            publicDropped++;
+            drops.push({ who: l.who, text: l.text, reason: `went past kissing in a public place (${scene.set_place ?? scene.place ?? date?.setting ?? "where they are"})` });
+            return false;
+          });
+    const reps = dropRepeats(inPlace, night, scene.lines, a, b, { worn: v2 });
+    const fresh = reps.kept.flatMap((l): SceneLine[] => {
       const copy = showLines.length ? repeatOf(l.text, showLines) : null;
-      if (copy) reps.dropped.push({ who: l.who, text: l.text, reason: `repeats one of their show lines: "${copy.of.slice(0, 80)}"` });
-      return !copy;
+      if (copy) {
+        reps.dropped.push({ who: l.who, text: l.text, reason: `repeats one of their show lines: "${copy.of.slice(0, 80)}"` });
+        return [];
+      }
+      // v2.1: part of one of their show or sample lines copied: that sentence goes, and the line if nothing's left.
+      const part = copiedRun(l.text, ownLines[l.who]);
+      if (!part) return [l];
+      const text = withoutPhrase(l.text, (s) => copiedRun(s, ownLines[l.who]) !== null);
+      if (text === l.text) return [l];
+      flags.show_copies_cut++;
+      if (text) return [{ ...l, text }];
+      reps.dropped.push({ who: l.who, text: l.text, reason: `reuses part of one of their show lines ("${part}")` });
+      return [];
     });
-    const turns = guardAlternation(fresh, night.at(-1)?.who ?? null);
+    const turns = guardAlternation(fresh, night.at(-1)?.who ?? null, { keepReplies: v2 });
     flags.refused += refused;
     flags.names_dropped += named;
+    flags.public_dropped += publicDropped;
     flags.repeats += reps.dropped.length;
+    flags.worn_phrases += reps.worn;
     flags.alternation_merged += turns.merged;
     flags.alternation_dropped += turns.dropped.length;
     dropped.push(...drops, ...reps.dropped, ...turns.dropped);
     // Only repeats stood in the way (the note, and the message, say so as before).
-    const onlyRepeats = reps.dropped.length > 0 && refused + named + turns.dropped.length === 0;
+    const onlyRepeats = reps.dropped.length > 0 && refused + named + publicDropped + turns.dropped.length === 0;
     return { raw, written, safe, kept: turns.kept, boundary: turns.boundary, onlyRepeats, repeated: reps.dropped };
   };
 
@@ -760,11 +1006,19 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     // Nothing safe was kept (all repeats, or out of the scene): once more, told why (the only time a step costs a second call).
     if (out.safe.length && !out.kept.length) {
       flags.retried = true;
-      const note = out.onlyRepeats
-        ? `Every line you wrote was already said tonight (${out.repeated.map((d) => `"${d.text.slice(0, 60)}"`).slice(0, 3).join(", ")}). Write ${LINES_PER_TURN} new lines that move the scene on. Reply with the JSON again.`
-        : `None of the lines you wrote could be used (${[...new Set(dropped.map((d) => d.reason.replace(/\s*[(:].*$/, "")))].join("; ")}). Write ${LINES_PER_TURN} new lines, only between ${names.a.split(/\s+/)[0]} and ${names.b.split(/\s+/)[0]}, taking turns, that move the scene on. Reply with the JSON again.`;
+      // v2.1, the repeat lock (Cass × Chud on prod, 2026-10-21: the retry came back all repeats too): after nothing but
+      // repeats, ask once more without the repeated reply to copy from, naming what can't come back, a little hotter.
+      const hot = v2 && out.onlyRepeats;
+      const note = hot
+        ? repeatNote(out.repeated)
+        : out.onlyRepeats
+          ? `Every line you wrote was already said tonight (${out.repeated.map((d) => `"${d.text.slice(0, 60)}"`).slice(0, 3).join(", ")}). Write ${LINES_PER_TURN} new lines that move the scene on. Reply with the JSON again.`
+          : `None of the lines you wrote could be used (${[...new Set(dropped.map((d) => d.reason.replace(/\s*[(:].*$/, "")))].join("; ")}). Write ${LINES_PER_TURN} new lines, only between ${names.a.split(/\s+/)[0]} and ${names.b.split(/\s+/)[0]}, taking turns, that move the scene on. Reply with the JSON again.`;
       flags.calls++;
-      out = guard(await input.model.complete([...messages, { role: "assistant", content: out.raw }, { role: "user", content: note }], options));
+      const again: ChatMessage[] = hot
+        ? [messages[0], { role: "user", content: `${messages[1].content}\n\n${note}` }]
+        : [...messages, { role: "assistant", content: out.raw }, { role: "user", content: note }];
+      out = guard(await input.model.complete(again, hot ? hotter(options) : options));
     }
   } catch (err) {
     return { ok: false, status: 502, message: `After dark's model didn't answer: ${err instanceof Error ? err.message : "error"}`, dropped, flags, shown, usage };
@@ -790,8 +1044,9 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
       ...(flags.refusal_reply ? { raw: raw.slice(0, 400) } : {}),
     };
   }
-  // What each line's memory cites: a fact shown (by its id, a quote or its words), another memory, or tonight so far.
-  const others = memoryLabels(input.memories);
+  // What each line's memory cites: a fact shown (by its id, a quote or its words), another memory, a new pair's sheet
+  // detail (v2.1), or tonight so far.
+  const others = [...memoryLabels(input.memories), ...sheetItems];
   const context = [scene.recap ?? "", ...(date?.transcript ?? []).map((t) => t.dialogue), ...night.slice(-SCENE_IN_PROMPT).map((l) => l.text)].join("\n");
   flags.citations = out.kept.map((l) => citeMemory(l.memory, shown, others, context));
   const kept = out.kept.map((l, i) => (flags.citations[i].facts.length ? { ...l, fact_ids: flags.citations[i].facts } : l));
@@ -811,7 +1066,9 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     names,
   });
   let set_place = settled.set;
-  const place = settled.place;
+  // v2.1: a possessive neither of them goes by is put right ("his apartment entrance" with two women; their sheets'
+  // pronouns, lib/adult/craft.ts). Lines are only flagged (the observer, the metrics).
+  const place = repairPlacePronouns(settled.place, { a: a?.pronouns, b: b?.pronouns }, names, settled.moved ? settled.moved.home : homeNow).text;
   let place_history = scene.place_history;
   const moves = [...scene.moves];
   if (settled.moved) {
@@ -831,7 +1088,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   const allowed = steer && steerMode === "direct" ? STAGES.length - 1 : scene.lines.length - scene.stage_from >= MIN_LINES_PER_STAGE ? scene.stage + 1 : scene.stage;
   // The model's claim, raised to what the lines plainly show when it ran behind them (lib/adult/stage-floor.ts); each line
   // carries the stage it was at, for the theater's label.
-  const { perLine, stage } = stagesFor(kept, scene.stage, Math.min(meta.stage ?? scene.stage, allowed));
+  const { perLine, stage } = stagesFor(kept, scene.stage, Math.min(meta.stage ?? scene.stage, allowed, publicCap !== null && !settled.moved ? publicCap : STAGES.length - 1));
   const stamped = kept.map((l, i) => ({ ...l, stage: perLine[i] }));
   const stage_from = stage === scene.stage ? scene.stage_from : scene.lines.length;
   const next: SceneState = { ...scene, lines: [...scene.lines, ...stamped], place, stage, stage_from, set_place, cut_to: null, place_history, moves };
