@@ -1,7 +1,6 @@
-# Typecheck + the unit suite on every PR and on main. Runs on the hosted free runner.
+# Typecheck + the unit suite, by hand. Runs on the hosted free runner.
 #
 # Minute discipline (this repo is private, so free minutes are capped):
-#   - paths-ignore skips docs-only and config-only changes
 #   - concurrency cancels older runs on the same branch
 #   - a 15-minute timeout kills a hung run before it eats the budget
 # True-free alternative (not applied here): make the repo public, or add a self-hosted runner.
@@ -9,21 +8,10 @@
 name: CI
 
 on:
+  # By hand only (gh workflow run ci.yml --ref <branch>), as BUILD.md says (#575, 2026-10-21): the repo is private, so
+  # every run spends the account's free Actions minutes, which RepoHQ needs. A later pass turned on every PR and push
+  # again, and with the minutes out it only left a check that never starts. PRs merge on the local tsc + full vitest.
   workflow_dispatch:
-  pull_request:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "**.md"
-      - "LICENSE"
-      - ".github/ISSUE_TEMPLATE/**"
-  push:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "**.md"
-      - "LICENSE"
-      - ".github/ISSUE_TEMPLATE/**"
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
