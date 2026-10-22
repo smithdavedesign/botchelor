@@ -88,7 +88,7 @@ describe("delete_character + elicitation", () => {
     attachStream(ctx.sessionId!, (m) => {
       seen.push(m);
       // Fire the response on the next tick so the tool-call is already awaiting.
-      setTimeout(() => resolveServerRequest(m.params._requestId, { action: "decline" }, undefined), 1);
+      setTimeout(() => resolveServerRequest((m.params as { _requestId: string })._requestId, { action: "decline" }, undefined), 1);
     });
     const r = (await handleMcpMessage(
       { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "delete_character", arguments: { character_id: id } } },
@@ -111,7 +111,7 @@ describe("delete_character + elicitation", () => {
     ))!.result as Any;
     const id = c.structuredContent.character.id;
     attachStream(ctx.sessionId!, (m) => {
-      setTimeout(() => resolveServerRequest(m.params._requestId, { action: "accept", content: { confirm: true } }, undefined), 1);
+      setTimeout(() => resolveServerRequest((m.params as { _requestId: string })._requestId, { action: "accept", content: { confirm: true } }, undefined), 1);
     });
     const r = (await handleMcpMessage(
       { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "delete_character", arguments: { character_id: id } } },
@@ -133,7 +133,7 @@ describe("check_originality + sampling", () => {
     const seen: Any[] = [];
     attachStream(ctx.sessionId!, (m) => {
       seen.push(m);
-      setTimeout(() => resolveServerRequest(m.params._requestId, {
+      setTimeout(() => resolveServerRequest((m.params as { _requestId: string })._requestId, {
         role: "assistant",
         content: { type: "text", text: "A night-shift pharmacist who narrates dreams back to her customers at 3am." },
         model: "client-llm-v1",
@@ -178,7 +178,7 @@ describe("JSON-RPC Response from the client resolves the pending server request"
       // Return the response not via resolveServerRequest directly, but via the dispatcher so we exercise that path.
       setTimeout(async () => {
         await handleMcpMessage(
-          { jsonrpc: "2.0", id: m.params._requestId, result: { role: "assistant", content: { type: "text", text: "ok" }, model: "x" } } as Any,
+          { jsonrpc: "2.0", id: (m.params as { _requestId: string })._requestId, result: { role: "assistant", content: { type: "text", text: "ok" }, model: "x" } } as Any,
           ctx,
         );
       }, 1);
