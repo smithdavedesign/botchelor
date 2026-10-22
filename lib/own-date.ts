@@ -35,7 +35,7 @@ import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from 
 import { getEpisodeView, type DateSetup, type EpisodeView } from "./game";
 import type { ChatMessage } from "./model";
 import { PROMPT_VERSION, qualityContext } from "./pipeline";
-import { neverSaid, transcriptQuality } from "./quality";
+import { neverSaid, selfAddress, transcriptQuality } from "./quality";
 import { isLogistics } from "./memory";
 import { actName, CONVERSATION_TURNS, MAX_MOVES, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, DATE_ACTS, ENDING_LABELS, type Ending, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
@@ -46,7 +46,7 @@ import { getDirectorModel, getModel } from "./model";
 import { agentDatesToday } from "./dating";
 import { pairNames, shortName } from "./names";
 import { notify, resolvePairNotices, resolveTurnNotices } from "./notifications";
-import { takenSql } from "./partners";
+import { currentPartners, settleCharacter, takenSql } from "./partners";
 import { takenMessage } from "./partners-shared";
 import { haveDated, swipeGateOn } from "./swipe-gate";
 import { agreedMatch, dateNotAgreed } from "./swipes";
@@ -417,13 +417,22 @@ async function checkOwnDate(
     }
     const blocked = await db.query(`select 1 from blocks where (blocker_id = $1 and blocked_id = $2) or (blocker_id = $2 and blocked_id = $1) limit 1`, [userId, partnerPerformer]);
     if (blocked.rows.length) return err(409, "match_unavailable", "That match is no longer available.");
+    // 2.7.0 (the 2026-10-22-0215 run: Hesper went exclusive with Ottoline, yet her agent started a two-agent date with Brannoch):
+    // a character left to decide settles one partner or more before the rule is checked, as go_on_date settles it (app/api/
+    // episodes). Its couple had just become a Dating couple (a second date written, not yet aired, counts), but it hadn't
+    // settled yet, so it wasn't taken, and a date with someone else slipped past the one-partner rule.
+    await settleCharacter(db, a.id).catch(() => {});
+    await settleCharacter(db, b.id).catch(() => {});
     const taken = await db.query<{ a: boolean; b: boolean }>(
       `select ${takenSql("x", "$2")} as a, ${takenSql("y", "$1")} as b from characters x, characters y where x.id = $1 and y.id = $2`,
       [a.id, b.id],
     );
-    // #514: the rule, and the field that changes it (a is the asker's; b is the other agent's).
-    if (taken.rows[0]?.a) return err(409, "taken", takenMessage(shortName(a.name), { mine: true }));
-    if (taken.rows[0]?.b) return err(409, "taken", takenMessage(shortName(b.name), { mine: false }));
+    // #514: the rule, and the field that changes it (a is the asker's; b is the other agent's). 2.7.0: and who they're with.
+    const takenSide = taken.rows[0]?.a ? a : taken.rows[0]?.b ? b : null;
+    if (takenSide) {
+      const partner = (await currentPartners(db, takenSide.id).catch(() => []))[0]?.name ?? null;
+      return err(409, "taken", `${takenMessage(shortName(takenSide.name), { mine: takenSide === a, partner })} A two-agent date keeps the one-partner rule, as go_on_date does.`);
+    }
     const invited = (
       await db.query<{ n: number }>(`select count(*)::int as n from episodes where partner_performer = $1 and status = 'generating'`, [partnerPerformer])
     ).rows[0].n;
@@ -911,9 +920,9 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
         (show
           ? "Ask again in a moment."
           : bot
-            ? `autoplay_own_date (side: "both") has the show's model play both sides now (one of the agents' shared daily dates); decline_own_date cancels.`
+            ? `autoplay_own_date (side: "both") has the show's model play both sides now (one of the agents' shared daily dates; preview: true first shows it); decline_own_date cancels.`
             : canHandOver
-            ? `They've been quiet ${OWN_DATE_HANDOVER_MINUTES}+ minutes, but the show's model couldn't take over ${step.speaker.name}'s side yet (the agents' daily budget is spent): keep waiting, try hand_over_own_date later, or decline_own_date to cancel.`
+            ? `They've been quiet ${OWN_DATE_HANDOVER_MINUTES}+ minutes, but the show's model couldn't take over ${step.speaker.name}'s side yet (the agents' daily budget is spent): keep waiting, try hand_over_own_date later (preview: true first shows the cost), or decline_own_date to cancel.`
             : `If they stay quiet ${OWN_DATE_HANDOVER_MINUTES} minutes, the show's model takes over ${step.speaker.name}'s side on its own (it counts against the agents' daily budget); decline_own_date cancels.`),
     };
   }
@@ -1214,6 +1223,13 @@ async function showTurn(
     }
     const parsed = parseTurnResult(raw, side, act);
     if (!("turn" in parsed)) continue;
+    // 2.7.0 (#645): a line that calls its own speaker by name is the other side's line on this turn: once more, with a note
+    // (the last try is kept, as the show's critic keeps a draft).
+    const self = attempt < 2 ? selfAddress(parsed.turn.dialogue, names.self, names.other, { firstLine: !transcript.some((t) => t.side === side) }) : null;
+    if (self) {
+      messages = [...messages, { role: "assistant", content: raw }, { role: "user", content: `Revise that line: you called yourself by name ("${self}"). You are ${names.self}, talking to ${names.other}. Reply with the JSON again.` }];
+      continue;
+    }
     // The same move rules as the agent's side (lib/moves.ts): an unanswered suggestion is a no.
     const turn = settleLine(parsed.turn, parsed.reply, shape, names);
     // Saved, or a request racing this one saved the turn first: either way the date has moved on.
@@ -1395,9 +1411,12 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
   const transcript = row.transcript ?? [];
   const current = stepFor(episodeId, built, decided, formatId, transcript, [row.a_id, row.b_id]);
   const twoAgent = row.partner_performer !== null;
-  // Only the agent performing this side may hand in its turn; in a two-agent date nobody hands in the recap.
+  // Only the agent performing this side may hand in its turn; in a two-agent date nobody hands in the recap. 2.7.0 (the
+  // 2026-10-22-0215 run: a line sent after a two-agent date's last one came back as "Done", with nothing saying it went
+  // unused): past the last line, the date is over (date_over), not someone else's move.
   if ((current.stage === "turn" && performersOf(row)[current.side] !== userId) || (current.stage === "recap" && twoAgent)) {
-    return getOwnDateStep(db, userId, episodeId).then((r) => (r.ok ? { ...r, rejected: "not_your_turn" } : r));
+    const why = current.stage === "recap" ? "date_over" : "not_your_turn";
+    return getOwnDateStep(db, userId, episodeId).then((r) => (r.ok ? { ...r, rejected: why } : r));
   }
   // #432: a refused step goes back as this agent sees it, so a two-agent date's retry doesn't show the ending either.
   const refuse = (rejected: string): OwnDateResult => ({ ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), row.partner_bot === true), rejected });

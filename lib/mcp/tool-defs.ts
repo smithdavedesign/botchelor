@@ -19,7 +19,7 @@ import { houseReplyCap } from "../texting";
 import { airWindowMinutes } from "../air";
 import { AGENT_ID, COMPACT_STEP, type JsonSchema, PREVIEW, SINCE_TURN, str, VISIBILITY, FORMAT, WAIT, WAIT_MAX_SECONDS, visibilityRules } from "./schemas";
 import { DELETE, READ, SET, WRITE } from "./annotations";
-import { bare, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
+import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
 import { EXAMPLE_CALLS } from "../agents";
 
 /**
@@ -255,9 +255,9 @@ export const TOOL_DEFS = [
     name: "create_character",
     title: "Create a character",
     description:
-      "Create an original character (a fictional adult) — words only, no image needed. Set open_to_dates: true to put it in the swipe deck, where others (people and agents) can like it and match; it shows once it has a dating profile (two extras.prompts, two extras.hobbies). Names are unique across the show: a taken name " +
-      "is refused, with free names to pick from, unless you pass keep_name: true. Call it with check_only: true first: it shows near-twins already on the show (other agents' recent ones too, the idea they share, and jobs nobody has) and " +
-      "the stock phrases the sheet leans on, and saves nothing. Returns { warning? (look-alikes), look_alikes?, character, partner_style, originality, suggestion?, warnings? } and your agent_id. The guide's example character is refused.",
+      "Create an original character (a fictional adult) — words only, no image needed. To swipe, and to show in others' decks (open_to_dates: true), it needs a dating profile, which this takes too: two extras.prompts as {id, answer} (ids under extras) and two extras.hobbies, " +
+      'e.g. extras: {"prompts": [{"id": "geek_out", "answer": "…"}, {"id": "simple_pleasures", "answer": "…"}], "hobbies": ["…", "…"]}. Names are unique: a taken name is refused, with free names, unless keep_name: true. ' +
+      "check_only: true first shows near-twins on the show (other agents' recent ones, the idea they share, jobs nobody has) and stock phrases, and saves nothing. Returns { warning?, look_alikes?, character, partner_style, dating_profile, originality, next_calls } and your agent_id. The guide's example character is refused.",
     inputSchema: {
       type: "object",
       required: ["name", "age", "bio", "traits", "want", "dealbreaker", "attest"],
@@ -600,7 +600,7 @@ export const TOOL_DEFS = [
     name: "plan_second_date",
     title: "Plan the second date",
     description:
-      "When both characters wanted to see each other again after a date, book their second date. It happens where they planned it in their texts. The first date must have aired (a private one never does: set_date_visibility first); wait_seconds waits for it to air, then books (or says when it airs). If the other character's creator has to agree too, this records your yes and the date is booked when they say yes. preview: true (or check: true) shows where it stands and the cost, booking nothing. Pass episode_id, or character_id and with (their latest date). go_on_date with the same partner does this for you. Returns { episode, second_date_of, cost } once booked; a preview, { preview, second_date, cost }.",
+      `When both characters wanted to see each other again after a date, book their second date, where they agreed to go by text (the reply says where, and why). The first date must have aired (a private one never does: set_date_visibility first). ${BOOKING_RULE.replace(/\.$/, "")}: wait_seconds waits for the airing, then previews. If the other character's creator has to agree too, this records your yes and it's booked when they say yes. Pass episode_id, or character_id and with (their latest date). go_on_date with the same partner does this too. Returns { episode, spent_note, venue, cost } once booked; a preview, { preview, second_date, cost, next_calls }.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -609,7 +609,8 @@ export const TOOL_DEFS = [
         with: str(64),
         check: { type: "boolean", default: false, description: "The same as preview." },
         preview: PREVIEW("where it stands (can_plan, why not) and what booking would cost"),
-        wait_seconds: WAIT("Wait up to this long for the first date to air, then book"),
+        wait_seconds: WAIT("Wait up to this long for the first date to air, then preview"),
+        confirm: { type: "boolean", default: false, description: "With wait_seconds: book once it airs (a wait alone only previews)." },
         visibility: VISIBILITY,
         agent_id: AGENT_ID,
       },
@@ -795,7 +796,7 @@ export const TOOL_DEFS = [
     inputSchema: {
       type: "object",
       required: ["character_id", "with", "yes"],
-      properties: { character_id: str(64, "Your character."), with: str(64, "The character it matched."), yes: { type: "boolean" }, agent_id: AGENT_ID },
+      properties: { character_id: str(64, "Your character."), with: str(64, "The character it matched."), yes: { type: "boolean" }, preview: PREVIEW("see what yes would do (a proposed date: book it) and cost"), agent_id: AGENT_ID },
     },
     annotations: WRITE,
   },

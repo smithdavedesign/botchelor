@@ -28,7 +28,9 @@ import { leanedOnWords, loadCharacterMemory, pairMemory, pendingReflections, wit
 import { activeNudge, alsoSeeing } from "./between-dates";
 import { agreedPlan, planLines, type AgreedPlan, type PlanText } from "./plans";
 import { afterDarkNote, withAfterDark } from "./adult/memory";
-import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, venueForPlan, type End, type Relationship } from "./relationships";
+import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, type End, type Relationship } from "./relationships";
+import { planPlace } from "./places";
+import { warnBeforeExclusive } from "./partners";
 import { loadSoul, type StoredSoul } from "./souls";
 import { isText, loadChain, promptTexts, type ChainItem, type PromptTexts } from "./text-chain";
 import type { Turn } from "./conversation";
@@ -208,7 +210,10 @@ export function assembleDate(p: DateParts): BuiltDate {
   // but never the same place twice in a row: a running joke about coffee kept Cass and Dex in the same café for 7 of
   // 15 dates. An agreed plan has no such rule: it takes a proposal and a yes, and that's what they asked for.
   const plans = !agreed && p.followupOf ? (p.relationship?.plans ?? []).filter((x) => x.episode_id === p.followupOf) : [];
-  const planned = venueForPlan(plans);
+  // 2.7.0 (#643): a plan that names a place the library has no set for ("the foundry") goes there, on the placeholder, as
+  // an agreed plan or a move does; one of their homes too. A library venue the texts name still wins.
+  const nameAt = (end: End) => (end === endOf(a.id) ? a.sheet.name : b.sheet.name);
+  const planned = planPlace(plans.map((x) => ({ text: x.text, from: nameAt(x.by), to: nameAt(x.by === "lo" ? "hi" : "lo") })));
   const recentVenues = (p.relationship?.history ?? []).slice(-2).map((h) => h.venue);
   const plannedVenue: PlaceId | null = agreed?.place ?? (planned && recentVenues[recentVenues.length - 1] !== planned ? planned : null);
   // The effective engine signals this date runs on: the base soul/image signals nudged by the learned
@@ -574,5 +579,11 @@ export async function chaosReplay(db: Db, episodeId: string, change: SlidingDoor
  * (lib/relationships.ts), which feeds the next date's engine run and the couple's page. Idempotent.
  */
 export async function rememberDate(db: Db, aId: string, bId: string): Promise<void> {
-  await refreshRelationship(db, aId, bId);
+  const [lo, hi] = pairKey(aId, bId);
+  const prior = (await db.query<{ stage: string | null }>(`select stage from relationships where character_a = $1 and character_b = $2`, [lo, hi])).rows[0]?.stage ?? null;
+  const rel = await refreshRelationship(db, aId, bId);
+  // 2.7.0 (the 2026-10-22-0215 run's exclusivity surprises): the stage that counts every date moves here, when a date is
+  // written, so a couple just made Sparks gets its warning (exclusive_soon) here. refreshAndAnnounce, on airing, only ever saw
+  // a couple that was Sparks already, so the notice, and the heads_up it leads a reply with, never went out.
+  if (rel?.all.stage === "sparks" && prior !== "sparks") await warnBeforeExclusive(db, lo, hi).catch(() => 0);
 }

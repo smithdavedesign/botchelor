@@ -317,9 +317,11 @@ describe("a house date over MCP", () => {
     expect(byPair.isError).toBe(true);
     expect(byPair.content[0].text).toMatch(/hasn't yet.*wait_seconds/);
     expect(byPair.content[0].text).not.toMatch(/is required/);
-    // The window is in the future: a one-second wait says when to come back instead of blocking.
+    // The window is in the future: a one-second wait says when to come back instead of blocking. 2.7.0 (#641): a wait never
+    // books, so it answers as a preview (can_plan: false, not_aired), not an error.
     const soon = await call("plan_second_date", { episode_id: booked.episode.id, wait_seconds: 1 }, ctx);
-    expect(soon.isError).toBe(true);
+    expect(soon.isError).toBeUndefined();
+    expect(soon.structuredContent).toMatchObject({ preview: true, booked: false, returned_because: "timeout", second_date: { can_plan: false, reason: "not_aired" } });
     const priv = await houseDate(ctx, id, { visibility: "private", again: true });
     const closed = await call("plan_second_date", { episode_id: priv.episode.id }, ctx);
     expect(closed.content[0].text).toMatch(new RegExp(`set_date_visibility with episode_id "${priv.episode.id}" and visibility "unlisted"`));

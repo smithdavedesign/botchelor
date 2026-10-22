@@ -123,13 +123,23 @@ const PLACE_NOUNS = new Set(
     "field farm orchard vineyard winery brewery distillery chapel castle palace ruins island boat ferry train tram plaza " +
     "square street alley corner shop store mall spa sauna track canyon cave waterfall mountain summit cliff cliffs lighthouse " +
     "dock docks marina port lobby lounge booth stall truck stand place spot joint conservatory fair funfair carnival circus " +
-    "festival concert gig opera ballet mill barn meadow valley lookout viewpoint overlook roof rooftop beach park greenhouse"
+    "festival concert gig opera ballet mill barn meadow valley lookout viewpoint overlook roof rooftop beach park greenhouse " +
+    // 2.7.0 (#643, the 2026-10-22-0215 run): a bell founder and a cheese-cave keeper planned "the foundry" and "the caves",
+    // and the second date was dealt the long walk home: the places people work and make things are places too.
+    "foundry forge smithy workshop kiln cellar caves cavern grotto quarry yard boatyard shipyard boathouse " +
+    "warehouse factory atelier bakehouse creamery dairy deli tavern inn taproom speakeasy teahouse tearoom " +
+    "cathedral church abbey belfry clocktower windmill watermill arboretum glasshouse bandstand gazebo pavilion " +
+    "promenade boardwalk esplanade seafront waterfront quay quayside wharf jetty towpath cove bay lagoon dunes " +
+    "courtyard cloister maze labyrinth crypt catacombs tunnel tunnels allotment stables paddock velodrome arena auditorium"
   ).split(" "),
 );
 /** Place words too plain to name a place alone: "the place" is nowhere; "that little noodle place" is somewhere. */
 const PLAIN_NOUNS = new Set("place spot joint corner stand stall shop store street track path field club hall court".split(" "));
-/** Where a named place starts: after a preposition, or an "how about…", with an article in front of it. */
-const NAMED = /\b(?:at|to|by|in|inside|outside|near|on|under|up|from|over|along|across|down|around|through|into|past|behind|how about|what about|fancy|try)\s+((?:the|a|an|that|this|some|our)\s+[^.,!?;:()"“”\n]{2,80})/gi;
+/**
+ * Where a named place starts: after a preposition, an "how about…", or a verb of going to see one ("visit the foundry",
+ * "show you the caves": 2.7.0, #643), with an article in front of it.
+ */
+const NAMED = /\b(?:at|to|by|in|inside|outside|near|on|under|up|from|over|along|across|down|around|through|into|past|behind|how about|what about|fancy|try|visit|see|show you|tour|explore)\s+((?:the|a|an|that|this|some|our)\s+[^.,!?;:()"“”\n]{2,80})/gi;
 /** The show stays PG: none of these is a date venue, whatever the texts say. */
 // Not date venues on this PG show: a bedroom etc., and a car/van (a 2026-10-18 move put two of them in a car, where one
 // said "come sit on my lap" over a revving engine). A move or plan naming one of these is dropped.
@@ -195,6 +205,22 @@ export function movePlace(say: string, from: string, to: string): PlaceId | null
   const label = text.replace(/^(?:to|at|into|over to)\s+/i, "");
   if (label.length > PLACE_LABEL_MAX || LINKISH.test(label) || NOT_A_VENUE.test(label) || !checkShowText({ label }).ok) return null;
   return `elsewhere@${label}`;
+}
+
+/**
+ * Where a couple's morning-after plan points, for a second date with no agreed plan (lib/simulation.ts): a library venue
+ * when the texts name one (as lib/relationships.ts venueForPlan reads them, so a plan that set a venue before still does),
+ * else one of their homes or a place the library has no set for yet, the placeholder (2.7.0, #643: "the foundry" was
+ * planned, and the date was dealt somewhere random), from the newest text that names one. Null when none does.
+ */
+export function planPlace(plans: readonly { text: string; from: string; to: string }[]): PlaceId | null {
+  const library = venueFor(plans.map((p) => p.text).join(" "));
+  if (library) return library;
+  for (const p of [...plans].reverse()) {
+    const place = placeFor(p.text, p.from, p.to);
+    if (place) return place;
+  }
+  return null;
 }
 
 /**

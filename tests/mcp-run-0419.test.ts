@@ -53,7 +53,8 @@ describe("1. exclusivity is a visible choice on create_character (#555)", () => 
   it("documents partner_style with its values, default and meaning", () => {
     const p = (MCP_TOOLS.find((x) => x.name === "create_character")!.inputSchema as Any).properties.partner_style;
     expect(p).toMatchObject({ type: "string", enum: ["one", "open", "decide"], default: "decide" });
-    expect(p.description).toMatch(/one: once it's in a Dating couple \(one great date can be enough\) it closes to other dates\. open: it keeps dating others\. decide \(default\)/);
+    // 2.7.0: open also says the couple stage still moves (the 2026-10-22-0215 run: "I set open, and the stage still advanced").
+    expect(p.description).toMatch(/one: once it's in a Dating couple \(one great date can be enough\) it closes to other dates\. open: it keeps dating others \(its couples still move up a stage\)\. decide \(default\)/);
     expect(ENUM_SOURCES["create_character.partner_style"]).toEqual(["one", "open", "decide"]);
   });
 

@@ -69,8 +69,8 @@ const line = (i: number, extra: Record<string, unknown> = {}) => ({ dialogue: `L
 /** Tool names a piece of prose names. */
 const named = (text: string) => MCP_TOOLS.map((x) => x.name).filter((n) => new RegExp(`(^|[^a-z_])${n}([^a-z_]|$)`).test(text));
 
-it("is MCP 2.6.0", () => {
-  expect(MCP_SERVER_INFO.version).toBe("2.6.0");
+it("is MCP 2.6.0 or later", () => {
+  expect(MCP_SERVER_INFO.version.localeCompare("2.6.0", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
 });
 
 describe("#633: initialize carries a quickstart; the full text is the botchelor://instructions resource", () => {
@@ -115,17 +115,25 @@ describe("#630 and the wait audit: every wait blocks until something new or the 
   it("plan_second_date with wait_seconds on a date airing past the wait waits it out, then says when it airs and what to do", async () => {
     const A = await agentWith("Ada Lumen");
     const booked = await houseDate(A.ctx, A.id, "second_date");
+    // 2.7.0 (#641): a wait never books, so a wait that runs out answers as a preview: not aired, when it airs, the next wait.
     const t0 = Date.now();
     const r = await call("plan_second_date", { episode_id: booked.episode.id, wait_seconds: 1 }, A.ctx);
     expect(Date.now() - t0).toBeGreaterThanOrEqual(900);
-    expect(r.isError).toBe(true);
-    expect(r.content[0].text).toMatch(/hasn't yet\. It airs on its own at \S+, in about \d+ seconds: call plan_second_date with wait_seconds: 50 once it's within 50 seconds of airing \(from \S+\), which waits for it and books it/);
-    expect(r.content[0].text).toMatch(/This call waited 1 second; one call waits at most 50/);
-    expect(r.structuredContent).toMatchObject({ code: "not_aired", returned_because: "timeout", wait_cap_seconds: 50, airs: "scheduled" });
-    expect(r.structuredContent.wait_note).toMatch(/^It airs on its own at /);
-    expect(r.structuredContent.seconds_left).toBeGreaterThan(60);
-    expect(Date.parse(r.structuredContent.airs_at)).toBeGreaterThan(Date.now());
-    expect(r.structuredContent.next_calls).toEqual([{ tool: "plan_second_date", args: { episode_id: booked.episode.id, wait_seconds: 50 }, why: expect.any(String) }]);
+    expect(r.isError).toBeUndefined();
+    expect(r.structuredContent).toMatchObject({ preview: true, booked: false, returned_because: "timeout", wait_cap_seconds: 50, second_date: { can_plan: false, reason: "not_aired", airs: "scheduled" } });
+    expect(Date.parse(r.structuredContent.second_date.airs_at)).toBeGreaterThan(Date.now());
+    expect(r.structuredContent.wait_note).toMatch(/^A wait never books/);
+    expect(r.structuredContent.next_calls).toEqual([{ tool: "plan_second_date", args: { episode_id: booked.episode.id, wait_seconds: 50, preview: true }, why: expect.any(String) }]);
+    // With confirm: true it would have booked, so running out is the not_aired refusal, with the wait's report.
+    const confirmed = await call("plan_second_date", { episode_id: booked.episode.id, wait_seconds: 1, confirm: true }, A.ctx);
+    expect(confirmed.isError).toBe(true);
+    expect(confirmed.content[0].text).toMatch(/hasn't yet, so nothing was booked or spent\. It airs on its own at \S+, in about \d+ seconds: call plan_second_date with wait_seconds: 50 once it's within 50 seconds of airing \(from \S+\), which waits for it, then previews \(confirm: true books\)/);
+    expect(confirmed.content[0].text).toMatch(/This call waited 1 second; one call waits at most 50/);
+    expect(confirmed.structuredContent).toMatchObject({ code: "not_aired", returned_because: "timeout", wait_cap_seconds: 50, airs: "scheduled" });
+    expect(confirmed.structuredContent.wait_note).toMatch(/^It airs on its own at /);
+    expect(confirmed.structuredContent.seconds_left).toBeGreaterThan(60);
+    expect(Date.parse(confirmed.structuredContent.airs_at)).toBeGreaterThan(Date.now());
+    expect(confirmed.structuredContent.next_calls).toEqual([{ tool: "plan_second_date", args: { episode_id: booked.episode.id, wait_seconds: 50, preview: true }, why: expect.any(String) }]);
     // Without a wait, the same note, and no wait report.
     const now = (await call("plan_second_date", { episode_id: booked.episode.id }, A.ctx)).structuredContent;
     expect(now.returned_because).toBeUndefined();
@@ -138,7 +146,8 @@ describe("#630 and the wait audit: every wait blocks until something new or the 
     // It airs in about two seconds (the prediction window runs from the booking).
     await t.db.query(`update episodes set created_at = now() - interval '10 minutes' + interval '2 seconds' where id = $1`, [booked.episode.id]);
     scriptedModel([episodeJson()]);
-    const r = await call("plan_second_date", { episode_id: booked.episode.id, wait_seconds: 10 }, A.ctx);
+    // 2.7.0 (#641): booking after the wait takes confirm: true (a wait alone previews: tests/mcp-run-0215.test.ts).
+    const r = await call("plan_second_date", { episode_id: booked.episode.id, wait_seconds: 10, confirm: true }, A.ctx);
     expect(r.isError).toBeUndefined();
     expect(r.structuredContent).toMatchObject({ second_date_of: booked.episode.id, returned_because: "new", waited_for: "the first date to air" });
     expect(r.structuredContent.waited_seconds).toBeLessThan(9);
@@ -438,11 +447,12 @@ describe("a dry run a tool doesn't take, and ids of the wrong kind, are said pla
     const booked = await houseDate(A.ctx, A.id, "friends");
     const r = await call("sliding_doors", { episode_id: booked.episode.id, preview: true }, A.ctx);
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toMatch(/^Error: Not valid — preview: sliding_doors doesn't take preview \(no tool that only reads does\): it's free and changes nothing, so there's nothing to preview first\. Call it without it, with "change"/);
+    // 2.7.0 (the 2026-10-22-0215 run: "rejected with a long explanation"): one short sentence, then what's missing.
+    expect(r.content[0].text).toMatch(/^Error: Not valid — preview: sliding_doors is free and takes no preview: call it without one\. "change" is required: one of bolder, safer, bigger_budget, long_game/);
     expect(r.structuredContent).toMatchObject({ code: "invalid_argument", field: "preview" });
     const ran = (await call("sliding_doors", { episode_id: booked.episode.id, change: "bolder", check_only: true }, A.ctx)).structuredContent;
     expect(ran.sliding_doors).toBeDefined();
-    expect(ran.warning).toMatch(/^Ignored: check_only: sliding_doors doesn't take check_only .* so it ran as asked/);
+    expect(ran.warning).toMatch(/^Ignored: check_only: sliding_doors is free and takes no check_only, so it ran as asked/);
     // A read-only tool with only a dry run runs.
     expect((await call("browse_episodes", { preview: true }, A.ctx)).isError).toBeUndefined();
     // A tool that spends still refuses one (#490).

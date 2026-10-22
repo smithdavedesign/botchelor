@@ -137,7 +137,32 @@ export type LineIssues = {
   mirrored_other: string | null;
   /** A distinctive word/phrase this character has leaned on across its recent aired dates (self.overused) — a voice tic. */
   stale_catchphrase: string | null;
+  /**
+   * The line calls its own speaker by name, the way you'd call the person you're talking to ("The wattage is forty,
+   * Ottoline…" from Ottoline, 2.7.0, #645): nearly always the other side's line written on this side's turn. The vocative as
+   * written, or null.
+   */
+  self_address: string | null;
 };
+
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** A name's first word, without trailing punctuation ("Ottoline Brack" → "Ottoline"). */
+const firstNameOf = (name: string) => (name.trim().split(/\s+/)[0] ?? "").replace(/[^\p{L}\p{N}'’-]+$/u, "");
+
+/**
+ * A line by `self` that addresses `self` by first name as a vocative (2.7.0, #645): ", Ottoline" closing a clause, or, past
+ * the speaker's first line (a first line may introduce itself: "Ottoline, lighthouse keeper."), "Ottoline," opening a
+ * sentence. Null when the two share a first name (then their name is the other's too) or nothing matches.
+ */
+export function selfAddress(text: string, self: string, other: string, opts: { firstLine?: boolean } = {}): string | null {
+  const mine = firstNameOf(self);
+  if (mine.length < 2 || mine.toLowerCase() === firstNameOf(other).toLowerCase()) return null;
+  const n = escapeRegExp(mine);
+  const closing = new RegExp(`[,—–]\\s*${n}(?=\\s*(?:[.!?…,;:—–]|$))`, "iu");
+  const opening = new RegExp(`(?:^|[.!?…]\\s+)${n}\\s*[,!—–]`, "iu");
+  const m = closing.exec(text) ?? (opts.firstLine ? null : opening.exec(text));
+  return m ? m[0].replace(/^[\s.!?…]+/, "").trim() : null;
+}
 
 /** The never-say phrase a line uses, matched on whole words (case-insensitive), or null. */
 export function neverSaid(text: string, never: readonly string[] | undefined): string | null {
@@ -294,6 +319,7 @@ export function lineIssues(
 
   return {
     profile_reading: leakedWord || leakedGram || labelled,
+    self_address: selfAddress(text, self.name, other.name, { firstLine: mine.length === 0 }),
     self_label: selfLabel,
     self_quote: selfQuote,
     misgendered,
@@ -335,6 +361,8 @@ export type QualityMetrics = {
   mirrored: number;
   /** Lines that reached for a word/phrase this character has leaned on across its recent aired dates. */
   stale_catchphrases: number;
+  /** Lines that called their own speaker by name (2.7.0, #645): the other side's line on the wrong turn. Not in the index. */
+  self_addresses: number;
   distinctness: number;
   grounding: [number, number];
   /** 0..100: one headline number combining the above (higher is more genuine). */
@@ -349,7 +377,7 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
   const spread = n ? Math.sqrt(wordsPerLine.reduce((x, w) => x + (w - avg) ** 2, 0) / n) : 0;
 
   let profileReading = 0, selfLabels = 0, selfQuotes = 0, misgendered = 0, abrupt = 0, repeated = 0, repeatedActions = 0, nameTics = 0, voiceBreaks = 0;
-  let nearDuplicates = 0, catchphrases = 0, mirrored = 0, staleCatchphrases = 0;
+  let nearDuplicates = 0, catchphrases = 0, mirrored = 0, staleCatchphrases = 0, selfAddresses = 0;
   let responsive = 0, replies = 0;
   const lastInterest: [number | null, number | null] = [null, null];
   const sideWords: [Set<string>, Set<string>] = [new Set(), new Set()];
@@ -372,6 +400,7 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
     if (issues.catchphrase) catchphrases++;
     if (issues.mirrored_other) mirrored++;
     if (issues.stale_catchphrase) staleCatchphrases++;
+    if (issues.self_address) selfAddresses++;
 
     const content = new Set(contentWords(t.dialogue));
     linesBy[s]++;
@@ -435,6 +464,7 @@ export function transcriptQuality(transcript: Turn[], characters: [Character, Ch
     catchphrases,
     mirrored,
     stale_catchphrases: staleCatchphrases,
+    self_addresses: selfAddresses,
     distinctness: r2(distinctness),
     grounding: [r2(grounding[0]), r2(grounding[1])],
     index,
