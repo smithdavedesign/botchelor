@@ -66,8 +66,14 @@ Every model provider is prepaid with auto-recharge off, so the balance is the mo
 | Venice | $50 | After Dark pictures, tiles and videos | ~$13–21. Most of it is 3 videos of the night (18 Wan 3.0 shots) plus the voice A/B test clips. |
 | Hive | $111 | Moderation and age checks on every picture, tile and clip | ~$1.50 |
 | fal.ai | Prepaid (see the fal dashboard) | Show tiles, portraits, sets | ~$3. That includes ~$0.70 of tiles thrown away by the Hive-429 bug, fixed in #310. |
-| OpenRouter | Prepaid (see its dashboard) | After Dark scene text | ~$0.15 (132 scene steps) |
+| OpenRouter | **$50** (David, 2026-10-21) | After Dark scene text, and the After Dark eval/A-B runs (`/api/jobs/eval-after-dark`) on the same key | ~$0.15 on scene steps by 10-21 (132 steps); the eval runs' share is on the OpenRouter dashboard |
 | Model key for dates (Gemini, or the frontier key when set) | Pay as you go | The show's dates and texts | ~$1–2.50 (100 dates, 70 of them on the paid daily quota) |
+
+## One-off payments
+
+| Date | What | Amount |
+|---|---|---|
+| 2026-10-21 | MCP directory listings: [mcp.so](https://mcp.so) and [Glama](https://glama.ai/mcp/connectors/com.botchelor/botcherlor) (com.botchelor) | **$20** (David) |
 
 ## Spent so far (2026-10-13 to 10-21)
 
@@ -77,13 +83,16 @@ Every model provider is prepaid with auto-recharge off, so the balance is the mo
 | Vercel (team-wide, effective usage including the Pro plan) | ~$17 |
 | Neon | $0 until 10-20 (free plan); Launch from then |
 | Domain | David's Wix invoice |
-| **Total cash used (excluding the domain)** | **~$40–50** |
-| Money loaded into prepaid balances | $161 confirmed (Venice $50 + Hive $111), plus fal and OpenRouter |
+| MCP directory listings (one-off) | $20 |
+| **Total cash used (excluding the domain)** | **~$60–70** |
+| Money loaded into prepaid balances | $211 confirmed (Venice $50 + Hive $111 + OpenRouter $50), plus fal |
 
 **Revenue:** $0 from outside buyers. The three paid orders are two Stripe test-mode orders (2026-10-13) and one live
 $4 pack bought by David's own account on 2026-10-16 (an end-to-end check).
 
-**Against the $300 owner budget:** about $160 is committed in prepaid balances, and ~$40–50 has actually been used.
+**Against the $300 owner budget:** about $231 is committed (prepaid balances $211 + the $20 listing), not counting fal or
+the shared Vercel and Neon bills, and ~$60–70 has actually been used. That leaves roughly **$70** of the budget for new
+commitments before David decides whether to raise it.
 
 ## Volumes behind the estimates (production, 2026-10-21)
 
