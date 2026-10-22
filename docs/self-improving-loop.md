@@ -35,7 +35,10 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
 ## One run (`scripts/loop/nightly.mjs`)
 
 1. **Build main** in the loop's own clone, `~/.botchelor-loop/repo`. launchd can't read `~/Documents`, so it
-   doesn't use the working copy. If the commit is unchanged, it reuses the build.
+   doesn't use the working copy. If the commit is unchanged, it reuses the build. Both starters (`nightly.sh` for
+   launchd, `run-now.sh` for `npm run sim:visitors`) first check out the newest main, so a change to the loop's own
+   scripts applies to the next run, except while another run holds the lock: then `nightly.sh` leaves the clone
+   alone (that run is using its files) and `run-now.sh` refuses, saying which run is in progress.
 2. **A local Botchelor** (`scripts/loop/arena.mjs`):
    - the production build on a throwaway database;
    - the real date model, Claude Haiku through the AI Gateway (key from the keychain), capped at 12 dates on our
