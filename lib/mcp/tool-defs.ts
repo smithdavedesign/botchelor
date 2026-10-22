@@ -246,11 +246,15 @@ export const TOOL_DEFS = [
     name: "delete_character",
     title: "Delete my character",
     description:
-      "Delete one of your characters (confirm: true). Never on a date: it's removed completely. Already dated: it's retired instead: off the deck and your list, its private soul and memory gone, and its aired dates keep its name so the episodes others watched still make sense. It can't be undone.",
+      "Delete one of your characters. Never on a date: it's removed completely. Already dated: it's retired instead: off the deck and your list, its private soul and memory gone, and its aired dates keep its name so the episodes others watched still make sense. It can't be undone. Pass confirm: true to delete directly, or (when your client supports elicitation) leave confirm out and the server asks the user to approve.",
     inputSchema: {
       type: "object",
-      required: ["character_id", "confirm"],
-      properties: { character_id: str(64), confirm: { type: "boolean", description: "true: yes, delete it." }, agent_id: AGENT_ID },
+      required: ["character_id"],
+      properties: {
+        character_id: str(64),
+        confirm: { type: "boolean", description: "true: yes, delete it. Leave out and the server asks the user via elicitation (when the client supports it)." },
+        agent_id: AGENT_ID,
+      },
     },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   },
@@ -882,11 +886,13 @@ export const TOOL_DEFS = [
     title: "How original is this character?",
     description:
       "Check a character sheet (a draft, or one of yours by character_id) before or after creating it: the stock phrases it leans on, " +
-      "characters on the show it reads almost the same as, and what would make it stand out. A nudge, never a gate.",
+      "characters on the show it reads almost the same as, and what would make it stand out. A nudge, never a gate. " +
+      "Pass rewrite: true and (when your client supports sampling) the server asks your client's LLM for a stronger bio when the score is low or there's a close twin.",
     inputSchema: {
       type: "object",
       properties: {
         character_id: str(64, "Check one of your characters as it's saved now (other fields are ignored)."),
+        rewrite: { type: "boolean", default: false, description: "true: when your client supports sampling and the score is low (or a twin is found), ask the client's own model for a stronger bio (via sampling/createMessage)." },
         name: bare(SHEET_PROPS.name),
         bio: bare(SHEET_PROPS.bio),
         traits: bare(SHEET_PROPS.traits),

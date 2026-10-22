@@ -92,9 +92,12 @@ export function stringLiterals(src: string): string[] {
   return out;
 }
 
-/** lib/mcp.ts without what only a by-name tool shows: its definition (the full list) and its handler's replies. */
+/** lib/mcp sources (dispatcher + tool defs) without what only a by-name tool shows: its definition (the full list) and its handler's replies. */
 function mcpSourceForCore(): string {
-  let src = readFileSync(join(ROOT, "lib/mcp.ts"), "utf8");
+  // Phase 3+4 of the split: tool defs now live in lib/mcp/tool-defs.ts, handlers (and the rest) in lib/mcp/dispatcher.ts.
+  const defs = readFileSync(join(ROOT, "lib/mcp/tool-defs.ts"), "utf8");
+  const dispatcher = readFileSync(join(ROOT, "lib/mcp/dispatcher.ts"), "utf8");
+  let src = `${defs}\n${dispatcher}`;
   for (const name of NOT_CORE) {
     const def = src.indexOf(`  {\n    name: "${name}",`);
     if (def >= 0) src = src.slice(0, def) + src.slice(src.indexOf("\n  },\n", def) + 5);
