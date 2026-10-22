@@ -829,12 +829,12 @@ const failure = (message, reason) => Object.assign(new Error(message), { reason 
 
 /** The counters every brain keeps, and the crowd_brain block they make. */
 function brainCounters() {
-  const stats = { model: 0, fallback: 0, reasons: {} };
+  const stats = { model: 0, fallback: 0, stale: 0, reasons: {} };
   return {
     stats,
     count(path, why) {
-      if (path === "model") {
-        stats.model++;
+      if (path === "model" || path === "stale") {
+        stats[path]++;
         return;
       }
       stats.fallback++;
@@ -847,6 +847,7 @@ function brainCounters() {
         model,
         model_replies: stats.model,
         fallback_replies: stats.fallback,
+        stale_replies: stats.stale,
         reason_if_fallback: model ? (stats.fallback ? top : null) : reason,
         fallback_reasons: { ...stats.reasons },
       };
@@ -1024,6 +1025,13 @@ export async function brainFromEnv(env = process.env, { log = () => {} } = {}) {
  * { ok, result } or { ok: false, why }. Every reply is counted and logged by path. Returns send's result, or null when
  * nothing was sent.
  */
+/** A reply the conversation moved past while it was written (`send` said `stale`): nothing is sent, model or script. */
+function dropStale(brain, log, who, why) {
+  brain.count("stale");
+  log(`reply ${who}: dropped (${why ?? "stale"})`);
+  return null;
+}
+
 export async function speak(agent, { kind, me, partner, history = [], extra = {}, send, fallback, log = () => {} }) {
   const brain = agent.brain;
   const said = agent.said.get(me.id) ?? [];
@@ -1061,6 +1069,7 @@ export async function speak(agent, { kind, me, partner, history = [], extra = {}
         log(`reply ${who}: model`);
         return r.result;
       }
+      if (r.stale) return dropStale(brain, log, who, r.why);
       why = "refused by the server";
       refused = `the show said: ${String(r.why).slice(0, 120)}`;
       log(`reply ${who}: model try ${attempt + 1} refused by the server: ${String(r.why).slice(0, 160)}`);
@@ -1073,6 +1082,7 @@ export async function speak(agent, { kind, me, partner, history = [], extra = {}
     if (!line) break;
     if (said.some((x) => normalizeLine(x) === normalizeLine(line))) continue;
     const r = await send(line);
+    if (r.stale) return dropStale(brain, log, who, r.why);
     if (!r.ok) continue;
     said.push(line);
     brain.count("fallback", why);
@@ -1405,11 +1415,17 @@ async function socialise(agent, ctx, log) {
           me,
           partner: await partnerFor(agent, m.with.name, other),
           history: thread.map((t) => ({ name: t.from === "them" ? m.with.name : me.name, text: t.text })),
-          send: (text) =>
-            agent.tool("send_text", { character_id: me.id, to: other, text }).then(
+          send: async (text) => {
+            // Model calls queue up, so they may have texted again while this was written: sent under their newer text,
+            // a reply to the older one reads as off-topic (2026-10-22-0400). Dropped, the next rounds answer the newest.
+            const now = (await agent.tool("read_texts", { character_id: me.id, with: other }).catch(() => ({ items: [] }))).items ?? [];
+            const newest = now.filter((i) => typeof i.text === "string" && i.from !== "show").at(-1);
+            if (newest && newest.from === "them" && newest.id !== last?.id) return { ok: false, stale: true, why: "they texted meanwhile" };
+            return agent.tool("send_text", { character_id: me.id, to: other, text }).then(
               () => ({ ok: true, result: text }),
               (e) => (log(`send_text: ${e.message}`), { ok: false, why: e.message }),
-            ),
+            );
+          },
           fallback: (_attempt, said) => scriptedText(me.entry, { them: m.with.name, thread, said }),
           log,
         });

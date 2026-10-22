@@ -80,6 +80,10 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
        character has sent this run. A line that echoes the partner's profile prompts or parrots their last message is
        dropped too. Lines still go through the server, which refuses bad ones. One retry, then a scripted line it
        hasn't used (in that thread, or anywhere for a date line).
+     - **Never a stale text.** Model calls queue up, so a visitor may text again while a reply is being written.
+       Right before sending, the thread is read again: if their newer text is there, the reply (model or scripted) is
+       dropped and counted as `stale_replies`, and the next rounds answer the newest one. The swipe-back agent does the
+       same. Run 2026-10-22-0400: Feodor's answer landed under a question it never saw and read as off-topic.
      - **Scripted for the whole run** under `LOOP_STUB=1`, `LOOP_CROWD_BRAIN=0`, or when LiteLLM doesn't answer
        within 2 seconds at startup (it may be down when launchd starts the loop at 06:10). Seeding switches to the
        script after `LOOP_CROWD_SEED_SECONDS` (240), so READY still comes in time.
@@ -97,7 +101,7 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
      counts. Both are rewritten every minute and when the arena stops:
 
      ```json
-     "crowd_brain": { "model": "local-chat", "model_replies": 112, "fallback_replies": 3,
+     "crowd_brain": { "model": "local-chat", "model_replies": 112, "fallback_replies": 3, "stale_replies": 1,
                       "reason_if_fallback": "refused by the server",
                       "fallback_reasons": { "refused by the server": 2, "repeat of its own line": 1 } }
      ```
