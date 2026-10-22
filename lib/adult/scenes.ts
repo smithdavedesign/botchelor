@@ -1530,25 +1530,28 @@ export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, 
   const label = place.trim().replace(/\s+/g, " ").slice(0, SET_SCENE_MAX);
   if (!label) return { ok: false, status: 400, message: "Say where to take them." };
   if (!checkAdultText({ place: label }).ok) return { ok: false, status: 422, message: "That place crosses one of the two lines (nobody under 18, no real people)." };
-  const scene = await loadScene(db, ownerId, x, y);
-  if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark." };
-  const set_place = label.slice(0, 40);
+  const loaded = await loadScene(db, ownerId, x, y);
+  if (!loaded) return { ok: false, status: 404, message: "Pick two characters who are in after dark." };
+  const scene = loaded;
+  // A name typed without its apostrophe ("Lexis bedroom") gets it back (lib/adult/craft.ts possessiveNames).
+  const named = possessiveNames(label, { a: scene.a.name, b: scene.b.name }) ?? label;
+  const set_place = named.slice(0, 40);
   // A paid cut is a move nobody has to agree to, and it doesn't count against the chapter's moves.
-  const place_history = [...scene.place_history, { place: label, set: set_place, home: null, chapter: scene.chapter }];
+  const place_history = [...scene.place_history, { place: named, set: set_place, home: null, chapter: scene.chapter }];
   const moves: MoveLog[] = [...scene.moves, { chapter: scene.chapter, at: scene.lines.length, from: scene.set_place ?? scene.place, to: set_place, taken: true, reason: "set_scene" }];
   await db.query(`update adult_scenes set place = $2, set_place = $3, cut_to = $2, place_history = $4::jsonb, moves = $5::jsonb, updated_at = now() where id = $1`, [
     scene.id,
-    label,
+    named,
     set_place,
     JSON.stringify(place_history),
     JSON.stringify(moves.slice(-40)),
   ]);
   await ensureSet(db, set_place);
   await logStep(db, ownerId, { a: scene.a.id, b: scene.b.id }, scene.id, {
-    kind: "set_scene", direction: label, steer_mode: null, status: "ok", http: null, message: null, chapter: scene.chapter,
+    kind: "set_scene", direction: named, steer_mode: null, status: "ok", http: null, message: null, chapter: scene.chapter,
     line_from: null, line_to: null, added: 0, dropped: [], flags: null,
   });
-  return { ok: true, scene: publicScene({ ...scene, place: label, set_place, cut_to: label, place_history, moves }) };
+  return { ok: true, scene: publicScene({ ...scene, place: named, set_place, cut_to: named, place_history, moves }) };
 }
 
 /** A finished scene, kept to play back (adult_nights). */
