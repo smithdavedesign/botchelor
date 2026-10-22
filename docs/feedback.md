@@ -28,9 +28,9 @@ through starts a fresh one.
 
 The floating button and the prompt step aside wherever they'd cover the show's own controls: the 18+ gate, any theater
 (the watch room's `html.theater-lock` included), the phone swipe deck and its match screen, a full-screen message thread or
-texts phone, After Dark's steer bar and reel, the cookie banner, the open phone menu, and the feedback sheet itself. That
-list is one CSS rule in `app/globals.css` ("people's feedback"), each entry commented; a new full-screen view only needs
-adding there. On the gate the dock renders nothing at all.
+texts phone, After Dark's steer bar and reel, the cookie banner, the Constellation's open side panel, the open phone menu,
+and the feedback sheet itself. That list is one CSS rule in `app/globals.css` ("people's feedback"), each entry
+commented; a new full-screen view only needs adding there. On the gate the dock renders nothing at all.
 
 ## What's stored (`user_feedback`)
 

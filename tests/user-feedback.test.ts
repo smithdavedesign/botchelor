@@ -555,6 +555,7 @@ describe("the modal, the button and the footer link (markup)", () => {
       ".after-dark-form",
       ".ad-reel-theater",
       ".consent-banner",
+      ".constellation-panel",
       '.nav-links[data-open="true"]',
       ".nav-backdrop",
     ]) {

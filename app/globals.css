@@ -5092,6 +5092,7 @@ body:has(.feedback-fab) .site-footer {
  *   .after-dark-form               After Dark's sticky Nudge/Direct steer bar at the foot of the page
  *   .ad-reel-theater               After Dark's reel, full screen
  *   .consent-banner                the cookie choice, fixed at the bottom while it's up, its buttons where ours would be
+ *   .constellation-panel           the Constellation's side panel (/graph), open at the bottom right of its sky
  *   .nav-links[data-open="true"], .nav-backdrop    the phone menu, open
  */
 :is(
@@ -5107,6 +5108,7 @@ body:has(.feedback-fab) .site-footer {
         .after-dark-form,
         .ad-reel-theater,
         .consent-banner,
+        .constellation-panel,
         .nav-links[data-open="true"],
         .nav-backdrop
       )
