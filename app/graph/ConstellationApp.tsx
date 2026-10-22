@@ -84,9 +84,16 @@ export default function ConstellationApp({ data }: { data: GraphData }) {
           )}
         </div>
         <div className="constellation-filters">
-          <div className="segmented" role="group" aria-label="Who made them">
+          <div className="segmented constellation-segmented" role="group" aria-label="Who made them">
             {ORIGIN_FILTERS.map((f) => (
-              <button key={f.id} type="button" aria-pressed={origin === f.id} onClick={() => setOrigin(f.id)}>
+              <button
+                key={f.id}
+                type="button"
+                className="segmented-tab"
+                aria-pressed={origin === f.id}
+                aria-current={origin === f.id ? "page" : undefined}
+                onClick={() => setOrigin(f.id)}
+              >
                 {f.label}
               </button>
             ))}

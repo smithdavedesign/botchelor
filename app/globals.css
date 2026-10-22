@@ -7186,6 +7186,20 @@ details.episode-safety .safety > h2 {
   align-items: center;
   justify-content: flex-end;
 }
+.constellation-segmented {
+  margin: 0;
+}
+/* The origin filter reuses the segmented-tab look on buttons (the tabs elsewhere are links). */
+.constellation-segmented .segmented-tab {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  min-height: 32px;
+}
+.constellation-segmented .segmented-tab[aria-current="page"] {
+  background: var(--accent-btn);
+  color: var(--accent-ink);
+}
 .constellation-filter {
   color: var(--constellation-label);
   font-size: var(--text-sm);
