@@ -6,7 +6,15 @@ import { sendFunnel } from "./funnel";
  * when GA is loaded (mark them as key events in GA4), and to the GTM dataLayer when the container is loaded.
  * Props are small enums and booleans only — never a name, id, bio or anything a person typed.
  */
-export type Conversion = "character_created" | "date_started" | "prediction_made" | "character_rated";
+export type Conversion =
+  | "character_created"
+  | "date_started"
+  | "prediction_made"
+  | "character_rated"
+  // GA4's recommended names, so its reports and key-event suggestions pick them up.
+  | "sign_up"
+  | "begin_checkout"
+  | "purchase";
 
 type Props = Record<string, string | number | boolean>;
 type DataLayerWindow = Window & { dataLayer?: Record<string, unknown>[]; gtag?: (...args: unknown[]) => void };

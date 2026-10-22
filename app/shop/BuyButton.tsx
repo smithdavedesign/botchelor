@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { trackConversion } from "@/app/conversion";
 import { sendFunnel } from "@/app/funnel";
 import { requestJson } from "@/app/request";
 
@@ -19,6 +20,7 @@ export default function BuyButton({ sku, label, disabled }: { sku: string; label
     const form = new FormData(event.currentTarget);
     // Intent to pay, for RepoHQ's funnel (app/funnel.ts): every Buy click, whether or not checkout opens.
     sendFunnel("checkout");
+    trackConversion("begin_checkout", { sku });
     setBusy(true);
     setError(null);
     setSignin(null);
