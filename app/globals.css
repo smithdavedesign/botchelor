@@ -8314,3 +8314,76 @@ details.episode-safety .safety > h2 {
     cursor: default;
   }
 }
+
+/* ---------------- /admin/after-dark/graph (2026-10-22): every pair's After Dark content on one page ---------------- */
+.ad-graph-svg {
+  display: block;
+  width: 100%;
+  max-width: 34rem;
+  margin: var(--space-3) auto;
+  aspect-ratio: 1;
+}
+.ad-edge {
+  stroke: var(--line);
+  stroke-linecap: round;
+  cursor: pointer;
+}
+a:hover > .ad-edge,
+.ad-edge.picked {
+  stroke: var(--accent);
+}
+.ad-node {
+  fill: var(--soft);
+  stroke: var(--accent);
+  stroke-width: 0.4;
+}
+.ad-label {
+  font-size: 3px;
+  fill: var(--ink);
+}
+.ad-pairs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.ad-pairs th,
+.ad-pairs td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.ad-pairs tr.picked td {
+  background: var(--soft);
+}
+section:has(> .ad-pairs) {
+  overflow-x: auto;
+}
+.ad-reels {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.ad-shots,
+.ad-pictures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: var(--space-2);
+}
+.ad-shots figure,
+.ad-pictures figure {
+  margin: 0;
+}
+.ad-shots video,
+.ad-pictures video,
+.ad-pictures img {
+  width: 100%;
+  border-radius: 0.5rem;
+  background: #000;
+}
+.ad-lines {
+  padding-left: 1.4rem;
+}
+.ad-lines li {
+  margin: 0.2rem 0;
+}
