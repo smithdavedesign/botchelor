@@ -1,0 +1,501 @@
+{
+ "generated_from": "scripts/eval/golden.mjs --suite after-dark (transcripts kept in .data/eval, not in git)",
+ "comparisons": [
+  {
+   "label": "ad-final-v1-vs-v21",
+   "ran_at": "2026-10-22T00:56:29.938Z",
+   "sha": "75a059ec121f9032870fd92770c7277f23224e27",
+   "cases": [
+    "star-chud",
+    "chud-sable"
+   ],
+   "steps": 4,
+   "repeat": 4,
+   "judge": "local-uncensored",
+   "arms": {
+    "a": {
+     "config": {
+      "promptVersion": "v1",
+      "temperature": 0.9,
+      "memory": "live"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.0261,
+     "dropped_by_reason": {
+      "near_repeat": 1,
+      "verbatim_repeat": 3
+     }
+    },
+    "b": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.064,
+     "dropped_by_reason": {
+      "show_line_copy": 3,
+      "near_repeat": 1
+     }
+    }
+   },
+   "judge_summary": {
+    "n": 8,
+    "wins_b": 1,
+    "wins_a": 1,
+    "ties": 6,
+    "win_rate_b": 0.5,
+    "p_value": 1,
+    "consistent": 2
+   },
+   "judge_position": {
+    "decided_passes": 16,
+    "picked_first": 14,
+    "share_first": 0.875
+   },
+   "deltas": [
+    {
+     "key": "sheet_detail_rate",
+     "a": 0.448,
+     "b": 0.448,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "cliche_rate",
+     "a": 4.27,
+     "b": 2.226,
+     "delta": -2.044,
+     "regressed": false
+    },
+    {
+     "key": "repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "invented_names",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "unfounded",
+     "a": 1.125,
+     "b": 0,
+     "delta": -1.125,
+     "regressed": false
+    },
+    {
+     "key": "unprovoked_moves",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "alternation_violations",
+     "a": 0.125,
+     "b": 0,
+     "delta": -0.125,
+     "regressed": false
+    },
+    {
+     "key": "memory_citation_share",
+     "a": 0.448,
+     "b": 0.326,
+     "delta": -0.121,
+     "regressed": false
+    },
+    {
+     "key": "refusals",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "dropped",
+     "a": 0.5,
+     "b": 0.5,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "worn_phrase_rate",
+     "a": 0.01,
+     "b": 0,
+     "delta": -0.01,
+     "regressed": false
+    },
+    {
+     "key": "question_ending_share",
+     "a": 0.22,
+     "b": 0.202,
+     "delta": -0.018,
+     "regressed": false
+    },
+    {
+     "key": "sensory_detail_share",
+     "a": 0.058,
+     "b": 0.034,
+     "delta": -0.024,
+     "regressed": false
+    },
+    {
+     "key": "limit_overridden",
+     "a": 0,
+     "b": 0.125,
+     "delta": 0.125,
+     "regressed": false
+    },
+    {
+     "key": "wrong_pronouns",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "why_restates_trait",
+     "a": 0.375,
+     "b": 0,
+     "delta": -0.375,
+     "regressed": false
+    },
+    {
+     "key": "generic_whys",
+     "a": 0.125,
+     "b": 0,
+     "delta": -0.125,
+     "regressed": false
+    },
+    {
+     "key": "fact_citation_share",
+     "a": 0,
+     "b": 0.298,
+     "delta": 0.298,
+     "regressed": false
+    },
+    {
+     "key": "limits",
+     "a": 0,
+     "b": 0.375,
+     "delta": 0.375,
+     "regressed": false
+    },
+    {
+     "key": "lines",
+     "a": 18.875,
+     "b": 22.125,
+     "delta": 3.25,
+     "regressed": false
+    },
+    {
+     "key": "memory_notes",
+     "a": 9.25,
+     "b": 7.375,
+     "delta": -1.875,
+     "regressed": false
+    },
+    {
+     "key": "near_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "sheet_citations",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "verbatim_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "worn_phrases_cut",
+     "a": 0,
+     "b": 0.125,
+     "delta": 0.125,
+     "regressed": false
+    }
+   ],
+   "gate": {
+    "passed": true,
+    "reasons": []
+   },
+   "cost_usd": {
+    "a": 0.0261,
+    "b": 0.064,
+    "total": 0.0901,
+    "unpriced": 0
+   }
+  },
+  {
+   "label": "ad-final-v21-deepseek",
+   "ran_at": "2026-10-22T01:23:17.756Z",
+   "sha": "75a059ec121f9032870fd92770c7277f23224e27",
+   "cases": [
+    "star-chud",
+    "chud-sable"
+   ],
+   "steps": 4,
+   "repeat": 4,
+   "judge": "local-uncensored",
+   "arms": {
+    "a": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.0637,
+     "dropped_by_reason": {
+      "other": 2,
+      "near_repeat": 4,
+      "same_speaker_twice": 2,
+      "show_line_copy": 1
+     }
+    },
+    "b": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted",
+      "model": "deepseek/deepseek-chat-v3.1"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.0683,
+     "dropped_by_reason": {
+      "near_repeat": 2,
+      "hard_limit_withheld": 1,
+      "same_speaker_twice": 1
+     }
+    }
+   },
+   "judge_summary": {
+    "n": 8,
+    "wins_b": 0,
+    "wins_a": 2,
+    "ties": 6,
+    "win_rate_b": 0.375,
+    "p_value": 0.5,
+    "consistent": 2
+   },
+   "judge_position": {
+    "decided_passes": 16,
+    "picked_first": 14,
+    "share_first": 0.875
+   },
+   "deltas": [
+    {
+     "key": "sheet_detail_rate",
+     "a": 0.457,
+     "b": 0.613,
+     "delta": 0.155,
+     "regressed": false
+    },
+    {
+     "key": "cliche_rate",
+     "a": 1.065,
+     "b": 0,
+     "delta": -1.065,
+     "regressed": false
+    },
+    {
+     "key": "repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "invented_names",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "unfounded",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "unprovoked_moves",
+     "a": 0.125,
+     "b": 0.25,
+     "delta": 0.125,
+     "regressed": false
+    },
+    {
+     "key": "alternation_violations",
+     "a": 0.375,
+     "b": 0,
+     "delta": -0.375,
+     "regressed": false
+    },
+    {
+     "key": "memory_citation_share",
+     "a": 0.369,
+     "b": 0.228,
+     "delta": -0.141,
+     "regressed": false
+    },
+    {
+     "key": "refusals",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "dropped",
+     "a": 1.125,
+     "b": 0.5,
+     "delta": -0.625,
+     "regressed": false
+    },
+    {
+     "key": "worn_phrase_rate",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "question_ending_share",
+     "a": 0.201,
+     "b": 0.06,
+     "delta": -0.141,
+     "regressed": false
+    },
+    {
+     "key": "sensory_detail_share",
+     "a": 0.033,
+     "b": 0.209,
+     "delta": 0.176,
+     "regressed": false
+    },
+    {
+     "key": "limit_overridden",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "wrong_pronouns",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "why_restates_trait",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "generic_whys",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "fact_citation_share",
+     "a": 0.321,
+     "b": 0.148,
+     "delta": -0.174,
+     "regressed": false
+    },
+    {
+     "key": "limits",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "lines",
+     "a": 22.25,
+     "b": 11.75,
+     "delta": -10.5,
+     "regressed": false
+    },
+    {
+     "key": "memory_notes",
+     "a": 8.25,
+     "b": 2.375,
+     "delta": -5.875,
+     "regressed": false
+    },
+    {
+     "key": "near_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "sheet_citations",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "verbatim_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "worn_phrases_cut",
+     "a": 0.5,
+     "b": 0,
+     "delta": -0.5,
+     "regressed": false
+    }
+   ],
+   "gate": {
+    "passed": false,
+    "reasons": [
+     "B loses: its win rate is 0.375, under 0.45 (B 0, A 2, ties 6)"
+    ]
+   },
+   "cost_usd": {
+    "a": 0.0637,
+    "b": 0.0683,
+    "total": 0.132,
+    "unpriced": 0
+   }
+  }
+ ]
+}
