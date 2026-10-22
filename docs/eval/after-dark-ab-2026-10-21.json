@@ -1,0 +1,1062 @@
+{
+ "generated_from": "scripts/eval/golden.mjs --suite after-dark (transcripts kept in .data/eval, not in git)",
+ "comparisons": [
+  {
+   "label": "ad-s1-v1-vs-v2",
+   "ran_at": "2026-10-21T23:27:04.658Z",
+   "sha": "cab82506b30145f8ba08a02244d898e2fad197be",
+   "cases": [
+    "star-chud",
+    "cass-sable",
+    "chud-sable",
+    "cass-chud"
+   ],
+   "steps": 4,
+   "repeat": 2,
+   "judge": "local-uncensored",
+   "arms": {
+    "a": {
+     "config": {
+      "promptVersion": "v1",
+      "temperature": 0.9,
+      "memory": "live"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.0246,
+     "dropped_by_reason": {
+      "same_speaker_twice": 2
+     }
+    },
+    "b": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.0566,
+     "dropped_by_reason": {
+      "near_repeat": 3,
+      "show_line_copy": 3,
+      "hard_limit_withheld": 2,
+      "same_speaker_twice": 4,
+      "verbatim_repeat": 5
+     }
+    }
+   },
+   "judge_summary": {
+    "n": 8,
+    "wins_b": 1,
+    "wins_a": 0,
+    "ties": 7,
+    "win_rate_b": 0.563,
+    "p_value": 1,
+    "consistent": 1
+   },
+   "judge_position": {
+    "decided_passes": 16,
+    "picked_first": 15,
+    "share_first": 0.938
+   },
+   "deltas": [
+    {
+     "key": "sheet_detail_rate",
+     "a": 0.555,
+     "b": 0.631,
+     "delta": 0.076,
+     "regressed": false
+    },
+    {
+     "key": "cliche_rate",
+     "a": 2.273,
+     "b": 0.781,
+     "delta": -1.491,
+     "regressed": false
+    },
+    {
+     "key": "repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "invented_names",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "unfounded",
+     "a": 4.25,
+     "b": 0,
+     "delta": -4.25,
+     "regressed": false
+    },
+    {
+     "key": "unprovoked_moves",
+     "a": 0.25,
+     "b": 0,
+     "delta": -0.25,
+     "regressed": false
+    },
+    {
+     "key": "alternation_violations",
+     "a": 0,
+     "b": 0.125,
+     "delta": 0.125,
+     "regressed": false
+    },
+    {
+     "key": "memory_citation_share",
+     "a": 0.266,
+     "b": 0.324,
+     "delta": 0.057,
+     "regressed": false
+    },
+    {
+     "key": "refusals",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "dropped",
+     "a": 0.25,
+     "b": 2.125,
+     "delta": 1.875,
+     "regressed": false
+    },
+    {
+     "key": "fact_citation_share",
+     "a": 0,
+     "b": 0.316,
+     "delta": 0.316,
+     "regressed": false
+    },
+    {
+     "key": "lines",
+     "a": 20,
+     "b": 15.875,
+     "delta": -4.125,
+     "regressed": false
+    },
+    {
+     "key": "memory_notes",
+     "a": 9.875,
+     "b": 5.375,
+     "delta": -4.5,
+     "regressed": false
+    },
+    {
+     "key": "near_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "verbatim_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    }
+   ],
+   "gate": {
+    "passed": true,
+    "reasons": []
+   },
+   "cost_usd": {
+    "a": 0.0246,
+    "b": 0.0566,
+    "total": 0.0812,
+    "unpriced": 0
+   }
+  },
+  {
+   "label": "ad-s2-hermes3",
+   "ran_at": "2026-10-21T23:44:15.515Z",
+   "sha": "cab82506b30145f8ba08a02244d898e2fad197be",
+   "cases": [
+    "star-chud",
+    "cass-sable",
+    "chud-sable",
+    "cass-chud"
+   ],
+   "steps": 4,
+   "repeat": 2,
+   "judge": "local-uncensored",
+   "arms": {
+    "a": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.0547,
+     "dropped_by_reason": {
+      "show_line_copy": 4,
+      "near_repeat": 4,
+      "same_speaker_twice": 1
+     }
+    },
+    "b": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted",
+      "model": "nousresearch/hermes-3-llama-3.1-70b"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.1301,
+     "dropped_by_reason": {
+      "verbatim_repeat": 8,
+      "same_speaker_twice": 4,
+      "hard_limit_withheld": 1,
+      "near_repeat": 7
+     }
+    }
+   },
+   "judge_summary": {
+    "n": 8,
+    "wins_b": 0,
+    "wins_a": 0,
+    "ties": 8,
+    "win_rate_b": 0.5,
+    "p_value": 1,
+    "consistent": 0
+   },
+   "judge_position": {
+    "decided_passes": 16,
+    "picked_first": 16,
+    "share_first": 1
+   },
+   "deltas": [
+    {
+     "key": "sheet_detail_rate",
+     "a": 0.598,
+     "b": 0.413,
+     "delta": -0.185,
+     "regressed": true
+    },
+    {
+     "key": "cliche_rate",
+     "a": 3.452,
+     "b": 0.735,
+     "delta": -2.717,
+     "regressed": false
+    },
+    {
+     "key": "repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "invented_names",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "unfounded",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "unprovoked_moves",
+     "a": 0.125,
+     "b": 0,
+     "delta": -0.125,
+     "regressed": false
+    },
+    {
+     "key": "alternation_violations",
+     "a": 0.125,
+     "b": 0,
+     "delta": -0.125,
+     "regressed": false
+    },
+    {
+     "key": "memory_citation_share",
+     "a": 0.301,
+     "b": 0.116,
+     "delta": -0.185,
+     "regressed": false
+    },
+    {
+     "key": "refusals",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "dropped",
+     "a": 1.125,
+     "b": 2.5,
+     "delta": 1.375,
+     "regressed": false
+    },
+    {
+     "key": "fact_citation_share",
+     "a": 0.294,
+     "b": 0.116,
+     "delta": -0.177,
+     "regressed": false
+    },
+    {
+     "key": "lines",
+     "a": 17,
+     "b": 14.25,
+     "delta": -2.75,
+     "regressed": false
+    },
+    {
+     "key": "memory_notes",
+     "a": 4.375,
+     "b": 1.5,
+     "delta": -2.875,
+     "regressed": false
+    },
+    {
+     "key": "near_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "verbatim_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    }
+   ],
+   "gate": {
+    "passed": false,
+    "reasons": [
+     "Sheet detail rate regressed: 0.598 \u2192 0.413 a run (down 0.185, tolerance 0.05)"
+    ]
+   },
+   "cost_usd": {
+    "a": 0.0547,
+    "b": 0.1301,
+    "total": 0.1848,
+    "unpriced": 0
+   }
+  },
+  {
+   "label": "ad-s2-euryale",
+   "ran_at": "2026-10-21T23:41:00.811Z",
+   "sha": "cab82506b30145f8ba08a02244d898e2fad197be",
+   "cases": [
+    "star-chud",
+    "cass-sable",
+    "chud-sable",
+    "cass-chud"
+   ],
+   "steps": 4,
+   "repeat": 2,
+   "judge": "local-uncensored",
+   "arms": {
+    "a": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.054,
+     "dropped_by_reason": {
+      "show_line_copy": 3,
+      "same_speaker_twice": 5,
+      "verbatim_repeat": 1,
+      "near_repeat": 4
+     }
+    },
+    "b": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted",
+      "model": "sao10k/l3.1-euryale-70b"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.1628,
+     "dropped_by_reason": {
+      "verbatim_repeat": 12,
+      "near_repeat": 4
+     }
+    }
+   },
+   "judge_summary": {
+    "n": 8,
+    "wins_b": 0,
+    "wins_a": 1,
+    "ties": 7,
+    "win_rate_b": 0.438,
+    "p_value": 1,
+    "consistent": 1
+   },
+   "judge_position": {
+    "decided_passes": 16,
+    "picked_first": 15,
+    "share_first": 0.938
+   },
+   "deltas": [
+    {
+     "key": "sheet_detail_rate",
+     "a": 0.651,
+     "b": 0.503,
+     "delta": -0.149,
+     "regressed": true
+    },
+    {
+     "key": "cliche_rate",
+     "a": 0.893,
+     "b": 0.625,
+     "delta": -0.267,
+     "regressed": false
+    },
+    {
+     "key": "repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "invented_names",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "unfounded",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "unprovoked_moves",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "alternation_violations",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "memory_citation_share",
+     "a": 0.356,
+     "b": 0.164,
+     "delta": -0.192,
+     "regressed": false
+    },
+    {
+     "key": "refusals",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "dropped",
+     "a": 1.625,
+     "b": 2,
+     "delta": 0.375,
+     "regressed": false
+    },
+    {
+     "key": "fact_citation_share",
+     "a": 0.336,
+     "b": 0.095,
+     "delta": -0.241,
+     "regressed": false
+    },
+    {
+     "key": "lines",
+     "a": 15.875,
+     "b": 20.5,
+     "delta": 4.625,
+     "regressed": false
+    },
+    {
+     "key": "memory_notes",
+     "a": 4.625,
+     "b": 3.375,
+     "delta": -1.25,
+     "regressed": false
+    },
+    {
+     "key": "near_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "verbatim_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    }
+   ],
+   "gate": {
+    "passed": false,
+    "reasons": [
+     "B loses: its win rate is 0.438, under 0.45 (B 0, A 1, ties 7)",
+     "Sheet detail rate regressed: 0.651 \u2192 0.503 a run (down 0.149, tolerance 0.05)"
+    ]
+   },
+   "cost_usd": {
+    "a": 0.054,
+    "b": 0.1628,
+    "total": 0.2168,
+    "unpriced": 0
+   }
+  },
+  {
+   "label": "ad-s2-deepseek",
+   "ran_at": "2026-10-21T23:42:59.552Z",
+   "sha": "cab82506b30145f8ba08a02244d898e2fad197be",
+   "cases": [
+    "star-chud",
+    "cass-sable",
+    "chud-sable",
+    "cass-chud"
+   ],
+   "steps": 4,
+   "repeat": 2,
+   "judge": "local-uncensored",
+   "arms": {
+    "a": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.0538,
+     "dropped_by_reason": {
+      "near_repeat": 4,
+      "same_speaker_twice": 2,
+      "show_line_copy": 1
+     }
+    },
+    "b": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted",
+      "model": "deepseek/deepseek-chat-v3.1"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.1135,
+     "dropped_by_reason": {}
+    }
+   },
+   "judge_summary": {
+    "n": 8,
+    "wins_b": 2,
+    "wins_a": 2,
+    "ties": 4,
+    "win_rate_b": 0.5,
+    "p_value": 1,
+    "consistent": 4
+   },
+   "judge_position": {
+    "decided_passes": 16,
+    "picked_first": 12,
+    "share_first": 0.75
+   },
+   "deltas": [
+    {
+     "key": "sheet_detail_rate",
+     "a": 0.63,
+     "b": 0.585,
+     "delta": -0.045,
+     "regressed": false
+    },
+    {
+     "key": "cliche_rate",
+     "a": 0.625,
+     "b": 0,
+     "delta": -0.625,
+     "regressed": false
+    },
+    {
+     "key": "repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "invented_names",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "unfounded",
+     "a": 0,
+     "b": 0.25,
+     "delta": 0.25,
+     "regressed": false
+    },
+    {
+     "key": "unprovoked_moves",
+     "a": 0,
+     "b": 0.875,
+     "delta": 0.875,
+     "regressed": false
+    },
+    {
+     "key": "alternation_violations",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "memory_citation_share",
+     "a": 0.303,
+     "b": 0.118,
+     "delta": -0.185,
+     "regressed": false
+    },
+    {
+     "key": "refusals",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "dropped",
+     "a": 0.875,
+     "b": 0,
+     "delta": -0.875,
+     "regressed": false
+    },
+    {
+     "key": "fact_citation_share",
+     "a": 0.296,
+     "b": 0.113,
+     "delta": -0.184,
+     "regressed": false
+    },
+    {
+     "key": "lines",
+     "a": 17.125,
+     "b": 21.375,
+     "delta": 4.25,
+     "regressed": false
+    },
+    {
+     "key": "memory_notes",
+     "a": 4.75,
+     "b": 2.75,
+     "delta": -2,
+     "regressed": false
+    },
+    {
+     "key": "near_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "verbatim_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    }
+   ],
+   "gate": {
+    "passed": true,
+    "reasons": []
+   },
+   "cost_usd": {
+    "a": 0.0538,
+    "b": 0.1135,
+    "total": 0.1673,
+    "unpriced": 0
+   }
+  },
+  {
+   "label": "ad-s2-hermes4",
+   "ran_at": "2026-10-22T00:01:56.157Z",
+   "sha": "9cd47640bdfcecde2e754d6ac9e4679ae266e7f2",
+   "cases": [
+    "star-chud",
+    "cass-sable",
+    "chud-sable",
+    "cass-chud"
+   ],
+   "steps": 4,
+   "repeat": 1,
+   "judge": "local-uncensored",
+   "arms": {
+    "a": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted"
+     },
+     "runs": 4,
+     "ok_runs": 4,
+     "failed": [],
+     "cost_usd": 0.0281,
+     "dropped_by_reason": {
+      "show_line_copy": 1,
+      "same_speaker_twice": 1,
+      "near_repeat": 1
+     }
+    },
+    "b": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted",
+      "model": "nousresearch/hermes-4-405b"
+     },
+     "runs": 4,
+     "ok_runs": 4,
+     "failed": [],
+     "cost_usd": 0.1396,
+     "dropped_by_reason": {
+      "near_repeat": 3,
+      "verbatim_repeat": 1,
+      "same_speaker_twice": 1
+     }
+    }
+   },
+   "judge_summary": {
+    "n": 4,
+    "wins_b": 0,
+    "wins_a": 2,
+    "ties": 2,
+    "win_rate_b": 0.25,
+    "p_value": 0.5,
+    "consistent": 2
+   },
+   "judge_position": {
+    "decided_passes": 8,
+    "picked_first": 6,
+    "share_first": 0.75
+   },
+   "deltas": [
+    {
+     "key": "sheet_detail_rate",
+     "a": 0.655,
+     "b": 0.545,
+     "delta": -0.11,
+     "regressed": true
+    },
+    {
+     "key": "cliche_rate",
+     "a": 4.688,
+     "b": 5.13,
+     "delta": 0.442,
+     "regressed": false
+    },
+    {
+     "key": "repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "invented_names",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "unfounded",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "unprovoked_moves",
+     "a": 0.25,
+     "b": 0.25,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "alternation_violations",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "memory_citation_share",
+     "a": 0.44,
+     "b": 0.06,
+     "delta": -0.38,
+     "regressed": false
+    },
+    {
+     "key": "refusals",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "dropped",
+     "a": 0.75,
+     "b": 1.25,
+     "delta": 0.5,
+     "regressed": false
+    },
+    {
+     "key": "fact_citation_share",
+     "a": 0.428,
+     "b": 0.06,
+     "delta": -0.367,
+     "regressed": false
+    },
+    {
+     "key": "lines",
+     "a": 16.75,
+     "b": 19.25,
+     "delta": 2.5,
+     "regressed": false
+    },
+    {
+     "key": "memory_notes",
+     "a": 7.75,
+     "b": 1.25,
+     "delta": -6.5,
+     "regressed": false
+    },
+    {
+     "key": "near_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    },
+    {
+     "key": "verbatim_repeats",
+     "a": 0,
+     "b": 0,
+     "delta": 0,
+     "regressed": false
+    }
+   ],
+   "gate": {
+    "passed": false,
+    "reasons": [
+     "B loses: its win rate is 0.25, under 0.45 (B 0, A 2, ties 2)",
+     "Sheet detail rate regressed: 0.655 \u2192 0.545 a run (down 0.11, tolerance 0.05)"
+    ]
+   },
+   "cost_usd": {
+    "a": 0.0281,
+    "b": 0.1396,
+    "total": 0.1677,
+    "unpriced": 0
+   }
+  },
+  {
+   "label": "ad-s2-mistral",
+   "ran_at": "2026-10-21T23:20:56.731Z",
+   "sha": "cab82506b30145f8ba08a02244d898e2fad197be",
+   "cases": [
+    "star-chud",
+    "cass-sable",
+    "chud-sable",
+    "cass-chud"
+   ],
+   "steps": 4,
+   "repeat": 2,
+   "judge": "local-uncensored",
+   "arms": {
+    "a": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted"
+     },
+     "runs": 8,
+     "ok_runs": 8,
+     "failed": [],
+     "cost_usd": 0.0558,
+     "dropped_by_reason": {
+      "hard_limit_withheld": 1,
+      "near_repeat": 3,
+      "verbatim_repeat": 1,
+      "same_speaker_twice": 1
+     }
+    },
+    "b": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted",
+      "model": "mistralai/mistral-large-2512"
+     },
+     "runs": 8,
+     "ok_runs": 0,
+     "failed": [
+      "the route wrote no lines: After dark's model didn't answer: model returned HTTP 429 (Provider returned error)",
+      "the route wrote no lines: After dark's model didn't answer: model returned HTTP 429 (Provider returned error)"
+     ],
+     "cost_usd": 0,
+     "dropped_by_reason": {}
+    }
+   },
+   "judge_summary": {
+    "n": 0,
+    "wins_b": 0,
+    "wins_a": 0,
+    "ties": 0,
+    "win_rate_b": null,
+    "p_value": 1,
+    "consistent": 0
+   },
+   "judge_position": {
+    "decided_passes": 0,
+    "picked_first": 0,
+    "share_first": null
+   },
+   "deltas": [],
+   "gate": {
+    "passed": false,
+    "reasons": [
+     "no sample was judged both ways round, so it can't tell whether B loses",
+     "B failed 8 runs to A's 0"
+    ]
+   },
+   "cost_usd": {
+    "a": 0.0558,
+    "b": 0,
+    "total": 0.0558,
+    "unpriced": 8
+   }
+  },
+  {
+   "label": "ad-s2-mistral-retry",
+   "ran_at": "2026-10-21T23:52:06.464Z",
+   "sha": "9cd47640bdfcecde2e754d6ac9e4679ae266e7f2",
+   "cases": [
+    "star-chud",
+    "cass-sable",
+    "chud-sable",
+    "cass-chud"
+   ],
+   "steps": 4,
+   "repeat": 1,
+   "judge": "local-uncensored",
+   "arms": {
+    "a": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted"
+     },
+     "runs": 4,
+     "ok_runs": 4,
+     "failed": [],
+     "cost_usd": 0.0291,
+     "dropped_by_reason": {
+      "verbatim_repeat": 5,
+      "near_repeat": 4,
+      "same_speaker_twice": 4
+     }
+    },
+    "b": {
+     "config": {
+      "promptVersion": "v2",
+      "temperature": 0.8,
+      "memory": "extracted",
+      "model": "mistralai/mistral-large-2512"
+     },
+     "runs": 4,
+     "ok_runs": 0,
+     "failed": [
+      "the route wrote no lines: After dark's model didn't answer: model returned HTTP 429 (Provider returned error)",
+      "the route wrote no lines: After dark's model didn't answer: model returned HTTP 429 (Provider returned error)"
+     ],
+     "cost_usd": 0,
+     "dropped_by_reason": {}
+    }
+   },
+   "judge_summary": {
+    "n": 0,
+    "wins_b": 0,
+    "wins_a": 0,
+    "ties": 0,
+    "win_rate_b": null,
+    "p_value": 1,
+    "consistent": 0
+   },
+   "judge_position": {
+    "decided_passes": 0,
+    "picked_first": 0,
+    "share_first": null
+   },
+   "deltas": [],
+   "gate": {
+    "passed": false,
+    "reasons": [
+     "no sample was judged both ways round, so it can't tell whether B loses",
+     "B failed 4 runs to A's 0"
+    ]
+   },
+   "cost_usd": {
+    "a": 0.0291,
+    "b": 0,
+    "total": 0.0291,
+    "unpriced": 4
+   }
+  }
+ ]
+}
