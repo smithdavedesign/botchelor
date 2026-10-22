@@ -82,8 +82,15 @@ export async function airsFrom(db: Db, id: string, env: Record<string, string | 
  *  - due: its time has come and it's ready, so it airs on the next call anyone makes (minutes_left 0);
  *  - when_ready: still being written or performed; it airs once it's finished, no sooner than airs_at;
  *  - watch_party: it premieres in its watch party room, at airs_at when the room has a start time.
+ * minutes_left is rounded up; seconds_left (MCP 2.10.1, #673: "minutes_left: 1 with about 10 seconds left") is to the second.
  */
-export type AirTiming = { airs_at: string | null; minutes_left: number | null; airs: "scheduled" | "due" | "when_ready" | "watch_party"; predictions_close: "when_it_airs" };
+export type AirTiming = {
+  airs_at: string | null;
+  minutes_left: number | null;
+  seconds_left: number | null;
+  airs: "scheduled" | "due" | "when_ready" | "watch_party";
+  predictions_close: "when_it_airs";
+};
 
 export async function airTimings(db: Db, ids: string[], now: Date = new Date(), env: Record<string, string | undefined> = process.env): Promise<Map<string, AirTiming>> {
   if (!ids.length) return new Map();
@@ -94,30 +101,32 @@ export async function airTimings(db: Db, ids: string[], now: Date = new Date(), 
     [ids],
   );
   const minutesTo = (at: Date) => Math.max(0, Math.ceil((at.getTime() - now.getTime()) / 60_000));
+  const secondsTo = (at: Date) => Math.max(0, Math.ceil((at.getTime() - now.getTime()) / 1000));
+  const left = (at: Date | null) => ({ minutes_left: at ? minutesTo(at) : null, seconds_left: at ? secondsTo(at) : null });
   const out = new Map<string, AirTiming>();
   for (const r of rows) {
     const close = "when_it_airs" as const;
     if (r.party) {
       const at = r.party_at ? new Date(r.party_at) : null;
-      out.set(r.id, { airs_at: at ? at.toISOString() : null, minutes_left: at ? minutesTo(at) : null, airs: "watch_party", predictions_close: close });
+      out.set(r.id, { airs_at: at ? at.toISOString() : null, ...left(at), airs: "watch_party", predictions_close: close });
       continue;
     }
     const scheduled = r.air_after ? new Date(r.air_after) : new Date(new Date(r.created_at).getTime() + airWindowMinutes(env) * 60_000);
     if (r.status !== "ready") {
       const at = scheduled.getTime() > now.getTime() ? scheduled : now;
-      out.set(r.id, { airs_at: at.toISOString(), minutes_left: minutesTo(at), airs: "when_ready", predictions_close: close });
+      out.set(r.id, { airs_at: at.toISOString(), ...left(at), airs: "when_ready", predictions_close: close });
     } else if (scheduled.getTime() <= now.getTime()) {
-      out.set(r.id, { airs_at: now.toISOString(), minutes_left: 0, airs: "due", predictions_close: close });
+      out.set(r.id, { airs_at: now.toISOString(), minutes_left: 0, seconds_left: 0, airs: "due", predictions_close: close });
     } else {
-      out.set(r.id, { airs_at: scheduled.toISOString(), minutes_left: minutesTo(scheduled), airs: "scheduled", predictions_close: close });
+      out.set(r.id, { airs_at: scheduled.toISOString(), ...left(scheduled), airs: "scheduled", predictions_close: close });
     }
   }
   return out;
 }
 
-/** What airs_at and minutes_left mean, said wherever they're listed. */
+/** What airs_at, minutes_left and seconds_left mean, said wherever they're listed. */
 export const AIR_TIMING_NOTE =
-  "airs_at is when it airs on its own and minutes_left how long from now. Predictions stay open until it actually airs (predictions_close: when_it_airs). " +
+  "airs_at is when it airs on its own; minutes_left is how long from now, rounded up, and seconds_left the same to the second. Predictions stay open until it actually airs (predictions_close: when_it_airs). " +
   "airs: scheduled (at airs_at), due (its time has come: it airs on the next call anyone makes), when_ready (still being written: no sooner than airs_at), watch_party (it premieres in its room).";
 
 /** Marks a date to air itself once its window closes. */

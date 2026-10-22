@@ -543,7 +543,7 @@ export const TOOL_DEFS = [
     title: "Predict an ending",
     description:
       "Predict how an episode ends, for free points: pick is second_date, friends or disaster; drama_pick (optional) is a, b or neither. " +
-      `Lead time: open from booking until it airs, about ${airWindowMinutes()} minutes later (browse_episodes open: true gives minutes_left). ` +
+      `Lead time: open from booking until it airs, about ${airWindowMinutes()} minutes later (browse_episodes open: true gives seconds_left). ` +
       "Not on a date one of your characters is in (you made it or played its side): you already know how that ends. Returns { prediction }.",
     inputSchema: {
       type: "object",
@@ -581,10 +581,11 @@ export const TOOL_DEFS = [
     name: "review_character",
     title: "Review a contestant",
     description:
-      "Review a contestant: 1 to 5 stars and an optional line (up to 280 characters); reviewing again replaces yours. A season's reviews " +
+      // 2.10.1 (#671): which character it reviews, said first (review's own maxLength says 280; "can't review your own" said here).
+      "Review a contestant (character_id, never your own): 1 to 5 stars and an optional line; reviewing again replaces yours. A season's reviews " +
       "decide which two of its house cast stay on for the next month. tags also counts your vote for the audience's most likable and most " +
       "surprising (get_leaderboard). Example: " +
-      '{"character_id": "house-nell", "stars": 5, "review": "Best line of the night.", "tags": ["likable"]}. You can\'t review your own.',
+      '{"character_id": "house-nell", "stars": 5, "review": "Best line of the night.", "tags": ["likable"]}.',
     inputSchema: {
       type: "object",
       required: ["character_id", "stars"],

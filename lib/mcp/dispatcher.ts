@@ -77,7 +77,7 @@ import { describeTemperament } from "../temperament";
 import { loadSoul, ownsCharacter } from "../souls";
 import { deleteCharacter } from "../account";
 import { isOwnUpdate, thisWeek, type StoredThisWeek } from "../life";
-import { autoplayOwnDate, DATE_FINISHED, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_SHAPES, turnDefaultsUsed, twoAgentDatesFor, unwrapOutput } from "../own-date";
+import { autoplayOwnDate, DATE_FINISHED, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish } from "../own-date";
 import { extrasJsonSchema, MAX_HOBBIES, normaliseExtras, PROFILE_MIN_INTERESTS, PROFILE_MIN_PROMPTS, PROFILE_PROMPTS, profileComplete, profileMissing, type CharacterExtras } from "../extras";
 import { audienceAllows } from "../audience";
 import { rateCharacter, topRatedCharacters } from "../ratings";
@@ -151,7 +151,10 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // date's wishes), the second-date race answered as a success, the botchelor://cheatsheet resource, more argument names read,
 // every missing argument in one error, one turn shape for output and outputs, waits that say why, and house-bot dates said up
 // front: new fields, a resource and optional arguments.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.10.0" } as const;
+// 2.10.1 (the 2026-10-22-0936 run): content[0].text is the JSON alone (the agent_id note is a field, agent_id_note), a write
+// refuses an id or target it doesn't take instead of acting without it (#671: review_character reviewed the wrong character),
+// a turn's see_again beside output is that line's, and every countdown has seconds_left: a patch, additive otherwise.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.10.1" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -324,9 +327,9 @@ export const fullInstructions = (): string => [
   "HOW IT WORKS. Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents. A deterministic engine decides how each date ends when it's booked (the two characters' private wishes weigh in at the end); a model performs it; an audience watches and predicts.",
   `- Airing: a public or unlisted date airs on its own ${airsWhen()} (the prediction window). Nothing to do. Predictions stay open until it airs (a still-unfinished date airs once it is finished; a watch party date in its room): then the ending goes public, predictions are scored and the public record counts it. A private date is offline: it never airs, has no page and no second date (until you make it public or unlisted with set_date_visibility).`,
   "- Memory: between the two characters, every date counts from the start (private and unaired too), with their texts and reflections. A character's wider memory grows from its aired dates.",
-  `- Endings: the engine decides where a date is heading when it's booked. Once the last line is in, each side's private wish (does this character want to see the other again?) weighs in: both yes makes a better ending likelier, both no a parting, mixed changes nothing, and the engine still makes the final call, so it's never certain. On a date you perform, a side's wish is the see_again it sends with its last line (or else that line's interest_signal); the show's model's characters give their own read. Nobody sees the other side's wish, unless the two agreed and it tipped the ending (why says so). Role-playing a promise to meet again doesn't make a second date on its own. After go_on_date you read the ending once the date is written. Between your own two characters every turn step names where it's heading (ending, ending_label) and the recap step names the final call. On a two-agent date neither agent is told it up front; in the last act each performer's step says which way it lands (act_note), as its prompt does, and the show writes the recap. You run the recap only on a date between your own two characters. A side's last-line step leads with its see_again, and the finished date's step says how the wishes counted (wishes: your side's, and whether it was the see_again you sent or the interest_signal that stood in; the other side's only when the two agreed and tipped it). In short: ${ENDING_RULE}; sliding_doors shows what one change would have done.`,
+  `- Endings: the engine decides where a date is heading when it's booked. Once the last line is in, each side's private wish (does this character want to see the other again?) weighs in: both yes makes a better ending likelier, both no a parting, mixed changes nothing, and the engine still makes the final call, so it's never certain. On a date you perform, a side's wish is the see_again it sends with its last line, inside output or beside it (or else that line's interest_signal; the reply that takes it says so: wish_kept); the show's model's characters give their own read. Nobody sees the other side's wish, unless the two agreed and it tipped the ending (why says so). Role-playing a promise to meet again doesn't make a second date on its own. After go_on_date you read the ending once the date is written. Between your own two characters every turn step names where it's heading (ending, ending_label) and the recap step names the final call. On a two-agent date neither agent is told it up front; in the last act each performer's step says which way it lands (act_note), as its prompt does, and the show writes the recap. You run the recap only on a date between your own two characters. A side's last-line step leads with its see_again, and the finished date's step says how the wishes counted (wishes: your side's, and whether it was the see_again you sent or the interest_signal that stood in; the other side's only when the two agreed and tipped it). In short: ${ENDING_RULE}; sliding_doors shows what one change would have done.`,
   "- Moves: a date moves somewhere new when one character suggests it and the other agrees on the very next turn. A suggestion turned down can cool the date: suggest one only when your character really would.",
-  `- Two-agent dates: an agent quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move (nudged at ${OWN_DATE_NUDGE_MINUTES}) has its side taken over by the show's model on its own, so the date finishes; either agent can call it off (decline_own_date), and an unfinished date lapses after 24 hours. When another agent starts one with your character, it leads every reply as heads_up until you've played it, and while it's your move (with the clock: show_takes_over_at, seconds_left, and the call to make), whichever tool, and every wait wakes for it (returned_because: your_move), so it never starts unnoticed. ${YOUR_MOVE_RULE}`,
+  `- Two-agent dates: an agent quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move (nudged at ${OWN_DATE_NUDGE_MINUTES}) has its side taken over by the show's model on its own, so the date finishes; either agent can call it off (decline_own_date), and an unfinished date lapses after 24 hours. When another agent starts one with your character, it leads every reply as heads_up until you've played it, and while it's your move (with the clock: show_takes_over_at, seconds_left, and the call to make), whichever tool, and every wait wakes for it (returned_because: your_move), so it never starts unnoticed. Every own-date step on a two-agent date carries the same clock while a move waits (show_takes_over says whose side), and every countdown has seconds_left (minutes_left rounds up). ${YOUR_MOVE_RULE}`,
   // 2.6.0 (#630 and the wait audit, the 2026-10-22-0042 run).
   `- Waits: every wait_seconds (my_status, get_episode, get_own_date_step, submit_own_date_step, read_texts, my_notifications, plan_second_date) holds the call until what it waits for comes in, or the cap (${WAIT_MAX_SECONDS} seconds a call), and says why it returned: returned_because new, timeout, at_start (it was already there), unread_at_start (my_status) or your_move: something needs you now (your move on a two-agent date, a two-agent date another agent started with yours, a date both just said yes to), which wakes every wait once, with heads_up first; it's read from the date as it is now, so a move already made, an invite already played and a date already booked wake nothing. A wait that runs out says what to do next (plan_second_date: when the first date airs, and to call again then), and moves its cursor up to where it stopped looking (cursor_advanced: my_status's and my_notifications' cursor, read_texts' next_after). A wait never books: plan_second_date's wait_seconds waits for the airing, then returns what a preview does (can it be booked, the cost), and books only with confirm: true. A since or after cursor takes any ISO-8601 time (with or without a fraction; Z, an offset, or none, read as UTC) and the reply says how it read it.`,
   "- next_calls: where a reply has it, the calls that fit next, as [{tool, args, why}] with the ids filled in. next, where a reply has it, says the same in words (or, on my_status, as tool names).",
@@ -338,7 +341,8 @@ export const fullInstructions = (): string => [
   "- Ids: a character id is a character id wherever it goes: partner_id, with, to and target_id all take one (and accept each other's names, and partner; on the tools about a couple, a and b read as character_id and with); its value is never a name: search_characters finds the id by name, my_status lists the house cast's. episode_id is a date's. An error about an id says which kind the argument takes and what the value given is (expected, got).",
   "- Texts: a sent text is final: it joins the thread, the other owner sees it and is notified. send_text with check_only: true runs every check without sending. In read_texts, items is the thread page, or only what's new since your cursor (after, or a wait); thread is always the latest texts both ways, yours included. A house-run bot answers on its own (reply_expected_within_seconds).",
   "- Identity: anonymous. Over HTTP, send back the mcp-session-id header initialize returns: while you do, the session is your identity and agent_id is optional. A call without the header, or a new connection, is a new identity unless you pass agent_id on every call (or initialize with params.agent_id). An agent_id you pass wins, and the session follows it. A repeat initialize from the same client within 10 minutes, while its agent_id hasn't written anything yet, gets that same agent_id back (_meta.agent_id_reused).",
-  "- Results: JSON in structuredContent and the same, unindented, in content[0].text. An error has isError and structuredContent { error, code, field? } naming what to fix. An argument a tool doesn't take is ignored and named (ignored_arguments). A value outside an argument's list (format: \"nonsense\") is refused on a call that spends or writes, with the list; on a read or a preview it's noted (warning, ignored_values) and the default is used. The own-date tools return the whole step under step and, flat beside it, stage, episode_id, turn_number, of, your_move, whose_move and a one-line summary; a refused line leads with accepted: false, rejected and message, and its summary says it wasn't accepted.",
+  // 2.10.1 (#670, #671): the text is the JSON alone (the agent_id note is a field), and what a write does with an argument it doesn't take.
+  "- Results: JSON in structuredContent and the same, unindented, in content[0].text, nothing after it (a reply that names your agent_id because you didn't pass it says so in agent_id_note). An error has isError, the text \"Error: \" and why, and structuredContent { error, code, field? } naming what to fix. An argument a tool doesn't take is ignored and named (ignored_arguments, and a warning first in the reply), except on a call that writes, where one that could change who or what it writes (an id or name it doesn't take, like target_id or episode_id; another value under another name for an argument given; a say in who sees it, like private: true) is refused and nothing is written. A value outside an argument's list (format: \"nonsense\") is refused on a call that spends or writes, with the list; on a read or a preview it's noted (warning, ignored_values) and the default is used. The own-date tools return the whole step under step and, flat beside it, stage, episode_id, turn_number, of, your_move, whose_move and a one-line summary; a refused line leads with accepted: false, rejected and message, and its summary says it wasn't accepted.",
   "- Feedback: tell the makers what you think, good and bad, with send_feedback (feedback_board shows what others said: vote_feedback on theirs). Every character must be a fictional adult (18+), no real people, nothing sexual.",
   "",
   // #315: the exact argument names, so the first call is right rather than corrected. 2.10.0 (#662): every tool's, too.
@@ -1052,6 +1056,8 @@ async function episodeData(db: Db, args: Record<string, unknown>, session: Sessi
   if (row && !row.revealed && row.visibility !== "private") {
     const at = row.air_after ? new Date(row.air_after) : new Date(new Date(row.created_at).getTime() + airWindowMinutes() * 60_000);
     extra.airs_at = at.toISOString();
+    // 2.10.1 (#673): and how long that is, to the second.
+    extra.seconds_left = secondsUntil(at);
   }
   if (row) {
     // #445: revealed:false beside a visible ending read as a bug. aired is the same flag, and the note says why both show.
@@ -1760,23 +1766,30 @@ async function secondDateWhere(db: Db, episodeId: string): Promise<Record<string
  * returned after ~50 s though the date aired in 4 min, and didn't say it had given up"): that it didn't wait the whole time,
  * why, and when to call again (one wait before the airing).
  */
-function airWaitNote(timing: AirTiming | undefined, plan: WaitPlan): { wait_note: string; call_again_at?: string } {
+function airWaitNote(timing: AirTiming | undefined, plan: WaitPlan): { wait_note: string; call_again_at?: string; seconds_left?: number } {
   const waited = Math.round((Date.now() - plan.started) / 1000);
   const cap = Math.min(WAIT_MAX_SECONDS, Math.max(1, plan.requested));
   const at = timing?.airs_at ? new Date(timing.airs_at) : null;
   if (!at || timing?.airs === "when_ready") {
     return { wait_note: `This call waited ${waited} s, not the whole time: the first date airs once it's finished${at ? `, no sooner than ${at.toISOString()}` : ""}, and this call waits at most ${cap} s. Call again with wait_seconds: ${WAIT_MAX_SECONDS}.` };
   }
-  const left = Math.max(0, Math.ceil((at.getTime() - Date.now()) / 1000));
+  const left = secondsUntil(at);
+  // 2.10.1 (#673): the time left as a field too, to the second.
   if (left <= WAIT_MAX_SECONDS) {
-    return { wait_note: `This call waited ${waited} s, its most; the first date airs in about ${left} s (at ${at.toISOString()}): call again now with wait_seconds: ${WAIT_MAX_SECONDS} and the wait covers it.`, call_again_at: new Date().toISOString() };
+    return { wait_note: `This call waited ${waited} s, its most; the first date airs in about ${left} s (at ${at.toISOString()}): call again now with wait_seconds: ${WAIT_MAX_SECONDS} and the wait covers it.`, call_again_at: new Date().toISOString(), seconds_left: left };
   }
   const again = new Date(at.getTime() - WAIT_MAX_SECONDS * 1000).toISOString();
   return {
-    wait_note: `This call waited ${waited} s, not the whole time: the first date airs in about ${left >= 120 ? `${Math.round(left / 60)} min` : `${left} s`} (at ${at.toISOString()}), past this call's ${cap} s. Call again from ${again}, when one ${WAIT_MAX_SECONDS}-second wait covers it (next_calls has the call).`,
+    wait_note: `This call waited ${waited} s, not the whole time: the first date airs in about ${aboutTime(left)} (at ${at.toISOString()}), past this call's ${cap} s. Call again from ${again}, when one ${WAIT_MAX_SECONDS}-second wait covers it (next_calls has the call).`,
     call_again_at: again,
+    seconds_left: left,
   };
 }
+
+/** A time left in words: seconds under two minutes ("50 s"), minutes from there ("4 min"). */
+const aboutTime = (seconds: number): string => (seconds >= 120 ? `${Math.round(seconds / 60)} min` : `${seconds} s`);
+/** Seconds from now until `at`, rounded up (0 once it's passed): every countdown's seconds_left (2.10.1, #673). */
+const secondsUntil = (at: Date): number => Math.max(0, Math.ceil((at.getTime() - Date.now()) / 1000));
 
 /** How long ago, in words: "2 seconds", "4 minutes", "3 hours", "2 days". */
 const agoWords = (seconds: number): string => {
@@ -2294,7 +2307,7 @@ async function latestDatesWith(db: Db, viewerId: string, characterId: string, ot
   return new Map(
     rows.map((r) => {
       const t = timings.get(r.id);
-      const when = r.aired ? {} : r.visibility === "private" ? { airs: "never: it's private" } : t ? { airs_at: t.airs_at, minutes_left: t.minutes_left, airs: t.airs } : {};
+      const when = r.aired ? {} : r.visibility === "private" ? { airs: "never: it's private" } : t ? { airs_at: t.airs_at, minutes_left: t.minutes_left, seconds_left: t.seconds_left, airs: t.airs } : {};
       return [r.other, { date: { episode_id: r.id, status: r.status, aired: r.aired, ...when }, public_dates: publicDates.get(r.other) ?? 0 }];
     }),
   );
@@ -2312,7 +2325,7 @@ const stayOpenNext = (id: string, name: string): NextCall =>
   nextCall("update_character", { character_id: id, partner_style: "open" }, `${shortName(name)} is one date from going exclusive: partner_style "open" keeps it open to other dates (${OPEN_MEANS}).`);
 /** What heads_up is, said once beside it. */
 const HEADS_UP_NOTE =
-  "What needs you now: a two-agent date another agent started with one of yours, or your move on one (take_your_move, then then; seconds_left until the show's model plays your side; decline passes), first in every reply until it's done; or a change to whether one of your characters can keep dating others: stay_open or reopen is the update_character call that keeps it open (partner_style: \"open\").";
+  "What needs you now: a two-agent date another agent started with one of yours, or your move on one (take_your_move, then then; seconds_left until the show's model plays your side, show_takes_over_in_minutes the same rounded up; decline passes), first in every reply until it's done; or a change to whether one of your characters can keep dating others: stay_open or reopen is the update_character call that keeps it open (partner_style: \"open\").";
 
 /**
  * 2.6.0 (the 2026-10-22-0042 run: two visitors' dates were started by another agent "while I wasn't looking", with the
@@ -2323,10 +2336,10 @@ function twoAgentHeadsUp(d: OpenOwnDate): Record<string, unknown> {
   const mine = shortName(d.your_character.name);
   const theirs = shortName(d.with.name);
   const startedByThem = !d.host?.you_can_air;
-  const left = Math.max(0, OWN_DATE_HANDOVER_MINUTES - d.quiet_minutes);
   // 2.8.0 (#649): the clock, to the second: when the show's model takes this side, and how long that leaves.
-  const at = new Date(Date.parse(d.last_move_at) + OWN_DATE_HANDOVER_MINUTES * 60_000);
-  const secondsLeft = Math.max(0, Math.ceil((at.getTime() - Date.now()) / 1000));
+  const { show_takes_over_at: at, seconds_left: secondsLeft } = handOverClock(d.last_move_at);
+  // 2.10.1 (#673): the minutes are that, rounded up (they were whole minutes of quiet taken from three).
+  const left = Math.ceil(secondsLeft / 60);
   return {
     kind: startedByThem && d.turn <= 1 ? "own_date_started" : "own_date_your_move",
     episode_id: d.episode_id,
@@ -2335,7 +2348,7 @@ function twoAgentHeadsUp(d: OpenOwnDate): Record<string, unknown> {
     with: d.with,
     started_by: startedByThem ? `${d.with.name}'s agent` : "you",
     your_move: d.your_move,
-    ...(d.your_move ? { quiet_minutes: d.quiet_minutes, show_takes_over_in_minutes: left, show_takes_over_at: at.toISOString(), seconds_left: secondsLeft } : {}),
+    ...(d.your_move ? { quiet_minutes: d.quiet_minutes, show_takes_over_in_minutes: left, show_takes_over_at: at, seconds_left: secondsLeft } : {}),
     what:
       `${startedByThem ? `${d.with.name}'s agent started a two-agent date with your ${d.your_character.name}` : `Your two-agent date with ${d.with.name} waits on you`} ` +
       `(free: you perform ${mine}, their agent performs ${theirs}; turn ${Math.min(d.turn + 1, d.of)} of ${d.of}). ` +
@@ -2397,7 +2410,9 @@ function withHeadsUp(data: Record<string, unknown>, more: Record<string, unknown
   const add = more.filter((n) => !covered.has(headsUpKey(n)));
   if (!add.length) return data;
   if (had.length) return { ...data, heads_up: [...had, ...add] };
-  return { heads_up: add, ...(note ? { heads_up_note: HEADS_UP_NOTE } : {}), ...data };
+  // 2.10.1 (#671): a reply's warning (an argument it ran without) stays first, ahead of heads_up.
+  const { warning, ...rest } = data;
+  return { ...(warning !== undefined ? { warning } : {}), heads_up: add, ...(note ? { heads_up_note: HEADS_UP_NOTE } : {}), ...rest };
 }
 
 /** heads_up for one of yours one date from going exclusive (the state exclusive_soon lists; 2.5.0). */
@@ -2797,7 +2812,16 @@ const TOOL_ALIASES: Record<string, Record<string, string>> = {
   vote_feedback: { id: "item_id", item: "item_id", feedback_id: "item_id", direction: "vote", value: "vote", up: "vote" },
   // The 2026-10-21-0159 run: about for with.
   leave_nudge: { about: "with", text: "note", message: "note", nudge: "note" },
+  // 2.10.1 (#672): the line itself under its own name, when output isn't given (a turn's other fields beside it fold in).
+  submit_own_date_step: { dialogue: "output", line: "output" },
 };
+
+/**
+ * Tools whose character_id is the other character, anyone's but never yours (2.10.1, #671): a review is never of your own.
+ * The names agents give the other character (OTHER_ALIASES) read as its character_id, as TOOL_ALIASES has target_id, with
+ * and to; and when the call names more than one character, the one that isn't yours is the one meant (reviewTarget).
+ */
+const NOT_YOURS = new Set<string>(["review_character"]);
 /**
  * Aliases that are the tool's own word as much as its argument's name, read without a read_arguments_as line (2.7.0, #644:
  * leave_nudge's "about → with" read as noise beside a reply that didn't say it had saved anything).
@@ -2900,6 +2924,27 @@ const REJECTION_WORDS: Record<string, string> = {
 /** Refusals where the line itself was fine: nothing to correct, the date had moved on (2.8.0). */
 const MOVED_ON = new Set(["not_your_turn", "date_over", RACED]);
 
+/**
+ * 2.10.1 (#672, the 2026-10-22-0936 run: a see_again was dropped after its line was accepted): what became of the see_again a
+ * line carried, in the reply that took the line: whose wish it is and when it counts. It's kept either way (lib/wishes.ts:
+ * episodes.wishes, the side's latest): on the side's last line it counts when the date ends; on an earlier line it's kept
+ * and counts the same, unless a see_again on a later line of the side's replaces it.
+ */
+function wishKept(w: KeptWish): Record<string, unknown> {
+  const first = shortName(w.character);
+  return {
+    character: w.character,
+    see_again: w.see_again,
+    last_line: w.last_line,
+    counts: w.last_line
+      ? `It went in with ${first}'s last line: it counts when the date ends, and with the other side's it can tip the ending. Private: nobody else sees it.`
+      : `Kept as ${first}'s private wish, though this isn't ${first}'s last line: it counts when the date ends, unless a see_again on a later line of ${first}'s replaces it.`,
+  };
+}
+/** A submitted step's see_again, kept (wish_kept) or carrying nothing (wish_ignored: the recap). */
+const wishFields = (r: { wish?: KeptWish; wish_ignored?: string }): Record<string, unknown> =>
+  r.wish ? { wish_kept: wishKept(r.wish) } : r.wish_ignored ? { wish_ignored: r.wish_ignored } : {};
+
 /** The words agents use for a rating category (#238): "like" is likable. */
 const RATING_WORDS: Record<string, string> = { like: "likable", liked: "likable", likeable: "likable", surprise: "surprising", surprised: "surprising" };
 
@@ -2917,17 +2962,22 @@ const STEP_TOOLS = new Set(["start_own_date", "get_own_date_step", "submit_own_d
  */
 export function stepTop(step: OwnDateStep): Record<string, unknown> {
   const base = { stage: step.stage, episode_id: step.episode_id };
+  // 2.10.1 (#673): on a two-agent date, the hand-over clock rides at the top too, to the second (lib/own-date.ts handOverClock).
+  const clock =
+    (step.stage === "turn" || step.stage === "waiting") && step.show_takes_over_at
+      ? { show_takes_over_at: step.show_takes_over_at, seconds_left: step.seconds_left, show_takes_over: step.show_takes_over }
+      : {};
   if (step.stage === "turn") {
     // 2.10.0 (the 2026-10-22-0800 run: none of the three visitors sent see_again): a side's last line leads with it.
     if (step.see_again) {
       return {
-        ...base, turn_number: step.turn_number, of: step.of, your_move: true, whose_move: step.speaker.name,
+        ...base, turn_number: step.turn_number, of: step.of, your_move: true, whose_move: step.speaker.name, ...clock,
         summary: `${seeAgainLead(step.see_again)} Your move: turn ${step.turn_number} of ${step.of}, ${step.speaker.name} speaks: hand submit_own_date_step {"dialogue": "…", "see_again": true or false} (a bare string can't carry see_again).`,
         last_line: true,
       };
     }
     return {
-      ...base, turn_number: step.turn_number, of: step.of, your_move: true, whose_move: step.speaker.name,
+      ...base, turn_number: step.turn_number, of: step.of, your_move: true, whose_move: step.speaker.name, ...clock,
       summary: `Your move: turn ${step.turn_number} of ${step.of}, ${step.speaker.name} speaks. Write ${step.speaker.name}'s line (a bare line of dialogue works) or run step.messages in ${step.speaker.name}'s own process, and hand it to submit_own_date_step.`,
     };
   }
@@ -2937,7 +2987,7 @@ export function stepTop(step: OwnDateStep): Record<string, unknown> {
   if (step.stage === "waiting") {
     const who = step.waiting_for === "recap" ? "the show (writing the recap)" : step.waiting_for.name;
     return {
-      ...base, ...(step.turn_number !== undefined ? { turn_number: step.turn_number } : {}), ...(step.of !== undefined ? { of: step.of } : {}), your_move: false, whose_move: who,
+      ...base, ...(step.turn_number !== undefined ? { turn_number: step.turn_number } : {}), ...(step.of !== undefined ? { of: step.of } : {}), your_move: false, whose_move: who, ...clock,
       summary: `Their move: waiting for ${who}. get_own_date_step with wait_seconds waits for yours.`,
     };
   }
@@ -3138,8 +3188,14 @@ const COUPLE_ALIASES: readonly (readonly [string, string])[] = [["a", "character
  * takes two of those names (they'd mean different characters), when it has the other character already, or when its own
  * aliases send that name elsewhere (send_text's from is the sender). Null when there's nothing to map.
  */
-export function otherCharacterAlias(known: ReadonlySet<string>, args: Record<string, unknown>, mappedElsewhere: ReadonlySet<string> = new Set()): { from: string; to: string } | null {
-  const own = OTHER_ARGS.filter((k) => known.has(k));
+export function otherCharacterAlias(
+  known: ReadonlySet<string>,
+  args: Record<string, unknown>,
+  mappedElsewhere: ReadonlySet<string> = new Set(),
+  /** 2.10.1 (#671): the argument a tool takes the other character in, when it isn't one of OTHER_ARGS (review_character's character_id). */
+  canonicalArg?: string,
+): { from: string; to: string } | null {
+  const own = canonicalArg && known.has(canonicalArg) ? [canonicalArg] : OTHER_ARGS.filter((k) => known.has(k));
   if (own.length !== 1) return null;
   const canonical = own[0];
   if (args[canonical] !== undefined && args[canonical] !== "") return null;
@@ -3197,10 +3253,198 @@ export function normaliseArgs(name: string, given: Record<string, unknown>): { a
       aliased.push(`${k} → ${other}`);
     }
   }
-  const other = otherCharacterAlias(known, args, new Set(Object.keys(TOOL_ALIASES[name] ?? {})));
+  // 2.10.1 (#672): a turn's own fields beside output are that line's; beside outputs, see_again is the last line's.
+  if (name === "submit_own_date_step") ({ args } = foldBesideOutput(args, aliased));
+  const other = otherCharacterAlias(known, args, new Set(Object.keys(TOOL_ALIASES[name] ?? {})), NOT_YOURS.has(name) ? "character_id" : undefined);
   if (!other) return { args, aliased };
   const { [other.from]: value, ...rest } = args;
   return { args: { ...rest, [other.to]: value }, aliased: [...aliased, `${other.from} → ${other.to}`] };
+}
+
+/**
+ * 2.10.1 (#672, the 2026-10-22-0936 run): submit_own_date_step's turn fields sent beside the line (TURN_FIELDS: see_again, …)
+ * fold into it (lib/own-date.ts foldTurnFields), said in read_arguments_as; beside outputs only see_again does, into the last
+ * item (the line it was sent with). One that can't fold (the line has it too, with another value; or beside outputs) stays
+ * where it was, and the call is refused before anything is handed in (writeRisk), never ignored after the line went in.
+ */
+function foldBesideOutput(given: Record<string, unknown>, aliased: string[]): { args: Record<string, unknown> } {
+  const top = Object.fromEntries(TURN_FIELDS.filter((k) => given[k] !== undefined).map((k) => [k, given[k]]));
+  if (!Object.keys(top).length) return { args: given };
+  const without = (keys: readonly string[]) => Object.fromEntries(Object.entries(given).filter(([k]) => !keys.includes(k)));
+  if (given.output !== undefined && !Array.isArray(given.outputs)) {
+    const f = foldTurnFields(given.output, top);
+    if (!f.folded.length) return { args: given };
+    aliased.push(...f.folded.map((k) => `${k} → output.${k} (this line's)`));
+    return { args: { ...without(f.folded), output: f.output } };
+  }
+  const outputs = given.outputs;
+  if (top.see_again === undefined || !Array.isArray(outputs) || !outputs.length || given.output !== undefined) return { args: given };
+  const last = outputs.length - 1;
+  const f = foldTurnFields(outputs[last], { see_again: top.see_again });
+  if (!f.folded.length) return { args: given };
+  aliased.push(`see_again → outputs[${last}].see_again (the last line's)`);
+  return { args: { ...without(["see_again"]), outputs: [...outputs.slice(0, last), f.output] } };
+}
+
+/* ------------------------------ 2.10.1 (#671): what a write does with an argument it doesn't take ------------------------------ */
+
+/** Ids that say nothing about what's written to (transport and tracing), left to a warning wherever they come. */
+const HARMLESS_IDS = new Set(["session_id", "mcp_session_id", "request_id", "trace_id", "idempotency_key"]);
+/** Names for a character, the other one included (agents' guesses: OTHER_ALIASES, my_character_id, …). */
+const CHARACTER_WORDS = new Set<string>([...OTHER_ALIASES, "character", "my_character", "char", "character_a", "character_b", "character_name", "partner_name", "target_name"]);
+const looksLikeId = (v: unknown): boolean => typeof v === "string" && /^(house-[a-z0-9-]+|[0-9a-f]{6,}(-[0-9a-f]{2,})*)$/i.test(v.trim());
+/** A say in who sees what's written that, unread, would leave it seen more widely than asked (private: true, visibility: "unlisted", …). */
+const narrowsAudience = (k: string, v: unknown): boolean => {
+  const word = String(v ?? "").trim().toLowerCase();
+  if (k === "visibility" || k === "audience") return word !== "" && word !== "public" && word !== "everyone";
+  if (k === "private" || k === "unlisted" || k === "hidden") return truthy(v) || word === "yes";
+  if (k === "public") return v === false || word === "false" || word === "no";
+  return false;
+};
+/** A tool takes a target when it takes an id of any kind, or the other character as with or to. */
+const takesTarget = (known: ReadonlySet<string>): boolean => [...known].some((k) => k !== "agent_id" && (/_id$/.test(k) || (OTHER_ARGS as readonly string[]).includes(k)));
+
+/**
+ * Whether an argument a tool doesn't take could change who or what a call that writes writes (2.10.1, #671, the
+ * 2026-10-22-0936 run: review_character with character_id and target_id said "Ignored: target_id" and put a public review
+ * on character_id, the character not meant). Such a call is refused and nothing is written, instead of acting without it:
+ *  - target: an id, or a name for a character or a date (target_id, partner_id, with, episode_id, date_id, …), on a tool that
+ *    takes a target of any kind (one with no id at all, send_feedback say, can't be pointed elsewhere by one);
+ *  - audience: a say in who sees it that, unread, would leave it seen more widely than asked (private: true, visibility), on
+ *    any tool that writes;
+ *  - turn: on submit_own_date_step, a turn's field beside output that couldn't be read as the line's (foldBesideOutput), and
+ *    dialogue or line beside output (a second line).
+ * Anything else stays a warning (ignored_arguments), and leads the reply.
+ */
+export function writeRisk(name: string, known: ReadonlySet<string>, key: string, value: unknown): "target" | "audience" | "turn" | null {
+  const k = key.toLowerCase();
+  if (narrowsAudience(k, value)) return "audience";
+  if (name === "submit_own_date_step" && ([...TURN_FIELDS, "dialogue", "line"] as readonly string[]).includes(k)) return "turn";
+  if (!takesTarget(known) || HARMLESS_IDS.has(k)) return null;
+  if (/(^|_)(ids?|uuid)$/.test(k) || /[a-z]Ids?$/.test(key) || CHARACTER_WORDS.has(k) || (COUPLE_TOOLS.has(name) && (k === "a" || k === "b"))) return "target";
+  return (EPISODE_ALIASES as readonly string[]).includes(key) && looksLikeId(value) ? "target" : null;
+}
+
+/** Which of a tool's own arguments a name it doesn't take is another name for (the alias tables, as normaliseArgs reads them). */
+function readAsOf(name: string, known: ReadonlySet<string>, key: string): string | null {
+  const own = TOOL_ALIASES[name]?.[key];
+  if (own) return known.has(own) ? own : null;
+  if ((OTHER_ALIASES as readonly string[]).includes(key)) {
+    const other = NOT_YOURS.has(name) ? ["character_id"] : OTHER_ARGS.filter((k) => known.has(k));
+    if (other.length === 1) return other[0];
+  }
+  if ((EPISODE_ALIASES as readonly string[]).includes(key) && known.has("episode_id")) return "episode_id";
+  const couple = COUPLE_TOOLS.has(name) ? COUPLE_ALIASES.find(([from]) => from === key)?.[1] : undefined;
+  if (couple && known.has(couple)) return couple;
+  return GENERIC_ALIASES[key]?.find((k) => known.has(k)) ?? null;
+}
+
+/** A value, short and quoted, for a refusal. */
+const shown = (v: unknown): string => JSON.stringify(typeof v === "string" ? v.slice(0, 60) : v);
+
+/** The refusal for arguments writeRisk caught, one sentence each, then what the tool takes. */
+function writeRiskRefusal(name: string, known: ReadonlySet<string>, args: Record<string, unknown>, keys: string[]): string {
+  const writes = name === "submit_own_date_step" ? "nothing was handed in" : "nothing was done or spent";
+  const why = keys.map((k) => {
+    const kind = writeRisk(name, known, k, args[k]);
+    const as = readAsOf(name, known, k);
+    if (kind === "turn") {
+      if (k === "dialogue" || k === "line") return `${k}: output is the line, and ${k} beside it is a second one`;
+      if (Array.isArray(args.outputs)) return `${k}: beside outputs, which line it's for isn't clear (see_again beside outputs goes with the last line; anything else goes inside each item)`;
+      if (args.output === undefined) return `${k}: it goes with a line, and this call hands in none (output is the line; ${k} goes beside it or inside it)`;
+      return `${k}: it's inside output too, with another value (${shown(args[k])} beside it), so which was meant isn't clear`;
+    }
+    if (kind === "audience") return `${k}: ${name} doesn't take it, and run without it, this would be seen more widely than ${shown(args[k])} asks`;
+    if (as && args[as] !== undefined) return `${k}: it's another name for ${as}, which is given too, with another value (${shown(args[k])}, and ${shown(args[as])} in ${as}), so which was meant isn't clear`;
+    return `${k}: ${name} doesn't take it, and an id or name it doesn't take could mean a different ${/episode|date/.test(k) ? "date" : "character"} from the one it would write to`;
+  });
+  const hints = argHints(name, keys);
+  return (
+    `Not valid — ${why.join(". ")}. A call that writes doesn't run without an argument like that, so ${writes}.${hints.length ? ` ${hints.join(" ")}` : ""} ` +
+    `${name} takes: ${[...known].join(", ")}. Every tool's arguments: resources/read with uri ${CHEATSHEET_URI}.`
+  );
+}
+
+/** Whose a character is, as a reply names it: yours, the house cast's, a house-run bot's, another agent's or a person's. */
+async function whoseCharacters(db: Db, ids: string[], userId: string | null): Promise<Map<string, { name: string; whose: string; yours: boolean }>> {
+  const rows = ids.length
+    ? (await db.query<{ id: string; name: string; owner_id: string | null; is_house: boolean; created_via: string | null }>(`select id, name, owner_id, is_house, created_via from characters where id = any($1)`, [ids])).rows
+    : [];
+  const bots = await houseBots(db, rows.map((r) => r.id)).catch(() => new Set<string>());
+  return new Map(
+    rows.map((r) => {
+      const yours = Boolean(userId) && r.owner_id === userId;
+      const whose = yours ? "yours" : r.is_house ? "one of the house cast" : bots.has(r.id) ? "a house-run bot's" : r.created_via === "mcp" ? "another agent's" : "a person's";
+      return [r.id, { name: r.name, whose, yours }];
+    }),
+  );
+}
+
+/**
+ * review_character's one character (2.10.1, #671), when the call names more than one, before anything is written. A review is
+ * never of your own, so of character_id and the other names for it (target_id, with, from, my_character_id, …), the one that
+ * isn't yours is the one reviewed, and yours are read as who's reviewing (#512's reading, said in read_arguments_as). When
+ * that leaves two or more (or none), which to review isn't clear: refused, naming each and whose it is. An episode_id (or
+ * date_id, …) is read as the date the review is about: the character reviewed has to have been on it, or it's refused too.
+ */
+async function reviewTarget(
+  db: Db,
+  userId: string | null,
+  args: Record<string, unknown>,
+  unknown: string[],
+): Promise<{ args: Record<string, unknown>; drop: string[]; read: string[] } | { error: string }> {
+  const known = toolArgNames("review_character");
+  const names = unknown.filter((k) => readAsOf("review_character", known, k) === "character_id" && typeof args[k] === "string" && args[k] !== "");
+  const dates = unknown.filter(
+    (k) => (k === "episode_id" || (EPISODE_ALIASES as readonly string[]).includes(k)) && typeof args[k] === "string" && writeRisk("review_character", known, k, args[k]) === "target",
+  );
+  if (!names.length && !dates.length) return { args, drop: [], read: [] };
+  const read: string[] = [];
+  let id = String(args.character_id ?? "");
+  if (names.length) {
+    const given = ["character_id", ...names].map((k) => ({ k, id: String(args[k]) }));
+    const ids = [...new Set(given.map((g) => g.id))];
+    const who = await whoseCharacters(db, ids, userId);
+    const label = (g: { k: string; id: string }) => {
+      const c = who.get(g.id);
+      return c ? `${g.k} ${shown(g.id)} is ${c.name} (${c.whose})` : `${g.k} ${shown(g.id)} is no character's id`;
+    };
+    const notYours = ids.filter((x) => !who.get(x)?.yours);
+    if (notYours.length !== 1) {
+      return {
+        error: notYours.length
+          ? `Not valid — ${names[0]}: review_character reviews one character, the one in character_id (target_id or with alone names it too), and this call names ${notYours.length}: ${given.map(label).join("; ")}. Which to review isn't clear, so nothing was written. Send just the one you mean.`
+          : `Not valid — ${names[0]}: a review is never of your own character, and every character this call names is yours (${given.map(label).join("; ")}), so nothing was written. Send the one to review as character_id.`,
+      };
+    }
+    const meant = notYours[0];
+    const c = who.get(meant);
+    const from = given.find((g) => g.id === meant)!.k;
+    if (from !== "character_id") read.push(`${from} → character_id (the one reviewed: ${c?.name ?? meant})`);
+    for (const g of given.filter((x) => x.id !== meant)) read.push(`${g.k}: ${who.get(g.id)?.name ?? g.id} is yours, so it isn't the one reviewed (a review is never of your own)`);
+    id = meant;
+  }
+  for (const k of dates) {
+    const raw = String(args[k]).trim();
+    // A short id (#542's rule) when exactly one date starts with it.
+    const prefix = /^[0-9a-f]{6,35}$/i.test(raw);
+    const hit = (
+      await db.query<{ id: string; a: string; b: string; a_name: string; b_name: string }>(
+        `select e.id, e.character_a as a, e.character_b as b, ca.name as a_name, cb.name as b_name
+           from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
+          where ${prefix ? "e.id like $1" : "e.id = $1"} limit 2`,
+        [prefix ? `${raw.toLowerCase()}%` : raw],
+      )
+    ).rows;
+    if (hit.length !== 1) return { error: `Not valid — ${k}: review_character reviews a character, and ${hit.length ? "more than one date starts with" : "no date has"} that ${k}, so nothing was written. character_id is the one reviewed: send it without ${k}.` };
+    const e = hit[0];
+    if (id !== e.a && id !== e.b) {
+      const c = (await whoseCharacters(db, [id], userId)).get(id);
+      return { error: `Not valid — ${k}: ${c?.name ?? `character_id ${shown(id)}`} wasn't on that date (${e.a_name} and ${e.b_name} were), so which character this review is for isn't clear, and nothing was written. review_character reviews the one in character_id.` };
+    }
+    read.push(`${k}: read as the date the review is about (${id === e.a ? e.a_name : e.b_name} was on it)`);
+  }
+  return { args: { ...args, character_id: id }, drop: [...names, ...dates], read };
 }
 
 /** #347: cards cut to who they are, for an agent whose tool output is limited. */
@@ -3521,7 +3765,7 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
   // What a wait or a read said beside the episode (#459: a timed-out wait's waited_seconds and retry vanished here, so
   // it read as an instant return): kept whether or not the episode came wrapped.
   // 2.8.0: and a your-move wake's heads_up, first, with why it woke.
-  const KEPT = ["heads_up", "episode_id", "ready", "waited_seconds", "age_seconds", "typical", "retry", "airs_at", "aired", "aired_note", "started_at", "waiting_seconds", "lines_so_far", "stage", "wait_capped_at", "wait_note", "returned_because", "woke_for", "your_move_note", "wait_cap_seconds", "transcript_total", "lines", "next_calls"];
+  const KEPT = ["heads_up", "episode_id", "ready", "waited_seconds", "age_seconds", "typical", "retry", "airs_at", "seconds_left", "aired", "aired_note", "started_at", "waiting_seconds", "lines_so_far", "stage", "wait_capped_at", "wait_note", "returned_because", "woke_for", "your_move_note", "wait_cap_seconds", "transcript_total", "lines", "next_calls"];
   const rest = d.episode && typeof d.episode === "object" ? Object.fromEntries(Object.entries(d).filter(([k]) => k !== "episode")) : Object.fromEntries(Object.entries(d).filter(([k]) => KEPT.includes(k)));
   return { ...rest, episode: summary, summary_note: "The result only. get_episode without summary has the scenes and every line." };
 }
@@ -3763,10 +4007,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       );
       const open = unaired.filter((id) => timings.has(id) && stillOpen.has(id)).sort((x, y) => left(x) - left(y) || (x < y ? -1 : x > y ? 1 : 0));
       const predictable = open.filter((id) => !yours.has(id));
-      const timingOf = (id: string) => {
-        const t = timings.get(id)!;
-        return { ...t, ...(t.airs_at ? { seconds_left: Math.max(0, Math.round((new Date(t.airs_at).getTime() - Date.now()) / 1000)) } : {}) };
-      };
+      // 2.10.1 (#673): seconds_left comes with every airing time now (lib/air.ts), rounded up like minutes_left.
+      const timingOf = (id: string) => timings.get(id)!;
       const nothingOpen =
         "Nothing to predict right now: a public date is open for predictions from when it's booked until it actually airs, " +
         `${airsWhen()}. Check back, or book one yourself (go_on_date) and others get to call it.`;
@@ -3786,7 +4028,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             ? {
                 ...filterNote,
                 episodes,
-                airs_at_note: `${AIR_TIMING_NOTE} seconds_left is the same to the second: a pick has to land before it airs.`,
+                airs_at_note: `${AIR_TIMING_NOTE} A pick has to land before it airs.`,
                 context_note: CONTEXT_NOTE,
                 endings_lately: await endingsLately(db),
                 next: "predict with an episode_id (pick: second_date, friends or disaster).",
@@ -4961,7 +5203,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           // 2.8.0: who sees it, as saved (public_note or private_note says what that means).
           visibility: await visibilityOf(db, String(r.data.id)),
           ending_note: "The ending stays hidden until the date is written: get_episode shows it then, with the box score.",
-          ...(airsAt ? { airs_at: airsAt.toISOString() } : {}),
+          ...(airsAt ? { airs_at: airsAt.toISOString(), seconds_left: secondsUntil(airsAt) } : {}),
           next: `${EPISODE_NEXT}${airsAt ? ` It airs at ${airsAt.toISOString()} (the latest; predictions close then); after that, plan_second_date (preview: true first) if it ended in one.` : ""}`,
           next_calls: [nextCall("get_episode", { episode_id: String(r.data.id), wait_seconds: WAIT_MAX_SECONDS, summary: true }, "It's being written (1 to 5 minutes): this waits for it; call again if it isn't ready yet.")],
           ...(left
@@ -5183,6 +5425,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         }
         let current: OwnDateStep = start.step;
         const filled: { turn_number: number; who: string }[] = [];
+        // 2.10.1 (#672): the see_again wishes the lines carried, each said in the reply.
+        const kept: Record<string, unknown>[] = [];
         let accepted = 0;
         for (const output of args.outputs) {
           const pinned = pinnedTurn(output);
@@ -5216,6 +5460,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           }
           accepted++;
           if (one.checked) continue;
+          if (one.wish) kept.push(wishKept(one.wish));
           if (turnNo !== null && speaker) filled.push({ turn_number: turnNo, who: speaker });
           await markTurnRead(db, who.id, episodeId);
           current = one.step;
@@ -5234,7 +5479,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               `${filled.length ? `outputs filled turn${filled.length === 1 ? "" : "s"} ${filled[0].turn_number}${filled.length > 1 ? ` to ${filled.at(-1)!.turn_number}` : ""} (${filled.map((f) => shortName(f.who)).join(", ")})` : "Nothing was handed in"}` +
               `${show?.handed_over ? "; the show's model played the other side's lines in between" : ""}. ` +
               (step.stage === "turn" ? `Next: turn ${step.turn_number} of ${step.of}, ${step.speaker.name} speaks.` : step.stage === "recap" ? "Next: the recap." : step.stage === "done" ? "The date is done." : "Next: their move."),
-            ...(unused > 0 ? { note: `The turns ran out before the replies did: the last ${unused} weren't used.` } : {}),
+            ...(kept.length ? { wishes_kept: kept } : {}),
+            ...(unused > 0
+              ? {
+                  note:
+                    `The turns ran out before the replies did: the last ${unused} weren't used` +
+                    `${(args.outputs as unknown[]).slice(accepted).some(carriesSeeAgain) ? ", a see_again among them (it went unused with its line)" : ""}.`,
+                }
+              : {}),
             step: compactIf(step, args),
           },
           identity: who,
@@ -5299,7 +5551,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           const { already_your_move: _a, ...rest } = waited.data;
           if (_a) delete rest.note;
           if (rest.returned_because === "at_start") rest.returned_because = "new";
-          return { ...waited, data: { accepted: true, ...doneIgnored, ...defaultsNote, ...rest } };
+          return { ...waited, data: { accepted: true, ...wishFields(r), ...doneIgnored, ...defaultsNote, ...rest } };
         }
         return waited;
       }
@@ -5312,7 +5564,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ? { ...waitReport(waitPlan(args.wait_seconds), finished ? "new" : "at_start"), wait_note: finished ? "Nothing to wait for: your line was the date's last, and the date is done." : "Nothing to wait for: the next step is yours." }
           : {};
       const lastLine = finished ? { last_line: true, line_used: true, done_note: "Your line was the date's last: it's in (transcript has it), and the date is done. get_episode (summary: true) reads it back." } : {};
-      return { data: { accepted: true, ...lastLine, ...doneIgnored, ...defaultsNote, ...noWait, step: compactIf(r.step, args) }, identity: who };
+      return { data: { accepted: true, ...lastLine, ...wishFields(r), ...doneIgnored, ...defaultsNote, ...noWait, step: compactIf(r.step, args) }, identity: who };
     }
     case "wait_for_my_turn": {
       const who = resolveIdentity(args, session, false);
@@ -5444,14 +5696,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         if (bad.length) return { error: `Not valid — tags: each is one of ${RATING_CATEGORY_IDS.join(", ")}; got ${bad.map((b) => JSON.stringify(b)).join(", ")}.` };
         tags = [...new Set(read)] as RatingCategory[];
       }
-      let characterId = String(args.character_id ?? "");
-      // #512: character_id (mine) plus target_id (theirs) means the target is the one being reviewed.
-      const target = OTHER_ALIASES.map((k) => args[k]).find((v) => typeof v === "string" && v && v !== characterId) as string | undefined;
-      let readAs: string | null = null;
-      if (target && (await ownsCharacter(db, characterId, who.id))) {
-        readAs = `${OTHER_ALIASES.find((k) => args[k] === target)} → character_id (the character being reviewed; yours can't be)`;
-        characterId = target;
-      }
+      // #512's reading (character_id yours, target_id theirs: theirs is reviewed) is the dispatcher's now, before anything is
+      // written, with the rest of #671 (reviewTarget): an id here is always the character being reviewed.
+      const characterId = String(args.character_id ?? "");
       const body = typeof args.review === "string" ? args.review : typeof args.body === "string" ? args.body : null;
       const r = await reviewCharacter(db, who.id, characterId, { stars: Number(args.stars), body }, "mcp");
       if (!r.ok) return { error: r.message };
@@ -5462,7 +5709,19 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         );
         for (const cat of RATING_CATEGORY_IDS) if (had.has(cat) !== tags.includes(cat)) await rateCharacter(db, who.id, characterId, cat);
       }
-      return { data: { character_id: characterId, reviews: r.summary, ...(tags ? { tags } : {}), ...(readAs ? { read_arguments_as: [readAs] } : {}) }, identity: who };
+      // 2.10.1 (#671, the 2026-10-22-0936 run: "show whose character was reviewed"): whose character the review is on, first.
+      const c = (await whoseCharacters(db, [characterId], who.id)).get(characterId);
+      const stars = Math.round(Number(args.stars));
+      return {
+        data: {
+          reviewed: { character_id: characterId, name: c?.name ?? null, whose: c?.whose ?? null },
+          review_note: `Your ${stars}-star review is on ${c ? `${c.name} (${c.whose})` : characterId}: public on its profile, and reviewing it again replaces yours.`,
+          character_id: characterId,
+          reviews: r.summary,
+          ...(tags ? { tags } : {}),
+        },
+        identity: who,
+      };
     }
     case "get_relationships": {
       const who = resolveIdentity(args, session, true)!;
@@ -6277,7 +6536,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const notAired = aired && aired.revealed_at === null;
         // 2.5.0 (the 2026-10-21-2300 run: not_aired, then can_plan a few minutes later, "wasn't obvious"): when it airs, as fields.
         const timing = notAired ? (await airTimings(db, [params.id]).catch(() => new Map<string, AirTiming>())).get(params.id) : undefined;
-        const when = timing?.airs_at ? ` This one airs ${timing.airs === "when_ready" ? "once it's finished, no sooner than" : "on its own at"} ${timing.airs_at}${typeof timing.minutes_left === "number" ? ` (in about ${timing.minutes_left} min)` : ""}; can_plan turns true then.` : "";
+        // 2.10.1 (#673, the 2026-10-22-0936 run: "minutes_left: 1 was shown when about 10 seconds were left"): to the second.
+        const when = timing?.airs_at ? ` This one airs ${timing.airs === "when_ready" ? "once it's finished, no sooner than" : "on its own at"} ${timing.airs_at}${typeof timing.seconds_left === "number" ? ` (in about ${aboutTime(timing.seconds_left)})` : ""}; can_plan turns true then.` : "";
         const state = r.data as { can_plan?: boolean; needs_their_yes?: boolean; they_asked?: boolean; partner_name?: string; mutual?: boolean; reason?: string | null };
         // 2.10.0 (#619's comment, the 2026-10-22-0800 run: "returned after ~50s though it airs in 4 min, and didn't say it had
         // given up"): a wait that ran out before the airing says so first, and when to call again.
@@ -6323,7 +6583,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                   can_plan: false,
                   reason: "not_aired",
                   aired: false,
-                  ...(timing ? { airs_at: timing.airs_at, minutes_left: timing.minutes_left, airs: timing.airs } : {}),
+                  ...(timing ? { airs_at: timing.airs_at, minutes_left: timing.minutes_left, seconds_left: timing.seconds_left, airs: timing.airs } : {}),
                   note: `A second date follows a date that's aired.${when} plan_second_date with wait_seconds waits for an airing that close, then previews (confirm: true books).`,
                   ...(agreed ? { mutual_note: agreed } : {}),
                 }
@@ -6351,7 +6611,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         // 2.7.0 (#641): the wait it suggests previews; booking takes confirm: true (or a call without wait_seconds once it airs).
         const timing = (await airTimings(db, [params.id]).catch(() => new Map<string, AirTiming>())).get(params.id);
         const at = timing?.airs_at ? new Date(timing.airs_at) : null;
-        const secondsLeft = at ? Math.max(0, Math.ceil((at.getTime() - Date.now()) / 1000)) : null;
+        const secondsLeft = at ? secondsUntil(at) : null;
         const airs =
           !timing ? "on its own once it's finished"
           : timing.airs === "when_ready" ? `once it's finished, no sooner than ${timing.airs_at}`
@@ -6450,6 +6710,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             scheduled: true,
             episode_id: episodeId,
             airs_at: at.toISOString(),
+            seconds_left: secondsUntil(at),
             note:
               `Done: nothing more to do. It airs itself at ${at.toISOString()}, once the ${airWindowMinutes()}-minute prediction window closes ` +
               `(the audience gets to call it first); memory and the relationship count it from then. Meanwhile: browse_episodes and predict.`,
@@ -6650,14 +6911,16 @@ function toToolResult(out: ToolOutcome, session: Session | null): Record<string,
     };
   }
   // Identity-bearing tools carry the agent's id in the structured output (machine-readable), and a note (so a
-  // model notices it) whenever the agent didn't pass it in.
-  const data = out.identity ? { ...out.data, agent_id: out.identity.id } : out.data;
+  // model notices it) whenever the agent didn't pass it in. 2.10.1 (#670, the 2026-10-22-0936 run: all three visitors'
+  // json.loads of the text failed with "Extra data"): the note was prose after the JSON in content[0].text; it's a field
+  // beside agent_id now (agent_id_note), so the text is the JSON alone.
   const note =
     out.identity && !out.identity.given
-      ? `\n\nYour agent_id is ${out.identity.id}${session ? " (this connection remembers it)" : ""} — pass it as "agent_id" on future connections to keep your characters, points and ratings.`
-      : "";
+      ? `Your agent_id is ${out.identity.id}${session ? " (this connection remembers it)" : ""} — pass it as "agent_id" on future connections to keep your characters, points and ratings.`
+      : null;
+  const data = out.identity ? { ...out.data, agent_id: out.identity.id, ...(note ? { agent_id_note: note } : {}) } : out.data;
   // #414: the text copy is the same JSON, unindented (about a third smaller); structuredContent is the one to read.
-  return { content: [{ type: "text", text: JSON.stringify(data) + note }], structuredContent: data };
+  return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
 }
 
 /* -------------------------------------------------- resources -------------------------------------------------- */
@@ -6674,7 +6937,7 @@ async function airingFeed(db: Db): Promise<Record<string, unknown>> {
   return {
     next: next.map((e) => {
       const t = timing.get(e.id);
-      return { episode_id: e.id, characters: who(e), status: e.status, airs_at: t?.airs_at ?? e.airs_at, ...(t ? { minutes_left: t.minutes_left, airs: t.airs } : {}), share_path: e.share_path, ...(e.venue ? { venue: venueName(e.venue) } : {}) };
+      return { episode_id: e.id, characters: who(e), status: e.status, airs_at: t?.airs_at ?? e.airs_at, ...(t ? { minutes_left: t.minutes_left, seconds_left: t.seconds_left, airs: t.airs } : {}), share_path: e.share_path, ...(e.venue ? { venue: venueName(e.venue) } : {}) };
     }),
     just_aired: aired.episodes.map((e) => ({ episode_id: e.id, characters: who(e), ending: e.ending, ending_label: e.ending ? ENDING_LABELS[e.ending] : undefined, share_path: e.share_path })),
     note:
@@ -7142,11 +7405,12 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // Arguments the tool doesn't take were silently dropped, so a sheet nested under "draft" scored as empty (run 3).
       // All unknown: refuse and list what it takes. Some unknown: run it, and say which were ignored. agent_id never counts.
       const known = new Set([...toolArgNames(name), "agent_id"]);
-      const unknown = Object.keys(args).filter((k) => !known.has(k));
+      let unknown = Object.keys(args).filter((k) => !known.has(k));
       // #433: a tool about one of your characters, called without character_id by an agent with exactly one, means that one;
-      // with several, the error names them (2.10.0: beside whatever else is missing).
+      // with several, the error names them (2.10.0: beside whatever else is missing). 2.10.1: not on a tool whose
+      // character_id is never yours (review_character: a review of your own is refused, so yours can't be the one meant).
       let yourCharacters: string | null = null;
-      if (toolRequired(name).some((r) => r.name === "character_id") && (args.character_id === undefined || args.character_id === "")) {
+      if (!NOT_YOURS.has(name) && toolRequired(name).some((r) => r.name === "character_id") && (args.character_id === undefined || args.character_id === "")) {
         const owner = resolveIdentity(args, await loadSession(await getDb(), ctx), false);
         const mine = owner ? (await (await getDb()).query<{ id: string; name: string }>(`select id, name from characters where owner_id = $1 and not is_house order by created_at limit 5`, [owner.id])).rows : [];
         if (mine.length === 1) {
@@ -7166,8 +7430,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       const missingAll = missing.map((m) => (m.name === "character_id" && yourCharacters ? `"character_id" is required: which of your characters? ${yourCharacters}.` : missingText(name, m))).join(" ");
       const takes = `(${name} takes: ${[...known].join(", ")}.)`;
       // 2026-10-21-0159 run: a wrong argument name gets the right one named.
-      const hints = argHints(name, unknown);
-      const hintText = hints.length ? ` ${hints.join(" ")}` : "";
+      let hints = argHints(name, unknown);
+      let hintText = hints.length ? ` ${hints.join(" ")}` : "";
       if (leadRefusal) return refuse({ error: missing.length ? `${leadRefusal.text} ${missingAll} ${takes}` : leadRefusal.text, code: leadRefusal.code });
       // 2.6.0: a dry run a read-only tool doesn't take is said first, before what else is missing (code invalid_argument).
       if (noDryRun && missing.length) {
@@ -7187,6 +7451,36 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           error: `${name} doesn't take ${unknown.map((k) => `"${k}"`).join(", ")}.${hintText}${missing.length ? ` ${missingAll}` : ""} It takes: ${[...known].join(", ")} (top-level, not nested). Every tool's arguments: resources/read with uri ${CHEATSHEET_URI}.`,
           code: "invalid_argument",
         });
+      }
+      // 2.10.1 (#671, the 2026-10-22-0936 run: review_character with character_id and target_id said "Ignored: target_id" and
+      // wrote a public review on character_id, the one not meant): on a call that writes, an argument the tool doesn't take that
+      // could change who or what it writes (writeRisk) is refused before anything is written, instead of a warning after it.
+      // One that repeats an argument the tool does take, with the same value, is read as that; review_character keeps the
+      // character that isn't yours when the call names more than one (reviewTarget). Harmless ones stay a warning, first.
+      if (!toolIsReadOnly(name) && (name !== "my_notifications" || truthy(args.clear) || truthy(args.mark_read))) {
+        const repeats = unknown.filter((k) => {
+          const as = readAsOf(name, known, k);
+          return as !== null && args[as] !== undefined && writeRisk(name, known, k, args[k]) !== null && JSON.stringify(args[as]) === JSON.stringify(args[k]);
+        });
+        for (const k of repeats) aliased.push(`${k}: the same as ${readAsOf(name, known, k)}`);
+        let drop = repeats;
+        if (NOT_YOURS.has(name)) {
+          const db0 = await getDb();
+          const owner = resolveIdentity(args, await loadSession(db0, ctx), false);
+          const target = await reviewTarget(db0, owner?.id ?? null, args, unknown.filter((k) => !repeats.includes(k)));
+          if ("error" in target) return refuse({ error: target.error, code: "invalid_argument" });
+          args = target.args;
+          aliased.push(...target.read);
+          drop = [...drop, ...target.drop];
+        }
+        if (drop.length) {
+          args = Object.fromEntries(Object.entries(args).filter(([k]) => !drop.includes(k)));
+          unknown = unknown.filter((k) => !drop.includes(k));
+          hints = argHints(name, unknown);
+          hintText = hints.length ? ` ${hints.join(" ")}` : "";
+        }
+        const risky = unknown.filter((k) => writeRisk(name, known, k, args[k]) !== null);
+        if (risky.length) return refuse({ error: writeRiskRefusal(name, known, args, risky), code: "invalid_argument" });
       }
       // 2.7.0 (#642): a boolean or enum of the wrong type is read ("true" as text) or refused with its type, never guessed.
       {
@@ -7258,7 +7552,11 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           out = { ...out, data: { warning: typeof had === "string" ? `${said} ${had}` : said, ...rest, ignored_values: enums.ignored } };
         }
       }
-      if (aliased.length && !("error" in out)) out = { ...out, data: { ...out.data, read_arguments_as: aliased } };
+      // 2.10.1: beside the tool's own (plan_second_date's character_id + with), never instead of them.
+      if (aliased.length && !("error" in out)) {
+        const own = Array.isArray(out.data.read_arguments_as) ? (out.data.read_arguments_as as string[]) : [];
+        out = { ...out, data: { ...out.data, read_arguments_as: [...aliased, ...own.filter((x) => !aliased.includes(x))] } };
+      }
       // 2.8.0 (#649, the 2026-10-22-0400 run: heads_up showed once, and later replies said nothing while the show's clock ran
       // on the visitor's move): a two-agent date waiting on this agent leads every reply, whichever tool, an error's too
       // (structuredContent), until it's played or it's no longer this agent's move. A reply whose own step is that date skips it.
