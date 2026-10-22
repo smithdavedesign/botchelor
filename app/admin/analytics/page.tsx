@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import AnalyticsPanel from "./AnalyticsPanel";
+import { Suspense } from "react";
+import InsightsDashboard from "./InsightsDashboard";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Analytics · Admin · Botchelor", robots: { index: false, follow: false } };
 
 /**
- * Admin: real use (people and agents, last 7 and 30 days, next to the simulated visitors' ratings: lib/real-metrics.ts),
- * then every MCP connection, what kind of visitor it was, how far outside agents get, and which tools they use.
+ * Admin: the insights overview (lib/insights.ts: what stands out, the key numbers against the previous period, the
+ * people funnel), then Product (what gets made, the top characters and venues, retention, Real use), Agents (every MCP
+ * connection, lib/agent-analytics.ts) and Quality (the golden set, the observer, the visitor loop). docs/analytics.md
+ * says what each chart means and where its numbers come from.
  */
 export default function AdminAnalyticsPage() {
   return (
@@ -15,15 +18,16 @@ export default function AdminAnalyticsPage() {
       <p className="kicker">
         <Link href="/admin">Admin</Link> · Analytics
       </p>
-      <h1>Real use, and who comes in over MCP</h1>
+      <h1>How the show is doing</h1>
       <p className="muted">
-        <strong>Real use</strong> is what real people and real agents did, with our own traffic left out, next to the simulated
-        visitors&apos; ratings: the product is judged by both. Below it, every MCP connection: a <strong>crawler</strong> connects and
-        lists the tools (directories, registries, scanners). An <strong>explorer</strong> calls tools that only read. A{" "}
-        <strong>player</strong> changed something: made a character, dated, texted, swiped, predicted or sent feedback. Our own checks
-        are marked <em>ours</em> and kept out of the totals and the funnel.
+        Real people and real agents, from the database, with our own traffic left out unless you ask for it. One row of filters scopes
+        every tab and stays in the address, so a link opens the same view. <strong>People</strong> and <strong>Agents</strong> split by
+        who did it (on the web or over MCP); <strong>House</strong> is everything with a house character in it. Page views aren&apos;t in
+        the database (GA4 and Vercel Analytics have them), and no money is shown here.
       </p>
-      <AnalyticsPanel />
+      <Suspense fallback={<p className="muted">Loading…</p>}>
+        <InsightsDashboard />
+      </Suspense>
     </article>
   );
 }

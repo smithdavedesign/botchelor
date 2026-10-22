@@ -3,13 +3,16 @@
  * AND by what real people and real agents do. This is the second half: the "Real use" section of /admin/analytics,
  * for the last 7 and the last 30 days side by side, computed from the database alone.
  *
- * Our own traffic is left out everywhere, and so is everything it made:
+ * Our own traffic is left out everywhere, and so is everything it made (lib/our-traffic.ts loadOurIds):
  *  - admin accounts (lib/admins.ts) and any agent linked to one (agent_links);
  *  - the loop's house-run bots and its arena crowd (lib/house-bots.ts: clients named "botchelor-loop-…");
  *  - every agent that ever connected as one of our own checks (lib/agent-analytics.ts OUR_TRAFFIC / isOurs);
  *  - the "deleted" owner (a deleted account's kept characters, lib/account.ts), and dates whose own character is one;
  *  - the show itself: "system" books the always-on watch-party dates (lib/watch.ts SYSTEM_CREATOR_ID).
  * A character or a date made by any of those is theirs, so it's out too.
+ *
+ * No money: nothing here reads orders or amounts (the owner's rule, 2026-10-22: no revenue on the analytics page;
+ * Stripe is the record of what was paid).
  *
  * Who is who: an identity is an agent when it has played over MCP (an MCP session, a logged call, or something it
  * made with created_via 'mcp'); everyone else is a person (the anonymous bz_uid a browser keeps). Days are UTC days.
@@ -21,11 +24,10 @@
  * quality runs (lib/quality-runs.ts: the golden set's side-by-side verdicts and the nightly After Dark observer).
  */
 import type { Db } from "./db";
-import { OUR_TRAFFIC, WRITE_TOOLS } from "./agent-analytics";
-import { HOUSE_BOT_CLIENT_PREFIX } from "./house-bots";
+import { WRITE_TOOLS } from "./agent-analytics";
+import { loadOurIds } from "./our-traffic";
 import { listQualityRuns, type QualityRun } from "./quality-runs";
 import { DELETED_OWNER } from "./rules";
-import { SYSTEM_CREATOR_ID } from "./watch";
 
 /** Below this many people or agents, a rate or a median is "n too small". */
 export const MIN_N = 5;
@@ -42,7 +44,6 @@ export type Metric =
   | { kind: "share"; num: number; den: number }
   /** num per den, shown as a ratio (dates per active person). */
   | { kind: "per"; num: number; den: number }
-  | { kind: "usd"; cents: number }
   | { kind: "quantiles"; median: number | null; p75: number | null; n: number }
   | { kind: "na"; why: string };
 
@@ -95,14 +96,13 @@ export function returnRate(
 }
 
 /** Something an identity did, and when. Kinds in ACTIVE make it active; kinds in AUDIENCE make it part of the audience. */
-type Kind = "create" | "swipe" | "text" | "predict" | "review" | "buy" | "mcp_write" | "watch";
+type Kind = "create" | "swipe" | "text" | "predict" | "review" | "mcp_write" | "watch";
 type Event = { id: string; at: Date; kind: Kind; via: "web" | "mcp" | null };
-const ACTIVE: ReadonlySet<Kind> = new Set(["create", "swipe", "text", "predict", "review", "buy", "mcp_write"]);
+const ACTIVE: ReadonlySet<Kind> = new Set(["create", "swipe", "text", "predict", "review", "mcp_write"]);
 const AUDIENCE: ReadonlySet<Kind> = new Set(["predict", "review", "watch"]);
 
 type DateRow = { creator: string; partner: string | null; performed_by: string; at: Date };
 type FirstDate = { creator: string; aired: Date; followed: boolean };
-type OrderRow = { user: string; cents: number; at: Date };
 /** A 👍 (1) or 👎 (-1) on a line (lib/line-feedback.ts), as of its last change. */
 type VoteRow = { user: string; vote: number; at: Date };
 
@@ -114,7 +114,6 @@ export type Facts = {
   events: Event[];
   dates: DateRow[];
   firstDates: FirstDate[];
-  orders: OrderRow[];
   votes: VoteRow[];
   /** A person's first character made on the web, ever. */
   firstCreator: Map<string, Date>;
@@ -122,27 +121,10 @@ export type Facts = {
   firstAgentWrite: Map<string, Date>;
 };
 
-/** SQL: true when a Stripe session id is a live-mode one (test-mode sessions are cs_test_…: our own checks). */
-const LIVE_SESSION = `left(coalesce(stripe_session_id, ''), 8) = 'cs_live_'`;
-
 export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Promise<Facts> {
   const since = new Date(now.getTime() - sinceDays * DAY_MS).toISOString();
   const writes = [...WRITE_TOOLS];
-  const ourClient = `(coalesce(client_name, '') ~* $1 or coalesce(user_agent, '') ~* $1 or coalesce(client_name, '') like '${HOUSE_BOT_CLIENT_PREFIX}%')`;
-
-  const ours = new Set(
-    (
-      await db.query<{ id: string }>(
-        `select user_id as id from admins
-         union select l.agent_id from agent_links l join admins a on a.user_id = l.user_id
-         union select agent_id from mcp_sessions where ${ourClient}
-         union select agent_id from mcp_calls where agent_id is not null and ${ourClient}
-         union select $2::text
-         union select $3::text`,
-        [OUR_TRAFFIC.source, DELETED_OWNER, SYSTEM_CREATOR_ID],
-      )
-    ).rows.map((r) => r.id),
-  );
+  const ours = new Set(await loadOurIds(db));
 
   // A date is out when its own character (character_a) now belongs to the deleted owner: a deleted account's date.
   const notDeleted = `coalesce((select ca.owner_id from characters ca where ca.id = e.character_a), '') <> '${DELETED_OWNER}'`;
@@ -163,8 +145,6 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
        select user_id, created_at, 'predict', null from arc_predictions where created_at >= $1
        union all
        select reviewer_id, created_at, 'review', via from character_reviews where created_at >= $1
-       union all
-       select user_id, paid_at, 'buy', 'web' from orders where status = 'paid' and ${LIVE_SESSION} and paid_at >= $1
        union all
        select agent_id, created_at, 'mcp_write', 'mcp' from mcp_calls where ok and tool = any($2) and agent_id is not null and created_at >= $1
        union all
@@ -200,14 +180,6 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
       [since],
     )
   ).rows.map((r) => ({ ...r, aired: new Date(r.aired) }));
-
-  const orders = (
-    await db.query<{ user: string; cents: number; at: Date | string }>(
-      `select user_id as "user", amount_cents as cents, paid_at as at
-         from orders where status = 'paid' and ${LIVE_SESSION} and paid_at >= $1`,
-      [since],
-    )
-  ).rows.map((r) => ({ ...r, at: new Date(r.at) }));
 
   const votes = (
     await db.query<{ user: string; vote: number; at: Date | string }>(`select user_id as "user", vote, updated_at as at from line_feedback where updated_at >= $1`, [since])
@@ -262,7 +234,6 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
     events,
     dates: dates.map(({ via: _via, ...d }) => ({ ...d, at: new Date(d.at) })),
     firstDates,
-    orders,
     votes,
     firstCreator,
     firstAgentWrite,
@@ -275,7 +246,6 @@ export type RealWindow = {
   people: { new_creators: Metric; active: Metric; next_day_return: Metric; week2_return: Metric };
   agents: { new_players: Metric; active: Metric; multi_day: Metric; next_day_return: Metric; dates_per_agent: Metric };
   dates: { booked: Metric; show_model: Metric; own_date: Metric; two_agent: Metric; second_date_rate: Metric; per_active_person: Metric };
-  money: { orders: Metric; revenue: Metric; buyers: Metric; conversion: Metric };
   engagement: { predictions: Metric; audience_predicting: Metric; reviews: Metric; texts_people: Metric; texts_agents: Metric };
   /** Thumbs on lines (lib/line-feedback.ts). */
   feedback: { votes_up: Metric; votes_down: Metric; share_up: Metric; voters: Metric };
@@ -337,10 +307,6 @@ export function computeWindow(f: Facts, days: number): RealWindow {
   const firsts = f.firstDates.filter((d) => inWindow(d.aired) && real(d.creator));
   const byPeople = dates.filter((d) => !isAgent(d.creator)).length;
 
-  // Money.
-  const orders = f.orders.filter((o) => inWindow(o.at) && real(o.user));
-  const buyers = new Set(orders.map((o) => o.user)).size;
-
   // Engagement.
   const realEvents = events.filter((e) => real(e.id));
   const audience = new Set(realEvents.filter((e) => AUDIENCE.has(e.kind)).map((e) => e.id));
@@ -379,12 +345,6 @@ export function computeWindow(f: Facts, days: number): RealWindow {
       two_agent: count(twoAgent),
       second_date_rate: share(firsts.filter((d) => d.followed).length, firsts.length),
       per_active_person: { kind: "per", num: byPeople, den: activePeople.length },
-    },
-    money: {
-      orders: count(orders.length),
-      revenue: { kind: "usd", cents: orders.reduce((s, o) => s + o.cents, 0) },
-      buyers: count(buyers),
-      conversion: share(buyers, activePeople.length),
     },
     engagement: {
       predictions: count(realEvents.filter((e) => e.kind === "predict").length),
@@ -434,7 +394,7 @@ export type MetricDef = { section: keyof Omit<RealWindow, "days" | "since" | "ou
 
 export const METRIC_DEFS: MetricDef[] = [
   { section: "people", key: "new_creators", label: "New creators", definition: "People whose first character made on the web was made in the window." },
-  { section: "people", key: "active", label: "Active people", definition: "People (not agents) who did anything: made a character, booked a date, swiped, texted, predicted, reviewed or bought." },
+  { section: "people", key: "active", label: "Active people", definition: "People (not agents) who did anything: made a character, booked a date, swiped, texted, predicted or reviewed." },
   { section: "people", key: "next_day_return", label: "Next-day return", definition: "New creators, joined before today, active again on a later day within 7 days of their first. Rises as recent ones come back." },
   { section: "people", key: "week2_return", label: "Week-2 return", definition: "New creators at least 14 days in, active again 7 to 13 days after their first day." },
   { section: "agents", key: "new_players", label: "New agents (players)", definition: "Agents whose first write ever (a write tool that worked, a character, a date) came in the window." },
@@ -448,10 +408,6 @@ export const METRIC_DEFS: MetricDef[] = [
   { section: "dates", key: "two_agent", label: "· two-agent", definition: "Each side performed by its own agent." },
   { section: "dates", key: "second_date_rate", label: "Second-date rate", definition: "First dates that aired in the window whose couple has booked the second date (followup_of)." },
   { section: "dates", key: "per_active_person", label: "Dates per active person", definition: "Dates people (not agents) booked, divided by active people." },
-  { section: "money", key: "orders", label: "Paid orders", definition: "Live Stripe orders (cs_live_ only, no test mode), paid in the window, no admin buyers." },
-  { section: "money", key: "revenue", label: "Revenue", definition: "What those orders came to, in dollars, before Stripe's fee." },
-  { section: "money", key: "buyers", label: "Buyers", definition: "Distinct people behind those orders." },
-  { section: "money", key: "conversion", label: "Conversion", definition: "Buyers divided by active people." },
   { section: "engagement", key: "predictions", label: "Predictions", definition: "Ending and arc predictions made, by people and agents." },
   { section: "engagement", key: "audience_predicting", label: "Audience who predict", definition: "Of everyone with an audience action we store (predicted, reviewed, rated, followed a couple, joined a watch party), the share who predicted. Page views aren't in the database." },
   { section: "engagement", key: "reviews", label: "Reviews", definition: "Character reviews posted, by people and agents." },

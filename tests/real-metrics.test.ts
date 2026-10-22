@@ -9,7 +9,7 @@ import { GET as getRealMetrics } from "@/app/api/admin/real-metrics/route";
 import { GET as getSimRatings, POST as postSimRating } from "@/app/api/admin/sim-ratings/route";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import { MIN_N, percentile, realMetrics, realUse, returnRate, tooSmall, type Metric } from "@/lib/real-metrics";
+import { METRIC_DEFS, MIN_N, percentile, realMetrics, realUse, returnRate, tooSmall, type Metric } from "@/lib/real-metrics";
 import { parseReport, runRatings } from "../scripts/loop/post-ratings.mjs";
 import { BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
@@ -79,7 +79,7 @@ async function order(user: string, session: string, cents: number, status = "pai
     [`o-${session}`, user, cents, status, session, status === "pending" ? null : ago(daysAgo)],
   );
 }
-const value = (m: Metric) => (m.kind === "count" ? m.value : m.kind === "usd" ? m.cents : m);
+const value = (m: Metric) => (m.kind === "count" ? m.value : m);
 
 describe("real use: who's left out", () => {
   it("leaves out admins, agents linked to them, house-run bots, the crowd, our checks and the deleted owner, and what they made", async () => {
@@ -119,7 +119,6 @@ describe("real use: who's left out", () => {
     expect(value(w.agents.new_players)).toBe(1);
     expect(value(w.agents.active)).toBe(1);
     expect(value(w.dates.booked)).toBe(2);
-    expect(value(w.money.orders)).toBe(0);
     expect(w.ours_left_out).toBeGreaterThanOrEqual(5); // the admin, the linked agent, the house bot, the crowd, the check
   });
 });
@@ -213,26 +212,15 @@ describe("real use: the maths", () => {
   });
 });
 
-describe("real use: money", () => {
-  it("counts live paid orders only: no test mode, no admin buyers, nothing pending or refunded", async () => {
-    await character("b1c", "buyer-1", 3);
-    await character("b2c", "buyer-2", 3);
+describe("real use: no money", () => {
+  it("never reads orders: no revenue, no buyers, and buying alone doesn't make anyone active (the owner's rule)", async () => {
     await order("buyer-1", "cs_live_one", 499);
-    await order("buyer-1", "cs_live_two", 999);
-    await order("buyer-2", "cs_live_three", 1999);
-    await order("tester", "cs_test_four", 499); // test mode: our own check
-    await claimAdmin(t.db, "admin-m");
-    await order("admin-m", "cs_live_five", 499); // an admin buying
-    await order("buyer-3", "cs_live_six", 499, "pending");
-    await order("buyer-4", "cs_live_seven", 499, "refunded");
-    await order("buyer-5", "cs_live_eight", 499, "paid", 20); // outside the 7 days
+    await order("buyer-2", "cs_live_two", 1999);
     const w = await realMetrics(t.db, 7, NOW);
-    expect(value(w.money.orders)).toBe(3);
-    expect(value(w.money.revenue)).toBe(3497);
-    expect(value(w.money.buyers)).toBe(2);
-    expect(w.money.conversion).toEqual({ kind: "share", num: 2, den: 2 });
-    expect(tooSmall(w.money.conversion)).toBe(true);
-    expect(value((await realMetrics(t.db, 30, NOW)).money.orders)).toBe(4);
+    expect(w).not.toHaveProperty("money");
+    expect(value(w.people.active)).toBe(0);
+    expect(METRIC_DEFS.map((d) => d.section)).not.toContain("money");
+    expect(JSON.stringify(await realUse(t.db, NOW))).not.toMatch(/revenue|cents|buyer/i);
   });
 });
 

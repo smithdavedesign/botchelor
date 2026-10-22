@@ -52,6 +52,12 @@ production, `STRIPE_ALLOW_TEST_LINK=1` for the run (remove it after: a test link
 card). On a live link (the normal state now) the purchase step is skipped, never paid. The test visitor is deleted at the end; its private date and the kept character remain until cleaned up.
 `RESOLVE=<ip>` maps the host when the local DNS cache is stale. Screenshots: `docs/screenshots/live-*.png`.
 
+## How the show is doing (`/admin/analytics`)
+
+The owner's insights dashboard: key numbers against the previous period with honest verdicts, trends, the people
+funnel, retention, top characters and venues, every MCP connection, and quality over time. What each chart means,
+where its numbers come from and what isn't tracked: docs/analytics.md.
+
 ## Monitoring (`GET /api/health`)
 
 - Public: `{ok: true}` with 200 when the app reaches its database, 503 when it can't.
