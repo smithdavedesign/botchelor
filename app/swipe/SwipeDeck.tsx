@@ -7,6 +7,7 @@ import { shortName } from "@/lib/names";
 import type { DeckCard as BaseCard, MatchView } from "@/lib/swipes";
 import type { Origin } from "@/lib/origin";
 import OriginBadge from "@/app/OriginBadge";
+import { kindLabel } from "@/lib/kinds";
 
 /** A deck card with who made it (lib/origin.ts withOrigins). */
 type DeckCard = BaseCard & { origin?: Origin };
@@ -20,6 +21,8 @@ type Props = {
 const THRESHOLD = 110;
 /** Fetch more cards when this few are left. */
 const REFILL_AT = 3;
+/** The kind badge is for anything but human (most of the cast): the label to skip. */
+const HUMAN = kindLabel({ kind: "human" });
 
 /**
  * The swipe deck (lib/swipes.ts): one card at a time, the next peeking behind it. Drag it right to like, left to pass,
@@ -263,6 +266,8 @@ function Card({ card, className, style, children, ...pointer }: CardProps) {
         <p className="swipe-badges">
           <OriginBadge origin={card.origin ?? (card.house ? "cast" : card.made_by === "agent" ? "agent" : "person")} />
           {card.house && <span className="badge">On the show this season</span>}
+          {/* What they are (lib/kinds.ts), when it's something other than human: the cross-kind deck reads at a glance. */}
+          {card.kind && card.kind !== HUMAN && <span className="badge">{card.kind}</span>}
           {/* #443: they already liked yours, so a like back is a match. A flag on this card only, never a list. */}
           {card.liked_you && <span className="badge">Liked you</span>}
         </p>

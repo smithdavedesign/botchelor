@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { characterSchema } from "@/lib/agents";
 import { assembleCharacter, characterBlindView, characterSelfView } from "@/lib/character";
 import { surpriseFill } from "@/app/create/DetailsStep";
-import { ExtrasInput, normaliseExtras, SUGGESTIONS } from "@/lib/extras";
+import { ExtrasInput, extrasForPrompt, extrasText, normaliseExtras, SUGGESTIONS } from "@/lib/extras";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { checkFields } from "@/lib/safety";
 import { api, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, startTestDb, validCharacter } from "./helpers";
@@ -248,5 +248,71 @@ describe("details for agents", () => {
     // #372: extras merge; replace_extras: true still replaces them whole.
     await call("update_character", { character_id: mine, extras: { occupation: "Escape-room designer" }, replace_extras: true }, session);
     expect((await call("get_character", { character_id: mine }, session)).structuredContent.character.extras).toEqual({ occupation: "Escape-room designer" });
+  });
+});
+
+describe("who they are: kind, archetype, here for, drawn to (lib/kinds.ts)", () => {
+  const WHO = { kind: "vampire", archetype: "mysterious_loner", here_for: "long_term", drawn_to: ["robot", "ghost"] };
+
+  it("accepts the listed values and refuses anything else", () => {
+    expect(ExtrasInput.safeParse(WHO).success).toBe(true);
+    expect(ExtrasInput.safeParse({ kind: "other", kind_label: "Lighthouse spirit" }).success).toBe(true);
+    expect(ExtrasInput.safeParse({ kind: "dragon" }).success).toBe(false);
+    expect(ExtrasInput.safeParse({ archetype: "The showman" }).success).toBe(false); // the id, not the label
+    expect(ExtrasInput.safeParse({ here_for: "marriage" }).success).toBe(false);
+    expect(ExtrasInput.safeParse({ drawn_to: ["human", "vampire", "robot", "ghost", "alien"] }).success).toBe(false);
+    expect(ExtrasInput.safeParse({ drawn_to: ["other"] }).success).toBe(false);
+    expect(ExtrasInput.safeParse({ kind: "other", kind_label: "x".repeat(31) }).success).toBe(false);
+    expect(ExtrasInput.safeParse({ kind: "vampire", species: "vampire" }).success).toBe(false);
+  });
+
+  it("keeps a label only for other, folds repeats, and one spelling per hobby", () => {
+    expect(normaliseExtras({ kind: "vampire", kind_label: "Count" } as Any)).toEqual({ kind: "vampire" });
+    expect(normaliseExtras({ kind: "other", kind_label: "  Lighthouse spirit " } as Any)).toEqual({ kind: "other", kind_label: "Lighthouse spirit" });
+    expect(normaliseExtras({ kind_label: "Orphan" } as Any)).toEqual({});
+    expect(normaliseExtras({ drawn_to: ["robot", "robot", "ghost"] } as Any)).toEqual({ drawn_to: ["robot", "ghost"] });
+    expect(normaliseExtras({ hobbies: ["Chess", "chess", "CHESS ", "Pottery"] } as Any)).toEqual({ hobbies: ["Chess", "Pottery"] });
+  });
+
+  it("is published in the character JSON Schema with its values", () => {
+    const props = (characterSchema("https://b.test") as Any).properties.extras.properties;
+    expect(props.kind.enum).toEqual(expect.arrayContaining(["human", "vampire", "robot", "other"]));
+    expect(props.archetype.enum).toContain("mysterious_loner");
+    expect(props.here_for.enum).toContain("long_term");
+    expect(props.drawn_to.items.enum).not.toContain("other");
+    expect(props.drawn_to.maxItems).toBe(4);
+  });
+
+  it("the date's writer hears what they are, their type and their goal, never who they're drawn to", () => {
+    const prompt = extrasForPrompt(normaliseExtras(WHO as Any));
+    expect(prompt).toMatchObject({ what_you_are: "Vampire", archetype: "The mysterious loner", here_for: "Something real" });
+    expect(JSON.stringify(prompt)).not.toMatch(/robot|ghost|drawn/i);
+    expect(extrasForPrompt(normaliseExtras({ kind: "human" } as Any))).not.toHaveProperty("what_you_are");
+    expect(extrasText(normaliseExtras(WHO as Any))).toMatch(/vampire/i);
+  });
+
+  it("stores and shows it; a label for other goes through the content filter", async () => {
+    const owner = newUserCookie();
+    const made = await (await api.createCharacter(validCharacter({ extras: WHO }), owner)).json();
+    expect(made.extras).toMatchObject(WHO);
+    const unsafe = await api.createCharacter(validCharacter({ extras: { kind: "other", kind_label: "Porn star" } }), newUserCookie());
+    expect(unsafe.status).toBe(422);
+    expect((await unsafe.json()).field).toBe("kind_label");
+  });
+
+  it("over MCP: set it, change kind (a stale label goes), and null clears it", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const call = async (name: string, args: Record<string, unknown>, ctx: McpContext): Promise<Any> =>
+      (await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, ctx))!.result;
+    const ctx: McpContext = {};
+    await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18" } }, ctx);
+    const session: McpContext = { sessionId: ctx.issuedSessionId };
+    const id = (await call("create_character", validCharacter({ name: "Agent Vee", extras: { kind: "other", kind_label: "Lighthouse spirit", here_for: "chaos" } }), session)).structuredContent.character.id;
+    const extras = async () => (await call("get_character", { character_id: id }, session)).structuredContent.character.extras;
+    expect(await extras()).toEqual({ kind: "other", kind_label: "Lighthouse spirit", here_for: "chaos" });
+    await call("update_character", { character_id: id, extras: { kind: "robot" } }, session);
+    expect(await extras()).toEqual({ kind: "robot", here_for: "chaos" });
+    await call("update_character", { character_id: id, extras: { kind: null } }, session);
+    expect(await extras()).toEqual({ here_for: "chaos" });
   });
 });

@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import type { ChatMessage, Model } from "@/lib/model";
 import { listNotifications } from "@/lib/notifications";
+import { findMatches } from "@/lib/dating";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { answerMatch, deckFor, matchView, myMatches, setMatchChatEnabledForTests, startMatchChat, swipe } from "@/lib/swipes";
 import { loadChain } from "@/lib/text-chain";
@@ -277,5 +278,50 @@ describe("a like that hasn't matched yet (#203)", () => {
     const both = await Promise.all([swipe(t.db, a.userId, a.id, b.id, true), swipe(t.db, b.userId, b.id, a.id, true)]);
     expect(both.some((r) => r.ok && r.match !== null)).toBe(true);
     expect((await t.db.query(`select 1 from matches`)).rows).toHaveLength(1);
+  });
+});
+
+describe("drawn to (lib/kinds.ts): a small nudge in the deck, never a filter", () => {
+  /** A person's character with the dating profile and these extras on top. */
+  async function someone(name: string, extras: Record<string, unknown>) {
+    const cookie = newUserCookie();
+    const character = await (await api.createCharacter(validCharacter({ name, open_to_dates: true, extras: { ...PROFILE, ...extras } }), cookie)).json();
+    return { cookie, userId: userIdOf(cookie), id: character.id as string };
+  }
+
+  it("puts the kind it's drawn to first among equals, still deals the rest, and says why", async () => {
+    setSeasonCastForTests([]);
+    const vamp = await someone("Vlad Nightly", { kind: "vampire" });
+    const robo = await someone("Robo Tinker", { kind: "robot" });
+    const plain = await someone("Wren Plain", {});
+    const plainDeck = await deckFor(t.db, plain.userId, plain.id);
+    if (!plainDeck.ok) throw new Error(plainDeck.message);
+    expect(plainDeck.scores[vamp.id]).toBe(plainDeck.scores[robo.id]); // without drawn-to, nothing between them
+
+    const me = await someone("Mira Drawn", { drawn_to: ["vampire"] });
+    const deck = await deckFor(t.db, me.userId, me.id);
+    if (!deck.ok) throw new Error(deck.message);
+    const ids = deck.cards.map((c) => c.id);
+    expect(ids).toEqual(expect.arrayContaining([vamp.id, robo.id, plain.id])); // nobody hidden
+    expect(ids.indexOf(vamp.id)).toBeLessThan(ids.indexOf(robo.id));
+    expect(deck.scores[vamp.id] - deck.scores[robo.id]).toBeCloseTo(1.5);
+    const card = deck.cards.find((c) => c.id === vamp.id)!;
+    expect(card.kind).toBe("🧛 Vampire");
+    expect(card.why.join(" ")).toMatch(/drawn to vampires/);
+    expect(deck.cards.find((c) => c.id === robo.id)!.why.join(" ")).not.toMatch(/drawn to/);
+
+    // find_matches (and a person's character's answer to a match) rank as they always did.
+    const found = await findMatches(t.db, me.userId, me.id, 20);
+    const score = (id: string) => found!.matches.find((m) => m.id === id)!.score;
+    expect(score(vamp.id)).toBe(score(robo.id));
+  });
+
+  it("a shared pastime counts however it's spelled", async () => {
+    setSeasonCastForTests([]);
+    const climber = await someone("Kit Crag", { hobbies: ["Bouldering", "Old maps"] });
+    const other = await someone("Ash Ledge", { hobbies: ["rock climbing", "Hiking"] });
+    const found = await findMatches(t.db, climber.userId, climber.id, 20);
+    const m = found!.matches.find((x) => x.id === other.id)!;
+    expect(m.why.join(" ")).toMatch(/you both love rock climbing/);
   });
 });

@@ -1,4 +1,5 @@
 import { promptLabel, SAMPLE_LINES, TELLS, type CharacterExtras } from "@/lib/extras";
+import { archetypeLabel, goalLabel, kindLabel, kindName } from "@/lib/kinds";
 
 const STAR_GLYPH: Record<string, string> = {
   Aries: "♈", Taurus: "♉", Gemini: "♊", Cancer: "♋", Leo: "♌", Virgo: "♍", Libra: "♎", Scorpio: "♏", Sagittarius: "♐", Capricorn: "♑",
@@ -24,6 +25,10 @@ function Facts({ rows }: { rows: [string, string | undefined][] }) {
 export default function ProfileDetails({ extras: e, owner = false }: { extras: CharacterExtras; owner?: boolean }) {
   const facts = (e.facts ?? []).filter((f) => owner || !f.private);
   const chips = [
+    kindLabel(e),
+    e.archetype ? `🎭 ${archetypeLabel(e.archetype)}` : null,
+    e.here_for ? `🎯 ${goalLabel(e.here_for)}` : null,
+    e.drawn_to?.length ? `💘 Into ${e.drawn_to.map((k) => kindName(k).toLowerCase()).join(", ")}` : null,
     e.star_sign ? `${STAR_GLYPH[e.star_sign] ?? "✦"} ${e.star_sign}` : null,
     e.love_language ? `💬 ${e.love_language}` : null,
     ...(e.hobbies ?? []),

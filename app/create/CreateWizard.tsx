@@ -18,6 +18,7 @@ import FactsStep from "./FactsStep";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
 import { hasExtras, LOVE_LANGUAGES, normaliseExtras, promptLabel, sampleLineLabel, tellLabel, TEXT_DETAILS, type CharacterExtras, profileComplete } from "@/lib/extras";
+import { archetypeLabel, goalLabel, kindLabel, kindName } from "@/lib/kinds";
 import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
 import { DEFAULT_FORMAT, FORMATS, type FormatId } from "@/lib/formats";
 import { trackConversion } from "@/app/conversion";
@@ -972,6 +973,13 @@ function ReviewExtras({ extras }: { extras: CharacterExtras }) {
   for (const [k, { label }] of Object.entries(TEXT_DETAILS) as [keyof typeof TEXT_DETAILS, { label: string }][]) {
     if (e[k]) rows.push([label, e[k]!]);
   }
+  const kind = kindLabel(e);
+  if (kind) rows.push(["What they are", kind]);
+  const archetype = archetypeLabel(e.archetype);
+  if (archetype) rows.push(["The type they play", archetype]);
+  const goal = goalLabel(e.here_for);
+  if (goal) rows.push(["Here for", goal]);
+  if (e.drawn_to?.length) rows.push(["Drawn to", e.drawn_to.map(kindName).join(", ")]);
   if (e.star_sign) rows.push(["Star sign", e.star_sign]);
   if (e.love_language && (LOVE_LANGUAGES as readonly string[]).includes(e.love_language)) rows.push(["Love language", e.love_language]);
   if (e.hobbies?.length) rows.push(["Hobbies", e.hobbies.join(", ")]);

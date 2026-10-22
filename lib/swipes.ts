@@ -22,6 +22,7 @@ import { seedFrom } from "./engine";
 import { factLine, PROFILE_PROMPTS, profileComplete, profileMissing } from "./extras";
 import { inlineGenerationEnabled } from "./jobs";
 import { isHouseBotAgent } from "./house-bots";
+import { archetypeLabel, drawnToBoost, goalLabel, kindLabel, kindName } from "./kinds";
 import { getModel, type ChatMessage, type Model } from "./model";
 import { shortName } from "./names";
 import { notify } from "./notifications";
@@ -55,6 +56,10 @@ export type DeckCard = {
   hometown: string | null;
   prompts: { prompt: string; answer: string }[];
   interests: string[];
+  /** What they are, the type they play and what they're here for (lib/kinds.ts), as shown; null when unsaid. */
+  kind: string | null;
+  archetype: string | null;
+  here_for: string | null;
   /** Its creator's public facts, as "Label: value". */
   facts: string[];
   portrait: string | null;
@@ -103,6 +108,9 @@ function toCard(p: DatingProfile, why: string[], likedYou = false): DeckCard {
     hometown: p.extras.hometown ?? null,
     prompts: (p.extras.prompts ?? []).map((q) => ({ prompt: promptLabel.get(q.id) ?? q.id, answer: q.answer })),
     interests: p.extras.hobbies ?? [],
+    kind: kindLabel(p.extras),
+    archetype: archetypeLabel(p.extras.archetype),
+    here_for: goalLabel(p.extras.here_for),
     facts: (p.extras.facts ?? []).map(factLine), // public only: the profile came through toProfile
     portrait: p.portrait,
     hue: p.hue,
@@ -179,7 +187,15 @@ export async function deckFor(db: Db, userId: string, characterId: string, limit
     db.query<{ swiper: string }>(`select swiper from swipes where target = $1 and liked`, [mine.id]),
   ]);
   const likedMine = new Set(likers.rows.map((r) => r.swiper));
-  const boost = (id: string) => (likedMine.has(id) ? 2 : 0);
+  // Drawn-to (lib/kinds.ts): a small nudge toward the kinds this character is into. Only the deck's order: rankFor also
+  // decides a person's character's answer to a match and find_matches, which stay as they were. Never a filter.
+  const drawnTo = toProfile(mine).extras.drawn_to ?? [];
+  const kindOf = new Map(pool.map((p) => [p.id, p.extras.kind ?? null]));
+  const boost = (id: string) => (likedMine.has(id) ? 2 : 0) + drawnToBoost(drawnTo, kindOf.get(id));
+  for (const m of ranked) {
+    const kind = kindOf.get(m.id);
+    if (drawnToBoost(drawnTo, kind)) m.why.push(`${shortName(mine.name)} is drawn to ${kindName(kind!).toLowerCase()}s`);
+  }
   ranked.sort((a, b) => b.score + boost(b.id) - (a.score + boost(a.id)));
   const dealt = ranked.slice(0, Math.max(1, Math.min(30, limit)));
   return {

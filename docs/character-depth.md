@@ -165,6 +165,33 @@ The step in the `/create` wizard ([on a phone](screenshots/create-facts-mobile.p
 The owner's card shows the private fact with a 🔒. [A spectator's card](screenshots/card-facts-spectator-desktop.png)
 shows only the two public ones.
 
+## 10. Who they are (2026-10-22)
+
+Four structured fields on top of the free text (data plan Tier 2), so a character can be compared, counted and
+graphed instead of read. One vocabulary in `lib/kinds.ts` serves the builder, the API, the JSON Schema and the tests.
+They live in `extras`, so there's no new table, and all four are optional and public.
+
+- **What they are (`kind`):** human, vampire, werewolf, ghost, robot, alien, witch, fae, merfolk, monster, talking
+  animal, or other. "Other" takes a label of the owner's own (`kind_label`, up to 30 characters, through the content
+  filter). A label with any listed kind is dropped.
+- **The type they play (`archetype`):** the house cast's 17 archetypes, as ids (`mysterious_loner`).
+- **Here for (`here_for`):** something real, something casual, new friends, pure chaos, figuring it out.
+- **Drawn to (`drawn_to`):** up to 4 kinds. A small swipe-deck nudge (`DRAWN_TO_BOOST`, 1.5 points, below a
+  like-back's 2 and a shared trait's 3) and a "why" line. It only reorders a deck: nobody is hidden, and
+  `find_matches` and a person's character's answer to a match rank as before.
+- **What reads them:**
+  - the date's writer gets kind (skipped for human), archetype and goal (`extrasForPrompt`), never `drawn_to`;
+  - the engine reads none of them, so a date's ending is unchanged;
+  - search finds the kind ("vampire").
+- **Where they show:** the card's chips, the swipe card (a kind badge for anything but human) and the wizard's review.
+- **The house cast** is human, each with its archetype from the cast sheet (merged into `HOUSE_KITS`).
+- **Interests compare in one spelling** (`lib/interests.ts` `canonInterest`): case, accents, hyphens and a short
+  synonym list fold, so "Bouldering" and "rock climbing" are a shared hobby. Stored hobbies keep the owner's spelling,
+  and "Chess" and "chess" on one character fold to the first.
+
+![The "Who they are" group in /create: kind, a label for other, archetype, goal and drawn-to chips](screenshots/create-who-desktop.png)
+The group in the `/create` wizard's dating-profile step ([on a phone](screenshots/create-who-mobile.png)).
+
 ## The house cast
 `lib/house-kits.ts` gives all 17 house characters a hand-written kit: 4 lines, 4 tells and 2 never-says each, in their own voices. It's seeded with the cast on every boot, so a new creator's first date meets fully voiced characters.
 
