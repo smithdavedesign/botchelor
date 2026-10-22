@@ -91,7 +91,14 @@ async function tick() {
         ], 1500);
         // Marked replied only once a text actually went: an empty model reply (it reasons first) used to leave the
         // thread unanswered for good (2026-10-20 visitors: "the bot never texted back").
-        const sent = reply ? await tool("send_text", { character_id: me.id, to: other, text: reply.slice(0, 600) }).then(() => true).catch((e) => (log("send_text", e), false)) : false;
+        // As in crowd.mjs (2026-10-22-0400): they may have texted again while the model wrote this, and a reply to the
+        // older text reads as off-topic under the newer one. Then it isn't sent, and the next pass answers the newest.
+        const now = ((await tool("read_texts", { character_id: me.id, with: other }).catch(() => ({ items: [] }))).items ?? [])
+          .filter((i) => typeof i.text === "string" && i.from !== "show")
+          .at(-1);
+        const stale = Boolean(now && now.from === "them" && `${now.id}` !== last);
+        if (reply && stale) log("send_text", "skipped, they texted meanwhile");
+        const sent = reply && !stale ? await tool("send_text", { character_id: me.id, to: other, text: reply.slice(0, 600) }).then(() => true).catch((e) => (log("send_text", e), false)) : false;
         if (sent) repliedTo.set(other, last);
       }
       if (!answered.has(`${me.id}:${other}`) && m.you == null) {
