@@ -52,7 +52,7 @@ import {
   type Newcomer,
 } from "@/lib/insights";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import { SYSTEM_ID } from "@/lib/our-traffic";
+import { loadOurIds, SYSTEM_ID } from "@/lib/our-traffic";
 import { saveQualityRun } from "@/lib/quality-runs";
 import { MIN_N as REAL_MIN_N, saveSimRating } from "@/lib/real-metrics";
 import type { Ending } from "@/lib/rules";
@@ -352,6 +352,28 @@ describe("our own traffic", () => {
     expect(kpi(all, "dates_started").current).toBe(2);
     expect(kpi(all, "mcp_agents").current).toBe(1);
     expect(kpi(all, "new_people").current).toBe(2); // the admin now; never "system" or an agent
+  });
+
+  it("counts the owners of our scripts' and tests' characters as ours (the 2026-10-14 harness run on production)", async () => {
+    const named = (id: string, owner: string, name: string) =>
+      t.db.query(
+        `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, created_via, created_at, visibility)
+         values ($1, $2, false, $3, 30, 'A bio.', '[]'::jsonb, 'Love.', 'Rudeness.', 'web', $4, 'public')`,
+        [id, owner, name, at("2026-10-16")],
+      );
+    await named("fixture", "fresh-browser-1", "Mira Quell");
+    await named("tester", "fresh-browser-2", "Quinn Tester");
+    await named("testwell", "fresh-browser-3", "Planna Testwell");
+    await named("person", "person-x", "Juniper Testarossa"); // a real name that only starts like "test"
+    await date("fresh-browser-1", "fixture", HOUSE_A, "2026-10-16");
+
+    const ours = await loadOurIds(t.db);
+    expect(ours).toEqual(expect.arrayContaining(["fresh-browser-1", "fresh-browser-2", "fresh-browser-3"]));
+    expect(ours).not.toContain("person-x");
+    const out = await loadInsights(t.db, WEEK, NOW);
+    expect(kpi(out, "characters").current).toBe(1);
+    expect(kpi(out, "new_people").current).toBe(1);
+    expect(kpi(out, "dates_started").current).toBe(0);
   });
 });
 
