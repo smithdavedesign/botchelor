@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { allowedModels, EVAL_MAX_STEPS, MEMORY_MODES, runAfterDarkEval } from "@/lib/adult/eval";
+import { allowedModels, EVAL_MAX_STEPS, EVAL_RUN_MAX_USD, evalDailyBudget, evalSpentToday, MEMORY_MODES, runAfterDarkEval } from "@/lib/adult/eval";
 import { PROMPT_VERSIONS } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
@@ -24,16 +24,24 @@ const Body = z.object({
 /**
  * Internal: After Dark's A/B (lib/adult/eval.ts). Runs `steps` steps of the production scene step from an empty scene
  * for a pair, on a prompt version, model, temperature and memory mode, and returns the lines with their private notes,
- * the metrics (lib/adult/quality.ts), what was dropped, the refusals and what it cost. Writes nothing. Same gate as the
- * job routes and /api/jobs/eval (404 unless authorized: Authorization: Bearer CRON_SECRET).
+ * the metrics (lib/adult/quality.ts), what was dropped, the refusals and what it cost. Writes nothing but its spend, and
+ * keeps to a budget: at most $0.25 a run and AD_EVAL_DAILY_USD (else $2) a UTC day, then 429 eval_budget. Same gate as
+ * the job routes and /api/jobs/eval (404 unless authorized: Authorization: Bearer CRON_SECRET).
  *
  * Body: { a, b, promptVersion: "v1" | "v2", model?, temperature?, steps: 1..8, memory: "live" | "none" | "extracted",
- * direction?: string[] }. GET lists the models, memory modes and versions it takes.
+ * direction?: string[] }. GET lists the models, memory modes and versions it takes, and today's budget.
  */
 export const GET = handle(async (req: Request) => {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
   const db = await getDb();
-  return json({ models: await allowedModels(db), memory: MEMORY_MODES, prompt_versions: PROMPT_VERSIONS, max_steps: EVAL_MAX_STEPS });
+  const today = await evalSpentToday(db, new Date());
+  return json({
+    models: await allowedModels(db),
+    memory: MEMORY_MODES,
+    prompt_versions: PROMPT_VERSIONS,
+    max_steps: EVAL_MAX_STEPS,
+    budget: { run_usd: EVAL_RUN_MAX_USD, daily_usd: evalDailyBudget(), spent_today_usd: today.usd, runs_today: today.runs, day: today.day },
+  });
 });
 
 export const POST = handle(async (req: Request) => {
