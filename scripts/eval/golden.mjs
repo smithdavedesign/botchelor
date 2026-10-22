@@ -24,7 +24,8 @@
  *   --cases id,id          a subset of the suite's cases (default: all)
  *   --repeat N             samples per case, 1 to 5 (default 1)
  *   --steps N              After Dark scene steps per sample, 1 to 8 (default 4); direction[i] steers step i+1
- *   --memory live|none     After Dark memory for both configs unless a config sets its own (default live)
+ *   --memory live|none|extracted  After Dark memory for both configs unless a config sets its own (default live);
+ *                          extracted runs the fact extractor in memory over the pair's stored chapters (nothing saved)
  *   --judge-model alias    a LOCAL LiteLLM alias (default local-uncensored for After Dark, local-qwen3 for dates)
  *   --judge-base url       LiteLLM's OpenAI-compatible base (default http://127.0.0.1:4000/v1); key from
  *                          $LITELLM_MASTER_KEY or the keychain's litellm-master-key, never printed
@@ -53,6 +54,8 @@ import { createLocalJudge, litellmKey, LocalJudgeError } from "./local-judge.mjs
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const CASES_FILE = join(ROOT, "scripts", "eval", "golden-cases.json");
 export const AD_ROUTE = "/api/jobs/eval-after-dark";
+/** The route's memory modes: real memories and facts, none, or facts extracted in memory from the pair's stored chapters. */
+export const AD_MEMORY = ["live", "none", "extracted"];
 export const DATES_ROUTE = "/api/jobs/eval";
 /** A scene step on the After Dark route's model is about $0.001 (docs/after-dark-costs.md): budgeted at three times that. */
 export const AD_STEP_USD = 0.003;
@@ -71,6 +74,14 @@ export class GoldenRefusal extends Error {
   constructor(message) {
     super(message);
     this.name = "GoldenRefusal";
+  }
+}
+
+/** The After Dark route's own budget for the day is spent (429 eval_budget): no later call runs today, so the run stops. */
+export class RouteBudgetSpent extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "RouteBudgetSpent";
   }
 }
 
@@ -548,6 +559,11 @@ async function callAfterDark({ base, secret, kase, config, opts, fetchImpl, slee
   };
   const res = await postJson(fetchImpl, `${base}${AD_ROUTE}`, body, { authorization: `Bearer ${secret}` }, sleep, 30_000);
   if (res.status === 404 && !isJson(res)) throw new GoldenRefusal(routeMissing(base));
+  if (res.status === 429) {
+    const refused = await res.json().catch(() => null);
+    if (refused?.error === "eval_budget") throw new RouteBudgetSpent(String(refused.message ?? "the eval route's budget for today is spent"));
+    throw new Error(`HTTP 429: ${JSON.stringify(refused).slice(0, 200)}`);
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);
   const out = await res.json();
   const lines = (Array.isArray(out?.lines) ? out.lines : []).map((l) => ({
@@ -558,7 +574,12 @@ async function callAfterDark({ base, secret, kase, config, opts, fetchImpl, slee
     memory: l?.memory ?? null,
     stage: num(l?.stage),
   }));
-  if (!lines.length) throw new Error("the route wrote no lines");
+  if (!lines.length) {
+    // Say why (2026-10-21: twelve runs read "no lines" when OpenRouter's credit had run out: HTTP 402 on every step).
+    const stepError = (Array.isArray(out?.steps) ? out.steps : []).map((s) => s?.error).find(Boolean);
+    const why = [stepError, out?.stopped, ...(Array.isArray(out?.extraction_errors) ? out.extraction_errors : [])].filter(Boolean)[0];
+    throw new Error(`the route wrote no lines${why ? `: ${String(why).slice(0, 200)}` : ""}`);
+  }
   const rawMetrics = out?.metrics && typeof out.metrics === "object" ? out.metrics : {};
   const extra = {};
   if (!("refusals" in rawMetrics) && out?.refusals !== undefined) extra.refusals = out.refusals;
@@ -687,7 +708,7 @@ export function parseConfig(text, name = "config") {
   if (cfg.promptVersion !== undefined && !/^v\d+$/.test(String(cfg.promptVersion))) throw new Error(`--${name}: promptVersion is v1, v2, …`);
   if (cfg.model !== undefined && (typeof cfg.model !== "string" || !cfg.model.trim() || cfg.model.length > 120)) throw new Error(`--${name}: model is a model name`);
   if (cfg.temperature !== undefined && !(num(cfg.temperature) !== null && cfg.temperature >= 0 && cfg.temperature <= 2)) throw new Error(`--${name}: temperature is 0 to 2`);
-  if (cfg.memory !== undefined && !["live", "none"].includes(cfg.memory)) throw new Error(`--${name}: memory is live or none`);
+  if (cfg.memory !== undefined && !AD_MEMORY.includes(cfg.memory)) throw new Error(`--${name}: memory is live, none or extracted`);
   return cfg;
 }
 
@@ -766,7 +787,7 @@ export function parseArgs(argv) {
   };
   if (opts.repeat === null) throw new Error("--repeat is 1 to 5");
   if (opts.steps === null) throw new Error("--steps is 1 to 8");
-  if (!["live", "none"].includes(opts.memory)) throw new Error("--memory is live or none");
+  if (!AD_MEMORY.includes(opts.memory)) throw new Error("--memory is live, none or extracted");
   if (!(opts.maxUsd >= 0)) throw new Error("--max-usd is a number of dollars");
   if (!(opts.stepUsd >= 0)) throw new Error("--step-usd is a number of dollars");
   if (!(opts.gap >= 0)) throw new Error("--gap is a number of seconds");
@@ -859,6 +880,8 @@ export async function runGolden(opts, deps = {}) {
   const runs = [];
   let spent = 0;
   let budgetStopped = false;
+  /** The route's own refusal when its daily budget ran out mid-run (After Dark), else null. */
+  let routeBudget = null;
   outer: for (const kase of cases) {
     for (let sample = 0; sample < opts.repeat; sample++) {
       const order = hash(`${opts.label}:${kase.id}:${sample}:run`) % 2 ? ["b", "a"] : ["a", "b"];
@@ -879,6 +902,12 @@ export async function runGolden(opts, deps = {}) {
           run = { case: kase.id, sample, arm, ok: true, ms: Date.now() - t0, ...out };
         } catch (e) {
           if (e instanceof GoldenRefusal) throw e;
+          if (e instanceof RouteBudgetSpent) {
+            budgetStopped = true;
+            routeBudget = e.message;
+            log(`golden: stopping: ${e.message}`);
+            break outer;
+          }
           run = { case: kase.id, sample, arm, ok: false, error: String(e instanceof Error ? e.message : e).slice(0, 300), ms: Date.now() - t0, cost_usd: null };
         }
         runs.push(run);
@@ -930,7 +959,7 @@ export async function runGolden(opts, deps = {}) {
     verdict.passed = false;
   }
   if (budgetStopped) {
-    verdict.reasons.push("stopped early at --max-usd, so not every case ran");
+    verdict.reasons.push(routeBudget ? "stopped early: the route's budget for today is spent, so not every case ran" : "stopped early at --max-usd, so not every case ran");
     verdict.passed = false;
   }
   const costOf = (arm) => round(runs.filter((r) => r.arm === arm).reduce((s, r) => s + (r.cost_usd ?? 0), 0), 4);
@@ -948,6 +977,7 @@ export async function runGolden(opts, deps = {}) {
     cost_usd: { a: costOf("a"), b: costOf("b"), total: round(costOf("a") + costOf("b"), 4), unpriced: runs.filter((r) => r.cost_usd === null || r.cost_usd === undefined).length },
     spent_usd: round(spent, 4),
     budget_stopped: budgetStopped,
+    route_budget: routeBudget,
     judge_stopped: judgeStopped,
     summary,
     deltas,
@@ -1008,7 +1038,7 @@ export function renderMarkdown(r) {
   } else out.push(r.options.judge ? "No sample was judged both ways round." : "Not judged (--no-judge).", "");
   if (s.unjudged) out.push(`${s.unjudged} sample${s.unjudged === 1 ? "" : "s"} had no verdict from one of the passes.`, "");
   if (r.judge_stopped) out.push(`The judge stopped: ${r.judge_stopped}`, "");
-  if (r.budget_stopped) out.push(`Stopped early: the next route call would have taken the spend past $${r.options.max_usd}.`, "");
+  if (r.budget_stopped) out.push(r.route_budget ? `Stopped early: ${r.route_budget}` : `Stopped early: the next route call would have taken the spend past $${r.options.max_usd}.`, "");
   out.push(`**Gate:** ${r.gate.passed ? "passed" : "failed"}${r.gate_requested ? "" : " (not enforced: run with --gate)"}`);
   for (const why of r.gate.reasons) out.push(`- ${why}`);
   out.push("");

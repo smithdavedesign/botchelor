@@ -3,9 +3,13 @@
  * of exactly the step production runs (lib/adult/scenes.ts writeSceneStep), from an empty scene where the pair's latest
  * date ended, on a chosen prompt, model, temperature and memory, and measures the lines (lib/adult/quality.ts).
  *
- * It writes NOTHING: no scene, no facts, no pictures, no sets to draw, no usage count; a cited fact's uses go up in
- * memory only, as production's would. It does spend, on After Dark's own OpenRouter key like production: one call a
- * step (two at most, when every line had to go), and with memory "extracted" one more per chunk of stored lines.
+ * It writes NOTHING but its own spend: no scene, no facts, no pictures, no sets to draw, no usage count; a cited fact's
+ * uses go up in memory only, as production's would. It does spend, on After Dark's own OpenRouter key like production:
+ * one call a step (two at most, when every line had to go), and with memory "extracted" one more per chunk of stored
+ * lines. So it has a budget (botchelor-41, 2026-10-21: "so a run can't drain the balance that live scenes need"): at
+ * most EVAL_RUN_MAX_USD a run, and all of a day's runs (UTC) together at most AD_EVAL_DAILY_USD, else $2. A run holds
+ * its share of the day before its first call (adult_eval_spend), so runs side by side can't overshoot together, stops
+ * starting calls once it has spent what it holds, and books what it really cost when it's done.
  *
  * Memory:
  *  - "none": nothing remembered (no memories, no facts);
@@ -55,6 +59,43 @@ export const EXTRACT_CHUNKS = 3;
 /** Each call's patience, and when no new call starts: inside the route's 300 s even if the last one runs its full time. */
 const CALL_TIMEOUT_MS = 90_000;
 const START_BY_MS = 200_000;
+/** The budget (see the top of this file): what one run may spend, a day's default, and too little left to start on. */
+export const EVAL_RUN_MAX_USD = 0.25;
+export const EVAL_DAILY_USD = 2;
+const EVAL_MIN_HOLD_USD = 0.01;
+
+/** The day's budget: AD_EVAL_DAILY_USD when it's a number of dollars (0 stops the eval), else EVAL_DAILY_USD. */
+export function evalDailyBudget(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.AD_EVAL_DAILY_USD?.trim();
+  const v = raw ? Number(raw) : NaN;
+  return Number.isFinite(v) && v >= 0 ? v : EVAL_DAILY_USD;
+}
+
+const dayOf = (now: Date) => now.toISOString().slice(0, 10);
+
+/** What the eval has spent today (UTC), held runs included, and how many runs started. */
+export async function evalSpentToday(db: Db, now: Date): Promise<{ day: string; usd: number; runs: number }> {
+  const day = dayOf(now);
+  const row = (await db.query<{ usd: number; runs: number }>(`select usd, runs from adult_eval_spend where day = $1`, [day])).rows[0];
+  return { day, usd: Number(row?.usd ?? 0), runs: Number(row?.runs ?? 0) };
+}
+
+export type EvalHold = { day: string; held: number };
+
+/** Holds up to EVAL_RUN_MAX_USD of today's budget for one run, atomically; null when too little of it is left. */
+export async function holdEvalBudget(db: Db, budget: number, now: Date): Promise<EvalHold | null> {
+  const { day, usd } = await evalSpentToday(db, now);
+  const held = Math.round(Math.min(EVAL_RUN_MAX_USD, budget - usd) * 1e6) / 1e6;
+  if (held < EVAL_MIN_HOLD_USD) return null;
+  await db.query(`insert into adult_eval_spend (day) values ($1) on conflict (day) do nothing`, [day]);
+  const { rows } = await db.query(`update adult_eval_spend set usd = round((usd + $2)::numeric, 6)::float8, runs = runs + 1 where day = $1 and usd + $2 <= $3 returning usd`, [day, held, budget + 1e-9]);
+  return rows.length ? { day, held } : null;
+}
+
+/** Books a run's real cost in place of what it held. */
+export async function settleEvalBudget(db: Db, hold: EvalHold, spent: number): Promise<void> {
+  await db.query(`update adult_eval_spend set usd = greatest(0, round((usd - $2 + $3)::numeric, 6))::float8 where day = $1`, [hold.day, hold.held, spent]);
+}
 
 export type EvalRequest = {
   a: string;
@@ -86,10 +127,12 @@ export type EvalResult = {
   dropped: (DroppedLine & { step: number })[];
   refusals: { step: number; kind: "reply" | "line"; text: string }[];
   usage: { calls: number; input_tokens: number; output_tokens: number; cost_usd: number | null; cost_source: "openrouter" | "price_table" | null };
-  /** Why it stopped short of the steps asked for: time (the route's limit), or the model not answering. */
-  stopped: null | "time" | "model_error";
+  /** Why it stopped short of the steps asked for: time (the route's limit), the model not answering, or its budget. */
+  stopped: null | "time" | "model_error" | "budget";
   /** Extraction calls that failed ("extracted" only). */
   extraction_errors: string[];
+  /** What this run could spend, the day's budget, and what's been spent today with this run booked. */
+  budget: { run_usd: number; daily_usd: number; spent_today_usd: number };
 };
 
 export type EvalOutcome = { ok: true; result: EvalResult } | { ok: false; status: number; error: string; message: string; allowed?: string[] };
@@ -150,7 +193,7 @@ function evalLine(step: number, l: SceneLine, names: { a: string; b: string }, l
   };
 }
 
-/** Runs one eval (see the top of this file). Reads, calls the model, and returns; never writes. */
+/** Runs one eval (see the top of this file). Reads, calls the model, and returns; writes only its spend. */
 export async function runAfterDarkEval(db: Db, req: EvalRequest, clock: () => number = Date.now): Promise<EvalOutcome> {
   const started = clock();
   const owner = await firstAdmin(db);
@@ -165,6 +208,47 @@ export async function runAfterDarkEval(db: Db, req: EvalRequest, clock: () => nu
   const steers = (req.direction ?? []).map((d) => d.trim().slice(0, 300));
   if (steers.some((d) => d && !checkAdultText({ direction: d }).ok)) return { ok: false, status: 422, error: "steer_refused", message: "A steer crosses one of the two lines (nobody under 18, no real people)." };
   if (!(await adultTextReady(db))) return { ok: false, status: 503, error: "no_model", message: "After Dark has no OpenRouter key saved here, so there's no model to run." };
+  const daily = evalDailyBudget();
+  const hold = await holdEvalBudget(db, daily, new Date(clock()));
+  if (!hold) {
+    const today = await evalSpentToday(db, new Date(clock()));
+    return {
+      ok: false,
+      status: 429,
+      error: "eval_budget",
+      message: `The eval's budget for today is spent: $${today.usd.toFixed(2)} of $${daily.toFixed(2)} over ${today.runs} runs (UTC days; AD_EVAL_DAILY_USD sets it). It starts again at midnight UTC.`,
+    };
+  }
+  const usage: Usage[] = [];
+  // OpenRouter says what every call cost (usage accounting) and the price table covers the shortlist, so a call with
+  // neither is the local model's (ADULT_MODE, no key), which is free.
+  const spent = () => evalCost(usage, modelId).cost_usd ?? 0;
+  try {
+    return await evalRun(db, req, { owner, pair, settings, modelId, steers, usage, spent, hold, daily }, clock, started);
+  } finally {
+    await settleEvalBudget(db, hold, spent()).catch(() => {});
+  }
+}
+
+/** The run itself, once its budget is held: steps until done, out of time, out of its budget, or the model's gone. */
+async function evalRun(
+  db: Db,
+  req: EvalRequest,
+  run: {
+    owner: string;
+    pair: [string, string];
+    settings: Awaited<ReturnType<typeof getAdultSettings>>;
+    modelId: string;
+    steers: string[];
+    usage: Usage[];
+    spent: () => number;
+    hold: EvalHold;
+    daily: number;
+  },
+  clock: () => number,
+  started: number,
+): Promise<EvalOutcome> {
+  const { owner, pair, settings, modelId, steers, usage, spent, hold } = run;
   // On the admin's own machine with no OpenRouter key (ADULT_MODE=1), this is the local model whatever `model` says.
   const model = await adultModel(db, process.env, { model: modelId, timeoutMs: CALL_TIMEOUT_MS, retryDelaysMs: [] });
 
@@ -172,14 +256,18 @@ export async function runAfterDarkEval(db: Db, req: EvalRequest, clock: () => nu
   const ctx = await stepContext(db, owner, aId, bId, { memories: req.memory !== "none", facts: req.memory === "live" });
   if (!ctx.a || !ctx.b) return { ok: false, status: 404, error: "not_in_after_dark", message: "One of them isn't a character any more." };
   const names = { a: ctx.a.name, b: ctx.b.name };
-  const usage: Usage[] = [];
   let calls = 0;
+  let stopped: EvalResult["stopped"] = null;
   const extraction_errors: string[] = [];
   let facts: AdultFact[] = req.memory === "live" ? ctx.facts : [];
   if (req.memory === "extracted") {
     let n = 0;
     for (const chunk of await storedChunks(db, owner, aId, bId)) {
       if (clock() - started > START_BY_MS) break;
+      if (spent() >= hold.held) {
+        stopped = "budget";
+        break;
+      }
       calls++;
       const incoming = await extractFacts(model, ctx.a, ctx.b, chunk.lines, {
         onUsage: (u) => usage.push(u),
@@ -203,10 +291,13 @@ export async function runAfterDarkEval(db: Db, req: EvalRequest, clock: () => nu
   let refusedElsewhere = 0;
   // v2.1: lines its guard cut or dropped for a worn phrase, which the kept lines can't show (lib/adult/quality.ts worn_phrases_cut).
   let wornCut = 0;
-  let stopped: EvalResult["stopped"] = null;
   for (let i = 0; i < req.steps; i++) {
     if (clock() - started > START_BY_MS) {
       stopped = "time";
+      break;
+    }
+    if (spent() >= hold.held) {
+      stopped = "budget";
       break;
     }
     const step = await writeSceneStep({
@@ -273,6 +364,9 @@ export async function runAfterDarkEval(db: Db, req: EvalRequest, clock: () => nu
     start: ctx.date?.setting ?? null,
     wornCut,
   });
+  // Today's spend with this run booked at what it cost rather than what it held (the route settles it just after).
+  const today = await evalSpentToday(db, new Date(clock()));
+  const budget = { run_usd: hold.held, daily_usd: run.daily, spent_today_usd: Math.round(Math.max(0, today.usd - hold.held + spent()) * 1e6) / 1e6 };
   return {
     ok: true,
     result: {
@@ -291,6 +385,7 @@ export async function runAfterDarkEval(db: Db, req: EvalRequest, clock: () => nu
       usage: { ...evalCost(usage, modelId), calls },
       stopped,
       extraction_errors,
+      budget,
     },
   };
 }

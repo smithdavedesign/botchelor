@@ -257,6 +257,9 @@ describe("options", () => {
     expect(() => parseConfig('{"prompt":"v2"}', "a")).toThrow(/unknown key prompt/);
     expect(() => parseConfig("temperature=7", "b")).toThrow(/temperature is 0 to 2/);
     expect(() => parseConfig("promptVersion=two", "b")).toThrow(/promptVersion/);
+    // The route's third memory mode: facts extracted in memory from the pair's stored chapters (nothing saved).
+    expect(parseConfig('{"promptVersion":"v2","memory":"extracted"}', "b")).toMatchObject({ memory: "extracted" });
+    expect(() => parseConfig('{"memory":"some"}', "b")).toThrow(/live, none or extracted/);
   });
 
   it("the committed golden set: the four After Dark pairs, each with a scripted steer, and the date eval's cases", () => {
@@ -278,8 +281,9 @@ type Body = Record<string, unknown>;
 type Call = { url: string; method: string; headers: Record<string, string>; body: Body | null };
 
 /** Fake routes: the After Dark eval route and the date eval route, B's transcripts marked "B-LINE". */
-function fakeRoutes(o: { missing?: boolean; costUsd?: number | null; quota?: string; failB?: boolean } = {}) {
+function fakeRoutes(o: { missing?: boolean; costUsd?: number | null; quota?: string; failB?: boolean; budgetAfter?: number } = {}) {
   const calls: Call[] = [];
+  let adPosts = 0;
   const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     const headers = Object.fromEntries(Object.entries((init?.headers as Record<string, string>) ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
@@ -291,6 +295,8 @@ function fakeRoutes(o: { missing?: boolean; costUsd?: number | null; quota?: str
     if (pathname === "/api/jobs/eval-after-dark") {
       if (o.missing) return new Response("<!doctype html><title>404</title>", { status: 404, headers: { "content-type": "text/html" } });
       if (method !== "POST") return new Response(null, { status: 405 });
+      if (o.budgetAfter !== undefined && ++adPosts > o.budgetAfter)
+        return Response.json({ error: "eval_budget", message: "The eval's budget for today is spent: $2.00 of $2.00 over 9 runs (UTC days; AD_EVAL_DAILY_USD sets it). It starts again at midnight UTC." }, { status: 429 });
       const b = body!.promptVersion === "v2";
       if (b && o.failB) return Response.json({ error: "model_unavailable" }, { status: 422 });
       const tag = b ? "B-LINE" : "A-LINE";
@@ -453,6 +459,16 @@ describe("a whole After Dark run against fake routes and a fake judge", () => {
     expect(r.budget_stopped).toBe(true);
     expect(r.spent_usd).toBe(1);
     expect(r.gate.reasons).toContain("stopped early at --max-usd, so not every case ran");
+  });
+
+  it("stops when the route says its budget for today is spent, keeping the runs it has", async () => {
+    const routes = fakeRoutes({ budgetAfter: 3 });
+    const r = await runGolden(adOpts(), { fetchImpl: routes.fetchImpl, judge: fakeJudge().judge, sheetsFor: SHEETS, env: ENV, sleep: async () => {}, log: () => {}, write: false });
+    expect(routes.posts().filter((c) => c.url.endsWith("/api/jobs/eval-after-dark"))).toHaveLength(4); // the fourth was refused
+    expect(r.runs).toHaveLength(3);
+    expect(r.budget_stopped).toBe(true);
+    expect(r.route_budget).toMatch(/budget for today is spent/);
+    expect(r.gate.reasons).toContain("stopped early: the route's budget for today is spent, so not every case ran");
   });
 
   it("counts a call the route didn't price at the estimate", async () => {

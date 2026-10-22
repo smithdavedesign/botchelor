@@ -187,12 +187,9 @@ prints the markdown, and emits one summary event with `~/ai-stack/bin/emit-event
 The report ends with a **drift** table per character (`lib/adult/quality.ts`): the share of their lines that use a
 distinctive word from their own sheet, and stock romance phrases per 100 lines.
 
-**Running it nightly (not wired yet).** The loop (`scripts/loop`) could run it after each night of visitor runs:
-for every pair with an `adult_nights` row filed since the last run, call the script with `--nights latest` against a
-read-only connection string (Neon's `--endpoint-type read_only`, or the read-only session it already sets), without
-`--judge` by default (it's free but slow on a 16 GB machine), and post the summary event's counts to #team-agents
-when any of unprovoked moves, "my place" when there, repeats or unfounded memories is above zero. The judge pass can
-run weekly on the worst night.
+**Nightly.** The loop runs it after each night of visitor runs (`scripts/loop/nightly.mjs` step 5b,
+`scripts/eval/observer-nightly.sh`, #584): every pair whose scene or nights changed in the last 24 hours, read-only and
+free (no judge), with a summary row on `/admin/analytics` (`docs/date-quality.md`).
 
 ## Voice, guards and remembered facts (2026-10-21)
 
@@ -265,9 +262,15 @@ lock (the retry came back all repeats), copies of the "how {name} talks" lines, 
 ### The A/B: `POST /api/jobs/eval-after-dark`
 
 Same gate as `/api/jobs/eval` (`Authorization: Bearer $CRON_SECRET`, else 404). It runs `steps` steps of the
-production step from an empty scene where the pair's latest date ended and **writes nothing** (no scene, facts, uses,
-sets or usage counts). It spends on After Dark's OpenRouter key: a call a step (two at most), plus one per chunk of
-stored lines with `memory: "extracted"`.
+production step from an empty scene where the pair's latest date ended and **writes nothing** but its own spend (no
+scene, facts, uses, sets or usage counts). It spends on After Dark's OpenRouter key: a call a step (two at most), plus
+one per chunk of stored lines with `memory: "extracted"`.
+
+**Its budget** (2026-10-21, so the A/B can't drain the balance live scenes need): at most $0.25 a run, and
+`AD_EVAL_DAILY_USD` (else $2; 0 stops it) across all runs in a UTC day. A run holds its share of the day before its first
+call (`adult_eval_spend`, so runs side by side can't overshoot together), stops starting calls once it has spent that
+(`stopped: "budget"`), and books what it really cost. Past the day's budget the route answers 429 `eval_budget`, and
+golden.mjs stops there and says so. `GET` shows today's spend.
 
 ```sh
 curl -s -X POST https://botchelor.com/api/jobs/eval-after-dark -H "authorization: Bearer $CRON_SECRET" \
@@ -287,3 +290,62 @@ curl -s -X POST https://botchelor.com/api/jobs/eval-after-dark -H "authorization
   `stopped` (`time` or `model_error`) and `extraction_errors`. `GET` lists the models and modes.
 - `scripts/eval/golden.mjs --suite after-dark --a '{"promptVersion":"v1"}' --b '{"promptVersion":"v2"}'` runs it on the
   golden cases, both arms side by side with a local judge, and gates on these metrics (`docs/date-quality.md`).
+
+### What the A/B found (2026-10-21)
+
+Production's eval route, the four golden pairs (Star × Chud, Cass × Sable, Chud × Sable, Cass × Chud), 4 steps a run,
+2 runs a pair (1 for Hermes 4), every arm against Dolphin on v2 in the same run. The numbers without the transcripts are
+in `docs/eval/after-dark-ab-2026-10-21.json`. About $0.90 on After Dark's OpenRouter key.
+
+**Prompt v2 is the win.** Same model (Dolphin-Mistral 24B); v1 with live memory against v2 with extracted facts, 8 runs
+each:
+
+| | v1 | v2 |
+|---|---|---|
+| Stock phrases per 100 lines | 2.27 | 0.78 |
+| Lines using a detail from the speaker's own sheet | 55% | 63% |
+| Citations of a memory that isn't there, per run | 4.25 | 0 |
+| Lines citing a real memory | 27% | 32% |
+| Lines citing a stored fact | 0 | 32% |
+| Moves nobody agreed to, per run | 0.25 | 0 |
+| Lines per run (24 asked) | 20 | 15.9 |
+| Lines the guards dropped (8 runs) | 2 | 17 |
+| Cost per run | $0.003 | $0.007 |
+
+What v2 costs: Dolphin copies itself under it. Of the 17 dropped lines, 5 repeated a line from the step before with
+only the action changed, 3 nearly did, 3 copied the character's own show lines (the "how {name} talks" samples), 4
+were replies left without the line they answered, and 2 were withheld at the two lines. None of it reaches the theater,
+but a step keeps about 4 of its 6 lines. The extra cost is the longer prompt and the fact extraction each eval run does
+in memory (production extracts once a chapter).
+
+**No model beat Dolphin.** All on v2 with extracted facts; Dolphin's figure from the same run in brackets:
+
+| Model | Sheet detail | Lines citing a real memory | Stock phrases /100 | Also | Cost a run | Judge B–A–tie |
+|---|---|---|---|---|---|---|
+| Hermes 3 70B | 41% (60%) | 12% (30%) | 0.7 (3.5) | | $0.016 | 0–0–8 |
+| Euryale 70B | 50% (65%) | 16% (36%) | 0.6 (0.9) | | $0.020 | 0–1–7 |
+| DeepSeek V3.1 | 59% (63%) | 12% (30%) | 0 (0.6) | nothing dropped, 21.4 lines a run; 0.9 unagreed moves and 0.25 unfounded citations a run | $0.014 | 2–2–4 |
+| Hermes 4 405B | 55% (66%) | 6% (44%) | 5.1 (4.7) | | $0.035 | 0–2–2 |
+| Mistral Large 2512 | | | | HTTP 429 from the provider on 12 of 12 runs, two sessions hours apart | | |
+
+So `text_model` stays Dolphin-Mistral 24B. The bigger models write cleaner prose but drift from the sheets and nearly
+stop citing what the pair remembers, at 2–5× the price. DeepSeek V3.1, the cleanest writer by every hygiene count, is
+the runner-up and gets re-run against v2.1.
+
+**The judge can't separate them yet.** local-uncensored (Dolphin 7B) picked whichever transcript it read first in 64 of
+72 decided passes. The swapped second pass turns that into a tie, so the harness never called a false win, but nearly
+every verdict is a tie and the metrics carry the decision. A stronger local judge is the next step for the side by side.
+
+**In production.** Cass Vega × Chud through the admin `after_dark_write`, from an empty scene, 26 steps (about $0.05):
+
+- Chapter 1 closed at 123 lines: filed as a night with its recap and 2 moves, and 10 facts extracted (5 a side, every
+  quote found in the lines).
+- In chapter 2, 4 of the first 17 lines cite a stored fact (24%); those facts' `uses` went from 0 to 1; nothing unfounded.
+- What it showed, all for v2.1:
+  - the facts are quote dumps: all 10 of kind `said` ("Chud says '…'"), and none of the instructions he never reads,
+    "captain", her right angles or "let's not rush it";
+  - the lines walked out of the restaurant at line 17 while the model's place stayed "restaurant" for 4 more steps, so
+    the move guard never saw a move, and the night reached undressing with the set still the restaurant;
+  - the copying, as a stop: step 17 came back all repeats twice ("The model only repeated lines already said
+    tonight") until it was steered somewhere new;
+  - the whole first step of chapter 2 gave "the moment" as every line's why.

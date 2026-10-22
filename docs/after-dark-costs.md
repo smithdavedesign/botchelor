@@ -13,7 +13,7 @@ Every provider is prepaid. Nothing recharges automatically, so the balance is th
 
 | Provider | Used for | Balance (2026-10-19) | Key |
 |---|---|---|---|
-| OpenRouter | Scene text | Prepaid credit | Site settings, ends …5d38 |
+| OpenRouter | Scene text (and the After Dark eval runs) | Prepaid credit: $50 loaded 2026-10-21 | Site settings, ends …5d38 |
 | Venice | Explicit pictures (and later, video) | $50 | Keychain `vault/botchelor/VENICE_API_KEY`; site ends …-6kY |
 | fal.ai | Sets (empty places) and non-explicit clips | Prepaid credit, valid 365 days, non-refundable | Site settings, ends …fa90 |
 | Hive | The output check on every picture, clip and set | $111, auto-recharge off | Keychain `vault/botchelor/HIVE_SECRET_KEY`; site ends …Hw== |

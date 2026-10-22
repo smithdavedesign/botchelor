@@ -9,8 +9,12 @@
  *  - Shots: Venice image-to-video. With a voiced model (audio in, e.g. Wan 2.6) the shot is lip-synced to our audio;
  *    with a model that makes its own sound (e.g. Wan 3.0) the line is quoted in the prompt instead. The model is a
  *    setting (`reel_model`), so the test that sounds more real picks it.
- *  - Start frames: the pair's own pictures (baselines and scene pictures that already passed the age check), rotated, so
- *    the characters look like themselves. Venice fetches each one from a link signed for minutes (lib/adult/media.ts).
+ *  - Start frames: each one's own baseline, a portrait of them alone that already passed the age check, so the
+ *    characters look like themselves. Venice fetches each one from a link signed for minutes (lib/adult/media.ts).
+ *  - One person a shot (David, 2026-10-21: Star Dust and Sable's video showed people who aren't in After Dark, and Star
+ *    with herself): a shot starts from a picture of the speaker alone, so it films the speaker alone, talking to the other
+ *    one off camera. Asked for "two adults" from a one-person picture, the video model made the second one up: a
+ *    stranger, or a copy of the speaker. The other one is seen in their own shots.
  *  - Chained (David, 2026-10-21: "uses the baseline in between the video switch… make it feel more like a continuous
  *    movie"): only each character's first shot starts from a picture. Their next one waits for it and starts from its
  *    last frame (lib/adult/frames.ts), so the pose carries on and the cuts read as shot, reverse shot. The two
@@ -119,7 +123,8 @@ export async function pickLines(db: Db, lines: SceneLine[], n: number = REEL_SHO
           content:
             `Here is the whole night, one line per row as "index: speaker: line":\n${list}\n\n` +
             `Pick the ${want} lines that make the best short film of this night, in order: how it starts, how it builds, its most intense moment (usually in the middle or later, not at either end) and how it lands. ` +
-            `Prefer short, vivid spoken lines. For each, describe in one sentence what the two of them are physically doing as it's said (camera-ready, no dialogue). ` +
+            `Prefer short, vivid spoken lines. Each shot films the speaker alone: the other one is just off camera, never in the frame. ` +
+            `For each, describe in one sentence what the speaker is physically doing as they say it, alone in the frame (camera-ready, no dialogue). ` +
             `Reply with a JSON object: {"shots": [{"line": 12, "motion": "..."}]}`,
         },
       ],
@@ -136,12 +141,13 @@ export async function pickLines(db: Db, lines: SceneLine[], n: number = REEL_SHO
   } catch {
     /* fall through to the spread */
   }
-  // Spread across the night, more of them past the middle where it peaks.
+  // Spread across the night, more of them past the middle where it peaks. No motion: a line's action is often done to
+  // the other one, who isn't in the shot.
   const out: { line: number; motion: string }[] = [];
   for (let k = 0; k < want; k++) {
     const t = want === 1 ? 0.6 : Math.pow(k / (want - 1), 0.8);
     const pick = usable[Math.min(usable.length - 1, Math.round(t * (usable.length - 1)))];
-    if (!out.some((o) => o.line === pick.i)) out.push({ line: pick.i, motion: pick.action });
+    if (!out.some((o) => o.line === pick.i)) out.push({ line: pick.i, motion: "" });
   }
   return out;
 }
@@ -151,30 +157,26 @@ async function venice(key: string, path: string, body: unknown): Promise<Respons
 }
 
 /**
- * The pair's pictures that passed the check, to start shots from: each one's own (their baseline, and pictures of
- * them alone) and pictures of exactly these two together. Never a picture with someone else in it: a character's
- * pictures with another partner would put that partner's face in this pair's video (David, 2026-10-19: Cass Vega and
- * Sable's video showed Chud, from Chud and Sable's night, because Cass had no pictures of her own).
+ * The pictures to start shots from: each one's own baseline, a portrait of them alone that passed the check. Never a
+ * picture of two people, and never a scene picture: one made "of" one of them can still show the other, or someone the
+ * picture model made up, and the shot would put that face in this pair's video (David, 2026-10-19: Cass Vega and Sable's
+ * video showed Chud, from Chud and Sable's night). A reel makes a baseline first for anyone without one.
  */
 export async function startFrames(db: Db, a: string, b: string): Promise<{ id: string; character_id: string | null; character_b: string | null; kind: string }[]> {
   return (
     await db.query<{ id: string; character_id: string | null; character_b: string | null; kind: string }>(
       `select id, character_id, character_b, kind from adult_images
-        where status = 'ready' and kind in ('baseline', 'scene')
-          and ((character_b is null and character_id in ($1, $2))
-            or (character_id = $1 and character_b = $2) or (character_id = $2 and character_b = $1))
-        order by (kind = 'baseline') desc, created_at desc limit 16`,
+        where status = 'ready' and kind = 'baseline' and character_b is null and character_id in ($1, $2)
+        order by created_at desc limit 8`,
       [a, b],
     )
   ).rows;
 }
 
-/** The start frame for a shot of `speaker`: their own pictures first (rotated), then the two of them together. */
+/** The start frame for a shot of `speaker`: their own baseline (rotated, should they have more than one). */
 export function frameFor(frames: { id: string; character_id: string | null; character_b: string | null }[], speaker: string, k: number): string | null {
   const own = frames.filter((f) => f.character_id === speaker && !f.character_b);
-  const together = frames.filter((f) => f.character_b);
-  const pool = own.length ? own : together;
-  return pool.length ? pool[k % pool.length].id : null;
+  return own.length ? own[k % own.length].id : null;
 }
 
 /** The reel holding the one-at-a-time slot, for the refusal: which pair, how far along, and whether it looks stuck. */
@@ -288,9 +290,7 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
     // Queue each character's first shot now (the two run in parallel on Venice); a shot that can't be queued is marked
     // failed. The rest wait for theirs (advanceReel queues them).
     for (const s of shots.filter((x) => x.after === undefined)) {
-      const speaker = s.who === "a" ? ca : cb;
-      const listener = s.who === "a" ? cb : ca;
-      await queueShot(db, keys.venice, settings.reel_model, s, speaker, listener, baseUrl).catch((err) => {
+      await queueShot(db, keys.venice, settings.reel_model, s, s.who === "a" ? ca : cb, baseUrl).catch((err) => {
         s.status = "failed";
         s.reason = err instanceof Error ? err.message.slice(0, 200) : "error";
       });
@@ -304,18 +304,22 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
   }
 }
 
-async function queueShot(db: Db, key: string, model: string, s: ReelShot, speaker: Character | null, listener: Character | null, baseUrl: string): Promise<void> {
-  const who = (c: Character | null) => `${c?.pronouns?.startsWith("she") ? "woman" : c?.pronouns?.startsWith("he") ? "man" : "person"}`;
+/** Queues one shot: the speaker alone in the frame, as in their start picture, talking to the other one off camera. */
+async function queueShot(db: Db, key: string, model: string, s: ReelShot, speaker: Character | null, baseUrl: string): Promise<void> {
+  const who = speaker?.pronouns?.startsWith("she") ? "woman" : speaker?.pronouns?.startsWith("he") ? "man" : "person";
   const words = s.text.split(" ").length;
   const duration = words <= WORDS_5S ? "5s" : "10s";
   const base =
-    `Two consenting adults, a ${who(speaker)} and a ${who(listener)}, alone together. ${s.motion || "They stay close, intimate."} ` +
-    `The ${who(speaker)} is speaking to the other, lips moving with the words. Cinematic, realistic, warm low light, faces stay consistent.`;
+    `One consenting adult ${who}, the person in this picture, alone in the frame. ${s.motion || "Close to the camera, intimate."} ` +
+    `The ${who} is speaking to someone just off camera, lips moving with the words. Only this one person is ever in the frame: ` +
+    `nobody else appears, and never a second copy of them. Cinematic, realistic, warm low light, the face stays the same as in the picture.`;
   const body: Record<string, unknown> = {
     model,
     duration,
     resolution: "720p",
-    negative_prompt: "child, teen, minor, young-looking, cartoon, anime, distorted faces, extra limbs, text, watermark",
+    negative_prompt:
+      "child, teen, minor, young-looking, cartoon, anime, distorted faces, extra limbs, text, watermark, " +
+      "second person, another person, two people, duplicate person, twin, clone, crowd",
     image_url: signedMediaUrl(s.media_id!, baseUrl),
   };
   if (AUDIO_IN.test(model)) {
@@ -325,7 +329,7 @@ async function queueShot(db: Db, key: string, model: string, s: ReelShot, speake
     body.audio_url = `data:audio/mpeg;base64,${Buffer.from(await tts.arrayBuffer()).toString("base64")}`;
     body.prompt = base;
   } else {
-    body.prompt = `${base} The ${who(speaker)} says: "${s.text}"`;
+    body.prompt = `${base} The ${who} says: "${s.text}"`;
     body.audio = true;
   }
   if (/^wan-3/.test(model)) body.aspect_ratio = "adaptive";
@@ -413,9 +417,7 @@ export async function advanceReel(db: Db, ownerId: string, id: string, baseUrl =
     for (const s of waiting) {
       const prev = shots[s.after!];
       if (prev.status === "ready" && prev.last_frame) s.media_id = prev.last_frame;
-      const speaker = s.who === "a" ? ca : cb;
-      const listener = s.who === "a" ? cb : ca;
-      await queueShot(db, keys.venice, settings.reel_model, s, speaker, listener, baseUrl).catch((err) => {
+      await queueShot(db, keys.venice, settings.reel_model, s, s.who === "a" ? ca : cb, baseUrl).catch((err) => {
         s.status = "failed";
         s.reason = err instanceof Error ? err.message.slice(0, 200) : "error";
       });

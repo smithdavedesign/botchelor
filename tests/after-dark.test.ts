@@ -776,21 +776,22 @@ describe("the video of the night", () => {
   const make = (cookie: string, body: Record<string, unknown> = {}) => call(reelPost, "/api/admin/after-dark/reel", { a: CAST_A, b: CAST_B, ...body }, cookie);
   const advance = async (id: string, cookie: string) => (await (await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?id=${id}`, { headers: { cookie } }))).json()).reel as Reel;
 
-  it("starts each shot from the speaker's own pictures, and never from a picture with another partner in it", async () => {
+  it("starts each shot from the speaker's own baseline, never a picture of two people or anyone else's", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);
     const other = HOUSE_CHARACTERS[2].id;
-    // B's night with someone else: a picture of the two of them, and one of that other partner alone.
-    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data) values ('other-pair', $1, $2, $3, 'scene', 'p', 'image/png', $4), ('other-solo', $1, $2, null, 'baseline', 'p', 'image/png', $4)`, [id, other, CAST_B, Buffer.from(PNG)]);
+    // B's night with someone else: a picture of the two of them, and one of that other partner alone; and a scene
+    // picture "of" A alone, which can still show someone else.
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data) values ('other-pair', $1, $2, $3, 'scene', 'p', 'image/png', $4), ('other-solo', $1, $2, null, 'baseline', 'p', 'image/png', $4), ('a-scene', $1, $5, null, 'scene', 'p', 'image/png', $4)`, [id, other, CAST_B, Buffer.from(PNG), CAST_A]);
     const frames = await startFrames(t.db, CAST_A, CAST_B);
-    expect(frames.map((f) => f.id).sort()).toEqual(["base-a", "base-b", "pic-1"]);
+    expect(frames.map((f) => f.id).sort()).toEqual(["base-a", "base-b"]);
     expect(frameFor(frames, CAST_A, 0)).toBe("base-a");
     expect(frameFor(frames, CAST_B, 3)).toBe("base-b");
-    // Nobody's own picture: the two of them together, never anyone else.
-    expect(frameFor(frames.filter((f) => f.id !== "base-a"), CAST_A, 0)).toBe("pic-1");
+    // No baseline of their own: no shot of them, never the pair picture (a reel makes a baseline first).
+    expect(frameFor(frames.filter((f) => f.id !== "base-a"), CAST_A, 0)).toBeNull();
     // The pair's page shows only theirs.
     const gallery = (await (await get(CAST_A, CAST_B, cookie)).json()).gallery as { id: string }[];
-    expect(gallery.map((g) => g.id).sort()).toEqual(["base-a", "base-b", "pic-1"]);
+    expect(gallery.map((g) => g.id).sort()).toEqual(["a-scene", "base-a", "base-b", "pic-1"]);
   });
 
   it("voices each picked line in the speaker's own voice, lip-syncs a shot to it, checks every shot, and plays them in order", async () => {
@@ -811,6 +812,13 @@ describe("the video of the night", () => {
     expect(queued[0].body).toMatchObject({ model: "wan-2.6-image-to-video", audio_url: expect.stringMatching(/^data:audio\/mpeg;base64,/), image_url: expect.stringMatching(/\/api\/admin\/after-dark\/media\/base-[ab]\?until=/) });
     // Line 2 is the first speaker's, line 9 the second's: each shot starts from its speaker's own baseline.
     expect(new Set(queued.map((q) => String(q.body.image_url).match(/media\/(base-[ab])/)?.[1])).size).toBe(2);
+    // One person a shot (David, 2026-10-21: strangers, and Star with herself): the speaker alone, the other off camera.
+    for (const q of queued) {
+      expect(q.body.prompt).toMatch(/^One consenting adult (woman|man|person), the person in this picture, alone in the frame\./);
+      expect(q.body.prompt).toContain("speaking to someone just off camera");
+      expect(q.body.prompt).not.toMatch(/two consenting adults|alone together/i);
+      expect(q.body.negative_prompt).toMatch(/second person.*duplicate person.*clone/);
+    }
     const voices = seen.filter((s) => s.path === "/audio/speech").map((s) => s.body.voice);
     const sceneA = (await (await get(CAST_A, CAST_B, cookie)).json()).scene.a.id as string;
     const chA = await loadCharacter(t.db, sceneA);
@@ -978,11 +986,17 @@ describe("the video of the night", () => {
   });
 
   it("picks lines across the night when the model's pick can't be read, and cuts what's said to what a shot holds", async () => {
-    scripted("not json");
+    let asked = "";
+    setAdultModelForTests({ complete: async (msgs) => ((asked = msgs.map((m) => m.content).join("\n")), "not json") });
     const picks = await pickLines(t.db, night, 4);
+    // The motion it asks for is the speaker's alone: the other one is never in the shot.
+    expect(asked).toContain("Each shot films the speaker alone: the other one is just off camera, never in the frame.");
+    expect(asked).not.toContain("what the two of them are physically doing");
     expect(picks).toHaveLength(4);
     expect(picks[picks.length - 1].line).toBe(11);
     expect(picks[0].line).toBe(0);
+    // No motion from a line's action ("*leans closer*" is done to the other one).
+    expect(picks.every((p) => p.motion === "")).toBe(true);
     expect(spoken("*whispers* " + "word ".repeat(40)).speech.split(" ")).toHaveLength(24);
   });
 
