@@ -135,24 +135,58 @@ const merge = (x: SceneLine, y: SceneLine): SceneLine => ({
   ...("memory" in x || "memory" in y ? { memory: x.memory ?? y.memory ?? null } : {}),
 });
 
+/** A line that answers the one before it ("Yes…", "That's…", "Lead the way"): with that one gone, it doesn't read alone. */
+const ANSWERS =
+  /^(?:(?:it|that|this|those|these|which|so|and|but|or|because|yes|yeah|yep|no|nope|well|also|same|exactly|right|okay|ok|sure|fine|deal|then|good|really|me too|neither|either|ditto|you too|after you|lead the way|show me)\b|mm+|ha+\b)/i;
+const actionAndWords = (text: string) => {
+  const m = /^\s*\*([^*]+)\*\s*([\s\S]*)$/.exec(text);
+  return { action: m ? m[1].trim() : "", said: (m ? m[2] : text).trim() };
+};
+
+/**
+ * v2.1 (the A/B of 2026-10-21: four lines a run lost to cascades): a line by the same speaker as the line before it,
+ * when the partner's line between them was dropped, kept by joining it to the one before, if what it says reads on its
+ * own (it doesn't answer the dropped line) and the two fit MERGE_MAX. Its action leads when the first line has none,
+ * else goes (the theater shows one action a line). Null when it can't be kept.
+ */
+function keepReply(prev: SceneLine, l: SceneLine): SceneLine | null {
+  const p = actionAndWords(prev.text);
+  const n = actionAndWords(l.text);
+  if (!n.said || ANSWERS.test(n.said) || n.said.includes("*")) return null;
+  const said = `${p.said} ${n.said}`.trim();
+  const action = p.action || n.action;
+  const text = action ? `*${action}* ${said}` : said;
+  if (text.length > MERGE_MAX) return null;
+  return { ...merge(prev, l), text };
+}
+
 /**
  * The lines with the turn-taking kept: a line by the same speaker as the one before it in this reply is merged into it
- * when it's only speech and the two fit MERGE_MAX, else dropped. `last` is who spoke last before the reply; a first
- * line by them is kept and counted in `boundary`.
+ * when it's only speech and the two fit MERGE_MAX, else dropped (with `keepReplies`, v2.1, kept by joining when it reads
+ * on its own: keepReply). `last` is who spoke last before the reply; a first line by them is kept and counted in
+ * `boundary`.
  */
-export function guardAlternation(lines: readonly SceneLine[], last: "a" | "b" | null): { kept: SceneLine[]; merged: number; dropped: DroppedLine[]; boundary: number } {
+export function guardAlternation(
+  lines: readonly SceneLine[],
+  last: "a" | "b" | null,
+  opts: { keepReplies?: boolean } = {},
+): { kept: SceneLine[]; merged: number; dropped: DroppedLine[]; boundary: number } {
   const kept: SceneLine[] = [];
   const dropped: DroppedLine[] = [];
   let merged = 0;
   let boundary = 0;
   for (const l of lines) {
     const prev = kept.at(-1);
+    const joined = prev && prev.who === l.who && opts.keepReplies ? keepReply(prev, l) : null;
     if (!prev) {
       if (l.who === last) boundary++;
       kept.push(l);
     } else if (l.who !== prev.who) kept.push(l);
     else if (!l.text.includes("*") && prev.text.trim().length + 1 + l.text.trim().length <= MERGE_MAX) {
       kept[kept.length - 1] = merge(prev, l);
+      merged++;
+    } else if (joined) {
+      kept[kept.length - 1] = joined;
       merged++;
     } else dropped.push({ who: l.who, text: l.text, reason: "the same speaker twice in a row" });
   }

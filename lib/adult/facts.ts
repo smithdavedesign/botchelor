@@ -13,9 +13,15 @@
  * After Dark only: the show's PG note (lib/adult/memory.ts afterDarkNote) is untouched, and nothing here reaches a date,
  * a text or a page. Extraction, dedupe, the cap, retrieval and citation are pure, so the eval route
  * (/api/jobs/eval-after-dark, memory "extracted") runs exactly what production runs, in memory.
+ *
+ * A new pair has none of it (prompt v2.1; David's review of Star Dust × Sable Quist, 2026-10-21: memory null on all 59
+ * lines, and whys that only said "Sable is warm"). With no facts shown and nothing remembered, the prompt lists a few of
+ * each one's own sheet details instead (sheetMemories: their job, a hobby, a tell, a line of their bio), numbered [S1]…
+ * for a line's memory to cite; such a citation is founded, and counted apart (lib/adult/quality.ts sheet_citations).
  */
 import type { Character } from "../character";
 import type { Db } from "../db";
+import { publicExtras } from "../extras";
 import type { ChatMessage, Model, ModelOptions } from "../model";
 import { contentWords } from "../quality";
 import { checkAdultText } from "../safety";
@@ -58,9 +64,23 @@ const EXTRACT_REPLY_TOKENS = 1200;
 
 const first = (c: Character) => c.name.split(/\s+/)[0];
 
-/** The extraction call's messages: the lines, and what to pull out of them. */
+/**
+ * v2.1 (Cass × Chud's first chapter on prod, 2026-10-21: all ten facts were kind "said", quote dumps like `Chud says "A
+ * puzzle, huh?…"`, while "Chud never reads instructions", his "captain" and her "let's not rush it" never came out):
+ * "said" facts a side at most, and the example facts a reply mustn't copy (the prompt shows them in this shape).
+ */
+export const SAID_PER_SIDE = 2;
+const exampleFacts = (a: string, b: string): { kind: FactKind; fact: string; quote: string | null }[] => [
+  { kind: "like", fact: `${b} never reads instructions`, quote: "I don't bother with instructions." },
+  { kind: "pet_name", fact: `${b} calls ${a} "captain"`, quote: "Aye, captain." },
+  { kind: "boundary", fact: `${a} asked ${b} to take it slow`, quote: "Let's not rush it." },
+  { kind: "event", fact: `They left the restaurant for ${b}'s apartment`, quote: null },
+];
+
+/** The extraction call's messages: the lines, and what to pull out of them, distilled kinds first. */
 export function factMessages(a: Character, b: Character, lines: readonly SceneLine[]): ChatMessage[] {
   const nameOf = (who: "a" | "b") => (who === "a" ? a.name : b.name);
+  const example = (x: string, y: string) => JSON.stringify(exampleFacts(x, y));
   return [
     {
       role: "system",
@@ -72,15 +92,21 @@ export function factMessages(a: Character, b: Character, lines: readonly SceneLi
       role: "user",
       content:
         `The scene, between ${a.name} ("a") and ${b.name} ("b"):\n${lines.map((l) => `${nameOf(l.who)}: ${l.text}`).join("\n")}\n\n` +
-        `For each of them, list 3 to ${FACTS_PER_SIDE} concrete things they'd remember about the other from these lines: what the other said (quote it), running jokes, ` +
-        `pet names, promises, likes and dislikes, boundaries, and things that happened. Each "fact" is one short sentence naming who did or said what (under ${FACT_MAX} characters). ` +
-        `"quote" is the exact words from the lines when there are some (under ${QUOTE_MAX} characters, copied as written), else null. ` +
-        `No feelings and no vibes ("they feel close" and "their chemistry is electric" are not facts). Kinds: ${FACT_KINDS.join(", ")}. ` +
-        `Reply with a JSON object: {"a": [{"kind": "pet_name", "fact": "${first(b)} calls ${first(a)} \\"trouble\\"", "quote": "Hello, trouble."}], "b": [...]}, ` +
+        `For each of them, list 3 to ${FACTS_PER_SIDE} concrete things they'd remember about the other from these lines, each one distilled into a fact in the third person, in your own words: ` +
+        `what the other is like or does (habits, likes and dislikes, a confession), the pet names they use, running jokes, promises and plans, boundaries they set, and things that happened (where they went, what they did). ` +
+        `At most ${SAID_PER_SIDE} a side are simply something the other said, and only a line worth bringing back (a joke, a promise, a confession). ` +
+        `Each "fact" is one short sentence naming who did or said what (under ${FACT_MAX} characters), never only "X says '…'". ` +
+        `"quote" is the exact words from the lines that show it, when there are some (under ${QUOTE_MAX} characters, copied as written), else null. ` +
+        `No feelings and no vibes ("they feel close" and "their chemistry is electric" are not facts). Kinds: ${FACT_KINDS_ORDERED.join(", ")}. ` +
+        `Reply with a JSON object mixing the kinds, in this shape (these example facts are not about this scene; never copy one): ` +
+        `{"a": ${example(first(a), first(b))}, "b": [...]}, ` +
         `where "a" is what ${first(a)} remembers about ${first(b)} and "b" is what ${first(b)} remembers about ${first(a)}.`,
     },
   ];
 }
+
+/** The kinds as the prompt lists them: the distilled ones first, plain quotes last. */
+const FACT_KINDS_ORDERED: readonly FactKind[] = ["like", "pet_name", "joke", "promise", "boundary", "event", "said"];
 
 /** A model's JSON, even inside a code fence or after a sentence; null when there's none. */
 export function jsonOf(raw: string): unknown {
@@ -126,14 +152,34 @@ const clip = (s: string, max: number) => {
   return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), max / 2)).replace(/[\s,;:—–-]+$/, "")}…`;
 };
 
+/** What a fact puts in quotation marks ("calls her "captain""): each has to be in the lines, or the fact was made up. */
+const quotedIn = (fact: string): string[] => [...fact.matchAll(/["“]([^"“”]{2,80})["”]/g)].map((m) => m[1]);
+
+/**
+ * A fact that only repeats a quote (`Chud says "A puzzle, huh?…"`): a name and a speech verb, the quote, and nothing of
+ * its own once those are out (v2.1).
+ */
+export function isQuoteDump(fact: string, names: readonly string[]): boolean {
+  const lead =
+    /^\s*(?:[\w'’-]+\s+){1,3}?(?:says?|said|tells?|told|asks?|asked|repl(?:y|ies|ied)|whispers?|whispered|teases?|teased|jokes?|joked|quips?|quipped|murmurs?|murmured|adds?|added)\b[\s\w,]*?[:,]?\s*(?:["“]|(?<=[\s:])['‘])/i;
+  if (!lead.test(fact)) return false;
+  // The quote out: double quotes, or single ones opening after a space (not the apostrophe in "It's").
+  const rest = fact.replace(/["“][^"“”]*["”]?/g, " ").replace(/(^|[\s:])['‘][^'’]*(?:['’](?=[\s.,!?;:]|$)|$)/g, " ");
+  const skip = new Set([...names.flatMap((n) => n.toLowerCase().split(/\s+/)), "says", "said", "tells", "told", "asks", "asked", "replies", "replied", "whispers", "whispered", "teases", "teased"]);
+  return contentWords(rest, 4).filter((w) => !skip.has(w)).length < 2;
+}
+
 /**
  * The facts in an extraction reply, cleaned: a known kind, a fact of its own (no vibes, held to the two lines), a quote
- * only when it's really in the lines (else null), at most FACTS_PER_SIDE a side.
+ * only when it's really in the lines (else null), at most FACTS_PER_SIDE a side. v2.1: no copy of the prompt's example
+ * facts, nothing in quotation marks that wasn't said, at most one fact a side that only repeats a quote (isQuoteDump,
+ * kept as "said"), and at most SAID_PER_SIDE "said" facts a side.
  */
 export function parseFacts(raw: string, a: Character, b: Character, lines: readonly SceneLine[]): NewFact[] {
   const j = jsonOf(raw) as Record<string, unknown> | null;
   if (!j || typeof j !== "object") return [];
   const said = ` ${lines.map((l) => speechOf(l.text.replace(/\*/g, " "))).join(" ")} `;
+  const examples = new Set([...exampleFacts(first(a), first(b)), ...exampleFacts(first(b), first(a))].map((e) => norm(e.fact)));
   const out: NewFact[] = [];
   for (const [side, self, other] of [
     ["a", a, b],
@@ -142,10 +188,12 @@ export function parseFacts(raw: string, a: Character, b: Character, lines: reado
     const list = j[side] ?? j[first(self).toLowerCase()];
     if (!Array.isArray(list)) continue;
     let n = 0;
+    let saidFacts = 0;
+    let dumps = 0;
     for (const item of list) {
       if (n >= FACTS_PER_SIDE || !item || typeof item !== "object") continue;
       const x = item as { kind?: unknown; fact?: unknown; quote?: unknown };
-      const kind = KIND_ALIASES[String(x.kind ?? "").trim().toLowerCase()];
+      let kind = KIND_ALIASES[String(x.kind ?? "").trim().toLowerCase()];
       if (!kind || typeof x.fact !== "string" || !x.fact.trim()) continue;
       const fact = clip(x.fact, FACT_MAX);
       const rawQuote = typeof x.quote === "string" ? x.quote.trim().replace(/^["“'‘]+|["”'’]+$/g, "") : "";
@@ -153,6 +201,15 @@ export function parseFacts(raw: string, a: Character, b: Character, lines: reado
       const quote = heard && rawQuote.length <= QUOTE_MAX ? rawQuote : null;
       if (isVague(fact, quote, [a.name, b.name])) continue;
       if (!checkAdultText({ fact, quote: quote ?? undefined }).ok) continue;
+      // v2.1: a copy of an example, or quotation marks round words nobody said.
+      if (examples.has(norm(fact)) || quotedIn(fact).some((q) => !said.includes(` ${speechOf(q)} `))) continue;
+      if (isQuoteDump(fact, [a.name, b.name])) {
+        if (dumps >= 1) continue;
+        dumps++;
+        kind = "said";
+      }
+      if (kind === "said" && saidFacts >= SAID_PER_SIDE) continue;
+      if (kind === "said") saidFacts++;
       out.push({ character_id: self.id, other_id: other.id, kind, fact, quote });
       n++;
     }
@@ -281,26 +338,123 @@ export const factLine = (s: ShownFact): string =>
 /** The other memories (sceneMemories) as the v2 prompt numbers them: M1, M2… */
 export const memoryLabels = (memories: readonly string[]): { label: string; text: string }[] => memories.map((text, i) => ({ label: `M${i + 1}`, text }));
 
-export type Citation = { facts: string[]; founded: boolean | null };
+// ---------------------------------------------------------------------------------------------------------------------
+// A new pair's memory: their own sheets (prompt v2.1)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** One side of a character the sheet shows: what kind of detail, what to call it ("tell when nervous"), and the detail. */
+export type SheetFacet = { kind: "job" | "hobby" | "tell" | "voice" | "bio" | "detail" | "fact" | "answer"; name: string; text: string };
+
+const TELL_ORDER = ["smitten", "nervous", "bored", "annoyed"] as const;
+const DETAIL_NAMES: Record<string, string> = {
+  quirk: "quirk",
+  hidden_talent: "hidden talent",
+  pet_peeve: "pet peeve",
+  guilty_pleasure: "guilty pleasure",
+  signature_item: "signature item",
+  go_to_order: "go-to order",
+  hometown: "hometown",
+  walk_on_music: "walk-on music",
+  style: "style",
+  ideal_first_date: "ideal first date",
+  green_flag: "green flag",
+  red_flag: "red flag",
+};
+const sentencesOf = (text: string | null | undefined): string[] => (text ?? "").split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length >= 12);
 
 /**
- * What a line's private "memory" cites: the facts it names by label (or quotes, or plainly matches), and whether all of it
- * is in what they can remember (the facts shown, the other memories, or what's already happened tonight). null: no note.
+ * The sides of a character their public sheet shows, in the order v2.1 reaches for them: their job, hobbies, tells, voice,
+ * the lines of their bio, their other details, public facts and profile answers. Never a private fact.
+ */
+export function sheetFacets(c: Character): SheetFacet[] {
+  const e = publicExtras(c.extras);
+  const out: SheetFacet[] = [];
+  if (e.occupation) out.push({ kind: "job", name: "job", text: e.occupation });
+  for (const h of e.hobbies ?? []) out.push({ kind: "hobby", name: "hobby", text: h });
+  for (const id of TELL_ORDER) {
+    const t = e.tells?.[id];
+    if (t) out.push({ kind: "tell", name: `tell when ${id}`, text: t });
+  }
+  const voice = sentencesOf(c.voice)[0];
+  if (voice) out.push({ kind: "voice", name: "humour and voice", text: voice });
+  for (const s of sentencesOf(c.bio)) out.push({ kind: "bio", name: "bio", text: s });
+  for (const [key, name] of Object.entries(DETAIL_NAMES)) {
+    const v = e[key as keyof typeof e];
+    if (typeof v === "string" && v.trim()) out.push({ kind: "detail", name, text: v.trim() });
+  }
+  for (const f of e.facts ?? []) out.push({ kind: "fact", name: f.label.toLowerCase(), text: f.value });
+  for (const p of e.prompts ?? []) out.push({ kind: "answer", name: "own words", text: p.answer });
+  return out;
+}
+
+/** Sheet details shown per character to a new pair (3 to 5 asked for). */
+export const SHEET_ITEMS_PER_SIDE = 4;
+
+/** A sheet detail as the prompt numbers it ([S1]…), and whose it is. */
+export type SheetItem = { label: string; of: "a" | "b"; text: string };
+
+/** The detail as a memory line: "Sable's job: Professional surpriser", "From Sable's bio: …". */
+function itemText(firstName: string, f: SheetFacet): string {
+  if (f.kind === "bio") return `From ${firstName}'s bio: ${f.text}`;
+  if (f.kind === "answer") return `${firstName}, in their own words: "${f.text}"`;
+  if (f.kind === "fact") return `${firstName}, ${f.name}: ${f.text}`;
+  return `${firstName}'s ${f.name}: ${f.text}`;
+}
+
+/**
+ * A new pair's memory (v2.1): SHEET_ITEMS_PER_SIDE of each one's own sheet details, numbered S1… (a's first). Per
+ * character: their job, a hobby, a tell and the most specific line of their bio (its last), then whatever else the sheet
+ * has. The same every step, so a citation keeps meaning the same detail.
+ */
+export function sheetMemories(a: Character | null, b: Character | null, per = SHEET_ITEMS_PER_SIDE): SheetItem[] {
+  const out: SheetItem[] = [];
+  for (const [who, c] of [
+    ["a", a],
+    ["b", b],
+  ] as const) {
+    if (!c) continue;
+    const facets = sheetFacets(c);
+    const pick = (kind: SheetFacet["kind"], last = false) => {
+      const of = facets.filter((f) => f.kind === kind);
+      return last ? of.at(-1) : of[0];
+    };
+    const firstPicks = [pick("job"), pick("hobby"), pick("tell"), pick("bio", true)].filter((f): f is SheetFacet => Boolean(f));
+    const rest = facets.filter((f) => !firstPicks.includes(f) && f.kind !== "voice");
+    const name = c.name.split(/\s+/)[0];
+    for (const f of [...firstPicks, ...rest].slice(0, per)) out.push({ label: `S${out.length + 1}`, of: who, text: itemText(name, f) });
+  }
+  return out;
+}
+
+export type Citation = { facts: string[]; founded: boolean | null; sheet?: string[] };
+
+/**
+ * What a line's private "memory" cites: the facts it names by label (or quotes, or plainly matches), the sheet details it
+ * names ([S2], when a new pair was shown some), and whether all of it is in what they can remember (the facts shown, the
+ * other memories and sheet details, or what's already happened tonight). null: no note. A label right after an apostrophe
+ * isn't one ("I'm 30", "Sable's 41 hats").
  */
 export function citeMemory(memory: string | null | undefined, shown: readonly ShownFact[], others: readonly { label: string; text: string }[], context: string): Citation {
   const note = memory?.trim();
   if (!note) return { facts: [], founded: null };
   const ids: string[] = [];
+  const sheet: string[] = [];
   let unknown = false;
-  const labels = [...note.matchAll(/\b([FM])\s?-?(\d{1,3})\b/gi)].map((m) => `${m[1].toUpperCase()}${Number(m[2])}`);
+  const labels = [...note.matchAll(/(?<!['’])\b([FMS])\s?-?(\d{1,3})\b/gi)].map((m) => `${m[1].toUpperCase()}${Number(m[2])}`);
   for (const label of new Set(labels)) {
     const fact = shown.find((s) => s.label === label);
     if (fact) ids.push(fact.fact.id);
     else if (!others.some((o) => o.label === label)) unknown = true;
+    else if (label.startsWith("S")) sheet.push(label);
   }
-  if (labels.length) return { facts: ids, founded: !unknown };
+  if (labels.length) return { facts: ids, founded: !unknown, ...(sheet.length ? { sheet } : {}) };
   for (const s of shown) if (memoryFounded(note, `${s.fact.fact} ${s.fact.quote ?? ""}`)) ids.push(s.fact.id);
   if (ids.length) return { facts: ids, founded: true };
+  // A sheet detail named in words ("her party hats"), when the note has words of its own to match: the detail itself, not
+  // its label ("Sable's hobby:"), or every detail of hers would match a note with her name in it.
+  const detail = (text: string) => text.slice(text.indexOf(": ") + 2);
+  const sheetHits = /[a-z]{4,}/i.test(note) ? others.filter((o) => o.label.startsWith("S") && memoryFounded(note, detail(o.text))).map((o) => o.label) : [];
+  if (sheetHits.length) return { facts: [], founded: true, sheet: sheetHits };
   const elsewhere = [...others.map((o) => o.text), context].join("\n");
   return { facts: [], founded: memoryFounded(note, elsewhere) };
 }

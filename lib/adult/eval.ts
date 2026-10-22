@@ -289,6 +289,8 @@ async function evalRun(
   const refusals: EvalResult["refusals"] = [];
   const steps: EvalResult["steps"] = [];
   let refusedElsewhere = 0;
+  // v2.1: lines its guard cut or dropped for a worn phrase, which the kept lines can't show (lib/adult/quality.ts worn_phrases_cut).
+  let wornCut = 0;
   for (let i = 0; i < req.steps; i++) {
     if (clock() - started > START_BY_MS) {
       stopped = "time";
@@ -317,6 +319,7 @@ async function evalRun(
       now: new Date(clock()),
     });
     calls += step.flags.calls;
+    wornCut += step.flags.worn_phrases;
     usage.push(...step.usage);
     dropped.push(...step.dropped.map((d) => ({ step: i + 1, ...d })));
     for (const d of step.dropped) {
@@ -359,6 +362,7 @@ async function evalRun(
     cast: ctx.cast,
     refusedElsewhere,
     start: ctx.date?.setting ?? null,
+    wornCut,
   });
   // Today's spend with this run booked at what it cost rather than what it held (the route settles it just after).
   const today = await evalSpentToday(db, new Date(clock()));

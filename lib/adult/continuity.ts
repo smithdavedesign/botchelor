@@ -10,6 +10,11 @@
  *    other agrees, as on a date (lib/moves.ts), at most MAX_SCENE_MOVES a chapter, and never "my place?" once they're
  *    there (settlePlace). Anything else the model says about where they are is ignored, and logged for the observer.
  * 3. A line said before tonight isn't said again: verbatim or nearly (repeatOf), and a catchphrase once a chapter.
+ *
+ * Prompt v2.1 (2026-10-21, Cass Vega × Chud on prod): Cass proposed "a torch-lit balcony", Chud said "Lead the way", line
+ * 17 was "*leads him out of the restaurant*", and the model's place and set said "restaurant" for all sixteen steps while
+ * it went on to undressing. A move the lines show (a proposal, a yes, and them going: shownMove) now counts even when the
+ * model's place doesn't change, and a public place (isPublicPlace) is where nothing goes past kissing.
  */
 import { agrees, saysNo } from "../plans";
 
@@ -183,8 +188,38 @@ export function placeIn(text: string): string | null {
   return found;
 }
 
+/** Every place a piece of text names, in order, as heads ("leaves the restaurant for the balcony" → restaurant, balcony). */
+export function placesIn(text: string): string[] {
+  const ws = words(text).map((w) => w.replace(/'s$/, ""));
+  const out: string[] = [];
+  for (let i = 0; i < ws.length; i++) {
+    const two = i + 1 < ws.length ? `${ws[i]} ${ws[i + 1]}` : "";
+    if (two && COMPOUNDS[two]) {
+      out.push(COMPOUNDS[two]);
+      i++;
+    } else if (SYNONYMS[ws[i]] && !VAGUE_ALONE.has(ws[i])) out.push(SYNONYMS[ws[i]]);
+  }
+  return out;
+}
+
 /** Rooms of a home: being in one is still being at their place. */
 export const HOME_ROOMS: ReadonlySet<string> = new Set(["home", "bedroom", "living room", "kitchen", "bathroom", "hallway", "balcony", "dining room", "closet"]);
+
+/** Places other people are (David, 2026-10-18: "at a cafe… not the right scenario"): past kissing means leaving first. */
+const PUBLIC_PLACES: ReadonlySet<string> = new Set([
+  "bar", "club", "cafe", "diner", "restaurant", "street", "alley", "park", "beach", "rooftop bar", "dance floor", "bowling alley", "night market",
+  "lobby", "hotel", "parking lot", "library", "gym", "cinema", "theater", "museum", "gallery", "arcade", "observatory", "elevator",
+]);
+/** Outdoor spots that are public unless they're at one of their homes (a restaurant's terrace, not her balcony). */
+const PUBLIC_UNLESS_HOME: ReadonlySet<string> = new Set(["balcony", "rooftop", "pool", "garden", "yard", "porch", "field", "forest", "lake"]);
+
+/** Whether where they are is public (other people around): a bar, a restaurant, the street, a venue; a terrace away from home. */
+export function isPublicPlace(label: string | null | undefined, homeNow: "a" | "b" | null = null): boolean {
+  const c = canonicalSet(label);
+  if (!c.head || !c.known) return false;
+  if (PUBLIC_PLACES.has(c.canonical) || PUBLIC_PLACES.has(c.head)) return true;
+  return PUBLIC_UNLESS_HOME.has(c.head) && !homeNow && !c.owner;
+}
 
 /** Whether two names are the same place: the same place noun (and nobody else's), or arriving at a home and its front rooms. */
 export function samePlace(x: string | null | undefined, y: string | null | undefined): boolean {
@@ -282,6 +317,47 @@ export function agreedMove(lines: readonly PlaceLine[], from: number): AgreedMov
   return found;
 }
 
+/** Them going, in what a line does: heading somewhere, out of a place, through a door, arriving ("*leads him out of the restaurant*"). */
+const GOING = new RegExp(
+  [
+    String.raw`\b(?:leads?|leading|led|walks?|walking|walked|heads?|heading|headed|steps?|stepping|stepped|slips?|slipping|slipped|hurr(?:y|ies|ied|ying)|guides?|guiding|guided|ushers?|ushering|ushered|carr(?:y|ies|ied|ying)|(?:makes?|made|making) (?:their|our|his|her|the) way)\b[^*.!?]{0,40}?\b(?:out|outside|away|through|toward|towards|into the|onto the|to the|inside|upstairs|downstairs|home|across)\b`,
+    String.raw`\b(?:pulls?|pulling|pulled|tugs?|tugging|tugged|drags?|dragging|dragged)\b[^*.!?]{0,30}?\b(?:out|outside|along|through|toward the|towards the)\b`,
+    String.raw`\b(?:arriv\w*|enters?|entering|entered|exits?|exiting|exited|climbs? into|gets? into|unlocks? (?:the|his|her|their) (?:front )?door|out (?:of|into|onto) the|into the night)\b`,
+  ].join("|"),
+  "i",
+);
+/** Arriving, out loud: "Come on in", "Welcome to my place". */
+const ARRIVING = /\b(?:come (?:on )?in\b|step inside|welcome to my|we're here)/i;
+/** Leaving with nowhere named: out of here, outside, into the night. */
+const OUT = /\b(?:out of (?:here|the)|get out|outside|into the night|out into)\b/i;
+const actionsOf = (text: string) => (text.match(/\*[^*]+\*/g) ?? []).join(" ");
+
+export type ShownMove = { proposal: number; agree: number; at: number; to: string; home: "a" | "b" | null };
+
+/**
+ * A move the lines show, whatever the model's place says (Cass × Chud, 2026-10-21: "Lead the way", "*leads him out of the
+ * restaurant*", and "restaurant" for sixteen steps): one proposes going somewhere, the other agrees (agreedMove; the yes
+ * may be in the last AGREE_REACH lines before `from`), and a line from the yes on, in these lines, shows them going or
+ * arriving. Where to: the home proposed ("Sable's place"), else a place the proposal names, else one the going names,
+ * else outside ("the street") when they just left. `at` is the line that moved them: the yes, or the going when the yes
+ * came before these lines. Null when the lines show no move, or none away from `here`.
+ */
+export function shownMove(lines: readonly PlaceLine[], from: number, here: string | null, names: { a: string; b: string }): ShownMove | null {
+  const move = agreedMove(lines, Math.max(0, from - AGREE_REACH));
+  if (!move) return null;
+  const going = lines.findIndex((l, i) => i >= Math.max(move.agree, from) && (GOING.test(actionsOf(l.text)) || ARRIVING.test(l.text)));
+  if (going < 0) return null;
+  const away = (p: string) => !here || !samePlace(here, p);
+  const proposal = lines[move.proposal];
+  const to =
+    (move.home ? `${names[move.home].split(/\s+/)[0]}'s place` : null) ??
+    placesIn(proposal.text).find(away) ??
+    lines.slice(move.agree, going + 1).flatMap((l) => placesIn(actionsOf(l.text))).find(away) ??
+    (OUT.test(proposal.text) || OUT.test(actionsOf(lines[going].text)) ? "the street" : null);
+  if (!to || !away(to)) return null;
+  return { proposal: move.proposal, agree: move.agree, at: move.agree >= from ? move.agree : going, to, home: move.home ?? homeFromOwner(canonicalSet(to), names) };
+}
+
 /** One stop in a night: where they were, the set it was on, whose home it is (when it's one), and the chapter. */
 export type PlaceStop = { place: string; set: string | null; home: "a" | "b" | null; chapter: number };
 /** A move the model reported, and whether it was taken (the observer reads the ones that weren't). */
@@ -310,18 +386,28 @@ export function settlePlace(input: {
   /** Whose home they're in now, when they're in one (the last stop's). */
   homeNow: "a" | "b" | null;
   names: { a: string; b: string };
+  /** v2.1: also take a move the lines show when the model's place says nothing new (shownMove). */
+  fromLines?: boolean;
 }): Settled {
   const { current, claimed } = input;
   const keep = (rejected: Settled["rejected"] = null): Settled => ({ place: placeDetail(current, claimed), set: current.set, moved: null, rejected });
+  const here = current.set ?? current.place;
+  // v2.1: the model's place said nothing new, but the lines may have taken them somewhere (shownMove), by the same rules.
+  const orShown = (otherwise: Settled): Settled => {
+    const shown = input.fromLines ? shownMove(input.lines, input.from, here, input.names) : null;
+    if (!shown) return otherwise;
+    if (shown.home && shown.home === input.homeNow) return keep({ to: shown.to, reason: "already_there" });
+    if (input.movesThisChapter >= MAX_SCENE_MOVES) return keep({ to: shown.to, reason: "cap" });
+    return { place: shown.to, set: shown.to, moved: { at: shown.at - input.from, to: shown.to, home: shown.home }, rejected: null };
+  };
   const claim = claimed.set ?? claimed.place;
   const want = canonicalSet(claim);
   // Nothing new, or no place in it ("an intimate, private space", "on the swing"): they're where they were.
-  if (!claim || !want.known) return keep();
-  const here = current.set ?? current.place;
+  if (!claim || !want.known) return orShown(keep());
   const now = canonicalSet(here);
   // The first set of the scene, or one so vague it named nowhere: the model's names it, and that's no move.
   if (!here || !now.known) return { place: claimed.place ?? current.place, set: claimed.set ?? (claimed.place ? want.canonical : current.set), moved: null, rejected: null };
-  if (samePlace(here, claim) && !ownerChanged(now, want, input.homeNow, input.names)) return keep();
+  if (samePlace(here, claim) && !ownerChanged(now, want, input.homeNow, input.names)) return orShown(keep());
   const move = agreedMove(input.lines, input.from);
   const to = claimed.set ?? want.canonical;
   if (!move) return keep({ to, reason: "no_agreement" });

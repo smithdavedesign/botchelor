@@ -12,17 +12,25 @@
  * - a line whose private "why" cites a memory that isn't in what they can remember;
  * - the share of lines whose "why" draws on a memory, a trait, or just the moment;
  * - drift, per character (lib/adult/quality.ts): how much of their own sheet their lines use, and how often they reach
- *   for a stock romance phrase (David, 2026-10-21: sheet details in 2 of 977 lines; "symphony" 16 times).
+ *   for a stock romance phrase (David, 2026-10-21: sheet details in 2 of 977 lines; "symphony" 16 times), and (v2.1) how
+ *   often they reuse a worn phrase or end on a question, and the phrases they lean on most;
+ * - (v2.1, lib/adult/craft.ts) a limit the other side went past before a check-in and a yes; a possessive that fits
+ *   neither character's pronouns, in the lines or the place; a chapter stuck at a threshold (a doorway, the car); the
+ *   share of lines with a sensory detail; and private whys that only restate a trait.
  *
  * Lines saved before the private notes existed have no "why": the memory and share checks just count none.
  */
 import { agreedMove, canonicalSet, HOME_ROOMS, homeProposed, placeIn, proposesMove, repeatOf, samePlace, saysCatchphrase, speechOf, type MoveLog } from "./continuity";
-import { driftOf, sideOfObserved, type Drift } from "./quality";
+import { limitsIn, pronounKind, THRESHOLD_LINES, thresholdOf, wrongPossessives } from "./craft";
+import { driftOf, sensoryDetail, sideOfObserved, whyRestatesTrait, type Drift } from "./quality";
 
-export type ObservedLine = { who: "a" | "b"; text: string; why?: string | null; memory?: string | null; moved_to?: string | null };
+export type ObservedLine = { who: "a" | "b"; text: string; why?: string | null; memory?: string | null; moved_to?: string | null; stage?: number | null };
 export type ObservedChapter = { chapter: number; source: "night" | "scene"; id: string; lines: ObservedLine[]; set_place: string | null; place: string | null; moves?: MoveLog[] | null; sets_requested?: string[] };
-/** One character's sheet as the observer reads it; `bio` and `details` (job, hobbies, quirk…) feed the drift section. */
-export type ObservedSide = { name: string; catchphrase: string | null; traits: string[]; tells: string[]; voice: string | null; want: string | null; bio?: string | null; details?: string[] };
+/**
+ * One character's sheet as the observer reads it; `bio` and `details` (job, hobbies, quirk…) feed the drift section, and
+ * `pronouns` (as the sheet gives them) the pronoun check.
+ */
+export type ObservedSide = { name: string; catchphrase: string | null; traits: string[]; tells: string[]; voice: string | null; want: string | null; bio?: string | null; details?: string[]; pronouns?: string | null };
 export type ObserverInput = {
   a: ObservedSide;
   b: ObservedSide;
@@ -55,6 +63,16 @@ export type ObserverReport = {
     share_moment: number;
     /** Per character (by name): how much of their sheet shows, and stock phrases per 100 of their lines. */
     drift: Record<string, Drift>;
+    /** v2.1: limits voiced, and the ones the other side went past before a check-in and a yes. */
+    limits: number;
+    limit_overridden: number;
+    /** v2.1: lines with a possessive that fits neither of them, on a place or a body ("his apartment", both she/her). */
+    wrong_pronouns: number;
+    /** v2.1: chapters that sat at a threshold (a doorway, the car) for more than THRESHOLD_LINES lines with no move in. */
+    threshold_stalls: number;
+    /** v2.1: the share of lines with a sensory detail of the place, and the whys that only restate a trait. */
+    sensory_detail_share: number;
+    why_restates_trait: number;
   };
 };
 
@@ -106,7 +124,16 @@ export function observeNight(input: ObserverInput): ObserverReport {
     share_trait: 0,
     share_moment: 0,
     drift: {},
+    limits: 0,
+    limit_overridden: 0,
+    wrong_pronouns: 0,
+    threshold_stalls: 0,
+    sensory_detail_share: 0,
+    why_restates_trait: 0,
   };
+  const kinds = [pronounKind(input.a.pronouns), pronounKind(input.b.pronouns)] as const;
+  const pronounsSaid = `${first("a")}: ${input.a.pronouns ?? "?"}, ${first("b")}: ${input.b.pronouns ?? "?"}`;
+  let sensory = 0;
 
   // Where they are as the night goes (a place noun), and whose home they're in when they're in one.
   let loc: string | null = canonicalSet(input.start ?? null).head;
@@ -223,13 +250,47 @@ export function observeNight(input: ObserverInput): ObserverReport {
       const tw = traitWords(side(l.who));
       if (content(why).some((w) => tw.has(w))) withTrait++;
       if (/\bthe moment\b/.test(why)) withMoment++;
+      if (whyRestatesTrait(l.why, side(l.who), side(l.who === "a" ? "b" : "a").name)) summary.why_restates_trait++;
     });
+
+    // v2.1: limits gone past before a check-in and a yes (lib/adult/craft.ts).
+    const limits = limitsIn(lines, [names.a, names.b]);
+    summary.limits += limits.limits.length;
+    for (const o of limits.overridden) {
+      summary.limit_overridden++;
+      const other = o.limit.who === "a" ? "b" : "a";
+      add(
+        "limit_overridden",
+        ch.chapter,
+        o.limit.at,
+        o.at,
+        `${first(o.limit.who)} says "${o.limit.said}" at line ${o.limit.at}, and ${first(other)} goes further at line ${o.at} ("${lines[o.at].text.slice(0, 70)}") with no check-in and yes in between`,
+      );
+    }
+    // Pronouns: a possessive that fits neither of them, in a line or in where the chapter says they are.
+    lines.forEach((l, i) => {
+      const wrong = wrongPossessives(l.text, kinds);
+      if (!wrong.length) return;
+      summary.wrong_pronouns++;
+      add("wrong_pronoun", ch.chapter, i, i, `"${wrong[0]}", but neither of them goes by that (${pronounsSaid})`);
+    });
+    const placeWrong = ch.place ? wrongPossessives(ch.place, kinds) : [];
+    if (placeWrong.length) add("wrong_pronoun", ch.chapter, 0, Math.max(0, lines.length - 1), `the chapter's place is "${ch.place}", but neither of them goes by that (${pronounsSaid})`);
+    // A threshold they never got past: more than THRESHOLD_LINES lines there since they last moved.
+    const threshold = thresholdOf(ch.place, ch.set_place);
+    const since = lines.reduce((at, l, i) => (l.moved_to ? i + 1 : at), 0);
+    if (threshold && lines.length - since > THRESHOLD_LINES) {
+      summary.threshold_stalls++;
+      add("threshold_stall", ch.chapter, since, lines.length - 1, `${lines.length - since} lines at ${threshold} with no move inside agreed (${ch.place ?? ch.set_place})`);
+    }
+    sensory += lines.filter((l) => sensoryDetail(l.text)).length;
   }
 
   summary.lines_with_why = withWhy;
   summary.share_memory = withWhy ? round(withMemory / withWhy) : 0;
   summary.share_trait = withWhy ? round(withTrait / withWhy) : 0;
   summary.share_moment = withWhy ? round(withMoment / withWhy) : 0;
+  summary.sensory_detail_share = total ? round(sensory / total) : 0;
   const drift = driftOf(
     input.chapters.flatMap((c) => c.lines),
     sideOfObserved(input.a),
@@ -263,14 +324,25 @@ export function reportMarkdown(r: ObserverReport, judge?: { model: string; callo
   if (s.lines_with_why) {
     out.push(`| …citing a memory / a trait / the moment | ${pct(s.share_memory)} / ${pct(s.share_trait)} / ${pct(s.share_moment)} |`);
     out.push(`| Memories cited that aren't in what they remember | ${s.unfounded_memories} |`);
+    out.push(`| Whys that only restate a trait ("Sable is warm") | ${s.why_restates_trait ?? 0} |`);
   }
+  out.push(`| Limits voiced / gone past before a check-in and a yes | ${s.limits ?? 0} / ${s.limit_overridden ?? 0} |`);
+  out.push(`| Lines with a possessive neither of them goes by ("his apartment", both she/her) | ${s.wrong_pronouns ?? 0} |`);
+  out.push(`| Chapters stuck at a threshold (more than ${THRESHOLD_LINES} lines, no move in) | ${s.threshold_stalls ?? 0} |`);
+  out.push(`| Lines with a sensory detail of the place | ${pct(s.sensory_detail_share ?? 0)} |`);
   out.push("");
   const drift = Object.values(s.drift ?? {});
   if (drift.length) {
-    out.push("### Drift: still themselves?", "", "| Character | Lines | Lines using their sheet | Stock phrases per 100 lines | Most used |", "|---|---|---|---|---|");
+    out.push(
+      "### Drift: still themselves?",
+      "",
+      "| Character | Lines | Lines using their sheet | Stock phrases per 100 lines | Most used | Reusing a worn phrase | Ending on a question | Phrases leaned on |",
+      "|---|---|---|---|---|---|---|---|",
+    );
     for (const d of drift) {
       const top = Object.entries(d.cliches).sort((x, y) => y[1] - x[1]).slice(0, 5).map(([p, n]) => `${p} ×${n}`).join(", ");
-      out.push(`| ${d.name} | ${d.lines} | ${pct(d.sheet_detail_rate)} | ${d.cliche_rate} | ${top || "none"} |`);
+      const phrases = (d.top_phrases ?? []).map((p) => `"${p.phrase}" ×${p.count}`).join(", ");
+      out.push(`| ${d.name} | ${d.lines} | ${pct(d.sheet_detail_rate)} | ${d.cliche_rate} | ${top || "none"} | ${pct(d.worn_phrase_rate ?? 0)} | ${pct(d.question_ending_share ?? 0)} | ${phrases || "none"} |`);
     }
     out.push("");
   }

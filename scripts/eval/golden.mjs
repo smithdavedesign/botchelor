@@ -108,6 +108,14 @@ export const METRICS = {
     { key: "memory_citation_share", label: "Lines citing a memory", better: "higher", aliases: ["memoryCitationShare", "memoryShare", "shareMemory"] },
     { key: "refusals", label: "Refusals", better: "lower", aliases: [] },
     { key: "dropped", label: "Lines dropped", better: "lower", aliases: [] },
+    // Prompt v2.1's craft metrics (lib/adult/quality.ts), shown with their direction, not gated (yet).
+    { key: "worn_phrase_rate", label: "Lines reusing a worn phrase", better: "lower", aliases: ["wornPhraseRate"] },
+    { key: "question_ending_share", label: "Lines ending on a question", better: "lower", aliases: ["questionEndingShare"] },
+    { key: "sensory_detail_share", label: "Lines with a sensory detail", better: "higher", aliases: ["sensoryDetailShare"] },
+    { key: "limit_overridden", label: "Limits gone past", better: "lower", aliases: ["limitOverridden", "limitsOverridden"] },
+    { key: "wrong_pronouns", label: "Possessives neither goes by", better: "lower", aliases: ["wrongPronouns"] },
+    { key: "why_restates_trait", label: "Whys only restating a trait", better: "lower", aliases: ["whyRestatesTrait"] },
+    { key: "generic_whys", label: "Generic whys", better: "lower", aliases: ["genericWhys"] },
   ],
   dates: [
     { key: "index", label: "Genuineness index (0-100)", better: "higher", gate: 5, aliases: [] },

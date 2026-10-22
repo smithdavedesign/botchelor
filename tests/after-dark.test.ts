@@ -400,7 +400,9 @@ describe("the scene prompt", () => {
 
   it("teases it out: a stage holds for its lines, then moves one step at a time; a direct steer can jump", async () => {
     const { cookie } = await admin();
-    const six = (stage: number) => JSON.stringify({ lines: Array.from({ length: 6 }, (_, i) => ({ who: i % 2 ? "b" : "a", text: `Line ${i}.` })), place: "the cafe", stage });
+    // A new line each time: a phrase said a fourth time loses its sentence in prompt v2.1 (lib/adult/quality.ts WORN_AT).
+    let n = 0;
+    const six = (stage: number) => JSON.stringify({ lines: Array.from({ length: 6 }, (_, i) => ({ who: i % 2 ? "b" : "a", text: `Line ${n++}.` })), place: "the cafe", stage });
     const step = async (stage: number, direction?: string) => {
       scripted(six(stage));
       return (await (await post({ a: CAST_A, b: CAST_B, ...(direction ? { direction, steer_mode: "direct" } : {}) }, cookie)).json()).scene.stage as number;
@@ -417,7 +419,7 @@ describe("the scene prompt", () => {
 
   it("stamps each line with the stage it was written at, and the page gets it (David, 2026-10-21: the label said 'sex' at hello)", async () => {
     const { cookie } = await admin();
-    const six = (stage: number) => JSON.stringify({ lines: Array.from({ length: 6 }, (_, i) => ({ who: i % 2 ? "b" : "a", text: `Stamp line ${stage}-${i}.` })), place: "the cafe", stage });
+    const six = (stage: number) => JSON.stringify({ lines: Array.from({ length: 6 }, (_, i) => ({ who: i % 2 ? "b" : "a", text: `Stamp ${stage}${i}.` })), place: "the cafe", stage });
     const step = async (stage: number, direction?: string) => {
       scripted(six(stage));
       return (await (await post({ a: CAST_A, b: CAST_B, ...(direction ? { direction, steer_mode: "direct" } : {}) }, cookie)).json()).scene;
@@ -1024,11 +1026,13 @@ describe("chapters: a long night runs on, and remembers how it began", () => {
     const full = Array.from({ length: CHAPTER_LINES - 6 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `Line ${i}.` }));
     await t.db.query(`update adult_scenes set lines = $2::jsonb, stage = 2, stage_from = 100 where id = $1`, [scene.id, JSON.stringify(full)]);
     let prompts: string[] = [];
+    let beat = 0;
     setAdultModelForTests({
       complete: async (msgs: { content: string }[]) => {
         prompts.push(msgs.map((m) => m.content).join("\n"));
         if (/running recap/.test(msgs[0].content)) return JSON.stringify({ recap: "They met at the bar, went back to hers, and he keeps calling her 'trouble'." });
-        return JSON.stringify({ lines: Array.from({ length: 6 }, (_, i) => ({ who: i % 2 ? "b" : "a", text: `New line ${i}.` })) });
+        // A new line each call: a phrase said a fourth time tonight loses its sentence in prompt v2.1.
+        return JSON.stringify({ lines: Array.from({ length: 6 }, (_, i) => ({ who: i % 2 ? "b" : "a", text: `Beat${beat++}.` })) });
       },
     } as never);
     const r = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
@@ -1040,7 +1044,7 @@ describe("chapters: a long night runs on, and remembers how it began", () => {
     prompts = [];
     await post({ a: CAST_A, b: CAST_B }, cookie);
     expect(prompts[0]).toMatch(/Earlier tonight[^\n]*\nThey met at the bar/);
-    expect(prompts[0]).toContain("New line 5.");
+    expect(prompts[0]).toContain("Beat5.");
     expect(prompts[0]).not.toMatch(/The scene opens exactly where the date ended/);
     // Start over files chapter 2 and begins a new night at chapter 1 with no recap.
     const reset = await (await post({ a: CAST_A, b: CAST_B, reset: true }, cookie)).json();

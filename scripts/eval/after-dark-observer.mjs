@@ -88,7 +88,7 @@ const iso = (d) => new Date(d).toISOString();
 
 /** Finds a character by id or id prefix. */
 async function character(q, idOrPrefix) {
-  const rows = await q(`select id, name, bio, traits, want, voice, extras from characters where id = $1 or id like $1 || '%' order by (id = $1) desc limit 2`, [idOrPrefix]);
+  const rows = await q(`select id, name, bio, traits, want, voice, extras, pronouns from characters where id = $1 or id like $1 || '%' order by (id = $1) desc limit 2`, [idOrPrefix]);
   if (!rows.length) throw new Error(`no character ${idOrPrefix}`);
   if (rows.length > 1 && rows[0].id !== idOrPrefix) throw new Error(`${idOrPrefix} matches more than one character`);
   return rows[0];
@@ -107,6 +107,8 @@ const sideOf = (c) => {
     voice: c.voice ?? null,
     want: c.want ?? null,
     bio: c.bio ?? null,
+    // As the sheet gives them: the only source for the pronoun check (lib/adult/craft.ts).
+    pronouns: c.pronouns ?? null,
     // Their job, hobbies and the rest, public only: what "lines using their sheet" counts (lib/adult/quality.ts).
     details: [
       ...DETAIL_KEYS.map((k) => extras[k]).filter((v) => typeof v === "string" && v),

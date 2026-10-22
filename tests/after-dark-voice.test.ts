@@ -107,12 +107,12 @@ describe("prompt v2: their own voice", () => {
     expect(system).toMatch(/Never write these stock phrases, or anything in their register: symphony, soul, intertwined/);
     expect(system).toContain("your heart echoes mine");
     expect(system).toContain("Only the two of them are in this scene: Rafe Calloway and Sable Quist.");
-    expect(system).toContain('How Rafe talks (their own lines from their show dates: keep this voice, never repeat one):\n- "I scored that croissant a nine and I stand by it, flaky edges and all."');
+    expect(system).toContain('How Rafe talks (their own lines from their show dates, only to show the voice: never reuse one, or any part of one):\n- "I scored that croissant a nine and I stand by it, flaky edges and all."');
     expect(system).not.toContain("How Sable talks");
     expect(system).toContain("Details: occupation: Pastry chef");
     expect(system).toContain("Tells (habits that slip out): when nervous, describe the room like a judge on a tasting panel; when they like someone, offer the last bite of everything");
     expect(system).toContain('Never says: "it\'s just food", "good enough"');
-    expect(system).toMatch(/Sounds like \(their own sample lines; never repeat one word for word\):\n- How they say hello: Well!/);
+    expect(system).toMatch(/Sounds like \(their own sample lines, only to show the voice; never reuse one, or any part of one\):\n- How they say hello: Well!/);
     // What they remember, numbered for citing.
     expect(system).toContain('[F3] Sable calls Rafe "chef" ("Yes, chef!")');
     expect(system).toContain("[M1] Sable remembers from before: You and Rafe spent the night together after the market.");

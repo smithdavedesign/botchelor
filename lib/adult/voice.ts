@@ -121,6 +121,7 @@ export function voiceKitLines(c: Character): string[] {
     facts.length ? `Facts: ${facts.join("; ")}` : "",
     tells.length ? `Tells (habits that slip out): ${tells.join("; ")}` : "",
     e.never_says?.length ? `Never says: ${e.never_says.map((x) => `"${x}"`).join(", ")}` : "",
-    samples.length ? `Sounds like (their own sample lines; never repeat one word for word):\n${samples.map((s) => `- ${s}`).join("\n")}` : "",
+    // v2.1 (the A/B of 2026-10-21: Dolphin copied these): they show the voice; never reused, even in part.
+    samples.length ? `Sounds like (their own sample lines, only to show the voice; never reuse one, or any part of one):\n${samples.map((s) => `- ${s}`).join("\n")}` : "",
   ].filter(Boolean);
 }

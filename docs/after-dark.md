@@ -217,6 +217,48 @@ a memory of two generic sentences. What runs now:
   a nudge for unused ones); a cited fact's `uses` goes up. A citation of something not in the list is flagged in the
   metrics, never dropped. After Dark only: the show's PG note is unchanged and no date or text reads these.
 
+### Prompt v2.1: craft (2026-10-21)
+
+v2 changed in place (still `prompt_version: "v2"`; v1 is untouched, word for word). A review of a v2 night (Star Dust ×
+Sable Quist, 59 lines) found tics ("let's see" in 23 lines, "surprise" in 19, 26 ending on a question), a limit
+overridden ("slow down… let's not rush", then three lines more of undressing), two women in "his apartment entrance"
+for the whole scene, no memory for a new pair, whys like "Sable is warm", and no arc. Prod runs that day added a move
+the lines made but the JSON didn't ("restaurant" for sixteen steps after "*leads him out of the restaurant*"), a repeat
+lock (the retry came back all repeats), copies of the "how {name} talks" lines, and facts that were all quote dumps.
+
+- **Worn phrases** (`lib/adult/quality.ts`): a 2–4 word phrase (not glue alone, no names) a character has said in 3 of
+  their lines tonight is worn. The prompt lists each one's worn phrases as do-not-use, and a fourth use loses its
+  sentence (the line goes if nothing's left). Also: more than 40% of a character's last 10 lines ending on "?" gets a
+  "vary it" note, and a hook (a theme word in 30% of their last 16 lines) gets "show other sides of them", naming
+  sides from their sheet that aren't the hook.
+- **Limits** (`lib/adult/craft.ts`): the prompt says limits hold. A limit in the last 6 lines that nobody has lifted (a
+  check-in and a yes, or the one who set it saying go on) is named in the prompt; the observer flags `limit_overridden`
+  when the other side's line shows more than the scene had (or goes on undressing or having sex), judged by
+  `lib/adult/stage-floor.ts` `stageShown` so it and the stage floor agree.
+- **Pronouns and places**: the prompt states each one's pronouns from their sheet; a possessive neither goes by is put
+  right in `place` (the home owner's name when they're at one of their homes) and flagged in lines. More than 12 lines
+  at a threshold (an entrance, a doorway, a hallway, the car) asks them to go in (an agreed move) or show where they
+  are. A proposal, a yes and a line of them going is a move even when the model's place didn't change
+  (`lib/adult/continuity.ts` `shownMove`), and in a public place nothing goes past kissing (lines that do are dropped
+  and the stage holds), unless these lines agree to leave first or a Direct steer says otherwise.
+- **A new pair's memory** (`lib/adult/facts.ts`): with no facts shown and nothing remembered, the prompt lists 4 of each
+  one's own sheet details (job, a hobby, a tell, a line of their bio) as `[S1]`…, which a line's memory can cite.
+  The why must name a specific memory or sheet detail, never a trait word on its own, and never "the moment".
+- **The arc**: a concrete detail of the place every few lines, a varied rhythm (a few words, or only an action, now
+  and then), lines that answer each other, and at the last stage a climax, then an afterglow beat instead of a loop.
+- **Copies and cascades**: a new action in front doesn't make an old line new (the prompt says so); part of a show or
+  sample line copied (5 words in a row) loses its sentence; a line whose partner's line was dropped is joined to its
+  speaker's last one when it reads on its own. After a reply of nothing but repeats, the one retry leaves the repeats
+  out, names what can't come back by how it opens, and runs 0.2 hotter with penalties 0.4 higher.
+- **Facts**: the extraction asks for distilled, third-person facts of mixed kinds, at most 2 plain quotes a side; the
+  parser keeps one quote dump (`X says "…"`) a side at most, and drops a copy of the prompt's examples or a fact
+  quoting words nobody said.
+- **New metrics** (`sceneQuality`, so the eval route and the golden set get them): `worn_phrase_rate`,
+  `worn_phrases_cut`, `question_ending_share`, `sensory_detail_share`, `why_restates_trait`, `generic_whys`,
+  `sheet_citations`, `limits`, `limit_overridden`, `wrong_pronouns`, and per character (`characters.a`/`b`, the
+  observer's drift table) `worn_phrase_rate`, `question_ending_share` and `top_phrases`. The observer adds
+  `limit_overridden`, `wrong_pronoun` and `threshold_stall` findings.
+
 ### The A/B: `POST /api/jobs/eval-after-dark`
 
 Same gate as `/api/jobs/eval` (`Authorization: Bearer $CRON_SECRET`, else 404). It runs `steps` steps of the
