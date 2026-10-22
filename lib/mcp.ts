@@ -23,6 +23,8 @@ import { agentDatesToday, agentStats, findMatches, getDatingProfile, listMyDatin
 import { characterSchema, exampleCallsText, isExampleCharacter, llmsText } from "./agents";
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "./allowance";
 import { track } from "./analytics";
+import { recordAgentEvent } from "./agent-funnel";
+import { checkRateLimit, rateLimitMessage, type RateLimitBucket } from "./rate-limit";
 import { detectBot } from "./bots";
 import { getDb, type Db } from "./db";
 import { getCharacterHistory, getPoints, getPointsBreakdown, getPublicCharacter, listMyEpisodes, type EpisodeView } from "./game";
@@ -3403,6 +3405,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       };
     }
     case "create_character": {
+      // Anti-abuse (free path): a healthy agent won't hit this; a probe making dozens of characters a minute will.
+      {
+        const who = resolveIdentity(args, session, false);
+        if (who && args.check_only !== true) {
+          const gate = checkRateLimit(who.id, "create_character");
+          if (!gate.ok) return { error: rateLimitMessage(gate) };
+        }
+      }
       // #249: an exact name another character has is refused before anything is saved, unless the agent insists.
       const wanted = typeof args.name === "string" ? args.name.trim() : "";
       const twin = wanted ? (await db.query<{ id: string; name: string }>(`select id, name from characters where lower(trim(name)) = lower($1) limit 1`, [wanted])).rows[0] : undefined;
@@ -3454,6 +3464,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await callRoute(postCharacter, { agentId: who.id, body });
       if (!r.ok) return { error: errorOf(r) };
       await db.query(`update characters set created_via = 'mcp', partner_style = $2 where id = $1`, [String(r.data.id), args.partner_style === undefined ? null : style]);
+      // Agent funnel: first character per agent (idempotent).
+      await recordAgentEvent(db, who.id, "agent_first_character", { character_id: String(r.data.id) });
       const sheet = r.data as Record<string, unknown>;
       const report = await originality(
         db,
@@ -3641,6 +3653,25 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!r.ok) return { error: errorOf(r) };
       await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
       if (typeof args.partner_id === "string") await markPairNoticesRead(db, who.id, String(args.character_id ?? ""), args.partner_id, ["date_agreed", "matched"]);
+      // Agent funnel: first date per agent (idempotent) + cross-species event when the two creators are
+      // different users and at least one of them is a human (created_via != 'mcp').
+      await recordAgentEvent(db, who.id, "agent_first_date", { episode_id: String(r.data.id) });
+      try {
+        const ep = (await db.query<{ owner_a: string | null; via_a: string; owner_b: string | null; via_b: string }>(
+          `select ca.owner_id as owner_a, ca.created_via as via_a, cb.owner_id as owner_b, cb.created_via as via_b
+             from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
+            where e.id = $1`, [String(r.data.id)],
+        )).rows[0];
+        if (ep && ep.owner_a && ep.owner_b && ep.owner_a !== ep.owner_b && ((ep.via_a !== "mcp") !== (ep.via_b !== "mcp"))) {
+          // The two creators are different and one made its character on the website, the other over MCP.
+          await db.query(
+            `insert into analytics_events (user_id, event, props) values ($1, 'cross_species_match', $2::jsonb)`,
+            [String(r.data.id), JSON.stringify({ human: ep.via_a === "mcp" ? ep.owner_b : ep.owner_a, agent: ep.via_a === "mcp" ? ep.owner_a : ep.owner_b })],
+          );
+        }
+      } catch {
+        // Analytics never breaks a booking.
+      }
       // #217: say what it cost, and what's left.
       const left = await episodeAllowance(db, who.id).catch(() => null);
       // #496: when it airs, so an agent can plan the second date without polling.
@@ -3665,6 +3696,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     }
     case "start_own_date": {
       const who = resolveIdentity(args, session, true)!;
+      // Anti-abuse (free path): preview is free.
+      if (args.preview !== true) {
+        const gate = checkRateLimit(who.id, "start_own_date");
+        if (!gate.ok) return { error: rateLimitMessage(gate) };
+      }
       const input = {
         character_id: String(args.character_id ?? ""),
         partner_id: String(args.partner_id ?? ""),
@@ -3808,6 +3844,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "submit_own_date_step": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
+      // Anti-abuse (free path): check_only is free.
+      if (args.check_only !== true) {
+        const gate = checkRateLimit(who.id, "submit_own_date_step");
+        if (!gate.ok) return { error: rateLimitMessage(gate) };
+      }
       const episodeId = String(args.episode_id ?? "");
       // #479: several lines in one call, between your own two characters (every line is yours), checked in order.
       if (Array.isArray(args.outputs)) {
@@ -4075,6 +4116,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "send_text": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
+      // Anti-abuse (free path): check_only is free since it writes nothing.
+      if (args.check_only !== true) {
+        const gate = checkRateLimit(who.id, "send_text");
+        if (!gate.ok) return { error: rateLimitMessage(gate) };
+      }
       const from = String(args.character_id ?? "");
       const to = String(args.to ?? "");
       // #493: check_only runs every check (yours, matched or dated, length, content) and sends nothing.
@@ -4188,6 +4234,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "swipe": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
+      // Anti-abuse (free path).
+      {
+        const gate = checkRateLimit(who.id, "swipe");
+        if (!gate.ok) return { error: rateLimitMessage(gate) };
+      }
       // Swipes are final, so a like we can't read is refused rather than taken as a pass.
       const like = likeOf(args.like);
       if (like === null) return { error: `like is true (like, right) or false (pass, left); got ${JSON.stringify(args.like)}. Nothing was swiped.` };
@@ -4381,6 +4432,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     }
     case "send_feedback": {
       const who = resolveIdentity(args, session, true)!;
+      // Anti-abuse (free path).
+      {
+        const gate = checkRateLimit(who.id, "feedback");
+        if (!gate.ok) return { error: rateLimitMessage(gate) };
+      }
       // A session-less agent is recorded under "agent:<id>" (recordCall), so the admin page can still show where it came from.
       const input = {
         rating: typeof args.rating === "number" ? args.rating : null,
@@ -4963,6 +5019,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         );
         ctx.issuedSessionId = sessionId;
         recorded = true;
+        // Agent funnel: first initialize per agent_id (idempotent via the partial unique index).
+        await recordAgentEvent(db, agentId, "agent_initialize", { client: clip(info.name, 80) ?? null });
         track("agent_connected", { client: clip(info.name, 80) ?? detectBot(ctx.userAgent)?.name ?? "unknown", version: clip(info.version, 40) });
       } catch {
         /* recording is best effort: the agent can still play statelessly with agent_id */

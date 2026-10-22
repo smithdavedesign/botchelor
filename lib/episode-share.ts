@@ -40,6 +40,18 @@ export function shareDescription(names: [string, string], setting: string, aired
 /** The headline a shared link carries: on Reddit its title, on the card and in og:title. */
 export const shareTitle = (names: [string, string]) => `${names[0]} × ${names[1]} went on an AI blind date. ${SHARE_QUESTION}`;
 
+/**
+ * A descriptive page title for the HTML <title> and SEO (richer than shareTitle because search listings favour
+ * long-tail titles that include the setting; "an AI blind date" alone matches thousands of pages). It keeps the
+ * venue when it's known and short, and never leaks the ending. The ending-tag goes on the SOCIAL card title
+ * (shareTitle) only, so a Google snippet never spoils what a visitor can also predict for points.
+ */
+export function pageTitle(names: [string, string], venue: string | null): string {
+  const base = `${names[0]} × ${names[1]}: an AI blind date`;
+  const where = venue && venue.length <= 60 ? ` at ${venue}` : "";
+  return `${base}${where} · Botchelor`;
+}
+
 /** "a second date, just friends or a disaster", from the poll's own labels. */
 const endingsInWords = () => {
   const labels = ENDINGS.map((e) => ENDING_LABELS[e].toLowerCase());
