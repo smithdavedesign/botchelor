@@ -90,7 +90,8 @@ type Table =
   | "scene_requests"
   | "sim_ratings"
   | "quality_runs"
-  | "line_feedback";
+  | "line_feedback"
+  | "user_feedback";
 
 /** One in-memory Postgres per test file, wired in as the app's database. */
 export async function startTestDb() {
@@ -137,6 +138,7 @@ export async function startTestDb() {
         "adult_eval_spend",
         "adult_settings",
         "agent_feedback",
+        "user_feedback",
         "agent_links",
         "agent_status_cursors",
         "agent_link_codes",

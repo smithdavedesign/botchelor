@@ -234,6 +234,9 @@ async function castTab({ season, thisId, castIds, now }: { season: DirectoryEntr
 
       <section>
         <h2>The relationship graph</h2>
+        <p className="muted small">
+          <Link href="/graph">See it as a constellation →</Link>
+        </p>
         {edges.length ? (
           <ul className="list">
             {edges.map((e) =>

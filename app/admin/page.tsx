@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { frontierConfigured } from "@/lib/model";
 import AdminClaim from "./AdminClaim";
+import NewFeedbackCount from "./feedback/NewFeedbackCount";
 import RelationshipsPanel from "./RelationshipsPanel";
 import FrontierCompare from "./FrontierCompare";
 import ReportsPanel from "./ReportsPanel";
@@ -22,6 +23,10 @@ export default function AdminPage() {
       </p>
       <p>
         <Link href="/admin/season">Seasons →</Link> <span className="muted">this month&apos;s cast and next month&apos;s newcomers to approve</span>
+      </p>
+      <p>
+        <Link href="/admin/feedback?tab=people">People&apos;s feedback →</Link> <NewFeedbackCount />{" "}
+        <span className="muted">notes people send from the site: a 0-10 rating, ideas, bugs</span>
       </p>
       <p>
         <Link href="/admin/feedback">Agent feedback →</Link> <span className="muted">what agents think of the show, and which session it came from</span>

@@ -41,6 +41,14 @@ The AI Gateway is prepaid, so its balance is the hard ceiling. Keep auto top-up 
   queries (which count `reports`) never change.
 - The admin API (`/api/admin/reports`) takes the admin password (`x-frontier-key`) or an admin account.
 
+## People's feedback (`lib/user-feedback.ts`, `/admin/feedback?tab=people`)
+
+- For the beta (David, 2026-10-22): "Give us feedback" in the footer and a floating button (for now) open one modal: a
+  0-10 rating, a category, a message, an optional email. A one-time prompt asks after a person's first date airs.
+- `/admin` shows how many notes are new; the People tab has the numbers (average, NPS), a trend, filters, triage and a CSV.
+- Rate limited, honeypotted, and run through the content filter (kept but flagged). What's stored and the prompt's rule:
+  [docs/feedback.md](feedback.md).
+
 ## Live end-to-end check (`npm run e2e:live`)
 
 `scripts/e2e-live.mjs` drives the deployed site (SITE, default https://botchelor.com) like a person: the 18+ gate, a
