@@ -17,7 +17,8 @@ export async function nameCheck(db: Db, wanted: string, exceptId: string | null 
     : null;
   const freeNames = async () => {
     const taken = new Set((await db.query<{ name: string }>(`select lower(trim(name)) as name from characters`)).rows.map((r) => r.name));
-    return suggestFreeNames(name, taken);
+    // From the name as it's on the show, so "juno MARLOWE" suggests "Perpetua Marlowe".
+    return suggestFreeNames(twin?.name ?? name, taken);
   };
   return { twin, freeNames };
 }
