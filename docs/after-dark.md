@@ -474,9 +474,9 @@ on lines that never use them; and the set shown as "Lexis bedroom".
   lines, and its share) and `tell_uses`. The step flags, and so the admin's step log, add `hooks_cut`, `tells_cut`,
   `actions_cut`, `openings_cut` and `build_ups_cut`.
 
-### Prompt v2.3: quotes, heat, chapters that carry on, a picture per chapter (2026-10-23)
+### Prompt v2.3: quotes, Filthy, chapters that carry on, a picture per chapter (2026-10-23)
 
-v2 changed in place again (`prompt_version` is still `"v2"`; v1 is untouched, word for word, at every heat). Each step's
+v2 changed in place again (`prompt_version` is still `"v2"`; v1 is untouched, word for word, at every intensity). Each step's
 flags now say which revision wrote it (`prompt: "v2.3"`, `SCENE_PROMPT_REVISION` in `lib/adult/settings.ts`), and so
 does the eval's result (`prompt_revision`). David's review of a production night (chapter 5 of a long night) found three
 things, and asked for a fourth:
@@ -496,25 +496,24 @@ things, and asked for a fourth:
   when it says more of them. It never fails the step. The two lines (`checkAdultText`) hold for the steer and every line
   as before. A Nudge, and v1, are unchanged.
 - **The jokes took over.** v2's voice rules ask for their humour in every intimate line, so a baker-judge made a pun of
-  everything. A **heat** per scene (`lib/adult/heat.ts`, `adult_scenes.heat`, null meaning frank):
-  - *suggestive*: written around it. *"Sex can happen between them, but it's written around, never described: the
-    build-up, a look, a touch, what they say, then the scene cuts away before the act itself and picks up after. No
-    anatomy words and no graphic detail."*
-  - *frank* (the default): the prompt as it was.
-  - *filthy*: from undressing on (`PLAIN_TALK_FROM`, stage 4 of 5), the voice rule becomes *"Stay this person when it
-    gets intimate, in attitude and rhythm… the jokes and their job are a light seasoning, a line now and then at most:
-    no puns, no wordplay on their work, no coy stand-ins for what they mean"*, and the line rule *"From here on they talk
-    dirty in the dialogue itself, in plain, explicit words: what they want, what they're doing, how it feels, said the
-    way this person would say it. Their humour and their work are a light seasoning at most (a line now and then), never
-    a pun."* Before undressing it's frank's rules. The hook and worn-phrase critics are unchanged, so a pun loop is
-    still cut. The stage floor (`lib/adult/stage-floor.ts`) reads a few more plain words, in the dialogue as in the
-    actions, so `stageShown`, the limit check and the director agree with plainer talk.
-  Set it on the scene page (Suggestive / Frank / Filthy, the segmented control over the steer box; it saves at once and
-  applies from the next lines), with `heat` on `POST /api/admin/after-dark` (alone it only sets it; with a step it's set
-  first), or over MCP: `after_dark_heat {a, b, heat}`, or `heat` on `after_dark_write`; `after_dark_scene` shows it. The
-  two lines, both adults, and the media and Hive checks are the same at every heat. The heat works inside the viewer's
-  intensity (`lib/adult/limits.ts`, #702, which landed the same day): it applies at Explicit, and below it the intensity's
-  own register and crude-word check stand (`effectiveHeat`), so the two dials never contradict each other.
+  everything. **Filthy**, one level above Explicit on #702's intensity dial (`lib/adult/limits.ts`, `adult_scenes.intensity`
+  = `"filthy"`; Explicit is untouched, word for word). It has Explicit's checks (as far as it goes, crude words allowed),
+  and its own prompt: *"…Explicit sexual content is allowed and expected when the scene goes there, and this scene is
+  written filthy: once they're undressing, the acts are described plainly and graphically, and they talk dirty in the
+  dialogue itself, in plain, explicit words."* From undressing on (`plainTalk`, stage 4 of 5) the voice rule becomes
+  *"Stay this person when it gets intimate, in attitude and rhythm… the jokes and their job are a light seasoning, a line
+  now and then at most: no puns, no wordplay on their work, no coy stand-ins for what they mean"*, the line rule *"From
+  here on they talk dirty in the dialogue itself, in plain, explicit words: what they want, what they're doing, how it
+  feels, said the way this person would say it. Their humour and their work are a light seasoning at most (a line now and
+  then), never a pun"*, and a craft note says so. Before undressing it's Explicit's rules. The hook and worn-phrase
+  critics are unchanged, so a pun loop is still cut. **A hard no wins:** with "dirty talk" among the pair's hard nos,
+  Filthy writes Explicit's prompt, and the hard-no check still drops a crude line. Set it in the Limits panel (🎚, the
+  fifth choice) or with `limits: {intensity: "filthy"}` on `POST /api/admin/after-dark`, like the other levels (#702 has
+  no MCP setter; `after_dark_scene` shows the scene's intensity). The step's flags say `filthy: true`. The stage floor
+  (`lib/adult/stage-floor.ts`) reads a few more plain words, in the dialogue as in the actions, so `stageShown`, the
+  limit check and the director agree with plainer talk. A Direct steer's quoted line is held to the limits like the
+  rest of the steer: one that asks past the intensity (its stage, or crude words below Explicit) or for a hard no is
+  refused before anything is written.
 - **A new chapter started over.** Chapter 4 ended mid-sex in the garden; chapter 5 teased again for 15 lines. Now the
   first step of a chapter after the first gets the last chapter's last 6 lines (`prev_tail`), its stage and its place,
   and: *"A new chapter of the night starts here, but nothing has stopped… Continue from here: the first of these lines
@@ -543,9 +542,9 @@ with its chapter and place (`adult_images.scene_chapter`, `scene_place`), and th
 after a step. It costs about $0.015 a picture on Venice (topped up, with a $10 auto-recharge, #677), $0.03 on
 Replicate: about $0.10 for a five-chapter night with two moves (`docs/after-dark-costs.md`).
 
-New columns, all additive: `adult_scenes.heat` (text, null is frank), `adult_scenes.auto_pictures` (jsonb, the claims),
-`adult_images.scene_chapter` and `scene_place`, `adult_settings.auto_scene_pictures` (null is on). After Dark only: none
-of them is in a dataset or an export.
+New columns, all additive: `adult_scenes.auto_pictures` (jsonb, the claims), `adult_images.scene_chapter` and
+`scene_place`, `adult_settings.auto_scene_pictures` (null is on); Filthy is one more value of #702's
+`adult_scenes.intensity`. After Dark only: none of them is in a dataset or an export.
 
 ### The model simulation, and the move to DeepSeek V3.1 (2026-10-22)
 

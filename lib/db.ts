@@ -1462,10 +1462,9 @@ alter table adult_steps add column if not exists rewound jsonb;
 -- intensity (null is explicit, After Dark as it was) and the hard nos ({chips: [...], own: [...]}).
 alter table adult_scenes add column if not exists intensity text;
 alter table adult_scenes add column if not exists hard_nos jsonb not null default '{}';
--- After Dark v2.3 (lib/adult/heat.ts, lib/adult/auto-pictures.ts; 2026-10-23): how explicitly a scene is written
--- (suggestive, frank or filthy; null is frank), the automatic pictures it has claimed (one per chapter and place, so a
--- retry or a rewind never draws twice), the chapter and place a picture was drawn for, and the switch for them (null is on).
-alter table adult_scenes add column if not exists heat text;
+-- After Dark v2.3 (lib/adult/auto-pictures.ts; 2026-10-23): the automatic pictures a scene has claimed (one per chapter
+-- and place, so a retry or a rewind never draws twice), the chapter and place a picture was drawn for, and the switch
+-- for them (null is on). Filthy, v2.3's intensity above explicit, is one more value of adult_scenes.intensity.
 alter table adult_scenes add column if not exists auto_pictures jsonb not null default '[]';
 alter table adult_images add column if not exists scene_chapter integer;
 alter table adult_images add column if not exists scene_place text;

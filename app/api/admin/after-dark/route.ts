@@ -2,9 +2,8 @@ import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { listMedia } from "@/lib/adult/media";
 import { WHISPER_MAX } from "@/lib/adult/director";
-import { SCENE_HEATS } from "@/lib/adult/heat";
 import { HARD_NO_IDS, INTENSITIES, OWN_LEN, OWN_MAX } from "@/lib/adult/limits";
-import { continueScene, editMemory, forgetWhisper, listNights, memoryView, openScene, redoScene, resetScene, rewindScene, saveLimits, SET_SCENE_MAX, setSceneHeat, setSceneTo } from "@/lib/adult/scenes";
+import { continueScene, editMemory, forgetWhisper, listNights, memoryView, openScene, redoScene, resetScene, rewindScene, saveLimits, SET_SCENE_MAX, setSceneTo } from "@/lib/adult/scenes";
 import { isAdmin } from "@/lib/admins";
 import { refundBoughtTokens, SET_SCENE_TOKEN_COST, spendBoughtTokens } from "@/lib/allowance";
 import { getDb } from "@/lib/db";
@@ -27,8 +26,6 @@ const Input = z.object({
   redo: z.literal(true).optional(),
   whisper: z.object({ to: z.enum(["a", "b"]), text: z.string().min(1).max(WHISPER_MAX) }).optional(),
   forget_whisper: z.enum(["a", "b"]).optional(),
-  // How explicitly the scene is written (lib/adult/heat.ts). Alone, it's only set; with a step, it's set first.
-  heat: z.enum(SCENE_HEATS).optional(),
   // The viewer's limits for the pair (lib/adult/limits.ts): the intensity and the hard nos.
   limits: z
     .object({
@@ -68,12 +65,6 @@ export const POST = handle(async (req: Request) => {
   const admin = await adultViewer(db, req);
   if (!admin) return hidden();
   const input = parseBody(Input, await readJson(req), "invalid_request");
-  if (input.heat) {
-    const scene = await setSceneHeat(db, admin, input.a, input.b, input.heat);
-    if (!scene) return hidden();
-    const step = [input.direction, input.reset, input.set_scene, input.steer_mode, input.rewind, input.redo, input.whisper, input.forget_whisper, input.limits, input.memory_edit];
-    if (step.every((v) => v === undefined)) return json({ scene });
-  }
   if (input.reset) {
     await resetScene(db, admin, input.a, input.b);
     const scene = await openScene(db, admin, input.a, input.b);

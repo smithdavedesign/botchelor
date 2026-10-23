@@ -13,7 +13,6 @@ import Avatar from "@/app/Avatar";
 import type { BusyReel, Reel } from "@/lib/adult/reels";
 import { AUTOPLAY_PAGE_PAUSE_MS, autoplayStop } from "@/lib/adult/autoplay";
 import type { Heat } from "@/lib/adult/director";
-import { SCENE_HEAT_LABEL, SCENE_HEATS, type SceneHeat } from "@/lib/adult/heat";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
 
@@ -21,13 +20,6 @@ const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
 /** The suggested next moves' labels (lib/adult/director.ts): one per heat. */
 const HEAT_LABEL: Record<Heat, string> = { mild: "Mild", flirty: "Flirty", spicy: "Spicy" };
-
-/** How explicitly the scene is written (lib/adult/heat.ts), from the next lines on. */
-const HEAT_TITLE: Record<SceneHeat, string> = {
-  suggestive: "Implied, never spelled out: it cuts away at the climax",
-  frank: "Explicit and plain, with their humour and voice (the default)",
-  filthy: "From undressing on, plain dirty talk; the jokes become a seasoning",
-};
 
 /** The scene so far, the way to write more (a few lines at a time, with an optional steer), and the gallery. */
 export default function SceneWriter({
@@ -139,10 +131,6 @@ export default function SceneWriter({
       setAutoplay(false);
       const n = Number(res.data.rewound ?? 0);
       setNote({ text: `Rewound: ${n} line${n === 1 ? "" : "s"} taken back, and the scene is where it was before them.` });
-      return true;
-    }
-    if (body.heat) {
-      setNote({ text: `${SCENE_HEAT_LABEL[body.heat as SceneHeat]}, from the next lines on.` });
       return true;
     }
     if (body.redo) setAutoplay(false);
@@ -324,14 +312,6 @@ export default function SceneWriter({
               <input type="radio" name="steer-mode" checked={whisperTo === who} onChange={() => setWhisperTo(who)} /> 🤫 {nameOf(who)}
             </label>
           ))}
-        </span>
-        <span className="after-dark-heat" role="radiogroup" aria-label="Heat">
-          {SCENE_HEATS.map((h) => (
-            <label key={h} title={HEAT_TITLE[h]} className={scene.heat === h ? "is-on" : undefined}>
-              <input type="radio" name="scene-heat" checked={scene.heat === h} disabled={busy} onChange={() => void send({ heat: h })} /> {SCENE_HEAT_LABEL[h]}
-            </label>
-          ))}
-          {scene.intensity !== "explicit" && <span className="muted small"> (only at Explicit intensity; below it, the intensity sets how it&apos;s written)</span>}
         </span>
         <input
           id="after-dark-direction"

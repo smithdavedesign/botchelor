@@ -3,14 +3,13 @@ import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { autoPictureKey, autoPicturesSettled } from "@/lib/adult/auto-pictures";
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
-import { DEFAULT_SCENE_HEAT, sceneHeatOf } from "@/lib/adult/heat";
 import { runAdultTool } from "@/lib/adult/mcp";
 import { observeNight } from "@/lib/adult/observer";
 import { setMediaFetchForTests, VENICE_IMAGE } from "@/lib/adult/media";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { quoteOverlap, quotesKept, saysQuote, steerQuotes, withoutQuotes } from "@/lib/adult/quotes";
-import { NO_LIMITS } from "@/lib/adult/limits";
-import { CHAPTER_LINES, chapterCarry, effectiveHeat, emptyScene, sceneMessages, writeSceneStep, type SceneLine, type SceneState, type StepInput } from "@/lib/adult/scenes";
+import { INTENSITIES, INTENSITY, intensityOf, NO_LIMITS, overIntensity, plainTalk, type Intensity } from "@/lib/adult/limits";
+import { CHAPTER_LINES, chapterCarry, emptyScene, limitRefusal, sceneMessages, writeSceneStep, type SceneLine, type SceneState, type StepInput } from "@/lib/adult/scenes";
 import { SCENE_PROMPT_REVISION } from "@/lib/adult/settings";
 import { stageShown } from "@/lib/adult/stage-floor";
 import { claimAdmin } from "@/lib/admins";
@@ -108,7 +107,7 @@ describe("quoted lines in a step", () => {
     if (!r.ok) return;
     // The steer-copy rule would have cut this line (most of the steer, word for word); with the quote out of it, it stays.
     expect(r.lines.map((l) => l.who)).toEqual(["a", "b"]);
-    expect(r.flags).toMatchObject({ quote_kept: true, prompt: SCENE_PROMPT_REVISION, heat: "frank" });
+    expect(r.flags).toMatchObject({ quote_kept: true, prompt: SCENE_PROMPT_REVISION });
     expect(r.flags.quotes).toEqual([{ text: "stay for one more cup, Juniper", who: "b", kept: true, by: "b", line: 1 }]);
     expect(calls).toHaveLength(1);
   });
@@ -160,33 +159,30 @@ describe("quoted lines in a step", () => {
   });
 });
 
-describe("the heat", () => {
-  const prompt = (heat: "suggestive" | "frank" | "filthy", stage: number, version: "v1" | "v2" = "v2") => {
-    const [system, user] = sceneMessages(juniper(), rafe(), null, [], null, "house-juniper", { place: "her flat", stage, linesAtStage: 20, opening: false, promptVersion: version, heat } as never);
+describe("the Filthy intensity, one above Explicit", () => {
+  const prompt = (intensity: Intensity, stage: number, version: "v1" | "v2" = "v2", chips: string[] = []) => {
+    const [system, user] = sceneMessages(juniper(), rafe(), null, [], null, "house-juniper", {
+      place: "her flat", stage, linesAtStage: 20, opening: false, promptVersion: version, limits: { intensity, hard_nos: { chips, own: [] } },
+    } as never);
     return { system: system.content, user: user.content };
   };
 
-  it("frank is the prompt as it was; null, unknown or missing is frank", () => {
-    expect(sceneHeatOf(null)).toBe("frank");
-    expect(sceneHeatOf("spicy")).toBe("frank");
-    expect(sceneHeatOf("filthy")).toBe("filthy");
-    expect(DEFAULT_SCENE_HEAT).toBe("frank");
-    const frank = prompt("frank", 4);
-    expect(frank.system).toContain("Explicit sexual content is allowed and expected when the scene goes there; write it frankly, in each character's own voice.");
-    expect(frank.system).toContain("Stay this person when it gets intimate: their humour and the way they talk still show");
-    expect(frank.user).toContain("their humour and their way of talking keep showing");
+  it("is on the dial after Explicit, stored like the others, with Explicit's checks", () => {
+    expect(INTENSITIES.at(-1)).toBe("filthy");
+    expect(INTENSITY.filthy).toMatchObject({ label: "Filthy", maxStage: 4, register: null });
+    expect(intensityOf("filthy")).toBe("filthy");
+    // A swear on a mundane line stands in for crude talk: allowed at Explicit and Filthy, out below.
+    expect(overIntensity("This fucking kettle.", "filthy")).toBeNull();
+    expect(overIntensity("This fucking kettle.", "spicy")).toMatch(/too crude/);
+    // Explicit's prompt is untouched by it.
+    const explicit = prompt("explicit", 4);
+    expect(explicit.system).toContain("Explicit sexual content is allowed and expected when the scene goes there; write it frankly, in each character's own voice.");
+    expect(explicit.system).toContain("Stay this person when it gets intimate: their humour and the way they talk still show");
+    expect(explicit.user).toContain("their humour and their way of talking keep showing");
+    expect(explicit.system).not.toContain("filthy");
   });
 
-  it("suggestive writes around it: no anatomy words, a cut away at the climax", () => {
-    const { system, user } = prompt("suggestive", 4);
-    expect(system).toContain("This scene is written suggestively: sex can happen between them, but it's written around, never described");
-    expect(system).toContain("No anatomy words and no graphic detail.");
-    expect(system).toContain("- Suggestive: what they do is implied, never spelled out.");
-    expect(user).toContain("What happens between them is implied, never spelled out: no anatomy words, and at the climax the scene cuts away.");
-    expect(system).not.toContain("write it frankly");
-  });
-
-  it("filthy, from undressing on: plain dirty talk, the jokes and the job a light seasoning", () => {
+  it("from undressing on: plain dirty talk, the jokes and the job a light seasoning", () => {
     const late = prompt("filthy", 3);
     expect(late.system).toContain("this scene is written filthy");
     expect(late.system).toContain("Stay this person when it gets intimate, in attitude and rhythm");
@@ -201,21 +197,31 @@ describe("the heat", () => {
     expect(early.system).not.toContain("- Filthy:");
   });
 
-  it("works inside the viewer's intensity: below explicit, the intensity's register stands", () => {
-    const [system] = sceneMessages(juniper(), rafe(), null, [], null, "house-juniper", {
-      place: "her flat", stage: 3, linesAtStage: 20, opening: false, promptVersion: "v2", heat: "filthy", limits: { ...NO_LIMITS, intensity: "spicy" },
-    } as never);
-    expect(system.content).toContain("Keep it spicy");
-    expect(system.content).not.toContain("written filthy");
-    expect(system.content).not.toContain("- Filthy:");
-    expect(effectiveHeat(true, "filthy", "explicit")).toBe("filthy");
-    expect(effectiveHeat(true, "suggestive", "flirty")).toBe("frank");
-    expect(effectiveHeat(false, "filthy", "explicit")).toBe("frank");
+  it("a 'dirty talk' hard no wins: Explicit's prompt, and the hard-no check still drops a crude line", async () => {
+    const held = prompt("filthy", 4, "v2", ["dirty_talk"]);
+    expect(held.system).not.toContain("written filthy");
+    expect(held.system).not.toContain("- Filthy:");
+    expect(held.user).not.toContain("they talk dirty");
+    expect(held.system).toContain("No dirty talk");
+    expect(plainTalk({ intensity: "filthy", hard_nos: { chips: ["dirty_talk"], own: [] } }, 4)).toBe(false);
+    expect(plainTalk({ ...NO_LIMITS, intensity: "filthy" }, 4)).toBe(true);
+    expect(plainTalk({ ...NO_LIMITS, intensity: "filthy" }, 2)).toBe(false);
+    const limits = { intensity: "filthy" as const, hard_nos: { chips: ["dirty_talk"], own: [] } };
+    const { model } = scriptedModel(reply([["a", "*glares at the stove* This fucking kettle."], ["b", "*laughs into her hair* Still here."]], { stage: 5 }), reply([["a", "*pulls him close* Stay."], ["b", "Always."]], { stage: 5 }));
+    const r = await step(model, { scene: { ...emptyScene(), stage: 4, stage_from: -20 }, limits });
+    expect(r.ok && r.lines.map((l) => l.text)).not.toContain("*glares at the stove* This fucking kettle.");
+    expect(r.ok && r.flags.hard_nos).toBeGreaterThan(0);
+    expect(r.ok && r.flags.filthy).toBeUndefined();
   });
 
-  it("prompt v1 is word for word whatever the heat", () => {
-    expect(prompt("filthy", 4, "v1")).toEqual(prompt("frank", 4, "v1"));
-    expect(prompt("suggestive", 4, "v1")).toEqual(prompt("frank", 4, "v1"));
+  it("prompt v1 is word for word at Filthy and Explicit", () => {
+    expect(prompt("filthy", 4, "v1")).toEqual(prompt("explicit", 4, "v1"));
+  });
+
+  it("a step at Filthy is flagged so", async () => {
+    const { model } = scriptedModel(reply([["a", "Hm."], ["b", "Mm."]]));
+    const r = await step(model, { limits: { ...NO_LIMITS, intensity: "filthy" } });
+    expect(r.ok && r.flags).toMatchObject({ filthy: true, prompt: SCENE_PROMPT_REVISION });
   });
 
   it("the stage floor reads plainer talk in the dialogue, not only the actions", () => {
@@ -365,42 +371,33 @@ function scripted(next: () => unknown) {
   return prompts;
 }
 
-describe("the heat, stored and set", () => {
-  it("is frank until set; the scene route sets it on its own, or with a step, and the next prompt uses it", async () => {
+describe("Filthy, set from the Limits panel's route, and quoted lines held to the limits", () => {
+  it("is saved with the limits like any intensity, and the next prompt writes it", async () => {
     const { cookie } = await admin();
-    expect((await get(cookie)).scene.heat).toBe("frank");
     const prompts = scripted(() => six());
-    const set = await (await post({ a: CAST_A, b: CAST_B, heat: "suggestive" }, cookie)).json();
-    expect(set.scene.heat).toBe("suggestive");
-    // Setting it alone writes nothing.
-    expect(prompts).toHaveLength(0);
-    expect((await t.db.query<{ heat: string | null }>(`select heat from adult_scenes`)).rows[0].heat).toBe("suggestive");
+    const saved = await (await post({ a: CAST_A, b: CAST_B, limits: { intensity: "filthy" } }, cookie)).json();
+    expect(saved.scene.intensity).toBe("filthy");
+    expect((await t.db.query<{ intensity: string | null }>("select intensity from adult_scenes")).rows[0].intensity).toBe("filthy");
     await post({ a: CAST_A, b: CAST_B }, cookie);
-    expect(prompts[0][0].content).toContain("This scene is written suggestively");
-    // With a step: set first, then written at it.
-    await post({ a: CAST_A, b: CAST_B, heat: "filthy", direction: "they slow down" }, cookie);
-    expect(prompts[1][0].content).toContain("this scene is written filthy");
-    expect((await get(cookie)).scene.heat).toBe("filthy");
-    const step = (await t.db.query<{ flags: { heat?: string; prompt?: string } }>(`select flags from adult_steps where kind = 'write' order by created_at desc limit 1`)).rows[0];
-    expect(step.flags).toMatchObject({ heat: "filthy", prompt: "v2.3" });
-    expect((await post({ a: CAST_A, b: CAST_B, heat: "spicy" }, cookie)).status).toBe(422);
-    // A null column reads as frank.
-    await t.db.query(`update adult_scenes set heat = null`);
-    expect((await get(cookie)).scene.heat).toBe("frank");
+    expect(prompts[0][0].content).toContain("this scene is written filthy");
+    const step = (await t.db.query<{ flags: { filthy?: boolean; prompt?: string } }>("select flags from adult_steps where kind = 'write' order by created_at desc limit 1")).rows[0];
+    expect(step.flags).toMatchObject({ filthy: true, prompt: "v2.3" });
+    // after_dark_scene shows it with the scene.
+    const read = await runAdultTool(t.db, "after_dark_scene", { a: CAST_A, b: CAST_B });
+    expect("data" in read && (read.data.scene as { intensity: string }).intensity).toBe("filthy");
   });
 
-  it("over MCP: after_dark_heat sets it, after_dark_write takes one, and after_dark_scene shows it", async () => {
-    await admin();
-    const prompts = scripted(() => six());
-    const set = await runAdultTool(t.db, "after_dark_heat", { a: CAST_A, b: CAST_B, heat: "suggestive" });
-    expect("data" in set && (set.data.scene as { heat: string }).heat).toBe("suggestive");
-    expect(await runAdultTool(t.db, "after_dark_heat", { a: CAST_A, b: CAST_B, heat: "hot" })).toMatchObject({ error: expect.stringMatching(/suggestive, frank, filthy/) });
-    const wrote = await runAdultTool(t.db, "after_dark_write", { a: CAST_A, b: CAST_B, heat: "filthy" });
-    expect("data" in wrote && (wrote.data.scene as { heat: string }).heat).toBe("filthy");
-    expect(prompts[0][0].content).toContain("this scene is written filthy");
-    const read = await runAdultTool(t.db, "after_dark_scene", { a: CAST_A, b: CAST_B });
-    expect("data" in read && (read.data.scene as { heat: string }).heat).toBe("filthy");
-    expect(await runAdultTool(t.db, "after_dark_write", { a: CAST_A, b: CAST_B, heat: 3 })).toMatchObject({ error: expect.stringMatching(/heat is one of/) });
+  it("refuses a Direct steer whose quoted line crosses the intensity or a hard no, as any steer is", async () => {
+    const scene = { stage: 2, intensity: "slow_burn" as const, hard_nos: { chips: ["biting"], own: [] } };
+    expect(limitRefusal("steer", 'Rafe says "stay for one more cup"', scene)).toBeNull();
+    expect(limitRefusal("steer", 'Rafe says "I want to unbutton your shirt"', scene)).toMatch(/past kissing/);
+    expect(limitRefusal("steer", 'Rafe says "let me bite your shoulder"', scene)).toMatch(/hard limits/);
+    expect(limitRefusal("steer", 'Rafe says "this fucking kettle"', { ...scene, intensity: "spicy" })).toMatch(/too crude for spicy/);
+    expect(limitRefusal("steer", 'Rafe says "this fucking kettle"', { ...scene, intensity: "filthy" })).toBeNull();
+    const { cookie } = await admin();
+    await post({ a: CAST_A, b: CAST_B, limits: { intensity: "slow_burn" } }, cookie);
+    const r = await post({ a: CAST_A, b: CAST_B, direction: 'Rafe says "I want to unbutton your shirt"', steer_mode: "direct" }, cookie);
+    expect(r.status).toBe(422);
   });
 });
 

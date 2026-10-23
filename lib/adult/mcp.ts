@@ -10,17 +10,11 @@ import { listMedia } from "./media";
 import { advanceReel, listReels, makeReel, reelNight } from "./reels";
 import { siteUrl } from "../site";
 import { adultAvailable } from "./mode";
-import { SCENE_HEATS, type SceneHeat } from "./heat";
-import { continueScene, listCastPairs, openScene, setSceneHeat } from "./scenes";
+import { continueScene, listCastPairs, openScene } from "./scenes";
 import { getAdultSettings, saveAdultSettings } from "./settings";
 
 type JsonSchema = Record<string, unknown>;
 const id = { type: "string", maxLength: 64 };
-const HEAT_ARG = {
-  type: "string",
-  enum: [...SCENE_HEATS],
-  description: "How explicitly the scene is written, kept for the scene: suggestive (implied, cuts away at the climax), frank (the default) or filthy (plain dirty talk from undressing on).",
-};
 
 export const ADULT_TOOLS: { name: string; title: string; description: string; inputSchema: JsonSchema; annotations: Record<string, boolean> }[] = [
   {
@@ -51,18 +45,8 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
         b: id,
         direction: { type: "string", maxLength: 300, description: 'With steer_mode direct, words in quotes ("…") are spoken nearly as written, by whoever the steer names.' },
         steer_mode: { type: "string", enum: ["nudge", "direct"], description: "nudge (default): worked toward at the scene's own pace. direct: done now, can skip ahead." },
-        heat: HEAT_ARG,
       },
     },
-    annotations: { readOnlyHint: false },
-  },
-  {
-    name: "after_dark_heat",
-    title: "After dark: how explicit a scene is",
-    description:
-      "Admin only. Sets how explicitly a pair's scene is written, from the next lines on: suggestive (implied, cuts away), frank (the default) or filthy " +
-      "(plain dirty talk from undressing on). The two lines never move. after_dark_scene shows the scene's heat.",
-    inputSchema: { type: "object", required: ["a", "b", "heat"], properties: { a: id, b: id, heat: HEAT_ARG } },
     annotations: { readOnlyHint: false },
   },
   {
@@ -109,8 +93,6 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
 
 export const ADULT_TOOL_NAMES = new Set(ADULT_TOOLS.map((t) => t.name));
 
-const isHeat = (v: unknown): v is SceneHeat => (SCENE_HEATS as readonly unknown[]).includes(v);
-
 /** The account after-dark scenes over MCP belong to: the first admin. */
 async function sceneOwner(db: Db): Promise<string | null> {
   return (await db.query<{ user_id: string }>(`select user_id from admins order by user_id limit 1`)).rows[0]?.user_id ?? null;
@@ -140,16 +122,7 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
       const scene = await openScene(db, owner, a, b);
       return scene ? { data: { scene, gallery: await listMedia(db, [scene.a.id, scene.b.id]) } } : { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
     }
-    case "after_dark_heat": {
-      if (!isHeat(args.heat)) return { error: `heat is one of: ${SCENE_HEATS.join(", ")}.` };
-      const scene = await setSceneHeat(db, owner, a, b, args.heat);
-      return scene ? { data: { scene } } : { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
-    }
     case "after_dark_write": {
-      if (args.heat !== undefined) {
-        if (!isHeat(args.heat)) return { error: `heat is one of: ${SCENE_HEATS.join(", ")}.` };
-        if (!(await setSceneHeat(db, owner, a, b, args.heat))) return { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
-      }
       const r = await continueScene(db, owner, a, b, typeof args.direction === "string" ? args.direction : null, args.steer_mode === "direct" ? "direct" : "nudge");
       return r.ok
         ? { data: { scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}), ...(r.auto_picture ? { auto_picture: "drawing" } : {}) } }

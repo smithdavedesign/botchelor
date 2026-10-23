@@ -81,6 +81,9 @@ export function steerQuotes(steer: string | null, names: Who, pronouns: Pronouns
     .filter((q) => quoteTokens(q.text).length > 0);
 }
 
+/** Every quoted span in a text, as written ("…" or “…”). */
+export const quotedSpans = (text: string): string[] => [...text.matchAll(QUOTE)].map((m) => (m[1] ?? m[2] ?? "").trim()).filter(Boolean);
+
 /** The steer without its quoted lines: what's left to act out in their own words (and to hold the no-copy rule to). */
 export const withoutQuotes = (steer: string | null): string | null => {
   if (!steer) return steer;

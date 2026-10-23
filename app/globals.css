@@ -7413,37 +7413,7 @@ a.phone-head-btn {
   gap: 0.3rem;
   align-items: center;
 }
-/* The scene's heat (lib/adult/heat.ts): a small segmented control over the steer box, one choice lit. */
-.after-dark-heat {
-  display: inline-flex;
-  flex-wrap: wrap;
-  width: fit-content;
-  max-width: 100%;
-  border: 1px solid var(--line, #3a2d52);
-  border-radius: 999px;
-  overflow: hidden;
-  font-size: var(--text-sm);
-}
-.after-dark-heat label {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.2rem 0.7rem;
-  cursor: pointer;
-}
-.after-dark-heat label.is-on {
-  background: #1d1430;
-  color: #e2c8ff;
-  font-weight: 600;
-}
-.after-dark-heat input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-.after-dark-heat label:has(input:focus-visible) {
-  outline: 2px solid #e2c8ff;
-  outline-offset: -2px;
-}
+/* A scene picture's chapter and place (lib/adult/auto-pictures.ts), under it in the gallery. */
 .ad-picture-where {
   display: block;
 }

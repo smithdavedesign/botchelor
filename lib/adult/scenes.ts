@@ -38,7 +38,7 @@ import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, repeatOf, sa
 import { activeLimit, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
 import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
 import { fileSteps, logStep, markRewound, stepIndexOf, stepsOf, unfileSteps, type StepRow } from "./steps";
-import { hardNoHit, hardNoLines, hasHardNos, INTENSITY, intensityLine, intensityOf, limitsHit, NO_LIMITS, OWN_LEN, OWN_MAX, storedHardNos, type HardNos, type Intensity, type PairLimits } from "./limits";
+import { hardNoHit, hardNoLines, hasHardNos, INTENSITY, intensityLine, intensityOf, limitsHit, NO_LIMITS, overIntensity, OWN_LEN, OWN_MAX, plainTalk, storedHardNos, type HardNos, type Intensity, type PairLimits } from "./limits";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 import {
   bumpFacts,
@@ -94,8 +94,7 @@ import {
   wornIn,
 } from "./quality";
 import { DEFAULT_PROMPT_VERSION, getAdultSettings, SCENE_PROMPT_REVISION, type AdultSettings, type PromptVersion } from "./settings";
-import { DEFAULT_SCENE_HEAT, plainTalk, sceneHeatOf, type SceneHeat } from "./heat";
-import { carriesQuote, quotesKept, steerQuotes, withoutQuotes, type QuoteCheck, type SteerQuote } from "./quotes";
+import { carriesQuote, quotedSpans, quotesKept, steerQuotes, withoutQuotes, type QuoteCheck, type SteerQuote } from "./quotes";
 import { kickAutoPicture } from "./auto-pictures";
 import { castNames, sceneCharacter, styleExamples, voiceKitLines } from "./voice";
 export { SOFT_CHAPTERS } from "./stages";
@@ -148,11 +147,6 @@ export type AdultScene = {
   /** The viewer's limits for the pair (lib/adult/limits.ts): how far and how frank it goes, and their hard nos. */
   intensity: Intensity;
   hard_nos: HardNos;
-  /**
-   * How explicitly it's written (lib/adult/heat.ts): suggestive, frank (the default, and a null column) or filthy. Inside
-   * the intensity's limits: filthy's plain talk only at explicit (below it, crude words are dropped anyway).
-   */
-  heat: SceneHeat;
 };
 
 /** What a step was asked: its steer, how strongly, and a whisper sent with it. A redo asks the same again. */
@@ -276,9 +270,9 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     await db.query<{
       id: string; lines: SceneLine[]; place: string | null; stage: number; stage_from: number; picture_note: string | null; set_place: string | null; cut_to: string | null;
       chapter: number; recap: string | null; prev_tail: SceneLine[] | null; place_history: PlaceStop[] | null; moves: MoveLog[] | null; suggestions: unknown; whispers: unknown; undo: StepUndo[] | null;
-      intensity: string | null; hard_nos: unknown; heat: string | null;
+      intensity: string | null; hard_nos: unknown;
     }>(
-      `select id, lines, place, stage, stage_from, picture_note, set_place, cut_to, chapter, recap, prev_tail, place_history, moves, suggestions, whispers, undo, intensity, hard_nos, heat
+      `select id, lines, place, stage, stage_from, picture_note, set_place, cut_to, chapter, recap, prev_tail, place_history, moves, suggestions, whispers, undo, intensity, hard_nos
          from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`,
       [adminId, a, b],
     )
@@ -307,7 +301,6 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     undo: Array.isArray(row.undo) ? row.undo : [],
     intensity: intensityOf(row.intensity),
     hard_nos: storedHardNos(row.hard_nos),
-    heat: sceneHeatOf(row.heat),
   };
 }
 
@@ -402,44 +395,39 @@ const sheetV2 = (c: Character | null, side: "a" | "b", catchphraseUsed = false, 
  * on prod, 2026-10-22: her bakery in 137 of 298 lines, his pottery in 73, her pencil spun 31 times, during sex too): their
  * job and hobbies come up now and then, not in every line, and their tells are left to the craft rules.
  */
-function voiceRules(a: Character | null, b: Character | null, names: { a: string; b: string }, heat: SceneHeat = DEFAULT_SCENE_HEAT, stage = 0): string[] {
+function voiceRules(a: Character | null, b: Character | null, names: { a: string; b: string }, plain = false): string[] {
   const banned = bannedPhrases([a, b].filter((c): c is Character => Boolean(c)).map((c) => sheetText(sideOfCharacter(c))));
   const pronouns = (c: Character | null, name: string) => `${name.split(/\s+/)[0]}: ${c?.pronouns?.trim() || "none given, so use their name"}`;
   return [
     `Only the two of them are in this scene: ${names.a} and ${names.b}. Nobody else speaks, arrives or is named, and each calls the other by their own name.`,
-    // v2.3 (David, 2026-10-23: a baker turned every line of a filthy steer into a baking pun): at filthy's late stages the
+    // v2.3 (David, 2026-10-23: a baker turned every line of a filthy steer into a baking pun): at Filthy's late stages the
     // voice is attitude and rhythm, and the jokes and the job are a seasoning.
-    plainTalk(heat, stage) ? FILTHY_VOICE : VOICE_RULE,
+    plain ? FILTHY_VOICE : VOICE_RULE,
     `Never write these stock phrases, or anything in their register: ${banned.join(", ")}.`,
     `Their pronouns, from their sheets: ${pronouns(a, names.a)}; ${pronouns(b, names.b)}. Use only these, for them, their bodies and their places.`,
   ];
 }
 
-/** v2's rule for staying themselves (suggestive and frank, and filthy before undressing). */
+/** v2's rule for staying themselves (every intensity, and Filthy before undressing). */
 const VOICE_RULE =
   "Stay this person when it gets intimate: their humour and the way they talk still show, and their job or a hobby comes up now and then, not in every line; no generic romance-novel phrasing. They sound like their sheets, not like a paperback.";
-/** v2.3, filthy from undressing on: the voice in how they talk dirty, not in puns. */
+/** v2.3, Filthy from undressing on: the voice in how they talk dirty, not in puns. */
 const FILTHY_VOICE =
   "Stay this person when it gets intimate, in attitude and rhythm: how bold or shy they are, how they ask, tease and answer, the length and pace of what they say. Now it's gone this far, the jokes and their job are a light seasoning, a line now and then at most: no puns, no wordplay on their work, no coy stand-ins for what they mean. No generic romance-novel phrasing either. They sound like themselves, talking dirty.";
 
-/**
- * v2.3's heat (lib/adult/heat.ts): how explicitly the scene is written, said where v2's system prompt says it's allowed.
- * Frank is the line it always had.
- */
-const HEAT_RULE: Record<SceneHeat, string> = {
-  frank: "Both characters are adults (18 or older) and both are willing. Explicit sexual content is allowed and expected when the scene goes there; write it frankly, in each character's own voice.",
-  suggestive:
-    "Both characters are adults (18 or older) and both are willing. This scene is written suggestively: sex can happen between them, but it's written around, never described: the build-up, a look, a touch, what they say, then the scene cuts away before the act itself and picks up after. No anatomy words and no graphic detail.",
-  filthy:
-    "Both characters are adults (18 or older) and both are willing. Explicit sexual content is allowed and expected when the scene goes there, and this scene is written filthy: once they're undressing, the acts are described plainly and graphically, and they talk dirty in the dialogue itself, in plain, explicit words.",
-};
+/** Explicit's line (and every prompt's before #702): the system prompt's word on what's allowed. */
+const EXPLICIT_RULE =
+  "Both characters are adults (18 or older) and both are willing. Explicit sexual content is allowed and expected when the scene goes there; write it frankly, in each character's own voice.";
+/** v2.3's Filthy intensity (lib/adult/limits.ts), said where Explicit says it. */
+const FILTHY_RULE =
+  "Both characters are adults (18 or older) and both are willing. Explicit sexual content is allowed and expected when the scene goes there, and this scene is written filthy: once they're undressing, the acts are described plainly and graphically, and they talk dirty in the dialogue itself, in plain, explicit words.";
 
 /**
- * The heat a step writes at: the scene's, under prompt v2 and at the explicit intensity (lib/adult/limits.ts). Below
- * explicit the viewer has turned it down, and the intensity's own register (and its crude-word check) stands: frank.
+ * Whether a step writes Filthy's way: prompt v2, the Filthy intensity, and no "dirty talk" hard no (a hard no wins: then
+ * it's Explicit's prompt, and the hard-no check still drops a crude line). Its plain talk starts at undressing
+ * (lib/adult/limits.ts plainTalk).
  */
-export const effectiveHeat = (v2: boolean, heat: SceneHeat | undefined, intensity: Intensity): SceneHeat =>
-  v2 && intensity === "explicit" ? (heat ?? DEFAULT_SCENE_HEAT) : DEFAULT_SCENE_HEAT;
+export const writesFilthy = (v2: boolean, limits: PairLimits): boolean => v2 && plainTalk(limits, STAGES.length - 1);
 
 /** The worn phrases the prompt lists per character, at most (the most worn first). */
 const WORN_SHOWN = 8;
@@ -471,9 +459,8 @@ function craftLines(
   a: Character | null,
   b: Character | null,
   lines: readonly SceneLine[],
-  now: { place: string; set?: string | null; stage: number; movesLeft?: number; linesHere?: number; publicPlace?: boolean; tellsUsed?: { a: readonly string[]; b: readonly string[] }; heat?: SceneHeat },
+  now: { place: string; set?: string | null; stage: number; movesLeft?: number; linesHere?: number; publicPlace?: boolean; tellsUsed?: { a: readonly string[]; b: readonly string[] }; plain?: boolean },
 ): string[] {
-  const heat = now.heat ?? DEFAULT_SCENE_HEAT;
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
   const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
   const kind = (who: "a" | "b") => pronounKind((who === "a" ? a : b)?.pronouns);
@@ -494,11 +481,8 @@ function craftLines(
       "- Keep track of how they're positioned: once a line sets it (on top, from behind, against the wall), the lines only show what each of them could see, reach or do from there (from behind, their eyes don't meet), until a line changes it.",
     );
   }
-  if (plainTalk(heat, now.stage)) {
+  if (now.plain) {
     rules.push("- Filthy: they say what they want, what they're doing and how it feels, out loud, in plain words, each in their own way. A joke or their work gets a line now and then at most; a theme they keep coming back to doesn't take over.");
-  }
-  if (heat === "suggestive" && now.stage >= UNDRESSING) {
-    rules.push("- Suggestive: what they do is implied, never spelled out. Show the look, the breath, the hand, the words; at the climax the scene cuts away (a line just before, then one after).");
   }
   if (now.stage >= STAGES.length - 1) {
     const climax = recentClimax(lines);
@@ -612,15 +596,16 @@ export function sceneMessages(
     whispers?: Whispers;
     /** The viewer's limits (lib/adult/limits.ts): the intensity and the hard nos. None: the prompt as it was. */
     limits?: PairLimits;
-    /** v2.3: how explicitly it's written (lib/adult/heat.ts), a new chapter carrying on from the last, and a Direct steer's quoted lines. */
-    heat?: SceneHeat;
+    /** v2.3: a new chapter carrying on from the last, and a Direct steer's quoted lines. */
     carry?: ChapterCarry | null;
     quotes?: readonly SteerQuote[];
   } = { place: "wherever they've just met", stage: 0 },
 ): ChatMessage[] {
   const v2 = (now.promptVersion ?? DEFAULT_PROMPT_VERSION) === "v2";
-  // The heat is how it's written within the viewer's intensity: below explicit, the intensity's own register stands.
-  const heat = effectiveHeat(v2, now.heat, (now.limits ?? NO_LIMITS).intensity);
+  // v2.3's Filthy intensity (lib/adult/limits.ts): its own line for what's allowed, and from undressing on (plain) its
+  // voice and line rules. A "dirty talk" hard no turns it back into Explicit's prompt.
+  const filthy = writesFilthy(v2, now.limits ?? NO_LIMITS);
+  const plain = v2 && plainTalk(now.limits ?? NO_LIMITS, now.stage);
   const carry = v2 ? (now.carry ?? null) : null;
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
   const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
@@ -646,10 +631,10 @@ export function sceneMessages(
   const capped = cap < STAGES.length - 1;
   const system = [
     "You write a private, adults-only scene for one reader: two characters from a dating show, alone together.",
-    register ? `Both characters are adults (18 or older) and both are willing. ${register}` : HEAT_RULE[heat],
+    register ? `Both characters are adults (18 or older) and both are willing. ${register}` : filthy ? FILTHY_RULE : EXPLICIT_RULE,
     "Two rules never move: nobody in the scene is under 18 or described as a child, and no real, identifiable person appears or is named.",
     ...hardNoLines(limits.hard_nos),
-    ...(v2 ? voiceRules(a, b, { a: nameOf("a"), b: nameOf("b") }, heat, now.stage) : []),
+    ...(v2 ? voiceRules(a, b, { a: nameOf("a"), b: nameOf("b") }, plain) : []),
     "",
     v2 ? sheetV2(a, "a", now.catchphraseUsed?.a, now.styles?.a) : sheetOf(a, "a", now.catchphraseUsed?.a),
     "",
@@ -707,7 +692,7 @@ export function sceneMessages(
           linesHere: now.linesHere,
           publicPlace: !(direction && now.steerMode === "direct") && isPublicPlace(where.set ?? where.place, now.homeNow ?? null),
           tellsUsed: now.tellsUsed,
-          heat,
+          plain,
         })
       : []),
   ]
@@ -731,7 +716,7 @@ export function sceneMessages(
   const user =
     `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}${v2 ? `, starting with ${first(next)}` : ""}. ` +
     `Each line is ${v2 ? "a few words to 3 sentences (now and then only an action)" : "1 to 3 sentences"} in that character's own voice, vivid and specific, never a stock line ("you feel amazing"). ` +
-    (v2 ? LINE_RULE[plainTalk(heat, now.stage) ? "filthy" : heat === "filthy" ? "frank" : heat] : "") +
+    (v2 ? (plain ? FILTHY_LINE_RULE : LINE_RULE) : "") +
     `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text. Write both in English.` +
     (direction
       ? now.steerMode === "direct"
@@ -763,14 +748,12 @@ export function sceneMessages(
   ];
 }
 
-/** v2's rule for the lines themselves, per heat (filthy's only from undressing on; before that it's frank's). */
-const LINE_RULE: Record<SceneHeat, string> = {
-  frank: "As it heats up they stay themselves: their humour and their way of talking keep showing, their work or a hobby now and then (not in every line), and nothing reads like a romance novel. ",
-  suggestive:
-    "As it heats up they stay themselves: their humour and their way of talking keep showing, their work or a hobby now and then (not in every line), and nothing reads like a romance novel. What happens between them is implied, never spelled out: no anatomy words, and at the climax the scene cuts away. ",
-  filthy:
-    "From here on they talk dirty in the dialogue itself, in plain, explicit words: what they want, what they're doing, how it feels, said the way this person would say it. Their humour and their work are a light seasoning at most (a line now and then), never a pun; the voice is in their attitude and rhythm, and nothing reads like a romance novel. ",
-};
+/** v2's rule for the lines themselves (every intensity, and Filthy before undressing). */
+const LINE_RULE =
+  "As it heats up they stay themselves: their humour and their way of talking keep showing, their work or a hobby now and then (not in every line), and nothing reads like a romance novel. ";
+/** v2.3, Filthy from undressing on (lib/adult/limits.ts plainTalk). */
+const FILTHY_LINE_RULE =
+  "From here on they talk dirty in the dialogue itself, in plain, explicit words: what they want, what they're doing, how it feels, said the way this person would say it. Their humour and their work are a light seasoning at most (a line now and then), never a pun; the voice is in their attitude and rhythm, and nothing reads like a romance novel. ";
 
 /**
  * v2.3 (David, 2026-10-23: the quoted lines in his Direct steers never came out, since the no-copy rule cut them): a
@@ -1169,8 +1152,6 @@ export type StepInput = {
   whispers?: Whispers;
   /** The viewer's limits for the pair (lib/adult/limits.ts); none (explicit, no hard nos) when left out. */
   limits?: PairLimits;
-  /** v2.3: how explicitly it's written (lib/adult/heat.ts); frank when not given, and below the explicit intensity. */
-  heat?: SceneHeat;
 };
 
 /** What happened to a step's lines on the way in, summed over its calls. */
@@ -1217,9 +1198,9 @@ export type StepFlags = {
   intensity_dropped?: number;
   /** Logged on a redo's step (the step it took back is marked rewound). */
   redo?: boolean;
-  /** v2.3: which revision of the prompt wrote it ("v2.3", or "v1"), and at what heat (lib/adult/heat.ts). */
+  /** v2.3: which revision of the prompt wrote it ("v2.3", or "v1"), and whether it wrote Filthy's way (writesFilthy). */
   prompt?: string;
-  heat?: SceneHeat;
+  filthy?: boolean;
   /**
    * v2.3: a Direct steer's quoted lines, each with whether a kept line said it nearly as written (lib/adult/quotes.ts),
    * and whether all of them were (quote_kept, only when there were any). quote_retry: asked once more for a missing one.
@@ -1304,9 +1285,8 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   // below how far it had already gone, and not under a Direct steer (which can jump).
   const publicCap =
     v2 && !(steer && steerMode === "direct") && isPublicPlace(scene.set_place ?? scene.place ?? date?.setting ?? null, homeNow) ? Math.max(KISSING, scene.stage) : null;
-  // v2.3: the heat, a Direct steer's quoted lines (said nearly as written; the rest of it still acted out), and a new
-  // chapter carrying on from where the last one stopped, never below the stage it ended at (lib/adult/heat.ts, quotes.ts).
-  const heat = effectiveHeat(v2, input.heat, limits.intensity);
+  // v2.3: a Direct steer's quoted lines (said nearly as written; the rest of it still acted out: lib/adult/quotes.ts),
+  // and a new chapter carrying on from where the last one stopped, never below the stage it ended at.
   const quotes: SteerQuote[] = v2 && steer && steerMode === "direct" ? steerQuotes(steer, names, { a: a?.pronouns, b: b?.pronouns }) : [];
   const copyRule = quotes.length ? withoutQuotes(steer) : steer;
   const carry = v2 ? chapterCarry(scene, possessiveNames(scene.set_place ?? placeOf(scene, date), names) ?? placeOf(scene, date)) : null;
@@ -1334,7 +1314,6 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     ...(v2 ? { tellsUsed: { a: tellsAtCap(scene.lines, "a", a), b: tellsAtCap(scene.lines, "b", b) } } : {}),
     whispers,
     limits,
-    heat,
     carry,
     quotes,
   });
@@ -1344,7 +1323,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     refused: 0, moralising: 0, refusal_reply: false, citations: [], worn_phrases: 0, show_copies_cut: 0, public_dropped: 0,
     hooks_cut: 0, tells_cut: 0, actions_cut: 0, openings_cut: 0, build_ups_cut: 0, whispers_said: 0, suggestions_replaced: 0, hard_nos: 0, intensity_dropped: 0,
     prompt: v2 ? SCENE_PROMPT_REVISION : "v1",
-    ...(v2 ? { heat } : {}),
+    ...(writesFilthy(v2, limits) ? { filthy: true } : {}),
     ...(carry ? { carry: { stage: carry.stage, place: carry.place, first: carry.first, floor: carry.floor } } : {}),
   };
   const { temperature, frequency_penalty, presence_penalty, repetition_penalty } = input.sampling;
@@ -1702,6 +1681,12 @@ export function limitRefusal(what: "steer" | "whisper", text: string | null, sce
   const level = INTENSITY[scene.intensity];
   const asked = stageAsked(text, scene.stage);
   if (asked !== null && asked > level.maxStage) return `That ${what} goes past ${STAGES[level.maxStage]}, as far as ${level.label.toLowerCase()} goes. Change it, or turn the intensity up, first.`;
+  // v2.3: a quoted line is spoken nearly as written (lib/adult/quotes.ts), so one the intensity wouldn't let a line say
+  // (past its stage, or too crude below explicit) is refused up front, like the rest of the steer.
+  for (const q of quotedSpans(text)) {
+    const over = overIntensity(q, scene.intensity);
+    if (over) return `That ${what} has a quoted line ${level.label.toLowerCase()} doesn't allow (${over}). Change it, or turn the intensity up, first.`;
+  }
   return null;
 }
 
@@ -1769,7 +1754,6 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     resolveSet: (label) => resolveSet(db, label),
     whispers,
     limits,
-    heat: scene.heat,
   });
   if (!step.ok) return failed(step.status, step.message, { direction: steer, dropped: step.dropped, flags: step.flags, whisper });
   const { meta, next } = step;
@@ -1858,14 +1842,6 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     ...(picture_note ? { picture_note } : {}),
     ...(autoPicture ? { auto_picture: true } : {}),
   };
-}
-
-/** Sets how explicitly a pair's scene is written (lib/adult/heat.ts). Null for a pair outside this person's after dark. */
-export async function setSceneHeat(db: Db, ownerId: string, x: string, y: string, heat: SceneHeat): Promise<AdultScene | null> {
-  const scene = await loadScene(db, ownerId, x, y);
-  if (!scene) return null;
-  await db.query(`update adult_scenes set heat = $2, updated_at = now() where id = $1`, [scene.id, heat]);
-  return publicScene({ ...scene, heat });
 }
 
 /** What a chapter's close knows for certain, for a recap the model couldn't write: which chapter, where it ended, how far it went. */
