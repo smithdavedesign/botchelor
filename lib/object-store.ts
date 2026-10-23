@@ -16,8 +16,19 @@
  *   MEDIA_S3_SECRET_ACCESS_KEY   its secret
  *   MEDIA_S3_REGION              optional; read from the endpoint when it names one (…us-east-1…), else us-east-1
  * scripts/media-to-object-store.mjs copies existing rows' bytes into the bucket.
+ *
+ * Or Bunny (bunny.net), whose terms allow adult content, for After Dark's own host (docs/after-dark-hosting.md): its
+ * Edge Storage holds the files, and a pull zone with Token Authentication serves them by links that expire. Set, it's
+ * the store (ahead of MEDIA_S3_*); unset, nothing changes. Config, all five or none:
+ *   MEDIA_BUNNY_ZONE             the storage zone's name
+ *   MEDIA_BUNNY_KEY              its password (Access → API / HTTP), sent as the AccessKey header
+ *   MEDIA_BUNNY_REGION           its primary region: de (Frankfurt, the default), uk, ny, la, sg, se, br, jh or syd;
+ *                                or the storage endpoint's host name itself
+ *   MEDIA_BUNNY_CDN_HOST         the pull zone's host name: media.botchelor.com, or <pull zone>.b-cdn.net
+ *   MEDIA_BUNNY_TOKEN_KEY        the pull zone's URL Token Authentication Key (Security → Token Authentication)
+ * scripts/media-to-bunny.mjs copies the bucket's files across (and back).
  */
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { AwsClient } from "aws4fetch";
 
 export type ObjectStore = {
@@ -124,9 +135,100 @@ export function s3Store(cfg: StoreConfig): ObjectStore {
   };
 }
 
-/** The configured bucket, or null: then every file is kept and read in Postgres, as before. */
+export type BunnyConfig = { zone: string; key: string; storageHost: string; cdnHost: string; tokenKey: string };
+
+/** Each primary region's storage endpoint (bunny.net/docs/storage/http.md). */
+export const BUNNY_STORAGE_HOSTS: Readonly<Record<string, string>> = {
+  de: "storage.bunnycdn.com",
+  uk: "uk.storage.bunnycdn.com",
+  ny: "ny.storage.bunnycdn.com",
+  la: "la.storage.bunnycdn.com",
+  sg: "sg.storage.bunnycdn.com",
+  se: "se.storage.bunnycdn.com",
+  br: "br.storage.bunnycdn.com",
+  jh: "jh.storage.bunnycdn.com",
+  syd: "syd.storage.bunnycdn.com",
+};
+
+const hostName = (v: string | undefined) =>
+  v?.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase() || undefined;
+
+/**
+ * Bunny's settings, or null when any of them is missing (then the S3 bucket, or Postgres, as before). A region that
+ * isn't one throws: a store that would quietly be something else is worse than one that says it's misconfigured.
+ */
+export function bunnyConfig(env: Record<string, string | undefined> = process.env): BunnyConfig | null {
+  const zone = env.MEDIA_BUNNY_ZONE?.trim();
+  const key = env.MEDIA_BUNNY_KEY?.trim();
+  const cdnHost = hostName(env.MEDIA_BUNNY_CDN_HOST);
+  const tokenKey = env.MEDIA_BUNNY_TOKEN_KEY?.trim();
+  if (!zone || !key || !cdnHost || !tokenKey) return null;
+  const region = hostName(env.MEDIA_BUNNY_REGION) ?? "de";
+  const storageHost = region.includes(".") ? region : BUNNY_STORAGE_HOSTS[region];
+  if (!storageHost) throw new Error(`MEDIA_BUNNY_REGION "${region}" isn't a Bunny storage region (${Object.keys(BUNNY_STORAGE_HOSTS).join(", ")}) or host name`);
+  return { zone, key, storageHost, cdnHost, tokenKey };
+}
+
+/**
+ * A Bunny CDN URL token, Advanced Token Authentication (bunny.net/docs/cdn/security/token-authentication/advanced.md):
+ * "HS256-" + base64url, unpadded, of HMAC-SHA256 keyed with the pull zone's token key over the signed path, the expiry
+ * (Unix seconds), then the extra parameters sorted by name as name=value&…. The signed path is the URL's path, or
+ * `token_path` when that's one of the parameters (a token for everything under it). No IP is signed: IP-locked tokens
+ * need the zone's Token IP Validation on (which also turns its IPv6 off), and a viewer's address moves between
+ * networks within the twelve hours a link lives. Checked against Bunny's own test vectors
+ * (github.com/BunnyWay/BunnyCDN.TokenAuthentication e2e/vectors.json) in tests/bunny-store.test.ts.
+ */
+export function bunnyToken(tokenKey: string, path: string, expires: number, params: Record<string, string> = {}): string {
+  const signed = params.token_path || path;
+  const data = Object.keys(params)
+    .sort()
+    .map((k) => `${k}=${params[k]}`)
+    .join("&");
+  return `HS256-${createHmac("sha256", tokenKey).update(signed).update(String(expires)).update(data).digest("base64url")}`;
+}
+
+/** A key as a URL path (/after-dark/x-0123.png): each segment encoded, the same in the storage API and the CDN. */
+const keyPath = (key: string) => `/${key.split("/").map(encodeURIComponent).join("/")}`;
+
+export function bunnyStore(cfg: BunnyConfig): ObjectStore {
+  const url = (key: string) => `https://${cfg.storageHost}/${encodeURIComponent(cfg.zone)}${keyPath(key)}`;
+  const send = (key: string, init: RequestInit & { headers?: Record<string, string> }) =>
+    doFetch(url(key), { ...init, headers: { ...init.headers, AccessKey: cfg.key } });
+  return {
+    async put(key, bytes, mime) {
+      // Bunny hashes what arrived and refuses it unless it matches this (SHA-256, upper-case hex).
+      const res = await withRetry(() =>
+        send(key, { method: "PUT", body: new Uint8Array(bytes), headers: { "content-type": mime, checksum: sha256(bytes).toUpperCase() } }),
+      );
+      if (!res.ok) throw new Error(`object store refused ${key} (${res.status}): ${(await res.text()).slice(0, 200)}`);
+    },
+    async get(key) {
+      const res = await withRetry(() => send(key, { method: "GET" }));
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`object store couldn't read ${key} (${res.status})`);
+      return Buffer.from(await res.arrayBuffer());
+    },
+    async remove(key) {
+      const res = await withRetry(() => send(key, { method: "DELETE" }));
+      if (!res.ok && res.status !== 404) throw new Error(`object store couldn't delete ${key} (${res.status})`);
+    },
+    async presign(key, now = Date.now()) {
+      // As for S3: one link for the whole window (its expiry counted from the window's start), living two windows. The
+      // pull zone sets how long a browser keeps the file (docs/after-dark-hosting.md: browser cache time, 12 hours).
+      const start = Math.floor(now / LINK_WINDOW_MS) * LINK_WINDOW_MS;
+      const expires = Math.floor(start / 1000) + LINK_LIFE_S;
+      const path = keyPath(key);
+      const q = new URLSearchParams({ token: bunnyToken(cfg.tokenKey, path, expires), expires: String(expires) });
+      return { url: `https://${cfg.cdnHost}${path}?${q}`, maxAge: Math.max(1, Math.ceil((start + LINK_WINDOW_MS - now) / 1000)) };
+    },
+  };
+}
+
+/** The configured store (Bunny, else the S3 bucket), or null: then every file is kept and read in Postgres, as before. */
 export function objectStore(env: Record<string, string | undefined> = process.env): ObjectStore | null {
   if (testStore !== undefined) return testStore;
+  const bunny = bunnyConfig(env);
+  if (bunny) return bunnyStore(bunny);
   const cfg = storeConfig(env);
   return cfg ? s3Store(cfg) : null;
 }
@@ -149,7 +251,14 @@ export function mediaKey(area: MediaArea, id: string, bytes: Buffer, mime: strin
  * script moves it later.
  */
 export async function keepBytes(area: MediaArea, id: string, bytes: Buffer, mime: string): Promise<{ data: Buffer | null; object_key: string | null }> {
-  const store = objectStore();
+  let store: ObjectStore | null;
+  try {
+    store = objectStore();
+  } catch (err) {
+    // A misconfigured store (bunnyConfig) fails every read loudly, but never costs a file that was paid for.
+    console.error(`[object-store] kept ${area}/${id} in Postgres: ${err instanceof Error ? err.message : "error"}`);
+    return { data: bytes, object_key: null };
+  }
   if (!store) return { data: bytes, object_key: null };
   const key = mediaKey(area, id, bytes, mime);
   try {

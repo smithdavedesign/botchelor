@@ -71,6 +71,41 @@ export async function rememberAfterDark(db: Db, ownerId: string, a: Character | 
   }
 }
 
+/** One side's PG note as stored, for a rewind to put back as it was (restoreNotes). */
+export type NoteRow = { character_id: string; other_id: string; owner_id: string; note: string; updated_at: string };
+
+/** The pair's PG notes as they stand, both ways (none, one or two). */
+export async function notesBetween(db: Db, aId: string, bId: string): Promise<NoteRow[]> {
+  const r = await db
+    .query<{ character_id: string; other_id: string; owner_id: string; note: string; updated_at: string | Date }>(
+      `select character_id, other_id, owner_id, note, updated_at from adult_memories where (character_id = $1 and other_id = $2) or (character_id = $2 and other_id = $1)`,
+      [aId, bId],
+    )
+    .catch(() => ({ rows: [] as { character_id: string; other_id: string; owner_id: string; note: string; updated_at: string | Date }[] }));
+  return r.rows.map((x) => ({ ...x, updated_at: new Date(x.updated_at).toISOString() }));
+}
+
+/**
+ * The pair's PG notes put back as they were (a rewound chapter close wrote new ones): each side's note as it was, or
+ * none when it had none. Never throws.
+ */
+export async function restoreNotes(db: Db, aId: string, bId: string, before: readonly NoteRow[]): Promise<void> {
+  for (const [self, other] of [
+    [aId, bId],
+    [bId, aId],
+  ] as const) {
+    const was = before.find((n) => n.character_id === self && n.other_id === other);
+    await (was
+      ? db.query(
+          `insert into adult_memories (character_id, other_id, owner_id, note, updated_at) values ($1, $2, $3, $4, $5)
+           on conflict (character_id, other_id) do update set note = excluded.note, owner_id = excluded.owner_id, updated_at = excluded.updated_at`,
+          [self, other, was.owner_id, was.note, was.updated_at],
+        )
+      : db.query(`delete from adult_memories where character_id = $1 and other_id = $2`, [self, other])
+    ).catch(() => {});
+  }
+}
+
 /** What one character remembers of After Dark with another, or null. Only ever the PG note. */
 export async function afterDarkNote(db: Db, selfId: string, otherId: string): Promise<string | null> {
   const r = await db.query<{ note: string }>(`select note from adult_memories where character_id = $1 and other_id = $2`, [selfId, otherId]).catch(() => ({ rows: [] }));

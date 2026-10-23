@@ -1,9 +1,19 @@
 import { z } from "zod";
 import { signedInAdmin } from "@/lib/adult/mode";
-import { getAdultSettings, PROMPT_VERSIONS, saveAdultSettings } from "@/lib/adult/settings";
+import { MODEL_ID } from "@/lib/adult/replicate";
+import { getAdultSettings, MEDIA_PROVIDERS, PROMPT_VERSIONS, saveAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
 import { lockedForRequest } from "@/lib/adult/privacy";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
+
+/** A Replicate model (owner/name, or owner/name:version), or "" for the default. */
+const replicateModel = z.string().trim().max(160).refine((v) => v === "" || MODEL_ID.test(v), "a Replicate model: owner/name, or owner/name:version");
+/** Wan's LoRA: one https URL (for both its transformers), or two (high noise, then low), or "" for none. */
+const videoLora = z
+  .string()
+  .trim()
+  .max(1000)
+  .refine((v) => v === "" || (v.split(/[\s,]+/).length <= 2 && v.split(/[\s,]+/).every((u) => /^https:\/\/\S+$/.test(u))), "one or two https URLs");
 
 const Input = z.object({
   enabled: z.boolean().optional(),
@@ -26,6 +36,13 @@ const Input = z.object({
   reel_model: z.string().max(120).optional(),
   reel_shots: z.number().int().min(2).max(12).optional(),
   reel_tokens: z.number().int().min(0).max(500).optional(),
+  media_provider: z.enum(MEDIA_PROVIDERS).optional(),
+  replicate_key: z.string().max(400).optional(),
+  replicate_picture_model: replicateModel.optional(),
+  replicate_keyframe_model: replicateModel.optional(),
+  replicate_video_model: replicateModel.optional(),
+  replicate_voice_model: replicateModel.optional(),
+  replicate_video_lora: videoLora.optional(),
 });
 
 /** A signed-in admin on a device that isn't locked by their PIN (lib/adult/privacy.ts). */

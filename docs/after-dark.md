@@ -117,6 +117,15 @@ Track cost-per-subscriber; alert when a subscriber's generation cost exceeds a s
 - Set a **spend cap at every provider** when you create the key (`secrets add --cap`), and record it so the
   nightly scan sees it.
 
+**Built, and off (2026-10-22): After Dark can run on a host of its own.** David's call: the split goes live with payments
+and age checks, before the first subscriber; until then After Dark stays admin-only on Vercel. The same code deploys a
+second time to DigitalOcean App Platform as `ad.botchelor.com` (`AFTER_DARK_ONLY=1`), with its media on Bunny (storage,
+and a pull zone serving token-signed links that expire), sharing the Neon database. On the show, `AFTER_DARK_ORIGIN`
+points every After Dark link, page and API there, and the sign-in hop carries the admin across signed in. Unset, nothing
+changes. The runbook (accounts, DNS at Wix, env vars, copying the media, verifying, switching back, costs of about $16–18
+a month) is `docs/after-dark-hosting.md`; the code is `lib/after-dark-host.ts`, `lib/object-store.ts` (Bunny) and
+`scripts/media-to-bunny.mjs`.
+
 ### Terms fixes (2026-10-22)
 
 Three cheap fixes from the day's terms review:
@@ -126,7 +135,7 @@ Three cheap fixes from the day's terms review:
   making the service available to third parties) or Mara (not reviewed). Every After Dark OpenRouter call now sends
   `provider: { only: ["coreweave", "deepinfra"], sort: "throughput" }` (lib/adult/mode.ts): CoreWeave first, DeepInfra
   its only fallback. `only` is a hard allowlist, so `allow_fallbacks` keeps its default (`false` would allow only the
-  top host). A model neither host serves (the sim's Dolphin, most eval arms, the code default `mistral-large`) now
+  top host). A model neither host serves (the sim's Dolphin, most eval arms, the old code default `mistral-large`) now
   fails with OpenRouter's 404; `ADULT_TEXT_PROVIDERS` (comma-separated slugs) replaces the list once a host's terms are
   read. The local `ADULT_MODE` model is untouched.
 - **Google Analytics never sees After Dark, and its pages say they're adult.** A `<head>` script (lib/ga-guard.ts)
@@ -530,6 +539,10 @@ time: two production steps through the eval route took 11 seconds, at about 0.2�
 setting, not code: the plain id went back to the cheapest-first routing. Since the terms fixes (#6), every call is held
 to CoreWeave and DeepInfra, fastest first, whatever the id says.
 
+The code default (`DEFAULT_TEXT_MODEL`, for a setup with no `text_model` saved) is now `deepseek/deepseek-chat-v3.1`,
+plain: the pinned hosts' throughput sort does what `:nitro` did, and the old default (`mistralai/mistral-large`) isn't
+served by either host.
+
 ## Videos with both of them in (2026-10-22)
 
 **What David saw** (Lexi and Dex's video of the night): "doesn't actually show the interacting in the scene and they
@@ -587,10 +600,135 @@ It showed two weak spots, both fixed in the follow-up:
 
 **Next, not built:**
 - **A menu of acts per shot**, as the leaders do: preset framings that make keyframes more reliable than free text.
-- **Act motion add-ons (LoRAs)** would need Wan run somewhere that takes them; Venice doesn't. Replicate's `wan-2.2-i2v-fast` takes LoRA URLs and a `disable_safety_checker` flag, and its terms ban only non-consensual or illegal pornography: about $0.05 at 480p, or $0.11 at 720p, a clip. RunPod, WaveSpeed, Novita, Segmind, Together and fal ban adult output.
+- **Act motion add-ons (LoRAs)** would need Wan run somewhere that takes them; Venice doesn't. Replicate's `wan-2.2-i2v-fast` takes LoRA URLs and a `disable_safety_checker` flag, and its terms ban only non-consensual or illegal pornography: about $0.05 at 480p, or $0.11 at 720p, a clip. RunPod, WaveSpeed, Novita, Segmind, Together and fal ban adult output. The Replicate backup (below) takes one LoRA for its videos, as a setting.
 - **"Extend"** from a shot's last frame, for longer moments.
 - **Wan 3.0 reference-to-video** as a one-step option.
 - **Terms:** Venice's model list marks Wan 3.0 "anonymized", which means a third party runs it, while `qwen-edit-uncensored` and LongCat are Venice's own. Get Venice's word in writing on explicit output for both kinds, along with the pictures question already open.
+
+## The director: suggested next moves, rewind and redo, whisper to one (2026-10-22)
+
+David picked these from the competitor read (Candy, OurDream, SpicyChat, Secrets, Nectar: nearly all have them). Code:
+`lib/adult/director.ts` (pure), `lib/adult/scenes.ts` (`continueScene`, `rewindScene`, `redoScene`, `forgetWhisper`),
+the scene route, and the steer bar in `SceneWriter.tsx` (the theater shows the suggestions too).
+
+**Suggested next moves.** Each step's reply (prompt v2) also carries `"suggestions": {"mild", "flirty", "spicy"}`: three
+one-tap steers for what could happen next, each under 80 characters. Every one is held to the rules a line is
+(`holdSuggestion`), for the scene as the step leaves it:
+- the two lines (`checkAdultText`), and no one else on the show by name (the name guard);
+- the pace: at most one stage further than the scene stands (`stageAsked`: what it plainly shows, by the stage floor's
+  signs, or a stage on when it asks for more: "further", "all the way", "into bed");
+- the public-place cap: somewhere public, nothing past kissing unless it has them leave for somewhere private first;
+- any limits the rules bring (the pair's hard-nos, next).
+
+One that fails is replaced by a plain one of the same heat (`fallbackSuggestion`, held to the same rules; the spicy one
+somewhere public is "One of them suggests they leave for somewhere private"), and the step's flags count how many
+(`suggestions_replaced`). They're stored on the scene (`adult_scenes.suggestions`), so a reload shows them, and go when
+the night starts over or the scene is set somewhere new. A chip sends its text as a Nudge. Prompt v1 (kept word for
+word for the A/B) asks for none, so it shows none.
+
+**Rewind and redo.** Each step leaves what a rewind needs on `adult_scenes.undo`, a stack 5 deep (`UNDO_DEPTH`): the scene
+before it (its lines by count, since within a chapter they only grow; stage, place, set, cut, place history, moves,
+picture note, suggestions, whispers), what it was asked (steer, Nudge or Direct, whisper), the uses of the facts its
+lines cited, and, when it filled the chapter, what the chapter's close did. **Rewind** puts all of it back:
+- the facts its lines cited get their `uses` and `last_used_at` back;
+- a chapter close is taken back whole: its saved night goes (its lines come back to the scene, with their votes and
+  steps), the PG notes are put back as they were (or removed where there were none), the facts it extracted go, and the
+  ones the cap dropped to make room come back as they were;
+- votes on the lines that went are dropped (their line numbers will be the next step's);
+- the step's log entry is never deleted: it's marked `rewound`, with when and the lines it wrote, and the rewind is a
+  step of its own (`kind: "rewind"`), so /why reads honestly.
+
+What stays: the step's pictures (made and checked; pictures are off while Venice is out of credit anyway), and a set it
+drew (sets are a shared library: the scene goes back to the set it was on). Start over and Set the scene clear the stack,
+so a rewind never undoes a paid cut or a filed night. **Redo** is a rewind and the same step again: the same steer, the
+same strength, the same whisper. It counts for the month like any step, and is refused before anything is taken back
+when the month's cap is reached. Both buttons sit in the steer bar.
+
+**Whisper to one.** The steer bar's "How" has two more choices besides Nudge and Direct: 🤫 one of them. The words then
+go to that character alone (`adult_steps.whisper` on the step it's sent with; the scene keeps the ones still running in
+`adult_scenes.whispers`, one each at most, so the viewer can hold both secrets at once). The prompt plays it as that
+character's own secret intention for this step and the next ("A secret only Juniper knows: …; Rafe doesn't know it, and
+nothing in these lines lets him find out… never said aloud, word for word or nearly"). It's held to the same checks as
+a steer: refused (422, never stored, only that one was refused) when it crosses the two lines, and a line that says it
+out loud (most of it word for word, the steer-copy rule) is dropped, or loses the action that does (`whispers_said`).
+A whisper never lifts the public-place cap (it's not a Direct steer). The page shows a 🤫 chip for each one running,
+with whom it went to and a × to forget it.
+
+**Screenshots** (`npm run screenshots:after-dark`, a stub model writing PG placeholder lines):
+`docs/screenshots/after-dark-director-*.png`.
+
+## A Replicate backup (2026-10-22)
+
+**Why.** Venice's terms (§10.9(c)) have users warrant that no reasonable person could deem their content
+"pornographic", and David is asking Venice for a signed OK. Until it comes, Replicate is a working backup:
+- **Its terms** (replicate.com/terms, updated 2026-04-01) bar "non-consensual nudity or illegal pornographic content" (§2.7(d)(v)).
+- **§8.6** says outputs can be pornographic, and leaves managing them to the customer.
+- **None of its extra terms apply.** Those cover Black Forest Labs, Ideogram and Stability models, and none of the models below.
+- **Its models take `disable_safety_checker`.**
+
+**The switch** is `media_provider` in After Dark's settings: `venice` (the default) or `replicate` ("Make pictures and videos on").
+- **It moves everything Venice made for After Dark:** the explicit pictures (when "Make pictures on" is Venice), each shot's keyframe, the videos, and now their voices.
+- **A reel's shots keep the provider they started on** (`provider` on the shot), so switching never strands a reel.
+- **Not moved:** the season's PG portraits (lib/season-gen.ts, Venice with safe mode on) and the looks builder's tiles (lib/looks-draw.ts).
+- **The key:** one saved in the settings, else the server's `REPLICATE_API_TOKEN`, set in Vercel production on 2026-10-22. The settings page says which, and never shows it.
+
+**The models.** Each was read from its Replicate page and API schema on 2026-10-22; the main session ran each live the same day on the real key.
+
+| Job | Model | What we send | Price |
+|---|---|---|---|
+| Pictures (baselines, scene pictures) | `qwen/qwen-image` (official; Apache 2.0) | prompt, our negative prompt, `aspect_ratio` 3:4, `output_format` png, `disable_safety_checker` | $0.025 a picture |
+| Keyframes (the two of them) | `qwen/qwen-image-edit-2511` (official) | the same prompt as on Venice, `image` [Picture 1, Picture 2, the set], 3:4, png, `go_fast`, `disable_safety_checker` | $0.03 a keyframe |
+| Videos | `wan-video/wan-2.2-i2v-fast` (official; Wan 2.2 A14B, Apache 2.0) | the motion with the speaker's lips moving, `image` (the keyframe), `num_frames` 81–121 by the line's length, 16 fps, 720p, `go_fast`, `disable_safety_checker`, an optional LoRA | $0.11 a video at 720p |
+| Voices | `jaaari/kokoro-82m:f559560e…` (a community model, so run by its version; Apache 2.0) | `text`, `voice`, `speed` | about $0.0002 a line |
+
+Notes on each:
+- **Pictures:** official, so always warm. The alternative is `adirik/realvisxl-v4.0:85a58cc7…`, RealVisXL V4.0, the SDXL fine-tune the fal path uses as its base: Lustify's class. The code gives it 832×1104. It's a community model with 66K runs, so it cold-starts, and Replicate estimates about $0.049 a run.
+- **Keyframes:** 10 s, an 880×1184 PNG. The official endpoint has no LoRA input.
+- **Videos:** 82 s for 81 frames, an 816×1104 MP4 of 5.06 s with no sound. It's the only Wan on Replicate that takes `disable_safety_checker` and LoRAs: 2.5, 2.6 and 2.7 take neither and aren't open weights, and 2.2 A14B has no safety flag.
+- **Voices:** about 1 s, a WAV, stored as `audio/wav`. Every voice of ours is there but `af_heart`, which becomes `af_alloy` (nobody else's).
+
+**Why Qwen-Image for pictures:** it's official, so always warm and a fixed price; its weights are open (Apache 2.0); and it's the same family as the keyframe edit. RealVisXL is the closer cousin of `lustify-v8` and likely better at explicit anatomy, but a community model wakes up cold, which a baseline made inside a scene step can't wait for. The bake-off decides: `replicate_picture_model` takes either.
+
+**How a reel runs on it** (lib/adult/reels.ts):
+- **The rest of the reel is unchanged:** the same director, lines and keyframe prompts.
+- **The keyframes:**
+  - each is asked with `Prefer: wait=60` and polled past that (cancelled after two minutes);
+  - it's downloaded at once, because Replicate deletes what a model made an hour after;
+  - it's checked by Hive (moderation and the age question) before it's kept as a `frame`, and a refusal is discarded and logged.
+- **The videos:**
+  - each is queued with `Cancel-After: 30m`, and the prediction's id is the shot's `queue_id`;
+  - the page's poll asks Replicate, and a finished video is downloaded at once, checked by Hive, and only then stored.
+- **The voice:**
+  - once a shot is kept, its line is said by the character's stock Kokoro voice, the same one every shot;
+  - it's stored beside the shot (an `adult_images` 'audio', `audio_id` on the shot);
+  - the player plays it with the shot: it starts with it and pauses with it, and a line longer than its shot finishes on the shot's last frame;
+  - a line too long for 121 frames is said up to 1.25× faster;
+  - a voice that doesn't come leaves the shot silent, with its caption (`reason: "no voice: …"`).
+- **Replicate's own checker is off on every picture, keyframe and video;** Hive is never skipped.
+- **Stopping a reel cancels its videos still running there.**
+- **Within the hour:** a shot not collected within Replicate's hour fails ("Replicate no longer has it") and gives its tokens back, so keep the page open while it makes.
+- **How the pictures get there:** the baselines and keyframes go as our signed 30-minute links. A drawn set goes as a data: URI up to 256 KB, else by its public `/api/sets` link.
+
+**What the main session's test found** (2026-10-22, the real key, our real pair):
+- **The keyframe** kept both faces well (better than Venice on hair and face), with the drawn set as Picture 3. But it tends to keep the portrait's clothes when the prompt says nude: for explicit stages, Venice's `qwen-edit-uncensored` follows the clothing better.
+- **The video** kept both of them in frame as one continuous take, with stable faces, and the scripted action played out. Visually it's comparable to Wan 3.0, but silent, hence the voices.
+- **Hive passed the Replicate keyframe** (child 6e-7, the age check ADULTS).
+
+**What David does** (some of it done on 2026-10-22):
+1. **Sign up at replicate.com and prepay credit** at replicate.com/account/billing, with auto-reload off. Done: account smithdavedesign.
+2. **Set a spend limit.** Replicate retired its self-serve monthly limit (July 2025), so the prepaid balance with auto-reload off is the limit: at zero, Replicate starts no new work. Load only what you're willing to spend, and ask support@replicate.com if you want a hard monthly cap as well.
+3. **Store the token:** `~/ai-stack/bin/secrets add botchelor REPLICATE_API_TOKEN --cap "<the prepaid amount>, auto-reload off"`. Done: it's in the keychain at `vault/botchelor/REPLICATE_API_TOKEN`, and in Vercel production as `REPLICATE_API_TOKEN`.
+4. **Save it in After Dark's settings,** or leave the field empty to use the server's token. The page says "from the server's environment" when it's that one.
+5. **Switch "Make pictures and videos on" to Replicate** (`media_provider`) on /admin/after-dark/settings.
+6. **Rerun the 4-shot bake-off** below before relying on it.
+
+**The bake-off to rerun:** the same pair and night as Venice's bake-off above (Lexi and Dex, their peak line and the shots around it), with `reel_shots` at 4 and Replicate as the provider. For each shot, check:
+- **both faces kept:** each the same person as their baseline;
+- **the act:** the keyframe shows what the script has them doing at that line, dressed or not as the stage says (the weak spot to watch: clothes kept);
+- **a Hive pass:** every keyframe and shot passes, with no discards and nothing in the rejections;
+- **the voice in sync:** the right one's voice says the line while their lips move, starting and ending with the shot.
+
+Put it side by side with Venice's table above (both in frame, follows the script, faces, voice, cost). It costs about $0.56 of Replicate (4 keyframes at $0.03, 4 videos at $0.11, the voices next to nothing), and 8 Hive moderation requests plus 4 age checks.
 
 ## Discreet mode: blur, a neutral title and a PIN (2026-10-22)
 

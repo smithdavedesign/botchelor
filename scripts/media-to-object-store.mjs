@@ -49,7 +49,8 @@ function args(argv) {
   return a;
 }
 
-async function bucket(env) {
+/** The S3 bucket's client (also scripts/media-to-bunny.mjs's, for copying to and from Bunny). */
+export async function bucket(env) {
   const endpoint = env.MEDIA_S3_ENDPOINT?.trim().replace(/\/+$/, "");
   const name = env.MEDIA_S3_BUCKET?.trim();
   const accessKeyId = env.MEDIA_S3_ACCESS_KEY_ID?.trim();
@@ -70,6 +71,12 @@ async function bucket(env) {
         headers: { "content-type": mime, "cache-control": KEEP, "x-amz-content-sha256": hash, "x-amz-meta-sha256": hash },
       });
       if (!res.ok) throw new Error(`PUT ${key}: ${res.status} ${(await res.text()).slice(0, 200)}`);
+    },
+    async get(key) {
+      const res = await send(url(key), { method: "GET" });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`GET ${key}: ${res.status}`);
+      return Buffer.from(await res.arrayBuffer());
     },
     async head(key) {
       const res = await send(url(key), { method: "HEAD" });
