@@ -23,7 +23,7 @@ import type { Turn } from "./conversation";
 import type { AfterglowLine } from "./afterglow";
 import type { MetVia } from "./game";
 import { contentWords, tokens } from "./quality";
-import { ENDING_LABELS, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
+import { ENDING_LABELS, endingLabel, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 import { checkFields } from "./safety";
 import { venueFor } from "./places";
 import { venue as venueOf, type PlaceId, type VenueId } from "./venues";
@@ -633,10 +633,12 @@ export type RelationshipView = {
 /**
  * A date's ending as the couple's timeline tells it. The ending is the date's own verdict, but whether they meet again
  * is the morning after's (both wanted another): a "just friends" date that led to another date was friends *for now*,
- * and a follow-up date that ended wanting more is "another date", not a second one.
+ * and a later date that ended wanting more names the date after it: "Date 3 → A fourth date", not a second one.
+ * `dateNumber` is the date's place in the timeline the viewer sees (its "Date N"); a follow-up without one is "another date".
  */
-export function timelineLabel(h: Pick<HistoryItem, "ending">, ledToAnother: boolean, isFollowUp: boolean): string {
+export function timelineLabel(h: Pick<HistoryItem, "ending">, ledToAnother: boolean, isFollowUp: boolean, dateNumber?: number | null): string {
   if (h.ending === "friends" && ledToAnother) return "Friends, for now";
+  if (h.ending === "second_date" && dateNumber && dateNumber > 1) return endingLabel(h.ending, dateNumber);
   if (h.ending === "second_date" && isFollowUp) return "Another date";
   return ENDING_LABELS[h.ending];
 }
@@ -663,11 +665,12 @@ export function viewRelationship(rel: Relationship, v: Viewer, now = new Date())
     tie: tieNow(s, now, publicOnly),
     chemistry: s.chemistry,
     trust: s.trust,
-    timeline: seen.map((h) => ({
+    // The couple page lists these as "Date 1", "Date 2"...: a happy ending on Date 3 reads "A fourth date".
+    timeline: seen.map((h, i) => ({
       episode_id: h.episode_id,
       at: h.aired_at ?? h.at,
       ending: h.ending,
-      ending_label: timelineLabel(h, ledOn.has(h.episode_id), Boolean(h.followup_of && ids.has(h.followup_of))),
+      ending_label: timelineLabel(h, ledOn.has(h.episode_id), Boolean(h.followup_of && ids.has(h.followup_of)), i + 1),
       venue: venueOf(h.venue).name,
       aired: h.aired_at !== null,
       second_date_of: h.followup_of && ids.has(h.followup_of) ? h.followup_of : null,
