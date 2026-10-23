@@ -17,6 +17,7 @@ Every provider is prepaid. Nothing recharges automatically, so the balance is th
 | Venice | Explicit pictures (and later, video) | $50 | Keychain `vault/botchelor/VENICE_API_KEY`; site ends …-6kY |
 | fal.ai | Sets (empty places) and non-explicit clips | Prepaid credit, valid 365 days, non-refundable | Site settings, ends …fa90 |
 | Hive | The output check on every picture, clip and set | $111, auto-recharge off | Keychain `vault/botchelor/HIVE_SECRET_KEY`; site ends …Hw== |
+| Replicate | The backup for After Dark's media (2026-10-22): pictures, keyframes, videos, voices | Prepaid credit (account smithdavedesign); keep auto-reload off, so the balance is the most it can spend | Keychain `vault/botchelor/REPLICATE_API_TOKEN`; Vercel production `REPLICATE_API_TOKEN` |
 
 fal's acceptable use policy bans sexually explicit output, and its request checker refuses it, so fal only makes
 things with nobody undressed in them: empty sets, and clips from non-explicit pictures.
@@ -45,6 +46,32 @@ These came from Venice's own quote API. They are the price per generation.
 | Wan 2.6 / Wan 2.7 | $0.55 | $1.10 | $1.65 | 2 × 15 s, about $3.30 |
 | Wan 3.0 (and Wan 3.0 Reference) | $0.65 | $1.30 | $1.95 | $3.90 |
 | Seedance 2.0 Fast | $0.76 | $1.51 | $2.27 | about $4.54 |
+
+### Replicate, the backup (read from each model's page, 2026-10-22)
+
+Replicate bills official models by what they make, and community models by GPU time. There's no self-serve monthly
+limit any more (retired July 2025): the prepaid balance, with auto-reload off, is the cap.
+
+| What | Model | Price |
+|---|---|---|
+| Explicit picture | `qwen/qwen-image` (official) | $0.025 a picture |
+| A picture on the alternative | `adirik/realvisxl-v4.0` (community, L40S) | $0.000975 a second; Replicate's estimate is about $0.049 a run |
+| Keyframe of the two of them | `qwen/qwen-image-edit-2511` (official) | $0.03 a keyframe |
+| A shot, 5 to 7.5 s (81 to 121 frames at 16 fps) | `wan-video/wan-2.2-i2v-fast` (official) | $0.11 at 720p (what we send), $0.05 at 480p. With frame interpolation (not used): $0.145 and $0.065 |
+| A shot's voice | `jaaari/kokoro-82m` (community, T4) | $0.000225 a second; about $0.0002 a line (about 1 s) |
+
+A default video (6 shots) on Replicate:
+
+| Default video on Replicate (6 shots, Wan 2.2 at 720p) | Cost |
+|---|---|
+| 6 shots × $0.11 | $0.66 |
+| 6 keyframes × $0.03 | $0.18 |
+| 6 voices | about $0.001 |
+| Picking the lines and writing the shots (text model) | about $0.002 |
+| Hive moderation on each keyframe and shot, plus the age check on each keyframe | about $0.10 to $0.25 |
+| **Total** | **about $0.95 to $1.10** (Venice: about $4.25 to $5.50) |
+
+At 15 tokens that keeps about $9 to $10 a video, against $5.30 to $6.50 on Venice. The 4-shot bake-off (docs/after-dark.md, "A Replicate backup") costs about $0.56 of Replicate.
 
 **Not known yet:** Venice doesn't publish which video models allow explicit output.
 - The closed commercial models (Seedance, Kling, Veo, Grok) almost certainly refuse it.

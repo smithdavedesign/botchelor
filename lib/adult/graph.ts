@@ -40,7 +40,7 @@ export async function afterDarkGraph(db: Db): Promise<AfterDarkGraph> {
     q(`select r.character_a as a, r.character_b as b, count(*)::int as n, null as last
          from adult_reels r, jsonb_array_elements(r.shots) s where s->>'status' = 'ready' group by 1, 2`),
     q(`select character_id as a, character_b as b, count(*)::int as n, max(created_at) as last from adult_images
-        where character_id is not null and character_b is not null and kind <> 'video' and status = 'ready' group by 1, 2`),
+        where character_id is not null and character_b is not null and kind not in ('video', 'audio') and status = 'ready' group by 1, 2`),
     q(`select character_a as a, character_b as b, count(*)::int as n, max(created_at) as last from adult_steps group by 1, 2`),
   ]);
   const edges = new Map<string, GraphEdge>();
@@ -124,7 +124,7 @@ export async function pairContent(db: Db, x: string, y: string): Promise<PairCon
     ),
     db.query<{ id: string; kind: string; mime: string; prompt: string; created_at: string }>(
       `select id, kind, mime, prompt, created_at from adult_images
-        where status = 'ready' and kind <> 'video' and ((character_id = $1 and character_b = $2) or (character_id = $2 and character_b = $1)
+        where status = 'ready' and kind not in ('video', 'audio') and ((character_id = $1 and character_b = $2) or (character_id = $2 and character_b = $1)
               or (kind = 'baseline' and character_id = any(array[$1, $2]::text[]))) order by created_at desc`,
       [x, y],
     ),
