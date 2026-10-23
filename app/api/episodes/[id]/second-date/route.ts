@@ -30,7 +30,8 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   return json({ episode_id: id, ...state }, 200, sess);
 });
 
-const Input = z.object({ visibility: z.enum(DATE_VISIBILITIES).optional() });
+// place (David, 2026-10-23): where the second date happens, as on any booking; left out, their texted plan, else the show's.
+const Input = z.object({ visibility: z.enum(DATE_VISIBILITIES).optional(), place: z.string().trim().min(2).max(80).optional() });
 
 /**
  * An owner says yes to their characters' second date. When the other owner has already agreed (or doesn't need
@@ -84,6 +85,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
         partner_id: state.partner_character_id,
         second_date_of: id,
         ...(input.visibility ? { visibility: input.visibility } : {}),
+        ...(input.place ? { place: input.place } : {}),
       }),
     }),
   );

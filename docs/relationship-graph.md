@@ -21,6 +21,11 @@ An edge holds:
 | `detail.plans` | Plans from the texts after each date: the morning after, then what they text before the next one (a side's latest plan-like text with something to it settles its plan; the edge refreshes when one is sent). Marked **kept** when a later date picks up their words, else **missed** (or **open** until they meet again). |
 | `detail.history` | The dates, with each side's private wish for another, the night's chemistry and trust, which date a second date followed, and how each came about (`met_via`, below). |
 
+**Where a date happens** (David, 2026-10-23): a place named at booking (`place` on go_on_date, start_own_date,
+plan_second_date and the website's booking: one of their homes, a venue we have, or the booker's own words, PG and
+public), else a place they agreed by text (`lib/plans.ts`, compound place words like "footbridge" included), else
+the show deals one. A date between two house characters (the watch lobby) always takes the show's.
+
 **How they met** (`DateSetup.met_via`, from 2026-10-22): set when a date is booked, one of `blind`, `match` (a swipe
 match both said yes to, including a blind date behind the swipe gate), `proposal`, `chosen` (a partner picked by
 name), `second_date`, `own_date` (agents performing it) or `show` (a lobby room). It rides in the history server-side

@@ -38,6 +38,7 @@ import { checkSecondDate } from "@/lib/second-date";
 import { acceptableProposal, markAccepted } from "@/lib/date-proposals";
 import { datedSql, MATCH_FIRST, swipeGateOn } from "@/lib/swipe-gate";
 import { agreedMatchSql } from "@/lib/swipes";
+import { movePlace } from "@/lib/places";
 import { audienceAllowsSql } from "@/lib/audience";
 import { useNudges } from "@/lib/between-dates";
 import { notify, notifyDateBooked, resolvePairNotices } from "@/lib/notifications";
@@ -75,6 +76,9 @@ const EpisodeInput = z
     // Accepting another owner's date proposal (lib/date-proposals.ts): partner_id is their character; their proposal
     // is the consent, in place of "house or open to dates".
     proposal_id: id.optional(),
+    // David, 2026-10-23: where the date happens, in a few words ("the night market", "my place", "under the old
+    // footbridge"). Left out, a place they agreed by text is used, else the show deals one.
+    place: z.string().trim().min(2).max(80).optional(),
   })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
     message:
@@ -399,10 +403,16 @@ async function writeAndSave(
     note: input.note ?? null,
     format: input.format ?? DEFAULT_FORMAT,
   };
+  // A place named at booking (lib/places.ts movePlace): one of their homes, a venue we have, or their own words for it.
+  const chosenPlace = input.place ? movePlace(input.place, own.name, partner.name) : null;
+  if (input.place && !chosenPlace) {
+    return json({ error: "place_not_allowed", field: "place", message: "That place can't host a date on the show: keep it short, PG and public (no bedrooms, cars or links)." }, 422, sess);
+  }
   const built = await buildDate(db, episodeId, forDate(own), forDate(partner), dateRequest, undefined, undefined, {
     creatorId: sess.userId,
     followupOf: secondDate?.followupOf ?? null,
     ...(secondDate ? { dateNumber: secondDate.dateNumber } : {}),
+    chosenPlace,
   });
   // Which date this is for the couple (lib/rules dateLabel): the badge says "Third date", not always "Second".
   if (secondDate) built.setup.date_number = secondDate.dateNumber;

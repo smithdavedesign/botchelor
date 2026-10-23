@@ -164,6 +164,8 @@ export type DateParts = {
   avoidVenues?: PlaceId[];
   /** A stored date's venue, kept as booked: the library can grow, and a plan can change, after a date is booked. */
   venueOverride?: PlaceId;
+  /** Where the booker said the date happens (go_on_date / start_own_date "place"); never on a date between two house characters. */
+  chosenPlace?: PlaceId | null;
   /** The plan the two agreed to by text that tonight is (lib/plans.ts): where it happens, and each side knows it. */
   agreedPlan?: AgreedPlan | null;
 };
@@ -221,7 +223,12 @@ export function assembleDate(p: DateParts): BuiltDate {
   const nameAt = (end: End) => (end === endOf(a.id) ? a.sheet.name : b.sheet.name);
   const planned = planPlace(plans.map((x) => ({ text: x.text, from: nameAt(x.by), to: nameAt(x.by === "lo" ? "hi" : "lo") })));
   const recentVenues = (p.relationship?.history ?? []).slice(-2).map((h) => h.venue);
-  const plannedVenue: PlaceId | null = agreed?.place ?? (planned && recentVenues[recentVenues.length - 1] !== planned ? planned : null);
+  // David, 2026-10-23: everyone chooses where their date happens (a place named at booking, else one agreed by text),
+  // except a date between two house characters, which the show still deals.
+  const houseShow = Boolean(a.sheet.house && b.sheet.house);
+  const plannedVenue: PlaceId | null = houseShow
+    ? null
+    : (p.chosenPlace ?? agreed?.place ?? (planned && recentVenues[recentVenues.length - 1] !== planned ? planned : null));
   // The effective engine signals this date runs on: the base soul/image signals nudged by the learned
   // memory's bounded drift (lib/character.ts), so a bot genuinely evolves across its dates. A worker
   // rebuilding a stored date passes the snapshot so it re-decides EXACTLY what POST stored.
@@ -330,6 +337,8 @@ export async function buildDate(
     avoidVenues?: PlaceId[];
     /** A rebuild of a stored date passes its venue (DateSetup.venue), so it's written where it was booked. */
     venueOverride?: PlaceId;
+    /** Where the booker said it happens (DateParts.chosenPlace). */
+    chosenPlace?: PlaceId | null;
     /**
      * The plan they agreed to by text (lib/plans.ts). Left out when a date is booked: then it's read from their texts.
      * A rebuild of a stored date passes the setup's snapshot, or null for none: a rebuild never reads the texts again,
@@ -388,7 +397,7 @@ export async function buildDate(
           : current;
   const avoidVenues = opts.avoidVenues ?? (await recentVenues(db, [a.id, b.id], episodeId));
   return assembleDate({
-    episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues, venueOverride: opts.venueOverride, agreedPlan: agreed,
+    episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues, venueOverride: opts.venueOverride, chosenPlace: opts.chosenPlace ?? null, agreedPlan: agreed,
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : await nextDateNumber(db, a.id, b.id, episodeId),

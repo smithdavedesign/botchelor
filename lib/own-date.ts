@@ -26,6 +26,7 @@
  * The date is written 'generating' (invisible in the feed) until the recap lands. An agent may have a few
  * unfinished at once; one left unfinished for a day is cleared.
  */
+import { movePlace } from "./places";
 import { airsWhen, airWindowMinutes } from "./air";
 import { track, trackDateQuality } from "./analytics";
 import { recordCrossSpecies } from "./agent-funnel";
@@ -492,7 +493,7 @@ type OwnDateRefusal = Extract<OwnDateResult, { ok: false }>;
 async function checkOwnDate(
   db: Db,
   userId: string,
-  input: { character_id: string; partner_id: string; format?: string; visibility?: string },
+  input: { character_id: string; partner_id: string; format?: string; visibility?: string; place?: string },
   now: Date,
   clear: boolean,
 ): Promise<{ ok: true; plan: OwnDatePlan } | OwnDateRefusal> {
@@ -643,7 +644,7 @@ export const houseBotDateNote = (mine: string, bot: string): string =>
 export async function previewOwnDate(
   db: Db,
   userId: string,
-  input: { character_id: string; partner_id: string; format?: string; visibility?: string },
+  input: { character_id: string; partner_id: string; format?: string; visibility?: string; place?: string },
   now: Date = new Date(),
 ): Promise<{ ok: true; preview: Record<string, unknown> } | OwnDateRefusal> {
   const checked = await checkOwnDate(db, userId, input, now, false);
@@ -680,7 +681,7 @@ export async function previewOwnDate(
 export async function startOwnDate(
   db: Db,
   userId: string,
-  input: { character_id: string; partner_id: string; format?: string; visibility?: string },
+  input: { character_id: string; partner_id: string; format?: string; visibility?: string; place?: string },
   now: Date = new Date(),
 ): Promise<OwnDateResult> {
   const checked = await checkOwnDate(db, userId, input, now, true);
@@ -699,7 +700,10 @@ export async function startOwnDate(
     sheet: { name: c.name, age: c.age, bio: c.bio, traits: c.traits, want: c.want, dealbreaker: c.dealbreaker, house: false, appearance: c.appearance ?? undefined, pronouns: c.pronouns ?? undefined, voice: c.voice ?? undefined },
   });
   const request: DateRequest = { autonomy: DEFAULT_AUTONOMY, strategy: DEFAULT_STRATEGY, gameBudget: DEFAULT_GAME_BUDGET, agendaId: null, note: null, format: formatId };
-  const built = await buildDate(db, episodeId, toDate(a), toDate(b), request, undefined, undefined, { creatorId: userId });
+  // David, 2026-10-23: the booker may say where (lib/places.ts movePlace); else a place agreed by text, else the show's.
+  const chosenPlace = input.place?.trim() ? movePlace(input.place.trim().slice(0, 80), a.name, b.name) : null;
+  if (input.place?.trim() && !chosenPlace) return err(422, "place_not_allowed", "That place can't host a date on the show: keep it short, PG and public (no bedrooms, cars or links).");
+  const built = await buildDate(db, episodeId, toDate(a), toDate(b), request, undefined, undefined, { creatorId: userId, chosenPlace });
   built.setup.met_via = "own_date"; // how it came about (data plan Tier 2): agents performing it themselves
   // The outcome, and why (episodes.engine_trace): decided before any line, as every date is.
   const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);

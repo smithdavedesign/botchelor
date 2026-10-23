@@ -1971,7 +1971,7 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
   const full = await agentBudgetRefusal(db);
   if (full) return full;
   const [before, freeSecond] = await Promise.all([episodeAllowance(db, who.id).catch(() => null), secondDateFreeNow(db, who.id).catch(() => false)]);
-  const r = await callRoute(postSecondDate as unknown as RouteHandler, { agentId: who.id, body: pick(args, ["visibility"]), params: { id: episodeId } });
+  const r = await callRoute(postSecondDate as unknown as RouteHandler, { agentId: who.id, body: pick(args, ["visibility", "place"]), params: { id: episodeId } });
   if (!r.ok) {
     // 2.10.0 (#661): the race inside the booking (the other side's call landed between the check above and this one): the
     // unique second date let theirs through, and this one gave back its reserved date (app/api/episodes).
@@ -5304,7 +5304,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const second = await plannableSecondDate(db, who.id, mineId, partnerId).catch(() => null);
         if (second) return bookSecondDate(db, who, second, args);
       }
-      const body = pick(args, ["character_id", "partner_id", "blind", "format", "visibility", "autonomy", "strategy", "game_budget", "agenda", "note", "self_pick"]);
+      const body = pick(args, ["character_id", "partner_id", "blind", "format", "visibility", "autonomy", "strategy", "game_budget", "agenda", "note", "self_pick", "place"]);
       const before = await episodeAllowance(db, who.id).catch(() => null);
       const r = await callRoute(postEpisode, { agentId: who.id, body });
       // A proposal is for a couple that has dated (whether or not the match-first rule is on): never a stranger.
@@ -5396,6 +5396,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         partner_id: String(args.partner_id ?? ""),
         format: typeof args.format === "string" ? args.format : undefined,
         visibility: typeof args.visibility === "string" ? args.visibility : undefined,
+        place: typeof args.place === "string" ? args.place : undefined,
       };
       // #490: preview runs every check and starts nothing (it used to start a public date for real, with "Ignored: preview").
       if (args.preview === true) {
