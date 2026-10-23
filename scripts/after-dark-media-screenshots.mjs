@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * npm run screenshots:after-dark-media: real-browser screenshots of After Dark's media on a pair's page (clips on demand,
- * lib/adult/clips.ts), desktop and phone, into docs/screenshots/. It builds the app and runs it with ADULT_MODE=1 on a
+ * lib/adult/clips.ts) and its prices in the settings, desktop and phone, into docs/screenshots/ (SHOTS=clips,prices). It builds the app and runs it with ADULT_MODE=1 on a
  * throwaway local database and a local stub for After Dark's model that writes PG placeholder lines. No provider is
  * called: the clips are seeded straight into the local database, their pictures and videos made here from the repo's
  * own PG portraits (public/cast) with ffmpeg, and deleted with the database afterwards. Never anything explicit.
@@ -19,7 +19,8 @@ import { appEnv, build, freePort, ROOT, startApp, startShowrunner, stopApp } fro
 const OUT_DIR = join(ROOT, "docs", "screenshots");
 const DATA_DIR = join(ROOT, ".data", "after-dark-media-screenshots");
 const DB_DIR = join(DATA_DIR, "pglite");
-const PREFIX = process.env.SHOTS_PREFIX || "after-dark-clips";
+/** Which screenshots: clips (the videos list), prices (the settings' price fields); all by default. */
+const SHOTS = new Set((process.env.SHOTS || "clips,prices").split(",").map((s) => s.trim()));
 
 /** PG placeholder lines: two people on a rooftop with a kettle, talking. */
 const LINES = [
@@ -161,9 +162,20 @@ async function main() {
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
   const shot = async (page, file) => {
     await page.waitForTimeout(500);
-    await page.screenshot({ path: join(OUT_DIR, `${PREFIX}-${file}.png`) });
-    console.log(`  📸 docs/screenshots/${PREFIX}-${file}.png`);
+    await page.screenshot({ path: join(OUT_DIR, `${file}.png`) });
+    console.log(`  📸 docs/screenshots/${file}.png`);
   };
+  const noSideways = async (page, name) => {
+    const { scroll, width } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: window.innerWidth }));
+    assert(scroll <= width, `${name}: the page scrolls sideways on a phone (${scroll}px wide on a ${width}px screen)`);
+    console.log(`  ✓ ${name}: no sideways scroll on a phone`);
+  };
+  /** Scrolls so `selector` sits just under the sticky header. */
+  const under = (page, selector) =>
+    page.evaluate((sel) => {
+      const el = document.querySelector(sel);
+      if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - (document.querySelector("header")?.getBoundingClientRect().height ?? 0) - 16);
+    }, selector);
   try {
     const ctx = await browser.newContext();
     await ctx.addCookies([{ name: "bz_adult", value: "1", url: app.base }]);
@@ -187,24 +199,33 @@ async function main() {
     await seed(scenePath);
     app = await startApp(port, env);
 
-    await page.goto(`${app.base}${scenePath}`);
-    const clips = page.locator(".ad-clips");
-    await clips.waitFor({ timeout: 30_000 });
-    await page.getByRole("button", { name: /Keep going/ }).first().waitFor({ timeout: 15_000 });
-    // Their videos' heading just under the sticky header.
-    const toVideos = () => page.evaluate(() => {
-      const h = [...document.querySelectorAll("h2")].find((x) => x.textContent === "Their videos");
-      if (h) window.scrollTo(0, h.getBoundingClientRect().top + window.scrollY - (document.querySelector("header")?.getBoundingClientRect().height ?? 0) - 16);
-    });
-    await toVideos();
-    await shot(page, "list-desktop");
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    await toVideos();
-    const { scroll, width } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: window.innerWidth }));
-    assert(scroll <= width, `the page scrolls sideways on a phone (${scroll}px wide on a ${width}px screen)`);
-    console.log("  ✓ phone: no sideways scroll");
-    await shot(page, "list-phone");
+    if (SHOTS.has("clips")) {
+      // The videos list: clips apart, each chain as one film with Keep going.
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto(`${app.base}${scenePath}`);
+      await page.locator(".ad-clips").waitFor({ timeout: 30_000 });
+      await page.getByRole("button", { name: /Keep going/ }).first().waitFor({ timeout: 15_000 });
+      await under(page, ".ad-clips");
+      await page.evaluate(() => window.scrollBy(0, -60));
+      await shot(page, "after-dark-clips-list-desktop");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await under(page, ".ad-clips");
+      await page.evaluate(() => window.scrollBy(0, -60));
+      await noSideways(page, "the videos list");
+      await shot(page, "after-dark-clips-list-phone");
+    }
+    if (SHOTS.has("prices")) {
+      // The settings: a clip's price and a menu picture's, under the video of the night's.
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto(`${app.base}/admin/after-dark/settings`);
+      await page.locator("#ad-clip-tokens").waitFor({ timeout: 30_000 });
+      await under(page, "label[for=ad-reel-tokens]");
+      await shot(page, "after-dark-prices-settings-desktop");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await under(page, "label[for=ad-reel-tokens]");
+      await noSideways(page, "the settings");
+      await shot(page, "after-dark-prices-settings-phone");
+    }
     await ctx.close();
   } finally {
     await browser.close();

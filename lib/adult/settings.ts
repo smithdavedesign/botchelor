@@ -41,6 +41,11 @@ export const DEFAULT_REEL_TOKENS = 15;
  * Replicate; 3 bought tokens take in about $2 after fees (docs/after-dark-costs.md).
  */
 export const DEFAULT_CLIP_TOKENS = 3;
+/**
+ * A picture from the shot menu (lib/adult/pictures-menu.ts): one keyframe of the two of them, as the viewer composes it.
+ * About $0.05 to make on Venice ($0.04 and the check), $0.04 on Replicate; it also counts against the month's pictures.
+ */
+export const DEFAULT_MENU_PICTURE_TOKENS = 1;
 
 /**
  * Who makes After Dark's explicit media: its pictures, each shot's keyframe, the videos and their voices. Venice, or
@@ -100,6 +105,8 @@ export type AdultSettings = {
   reel_tokens: number;
   /** A clip on demand's price in bought tokens (lib/adult/clips.ts). */
   clip_tokens: number;
+  /** A picture from the shot menu's price in bought tokens (lib/adult/pictures-menu.ts). */
+  menu_picture_tokens: number;
   openrouter_last4: string | null;
   fal_last4: string | null;
   hive_last4: string | null;
@@ -136,6 +143,7 @@ type Row = {
   reel_shots: number | null;
   reel_tokens: number | null;
   clip_tokens: number | null;
+  menu_picture_tokens: number | null;
   openrouter_ciphertext: string | null;
   openrouter_nonce: string | null;
   openrouter_last4: string | null;
@@ -185,6 +193,7 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
     reel_shots: r?.reel_shots ?? DEFAULT_REEL_SHOTS,
     reel_tokens: r?.reel_tokens ?? DEFAULT_REEL_TOKENS,
     clip_tokens: r?.clip_tokens ?? DEFAULT_CLIP_TOKENS,
+    menu_picture_tokens: r?.menu_picture_tokens ?? DEFAULT_MENU_PICTURE_TOKENS,
     openrouter_last4: r?.openrouter_last4 ?? null,
     fal_last4: r?.fal_last4 ?? null,
     hive_last4: r?.hive_last4 ?? null,
@@ -233,6 +242,7 @@ export type SettingsPatch = {
   reel_shots?: number;
   reel_tokens?: number;
   clip_tokens?: number;
+  menu_picture_tokens?: number;
   /** A new key, or "" to remove it. */
   openrouter_key?: string;
   fal_key?: string;
@@ -261,7 +271,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<A
   if (patch.image_provider !== undefined) put("image_provider", patch.image_provider);
   if (patch.prompt_version !== undefined) put("prompt_version", patch.prompt_version);
   if (patch.media_provider !== undefined) put("media_provider", patch.media_provider);
-  for (const k of ["reel_shots", "reel_tokens", "clip_tokens"] as const) if (patch[k] !== undefined) put(k, patch[k]);
+  for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "menu_picture_tokens"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_temperature", "frequency_penalty", "presence_penalty", "repetition_penalty"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model", "reel_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
   for (const k of ["replicate_picture_model", "replicate_keyframe_model", "replicate_video_model", "replicate_voice_model", "replicate_video_lora"] as const) {

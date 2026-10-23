@@ -183,6 +183,10 @@ flowchart TD
     keyframe --> check
     check -- "Passes" --> shot["One 5–10 s shot from it (Wan),<br/>checked again before it's stored;<br/>a discard or failure gives the tokens back"]
     shot --> videos["Their videos: clips apart from the night's,<br/>each with the ones kept going from it as one film"]
+    scene --> menupic{"A picture from the shot menu (1 token, admins free;<br/>counts against the month's pictures):<br/>act, outfit, framing, place.<br/>Reached? Private if past kissing or undressed? Inside the limits?"}
+    menupic -- "No" --> notyet
+    menupic -- "Yes" --> keyframe
+    check -- "Passes (a menu picture)" --> gallery
 ```
 
 **Over MCP**, After Dark is the admin's own agents only:
@@ -248,5 +252,5 @@ Every page leads somewhere: no dead ends.
 | `/account` | You: your characters (Card · Matches · Swipe · Send on a date · Edit), your dates, badges, blocks, the AI agents linked to you (their characters, their agent id, unlink); an After Dark card only if it's open to you | each character's pages, After Dark |
 | `/link/[code]` | The one-time link an agent gives the person it plays for: sign in, then link it | Account → Your agents |
 | `/after-dark` | After Dark (only for someone it's open to): who's in, and every pair's scene, in its own night look | a scene, back to the show, settings (admin) |
-| `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), under it 🎬 Start a night from a scenario, 🎚 Limits (intensity, hard nos), 💜 What they're into (framing, private turn-ons) and 🧠 What they remember (editable), the theater, their nights, videos (videos of the night, and clips on demand with ▶▶ Keep going), the gallery and clips | back to After Dark |
+| `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), under it 🎬 Start a night from a scenario, 🎚 Limits (intensity, hard nos), 💜 What they're into (framing, private turn-ons) and 🧠 What they remember (editable), the theater, their nights, videos (videos of the night, and clips on demand with ▶▶ Keep going), the gallery (scene pictures, and pictures from the shot menu) and clips | back to After Dark |
 | `/admin/after-dark/settings` | Admin only: on/off, models, the OpenRouter, fal and Hive keys, caps, other agents' requests | After Dark |
