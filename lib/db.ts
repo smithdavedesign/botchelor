@@ -1458,6 +1458,21 @@ alter table adult_scenes add column if not exists whispers jsonb not null defaul
 alter table adult_scenes add column if not exists undo jsonb not null default '[]';
 alter table adult_steps add column if not exists whisper jsonb;
 alter table adult_steps add column if not exists rewound jsonb;
+-- The viewer's limits for a pair (lib/adult/limits.ts; 2026-10-22), per owner and pair, kept through Start over: the
+-- intensity (null is explicit, After Dark as it was) and the hard nos ({chips: [...], own: [...]}).
+alter table adult_scenes add column if not exists intensity text;
+alter table adult_scenes add column if not exists hard_nos jsonb not null default '{}';
+-- Scenarios, turn-ons and framing (lib/adult/scenarios.ts, lib/adult/profile.ts; 2026-10-22): how the viewer frames the
+-- pair (kept through Start over), the scenario tonight started from (cleared by Start over), and each character's private
+-- turn-ons. Never in characters.extras: the show reads extras, and the house cast's upsert rewrites it.
+alter table adult_scenes add column if not exists framing text;
+alter table adult_scenes add column if not exists scenario text;
+create table if not exists adult_profiles (
+  character_id text primary key references characters (id) on delete cascade,
+  turn_ons jsonb not null default '[]',
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
 -- Marketing + agent funnel analytics (lib/agent-funnel.ts). user_id is an agent_id or an anon id; event is a
 -- small enum. The partial unique index makes agent_first_* events idempotent per user, so a tool that
 -- re-fires on retry never inflates the count.

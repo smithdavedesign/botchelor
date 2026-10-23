@@ -2,6 +2,12 @@ import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import type { Reunion, ReunionChar } from "@/lib/reunion";
 import { ENDING_LABELS } from "@/lib/rules";
+import CharacterName from "@/app/CharacterName";
+import Pager from "@/app/Pager";
+import { pageOf } from "@/lib/paging";
+
+/** "Where they stand": this many couples a page. */
+const COUPLES_PAGE = 10;
 
 function Face({ c, size = 34 }: { c: ReunionChar; size?: number }) {
   return (
@@ -16,10 +22,26 @@ function Face({ c, size = 34 }: { c: ReunionChar; size?: number }) {
  * the shared confessional reel. Renders nothing until there's aired history to assemble, so an empty season
  * stays quiet. Data comes from lib/reunion.ts (getReunion).
  */
-export default function ReunionPanel({ reunion, heading = "h2" }: { reunion: Reunion; heading?: "h1" | "h2" }) {
+export default function ReunionPanel({
+  reunion,
+  heading = "h2",
+  couplesPage = 1,
+  couplesHref,
+  hidden,
+}: {
+  reunion: Reunion;
+  heading?: "h1" | "h2";
+  /** The couples board's page, and where each page is (?couples=N on /reunion); without an href, it isn't paged. */
+  couplesPage?: number;
+  couplesHref?: (page: number) => string;
+  /** The private characters among them (lib/directory.ts privateAmong): their names only, never linked. */
+  hidden?: Set<string>;
+}) {
+  const named = (c: ReunionChar) => ({ ...c, private: hidden?.has(c.id) ?? false });
   const Title = heading;
   const hasContent = reunion.couples.length > 0 || reunion.confessionals.length > 0 || reunion.awards.length > 0;
   if (!hasContent) return null;
+  const couples = couplesHref ? pageOf(reunion.couples, couplesPage, COUPLES_PAGE) : { items: reunion.couples, page: 1, pages: 1 };
 
   return (
     <section className="reunion-panel">
@@ -54,9 +76,11 @@ export default function ReunionPanel({ reunion, heading = "h2" }: { reunion: Reu
 
       {reunion.couples.length > 0 && (
         <>
-          <h3 className="section">Where they stand</h3>
+          <h3 className="section" id="couples">
+            Where they stand
+          </h3>
           <ul className="list">
-            {reunion.couples.map((couple) => (
+            {couples.items.map((couple) => (
               <li key={`${couple.a.id}-${couple.b.id}`} className="card reunion-couple">
                 <div className="reunion-faces">
                   <Face c={couple.a} />
@@ -65,7 +89,7 @@ export default function ReunionPanel({ reunion, heading = "h2" }: { reunion: Reu
                 </div>
                 <div className="meta">
                   <strong>
-                    {couple.a.name} × {couple.b.name}
+                    <CharacterName character={named(couple.a)} avatar={false} /> × <CharacterName character={named(couple.b)} avatar={false} />
                   </strong>{" "}
                   <span className="badge">{couple.stage}</span>
                   <p className="muted">
@@ -77,6 +101,7 @@ export default function ReunionPanel({ reunion, heading = "h2" }: { reunion: Reu
               </li>
             ))}
           </ul>
+          {couplesHref && <Pager page={couples.page} pages={couples.pages} label="Couples pages" href={couplesHref} scroll={false} />}
         </>
       )}
 
@@ -91,7 +116,7 @@ export default function ReunionPanel({ reunion, heading = "h2" }: { reunion: Reu
                 <div>
                   <p className="confessional">“{c.line}”</p>
                   <p className="muted">
-                    <strong>{c.character.name}</strong> · <Link href={`/episodes/${c.episode_id}`}>see the date</Link>
+                    <CharacterName character={named(c.character)} avatar={false} strong /> · <Link href={`/episodes/${c.episode_id}`}>see the date</Link>
                   </p>
                 </div>
               </li>

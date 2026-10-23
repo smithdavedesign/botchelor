@@ -740,3 +740,104 @@ Put it side by side with Venice's table above (both in frame, follows the script
 `replicate`), so an admin's agent can switch providers without the signed-in settings page. `after_dark_baseline`
 draws a new baseline portrait of one character with the current provider, checked like every picture. The newest
 baseline is the face later keyframes keep; the older one stays in the gallery, to compare.
+
+## Limits and memory: the intensity dial, hard nos, and memory you can see and edit (2026-10-22)
+
+The second of the three scene PRs from the competitor read. Code: `lib/adult/limits.ts` (pure), `lib/adult/scenes.ts`
+(`saveLimits`, `limitRefusal`, `memoryView`, `editMemory`), `lib/adult/memory.ts` (`ownNotes`, `setOwnNote`),
+`lib/adult/facts.ts` (`editOwnFact`), and two folded panels under the steer bar (`Limits.tsx`, `Memory.tsx`).
+
+**The intensity dial**, per owner and pair (`adult_scenes.intensity`, kept through Start over; null is explicit):
+
+| | Furthest stage | Register |
+|---|---|---|
+| Slow burn | kissing | tender and suggestive, nothing explicit, no body parts named |
+| Flirty | undressing | playful and teasing, never graphic or crude; past undressing only implied |
+| Spicy | sex | steamy, sex included, no graphic anatomy or crude words |
+| Explicit (default) | sex | as it was: the prompt is word for word what it was |
+
+Every step holds to it, whatever the steer: the prompt says the register and "Tonight it goes no further than kissing";
+the pacing line says when they've gone as far as tonight goes (or, turned down mid-scene, to ease back to it); a line
+that shows more than the furthest stage (the stage floor's signs), or a crude word below explicit, is dropped
+(`intensity_dropped` in the step's flags); and the stage never climbs past it, a Direct steer included (turned down,
+the stage comes back to it). A steer or whisper that asks for more is refused before anything is written. The suggested
+next moves go no further either.
+
+**Hard nos**, per owner and pair (`adult_scenes.hard_nos`: `{chips, own}`, kept through Start over): 16 curated ones
+(pain, choking, degradation, anal, oral, restraints, rough sex, hair pulling, biting, spitting, dirty talk, cheating
+talk, pregnancy talk, toys, dom and sub, being watched), each a never-cross rule for the prompt and a pattern for the
+check (dirty talk reads only what they say; "chokes back a laugh" isn't choking, a shirt's cuffs aren't restraints), and
+up to 8 of the viewer's own, 40 characters each, matched by their words (filler out, a light stem: "tickling" catches
+"tickles"; "being called baby" needs both "call…" and "baby"). Own ones that cross the two lines are refused: those
+already never happen.
+- The prompt lists them as hard limits that hold over every steer (a nudge, a direct steer, a whisper), never crossed,
+  offered or asked for.
+- A line that crosses one is dropped and the step asked once more, told which, with nothing of the reply to copy from
+  (`hard_nos` and `retried` in the step's flags, the reason in its dropped lines). The second reply is held to
+  everything again; when nothing of it can be kept, the first reply's other lines stand.
+- A steer (Nudge or Direct) or whisper that asks for one is refused (422) before anything is written; a redo is checked
+  against the limits as they are now before anything is taken back.
+- The suggested next moves are held to them too, and saving new limits holds the ones on the scene to them at once
+  (a rewind does the same for the ones it brings back).
+- The free-text check is a backstop: the model is told the rule, and the words catch the plain cases, not every way of
+  putting it.
+
+**Memory you can see and edit** (the "🧠 What they remember" panel, loaded when opened): what each remembers about the
+other (their PG note from `adult_memories`, and their facts from `adult_facts`) and the night's recap. Each can be
+edited or deleted. Edits pass `checkAdultText`; the PG note, which reaches their public dates and texts, also passes the
+show's own `checkShowText` (nothing sexual, no innuendo) and stays under 300 characters. An edited fact drops its quote.
+Owner-scoped: a viewer sees and edits only what their own nights wrote (a note or fact another owner's night wrote is
+404 to them). A rewind of a step that didn't close a chapter leaves the recap as it is now, so an edit made since stays.
+
+**Screenshots** (`SHOTS=limits npm run screenshots:after-dark`): `docs/screenshots/after-dark-limits-*.png`.
+
+## Scenarios and turn-ons (2026-10-22)
+
+The third of the three scene PRs from the competitor read. Code: `lib/adult/scenarios.ts`, `lib/adult/profile.ts`,
+`lib/adult/scenes.ts` (`startScenario`, `saveFraming`, `profileView`), After Dark's part of `lib/safety.ts`
+(`excludedTheme`), and two more folded panels under the steer bar (`Scenarios.tsx`, `Profile.tsx`).
+
+**The themes that never happen**, now in `checkAdultText` itself, so every steer, whisper, place, line, suggestion,
+fact, memory edit, picture prompt and scenario is held to them: family and step-family ("step-sister", "pretend you're
+my sister", "call me daddy", incest), teacher and student ("my teacher", "a naughty student", "play the professor",
+detention), school settings ("school uniform", "high school", a classroom) and age-play ("age play", "ddlg", "pretend
+she's younger", "little one"). "schoolgirl", "barely legal", "teen" and the like were already minor terms. Whole
+phrases on the normalised text, so a ballroom instructor's beginners' class, "my sister set us up", "old school" and
+"let's play a little game" still pass. A refused steer, whisper or place says which line it crossed (`linesCrossed`),
+and, as before, is never stored. The result carries the theme (`SafetyResult.theme`); the reason stays one of the
+show's four, so nothing that maps reasons to messages had to change.
+
+**Scenario packs:** 16 curated starting points (`SCENARIOS`), each a title, a short premise, a place (a set label), a
+starting stage (0 to 2) and an opening steer: stuck in an elevator, hotel after the wedding, rivals at a conference,
+rainy cabin, exes at a party, a massage appointment between licensed adults (the attraction said out loud first),
+snowed in at the lodge, one motel room left, a power cut, the night train, a masquerade, the balcony next door, a
+bookshop after closing, the rooftop pool, long distance finally, an anniversary. Each is reviewed against the lines
+(`tests/after-dark-scenarios.test.ts` runs every one through `checkAdultText`, `excludedTheme` and a list of words that
+must never appear: family, teaching, school, youth, impairment, coercion, payment or a boss). **Start a night from a
+scenario** files the night that ran (as Start over does), puts them in the place (`setSceneTo`, so the first lines open
+on arriving there), sets the starting stage (never past the intensity), keeps the premise on the scene for every step
+of the night (`adult_scenes.scenario`, cleared by Start over: "Tonight's scenario: …; both of them chose to be here,
+and either can stop at any time"), and writes the first lines with the opening as a Nudge, so the pacing, the
+public-place cap, the intensity and the hard nos hold from the first line. Nothing is filed when the scenario runs
+into the viewer's hard nos or intensity, or the month's steps are used up. It's free (no Set the scene token): the
+places are a fixed sixteen, each drawn once for everyone.
+
+**Turn-ons**, per character: a private After Dark profile of 20 curated turn-ons (slow teasing, being in charge, being
+told what to do, praise, dirty talk, lingerie, massage, outdoors (private), roleplay (adults), long kisses, neck kisses,
+eye contact, whispering, being undressed slowly, showering together, candlelight, spontaneity, teasing touches, slow
+dancing, cuddling after). Owner-only: a person sets and sees their own character's; a house character's are an admin's
+(a subscriber sees neither). Stored in `adult_profiles`, one row per character, not in `characters.extras` like
+`looks.after_dark`: the show's own prompts and pages read extras, and the house cast's upsert in `ensureSchema`
+rewrites a house character's extras on every schema change. Nothing outside `lib/adult` reads the table (a test checks).
+A turn-on one of the pair's hard nos rules out (dirty talk with that hard no, being in charge or told what to do with
+dom and sub, outdoors with being watched, or one an own hard no's words catch) never reaches the prompt.
+
+**Framing**, per owner and pair (`adult_scenes.framing`, kept through Start over): strangers, first date, exes, friends
+to lovers, rivals, coworkers (equals: neither is the other's boss) or long-term partners. Never family, teacher and
+student, or school: they aren't in the list, and the route takes only these.
+
+**In the prompt** (only when set, so the default prompt is unchanged): "How the viewer frames them tonight: …", and per
+character "What Juniper is into (private, from her own profile: let it shape what she wants and enjoys tonight when it
+fits; never listed or named outright, and never past the hard limits or the intensity): slow teasing, praise."
+
+**Screenshots** (`SHOTS=scenarios npm run screenshots:after-dark`): `docs/screenshots/after-dark-scenarios-*.png`.
