@@ -10,10 +10,14 @@ import Reels, { stopReel } from "./Reels";
 import Avatar from "@/app/Avatar";
 import type { BusyReel, Reel } from "@/lib/adult/reels";
 import { AUTOPLAY_PAGE_PAUSE_MS, autoplayStop } from "@/lib/adult/autoplay";
+import type { Heat } from "@/lib/adult/director";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
+
+/** The suggested next moves' labels (lib/adult/director.ts): one per heat. */
+const HEAT_LABEL: Record<Heat, string> = { mild: "Mild", flirty: "Flirty", spicy: "Spicy" };
 
 /** The scene so far, the way to write more (a few lines at a time, with an optional steer), and the gallery. */
 export default function SceneWriter({
@@ -57,6 +61,8 @@ export default function SceneWriter({
   const [theater, setTheater] = useState(play);
   // A steer is a nudge by default (worked toward at the scene's own pace); direct does it now.
   const [steerMode, setSteerMode] = useState<"nudge" | "direct">("nudge");
+  // Or the words go to one of them only, as a whisper (lib/adult/director.ts): their secret, not the other's.
+  const [whisperTo, setWhisperTo] = useState<"a" | "b" | null>(null);
   // Whether the end of the lines is on screen: the skip-to-bottom button shows only when it isn't.
   const endRef = useRef<HTMLSpanElement>(null);
   const [atEnd, setAtEnd] = useState(true);
@@ -86,8 +92,9 @@ export default function SceneWriter({
   const isThisPair = (r: BusyReel) => new Set([r.a, r.b, scene.a.id, scene.b.id]).size === 2;
   const nameOf = (who: "a" | "b") => (who === "a" ? scene.a.name : scene.b.name).split(/\s+/)[0];
 
-  async function send(body: Record<string, unknown>) {
-    if (writing.current) return;
+  /** Sends one action to the scene's route; whether it went through. */
+  async function send(body: Record<string, unknown>): Promise<boolean> {
+    if (writing.current) return false;
     writing.current = true;
     setBusy(true);
     setNote(null);
@@ -95,11 +102,25 @@ export default function SceneWriter({
     writing.current = false;
     setBusy(false);
     if (!res || !res.ok) setAutoplay(false);
-    if (!res) return setNote({ text: "Network error. Try again.", error: true });
-    if (!res.ok) return setNote({ text: res.message, error: true });
+    if (!res) {
+      setNote({ text: "Network error. Try again.", error: true });
+      return false;
+    }
+    if (!res.ok) {
+      setNote({ text: res.message, error: true });
+      return false;
+    }
     const next = res.data.scene as AdultScene;
     setScene(next);
     if (Array.isArray(res.data.nights)) setNightList(res.data.nights as AdultNight[]);
+    if (body.rewind) {
+      // Taking a step back is the viewer taking over: autoplay would only write it again.
+      setAutoplay(false);
+      const n = Number(res.data.rewound ?? 0);
+      setNote({ text: `Rewound: ${n} line${n === 1 ? "" : "s"} taken back, and the scene is where it was before them.` });
+      return true;
+    }
+    if (body.redo) setAutoplay(false);
     const pictures = (res.data.pictures as Media[] | undefined) ?? [];
     if (pictures.length) setGallery((g) => [...pictures, ...g]);
     const held = Number(res.data.held ?? 0);
@@ -113,13 +134,16 @@ export default function SceneWriter({
       typeof res.data.picture_note === "string" ? `Picture: ${res.data.picture_note}` : "",
     ].filter(Boolean);
     if (body.set_scene) parts.push("They're there now. Press Next to see them arrive.");
-    const stop = autoplay && !body.reset && body.set_scene === undefined ? autoplayStop(scene, next, Number(res.data.added ?? 0)) : null;
+    if (body.redo) parts.unshift("Rewritten: the last step was taken back and written again.");
+    if (body.whisper) parts.push(`🤫 Whispered to ${nameOf((body.whisper as { to: "a" | "b" }).to)}: it shapes this step and the next.`);
+    const stop = autoplay && !body.reset && body.set_scene === undefined && !body.forget_whisper ? autoplayStop(scene, next, Number(res.data.added ?? 0)) : null;
     if (stop) {
       setAutoplay(false);
       parts.push(stop);
     }
     pause.current = AUTOPLAY_PAGE_PAUSE_MS;
     if (parts.length) setNote({ text: parts.join(" ") });
+    return true;
   }
 
   // Autoplay on the page (the theater paces it by what's left to play): a pause to read, then the next lines. Not while
@@ -147,9 +171,16 @@ export default function SceneWriter({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    await send(direction.trim() ? { direction: direction.trim(), steer_mode: steerMode } : {});
-    setDirection("");
+    const words = direction.trim();
+    // A refused steer or whisper stays in the box, to be reworded.
+    if (await send(!words ? {} : whisperTo ? { whisper: { to: whisperTo, text: words } } : { direction: words, steer_mode: steerMode })) setDirection("");
   }
+  const other = (who: "a" | "b") => (who === "a" ? "b" : "a");
+  const lastAsked = scene.rewind?.last;
+  const redoTitle = lastAsked
+    ? `Take the last step back and write it again${lastAsked.direction ? `, steered the same way (${lastAsked.steer_mode}): "${lastAsked.direction}"` : ""}${lastAsked.whisper ? `, with the same whisper to ${nameOf(lastAsked.whisper.to)}` : ""}`
+    : "Nothing to redo yet";
+  const whispers = (["a", "b"] as const).filter((who) => scene.whispers?.[who]);
 
   return (
     <section className="after-dark-scene">
@@ -164,12 +195,14 @@ export default function SceneWriter({
           characters={characters}
           busy={busy}
           note={note?.text ?? null}
-          onWrite={(d) => send(d ? { direction: d, steer_mode: steerMode } : {})}
+          onWrite={async (d) => void (await send(d ? { direction: d, steer_mode: steerMode } : {}))}
           steerMode={steerMode}
           onSteerMode={setSteerMode}
           autoplay={autoplay}
           onAutoplay={switchAutoplay}
-          onSetScene={(place) => send({ set_scene: place })}
+          onSetScene={async (place) => void (await send({ set_scene: place }))}
+          suggestions={scene.suggestions}
+          onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }))}
           onMakeVideo={() => makeVideo()}
           videoTokens={reelTokens}
           videoNote={reelNote?.text ?? null}
@@ -217,19 +250,70 @@ export default function SceneWriter({
             ↓
           </button>
         )}
-        <label htmlFor="after-dark-direction">Steer it (optional)</label>
-        <span className="after-dark-steer-mode" role="radiogroup" aria-label="How strongly">
+        {(scene.suggestions?.length ?? 0) > 0 && (
+          // The last step's suggested next moves, one per heat (lib/adult/director.ts): one tap sends it as a nudge.
+          <div className="ad-suggestions" role="group" aria-label="Suggested next moves">
+            {scene.suggestions.map((sg) => (
+              <button
+                key={sg.heat}
+                type="button"
+                className={`ad-suggestion is-${sg.heat}`}
+                disabled={busy}
+                onClick={() => void send({ direction: sg.text, steer_mode: "nudge" })}
+                title={`Send it as a nudge: ${sg.text}`}
+              >
+                <span className="ad-heat">{HEAT_LABEL[sg.heat]}</span> <span className="ad-suggestion-text">{sg.text}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {whispers.length > 0 && (
+          <p className="ad-whispers">
+            {whispers.map((who) => (
+              <span
+                key={who}
+                className="ad-whisper-chip"
+                title={`Only ${nameOf(who)} knows this; ${nameOf(other(who))} doesn't. It shapes the next ${scene.whispers[who]!.steps_left === 1 ? "step" : `${scene.whispers[who]!.steps_left} steps`}.`}
+              >
+                <span className="ad-whisper-who">🤫 {nameOf(who)}:</span> <q>{scene.whispers[who]!.text}</q>
+                <button type="button" className="ad-whisper-forget" aria-label={`Forget the whisper to ${nameOf(who)}`} disabled={busy} onClick={() => void send({ forget_whisper: who })}>
+                  ×
+                </button>
+              </span>
+            ))}
+          </p>
+        )}
+        <label htmlFor="after-dark-direction">{whisperTo ? `Whisper to ${nameOf(whisperTo)} (only ${nameOf(whisperTo)} knows it)` : "Steer it (optional)"}</label>
+        <span className="after-dark-steer-mode" role="radiogroup" aria-label="How">
           <label title="Worked toward at the scene's own pace">
-            <input type="radio" name="steer-mode" checked={steerMode === "nudge"} onChange={() => setSteerMode("nudge")} /> Nudge
+            <input type="radio" name="steer-mode" checked={!whisperTo && steerMode === "nudge"} onChange={() => (setWhisperTo(null), setSteerMode("nudge"))} /> Nudge
           </label>
           <label title="Done now: it can skip ahead">
-            <input type="radio" name="steer-mode" checked={steerMode === "direct"} onChange={() => setSteerMode("direct")} /> Direct
+            <input type="radio" name="steer-mode" checked={!whisperTo && steerMode === "direct"} onChange={() => (setWhisperTo(null), setSteerMode("direct"))} /> Direct
           </label>
+          {(["a", "b"] as const).map((who) => (
+            <label key={who} title={`A secret for ${nameOf(who)} alone: ${nameOf(other(who))} won't know it`}>
+              <input type="radio" name="steer-mode" checked={whisperTo === who} onChange={() => setWhisperTo(who)} /> 🤫 {nameOf(who)}
+            </label>
+          ))}
         </span>
-        <input id="after-dark-direction" value={direction} maxLength={300} onChange={(e) => setDirection(e.target.value)} placeholder="They go back to hers…" disabled={busy} />
-        <p>
-          <button type="submit" className="primary" disabled={busy}>
-            {busy ? "Writing…" : "Write the next lines"}
+        <input
+          id="after-dark-direction"
+          value={direction}
+          maxLength={whisperTo ? 200 : 300}
+          onChange={(e) => setDirection(e.target.value)}
+          placeholder={whisperTo ? `${nameOf(other(whisperTo))} wants you to take the lead…` : "They go back to hers…"}
+          disabled={busy}
+        />
+        <p className="ad-steer-buttons">
+          <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim())}>
+            {busy ? "Writing…" : whisperTo ? "Whisper and write" : "Write the next lines"}
+          </button>{" "}
+          <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ rewind: true })} title={scene.rewind?.depth ? "Take the last step back: its lines, and where the scene was" : "Nothing to rewind yet"}>
+            ↺ Rewind
+          </button>{" "}
+          <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ redo: true })} title={redoTitle}>
+            ↻ Redo
           </button>{" "}
           <button type="button" className="button-ghost" disabled={busy || !scene.lines.length} onClick={() => void send({ reset: true })}>
             Start over
