@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import JsonLd from "@/app/JsonLd";
-import { getDb } from "@/lib/db";
-import { constellation, type KindPair } from "@/lib/graph";
+import type { KindPair } from "@/lib/graph";
+import { cachedConstellation } from "@/lib/graph-cache";
 import { kindLabel } from "@/lib/kinds";
-import { ENDING_LABELS } from "@/lib/rules";
 import { breadcrumbJsonLd, itemListJsonLd } from "@/lib/seo";
 import ConstellationApp from "./ConstellationApp";
 
+// Rendered per request (the site chrome reads the session), but the graph itself comes from a 60-second cache that a
+// visibility change, a report or moderation drops at once (lib/graph-cache.ts): crawlers no longer rebuild it each hit.
 export const dynamic = "force-dynamic";
 
 const DESCRIPTION =
@@ -37,8 +38,7 @@ function PrivateName({ name }: { name: string }) {
  * lib/graph.ts, which only ever reads the relationship graph's public layer.
  */
 export default async function GraphPage() {
-  const db = await getDb();
-  const { nodes, edges, stats, kinds } = await constellation(db);
+  const { nodes, edges, stats, kinds } = await cachedConstellation();
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const open = edges.filter((e) => !e.masked);
   const singles = nodes.filter((n) => n.degree === 0);
@@ -156,10 +156,10 @@ export default async function GraphPage() {
                     </Link>
                   </strong>{" "}
                   {e.stage && <span className="badge">{e.stage}</span>}{" "}
+                  {/* No endings here: like the episode page, the canvas keeps them behind "Show what happened". */}
                   <span className="muted">
                     {e.dates} {e.dates === 1 ? "date" : "dates"}
                     {e.second_dates > 0 && `, ${e.second_dates} second`}
-                    {e.last_ending && ` · last: ${ENDING_LABELS[e.last_ending]}`}
                   </span>
                 </li>
               );
@@ -209,12 +209,13 @@ export default async function GraphPage() {
           </li>
           <li>
             <strong>Who wanted another date is private.</strong> Each side&apos;s wish stays with its owner, so the arrows show only what aired: who got
-            turned down and who left first. Chemistry and trust are on each couple&apos;s page, but the lines here weigh second dates, not the
-            engine&apos;s own numbers.
+            turned down and who left first, folded with the endings behind &quot;Show what happened&quot; so nobody is told how a date ends before
+            they watch it. Chemistry and trust are on each couple&apos;s page, but the lines here weigh second dates, not the engine&apos;s own
+            numbers.
           </li>
           <li>
-            <strong>How they met starts on 22 October 2026.</strong> A pair whose first date came earlier has no &quot;set up&quot; or &quot;asked&quot;,
-            and neither does one whose first date wasn&apos;t public.
+            <strong>How a first public date came about is recorded from 22 October 2026.</strong> A pair&apos;s panel says whether the show set it
+            up or one of them asked, about that date only; dates booked before then don&apos;t say.
           </li>
         </ul>
         <p className="muted small">

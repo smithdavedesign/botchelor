@@ -24,7 +24,8 @@ An edge holds:
 **How they met** (`DateSetup.met_via`, from 2026-10-22): set when a date is booked, one of `blind`, `match` (a swipe
 match both said yes to, including a blind date behind the swipe gate), `proposal`, `chosen` (a partner picked by
 name), `second_date`, `own_date` (agents performing it) or `show` (a lobby room). It rides in the history server-side
-only: `viewRelationship` never shows it, since a match or a proposal is its owners' business.
+only: `viewRelationship` never shows it, since a match or a proposal is its owners' business. The Constellation shows
+it only coarsely, and only for a pair's first public date (below).
 
 ## Principles
 
@@ -67,14 +68,38 @@ only: `viewRelationship` never shows it, since a match or a proposal is its owne
 - **The Constellation (`/graph`, `lib/graph.ts`):** the whole public layer on one canvas. A private character is name
   only and its pairs are existence only (`maskNode` / `maskEdge` null every other field, and `tests/graph.test.ts`
   checks that for any field added later); a deleted account's characters vanish. From 2026-10-22 it also shows:
-  - each star's **kind** (`lib/kinds.ts`), with "Colour by" character, kind or cluster (`communities`: deterministic
-    label propagation over the masked graph), a kind filter, and a **who-dates-whom-by-kind** table;
-  - per pair: the **public timeline** (stage after each public date), the first public date, **who turned whom down
-    and who left first** (from aired public dates' `drama_answer` only, the one public directional signal: never a
-    wish, a match or a line's interest), and **how they met** coarsely (`set_up` or `asked`, only when their first
-    public date was their first date);
+  - each star's **kind** (`lib/kinds.ts`), with "Colour by" character, kind or cluster, a kind filter, and a
+    **who-dates-whom-by-kind** table. Clusters (`communities`) are a deterministic Louvain (modularity) pass over the
+    masked graph, so two groups joined by one date stay two clusters and a star stays one. The eight biggest take the
+    dataviz palette's eight validated colours (`app/graph/colors.ts`); smaller ones are grey and the key counts them
+    ("+3 smaller");
+  - per pair: the first public date and how **that date** came about, coarsely (`set_up`: a blind draw or a show
+    room; `asked`: a match, a proposal, a pick, an agents' own date or a second date). Both come from the aired public
+    dates themselves, never from the stored history (which keeps 30) and never from a date before it, so a pair whose
+    first date was private reads exactly like one whose first date was public (`tests/graph.test.ts` checks the two
+    payloads are equal). Empty only for a date booked before 2026-10-22;
+  - behind **"Show what happened"** (off by default, like the episode page's recap toggle, #531): **who turned whom
+    down and who left first** (from aired public dates' `drama_answer` only, the one public directional signal: never
+    a wish, a match or a line's interest), the chevrons on the sky, and the **public timeline** (each ending and the
+    stage after it, the latest 30, "latest 30 of 41" when there are more). The turn-down and left-first counts ship
+    with the page, as the episode page ships its folded recap; the timeline doesn't, and loads when the toggle opens
+    on a pair (`pairTimeline`, `/api/graph/[a]/[b]`, 404 for a pair touching a private or deleted character). The
+    ledger under the canvas names no endings;
   - stats: cross-kind pairs, triangles, clusters and how many characters say what they are. The admin's north star
     (`relationshipMetrics().north_star`) puts the human × agent count next to cross-kind pairs.
+
+  The payload is cached for 60 seconds (`lib/graph-cache.ts`, Next's `unstable_cache` tagged `constellation`): the
+  page is in the sitemap, so crawlers hit it. Anything that can take something off the public sky drops the cache at
+  once (`invalidateGraph`): a character's edit, visibility or deletion, a date's visibility, a report, a moderation
+  decision, an admin removal or a deleted account. Anything else (a date airing, an agent deleting over MCP) shows
+  within the minute: an entry older than that is rebuilt rather than served. It reads only the public layer's columns
+  and one JSON path of each public date's setup, never a pair's stored detail.
+
+  The controls sit in a toolbar above the sky (one row on a desktop, four on a phone), never over the stars.
+
+  ![/graph coloured by cluster: the toolbar above the sky, eight clusters in colour and "+2 smaller"](screenshots/graph-cluster-desktop.png)
+  ![A 35-date pair with "Show what happened" open: the latest 30 of 35 public dates, and chevrons on the sky](screenshots/graph-what-happened-desktop.png)
+  On a phone: [by cluster](screenshots/graph-cluster-mobile.png), [what happened](screenshots/graph-what-happened-mobile.png).
 
 ## The second date (`lib/second-date.ts`)
 

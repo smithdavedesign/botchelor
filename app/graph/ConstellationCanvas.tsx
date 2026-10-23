@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { avatarPalette, initials } from "@/lib/avatar";
-import { starHue, type ColorBy } from "./colors";
+import { shade, starColor, type ColorBy } from "./colors";
 import type { GraphEdge, GraphNode } from "@/lib/graph";
 import { ALPHA_MIN, createSim, pick, REHEAT, settle, tick, type Sim } from "./sim";
 
@@ -18,6 +18,8 @@ type Props = {
   focusId: string | null;
   /** What a star's colour means (./colors.ts): its own hue, its kind, or its cluster. */
   colorBy?: ColorBy;
+  /** "Show what happened" is on: draw the chevrons (who got turned down). Off by default, like the episode's recap. */
+  showOutcomes?: boolean;
 };
 
 type View = { zoom: number; panX: number; panY: number };
@@ -30,7 +32,7 @@ const edgeKey = (e: GraphEdge) => `${e.a_id}~${e.b_id}`;
  * portraits drawn in circular clips with the avatar gradient as fallback. All per-frame state lives in refs — React
  * renders this component exactly once per data change. Colors come from the CSS tokens so both themes just work.
  */
-export default function ConstellationCanvas({ nodes, edges, selection, onSelect, focusId, colorBy = "character" }: Props) {
+export default function ConstellationCanvas({ nodes, edges, selection, onSelect, focusId, colorBy = "character", showOutcomes = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const simRef = useRef<Sim | null>(null);
   const viewRef = useRef<View>({ zoom: 1, panX: 0, panY: 0 });
@@ -40,8 +42,8 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
   const themeRef = useRef<Theme | null>(null);
   const sizeRef = useRef<{ w: number; h: number }>({ w: 900, h: 600 });
   const reducedRef = useRef(false);
-  const propsRef = useRef({ nodes, edges, selection, onSelect, colorBy });
-  propsRef.current = { nodes, edges, selection, onSelect, colorBy };
+  const propsRef = useRef({ nodes, edges, selection, onSelect, colorBy, showOutcomes });
+  propsRef.current = { nodes, edges, selection, onSelect, colorBy, showOutcomes };
 
   // One effect owns everything (strict-mode double-invoke safe: full teardown, idempotent setup).
   useEffect(() => {
@@ -106,12 +108,15 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       const { w, h } = sizeRef.current;
       const dpr = window.devicePixelRatio || 1;
       const v = viewRef.current;
-      const { nodes: ns, edges: es, selection: sel, colorBy: by } = propsRef.current;
+      const { nodes: ns, edges: es, selection: sel, colorBy: by, showOutcomes: outcomes } = propsRef.current;
       const byId = new Map(ns.map((n, i) => [n.id, i]));
-      // A star's palette under the chosen colouring: its own, a kind's or a cluster's hue, or null for the neutral grey.
-      const paletteOf = (id: string, n: GraphNode) => {
-        const h = starHue(n, by);
-        return h === null ? null : avatarPalette(id, h === "own" ? n.hue : h);
+      // A star's palette under the chosen colouring: its own, a kind's hue, a cluster's colour, or null for the grey.
+      const paletteOf = (id: string, n: GraphNode): { from: string; to: string } | null => {
+        const c = starColor(n, by);
+        if (c === null) return null;
+        if (c === "own") return avatarPalette(id, n.hue);
+        if ("hue" in c) return avatarPalette(id, c.hue);
+        return { from: c.color, to: shade(c.color) };
       };
 
       // The ego set: hovered or selected node + its neighbours (and a selected edge's two ends).
@@ -159,9 +164,10 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
         ctx.stroke();
-        // One-sided turn-downs (their aired "who gets rejected?"): a chevron pointing at the one turned down more.
+        // One-sided turn-downs (their aired "who gets rejected?"): a chevron pointing at the one turned down more. A
+        // spoiler, so only once "Show what happened" is on.
         const td = data.turned_down;
-        if (td && td.a !== td.b) {
+        if (outcomes && td && td.a !== td.b) {
           const [from, to] = td.a > td.b ? [a, b] : [b, a];
           const len = Math.hypot(to.x - from.x, to.y - from.y);
           if (len > from.r + to.r + 12) {
@@ -467,7 +473,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
 
   useEffect(() => {
     canvasRef.current?.dispatchEvent(new Event("constellation:redraw"));
-  }, [colorBy]);
+  }, [colorBy, showOutcomes]);
 
   // Search-to-focus: center and zoom on the node, without fighting the user's own panning afterwards.
   useEffect(() => {

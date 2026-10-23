@@ -22,6 +22,7 @@ import {
   KIND_IDS,
   KIND_LABEL_MAX,
   kindLabel,
+  kindWords,
   type ArchetypeId,
   type GoalId,
   type KindId,
@@ -311,9 +312,10 @@ export function extrasForPrompt(e: CharacterExtras): Record<string, unknown> {
   for (const k of TEXT_DETAIL_KEYS) if (e[k]) out[k] = e[k];
   if (e.star_sign) out.star_sign = e.star_sign;
   if (e.love_language) out.love_language = e.love_language;
-  // What they are flavours how they talk (a vampire avoids the garlic bread); a human says nothing new. Drawn-to is
-  // left out: it's a deck preference, not something to say on a date.
-  if (e.kind && e.kind !== "human") out.what_you_are = kindLabel(e)?.replace(/^\S+\s/, "");
+  // What they are flavours how they talk (a vampire avoids the garlic bread); a human says nothing new, and neither does
+  // an "other" with no words of its own. Drawn-to is left out: it's a deck preference, not something to say on a date.
+  const what = e.kind && e.kind !== "human" ? kindWords(e) : null;
+  if (what) out.what_you_are = what;
   if (e.archetype) out.archetype = archetypeLabel(e.archetype);
   if (e.here_for) out.here_for = goalLabel(e.here_for);
   if (e.hobbies?.length) out.hobbies = e.hobbies;
@@ -363,8 +365,9 @@ export const profileComplete = (e: CharacterExtras | null | undefined): boolean 
 
 /** What the other character can see at a glance: only the visible details. */
 export function extrasVisible(e: CharacterExtras): string[] {
-  // A robot or a ghost is plain to see across the table; "human" goes without saying.
-  const what = e.kind && e.kind !== "human" ? kindLabel(e)?.replace(/^\S+\s/, "").toLowerCase() : null;
+  // A robot or a ghost is plain to see across the table; "human" goes without saying, and an unlabelled "other" has
+  // nothing to see ("is a something else" isn't a description).
+  const what = e.kind && e.kind !== "human" ? (kindWords(e)?.toLowerCase() ?? null) : null;
   return [
     what ? `is ${/^[aeiou]/.test(what) ? "an" : "a"} ${what}` : null,
     e.style ? `dressed: ${e.style}` : null,

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { adminRemoveCharacters } from "@/lib/account";
 import { isSignedInAdmin } from "@/lib/admins";
 import { getDb } from "@/lib/db";
+import { invalidateGraph } from "@/lib/graph-cache";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
 
@@ -22,5 +23,7 @@ const Remove = z.object({ remove: z.array(z.string().min(1).max(64)).min(1).max(
 export const POST = handle(async (req: Request) => {
   if (!(await authorized(req))) return json({ error: "not_authorized", message: "Needs the admin password or an admin account." }, 403);
   const input = parseBody(Remove, await readJson(req), "invalid_request");
-  return json({ removed: await adminRemoveCharacters(await getDb(), [...new Set(input.remove)]) });
+  const removed = await adminRemoveCharacters(await getDb(), [...new Set(input.remove)]);
+  invalidateGraph(); // off the Constellation now
+  return json({ removed });
 });

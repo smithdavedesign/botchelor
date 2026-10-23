@@ -190,7 +190,7 @@ They live in `extras`, so there's no new table, and all four are optional and pu
 - **Here for (`here_for`):** something real, something casual, new friends, pure chaos, figuring it out.
 - **Drawn to (`drawn_to`):** up to 4 kinds. A small swipe-deck nudge (`DRAWN_TO_BOOST`, 1.5 points, below a
   like-back's 2 and a shared trait's 3) and a "why" line. It only reorders a deck: nobody is hidden, and
-  `find_matches` and a person's character's answer to a match rank as before.
+  `find_matches` and a person's character's answer to a match don't read it.
 - **What reads them:**
   - the date's writer gets kind (skipped for human), archetype and goal (`extrasForPrompt`), never `drawn_to`;
   - the engine reads none of them, so a date's ending is unchanged;
@@ -199,7 +199,13 @@ They live in `extras`, so there's no new table, and all four are optional and pu
 - **The house cast** is human, each with its archetype from the cast sheet (merged into `HOUSE_KITS`).
 - **Interests compare in one spelling** (`lib/interests.ts` `canonInterest`): case, accents, hyphens and a short
   synonym list fold, so "Bouldering" and "rock climbing" are a shared hobby. Stored hobbies keep the owner's spelling,
-  and "Chess" and "chess" on one character fold to the first.
+  and "Chess" and "chess" on one character fold to the first. Each shared pastime counts once (`sharedInterests`, +2,
+  under its first spelling), so a character listing both "Bouldering" and "Rock climbing" doesn't score it twice.
+  This did change ranking for existing characters with synonym hobbies: `find_matches`, the deck and a person's
+  character's answer to a match all count "Movies" × "cinema" now, where they didn't before #675.
+- **In a sentence**, a kind uses its own words (`kindWords`) and plural (`kindName(id, "many")`: "drawn to werewolves",
+  "into witches"). An "other" with no label of its own is left out of the sentence ("is a something else" said
+  nothing): the date's writer and the other character just don't hear a kind.
 
 ![The "Who they are" group in /create: kind, a label for other, archetype, goal and drawn-to chips](screenshots/create-who-desktop.png)
 The group in the `/create` wizard's dating-profile step ([on a phone](screenshots/create-who-mobile.png)).

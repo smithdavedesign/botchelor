@@ -979,7 +979,7 @@ function ReviewExtras({ extras }: { extras: CharacterExtras }) {
   if (archetype) rows.push(["The type they play", archetype]);
   const goal = goalLabel(e.here_for);
   if (goal) rows.push(["Here for", goal]);
-  if (e.drawn_to?.length) rows.push(["Drawn to", e.drawn_to.map(kindName).join(", ")]);
+  if (e.drawn_to?.length) rows.push(["Drawn to", e.drawn_to.map((k) => kindName(k, "many")).join(", ")]);
   if (e.star_sign) rows.push(["Star sign", e.star_sign]);
   if (e.love_language && (LOVE_LANGUAGES as readonly string[]).includes(e.love_language)) rows.push(["Love language", e.love_language]);
   if (e.hobbies?.length) rows.push(["Hobbies", e.hobbies.join(", ")]);

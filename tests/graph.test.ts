@@ -1,9 +1,21 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { communities, constellation, kindMatrix, MASKED_WEIGHT, publicStory, publicWeight, triangles } from "@/lib/graph";
-import type { HistoryItem } from "@/lib/relationships";
+import {
+  coarseMetVia,
+  communities,
+  constellation,
+  kindMatrix,
+  MASKED_WEIGHT,
+  pairTimeline,
+  publicTimeline,
+  publicWeight,
+  TIMELINE_KEPT,
+  triangles,
+  type GraphEdge,
+} from "@/lib/graph";
 import { relationshipMetrics } from "@/lib/relationship-metrics";
-import { tieStrength } from "@/lib/relationships";
+import { refreshRelationship, tieStrength } from "@/lib/relationships";
+import { GET as getPairTimeline } from "@/app/api/graph/[a]/[b]/route";
 import { setDbForTests } from "@/lib/db";
 import { createSim, pick, settle } from "@/app/graph/sim";
 import { startTestDb } from "./helpers";
@@ -79,7 +91,7 @@ describe("lib/graph constellation: the public layer with the directory's privacy
     await seed();
     const { edges } = await constellation(t.db, NOW);
     const masked = edges.find((e) => e.b_id === PRI)!;
-    expect(masked).toMatchObject({ masked: true, dates: 0, second_dates: 0, last_ending: null, stage: null, last_at: null, weight: MASKED_WEIGHT });
+    expect(masked).toMatchObject({ masked: true, dates: 0, second_dates: 0, stage: null, last_at: null, weight: MASKED_WEIGHT });
   });
 
   it("drops a deleted account's characters and their edges entirely, and degrees agree", async () => {
@@ -221,21 +233,45 @@ async function date(a: string, b: string, q: "rejected" | "leaves_first", ans: "
   for (let i = 0; i < (o.reports ?? 0); i++) await t.db.query(`insert into reports (episode_id, reporter_id) values ($1, $2)`, [id, `r${i}`]);
   return id;
 }
-const item = (over: Partial<HistoryItem>): HistoryItem => ({
-  episode_id: `h-${++epSeq}`,
-  at: "2026-10-01T00:00:00.000Z",
-  aired_at: "2026-10-01T01:00:00.000Z",
-  ending: "second_date",
-  venue: null,
-  wants: [true, true],
-  chemistry: 80,
-  trust: 70,
-  public: true,
-  private: false,
-  creator: "owner-1",
-  followup_of: null,
-  ...over,
-});
+/** A date at an exact time, for ordering: aired (public) unless told otherwise, with how it came about. */
+async function dateAt(
+  a: string,
+  b: string,
+  at: string,
+  o: { ending?: string; visibility?: string; aired?: boolean; met_via?: string; followup_of?: string; question?: string; answer?: string } = {},
+) {
+  const id = `graph-at-${++epSeq}`;
+  await t.db.query(
+    `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending, status, sides, transcript,
+                           drama_question, drama_answer, visibility, revealed_at, created_at, setup, followup_of)
+     values ($1, 'x', $2, $3, 's', '[]'::jsonb, '[]'::jsonb, 't', 'f', $4, 'ready', $12::jsonb, '[]'::jsonb, $5, $6, $7, $8, $9, $10::jsonb, $11)`,
+    [
+      id,
+      a,
+      b,
+      o.ending ?? "second_date",
+      o.question ?? null,
+      o.answer ?? null,
+      o.visibility ?? "public",
+      o.aired === false ? null : at,
+      at,
+      JSON.stringify(o.met_via ? { met_via: o.met_via } : {}),
+      o.followup_of ?? null,
+      JSON.stringify([{ wants_another: true }, { wants_another: true }]),
+    ],
+  );
+  return id;
+}
+const plainCharacter = (id: string, name: string, owner: string) =>
+  t.db.query(
+    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, visibility)
+     values ($1, $2, false, $3, 30, 'bio', '["kind"]'::jsonb, 'love', 'rudeness', 'public')`,
+    [id, owner, name],
+  );
+/** An edge with its pair's ids taken out, to compare two pairs field by field. */
+const anonymous = (e: GraphEdge) => ({ ...e, a_id: "", b_id: "" });
+const timelineOf = (a: string, b: string) =>
+  getPairTimeline(new Request(`http://localhost:3000/api/graph/${a}/${b}`), { params: Promise.resolve({ a, b }) });
 
 describe("Tier 3: what the Constellation adds, and that a private character still gives nothing away", () => {
   it("a private node and a masked edge carry nothing but who and that they exist (any field added later too)", async () => {
@@ -286,45 +322,98 @@ describe("Tier 3: what the Constellation adds, and that a private character stil
     expect(ab.left_first).toEqual({ a: 1, b: 0, together: 1 });
   });
 
-  it("the timeline is the public dates only, with the stage after each, and nothing private per date", () => {
-    const history = [
-      item({ ending: "second_date", aired_at: "2026-10-01T01:00:00.000Z" }),
-      item({ ending: "friends", public: false, private: true }),
-      item({ ending: "second_date", aired_at: "2026-10-05T01:00:00.000Z" }),
-    ];
-    const story = publicStory(history, 3);
-    expect(story.timeline).toEqual([
-      { at: "2026-10-01T01:00:00.000Z", ending: "second_date", stage: "✨ Sparks" },
-      { at: "2026-10-05T01:00:00.000Z", ending: "second_date", stage: "💞 Dating" },
+  it("the timeline is the public dates only, the latest 30, with the stage after each", () => {
+    const story = publicTimeline([
+      { at: "2026-10-01T01:00:00.000Z", ending: "second_date" },
+      { at: "2026-10-05T01:00:00.000Z", ending: "second_date" },
     ]);
-    expect(story.first_at).toBe("2026-10-01T01:00:00.000Z");
-    expect(JSON.stringify(story)).not.toMatch(/wants|chemistry|trust|creator|owner/);
+    expect(story).toEqual({
+      timeline: [
+        { at: "2026-10-01T01:00:00.000Z", ending: "second_date", stage: "✨ Sparks" },
+        { at: "2026-10-05T01:00:00.000Z", ending: "second_date", stage: "💞 Dating" },
+      ],
+      total: 2,
+      truncated: false,
+    });
+    // Past 30, the latest 30, each stage still read from the whole run.
+    const long = publicTimeline(Array.from({ length: 34 }, (_, i) => ({ at: new Date(Date.UTC(2026, 8, 1 + i)).toISOString(), ending: "second_date" as const })));
+    expect(long).toMatchObject({ total: 34, truncated: true });
+    expect(long.timeline).toHaveLength(TIMELINE_KEPT);
+    expect(long.timeline[0].at).toBe(new Date(Date.UTC(2026, 8, 5)).toISOString());
+    expect(long.timeline.every((step) => step.stage === "💍 Going steady")).toBe(true);
   });
 
-  it("how they met: coarse, and only when their first public date was their first date", () => {
-    expect(publicStory([item({ met_via: "blind" })], 1).met_via).toBe("set_up");
-    expect(publicStory([item({ met_via: "show" })], 1).met_via).toBe("set_up");
-    expect(publicStory([item({ met_via: "match" })], 1).met_via).toBe("asked");
-    expect(publicStory([item({ met_via: "proposal" })], 1).met_via).toBe("asked");
-    // A private first date, a follow-up first in public, a truncated history, or nothing recorded: no answer.
-    expect(publicStory([item({ met_via: "blind", public: false }), item({ met_via: "chosen" })], 2).met_via).toBeNull();
-    expect(publicStory([item({ met_via: "second_date", followup_of: "x" })], 1).met_via).toBeNull();
-    expect(publicStory([item({ met_via: "blind" })], 31).met_via).toBeNull();
-    expect(publicStory([item({})], 1).met_via).toBeNull();
+  it("how their first public date came about: coarse, and every recorded way has an answer", () => {
+    expect(["blind", "show"].map(coarseMetVia)).toEqual(["set_up", "set_up"]);
+    expect(["match", "proposal", "chosen", "own_date", "second_date"].map(coarseMetVia)).toEqual(["asked", "asked", "asked", "asked", "asked"]);
+    expect(coarseMetVia(null)).toBeNull(); // booked before it was recorded
   });
 
-  it("the edge ships its story from the stored history", async () => {
+  it("a private first date then a public one looks exactly like a pair whose first date was that public one", async () => {
+    // Ari and Ben met in private (a blind date), then had a public second date; Cal and Dan's only date is that public one.
+    for (const [id, name] of [
+      ["graph-m-ari", "Ari Moss"],
+      ["graph-n-ben", "Ben Nye"],
+      ["graph-q-cal", "Cal Quill"],
+      ["graph-r-dan", "Dan Reed"],
+    ]) {
+      await plainCharacter(id, name, `owner-${name}`);
+    }
+    const hidden = await dateAt("graph-m-ari", "graph-n-ben", "2026-10-10T12:00:00.000Z", { visibility: "private", met_via: "blind", ending: "second_date" });
+    await dateAt("graph-m-ari", "graph-n-ben", "2026-10-12T12:00:00.000Z", {
+      ending: "friends",
+      met_via: "second_date",
+      followup_of: hidden,
+      question: "leaves_first",
+      answer: "a",
+    });
+    await dateAt("graph-q-cal", "graph-r-dan", "2026-10-12T12:00:00.000Z", { ending: "friends", met_via: "chosen", question: "leaves_first", answer: "a" });
+    await refreshRelationship(t.db, "graph-m-ari", "graph-n-ben");
+    await refreshRelationship(t.db, "graph-q-cal", "graph-r-dan");
+
+    const data = await constellation(t.db, NOW);
+    const ab = data.edges.find((e) => e.a_id === "graph-m-ari")!;
+    const cd = data.edges.find((e) => e.a_id === "graph-q-cal")!;
+    expect(ab).toMatchObject({ first_at: "2026-10-12T12:00:00.000Z", met_via: "asked", dates: 1 });
+    expect(anonymous(ab)).toEqual(anonymous(cd));
+    const degree = (id: string) => data.nodes.find((n) => n.id === id)!.degree;
+    expect([degree("graph-m-ari"), degree("graph-n-ben")]).toEqual([degree("graph-q-cal"), degree("graph-r-dan")]);
+    // The panel's timeline, asked for on a click, is the same too.
+    const [x, y] = [await timelineOf("graph-m-ari", "graph-n-ben"), await timelineOf("graph-q-cal", "graph-r-dan")];
+    expect(x.status).toBe(200);
+    expect(await x.json()).toEqual(await y.json());
+  });
+
+  it("first public date and the timeline come from every public date, not the 30 the stored history keeps", async () => {
+    await plainCharacter("graph-s-sol", "Sol Stone", "owner-sol");
+    await plainCharacter("graph-t-tam", "Tam Tor", "owner-tam");
+    for (let i = 0; i < 35; i++) {
+      await dateAt("graph-s-sol", "graph-t-tam", new Date(Date.UTC(2026, 8, 1 + i, 12)).toISOString(), { met_via: i === 0 ? "blind" : "second_date" });
+    }
+    await dateAt("graph-s-sol", "graph-t-tam", "2026-10-07T12:00:00.000Z", { visibility: "private" });
+    const rel = await refreshRelationship(t.db, "graph-s-sol", "graph-t-tam");
+    expect(rel!.history).toHaveLength(30); // the stored history is trimmed…
+    const edge = (await constellation(t.db, NOW)).edges.find((e) => e.a_id === "graph-s-sol")!;
+    // …but the first public date is still the first of all 35, and it was a set-up.
+    expect(edge).toMatchObject({ dates: 35, first_at: "2026-09-01T12:00:00.000Z", met_via: "set_up" });
+    const story = await pairTimeline(t.db, "graph-t-tam", "graph-s-sol");
+    expect(story).toMatchObject({ total: 35, truncated: true });
+    expect(story!.timeline).toHaveLength(30);
+    expect(story!.timeline[0].at).toBe("2026-09-06T12:00:00.000Z");
+    expect(story!.timeline.at(-1)!.at).toBe("2026-10-05T12:00:00.000Z");
+  });
+
+  it("the pair timeline is public pairs only: a private or deleted character's pair, or none at all, is a 404", async () => {
     await seed();
-    await t.db.query(`update relationships set detail = $3::jsonb, dates = 1 where character_a = $1 and character_b = $2`, [
-      ANA,
-      BOB,
-      JSON.stringify({ history: [item({ met_via: "blind" })], facts: [], jokes: [], plans: [] }),
-    ]);
-    const ab = (await constellation(t.db, NOW)).edges.find((e) => e.a_id === ANA && e.b_id === BOB)!;
-    expect(ab).toMatchObject({ met_via: "set_up", first_at: "2026-10-01T01:00:00.000Z" });
-    expect(ab.timeline).toHaveLength(1);
-    // The stored history's private parts (each side's wish, the night's numbers, who booked it) never ship.
-    expect(JSON.stringify(ab)).not.toMatch(/wants|chemistry|trust|owner-1|"blind"/);
+    await dateAt(ANA, BOB, "2026-10-01T12:00:00.000Z");
+    await dateAt(BOB, PRI, "2026-10-02T12:00:00.000Z");
+    await dateAt(CYD, DEL, "2026-10-03T12:00:00.000Z");
+    expect((await timelineOf(ANA, BOB)).status).toBe(200);
+    expect((await timelineOf(BOB, PRI)).status).toBe(404);
+    expect((await timelineOf(CYD, DEL)).status).toBe(404);
+    expect((await timelineOf(ANA, DEE)).status).toBe(404);
+    expect((await timelineOf("..", ANA)).status).toBe(404);
+    expect(JSON.stringify(await (await timelineOf(ANA, BOB)).json())).not.toMatch(/wants|chemistry|trust|owner|creator|met_via/);
   });
 
   it("triangles and clusters: two separate triads are two triangles and two clusters, the same every time", () => {
@@ -344,6 +433,64 @@ describe("Tier 3: what the Constellation adds, and that a private character stil
     expect(c1.get("b1")).toBe(0); // the bigger cluster first
   });
 
+  /** Every member of `group` in one cluster, and no one else in it. */
+  const together = (c: Map<string, number>, group: string[]) => {
+    const labels = new Set(group.map((id) => c.get(id)));
+    expect(labels.size, `${group.join(",")} split`).toBe(1);
+    const label = [...labels][0];
+    expect(
+      [...c]
+        .filter(([, v]) => v === label)
+        .map(([id]) => id)
+        .sort(),
+    ).toEqual([...group].sort());
+  };
+  const clique = (ids: string[], weight = 0.5) => ids.flatMap((x, i) => ids.slice(i + 1).map((y) => ({ a_id: x, b_id: y, weight })));
+  const shuffled = <T,>(xs: T[]) =>
+    xs
+      .map((x, i) => [x, (i * 7919) % 101] as const)
+      .sort((p, q) => p[1] - q[1])
+      .map(([x]) => x);
+
+  it("clusters find communities, not just connected groups: two triangles joined by one date split", () => {
+    const edges = [...clique(["t1", "t2", "t3"]), ...clique(["u1", "u2", "u3"]), { a_id: "t3", b_id: "u1", weight: 0.5 }];
+    const c = communities(edges);
+    together(c, ["t1", "t2", "t3"]);
+    together(c, ["u1", "u2", "u3"]);
+    expect([...communities(shuffled(edges).reverse())]).toEqual([...c]);
+  });
+
+  it("two five-cliques joined by one date split, and a star with ten spokes stays one", () => {
+    const a = ["k-a0", "k-a1", "k-a2", "k-a3", "k-a4"];
+    const b = ["k-b0", "k-b1", "k-b2", "k-b3", "k-b4"];
+    const cliques = [...clique(a), ...clique(b), { a_id: "k-a4", b_id: "k-b0", weight: 0.5 }];
+    const c = communities(cliques);
+    together(c, a);
+    together(c, b);
+    expect([...communities([...cliques].reverse())]).toEqual([...c]);
+
+    const spokes = Array.from({ length: 10 }, (_, i) => ({ a_id: "s-hub", b_id: `s-leaf-${i}`, weight: 0.5 }));
+    together(communities(spokes), ["s-hub", ...spokes.map((e) => e.b_id)]);
+    // Uneven weights don't break a star either.
+    together(communities(spokes.map((e, i) => ({ ...e, weight: 0.1 + i / 20 }))), ["s-hub", ...spokes.map((e) => e.b_id)]);
+  });
+
+  it("characters with no path between them are never in one cluster, and the numbering is by size", () => {
+    const edges = [
+      ...clique(["d-a1", "d-a2", "d-a3", "d-a4"]),
+      { a_id: "d-b1", b_id: "d-b2", weight: 0.9 },
+      { a_id: "d-c1", b_id: "d-c2", weight: 0.2 },
+      ...clique(["d-e1", "d-e2", "d-e3"], 0.3),
+    ];
+    const c = communities(shuffled(edges));
+    together(c, ["d-a1", "d-a2", "d-a3", "d-a4"]);
+    together(c, ["d-b1", "d-b2"]);
+    together(c, ["d-c1", "d-c2"]);
+    together(c, ["d-e1", "d-e2", "d-e3"]);
+    expect([c.get("d-a1"), c.get("d-e1"), c.get("d-b1"), c.get("d-c1")]).toEqual([0, 1, 2, 3]);
+    expect(communities([])).toEqual(new Map());
+  });
+
   it("the page tells the truth about what it doesn't know, and shows the kind table", async () => {
     await seed();
     await kind(ANA, { kind: "vampire" });
@@ -353,7 +500,10 @@ describe("Tier 3: what the Constellation adds, and that a private character stil
     expect(html).toContain("Who dates whom, by kind");
     expect(html).toContain("🧛 Vampire × 🤖 Robot");
     expect(html).toContain("What they are is self-reported");
-    expect(html).toContain("How they met starts on 22 October 2026");
+    expect(html).toContain("How a first public date came about is recorded from 22 October 2026");
+    // Nothing explains what an empty answer would say about an earlier date, and the ledger names no endings.
+    expect(html).not.toContain("wasn&#x27;t public");
+    expect(html).not.toMatch(/last: (A second date|Friends|Disaster)/i);
     for (const gone of ["Species and archetype aren", "No public first-met date", "Chemistry and trust never go public"]) expect(html).not.toContain(gone);
   });
 

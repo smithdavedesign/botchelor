@@ -1,16 +1,19 @@
 /**
  * The Constellation (/graph): the whole public social graph in one payload — every listed character as a node,
  * every pair with publicly aired dates as an edge, weighted by tie strength (lib/relationships.ts tieNow on the
- * public layer). Built only from the `relationships` public_* columns and the characters table, so it can never
- * leak a private date, a match, a swipe or a text. Privacy follows the directory's rules (lib/directory.ts):
- * a private character keeps its name and id only (no portrait, hue or origin), an edge touching one keeps the
- * pair's existence only (the cast tab already lists those by name), and a deleted account's characters vanish.
+ * public layer). Built only from the `relationships` public_* columns, the characters table and the aired public dates
+ * themselves, so it can never leak a private date, a match, a swipe or a text. Privacy follows the directory's rules
+ * (lib/directory.ts): a private character keeps its name and id only (no portrait, hue or origin), an edge touching one
+ * keeps the pair's existence only (the cast tab already lists those by name), and a deleted account's characters vanish.
+ *
+ * The page reads it through lib/graph-cache.ts (60 s, dropped on a visibility change, a report or moderation). A pair's
+ * timeline isn't in the payload: the panel asks for it (`pairTimeline`, /api/graph/[a]/[b]) when someone opens it.
  */
 import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { originSql, type Origin } from "./origin";
 import { KIND_IDS, KINDS, kindLabel, type KindId } from "./kinds";
-import { healRelationships, stageOf, tieStrength, type HistoryItem, type Stage, STAGE_LABELS } from "./relationships";
+import { healRelationships, stageOf, tieStrength, type Stage, STAGE_LABELS } from "./relationships";
 import { DELETED_OWNER, REPORT_HIDE_THRESHOLD, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
 
 export type GraphNode = {
@@ -35,6 +38,13 @@ export type GraphNode = {
 /** One public date of a pair, oldest first, with where the pair stood after it (stageOf over the public endings so far). */
 export type TimelineStep = { at: string; ending: Ending; stage: string | null };
 
+/** A pair's public dates (`pairTimeline`): the latest TIMELINE_KEPT, and how many there are in all. */
+export type PairTimeline = { timeline: TimelineStep[]; total: number; truncated: boolean };
+export const TIMELINE_KEPT = 30;
+
+/** How a pair's first public date came about, coarsely: the show (or a blind draw) set it up, or one of them asked. */
+export type MetVia = "set_up" | "asked";
+
 export type GraphEdge = {
   a_id: string;
   b_id: string;
@@ -42,30 +52,28 @@ export type GraphEdge = {
   masked: boolean;
   dates: number;
   second_dates: number;
-  last_ending: Ending | null;
   /** The public stage's label (STAGE_LABELS), or null while masked/unknown. */
   stage: string | null;
   /** ISO timestamp of the last publicly aired date; null while masked. */
   last_at: string | null;
   /** Tie strength 0..1 (tieNow on the public layer); a fixed faint weight while masked. */
   weight: number;
-  /** When their first public date aired; null while masked. */
+  /** When their first public date aired (from the episodes, never the trimmed stored history); null while masked. */
   first_at: string | null;
   /**
    * The only directional signals that are public: each aired public date's drama answer (lib/rules.ts DRAMA_QUESTIONS).
    * `turned_down.a`: times a turned b down ("who gets rejected?"); `left_first.a`: times a walked out first. Never a
-   * wish, a match or a line's interest. Null while masked.
+   * wish, a match or a line's interest. Null while masked. The page folds them behind "Show what happened", like the
+   * episode page's recap toggle, since they give endings away.
    */
   turned_down: { a: number; b: number } | null;
   left_first: { a: number; b: number; together: number } | null;
-  /** Their public dates in order, with the stage after each. Empty while masked. */
-  timeline: TimelineStep[];
   /**
-   * How they met, coarsely (DateSetup.met_via): "set_up" (a blind date or a show room) or "asked" (someone picked the
-   * other). Null when unknown, when their first public date wasn't their first date, or while masked: a match or a
-   * proposal is its owners' business, and a later first public date would hint at an earlier private one.
+   * How their first PUBLIC date came about (DateSetup.met_via, coarsely): read from that date alone, so a private date
+   * before it changes nothing here. Null when that date was booked before it was recorded (22 October 2026), or while
+   * masked: which match or proposal is its owners' business.
    */
-  met_via: "set_up" | "asked" | null;
+  met_via: MetVia | null;
 };
 
 /** Who dates whom by kind (`kindMatrix`): one row per pair of kinds, "unsaid" for a character that hasn't said. */
@@ -113,14 +121,12 @@ export function maskEdge(e: GraphEdge, privateIds: Set<string>): GraphEdge {
     masked: true,
     dates: 0,
     second_dates: 0,
-    last_ending: null,
     stage: null,
     last_at: null,
     weight: MASKED_WEIGHT,
     first_at: null,
     turned_down: null,
     left_first: null,
-    timeline: [],
     met_via: null,
   };
 }
@@ -141,34 +147,95 @@ export function triangles(edges: readonly { a_id: string; b_id: string }[]): num
   return n;
 }
 
+/** A zero or negative tie still links two characters in the clustering, just barely. */
+const MIN_CLUSTER_WEIGHT = 1e-6;
+/** Gains closer than this are a tie (float noise), settled by the smaller cluster number. */
+const GAIN_EPSILON = 1e-10;
+
 /**
- * Clusters by label propagation (Raghavan et al.), deterministic: ids in order, ties to the smallest label, at most 30
- * rounds. Returns each connected character's cluster, numbered by size (0 the biggest; ties by the smallest member id).
+ * Clusters by modularity (the Louvain method, Blondel et al. 2008): each character moves to the neighbouring cluster
+ * that raises modularity most, then each cluster becomes one node and it repeats, until nothing moves. Two triangles
+ * joined by one date stay two clusters, a star stays one, and characters with no path between them never share one
+ * (label propagation, its predecessor here, flooded whole connected groups into a single cluster).
+ *
+ * Deterministic: the pairs are put in one canonical order first (so the sums come out bit-for-bit the same whatever
+ * order they arrive in), characters are visited in id order, a move needs a strictly better gain, and ties go to the
+ * smaller cluster. Returns each connected character's cluster, numbered by size (0 the biggest; ties by the smallest
+ * member id).
  */
 export function communities(edges: readonly { a_id: string; b_id: string; weight: number }[]): Map<string, number> {
-  const adj = new Map<string, Map<string, number>>();
-  const link = (x: string, y: string, w: number) => (adj.get(x) ?? adj.set(x, new Map()).get(x)!).set(y, w);
+  const pairs = new Map<string, [string, string, number]>();
   for (const e of edges) {
-    link(e.a_id, e.b_id, e.weight);
-    link(e.b_id, e.a_id, e.weight);
+    if (e.a_id === e.b_id) continue;
+    const [x, y] = e.a_id < e.b_id ? [e.a_id, e.b_id] : [e.b_id, e.a_id];
+    pairs.set(`${x}\u0000${y}`, [x, y, e.weight > MIN_CLUSTER_WEIGHT ? e.weight : MIN_CLUSTER_WEIGHT]);
   }
-  const ids = [...adj.keys()].sort();
-  const label = new Map(ids.map((id) => [id, id]));
-  for (let round = 0; round < 30; round++) {
-    let changed = false;
-    for (const id of ids) {
-      const score = new Map<string, number>();
-      for (const [other, w] of adj.get(id)!) score.set(label.get(other)!, (score.get(label.get(other)!) ?? 0) + w);
-      const best = [...score].sort((p, q) => q[1] - p[1] || (p[0] < q[0] ? -1 : 1))[0][0];
-      if (best !== label.get(id)) {
-        label.set(id, best);
-        changed = true;
+  const list = [...pairs.values()].sort((p, q) => (p[0] !== q[0] ? (p[0] < q[0] ? -1 : 1) : p[1] < q[1] ? -1 : p[1] > q[1] ? 1 : 0));
+  const ids = [...new Set(list.flatMap(([x, y]) => [x, y]))].sort();
+  const index = new Map(ids.map((id, i) => [id, i]));
+
+  // adj[i]: neighbour → weight. A cluster collapsed into one node keeps its inside weight as a self-loop, counted twice
+  // (both directions), so a node's degree is always the sum of its row and 2m the sum of all of them.
+  let adj: Map<number, number>[] = ids.map(() => new Map());
+  for (const [x, y, w] of list) {
+    const [i, j] = [index.get(x)!, index.get(y)!];
+    adj[i].set(j, (adj[i].get(j) ?? 0) + w);
+    adj[j].set(i, (adj[j].get(i) ?? 0) + w);
+  }
+  let member = ids.map((_, i) => i);
+  for (let level = 0; level < 32; level++) {
+    const n = adj.length;
+    const k = adj.map((row) => [...row.values()].reduce((s, w) => s + w, 0));
+    const m2 = k.reduce((s, x) => s + x, 0);
+    if (m2 <= 0) break;
+    const comm = adj.map((_, i) => i);
+    const tot = k.slice();
+    let movedAny = false;
+    for (let pass = 0; pass < 100; pass++) {
+      let moved = false;
+      for (let i = 0; i < n; i++) {
+        const from = comm[i];
+        const into = new Map<number, number>();
+        for (const [j, w] of adj[i]) if (j !== i) into.set(comm[j], (into.get(comm[j]) ?? 0) + w);
+        tot[from] -= k[i];
+        // The modularity gain of joining cluster c, up to a constant: the weight into c less what chance would put there.
+        const gain = (c: number) => (into.get(c) ?? 0) - (tot[c] * k[i]) / m2;
+        let best = from;
+        let bestGain = gain(from);
+        for (const c of into.keys()) {
+          if (c === from) continue;
+          const g = gain(c);
+          if (g > bestGain + GAIN_EPSILON || (best !== from && Math.abs(g - bestGain) <= GAIN_EPSILON && c < best)) {
+            best = c;
+            bestGain = g;
+          }
+        }
+        tot[best] += k[i];
+        if (best !== from) {
+          comm[i] = best;
+          moved = movedAny = true;
+        }
+      }
+      if (!moved) break;
+    }
+    if (!movedAny) break;
+    // Collapse each cluster into one node, numbered in order of its first member, and go again one level up.
+    const renumber = new Map<number, number>();
+    for (let i = 0; i < n; i++) if (!renumber.has(comm[i])) renumber.set(comm[i], renumber.size);
+    const next: Map<number, number>[] = Array.from({ length: renumber.size }, () => new Map());
+    for (let i = 0; i < n; i++) {
+      const ci = renumber.get(comm[i])!;
+      for (const [j, w] of adj[i]) {
+        const cj = renumber.get(comm[j])!;
+        next[ci].set(cj, (next[ci].get(cj) ?? 0) + w);
       }
     }
-    if (!changed) break;
+    member = member.map((v) => renumber.get(comm[v])!);
+    adj = next;
+    if (renumber.size === n) break;
   }
-  const groups = new Map<string, string[]>();
-  for (const id of ids) (groups.get(label.get(id)!) ?? groups.set(label.get(id)!, []).get(label.get(id)!)!).push(id);
+  const groups = new Map<number, string[]>();
+  ids.forEach((id, i) => (groups.get(member[i]) ?? groups.set(member[i], []).get(member[i])!).push(id));
   const ordered = [...groups.values()].sort((p, q) => q.length - p.length || (p[0] < q[0] ? -1 : 1));
   return new Map(ordered.flatMap((members, i) => members.map((id) => [id, i] as const)));
 }
@@ -190,24 +257,62 @@ export function kindMatrix(nodes: readonly GraphNode[], edges: readonly GraphEdg
   return [...cells.values()].sort((p, q) => q.pairs - p.pairs || q.dates - p.dates || order(p.a) - order(q.a) || order(p.b) - order(q.b));
 }
 
-/** "set_up" when the show or a blind draw paired them, "asked" when someone chose (lib/game.ts MetVia). */
-const COARSE_MET: Record<string, "set_up" | "asked"> = { blind: "set_up", show: "set_up", match: "asked", proposal: "asked", chosen: "asked", own_date: "asked" };
+/**
+ * "set_up" when the show or a blind draw paired them, "asked" when someone chose (lib/game.ts MetVia). A second date
+ * is "asked" too (one of them booked the plan they made), so every recorded first public date has an answer and an
+ * empty one only ever means "booked before it was recorded".
+ */
+const COARSE_MET: Record<string, MetVia> = {
+  blind: "set_up",
+  show: "set_up",
+  match: "asked",
+  proposal: "asked",
+  chosen: "asked",
+  own_date: "asked",
+  second_date: "asked",
+};
+export const coarseMetVia = (raw: string | null | undefined): MetVia | null => (raw ? (COARSE_MET[raw] ?? null) : null);
 
-/** A pair's public timeline, first public date and coarse "how they met", from its stored history (server-side only). */
-export function publicStory(history: readonly HistoryItem[], allDates: number): Pick<GraphEdge, "timeline" | "first_at" | "met_via"> {
-  const pub = history.filter((h) => h.public);
+/** A date the public layer counts (the same rule as lib/relationships.ts `HistoryItem.public`): aired, public, not hidden, not a replay. */
+const publicDateSql = (e: string, threshold: string) =>
+  `${e}.status = 'ready' and ${e}.visibility = 'public' and ${e}.revealed_at is not null and ${e}.varies_episode_id is null
+   and (select count(*)::int from reports r where r.episode_id = ${e}.id) < ${threshold}`;
+
+/** A pair's public dates (oldest first) as a timeline with the stage after each: the latest TIMELINE_KEPT of them. */
+export function publicTimeline(dates: readonly { at: string; ending: Ending }[]): PairTimeline {
   const endings: Ending[] = [];
-  const timeline = pub.map((h) => {
-    endings.push(h.ending);
+  const steps = dates.map((d) => {
+    endings.push(d.ending);
     const stage = stageOf(endings);
-    return { at: h.aired_at ?? h.at, ending: h.ending, stage: stage ? STAGE_LABELS[stage] : null };
+    return { at: d.at, ending: d.ending, stage: stage ? STAGE_LABELS[stage] : null };
   });
-  // Only when their first public date was their first date of all (the history kept is the whole run, and nothing
-  // came before it): otherwise "how they met" would describe a later date, or hint that a private one came first.
-  const first = pub[0];
-  const whole = history.length === allDates;
-  const met = first && whole && history[0] === first && !first.followup_of && first.met_via ? (COARSE_MET[first.met_via] ?? null) : null;
-  return { timeline, first_at: timeline[0]?.at ?? null, met_via: met };
+  return { timeline: steps.slice(-TIMELINE_KEPT), total: steps.length, truncated: steps.length > TIMELINE_KEPT };
+}
+
+/**
+ * One pair's public timeline, for the panel when it's opened (it isn't in the page's payload). Null unless both are
+ * public characters on the show with at least one public date: a pair touching a private character is existence only.
+ * Read from the episodes, so a pair with more dates than the stored history keeps still starts at its first.
+ */
+export async function pairTimeline(db: Db, x: string, y: string): Promise<PairTimeline | null> {
+  if (x === y) return null;
+  const [lo, hi] = x < y ? [x, y] : [y, x];
+  const [people, dates] = await Promise.all([
+    db.query<{ id: string }>(`select id from characters where id = any($1) and visibility is distinct from 'private' and owner_id is distinct from $2`, [
+      [lo, hi],
+      DELETED_OWNER,
+    ]),
+    db.query<{ ending: Ending; at: string | Date }>(
+      `select e.ending, e.revealed_at as at
+         from episodes e
+        where ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1)) and e.ending is not null
+          and ${publicDateSql("e", "$3")}
+        order by e.created_at, e.id`,
+      [lo, hi, REPORT_HIDE_THRESHOLD],
+    ),
+  ]);
+  if (people.rows.length !== 2 || !dates.rows.length) return null;
+  return publicTimeline(dates.rows.map((d) => ({ at: new Date(d.at).toISOString(), ending: d.ending })));
 }
 
 type NodeRow = Omit<GraphNode, "origin" | "kind" | "kind_label" | "community"> & { origin: Origin; kind: string | null; kind_label: string | null };
@@ -216,19 +321,51 @@ type EdgeRow = {
   b_id: string;
   dates: number;
   second_dates: number;
-  last_ending: Ending | null;
   public_stage: Stage | null;
   last_at: string | Date | null;
-  /** Every date they've had, private ones included: server-side only, to tell whether the history kept is the whole run. */
-  all_dates: number;
-  history: HistoryItem[] | null;
 };
-type DramaRow = { character_a: string; character_b: string; drama_question: DramaQuestion; drama_answer: DramaAnswer };
+export type PublicDateRow = {
+  character_a: string;
+  character_b: string;
+  revealed_at: string | Date;
+  met_via: string | null;
+  drama_question: DramaQuestion | null;
+  drama_answer: DramaAnswer | null;
+};
+type PairFacts = Pick<GraphEdge, "first_at" | "met_via"> & { turned_down: { a: number; b: number }; left_first: { a: number; b: number; together: number } };
 
-/** The whole public constellation in one read. */
+/**
+ * What a pair's aired public dates say, given oldest first: when the first one aired and how it came about, who turned
+ * whom down and who left first. Only public dates go in, so nothing here can tell that a private date happened.
+ */
+export function publicPairFacts(rows: readonly PublicDateRow[]): Map<string, PairFacts> {
+  const facts = new Map<string, PairFacts>();
+  for (const d of rows) {
+    const [lo, hi] = d.character_a < d.character_b ? [d.character_a, d.character_b] : [d.character_b, d.character_a];
+    const key = `${lo}~${hi}`;
+    let f = facts.get(key);
+    if (!f) {
+      f = { first_at: new Date(d.revealed_at).toISOString(), met_via: coarseMetVia(d.met_via), turned_down: { a: 0, b: 0 }, left_first: { a: 0, b: 0, together: 0 } };
+      facts.set(key, f);
+    }
+    if (!d.drama_question || !d.drama_answer) continue;
+    // "a" and "b" are the episode's two, in its order; the edge's are lo and hi.
+    const who = d.drama_answer === "a" ? d.character_a : d.drama_answer === "b" ? d.character_b : null;
+    if (d.drama_question === "rejected" && who) {
+      const rejecter = who === d.character_a ? d.character_b : d.character_a;
+      f.turned_down[rejecter === lo ? "a" : "b"]++;
+    } else if (d.drama_question === "leaves_first") {
+      if (who) f.left_first[who === lo ? "a" : "b"]++;
+      else f.left_first.together++;
+    }
+  }
+  return facts;
+}
+
+/** The whole public constellation in one read (the page caches it: lib/graph-cache.ts). */
 export async function constellation(db: Db, now = new Date()): Promise<GraphData> {
   await healRelationships(db);
-  const [nodeRows, edgeRows, dramaRows] = await Promise.all([
+  const [nodeRows, edgeRows, dateRows] = await Promise.all([
     db.query<NodeRow>(
       `select c.id, c.name, c.avatar_hue as hue, ${originSql("c")} as origin, ${portraitPathSql("c")} as portrait,
               c.visibility = 'private' as private, 0 as degree, c.extras->>'kind' as kind, c.extras->>'kind_label' as kind_label
@@ -237,10 +374,10 @@ export async function constellation(db: Db, now = new Date()): Promise<GraphData
         order by c.created_at, c.id`,
       [DELETED_OWNER],
     ),
+    // The public layer's columns only: the stored detail (history, facts, jokes, plans) is never read here.
     db.query<EdgeRow>(
       `select r.character_a as a_id, r.character_b as b_id, r.public_dates as dates,
-              r.public_second_dates as second_dates, r.public_last_ending as last_ending, r.public_stage,
-              r.public_last_at as last_at, r.dates as all_dates, r.detail->'history' as history
+              r.public_second_dates as second_dates, r.public_stage, r.public_last_at as last_at
          from relationships r
          join characters ca on ca.id = r.character_a and ca.owner_id is distinct from $1
          join characters cb on cb.id = r.character_b and cb.owner_id is distinct from $1
@@ -248,32 +385,18 @@ export async function constellation(db: Db, now = new Date()): Promise<GraphData
         order by r.public_last_at desc nulls last`,
       [DELETED_OWNER],
     ),
-    // The drama answers of aired public dates only (the same dates the public layer counts): who got turned down, who
-    // left first. They air with the date, on its public page.
-    db.query<DramaRow>(
-      `select e.character_a, e.character_b, e.drama_question, e.drama_answer
+    // The aired public dates themselves (the same dates the public layer counts), oldest first: when each pair's first
+    // one aired and how it came about (one JSON path of the setup), and the drama answers (who got turned down, who
+    // left first), which air with the date on its public page.
+    db.query<PublicDateRow>(
+      `select e.character_a, e.character_b, e.revealed_at, e.setup->>'met_via' as met_via, e.drama_question, e.drama_answer
          from episodes e
-        where e.status = 'ready' and e.visibility = 'public' and e.revealed_at is not null and e.varies_episode_id is null
-          and e.drama_question is not null and e.drama_answer is not null
-          and (select count(*)::int from reports r where r.episode_id = e.id) < $1`,
+        where ${publicDateSql("e", "$1")}
+        order by e.created_at, e.id`,
       [REPORT_HIDE_THRESHOLD],
     ),
   ]);
-  const drama = new Map<string, { turned_down: { a: number; b: number }; left_first: { a: number; b: number; together: number } }>();
-  for (const d of dramaRows.rows) {
-    const [lo, hi] = d.character_a < d.character_b ? [d.character_a, d.character_b] : [d.character_b, d.character_a];
-    const key = `${lo}~${hi}`;
-    const tally = drama.get(key) ?? drama.set(key, { turned_down: { a: 0, b: 0 }, left_first: { a: 0, b: 0, together: 0 } }).get(key)!;
-    // "a" and "b" are the episode's two, in its order; the edge's are lo and hi.
-    const who = d.drama_answer === "a" ? d.character_a : d.drama_answer === "b" ? d.character_b : null;
-    if (d.drama_question === "rejected" && who) {
-      const rejecter = who === d.character_a ? d.character_b : d.character_a;
-      tally.turned_down[rejecter === lo ? "a" : "b"]++;
-    } else if (d.drama_question === "leaves_first") {
-      if (who) tally.left_first[who === lo ? "a" : "b"]++;
-      else tally.left_first.together++;
-    }
-  }
+  const facts = publicPairFacts(dateRows.rows);
 
   const names = new Map(nodeRows.rows.map((n) => [n.id, n.name]));
   const privateIds = new Set(nodeRows.rows.filter((n) => n.private).map((n) => n.id));
@@ -288,19 +411,24 @@ export async function constellation(db: Db, now = new Date()): Promise<GraphData
     const kind = kindOf(n.kind);
     return { ...n, degree: degrees.get(n.id) ?? 0, kind, kind_label: kind ? kindLabel({ kind, kind_label: n.kind_label }) : null, community: null };
   });
-  const raw: GraphEdge[] = edgeRows.rows.map((e) => ({
-    a_id: e.a_id,
-    b_id: e.b_id,
-    masked: false,
-    dates: e.dates,
-    second_dates: e.second_dates,
-    last_ending: e.last_ending,
-    stage: e.public_stage ? STAGE_LABELS[e.public_stage] : null,
-    last_at: e.last_at ? new Date(e.last_at).toISOString() : null,
-    weight: publicWeight({ dates: e.dates, second_dates: e.second_dates, last_at: e.last_at ? new Date(e.last_at).toISOString() : null }, now),
-    ...(drama.get(`${e.a_id}~${e.b_id}`) ?? { turned_down: { a: 0, b: 0 }, left_first: { a: 0, b: 0, together: 0 } }),
-    ...publicStory(e.history ?? [], e.all_dates),
-  }));
+  const raw: GraphEdge[] = edgeRows.rows.map((e) => {
+    const last_at = e.last_at ? new Date(e.last_at).toISOString() : null;
+    const f = facts.get(`${e.a_id}~${e.b_id}`);
+    return {
+      a_id: e.a_id,
+      b_id: e.b_id,
+      masked: false,
+      dates: e.dates,
+      second_dates: e.second_dates,
+      stage: e.public_stage ? STAGE_LABELS[e.public_stage] : null,
+      last_at,
+      weight: publicWeight({ dates: e.dates, second_dates: e.second_dates, last_at }, now),
+      first_at: f?.first_at ?? null,
+      turned_down: f?.turned_down ?? { a: 0, b: 0 },
+      left_first: f?.left_first ?? { a: 0, b: 0, together: 0 },
+      met_via: f?.met_via ?? null,
+    };
+  });
 
   // Stats come from the raw (pre-mask) rows: aggregates only, nothing attributed to a private pair.
   const most = withDegree.filter((n) => !n.private && n.degree > 0).sort((a, b) => b.degree - a.degree || a.name.localeCompare(b.name))[0] ?? null;
@@ -328,7 +456,9 @@ export async function constellation(db: Db, now = new Date()): Promise<GraphData
     return !e.masked && x && y && x !== y;
   }).length;
   stats.triangles = triangles(edges);
-  stats.communities = new Set(clusters.values()).size;
+  const sizes = new Map<number, number>();
+  for (const c of clusters.values()) sizes.set(c, (sizes.get(c) ?? 0) + 1);
+  stats.communities = [...sizes.values()].filter((s) => s >= 2).length;
   const made = nodes.filter((n) => !n.private && n.origin !== "cast");
   stats.kind_coverage = made.length ? Math.round((made.filter((n) => n.kind).length / made.length) * 100) / 100 : null;
   return { nodes, edges, stats, kinds: kindMatrix(nodes, edges) };
