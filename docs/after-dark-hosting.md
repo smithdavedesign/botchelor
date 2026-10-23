@@ -202,6 +202,10 @@ nothing: both deployments read those from the database.
    | `MEDIA_BUNNY_KEY` | from the keychain (encrypt) |
    | `MEDIA_BUNNY_TOKEN_KEY` | from the keychain (encrypt) |
    | `AD_EVAL_DAILY_USD`, `ADULT_TEXT_PROVIDERS` | only if they're set on Vercel (the eval's budget; the OpenRouter hosts After Dark may use) |
+   | `REPLICATE_API_TOKEN` | only if Vercel has it rather than After Dark's settings page (encrypt): the media backup's key |
+
+   After Dark's other provider keys (OpenRouter, Venice, fal, Hive, a saved Replicate key) live sealed in the database,
+   so they come across by themselves with `DATABASE_URL` and `SESSION_SECRET`.
 
    **Never set** `ADULT_MODE` (the local Ollama mode is kept off deployments by the `VERCEL` variable, which isn't there
    on DigitalOcean), `NEXT_PUBLIC_GA_ID`, `NEXT_PUBLIC_GTM_ID` or the site-verification tokens (no Google on this
