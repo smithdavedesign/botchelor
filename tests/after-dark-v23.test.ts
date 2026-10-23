@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
-import { autoPictureKey, autoPicturesSettled } from "@/lib/adult/auto-pictures";
+import { autoPictureKey, autoPicturesSettled, RETRY_AFTER_MS, setAutoPictureClockForTests } from "@/lib/adult/auto-pictures";
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { runAdultTool } from "@/lib/adult/mcp";
 import { observeNight } from "@/lib/adult/observer";
@@ -510,5 +510,39 @@ describe("a picture for each chapter and each place", () => {
     expect(r.status).toBe(200);
     await autoPicturesSettled();
     expect(await scenePictures()).toEqual([]);
+  });
+
+  it("a picture that didn't come gives its claim back and is drawn on a later step, but not straight away (2026-10-23)", async () => {
+    const { cookie } = await admin();
+    await media(true, cookie);
+    let now = 1_000_000;
+    setAutoPictureClockForTests(() => now);
+    try {
+      // The first try: Hive busy, so the check can't run and the picture is discarded.
+      setCheckFetchForTests(async () => new Response("slow down", { status: 429 }));
+      setMediaFetchForTests(async () => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { "content-type": "image/png" } }));
+      scripted(() => six({ place: "the lighthouse", set: "the lighthouse" }));
+      await post({ a: CAST_A, b: CAST_B }, cookie);
+      await autoPicturesSettled();
+      expect(await scenePictures()).toEqual([]);
+      expect((await t.db.query<{ auto_pictures: string[] }>(`select auto_pictures from adult_scenes`)).rows[0].auto_pictures).toEqual([]);
+      // Hive answers again, but the next step comes too soon: nothing is drawn yet.
+      const drawn = fakeMedia();
+      const soon = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
+      await autoPicturesSettled();
+      expect(soon.auto_picture).toBeUndefined();
+      expect(drawn).toHaveLength(0);
+      // Past the wait, the next step draws it, once.
+      now += RETRY_AFTER_MS + 1;
+      const later = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
+      await autoPicturesSettled();
+      expect(later.auto_picture).toBe(true);
+      expect(await scenePictures()).toEqual([{ scene_chapter: 1, scene_place: "the lighthouse", character_b: CAST_B }]);
+      await post({ a: CAST_A, b: CAST_B }, cookie);
+      await autoPicturesSettled();
+      expect(drawn).toHaveLength(1);
+    } finally {
+      setAutoPictureClockForTests(null);
+    }
   });
 });

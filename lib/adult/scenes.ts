@@ -2014,13 +2014,10 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // The last picture problem stays on the scene (the gallery shows it), and clears once a picture comes through.
   const note = picture_note ?? (pictures.length ? null : scene.picture_note);
   if (note !== scene.picture_note) await db.query(`update adult_scenes set picture_note = $2 where id = $1`, [scene.id, note]);
-  // A picture of the two of them for each chapter and each place (lib/adult/auto-pictures.ts): when these are the
-  // chapter's first lines, or they moved in them. Claimed now, drawn after the response; never fails the step.
-  const moved = next.moves.length > scene.moves.length && next.moves.at(-1)?.taken === true;
-  const autoPicture =
-    scene.lines.length === 0 || moved
-      ? await kickAutoPicture(db, adminId, { id: scene.id, chapter: scene.chapter, place: place ?? ctx.date?.setting ?? null, set_place, stage, lines }, a, b)
-      : false;
+  // A picture of the two of them for each chapter and each place (lib/adult/auto-pictures.ts). Asked on every step, so
+  // one that didn't come (Hive busy, 2026-10-23) is drawn on a later step; the claim keeps it to one per chapter and
+  // place. Claimed now, drawn after the response; never fails the step.
+  const autoPicture = await kickAutoPicture(db, adminId, { id: scene.id, chapter: scene.chapter, place: place ?? ctx.date?.setting ?? null, set_place, stage, lines }, a, b);
   let after: LoadedScene = { ...scene, ...next, suggestions, whispers: nextWhispers, picture_note: note, undo: stack };
   // A full chapter: filed as a saved night, recapped, and the night runs straight on into the next one. What the close
   // changed goes with the step's undo, so a rewind takes it back too.

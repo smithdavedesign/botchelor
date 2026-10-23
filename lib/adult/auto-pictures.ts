@@ -9,7 +9,9 @@
  *
  * At most one per chapter and place: each is claimed on the scene (adult_scenes.auto_pictures) before it's drawn, so a
  * retry, a rewind and a redo, or the same place twice in a chapter, never draws it twice. The drawing runs after the
- * response (lib/sets.ts inBackground) and never fails or slows a step: a picture that doesn't come is only logged.
+ * response (lib/sets.ts inBackground) and never fails or slows a step. A picture that doesn't come (2026-10-23: Hive
+ * busy, so the output check couldn't run) gives its claim back, so a later step draws it, but not for RETRY_AFTER_MS:
+ * a busy Hive isn't asked again at once, and a failed draw isn't paid for step after step.
  * Off when the setting is (auto_scene_pictures), or when pictures can't be made (no Hive key, or the provider's key).
  */
 import type { Character } from "../character";
@@ -41,6 +43,22 @@ async function claim(db: Db, sceneId: string, key: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/** Gives a claim back, so a later step draws the picture that didn't come. */
+async function release(db: Db, sceneId: string, key: string): Promise<void> {
+  await db.query(`update adult_scenes set auto_pictures = auto_pictures - $2::text where id = $1`, [sceneId, key]);
+}
+
+/** How long a picture that didn't come waits before a step asks for it again. */
+export const RETRY_AFTER_MS = 3 * 60_000;
+/** When each scene's picture last failed ("sceneId|key"), in this process. */
+const failedAt = new Map<string, number>();
+let clock = () => Date.now();
+/** Tests move the clock past RETRY_AFTER_MS. */
+export function setAutoPictureClockForTests(f: (() => number) | null): void {
+  clock = f ?? (() => Date.now());
+  if (!f) failedAt.clear();
+}
+
 /** What the picture shows: the two of them, where the scene stands. The stage, the place and the lines do the rest. */
 const DESCRIPTION = "The two of them together, as their night stands right now";
 
@@ -66,12 +84,20 @@ export async function autoPicturesSettled(): Promise<void> {
 export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictureScene, a: Character | null, b: Character | null): Promise<boolean> {
   try {
     if (!a || !b || !(await autoPicturesReady(db))) return false;
-    if (!(await claim(db, scene.id, autoPictureKey(scene.chapter, scene.set_place ?? scene.place)))) return false;
+    const key = autoPictureKey(scene.chapter, scene.set_place ?? scene.place);
+    const failed = failedAt.get(`${scene.id}|${key}`);
+    if (failed !== undefined && clock() - failed < RETRY_AFTER_MS) return false;
+    if (!(await claim(db, scene.id, key))) return false;
     const snapshot: AutoPictureScene = { ...scene, lines: scene.lines.slice(-6) };
     inBackground(() => {
-      const work = drawAutoPicture(db, ownerId, snapshot, a, b).catch((err) => {
-        console.warn(`[after-dark] chapter ${snapshot.chapter}'s picture didn't come: ${err instanceof Error ? err.message.slice(0, 160) : "error"}`);
-      });
+      const work = drawAutoPicture(db, ownerId, snapshot, a, b).then(
+        () => void failedAt.delete(`${scene.id}|${key}`),
+        async (err) => {
+          console.warn(`[after-dark] chapter ${snapshot.chapter}'s picture didn't come (asked again on a later step): ${err instanceof Error ? err.message.slice(0, 160) : "error"}`);
+          failedAt.set(`${scene.id}|${key}`, clock());
+          await release(db, scene.id, key).catch(() => {});
+        },
+      );
       pending.add(work);
       void work.finally(() => pending.delete(work));
       return work;
