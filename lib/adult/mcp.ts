@@ -44,7 +44,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     name: "after_dark_settings",
     title: "After dark: models and on/off",
     description:
-      "Admin only. Reads after dark's settings, and changes the models or turns it on or off when given. Keys are never shown or set here " +
+      "Admin only. Reads after dark's settings, and changes the models, the media provider (venice or replicate) or turns it on or off when given. Keys are never shown or set here " +
       "(only on /admin/after-dark/settings).",
     inputSchema: {
       type: "object",
@@ -54,6 +54,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
         image_model: { type: "string", maxLength: 120, description: "A fal.ai image model id." },
         video_model: { type: "string", maxLength: 120, description: "A fal.ai video model id." },
         image_base: { type: "string", maxLength: 160, description: "For fal-ai/lora: the Hugging Face id of the base model." },
+        media_provider: { type: "string", enum: ["venice", "replicate"], description: "Where pictures, keyframes, videos and voices are made." },
       },
     },
     annotations: { readOnlyHint: false },
@@ -97,6 +98,7 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
     const patch: Record<string, unknown> = {};
     if (typeof args.enabled === "boolean") patch.enabled = args.enabled;
     for (const k of ["text_model", "image_model", "video_model", "image_base"]) if (typeof args[k] === "string" && (args[k] as string).trim()) patch[k] = (args[k] as string).trim();
+    if (args.media_provider === "venice" || args.media_provider === "replicate") patch.media_provider = args.media_provider;
     return { data: { settings: Object.keys(patch).length ? await saveAdultSettings(db, patch) : await getAdultSettings(db) } };
   }
   if (!(await adultAvailable(db))) return { error: "After dark is off: turn it on in its settings (/admin/after-dark/settings)." };

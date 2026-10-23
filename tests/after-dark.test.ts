@@ -52,6 +52,8 @@ describe("the gate", () => {
     expect(adultModeEnabled({})).toBe(false);
     expect(adultModeEnabled({ ADULT_MODE: "1", VERCEL: "1" })).toBe(false);
     expect(adultModeEnabled({ ADULT_MODE: "1", VERCEL_ENV: "production" })).toBe(false);
+    // After Dark's own host has no VERCEL variable (docs/after-dark-hosting.md).
+    expect(adultModeEnabled({ ADULT_MODE: "1", AFTER_DARK_ONLY: "1" })).toBe(false);
   });
 
   it("is not found for a stranger, a non-admin, an old unsigned cookie, and the admin when it's on Vercel", async () => {
@@ -407,6 +409,10 @@ describe("settings over MCP", () => {
       }).structuredContent.settings;
     expect((await run({ text_model: "sao10k/l3.3-euryale-70b" })).text_model).toBe("sao10k/l3.3-euryale-70b");
     expect(JSON.stringify(await run({}))).not.toMatch(/ciphertext|nonce/);
+    // Where the media is made (#698): only the two providers there are.
+    expect((await run({ media_provider: "replicate" })).media_provider).toBe("replicate");
+    expect((await run({ media_provider: "fal" })).media_provider).toBe("replicate");
+    expect((await run({ media_provider: "venice" })).media_provider).toBe("venice");
     const stranger = await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "after_dark_settings", arguments: {} } }, {});
     expect((stranger!.error as { message?: string } | undefined)?.message).toMatch(/unknown tool/);
   });
