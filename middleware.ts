@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { afterDarkOnly, afterDarkOrigin, afterDarkPageMove } from "@/lib/after-dark-host";
 import { ADULT_COOKIE } from "@/lib/age";
 import { track } from "@/lib/analytics";
 import { detectBot } from "@/lib/bots";
@@ -37,6 +38,24 @@ function moveToCanonical(req: NextRequest): NextResponse | null {
 }
 
 /**
+ * After Dark on a host of its own (lib/after-dark-host.ts), off unless AFTER_DARK_ORIGIN is set. The show sends After
+ * Dark's pages there (through its sign-in hop when there's an identity to bring); After Dark's host sends the show's
+ * pages back and keeps crawlers out. Temporary redirects, so unsetting it is the whole way back.
+ */
+function moveForAfterDark(req: NextRequest): NextResponse | null {
+  if (!afterDarkOrigin()) return null;
+  const { pathname, search } = req.nextUrl;
+  const move = afterDarkPageMove(pathname, search, {
+    identity: IDENTITY_COOKIES.some((c) => req.cookies.has(c)),
+    bot: detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent")) !== null,
+    show: siteUrl(),
+  });
+  if (!move) return null;
+  if ("robots" in move) return new NextResponse(move.robots, { headers: { "content-type": "text/plain; charset=utf-8" } });
+  return NextResponse.redirect(move.redirect, 307);
+}
+
+/**
  * The agent-facing docs (and the crawler essentials). They're files, so the gate never applies to them, but
  * they're matched here so every fetch is counted: middleware runs before the CDN cache, so a cached hit still
  * counts. Track-only: these always pass straight through.
@@ -64,9 +83,11 @@ const section = (path: string) => `/${path.split("/")[1] ?? ""}`;
  * people. Each pass is logged as a `bot_visit` so we can see who's reading the show.
  */
 export function middleware(req: NextRequest): NextResponse {
-  const moved = moveToCanonical(req);
+  const moved = moveToCanonical(req) ?? moveForAfterDark(req);
   if (moved) return moved; // the query (?repohq-notrack=1 included) travels with it and is handled on arrival
   const res = route(req);
+  // After Dark's own host stays out of search (lib/after-dark-host.ts); its robots.txt says so too.
+  if (afterDarkOnly()) res.headers.set("x-robots-tag", "noindex, nofollow");
   // ?repohq-notrack=1 marks the owner's browser for RepoHQ's funnel (app/funnel.ts). Set on whatever goes out, the
   // 18+ gate's redirect included, so it sticks even before the gate is passed. 400 days: the most a browser keeps.
   if (req.nextUrl.searchParams.get("repohq-notrack") === "1") {

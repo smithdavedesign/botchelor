@@ -25,6 +25,11 @@
  *    shot passes it again before it's stored (lib/adult/check.ts); a failure is discarded, never stored, and its share
  *    of the tokens given back.
  *  - The price: `reel_tokens` bought tokens (After Dark's settings), admins free.
+ *  - On Replicate, the backup (`media_provider`, David 2026-10-22; lib/adult/replicate.ts): the keyframe is Qwen-Image-
+ *    Edit's, the shot Wan 2.2's, both with Replicate's safety checker off and both through the same Hive check. Wan
+ *    2.2 is silent, so once a shot is kept its line is said by the character's stock Kokoro voice, stored beside it
+ *    (an adult_images 'audio', `audio_id`) and played with it. A shot keeps who makes it (`provider`), so a reel
+ *    started on one finishes there.
  *
  * The keyframes are drawn, checked and queued when the reel starts. Shots take minutes on Venice, so a reel is then
  * advanced by whoever's watching (GET polls advanceReel).
@@ -37,12 +42,13 @@ import type { Db } from "../db";
 import { keepBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { getSet } from "../sets";
-import { normalizeScene } from "../venues";
+import { normalizeScene, setPath } from "../venues";
 import { checkOutput, type CheckResult } from "./check";
 import type { PlaceStop } from "./continuity";
 import { ensureBaseline, lookWords, signedMediaUrl } from "./media";
 import { adultModel } from "./mode";
 import { REEL_STALLED_MS } from "./reel-timing";
+import { cancelPrediction, createPrediction, downloadOutput, getPrediction, isDone, noOutput, outputUrls, ReplicateError, runModel, type Prediction, type ReplicateFile } from "./replicate";
 import { dropForeignActions, eligiblePair, type SceneLine } from "./scenes";
 import { adultKeys, getAdultSettings } from "./settings";
 import { STAGES } from "./stages";
@@ -110,6 +116,11 @@ export type ReelShot = {
   reason?: string;
   /** After a check that couldn't run: not fetched or sent to Hive again before this time. */
   retry_at?: string;
+  /** Made on Replicate (unset: Venice). Its `queue_id` is then the prediction's id. */
+  provider?: "replicate";
+  /** On Replicate: the stock voice that says the line, and once the shot is in, that line (an adult_images 'audio'). */
+  voice?: string;
+  audio_id?: string;
 };
 export type Reel = { id: string; status: "making" | "ready" | "failed"; tokens: number; shots: ReelShot[]; created_at: string };
 
@@ -382,6 +393,81 @@ export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<Reel
   return audioIn ? `${base} ${cap(speaker.tag)} is the one speaking, lips moving with the words.` : `${base} ${cap(speaker.tag)}, in ${speaker.voice}, says: "${s.text}"`;
 }
 
+/** Kokoro's voices on Replicate (jaaari/kokoro-82m's list, 2026-10-22): all of ours but af_heart, which it lacks. */
+const REPLICATE_VOICES = new Set([
+  "af_alloy", "af_aoede", "af_bella", "af_jessica", "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah", "af_sky",
+  "am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam", "am_michael", "am_onyx", "am_puck",
+]);
+/** A character's voice as Replicate's Kokoro has it: af_heart becomes af_alloy, a voice no one else of ours has. */
+export function replicateVoice(voice: string): string {
+  if (REPLICATE_VOICES.has(voice)) return voice;
+  return voice === "af_heart" ? "af_alloy" : voice.startsWith("am_") ? "am_adam" : "af_bella";
+}
+
+/** Wan 2.2 on Replicate makes 81 to 121 frames (four to a step, plus one) at 16 a second: about 5 to 7.5 seconds. */
+const WAN_FPS = 16;
+const WAN_FRAMES = [81, 121] as const;
+/**
+ * How fast Kokoro talks, about 3 words a second (the live run of 2026-10-23: an 8-word line came back as 2.7 s of WAV,
+ * its pauses included), and a breath either side of the line.
+ */
+const WORDS_PER_SECOND = 3;
+const BREATH_S = 0.6;
+/**
+ * How long a Replicate shot runs, and how fast its line is said: long enough for the line (at least 5 s), and a line
+ * too long for the longest shot said a little faster (up to 1.25×) rather than running past its end.
+ */
+export function replicateTiming(text: string): { frames: number; speed: number } {
+  const seconds = text.split(/\s+/).filter(Boolean).length / WORDS_PER_SECOND + BREATH_S;
+  const longest = WAN_FRAMES[1] / WAN_FPS - 0.3;
+  const speed = seconds > longest ? Math.min(1.25, seconds / longest) : 1;
+  const want = Math.ceil((seconds / speed) * WAN_FPS);
+  return { frames: Math.min(WAN_FRAMES[1], Math.max(WAN_FRAMES[0], 4 * Math.ceil((want - 1) / 4) + 1)), speed: Math.round(speed * 100) / 100 };
+}
+
+/**
+ * A keyframe's inputs on Replicate's Qwen-Image-Edit: the same prompt and pictures as on Venice (Pictures 1 and 2,
+ * the set as 3), and its safety checker off: what comes back goes through Hive before anything is kept.
+ */
+export function replicateKeyframeInput(prompt: string, images: string[]): Record<string, unknown> {
+  return { prompt, image: images, aspect_ratio: "3:4", output_format: "png", go_fast: true, disable_safety_checker: true };
+}
+
+/**
+ * A shot's inputs on Replicate's Wan 2.2: its keyframe, the motion with whoever speaks moving their lips (the line
+ * itself is said beside it), long enough for the line, 720p like Venice's, and the safety checker off (the shot passes
+ * Hive before it's kept). A LoRA: one URL for both of Wan's transformers, or two, high noise then low.
+ */
+export function replicateShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion">, image: string, lora: string | null): Record<string, unknown> {
+  const [high, low] = (lora ?? "").split(/[\s,]+/).filter(Boolean);
+  return {
+    prompt: shotPrompt(cast, s, true),
+    image,
+    num_frames: replicateTiming(s.text).frames,
+    resolution: "720p",
+    frames_per_second: WAN_FPS,
+    go_fast: true,
+    disable_safety_checker: true,
+    ...(high ? { lora_weights_transformer: high, lora_weights_transformer_2: low ?? high } : {}),
+  };
+}
+
+/** A shot's line in its character's stock voice, on Replicate's Kokoro. */
+export const replicateVoiceInput = (s: Pick<ReelShot, "text" | "voice">): Record<string, unknown> => ({
+  text: s.text,
+  voice: s.voice ?? "af_bella",
+  speed: replicateTiming(s.text).speed,
+});
+
+/** Replicate takes a data: URI up to 256 KB; a drawn set bigger than that goes by its public link (/api/sets) instead. */
+const DATA_URI_MAX = 256 * 1024;
+export function replicateSetImage(dataUri: string, place: string, baseUrl: string): string {
+  const bytes = Math.floor(((dataUri.length - dataUri.indexOf(",") - 1) * 3) / 4);
+  // The route normalizes the name it's given again, so the link only names this set when that changes nothing.
+  const key = normalizeScene(place);
+  return bytes <= DATA_URI_MAX || normalizeScene(key) !== key ? dataUri : `${baseUrl.replace(/\/$/, "")}${setPath(place)}`;
+}
+
 async function venice(key: string, path: string, body: unknown): Promise<Response> {
   return doFetch(`${VENICE}${path}`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify(body) });
 }
@@ -425,6 +511,14 @@ async function drawKeyframe(key: string, prompt: string, images: string[]): Prom
 /** Hive gave no verdict (busy, down): a reason to ask again, not a refusal. */
 const couldntRun = (v: CheckResult): boolean => !v.ok && v.reason.startsWith("the check couldn't run") && !v.reason.includes("no Hive key");
 
+/** The biggest file a keyframe, a shot or a line's voice may be. */
+const MAX_PICTURE_BYTES = 40 * 1024 * 1024;
+const MAX_SHOT_BYTES = 100 * 1024 * 1024;
+const MAX_VOICE_BYTES = 20 * 1024 * 1024;
+
+/** A reel made on Replicate: its token, the keyframe and video models, and the video LoRA. */
+type ReplicateMedia = { token: string; keyframe: string; video: string; videoLora: string | null };
+
 type ShotContext = {
   pair: [string, string];
   cast: [ReelPerson, ReelPerson];
@@ -435,12 +529,32 @@ type ShotContext = {
   hive: string | null;
   model: string;
   baseUrl: string;
+  /** Set when the reel is made on Replicate; Venice otherwise. */
+  replicate: ReplicateMedia | null;
 };
 
+/** One keyframe from Replicate's edit model, its bytes downloaded at once. */
+async function drawReplicateKeyframe(r: ReplicateMedia, prompt: string, images: string[]): Promise<ReplicateFile> {
+  const file = await runModel(r.token, r.keyframe, replicateKeyframeInput(prompt, images), { maxBytes: MAX_PICTURE_BYTES, timeoutMs: 120_000 });
+  if (!file.mime.startsWith("image/")) throw new Error("Replicate returned no keyframe");
+  return file;
+}
+
+/** Queues one shot's video on Replicate from its keyframe: the prediction's id is the shot's queue id. */
+async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "replicate">, s: ReelShot): Promise<void> {
+  const r = ctx.replicate!;
+  s.voice = replicateVoice(voiceFor(ctx.cast[s.who === "a" ? 0 : 1]));
+  // Stopped if it's still going in half an hour: nobody will collect it by then.
+  const p = await createPrediction(r.token, r.video, replicateShotInput(ctx.cast, s, signedMediaUrl(s.media_id!, ctx.baseUrl), r.videoLora), { cancelAfter: "30m" });
+  s.queue_id = p.id;
+  s.model = r.video;
+}
+
 /**
- * Starts the shots: every keyframe is drawn at once on Venice, then each is checked (one at a time: Hive rate-limits a
- * burst; a check that couldn't run is asked once more after a pause) and kept, and its video queued. A shot whose
- * keyframe can't be drawn or doesn't pass is dropped, and its share of the tokens comes back when the reel settles.
+ * Starts the shots: every keyframe is drawn at once (on Venice, or Replicate), then each is checked (one at a time:
+ * Hive rate-limits a burst; a check that couldn't run is asked once more after a pause) and kept, and its video
+ * queued. A shot whose keyframe can't be drawn or doesn't pass is dropped, and its share of the tokens comes back when
+ * the reel settles.
  */
 async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx: ShotContext): Promise<void> {
   const sets = await setPictures(db, shots.map((s) => ctx.places[s.line] ?? null));
@@ -451,6 +565,7 @@ async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx: ShotC
       const set = place ? (sets.get(place) ?? null) : null;
       const prompt = keyframePrompt(ctx.cast, s.frame ?? "", place ? placeWords(place, ctx.cast) : null, ctx.stages[s.line] ?? 0, Boolean(set));
       try {
+        if (ctx.replicate) return { prompt, file: await drawReplicateKeyframe(ctx.replicate, prompt, set && place ? [...faces, replicateSetImage(set, place, ctx.baseUrl)] : faces) };
         return { prompt, file: await drawKeyframe(ctx.venice, prompt, set ? [...faces, set] : faces) };
       } catch (err) {
         Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" });
@@ -486,7 +601,7 @@ async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx: ShotC
       [id, ownerId, ctx.pair[0], ctx.pair[1], d.prompt, d.file.mime, kept.data, kept.object_key],
     );
     s.media_id = id;
-    await queueShot(ctx, s).catch((err) => Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" }));
+    await (ctx.replicate ? queueReplicateShot(ctx, s) : queueShot(ctx, s)).catch((err) => Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" }));
   }
 }
 
@@ -572,6 +687,12 @@ export async function stopReel(db: Db, ownerId: string, id: string, reason = "st
   if (row.status !== "making") return getReel(db, id);
   const shots = row.shots.map((s) => (s.status === "queued" ? { ...s, status: "failed" as const, reason } : s));
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'making'`, [id, JSON.stringify(shots)]);
+  // A shot still running on Replicate is stopped there too, so it doesn't go on billing for a video nobody collects.
+  const running = row.shots.filter((s) => s.status === "queued" && s.provider === "replicate" && s.queue_id);
+  if (running.length) {
+    const { replicate } = await adultKeys(db).catch(() => ({ replicate: null }));
+    if (replicate) await Promise.all(running.map((s) => cancelPrediction(replicate, s.queue_id!)));
+  }
   return settleIfDone(db, id);
 }
 
@@ -594,7 +715,11 @@ export async function makeReel(
   const [a, b] = pair;
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
-  if (!keys.venice || !keys.hive) return { ok: false, status: 409, error: "not_set_up", message: "Videos need the Venice and Hive keys in After Dark's settings." };
+  // Made where After Dark's media is made: Venice, or Replicate as the backup.
+  const onReplicate = settings.media_provider === "replicate";
+  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
+    return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
+  }
   if (lines.length < 6) return { ok: false, status: 409, error: "too_short", message: "Let the night run a little longer first: a video needs at least six lines." };
   const busy = await busyReel(db, ownerId);
   if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
@@ -623,7 +748,7 @@ export async function makeReel(
       const { speech } = spoken(l.text);
       // Every word that will be spoken, and every direction, is held to the two lines first.
       if (!checkAdultText({ speech, frame: p.frame, motion: p.motion }).ok) continue;
-      shots.push({ line: p.line, who: l.who, text: speech, frame: p.frame, motion: p.motion, status: "queued" });
+      shots.push({ line: p.line, who: l.who, text: speech, frame: p.frame, motion: p.motion, status: "queued", ...(onReplicate ? { provider: "replicate" as const } : {}) });
     }
     if (!shots.length) throw new Error("no usable lines");
     await db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots) values ($1, $2, $3, $4, 'making', $5, $6::jsonb)`, [
@@ -634,7 +759,10 @@ export async function makeReel(
       pays ? price : 0,
       JSON.stringify(shots),
     ]);
-    await startShots(db, ownerId, shots, { pair: [a, b], cast, places, stages, bases, venice: keys.venice, hive: keys.hive, model: settings.reel_model, baseUrl });
+    const replicate = onReplicate
+      ? { token: keys.replicate!, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora }
+      : null;
+    await startShots(db, ownerId, shots, { pair: [a, b], cast, places, stages, bases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate });
     await db.query(`update adult_reels set shots = $2::jsonb where id = $1`, [id, JSON.stringify(shots)]);
     return { ok: true, reel: await settleIfDone(db, id) };
   } catch (err) {
@@ -642,6 +770,89 @@ export async function makeReel(
     await db.query(`delete from adult_reels where id = $1`, [id]).catch(() => {});
     return { ok: false, status: 502, error: "not_started", message: `The video couldn't start (${err instanceof Error ? err.message : "error"}). Your tokens are back.` };
   }
+}
+
+const failShot = (s: ReelShot, reason: string) => Object.assign(s, { status: "failed", reason: reason.slice(0, 200) });
+
+/**
+ * Collects one Replicate shot once its prediction is done: the video downloaded at once (Replicate deletes it within
+ * the hour), checked by Hive, and only then stored; then its line said by the character's stock voice (Wan 2.2 is
+ * silent), stored beside it. "checked": it went to Hive; "busy": Hive couldn't check it (it's asked again later);
+ * "waiting": still being made, or failed without reaching Hive.
+ */
+async function collectReplicateShot(
+  db: Db,
+  ownerId: string,
+  pair: { character_a: string; character_b: string },
+  s: ReelShot,
+  keys: { replicate: string; hive: string | null },
+  voiceModel: () => Promise<string>,
+  now: number,
+): Promise<"checked" | "busy" | "waiting"> {
+  let p: Prediction;
+  try {
+    p = await getPrediction(keys.replicate, s.queue_id!);
+  } catch (err) {
+    // Busy, or a moment's trouble at Replicate: asked again next poll. Anything else (a refused key, no such
+    // prediction) won't get better.
+    const status = err instanceof ReplicateError ? err.status : undefined;
+    if (status === undefined || status === 429 || status >= 500) return "waiting";
+    failShot(s, err instanceof Error ? err.message : "error");
+    return "waiting";
+  }
+  if (!isDone(p)) return "waiting";
+  const missing = noOutput(p);
+  if (missing) {
+    failShot(s, missing);
+    return "waiting";
+  }
+  let file: ReplicateFile;
+  try {
+    file = await downloadOutput(outputUrls(p.output)[0], keys.replicate, MAX_SHOT_BYTES);
+  } catch (err) {
+    // A moment's trouble (the network, Replicate's side): next poll. Gone after its hour, or unusable: failed.
+    if (!(err instanceof ReplicateError) || (err.status !== undefined && err.status >= 500)) return "waiting";
+    failShot(s, err.status === 403 || err.status === 404 || err.status === 410 ? "Replicate no longer has the video (it deletes what a model made an hour after)" : err.message);
+    return "waiting";
+  }
+  const verdict = await checkOutput(keys.hive, { base64: file.bytes.toString("base64"), mime: "video/mp4" }, "video");
+  if (!verdict.ok && couldntRun(verdict)) {
+    s.retry_at = new Date(now + CHECK_RETRY_MS).toISOString();
+    s.reason = verdict.reason.slice(0, 200);
+    return "busy";
+  }
+  if (!verdict.ok) {
+    s.status = "discarded";
+    s.reason = verdict.reason.slice(0, 200);
+    await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'reel', $3)`, [crypto.randomUUID(), ownerId, verdict.reason.slice(0, 300)]).catch(() => {});
+    return "checked";
+  }
+  const mediaId = crypto.randomUUID();
+  const kept = await keepBytes("after-dark", mediaId, file.bytes, "video/mp4");
+  await db.query(
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8)`,
+    [mediaId, ownerId, pair.character_a, pair.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null],
+  );
+  s.status = "ready";
+  s.media_id = mediaId;
+  delete s.retry_at;
+  delete s.reason;
+  // Its line, in their voice: the words were held to the two lines when the reel started (makeReel). A voice that
+  // doesn't come leaves the shot silent, with its caption, rather than losing it.
+  try {
+    const voice = await runModel(keys.replicate, await voiceModel(), replicateVoiceInput(s), { maxBytes: MAX_VOICE_BYTES, timeoutMs: 60_000 });
+    if (!voice.mime.startsWith("audio/")) throw new Error("Replicate returned no audio");
+    const audioId = crypto.randomUUID();
+    const said = await keepBytes("after-dark", audioId, voice.bytes, voice.mime);
+    await db.query(
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image) values ($1, $2, $3, $4, 'audio', $5, $6, $7, $8, 'ready', $9)`,
+      [audioId, ownerId, pair.character_a, pair.character_b, `Reel line: ${s.text}`.slice(0, 500), voice.mime, said.data, said.object_key, mediaId],
+    );
+    s.audio_id = audioId;
+  } catch (err) {
+    s.reason = `no voice: ${err instanceof Error ? err.message : "error"}`.slice(0, 200);
+  }
+  return "checked";
 }
 
 /** Checks a reel's queued shots once: stores each finished one that passes Hive, discards the rest. */
@@ -662,9 +873,21 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     // Its start was cut off before its video was queued (makeReel stopped partway): it's never coming.
     else if (!s.queue_id && age > NEVER_QUEUED_MS) Object.assign(s, { status: "failed", reason: s.reason ?? "never started" });
   }
+  // Replicate's voice model, read once a poll and only when a Replicate shot needs it.
+  let voiceModel: string | null = null;
+  const voiceModelOf = async () => (voiceModel ??= (await getAdultSettings(db)).replicate_voice_model);
   for (const s of shots) {
-    if (s.status !== "queued" || !s.queue_id || !s.model || !keys.venice || checked >= SHOTS_PER_POLL) continue;
+    if (s.status !== "queued" || !s.queue_id || !s.model || checked >= SHOTS_PER_POLL) continue;
     if (s.retry_at && now < new Date(s.retry_at).getTime()) continue;
+    if (s.provider === "replicate") {
+      if (!keys.replicate) continue;
+      const got = await collectReplicateShot(db, ownerId, row, s, { replicate: keys.replicate, hive: keys.hive }, voiceModelOf, now);
+      if (got === "checked") checked++;
+      // Hive couldn't check it: nothing more goes to Hive this poll.
+      if (got === "busy") break;
+      continue;
+    }
+    if (!keys.venice) continue;
     // Venice keeps the file until we've stored our own (a check that can't run yet is tried again next poll).
     const res = await venice(keys.venice, "/video/retrieve", { model: s.model, queue_id: s.queue_id });
     if (!res.ok) {

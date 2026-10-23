@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { afterDarkHref } from "@/lib/after-dark-host";
 import { frontierConfigured } from "@/lib/model";
 import AdminClaim from "./AdminClaim";
 import NewFeedbackCount from "./feedback/NewFeedbackCount";
@@ -43,13 +44,13 @@ export default function AdminPage() {
       <h2>After Dark</h2>
       <p className="muted">The adult tier, for signed-in admins only. Every page under it is a 404 to anyone else.</p>
       <p>
-        <Link href="/after-dark">Scenes and switches →</Link> <span className="muted">switch characters in and write a scene</span>
+        <Link href={afterDarkHref("/after-dark")}>Scenes and switches →</Link> <span className="muted">switch characters in and write a scene</span>
       </p>
       <p>
-        <Link href="/admin/after-dark/graph">Graph →</Link> <span className="muted">every character&apos;s After Dark content on one page: who with whom, scenes, nights, videos and pictures</span>
+        <Link href={afterDarkHref("/admin/after-dark/graph")}>Graph →</Link> <span className="muted">every character&apos;s After Dark content on one page: who with whom, scenes, nights, videos and pictures</span>
       </p>
       <p>
-        <Link href="/admin/after-dark/settings">Settings →</Link> <span className="muted">on/off, model keys and models, and requests from other bots</span>
+        <Link href={afterDarkHref("/admin/after-dark/settings")}>Settings →</Link> <span className="muted">on/off, model keys and models, and requests from other bots</span>
       </p>
     </article>
   );
