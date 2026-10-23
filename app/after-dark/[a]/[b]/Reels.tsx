@@ -129,9 +129,13 @@ function ReelPlayer({ reel, onChange }: { reel: Reel; onChange: (r: Reel) => voi
 /**
  * Plays shots back to back with no gap: every shot is fetched first (a progress count until they're all in), then two
  * stacked <video>s take turns: while one plays, the next is already loaded underneath, and they swap on `ended`.
+ *
+ * A shot made on Replicate is silent, its line said beside it (`audio_id`, lib/adult/reels.ts): that voice is
+ * preloaded with it, starts with the shot, pauses and resumes with it at the shot's time, and a line longer than its
+ * shot finishes on the shot's last frame before the next one starts.
  */
 function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
-  const key = shots.map((s) => s.media_id).join(",");
+  const key = shots.map((s) => `${s.media_id}${s.audio_id ? `+${s.audio_id}` : ""}`).join(",");
   const [urls, setUrls] = useState<string[] | null>(null);
   const [loaded, setLoaded] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -141,9 +145,11 @@ function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
   const [theater, setTheater] = useState(false);
   // Which of the two players shows shot i: they alternate.
   const players = [useRef<HTMLVideoElement>(null), useRef<HTMLVideoElement>(null)];
+  // Each shot's own voice, when it has one (null: the video's own sound, or none).
+  const voices = useRef<(HTMLAudioElement | null)[]>([]);
   const stage = useRef<HTMLDivElement>(null);
 
-  // Preload: every shot as a blob in memory, so no cut waits on the network.
+  // Preload: every shot (and its voice) as a blob in memory, so no cut waits on the network.
   useEffect(() => {
     let cancelled = false;
     const made: string[] = [];
@@ -152,31 +158,45 @@ function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
     setFailed(false);
     setStarted(false);
     setI(0);
+    // A file in the bucket redirects to it; read across origins, that needs the bucket's CORS rule. Without it (a
+    // network error, not a status), the player plays the link itself instead of a preloaded copy.
+    const load = async (id: string) => {
+      const res = await fetch(mediaUrl(id)).catch(() => null);
+      if (!res) return mediaUrl(id);
+      if (!res.ok) throw new Error(String(res.status));
+      const url = URL.createObjectURL(await res.blob());
+      made.push(url);
+      return url;
+    };
     (async () => {
       try {
         const out = await Promise.all(
           shots.map(async (s) => {
-            // A shot in the bucket redirects to it; read across origins, that needs the bucket's CORS rule. Without
-            // it (a network error, not a status), the player plays the link itself instead of a preloaded copy.
-            const res = await fetch(mediaUrl(s.media_id!)).catch(() => null);
-            if (!res) {
-              if (!cancelled) setLoaded((n) => n + 1);
-              return mediaUrl(s.media_id!);
-            }
-            if (!res.ok) throw new Error(String(res.status));
-            const url = URL.createObjectURL(await res.blob());
-            made.push(url);
+            const both = await Promise.all([load(s.media_id!), s.audio_id ? load(s.audio_id) : null]);
             if (!cancelled) setLoaded((n) => n + 1);
-            return url;
+            return both;
           }),
         );
-        if (!cancelled) setUrls(out);
+        if (cancelled) return;
+        voices.current = out.map(([, voice]) => {
+          if (!voice) return null;
+          const a = new Audio(voice);
+          a.preload = "auto";
+          return a;
+        });
+        setUrls(out.map(([video]) => video));
       } catch {
         if (!cancelled) setFailed(true);
       }
     })();
     return () => {
       cancelled = true;
+      voices.current.forEach((a) => {
+        if (!a) return;
+        a.onended = null;
+        a.pause();
+      });
+      voices.current = [];
       made.forEach((u) => URL.revokeObjectURL(u));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -198,28 +218,68 @@ function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
     }
     if (started && cur) {
       cur.currentTime = 0;
+      // A shot with its own voice plays that, not whatever sound the file has.
+      cur.muted = Boolean(voices.current[i]);
       void cur.play().catch(() => setPlaying(false));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urls, i, started]);
 
+  /** Shot i's voice, in step with its video: from the video's time, unless the line's already over. */
+  function sayWith(video: HTMLVideoElement) {
+    const v = voices.current[i];
+    if (!v || (v.duration && video.currentTime >= v.duration)) return;
+    if (Math.abs(v.currentTime - video.currentTime) > 0.2) v.currentTime = video.currentTime;
+    void v.play().catch(() => {});
+  }
+
   const ended = useCallback(() => {
     if (!urls) return;
-    if (i + 1 < urls.length) setI(i + 1);
-    else setPlaying(false);
+    const next = () => {
+      if (i + 1 < urls.length) setI(i + 1);
+      else setPlaying(false);
+    };
+    // A line longer than its shot finishes first, on the shot's last frame.
+    const v = voices.current[i];
+    if (v && !v.paused && !v.ended) {
+      v.onended = () => {
+        v.onended = null;
+        next();
+      };
+      return;
+    }
+    next();
   }, [i, urls]);
 
   function play() {
     if (!urls) return;
     if (!started) setStarted(true);
     const cur = players[i % 2].current;
+    const v = voices.current[i];
+    // Paused while a line finished on the shot's last frame: the line goes on, not the shot from its start.
+    if (cur?.ended && v && !v.ended) {
+      void v.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+      return;
+    }
+    if (cur) cur.muted = Boolean(v);
     void cur?.play().catch(() => setPlaying(false));
   }
   function pause() {
     players[i % 2].current?.pause();
+    const v = voices.current[i];
+    if (v && !v.paused) {
+      v.pause();
+      setPlaying(false);
+    }
   }
   function restart() {
     players.forEach((p) => p.current?.pause());
+    voices.current.forEach((v) => {
+      if (!v) return;
+      v.onended = null;
+      v.pause();
+      v.currentTime = 0;
+    });
     setI(0);
     setStarted(true);
   }
@@ -253,8 +313,16 @@ function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
             playsInline
             preload="auto"
             onEnded={n === i % 2 ? ended : undefined}
-            onPlay={() => n === i % 2 && setPlaying(true)}
-            onPause={(e) => n === i % 2 && !e.currentTarget.ended && setPlaying(false)}
+            onPlay={(e) => {
+              if (n !== i % 2) return;
+              setPlaying(true);
+              sayWith(e.currentTarget);
+            }}
+            onPause={(e) => {
+              if (n !== i % 2 || e.currentTarget.ended) return;
+              setPlaying(false);
+              voices.current[i]?.pause();
+            }}
           />
         ))}
         {!ready && (

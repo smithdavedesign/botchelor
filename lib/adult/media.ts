@@ -10,6 +10,9 @@
  * What a picture knows (David, 2026-10-19: "do all three"): the character's physical look, compacted and put first;
  * where the scene is, how far it's gone and what they just did; and, for a picture of one of them, their baseline as
  * a face reference, so the same face comes back in every picture.
+ *
+ * Explicit pictures are made on Venice, or on Replicate when it's After Dark's media provider (lib/adult/replicate.ts,
+ * the backup; drawPicture). Either way the bytes pass the output check before they're stored.
  */
 import type { Character } from "../character";
 import type { Db } from "../db";
@@ -19,6 +22,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { dataColumn, keepBytes, objectStore, readBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { checkOutput } from "./check";
+import { runModel } from "./replicate";
 import { countUse, overCap } from "./usage";
 import { adultKeys, getAdultSettings } from "./settings";
 
@@ -82,6 +86,32 @@ export async function venicePicture(db: Db, prompt: string, opts: { safe?: boole
   const bytes = Buffer.from(b64, "base64");
   if (bytes.length > MAX_BYTES) throw new Error("file too large");
   return { bytes, mime: "image/png" };
+}
+
+/**
+ * A picture's inputs on Replicate: its safety checker off (ours runs on what comes back, never instead of it), and
+ * steered away from anyone young-looking. Qwen-Image takes an aspect ratio and a format; an SDXL-style model
+ * (RealVisXL…) a width and height, Venice's 832×1104.
+ */
+export function replicatePictureInput(model: string, prompt: string): Record<string, unknown> {
+  const common = { prompt, negative_prompt: NEGATIVE_PROMPT, disable_safety_checker: true };
+  return /qwen-image/i.test(model) ? { ...common, aspect_ratio: "3:4", output_format: "png" } : { ...common, width: 832, height: 1104, num_outputs: 1 };
+}
+
+/** A picture on Replicate (lib/adult/replicate.ts): its bytes, downloaded at once (Replicate deletes them within the hour). */
+export async function replicatePicture(db: Db, prompt: string): Promise<{ bytes: Buffer; mime: string }> {
+  const { replicate } = await adultKeys(db);
+  if (!replicate) throw new Error("No Replicate key saved in after dark's settings.");
+  const { replicate_picture_model } = await getAdultSettings(db);
+  const file = await runModel(replicate, replicate_picture_model, replicatePictureInput(replicate_picture_model, prompt), { maxBytes: MAX_BYTES });
+  if (!file.mime.startsWith("image/")) throw new Error("Replicate returned no picture.");
+  return file;
+}
+
+/** An explicit picture, from After Dark's media provider: Venice, or Replicate as the backup. */
+export async function drawPicture(db: Db, prompt: string): Promise<{ bytes: Buffer; mime: string }> {
+  const { media_provider } = await getAdultSettings(db);
+  return media_provider === "replicate" ? replicatePicture(db, prompt) : venicePicture(db, prompt);
 }
 
 type Fetch = typeof fetch;
@@ -184,10 +214,10 @@ export function scenePrompt(a: Character, b: Character, of: "a" | "b" | "both", 
     .join(" ");
 }
 
-/** Whether the picture provider chosen in settings has its key saved. */
+/** Whether the picture provider chosen in settings has its key saved (the explicit one: Venice, or Replicate). */
 export async function pictureKeyReady(db: Db): Promise<boolean> {
   const [k, s] = await Promise.all([adultKeys(db).catch(() => null), getAdultSettings(db)]);
-  return Boolean(s.image_provider === "venice" ? k?.venice : k?.fal);
+  return Boolean(s.image_provider === "venice" ? (s.media_provider === "replicate" ? k?.replicate : k?.venice) : k?.fal);
 }
 
 async function falKey(db: Db): Promise<string> {
@@ -235,7 +265,7 @@ export async function makePicture(
   if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
   const { image_model, image_base, image_provider } = await getAdultSettings(db);
   if (image_provider === "venice") {
-    const file = await venicePicture(db, opts.prompt);
+    const file = await drawPicture(db, opts.prompt);
     // The output check on the bytes themselves, before anything is stored: a failure is discarded.
     const verdict = await checkOutput((await adultKeys(db)).hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image");
     if (!verdict.ok) {
@@ -312,12 +342,12 @@ const viewableBy = (n: number) => `(owner_id = $${n} or exists (select 1 from ad
 /** Starts a clip from one of the gallery's pictures (fal's queue: it takes a minute or more). */
 export async function startClip(db: Db, ownerId: string, imageId: string, motion: string): Promise<Media> {
   const pic = (await db.query<{ remote_url: string | null; character_id: string | null; character_b: string | null; prompt: string }>(
-    `select remote_url, character_id, character_b, prompt from adult_images where id = $1 and kind <> 'video' and status = 'ready' and ${viewableBy(2)}`,
+    `select remote_url, character_id, character_b, prompt from adult_images where id = $1 and kind not in ('video', 'audio') and status = 'ready' and ${viewableBy(2)}`,
     [imageId, ownerId],
   )).rows[0];
   if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
   if (!pic) throw new Error("No picture with that id.");
-  if (!pic.remote_url) throw new Error("Clips run on fal.ai, which doesn't allow explicit pictures, and this one was made on Venice.");
+  if (!pic.remote_url) throw new Error("Clips run on fal.ai, which doesn't allow explicit pictures, and this one was made on Venice or Replicate.");
   const capped = await overCap(db, ownerId, "clips");
   if (capped) throw new Error(capped);
   const prompt = `${motion.trim() || "Slow, natural movement"}. Everyone shown is an adult.`;
@@ -381,10 +411,10 @@ export async function pollClip(db: Db, id: string, viewerId: string): Promise<st
 /** The gallery: a character's pictures and clips (both of a pair's, when given two), newest first. */
 export async function listMedia(db: Db, ids: string[]): Promise<Media[]> {
   // Theirs alone, or of these characters together: never a picture or video with someone else in it (a character's
-  // night with another partner stays on that pair's page).
+  // night with another partner stays on that pair's page). A reel's keyframes and voices stay with its shots.
   const { rows } = await db.query<Media>(
     `select id, character_id, character_b, kind, status, created_at, mime, (kind <> 'video' and remote_url is not null) as clip from adult_images
-      where character_id = any($1) and (character_b is null or character_b = any($1)) and kind <> 'frame'
+      where character_id = any($1) and (character_b is null or character_b = any($1)) and kind not in ('frame', 'audio')
       order by created_at desc limit 60`,
     [ids],
   );

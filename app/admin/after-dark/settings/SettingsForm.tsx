@@ -22,6 +22,7 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
   const [falKey, setFalKey] = useState("");
   const [hiveKey, setHiveKey] = useState("");
   const [veniceKey, setVeniceKey] = useState("");
+  const [replicateKey, setReplicateKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
 
@@ -37,6 +38,7 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
     setFalKey("");
     setHiveKey("");
     setVeniceKey("");
+    setReplicateKey("");
     setNote({ text: "Saved." });
   }
 
@@ -62,11 +64,20 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       reel_model: s.reel_model,
       reel_shots: s.reel_shots,
       reel_tokens: s.reel_tokens,
+      media_provider: s.media_provider,
+      replicate_picture_model: s.replicate_picture_model,
+      replicate_keyframe_model: s.replicate_keyframe_model,
+      replicate_video_model: s.replicate_video_model,
+      replicate_voice_model: s.replicate_voice_model,
+      replicate_video_lora: s.replicate_video_lora ?? "",
+      ...(replicateKey.trim() ? { replicate_key: replicateKey.trim() } : {}),
     });
   }
 
   return (
-    <form className="card after-dark-settings" onSubmit={onSubmit}>
+    // One column, as wide as the card: a select sizes itself to its longest option, which pushed the phone layout
+    // wider than the screen.
+    <form className="card after-dark-settings" style={{ gridTemplateColumns: "minmax(0, 1fr)" }} onSubmit={onSubmit}>
       <h2>On the site</h2>
       <p>
         <label className="fact-private">
@@ -115,7 +126,7 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
         value={s.image_provider}
         onChange={(e) => setS({ ...s, image_provider: e.target.value === "venice" ? "venice" : "fal" })}
       >
-        <option value="venice">Venice</option>
+        <option value="venice">Venice (or Replicate, if switched below)</option>
         <option value="fal">fal.ai (nothing explicit)</option>
       </select>
       <label htmlFor="ad-venice-key">Venice key {s.venice_last4 && <span className="muted small">saved, ends …{s.venice_last4}</span>}</label>
@@ -134,6 +145,43 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       <input id="ad-reel-shots" type="number" min={2} max={12} value={s.reel_shots} onChange={(e) => setS({ ...s, reel_shots: Number(e.target.value) || 6 })} />
       <label htmlFor="ad-reel-tokens">Price in bought tokens (admins don&apos;t pay)</label>
       <input id="ad-reel-tokens" type="number" min={0} max={500} value={s.reel_tokens} onChange={(e) => setS({ ...s, reel_tokens: Number(e.target.value) || 0 })} />
+      <h3>The backup: Replicate</h3>
+      <p className="muted small">
+        Replicate can make After Dark&apos;s media instead of Venice: its pictures, each shot&apos;s keyframe of the two of them, the videos
+        (Wan 2.2, which is silent) and each line in their stock voice (Kokoro, played with the shot). Its own safety checker is off; the
+        output check below still checks every picture and video before it&apos;s kept.
+      </p>
+      <label htmlFor="ad-media-provider">Make pictures and videos on</label>
+      <select id="ad-media-provider" value={s.media_provider} onChange={(e) => setS({ ...s, media_provider: e.target.value === "replicate" ? "replicate" : "venice" })}>
+        <option value="venice">Venice</option>
+        <option value="replicate">Replicate (the backup)</option>
+      </select>
+      <label htmlFor="ad-replicate-key">
+        Replicate API token{" "}
+        {s.replicate_last4 ? (
+          <span className="muted small">saved, ends …{s.replicate_last4}</span>
+        ) : s.replicate_from_env ? (
+          <span className="muted small">from the server&apos;s environment (REPLICATE_API_TOKEN); one saved here is used instead</span>
+        ) : (
+          <span className="muted small">none yet</span>
+        )}
+      </label>
+      <input id="ad-replicate-key" type="password" autoComplete="off" value={replicateKey} onChange={(e) => setReplicateKey(e.target.value)} placeholder="r8_…" />
+      <label htmlFor="ad-replicate-picture">Picture model</label>
+      <input id="ad-replicate-picture" value={s.replicate_picture_model} onChange={(e) => setS({ ...s, replicate_picture_model: e.target.value })} />
+      <label htmlFor="ad-replicate-keyframe">Keyframe model (the two of them in one picture)</label>
+      <input id="ad-replicate-keyframe" value={s.replicate_keyframe_model} onChange={(e) => setS({ ...s, replicate_keyframe_model: e.target.value })} />
+      <label htmlFor="ad-replicate-video">Video model</label>
+      <input id="ad-replicate-video" value={s.replicate_video_model} onChange={(e) => setS({ ...s, replicate_video_model: e.target.value })} />
+      <label htmlFor="ad-replicate-voice">Voice model</label>
+      <input id="ad-replicate-voice" value={s.replicate_voice_model} onChange={(e) => setS({ ...s, replicate_voice_model: e.target.value })} />
+      <label htmlFor="ad-replicate-lora">Video LoRA (optional: a .safetensors URL for both of Wan&apos;s transformers, or two, high noise then low)</label>
+      <input
+        id="ad-replicate-lora"
+        value={s.replicate_video_lora ?? ""}
+        onChange={(e) => setS({ ...s, replicate_video_lora: e.target.value })}
+        placeholder="https://huggingface.co/…/high_noise.safetensors https://…/low_noise.safetensors"
+      />
       <h3>The output check: Hive</h3>
       <p className="muted small">
         Every picture and clip is checked after it&apos;s made and discarded if Hive&apos;s moderation sees a child, or its vision model
@@ -155,6 +203,11 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
         {s.fal_last4 && (
           <button type="button" className="button-ghost" disabled={busy} onClick={() => void save({ fal_key: "" })}>
             Remove the fal.ai key
+          </button>
+        )}{" "}
+        {s.replicate_last4 && (
+          <button type="button" className="button-ghost" disabled={busy} onClick={() => void save({ replicate_key: "" })}>
+            Remove the saved Replicate token
           </button>
         )}
       </p>
