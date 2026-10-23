@@ -5,7 +5,10 @@ the show's models can learn from them. It shipped in #666 (consent and the gated
 and #676 (structured fields, embeddings, reflection labels, how they met) and #678 (the Constellation). A post-merge
 review on [#678](https://github.com/smithdavedesign/botchelor/pull/678) found gaps in consent, deletion and retention;
 this page describes the plan as it stands after the fix, so that David and later sessions can check the promises on the
-privacy page (`app/legal/sections.tsx`) against the code.
+privacy page (`app/legal/sections.tsx`) against the code. The tools that will use it came next, built ahead of the data
+and run by nobody yet: a readiness tracker on /admin/analytics, the #577 training-set builder with its local LoRA path,
+and the #578 offline evaluators ([below](#when-the-learning-can-start-libtraining-readinessts)). None of them trains,
+changes the live show or spends anything.
 
 **The rule in one line:** the show records what it needs to run; only aired public dates, from people who opted in, ever
 go into a dataset; After Dark never does; and nothing the plan keeps about a person or their characters outlives
@@ -54,8 +57,14 @@ date and every person whose vote it reads.
 
 **What it doesn't cover:** what the show records to run itself (everything in the table above is recorded whatever the
 consent says), the admin dashboards and Real use, analytics, and the engine reading a character's history. Consent never
-lets in After Dark, private or unlisted dates, or a private soul. Today the only dataset builder is the preference export;
-nothing exports `turn_drafts`, impressions or choice history yet, and anything that does must go through the same gate.
+lets in After Dark, private or unlisted dates, or a private soul. The dataset readers are the preference export, the
+#577 training-set builder (which reads `turn_drafts` too) and the #578 offline evaluators (swipes, impressions, matches,
+first and second dates), all through the same gate (below). Nothing exports choice history, and anything that ever does
+must go through it too.
+
+`lib/ml-consent.ts` also holds the two gates every reader shares, so none of them keeps a copy:
+`airedPublicSql(e)` (public, revealed, ready, fewer than 3 reports, not After Dark) and
+`consentedCharactersSql(a, b, at)` (both characters the show's own or opted in by `at`).
 
 ## The export (`scripts/eval/export-preferences.mjs`)
 
@@ -87,7 +96,169 @@ The gates, all on, none of them a flag:
 The log line counts `skipped` (the date is gone) apart from `excluded` (still there, but a gate left it out). The script
 loads `lib/ml-consent.ts` through Vite's module runner (`loadConsent`, as `after-dark-observer.mjs` loads the observer),
 so the gate is the app's own SQL, never a copy; `tests/ml-consent.test.ts` checks the two agree. The `publicOnly` and
-`consentOnly` options exist only for the tests of the record's shape.
+`consentOnly` options exist only for the tests of the record's shape. `loadLib(path)` loads any other lib module the same
+way; the scripts below use it.
+
+## When the learning can start (`lib/training-readiness.ts`)
+
+The roadmap's two learning items ([#577](https://github.com/smithdavedesign/botchelor/issues/577) and
+[#578](https://github.com/smithdavedesign/botchelor/issues/578)) each say "Not before", and real use on 2026-10-22 was
+about zero. So the tools are built ahead and a tracker says when the data has caught up: **/admin/analytics → Quality →
+"Ready to learn from our own data?"** (`GET /api/admin/training-readiness`, owner-only, counts only, no money). Each gate
+shows as "x of y" with a sentence that says what's still needed.
+
+| Item | Gate | How it's counted |
+|---|---|---|
+| #577 fine-tuning | 2,000 labelled lines | A line of a date the dataset gates admit (aired publicly, every character opted in by the date's time or the show's own, neither a private character) with at least one label: a 👍/👎 from someone opted in when they voted, or a critic revision whose draft text was kept. Counted once however many labels. The observer's flags are After Dark's, so they never count. |
+| | 30 characters | The distinct characters speaking those lines (house cast included; the page says how many are players'). |
+| | mostly from other players | More than half of those lines have a label that isn't ours (`loadOurIds`): a vote by someone who isn't us, or a critic revision on a date someone who isn't us booked. |
+| #578 outcomes | 500 real dates in 30 days | Real use's "Dates booked" (`lib/real-metrics.ts`), our own traffic left out. |
+| | 200 swipers in 30 days | Distinct owners whose characters swiped, from the same facts Real use reads, ours out. |
+
+Beside the #578 gates the page says how much of that the offline evaluators may actually read (opted-in, aired public
+dates and opted-in swipers): the gate counts all real use, the evaluators only the consented part. The training-set
+builder and both evaluators print the same numbers and say "not enough data" (or, for the builder, refuse) below them.
+
+## Fine-tuning (#577) when ready
+
+Nothing here has run: it's the path, written down, for when the tracker says ready. It's local and $0 (the Mac's own
+GPU, open weights); **any managed fine-tuning spend is David's call** (#577: a few dollars to about $20 a run), and
+**After Dark is excluded by the privacy promise**: the page and the account toggle say it's never used for training, the
+builder can't be asked for it, and changing that would need the privacy page's promise changed first.
+
+### 1. Build the set (`scripts/eval/build-training-set.mjs`)
+
+```sh
+DATABASE_URL="$(neon connection-string --profile davejobs-agent --project-id cool-boat-29098893)" \
+  node scripts/eval/build-training-set.mjs --out .data/training/v1 [--seed 577] [--eval-share 0.2]
+```
+
+Read-only, free, and through the export's own gates (it calls `collectPreferences` for the votes and reads the dates with
+the `lib/ml-consent.ts` SQL, through `lib/training-set.ts`). Under #577's gate it prints the readiness and exits 1 without
+writing anything; `--allow-small` builds anyway, for testing. It writes:
+
+- `sft/train.jsonl`, `sft/valid.jsonl`: `{"messages": [system, user, assistant]}`, what `mlx_lm.lora --data` reads.
+  - **system:** the show's actor prompt word for word (`lib/conversation.ts actorSystemPrompt`, the moving one when the
+    date could move), then the speaker's sheet as `characterSelfView` builds it, minus everything private: no soul, no
+    learned memory, no dealbreaker, no never-says, no private facts or After Dark looks (`publicExtras`), none of the
+    date's private context (agenda, the owner's note, the dials). Then the other side as a blind date sees them
+    (`characterBlindView`), where they are (after any move), what the speaker hopes for, and the act's public facts.
+    Left out because they're private or rebuilt from the engine: the beat sheet's intention, the pair's memory, texts,
+    nudges, the tell and the goodbye move. A faithful minimal version of `buildTurnMessages`, documented in
+    `lib/training-set.ts`, since the real one needs the engine's outcome and the private context.
+  - **user:** the conversation so far, as the show writes `conversation_so_far`, and the act's name.
+  - **assistant:** the kept line as the reply JSON the show parses: `{"dialogue","action","emotion"}`.
+  - **Kept:** a line that's net 👍 (opted-in votes), or never flagged (no 👎) and never revised (no critic draft).
+- `dpo/train.jsonl`, `dpo/valid.jsonl`: `{"prompt": [system, user], "chosen", "rejected"}`, replies as `{"dialogue"}`
+  JSON (a draft keeps only its words). Pairs: a critic revision over the draft it replaced (unless the revision went
+  net 👎), and a net-👍 line over a net-👎 one where both answer the very same prompt.
+- `manifest.json`: counts, what was dropped and why, the split's sizes, the readiness. No ids.
+- **Hold-out by character**, seeded (`--seed`): each character is in train or valid, never both, and a date whose two
+  characters landed apart is dropped, so no character's lines are on both sides, as speaker or as context.
+- **Never:** After Dark, private or unlisted dates, private characters, a soul, a dealbreaker's words (a date is cut from
+  the first line where a character uses its own dealbreaker's words), a draft a safety filter caught, a draft's reason.
+
+### 2. Train a LoRA on the Mac (mlx-lm, not run)
+
+A 16 GB M1 fits QLoRA on a 3–8B instruct model at batch size 1. Start with a 3B (fast, and Llama-family, so Ollama can
+import it); an 8B is the stretch. Flags as `mlx_lm.lora` defines them (mlx-lm on GitHub, `mlx_lm/lora.py`):
+
+```sh
+python3 -m pip install mlx-lm          # once; Apple silicon only
+# SFT: loss on the assistant line only (--mask-prompt). A prompt is ~2.5k tokens, so lift the 2,048 default.
+mlx_lm.lora --model mlx-community/Llama-3.2-3B-Instruct-4bit --train --data .data/training/v1/sft \
+  --fine-tune-type lora --mask-prompt --batch-size 1 --grad-accumulation-steps 8 --num-layers 8 \
+  --iters 1000 --learning-rate 1e-5 --max-seq-length 4096 --grad-checkpoint \
+  --steps-per-eval 100 --val-batches -1 --save-every 100 --seed 577 --adapter-path .data/lora/actor-v1
+# The held-out characters' loss (it reads test.jsonl, so point it at the valid split):
+cp .data/training/v1/sft/valid.jsonl .data/training/v1/sft/test.jsonl
+mlx_lm.lora --model mlx-community/Llama-3.2-3B-Instruct-4bit --adapter-path .data/lora/actor-v1 \
+  --data .data/training/v1/sft --test --test-batches -1 --max-seq-length 4096
+```
+
+The 8B: `--model mlx-community/Meta-Llama-3.1-8B-Instruct-4bit --num-layers 4`; if it runs out of memory, shorten
+`--max-seq-length` or stay on the 3B. A quantized `--model` is what makes it QLoRA (`mlx_lm.convert --hf-path <repo> -q
+--q-bits 4 --mlx-path <dir>` makes one from any Hugging Face model). DPO comes second (#577's plan): `mlx_lm.lora` trains
+SFT only, so the `dpo/` files are for a preference trainer (TRL's `DPOTrainer` reads `{prompt, chosen, rejected}`), on
+the Mac or wherever David decides.
+
+### 3. Serve it, OpenAI-compatibly
+
+Either one, at 127.0.0.1 so the golden run counts it as $0:
+
+```sh
+# mlx-lm's own server (http://127.0.0.1:8080/v1). Ask for "default_model": that's --model with --adapter-path applied.
+mlx_lm.server --model mlx-community/Llama-3.2-3B-Instruct-4bit --adapter-path .data/lora/actor-v1 --port 8080
+# Or Ollama (http://127.0.0.1:11434/v1, already on the ai-stack): fuse, export GGUF (Llama-family, fp16), import.
+mlx_lm.fuse --model mlx-community/Llama-3.2-3B-Instruct-4bit --adapter-path .data/lora/actor-v1 \
+  --save-path .data/lora/actor-v1-fused --dequantize --export-gguf --gguf-path actor-v1.gguf
+printf 'FROM ./actor-v1-fused/actor-v1.gguf\n' > .data/lora/Modelfile   # FROM is relative to the Modelfile
+ollama create botchelor-actor-v1 -f .data/lora/Modelfile --quantize q4_K_M
+```
+
+`mlx_lm.server` ignores `response_format`, so the JSON reply comes from the training itself; `ollama show
+botchelor-actor-v1 --template` should show the Llama 3 chat template.
+
+### 4. The golden gate (`scripts/eval/golden.mjs`)
+
+The dates suite takes a candidate in B's place: the eval case is built on this machine (`lib/eval.ts runEvalCase`, in
+memory, nothing stored) with the candidate as the actor, against A on a deployment. There's no default endpoint or
+model; a key, if the endpoint needs one, is read from the environment variable `--candidate-key-env` names.
+
+```sh
+export CRON_SECRET="$(security find-generic-password -s vault/botchelor/CRON_SECRET -w)"
+node scripts/eval/golden.mjs --suite dates --label prod-vs-actor-v1 --base-a https://botchelor.com \
+  --candidate-base-url http://127.0.0.1:11434/v1 --candidate-model botchelor-actor-v1 \
+  --candidate-director-model llama3.2:3b --repeat 3 --gate --post
+```
+
+`--candidate-director-model` gives the plan and the recap to another model at the same endpoint (the fine-tune learned
+only the actor's lines); without it the candidate directs too. With `mlx_lm.server`, pass `--candidate-model
+default_model`. A's dates are the deployment's own (about 1.3¢ each on the paid default, or its eval key's free quota;
+the script prints the estimate first and stops at `--max-usd`).
+
+### 5. The ship rule (#577)
+
+A tuned model ships only when **all three** hold:
+- it wins **at least 55%** of the golden side-by-sides (the gate's own floor is 45%: pass `--thresholds win=0.55`);
+- **no metric regresses** past its tolerance (`--gate` checks every gated one);
+- it costs **no more per step** than today's model.
+
+Then it goes in as the show's model behind the existing switches, never as a silent swap.
+
+## Learning from outcomes (#578) when ready
+
+Report only. Nothing below changes the deck, the prompts or the engine, and the engine stays deterministic: a learned
+model only ever informs previews and who meets whom, never an ending. Both evaluators read `lib/outcome-data.ts`, which
+gates every row the same way (a swipe, an impression or a match counts only between opted-in or house, public characters,
+none of them ours; a date only when it aired publicly, its characters opted in and nobody ours; a second date only when it
+aired publicly too; a first date whose follow-up didn't is left out rather than read as "no"). Both take `--db` or
+`--pglite` (read-only), print "not enough data" first below #578's gate, and write `--json` if asked.
+
+- **(a) The deck, by collaborative filtering** (`scripts/eval/deck-cf-offline.mjs`): item-item CF over likes (1), likes
+  that became matches (+1) and pairs that reached a second date (+2, both ways), cosine between cards. A time-based
+  hold-out (the last `--test-share` of likes): each viewer with history is shown the cards it saw or swiped after the
+  cutoff, ranked by CF, by popularity, and by the deck's own score at the time (`swipe_impressions.score`, replayed;
+  `lib/dating.ts rankFor` can't be re-run for the past, since it reads today's relationships and trait statistics, which
+  already include what happened after the cutoff). Hit rate @5 and @10, catalog coverage, and how many viewers CF could
+  score at all.
+- **(c) Chemistry** (`scripts/eval/chemistry-model.mjs`): logistic regression in plain JS on public sheet fields (traits
+  counted over both sides, shared traits, the temperament traits and voice describe, the format, what kind of being each
+  is) → a second date. `--outcome booked` (the default: the couple booked one and it aired, after a week to do so) or
+  `ending` (the engine's own second-date ending). A time-based hold-out, AUC and log loss against the base rate and
+  against `chemistry_on_record` replayed from the training dates (`lib/compatibility.ts`).
+- **(b) The prompt and model, chosen by outcome: a design, not code.**
+  - **Arms:** 2–3 variants of the actor prompt or model, each first through the golden gate (no arm that loses there
+    is ever served).
+  - **Assignment:** per booked date, by Thompson sampling: each arm keeps a Beta posterior per reward, the date goes to
+    the arm whose draw is highest, and a fixed share (say 20%) always goes to today's prompt as the held-out control.
+    Both sides of a date get the same arm; the arm is recorded on the date (`generated_with`), never shown.
+  - **Reward:** second-date rate (the primary: did the couple book another, within a week), rewatches (a date's views by
+    others than its owners), and the net of opted-in line votes, each a 0/1 per date, combined with fixed weights
+    written down before it starts.
+  - **Safety:** an arm whose posterior falls clearly below the control's is dropped; nothing changes the engine's
+    ending; After Dark is never an arm. Ships when the winner beats the held-out control on second-date rate or
+    next-day return (#578's rule).
 
 ## How long it's kept (`lib/retention.ts`)
 

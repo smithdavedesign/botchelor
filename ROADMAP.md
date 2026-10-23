@@ -46,6 +46,11 @@ So the next steps are mostly distribution and listening:
   - **Ships when:** it wins at least 55% of golden side-by-sides, no metric regresses, and it costs no more per step
     than today.
   - **David decides:** the spend per run (a few dollars to about $20) and the After Dark host.
+  - **Ready when the data is** (built 2026-10-22, nothing run): the gates show as "x of y" on /admin/analytics → Quality
+    (`lib/training-readiness.ts`); `scripts/eval/build-training-set.mjs` writes the SFT and DPO JSONL through the same
+    consent gates (held out by character; it refuses under the gate); the local $0 LoRA commands (mlx-lm on the Mac),
+    serving and the golden run against the tuned model (`golden.mjs --candidate-base-url/--candidate-model`) are in
+    [docs/data-plan.md](docs/data-plan.md#fine-tuning-577-when-ready).
 - **Learn from outcomes** (David, 2026-10-21; [#578](https://github.com/smithdavedesign/botchelor/issues/578)).
   - **Not before:** about 500 real dates a month and 200 swipers. "Real use" on `/admin/analytics` tracks both; on
     2026-10-21 it was 16 dates in 30 days.
@@ -58,6 +63,12 @@ So the next steps are mostly distribution and listening:
   - **The engine stays deterministic.** A learned model only informs previews and who meets whom, and never decides
     an ending.
   - **Ships when:** second-date rate or next-day return beats a held-out control.
+  - **Ready when the data is** (built 2026-10-22, report only): the gates are on the same Quality section; offline
+    evaluators for (a) `scripts/eval/deck-cf-offline.mjs` (item-item CF against the deck's replayed score and
+    popularity, hit rate @5/@10, coverage) and (c) `scripts/eval/chemistry-model.mjs` (logistic regression against the
+    base rate and `chemistry_on_record`, AUC); (b)'s bandit is a design in
+    [docs/data-plan.md](docs/data-plan.md#learning-from-outcomes-578-when-ready). Both say "not enough data" below the
+    gate and read only opted-in, public, non-test data.
 
 ## Shipped
 

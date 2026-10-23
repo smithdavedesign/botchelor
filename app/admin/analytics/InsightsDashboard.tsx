@@ -295,7 +295,7 @@ export default function InsightsDashboard() {
         ) : tab === "product" ? (
           <ProductTab data={data} interval={interval} adminFetch={adminFetch} />
         ) : (
-          <QualityTab data={data} interval={interval} />
+          <QualityTab data={data} interval={interval} adminFetch={adminFetch} />
         )}
       </div>
     </section>

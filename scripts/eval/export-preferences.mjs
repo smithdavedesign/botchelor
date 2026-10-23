@@ -40,16 +40,13 @@ const asArray = (v) => (Array.isArray(v) ? v : typeof v === "string" ? JSON.pars
 const asObject = (v) => (v && typeof v === "object" ? v : typeof v === "string" ? JSON.parse(v) : null);
 const iso = (d) => (d ? new Date(d).toISOString() : null);
 
-/** lib/rules.ts REPORT_HIDE_THRESHOLD: a date with this many reports is hidden from everyone, datasets included. */
-const REPORT_HIDE_THRESHOLD = 3;
-
 /**
- * lib/ml-consent.ts, through Vite's module runner (the same TypeScript the app and the tests run, as
- * after-dark-observer.mjs loadLib does): the consent gate is the app's own SQL, so the two can't drift.
+ * A lib/ module through Vite's module runner (the same TypeScript the app and the tests run, as after-dark-observer.mjs
+ * loadLib does), so a script reads the app's own code, never a copy. `rel` is relative to the repo root.
  */
-export async function loadConsent() {
+export async function loadLib(rel) {
   const { runnerImport } = await import("vite");
-  const { module } = await runnerImport(join(ROOT, "lib/ml-consent.ts"), {
+  const { module } = await runnerImport(join(ROOT, rel), {
     configFile: false,
     root: ROOT,
     logLevel: "error",
@@ -59,12 +56,19 @@ export async function loadConsent() {
 }
 
 /**
+ * lib/ml-consent.ts: the consent gate (consentedOwnerSql, consentedCharactersSql) and the aired-public gate
+ * (airedPublicSql) are the app's own SQL, so the export, the training-set builder and the readiness tracker can't drift.
+ */
+export const loadConsent = () => loadLib("lib/ml-consent.ts");
+
+/**
  * Every rated line of a date with its votes, words and context. deps: consent (lib/ml-consent.ts; loaded when not
  * given), since (ISO), context (how many lines before). Gates (see the header): publicOnly and consentOnly (default
  * true; tests only).
  */
 export async function collectPreferences(query, { consent = null, since = null, context = 4, publicOnly = true, consentOnly = true } = {}) {
-  const gate = consentOnly ? (consent ?? (await loadConsent())) : null;
+  const lib = publicOnly || consentOnly ? (consent ?? (await loadConsent())) : null;
+  const gate = consentOnly ? lib : null;
   // A vote counts only from someone who opted in (an agent: through the account it was linked to when it voted).
   const voterOk = gate ? gate.consentedOwnerSql("lf.user_id", "lf.created_at") : "true";
   const votes = await query(
@@ -84,14 +88,10 @@ export async function collectPreferences(query, { consent = null, since = null, 
   const present = new Set();
   if (refs.length) {
     const gates = [];
-    if (publicOnly) {
-      gates.push(`e.visibility = 'public' and e.revealed_at is not null and e.status = 'ready'
-              and coalesce(e.setup->>'after_dark', 'false') <> 'true'
-              and (select count(*) from reports rp where rp.episode_id = e.id) < ${REPORT_HIDE_THRESHOLD}`);
-    }
-    if (gate) {
-      gates.push(`(a.is_house or ${gate.consentedOwnerSql("a.owner_id", "e.created_at")}) and (b.is_house or ${gate.consentedOwnerSql("b.owner_id", "e.created_at")})`);
-    }
+    // lib/ml-consent.ts's own SQL: the date aired publicly (fewer than 3 reports, never After Dark), and both characters
+    // are the show's own or their owners opted in by the date's time.
+    if (publicOnly) gates.push(lib.airedPublicSql("e"));
+    if (gate) gates.push(gate.consentedCharactersSql("a", "b", "e.created_at"));
     const rows = await query(
       `select e.id, e.transcript, e.setting, e.ending, e.setup->>'venue' as venue, e.performed_by, e.generated_with, e.created_at,
               a.id as a_id, a.name as a_name, b.id as b_id, b.name as b_name

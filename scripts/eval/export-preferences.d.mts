@@ -16,8 +16,12 @@ export type PreferenceRecord = {
   context: { side: "a" | "b"; name: string; text: string }[];
   source: Record<string, unknown>;
 };
-/** lib/ml-consent.ts, or the part of it the gate reads. */
-export type ConsentModule = { consentedOwnerSql: (ownerExpr: string, atExpr: string) => string };
+/** lib/ml-consent.ts, or the part of it the gates read. */
+export type ConsentModule = {
+  consentedOwnerSql: (ownerExpr: string, atExpr: string) => string;
+  consentedCharactersSql: (a: string, b: string, atExpr: string) => string;
+  airedPublicSql: (e: string) => string;
+};
 type Deps = {
   /** lib/ml-consent.ts; loaded through Vite's module runner when not given (loadConsent). */
   consent?: ConsentModule | null;
@@ -29,6 +33,8 @@ type Deps = {
   consentOnly?: boolean;
 };
 
+/** A lib/ module (path relative to the repo root) through Vite's module runner. */
+export function loadLib<T = Record<string, unknown>>(rel: string): Promise<T>;
 export function loadConsent(): Promise<ConsentModule>;
 export function parseArgs(argv: string[]): { out: string; since?: string; context: number; db?: string; pglite?: string };
 export function collectPreferences(query: Query, deps?: Deps): Promise<{ records: PreferenceRecord[]; skipped: number; excluded: number; votes: number }>;
