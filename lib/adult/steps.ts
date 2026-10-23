@@ -6,10 +6,14 @@
  *
  * Admin-only, like the lines' notes. A steer refused by the two lines is never stored: only that it was refused.
  * Best-effort: a step that can't be logged never fails the scene.
+ *
+ * Rewind (lib/adult/scenes.ts rewindScene, 2026-10-22) never deletes a step: the step it took back is marked `rewound`,
+ * with when and the lines it had written, and the rewind is a step of its own. A whisper to one of the two is kept on
+ * the step it was sent with.
  */
 import type { Db } from "../db";
 
-export type StepKind = "write" | "set_scene" | "reset";
+export type StepKind = "write" | "set_scene" | "reset" | "rewind";
 
 export type StepLog = {
   kind: StepKind;
@@ -28,17 +32,24 @@ export type StepLog = {
   dropped: { who: string; text: string; reason: string }[];
   /** The step's counts (lib/adult/scenes.ts StepFlags), as written. */
   flags: Record<string, unknown> | null;
+  /** A whisper to one of the two, sent with this step (lib/adult/director.ts). */
+  whisper?: { to: "a" | "b"; text: string } | null;
 };
 
-export type StepRow = StepLog & { id: string; at: string };
+/** A step taken back by a rewind: when, and the lines it had written (the scene no longer has them). */
+export type Rewound = { at: string; lines: { who: "a" | "b"; text: string }[] };
 
-export async function logStep(db: Db, owner: string, pair: { a: string; b: string }, sceneId: string | null, step: StepLog): Promise<void> {
-  await db
+export type StepRow = StepLog & { id: string; at: string; rewound?: Rewound | null };
+
+/** Logs a step; its id, or null when it couldn't be logged. */
+export async function logStep(db: Db, owner: string, pair: { a: string; b: string }, sceneId: string | null, step: StepLog): Promise<string | null> {
+  const id = crypto.randomUUID();
+  return db
     .query(
-      `insert into adult_steps (id, owner_id, character_a, character_b, scene_id, chapter, kind, direction, steer_mode, status, http, message, line_from, line_to, added, dropped, flags)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17::jsonb)`,
+      `insert into adult_steps (id, owner_id, character_a, character_b, scene_id, chapter, kind, direction, steer_mode, status, http, message, line_from, line_to, added, dropped, flags, whisper)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17::jsonb, $18::jsonb)`,
       [
-        crypto.randomUUID(),
+        id,
         owner,
         pair.a,
         pair.b,
@@ -55,9 +66,22 @@ export async function logStep(db: Db, owner: string, pair: { a: string; b: strin
         step.added,
         JSON.stringify(step.dropped.slice(0, 20).map((d) => ({ ...d, text: d.text.slice(0, 300) }))),
         step.flags ? JSON.stringify(step.flags) : null,
+        step.whisper ? JSON.stringify({ to: step.whisper.to, text: step.whisper.text.slice(0, 400) }) : null,
       ],
     )
-    .catch(() => {});
+    .then(() => id)
+    .catch(() => null);
+}
+
+/** Marks a step rewound, with the lines it had written. Never deletes it. */
+export async function markRewound(db: Db, stepId: string, lines: readonly { who: "a" | "b"; text: string }[]): Promise<void> {
+  const rewound: Rewound = { at: new Date().toISOString(), lines: lines.map((l) => ({ who: l.who, text: l.text.slice(0, 1200) })) };
+  await db.query(`update adult_steps set rewound = $2::jsonb where id = $1`, [stepId, JSON.stringify(rewound)]).catch(() => {});
+}
+
+/** A rewound chapter close's steps come back to the running scene from the night it no longer is. */
+export async function unfileSteps(db: Db, nightId: string): Promise<void> {
+  await db.query(`update adult_steps set night_id = null where night_id = $1`, [nightId]).catch(() => {});
 }
 
 /** A filed chapter's steps go to its saved night with its lines. */
@@ -71,7 +95,7 @@ export async function fileSteps(db: Db, sceneId: string, chapter: number, nightI
 export async function stepsOf(db: Db, owner: string, a: string, b: string): Promise<{ running: StepRow[]; byNight: Map<string, StepRow[]> }> {
   const { rows } = await db
     .query<StepRow & { night_id: string | null; created_at: string | Date; scene_id: string | null }>(
-      `select id, night_id, scene_id, chapter, kind, direction, steer_mode, status, http, message, line_from, line_to, added, dropped, flags, created_at
+      `select id, night_id, scene_id, chapter, kind, direction, steer_mode, status, http, message, line_from, line_to, added, dropped, flags, whisper, rewound, created_at
          from adult_steps where owner_id = $1 and character_a = $2 and character_b = $3 order by created_at limit 2000`,
       [owner, a, b],
     )
@@ -88,11 +112,14 @@ export async function stepsOf(db: Db, owner: string, a: string, b: string): Prom
   return { running, byNight };
 }
 
-/** Which step wrote each line: its index in `steps`, or null for a line from before steps were logged. */
+/**
+ * Which step wrote each line: its index in `steps`, or null for a line from before steps were logged. A rewound step
+ * wrote none of the lines there now (a redo's may sit where its were).
+ */
 export function stepIndexOf(steps: readonly StepRow[], lineCount: number): (number | null)[] {
   const at: (number | null)[] = new Array(lineCount).fill(null);
   steps.forEach((s, k) => {
-    if (s.line_from === null || s.line_to === null) return;
+    if (s.line_from === null || s.line_to === null || s.rewound) return;
     for (let i = s.line_from; i <= s.line_to && i < lineCount; i++) if (i >= 0) at[i] = k;
   });
   return at;

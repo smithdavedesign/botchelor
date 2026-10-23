@@ -4,8 +4,8 @@
  * and a local stub standing in for the adult model (no key, no network beyond localhost):
  *
  *   a stranger and a signed-in non-subscriber get not-found → the /create looks builder shows After Dark locked →
- *   an admin opens After Dark, writes a scene, sees a line that crosses a line dropped, lets autoplay run, starts over →
- *   nothing of the scene reaches the show.
+ *   an admin opens After Dark, writes a scene, sees a line that crosses a line dropped, lets autoplay run, rewinds a
+ *   step (the suggested next moves showing), starts over → nothing of the scene reaches the show.
  *
  * Exits non-zero if any step fails. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build.
  */
@@ -195,6 +195,23 @@ async function main() {
       }
     });
 
+    await step("the admin rewinds the last step: its lines go, and a suggested next move is there to tap", async () => {
+      const ctx = await adultContext();
+      try {
+        await register(ctx, `admin4${Date.now() % 1e6}`);
+        await ctx.request.post(`${base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } });
+        const page = await ctx.newPage();
+        await page.goto(`${base}${scenePath}`);
+        await page.locator(".after-dark-form button[type=submit]").click();
+        await page.locator(".after-dark-lines").getByText(SAFE[1]).waitFor({ timeout: 30_000 });
+        assert((await page.locator(".after-dark-form .ad-suggestion").count()) === 3, "three suggested next moves should show under the lines");
+        await page.locator(".after-dark-form").getByRole("button", { name: "↺ Rewind" }).click();
+        await page.getByText("Nothing yet. Write the first lines, or steer it first.").waitFor({ timeout: 15_000 });
+      } finally {
+        await ctx.close();
+      }
+    });
+
     await step("the admin starts the scene over and it's empty again", async () => {
       const ctx = await adultContext();
       try {
@@ -205,7 +222,7 @@ async function main() {
         await page.locator("#after-dark-direction").fill("they go back to hers");
         await page.locator(".after-dark-form button[type=submit]").click();
         await page.locator(".after-dark-lines").getByText(SAFE[1]).waitFor({ timeout: 30_000 });
-        await page.locator(".after-dark-form").getByRole("button").nth(1).click();
+        await page.locator(".after-dark-form").getByRole("button", { name: "Start over" }).click();
         await page.getByText("Nothing yet. Write the first lines, or steer it first.").waitFor({ timeout: 15_000 });
       } finally {
         await ctx.close();

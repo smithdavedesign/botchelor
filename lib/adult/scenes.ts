@@ -19,11 +19,24 @@ import { drawLabel, ensureSet, resolveSet } from "../sets";
 import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
 import type { Turn } from "../conversation";
-import { afterDarkNote, rememberAfterDark } from "./memory";
+import { afterDarkNote, notesBetween, rememberAfterDark, restoreNotes, type NoteRow } from "./memory";
+import {
+  afterWhisperStep,
+  cleanWhisper,
+  storedSuggestions,
+  storedWhispers,
+  suggestionsFor,
+  suggestionsIn,
+  SUGGESTION_MAX,
+  whisperLines,
+  WHISPER_STEPS,
+  type Suggestion,
+  type Whispers,
+} from "./director";
 import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
 import { activeLimit, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
 import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
-import { fileSteps, logStep, stepIndexOf, stepsOf, type StepRow } from "./steps";
+import { fileSteps, logStep, markRewound, stepIndexOf, stepsOf, unfileSteps, type StepRow } from "./steps";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 import {
   bumpFacts,
@@ -34,11 +47,16 @@ import {
   memoryLabels,
   RECENT_LINES,
   rememberFacts,
+  rememberFactsChange,
+  restoreFactUses,
   retrieveFacts,
+  undoFacts,
   sheetFacets,
   sheetMemories,
   type AdultFact,
   type Citation,
+  type FactsChange,
+  type FactUse,
   type SheetFacet,
   type SheetItem,
   type ShownFact,
@@ -114,7 +132,40 @@ export type AdultScene = {
   /** Where the night has been, in order (the last stop is where they are), and this chapter's reported moves. */
   place_history: PlaceStop[];
   moves: MoveLog[];
+  /**
+   * The director (lib/adult/director.ts): the last step's three suggested next moves, the whispers still running (the
+   * viewer holds both), and how many steps can be rewound, with what the last one was asked (a redo asks it again).
+   */
+  suggestions: Suggestion[];
+  whispers: Whispers;
+  rewind: RewindSummary;
 };
+
+/** What a step was asked: its steer, how strongly, and a whisper sent with it. A redo asks the same again. */
+export type Given = { direction: string | null; steer_mode: SteerMode; whisper: { to: "a" | "b"; text: string } | null };
+export type RewindSummary = { depth: number; last: Given | null };
+
+/** A chapter close a step caused, for a rewind to take back: the night it was filed as, the PG notes before it, and the facts it changed. */
+type ChapterUndo = { night_id: string; notes: NoteRow[]; facts: FactsChange };
+
+/**
+ * What a rewind needs to take one step back (rewindScene): the scene as it was before the step (its lines by count:
+ * within a chapter they only grow), what the step was asked, the uses of the facts its lines cited, and the chapter close
+ * it caused, if it filled the chapter.
+ */
+export type StepUndo = {
+  step_id: string | null;
+  given: Given;
+  before: Omit<SceneState, "lines"> & { line_count: number; picture_note: string | null; suggestions: Suggestion[]; whispers: Whispers };
+  bumped: FactUse[];
+  chapter_close?: ChapterUndo;
+};
+/** Steps a scene can be rewound, one at a time. Start over and Set the scene clear them. */
+export const UNDO_DEPTH = 5;
+
+/** The scene with what only the server needs: its rewind stack. */
+type LoadedScene = AdultScene & { undo: StepUndo[] };
+const rewindSummary = (undo: readonly StepUndo[]): RewindSummary => ({ depth: undo.length, last: undo.at(-1)?.given ?? null });
 
 /**
  * Chapters (David, 2026-10-19: "a limit to how long after hours can go… a long scroll"). A night has no hard end: every
@@ -190,11 +241,14 @@ export async function openScene(db: Db, adminId: string, x: string, y: string): 
   return scene && publicScene(scene);
 }
 
-/** A scene without its lines' private notes. */
-export const publicScene = (scene: AdultScene): AdultScene => ({ ...scene, lines: publicLines(scene.lines), prev_tail: publicLines(scene.prev_tail) });
+/** A scene without its lines' private notes, and without its rewind stack (only how deep it is). */
+export const publicScene = (scene: AdultScene & { undo?: readonly StepUndo[] }): AdultScene => {
+  const { undo, ...rest } = scene;
+  return { ...rest, lines: publicLines(rest.lines), prev_tail: publicLines(rest.prev_tail), rewind: undo ? rewindSummary(undo) : rest.rewind };
+};
 
 /** The scene with everything stored on its lines, for writing more. Null for any pair outside this person's after dark. */
-async function loadScene(db: Db, adminId: string, x: string, y: string): Promise<AdultScene | null> {
+async function loadScene(db: Db, adminId: string, x: string, y: string): Promise<LoadedScene | null> {
   const pair = await eligiblePair(db, adminId, x, y);
   if (!pair) return null;
   const [a, b] = pair;
@@ -204,8 +258,16 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     a,
     b,
   ]);
-  const row = (await db.query<{ id: string; lines: SceneLine[]; place: string | null; stage: number; stage_from: number; picture_note: string | null; set_place: string | null; cut_to: string | null; chapter: number; recap: string | null; prev_tail: SceneLine[] | null; place_history: PlaceStop[] | null; moves: MoveLog[] | null }>(`select id, lines, place, stage, stage_from, picture_note, set_place, cut_to, chapter, recap, prev_tail, place_history, moves from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, a, b]))
-    .rows[0];
+  const row = (
+    await db.query<{
+      id: string; lines: SceneLine[]; place: string | null; stage: number; stage_from: number; picture_note: string | null; set_place: string | null; cut_to: string | null;
+      chapter: number; recap: string | null; prev_tail: SceneLine[] | null; place_history: PlaceStop[] | null; moves: MoveLog[] | null; suggestions: unknown; whispers: unknown; undo: StepUndo[] | null;
+    }>(
+      `select id, lines, place, stage, stage_from, picture_note, set_place, cut_to, chapter, recap, prev_tail, place_history, moves, suggestions, whispers, undo
+         from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`,
+      [adminId, a, b],
+    )
+  ).rows[0];
   const [ca, cb, date] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b), latestDate(db, a, b)]);
   return {
     id: row.id,
@@ -224,6 +286,10 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     prev_tail: row.prev_tail ?? [],
     place_history: row.place_history ?? [],
     moves: row.moves ?? [],
+    suggestions: storedSuggestions(row.suggestions),
+    whispers: storedWhispers(row.whispers),
+    rewind: rewindSummary(Array.isArray(row.undo) ? row.undo : []),
+    undo: Array.isArray(row.undo) ? row.undo : [],
   };
 }
 
@@ -486,6 +552,8 @@ export function sceneMessages(
     linesHere?: number;
     /** v2.2: each one's tells already shown TELL_CAP times this chapter. */
     tellsUsed?: { a: readonly string[]; b: readonly string[] };
+    /** The director (lib/adult/director.ts): the whispers running this step, one each at most. */
+    whispers?: Whispers;
   } = { place: "wherever they've just met", stage: 0 },
 ): ChatMessage[] {
   const v2 = (now.promptVersion ?? DEFAULT_PROMPT_VERSION) === "v2";
@@ -572,6 +640,13 @@ export function sceneMessages(
   const cite = now.facts?.[0]?.label ?? (now.memories?.length ? "M1" : (sheetItems[0]?.label ?? null));
   // v2.1's why: a specific memory or sheet detail, never a trait word on its own ("Sable is warm" said nothing, 2026-10-21).
   const trait = (b?.persona.traits[0] ?? "warm").toLowerCase();
+  const whispered = whisperLines(now.whispers ?? {}, names);
+  // v2's suggested next moves (lib/adult/director.ts), held to the pace and the place like a line.
+  const publicNow = isPublicPlace(where.set ?? where.place, now.homeNow ?? null);
+  const suggestionRule =
+    ` "suggestions" are three short director's notes for what could happen next, one per heat: "mild" (gentle, warm), "flirty" (playful, teasing) and "spicy" (bolder: it moves things on).` +
+    ` Each is under ${SUGGESTION_MAX} characters, in the third person about these two (like "She pulls him in to dance"), never a line of dialogue, and each keeps to the pace and the place:` +
+    ` at most one stage further than these lines end on${publicNow ? "; while they're somewhere public, nothing past kissing, so the spicy one has them leave for somewhere private" : ""}.`;
   const user =
     `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}${v2 ? `, starting with ${first(next)}` : ""}. ` +
     `Each line is ${v2 ? "a few words to 3 sentences (now and then only an action)" : "1 to 3 sentences"} in that character's own voice, vivid and specific, never a stock line ("you feel amazing"). ` +
@@ -586,8 +661,10 @@ export function sceneMessages(
           ? ` Lean the scene gently this way, at its own pace (the pace and place rules above still hold; work toward it, don't jump to it): ${direction}. Act it out in their own words; never copy the steer's words into a line or an action.`
           : ` Lean the scene gently this way, at its own pace (the pace and place rules above still hold; work toward it, don't jump to it): ${direction}`
       : " Move the scene forward: something new happens in these lines, nothing they've already done or said.") +
+    // A whisper to one of them (lib/adult/director.ts): that one's own secret intention, never said aloud.
+    (whispered.length ? ` ${whispered.join(" ")}` : "") +
     (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
-    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": ${v2 ? (cite ? `"${cite}"` : "null") : '"..."'}}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. ${v2 ? "the bedroom" : "his bedroom"}: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
+    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": ${v2 ? (cite ? `"${cite}"` : "null") : '"..."'}}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. ${v2 ? "the bedroom" : "his bedroom"}: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null${v2 ? ', "suggestions": {"mild": "...", "flirty": "...", "spicy": "..."}' : ""}}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
     (v2
       ? ` On every line, "why" is one short private sentence on why this character says or does this now, naming the specific thing behind it: a memory, a detail from their sheet (their job, a hobby, a tell, a line of their bio), what they want, or what just happened; never a trait word on its own ("${first("b")} is ${trait}" says nothing), and each line's why is its own ("the moment" says nothing either).` +
         // v2.2: Lexi × Dex's climax gave whys like "The climax, the shared moment" (2026-10-22).
@@ -595,7 +672,8 @@ export function sceneMessages(
         ` "memory" is the id of the memory it draws on from what they can remember (like "F3" or "M1"), or null, and only one this line uses.${sheetItems.length ? ` One of their own sheet details ("${sheetItems[0].label}"…) counts as a memory too.` : ""} Nobody sees these notes but the writer.`
       : ` On every line, "why" is one short private sentence on why this character says or does this now: the memory it draws on, a trait or tell from their sheet, what they want, or "the moment"; and "memory" is the memory it draws on, quoted or named from what they can remember, or null. Nobody sees these notes but the writer.`) +
     ` Set "explicit" to true once the scene is sexually explicit. Set "picture" only when, in these lines, one of them asks the other for a picture or to be shown something and the other agrees:` +
-    ` {"of": "a", "b" or "both", "description": "what the picture shows, in one sentence: the pose, what they're wearing or not, the expression, the framing"}; otherwise null.`;
+    ` {"of": "a", "b" or "both", "description": "what the picture shows, in one sentence: the pose, what they're wearing or not, the expression, the framing"}; otherwise null.` +
+    (v2 ? suggestionRule : "");
   return [
     { role: "system", content: system },
     { role: "user", content: user },
@@ -681,12 +759,22 @@ export function parseSceneLines(reply: string, names: { a: string; b: string }):
   return out;
 }
 
-/** What else the model said about these lines: whether the scene is explicit, and a picture they agreed on. */
-export type SceneMeta = { explicit: boolean; picture: { of: "a" | "b" | "both"; description: string } | null; place: string | null; stage: number | null; set?: string | null };
+/**
+ * What else the model said about these lines: whether the scene is explicit, a picture they agreed on, where they are, and
+ * (v2) its suggested next moves, as proposed (lib/adult/director.ts holds them to the rules).
+ */
+export type SceneMeta = {
+  explicit: boolean;
+  picture: { of: "a" | "b" | "both"; description: string } | null;
+  place: string | null;
+  stage: number | null;
+  set?: string | null;
+  suggestions?: Partial<Record<Suggestion["heat"], unknown>>;
+};
 
 export function parseSceneMeta(raw: string): SceneMeta {
   try {
-    const j = JSON.parse(unfence(raw).trim()) as { explicit?: unknown; picture?: { of?: unknown; description?: unknown } | null; place?: unknown; stage?: unknown; set?: unknown };
+    const j = JSON.parse(unfence(raw).trim()) as { explicit?: unknown; picture?: { of?: unknown; description?: unknown } | null; place?: unknown; stage?: unknown; set?: unknown; suggestions?: unknown };
     const p = j.picture;
     const of = p && (p.of === "a" || p.of === "b" || p.of === "both") ? p.of : null;
     const description = p && typeof p.description === "string" ? p.description.trim().slice(0, 400) : "";
@@ -694,9 +782,9 @@ export function parseSceneMeta(raw: string): SceneMeta {
     const n = Number(j.stage);
     const stage = Number.isFinite(n) ? Math.min(STAGES.length - 1, Math.max(0, Math.round(n) - 1)) : null;
     const set = typeof j.set === "string" && j.set.trim() ? j.set.trim().replace(/[.!]+$/, "").slice(0, 40) : null;
-    return { explicit: j.explicit === true, picture: of && description ? { of, description } : null, place, stage, set };
+    return { explicit: j.explicit === true, picture: of && description ? { of, description } : null, place, stage, set, suggestions: suggestionsIn(j) };
   } catch {
-    return { explicit: false, picture: null, place: null, stage: null, set: null };
+    return { explicit: false, picture: null, place: null, stage: null, set: null, suggestions: {} };
   }
 }
 
@@ -870,11 +958,19 @@ export type ContinueResult =
  */
 export type SteerMode = "nudge" | "direct";
 
-/** What a scene keeps between steps (adult_scenes' columns): its lines, where it is, how far it's gone, where it's been. */
-export type SceneState = Pick<AdultScene, "lines" | "prev_tail" | "place" | "stage" | "stage_from" | "set_place" | "cut_to" | "chapter" | "recap" | "place_history" | "moves">;
+/**
+ * What a scene keeps between steps (adult_scenes' columns): its lines, where it is, how far it's gone, where it's been,
+ * and the director's: the last step's suggestions and the whispers still running.
+ */
+export type SceneState = Pick<AdultScene, "lines" | "prev_tail" | "place" | "stage" | "stage_from" | "set_place" | "cut_to" | "chapter" | "recap" | "place_history" | "moves"> & {
+  suggestions?: Suggestion[];
+  whispers?: Whispers;
+};
 
 /** A scene before its first line, picking up where the pair's latest date ended (as loadScene makes one). */
-export const emptyScene = (): SceneState => ({ lines: [], prev_tail: [], place: null, stage: 0, stage_from: 0, set_place: null, cut_to: null, chapter: 1, recap: null, place_history: [], moves: [] });
+export const emptyScene = (): SceneState => ({
+  lines: [], prev_tail: [], place: null, stage: 0, stage_from: 0, set_place: null, cut_to: null, chapter: 1, recap: null, place_history: [], moves: [], suggestions: [], whispers: {},
+});
 
 /** The scene writer's sampling (lib/adult/settings.ts); a null penalty isn't sent. */
 export type Sampling = { temperature: number; frequency_penalty: number | null; presence_penalty: number | null; repetition_penalty: number | null };
@@ -915,6 +1011,8 @@ export type StepInput = {
   resolveSet?: (label: string) => Promise<string> | string;
   /** For retrieval's recency (tests). */
   now?: Date;
+  /** The whispers this step plays (lib/adult/director.ts), already held to the two lines; else the scene's own. */
+  whispers?: Whispers;
 };
 
 /** What happened to a step's lines on the way in, summed over its calls. */
@@ -953,6 +1051,11 @@ export type StepFlags = {
   actions_cut: number;
   openings_cut: number;
   build_ups_cut: number;
+  /** The director: lines dropped for saying a whisper out loud; suggestions replaced by a plain one, or left out. */
+  whispers_said?: number;
+  suggestions_replaced?: number;
+  /** Logged on a redo's step (the step it took back is marked rewound). */
+  redo?: boolean;
 };
 
 /** "kissing" (STAGES): as far as it goes in a public place (David, 2026-10-18). */
@@ -1005,6 +1108,9 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   const { a, b, pair, scene, date, steer, steerMode } = input;
   const names = { a: pair.a.name, b: pair.b.name };
   const v2 = input.promptVersion === "v2";
+  // The whispers this step plays (lib/adult/director.ts): one sent with it, and any still running from the step before.
+  const whispers = input.whispers ?? storedWhispers(scene.whispers);
+  const whispered = [whispers.a?.text, whispers.b?.text].filter((t): t is string => Boolean(t));
   const night = [...scene.prev_tail, ...scene.lines];
   const homeNow = scene.place_history.at(-1)?.home ?? null;
   const movesTaken = scene.moves.filter((m) => m.taken && m.reason === "agreed" && m.chapter === scene.chapter).length;
@@ -1042,12 +1148,13 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     linesHere: linesAtPlace(scene),
     // v2.2: a tell that's had its TELL_CAP lines this chapter is named, like a catchphrase that's had its once.
     ...(v2 ? { tellsUsed: { a: tellsAtCap(scene.lines, "a", a), b: tellsAtCap(scene.lines, "b", b) } } : {}),
+    whispers,
   });
   const usage: Usage[] = [];
   const flags: StepFlags = {
     calls: 0, retried: false, held: 0, repeats: 0, names_repaired: 0, names_dropped: 0, alternation_merged: 0, alternation_dropped: 0, alternation_boundary: 0,
     refused: 0, moralising: 0, refusal_reply: false, citations: [], worn_phrases: 0, show_copies_cut: 0, public_dropped: 0,
-    hooks_cut: 0, tells_cut: 0, actions_cut: 0, openings_cut: 0, build_ups_cut: 0,
+    hooks_cut: 0, tells_cut: 0, actions_cut: 0, openings_cut: 0, build_ups_cut: 0, whispers_said: 0, suggestions_replaced: 0,
   };
   const { temperature, frequency_penalty, presence_penalty, repetition_penalty } = input.sampling;
   const options: ModelOptions = {
@@ -1098,7 +1205,15 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
         drops.push({ who: l.who, text: l.text, reason: "copied the steer instead of acting it out" });
         continue;
       }
-      inScene.push(own.text === l.text ? l : { ...l, text: own.text });
+      // A whisper is played, never said aloud (lib/adult/director.ts), by either of them: the same rule as the steer.
+      let played: { text: string } | null = own;
+      for (const w of whispered) played = played && withoutSteerCopy(played.text, w);
+      if (!played) {
+        flags.whispers_said = (flags.whispers_said ?? 0) + 1;
+        drops.push({ who: l.who, text: l.text, reason: "said a whisper out loud" });
+        continue;
+      }
+      inScene.push(played.text === l.text ? l : { ...l, text: played.text });
     }
     // v2.1: in a public place, a line showing more than kissing goes (publicCap), until these lines agree to go somewhere
     // (a yes here, or one just before and them going here: lib/adult/continuity.ts shownMove).
@@ -1268,7 +1383,21 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   const { perLine, stage } = stagesFor(kept, scene.stage, Math.min(meta.stage ?? scene.stage, allowed, publicCap !== null && !settled.moved ? publicCap : STAGES.length - 1));
   const stamped = kept.map((l, i) => ({ ...l, stage: perLine[i] }));
   const stage_from = stage === scene.stage ? scene.stage_from : scene.lines.length;
-  const next: SceneState = { ...scene, lines: [...scene.lines, ...stamped], place, stage, stage_from, set_place, cut_to: null, place_history, moves };
+  // v2's suggested next moves (lib/adult/director.ts), held to the rules a line is, for the scene as these lines leave it:
+  // at most a stage on, and past kissing somewhere public only by leaving first.
+  const { suggestions, replaced } = v2
+    ? suggestionsFor(meta.suggestions ?? {}, {
+        stage,
+        maxStage: Math.min(STAGES.length - 1, stage + 1),
+        publicPlace: isPublicPlace(set_place ?? place ?? date?.setting ?? null, place_history.at(-1)?.home ?? null),
+        names,
+        cast: input.cast,
+      })
+    : { suggestions: [], replaced: 0 };
+  flags.suggestions_replaced = replaced;
+  const next: SceneState = {
+    ...scene, lines: [...scene.lines, ...stamped], place, stage, stage_from, set_place, cut_to: null, place_history, moves, suggestions, whispers: afterWhisperStep(whispers),
+  };
   return { ok: true, lines: stamped, meta, dropped, flags, next, shown, usage };
 }
 
@@ -1300,19 +1429,27 @@ export async function stepContext(db: Db, ownerId: string, aId: string, bId: str
   return { a, b, date, settings, memories, facts, styles: { a: styleA, b: styleB }, cast };
 }
 
+/** What a step can bring besides the steer: a whisper to one of the two, and whether it's a redo (logged as one). */
+export type StepOptions = { whisper?: { to: "a" | "b"; text: string } | null; redo?: boolean };
+
 /**
  * Writes the next lines of a pair's scene (writeSceneStep) on After Dark's model and saves them: the scene, the month's
- * count, the facts the lines cited, pictures when it turns explicit or they ask, and the chapter when it's full.
+ * count, the facts the lines cited, pictures when it turns explicit or they ask, and the chapter when it's full. A
+ * whisper to one of them (lib/adult/director.ts) is held to the two lines like a steer, played this step and the next,
+ * and kept on the step's log. Each step leaves what a rewind needs to take it back (StepUndo), UNDO_DEPTH deep.
  */
-export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null, steerMode: SteerMode = "nudge"): Promise<ContinueResult> {
+export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null, steerMode: SteerMode = "nudge", opts: StepOptions = {}): Promise<ContinueResult> {
   const scene = await loadScene(db, adminId, x, y);
   if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: this season's cast, or ones you've switched on." };
   // Every step goes in the admin's log (lib/adult/steps.ts): what was asked, and what came of it or the error.
   const pairIds = { a: scene.a.id, b: scene.b.id };
-  const failed = async (http: number, message: string, extra: { direction?: string | null; dropped?: DroppedLine[]; flags?: StepFlags } = {}) => {
+  const whisperText = opts.whisper ? cleanWhisper(opts.whisper.text) : "";
+  const whisper = opts.whisper && whisperText ? { to: opts.whisper.to, text: whisperText } : null;
+  const failed = async (http: number, message: string, extra: { direction?: string | null; dropped?: DroppedLine[]; flags?: StepFlags; whisper?: StepOptions["whisper"] } = {}) => {
     await logStep(db, adminId, pairIds, scene.id, {
       kind: "write", direction: extra.direction ?? null, steer_mode: extra.direction ? steerMode : null, status: "error", http, message, chapter: scene.chapter,
-      line_from: null, line_to: null, added: 0, dropped: extra.dropped ?? [], flags: extra.flags ?? null,
+      line_from: null, line_to: null, added: 0, dropped: extra.dropped ?? [], flags: extra.flags ? { ...extra.flags, ...(opts.redo ? { redo: true } : {}) } : opts.redo ? { redo: true } : null,
+      whisper: extra.whisper ?? null,
     });
     return { ok: false as const, status: http, message };
   };
@@ -1323,6 +1460,12 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     // Never stored: only that a steer was refused.
     return failed(422, "That steer crosses one of the two lines (nobody under 18, no real people).", { direction: "[a steer refused by the two lines]" });
   }
+  if (whisper && !checkAdultText({ whisper: whisper.text }).ok) {
+    // The same for a whisper: never stored, only that one was refused.
+    return failed(422, "That whisper crosses one of the two lines (nobody under 18, no real people).", { whisper: { to: whisper.to, text: "[a whisper refused by the two lines]" } });
+  }
+  // The whispers this step plays: the one sent with it (for WHISPER_STEPS steps) and any still running.
+  const whispers: Whispers = { ...scene.whispers, ...(whisper ? { [whisper.to]: { text: whisper.text, steps_left: WHISPER_STEPS } } : {}) };
   const ctx = await stepContext(db, adminId, scene.a.id, scene.b.id);
   const { a, b } = ctx;
   const step = await writeSceneStep({
@@ -1341,17 +1484,35 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     styles: ctx.styles,
     cast: ctx.cast,
     resolveSet: (label) => resolveSet(db, label),
+    whispers,
   });
-  if (!step.ok) return failed(step.status, step.message, { direction: steer, dropped: step.dropped, flags: step.flags });
+  if (!step.ok) return failed(step.status, step.message, { direction: steer, dropped: step.dropped, flags: step.flags, whisper });
   const { meta, next } = step;
-  await logStep(db, adminId, pairIds, scene.id, {
+  const stepId = await logStep(db, adminId, pairIds, scene.id, {
     kind: "write", direction: steer, steer_mode: steer ? steerMode : null, status: "ok", http: null, message: null, chapter: scene.chapter,
-    line_from: scene.lines.length, line_to: scene.lines.length + step.lines.length - 1, added: step.lines.length, dropped: step.dropped, flags: step.flags,
+    line_from: scene.lines.length, line_to: scene.lines.length + step.lines.length - 1, added: step.lines.length, dropped: step.dropped,
+    flags: opts.redo ? { ...step.flags, redo: true } : step.flags, whisper,
   });
+  // What a rewind needs to take this step back: the scene before it, what it was asked, and the cited facts' uses.
+  const cited = new Set(step.lines.flatMap((l) => l.fact_ids ?? []));
+  const undo: StepUndo = {
+    step_id: stepId,
+    given: { direction: steer, steer_mode: steerMode, whisper },
+    before: {
+      line_count: scene.lines.length, prev_tail: scene.prev_tail, place: scene.place, stage: scene.stage, stage_from: scene.stage_from, set_place: scene.set_place,
+      cut_to: scene.cut_to, chapter: scene.chapter, recap: scene.recap, place_history: scene.place_history, moves: scene.moves, picture_note: scene.picture_note,
+      suggestions: scene.suggestions, whispers: scene.whispers,
+    },
+    bumped: ctx.facts.filter((f) => cited.has(f.id)).map((f) => ({ id: f.id, uses: f.uses, last_used_at: f.last_used_at })),
+  };
+  let stack = [...scene.undo, undo].slice(-UNDO_DEPTH);
   const { lines, place, stage, stage_from, set_place, place_history, moves } = next;
+  const suggestions = next.suggestions ?? [];
+  const nextWhispers = next.whispers ?? {};
   await db.query(
-    `update adult_scenes set lines = $2::jsonb, place = $3, stage = $4, stage_from = $5, set_place = $6, cut_to = null, place_history = $7::jsonb, moves = $8::jsonb, updated_at = now() where id = $1`,
-    [scene.id, JSON.stringify(lines), place, stage, stage_from, set_place, JSON.stringify(place_history), JSON.stringify(moves.slice(-40))],
+    `update adult_scenes set lines = $2::jsonb, place = $3, stage = $4, stage_from = $5, set_place = $6, cut_to = null, place_history = $7::jsonb, moves = $8::jsonb,
+            suggestions = $9::jsonb, whispers = $10::jsonb, undo = $11::jsonb, updated_at = now() where id = $1`,
+    [scene.id, JSON.stringify(lines), place, stage, stage_from, set_place, JSON.stringify(place_history), JSON.stringify(moves.slice(-40)), JSON.stringify(suggestions), JSON.stringify(nextWhispers), JSON.stringify(stack)],
   );
   await countUse(db, adminId, "writes");
   // The facts these lines drew on: one more use each (lib/adult/facts.ts).
@@ -1385,16 +1546,22 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // The last picture problem stays on the scene (the gallery shows it), and clears once a picture comes through.
   const note = picture_note ?? (pictures.length ? null : scene.picture_note);
   if (note !== scene.picture_note) await db.query(`update adult_scenes set picture_note = $2 where id = $1`, [scene.id, note]);
-  const after: AdultScene = { ...scene, ...next, picture_note: note };
-  // A full chapter: filed as a saved night, recapped, and the night runs straight on into the next one.
-  const chaptered = lines.length >= CHAPTER_LINES ? await nextChapter(db, adminId, after, a, b) : after;
+  let after: LoadedScene = { ...scene, ...next, suggestions, whispers: nextWhispers, picture_note: note, undo: stack };
+  // A full chapter: filed as a saved night, recapped, and the night runs straight on into the next one. What the close
+  // changed goes with the step's undo, so a rewind takes it back too.
+  if (lines.length >= CHAPTER_LINES) {
+    const closed = await nextChapter(db, adminId, after, a, b);
+    stack = [...stack.slice(0, -1), { ...undo, chapter_close: closed.undo }];
+    await db.query(`update adult_scenes set undo = $2::jsonb where id = $1`, [scene.id, JSON.stringify(stack)]);
+    after = { ...closed.scene, undo: stack };
+  }
   return {
     ok: true,
-    scene: publicScene(chaptered),
+    scene: publicScene(after),
     added: step.lines.length,
     held: step.flags.held,
     repeats: step.flags.repeats,
-    dropped: step.flags.names_dropped + step.flags.alternation_dropped + step.flags.refused,
+    dropped: step.flags.names_dropped + step.flags.alternation_dropped + step.flags.refused + (step.flags.whispers_said ?? 0),
     pictures,
     ...(picture_note ? { picture_note } : {}),
   };
@@ -1476,8 +1643,11 @@ export async function writeRecap(db: Db, a: Character | null, b: Character | nul
   return recapFallback(before, end);
 }
 
-/** Files a full chapter as a saved night and starts the next one, carrying the recap and the last few lines. */
-async function nextChapter(db: Db, ownerId: string, scene: AdultScene, a: Character | null, b: Character | null): Promise<AdultScene> {
+/**
+ * Files a full chapter as a saved night and starts the next one, carrying the recap and the last few lines. Returns the
+ * scene after it, and what it changed beyond the scene (the night, the PG notes before it, the facts) for a rewind.
+ */
+async function nextChapter<S extends AdultScene>(db: Db, ownerId: string, scene: S, a: Character | null, b: Character | null): Promise<{ scene: S; undo: ChapterUndo }> {
   const recap = await writeRecap(db, a, b, scene.recap, scene.lines, scene);
   const nightId = crypto.randomUUID();
   await db.query(
@@ -1504,9 +1674,11 @@ async function nextChapter(db: Db, ownerId: string, scene: AdultScene, a: Charac
   // saved night, before the scene's lines are cleared.
   await moveLineFeedback(db, scene.id, nightId);
   await fileSteps(db, scene.id, scene.chapter, nightId);
+  // The PG notes as they were, so a rewind of the step that closed this chapter can put them back.
+  const notes = await notesBetween(db, scene.a.id, scene.b.id);
   await rememberAfterDark(db, ownerId, a, b, recap, scene.lines);
   // The chapter's concrete facts, for the scene prompt from now on (lib/adult/facts.ts; After Dark only).
-  await rememberFacts(db, ownerId, a, b, scene.lines);
+  const facts = await rememberFactsChange(db, ownerId, a, b, scene.lines);
   const prev_tail = scene.lines.slice(-PREV_TAIL);
   // The stage's line count carries over, so the pacing doesn't restart with the chapter. Moves are counted per chapter;
   // where the night has been carries on.
@@ -1519,7 +1691,7 @@ async function nextChapter(db: Db, ownerId: string, scene: AdultScene, a: Charac
     recap,
     stage_from,
   ]);
-  return { ...scene, lines: [], prev_tail, chapter, recap, stage_from, moves: [] };
+  return { scene: { ...scene, lines: [], prev_tail, chapter, recap, stage_from, moves: [] }, undo: { night_id: nightId, notes, facts } };
 }
 
 /**
@@ -1539,19 +1711,106 @@ export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, 
   // A paid cut is a move nobody has to agree to, and it doesn't count against the chapter's moves.
   const place_history = [...scene.place_history, { place: named, set: set_place, home: null, chapter: scene.chapter }];
   const moves: MoveLog[] = [...scene.moves, { chapter: scene.chapter, at: scene.lines.length, from: scene.set_place ?? scene.place, to: set_place, taken: true, reason: "set_scene" }];
-  await db.query(`update adult_scenes set place = $2, set_place = $3, cut_to = $2, place_history = $4::jsonb, moves = $5::jsonb, updated_at = now() where id = $1`, [
-    scene.id,
-    named,
-    set_place,
-    JSON.stringify(place_history),
-    JSON.stringify(moves.slice(-40)),
-  ]);
+  // A cut is a paid jump nobody rewinds past (the steps before it can't be taken back), and the last step's suggestions
+  // were for where they were: the next step suggests again.
+  await db.query(
+    `update adult_scenes set place = $2, set_place = $3, cut_to = $2, place_history = $4::jsonb, moves = $5::jsonb, suggestions = '[]'::jsonb, undo = '[]'::jsonb, updated_at = now() where id = $1`,
+    [scene.id, named, set_place, JSON.stringify(place_history), JSON.stringify(moves.slice(-40))],
+  );
   await ensureSet(db, set_place);
   await logStep(db, ownerId, { a: scene.a.id, b: scene.b.id }, scene.id, {
     kind: "set_scene", direction: named, steer_mode: null, status: "ok", http: null, message: null, chapter: scene.chapter,
     line_from: null, line_to: null, added: 0, dropped: [], flags: null,
   });
-  return { ok: true, scene: publicScene({ ...scene, place: named, set_place, cut_to: named, place_history, moves }) };
+  return { ok: true, scene: publicScene({ ...scene, place: named, set_place, cut_to: named, place_history, moves, suggestions: [], undo: [] }) };
+}
+
+export type RewindResult = { ok: true; scene: AdultScene; given: Given; rewound: number } | { ok: false; status: number; message: string };
+
+/**
+ * Rewind (David, 2026-10-22): the scene goes back one step, to its lines, stage, place, set, suggestions and whispers as
+ * they were before it, and nothing the step caused stays behind:
+ *  - the facts its lines cited get their uses and last use back;
+ *  - when it filled the chapter, the chapter's close is taken back too: the saved night it was filed as goes (its lines
+ *    come back to the scene, with their votes and steps), the PG notes are put back as they were, and the facts it
+ *    extracted go while the ones it dropped to make room come back;
+ *  - votes on its lines go with them (the line numbers will be a redo's);
+ *  - its log entry stays, marked rewound with the lines it wrote, and the rewind is logged as a step of its own.
+ * A step's pictures stay in the gallery (they were made and checked). Start over and Set the scene clear the stack, so
+ * a rewind never undoes either. Free: only a redo's new step counts for the month.
+ */
+export async function rewindScene(db: Db, ownerId: string, x: string, y: string, opts: { forRedo?: boolean } = {}): Promise<RewindResult> {
+  const scene = await loadScene(db, ownerId, x, y);
+  if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark." };
+  const top = scene.undo.at(-1);
+  if (!top) return { ok: false, status: 409, message: "There's no step to rewind: Start over and Set the scene can't be taken back." };
+  const { before } = top;
+  let lines: SceneLine[];
+  let gone: SceneLine[];
+  if (top.chapter_close) {
+    const close = top.chapter_close;
+    const night = (await db.query<{ lines: SceneLine[] }>(`select lines from adult_nights where id = $1 and owner_id = $2`, [close.night_id, ownerId])).rows[0];
+    if (!night) return { ok: false, status: 409, message: "The chapter that step closed isn't among their nights any more, so it can't be rewound." };
+    const filed = night.lines ?? [];
+    lines = filed.slice(0, before.line_count);
+    gone = filed.slice(before.line_count);
+    // The chapter's close, taken back: the votes and steps come home before the night goes.
+    await moveLineFeedback(db, close.night_id, scene.id);
+    await unfileSteps(db, close.night_id);
+    await db.query(`delete from adult_nights where id = $1 and owner_id = $2`, [close.night_id, ownerId]);
+    await restoreNotes(db, scene.a.id, scene.b.id, close.notes);
+    await undoFacts(db, ownerId, close.facts);
+  } else {
+    lines = scene.lines.slice(0, before.line_count);
+    gone = scene.lines.slice(before.line_count);
+  }
+  await restoreFactUses(db, top.bumped);
+  // Votes on lines that are gone would land on whatever is written there next.
+  await db.query(`delete from line_feedback where kind = 'after_dark' and ref_id = $1 and line_index >= $2`, [scene.id, lines.length]).catch(() => {});
+  if (top.step_id) await markRewound(db, top.step_id, publicLines(gone));
+  const undo = scene.undo.slice(0, -1);
+  await logStep(db, ownerId, { a: scene.a.id, b: scene.b.id }, scene.id, {
+    kind: "rewind", direction: top.given.direction, steer_mode: top.given.direction ? top.given.steer_mode : null, status: "ok", http: null,
+    message: `took back ${gone.length} line${gone.length === 1 ? "" : "s"}${opts.forRedo ? ", to write them again" : ""}`, chapter: before.chapter,
+    line_from: null, line_to: null, added: 0, dropped: [], flags: null,
+  });
+  await db.query(
+    `update adult_scenes set lines = $2::jsonb, prev_tail = $3::jsonb, place = $4, stage = $5, stage_from = $6, set_place = $7, cut_to = $8, chapter = $9, recap = $10,
+            place_history = $11::jsonb, moves = $12::jsonb, picture_note = $13, suggestions = $14::jsonb, whispers = $15::jsonb, undo = $16::jsonb, updated_at = now() where id = $1`,
+    [
+      scene.id, JSON.stringify(lines), JSON.stringify(before.prev_tail), before.place, before.stage, before.stage_from, before.set_place, before.cut_to, before.chapter, before.recap,
+      JSON.stringify(before.place_history), JSON.stringify(before.moves), before.picture_note, JSON.stringify(before.suggestions ?? []), JSON.stringify(before.whispers ?? {}), JSON.stringify(undo),
+    ],
+  );
+  const restored: LoadedScene = {
+    ...scene, lines, prev_tail: before.prev_tail, place: before.place, stage: before.stage, stage_from: before.stage_from, set_place: before.set_place, cut_to: before.cut_to,
+    chapter: before.chapter, recap: before.recap, place_history: before.place_history, moves: before.moves, picture_note: before.picture_note,
+    suggestions: storedSuggestions(before.suggestions), whispers: storedWhispers(before.whispers), undo,
+  };
+  return { ok: true, scene: publicScene(restored), given: top.given, rewound: gone.length };
+}
+
+/**
+ * Redo: rewinds the last step and writes it again, with the same steer, the same strength and the same whisper. The new
+ * step counts for the month like any other (checked before anything is taken back).
+ */
+export async function redoScene(db: Db, ownerId: string, x: string, y: string): Promise<ContinueResult> {
+  const capped = await overCap(db, ownerId, "writes");
+  if (capped) return { ok: false, status: 429, message: capped };
+  const back = await rewindScene(db, ownerId, x, y, { forRedo: true });
+  if (!back.ok) return back;
+  const r = await continueScene(db, ownerId, x, y, back.given.direction, back.given.steer_mode, { whisper: back.given.whisper, redo: true });
+  return r.ok ? r : { ...r, message: `The step was taken back, but the new take didn't come through: ${r.message}` };
+}
+
+/** Forgets a whisper still running, before its steps are up. */
+export async function forgetWhisper(db: Db, ownerId: string, x: string, y: string, who: "a" | "b"): Promise<AdultScene | null> {
+  const scene = await loadScene(db, ownerId, x, y);
+  if (!scene) return null;
+  const whispers: Whispers = { ...scene.whispers };
+  delete whispers[who];
+  await db.query(`update adult_scenes set whispers = $2::jsonb, updated_at = now() where id = $1`, [scene.id, JSON.stringify(whispers)]);
+  return publicScene({ ...scene, whispers });
 }
 
 /** A finished scene, kept to play back (adult_nights). */
@@ -1636,7 +1895,8 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
     });
   }
   await db.query(
-    `update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, set_place = null, cut_to = null, chapter = 1, recap = null, prev_tail = '[]'::jsonb, place_history = '[]'::jsonb, moves = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
+    `update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, set_place = null, cut_to = null, chapter = 1, recap = null, prev_tail = '[]'::jsonb, place_history = '[]'::jsonb, moves = '[]'::jsonb,
+            suggestions = '[]'::jsonb, whispers = '{}'::jsonb, undo = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
     [adminId, ...pair],
   );
 }

@@ -564,3 +564,55 @@ It showed two weak spots, both fixed in the follow-up:
 - **"Extend"** from a shot's last frame, for longer moments.
 - **Wan 3.0 reference-to-video** as a one-step option.
 - **Terms:** Venice's model list marks Wan 3.0 "anonymized", which means a third party runs it, while `qwen-edit-uncensored` and LongCat are Venice's own. Get Venice's word in writing on explicit output for both kinds, along with the pictures question already open.
+
+## The director: suggested next moves, rewind and redo, whisper to one (2026-10-22)
+
+David picked these from the competitor read (Candy, OurDream, SpicyChat, Secrets, Nectar: nearly all have them). Code:
+`lib/adult/director.ts` (pure), `lib/adult/scenes.ts` (`continueScene`, `rewindScene`, `redoScene`, `forgetWhisper`),
+the scene route, and the steer bar in `SceneWriter.tsx` (the theater shows the suggestions too).
+
+**Suggested next moves.** Each step's reply (prompt v2) also carries `"suggestions": {"mild", "flirty", "spicy"}`: three
+one-tap steers for what could happen next, each under 80 characters. Every one is held to the rules a line is
+(`holdSuggestion`), for the scene as the step leaves it:
+- the two lines (`checkAdultText`), and no one else on the show by name (the name guard);
+- the pace: at most one stage further than the scene stands (`stageAsked`: what it plainly shows, by the stage floor's
+  signs, or a stage on when it asks for more: "further", "all the way", "into bed");
+- the public-place cap: somewhere public, nothing past kissing unless it has them leave for somewhere private first;
+- any limits the rules bring (the pair's hard-nos, next).
+
+One that fails is replaced by a plain one of the same heat (`fallbackSuggestion`, held to the same rules; the spicy one
+somewhere public is "One of them suggests they leave for somewhere private"), and the step's flags count how many
+(`suggestions_replaced`). They're stored on the scene (`adult_scenes.suggestions`), so a reload shows them, and go when
+the night starts over or the scene is set somewhere new. A chip sends its text as a Nudge. Prompt v1 (kept word for
+word for the A/B) asks for none, so it shows none.
+
+**Rewind and redo.** Each step leaves what a rewind needs on `adult_scenes.undo`, a stack 5 deep (`UNDO_DEPTH`): the scene
+before it (its lines by count, since within a chapter they only grow; stage, place, set, cut, place history, moves,
+picture note, suggestions, whispers), what it was asked (steer, Nudge or Direct, whisper), the uses of the facts its
+lines cited, and, when it filled the chapter, what the chapter's close did. **Rewind** puts all of it back:
+- the facts its lines cited get their `uses` and `last_used_at` back;
+- a chapter close is taken back whole: its saved night goes (its lines come back to the scene, with their votes and
+  steps), the PG notes are put back as they were (or removed where there were none), the facts it extracted go, and the
+  ones the cap dropped to make room come back as they were;
+- votes on the lines that went are dropped (their line numbers will be the next step's);
+- the step's log entry is never deleted: it's marked `rewound`, with when and the lines it wrote, and the rewind is a
+  step of its own (`kind: "rewind"`), so /why reads honestly.
+
+What stays: the step's pictures (made and checked; pictures are off while Venice is out of credit anyway), and a set it
+drew (sets are a shared library: the scene goes back to the set it was on). Start over and Set the scene clear the stack,
+so a rewind never undoes a paid cut or a filed night. **Redo** is a rewind and the same step again: the same steer, the
+same strength, the same whisper. It counts for the month like any step, and is refused before anything is taken back
+when the month's cap is reached. Both buttons sit in the steer bar.
+
+**Whisper to one.** The steer bar's "How" has two more choices besides Nudge and Direct: 🤫 one of them. The words then
+go to that character alone (`adult_steps.whisper` on the step it's sent with; the scene keeps the ones still running in
+`adult_scenes.whispers`, one each at most, so the viewer can hold both secrets at once). The prompt plays it as that
+character's own secret intention for this step and the next ("A secret only Juniper knows: …; Rafe doesn't know it, and
+nothing in these lines lets him find out… never said aloud, word for word or nearly"). It's held to the same checks as
+a steer: refused (422, never stored, only that one was refused) when it crosses the two lines, and a line that says it
+out loud (most of it word for word, the steer-copy rule) is dropped, or loses the action that does (`whispers_said`).
+A whisper never lifts the public-place cap (it's not a Direct steer). The page shows a 🤫 chip for each one running,
+with whom it went to and a × to forget it.
+
+**Screenshots** (`npm run screenshots:after-dark`, a stub model writing PG placeholder lines):
+`docs/screenshots/after-dark-director-*.png`.
