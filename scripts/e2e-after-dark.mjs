@@ -4,7 +4,7 @@
  * and a local stub standing in for the adult model (no key, no network beyond localhost):
  *
  *   a stranger and a signed-in non-subscriber get not-found → the /create looks builder shows After Dark locked →
- *   an admin opens After Dark, writes a scene, sees a line that crosses a line dropped, starts over →
+ *   an admin opens After Dark, writes a scene, sees a line that crosses a line dropped, lets autoplay run, starts over →
  *   nothing of the scene reaches the show.
  *
  * Exits non-zero if any step fails. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build.
@@ -158,6 +158,33 @@ async function main() {
         }
       } finally {
         await ctx.close();
+      }
+    });
+
+    // The stub writes the same lines every time, so the second step brings nothing new and autoplay stops by itself.
+    await step("autoplay writes the scene with no button pressed, on the page and in the theater, and stops by itself", async () => {
+      for (const theater of [false, true]) {
+        const ctx = await adultContext();
+        try {
+          await register(ctx, `auto${theater ? "t" : "p"}${Date.now() % 1e6}`);
+          await ctx.request.post(`${base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } });
+          const page = await ctx.newPage();
+          let posts = 0;
+          page.on("request", (r) => {
+            if (r.url().endsWith("/api/admin/after-dark") && r.method() === "POST") posts++;
+          });
+          await page.goto(`${base}${scenePath}${theater ? "?play=1" : ""}`);
+          const bar = theater ? ".ad-theater-bar" : ".after-dark-form";
+          await page.locator(bar).getByRole("checkbox", { name: "Autoplay" }).check();
+          await page.locator(theater ? ".theater" : ".after-dark-lines").getByText(SAFE[1]).first().waitFor({ timeout: 30_000 });
+          await page.waitForFunction((sel) => !document.querySelector(sel)?.checked, `${bar} input[type=checkbox]`, { timeout: 30_000 });
+          const stopped = posts;
+          await page.waitForTimeout(6_000);
+          assert(stopped >= 2 && posts === stopped, `autoplay should write, then stop once nothing new comes (${stopped} steps, then ${posts - stopped} more)`);
+          if (process.env.SHOTS_DIR) await page.screenshot({ path: join(process.env.SHOTS_DIR, `after-dark-autoplay-${theater ? "theater" : "page"}.png`) });
+        } finally {
+          await ctx.close();
+        }
       }
     });
 

@@ -9,6 +9,7 @@ import Link from "next/link";
 import Reels, { stopReel } from "./Reels";
 import Avatar from "@/app/Avatar";
 import type { BusyReel, Reel } from "@/lib/adult/reels";
+import { AUTOPLAY_PAGE_PAUSE_MS, autoplayStop } from "@/lib/adult/autoplay";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
 
@@ -73,18 +74,31 @@ export default function SceneWriter({
   const [direction, setDirection] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  // Autoplay (lib/adult/autoplay.ts): one switch for the page and the theater. Each paces its own steps.
+  const [autoplay, setAutoplay] = useState(false);
+  const writing = useRef(false);
+  const pause = useRef(0);
+  function switchAutoplay(on: boolean) {
+    pause.current = 0;
+    setAutoplay(on);
+  }
   // The pair is stored either way round: the same two characters, in any order.
   const isThisPair = (r: BusyReel) => new Set([r.a, r.b, scene.a.id, scene.b.id]).size === 2;
   const nameOf = (who: "a" | "b") => (who === "a" ? scene.a.name : scene.b.name).split(/\s+/)[0];
 
   async function send(body: Record<string, unknown>) {
+    if (writing.current) return;
+    writing.current = true;
     setBusy(true);
     setNote(null);
     const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
+    writing.current = false;
     setBusy(false);
+    if (!res || !res.ok) setAutoplay(false);
     if (!res) return setNote({ text: "Network error. Try again.", error: true });
     if (!res.ok) return setNote({ text: res.message, error: true });
-    setScene(res.data.scene as AdultScene);
+    const next = res.data.scene as AdultScene;
+    setScene(next);
     if (Array.isArray(res.data.nights)) setNightList(res.data.nights as AdultNight[]);
     const pictures = (res.data.pictures as Media[] | undefined) ?? [];
     if (pictures.length) setGallery((g) => [...pictures, ...g]);
@@ -99,8 +113,37 @@ export default function SceneWriter({
       typeof res.data.picture_note === "string" ? `Picture: ${res.data.picture_note}` : "",
     ].filter(Boolean);
     if (body.set_scene) parts.push("They're there now. Press Next to see them arrive.");
+    const stop = autoplay && !body.reset && body.set_scene === undefined ? autoplayStop(scene, next, Number(res.data.added ?? 0)) : null;
+    if (stop) {
+      setAutoplay(false);
+      parts.push(stop);
+    }
+    pause.current = AUTOPLAY_PAGE_PAUSE_MS;
     if (parts.length) setNote({ text: parts.join(" ") });
   }
+
+  // Autoplay on the page (the theater paces it by what's left to play): a pause to read, then the next lines. Not while
+  // the tab is hidden, so a forgotten tab doesn't write all night.
+  useEffect(() => {
+    if (!autoplay || theater || watching || busy) return;
+    const step = () => {
+      if (document.visibilityState === "hidden") return document.addEventListener("visibilitychange", step, { once: true });
+      void send({});
+    };
+    const timer = setTimeout(step, pause.current);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", step);
+    };
+    // send is a fresh closure each render; the scene it writes from changes with `busy`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoplay, theater, watching, busy]);
+  // Following along: while the end is in view, each step's new lines scroll in.
+  const lineCount = scene.lines.length;
+  useEffect(() => {
+    if (autoplay && !theater && atEnd) endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineCount]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -124,6 +167,8 @@ export default function SceneWriter({
           onWrite={(d) => send(d ? { direction: d, steer_mode: steerMode } : {})}
           steerMode={steerMode}
           onSteerMode={setSteerMode}
+          autoplay={autoplay}
+          onAutoplay={switchAutoplay}
           onSetScene={(place) => send({ set_scene: place })}
           onMakeVideo={() => makeVideo()}
           videoTokens={reelTokens}
@@ -188,7 +233,10 @@ export default function SceneWriter({
           </button>{" "}
           <button type="button" className="button-ghost" disabled={busy || !scene.lines.length} onClick={() => void send({ reset: true })}>
             Start over
-          </button>
+          </button>{" "}
+          <label className="after-dark-autoplay" title="It carries on by itself, no button needed, until the chapter ends">
+            <input type="checkbox" checked={autoplay} onChange={(e) => switchAutoplay(e.target.checked)} /> Autoplay
+          </label>
         </p>
       </form>
       {watching && (
