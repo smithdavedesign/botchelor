@@ -152,7 +152,10 @@ export function namedPlace(text: string): string | null {
     const words = m[1].trim().split(/\s+/).slice(0, 6);
     // Cut at the first place word after the article: "the observatory tomorrow and…" → "the observatory".
     const noun = (w: string) => w.toLowerCase().replace(/['’]s$/, "");
-    const end = words.findIndex((w, i) => i > 0 && PLACE_NOUNS.has(noun(w)));
+    // 2026-10-23 ("dusk under the footbridge" was planned and the date landed elsewhere): a compound that ends on a place
+    // word is a place too (footbridge, boathouse, clocktower), as long as the place word is 4+ letters.
+    const isPlace = (w: string) => PLACE_NOUNS.has(noun(w)) || [...PLACE_NOUNS].some((n) => n.length >= 4 && noun(w).length > n.length + 2 && noun(w).endsWith(n));
+    const end = words.findIndex((w, i) => i > 0 && isPlace(w));
     if (end < 1 || (end < 2 && PLAIN_NOUNS.has(noun(words[end])))) continue;
     const label = words.slice(0, end + 1).join(" ").replace(/\s+/g, " ").trim();
     if (label.length > PLACE_LABEL_MAX || LINKISH.test(label) || NOT_A_VENUE.test(label)) continue;

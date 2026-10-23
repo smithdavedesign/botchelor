@@ -502,3 +502,34 @@ details.recap-toggle[open] .recap-toggle-hide {
 .boxscore-why > summary {
   padding-block: 10px;
 }
+/* Who a notification is about (lib/notification-faces.ts): their faces in a column of their own, a pair overlapping. */
+.notification.has-faces {
+  grid-template-columns: 3.4rem 1fr;
+  column-gap: var(--space-2);
+}
+.notification.has-faces > :not(.notif-faces) {
+  grid-column: 2;
+}
+.notif-faces {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 0.1rem;
+}
+.notif-faces.is-pair .avatar + .avatar {
+  margin-left: -0.55rem;
+  box-shadow: 0 0 0 2px var(--card);
+}
+/* The couple page's text preview: your side in the accent, like any messaging app, so the two sides read apart at a
+   glance (they were two near-identical pinks); bubbles stop short of the far edge so the alignment shows. */
+.thread-preview-msg p {
+  max-width: 85%;
+}
+.thread-preview-msg.is-mine p {
+  background: var(--accent-btn);
+  color: var(--accent-ink);
+}
+.thread-preview-msg.is-mine p strong {
+  color: inherit;
+}

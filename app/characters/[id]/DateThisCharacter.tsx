@@ -18,6 +18,8 @@ export default function DateThisCharacter({ cta, targetId, first }: { cta: DateC
   const [pick, setPick] = useState(mine[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; shop?: boolean } | null>(null);
+  // David, 2026-10-23: the booker may say where the date happens (else a texted plan, else the show picks).
+  const [place, setPlace] = useState("");
 
   if (cta.kind === "none") return null;
   if (cta.kind === "closed") {
@@ -41,7 +43,7 @@ export default function DateThisCharacter({ cta, targetId, first }: { cta: DateC
   async function book() {
     setBusy(true);
     setMessage(null);
-    const res = await requestJson("/api/episodes", { character_id: chosen.id, partner_id: targetId }).catch(() => null);
+    const res = await requestJson("/api/episodes", { character_id: chosen.id, partner_id: targetId, ...(place.trim() ? { place: place.trim() } : {}) }).catch(() => null);
     setBusy(false);
     if (!res) return setMessage({ text: "Network error. Try again." });
     if (res.ok && typeof res.data.id === "string") return router.push(`/episodes/${res.data.id}?play=1`);
@@ -60,6 +62,12 @@ export default function DateThisCharacter({ cta, targetId, first }: { cta: DateC
               </option>
             ))}
           </select>
+        </label>
+      )}
+      {chosen.mode === "book" && (
+        <label className="date-cta-pick">
+          <span className="muted small">Where? (optional)</span>
+          <input type="text" name="place" maxLength={80} value={place} placeholder="the night market, my place…" onChange={(e) => setPlace(e.target.value)} />
         </label>
       )}
       {chosen.mode === "book" ? (

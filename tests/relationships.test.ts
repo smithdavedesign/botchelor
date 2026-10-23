@@ -358,8 +358,10 @@ describe("a planned venue doesn't trap a couple", () => {
   const build = (eps: RelEpisode[], followupOf: string) => {
     const [x, y] = [a.forDate.id, b.forDate.id];
     const rel = computeRelationship(x < y ? x : y, x < y ? y : x, eps.map((e) => ({ ...e, character_a: x, character_b: y })));
+    // One of them a person's character: between two house characters the show deals the venue (David, 2026-10-23).
+    const mine = { ...a.forDate, sheet: { ...a.forDate.sheet, house: false } };
     return assembleDate({
-      episodeId: "next", a: a.forDate, b: b.forDate, req: DEFAULT_DATE_REQUEST, seed: 4,
+      episodeId: "next", a: mine, b: b.forDate, req: DEFAULT_DATE_REQUEST, seed: 4,
       soulA: a.soul, soulB: b.soul, memoryA: null, memoryB: null, history: undefined,
       relationship: rel, creatorId: "user-1", followupOf,
     }).setup.venue;

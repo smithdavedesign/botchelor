@@ -368,7 +368,7 @@ export async function seedDataset(base) {
   const chars = [];
   for (let i = 0; i < CAST.length; i++) {
     const { soul, ...sheet } = CAST[i];
-    chars.push(await call("/api/characters", { ...sheet, ...(soul ? { soul } : {}), attest: true }, creators[i]));
+    chars.push(await call("/api/characters", { ...sheet, ...(soul ? { soul } : {}), attest: true, keep_name: true }, creators[i]));
   }
 
   // Two friend leagues, so the board has more than one group on it.

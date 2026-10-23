@@ -43,3 +43,25 @@ describe("GET /api/characters/name (the /create name check)", () => {
     expect((await check("  ")).status).toBe(400);
   });
 });
+
+describe("POST /api/characters refuses a name already on the show", () => {
+  let t: Awaited<ReturnType<typeof startTestDb>>;
+  beforeAll(async () => {
+    t = await startTestDb();
+  });
+  afterAll(async () => {
+    await t.close();
+  });
+
+  it("409 with free names; keep_name: true saves it anyway", async () => {
+    const cookie = newUserCookie();
+    expect((await api.createCharacter(validCharacter({ name: "Ira Fenn" }), cookie)).status).toBe(201);
+    const refused = await api.createCharacter({ ...validCharacter({ name: "ira fenn" }), keep_name: false }, cookie);
+    expect(refused.status).toBe(409);
+    const body = (await refused.json()) as Any;
+    expect(body.error).toBe("name_taken");
+    expect(body.free_names.length).toBeGreaterThan(0);
+    expect(body.message).toMatch(/already a Ira Fenn/);
+    expect((await api.createCharacter(validCharacter({ name: "Ira Fenn" }), cookie)).status).toBe(201);
+  });
+});

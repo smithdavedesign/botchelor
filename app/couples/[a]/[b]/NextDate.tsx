@@ -16,6 +16,8 @@ export default function NextDate({ pair, next, hasNudge }: { pair: [string, stri
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean; shop?: boolean } | null>(null);
+  // David, 2026-10-23: the owner may say where (else the place they agreed by text, else the show picks).
+  const [place, setPlace] = useState("");
   const me = shortName(next.mine.name);
   const them = shortName(next.them.name);
   const o = next.option;
@@ -70,8 +72,19 @@ export default function NextDate({ pair, next, hasNudge }: { pair: [string, stri
                 ? "Their last date is still being filmed. You can book the next one now."
                 : `${them} is ${next.them.house ? "on the show" : "open to dates"}, and they'll remember every date so far.`}
           </p>
+          <label className="next-date-place">
+            Where? <span className="muted small">(optional)</span>
+            <input
+              type="text"
+              name="place"
+              maxLength={80}
+              value={place}
+              placeholder={next.plan_place ?? "the night market, my place, under the old footbridge…"}
+              onChange={(e) => setPlace(e.target.value)}
+            />
+          </label>
           <p className="action-hint">
-            <button type="button" className="primary" onClick={() => void book()} disabled={busy}>
+            <button type="button" className="primary" onClick={() => void book(place.trim() ? { place: place.trim() } : {})} disabled={busy}>
               {busy ? "Booking…" : `Send ${me} on a date with ${them}`}
             </button>{" "}
             <span className="muted small">1 token, like any date.</span>
