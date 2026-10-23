@@ -168,6 +168,13 @@ Reply with ONLY one JSON object (no markdown):
 {"dialogue":"what you say (under ${TURN_DIALOGUE_MAX} chars)","action":"what you do, 1-5 words, or \\"\\" for nothing","emotion":"one word for how you feel","interest_signal":0.0,"done":false,"move":"","accept_move":false}
 interest_signal is 0..1: how interested in them you are right now (let it move gradually). "move" stays "" on almost every line: it's a place only on the line where you say you want to go there; "accept_move" only counts when they've just suggested a move. Set "done": true only once the date has landed and your next line would only be a goodbye ("how_you_say_goodbye" is there by then) — the show will respect it then.`;
 
+/**
+ * The actor's system prompt exactly as buildTurnMessages sends it: the one for a date that can move, or the one for a
+ * date that can't. Read by the training-set builder (scripts/eval/build-training-set.mjs, ROADMAP #577), so a tuned model
+ * learns under the prompt the show will run it with. Nothing in the show calls it.
+ */
+export const actorSystemPrompt = (moves: boolean): string => (moves ? SYSTEM_PROMPT_MOVES : SYSTEM_PROMPT);
+
 /** This date's private context for the speaking side: the agenda, the owner's note, and the dials. */
 function dateContext(side: SideSetup): Record<string, unknown> {
   return {

@@ -67,6 +67,15 @@ export type GoldenOptions = {
   base?: string;
   baseA?: string;
   baseB?: string;
+  /** Dates only: B is this model at an OpenAI-compatible endpoint, built here (lib/eval.ts), instead of --base-b. */
+  candidate?: { baseUrl: string; model: string; keyEnv: string | null; directorModel: string | null };
+};
+
+/** lib/eval.ts and lib/model.ts, the parts a candidate run uses. */
+export type CandidateLib = {
+  EVAL_CASES: readonly { id: string }[];
+  runEvalCase: (c: unknown, models: { actor: unknown; director: unknown }, judge: null) => Promise<Record<string, unknown>>;
+  openAICompatibleModel: (opts: { baseUrl: string; apiKey: string; model: string; fetchImpl?: typeof fetch; timeoutMs?: number }) => unknown;
 };
 
 export type Run = {
@@ -153,8 +162,11 @@ export function runGolden(
     write?: boolean;
     sha?: string | null;
     password?: string;
+    candidateLib?: CandidateLib;
   },
 ): Promise<GoldenResult & { dry_run?: boolean; calls?: number }>;
+/** A candidate endpoint on this machine (localhost, 127.0.0.1, ::1): estimated at $0. */
+export function isLoopback(base: string): boolean;
 export function renderMarkdown(r: GoldenResult): string;
 export function summaryForPost(r: GoldenResult): Record<string, unknown>;
 export function postSummary(

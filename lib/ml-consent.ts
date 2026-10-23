@@ -18,6 +18,7 @@
  */
 import { recordChoice } from "./choice-history";
 import type { Db } from "./db";
+import { REPORT_HIDE_THRESHOLD } from "./rules";
 
 /** The wording version a person agreed to: bump it when the privacy page's training sentence changes meaning. */
 export const ML_CONSENT_VERSION = "2026-10-22";
@@ -61,3 +62,21 @@ export async function setMlConsent(db: Db, userId: string, granted: boolean): Pr
 export const consentedOwnerSql = (ownerExpr: string, atExpr: string) =>
   `exists (select 1 from ml_consents mc where mc.granted and mc.version = '${ML_CONSENT_VERSION}' and (mc.user_id = ${ownerExpr}
      or mc.user_id = (select al.user_id from agent_links al where al.agent_id = ${ownerExpr} and al.linked_at <= ${atExpr})))`;
+
+/**
+ * SQL: the date aliased `e` aired publicly, the only kind a dataset ever reads: public, revealed, ready, fewer than
+ * REPORT_HIDE_THRESHOLD reports (more hides it from everyone), and not an After Dark date. The preference export and the
+ * training-set builder (scripts/eval/) and the readiness tracker (lib/training-readiness.ts) all use this one.
+ */
+export const airedPublicSql = (e: string) =>
+  `${e}.visibility = 'public' and ${e}.revealed_at is not null and ${e}.status = 'ready'
+     and coalesce(${e}.setup->>'after_dark', 'false') <> 'true'
+     and (select count(*) from reports rp where rp.episode_id = ${e}.id) < ${REPORT_HIDE_THRESHOLD}`;
+
+/**
+ * SQL: every character on a date (aliases `a` and `b`, rows of `characters`) is the show's own or its owner passes the
+ * consent gate at `atExpr` (the date's created_at): "a date goes into a dataset only when everyone whose character is on
+ * it opted in" (the privacy page).
+ */
+export const consentedCharactersSql = (a: string, b: string, atExpr: string) =>
+  `(${a}.is_house or ${consentedOwnerSql(`${a}.owner_id`, atExpr)}) and (${b}.is_house or ${consentedOwnerSql(`${b}.owner_id`, atExpr)})`;

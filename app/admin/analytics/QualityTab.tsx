@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { bucket, percent, type Interval } from "@/lib/chart";
 import type { Insights, QualitySummary, QualityTableRow } from "@/lib/insights";
 import type { QualityRunKind } from "@/lib/quality-runs";
+import type { ReadinessGate, TrainingReadiness } from "@/lib/training-readiness";
 import { TimeChart, type Marker } from "./charts";
 import { KpiCard } from "./Kpis";
+import type { AdminFetch } from "./ProductTab";
 import SortableTable, { type Column } from "./SortableTable";
 
 /** The golden gate fails a run whose B wins under this share (scripts/eval/golden.mjs MIN_WIN_RATE). */
@@ -28,7 +31,7 @@ function summaries(q: QualitySummary) {
 }
 
 /** Quality over time: the golden set, the After Dark observer and the visitor loop, then the feedback and the latest runs. */
-export default function QualityTab({ data, interval }: { data: Insights; interval: Interval }) {
+export default function QualityTab({ data, interval, adminFetch }: { data: Insights; interval: Interval; adminFetch?: AdminFetch }) {
   const s = data.series;
   const weekly = interval === "week";
   const now = summaries(data.quality.current);
@@ -153,7 +156,103 @@ export default function QualityTab({ data, interval }: { data: Insights; interva
 
       <h2>Quality runs in this period</h2>
       <RunsTable rows={data.quality.runs} />
+
+      {adminFetch && <ReadinessSection adminFetch={adminFetch} />}
     </>
+  );
+}
+
+const count = (x: number) => x.toLocaleString("en-US");
+/** A gate as "x of y" (lib/training-readiness.ts gateText; repeated here so the page doesn't import server code). */
+const gateValue = (g: ReadinessGate) => (g.kind === "majority" ? `${count(g.have)} of ${count(g.need)} (needs more than half)` : `${count(g.have)} of ${count(g.need)}`);
+
+/** Can the learning roadmap items start (lib/training-readiness.ts)? Fixed gates, loaded when this tab opens; the filters don't apply. */
+function ReadinessSection({ adminFetch }: { adminFetch: AdminFetch }) {
+  const [data, setData] = useState<TrainingReadiness | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    adminFetch("/api/admin/training-readiness")
+      .then(async (res) => {
+        if (!live) return;
+        if (res.ok) setData(await res.json());
+        else setError(`Readiness didn't load (${res.status}).`);
+      })
+      .catch(() => live && setError("Readiness didn't load (network error)."));
+    return () => {
+      live = false;
+    };
+  }, [adminFetch]);
+  return (
+    <>
+      <h2>Ready to learn from our own data?</h2>
+      <p className="muted small">
+        The roadmap&apos;s two learning items wait for real data (ROADMAP &ldquo;Next&rdquo;, docs/data-plan.md). Fixed gates that ignore the
+        filters above. Lines count only from aired public dates whose players opted in to training, and votes only from people who opted in;
+        never After Dark. Our own traffic is left out the way Real use leaves it out.
+      </p>
+      {error && <p className="error">{error}</p>}
+      {!data && !error && <p className="muted small">Loading readiness…</p>}
+      {data && <ReadinessView data={data} />}
+    </>
+  );
+}
+
+/** Each gate as "x of y", with the sentence that says when the item can start. */
+export function ReadinessView({ data }: { data: TrainingReadiness }) {
+  return (
+    <div className="analytics-grid">
+      {[
+        {
+          key: "fine_tune",
+          title: (
+            <>
+              Fine-tuning on our own data (<a href="https://github.com/smithdavedesign/botchelor/issues/577">#577</a>)
+            </>
+          ),
+          r: data.fine_tune,
+          note: `${count(data.fine_tune.detail.voted_lines)} lines with an opted-in vote, ${count(data.fine_tune.detail.critic_lines)} with a critic revision; ${count(data.fine_tune.detail.player_characters)} of the characters are players' (the rest the house cast's).`,
+        },
+        {
+          key: "outcomes",
+          title: (
+            <>
+              Learning from outcomes (<a href="https://github.com/smithdavedesign/botchelor/issues/578">#578</a>)
+            </>
+          ),
+          r: data.outcomes,
+          note: `Of these, the offline evaluators may read ${count(data.outcomes.usable.dates)} aired public dates whose players all opted in, and ${count(data.outcomes.usable.swipers)} opted-in swipers.`,
+        },
+      ].map((s) => (
+        <div key={s.key}>
+          <h3>{s.title}</h3>
+          <p className={s.r.ready ? undefined : "small"}>
+            <strong>{s.r.ready ? "Ready." : "Not yet."}</strong> {s.r.sentence}
+          </p>
+          <div className="table-scroll">
+            <table className="board">
+              <thead>
+                <tr>
+                  <th>Gate</th>
+                  <th className="num">Now</th>
+                  <th>Met</th>
+                </tr>
+              </thead>
+              <tbody>
+                {s.r.gates.map((g) => (
+                  <tr key={g.key}>
+                    <td className="wrap">{g.label}</td>
+                    <td className="num">{gateValue(g)}</td>
+                    <td>{g.met ? "yes" : "not yet"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="muted small">{s.note}</p>
+        </div>
+      ))}
+    </div>
   );
 }
 

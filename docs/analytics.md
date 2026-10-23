@@ -113,6 +113,11 @@ Our own evaluations, posted from the developer's Mac, so the segment and our-tra
   2026-10-22 and the chart shows how to post one.
 - **Thumbs-up share**, **people's feedback** and **agent feedback** again, and the period's **quality runs** (numbers
   only, no costs).
+- **Ready to learn from our own data?** (`lib/training-readiness.ts`, `GET /api/admin/training-readiness`): the
+  roadmap's fine-tuning (#577) and learning-from-outcomes (#578) gates as "x of y" with a sentence each: labelled lines
+  through the dataset consent gates, the characters speaking them and the share from other players; real dates and
+  swipers in 30 days, counted as Real use counts them. Fixed gates that ignore the filters. docs/data-plan.md has the
+  definitions and what each item does once it's ready.
 
 Every table sorts by any column and downloads as CSV (every row, in the current order; a cell starting with `=`, `+`,
 `-` or `@` is prefixed with `'` so a spreadsheet doesn't run it). Every chart has its numbers in a table under it, says
@@ -134,7 +139,7 @@ what it shows to a screen reader, follows the pointer or the arrow keys with a t
 - `GET /api/admin/insights?from=&to=&segment=&include_ours=` (`app/api/admin/insights/route.ts`) returns everything
   the Overview, Product and Quality tabs show in one response; a result is reused for a minute per query and day
   (`?fresh=1`, the Refresh button, skips it). The Agents tab reads `GET /api/admin/analytics?days=&to=&include_ours=`,
-  and Real use `GET /api/admin/real-metrics`.
+  Real use `GET /api/admin/real-metrics`, and the Quality tab's readiness `GET /api/admin/training-readiness`.
 - `lib/insights.ts` is plain query functions over a `Db`: every additive measure comes back from **one** `UNION ALL`
   statement as a small grid (measure × day × people × agents × house × ours × key), and `keep()` applies the segment
   and the our-traffic choice in one place, so the cards, the charts and the callouts always agree. Then a few small

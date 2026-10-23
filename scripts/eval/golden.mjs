@@ -20,6 +20,17 @@
  *   CRON_SECRET_A / CRON_SECRET_B override CRON_SECRET per deployment; VERCEL_BYPASS_B (or _A) passes a preview's
  *   protection bypass.
  *
+ * Dates against a candidate model (a fine-tune served on this Mac, ROADMAP #577; docs/data-plan.md): A is a deployment,
+ * B is the same eval case built on this machine (lib/eval.ts runEvalCase, in memory, nothing stored) with the candidate as
+ * the actor, at any OpenAI-compatible endpoint, and as the director too unless --candidate-director-model names another
+ * model at the same endpoint (a fine-tune learns only the actor's lines; the director writes the plan and the recap):
+ *   node scripts/eval/golden.mjs --suite dates --label prod-vs-lora1 --base-a https://botchelor.com \
+ *     --candidate-base-url http://127.0.0.1:11434/v1 --candidate-model botchelor-actor-lora \
+ *     [--candidate-director-model llama3.2:3b] [--candidate-key-env NAME]
+ *   No default endpoint or model, so nothing paid is ever picked for you. The key, if the endpoint needs one, is read from
+ *   the environment variable --candidate-key-env names (never a value on the command line, never printed); a local
+ *   server needs none. A candidate on this machine (localhost, 127.0.0.1, ::1) is estimated at $0 a date.
+ *
  * Options:
  *   --cases id,id          a subset of the suite's cases (default: all)
  *   --repeat N             samples per case, 1 to 5 (default 1)
@@ -37,6 +48,8 @@
  *   --thresholds k=v,…     override a tolerance (repeats=1, sheet_detail_rate=0.1, win=0.5, …)
  *   --post [--site url]    post the summary to /api/admin/quality (default https://botchelor.com; FRONTIER_PASSWORD from
  *                          the environment or the keychain's vault/botchelor/FRONTIER_PASSWORD, never printed)
+ *   --candidate-base-url url, --candidate-model name, --candidate-director-model name, --candidate-key-env NAME
+ *                          dates only: B is that model, built on this machine (see "Dates against a candidate" above)
  *   --db url | --pglite dir  read the After Dark characters' sheets for the judge (read-only; default $DATABASE_URL)
  *   --out-dir dir          where the report goes (default docs/eval): golden-<label>.json and golden-<label>.md
  *   --dry-run              print the plan and the estimate, call nothing
@@ -621,6 +634,63 @@ async function callDate({ base, secret, kase, fetchImpl, sleep, headers = {} }) 
   };
 }
 
+/** A candidate's endpoint is on this machine: it costs nothing to call. */
+export const isLoopback = (base) => {
+  try {
+    return ["localhost", "127.0.0.1", "[::1]", "::1"].includes(new URL(base).hostname);
+  } catch {
+    return false;
+  }
+};
+
+/** lib/eval.ts and lib/model.ts through Vite's module runner: the eval's own case builder and the OpenAI-compatible client. */
+async function candidateLib() {
+  const { runnerImport } = await import("vite");
+  const [{ module: evalLib }, { module: modelLib }] = await Promise.all([runnerImport(join(ROOT, "lib/eval.ts"), viteOpts()), runnerImport(join(ROOT, "lib/model.ts"), viteOpts())]);
+  return { EVAL_CASES: evalLib.EVAL_CASES, runEvalCase: evalLib.runEvalCase, openAICompatibleModel: modelLib.openAICompatibleModel };
+}
+
+/** The candidate's key, from the environment variable it names; a local server takes any placeholder. */
+const candidateKey = (opts, env) => (opts.candidate.keyEnv ? env[opts.candidate.keyEnv] : null) || "local";
+
+/** The candidate endpoint answers (GET /models, as OpenAI-compatible servers do: mlx_lm.server, Ollama, LiteLLM). */
+async function preflightCandidate(opts, env, fetchImpl) {
+  const { baseUrl, keyEnv } = opts.candidate;
+  if (keyEnv && !env[keyEnv]) throw new GoldenRefusal(`--candidate-key-env names ${keyEnv}, but it isn't set`);
+  let res;
+  try {
+    res = await fetchImpl(`${baseUrl}/models`, { headers: { authorization: `Bearer ${candidateKey(opts, env)}` }, signal: AbortSignal.timeout(15_000) });
+  } catch (e) {
+    throw new GoldenRefusal(`the candidate at ${baseUrl} didn't answer: ${e instanceof Error ? e.message : e} (is the server running?)`);
+  }
+  if (!res.ok) throw new GoldenRefusal(`the candidate at ${baseUrl} said ${res.status} to GET /models`);
+}
+
+/** One eval date built here with the candidate as actor and director: the same shape the eval route answers with. */
+async function callCandidate({ kase, opts, env, lib, fetchImpl }) {
+  const c = lib.EVAL_CASES.find((x) => x.id === kase.id);
+  if (!c) throw new GoldenRefusal(`lib/eval.ts has no case ${kase.id}`);
+  const at = (name) => lib.openAICompatibleModel({ baseUrl: opts.candidate.baseUrl, apiKey: candidateKey(opts, env), model: name, fetchImpl, timeoutMs: 120_000 });
+  const actor = at(opts.candidate.model);
+  const director = opts.candidate.directorModel ? at(opts.candidate.directorModel) : actor;
+  const out = await lib.runEvalCase(c, { actor, director }, null);
+  const transcript = Array.isArray(out?.transcript) ? out.transcript : [];
+  if (!transcript.length) throw new Error(`no conversation${out?.conversation_error ? `: ${out.conversation_error}` : ""}`);
+  return {
+    transcript,
+    characters: Array.isArray(out?.characters) ? out.characters : null,
+    ending: out?.ending ?? null,
+    format: out?.format ?? null,
+    setting: out?.recap?.setting ?? null,
+    metrics: canonicalMetrics(out?.metrics ?? {}, "dates"),
+    raw_metrics: out?.metrics ?? null,
+    usage: out?.usage ?? null,
+    // On this machine it's free; elsewhere, what the usage says (an unpriced model counts at the estimate).
+    cost_usd: isLoopback(opts.candidate.baseUrl) ? 0 : num(out?.usage?.cost_usd),
+    conversation_error: out?.conversation_error ?? null,
+  };
+}
+
 /* --------------------------------------------------- the sheets --------------------------------------------------- */
 
 const viteOpts = () => ({ configFile: false, root: ROOT, logLevel: "error", resolve: { alias: [{ find: /^@\//, replacement: `${ROOT}/` }] } });
@@ -760,7 +830,8 @@ export function parseArgs(argv) {
     if (value === undefined) throw new Error(`--${key} needs a value`);
     o[key] = value;
   }
-  const suite = SUITES[o.suite ?? ""] ?? (o.suite ? null : o["base-a"] || o["base-b"] ? "dates" : o.a || o.b ? "after_dark" : null);
+  const candidateAsked = ["candidate-base-url", "candidate-model", "candidate-key-env", "candidate-director-model"].some((k) => o[k] !== undefined);
+  const suite = SUITES[o.suite ?? ""] ?? (o.suite ? null : o["base-a"] || o["base-b"] || candidateAsked ? "dates" : o.a || o.b ? "after_dark" : null);
   if (!suite) throw new Error("say which suite: --suite after-dark (with --a and --b) or --suite dates (with --base-a and --base-b)");
   if (!o.label || !/^[\w.-]{1,80}$/.test(o.label)) throw new Error("--label is required: letters, digits, dots, dashes (it names the report)");
   const thresholds = parseThresholds(o.thresholds);
@@ -800,11 +871,25 @@ export function parseArgs(argv) {
     opts.a = parseConfig(o.a, "a");
     opts.b = parseConfig(o.b, "b");
     opts.base = cleanBase(o.base ?? "https://botchelor.com", "base");
+  } else if (candidateAsked) {
+    // B is a candidate model at an OpenAI-compatible endpoint, built here (lib/eval.ts): no default, nothing paid picked.
+    if (!o["candidate-base-url"] || !o["candidate-model"]) throw new Error("a candidate needs both --candidate-base-url and --candidate-model (there's no default)");
+    if (o["base-b"]) throw new Error("--candidate-base-url takes B's place: drop --base-b");
+    if (!o["base-a"]) throw new Error("--suite dates with a candidate compares it against a deployment: --base-a");
+    const model = String(o["candidate-model"]).trim();
+    if (!model || model.length > 200 || /\s/.test(model)) throw new Error("--candidate-model is a model name");
+    const keyEnv = o["candidate-key-env"] ?? null;
+    if (keyEnv !== null && !/^[A-Z_][A-Z0-9_]{0,63}$/.test(keyEnv)) throw new Error("--candidate-key-env is the NAME of an environment variable (the key itself never goes on the command line)");
+    const directorModel = o["candidate-director-model"] === undefined ? null : String(o["candidate-director-model"]).trim();
+    if (directorModel !== null && (!directorModel || directorModel.length > 200 || /\s/.test(directorModel))) throw new Error("--candidate-director-model is a model name");
+    opts.baseA = cleanBase(o["base-a"], "base-a");
+    opts.candidate = { baseUrl: cleanBase(o["candidate-base-url"], "candidate-base-url"), model, keyEnv, directorModel };
   } else {
     if (!o["base-a"] || !o["base-b"]) throw new Error("--suite dates compares two deployments: --base-a and --base-b");
     opts.baseA = cleanBase(o["base-a"], "base-a");
     opts.baseB = cleanBase(o["base-b"], "base-b");
   }
+  if (candidateAsked && suite !== "dates") throw new Error("a candidate model runs the dates suite only (--suite dates)");
   return opts;
 }
 
@@ -836,7 +921,7 @@ function gitSha() {
  * Runs the golden set: the judge is checked first (no transcripts are paid for that nobody can judge), then the route,
  * then the estimate against --max-usd; then every case and sample on A and B (in a seeded order), the side-by-side judge,
  * the aggregate, the metric deltas and the gate. Writes docs/eval/golden-<label>.json and .md unless deps.write is false.
- * deps (for tests): fetchImpl, judge, sheetsFor, env, log, sleep, now, write, sha.
+ * deps (for tests): fetchImpl, judge, sheetsFor, env, log, sleep, now, write, sha, candidateLib (lib/eval.ts and lib/model.ts).
  */
 export async function runGolden(opts, deps = {}) {
   const env = deps.env ?? process.env;
@@ -850,14 +935,16 @@ export async function runGolden(opts, deps = {}) {
   const ad = opts.suite === "after_dark";
 
   const perCall = ad ? opts.steps * opts.stepUsd : DATE_USD;
+  // A candidate on this machine costs nothing; one elsewhere is budgeted like a date on a deployment.
+  const perCallOf = (arm) => (arm === "b" && opts.candidate && isLoopback(opts.candidate.baseUrl) ? 0 : perCall);
   const calls = cases.length * opts.repeat * 2;
-  const estimate = round(calls * perCall, 4);
+  const estimate = round(cases.length * opts.repeat * (perCallOf("a") + perCallOf("b")), 4);
   log(`golden: ${cases.length} case${cases.length === 1 ? "" : "s"} × ${opts.repeat} sample${opts.repeat === 1 ? "" : "s"} × 2 configs = ${calls} route calls, estimated $${estimate.toFixed(2)} (--max-usd $${opts.maxUsd})`);
   if (opts.dryRun) return { dry_run: true, suite: opts.suite, label: opts.label, cases: cases.map((c) => c.id), calls, estimate_usd: estimate };
   if (estimate > opts.maxUsd) throw new GoldenRefusal(`the estimate ($${estimate.toFixed(2)}) is over --max-usd ($${opts.maxUsd}): run fewer cases or samples, or raise --max-usd`);
 
   const secret = (arm) => (ad ? env.CRON_SECRET : (arm === "a" ? env.CRON_SECRET_A : env.CRON_SECRET_B) || env.CRON_SECRET);
-  if (!secret("a") || !secret("b")) {
+  if (!secret("a") || (!opts.candidate && !secret("b"))) {
     throw new GoldenRefusal('CRON_SECRET must be set (it gates the eval routes): export CRON_SECRET="$(security find-generic-password -s vault/botchelor/CRON_SECRET -w)"');
   }
   const bypass = (arm) => {
@@ -876,7 +963,11 @@ export async function runGolden(opts, deps = {}) {
   }
 
   if (ad) await preflightAfterDark(opts.base, secret("a"), fetchImpl);
-  else for (const arm of ["a", "b"]) await preflightDates(arm === "a" ? opts.baseA : opts.baseB, secret(arm), opts, cases, fetchImpl, bypass(arm));
+  else if (opts.candidate) {
+    await preflightDates(opts.baseA, secret("a"), opts, cases, fetchImpl, bypass("a"));
+    await preflightCandidate(opts, env, fetchImpl);
+  } else for (const arm of ["a", "b"]) await preflightDates(arm === "a" ? opts.baseA : opts.baseB, secret(arm), opts, cases, fetchImpl, bypass(arm));
+  const candidate = opts.candidate ? (deps.candidateLib ?? (await candidateLib())) : null;
 
   const sheets = await (deps.sheetsFor ?? loadSheets)(opts, cases, file, { log, env });
 
@@ -890,7 +981,15 @@ export async function runGolden(opts, deps = {}) {
     for (let sample = 0; sample < opts.repeat; sample++) {
       const order = hash(`${opts.label}:${kase.id}:${sample}:run`) % 2 ? ["b", "a"] : ["a", "b"];
       for (const arm of order) {
-        const next = runs.length ? spent / runs.length : perCall;
+        // With a free candidate, each arm is estimated from its own calls (a $0 B mustn't halve A's estimate).
+        const mine = runs.filter((r) => r.arm === arm);
+        const next = opts.candidate
+          ? mine.length
+            ? mine.reduce((s, r) => s + (r.cost_usd ?? perCallOf(arm)), 0) / mine.length
+            : perCallOf(arm)
+          : runs.length
+            ? spent / runs.length
+            : perCall;
         if (spent + next > opts.maxUsd + 1e-9) {
           budgetStopped = true;
           log(`golden: stopping: the next call would take the spend past $${opts.maxUsd} ($${spent.toFixed(3)} so far)`);
@@ -902,7 +1001,9 @@ export async function runGolden(opts, deps = {}) {
         try {
           const out = ad
             ? await callAfterDark({ base: opts.base, secret: secret(arm), kase, config: opts[arm], opts, fetchImpl, sleep })
-            : await callDate({ base: arm === "a" ? opts.baseA : opts.baseB, secret: secret(arm), kase, fetchImpl, sleep, headers: bypass(arm) });
+            : arm === "b" && candidate
+              ? await callCandidate({ kase, opts, env, lib: candidate, fetchImpl })
+              : await callDate({ base: arm === "a" ? opts.baseA : opts.baseB, secret: secret(arm), kase, fetchImpl, sleep, headers: bypass(arm) });
           run = { case: kase.id, sample, arm, ok: true, ms: Date.now() - t0, ...out };
         } catch (e) {
           if (e instanceof GoldenRefusal) throw e;
@@ -916,7 +1017,7 @@ export async function runGolden(opts, deps = {}) {
         }
         runs.push(run);
         // What the route says it cost; a failure or an unpriced answer counts as the estimate, to stay on the safe side.
-        spent += run.cost_usd ?? perCall;
+        spent += run.cost_usd ?? perCallOf(arm);
         log(
           `  ${kase.id} #${sample + 1} ${arm.toUpperCase()}: ${run.ok ? `${(run.lines ?? run.transcript).length} lines` : `failed (${run.error})`}` +
             `${run.cost_usd !== null && run.cost_usd !== undefined ? ` $${run.cost_usd.toFixed(4)}` : ""} · spent $${spent.toFixed(3)}`,
@@ -973,7 +1074,14 @@ export async function runGolden(opts, deps = {}) {
     suite: opts.suite,
     ran_at: now().toISOString(),
     sha: deps.sha !== undefined ? deps.sha : gitSha(),
-    configs: ad ? { a: { ...opts.a, base: opts.base }, b: { ...opts.b, base: opts.base } } : { a: { base: opts.baseA }, b: { base: opts.baseB } },
+    configs: ad
+      ? { a: { ...opts.a, base: opts.base }, b: { ...opts.b, base: opts.base } }
+      : opts.candidate
+        ? {
+            a: { base: opts.baseA },
+            b: { candidate_base_url: opts.candidate.baseUrl, candidate_model: opts.candidate.model, ...(opts.candidate.directorModel ? { candidate_director_model: opts.candidate.directorModel } : {}) },
+          }
+        : { a: { base: opts.baseA }, b: { base: opts.baseB } },
     options: { repeat: opts.repeat, steps: ad ? opts.steps : null, memory: ad ? opts.memory : null, judge: opts.judge ? opts.judgeModel : null, max_usd: opts.maxUsd, thresholds: opts.thresholds, min_win_rate: opts.minWinRate },
     cases: cases.map((c) => ({ ...c })),
     estimate_usd: estimate,
