@@ -2,6 +2,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { fillerLines, teasersFor } from "@/lib/adult/teaser";
+import { afterDarkHref } from "@/lib/after-dark-host";
 import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
@@ -28,7 +29,7 @@ export default async function AfterDarkTeaser({ pair, character }: { pair?: [str
             {shortName(t.a.name)} × {shortName(t.b.name)} · {t.lines} lines, after the cameras stop
           </p>
           {open ? (
-            <Link className="button small" href={t.path}>
+            <Link className="button small" href={afterDarkHref(t.path)}>
               Open in After Dark
             </Link>
           ) : (

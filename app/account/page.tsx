@@ -13,6 +13,7 @@ import AccountPanel from "./AccountPanel";
 import { UnlinkAgentButton } from "./AgentLinks";
 import { linkedAgents } from "@/lib/agent-links";
 import { canAfterDark } from "@/lib/adult/entitlement";
+import { afterDarkHref } from "@/lib/after-dark-host";
 import { authFromCookieStore } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +52,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
         <section className="card">
           <h2>🌙 After Dark</h2>
           <p className="muted">The private adult season. Switch your characters in and out there.</p>
-          <Link className="button" href="/after-dark">
+          <Link className="button" href={afterDarkHref("/after-dark")}>
             Open After Dark
           </Link>
         </section>

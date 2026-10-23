@@ -1,10 +1,11 @@
+import { afterDarkElsewhere, afterDarkOnly } from "@/lib/after-dark-host";
 import { ADULT_COOKIE, safeFrom } from "@/lib/age";
 import { isCarryNonce, newCarryNonce, signCarry, verifyCarry } from "@/lib/auth";
 import { authFromRequest, handle, safeEqual, sessionCookies } from "@/lib/http";
 import { OLD_HOSTS, requestHost, siteUrl } from "@/lib/site";
 
 const ONE_YEAR = 60 * 60 * 24 * 365;
-/** The receiving browser's nonce: botchelor.com only, this route only, gone in five minutes or once used. */
+/** The receiving browser's nonce: on the receiving host only, this route only, gone in five minutes or once used. */
 const NONCE_COOKIE = "bz_carry";
 const NONCE_TTL = 5 * 60;
 
@@ -33,6 +34,13 @@ const cookie = (req: Request, name: string): string | undefined =>
  *  4. botchelor.com, `t`: set that identity only if the token's nonce is this browser's own cookie, then go where
  *     they were headed. A token minted for anyone else's browser (an attacker handing out their own identity, or a
  *     victim's fixed one) carries a nonce this browser never had, so it sets nothing.
+ *
+ * After Dark on a host of its own (lib/after-dark-host.ts; off unless AFTER_DARK_ORIGIN is set) uses the same
+ * handshake, with After Dark's host receiving and botchelor.com handing on. Every way in from the show (its links, and
+ * its redirects of After Dark's pages) starts at step 2 on After Dark's host, which always asks the show (it has no
+ * sign-in of its own, so it follows the show's: signing in, out or as someone else there carries over on the way in).
+ * botchelor.com mints only for that one configured address, and the nonce binds each token to the browser it was
+ * minted for, exactly as above.
  */
 export const GET = handle(async (req: Request) => {
   const url = new URL(req.url);
@@ -40,13 +48,18 @@ export const GET = handle(async (req: Request) => {
   const canonical = siteUrl();
   const host = requestHost(req);
   const onOldHost = OLD_HOSTS.has(host) && new URL(canonical).host !== host; // never a loop onto itself
+  // After Dark's own host receives; botchelor.com, with After Dark moved out, hands on to it (and only to it).
+  const afterDarkHost = afterDarkOnly();
+  const elsewhere = afterDarkElsewhere();
+  const toAfterDark = elsewhere && host === new URL(canonical).host ? elsewhere : null;
 
   const token = url.searchParams.get("t");
   if (token !== null) {
     const claims = verifyCarry(token);
     const mine = cookie(req, NONCE_COOKIE);
     const cookies = [nonceCookie("", 0)];
-    if (claims && isCarryNonce(mine) && safeEqual(claims.nonce, mine) && !authFromRequest(req)) {
+    // botchelor.com never replaces an identity it has; After Dark's host takes the show's, which is the one that counts.
+    if (claims && isCarryNonce(mine) && safeEqual(claims.nonce, mine) && (afterDarkHost || !authFromRequest(req))) {
       cookies.push(...sessionCookies({ userId: claims.uid, authenticated: claims.authenticated }));
       if (claims.adult) cookies.push(`${ADULT_COOKIE}=1; Path=/; Max-Age=${ONE_YEAR}; HttpOnly; SameSite=Lax${secure()}`);
     }
@@ -55,14 +68,20 @@ export const GET = handle(async (req: Request) => {
 
   const nonce = url.searchParams.get("n");
   if (nonce !== null) {
-    const auth = onOldHost && isCarryNonce(nonce) ? authFromRequest(req) : null;
+    const target = onOldHost ? canonical : toAfterDark;
+    const auth = target && isCarryNonce(nonce) ? authFromRequest(req) : null;
     const adult = cookie(req, ADULT_COOKIE) === "1";
     const carry = auth ? signCarry({ uid: auth.userId, authenticated: auth.authenticated, adult, nonce }) : null;
-    if (!carry) return redirect(`${canonical}${to}`);
-    return redirect(`${canonical}/api/auth/carry?${new URLSearchParams({ t: carry, to })}`);
+    if (!carry) return redirect(`${target ?? canonical}${to}`);
+    return redirect(`${target}/api/auth/carry?${new URLSearchParams({ t: carry, to })}`);
   }
 
   if (onOldHost) return redirect(`${canonical}/api/auth/carry?${new URLSearchParams({ from: host, to })}`);
+
+  if (afterDarkHost) {
+    const fresh = newCarryNonce();
+    return redirect(`${canonical}/api/auth/carry?${new URLSearchParams({ n: fresh, to })}`, [nonceCookie(fresh, NONCE_TTL)]);
+  }
 
   const from = url.searchParams.get("from") ?? "";
   if (!OLD_HOSTS.has(from) || authFromRequest(req)) return redirect(to);
