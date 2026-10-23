@@ -3,6 +3,8 @@ import Link from "next/link";
 import ReunionPanel from "@/app/ReunionPanel";
 import { getDb } from "@/lib/db";
 import { getReunion } from "@/lib/reunion";
+import { pageHref, parsePage } from "@/lib/paging";
+import { privateAmong } from "@/lib/directory";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +18,14 @@ export const metadata: Metadata = {
  * The Reunion special, on its own page again (2026-10-21). It had moved to the bottom of Watch, with this route
  * redirecting there; Watch now shows one Reunion card that links here (#532), so the redirect sent that link in a loop.
  */
-export default async function ReunionPage() {
-  const reunion = await getReunion(await getDb());
+export default async function ReunionPage({ searchParams }: { searchParams?: Promise<{ couples?: string | string[] }> } = {}) {
+  const couplesPage = parsePage((await searchParams)?.couples);
+  const db = await getDb();
+  const reunion = await getReunion(db);
+  const hidden = await privateAmong(db, [
+    ...reunion.couples.flatMap((c) => [c.a.id, c.b.id]),
+    ...reunion.confessionals.map((c) => c.character.id),
+  ]);
   const empty = !reunion.couples.length && !reunion.confessionals.length && !reunion.awards.length;
   return (
     <article className="reunion-page">
@@ -34,7 +42,7 @@ export default async function ReunionPage() {
           </Link>
         </section>
       ) : (
-        <ReunionPanel reunion={reunion} heading="h1" />
+        <ReunionPanel reunion={reunion} heading="h1" couplesPage={couplesPage} couplesHref={(n) => pageHref("/reunion", {}, "couples", n, "couples")} hidden={hidden} />
       )}
     </article>
   );
