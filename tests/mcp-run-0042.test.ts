@@ -456,7 +456,8 @@ describe("a dry run a tool doesn't take, and ids of the wrong kind, are said pla
     // A read-only tool with only a dry run runs.
     expect((await call("browse_episodes", { preview: true }, A.ctx)).isError).toBeUndefined();
     // A tool that spends still refuses one (#490).
-    expect((await call("swipe", { character_id: A.id, target_id: HOUSE_CHARACTERS[0].id, like: true, preview: true }, A.ctx)).content[0].text).toMatch(/swipe has no preview or dry run, so nothing was done or spent/);
+    // 2.11.0 (#622): swipe takes preview now; leave_nudge is a write with no dry run.
+    expect((await call("leave_nudge", { character_id: A.id, with: HOUSE_CHARACTERS[0].id, note: "Bring up the boat.", preview: true }, A.ctx)).content[0].text).toMatch(/leave_nudge has no preview or dry run, so nothing was done or spent/);
   });
 
   it("an id error names the kind of id the argument takes and what the value given is", async () => {

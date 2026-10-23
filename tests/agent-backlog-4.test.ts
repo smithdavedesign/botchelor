@@ -164,9 +164,10 @@ describe("arguments and errors", () => {
 
   it("preview, dry_run or check_only on a tool that spends something and doesn't take it is refused, nothing spent (#490, #485)", async () => {
     const { ctx, id } = await agentWith("Ada Lumen");
-    const r = await call("swipe", { character_id: id, target_id: HOUSE_PARTNER_ID, like: true, preview: true }, ctx);
+    // 2.11.0 (#622): swipe takes preview now; leave_nudge is a write with no dry run.
+    const r = await call("leave_nudge", { character_id: id, with: HOUSE_PARTNER_ID, note: "Bring up the boat.", preview: true }, ctx);
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toMatch(/swipe has no preview or dry run, so nothing was done or spent/);
+    expect(r.content[0].text).toMatch(/leave_nudge has no preview or dry run, so nothing was done or spent/);
     expect(await t.count("episodes")).toBe(0);
     // A dry run the tool knows by another name is read as that one: dry_run → preview, and nothing is booked.
     const d = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, dry_run: true }, ctx)).structuredContent;
@@ -263,9 +264,11 @@ describe("a house date over MCP", () => {
     const pick = (await call("predict", { episode_id: booked.episode.id, pick: "friends", drama_pick: "a" }, other.ctx)).structuredContent;
     expect(pick).toMatchObject({ airs_at: booked.airs_at, points_if_right: 10, drama_points_if_right: 5 });
     expect(pick.note).toMatch(/predictions\.pending/);
-    const status = (await call("my_status", {}, other.ctx)).structuredContent;
+    // 2.11.0 (#633): a connection's first my_status leaves the reference blocks out; include: ["all"] has them.
+    const status = (await call("my_status", { include: ["all"] }, other.ctx)).structuredContent;
     expect(status.predictions.pending[0]).toMatchObject({ episode_id: booked.episode.id, pick: "friends", airs_at: booked.airs_at, points_if_right: 15 });
-    expect(status.others).toEqual({ agent_characters: 1, agents_this_week: 1 });
+    // 2.11.0 (#619): the house-run bots' characters are counted beside the live agents' (none here).
+    expect(status.others).toEqual({ agent_characters: 1, house_bot_characters: 0, agents_this_week: 1 });
 
     // Aired early (a watch party could): predict says so plainly.
     await api.reveal(booked.episode.id, `bz_uid=${(await call("my_status", {}, ctx)).structuredContent.agent_id}`);
@@ -277,7 +280,8 @@ describe("a house date over MCP", () => {
   it("my_status: compact drops the notes, next points at unread texts and notices, and my_dates is pointed at (#429, #471, #444)", async () => {
     const { ctx, id, agentId } = await agentWith("Ada Lumen");
     await houseDate(ctx, id);
-    const full = (await call("my_status", {}, ctx)).structuredContent;
+    // 2.11.0 (#633): a connection's first my_status leaves the reference blocks out; include: ["all"] has them.
+    const full = (await call("my_status", { include: ["all"] }, ctx)).structuredContent;
     expect(full.latest_dates_note).toMatch(/my_dates lists every date/);
     // 2.5.0 (the 2026-10-21-2300 run): a name and a line each by default; include: ["cast"] has the traits.
     expect(full.house_cast[0].line).toBeDefined();
@@ -391,7 +395,8 @@ describe("swiping and texting", () => {
     expect((await t.db.query(`select 1 from couple_texts`)).rows).toHaveLength(0);
     const sent = (await call("send_text", { character_id: A.id, to: B.id, text: "You never asked about the wind." }, A.ctx)).structuredContent;
     expect(sent).toMatchObject({ last_text_read: false, final_note: expect.stringMatching(/for good/) });
-    expect(sent.waiting_for_you?.matched).toBeUndefined();
+    // 2.11.0 (#619): a count that went says 0, once, rather than vanishing.
+    expect(sent.waiting_for_you?.matched ?? 0).toBe(0);
     // B reads: the match's notice is acted on for B too, and the thread says who answers on the other side.
     const read = (await call("read_texts", { character_id: B.id, with: A.id }, B.ctx)).structuredContent;
     expect(read.items.map((i: Any) => i.text)).toContain("You never asked about the wind.");
@@ -406,7 +411,7 @@ describe("swiping and texting", () => {
     expect(waited.texts).toEqual(waited.items);
     expect(waited.waited_seconds).toBeLessThan(3);
     const after = (await call("my_status", {}, B.ctx)).structuredContent;
-    expect(after.waiting_for_you?.matched).toBeUndefined();
+    expect(after.waiting_for_you?.matched ?? 0).toBe(0);
     // Texting a stranger is match_first, not not_found.
     const C = await agentWith("Cleo Marsh", { open_to_dates: true, extras: PROFILE });
     const stranger = await call("send_text", { character_id: A.id, to: C.id, text: "hello" }, A.ctx);

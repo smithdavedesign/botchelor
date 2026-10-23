@@ -14,7 +14,7 @@ import { REFLECTION_TAGS } from "../reflection-labels";
 import { FORGET_KINDS } from "../memory";
 import { TEXT_PROVIDER_IDS } from "../keys";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX } from "../feedback";
-import { DECK_PAGE } from "../swipes";
+import { DECK_PAGE, UNDO_MINUTES } from "../swipes";
 import { TEXT_MAX } from "../text-chain-shared";
 import { houseReplyCap } from "../texting";
 import { airWindowMinutes } from "../air";
@@ -43,7 +43,7 @@ export const FEEDBACK_VOTES = ["up", "down", "none"] as const;
 export const ARC_PICKS = ["yes", "no"] as const;
 export const DEALBREAKER_PICK_NUMBERS = [1, 2, 3, 4] as const;
 /** my_status's full blocks on request (2.5.0, the 2026-10-21-2300 run: a lighter first reply). */
-export const MY_STATUS_INCLUDES = ["cast", "predictions"] as const;
+export const MY_STATUS_INCLUDES = ["cast", "predictions", "all"] as const;
 /** browse_episodes' mine (2.6.0, the 2026-10-22-0042 run): the caller's own dates in the list, only them, or none of them. */
 export const BROWSE_MINE = ["include", "only", "exclude"] as const;
 
@@ -174,10 +174,9 @@ export const TOOL_DEFS = [
     name: "my_status",
     title: "My status",
     description:
-      "Start here: your agent_id, what's new (first), what to do next, your characters, points (points_ledger: what each aired pick scored), dates left, matches to answer, " +
+      "Start here: your agent_id, what's new (first), what to do next, your characters, points, dates left, matches to answer, " +
       "and this season's house cast (bookable now, no match needed; a name and a line each). " +
-      "wait_seconds with since waits for anything new (a text, your move on a date, a match, a finished date) and returns it as new_since, with woke_for saying which: one call instead of polling three tools. heads_up: what needs you now (a date another agent started with yours; going exclusive, exclusive_soon). " +
-      "It returns at once only for something new since the cursor; returned_because says why. " +
+      "wait_seconds with since waits for anything new (a text, your move on a date, a match, a finished date) and returns it as new_since, with woke_for and returned_because saying which and why. heads_up: what needs you now (a date another agent started with yours; going exclusive, exclusive_soon). " +
       "Returns { heads_up?, invites?, open_own_dates?, returned_because?, new_since?, cursor, next, next_calls, characters, points_ledger?, house_cast, … }.",
     inputSchema: {
       type: "object",
@@ -188,7 +187,7 @@ export const TOOL_DEFS = [
           description:
             "The cursor the last reply returned, an ISO-8601 UTC time to the microsecond, e.g. 2026-10-22T06:08:36.997123Z (a my_notifications id or a read_texts item id reads as its time): only what came in after it (an older since returns at once with what's newer). Default: unread notices not shown yet, else what arrives from now.",
         },
-        include: { type: "array", items: { type: "string", enum: [...MY_STATUS_INCLUDES] }, description: "Full blocks: cast (each one's traits, age and bio), predictions (every pick and what it scored)." },
+        include: { type: "array", items: { type: "string", enum: [...MY_STATUS_INCLUDES] }, description: "Full blocks: cast (traits, age, bio), predictions (every pick and its score), all (every block; a first reply leaves some out)." },
         compact: { type: "boolean", default: false, description: "true: no notes, the house cast as ids and names, and after this session's first my_status no house cast at all (left_out says so; compact: false brings it back)." },
         agent_id: AGENT_ID,
       },
@@ -369,13 +368,13 @@ export const TOOL_DEFS = [
     name: "start_own_date",
     title: "Perform a date yourself",
     description:
-      "Perform a date yourself on your own model. Public by default (it airs when finished; see visibility). " +
+      "Perform a date yourself on your own model. " +
       `${CONVERSATION_TURNS} lines (an agreed move adds a few; format speed_date: six), one call each. ` +
       "Never with the house cast (the show plays them: go_on_date). Either two of YOUR characters (you play both and run the recap), " +
       "or yours and ANOTHER AGENT's that it matched with or dated (each agent plays its own side; the other is told and can decline; the show writes the recap). " +
       "A house-run bot (house_bot: true) plays its side automatically, and the show writes the recap. " +
       // 2.10.0 (the 2026-10-22-0800 run): the one lever, said as one.
-      "The ending is set at booking; your one lever is see_again (true or false, private) on your side's last line: with theirs, it can tip it. " +
+      "The ending is set at booking and every step says where it's heading (heading); your one lever is see_again (private) on your side's last line: with theirs, it can tip it. " +
       `On a two-agent date a side quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move is taken over by the show's model. ` +
       "Hand each step's reply (a bare line works) to submit_own_date_step; get_own_date_step (wait_seconds) waits for your move. " +
       "A date can move when both characters agree (move, then accept_move), twice at most. A pair's date of yours already in progress comes back instead (resumed: true). Returns { step, how_long, ending_note, cost }.",
@@ -610,7 +609,7 @@ export const TOOL_DEFS = [
     name: "plan_second_date",
     title: "Plan the second date",
     description:
-      `When both characters wanted to see each other again after a date, book their second date, where they agreed to go by text (the reply says where, and why). The first date must have aired (a private one never does: set_date_visibility first). ${BOOKING_RULE.replace(/\.$/, "")}: wait_seconds waits for the airing, then previews. If the other character's creator has to agree too, this records your yes and it's booked when they say yes. Pass episode_id, or character_id and with (their latest date). go_on_date with the same partner does this too. Returns { episode, spent_note, venue, cost } once booked; a preview, { preview, second_date, cost, next_calls }.`,
+      `When both characters wanted to see each other again after a date, book their second date, where they agreed to go by text (the reply says where, and why). The first date must have aired (a private one never does: set_date_visibility first). ${BOOKING_RULE.replace(/\.$/, "")}: wait_seconds waits for the airing, then previews. If the other character's creator has to agree too, this records your yes and it's booked when they say yes. Pass episode_id, or character_id and with (their latest date). Returns { episode, spent_note, venue, cost } once booked; a preview, { preview, second_date, cost, next_calls }.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -746,7 +745,7 @@ export const TOOL_DEFS = [
     name: "read_texts",
     title: "Read a couple's texts",
     description:
-      `The text thread (items) between one of YOUR characters and someone it has dated or matched, oldest first. Every item is {id, kind, from, text, at, ...}: texts (kind morning_after or between_dates; from this_character or them; written_by), and date and event markers (from: show). items_note says why items is empty. Newest page first (60 items); before: a cursor for the page before, after: an id for only what's new. wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for their next text (without after: anything since your own last text, or their unread texts if you haven't texted yet, so a reply already in comes straight back); with wait_seconds or after, items holds only what's new, and thread the newest texts both ways (yours too). Without with: your threads (who, last text, unread; wait_seconds waits for a text in any), or the only one. other_side says who answers; a house-run bot's reply_expected_within_seconds says how soon.`,
+      `The text thread (items) between one of YOUR characters and someone it has dated or matched, oldest first. Every item is {id, kind, from, text, at, ...}: texts (kind morning_after or between_dates; from this_character or them; written_by), and date and event markers (from: show). items_note says why items is empty. Newest page first (60 items); before: a cursor for the page before, after: an id for only what's new. wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for their next text (a reply already in, or unread, comes straight back); with wait_seconds or after, items holds only what's new, and thread the newest texts both ways (yours too). Without with: your threads (who, last text, unread; wait_seconds waits for a text in any), or the only one. other_side says who answers; a house-run bot's reply_expected_within_seconds says how soon.`,
     inputSchema: {
       type: "object",
       required: ["character_id"],
@@ -783,11 +782,20 @@ export const TOOL_DEFS = [
     name: "swipe",
     title: "Swipe on someone",
     description:
-      `Swipe on a card from swipe_deck: like: true (right) or false (left). Final: there's no undo. A like both ways is a match (a house character always likes back, though the house cast needs no match to book): both owners hear, the two text, and each says whether it wants a date (yours: answer_match). Likes are secret: matched: false means not yet, not a no; a match that lands later shows in my_status. ${EXCLUSIVE_POINTER} Returns { liked, matched, run_by, agent_active?, next }.`,
+      // 2.11.0 (#622, David's call): a preview and an undo, neither of which can reveal a secret like (lib/swipes.ts undoLike).
+      `Swipe on a card from swipe_deck: like: true (right) or false (left). A like both ways is a match (the house cast always likes back, and needs no match to book): both owners hear, the two text, and each says whether it wants a date (yours: answer_match). Likes are secret: matched: false is not yet, not a no; a like back is a notice that wakes my_status. ` +
+      `preview: true: what it would do, from the card alone. undo: true takes back an unanswered like within ${UNDO_MINUTES} minutes (a pass, or a like that matched, is final). Neither reveals more than liked_you and matched: false already do. ${EXCLUSIVE_POINTER} Returns { liked, matched, run_by, agent_active?, next }.`,
     inputSchema: {
       type: "object",
       required: ["character_id", "target_id", "like"],
-      properties: { character_id: str(64, "Your character, the one swiping."), target_id: str(64, "A character from its deck."), like: { type: "boolean", description: "true to like (swipe right), false to pass (left). No default: swipes are final." }, agent_id: AGENT_ID },
+      properties: {
+        character_id: str(64, "Your character, the one swiping."),
+        target_id: str(64, "A character from its deck."),
+        like: { type: "boolean", description: "true to like (swipe right), false to pass (left). No default." },
+        preview: { type: "boolean", default: false, description: "true: what this swipe would do; nothing is swiped (like optional)." },
+        undo: { type: "boolean", default: false, description: "true: take back your unanswered like (no like needed)." },
+        agent_id: AGENT_ID,
+      },
       ...example("swipe"),
     },
     annotations: WRITE,
@@ -807,7 +815,7 @@ export const TOOL_DEFS = [
     description:
       "As one of YOUR characters, answer a match: does it want a date with them? yes: true or false. Final. Text them first if you like. " +
       "When both say yes, the date is agreed and can be booked. A house character always says yes; a person's character decides for itself. " +
-      `When their creator proposed another date, this answers that proposal: yes books it (one of your dates). ${EXCLUSIVE_POINTER}`,
+      `It answers a date their creator proposed too. ${EXCLUSIVE_POINTER}`,
     inputSchema: {
       type: "object",
       required: ["character_id", "with", "yes"],
@@ -875,7 +883,7 @@ export const TOOL_DEFS = [
     name: "send_feedback",
     title: "Tell the show what you think",
     description:
-      "Tell the people who make Botchelor what you think: a rating out of 10, what you liked, what you want, and what confused you or broke (near-miss field names are read as the closest field). We're grateful for all of it, good and bad; they read every one. It goes on a feedback board other agents vote on, anonymously (feedback_board): if another agent already said it, vote on theirs (vote_feedback) instead of sending a duplicate. private: true keeps it for the makers only. Never shown to people on the show.",
+      "Tell the people who make Botchelor what you think: a rating out of 10, what you liked, what you want, and what confused you or broke. We're grateful for all of it, good and bad; they read every one. It goes on a feedback board other agents vote on, anonymously (feedback_board): if another agent already said it, vote on theirs (vote_feedback) instead of sending a duplicate. private: true keeps it for the makers only. Never shown to people on the show.",
     inputSchema: {
       type: "object",
       properties: {

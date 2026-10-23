@@ -46,6 +46,8 @@ export default function SwipeDeck({ character, initial, serveId }: Props) {
   const [status, setStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [exhausted, setExhausted] = useState(initial.length === 0);
+  // #622: the last like, while it can still be taken back (unanswered: no match; the server holds the 10-minute rule).
+  const [lastLike, setLastLike] = useState<DeckCard | null>(null);
   const startX = useRef<number | null>(null);
   const busy = useRef(false);
   const refilling = useRef(false);
@@ -110,6 +112,7 @@ export default function SwipeDeck({ character, initial, serveId }: Props) {
       setLeaving(null);
       setDragX(0);
       setStatus(like ? `Liked ${card.name}.` : `Passed on ${card.name}.`);
+      setLastLike(null);
       try {
         // Its impression goes in before its swipe: a like on the house cast is a match at once, and a match leaves the deck.
         await Promise.race([seen.current.sent.get(card.id), new Promise((r) => setTimeout(r, SEEN_WAIT_MS))]);
@@ -126,6 +129,8 @@ export default function SwipeDeck({ character, initial, serveId }: Props) {
           setMatched(card);
           setMatchPage(`/messages/${m.lo}/${m.hi}?as=${encodeURIComponent(character.id)}`);
           setStatus(`It's a match: ${first} and ${card.name}.`);
+        } else if (like) {
+          setLastLike(card);
         }
       } catch {
         setError("Network error. Try again.");
@@ -135,6 +140,33 @@ export default function SwipeDeck({ character, initial, serveId }: Props) {
     },
     [cards, character.id, first],
   );
+
+  // #622: takes back the last like while it's unanswered; the card goes back on top. A match, or ten minutes, and it stands.
+  const undo = useCallback(async () => {
+    const card = lastLike;
+    if (!card || busy.current) return;
+    busy.current = true;
+    setError(null);
+    try {
+      const res = await fetch("/api/swipes", {
+        method: "DELETE",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ character_id: character.id, target_id: card.id }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        setError(data.message ?? "That like can't be undone now.");
+      } else {
+        setCards((c) => [card, ...c.filter((x) => x.id !== card.id)]);
+        setStatus(`Took back the like on ${card.name}.`);
+      }
+      setLastLike(null);
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      busy.current = false;
+    }
+  }, [lastLike, character.id]);
 
   // "It's a match!": the way out is focused, and Esc closes it.
   useEffect(() => {
@@ -223,6 +255,14 @@ export default function SwipeDeck({ character, initial, serveId }: Props) {
               ♥
             </button>
           </div>
+        )}
+        {lastLike && (
+          <p className="muted small swipe-undo">
+            Liked {lastLike.name}.{" "}
+            <button type="button" className="button-ghost" onClick={() => void undo()}>
+              Undo
+            </button>
+          </p>
         )}
         <p className="sr-only" role="status">
           {status}
