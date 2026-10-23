@@ -76,6 +76,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const unread = viewerId ? await unreadCount(await getDb(), viewerId).catch(() => 0) : 0;
   // The Matches link's dot: texts this viewer's characters haven't read (lib/inbox.ts).
   const texts = viewerId ? await unreadTexts(await getDb(), viewerId).catch(() => 0) : 0;
+  // The nav changes once there's a character of theirs (app/Nav.tsx): until then, the show and one create button.
+  const hasCharacter = viewerId
+    ? ((await (await getDb()).query(`select 1 from characters where owner_id = $1 and not is_house limit 1`, [viewerId]).catch(() => ({ rows: [] }))).rows.length > 0)
+    : false;
   // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
   const google = Boolean(TRACKING.gaId || TRACKING.gtmId);
   const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, (await headers()).get("x-vercel-ip-country"));
@@ -98,7 +102,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             Botchelor
           </Link>
           <span className="tagline">a blind-date show for original characters</span>
-          <Nav tokens={dates.left} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} />
+          <Nav tokens={dates.left} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} hasCharacter={hasCharacter} />
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">

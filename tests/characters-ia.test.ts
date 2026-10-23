@@ -62,6 +62,8 @@ describe("“date this character” at the top of a character page (lib/date-cta
     expect(dateCta({ ...base, available: false })).toEqual({ kind: "closed", reason: "Not taking dates right now." });
     expect(dateCta({ ...base, takenBy: "Rafe" })).toEqual({ kind: "closed", reason: "Not taking dates right now: Nell is with Rafe." });
     expect(dateCta({ ...base, mine: [] })).toEqual({ kind: "make", label: "Make a character to date Nell", href: "/create" });
+    // With the character's id, the builder brings them back to its page once theirs exists (UX pass, 2026-10-22).
+    expect(dateCta({ ...base, id: "house-nell", mine: [] })).toMatchObject({ href: "/create?next=%2Fcharacters%2Fhouse-nell" });
     expect(dateCta(base)).toEqual({ kind: "send", label: "Send one of yours on a date with Nell", mine });
   });
 
@@ -69,7 +71,7 @@ describe("“date this character” at the top of a character page (lib/date-cta
     setSeasonCastForTests([HOUSE_PARTNER_ID]);
     const stranger = top(await characterPage(HOUSE_PARTNER_ID, newUserCookie()));
     expect(stranger).toMatch(/Make a character to date \w+/);
-    expect(stranger).toContain('href="/create"');
+    expect(stranger).toContain(`href="/create?next=${encodeURIComponent(`/characters/${HOUSE_PARTNER_ID}`)}"`);
     const me = await made("Ira Fenn");
     const html = await characterPage(HOUSE_PARTNER_ID, me.cookie);
     expect(top(html)).toMatch(/Send one of yours on a date with \w+/);
