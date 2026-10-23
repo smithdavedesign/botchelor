@@ -36,10 +36,10 @@ import {
   type Whispers,
 } from "./director";
 import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
-import { activeLimit, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
+import { activeLimit, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
 import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
 import { fileSteps, logStep, markRewound, stepIndexOf, stepsOf, unfileSteps, type StepRow } from "./steps";
-import { hardNoHit, hardNoLines, hasHardNos, INTENSITY, intensityLine, intensityOf, limitsHit, NO_LIMITS, OWN_LEN, OWN_MAX, storedHardNos, type HardNos, type Intensity, type PairLimits } from "./limits";
+import { hardNoHit, hardNoLines, hasHardNos, INTENSITY, intensityLine, intensityOf, limitsHit, NO_LIMITS, overIntensity, OWN_LEN, OWN_MAX, plainTalk, storedHardNos, type HardNos, type Intensity, type PairLimits } from "./limits";
 import { framingOf, mayEditProfile, profileLines, turnOnsFor, turnOnsOf, type FramingId, type TurnOnId } from "./profile";
 import { scenarioById, type Scenario } from "./scenarios";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
@@ -96,7 +96,9 @@ import {
   WORN_AT,
   wornIn,
 } from "./quality";
-import { DEFAULT_PROMPT_VERSION, getAdultSettings, type AdultSettings, type PromptVersion } from "./settings";
+import { DEFAULT_PROMPT_VERSION, getAdultSettings, SCENE_PROMPT_REVISION, type AdultSettings, type PromptVersion } from "./settings";
+import { carriesQuote, quotedSpans, quotesKept, steerQuotes, withoutQuotes, type QuoteCheck, type SteerQuote } from "./quotes";
+import { kickAutoPicture } from "./auto-pictures";
 import { castNames, sceneCharacter, styleExamples, voiceKitLines } from "./voice";
 export { SOFT_CHAPTERS } from "./stages";
 
@@ -402,16 +404,39 @@ const sheetV2 = (c: Character | null, side: "a" | "b", catchphraseUsed = false, 
  * on prod, 2026-10-22: her bakery in 137 of 298 lines, his pottery in 73, her pencil spun 31 times, during sex too): their
  * job and hobbies come up now and then, not in every line, and their tells are left to the craft rules.
  */
-function voiceRules(a: Character | null, b: Character | null, names: { a: string; b: string }): string[] {
+function voiceRules(a: Character | null, b: Character | null, names: { a: string; b: string }, plain = false): string[] {
   const banned = bannedPhrases([a, b].filter((c): c is Character => Boolean(c)).map((c) => sheetText(sideOfCharacter(c))));
   const pronouns = (c: Character | null, name: string) => `${name.split(/\s+/)[0]}: ${c?.pronouns?.trim() || "none given, so use their name"}`;
   return [
     `Only the two of them are in this scene: ${names.a} and ${names.b}. Nobody else speaks, arrives or is named, and each calls the other by their own name.`,
-    "Stay this person when it gets intimate: their humour and the way they talk still show, and their job or a hobby comes up now and then, not in every line; no generic romance-novel phrasing. They sound like their sheets, not like a paperback.",
+    // v2.3 (David, 2026-10-23: a baker turned every line of a filthy steer into a baking pun): at Filthy's late stages the
+    // voice is attitude and rhythm, and the jokes and the job are a seasoning.
+    plain ? FILTHY_VOICE : VOICE_RULE,
     `Never write these stock phrases, or anything in their register: ${banned.join(", ")}.`,
     `Their pronouns, from their sheets: ${pronouns(a, names.a)}; ${pronouns(b, names.b)}. Use only these, for them, their bodies and their places.`,
   ];
 }
+
+/** v2's rule for staying themselves (every intensity, and Filthy before undressing). */
+const VOICE_RULE =
+  "Stay this person when it gets intimate: their humour and the way they talk still show, and their job or a hobby comes up now and then, not in every line; no generic romance-novel phrasing. They sound like their sheets, not like a paperback.";
+/** v2.3, Filthy from undressing on: the voice in how they talk dirty, not in puns. */
+const FILTHY_VOICE =
+  "Stay this person when it gets intimate, in attitude and rhythm: how bold or shy they are, how they ask, tease and answer, the length and pace of what they say. Now it's gone this far, the jokes and their job are a light seasoning, a line now and then at most: no puns, no wordplay on their work, no coy stand-ins for what they mean. No generic romance-novel phrasing either. They sound like themselves, talking dirty.";
+
+/** Explicit's line (and every prompt's before #702): the system prompt's word on what's allowed. */
+const EXPLICIT_RULE =
+  "Both characters are adults (18 or older) and both are willing. Explicit sexual content is allowed and expected when the scene goes there; write it frankly, in each character's own voice.";
+/** v2.3's Filthy intensity (lib/adult/limits.ts), said where Explicit says it. */
+const FILTHY_RULE =
+  "Both characters are adults (18 or older) and both are willing. Explicit sexual content is allowed and expected when the scene goes there, and this scene is written filthy: once they're undressing, the acts are described plainly and graphically, and they talk dirty in the dialogue itself, in plain, explicit words.";
+
+/**
+ * Whether a step writes Filthy's way: prompt v2, the Filthy intensity, and no "dirty talk" hard no (a hard no wins: then
+ * it's Explicit's prompt, and the hard-no check still drops a crude line). Its plain talk starts at undressing
+ * (lib/adult/limits.ts plainTalk).
+ */
+export const writesFilthy = (v2: boolean, limits: PairLimits): boolean => v2 && plainTalk(limits, STAGES.length - 1);
 
 /** The worn phrases the prompt lists per character, at most (the most worn first). */
 const WORN_SHOWN = 8;
@@ -443,7 +468,7 @@ function craftLines(
   a: Character | null,
   b: Character | null,
   lines: readonly SceneLine[],
-  now: { place: string; set?: string | null; stage: number; movesLeft?: number; linesHere?: number; publicPlace?: boolean; tellsUsed?: { a: readonly string[]; b: readonly string[] } },
+  now: { place: string; set?: string | null; stage: number; movesLeft?: number; linesHere?: number; publicPlace?: boolean; tellsUsed?: { a: readonly string[]; b: readonly string[] }; plain?: boolean },
 ): string[] {
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
   const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
@@ -464,6 +489,9 @@ function craftLines(
       "- Their tells (the habits on their sheets) are for the talking: now it's gone this far they don't show, unless one truly fits the moment.",
       "- Keep track of how they're positioned: once a line sets it (on top, from behind, against the wall), the lines only show what each of them could see, reach or do from there (from behind, their eyes don't meet), until a line changes it.",
     );
+  }
+  if (now.plain) {
+    rules.push("- Filthy: they say what they want, what they're doing and how it feels, out loud, in plain words, each in their own way. A joke or their work gets a line now and then at most; a theme they keep coming back to doesn't take over.");
   }
   if (now.stage >= STAGES.length - 1) {
     const climax = recentClimax(lines);
@@ -579,9 +607,17 @@ export function sceneMessages(
     limits?: PairLimits;
     /** Their profiles (lib/adult/profile.ts): each one's turn-ons, the pair's framing, and tonight's scenario. */
     profile?: SceneProfile;
+    /** v2.3: a new chapter carrying on from the last, and a Direct steer's quoted lines. */
+    carry?: ChapterCarry | null;
+    quotes?: readonly SteerQuote[];
   } = { place: "wherever they've just met", stage: 0 },
 ): ChatMessage[] {
   const v2 = (now.promptVersion ?? DEFAULT_PROMPT_VERSION) === "v2";
+  // v2.3's Filthy intensity (lib/adult/limits.ts): its own line for what's allowed, and from undressing on (plain) its
+  // voice and line rules. A "dirty talk" hard no turns it back into Explicit's prompt.
+  const filthy = writesFilthy(v2, now.limits ?? NO_LIMITS);
+  const plain = v2 && plainTalk(now.limits ?? NO_LIMITS, now.stage);
+  const carry = v2 ? (now.carry ?? null) : null;
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
   const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
   // v2.1: where they are, with a possessive neither of them goes by put right ("his apartment entrance", two women);
@@ -606,12 +642,10 @@ export function sceneMessages(
   const capped = cap < STAGES.length - 1;
   const system = [
     "You write a private, adults-only scene for one reader: two characters from a dating show, alone together.",
-    register
-      ? `Both characters are adults (18 or older) and both are willing. ${register}`
-      : "Both characters are adults (18 or older) and both are willing. Explicit sexual content is allowed and expected when the scene goes there; write it frankly, in each character's own voice.",
+    register ? `Both characters are adults (18 or older) and both are willing. ${register}` : filthy ? FILTHY_RULE : EXPLICIT_RULE,
     "Two rules never move: nobody in the scene is under 18 or described as a child, and no real, identifiable person appears or is named.",
     ...hardNoLines(limits.hard_nos),
-    ...(v2 ? voiceRules(a, b, { a: nameOf("a"), b: nameOf("b") }) : []),
+    ...(v2 ? voiceRules(a, b, { a: nameOf("a"), b: nameOf("b") }, plain) : []),
     "",
     v2 ? sheetV2(a, "a", now.catchphraseUsed?.a, now.styles?.a) : sheetOf(a, "a", now.catchphraseUsed?.a),
     "",
@@ -633,6 +667,7 @@ export function sceneMessages(
         : "",
     now.recap ? `Earlier tonight (what's happened so far, keep it in mind and don't repeat it):\n${now.recap}` : "",
     sceneTail.length ? `The scene so far:\n${sceneTail.join("\n")}` : "The scene starts now, picking up where their date ended.",
+    ...(carry ? carryLines(carry, nameOf) : []),
     "",
     `Where they are now: ${where.place}${where.set && where.set.toLowerCase() !== where.place.toLowerCase() ? ` (the set: ${where.set})` : ""}. How far it's gone: ${STAGES[now.stage]} (stage ${now.stage + 1} of ${STAGES.length}: ${STAGES.join(" → ")}).${capped ? ` Tonight it goes no further than ${STAGES[cap]}.` : ""}`,
     // The night's places, so nobody asks "my place?" once they're there (Star × Chud, 2026-10-21, asked it at his place).
@@ -644,11 +679,13 @@ export function sceneMessages(
       ? `- The viewer has turned it down to ${INTENSITY[limits.intensity].label.toLowerCase()}: from here it goes no further than ${STAGES[cap]}. Ease back to that gently (they slow down, talk, stay close) and stay there, whatever the steer says.`
       : capped && now.stage === cap && (now.linesAtStage ?? 0) >= MIN_LINES_PER_STAGE
         ? `- It's gone as far as tonight goes (${STAGES[cap]}): these lines stay there, with talk, looks and reactions, and go no further, whatever the steer says.`
-        : (now.linesAtStage ?? 0) < MIN_LINES_PER_STAGE
-          ? `- Tease it out. These lines stay at ${STAGES[now.stage]}: linger in it, with talk, looks, hesitation and anticipation. Don't move on to the next stage yet.`
-          : now.stage < STAGES.length - 1
-            ? `- Move it on. It has lingered long enough: in these lines it goes one stage further, to ${STAGES[now.stage + 1]}, and no further.`
-            : "- Take your time: let it unfold, with talk and reactions between the actions.",
+        : carry?.floor && now.stage <= carry.stage && (now.linesAtStage ?? 0) < MIN_LINES_PER_STAGE
+          ? `- Carry on at ${STAGES[carry.stage]}, unhurried: these lines stay there, and nothing goes back to an earlier stage.`
+          : (now.linesAtStage ?? 0) < MIN_LINES_PER_STAGE
+            ? `- Tease it out. These lines stay at ${STAGES[now.stage]}: linger in it, with talk, looks, hesitation and anticipation. Don't move on to the next stage yet.`
+            : now.stage < STAGES.length - 1
+              ? `- Move it on. It has lingered long enough: in these lines it goes one stage further, to ${STAGES[now.stage + 1]}, and no further.`
+              : "- Take your time: let it unfold, with talk and reactions between the actions.",
     now.cutTo
       ? `- The scene has just cut to ${now.cutTo}: they're there now. Open these lines on arriving there (how they got there, what they make of it) and carry on from there.`
       : (now.opening ?? lines.length === 0)
@@ -669,6 +706,7 @@ export function sceneMessages(
           linesHere: now.linesHere,
           publicPlace: !(direction && now.steerMode === "direct") && isPublicPlace(where.set ?? where.place, now.homeNow ?? null),
           tellsUsed: now.tellsUsed,
+          plain,
         })
       : []),
   ]
@@ -692,12 +730,14 @@ export function sceneMessages(
   const user =
     `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}${v2 ? `, starting with ${first(next)}` : ""}. ` +
     `Each line is ${v2 ? "a few words to 3 sentences (now and then only an action)" : "1 to 3 sentences"} in that character's own voice, vivid and specific, never a stock line ("you feel amazing"). ` +
-    (v2 ? "As it heats up they stay themselves: their humour and their way of talking keep showing, their work or a hobby now and then (not in every line), and nothing reads like a romance novel. " : "") +
+    (v2 ? (plain ? FILTHY_LINE_RULE : LINE_RULE) : "") +
     `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text. Write both in English.` +
     (direction
       ? now.steerMode === "direct"
         ? v2
-          ? ` Steer the scene this way, now: ${direction}. Act it out in their own words and actions, as these two characters would; never copy the steer's words into a line or an action.`
+          ? now.quotes?.length
+            ? ` Steer the scene this way, now: ${direction}. ${quoteRule(now.quotes, first)}`
+            : ` Steer the scene this way, now: ${direction}. Act it out in their own words and actions, as these two characters would; never copy the steer's words into a line or an action.`
           : ` Steer the scene this way: ${direction}`
         : v2
           ? ` Lean the scene gently this way, at its own pace (the pace and place rules above still hold; work toward it, don't jump to it): ${direction}. Act it out in their own words; never copy the steer's words into a line or an action.`
@@ -720,6 +760,68 @@ export function sceneMessages(
     { role: "system", content: system },
     { role: "user", content: user },
   ];
+}
+
+/** v2's rule for the lines themselves (every intensity, and Filthy before undressing). */
+const LINE_RULE =
+  "As it heats up they stay themselves: their humour and their way of talking keep showing, their work or a hobby now and then (not in every line), and nothing reads like a romance novel. ";
+/** v2.3, Filthy from undressing on (lib/adult/limits.ts plainTalk). */
+const FILTHY_LINE_RULE =
+  "From here on they talk dirty in the dialogue itself, in plain, explicit words: what they want, what they're doing, how it feels, said the way this person would say it. Their humour and their work are a light seasoning at most (a line now and then), never a pun; the voice is in their attitude and rhythm, and nothing reads like a romance novel. ";
+
+/**
+ * v2.3 (David, 2026-10-23: the quoted lines in his Direct steers never came out, since the no-copy rule cut them): a
+ * steer's quoted lines are said nearly as written, by whoever it names, and the rest is still acted out.
+ */
+function quoteRule(quotes: readonly SteerQuote[], first: (who: "a" | "b") => string): string {
+  const said = quotes.map((q) => `${q.who ? first(q.who) : "whichever of them it fits"} says "${q.text}"`).join("; ");
+  return (
+    `The words in quotes are lines to be spoken: ${said}. Each one is said out loud nearly as written, in a line by that character, fitted lightly to their voice and the moment` +
+    ` (a name, a word or a tense can change; never the meaning, or how explicit it is). Everything else in the steer is acted out in their own words and actions, as these two characters would;` +
+    ` never copy the rest of the steer's words into a line or an action.`
+  );
+}
+
+/**
+ * A new chapter picking up where the last one stopped (v2.3; David, 2026-10-23: chapter 5 began by teasing again for 15
+ * lines, though chapter 4 ended mid-sex). What the chapter carries: the stage and the place it ended at, its last lines,
+ * and whether it ended in an afterglow (then v2.2's rule holds: it only picks up again when one of them starts it).
+ * `first`: these are the chapter's first lines. `floor`: the stage can't go below `stage` in this chapter (until a
+ * climax, and never when it ended in an afterglow).
+ */
+export type ChapterCarry = { stage: number; place: string; tail: readonly SceneLine[]; afterglow: boolean; first: boolean; floor: boolean };
+
+/** The carried lines the prompt restates. */
+const CARRY_TAIL = 6;
+
+function carryLines(c: ChapterCarry, nameOf: (who: "a" | "b") => string): string[] {
+  const stage = `${STAGES[c.stage]} (stage ${c.stage + 1} of ${STAGES.length})`;
+  if (!c.first) return c.floor ? [`This chapter carries on from the last one, at ${stage}: it doesn't go back to an earlier stage.`] : [];
+  const tail = c.tail.slice(-CARRY_TAIL).map((l) => `${nameOf(l.who)}: ${l.text}`);
+  if (c.afterglow) {
+    return [
+      `A new chapter of the night starts here. The last one ended in an afterglow, at ${c.place}, after ${STAGES[c.stage]}; its last lines:`,
+      ...tail,
+      "Continue from there, in the same place: it only picks up again when one of them starts it in a line and the other answers.",
+    ];
+  }
+  return [
+    `A new chapter of the night starts here, but nothing has stopped: the last chapter ended mid-moment, at ${c.place}, at ${stage}. Its last lines:`,
+    ...tail,
+    `Continue from here: the first of these lines carries straight on from that exact moment, in that place, at ${STAGES[c.stage]}, doing what they were doing. No teasing it out again, no going back to an earlier stage, no starting over; where the recap and these last lines disagree, the last lines are where they are.`,
+  ];
+}
+
+/**
+ * What a new chapter carries from the last (ChapterCarry), from the scene as it stands: null in chapter 1, or with
+ * nothing carried over. The stage it ended at is its last line's (the stage each line was written at), else the scene's.
+ */
+export function chapterCarry(scene: Pick<SceneState, "chapter" | "prev_tail" | "lines" | "stage">, place: string): ChapterCarry | null {
+  if (scene.chapter <= 1 || !scene.prev_tail.length) return null;
+  const last = scene.prev_tail.at(-1)!;
+  const stage = typeof last.stage === "number" ? last.stage : scene.stage;
+  const afterglow = recentClimax(scene.prev_tail) !== null;
+  return { stage, place, tail: scene.prev_tail, afterglow, first: scene.lines.length === 0, floor: !afterglow && !scene.lines.some((l) => climaxIn(l.text)) };
 }
 
 /** Letters outside the Latin script: the Venice text model sometimes slips into Russian, mostly in the actions. */
@@ -865,7 +967,7 @@ export function dropRepeats(
   chapter: readonly SceneLine[],
   a: Character | null,
   b: Character | null,
-  opts: { worn?: boolean; craft?: boolean } = {},
+  opts: { worn?: boolean; craft?: boolean; quotes?: readonly SteerQuote[] } = {},
 ): { kept: SceneLine[]; dropped: DroppedLine[]; worn: number; cuts: CraftCuts } {
   const kept: SceneLine[] = [];
   const dropped: DroppedLine[] = [];
@@ -882,6 +984,13 @@ export function dropRepeats(
   for (const l of written) {
     const before = [...night, ...kept];
     const mine = [...chapter, ...kept].filter((x) => x.who === l.who);
+    // v2.3: a line saying one of a Direct steer's quoted lines stays as it is: the steer asked for those words, even when
+    // they were said before tonight (a redo, the same quote steered twice).
+    if (opts.quotes?.length && carriesQuote(opts.quotes, l)) {
+      kept.push(l);
+      if (counts) for (const p of phrasesIn(l.text, named)) counts[l.who].set(p, (counts[l.who].get(p) ?? 0) + 1);
+      continue;
+    }
     // The catchphrase first (it would make any short line that says it look like the last one that did).
     let text: string | null = l.text;
     const phrase = (l.who === "a" ? a : b)?.extras.catchphrase;
@@ -996,7 +1105,7 @@ export function dropRepeats(
 }
 
 export type ContinueResult =
-  | { ok: true; scene: AdultScene; added: number; held: number; repeats: number; dropped: number; pictures: Media[]; picture_note?: string }
+  | { ok: true; scene: AdultScene; added: number; held: number; repeats: number; dropped: number; pictures: Media[]; picture_note?: string; auto_picture?: boolean }
   | { ok: false; status: number; message: string };
 
 /**
@@ -1113,6 +1222,19 @@ export type StepFlags = {
   intensity_dropped?: number;
   /** Logged on a redo's step (the step it took back is marked rewound). */
   redo?: boolean;
+  /** v2.3: which revision of the prompt wrote it ("v2.3", or "v1"), and whether it wrote Filthy's way (writesFilthy). */
+  prompt?: string;
+  filthy?: boolean;
+  /**
+   * v2.3: a Direct steer's quoted lines, each with whether a kept line said it nearly as written (lib/adult/quotes.ts),
+   * and whether all of them were (quote_kept, only when there were any). quote_retry: asked once more for a missing one.
+   */
+  quotes?: QuoteCheck[];
+  quote_kept?: boolean;
+  quote_retry?: boolean;
+  /** v2.3: a new chapter carrying on from the last (the stage and place it carried), and a claim it raised to that stage. */
+  carry?: { stage: number; place: string; first: boolean; floor: boolean };
+  stage_floor_raised?: boolean;
 };
 
 /** "kissing" (STAGES): as far as it goes in a public place (David, 2026-10-18). */
@@ -1187,6 +1309,12 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   // below how far it had already gone, and not under a Direct steer (which can jump).
   const publicCap =
     v2 && !(steer && steerMode === "direct") && isPublicPlace(scene.set_place ?? scene.place ?? date?.setting ?? null, homeNow) ? Math.max(KISSING, scene.stage) : null;
+  // v2.3: a Direct steer's quoted lines (said nearly as written; the rest of it still acted out: lib/adult/quotes.ts),
+  // and a new chapter carrying on from where the last one stopped, never below the stage it ended at.
+  const quotes: SteerQuote[] = v2 && steer && steerMode === "direct" ? steerQuotes(steer, names, { a: a?.pronouns, b: b?.pronouns }) : [];
+  const copyRule = quotes.length ? withoutQuotes(steer) : steer;
+  const carry = v2 ? chapterCarry(scene, possessiveNames(scene.set_place ?? placeOf(scene, date), names) ?? placeOf(scene, date)) : null;
+  const floor = carry?.floor ? carry.stage : null;
   const messages = sceneMessages(a, b, date, night, steer, pair.a.id, {
     place: placeOf(scene, date),
     stage: scene.stage,
@@ -1211,12 +1339,17 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     whispers,
     limits,
     profile: input.profile,
+    carry,
+    quotes,
   });
   const usage: Usage[] = [];
   const flags: StepFlags = {
     calls: 0, retried: false, held: 0, repeats: 0, names_repaired: 0, names_dropped: 0, alternation_merged: 0, alternation_dropped: 0, alternation_boundary: 0,
     refused: 0, moralising: 0, refusal_reply: false, citations: [], worn_phrases: 0, show_copies_cut: 0, public_dropped: 0,
     hooks_cut: 0, tells_cut: 0, actions_cut: 0, openings_cut: 0, build_ups_cut: 0, whispers_said: 0, suggestions_replaced: 0, hard_nos: 0, intensity_dropped: 0,
+    prompt: v2 ? SCENE_PROMPT_REVISION : "v1",
+    ...(writesFilthy(v2, limits) ? { filthy: true } : {}),
+    ...(carry ? { carry: { stage: carry.stage, place: carry.place, first: carry.first, floor: carry.floor } } : {}),
   };
   const { temperature, frequency_penalty, presence_penalty, repetition_penalty } = input.sampling;
   const options: ModelOptions = {
@@ -1279,7 +1412,8 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
       }
       flags.names_repaired += g.repairs.length;
       // The steer acted out, never quoted (lib/adult/stage-floor.ts): an action that copies it goes, a line that does is dropped.
-      const own = withoutSteerCopy(g.text, steer);
+      // v2.3: a steer's quoted lines are meant to be said, so only the rest of it is held to that rule.
+      const own = withoutSteerCopy(g.text, copyRule);
       if (!own) {
         drops.push({ who: l.who, text: l.text, reason: "copied the steer instead of acting it out" });
         continue;
@@ -1315,8 +1449,9 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
             drops.push({ who: l.who, text: l.text, reason: `went past kissing in a public place (${scene.set_place ?? scene.place ?? date?.setting ?? "where they are"})` });
             return false;
           });
-    const reps = dropRepeats(inPlace, night, scene.lines, a, b, { worn: v2, craft: v2 });
+    const reps = dropRepeats(inPlace, night, scene.lines, a, b, { worn: v2, craft: v2, quotes });
     const fresh = reps.kept.flatMap((l): SceneLine[] => {
+      if (quotes.length && carriesQuote(quotes, l)) return [l];
       const copy = showLines.length ? repeatOf(l.text, showLines) : null;
       if (copy) {
         reps.dropped.push({ who: l.who, text: l.text, reason: `repeats one of their show lines: "${copy.of.slice(0, 80)}"` });
@@ -1386,6 +1521,33 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
         ? [messages[0], { role: "user", content: `${messages[1].content}\n\n${note}` }]
         : [...messages, { role: "assistant", content: out.raw }, { role: "user", content: note }];
       out = guard(await input.model.complete(again, hot ? hotter(options) : options));
+    }
+    // v2.3: a Direct steer's quoted line that no kept line said: once more, saying which (the step's one retry, so only
+    // when it hasn't had it). The new take is used only when it says more of them; otherwise the first stands, as written.
+    const missing = quotes.length && !flags.retried && out.kept.length ? quotesKept(quotes, out.kept).filter((q) => !q.kept) : [];
+    if (missing.length) {
+      const first = (who: "a" | "b") => names[who].split(/\s+/)[0];
+      const note =
+        `Your lines left out the steer's quoted words: ${missing.map((q) => `${q.who ? first(q.who) : "one of them"} says "${q.text}"`).join("; ")}. ` +
+        `Write the ${LINES_PER_TURN} lines again, with each of those said out loud nearly as written in that character's line (a name, a word or a tense can change, never the meaning). Reply with the JSON again.`;
+      const snapshot = { ...flags, citations: [...flags.citations] };
+      const droppedBefore = dropped.length;
+      flags.retried = true;
+      flags.quote_retry = true;
+      flags.calls++;
+      const said = quotes.length - missing.length;
+      let second: ReturnType<typeof guard> | null = null;
+      try {
+        second = guard(await input.model.complete([...messages, { role: "assistant", content: out.raw }, { role: "user", content: note }], options));
+      } catch {
+        second = null;
+      }
+      if (second && second.kept.length && quotesKept(quotes, second.kept).filter((q) => q.kept).length > said) out = second;
+      else {
+        // The first take stands: what the second one dropped isn't this step's.
+        Object.assign(flags, { ...snapshot, retried: true, quote_retry: true, calls: flags.calls });
+        dropped.length = droppedBefore;
+      }
     }
   } catch (err) {
     return { ok: false, status: 502, message: `After dark's model didn't answer: ${err instanceof Error ? err.message : "error"}`, dropped, flags, shown, usage };
@@ -1475,8 +1637,16 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   const allowed = Math.min(cap, steer && steerMode === "direct" ? STAGES.length - 1 : scene.lines.length - scene.stage_from >= MIN_LINES_PER_STAGE ? scene.stage + 1 : scene.stage);
   // The model's claim, raised to what the lines plainly show when it ran behind them (lib/adult/stage-floor.ts); each line
   // carries the stage it was at, for the theater's label.
-  const { perLine, stage } = stagesFor(kept, scene.stage, Math.min(meta.stage ?? scene.stage, allowed, publicCap !== null && !settled.moved ? publicCap : STAGES.length - 1));
+  const claimed = Math.min(meta.stage ?? scene.stage, allowed, publicCap !== null && !settled.moved ? publicCap : STAGES.length - 1);
+  // v2.3: a new chapter carries on at the stage the last one ended at, so a claim below it is raised to it (like the
+  // stage floor raises a claim that ran behind the lines), until a climax or when the last chapter ended in an afterglow.
+  if (floor !== null && claimed < floor) flags.stage_floor_raised = true;
+  const { perLine, stage } = stagesFor(kept, Math.max(scene.stage, floor ?? 0), floor !== null ? Math.max(claimed, floor) : claimed);
   const stamped = kept.map((l, i) => ({ ...l, stage: perLine[i] }));
+  if (quotes.length) {
+    flags.quotes = quotesKept(quotes, stamped);
+    flags.quote_kept = flags.quotes.every((q) => q.kept);
+  }
   const stage_from = stage === scene.stage ? scene.stage_from : scene.lines.length;
   // v2's suggested next moves (lib/adult/director.ts), held to the rules a line is, for the scene as these lines leave it:
   // at most a stage on, and past kissing somewhere public only by leaving first.
@@ -1536,6 +1706,12 @@ export function limitRefusal(what: "steer" | "whisper", text: string | null, sce
   const level = INTENSITY[scene.intensity];
   const asked = stageAsked(text, scene.stage);
   if (asked !== null && asked > level.maxStage) return `That ${what} goes past ${STAGES[level.maxStage]}, as far as ${level.label.toLowerCase()} goes. Change it, or turn the intensity up, first.`;
+  // v2.3: a quoted line is spoken nearly as written (lib/adult/quotes.ts), so one the intensity wouldn't let a line say
+  // (past its stage, or too crude below explicit) is refused up front, like the rest of the steer.
+  for (const q of quotedSpans(text)) {
+    const over = overIntensity(q, scene.intensity);
+    if (over) return `That ${what} has a quoted line ${level.label.toLowerCase()} doesn't allow (${over}). Change it, or turn the intensity up, first.`;
+  }
   return null;
 }
 
@@ -1687,6 +1863,13 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // The last picture problem stays on the scene (the gallery shows it), and clears once a picture comes through.
   const note = picture_note ?? (pictures.length ? null : scene.picture_note);
   if (note !== scene.picture_note) await db.query(`update adult_scenes set picture_note = $2 where id = $1`, [scene.id, note]);
+  // A picture of the two of them for each chapter and each place (lib/adult/auto-pictures.ts): when these are the
+  // chapter's first lines, or they moved in them. Claimed now, drawn after the response; never fails the step.
+  const moved = next.moves.length > scene.moves.length && next.moves.at(-1)?.taken === true;
+  const autoPicture =
+    scene.lines.length === 0 || moved
+      ? await kickAutoPicture(db, adminId, { id: scene.id, chapter: scene.chapter, place: place ?? ctx.date?.setting ?? null, set_place, stage, lines }, a, b)
+      : false;
   let after: LoadedScene = { ...scene, ...next, suggestions, whispers: nextWhispers, picture_note: note, undo: stack };
   // A full chapter: filed as a saved night, recapped, and the night runs straight on into the next one. What the close
   // changed goes with the step's undo, so a rewind takes it back too.
@@ -1705,6 +1888,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     dropped: step.flags.names_dropped + step.flags.alternation_dropped + step.flags.refused + (step.flags.whispers_said ?? 0),
     pictures,
     ...(picture_note ? { picture_note } : {}),
+    ...(autoPicture ? { auto_picture: true } : {}),
   };
 }
 
@@ -1839,7 +2023,7 @@ async function nextChapter<S extends AdultScene>(db: Db, ownerId: string, scene:
  * Set the scene (David, 2026-10-19: "set the venue to any scene… for 1 token", paid by the caller): the scene jumps to
  * the place typed, its set is drawn if it has none, and the next lines open on arriving there. Held to the two lines.
  */
-export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, place: string): Promise<{ ok: true; scene: AdultScene } | { ok: false; status: number; message: string }> {
+export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, place: string): Promise<{ ok: true; scene: AdultScene; auto_picture?: boolean } | { ok: false; status: number; message: string }> {
   const label = place.trim().replace(/\s+/g, " ").slice(0, SET_SCENE_MAX);
   if (!label) return { ok: false, status: 400, message: "Say where to take them." };
   const placeCheck = checkAdultText({ place: label });
@@ -1864,7 +2048,10 @@ export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, 
     kind: "set_scene", direction: named, steer_mode: null, status: "ok", http: null, message: null, chapter: scene.chapter,
     line_from: null, line_to: null, added: 0, dropped: [], flags: null,
   });
-  return { ok: true, scene: publicScene({ ...scene, place: named, set_place, cut_to: named, place_history, moves, suggestions: [], undo: [] }) };
+  // A picture of them at the new place (lib/adult/auto-pictures.ts), once a chapter per place; never fails the cut.
+  const [ca, cb] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id)]);
+  const autoPicture = await kickAutoPicture(db, ownerId, { id: scene.id, chapter: scene.chapter, place: named, set_place, stage: scene.stage, lines: scene.lines }, ca, cb);
+  return { ok: true, scene: publicScene({ ...scene, place: named, set_place, cut_to: named, place_history, moves, suggestions: [], undo: [] }), ...(autoPicture ? { auto_picture: true } : {}) };
 }
 
 export type RewindResult = { ok: true; scene: AdultScene; given: Given; rewound: number } | { ok: false; status: number; message: string };
@@ -2225,7 +2412,7 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
   }
   await db.query(
     `update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, set_place = null, cut_to = null, chapter = 1, recap = null, prev_tail = '[]'::jsonb, place_history = '[]'::jsonb, moves = '[]'::jsonb,
-            suggestions = '[]'::jsonb, whispers = '{}'::jsonb, undo = '[]'::jsonb, scenario = null, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
+            suggestions = '[]'::jsonb, whispers = '{}'::jsonb, undo = '[]'::jsonb, scenario = null, auto_pictures = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
     [adminId, ...pair],
   );
 }

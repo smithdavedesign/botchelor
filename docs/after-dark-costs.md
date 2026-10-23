@@ -86,6 +86,7 @@ At 15 tokens that keeps about $9 to $10 a video, against $5.30 to $6.50 on Venic
 | One scene step (6 lines) | About 3,000 tokens in and up to 1,200 out | About $0.001 |
 | One explicit picture | Venice picture, Hive moderation, Hive age check | About $0.015 |
 | A character's baseline picture | Same as one picture, made once per character | About $0.015 |
+| A chapter's or a new place's picture (automatic, 2026-10-23) | One picture of the two of them (Venice $0.01, or Replicate $0.025), Hive moderation and age check | About $0.015 on Venice ($0.03 on Replicate), one per chapter and per place; a 5-chapter night with 2 moves is about 7 pictures, about $0.10. Off with `auto_scene_pictures` |
 | A set for a new place | fal set, Hive moderation | About $0.005, made once per place, ever |
 | Set the scene (After Dark) | A set if the place is new; the next step is an ordinary step | $0 to $0.005 |
 | Set the scene (filming date) | A set if the place is new; the move rides on the date's own lines | $0 to $0.005 |

@@ -135,6 +135,19 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       <input id="ad-venice-key" type="password" autoComplete="off" value={veniceKey} onChange={(e) => setVeniceKey(e.target.value)} />
       <label htmlFor="ad-venice-model">Venice picture model</label>
       <input id="ad-venice-model" value={s.venice_image_model} onChange={(e) => setS({ ...s, venice_image_model: e.target.value })} />
+      <p>
+        <label className="fact-private">
+          <input
+            type="checkbox"
+            id="ad-auto-pictures"
+            checked={s.auto_scene_pictures}
+            disabled={busy}
+            onChange={(e) => void save({ auto_scene_pictures: e.target.checked })}
+          />{" "}
+          A picture of the two of them each time a chapter starts, and each time they go somewhere new{" "}
+          <span className="muted small">(one per chapter and place, about 1.5¢ each with its checks)</span>
+        </label>
+      </p>
       <h3>Video of the night: Venice</h3>
       <p className="muted small">
         A short film of a whole night: the strongest lines, each a shot of the two of them together, started from a picture of both made from

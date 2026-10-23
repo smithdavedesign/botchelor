@@ -38,7 +38,16 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     description:
       "Admin only. Writes the next lines of a pair's scene on after dark's model, optionally steered. Nobody under 18 and no real people, " +
       "always; anything else between the two adults is allowed. Pictures come when the scene turns explicit, or when they ask each other for one.",
-    inputSchema: { type: "object", required: ["a", "b"], properties: { a: id, b: id, direction: { type: "string", maxLength: 300 }, steer_mode: { type: "string", enum: ["nudge", "direct"], description: "nudge (default): worked toward at the scene's own pace. direct: done now, can skip ahead." } } },
+    inputSchema: {
+      type: "object",
+      required: ["a", "b"],
+      properties: {
+        a: id,
+        b: id,
+        direction: { type: "string", maxLength: 300, description: 'With steer_mode direct, words in quotes ("…") are spoken nearly as written, by whoever the steer names.' },
+        steer_mode: { type: "string", enum: ["nudge", "direct"], description: "nudge (default): worked toward at the scene's own pace. direct: done now, can skip ahead." },
+      },
+    },
     annotations: { readOnlyHint: false },
   },
   {
@@ -55,6 +64,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
         image_model: { type: "string", maxLength: 120, description: "A fal.ai image model id." },
         video_model: { type: "string", maxLength: 120, description: "A fal.ai video model id." },
         image_base: { type: "string", maxLength: 160, description: "For fal-ai/lora: the Hugging Face id of the base model." },
+        auto_scene_pictures: { type: "boolean", description: "A picture of the pair each time a chapter starts or the place changes (on by default)." },
         media_provider: { type: "string", enum: ["venice", "replicate"], description: "Where pictures, keyframes, videos and voices are made." },
       },
     },
@@ -108,6 +118,7 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
   if (name === "after_dark_settings") {
     const patch: Record<string, unknown> = {};
     if (typeof args.enabled === "boolean") patch.enabled = args.enabled;
+    if (typeof args.auto_scene_pictures === "boolean") patch.auto_scene_pictures = args.auto_scene_pictures;
     for (const k of ["text_model", "image_model", "video_model", "image_base"]) if (typeof args[k] === "string" && (args[k] as string).trim()) patch[k] = (args[k] as string).trim();
     if (args.media_provider === "venice" || args.media_provider === "replicate") patch.media_provider = args.media_provider;
     return { data: { settings: Object.keys(patch).length ? await saveAdultSettings(db, patch) : await getAdultSettings(db) } };
@@ -126,7 +137,9 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
     }
     case "after_dark_write": {
       const r = await continueScene(db, owner, a, b, typeof args.direction === "string" ? args.direction : null, args.steer_mode === "direct" ? "direct" : "nudge");
-      return r.ok ? { data: { scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}) } } : { error: r.message };
+      return r.ok
+        ? { data: { scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}), ...(r.auto_picture ? { auto_picture: "drawing" } : {}) } }
+        : { error: r.message };
     }
     case "after_dark_switch": {
       const ok = await setAdultSwitch(db, owner, String(args.character_id ?? ""), args.on === true);
