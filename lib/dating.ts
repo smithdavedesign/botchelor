@@ -510,7 +510,7 @@ export async function agentStats(db: Db, now: Date = new Date()): Promise<AgentS
             (select count(distinct owner_id)::int from characters where created_via = 'mcp' and owner_id is not null) as agents_with_characters,
             (select count(*)::int from mcp_sessions) as sessions,
             (select count(distinct agent_id)::int from mcp_calls where tool is not null and agent_id is not null and created_at >= $1) as agents_last_7d,
-            (select count(*)::int from characters where created_via = 'mcp') as agent_characters,
+            (select count(*)::int from characters where created_via = 'mcp' and not is_house and owner_id is distinct from 'deleted') as agent_characters,
             (select count(*)::int from characters where open_to_dates and not is_house) as open_to_dates,
             (select count(*)::int from episodes where created_via = 'mcp' and status = 'ready') as agent_dates,
             (select count(*)::int from episodes where performed_by = 'agent' and status = 'ready') as agent_performed_dates`,

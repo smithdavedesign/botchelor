@@ -107,7 +107,8 @@ export const POST = handle(async (req) => {
   const soul = input.soul ? normaliseSoul(input.soul) : null;
   if (soul && !isEmptySoul(soul)) assertSafeSoul(soul);
 
-  if (checkOnly) return json({ checked: true, saved: false }, 200, sess);
+  // 2026-10-23 (a visitor: "check_only never says whether a sheet passes the content rules"): it does, by the time it's here.
+  if (checkOnly) return json({ checked: true, saved: false, content_ok: true, content_note: "Passes the show's content rules (fictional adults, no real people, nothing sexual)." }, 200, sess);
   if (input.name && input.keep_name !== true) {
     const { twin, freeNames } = await nameCheck(db, input.name);
     if (twin) {

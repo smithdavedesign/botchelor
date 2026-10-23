@@ -37,6 +37,14 @@ const VISITOR_MODEL = env("LOOP_VISITOR_MODEL", "sonnet");
 const TRIAGE_MODEL = env("LOOP_TRIAGE_MODEL", "sonnet");
 const FIX_MODEL = env("LOOP_FIX_MODEL", "opus");
 const PORT = Number(env("LOOP_PORT", "4420"));
+/**
+ * Where the visitors go (David, 2026-10-23): "local" (default) is the arena, a production build on a throwaway database
+ * with the crowd and the swipe-back agent; "prod" is botchelor.com itself, so what they make stays on the show (and
+ * their dates spend the live date budget); any other value is the base URL of a server to visit (a preview, staging).
+ * Off local there's no arena, crowd or swipe-back agent: the server's own house cast and bots are there.
+ */
+const LOOP_ENV = env("LOOP_ENV", "local");
+const REMOTE_BASE = LOOP_ENV === "local" ? null : (LOOP_ENV === "prod" ? "https://botchelor.com" : LOOP_ENV).replace(/\/$/, "");
 // Local date and time: an on-demand run and the morning one get their own folders.
 const stamp = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16).replace("T", "-").replace(":", "");
 const day = stamp.slice(0, 10);
@@ -175,7 +183,8 @@ async function main() {
   writeFileSync(LOCK, `${process.pid} ${Date.now()}`);
   const state = existsSync(STATE) ? JSON.parse(readFileSync(STATE, "utf8")) : {};
   const summary = { day, started_at: new Date().toISOString() };
-  emit("run_started", "info", `visitors=${VISITORS} fix=${FIX}`);
+  emit("run_started", "info", `visitors=${VISITORS} fix=${FIX} env=${REMOTE_BASE ?? "local"}`);
+  summary.env = REMOTE_BASE ?? "local";
   let arena, agent;
   try {
     // 1. A clean build of main.
@@ -186,7 +195,8 @@ async function main() {
     }
     const sha = sh("git", ["rev-parse", "HEAD"]).trim();
     summary.sha = sha;
-    if (state.built_sha !== sha) {
+    // Only the local arena runs this build; a remote server runs its own.
+    if (!REMOTE_BASE && state.built_sha !== sha) {
       sh("npm", ["ci", "--silent"], { stdio: "ignore" });
       sh("npx", ["next", "build"], { stdio: "ignore" });
       state.built_sha = sha;
@@ -198,20 +208,26 @@ async function main() {
 
     // 2. The arena and the agent that swipes back.
     if (VISITORS > 0) {
-      let base = null;
-      arena = startProcess("arena.mjs", [join(RUN, "arena"), String(PORT)], { LOOP_LLM_API_KEY: gatewayKey, LOOP_ADMIN_PASSWORD: arenaPassword }, (l) => {
-        if (l.startsWith("READY ")) base = l.slice(6).trim();
-      });
-      // The arena writes its sample dates and seeds the crowd before READY (up to ~5 minutes), so allow 10.
-      for (let i = 0; i < 1200 && !base; i++) await new Promise((r) => setTimeout(r, 500));
-      if (!base) throw new Error("arena never came up");
-      try {
-        summary.world = JSON.parse(readFileSync(join(RUN, "arena", "world.json"), "utf8")); // what the visitors walked into
-      } catch {
-        /* an older arena writes none */
-      }
+      let base = REMOTE_BASE;
       const lastArrival = Math.max(0, VISITORS - 1) * VISITOR_STAGGER_MINUTES;
-      agent = startProcess("swipe-back-agent.mjs", [base, String((VISITOR_MINUTES + 15 + lastArrival) * 60)], { LOOP_LLM_API_KEY: gatewayKey }, (l) => log("[agent]", l));
+      if (!REMOTE_BASE) {
+        arena = startProcess("arena.mjs", [join(RUN, "arena"), String(PORT)], { LOOP_LLM_API_KEY: gatewayKey, LOOP_ADMIN_PASSWORD: arenaPassword }, (l) => {
+          if (l.startsWith("READY ")) base = l.slice(6).trim();
+        });
+        // The arena writes its sample dates and seeds the crowd before READY (up to ~5 minutes), so allow 10.
+        for (let i = 0; i < 1200 && !base; i++) await new Promise((r) => setTimeout(r, 500));
+        if (!base) throw new Error("arena never came up");
+        try {
+          summary.world = JSON.parse(readFileSync(join(RUN, "arena", "world.json"), "utf8")); // what the visitors walked into
+        } catch {
+          /* an older arena writes none */
+        }
+        agent = startProcess("swipe-back-agent.mjs", [base, String((VISITOR_MINUTES + 15 + lastArrival) * 60)], { LOOP_LLM_API_KEY: gatewayKey }, (l) => log("[agent]", l));
+      } else {
+        // A remote server must be up before anyone is sent to it.
+        const up = await fetch(`${base}/api/mcp`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 0, method: "ping" }) }).catch(() => null);
+        if (!up) throw new Error(`${base} didn't answer`);
+      }
 
       // 3. The visitors, side by side, each in its own folder, for VISITOR_MIN_MINUTES to VISITOR_MINUTES each, arriving
       // VISITOR_STAGGER_MINUTES apart.
@@ -252,7 +268,8 @@ async function main() {
       };
       summary.visitor_minutes = await Promise.all(Array.from({ length: VISITORS }, (_, i) => visit(i)));
       summary.visitors = VISITORS;
-      const local = await feedbackFrom(base, arenaPassword, null);
+      // On a remote server the visitors' feedback is that server's live feedback, read with the rest below.
+      const local = REMOTE_BASE ? [] : await feedbackFrom(base, arenaPassword, null);
       writeFileSync(join(RUN, "feedback-local.json"), JSON.stringify(local, null, 2));
       summary.feedback_local = local.length;
     }

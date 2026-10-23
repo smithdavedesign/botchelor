@@ -19,7 +19,7 @@ import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
 import { DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
 import { formatLabel } from "@/lib/formats";
-import { venueBackdropCss, venueName } from "@/lib/venues";
+import { venuePhrase, venueBackdropCss, venueName } from "@/lib/venues";
 import { venueBackdrop } from "@/lib/portraits";
 import Avatar from "@/app/Avatar";
 import CharacterName from "@/app/CharacterName";
@@ -60,7 +60,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const indexable = episode.visibility === "public";
   const description = shareDescription(names, episode.setting, episode.revealed);
   const card = { url: episodeCardPath(id), width: 1200, height: 630, alt: `${a.name} × ${b.name}: ${SHARE_QUESTION} A poll with three answers.` };
-  const venue = typeof episode.venue === "string" ? episode.venue : null;
+  // The place in words ("the night market"), never its id (2026-10-23: titles read "at night_market").
+  const venue = typeof episode.venue === "string" ? venuePhrase(episode.venue) : null;
   return {
     // #SEO: richer long-tail title (name × name + venue) in the HTML <title>; social cards keep the "How does it end?"
     // headline. Never includes the ending — a Google snippet shouldn't spoil what visitors can predict for points.

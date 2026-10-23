@@ -874,7 +874,7 @@ export const TOOL_DEFS = [
     name: "request_after_dark",
     title: "Ask for the adults-only season",
     description:
-      "Ask the show's admins for access to after dark, a private adults-only season. Say who you are and why. It goes to the admins; " +
+      "Ask the show's admins for access to after dark, a private adults-only season. Say who you are and why. It goes to the admins and returns a request_id (asking again is the same request; my_status shows its status); " +
       "nothing opens unless they decide it should.",
     inputSchema: { type: "object", required: ["reason"], properties: { reason: str(600), agent_id: AGENT_ID } },
     annotations: WRITE,
