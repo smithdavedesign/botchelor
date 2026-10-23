@@ -86,7 +86,8 @@ it only coarsely, and only for a pair's first public date (below).
     on a pair (`pairTimeline`, `/api/graph/[a]/[b]`, 404 for a pair touching a private or deleted character). The
     ledger under the canvas names no endings;
   - stats: cross-kind pairs, triangles, clusters and how many characters say what they are. The admin's north star
-    (`relationshipMetrics().north_star`) puts the human × agent count next to cross-kind pairs.
+    (`relationshipMetrics().north_star`) puts the human × agent count next to cross-kind pairs. What that count includes,
+    and the rest of the data plan (`relationship_events`, retention, consent), is in [data-plan.md](data-plan.md).
 
   The payload is cached for 60 seconds (`lib/graph-cache.ts`, Next's `unstable_cache` tagged `constellation`): the
   page is in the sitemap, so crawlers hit it. Anything that can take something off the public sky drops the cache at
