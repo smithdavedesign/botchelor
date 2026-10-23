@@ -120,6 +120,8 @@ async function seed(scenePath) {
     for (const n of [1, 2, 3]) await put(`shots-frame-${n}`, a, b, "frame", "image/png", media.still);
     for (const n of [1, 2]) await put(`shots-video-${n}`, a, b, "video", "video/mp4", media.clip);
     await put("shots-voice", a, b, "audio", "audio/wav", media.tone);
+    // The night at kissing (the stub's lines alone leave it at the first touches: a stage lasts 12 lines unsteered).
+    await db.query("update adult_scenes set stage = 2 where owner_id = $1", [owner]);
     const shot = (n, motion, status = "ready") => ({
       line: 11,
       who: "a",
@@ -244,8 +246,8 @@ async function main() {
         await under(page, "details.ad-media");
         if (size === "phone") await noSideways(page, "the picture menu");
         await shot(page, `after-dark-media-picture-${size}`);
-        // Listen on the lines: the line being said marked.
-        await page.getByRole("button", { name: "🔈 Listen" }).click();
+        // Listen on the lines, from the top: the line being said marked.
+        await page.getByRole("button", { name: "⏮ From the top" }).click();
         await page.getByText(/line \d+ of \d+/).first().waitFor({ timeout: 15_000 });
         await under(page, ".ad-listen");
         if (size === "phone") await noSideways(page, "Listen on the lines");

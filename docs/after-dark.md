@@ -1081,7 +1081,7 @@ The fourth of the media PRs puts the three features above on a pair's page, in n
   tapping a line reads from there. The line being said is marked and kept in view.
 - **In the theater**: 🔈 Listen says each line as it comes on stage. While it's being said the theater holds the next
   line (`useReplay`'s new `hold`), which comes a beat after it ends (600 ms, `HELD_BEAT_MS`) rather than a whole turn
-  later; pausing the theater pauses the voice, and a jump (⏭ catch up) isn't read out. 🎞 Clip this makes a clip of the
+  later; pausing the theater pauses the voice, and a jump (⏭ catch up) isn't read out. 🎞 Clip makes a clip of the
   line on stage (`at`), live or in a saved night's replay (`night_id`), held to how far the night had gone at that line;
   it's announced on the window (`after-dark:reel`), so Their videos shows it when the theater closes.
 - Voices are asked for as they're about to play (the line and the next two), and remembered for the page's life; the

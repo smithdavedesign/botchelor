@@ -154,12 +154,12 @@ describe("the controls", () => {
     { who: "b" as const, text: "Hello." },
   ];
 
-  it("puts Listen and Clip this in the theater, live and for a saved night", () => {
+  it("puts Listen and Clip in the theater, live and for a saved night", () => {
     const scene = { lines, place: null, stage: 0, dateVenue: null };
     for (const props of [{ onWrite: async () => {} }, {}]) {
       const html = renderToStaticMarkup(createElement(AfterDarkTheater, { scene, characters: chars, onExit: () => {}, ...props }));
       expect(html).toContain('aria-label="Listen: each line in their own voice"');
-      expect(html).toContain("🎞 Clip this");
+      expect(html).toMatch(/🎞 Clip</);
     }
   });
 

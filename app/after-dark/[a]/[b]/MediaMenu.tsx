@@ -129,7 +129,7 @@ export default function MediaMenu({ scene, onReel, onPicture }: { scene: AdultSc
         🎞 A clip or a picture of the two of them
         {clips && pictures ? <span className="muted"> · a clip {priceWords(clips.price)}, a picture {priceWords(pictures.price)}</span> : null}
       </summary>
-      <div className="ad-chip-row" role="tablist" aria-label="A clip or a picture">
+      <div className="ad-chip-row" role="tablist" aria-label="A clip or a picture" style={{ marginBottom: "var(--space-3)" }}>
         <button type="button" role="tab" aria-selected={tab === "clip"} className={`ad-chip${tab === "clip" ? " on" : ""}`} onClick={() => setTab("clip")}>
           🎬 A clip
         </button>
@@ -280,7 +280,7 @@ export function ClipHere({ a, b, at, nightId }: { a: string; b: string; at: numb
         onClick={() => void make()}
         title={`A 5–10 s clip of the two of them at this moment${price === null ? "" : ` (${priceWords(price)})`}`}
       >
-        {asking ? "🎞 …" : `🎞 Clip this${price === null ? "" : ` · ${price === 0 ? "free" : price}`}`}
+        {asking ? "🎞 …" : `🎞 Clip${price ? ` · ${price}` : ""}`}
       </button>
       {note && (
         <span
