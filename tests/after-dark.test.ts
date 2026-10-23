@@ -828,7 +828,8 @@ describe("the video of the night", () => {
       expect(e.body).toMatchObject({ modelId: "qwen-edit-uncensored", safe_mode: false });
       expect((e.body.images as string[]).map(mediaOf)).toEqual([firstBase, secondBase]);
       expect(e.body.prompt).toMatch(/^Make one photograph of the (man|woman) from Picture 1 and the (man|woman) from Picture 2 together\./);
-      expect(e.body.prompt).toContain("Keep each of them exactly as in their own picture");
+      // Their faces and bodies from their portraits, never their portraits' clothes (Lexi's lingerie stayed on, 2026-10-22).
+      expect(e.body.prompt).toContain("Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes:");
       // A name never reaches a picture model (it can pull a real person's face).
       expect(e.body.prompt).not.toMatch(/Rafe|Juniper|Calloway|Vale/);
       expect(String(e.body.prompt).length).toBeLessThanOrEqual(1500);
@@ -886,14 +887,16 @@ describe("the video of the night", () => {
     // Line 2 was on the street (before line 4 agreed to go): no set drawn there, the two baselines only.
     const street = edits.find((e) => e.prompt.includes("The place: street."))!;
     expect(street.images).toHaveLength(2);
-    expect(street.prompt).toContain("they're dressed as described, not nude");
+    expect(street.prompt).toContain("but not their clothes: they're dressed as the moment says, not nude.");
+    expect(street.prompt).not.toContain("Explicit");
     // Lines 6 and 9 were in her bedroom: its set is the third picture, and the place has no name in it.
     const bedroom = edits.filter((e) => e.prompt.includes("The place: her bedroom."));
     expect(bedroom).toHaveLength(2);
     for (const e of bedroom) {
       expect(e.images[2]).toMatch(/^data:image\/jpeg;base64,/);
       expect(e.prompt).toContain("together, in the place from Picture 3.");
-      expect(e.prompt).toContain("keep the place, its furniture and its light from Picture 3");
+      expect(e.prompt).toContain("Keep the place, its furniture and its light from Picture 3.");
+      expect(e.prompt).toContain("but not their clothes: both are nude unless the moment says otherwise.");
       expect(e.prompt).toContain("Explicit, uncensored, photorealistic.");
     }
   });
@@ -1111,6 +1114,8 @@ describe("the video of the night", () => {
     const picks = await pickShots(t.db, night, 4, cast, night.map(() => "the kitchen"), night.map(() => 2));
     expect(asked).toContain("Every shot shows the two of them together in one frame, doing what the script has them doing at that line");
     expect(asked).toContain("named only like this, never by name");
+    // Lying down from a wide angle came out tangled, a face hidden (the first live reel): from the side, faces to camera.
+    expect(asked).toContain("lying down, a medium shot from the side with both faces toward the camera, never from above");
     expect(asked).toContain(`0 | ${cast[0].tag} | the kitchen | kissing | (leans closer) Line number 0`);
     expect(asked).not.toMatch(/Rafe|Juniper/);
     expect(picks).toHaveLength(4);
@@ -1154,9 +1159,12 @@ describe("the video of the night", () => {
   it("keeps a keyframe's prompt within the edit model's limit, and the shot's prompt saying who speaks", async () => {
     const [ca, cb] = await Promise.all([loadCharacter(t.db, CAST_A), loadCharacter(t.db, CAST_B)]);
     const cast = reelCast(ca!, cb!);
-    const long = keyframePrompt(cast, "word ".repeat(600), "the kitchen", true, true);
+    const long = keyframePrompt(cast, "word ".repeat(600), "the kitchen", 4, true);
     expect(long.length).toBeLessThanOrEqual(1500);
-    expect(long).toMatch(/The place: the kitchen\. Keep each of them exactly as in their own picture.*Both are adults\.$/);
+    expect(long).toMatch(/The place: the kitchen\. Keep each of them as in their own picture.*Both are adults\.$/);
+    // Undressing: half undressed and explicit; before it, dressed and not.
+    expect(keyframePrompt(cast, "x", null, 3, false)).toMatch(/they're half undressed, as the moment says\..*Explicit, uncensored, photorealistic\./);
+    expect(keyframePrompt(cast, "x", null, 1, false)).toMatch(/they're dressed as the moment says, not nude\..*Photorealistic\. Both are adults\.$/);
     const s = { who: "b" as const, text: "Come here.", motion: "They kiss." };
     expect(shotPrompt(cast, s, false)).toMatch(new RegExp(`^They kiss\\. Two people only: .* ${cast[1].tag[0].toUpperCase()}${cast[1].tag.slice(1)}, in a [a-z ,']+voice, says: "Come here\\."$`));
     expect(shotPrompt(cast, s, true)).toMatch(/is the one speaking, lips moving with the words\.$/);
