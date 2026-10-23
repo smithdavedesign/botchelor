@@ -34,6 +34,13 @@ export type StepLog = {
   flags: Record<string, unknown> | null;
   /** A whisper to one of the two, sent with this step (lib/adult/director.ts). */
   whisper?: { to: "a" | "b"; text: string } | null;
+  /**
+   * The text model that wrote it (from 2026-10-23): the id OpenRouter reported answering when it did (`:nitro`-style
+   * routing picks the host), else the one asked for (lib/adult/mode.ts adultModelId); and the host OpenRouter routed to,
+   * when it said. Null for a step that called no model, and for every step before.
+   */
+  text_model?: string | null;
+  text_provider?: string | null;
 };
 
 /** A step taken back by a rewind: when, and the lines it had written (the scene no longer has them). */
@@ -46,8 +53,8 @@ export async function logStep(db: Db, owner: string, pair: { a: string; b: strin
   const id = crypto.randomUUID();
   return db
     .query(
-      `insert into adult_steps (id, owner_id, character_a, character_b, scene_id, chapter, kind, direction, steer_mode, status, http, message, line_from, line_to, added, dropped, flags, whisper)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17::jsonb, $18::jsonb)`,
+      `insert into adult_steps (id, owner_id, character_a, character_b, scene_id, chapter, kind, direction, steer_mode, status, http, message, line_from, line_to, added, dropped, flags, whisper, text_model, text_provider)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17::jsonb, $18::jsonb, $19, $20)`,
       [
         id,
         owner,
@@ -67,10 +74,17 @@ export async function logStep(db: Db, owner: string, pair: { a: string; b: strin
         JSON.stringify(step.dropped.slice(0, 20).map((d) => ({ ...d, text: d.text.slice(0, 300) }))),
         step.flags ? JSON.stringify(step.flags) : null,
         step.whisper ? JSON.stringify({ to: step.whisper.to, text: step.whisper.text.slice(0, 400) }) : null,
+        step.text_model?.slice(0, 160) ?? null,
+        step.text_provider?.slice(0, 120) ?? null,
       ],
     )
     .then(() => id)
     .catch(() => null);
+}
+
+/** Adds to a logged step's flags (a picture it made on the fallback provider, after the step was logged). Best effort. */
+export async function flagStep(db: Db, stepId: string, extra: Record<string, unknown>): Promise<void> {
+  await db.query(`update adult_steps set flags = coalesce(flags, '{}'::jsonb) || $2::jsonb where id = $1`, [stepId, JSON.stringify(extra)]).catch(() => {});
 }
 
 /** Marks a step rewound, with the lines it had written. Never deletes it. */
@@ -95,7 +109,7 @@ export async function fileSteps(db: Db, sceneId: string, chapter: number, nightI
 export async function stepsOf(db: Db, owner: string, a: string, b: string): Promise<{ running: StepRow[]; byNight: Map<string, StepRow[]> }> {
   const { rows } = await db
     .query<StepRow & { night_id: string | null; created_at: string | Date; scene_id: string | null }>(
-      `select id, night_id, scene_id, chapter, kind, direction, steer_mode, status, http, message, line_from, line_to, added, dropped, flags, whisper, rewound, created_at
+      `select id, night_id, scene_id, chapter, kind, direction, steer_mode, status, http, message, line_from, line_to, added, dropped, flags, whisper, rewound, text_model, text_provider, created_at
          from adult_steps where owner_id = $1 and character_a = $2 and character_b = $3 order by created_at limit 2000`,
       [owner, a, b],
     )

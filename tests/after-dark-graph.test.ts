@@ -94,8 +94,11 @@ describe("the After Dark graph", () => {
     expect(html).toContain("3 characters, 1 pairs.");
     expect(html).toContain("/api/admin/after-dark/media/m-base"); // the portrait on its node
     expect(html).toContain('<video controls="" preload="none"'); // shots load only when played
-    expect(html).toContain("the pier · stage 3 · 1 lines");
+    expect(html).toContain("the pier · stage 3 · 1 lines · not recorded");
     expect(html).toContain("1 of 2 shots");
+    // Which model wrote each chapter: nothing recorded for these, and nothing guessed.
+    expect(html).toContain("Which model wrote it");
+    expect(html).toMatch(/<td>1 \(running\)<\/td><td class="muted small">[^<]+<\/td><td>not recorded<\/td>/);
     expect(html).not.toContain("private note"); // a line's private why stays out
     expect(await page("not-a-pair")).not.toContain('id="pair"');
     admin = null;

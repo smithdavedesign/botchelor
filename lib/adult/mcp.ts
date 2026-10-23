@@ -11,7 +11,7 @@ import { loadCharacter } from "../character";
 import { advanceReel, listReels, makeReel, reelNight } from "./reels";
 import { siteUrl } from "../site";
 import { adultAvailable } from "./mode";
-import { continueScene, listCastPairs, openScene } from "./scenes";
+import { continueScene, listCastPairs, openScene, sceneNotes } from "./scenes";
 import { getAdultSettings, saveAdultSettings } from "./settings";
 
 type JsonSchema = Record<string, unknown>;
@@ -28,7 +28,9 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
   {
     name: "after_dark_scene",
     title: "After dark: read a scene",
-    description: "Admin only. A pair's scene so far, and their gallery (picture and clip ids).",
+    description:
+      "Admin only. A pair's scene so far, their gallery (picture and clip ids, each with the provider that made it and whether that was the fallback), " +
+      "and which text model wrote each chapter (written_by: from its steps, else the settings history, else 'not recorded').",
     inputSchema: { type: "object", required: ["a", "b"], properties: { a: id, b: id } },
     annotations: { readOnlyHint: true },
   },
@@ -66,6 +68,10 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
         image_base: { type: "string", maxLength: 160, description: "For fal-ai/lora: the Hugging Face id of the base model." },
         auto_scene_pictures: { type: "boolean", description: "A picture of the pair each time a chapter starts or the place changes (on by default)." },
         media_provider: { type: "string", enum: ["venice", "replicate"], description: "Where pictures, keyframes, videos and voices are made." },
+        media_fallback: {
+          type: "boolean",
+          description: "When the media provider is rate limited, out of credit or down, make the job on the other one (on by default; a running video stays where it started).",
+        },
       },
     },
     annotations: { readOnlyHint: false },
@@ -121,7 +127,9 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
     if (typeof args.auto_scene_pictures === "boolean") patch.auto_scene_pictures = args.auto_scene_pictures;
     for (const k of ["text_model", "image_model", "video_model", "image_base"]) if (typeof args[k] === "string" && (args[k] as string).trim()) patch[k] = (args[k] as string).trim();
     if (args.media_provider === "venice" || args.media_provider === "replicate") patch.media_provider = args.media_provider;
-    return { data: { settings: Object.keys(patch).length ? await saveAdultSettings(db, patch) : await getAdultSettings(db) } };
+    if (typeof args.media_fallback === "boolean") patch.media_fallback = args.media_fallback;
+    // Changes made here go in the settings history as "mcp".
+    return { data: { settings: Object.keys(patch).length ? await saveAdultSettings(db, patch, "mcp") : await getAdultSettings(db) } };
   }
   if (!(await adultAvailable(db))) return { error: "After dark is off: turn it on in its settings (/admin/after-dark/settings)." };
   const owner = await sceneOwner(db);
@@ -133,7 +141,13 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
       return { data: { pairs: await listCastPairs(db, owner), characters: await listSwitchable(db, owner) } };
     case "after_dark_scene": {
       const scene = await openScene(db, owner, a, b);
-      return scene ? { data: { scene, gallery: await listMedia(db, [scene.a.id, scene.b.id]) } } : { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
+      if (!scene) return { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
+      // Which text model wrote each chapter (lib/adult/model-log.ts): the running one, then the saved nights, newest first.
+      const notes = await sceneNotes(db, owner, scene.a.id, scene.b.id);
+      const written_by = notes
+        ? [{ chapter: notes.current.chapter, night_id: null, ...notes.current.written_by }, ...notes.nights.map((n) => ({ chapter: n.chapter, night_id: n.id, at: n.created_at, ...n.written_by }))]
+        : [];
+      return { data: { scene, gallery: await listMedia(db, [scene.a.id, scene.b.id]), written_by } };
     }
     case "after_dark_write": {
       const r = await continueScene(db, owner, a, b, typeof args.direction === "string" ? args.direction : null, args.steer_mode === "direct" ? "direct" : "nudge");

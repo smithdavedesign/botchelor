@@ -19,6 +19,7 @@ import type { Db } from "../db";
 import { keepBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { reelNight, replicateVoice, voiceFor, VENICE } from "./reels";
+import { providerError, runMedia } from "./fallback";
 import { runModel } from "./replicate";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings } from "./settings";
@@ -57,7 +58,7 @@ export type VoiceAsk = { a: string; b: string; night_id?: string | null; lines: 
  * stale (not that night's line any more), lines (crosses one of the two lines), cap (the month's voiced lines are used
  * up), failed (Kokoro didn't answer).
  */
-export type LineVoice = { i: number; id: string | null; reason?: "silent" | "stale" | "lines" | "cap" | "failed"; message?: string };
+export type LineVoice = { i: number; id: string | null; reason?: "silent" | "stale" | "lines" | "cap" | "failed"; message?: string; provider?: string; fell_back?: boolean };
 
 export type VoiceResult = { ok: true; voices: LineVoice[] } | { ok: false; status: number; error: string; message: string };
 
@@ -68,7 +69,7 @@ async function veniceVoice(key: string, words: string, voice: string): Promise<{
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
     body: JSON.stringify({ model: "tts-kokoro", input: words, voice, response_format: "mp3" }),
   });
-  if (!res.ok) throw new Error(`Venice ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`);
+  if (!res.ok) throw await providerError(res, (status, text) => `Venice ${status}: ${text.slice(0, 120)}`);
   const bytes = Buffer.from(await res.arrayBuffer());
   if (!bytes.length || bytes.length > MAX_AUDIO_BYTES) throw new Error("Venice returned no usable audio");
   return { bytes, mime: "audio/mpeg" };
@@ -128,16 +129,20 @@ export async function voiceLines(db: Db, ownerId: string, ask: VoiceAsk): Promis
       continue;
     }
     try {
-      const audio = onReplicate
-        ? await runModel(key, settings.replicate_voice_model, { text: words, voice, speed: 1 }, { maxBytes: MAX_AUDIO_BYTES, timeoutMs: 60_000 })
-        : await veniceVoice(key, words, voice);
+      // A voice line is one job: said on the other provider's Kokoro when the configured one is limited (lib/adult/fallback.ts).
+      const said = await runMedia(db, "voice", (p) =>
+        p === "replicate"
+          ? runModel(keys.replicate!, settings.replicate_voice_model, { text: words, voice: replicateVoice(stock[line.who]), speed: 1 }, { maxBytes: MAX_AUDIO_BYTES, timeoutMs: 60_000 })
+          : veniceVoice(keys.venice!, words, stock[line.who]),
+      );
+      const audio = said.value;
       if (!audio.mime.startsWith("audio/")) throw new Error("no audio came back");
       const id = crypto.randomUUID();
       const bytes = await keepBytes("after-dark", id, audio.bytes, audio.mime);
       const [speaker, other] = line.who === "a" ? pair : [pair[1], pair[0]];
       await db.query(
-        `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status) values ($1, $2, $3, $4, 'audio', $5, $6, $7, $8, 'ready')`,
-        [id, ownerId, speaker, other, `Voice line: ${words}`.slice(0, 500), audio.mime, bytes.data, bytes.object_key],
+        `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back) values ($1, $2, $3, $4, 'audio', $5, $6, $7, $8, 'ready', $9, $10)`,
+        [id, ownerId, speaker, other, `Voice line: ${words}`.slice(0, 500), audio.mime, bytes.data, bytes.object_key, said.provider, said.fell_back],
       );
       // Two plays of the same line at once: the first one kept wins, and the other's copy goes.
       const won = await db.query(`insert into adult_voice_lines (owner_id, key, image_id, voice, chars) values ($1, $2, $3, $4, $5) on conflict do nothing returning image_id`, [
@@ -154,7 +159,7 @@ export async function voiceLines(db: Db, ownerId: string, ask: VoiceAsk): Promis
         continue;
       }
       await countUse(db, ownerId, "voice_lines");
-      voices.push({ i: asked.i, id });
+      voices.push({ i: asked.i, id, ...(said.fell_back ? { provider: said.provider, fell_back: true } : {}) });
     } catch (err) {
       voices.push({ i: asked.i, id: null, reason: "failed", message: err instanceof Error ? err.message.slice(0, 160) : "error" });
     }

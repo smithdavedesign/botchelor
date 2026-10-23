@@ -22,6 +22,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { dataColumn, keepBytes, objectStore, readBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { checkOutput } from "./check";
+import { fallbackNote, providerError, runMedia, type Ran } from "./fallback";
 import { runModel } from "./replicate";
 import { countUse, overCap } from "./usage";
 import { adultKeys, getAdultSettings } from "./settings";
@@ -32,6 +33,11 @@ export type Media = {
   /** A scene picture's chapter and place (lib/adult/auto-pictures.ts draws one per chapter and place); null otherwise. */
   chapter?: number | null;
   place?: string | null;
+  /** Who made it ('venice', 'replicate', 'fal'; null before 2026-10-22), and whether that was the fallback provider. */
+  provider?: string | null;
+  fell_back?: boolean;
+  /** "made on Replicate (fallback)" when it was, for the gallery; null otherwise. */
+  note?: string | null;
 };
 /** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
 export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
@@ -85,7 +91,7 @@ export async function venicePicture(db: Db, prompt: string, opts: { safe?: boole
       hide_watermark: true,
     }),
   });
-  if (!res.ok) throw new Error(`Venice refused the picture (${res.status}): ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) throw await providerError(res, (status, text) => `Venice refused the picture (${status}): ${text.slice(0, 200)}`);
   if (res.headers.get("x-venice-is-content-violation") === "true") throw new Error("Venice flagged the picture as against its terms.");
   const body = (await res.json()) as { images?: string[] };
   const b64 = body.images?.[0];
@@ -115,10 +121,12 @@ export async function replicatePicture(db: Db, prompt: string): Promise<{ bytes:
   return file;
 }
 
-/** An explicit picture, from After Dark's media provider: Venice, or Replicate as the backup. */
-export async function drawPicture(db: Db, prompt: string): Promise<{ bytes: Buffer; mime: string }> {
-  const { media_provider } = await getAdultSettings(db);
-  return media_provider === "replicate" ? replicatePicture(db, prompt) : venicePicture(db, prompt);
+/**
+ * An explicit picture, from After Dark's media provider: Venice, or Replicate as the backup; the other one when the
+ * configured one is limited (lib/adult/fallback.ts). Says who made it.
+ */
+export async function drawPicture(db: Db, prompt: string): Promise<Ran<{ bytes: Buffer; mime: string }>> {
+  return runMedia(db, "picture", (p) => (p === "replicate" ? replicatePicture(db, prompt) : venicePicture(db, prompt)));
 }
 
 type Fetch = typeof fetch;
@@ -272,14 +280,15 @@ export async function makePicture(
   if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
   const { image_model, image_base, image_provider } = await getAdultSettings(db);
   if (image_provider === "venice") {
-    const file = await drawPicture(db, opts.prompt);
-    // The output check on the bytes themselves, before anything is stored: a failure is discarded.
+    const drawn = await drawPicture(db, opts.prompt);
+    const file = drawn.value;
+    // The output check on the bytes themselves, before anything is stored, whoever made them: a failure is discarded.
     const verdict = await checkOutput((await adultKeys(db)).hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image");
     if (!verdict.ok) {
       await logRejection(db, ownerId, opts.kind, verdict.reason);
       throw new Error(`The picture was discarded by the output check (${verdict.reason}).`);
     }
-    return storePicture(db, ownerId, opts, file, null);
+    return storePicture(db, ownerId, opts, file, null, { provider: drawn.provider, fell_back: drawn.fell_back });
   }
   const key = await falKey(db);
   const run = (model: string, input: Record<string, unknown>) =>
@@ -312,7 +321,7 @@ export async function makePicture(
     await logRejection(db, ownerId, opts.kind, verdict.reason);
     throw new Error(`The picture was discarded by the output check (${verdict.reason}).`);
   }
-  return storePicture(db, ownerId, opts, await download(url), url);
+  return storePicture(db, ownerId, opts, await download(url), url, { provider: "fal", fell_back: false });
 }
 
 /** Stores a picture that passed the output check, and counts it. */
@@ -322,6 +331,7 @@ async function storePicture(
   opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null } & PictureScene,
   file: { bytes: Buffer; mime: string },
   url: string | null,
+  made: { provider: string; fell_back: boolean },
 ): Promise<Media> {
   await countUse(db, ownerId, "pictures");
   const id = crypto.randomUUID();
@@ -329,10 +339,13 @@ async function storePicture(
   const chapter = opts.scene_chapter ?? null;
   const place = opts.scene_place?.slice(0, 120) ?? null;
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url, scene_chapter, scene_place) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url, chapter, place],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url, scene_chapter, scene_place, provider, fell_back) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url, chapter, place, made.provider, made.fell_back],
   );
-  return { id, character_id: opts.character_id, character_b: opts.character_b ?? null, kind: opts.kind, status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: url !== null, chapter, place };
+  return {
+    id, character_id: opts.character_id, character_b: opts.character_b ?? null, kind: opts.kind, status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: url !== null, chapter, place,
+    provider: made.provider, fell_back: made.fell_back, note: fallbackNote(made.provider, made.fell_back),
+  };
 }
 
 /** The character's baseline, making it the first time it's needed. */
@@ -422,12 +435,13 @@ export async function listMedia(db: Db, ids: string[]): Promise<Media[]> {
   // Theirs alone, or of these characters together: never a picture or video with someone else in it (a character's
   // night with another partner stays on that pair's page). A reel's keyframes and voices stay with its shots.
   const { rows } = await db.query<Media>(
-    `select id, character_id, character_b, kind, status, created_at, mime, (kind <> 'video' and remote_url is not null) as clip, scene_chapter as chapter, scene_place as place from adult_images
+    `select id, character_id, character_b, kind, status, created_at, mime, (kind <> 'video' and remote_url is not null) as clip, scene_chapter as chapter, scene_place as place,
+            provider, coalesce(fell_back, false) as fell_back from adult_images
       where character_id = any($1) and (character_b is null or character_b = any($1)) and kind not in ('frame', 'audio')
       order by created_at desc limit 60`,
     [ids],
   );
-  return rows.map((r) => ({ ...r, created_at: new Date(r.created_at).toISOString() }));
+  return rows.map((r) => ({ ...r, created_at: new Date(r.created_at).toISOString(), note: fallbackNote(r.provider, r.fell_back) }));
 }
 
 /**

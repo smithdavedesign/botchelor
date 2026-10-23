@@ -35,8 +35,11 @@ export async function adultAvailable(db: Db, env: Record<string, string | undefi
 }
 
 let testModel: Model | null = null;
-export function setAdultModelForTests(model: Model | null): void {
+let testModelId = "test";
+/** A scripted model for tests, and the id a step records for it when it reports none (adultModelId). */
+export function setAdultModelForTests(model: Model | null, id = "test"): void {
   testModel = model;
+  testModelId = id;
 }
 
 /** What a caller may change about the client: another OpenRouter model (the eval's A/B arms), and its patience. */
@@ -95,6 +98,17 @@ export async function adultModel(db: Db, env: Record<string, string | undefined>
     timeoutMs: 180_000,
     retryDelaysMs: [],
   });
+}
+
+/**
+ * The id of the text model adultModel calls (the settings' text_model on OpenRouter, else the local model as
+ * `local/<name>`): what a step records as its model when the response doesn't say which one answered.
+ */
+export async function adultModelId(db: Db, env: Record<string, string | undefined> = process.env, opts: Pick<AdultModelOptions, "model"> = {}): Promise<string> {
+  if (testModel) return opts.model || testModelId;
+  const { openrouter } = await adultKeys(db).catch(() => ({ openrouter: null }));
+  if (openrouter) return opts.model || (await getAdultSettings(db)).text_model;
+  return `local/${env.ADULT_LLM_MODEL || ADULT_DEFAULT_MODEL}`;
 }
 
 /**

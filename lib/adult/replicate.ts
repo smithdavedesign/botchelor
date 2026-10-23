@@ -33,14 +33,29 @@ export function setReplicatePausesForTests(on: boolean): void {
 }
 const pause = (ms: number) => new Promise<void>((done) => setTimeout(done, ms * pauseScale));
 
-/** A refusal or a failure on Replicate's side, with the HTTP status when there was one ("Replicate 402: …"). */
+/**
+ * A refusal or a failure on Replicate's side, with the HTTP status when there was one ("Replicate 402: …"), how long it
+ * asked us to wait (Retry-After), and whether it was our own patience running out (`timeout`): what
+ * lib/adult/fallback.ts reads to decide whether Venice should try instead.
+ */
 export class ReplicateError extends Error {
   constructor(
     message: string,
     readonly status?: number,
+    readonly retryAfterMs: number | null = null,
+    readonly timeout = false,
   ) {
     super(message);
   }
+}
+
+/** A Retry-After header (seconds, or an HTTP date) in milliseconds; null when there's none or it can't be read. */
+export function retryAfterMs(header: string | null | undefined, now = Date.now()): number | null {
+  const v = header?.trim();
+  if (!v) return null;
+  if (/^\d+(\.\d+)?$/.test(v)) return Math.round(Number(v) * 1000);
+  const at = Date.parse(v);
+  return Number.isFinite(at) ? Math.max(0, at - now) : null;
 }
 
 const VERSION_ID = /^[0-9a-f]{64}$/;
@@ -77,7 +92,7 @@ async function call(token: string, url: string, method: "GET" | "POST", body?: u
     headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "content-type": "application/json" }), ...extra },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  if (!res.ok) throw new ReplicateError(`Replicate ${res.status}: ${await why(res)}`, res.status);
+  if (!res.ok) throw new ReplicateError(`Replicate ${res.status}: ${await why(res)}`, res.status, retryAfterMs(res.headers.get("retry-after")));
   return res.json();
 }
 
@@ -121,7 +136,7 @@ export async function settle(token: string, p: Prediction, timeoutMs: number, ev
   for (let asked = 0; !isDone(cur); asked++) {
     if (asked * everyMs >= timeoutMs) {
       await cancelPrediction(token, cur.id);
-      throw new ReplicateError(`Replicate took longer than ${Math.round(timeoutMs / 1000)} s`);
+      throw new ReplicateError(`Replicate took longer than ${Math.round(timeoutMs / 1000)} s`, undefined, null, true);
     }
     await pause(everyMs);
     cur = await getPrediction(token, cur.id);

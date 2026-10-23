@@ -131,6 +131,11 @@ export type AdultSettings = {
    * David, 2026-10-23). On unless turned off (a null column is on).
    */
   auto_scene_pictures: boolean;
+  /**
+   * When the media provider is limited (429, 402, down), the same job runs once on the other one (lib/adult/fallback.ts;
+   * David, 2026-10-22). On unless turned off (a null column is on).
+   */
+  media_fallback: boolean;
 };
 
 type Row = {
@@ -173,6 +178,7 @@ type Row = {
   replicate_nonce: string | null;
   replicate_last4: string | null;
   auto_scene_pictures: boolean | null;
+  media_fallback: boolean | null;
 };
 
 /** The server's own Replicate token, used when none is saved in the settings. */
@@ -217,6 +223,7 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
     replicate_last4: r?.replicate_last4 ?? null,
     replicate_from_env: !r?.replicate_last4 && envReplicate(env) !== null,
     auto_scene_pictures: r?.auto_scene_pictures ?? true,
+    media_fallback: r?.media_fallback ?? true,
   };
 }
 
@@ -270,10 +277,49 @@ export type SettingsPatch = {
   replicate_video_lora?: string;
   replicate_key?: string;
   auto_scene_pictures?: boolean;
+  media_fallback?: boolean;
 };
 
-export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<AdultSettings> {
+/**
+ * The settings whose changes are kept (adult_settings_history), so which model wrote an old scene, or which provider
+ * made an old picture, can be worked out later: the text model, the picture and video models, and the media provider.
+ */
+export const HISTORY_FIELDS = [
+  "text_model",
+  "image_model",
+  "video_model",
+  "image_base",
+  "image_provider",
+  "venice_image_model",
+  "reel_model",
+  "media_provider",
+  "media_fallback",
+  "replicate_picture_model",
+  "replicate_keyframe_model",
+  "replicate_video_model",
+  "replicate_voice_model",
+] as const satisfies readonly (keyof AdultSettings)[];
+export type HistoryField = (typeof HISTORY_FIELDS)[number];
+export type SettingsChange = { field: HistoryField; from_value: string | null; to_value: string | null; at: string; by: string | null };
+
+/** The history's changes, newest first (all of them, or one field's). */
+export async function settingsHistory(db: Db, field?: HistoryField, limit = 200): Promise<SettingsChange[]> {
+  const { rows } = await db
+    .query<{ field: HistoryField; from_value: string | null; to_value: string | null; at: string | Date; by_user: string | null }>(
+      `select field, from_value, to_value, at, by_user from adult_settings_history ${field ? "where field = $2" : ""} order by at desc, seq desc limit $1`,
+      field ? [limit, field] : [limit],
+    )
+    .catch(() => ({ rows: [] as { field: HistoryField; from_value: string | null; to_value: string | null; at: string | Date; by_user: string | null }[] }));
+  return rows.map((r) => ({ field: r.field, from_value: r.from_value, to_value: r.to_value, at: new Date(r.at).toISOString(), by: r.by_user }));
+}
+
+/**
+ * Saves the settings. `by` is who saved them (an admin's user id, or "mcp"), kept with each tracked change in the
+ * history (HISTORY_FIELDS), which records the value in effect before and after (a default counts as its value).
+ */
+export async function saveAdultSettings(db: Db, patch: SettingsPatch, by: string | null = null): Promise<AdultSettings> {
   await db.query(`insert into adult_settings (id) values (1) on conflict (id) do nothing`);
+  const before = await getAdultSettings(db);
   const set: string[] = [];
   const vals: unknown[] = [];
   const put = (col: string, v: unknown) => {
@@ -285,6 +331,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<A
   if (patch.prompt_version !== undefined) put("prompt_version", patch.prompt_version);
   if (patch.media_provider !== undefined) put("media_provider", patch.media_provider);
   if (patch.auto_scene_pictures !== undefined) put("auto_scene_pictures", patch.auto_scene_pictures);
+  if (patch.media_fallback !== undefined) put("media_fallback", patch.media_fallback);
   for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "menu_picture_tokens"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_temperature", "frequency_penalty", "presence_penalty", "repetition_penalty"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model", "reel_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
@@ -312,7 +359,16 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<A
     }
   }
   if (set.length) await db.query(`update adult_settings set ${set.join(", ")}, updated_at = now() where id = 1`, vals);
-  return getAdultSettings(db);
+  const after = await getAdultSettings(db);
+  const str = (v: unknown) => (v === null || v === undefined ? null : String(v));
+  for (const field of HISTORY_FIELDS) {
+    const [from, to] = [str(before[field]), str(after[field])];
+    if (from === to) continue;
+    await db
+      .query(`insert into adult_settings_history (id, field, from_value, to_value, by_user) values ($1, $2, $3, $4, $5)`, [crypto.randomUUID(), field, from, to, by?.slice(0, 120) ?? null])
+      .catch(() => {});
+  }
+  return after;
 }
 
 /** On the site: an admin turned it on and a text key is saved. */

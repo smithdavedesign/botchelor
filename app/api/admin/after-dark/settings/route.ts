@@ -45,6 +45,7 @@ const Input = z.object({
   replicate_voice_model: replicateModel.optional(),
   replicate_video_lora: videoLora.optional(),
   auto_scene_pictures: z.boolean().optional(),
+  media_fallback: z.boolean().optional(),
 });
 
 /** After dark's settings: a signed-in admin only, even while it's off (that's where it's turned on). */
@@ -57,7 +58,9 @@ export const GET = handle(async (req: Request) => {
 
 export const POST = handle(async (req: Request) => {
   const db = await getDb();
-  if (!(await signedInAdmin(db, authFromRequest(req)))) return json({ error: "not_found" }, 404);
+  const admin = await signedInAdmin(db, authFromRequest(req));
+  if (!admin) return json({ error: "not_found" }, 404);
   const input = parseBody(Input, await readJson(req), "invalid_settings");
-  return json({ settings: await saveAdultSettings(db, input) });
+  // Who saved it goes in the settings history with each model or provider change.
+  return json({ settings: await saveAdultSettings(db, input, admin) });
 });

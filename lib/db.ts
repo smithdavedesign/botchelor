@@ -1654,6 +1654,35 @@ alter table episodes add column if not exists last_posted_discord_at timestamptz
 alter table episodes add column if not exists last_posted_bluesky_at timestamptz;
 alter table episodes add column if not exists last_posted_x_at timestamptz;
 
+-- After Dark's media fallback (lib/adult/fallback.ts, 2026-10-22): the other provider makes a job when the configured one
+-- is limited. A provider that answered 429 or 402 is skipped until its cooldown runs out, across every instance.
+alter table adult_settings add column if not exists media_fallback boolean;
+create table if not exists adult_media_cooldowns (
+  provider text primary key,
+  until timestamptz not null,
+  status integer,
+  reason text,
+  updated_at timestamptz not null default now()
+);
+-- Who made each picture, keyframe, video and voice ('venice', 'replicate', 'fal'), and whether it was the fallback.
+alter table adult_images add column if not exists provider text;
+alter table adult_images add column if not exists fell_back boolean;
+alter table adult_reels add column if not exists provider text;
+alter table adult_reels add column if not exists fell_back boolean;
+-- Which text model wrote each step (lib/adult/steps.ts), as OpenRouter reported it when it did, and the host it routed to.
+alter table adult_steps add column if not exists text_model text;
+alter table adult_steps add column if not exists text_provider text;
+-- Every change to After Dark's models and media provider (lib/adult/settings.ts HISTORY_FIELDS): what, from, to, when, who.
+create table if not exists adult_settings_history (
+  id text primary key,
+  seq bigserial,
+  field text not null,
+  from_value text,
+  to_value text,
+  at timestamptz not null default now(),
+  by_user text
+);
+create index if not exists adult_settings_history_field on adult_settings_history (field, at desc);
 -- After Dark Shorts (lib/adult/shorts.ts; David, 2026-10-22): an admin's whole saved night of two house characters,
 -- published for entitled viewers. Fixed when published: its chapters (adult_nights ids, in order; night_id is the first),
 -- the cover (an adult_images picture of the two of them) and the night's videos. published_at null: taken down.

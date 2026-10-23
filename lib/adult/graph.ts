@@ -1,4 +1,5 @@
 import type { Db } from "../db";
+import { textModelHistory, writtenBy, type WrittenBy } from "./model-log";
 import type { ReelShot } from "./reels";
 import type { SceneLine } from "./scenes";
 
@@ -90,13 +91,15 @@ export async function afterDarkGraph(db: Db): Promise<AfterDarkGraph> {
   return { nodes, edges: all };
 }
 
-export type PairNight = { id: string; place: string | null; stage: number; lines: SceneLine[]; created_at: string };
-export type PairReel = { id: string; status: string; shots: ReelShot[]; created_at: string };
-export type PairPicture = { id: string; kind: string; mime: string; prompt: string; created_at: string };
+/** A saved night (one chapter), and which text model wrote it (lib/adult/model-log.ts). */
+export type PairNight = { id: string; chapter: number | null; place: string | null; stage: number; lines: SceneLine[]; created_at: string; written_by: WrittenBy };
+/** A video, and who made it: its provider ("venice", "replicate", "mixed") and whether any of it was the fallback. */
+export type PairReel = { id: string; status: string; shots: ReelShot[]; created_at: string; provider: string | null; fell_back: boolean };
+export type PairPicture = { id: string; kind: string; mime: string; prompt: string; created_at: string; provider: string | null; fell_back: boolean };
 export type PairContent = {
   a: { id: string; name: string };
   b: { id: string; name: string };
-  scene: { lines: SceneLine[]; updated_at: string } | null;
+  scene: { chapter: number; lines: SceneLine[]; updated_at: string; written_by: WrittenBy } | null;
   nights: PairNight[];
   reels: PairReel[];
   pictures: PairPicture[];
@@ -112,31 +115,51 @@ export async function pairContent(db: Db, x: string, y: string): Promise<PairCon
   const iso = (d: string | Date) => new Date(d).toISOString();
   // A row stored the other way round has its a and b swapped back, so "a" always means x.
   const flip = <T extends { who: "a" | "b" }>(lines: T[], swapped: boolean) => (swapped ? lines.map((l) => ({ ...l, who: l.who === "a" ? "b" : "a" })) : lines) as T[];
-  const [scenes, nights, reels, pictures, steps] = await Promise.all([
-    db.query<{ character_a: string; lines: SceneLine[]; updated_at: string }>(`select character_a, lines, updated_at from adult_scenes where ${either} order by updated_at desc`, [x, y]),
-    db.query<{ id: string; character_a: string; place: string | null; stage: number; lines: SceneLine[]; created_at: string }>(
-      `select id, character_a, place, stage, lines, created_at from adult_nights where ${either} order by created_at desc`,
+  const [scenes, nights, reels, pictures, steps, models, history] = await Promise.all([
+    db.query<{ id: string; character_a: string; chapter: number; lines: SceneLine[]; updated_at: string }>(
+      `select id, character_a, chapter, lines, updated_at from adult_scenes where ${either} order by updated_at desc`,
       [x, y],
     ),
-    db.query<{ id: string; character_a: string; status: string; shots: ReelShot[]; created_at: string }>(
-      `select id, character_a, status, shots, created_at from adult_reels where ${either} order by created_at desc`,
+    db.query<{ id: string; character_a: string; chapter: number | null; place: string | null; stage: number; lines: SceneLine[]; created_at: string }>(
+      `select id, character_a, chapter, place, stage, lines, created_at from adult_nights where ${either} order by created_at desc`,
       [x, y],
     ),
-    db.query<{ id: string; kind: string; mime: string; prompt: string; created_at: string }>(
-      `select id, kind, mime, prompt, created_at from adult_images
+    db.query<{ id: string; character_a: string; status: string; shots: ReelShot[]; created_at: string; provider: string | null; fell_back: boolean }>(
+      `select id, character_a, status, shots, created_at, provider, coalesce(fell_back, false) as fell_back from adult_reels where ${either} order by created_at desc`,
+      [x, y],
+    ),
+    db.query<{ id: string; kind: string; mime: string; prompt: string; created_at: string; provider: string | null; fell_back: boolean }>(
+      `select id, kind, mime, prompt, created_at, provider, coalesce(fell_back, false) as fell_back from adult_images
         where status = 'ready' and kind not in ('video', 'audio') and ((character_id = $1 and character_b = $2) or (character_id = $2 and character_b = $1)
               or (kind = 'baseline' and character_id = any(array[$1, $2]::text[]))) order by created_at desc`,
       [x, y],
     ),
     db.query<{ status: string; n: number }>(`select status, count(*)::int as n from adult_steps where ${either} group by 1 order by 2 desc`, [x, y]),
+    // Which model wrote each chapter: the writing steps' models, by the night they were filed with (null: still running).
+    db.query<{ scene_id: string | null; night_id: string | null; text_model: string | null; text_provider: string | null }>(
+      `select scene_id, night_id, text_model, text_provider from adult_steps where ${either} and kind = 'write' and status = 'ok' order by created_at`,
+      [x, y],
+    ),
+    textModelHistory(db),
   ]);
   const scene = scenes.rows[0];
+  const stepsOfNight = (id: string) => models.rows.filter((s) => s.night_id === id);
   return {
     a: { id: x, name: nameOf(x) },
     b: { id: y, name: nameOf(y) },
-    scene: scene ? { lines: flip(scene.lines, scene.character_a !== x), updated_at: iso(scene.updated_at) } : null,
-    nights: nights.rows.map((n) => ({ id: n.id, place: n.place, stage: n.stage, lines: flip(n.lines, n.character_a !== x), created_at: iso(n.created_at) })),
-    reels: reels.rows.map((r) => ({ id: r.id, status: r.status, shots: flip(r.shots, r.character_a !== x), created_at: iso(r.created_at) })),
+    scene: scene
+      ? {
+          chapter: scene.chapter,
+          lines: flip(scene.lines, scene.character_a !== x),
+          updated_at: iso(scene.updated_at),
+          written_by: writtenBy(models.rows.filter((s) => s.night_id === null && s.scene_id === scene.id), iso(scene.updated_at), history),
+        }
+      : null,
+    nights: nights.rows.map((n) => ({
+      id: n.id, chapter: n.chapter, place: n.place, stage: n.stage, lines: flip(n.lines, n.character_a !== x), created_at: iso(n.created_at),
+      written_by: writtenBy(stepsOfNight(n.id), iso(n.created_at), history),
+    })),
+    reels: reels.rows.map((r) => ({ id: r.id, status: r.status, shots: flip(r.shots, r.character_a !== x), created_at: iso(r.created_at), provider: r.provider, fell_back: r.fell_back })),
     pictures: pictures.rows.map((p) => ({ ...p, created_at: iso(p.created_at) })),
     steps: steps.rows.map((s) => ({ status: s.status, n: Number(s.n) })),
   };
