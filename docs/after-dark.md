@@ -710,8 +710,9 @@ of the built-in nudges: `{}` continues, `{ direction, mode }` steers (`direct` o
 `{ scenario }` do what the page's buttons do, and the object form `{ turn_ons: { character, partner }, steers }` sets each
 one's turn-ons first. Each model runs on the hosts in the run's own `ADULT_TEXT_PROVIDERS`, or on its own after an `@`
 (`--models deepseek/deepseek-chat-v3.1@coreweave+deepinfra,cognitivecomputations/dolphin-mistral-24b-venice-edition@venice`),
-so a local run can put Dolphin back on Venice without touching production's list. The steers file and the output stay
-outside the repo: they're explicit.
+so a local run can put Dolphin back on Venice without touching production's list. `--penalties 0.3,0` gives each model
+its own frequency and presence penalty, in `--models`' order (an empty place keeps the app's own), so one model can run
+twice on the same night with two settings. The steers file and the output stay outside the repo: they're explicit.
 
 ## Videos with both of them in (2026-10-22)
 

@@ -21,6 +21,8 @@
  *          --character file.json  the character to create instead of Teodor Vance (NEW_CHARACTER's shape, extras too)
  *          --steers file.json     a night to replay instead of STEERS, one step each, in order (parseSteers); --steps
  *                                 then defaults to the file's length
+ *          --penalties 0.3,0      each model's frequency and presence penalty, in --models' order (parsePenalties), so
+ *                                 one model can run twice with two settings; an empty place keeps the app's own
  * Text hosts: each model's app runs on the hosts in this run's own ADULT_TEXT_PROVIDERS (lib/adult/mode.ts; unset, the
  * app's reviewed two), or on the ones a model names after an @, joined by +
  * (cognitivecomputations/dolphin-mistral-24b-venice-edition@venice): a local run can try a host production doesn't use.
@@ -86,6 +88,25 @@ export function parseArms(spec, envHosts) {
       return { model: at > 0 ? s.slice(0, at).trim() : s, hosts: hosts.length ? hosts : null };
     });
 }
+
+/**
+ * Each model's frequency and presence penalty (--penalties), comma-separated in --models' order ("0.3,0"): null where a
+ * place is empty or missing, which keeps the app's own (lib/adult/settings.ts).
+ */
+export function parsePenalties(spec, count) {
+  const parts = String(spec ?? "").split(",").map((s) => s.trim());
+  if (parts.length > count) throw new Error(`--penalties: ${parts.length} values for ${count} models`);
+  return Array.from({ length: count }, (_, i) => {
+    if (!parts[i]) return null;
+    const n = Number(parts[i]);
+    if (!Number.isFinite(n) || n < -2 || n > 2) throw new Error(`--penalties: "${parts[i]}" isn't a number from -2 to 2`);
+    return n;
+  });
+}
+
+/** A run's name in the key and the log: the model, its penalties when the run set them, and its hosts. */
+export const armLabel = (arm) =>
+  `${arm.model}${typeof arm.penalty === "number" ? ` (penalties ${arm.penalty})` : ""}${arm.hosts ? ` @ ${arm.hosts.join(", ")}` : ""}`;
 
 /** The character a run creates (--character): NEW_CHARACTER's shape, with what a save needs; the app checks the rest. */
 export function parseCharacter(json) {
@@ -252,7 +273,8 @@ async function nightPhase(arm, dbDir, setup, showrunnerPort, plan, stepCount) {
   const steps = [];
   const t0 = Date.now();
   try {
-    must(await req(base, "POST", "/api/admin/after-dark/settings", setup.owner, { enabled: true, openrouter_key: process.env.AD_OPENROUTER_KEY, text_model: model }), "After Dark's settings");
+    const penalties = typeof arm.penalty === "number" ? { frequency_penalty: arm.penalty, presence_penalty: arm.penalty } : {};
+    must(await req(base, "POST", "/api/admin/after-dark/settings", setup.owner, { enabled: true, openrouter_key: process.env.AD_OPENROUTER_KEY, text_model: model, ...penalties }), "After Dark's settings");
     const on = await tool(base, "after_dark_switch", { character_id: setup.character.id, on: true });
     if (on.error) throw new Error(`switching ${setup.character.name} on: ${on.error}`);
     // A replayed night's turn-ons, before its first step (the page's turn-on chips; an admin sets the house cast's).
@@ -376,7 +398,9 @@ async function main() {
     if (!process.env.AD_OPENROUTER_KEY) throw new Error("AD_OPENROUTER_KEY needed: After Dark's OpenRouter key, read from the keychain by the caller");
     if (DATE_MODEL === "paid" && !process.env.SIM_LLM_API_KEY) throw new Error("--date-model paid needs SIM_LLM_API_KEY (the AI Gateway key)");
     const newCharacter = characterFile ? parseCharacter(JSON.parse(readFileSync(characterFile, "utf8"))) : NEW_CHARACTER;
-    const arms = parseArms(opt("models", "cognitivecomputations/dolphin-mistral-24b-venice-edition,deepseek/deepseek-chat-v3.1"), process.env.ADULT_TEXT_PROVIDERS);
+    const models = parseArms(opt("models", "cognitivecomputations/dolphin-mistral-24b-venice-edition,deepseek/deepseek-chat-v3.1"), process.env.ADULT_TEXT_PROVIDERS);
+    const penalties = parsePenalties(opt("penalties", ""), models.length);
+    const arms = models.map((arm, i) => ({ ...arm, penalty: penalties[i] }));
     rmSync(OUT, { recursive: true, force: true });
     mkdirSync(join(OUT, "db-base"), { recursive: true });
     if (!flag("no-build")) build();
@@ -391,7 +415,7 @@ async function main() {
         const dir = join(OUT, `model-${i + 1}`);
         mkdirSync(dir, { recursive: true });
         cpSync(join(OUT, "db-base"), join(dir, "db"), { recursive: true });
-        console.log(`== After Dark on ${arm.model}${arm.hosts ? ` (hosts: ${arm.hosts.join(", ")})` : ""}`);
+        console.log(`== After Dark on ${armLabel(arm)}`);
         const night = await nightPhase(arm, join(dir, "db"), setup, port, plan, stepCount);
         writeFileSync(join(dir, "night.json"), JSON.stringify(night, null, 2));
         // A night that wrote nothing has nothing to observe: its report is null, and the other models still run.
@@ -402,7 +426,7 @@ async function main() {
           console.log(`  no observer report for ${arm.model}: ${String(err?.stderr || err?.message || err).trim().split("\n")[0].slice(0, 160)}`);
         }
         writeFileSync(join(dir, "report.json"), JSON.stringify(report, null, 2));
-        runs.push({ model: arm.model, ...(arm.hosts ? { hosts: arm.hosts } : {}), dir });
+        runs.push({ model: arm.model, ...(arm.hosts ? { hosts: arm.hosts } : {}), ...(typeof arm.penalty === "number" ? { penalty: arm.penalty } : {}), dir });
       }
       writeFileSync(join(OUT, "runs.json"), JSON.stringify(runs, null, 2));
     } finally {
@@ -427,7 +451,7 @@ async function main() {
     const all = nightLines(night.notes);
     const { score, breakdown } = scoreNight(report, night.steps, all);
     const letter = letterOf[basename(run.dir)];
-    key[letter] = run.hosts ? `${run.model} @ ${run.hosts.join(", ")}` : run.model;
+    key[letter] = armLabel(run);
     writeFileSync(
       join(OUT, `transcript-${letter}.txt`),
       all.map((l, n) => `${n + 1}. [ch ${l.chapter ?? "?"}] ${l.who === "a" ? night.notes?.a?.name : l.who === "b" ? night.notes?.b?.name : l.who}: ${l.text}\n   why: ${l.why ?? "—"} · memory: ${l.memory ?? "—"}`).join("\n"),
@@ -436,6 +460,7 @@ async function main() {
     summary.models.push({
       model: run.model,
       hosts: run.hosts ?? null,
+      penalty: run.penalty ?? null,
       score,
       breakdown,
       lines: all.length,
@@ -451,7 +476,7 @@ async function main() {
   }
   writeFileSync(join(OUT, "key.json"), JSON.stringify(key, null, 2));
   writeFileSync(join(OUT, "summary.json"), JSON.stringify(summary, null, 2));
-  for (const m of summary.models) console.log(`${m.model}: ${m.score}/100 · ${m.lines} lines in ${m.steps} steps (${m.failed_steps} failed), top stage ${m.top_stage}, ${m.minutes} min`);
+  for (const m of summary.models) console.log(`${armLabel(m)}: ${m.score}/100 · ${m.lines} lines in ${m.steps} steps (${m.failed_steps} failed), top stage ${m.top_stage}, ${m.minutes} min`);
   console.log(`Output: ${OUT} (transcripts and databases there are explicit: never commit them)`);
 }
 
