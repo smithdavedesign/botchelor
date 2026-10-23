@@ -21,6 +21,7 @@ import { formatLabel } from "@/lib/formats";
 import { venueBackdropCss, venueName } from "@/lib/venues";
 import { venueBackdrop } from "@/lib/portraits";
 import Avatar from "@/app/Avatar";
+import CharacterName from "@/app/CharacterName";
 import Afterglow, { SecondDate } from "./Afterglow";
 import EpisodeTheater from "./EpisodeTheater";
 import ChatThread from "@/app/ChatThread";
@@ -86,7 +87,7 @@ function MakeYourOwn() {
   );
 }
 
-type HeroCharacter = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null; agent?: boolean };
+type HeroCharacter = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null; agent?: boolean; private?: boolean };
 
 /**
  * The top of an episode (David, 2026-10-21: "expand the setting image so it's like a hero background… entice people
@@ -129,7 +130,7 @@ function EpisodeHero({
           <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={84} />
         </div>
         <h1>
-          {a.name} <span className="episode-hero-x">×</span> {b.name}
+          <CharacterName character={a} avatar={false} /> <span className="episode-hero-x">×</span> <CharacterName character={b} avatar={false} />
         </h1>
         {setting && <p className="episode-hero-setting">{setting}</p>}
         {children}
@@ -335,7 +336,7 @@ export default async function EpisodePage({
                 <li key={g.character_id} className="card">
                   {c && <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={40} />}
                   <p>
-                    <strong>{nameOf(g.character_id)}</strong> {g.goal}
+                    {c ? <CharacterName character={c} avatar={false} strong /> : <strong>{nameOf(g.character_id)}</strong>} {g.goal}
                   </p>
                 </li>
               );

@@ -3,7 +3,9 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { getDb } from "@/lib/db";
 import { userIdFromCookieStore } from "@/lib/http";
-import { listNotifications, markRead } from "@/lib/notifications";
+import { countNotifications, listNotifications, markRead } from "@/lib/notifications";
+import Pager from "@/app/Pager";
+import { clampPage, pageCount, pageHref, parsePage } from "@/lib/paging";
 import { pushKeys } from "@/lib/push";
 import ClearNotifications from "./ClearNotifications";
 import PushToggle from "./PushToggle";
@@ -14,12 +16,21 @@ export const metadata: Metadata = { title: "Notifications · Botchelor", robots:
 const when = (iso: string) =>
   new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) + " UTC";
 
-/** What happened between dates (lib/notifications.ts). Opening the page marks everything read; each can be cleared, or all at once. */
-export default async function NotificationsPage() {
+/** Notifications: this many a page (?page=N), newest first. */
+const NOTIFICATIONS_PAGE = 10;
+
+/**
+ * What happened between dates (lib/notifications.ts), a page at a time. Opening the page marks everything read; each
+ * can be cleared, or all at once.
+ */
+export default async function NotificationsPage({ searchParams }: { searchParams?: Promise<{ page?: string | string[] }> } = {}) {
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
-  const items = viewerId ? await listNotifications(db, viewerId) : [];
-  if (viewerId && items.some((n) => !n.read)) await markRead(db, viewerId, "all");
+  const total = viewerId ? await countNotifications(db, viewerId) : 0;
+  const pages = pageCount(total, NOTIFICATIONS_PAGE);
+  const page = clampPage(parsePage((await searchParams)?.page), pages);
+  const items = viewerId ? await listNotifications(db, viewerId, NOTIFICATIONS_PAGE, (page - 1) * NOTIFICATIONS_PAGE) : [];
+  if (viewerId && (await countNotifications(db, viewerId, { unread: true })) > 0) await markRead(db, viewerId, "all");
   const push = pushKeys();
 
   return (
@@ -62,6 +73,7 @@ export default async function NotificationsPage() {
               </li>
             ))}
           </ul>
+          <Pager page={page} pages={pages} label="Notifications pages" href={(n) => pageHref("/notifications", {}, "page", n)} prev="Newer" next="Older" />
           </>
         )}
       </section>
