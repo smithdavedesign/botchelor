@@ -45,13 +45,14 @@ import { getSet } from "../sets";
 import { normalizeScene, setPath } from "../venues";
 import { crossesTaboo } from "./acts";
 import { checkOutput, type CheckResult } from "./check";
+import { providerError, runMedia } from "./fallback";
 import type { PlaceStop } from "./continuity";
 import { ensureBaseline, lookWords, signedMediaUrl } from "./media";
 import { adultModel } from "./mode";
 import { REEL_STALLED_MS } from "./reel-timing";
 import { cancelPrediction, createPrediction, downloadOutput, getPrediction, isDone, noOutput, outputUrls, ReplicateError, runModel, type Prediction, type ReplicateFile } from "./replicate";
 import { dropForeignActions, eligiblePair, type SceneLine } from "./scenes";
-import { adultKeys, getAdultSettings } from "./settings";
+import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
 import { STAGES } from "./stages";
 
 export const VENICE = "https://api.venice.ai/api/v1";
@@ -129,6 +130,12 @@ export type ReelShot = {
   audio_id?: string;
   /** The keyframe it started from, once that passed the check (an adult_images 'frame'): what Keep going carries on from. */
   frame_id?: string;
+  /**
+   * Who drew its keyframe, and whether the keyframe or the video went to the other provider because the configured one
+   * was limited (lib/adult/fallback.ts). A queued video is always collected where it was queued (`provider`).
+   */
+  frame_provider?: MediaProvider;
+  fell_back?: boolean;
 };
 /**
  * A clip (lib/adult/clips.ts): one shot made on request, from the menu's act or the scene's latest moment, and the clip
@@ -533,6 +540,15 @@ async function venice(key: string, path: string, body: unknown): Promise<Respons
   return doFetch(`${VENICE}${path}`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify(body) });
 }
 
+/** A line in a stock voice from Venice's Kokoro (MP3): a Replicate shot's voice when Replicate is limited. */
+async function veniceSpeech(key: string, text: string, voice: string): Promise<ReplicateFile> {
+  const res = await venice(key, "/audio/speech", { model: "tts-kokoro", input: text, voice, response_format: "mp3" });
+  if (!res.ok) throw await providerError(res, (status, body) => `Venice ${status}: ${body.slice(0, 120)}`);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  if (!bytes.length || bytes.length > MAX_VOICE_BYTES) throw new Error("Venice returned no usable audio");
+  return { bytes, mime: "audio/mpeg" };
+}
+
 /** Each one's newest baseline that passed the check: the two faces every keyframe keeps. */
 export async function baselines(db: Db, a: string, b: string): Promise<[string, string] | null> {
   const { rows } = await db.query<{ id: string; character_id: string }>(
@@ -560,7 +576,7 @@ export async function setPictures(db: Db, places: readonly (string | null)[]): P
 /** One keyframe from Venice's multi-image edit: it answers with the picture itself. */
 export async function drawKeyframe(key: string, prompt: string, images: string[]): Promise<{ bytes: Buffer; mime: string }> {
   const res = await venice(key, "/image/multi-edit", { modelId: KEYFRAME_MODEL, prompt, images, safe_mode: false, aspect_ratio: "3:4", output_format: "png" });
-  if (!res.ok) throw new Error(`Venice ${res.status}: ${(await res.text()).slice(0, 160)}`);
+  if (!res.ok) throw await providerError(res, (status, text) => `Venice ${status}: ${text.slice(0, 160)}`);
   if (res.headers.get("x-venice-is-content-violation") === "true") throw new Error("Venice flagged the keyframe as against its terms");
   const type = (res.headers.get("content-type") ?? "").split(";")[0].trim();
   if (type.startsWith("image/")) return { bytes: Buffer.from(await res.arrayBuffer()), mime: type };
@@ -586,12 +602,18 @@ export type ShotContext = {
   places: readonly (string | null)[];
   stages: readonly number[];
   bases: [string, string];
+  /** Venice's key ("" when there's none). */
   venice: string;
   hive: string | null;
   model: string;
   baseUrl: string;
-  /** Set when the reel is made on Replicate; Venice otherwise. */
+  /** Replicate's token and models, when there's a token; null otherwise. */
   replicate: ReplicateMedia | null;
+  /**
+   * Where the shots are made (`media_provider`). Unset: Replicate when `replicate` is given, else Venice. A shot goes to
+   * the other one when this one is limited (lib/adult/fallback.ts) and the other is given here.
+   */
+  provider?: MediaProvider;
   /**
    * A clip's own keyframe (lib/adult/clips.ts): its prompt, and the third picture, a keyframe id to carry on from (Keep
    * going) or the place's set. Unset: a night's reel, the director's still in the line's place.
@@ -623,6 +645,8 @@ async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "r
  * the reel settles.
  */
 export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx: ShotContext): Promise<void> {
+  const configured: MediaProvider = ctx.provider ?? (ctx.replicate ? "replicate" : "venice");
+  const providers = { configured, available: (p: MediaProvider) => (p === "replicate" ? Boolean(ctx.replicate) : Boolean(ctx.venice)) };
   const sets = await setPictures(db, shots.map((s) => ctx.places[s.line] ?? null));
   const faces = ctx.bases.map((id) => signedMediaUrl(id, ctx.baseUrl));
   const drawn = await Promise.all(
@@ -635,11 +659,17 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
       // Keep going: the shot before's keyframe is the third picture, in the set's place.
       const third = own?.continueFrom ? signedMediaUrl(own.continueFrom, ctx.baseUrl) : null;
       try {
-        if (ctx.replicate) {
-          const images = third ? [...faces, third] : set && place ? [...faces, replicateSetImage(set, place, ctx.baseUrl)] : faces;
-          return { prompt, file: await drawReplicateKeyframe(ctx.replicate, prompt, images) };
-        }
-        return { prompt, file: await drawKeyframe(ctx.venice, prompt, third ? [...faces, third] : set ? [...faces, set] : faces) };
+        // A keyframe is one job: drawn on the other provider when this one is limited.
+        const made = await runMedia(
+          db,
+          "keyframe",
+          (p) =>
+            p === "replicate"
+              ? drawReplicateKeyframe(ctx.replicate!, prompt, third ? [...faces, third] : set && place ? [...faces, replicateSetImage(set, place, ctx.baseUrl)] : faces)
+              : drawKeyframe(ctx.venice, prompt, third ? [...faces, third] : set ? [...faces, set] : faces),
+          providers,
+        );
+        return { prompt, file: made.value, provider: made.provider, fell_back: made.fell_back };
       } catch (err) {
         Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" });
         return null;
@@ -670,13 +700,33 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
     const id = crypto.randomUUID();
     const kept = await keepBytes("after-dark", id, d.file.bytes, d.file.mime);
     await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status) values ($1, $2, $3, $4, 'frame', $5, $6, $7, $8, 'ready')`,
-      [id, ownerId, ctx.pair[0], ctx.pair[1], d.prompt, d.file.mime, kept.data, kept.object_key],
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back) values ($1, $2, $3, $4, 'frame', $5, $6, $7, $8, 'ready', $9, $10)`,
+      [id, ownerId, ctx.pair[0], ctx.pair[1], d.prompt, d.file.mime, kept.data, kept.object_key, d.provider, d.fell_back],
     );
     s.media_id = id;
     s.frame_id = id;
-    await (ctx.replicate ? queueReplicateShot(ctx, s) : queueShot(ctx, s)).catch((err) => Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" }));
+    s.frame_provider = d.provider;
+    if (d.fell_back) s.fell_back = true;
+    // Queuing its video is a new job too (nothing is running yet), so it may go to the other provider; once queued, it's
+    // collected where it went (`provider`), never switched.
+    try {
+      const queued = await runMedia(db, "video", (p) => (p === "replicate" ? queueReplicateShot(ctx, s) : queueShot(ctx, s)), providers);
+      if (queued.provider === "replicate") s.provider = "replicate";
+      else delete s.provider;
+      if (queued.fell_back) s.fell_back = true;
+    } catch (err) {
+      Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" });
+    }
   }
+}
+
+/**
+ * Who made a reel or clip: the provider its shots' videos were queued on ("mixed" when it was both; null when none got
+ * that far), and whether any part of it went to the fallback provider. Kept on the adult_reels row.
+ */
+export function reelMadeOn(shots: readonly ReelShot[]): { provider: string | null; fell_back: boolean } {
+  const on = new Set(shots.filter((s) => s.queue_id).map((s) => (s.provider === "replicate" ? "replicate" : "venice")));
+  return { provider: on.size === 1 ? [...on][0] : on.size ? "mixed" : null, fell_back: shots.some((s) => s.fell_back === true) };
 }
 
 /** Queues one shot's video from its keyframe. */
@@ -693,14 +743,14 @@ async function queueShot(ctx: Pick<ShotContext, "cast" | "venice" | "model" | "b
   if (audioIn && s.text.trim()) {
     // Our voice, so the words are exact and the voice is theirs every time; the model lip-syncs to it.
     const tts = await venice(ctx.venice, "/audio/speech", { model: "tts-kokoro", input: s.text, voice: voiceFor(ctx.cast[s.who === "a" ? 0 : 1]), response_format: "mp3" });
-    if (!tts.ok) throw new Error(`voice ${tts.status}`);
+    if (!tts.ok) throw await providerError(tts, (status) => `voice ${status}`);
     body.audio_url = `data:audio/mpeg;base64,${Buffer.from(await tts.arrayBuffer()).toString("base64")}`;
   } else if (!audioIn) {
     body.audio = true;
   }
   if (/^wan-3/.test(ctx.model)) body.aspect_ratio = "adaptive";
   const res = await venice(ctx.venice, "/video/queue", body);
-  if (!res.ok) throw new Error(`Venice ${res.status}: ${(await res.text()).slice(0, 160)}`);
+  if (!res.ok) throw await providerError(res, (status, text) => `Venice ${status}: ${text.slice(0, 160)}`);
   const q = (await res.json()) as { queue_id?: string };
   if (!q.queue_id) throw new Error("Venice returned no queue id");
   s.queue_id = q.queue_id;
@@ -836,11 +886,13 @@ export async function makeReel(
       pays ? price : 0,
       JSON.stringify(shots),
     ]);
-    const replicate = onReplicate
-      ? { token: keys.replicate!, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora }
+    // Both providers' details when both are set up: a shot goes to the other when the configured one is limited.
+    const replicate = keys.replicate
+      ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora }
       : null;
-    await startShots(db, ownerId, shots, { pair: [a, b], cast, places, stages, bases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate });
-    await db.query(`update adult_reels set shots = $2::jsonb where id = $1`, [id, JSON.stringify(shots)]);
+    await startShots(db, ownerId, shots, { pair: [a, b], cast, places, stages, bases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate, provider: settings.media_provider });
+    const made = reelMadeOn(shots);
+    await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4 where id = $1`, [id, JSON.stringify(shots), made.provider, made.fell_back]);
     return { ok: true, reel: await settleIfDone(db, id) };
   } catch (err) {
     if (pays) await refundBoughtTokens(db, ownerId, price);
@@ -862,7 +914,7 @@ async function collectReplicateShot(
   ownerId: string,
   pair: { character_a: string; character_b: string },
   s: ReelShot,
-  keys: { replicate: string; hive: string | null },
+  keys: { replicate: string; hive: string | null; venice?: string | null },
   voiceModel: () => Promise<string>,
   now: number,
 ): Promise<"checked" | "busy" | "waiting"> {
@@ -907,8 +959,8 @@ async function collectReplicateShot(
   const mediaId = crypto.randomUUID();
   const kept = await keepBytes("after-dark", mediaId, file.bytes, "video/mp4");
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8)`,
-    [mediaId, ownerId, pair.character_a, pair.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'replicate', $9)`,
+    [mediaId, ownerId, pair.character_a, pair.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null, s.fell_back === true],
   );
   s.status = "ready";
   s.media_id = mediaId;
@@ -919,15 +971,26 @@ async function collectReplicateShot(
   // Its line, in their voice: the words were held to the two lines when the reel started (makeReel). A voice that
   // doesn't come leaves the shot silent, with its caption, rather than losing it.
   try {
-    const voice = await runModel(keys.replicate, await voiceModel(), replicateVoiceInput(s), { maxBytes: MAX_VOICE_BYTES, timeoutMs: 60_000 });
+    // The voice is a job of its own: on Venice's Kokoro when Replicate is limited (the video stays where it was made).
+    const said = await runMedia(
+      db,
+      "voice",
+      async (p) =>
+        p === "replicate"
+          ? runModel(keys.replicate, await voiceModel(), replicateVoiceInput(s), { maxBytes: MAX_VOICE_BYTES, timeoutMs: 60_000 })
+          : veniceSpeech(keys.venice!, s.text, s.voice ?? "af_alloy"),
+      { configured: "replicate", available: (p) => p === "replicate" || Boolean(keys.venice) },
+    );
+    const voice = said.value;
     if (!voice.mime.startsWith("audio/")) throw new Error("Replicate returned no audio");
     const audioId = crypto.randomUUID();
-    const said = await keepBytes("after-dark", audioId, voice.bytes, voice.mime);
+    const kept = await keepBytes("after-dark", audioId, voice.bytes, voice.mime);
     await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image) values ($1, $2, $3, $4, 'audio', $5, $6, $7, $8, 'ready', $9)`,
-      [audioId, ownerId, pair.character_a, pair.character_b, `Reel line: ${s.text}`.slice(0, 500), voice.mime, said.data, said.object_key, mediaId],
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back) values ($1, $2, $3, $4, 'audio', $5, $6, $7, $8, 'ready', $9, $10, $11)`,
+      [audioId, ownerId, pair.character_a, pair.character_b, `Reel line: ${s.text}`.slice(0, 500), voice.mime, kept.data, kept.object_key, mediaId, said.provider, said.fell_back],
     );
     s.audio_id = audioId;
+    if (said.fell_back) s.fell_back = true;
   } catch (err) {
     s.reason = `no voice: ${err instanceof Error ? err.message : "error"}`.slice(0, 200);
   }
@@ -960,7 +1023,7 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     if (s.retry_at && now < new Date(s.retry_at).getTime()) continue;
     if (s.provider === "replicate") {
       if (!keys.replicate) continue;
-      const got = await collectReplicateShot(db, ownerId, row, s, { replicate: keys.replicate, hive: keys.hive }, voiceModelOf, now);
+      const got = await collectReplicateShot(db, ownerId, row, s, { replicate: keys.replicate, hive: keys.hive, venice: keys.venice }, voiceModelOf, now);
       if (got === "checked") checked++;
       // Hive couldn't check it: nothing more goes to Hive this poll.
       if (got === "busy") break;
@@ -994,8 +1057,8 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     const mediaId = crypto.randomUUID();
     const kept = await keepBytes("after-dark", mediaId, bytes, "video/mp4");
     await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8)`,
-      [mediaId, ownerId, row.character_a, row.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null],
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'venice', $9)`,
+      [mediaId, ownerId, row.character_a, row.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null, s.fell_back === true],
     );
     s.status = "ready";
     s.media_id = mediaId;

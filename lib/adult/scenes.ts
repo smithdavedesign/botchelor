@@ -14,7 +14,7 @@ import { checkAdultText, type SafetyResult } from "../safety";
 import { eligibleIds } from "./characters";
 import { pictureKeyReady, ensureBaseline, makePicture, outputCheckReady, PICTURES_OFF_NOTE, recentActions, scenePrompt, type Media } from "./media";
 import { countUse, overCap } from "./usage";
-import { adultModel } from "./mode";
+import { adultModel, adultModelId } from "./mode";
 import { drawLabel, ensureSet, resolveSet } from "../sets";
 import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
@@ -38,7 +38,8 @@ import {
 import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
 import { activeLimit, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
 import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
-import { fileSteps, logStep, markRewound, stepIndexOf, stepsOf, unfileSteps, type StepRow } from "./steps";
+import { textModelHistory, writtenBy, type WrittenBy } from "./model-log";
+import { fileSteps, flagStep, logStep, markRewound, stepIndexOf, stepsOf, unfileSteps, type StepRow } from "./steps";
 import { hardNoHit, hardNoLines, hasHardNos, INTENSITY, intensityLine, intensityOf, limitsHit, NO_LIMITS, overIntensity, OWN_LEN, OWN_MAX, plainTalk, storedHardNos, type HardNos, type Intensity, type PairLimits } from "./limits";
 import { framingOf, mayEditProfile, profileLines, turnOnsFor, turnOnsOf, type FramingId, type TurnOnId } from "./profile";
 import { scenarioById, type Scenario } from "./scenarios";
@@ -1272,9 +1273,15 @@ const hotter = (o: ModelOptions): ModelOptions => ({
   presencePenalty: Math.min(1.2, (o.presencePenalty ?? 0) + 0.4),
 });
 
+/**
+ * Which model and host the responses said answered a step's calls (lib/model.ts onServed), each distinct one joined
+ * by ", " in the order they came; null when none said (the step then records the model it asked for).
+ */
+export type Served = { model: string | null; provider: string | null };
+
 export type StepResult =
-  | { ok: true; lines: SceneLine[]; meta: SceneMeta; dropped: DroppedLine[]; flags: StepFlags; next: SceneState; shown: ShownFact[]; usage: Usage[] }
-  | { ok: false; status: 422 | 502; message: string; dropped: DroppedLine[]; flags: StepFlags; shown: ShownFact[]; usage: Usage[]; raw?: string };
+  | { ok: true; lines: SceneLine[]; meta: SceneMeta; dropped: DroppedLine[]; flags: StepFlags; next: SceneState; shown: ShownFact[]; usage: Usage[]; served: Served }
+  | { ok: false; status: 422 | 502; message: string; dropped: DroppedLine[]; flags: StepFlags; shown: ShownFact[]; usage: Usage[]; raw?: string; served: Served };
 
 /**
  * Writes the next lines of a scene and runs them through every guard, in order: the two lines (lib/safety.ts
@@ -1352,6 +1359,9 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     ...(carry ? { carry: { stage: carry.stage, place: carry.place, first: carry.first, floor: carry.floor } } : {}),
   };
   const { temperature, frequency_penalty, presence_penalty, repetition_penalty } = input.sampling;
+  const servedModels: string[] = [];
+  const servedHosts: string[] = [];
+  const served = (): Served => ({ model: servedModels.join(", ") || null, provider: servedHosts.join(", ") || null });
   const options: ModelOptions = {
     temperature,
     maxTokens: SCENE_REPLY_TOKENS,
@@ -1359,6 +1369,11 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     ...(presence_penalty !== null ? { presencePenalty: presence_penalty } : {}),
     ...(repetition_penalty !== null ? { repetitionPenalty: repetition_penalty } : {}),
     onUsage: (u) => usage.push(u),
+    // What OpenRouter says answered each call: the model it routed to and its host.
+    onServed: (s) => {
+      if (s.model && !servedModels.includes(s.model)) servedModels.push(s.model);
+      if (s.provider && !servedHosts.includes(s.provider)) servedHosts.push(s.provider);
+    },
   };
   // A copy of one of their own show lines is a repeat too: v2 shows them to match the voice, never to say again. (Checked
   // on its own: in dropRepeats' window the critic would read their signature words as a tic.)
@@ -1550,7 +1565,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
       }
     }
   } catch (err) {
-    return { ok: false, status: 502, message: `After dark's model didn't answer: ${err instanceof Error ? err.message : "error"}`, dropped, flags, shown, usage };
+    return { ok: false, status: 502, message: `After dark's model didn't answer: ${err instanceof Error ? err.message : "error"}`, dropped, flags, shown, usage, served: served() };
   }
   const { raw, written } = out;
   flags.alternation_boundary += out.boundary;
@@ -1570,6 +1585,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
       flags,
       shown,
       usage,
+      served: served(),
       ...(flags.refusal_reply ? { raw: raw.slice(0, 400) } : {}),
     };
   }
@@ -1609,7 +1625,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
       flags.public_dropped += over.filter(Boolean).length;
       flags.citations = flags.citations.filter((_, i) => !over[i]);
       kept = kept.filter((_, i) => !over[i]);
-      if (!kept.length) return { ok: false, status: 422, message: "Their lines went past kissing somewhere public without leaving it. Try again, or steer them somewhere private.", dropped, flags, shown, usage };
+      if (!kept.length) return { ok: false, status: 422, message: "Their lines went past kissing somewhere public without leaving it. Try again, or steer them somewhere private.", dropped, flags, shown, usage, served: served() };
     }
   }
   let set_place = settled.set;
@@ -1664,7 +1680,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   const next: SceneState = {
     ...scene, lines: [...scene.lines, ...stamped], place, stage, stage_from, set_place, cut_to: null, place_history, moves, suggestions, whispers: afterWhisperStep(whispers),
   };
-  return { ok: true, lines: stamped, meta, dropped, flags, next, shown, usage };
+  return { ok: true, lines: stamped, meta, dropped, flags, next, shown, usage, served: served() };
 }
 
 /** What a step needs from the database, loaded read-only (stepContext). */
@@ -1751,11 +1767,15 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const pairIds = { a: scene.a.id, b: scene.b.id };
   const whisperText = opts.whisper ? cleanWhisper(opts.whisper.text) : "";
   const whisper = opts.whisper && whisperText ? { to: opts.whisper.to, text: whisperText } : null;
-  const failed = async (http: number, message: string, extra: { direction?: string | null; dropped?: DroppedLine[]; flags?: StepFlags; whisper?: StepOptions["whisper"] } = {}) => {
+  const failed = async (
+    http: number,
+    message: string,
+    extra: { direction?: string | null; dropped?: DroppedLine[]; flags?: StepFlags; whisper?: StepOptions["whisper"]; text?: { model: string | null; provider: string | null } } = {},
+  ) => {
     await logStep(db, adminId, pairIds, scene.id, {
       kind: "write", direction: extra.direction ?? null, steer_mode: extra.direction ? steerMode : null, status: "error", http, message, chapter: scene.chapter,
       line_from: null, line_to: null, added: 0, dropped: extra.dropped ?? [], flags: extra.flags ? { ...extra.flags, ...(opts.redo ? { redo: true } : {}) } : opts.redo ? { redo: true } : null,
-      whisper: extra.whisper ?? null,
+      whisper: extra.whisper ?? null, text_model: extra.text?.model ?? null, text_provider: extra.text?.provider ?? null,
     });
     return { ok: false as const, status: http, message };
   };
@@ -1803,12 +1823,14 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     limits,
     profile: await sceneProfile(db, scene),
   });
-  if (!step.ok) return failed(step.status, step.message, { direction: steer, dropped: step.dropped, flags: step.flags, whisper });
+  // Which model wrote it: what OpenRouter said answered, else the one asked for (lib/adult/steps.ts text_model).
+  const text = { model: step.served.model ?? (await adultModelId(db)), provider: step.served.provider };
+  if (!step.ok) return failed(step.status, step.message, { direction: steer, dropped: step.dropped, flags: step.flags, whisper, text });
   const { meta, next } = step;
   const stepId = await logStep(db, adminId, pairIds, scene.id, {
     kind: "write", direction: steer, steer_mode: steer ? steerMode : null, status: "ok", http: null, message: null, chapter: scene.chapter,
     line_from: scene.lines.length, line_to: scene.lines.length + step.lines.length - 1, added: step.lines.length, dropped: step.dropped,
-    flags: opts.redo ? { ...step.flags, redo: true } : step.flags, whisper,
+    flags: opts.redo ? { ...step.flags, redo: true } : step.flags, whisper, text_model: text.model, text_provider: text.provider,
   });
   // What a rewind needs to take this step back: the scene before it, what it was asked, and the cited facts' uses.
   const cited = new Set(step.lines.flatMap((l) => l.fact_ids ?? []));
@@ -1860,6 +1882,9 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
       picture_note = err instanceof Error ? err.message : "The picture didn't come through.";
     }
   }
+  // A picture made on the other provider because the configured one was limited (lib/adult/fallback.ts): the step says so.
+  const fellBack = pictures.filter((p) => p.fell_back).map((p) => ({ id: p.id, kind: p.kind, provider: p.provider ?? null }));
+  if (stepId && fellBack.length) await flagStep(db, stepId, { media_fallback: fellBack });
   // The last picture problem stays on the scene (the gallery shows it), and clears once a picture comes through.
   const note = picture_note ?? (pictures.length ? null : scene.picture_note);
   if (note !== scene.picture_note) await db.query(`update adult_scenes set picture_note = $2 where id = $1`, [scene.id, note]);
@@ -2349,8 +2374,8 @@ export type LineNote = { i: number; who: string; text: string; why: string | nul
 export type SceneNotes = {
   a: { id: string; name: string };
   b: { id: string; name: string };
-  current: { chapter: number; place: string | null; set_place: string | null; place_history: PlaceStop[]; moves: MoveLog[]; steps: StepRow[]; lines: LineNote[] };
-  nights: { id: string; chapter: number | null; created_at: string; set_place: string | null; moves: MoveLog[] | null; steps: StepRow[]; lines: LineNote[] }[];
+  current: { chapter: number; place: string | null; set_place: string | null; place_history: PlaceStop[]; moves: MoveLog[]; steps: StepRow[]; lines: LineNote[]; written_by: WrittenBy };
+  nights: { id: string; chapter: number | null; created_at: string; set_place: string | null; moves: MoveLog[] | null; steps: StepRow[]; lines: LineNote[]; written_by: WrittenBy }[];
 };
 
 const notesOf = (lines: readonly SceneLine[], names: { a: string; b: string }, steps: readonly StepRow[] = []): LineNote[] => {
@@ -2370,18 +2395,20 @@ export async function sceneNotes(db: Db, ownerId: string, x: string, y: string):
     `select id, chapter, created_at, set_place, moves, lines from adult_nights where owner_id = $1 and character_a = $2 and character_b = $3 order by created_at desc limit 50`,
     [ownerId, scene.a.id, scene.b.id],
   );
-  // What was asked at each step, and what came of it or the error (lib/adult/steps.ts).
-  const steps = await stepsOf(db, ownerId, scene.a.id, scene.b.id);
+  // What was asked at each step, and what came of it or the error (lib/adult/steps.ts); and which model wrote each chapter.
+  const [steps, history] = await Promise.all([stepsOf(db, ownerId, scene.a.id, scene.b.id), textModelHistory(db)]);
+  const wrote = (s: readonly StepRow[]) => s.filter((x) => x.kind === "write" && x.status === "ok" && !x.rewound);
   return {
     a: scene.a,
     b: scene.b,
     current: {
       chapter: scene.chapter, place: scene.place, set_place: scene.set_place, place_history: scene.place_history, moves: scene.moves,
-      steps: steps.running, lines: notesOf(scene.lines, names, steps.running),
+      steps: steps.running, lines: notesOf(scene.lines, names, steps.running), written_by: writtenBy(wrote(steps.running), new Date().toISOString(), history),
     },
     nights: rows.map((r) => {
       const own = steps.byNight.get(r.id) ?? [];
-      return { ...r, created_at: new Date(r.created_at).toISOString(), steps: own, lines: notesOf(r.lines ?? [], names, own) };
+      const at = new Date(r.created_at).toISOString();
+      return { ...r, created_at: at, steps: own, lines: notesOf(r.lines ?? [], names, own), written_by: writtenBy(wrote(own), at, history) };
     }),
   };
 }

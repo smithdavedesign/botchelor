@@ -74,6 +74,12 @@ A default video (6 shots) on Replicate:
 
 At 15 tokens that keeps about $9 to $10 a video, against $5.30 to $6.50 on Venice. The 4-shot bake-off (docs/after-dark.md, "A Replicate backup") costs about $0.56 of Replicate.
 
+**The fallback costs more for pictures** (`media_fallback`, on by default; docs/after-dark.md, "Falling back to the other
+provider"): when Venice is rate limited, out of credit or down, the job runs on Replicate, and a Replicate picture is
+about $0.03 against about $0.015 on Venice (each with its checks), so every picture that falls back onto Replicate costs
+about twice as much. A video falling back the other way, from Replicate onto Venice, costs far more ($0.65 a shot
+against $0.11).
+
 **Not known yet:** Venice doesn't publish which video models allow explicit output.
 - The closed commercial models (Seedance, Kling, Veo, Grok) almost certainly refuse it.
 - The open-weight ones (Wan, LongCat) are the likely candidates.
@@ -96,6 +102,7 @@ At 15 tokens that keeps about $9 to $10 a video, against $5.30 to $6.50 on Venic
 | A clip on demand (one 5 s shot; `lib/adult/clips.ts`) | A keyframe of the two of them, Hive on it, one shot, Hive on the shot; Clip from here adds a text call to direct it | About $0.70 on Venice ($0.04 keyframe, $0.65 Wan 3.0, about $0.02 Hive; a 10 s line $1.35), about $0.16 on Replicate ($0.03, $0.11, about $0.02) |
 | Keep going (the next 5 s of a clip) | The same: a keyframe from the clip's own, a shot | The same as a clip |
 | A picture from the shot menu (`lib/adult/pictures-menu.ts`) | One keyframe of the two of them (the act, outfit, framing and place as chosen), Hive on it | About $0.045 on Venice ($0.04, Hive about $0.004), about $0.035 on Replicate ($0.03) |
+| A Short (`lib/adult/shorts.ts`, 2026-10-23): a saved night of two house characters, published | Nothing is made: it shows the night's own lines, a picture already made and its video when it has one | $0 to make. Watching it is free to the viewer (in the subscription, no tokens, not counted against the caps) and costs us only the transfer: its lines, and the video's files from the bucket (a presigned link) or Postgres, a few MB a video, kept by each viewer's browser |
 
 Hive on a video is about $0.05 for 15 seconds and $0.09 for 30, if it samples about one frame a second. Confirm how
 Hive counts video frames before relying on this.

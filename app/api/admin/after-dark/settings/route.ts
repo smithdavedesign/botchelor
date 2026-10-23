@@ -46,26 +46,28 @@ const Input = z.object({
   replicate_voice_model: replicateModel.optional(),
   replicate_video_lora: videoLora.optional(),
   auto_scene_pictures: z.boolean().optional(),
+  media_fallback: z.boolean().optional(),
 });
 
-/** A signed-in admin on a device that isn't locked by their PIN (lib/adult/privacy.ts). */
+/** A signed-in admin on a device that isn't locked by their PIN (lib/adult/privacy.ts): their id, else null. */
 async function unlockedAdmin(req: Request) {
   const db = await getDb();
   const admin = await signedInAdmin(db, authFromRequest(req));
-  return { db, ok: Boolean(admin) && !(await lockedForRequest(db, admin!, req)) };
+  return { db, admin: admin && !(await lockedForRequest(db, admin, req)) ? admin : null };
 }
 
 /** After dark's settings: a signed-in admin only, even while it's off (that's where it's turned on). */
 export const GET = handle(async (req: Request) => {
-  const { db, ok } = await unlockedAdmin(req);
-  if (!ok) return json({ error: "not_found" }, 404);
+  const { db, admin } = await unlockedAdmin(req);
+  if (!admin) return json({ error: "not_found" }, 404);
   const requests = (await db.query(`select id, agent_id, client_name, reason, created_at from adult_access_requests order by created_at desc limit 50`)).rows;
   return json({ settings: await getAdultSettings(db), requests });
 });
 
 export const POST = handle(async (req: Request) => {
-  const { db, ok } = await unlockedAdmin(req);
-  if (!ok) return json({ error: "not_found" }, 404);
+  const { db, admin } = await unlockedAdmin(req);
+  if (!admin) return json({ error: "not_found" }, 404);
   const input = parseBody(Input, await readJson(req), "invalid_settings");
-  return json({ settings: await saveAdultSettings(db, input) });
+  // Who saved it goes in the settings history with each model or provider change.
+  return json({ settings: await saveAdultSettings(db, input, admin) });
 });

@@ -50,7 +50,7 @@ export default async function AfterDarkPage() {
     <div className="after-dark-mode">
       <article className="after-dark">
         <p className="kicker">
-          🌙 After Dark · private{settings ? <> · {settings}</> : null} · <Link href="/">Back to the show</Link>
+          🌙 After Dark · private{settings ? <> · {settings}</> : null} · <Link href="/after-dark/shorts">📺 Shorts</Link> · <Link href="/">Back to the show</Link>
         </p>
         <h1>After Dark</h1>
         <p className="muted">
