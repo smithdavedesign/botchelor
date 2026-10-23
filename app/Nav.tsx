@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { afterDarkHref } from "@/lib/after-dark-host";
 
 /**
  * The primary nav links (the token meter and the logo sit outside these lists). David, 2026-10-22: Create isn't a nav
@@ -119,7 +120,7 @@ export default function Nav({
           </Link>
         ))}
         {afterDark && (
-          <Link href="/after-dark" className="nav-after-dark" aria-current={pathname.startsWith("/after-dark") ? "page" : undefined}>
+          <Link href={afterDarkHref("/after-dark")} className="nav-after-dark" aria-current={pathname.startsWith("/after-dark") ? "page" : undefined}>
             🌙 After Dark
           </Link>
         )}
