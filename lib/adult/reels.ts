@@ -400,13 +400,14 @@ export function keyframePrompt(
   place: string | null,
   stage: number,
   withSet: boolean,
-  opts: { explicit?: boolean } = {},
+  opts: { explicit?: boolean; clothes?: string } = {},
 ): string {
   const [a, b] = cast;
   const head = `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together${withSet ? ", in the place from Picture 3" : ""}.`;
   const where = place ? `The place: ${place}.` : "";
+  // What they wear: by how far the night had gone, or a picture's chosen outfit (lib/adult/pictures-menu.ts).
   const keep =
-    `Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes: ${clothesAt(stage)}.` +
+    `Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes: ${opts.clothes ?? clothesAt(stage)}.` +
     `${withSet ? " Keep the place, its furniture and its light from Picture 3." : ""} Two people only, both faces visible.`;
   return fitPrompt([head, whoIsWho(cast)], frame, [where, keep, tailAt(stage, opts.explicit ?? true)]);
 }
@@ -557,7 +558,7 @@ export async function setPictures(db: Db, places: readonly (string | null)[]): P
 }
 
 /** One keyframe from Venice's multi-image edit: it answers with the picture itself. */
-async function drawKeyframe(key: string, prompt: string, images: string[]): Promise<{ bytes: Buffer; mime: string }> {
+export async function drawKeyframe(key: string, prompt: string, images: string[]): Promise<{ bytes: Buffer; mime: string }> {
   const res = await venice(key, "/image/multi-edit", { modelId: KEYFRAME_MODEL, prompt, images, safe_mode: false, aspect_ratio: "3:4", output_format: "png" });
   if (!res.ok) throw new Error(`Venice ${res.status}: ${(await res.text()).slice(0, 160)}`);
   if (res.headers.get("x-venice-is-content-violation") === "true") throw new Error("Venice flagged the keyframe as against its terms");
@@ -599,7 +600,7 @@ export type ShotContext = {
 };
 
 /** One keyframe from Replicate's edit model, its bytes downloaded at once. */
-async function drawReplicateKeyframe(r: ReplicateMedia, prompt: string, images: string[]): Promise<ReplicateFile> {
+export async function drawReplicateKeyframe(r: ReplicateMedia, prompt: string, images: string[]): Promise<ReplicateFile> {
   const file = await runModel(r.token, r.keyframe, replicateKeyframeInput(prompt, images), { maxBytes: MAX_PICTURE_BYTES, timeoutMs: 120_000 });
   if (!file.mime.startsWith("image/")) throw new Error("Replicate returned no keyframe");
   return file;

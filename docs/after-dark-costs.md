@@ -94,6 +94,7 @@ At 15 tokens that keeps about $9 to $10 a video, against $5.30 to $6.50 on Venic
 | A 30 s video, best | Wan 3.0, 4 to 6 shots | About $4.00 |
 | A clip on demand (one 5 s shot; `lib/adult/clips.ts`) | A keyframe of the two of them, Hive on it, one shot, Hive on the shot; Clip from here adds a text call to direct it | About $0.70 on Venice ($0.04 keyframe, $0.65 Wan 3.0, about $0.02 Hive; a 10 s line $1.35), about $0.16 on Replicate ($0.03, $0.11, about $0.02) |
 | Keep going (the next 5 s of a clip) | The same: a keyframe from the clip's own, a shot | The same as a clip |
+| A picture from the shot menu (`lib/adult/pictures-menu.ts`) | One keyframe of the two of them (the act, outfit, framing and place as chosen), Hive on it | About $0.045 on Venice ($0.04, Hive about $0.004), about $0.035 on Replicate ($0.03) |
 
 Hive on a video is about $0.05 for 15 seconds and $0.09 for 30, if it samples about one frame a second. Confirm how
 Hive counts video frames before relying on this.
@@ -112,6 +113,7 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 | A 15 s video, best | 5 | about $3.50 | about $2.00 | about $1.50 |
 | A 30 s video, best | 10 | about $7.00 | about $4.00 | about $3.00 |
 | A clip on demand, or Keep going (`clip_tokens`) | 3 | about $2.15 (about $2.05 on an adult processor) | about $0.70 on Venice, $0.16 on Replicate | about $1.35 to $1.45 on Venice, about $1.90 to $2.00 on Replicate |
+| A picture from the shot menu (`menu_picture_tokens`; it also counts against the month's 30 pictures) | 1 | about $0.72 (about $0.68 on an adult processor) | about $0.045 on Venice, $0.035 on Replicate | about $0.64 to $0.68 |
 
 - **Refunds:** Set the scene is refunded if the place is refused or, on a date, if they don't go. A video should be refunded if Hive discards it or the provider fails.
 - **A clip** (2026-10-22) is refunded in full when its keyframe or its shot is discarded by Hive or the provider fails, as a reel's shots are. A refusal before it starts (not reached yet, somewhere public, past the pair's limits) spends nothing. Its 10 s case (Clip from here on a long line, Venice only) still keeps about $0.70.

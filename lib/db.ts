@@ -1190,6 +1190,8 @@ create index if not exists adult_reels_pair on adult_reels (owner_id, character_
 alter table adult_reels add column if not exists kind text not null default 'night';
 alter table adult_reels add column if not exists clip jsonb;
 alter table adult_settings add column if not exists clip_tokens integer;
+-- A picture from the shot menu (lib/adult/pictures-menu.ts, 2026-10-22): its price in bought tokens.
+alter table adult_settings add column if not exists menu_picture_tokens integer;
 -- Every image the output check refused: never the image itself, only why (for the admin to see it's working).
 create table if not exists adult_rejections (
   id text primary key,

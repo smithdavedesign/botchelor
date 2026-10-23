@@ -990,3 +990,50 @@ shot's player shows its keyframe as the poster before it plays, and a shot with 
 
 **Screenshots** (`npm run screenshots:after-dark-media`, clips seeded locally from the repo's PG portraits, nothing
 generated): `docs/screenshots/after-dark-clips-*.png`.
+
+## Picture shot menus (2026-10-22)
+
+The second media feature from the competitor read. Code: `lib/adult/pictures-menu.ts`, `/api/admin/after-dark/pictures`,
+and the act menu it shares with clips (`lib/adult/acts.ts`).
+
+**A picture of both of them, composed from four choices** (`POST /api/admin/after-dark/pictures` with `{a, b, act, swap?,
+outfit, framing, place}`):
+- **the act**: the clips' menu of 13 (`ACTS`), who leads swapped or not. Each act's still is now its `pose` (who is where,
+  how they're posed, what touches, faces visible) apart from what they wear: a clip still dresses it with the act's own
+  `wear` ("both fully clothed", "both nude"), a picture with the chosen outfit;
+- **the outfit**, by how far the night has gone: as they are tonight, dressed up, or casual (always); underwear or half
+  undressed (from undressing); under a sheet or nude (from sex). Each act lists the outfits it goes with (sex acts: nude
+  or half undressed; afterglow: under a sheet or nude; undressing each other: half undressed);
+- **the framing**: wide (the whole of both of them and the room), medium (from the thighs up) or close (their faces);
+- **the place**: where they are now, or anywhere the night has been (`place_history`), each once.
+
+It's drawn by the keyframe pipeline as a standalone picture: the two baselines (and the place's drawn set as Picture 3
+when it has one) made into one picture by the multi-image edit (Venice `qwen-edit-uncensored`, or Replicate
+`qwen/qwen-image-edit-2511` when `media_provider` is replicate), the outfit in place of the stage's clothes
+(`keyframePrompt`'s `clothes`), checked by Hive (moderation and the age question) before anything is kept, and stored in
+the pair's gallery as a `scene` picture of both.
+
+**What it holds to**, as a clip does: the act and the outfit reached by the night; somewhere public, nothing past kissing
+and nothing out of their clothes ("Underwear: somewhere private first."); the pair's limits (an act or an outfit past the
+intensity or crossing a hard no isn't on the menu: flirty has no nude and no sex acts; below explicit the picture is
+sensual, never graphic); David's lines on every word the choices put in front of the model (`checkAdultText`,
+`crossesTaboo`). Not the prompt's own fixed words: "Make one photograph" reads to the age check as "make [her] one", and
+the age check is right to be that strict. A refusal is decided before anything is spent.
+
+**Price and cap**: `menu_picture_tokens` bought tokens (1 by default, a new setting), admins free, and it counts against
+the month's pictures (`cap_pictures`, 30; `lib/adult/usage.ts`, which now also says how many are left). Over the cap it's
+refused (429) before anything is spent. A picture the check refuses (logged, never stored), one it couldn't check (503),
+or a provider failure gives the token back and isn't counted.
+
+**The menu** (`GET /api/admin/after-dark/pictures?a=&b=`): the price, the pictures left this month (null for an admin),
+the acts (each with the outfits it goes with), the outfits (offered now, or locked until the night gets there; private
+ones marked), the framings, and the places (now first, each marked public or not). The UI comes with the fourth PR.
+
+**The live check** (2026-10-22, local, the same PG portraits as data URIs):
+- Venice: a cuddle in casual clothes, framed wide, and an afterglow under a sheet, framed medium (11–12 s each). Both
+  had the two of them, dressed as chosen, the framing asked for and both faces visible; the cuddle head to toe on the
+  bed, the afterglow in bed with the sheet over their legs.
+- Replicate (`qwen/qwen-image-edit-2511`, 8 s): a slow kiss, dressed up, framed close: both in evening clothes, kissing in
+  profile. It kept the portraits' illustrated look, where Venice's edit went photoreal.
+- Hive (2 requests): the afterglow passed (moderation clean, ADULTS).
+- It cost $0.08 of Venice and $0.03 of Replicate.
