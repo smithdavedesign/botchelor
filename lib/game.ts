@@ -670,6 +670,11 @@ export async function listAiringSoon(db: Db, viewerId: string | null, windowMinu
   return rows.map((row) => ({ ...toView(row), airs_at: new Date(row.airs_at).toISOString() }));
 }
 
+export type DateVisibility = "public" | "private" | "unlisted";
+
+/** One side of a date on the account list: enough to draw its avatar. */
+export type MyEpisodeSide = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null };
+
 export type MyEpisodeCard = {
   episode_id: string;
   share_path: string;
@@ -677,36 +682,86 @@ export type MyEpisodeCard = {
   ending: Ending;
   revealed: boolean;
   status: EpisodeStatus;
-  visibility: "public" | "private" | "unlisted";
+  visibility: DateVisibility;
   is_host: boolean;
+  a: MyEpisodeSide;
+  b: MyEpisodeSide;
 };
+
+export type MyEpisodePage = {
+  episodes: MyEpisodeCard[];
+  /** The page asked for (past the last one it has no episodes). */
+  page: number;
+  /** How many pages the current filter has, at least 1. */
+  pages: number;
+  /** Dates under the current filter. */
+  total: number;
+  per_page: number;
+  /** Every one of the user's dates by visibility, whatever the filter, for the filter's counts. */
+  counts: Record<DateVisibility, number>;
+};
+
+export const MY_DATES_PAGE_SIZE = 10;
+
+const MY_DATES_WHERE = `(e.creator_id = $1 or a.owner_id = $1 or b.owner_id = $1)`;
 
 /**
  * A light list of the user's own dates for the account page: the ones they host or whose characters they
- * own, every visibility included (this is the owner's private view). No scenes or transcript, so it's cheap.
+ * own, every visibility included (this is the owner's private view), one page at a time, optionally only one
+ * visibility. No scenes or transcript, so it's cheap.
  */
-export async function listMyEpisodeCards(db: Db, userId: string, limit = FEED_LIMIT): Promise<MyEpisodeCard[]> {
+export async function listMyEpisodeCards(
+  db: Db,
+  userId: string,
+  { page = 1, perPage = MY_DATES_PAGE_SIZE, visibility = null }: { page?: number; perPage?: number; visibility?: DateVisibility | null } = {},
+): Promise<MyEpisodePage> {
+  const countRows = (
+    await db.query<{ visibility: DateVisibility; n: number }>(
+      `select e.visibility, count(*)::int as n
+         from episodes e
+         join characters a on a.id = e.character_a
+         join characters b on b.id = e.character_b
+        where ${MY_DATES_WHERE}
+        group by e.visibility`,
+      [userId],
+    )
+  ).rows;
+  const counts: Record<DateVisibility, number> = { public: 0, private: 0, unlisted: 0 };
+  for (const r of countRows) if (r.visibility in counts) counts[r.visibility] = r.n;
+  const total = visibility ? counts[visibility] : counts.public + counts.private + counts.unlisted;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  if (page > pages) return { episodes: [], page, pages, total, per_page: perPage, counts };
   const { rows } = await db.query<{
     id: string;
     ending: Ending;
     revealed: boolean;
     status: EpisodeStatus;
-    visibility: "public" | "private" | "unlisted";
+    visibility: DateVisibility;
     is_host: boolean;
+    a_id: string;
     a_name: string;
+    a_hue: number | null;
+    a_house: boolean;
+    a_portrait: string | null;
+    b_id: string;
     b_name: string;
+    b_hue: number | null;
+    b_house: boolean;
+    b_portrait: string | null;
   }>(
     `select e.id, e.ending, e.revealed_at is not null as revealed, e.status, e.visibility,
-            e.creator_id = $1 as is_host, a.name as a_name, b.name as b_name
+            e.creator_id = $1 as is_host,
+            a.id as a_id, a.name as a_name, a.avatar_hue as a_hue, a.is_house as a_house, ${portraitPathSql("a")} as a_portrait,
+            b.id as b_id, b.name as b_name, b.avatar_hue as b_hue, b.is_house as b_house, ${portraitPathSql("b")} as b_portrait
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b
-      where e.creator_id = $1 or a.owner_id = $1 or b.owner_id = $1
+      where ${MY_DATES_WHERE} and ($2::text is null or e.visibility = $2)
       order by e.created_at desc, e.id
-      limit $2`,
-    [userId, limit],
+      limit $3 offset $4`,
+    [userId, visibility, perPage, (page - 1) * perPage],
   );
-  return rows.map((r) => ({
+  const episodes = rows.map((r) => ({
     episode_id: r.id,
     share_path: `/episodes/${r.id}`,
     title: `${r.a_name} × ${r.b_name}`,
@@ -715,7 +770,10 @@ export async function listMyEpisodeCards(db: Db, userId: string, limit = FEED_LI
     status: r.status,
     visibility: r.visibility,
     is_host: r.is_host,
+    a: { id: r.a_id, name: r.a_name, hue: r.a_hue, house: r.a_house, portrait: r.a_portrait },
+    b: { id: r.b_id, name: r.b_name, hue: r.b_hue, house: r.b_house, portrait: r.b_portrait },
   }));
+  return { episodes, page, pages, total, per_page: perPage, counts };
 }
 
 /** Episodes where the user owns one of the characters, hidden ones included. */

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { getCharacterHistory } from "@/lib/game";
+import { getCharacterHistory, listMyEpisodeCards } from "@/lib/game";
 import type { Ending } from "@/lib/rules";
 import { countRecentPrivateDates } from "@/lib/watch";
-import { api, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
+import { api, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
@@ -93,6 +93,28 @@ describe("date visibility (M16): public / unlisted / private", () => {
     expect(mine).toHaveLength(2);
     expect(mine.every((e) => e.is_host)).toBe(true);
     expect(mine.map((e) => e.visibility).sort()).toEqual(["private", "public"]);
+  });
+
+  it("the account list pages and filters by visibility, with counts and both characters' avatars", async () => {
+    const host = newUserCookie();
+    const pub = await makeEpisode(host, "public");
+    const unlisted = await makeEpisode(host, "unlisted");
+    const priv = await makeEpisode(host, "private");
+    const first = await listMyEpisodeCards(t.db, userIdOf(host), { perPage: 2 });
+    expect(first).toMatchObject({ page: 1, pages: 2, total: 3, counts: { public: 1, unlisted: 1, private: 1 } });
+    expect(first.episodes.map((e) => e.episode_id)).toEqual([priv.episode.id, unlisted.episode.id]); // newest first
+    const second = await listMyEpisodeCards(t.db, userIdOf(host), { perPage: 2, page: 2 });
+    expect(second.episodes.map((e) => e.episode_id)).toEqual([pub.episode.id]);
+    expect(second.episodes[0].a).toMatchObject({ id: pub.character.id, name: pub.character.name, house: false });
+    expect(second.episodes[0].b).toMatchObject({ id: HOUSE_PARTNER_ID, house: true });
+
+    const res = await (await api.myEpisodes(host, "?visibility=private")).json();
+    expect(res).toMatchObject({ page: 1, pages: 1, total: 1, counts: { public: 1, unlisted: 1, private: 1 } });
+    expect(res.episodes.map((e: { episode_id: string }) => e.episode_id)).toEqual([priv.episode.id]);
+    // An unknown filter is no filter; a page past the end is empty but keeps the real count.
+    expect((await (await api.myEpisodes(host, "?visibility=bogus")).json()).total).toBe(3);
+    const past = await (await api.myEpisodes(host, "?page=9")).json();
+    expect(past).toMatchObject({ episodes: [], page: 9, pages: 1, total: 3 });
   });
 
   it("counts recent private dates for the watch-lobby teaser — a real number, only private ones", async () => {
