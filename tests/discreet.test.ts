@@ -62,6 +62,7 @@ import {
   verifyPin,
   verifyUnlock,
 } from "@/lib/adult/privacy";
+import { shortsAccess } from "@/lib/adult/shorts";
 import { setEmailSenderForTests, type EmailMessage } from "@/lib/email";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -343,6 +344,18 @@ describe("the lock on After Dark's APIs and media", () => {
     expect((await sceneGet(cookies(o.session, unlock))).status).toBe(200);
     const lock = await unlockDELETE(request("/api/admin/after-dark/unlock", { cookie: cookies(o.session, unlock), method: "DELETE" }));
     expect(lock.headers.getSetCookie().join()).toMatch(/bz_ad_unlock=; .*Max-Age=0/);
+  });
+
+  it("hides the Shorts from a device without the PIN, and opens them with it (lib/adult/shorts.ts shortsAccess)", async () => {
+    const o = await owner();
+    const unlock = await withPin(o);
+    const store = (cookie: string) => {
+      const jarOf = new Map(cookie.split("; ").map((c) => [c.slice(0, c.indexOf("=")), c.slice(c.indexOf("=") + 1)]));
+      return { get: (name: string) => (jarOf.has(name) ? { value: jarOf.get(name)! } : undefined) };
+    };
+    const auth = { userId: o.id, authenticated: true };
+    expect(await shortsAccess(t.db, auth, store(o.session))).toEqual({ kind: "hidden" });
+    expect(await shortsAccess(t.db, auth, store(cookies(o.session, unlock)))).toMatchObject({ kind: "full", viewer: o.id });
   });
 
   it("is only for the account After Dark is open to: anyone else's unlock is not found", async () => {
