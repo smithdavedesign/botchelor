@@ -286,3 +286,34 @@ export async function sendDigests(db: Db, now = new Date(), env: Env = process.e
   }
   return sent;
 }
+
+/* --------------------------------------------------- account emails --------------------------------------------------- */
+
+export type AccountEmailResult = "sent" | "unavailable" | "capped" | "failed";
+
+/**
+ * One email about the account itself that the person just asked for (After Dark's PIN reset code, lib/adult/privacy.ts),
+ * to an address the account has already confirmed. Not a notification: no opt-in, and not counted against the
+ * per-person notification cap, but it stays inside the show's daily total and is logged with the rest.
+ */
+export async function sendAccountEmail(
+  db: Db,
+  userId: string,
+  kind: string,
+  to: string,
+  message: { subject: string; text: string; html: string },
+  env: Env = process.env,
+): Promise<AccountEmailResult> {
+  const config = emailConfig(env);
+  if (!config) return "unavailable";
+  const today = (await db.query<{ n: number }>(`select count(*)::int as n from email_sends where created_at > now() - interval '1 day'`)).rows[0]?.n ?? 0;
+  if (today >= emailDailyCap(env)) return "capped";
+  try {
+    await sender({ from: config.from, to, subject: message.subject, html: message.html, text: message.text, headers: {} }, config);
+  } catch (err) {
+    console.error(`[email] ${kind} send failed:`, err instanceof Error ? err.message : "unknown");
+    return "failed";
+  }
+  await db.query(`insert into email_sends (id, user_id, kind) values ($1, $2, $3)`, [crypto.randomUUID(), userId, kind]);
+  return "sent";
+}

@@ -2,9 +2,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { metadata as adminAfterDarkMetadata } from "@/app/admin/after-dark/layout";
-import { metadata as afterDarkMetadata } from "@/app/after-dark/layout";
+import * as adminAfterDarkLayout from "@/app/admin/after-dark/layout";
+import * as afterDarkLayout from "@/app/after-dark/layout";
 import { trackConversion } from "@/app/conversion";
+import { afterDarkMetadata } from "@/lib/adult/discreet";
 import { ADULT_RATING_META } from "@/lib/adult/rating";
 import { GA_OFF_FLAG, gaGuardScript, gaOff, gaOffPath } from "@/lib/ga-guard";
 
@@ -48,8 +49,11 @@ describe("After Dark's pages are labelled adult", () => {
   it("the After Dark layouts (the pages and their admin pages) set the rating and RTA meta tags", () => {
     const labels = { rating: "adult", RATING: "RTA-5042-1996-1400-1577-RTA" };
     expect(ADULT_RATING_META).toEqual(labels);
-    expect(afterDarkMetadata.other).toEqual(labels);
-    expect(adminAfterDarkMetadata.other).toEqual(labels);
+    // Both layouts build their metadata from afterDarkMetadata (discreet mode's neutral title on or off: tests/discreet.test.ts).
+    expect(typeof afterDarkLayout.generateMetadata).toBe("function");
+    expect(typeof adminAfterDarkLayout.generateMetadata).toBe("function");
+    expect(afterDarkMetadata(true).other).toEqual(labels);
+    expect(afterDarkMetadata(false).other).toEqual(labels);
   });
 });
 

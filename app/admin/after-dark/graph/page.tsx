@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { afterDarkGraph, layout, pairContent, pairKey, splitPair, type PairContent } from "@/lib/adult/graph";
 import { signedInAdmin } from "@/lib/adult/mode";
+import { lockedForCookies } from "@/lib/adult/privacy";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 
@@ -22,8 +23,10 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  */
 export default async function AfterDarkGraphPage({ searchParams }: { searchParams: SearchParams }) {
   const db = await getDb();
-  const admin = await signedInAdmin(db, authFromCookieStore(await cookies()));
-  if (!admin) notFound();
+  const store = await cookies();
+  const admin = await signedInAdmin(db, authFromCookieStore(store));
+  // A device that hasn't entered the admin's PIN (lib/adult/privacy.ts) gets nothing: the layout asks for it instead.
+  if (!admin || (await lockedForCookies(db, admin, store))) notFound();
   const graph = await afterDarkGraph(db);
   const raw = (await searchParams).pair;
   const picked = typeof raw === "string" ? splitPair(raw) : null;

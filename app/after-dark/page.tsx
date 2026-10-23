@@ -3,22 +3,33 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { listSwitchable } from "@/lib/adult/characters";
+import { afterDarkTitle } from "@/lib/adult/discreet";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { adultAvailable } from "@/lib/adult/mode";
+import { getPrivacy, lockedForCookies } from "@/lib/adult/privacy";
 import { listCastPairs } from "@/lib/adult/scenes";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
+import PrivacyCard from "./PrivacyCard";
 import Switches from "./Switches";
+import { currentView } from "./view";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "After Dark · Botchelor", robots: { index: false, follow: false } };
+
+/** Its own title: the layout's neutral-title template doesn't reach the page in its own folder (lib/adult/discreet.ts). */
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: afterDarkTitle((await currentView()).neutralTitle, "After Dark · Botchelor"), robots: { index: false, follow: false } };
+}
 
 /** After Dark (lib/adult): who's in it, and every pair's scene. Not found for anyone it isn't open to. */
 export default async function AfterDarkPage() {
   const db = await getDb();
-  const auth = authFromCookieStore(await cookies());
+  const store = await cookies();
+  const auth = authFromCookieStore(store);
   const entitled = await canAfterDark(db, auth);
   if (!entitled.ok) notFound();
+  // A device that hasn't entered this account's PIN gets nothing from here: the layout shows the PIN prompt instead.
+  if (await lockedForCookies(db, auth!.userId, store)) notFound();
   const admin = entitled.why === "admin";
   const settings = admin ? <Link href="/admin/after-dark/settings">Settings</Link> : null;
   if (!(await adultAvailable(db))) {
@@ -34,7 +45,7 @@ export default async function AfterDarkPage() {
     );
   }
   const owner = auth!.userId;
-  const [pairs, switchable] = await Promise.all([listCastPairs(db, owner), listSwitchable(db, owner)]);
+  const [pairs, switchable, privacy] = await Promise.all([listCastPairs(db, owner), listSwitchable(db, owner), getPrivacy(db, owner)]);
   return (
     <div className="after-dark-mode">
       <article className="after-dark">
@@ -62,6 +73,7 @@ export default async function AfterDarkPage() {
             ))}
           </ul>
         </section>
+        <PrivacyCard initial={privacy} />
       </article>
     </div>
   );

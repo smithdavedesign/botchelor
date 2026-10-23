@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -9,6 +9,7 @@ import { gaGuardScript } from "@/lib/ga-guard";
 import { unreadCount } from "@/lib/notifications";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { canAfterDark } from "@/lib/adult/entitlement";
+import { APP_NAME, APPLE_TOUCH_ICON, PAPER_DARK, PAPER_LIGHT } from "@/lib/pwa";
 import { siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
 import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
@@ -17,6 +18,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import ConsentBanner from "./ConsentBanner";
 import FeedbackDock, { FeedbackLink } from "./FeedbackDock";
 import FunnelBeacon from "./FunnelBeacon";
+import InstallHint from "./InstallHint";
 import Nav from "./Nav";
 import { unreadTexts } from "@/lib/inbox";
 import { CrisisResources } from "./Notices";
@@ -33,7 +35,13 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   applicationName: "Botchelor",
   // The tab icon lives in public/ (also the JSON-LD logo at /icon.svg), so it's declared here: only app/icon.* is automatic.
-  icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }] },
+  // The Home Screen icon on an iPhone is the same PG tile as a PNG (scripts/make-icons.mjs); the manifest is app/manifest.ts.
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: APPLE_TOUCH_ICON, sizes: "180x180", type: "image/png" }],
+  },
+  // Added to an iPhone's Home Screen it opens as its own app (lib/pwa.ts): the only way web push reaches an iPhone.
+  appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "default" },
   keywords: [
     "AI dating show",
     "original characters",
@@ -63,6 +71,14 @@ export const metadata: Metadata = {
   ...(TRACKING.verification ? { verification: TRACKING.verification } : {}),
   alternates: { types: { "text/plain": "/llms.txt" } },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 } },
+};
+
+/** The browser's bar (and an installed app's status bar) in the page's own paper colour, light or dark (docs/brand.md). */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: PAPER_LIGHT },
+    { media: "(prefers-color-scheme: dark)", color: PAPER_DARK },
+  ],
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
@@ -127,6 +143,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           </p>
         </footer>
         <FeedbackDock />
+        <InstallHint />
         {google && consent.ask && <ConsentBanner />}
         <FunnelBeacon production={TRACKING.vercelAnalytics} consentDefault={consent.granted} />
         {TRACKING.vercelAnalytics && <Analytics />}
