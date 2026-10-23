@@ -238,6 +238,38 @@ export function dateLabel(n: number): string {
   return `${n}${suffix} date`;
 }
 
+/** "an" before a sound that starts with a vowel: "eighth", and the numbers read "eight…", "eleven…" or "eighteen…". */
+function takesAn(word: string): boolean {
+  const digits = /^\d+/.exec(word)?.[0];
+  if (!digits) return /^[aeiou]/i.test(word);
+  if (digits.startsWith("8")) return true; // 8th, 80th–89th, 800th…
+  // 11 and 18 read "eleven" and "eighteen", and so do 11,000 and 18,000 (the leading group of three has two digits).
+  return digits.length % 3 === 2 && (digits.startsWith("11") || digits.startsWith("18"));
+}
+
+/**
+ * One date's ending as that date reads it. second_date means they want to see each other again, so on date n of a
+ * couple's run (n ≥ 2) it names the next one: "A third date", ... "A tenth date", "An 11th date", "A 12th date". With
+ * no number, or on a first date, it's "A second date"; friends and disaster read as ENDING_LABELS. Display text only:
+ * the stored ending stays second_date. ENDING_LABELS stays the name for the category in general (analytics, filters).
+ */
+export function endingLabel(ending: Ending, dateNumber?: number | null): string {
+  if (ending !== "second_date" || !dateNumber || !Number.isFinite(dateNumber) || dateNumber < 2) return ENDING_LABELS[ending];
+  const next = dateLabel(Math.floor(dateNumber) + 1);
+  const phrase = next.charAt(0).toLowerCase() + next.slice(1);
+  return `${takesAn(phrase) ? "An" : "A"} ${phrase}`;
+}
+
+/**
+ * A date's number in its couple's run, from its setup (or a row with the same two fields): the stored date_number, 2
+ * for a follow-up booked before it was stored, and null for any other date (endingLabel then says "A second date").
+ */
+export function dateNumberOf(setup: { followup_of?: string | null; date_number?: number | null } | null | undefined): number | null {
+  if (!setup) return null;
+  if (setup.date_number) return setup.date_number;
+  return setup.followup_of ? 2 : null;
+}
+
 /** The mutual afterglow verdict, derived from each side's engine-decided wants_another. No model call. */
 export type AfterglowVerdictKind = "mutual_yes" | "one_sided" | "mutual_no";
 export function afterglowVerdictKind(aWants: boolean, bWants: boolean): AfterglowVerdictKind {

@@ -46,6 +46,7 @@ import { buildKeyForSide } from "./keys";
 import { isTalkLevel, talkFor, type TalkLevel } from "./talk";
 import { soulText } from "./souls";
 import {
+  dateNumberOf,
   DEFAULT_AUTONOMY,
   DEFAULT_GAME_BUDGET,
   DEFAULT_STRATEGY,
@@ -198,6 +199,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     const built = await buildDate(db, episodeId, forDate("a"), forDate("b"), dateRequest, seed, signalsSnapshot, {
       creatorId: row.creator_id,
       followupOf: row.setup?.followup_of ?? null,
+      dateNumber: dateNumberOf(row.setup),
       historyOverride: row.setup?.history ?? null,
       nudges: { a: row.setup?.nudge_a ?? null, b: row.setup?.nudge_b ?? null },
       avoidVenues: row.setup?.avoid_venues ?? [],

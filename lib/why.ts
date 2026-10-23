@@ -7,7 +7,7 @@
  */
 import { DEALBREAKER_PENALTY, endingScore, type SideOutcome } from "./engine";
 import { weakSpotLine } from "./heading";
-import { DATE_VARIABLES, STRATEGY_LABELS, type DateVariable, type Ending, type Strategy } from "./rules";
+import { DATE_VARIABLES, endingLabel, STRATEGY_LABELS, type DateVariable, type Ending, type Strategy } from "./rules";
 
 type Box = Partial<Record<DateVariable, { final: number }>>;
 
@@ -30,8 +30,9 @@ const signed = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(1)}`
  * The arithmetic behind the ending (run 5: "chemistry 62 was a disaster and 68 was friends?"): how the date's strategy
  * weighs the four numbers, what the date came to against an ordinary one, and the marks for friends and a second date.
  * Only where it can be reproduced exactly: an engine v2+ date, its strategy known, and its sides (for the dealbreakers).
+ * `dateNumber` (lib/rules dateNumberOf): on a couple's third date the happy mark is "a fourth date".
  */
-export function endingNumbers(box: Box | null | undefined, sides: readonly SideOutcome[] | null | undefined, strategy: Strategy | null | undefined, version: number | null | undefined): string | null {
+export function endingNumbers(box: Box | null | undefined, sides: readonly SideOutcome[] | null | undefined, strategy: Strategy | null | undefined, version: number | null | undefined, dateNumber?: number | null): string | null {
   if (!box || !sides || !strategy || (version ?? 1) < 2 || !DATE_VARIABLES.every((v) => box[v])) return null;
   const dealbreakers = sides.filter((s) => s.dealbreaker_hit).length;
   const finals = Object.fromEntries(DATE_VARIABLES.map((v) => [v, box[v]!.final])) as Record<DateVariable, number>;
@@ -41,7 +42,7 @@ export function endingNumbers(box: Box | null | undefined, sides: readonly SideO
     `By the numbers: a date played for ${STRATEGY_LABELS[strategy].toLowerCase()} counts chemistry ${pct(w.chemistry)}, attraction ` +
     `${pct(w.attraction)} and trust ${pct(w.trust)}, minus ${pct(w.awkwardness)} of awkwardness` +
     `${dealbreakers ? ` and ${DEALBREAKER_PENALTY} for ${dealbreakers === 1 ? "the tripped dealbreaker" : "each tripped dealbreaker"}` : ""}. ` +
-    `This one came out ${signed(s.rel)} against an ordinary date: friends needs ${signed(s.friendsAt)}, a second date ${signed(s.secondDateAt)}.`
+    `This one came out ${signed(s.rel)} against an ordinary date: friends needs ${signed(s.friendsAt)}, ${endingLabel("second_date", dateNumber).toLowerCase()} ${signed(s.secondDateAt)}.`
   );
 }
 
@@ -53,6 +54,8 @@ export function endingWhy(
   version?: number | null,
   /** The two characters' names, in side order: says whose dealbreaker tripped (#337), never what it was. */
   names?: readonly [string, string],
+  /** Which date it was for the couple (lib/rules dateNumberOf): a happy ending on their third reads "A fourth date: …". */
+  dateNumber?: number | null,
 ): string | null {
   if (!box || !GOOD.some((v) => box[v])) return null;
   const goods = [...GOOD].sort((x, y) => at(box, y) - at(box, x));
@@ -72,7 +75,7 @@ export function endingWhy(
 
   let line: string;
   if (ending === "second_date") {
-    line = `A second date: ${say(box, best)} and ${say(box, goods[1])} carried it${leanNote(best)}${wantMet ? ", and someone's want was met" : ""}${awkward >= 55 ? `, awkwardness (${awkward}) and all` : ""}.`;
+    line = `${endingLabel(ending, dateNumber)}: ${say(box, best)} and ${say(box, goods[1])} carried it${leanNote(best)}${wantMet ? ", and someone's want was met" : ""}${awkward >= 55 ? `, awkwardness (${awkward}) and all` : ""}.`;
   } else if (ending === "friends") {
     line = `Just friends: warm enough (${say(box, best)}), but ${say(box, worst)} never got there${leanNote(worst)}${dealbreaker ? `, and ${dealbreakerWords}` : ""}.`;
   } else {
@@ -88,6 +91,6 @@ export function endingWhy(
     const weak = weakSpotLine(box, strategy);
     line = `A disaster: ${reasons.length ? `${reasons.join(", ")}${despite}` : `nothing landed hard enough (best was ${say(box, best)})`}.${weak ? ` ${weak}` : ""}`;
   }
-  const numbers = endingNumbers(box, sides, strategy, version);
+  const numbers = endingNumbers(box, sides, strategy, version, dateNumber);
   return `${line} Endings read where the numbers finished, not how far they moved.${numbers ? ` ${numbers}` : ""}`;
 }

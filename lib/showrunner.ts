@@ -3,7 +3,7 @@ import {
   agenda,
   DATE_ACTS,
   dramaAnswerLabel,
-  ENDING_LABELS,
+  endingLabel,
   producerEvent,
   VARIABLE_LABELS,
   type DateVariable,
@@ -147,7 +147,7 @@ function outcomeBrief(input: DateInput, outcome: Outcome): string {
         ? "they leave together"
         : `${dramaAnswerLabel("leaves_first", outcome.drama_answer, names)} leaves first`;
   return [
-    `Decided ending: ${ENDING_LABELS[outcome.ending]}.`,
+    `Decided ending: ${endingLabel(outcome.ending, input.date_number)}.`,
     `Drama: ${drama}.`,
     `Over the date: ${boxScore}.`,
     `${names[0]} ${outcome.sides[0].wants_another ? "wants" : "does not want"} another date; ${names[1]} ${outcome.sides[1].wants_another ? "wants" : "does not want"} another.`,
