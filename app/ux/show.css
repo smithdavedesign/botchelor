@@ -504,7 +504,7 @@ details.recap-toggle[open] .recap-toggle-hide {
 }
 /* Who a notification is about (lib/notification-faces.ts): their faces in a column of their own, a pair overlapping. */
 .notification.has-faces {
-  grid-template-columns: 2.6rem 1fr;
+  grid-template-columns: 3.4rem 1fr;
   column-gap: var(--space-2);
 }
 .notification.has-faces > :not(.notif-faces) {
@@ -518,7 +518,7 @@ details.recap-toggle[open] .recap-toggle-hide {
   padding-top: 0.1rem;
 }
 .notif-faces.is-pair .avatar + .avatar {
-  margin-left: -0.9rem;
+  margin-left: -0.55rem;
   box-shadow: 0 0 0 2px var(--card);
 }
 /* The couple page's text preview: your side in the accent, like any messaging app, so the two sides read apart at a
