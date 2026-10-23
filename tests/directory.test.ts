@@ -150,8 +150,8 @@ describe("the Characters hub's tabs", () => {
     expect(two.entries[0].id).toBe(first.id);
     expect((await listTab(t.db, "people", 99)).page).toBe(2);
     const html = await render({ tab: "people", page: "2" });
-    expect(html).toContain('href="/characters?tab=people">← Newer</a>');
-    expect(html).toMatch(/Page 2 of 2/);
+    expect(html).toContain('rel="prev" aria-label="Newer page" href="/characters?tab=people"');
+    expect(html).toMatch(/aria-current="page" aria-label="Page 2 of 2">2</);
   });
 
   it("the cast tab is this month's house cast, with the rest of the house folded under Off this season", async () => {

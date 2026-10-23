@@ -300,6 +300,8 @@ type RoomRow = {
   b_house: boolean;
   b_hue: number | null;
   b_portrait: string | null;
+  a_private: boolean;
+  b_private: boolean;
   is_creator: boolean;
 };
 
@@ -309,7 +311,9 @@ const ROOM_SELECT = `
          e.revealed_at is not null as revealed,
          a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait,
          b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait,
-         coalesce($2::text in (a.owner_id, b.owner_id), false) as is_creator
+         coalesce($2::text in (a.owner_id, b.owner_id), false) as is_creator,
+         (a.visibility = 'private' and a.owner_id is distinct from $2::text) as a_private,
+         (b.visibility = 'private' and b.owner_id is distinct from $2::text) as b_private
     from watch_parties w
     join episodes e on e.id = w.episode_id
     join characters a on a.id = e.character_a
@@ -475,8 +479,8 @@ export async function getRoomState(
     idx >= ACT2_INDEX && row.setup ? capitalize(producerEvent(row.setup.producer).prompt) + "." : null;
 
   const characters: [CharacterRef, CharacterRef] = [
-    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait },
-    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait },
+    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait, ...(row.a_private ? { private: true } : {}) },
+    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait, ...(row.b_private ? { private: true } : {}) },
   ];
   const names: [string, string] = [row.a_name, row.b_name];
 
