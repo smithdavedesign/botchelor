@@ -5,7 +5,8 @@
  *
  *  - Intensity: slow burn, flirty, spicy or explicit (the default, After Dark as it was). Each has a furthest stage (a
  *    line that shows more is dropped, and the stage never climbs past it, a Direct steer included) and a register for
- *    the prompt; below explicit, crude words are out too.
+ *    the prompt; below explicit, crude words are out too. Filthy (v2.3, 2026-10-23) is one above explicit: explicit's
+ *    checks, and from undressing on plain dirty talk in the dialogue (plainTalk), unless "dirty talk" is a hard no.
  *  - Hard nos: a curated set of common hard limits (HARD_NOS), each a never-cross rule for the prompt and a check on
  *    every line, plus up to OWN_MAX of the viewer's own (OWN_LEN characters each), matched by their words. A line that
  *    hits one is dropped and the step asked once more (lib/adult/scenes.ts writeSceneStep); a steer or whisper that asks
@@ -14,7 +15,7 @@
 import { STAGES } from "./stages";
 import { stageShown } from "./stage-floor";
 
-export const INTENSITIES = ["slow_burn", "flirty", "spicy", "explicit"] as const;
+export const INTENSITIES = ["slow_burn", "flirty", "spicy", "explicit", "filthy"] as const;
 export type Intensity = (typeof INTENSITIES)[number];
 export const DEFAULT_INTENSITY: Intensity = "explicit";
 
@@ -44,7 +45,24 @@ export const INTENSITY: Record<Intensity, { label: string; blurb: string; maxSta
     register: "Keep it spicy: steamy and sensual, sex included, written with heat but without graphic anatomical detail or crude words.",
   },
   explicit: { label: "Explicit", blurb: "Frank and explicit (the default)", maxStage: LAST, register: null },
+  // v2.3 (David, 2026-10-23: a baker made a pun of every line of a filthy steer): explicit, and from undressing on plain
+  // dirty talk in the dialogue, the jokes and the job a seasoning. Its rules are in the scene prompt (lib/adult/scenes.ts
+  // FILTHY_*), held back by a "dirty talk" hard no (plainTalk); every check is explicit's.
+  filthy: { label: "Filthy", blurb: "Explicit, with plain dirty talk once they undress", maxStage: LAST, register: null },
 };
+
+/** Explicit and Filthy: as far and as frank as After Dark goes (crude words allowed). */
+export const atLeastExplicit = (intensity: Intensity): boolean => intensity === "explicit" || intensity === "filthy";
+
+/** Where Filthy's plain talk starts: undressing (stage 4 of 5). */
+export const PLAIN_TALK_FROM = UNDRESSING;
+
+/**
+ * Whether these lines are Filthy's plain talk: the Filthy intensity, from undressing on, and no "dirty talk" hard no
+ * (a hard no always wins: then it's written as Explicit, and the hard-no check still drops a crude line).
+ */
+export const plainTalk = (limits: PairLimits, stage: number): boolean =>
+  limits.intensity === "filthy" && stage >= PLAIN_TALK_FROM && !limits.hard_nos.chips.includes("dirty_talk");
 
 export const intensityOf = (v: unknown): Intensity => (INTENSITIES.includes(v as Intensity) ? (v as Intensity) : DEFAULT_INTENSITY);
 
@@ -61,7 +79,7 @@ export function overIntensity(text: string, intensity: Intensity): string | null
   const level = INTENSITY[intensity];
   const shown = stageShown(text);
   if (shown !== null && shown > level.maxStage) return `went past ${STAGES[level.maxStage]} (the intensity is ${level.label.toLowerCase()})`;
-  if (intensity !== "explicit" && CRUDE.test(norm(text))) return `too crude for ${level.label.toLowerCase()}`;
+  if (!atLeastExplicit(intensity) && CRUDE.test(norm(text))) return `too crude for ${level.label.toLowerCase()}`;
   return null;
 }
 

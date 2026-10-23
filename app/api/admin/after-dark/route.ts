@@ -108,7 +108,7 @@ export const POST = handle(async (req: Request) => {
       if (pays) await refundBoughtTokens(db, admin, SET_SCENE_TOKEN_COST);
       return json({ error: "not_moved", message: moved.message }, moved.status);
     }
-    return json({ scene: moved.scene });
+    return json({ scene: moved.scene, ...(moved.auto_picture ? { auto_picture: true } : {}) });
   }
   if (input.rewind) {
     const back = await rewindScene(db, admin, input.a, input.b);
@@ -157,6 +157,8 @@ export const POST = handle(async (req: Request) => {
     dropped: r.dropped,
     pictures: r.pictures,
     ...(r.picture_note ? { picture_note: r.picture_note } : {}),
+    // A picture of the chapter or the new place is being drawn (lib/adult/auto-pictures.ts): the page looks for it shortly.
+    ...(r.auto_picture ? { auto_picture: true } : {}),
     // A redo can take back a chapter's close, so its night list may have changed.
     ...(input.redo ? { nights: await listNights(db, admin, input.a, input.b) } : {}),
   });

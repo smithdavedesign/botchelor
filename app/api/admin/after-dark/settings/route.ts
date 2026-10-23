@@ -43,6 +43,7 @@ const Input = z.object({
   replicate_video_model: replicateModel.optional(),
   replicate_voice_model: replicateModel.optional(),
   replicate_video_lora: videoLora.optional(),
+  auto_scene_pictures: z.boolean().optional(),
 });
 
 /** After dark's settings: a signed-in admin only, even while it's off (that's where it's turned on). */
