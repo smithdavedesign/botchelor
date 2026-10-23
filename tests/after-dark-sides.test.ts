@@ -123,12 +123,12 @@ describe("the pieces", () => {
     expect(why).toMatch(/b_text: minor/);
     expect(why).not.toContain("sixteen");
     expect(holdSides(bad)).toEqual({ reason: expect.stringMatching(/b_text: minor/) });
-    // After Dark reads "was two" as an age: that sentence goes, the page stays, and every word left passes.
-    const tripped = { ...clean, a: { ...clean.a, page: `${clean.a.page}\n\nMy flat was two floors down, I told myself. Then the rain stopped.` } };
+    // After Dark refuses an age under 18 even in passing: that sentence goes, the page stays, and every word left passes.
+    const tripped = { ...clean, a: { ...clean.a, page: `${clean.a.page}\n\nI was sixteen when I first heard that song, I told myself. Then the rain stopped.` } };
     const held = holdSides(tripped);
     expect(held).toMatchObject({ cut: 1 });
     const page = (held as { sides: { a: { page: string } } }).sides.a.page;
-    expect(page).not.toContain("two floors");
+    expect(page).not.toContain("sixteen");
     expect(page).toContain("Then the rain stopped.");
     expect(crossesLines((held as { sides: { a: { page: string; text: string }; b: { page: string; text: string } } }).sides)).toBeNull();
     // Cut down past a page, it's refused (and asked for again).
