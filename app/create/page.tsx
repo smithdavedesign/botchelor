@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { safeFrom } from "@/lib/age";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
+import { createPairHref, readChemistry } from "@/lib/chemistry-test";
 import { listOpenCharacters } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
@@ -76,6 +77,9 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
     : null;
 
   const returnTo = await backTo(db ?? (await getDb()), typeof sp.next === "string" ? sp.next : null);
+  // Two characters from the OC chemistry test's "Watch the real date" (app/tools/oc-chemistry-test/result): the first
+  // in the builder, the second alongside. Only a pair the test itself takes; anything else opens the builder as usual.
+  const pair = readChemistry(sp);
   return (
     <CreateWizard
       returnTo={returnTo}
@@ -88,6 +92,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       startSample={sp.sample === "1"}
       startCharacterId={typeof sp.character === "string" ? sp.character : null}
       startName={typeof sp.name === "string" ? sp.name.trim().slice(0, 40) || null : null}
+      startPair={pair.ok ? { a: pair.a, b: pair.b, otherHref: createPairHref(pair.b, pair.a) } : null}
       lookTiles={looks.tiles}
       afterDark={looks.afterDark}
     />
