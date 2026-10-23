@@ -1290,3 +1290,51 @@ New table, additive: `adult_short_calls` (one row per viewer and Short). After D
 
 **Screenshots** (`SHOTS=callit npm run screenshots:after-dark-shorts`, three other subscribers' calls settled through the
 API): `docs/screenshots/after-dark-callit-*.png`: the call, how it went, and the board.
+
+## Two sides of the night (2026-10-23)
+
+The third show feature from David's picks. Code: `lib/adult/monologues.ts`, `/api/admin/after-dark/sides`, the 🌗 panel on
+a pair's page (`TwoSidesPanel.tsx`) and the section on a Short's page after play (`TwoSides.tsx`).
+
+**What it is.** For a whole saved night, each character's inner monologue of the same night: a page each (about 250 to
+350 words), first person, in their own voice, how they think rather than how they talk, what they noticed, wanted,
+worried about or misread, and what they think the other felt; neither knows the other's page, and the gap is the point.
+Then the morning after: one short text from each to the other (under 200 characters), and the two disagree about
+something real (what it meant, who started it, what's next). Shown side by side with pronoun-aware labels ("Her side ·
+Lexi", "His side · Dex", "Their side" otherwise), the two texts under them.
+
+**What it's written from.** Both sheets and their voice kits (`voiceKitLines`: details, public facts, tells,
+never-says, sample lines; never their private facts), the night's own lines by who and what (never a line's why, memory
+or facts; a night over 160 lines gives its recap and its last 160), where it began and ended and how far it went, and
+**what each remembered going into it**: their After Dark facts and PG note as they stood when the night's last chapter
+was filed (anything kept later belongs to a later night, and stays out).
+
+**The model and the lines.** One call on After Dark's text model (`adultModel`: OpenRouter, held to the hosts whose
+terms allow it), temperature 0.8, up to 2,400 tokens. Every word is held to `checkAdultText`, the way a scene's lines are:
+on a page, a sentence that crosses one of the lines is cut, and what's left must pass whole and still be a page; a
+morning text that crosses one fails the reply. A reply that can't be read, or can't be held, is asked for once more with
+a note naming why (never its words); a second one fails (422) and nothing is kept or counted. After Dark reads any number
+word after "was" or "is" as an age ("my flat was two floors down"), so the prompt asks the writer to put it another way,
+and a sentence that does it anyway is cut. The reply is read in the shape asked for and the near ones DeepSeek sends
+(keys in underscores, flattened keys, first names for a and b).
+
+**Written once, kept** (`adult_monologues`, one row a night: its first chapter's id). Every read after is free.
+- **An owner** writes or reads both sides of their own whole nights (a night still running can't: Start over first), from
+  the 🌗 panel on the pair's page.
+- **An entitled viewer** reads a published Short's once they've pressed play (409 before); its owner and admins without.
+  A Short's two sides are its night's, shared with its owner's cache: whoever asks first writes them for everyone.
+- Strangers and bots get not found.
+
+**Included in the subscription, with a cap**: writing one counts against the writer's month (`monologues` in
+`adult_usage`, `cap_monologues` in the settings, 20 by default; `lib/adult/usage.ts`); reading a kept one never does;
+admins aren't capped. With no settings row at all, every cap reads 0, as for the other caps.
+
+**Not checked on the real model**: this PR was tested with a scripted writer. The first real night will show how
+DeepSeek V3.1 takes the prompt; if its replies come back in a shape the parser doesn't read, the log says why
+(`[after-dark] two sides of night …`), never the words.
+
+New table and columns, additive: `adult_monologues`, `adult_usage.monologues`, `adult_settings.cap_monologues`. After Dark
+only: not in a dataset or an export.
+
+**Screenshots** (`SHOTS=sides npm run screenshots:after-dark-shorts`, the stand-in writer sends PG pages):
+`docs/screenshots/after-dark-sides-*.png`: a Short's two sides, and the owner's 🌗 panel.

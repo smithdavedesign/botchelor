@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
+import { keptSidesForShort } from "@/lib/adult/monologues";
 import { callOf, cantCall, shortOutcome } from "@/lib/adult/predictions";
 import { shortsAccess, teaserShort, viewShort } from "@/lib/adult/shorts";
 import { seasonIdOf, seasonLabel } from "@/lib/season-window";
@@ -94,6 +95,7 @@ export default async function ShortPage({ params }: Props) {
           outcome={short.episode ? await shortOutcome(db, short.id) : null}
           owner={short.owner || access.admin}
           boardLabel={seasonLabel(seasonIdOf(new Date()))}
+          sides={short.episode ? await keptSidesForShort(db, access.viewer, short.id) : null}
         />
       </article>
     </div>

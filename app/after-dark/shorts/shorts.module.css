@@ -163,6 +163,58 @@
   font-weight: 700;
 }
 
+/* Two sides of the night (TwoSides.tsx): the two pages side by side, then the two texts of the morning after. */
+.sidesSection {
+  margin-top: var(--space-5);
+}
+
+.sides {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+.sidePages,
+.morning {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .sidePages,
+  .morning {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.side {
+  min-width: 0;
+}
+
+.side h3 {
+  margin-top: 0;
+}
+
+.side p {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.morningHead {
+  margin: var(--space-2) 0 0;
+}
+
+.bubble {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 1rem;
+  background: var(--soft);
+  overflow-wrap: anywhere;
+}
+
 /* After Dark's board (the Shorts page). */
 .board {
   margin-top: var(--space-5);

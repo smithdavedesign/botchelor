@@ -1726,6 +1726,23 @@ create table if not exists adult_short_calls (
   primary key (short_id, user_id)
 );
 create index if not exists adult_short_calls_settled on adult_short_calls (settled_at);
+-- Two sides of the night (lib/adult/monologues.ts): each one's inner monologue of a whole saved night and the two texts
+-- they send the morning after, written once and kept (one row a night: night_id is its first chapter); a monthly cap.
+create table if not exists adult_monologues (
+  night_id text primary key references adult_nights (id) on delete cascade,
+  owner_id text not null,
+  character_a text not null references characters (id) on delete cascade,
+  character_b text not null references characters (id) on delete cascade,
+  a_page text not null,
+  a_text text not null,
+  b_page text not null,
+  b_text text not null,
+  created_by text not null,
+  cost_usd double precision,
+  created_at timestamptz not null default now()
+);
+alter table adult_usage add column if not exists monologues integer not null default 0;
+alter table adult_settings add column if not exists cap_monologues integer not null default 20;
 -- After Dark's discreet mode (lib/adult/privacy.ts): blur its pictures until tapped and a neutral tab title (both on
 -- by default), and an optional PIN kept only as a slow salted hash (scrypt), never the PIN. pin_version changes with
 -- every new or removed PIN, which signs every device out; the wrong tries and the wait they set live here too.
