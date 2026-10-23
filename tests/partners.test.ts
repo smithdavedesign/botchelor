@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { decideFromTemperament, partnerStyleOf, settleCommitment } from "@/lib/partners";
-import { api, episodeJson, newUserCookie, scriptedModel, startTestDb, userIdOf, validCharacter } from "./helpers";
+import { decideFromTemperament, partnerStyleOf, settleCommitment, takenWith } from "@/lib/partners";
+import { deckFor } from "@/lib/swipes";
+import { api, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
@@ -110,5 +111,58 @@ describe("rolling out to couples that already exist", () => {
     const decided = (await partnerStyleOf(t.db, a.id))?.decided;
     expect(decided).toMatch(/^(one|open)$/);
     expect(res.status).toBe(decided === "open" ? 200 : 409);
+  });
+});
+
+describe("which of yours are taken: the faces on /swipe and /matches (app/CharacterTabs.tsx)", () => {
+  it("takenWith marks a one-partner character in a relationship, with who it's with, newest first; nobody else", async () => {
+    const owner = newUserCookie();
+    const PROFILE = {
+      prompts: [
+        { id: "simple_pleasures", answer: "A window seat and nowhere to be." },
+        { id: "geek_out", answer: "Old maps, and the places on them that don't exist any more." },
+      ],
+      hobbies: ["Hiking", "Old maps"],
+    };
+    const make = async (name: string, style?: string, cookie = owner) => {
+      const c = await (await api.createCharacter(validCharacter({ name, open_to_dates: true, extras: PROFILE }), cookie)).json();
+      if (style) expect((await api.editCharacter(c.id, { partner_style: style }, cookie)).status).toBe(200);
+      return c.id as string;
+    };
+    const one = await make("Cass Vega", "one");
+    const open = await make("Ola Brandt", "open");
+    const undecided = await make("Una Pike"); // left to decide, and hasn't yet: never taken
+    const cooled = await make("Fay Doyle", "one"); // one partner, but they're only friends now
+    const dex = await make("Dex Marlow", undefined, newUserCookie());
+    const sam = await make("Sam Reyes", undefined, newUserCookie());
+    const couple = async (x: string, y: string, stage: string, lastAt: string) => {
+      const [lo, hi] = [x, y].sort();
+      // computed_at set, so the graph doesn't recompute these hand-made edges from (no) episodes.
+      await t.db.query(
+        `insert into relationships (character_a, character_b, dates, second_dates, stage, last_at, computed_at) values ($1, $2, 3, 2, $3, $4, now())`,
+        [lo, hi, stage, lastAt],
+      );
+    };
+    await couple(one, dex, "dating", "2026-10-20T10:00:00Z");
+    await couple(one, sam, "going_steady", "2026-10-21T10:00:00Z");
+    await couple(open, dex, "dating", "2026-10-21T10:00:00Z");
+    await couple(undecided, sam, "dating", "2026-10-21T10:00:00Z");
+    await couple(cooled, dex, "friends", "2026-10-21T10:00:00Z");
+    // A house character is the season's shared cast: never taken, whatever its style.
+    await t.db.query(`update characters set partner_style = 'one' where id = $1`, [HOUSE_PARTNER_ID]);
+    await couple(HOUSE_PARTNER_ID, sam, "dating", "2026-10-21T10:00:00Z");
+
+    const taken = await takenWith(t.db, [one, open, undecided, cooled, HOUSE_PARTNER_ID]);
+    expect([...taken.keys()]).toEqual([one]);
+    expect(taken.get(one)).toEqual([
+      { id: sam, name: "Sam Reyes" },
+      { id: dex, name: "Dex Marlow" },
+    ]);
+    expect(await takenWith(t.db, [])).toEqual(new Map());
+    // The same rule the card's badge and the deck use: the taken one can't swipe, the others can.
+    expect((await partnerStyleOf(t.db, one))?.taken).toBe(true);
+    const userId = userIdOf(owner);
+    expect(await deckFor(t.db, userId, one)).toMatchObject({ ok: false, error: "taken" });
+    for (const id of [open, undecided, cooled]) expect(await deckFor(t.db, userId, id)).toMatchObject({ ok: true });
   });
 });

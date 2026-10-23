@@ -62,6 +62,26 @@ export async function currentPartners(db: Db, id: string): Promise<{ id: string;
   return rows;
 }
 
+/**
+ * Which of these characters are taken (takenSql), each with who it's with, newest first: what the pickers on /swipe and
+ * /matches mark (app/CharacterTabs.tsx). One query for any number; a character that isn't taken isn't in the map.
+ */
+export async function takenWith(db: Db, ids: string[]): Promise<Map<string, { id: string; name: string }[]>> {
+  const out = new Map<string, { id: string; name: string }[]>();
+  if (!ids.length) return out;
+  const { rows } = await db.query<{ id: string; partner_id: string; partner_name: string }>(
+    `select c.id, p.id as partner_id, p.name as partner_name
+       from characters c
+       join relationships r on (r.character_a = c.id or r.character_b = c.id) and r.stage in ('dating', 'going_steady')
+       join characters p on p.id = case when r.character_a = c.id then r.character_b else r.character_a end
+      where c.id = any($1) and ${takenSql("c")}
+      order by r.last_at desc nulls last, p.id`,
+    [ids],
+  );
+  for (const r of rows) out.set(r.id, [...(out.get(r.id) ?? []), { id: r.partner_id, name: r.partner_name }]);
+  return out;
+}
+
 /** A character's style, as its owner and the card see it. */
 export async function partnerStyleOf(
   db: Db,
