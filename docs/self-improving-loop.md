@@ -203,6 +203,7 @@ Settings go in `~/.botchelor-loop/env`, one `KEY=value` a line, never keys:
 | Setting | Default | |
 |---|---|---|
 | `LOOP_VISITORS` | 2 | 0 skips the visitors (triage of live feedback only) |
+| `LOOP_ENV` | `local` | Where the visitors go: `local` is the arena (throwaway database, crowd, swipe-back agent); `prod` is botchelor.com, so their characters stay on the show and their dates use the live budget; any URL is that server (a preview). Off local, nothing is built or seeded. For the scheduled run, put `LOOP_ENV=prod` in `~/.botchelor-loop/env`. |
 | `LOOP_VISITOR_MINUTES` | 30 | the longest a visit should run |
 | `LOOP_VISITOR_MIN_MINUTES` | 20 | a visitor that reports before this is asked to carry on |
 | `LOOP_VISITOR_NUDGES` | 3 | how many times |
@@ -228,6 +229,7 @@ Settings go in `~/.botchelor-loop/env`, one `KEY=value` a line, never keys:
 scripts/loop/install.sh                                   # clone + launchd job at 06:10
 npm run sim:visitors                                      # a visitor run now: 2 visitors + triage, no fixer
 LOOP_VISITORS=3 LOOP_FIX=1 npm run sim:visitors           # …or with more visitors and the fixer
+LOOP_ENV=prod npm run sim:visitors                       # …or on botchelor.com itself
 launchctl kickstart gui/$(id -u)/com.user.botchelor-loop  # the full morning run, now
 launchctl bootout gui/$(id -u)/com.user.botchelor-loop    # stop it
 LOOP_STUB=1 node scripts/loop/arena.mjs /tmp/arena 4420   # the arena alone, free (after next build): READY + world
