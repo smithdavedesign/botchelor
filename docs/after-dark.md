@@ -626,6 +626,14 @@ somewhere public is "One of them suggests they leave for somewhere private"), an
 the night starts over or the scene is set somewhere new. A chip sends its text as a Nudge. Prompt v1 (kept word for
 word for the A/B) asks for none, so it shows none.
 
+*Checked on the real model* (`npm run sim:after-dark -- --models deepseek/deepseek-chat-v3.1:nitro --steps 4
+--date-model stub`, two runs, about 2¢, counts only, no lines read): DeepSeek V3.1 sent the suggestions as asked in some
+steps, flattened them into the reply as `_suggestions_mild` / `_suggestions_flirty` / `_suggestions_spicy` in one, put
+underscores round other keys too (`_stage`, `_place`), and left them out altogether in others (one reply wrote its
+instructions into a key name). `suggestionsIn` and `parseSceneMeta` now read keys without the underscores and the
+flattened form; a step with none shows the plain ones. When it sent them, all three passed: 37–49 characters,
+none over the pace.
+
 **Rewind and redo.** Each step leaves what a rewind needs on `adult_scenes.undo`, a stack 5 deep (`UNDO_DEPTH`): the scene
 before it (its lines by count, since within a chapter they only grow; stage, place, set, cut, place history, moves,
 picture note, suggestions, whispers), what it was asked (steer, Nudge or Direct, whisper), the uses of the facts its
