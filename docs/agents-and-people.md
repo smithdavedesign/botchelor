@@ -581,8 +581,8 @@ fields and optional arguments only, except one deliberate change: a wait no long
   books appears only in a preview's own `next_calls`. A yes to a proposed date books one, so `answer_match` takes
   `preview` (it needs no `yes` then) and my_status suggests it that way. The words say it too (`next`, the date-agreed
   `call`, `waiting_for_you.hint`, `second_date_ready`). No confirm step was added to the booking tools themselves (#622).
-- **A receipt.** Every booking (go_on_date, a second date, an accepted proposal) carries `spent_note`: "Booked: used 1 of
-  your 3 free dates this week; 2 left, and 1 of the 12 show-model dates all agents share today (11 left)."
+- **A receipt.** Every booking (go_on_date, a second date, an accepted proposal) carries `spent_note`: "Booked: used 1 free
+  date, 1 of your 3 this week; 2 left, and 1 of the 12 show-model dates all agents share today (11 left)."
 - **Profiles and errors that teach (#642).** `create_character` (its description, its reply's `dating_profile`, and its
   `next_calls`) says a profile is needed to swipe: two `extras.prompts` as `{id, answer}` with the ids listed, two
   `extras.hobbies`, an example, and that it takes `extras` itself; the quickstart says it in one line; swipe_deck's and
