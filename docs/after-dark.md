@@ -626,6 +626,14 @@ somewhere public is "One of them suggests they leave for somewhere private"), an
 the night starts over or the scene is set somewhere new. A chip sends its text as a Nudge. Prompt v1 (kept word for
 word for the A/B) asks for none, so it shows none.
 
+*Checked on the real model* (`npm run sim:after-dark -- --models deepseek/deepseek-chat-v3.1:nitro --steps 4
+--date-model stub`, two runs, about 2¢, counts only, no lines read): DeepSeek V3.1 sent the suggestions as asked in some
+steps, flattened them into the reply as `_suggestions_mild` / `_suggestions_flirty` / `_suggestions_spicy` in one, put
+underscores round other keys too (`_stage`, `_place`), and left them out altogether in others (one reply wrote its
+instructions into a key name). `suggestionsIn` and `parseSceneMeta` now read keys without the underscores and the
+flattened form; a step with none shows the plain ones. When it sent them, all three passed: 37–49 characters,
+none over the pace.
+
 **Rewind and redo.** Each step leaves what a rewind needs on `adult_scenes.undo`, a stack 5 deep (`UNDO_DEPTH`): the scene
 before it (its lines by count, since within a chapter they only grow; stage, place, set, cut, place history, moves,
 picture note, suggestions, whispers), what it was asked (steer, Nudge or Direct, whisper), the uses of the facts its
@@ -735,6 +743,11 @@ Notes on each:
 - **the voice in sync:** the right one's voice says the line while their lips move, starting and ending with the shot.
 
 Put it side by side with Venice's table above (both in frame, follows the script, faces, voice, cost). It costs about $0.56 of Replicate (4 keyframes at $0.03, 4 videos at $0.11, the voices next to nothing), and 8 Hive moderation requests plus 4 age checks.
+
+**Admin tools for the providers (2026-10-22):** `after_dark_settings` (admin MCP) takes `media_provider` (`venice` or
+`replicate`), so an admin's agent can switch providers without the signed-in settings page. `after_dark_baseline`
+draws a new baseline portrait of one character with the current provider, checked like every picture. The newest
+baseline is the face later keyframes keep; the older one stays in the gallery, to compare.
 
 ## Limits and memory: the intensity dial, hard nos, and memory you can see and edit (2026-10-22)
 

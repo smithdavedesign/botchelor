@@ -3,7 +3,7 @@ import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { GET as whyGet } from "@/app/api/admin/after-dark/why/route";
 import { cleanSuggestion, fallbackSuggestion, holdSuggestion, suggestionsFor, suggestionsIn, SUGGESTION_MAX, type SuggestionRules } from "@/lib/adult/director";
 import { setAdultModelForTests } from "@/lib/adult/mode";
-import { CHAPTER_LINES, UNDO_DEPTH } from "@/lib/adult/scenes";
+import { CHAPTER_LINES, parseSceneMeta, UNDO_DEPTH } from "@/lib/adult/scenes";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
@@ -94,6 +94,17 @@ describe("suggested next moves", () => {
     expect(suggestionsIn({ suggestions: ["a", "b", "c"] })).toEqual({ mild: "a", flirty: "b", spicy: "c" });
     expect(suggestionsIn({ lines: [] })).toEqual({});
     expect(cleanSuggestion('  "Mild: She pulls him in to dance."  ')).toBe("She pulls him in to dance");
+  });
+
+  it("reads the shapes DeepSeek V3.1 really sent: flattened keys, underscores round them, a list of single-key objects", () => {
+    // A real four-step run (2026-10-22) had them flattened into the reply with underscores round the keys.
+    expect(suggestionsIn({ lines: [], _place: "x", _suggestions_mild: "a", _suggestions_flirty: "b", _suggestions_spicy: "c" })).toEqual({ mild: "a", flirty: "b", spicy: "c" });
+    expect(suggestionsIn({ _suggestions: { Mild: { text: "a" }, flirty_steer: "b", "spicy (bolder)": "c" } })).toEqual({ mild: "a", flirty: "b", spicy: "c" });
+    expect(suggestionsIn({ suggestions: [{ mild: "a" }, { flirty: "b" }, { spicy: "c" }] })).toEqual({ mild: "a", flirty: "b", spicy: "c" });
+    expect(suggestionsIn({ next_moves: { mild: "a" } })).toEqual({ mild: "a" });
+    // And the reply's other keys with underscores round them still count; the key as asked wins.
+    expect(parseSceneMeta(JSON.stringify({ lines: [], _place: "her flat", _stage: 3, _explicit: true }))).toMatchObject({ place: "her flat", stage: 2, explicit: true });
+    expect(parseSceneMeta(JSON.stringify({ lines: [], place: "the bar", _place: "her flat" }))).toMatchObject({ place: "the bar" });
   });
 
   it("holds each one to the rules a line is: the two lines, the length, other people, the pace", () => {

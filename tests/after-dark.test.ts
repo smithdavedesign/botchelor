@@ -52,6 +52,8 @@ describe("the gate", () => {
     expect(adultModeEnabled({})).toBe(false);
     expect(adultModeEnabled({ ADULT_MODE: "1", VERCEL: "1" })).toBe(false);
     expect(adultModeEnabled({ ADULT_MODE: "1", VERCEL_ENV: "production" })).toBe(false);
+    // After Dark's own host has no VERCEL variable (docs/after-dark-hosting.md).
+    expect(adultModeEnabled({ ADULT_MODE: "1", AFTER_DARK_ONLY: "1" })).toBe(false);
   });
 
   it("is not found for a stranger, a non-admin, an old unsigned cookie, and the admin when it's on Vercel", async () => {
@@ -407,6 +409,10 @@ describe("settings over MCP", () => {
       }).structuredContent.settings;
     expect((await run({ text_model: "sao10k/l3.3-euryale-70b" })).text_model).toBe("sao10k/l3.3-euryale-70b");
     expect(JSON.stringify(await run({}))).not.toMatch(/ciphertext|nonce/);
+    // Where the media is made (#698): only the two providers there are.
+    expect((await run({ media_provider: "replicate" })).media_provider).toBe("replicate");
+    expect((await run({ media_provider: "fal" })).media_provider).toBe("replicate");
+    expect((await run({ media_provider: "venice" })).media_provider).toBe("venice");
     const stranger = await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "after_dark_settings", arguments: {} } }, {});
     expect((stranger!.error as { message?: string } | undefined)?.message).toMatch(/unknown tool/);
   });
@@ -702,6 +708,24 @@ describe("pictures on Venice", () => {
   afterEach(() => {
     setMediaFetchForTests(null);
     setCheckFetchForTests(null);
+  });
+
+  it("draws a new portrait over the admin MCP tool, keeps the old one beside it, and refuses anyone outside After Dark", async () => {
+    const { cookie } = await admin();
+    await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, image_provider: "venice", venice_key: "placeholder-venice-VNCE", hive_key: "placeholder-hive" }, cookie);
+    setMediaFetchForTests(async (input: RequestInfo | URL) =>
+      String(input) === VENICE_IMAGE ? Response.json({ id: "x", images: [Buffer.from(PNG).toString("base64")], timing: {} }) : new Response("unexpected", { status: 500 }),
+    );
+    setCheckFetchForTests(async (input: RequestInfo | URL) => Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD));
+    const key = crypto.randomUUID();
+    vi.stubEnv("FRONTIER_PASSWORD", key);
+    const tool = async (args: Record<string, unknown>) =>
+      JSON.stringify(await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "after_dark_baseline", arguments: args } }, { adminKey: key }));
+    expect(await tool({ character_id: CAST_A })).toMatch(/"kind":"baseline"/);
+    expect(await tool({ character_id: CAST_A })).toMatch(/"kind":"baseline"/);
+    // Both kept: the newest is the face later pictures and videos keep, the older one stays to compare.
+    expect((await t.db.query(`select 1 from adult_images where character_id = $1 and kind = 'baseline' and status = 'ready'`, [CAST_A])).rows).toHaveLength(2);
+    expect(await tool({ character_id: HOUSE_CHARACTERS[2].id })).toMatch(/Pick a character who is in after dark/);
   });
 
   it("makes them on Venice with safe mode off, checks the bytes with Hive before storing, and keeps clips to fal pictures", async () => {

@@ -293,7 +293,7 @@ export const api = {
     postRating(jsonRequest(`/api/characters/${characterId}/ratings`, { category }, { cookie }), params(characterId)),
   setVisibility: (id: string, visibility: string, cookie?: string) =>
     patchVisibilityRoute(jsonRequest(`/api/episodes/${id}/visibility`, { visibility }, { cookie, method: "PATCH" }), params(id)),
-  myEpisodes: (cookie?: string) => getMyEpisodes(getRequest("/api/me/episodes", cookie)),
+  myEpisodes: (cookie?: string, query = "") => getMyEpisodes(getRequest(`/api/me/episodes${query}`, cookie)),
   myCharacters: (cookie?: string) => getMyCharacters(getRequest("/api/me/characters", cookie)),
   editCharacter: (id: string, body: unknown, cookie?: string) =>
     patchCharacterRoute(jsonRequest(`/api/characters/${id}`, body, { cookie, method: "PATCH" }), params(id)),
