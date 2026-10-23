@@ -207,8 +207,8 @@ nothing: both deployments read those from the database.
    After Dark's other provider keys (OpenRouter, Venice, fal, Hive, a saved Replicate key) live sealed in the database,
    so they come across by themselves with `DATABASE_URL` and `SESSION_SECRET`.
 
-   **Never set** `ADULT_MODE` (the local Ollama mode is kept off deployments by the `VERCEL` variable, which isn't there
-   on DigitalOcean), `NEXT_PUBLIC_GA_ID`, `NEXT_PUBLIC_GTM_ID` or the site-verification tokens (no Google on this
+   **Never set** `ADULT_MODE` (the local Ollama mode is for the admin's own machine; the code also refuses it wherever
+   `VERCEL` or `AFTER_DARK_ONLY=1` is set), `NEXT_PUBLIC_GA_ID`, `NEXT_PUBLIC_GTM_ID` or the site-verification tokens (no Google on this
    host), or the `MEDIA_S3_*` settings (Bunny is After Dark's store; the bucket stays the show's).
    Email (`RESEND_API_KEY`) and push (`VAPID_*`) are optional; without them After Dark's notifications aren't emailed
    or pushed from this host.
