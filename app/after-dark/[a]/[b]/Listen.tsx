@@ -226,14 +226,21 @@ export default function ListenLines({ lines, a, b, names }: { lines: SceneLine[]
     setAt(null);
   }, [voiceOf]);
 
-  // New lines while it's on are read in turn; lines taken back (a rewind, a new chapter) stop it where they end.
+  // New lines while it's on are read in turn. Lines taken back (a rewind) stop it where they now end; a new chapter, or
+  // Start over (a different first line), starts it at the top of what's there.
+  const first = useRef(lines[0]?.text ?? null);
   useEffect(() => {
-    if (next.current > lines.length) {
+    const top = lines[0]?.text ?? null;
+    if (top !== first.current) {
+      first.current = top;
+      next.current = 0;
+      interrupt();
+    } else if (next.current > lines.length) {
       next.current = lines.length;
       interrupt();
     }
     if (on) void run();
-  }, [lines.length, on, run, interrupt]);
+  }, [lines, on, run, interrupt]);
 
   // With it on, tapping a line reads from there.
   useEffect(() => {
