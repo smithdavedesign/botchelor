@@ -8,6 +8,7 @@ import { registerAccount } from "@/lib/auth";
 import { clearNudge, setNudge } from "@/lib/between-dates";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { setMlConsent } from "@/lib/ml-consent";
+import { NEVER_SAYS_REASON } from "@/lib/own-date";
 import { reviewCharacter } from "@/lib/reviews";
 import { chaosReplay, slidingDoors } from "@/lib/simulation";
 import { logTurnDraft, TURN_DRAFTS_PER_EPISODE } from "@/lib/turn-drafts";
@@ -61,6 +62,15 @@ describe("choice_history: every change, not just the latest", () => {
     ]);
   });
 
+  it("the same pick sent again isn't a change: only a different pick adds a row", async () => {
+    const { episode } = await bookedDate();
+    await t.db.query(`update episodes set revealed_at = null where id = $1`, [episode]);
+    const fan = newUserCookie();
+    const send = (pick: string) => predict(new Request(`${BASE_URL}/api/predictions`, { method: "POST", headers: { cookie: fan, "content-type": "application/json" }, body: JSON.stringify({ episode_id: episode, pick }) }));
+    for (const pick of ["friends", "friends", "friends", "disaster", "disaster", "friends"]) expect((await send(pick)).status).toBeLessThan(300);
+    expect((await history(userIdOf(fan))).map((h) => h.value.pick)).toEqual(["friends", "disaster", "friends"]);
+  });
+
   it("a nudge set, replaced and cleared; a review edited; a consent decided — each kept", async () => {
     const { owner, character } = await bookedDate();
     expect((await setNudge(t.db, owner, character, HOUSE_PARTNER_ID, "Ask about the lighthouse.")).ok).toBe(true);
@@ -87,20 +97,19 @@ describe("choice_history: every change, not just the latest", () => {
 });
 
 describe("turn_drafts: lines that didn't go in", () => {
-  it("caps rows per episode and text per row; a filtered line's text is never stored", async () => {
+  it("caps rows per episode and text per row", async () => {
     const { episode } = await bookedDate();
-    await logTurnDraft(t.db, { episodeId: episode, turnIndex: 0, side: "a", source: "agent_refused", reason: "filtered", rejected: null });
     for (let i = 0; i < TURN_DRAFTS_PER_EPISODE + 5; i++) {
       await logTurnDraft(t.db, { episodeId: episode, turnIndex: i, side: "b", source: "critic", reason: "x".repeat(400), rejected: "y".repeat(900) });
     }
     const rows = (await t.db.query<Any>(`select reason, rejected from turn_drafts where episode_id = $1 order by id`, [episode])).rows;
     expect(rows).toHaveLength(TURN_DRAFTS_PER_EPISODE);
-    expect(rows[0].rejected).toBeNull();
-    expect(rows[1].rejected).toHaveLength(600);
-    expect(rows[1].reason).toHaveLength(300);
+    expect(rows[0].rejected).toHaveLength(600);
+    expect(rows[0].reason).toHaveLength(300);
   });
 
-  it("an agent's refused line and its check_only try are kept, with why", async () => {
+  /** An agent's own date between its two characters, over MCP: the call function and the first step. */
+  async function ownDate(o: { neverSays?: string[] } = {}) {
     scriptOutcome({ ending: "friends" });
     const ctx: McpContext = {};
     await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "drafts-test" } } }, ctx);
@@ -109,7 +118,34 @@ describe("turn_drafts: lines that didn't go in", () => {
       ((await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, session)) as Any).result;
     const a = (await call("create_character", validCharacter({ name: "Ada Lumen" }))).structuredContent.character.id;
     const b = (await call("create_character", validCharacter({ name: "Bo Quill" }))).structuredContent.character.id;
+    if (o.neverSays) {
+      await t.db.query(`update characters set extras = coalesce(extras, '{}'::jsonb) || jsonb_build_object('never_says', $2::jsonb) where id = any($1)`, [[a, b], JSON.stringify(o.neverSays)]);
+    }
     const step = (await call("start_own_date", { character_id: a, partner_id: b })).structuredContent.step;
+    const drafts = async () => (await t.db.query<Any>(`select source, reason, rejected, turn_index from turn_drafts where episode_id = $1 order by id`, [step.episode_id])).rows;
+    return { call, step, drafts };
+  }
+
+  it("a line the safety filter caught is kept as the reason only, through the real submit path", async () => {
+    const { call, step, drafts } = await ownDate();
+    const caught = "Is that a compass in your pocket or are you just pleased to see me?";
+    const res = await call("submit_own_date_step", { episode_id: step.episode_id, output: { dialogue: caught, action: "", emotion: "sly", interest_signal: 0.7 } });
+    expect(JSON.stringify(res)).toMatch(/content rules/);
+    const rows = await drafts();
+    expect(rows).toEqual([{ source: "agent_refused", reason: "filtered", rejected: null, turn_index: 0 }]);
+    expect(JSON.stringify(rows)).not.toContain("compass");
+  });
+
+  it("a never_says catch tells the agent the phrase, and keeps a generic reason", async () => {
+    const { call, step, drafts } = await ownDate({ neverSays: ["no worries"] });
+    const res = await call("submit_own_date_step", { episode_id: step.episode_id, output: { dialogue: "No worries, I brought a spare map.", action: "", emotion: "warm", interest_signal: 0.6 } });
+    expect(JSON.stringify(res)).toContain('never says \\"no worries\\"');
+    const rows = await drafts();
+    expect(rows).toEqual([{ source: "agent_refused", reason: NEVER_SAYS_REASON, rejected: "No worries, I brought a spare map.", turn_index: 0 }]);
+  });
+
+  it("an agent's refused line and its check_only try are kept, with why", async () => {
+    const { call, step } = await ownDate();
     const good = { dialogue: "So what's the strangest map you've ever drawn?", action: "", emotion: "curious", interest_signal: 0.6 };
     await call("submit_own_date_step", { episode_id: step.episode_id, output: good, check_only: true });
     // No dialogue at all: refused as the wrong shape, and with no parsed line there's no text to keep.

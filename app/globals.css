@@ -307,6 +307,18 @@ h2 {
   color: var(--accent-text);
 }
 
+/* The newcomer's one call to action (app/Nav.tsx): the site's button, sized to sit in the nav row. */
+.nav a.nav-create,
+.nav a.nav-create:hover,
+.nav a.nav-create[aria-current="page"] {
+  color: var(--accent-ink);
+  background: var(--grad);
+  margin-top: 0;
+  padding: 0.4rem 0.9rem;
+  font-size: var(--text-sm);
+  box-shadow: none;
+}
+
 /* The token meter (nav): always visible, a pill that doubles as the top-up entry. One token = one date. */
 .nav a.token-pill {
   display: inline-flex;
@@ -495,6 +507,13 @@ h2 {
   .nav-links a {
     padding: 0.7rem 0.9rem;
     font-size: 1rem;
+  }
+  .nav a.nav-create,
+  .nav a.nav-create:hover,
+  .nav a.nav-create[aria-current="page"] {
+    padding: 0.7rem 0.9rem;
+    font-size: 1rem;
+    text-align: center;
   }
   .nav-bell-label {
     position: static;
@@ -1586,6 +1605,10 @@ button.swatch.chosen {
   align-items: center;
   flex-wrap: wrap;
   margin-top: 1.1rem;
+}
+/* a.button carries a top margin of its own; side by side with a ghost button it sat 1rem lower. */
+.cta-row > a.button {
+  margin-top: 0;
 }
 
 .cta-final {
@@ -8386,4 +8409,51 @@ section:has(> .ad-pairs) {
 }
 .ad-lines li {
   margin: 0.2rem 0;
+}
+
+/* Home's "Just aired" strip and Constellation card, and the cast preview under "Make a character" (UX pass, 2026-10-22). */
+.home-aired {
+  margin-top: var(--space-4, 1rem);
+}
+.cast-preview {
+  margin-top: var(--space-3);
+}
+.cast-preview-faces {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.cast-preview-faces a {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  text-decoration: none;
+  color: var(--ink);
+}
+.ad-teaser-soon {
+  font-weight: 700;
+}
+
+/* Room rows on desktop: a grid of three a page, no sideways scroll (app/watch/StripPager.tsx; phones keep the strip). */
+.strip-item > * {
+  height: 100%;
+}
+.strip-pager {
+  display: none;
+}
+@media (min-width: 721px) {
+  .watch-strip.strip-paged {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+  .watch-strip.strip-paged > .off-page {
+    display: none;
+  }
+  .strip-pager {
+    display: flex;
+  }
 }

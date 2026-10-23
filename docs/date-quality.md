@@ -297,9 +297,10 @@ Every line in a thread can take a thumbs up or down (`app/ChatThread.tsx` with
   stays on the line it was cast on.
 
 Real use (`/admin/analytics`) counts the 👍, the 👎, the share up and the people who voted. Admins are left out, so
-After Dark's votes don't count there. `scripts/eval/export-preferences.mjs` (read-only) writes every rated line as JSONL:
-the votes, the line, the lines before it, an After Dark line's private why and memory, and the observer's flags on it.
-That's the dataset for fine-tuning later.
+After Dark's votes don't count there. `scripts/eval/export-preferences.mjs` (read-only) writes every rated line of a date
+as JSONL: the votes, the line and the lines before it. Only aired public dates whose characters' owners opted in, and only
+the votes of people who opted in; After Dark is never exported. That's the dataset for fine-tuning later. Its gates,
+flags and record are in [data-plan.md](data-plan.md).
 
 The episode page doesn't pass `feedback` yet: its redesign is in flight. In `app/episodes/[id]/page.tsx`, the read card
 (`<details className="card transcript episode-read" id="the-date">`) passes

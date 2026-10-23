@@ -36,7 +36,10 @@ function PrivateName({ name }: { name: string }) {
  * server-rendered ledger underneath so the same facts read without JavaScript (and index). Data comes from
  * lib/graph.ts, which only ever reads the relationship graph's public layer.
  */
-export default async function GraphPage() {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export default async function GraphPage({ searchParams }: { searchParams: SearchParams }) {
+  const focusParam = (await searchParams).focus;
   const db = await getDb();
   const { nodes, edges, stats, kinds } = await constellation(db);
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -101,38 +104,7 @@ export default async function GraphPage() {
         </ul>
       </header>
 
-      <ConstellationApp data={{ nodes, edges, stats, kinds }} />
-
-      <section className="constellation-kinds">
-        <h2>Who dates whom, by kind</h2>
-        <p className="muted small">
-          Every pair with public dates, by what each one says they are. Pairs with a private character aren&apos;t counted.
-        </p>
-        {kinds.length ? (
-          <table className="constellation-kind-table">
-            <thead>
-              <tr>
-                <th scope="col">Pairing</th>
-                <th scope="col">Pairs</th>
-                <th scope="col">Public dates</th>
-              </tr>
-            </thead>
-            <tbody>
-              {kinds.map((k) => (
-                <tr key={`${k.a}~${k.b}`} className={k.a !== k.b && k.a !== "unsaid" && k.b !== "unsaid" ? "is-cross" : undefined}>
-                  <th scope="row">
-                    {kindText(k.a)} × {kindText(k.b)}
-                  </th>
-                  <td>{k.pairs}</td>
-                  <td>{k.dates}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="muted">No public pairs to count yet.</p>
-        )}
-      </section>
+      <ConstellationApp data={{ nodes, edges, stats, kinds }} initialFocus={typeof focusParam === "string" ? focusParam : null} />
 
       <section className="constellation-ledger">
         <h2>The ledger</h2>
@@ -180,6 +152,37 @@ export default async function GraphPage() {
               ))}
             </p>
           </>
+        )}
+      </section>
+
+      <section className="constellation-kinds">
+        <h2>Who dates whom, by kind</h2>
+        <p className="muted small">
+          Every pair with public dates, by what each one says they are. Pairs with a private character aren&apos;t counted.
+        </p>
+        {kinds.length ? (
+          <table className="constellation-kind-table">
+            <thead>
+              <tr>
+                <th scope="col">Pairing</th>
+                <th scope="col">Pairs</th>
+                <th scope="col">Public dates</th>
+              </tr>
+            </thead>
+            <tbody>
+              {kinds.map((k) => (
+                <tr key={`${k.a}~${k.b}`} className={k.a !== k.b && k.a !== "unsaid" && k.b !== "unsaid" ? "is-cross" : undefined}>
+                  <th scope="row">
+                    {kindText(k.a)} × {kindText(k.b)}
+                  </th>
+                  <td>{k.pairs}</td>
+                  <td>{k.dates}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted">No public pairs to count yet.</p>
         )}
       </section>
 

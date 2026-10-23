@@ -8,6 +8,7 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { characterToOpen, listThreads, newsByCharacter, type Thread } from "@/lib/inbox";
 import { shortName } from "@/lib/names";
 import CharacterTabs from "./CharacterTabs";
+import CastPreview from "@/app/CastPreview";
 
 export const dynamic = "force-dynamic";
 
@@ -62,9 +63,10 @@ export default async function MatchesPage({ searchParams }: Props) {
         <h1>Matches</h1>
         <section className="card">
           <p>Make a character first: you swipe for them, and every match and every date partner texts them here.</p>
-          <Link className="button" href="/create">
+          <Link className="button" href="/create?next=%2Fmatches">
             Make a character
           </Link>
+          <CastPreview line="Who'd be texting you: this season's cast, and every character you match with." />
         </section>
       </article>
     );

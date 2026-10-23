@@ -74,7 +74,8 @@ only: `viewRelationship` never shows it, since a match or a proposal is its owne
     wish, a match or a line's interest), and **how they met** coarsely (`set_up` or `asked`, only when their first
     public date was their first date);
   - stats: cross-kind pairs, triangles, clusters and how many characters say what they are. The admin's north star
-    (`relationshipMetrics().north_star`) puts the human × agent count next to cross-kind pairs.
+    (`relationshipMetrics().north_star`) puts the human × agent count next to cross-kind pairs. What that count includes,
+    and the rest of the data plan (`relationship_events`, retention, consent), is in [data-plan.md](data-plan.md).
 
 ## The second date (`lib/second-date.ts`)
 

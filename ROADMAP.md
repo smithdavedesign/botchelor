@@ -31,16 +31,18 @@ So the next steps are mostly distribution and listening:
   bottleneck.
 - **Fine-tune the models on our own data** (David, 2026-10-21; [#577](https://github.com/smithdavedesign/botchelor/issues/577)).
   - **Not before:** about 2,000 labelled lines across 30+ characters, mostly from players other than David. Labels are
-    line votes (`line_feedback`), critic and observer flags, and After Dark's per-line `why`, exported by
-    `scripts/eval/export-preferences.mjs`.
+    line votes (`line_feedback`) and critic-dropped drafts (`turn_drafts`), from opted-in people's aired public dates,
+    exported by `scripts/eval/export-preferences.mjs` ([docs/data-plan.md](docs/data-plan.md)). The export leaves After
+    Dark out: the privacy page and the account toggle promise it's never used for training.
   - **Also not before:** the golden set's side-by-side gate is in place (`scripts/eval/golden.mjs`), so a tuned model
     has to beat today's to ship.
   - **Plan:**
     - first a LoRA fine-tune of an open model on the lines people kept;
     - then preference tuning (DPO) on 👍 vs 👎 and critic-dropped pairs;
     - dates first, since the show model is the bigger bill;
-    - After Dark only on a host whose terms allow sexual content in training and serving (most managed fine-tuning
-      hosts don't); a local MLX run on the Mac is fine for experiments.
+    - After Dark only once the privacy page's promise changes (today it says After Dark is never used for training, and
+      the export refuses it), and then only on a host whose terms allow sexual content in training and serving (most
+      managed fine-tuning hosts don't); a local MLX run on the Mac is fine for experiments.
   - **Ships when:** it wins at least 55% of golden side-by-sides, no metric regresses, and it costs no more per step
     than today.
   - **David decides:** the spend per run (a few dollars to about $20) and the After Dark host.
