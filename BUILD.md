@@ -102,6 +102,7 @@ needs a real one.
 | Database | `DATABASE_URL` (Neon) |
 | Media bucket | `MEDIA_S3_ENDPOINT`, `MEDIA_S3_BUCKET`, `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY`, optional `MEDIA_S3_REGION`: a private S3-compatible bucket for After Dark media and looks tiles (lib/object-store.ts); unset, they stay in Postgres. `scripts/media-to-object-store.mjs` copies existing rows |
 | Date model | `FRONTIER_LLM_API_KEY`, `FRONTIER_LLM_BASE_URL`, `FRONTIER_LLM_MODEL`, `FRONTIER_DEFAULT`, `FRONTIER_DAILY_DATE_CAP`; fallback `GOOGLE_API_KEY` or `LLM_*`; `LLM_DIRECTOR_MODEL`, `LLM_*_REASONING` |
+| Concept embeddings | `ORIGINALITY_CONCEPT` (`1` turns them on); the key, first set wins: `EMBED_API_KEY` (its own key, with a spend cap at the provider: set this one), then `GOOGLE_API_KEY` (the show's own), then `LLM_API_KEY` while it points at Google; `EMBED_DAILY_CAP` (2000 calls a UTC day, all callers), `EMBED_CHECK_TIMEOUT_MS` (2500), `EMBED_MODEL`, `EMBED_URL`, `CONCEPT_TWIN_MIN` (0.88) ([docs/character-depth.md](docs/character-depth.md)) |
 | Payments | `STRIPE_PAYMENT_LINK`, `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, `STRIPE_PRICE_LABEL`, `STRIPE_WEBHOOK_SECRET` (no Stripe secret key anywhere; a test fails if one appears) |
 | Accounts | `SESSION_SECRET`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `OAUTH_REDIRECT_BASE` |
 | Email and push | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_DAILY_CAP`; `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY` |

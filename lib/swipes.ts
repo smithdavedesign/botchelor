@@ -175,12 +175,14 @@ async function deckPool(db: Db, userId: string, mine: Mine, opts: { only?: strin
  * what each wants, what the show has learned, a popularity damper), with the reasons. Someone who already liked your
  * character ranks a little higher, and (#443, David 2026-10-21) its card says so: liked_you, "Liked you". Only on its
  * own card, as a flag: there's no list of who liked you anywhere.
+ *
+ * `only`: just that one card, scored as the deck scores it, even once it's been swiped (what logShownCard records).
  */
-export async function deckFor(db: Db, userId: string, characterId: string, limit = DECK_PAGE): Promise<DeckResult> {
+export async function deckFor(db: Db, userId: string, characterId: string, limit = DECK_PAGE, opts: { only?: string } = {}): Promise<DeckResult> {
   const mine = await loadMine(db, userId, characterId);
   const no = cantSwipe(mine);
   if (no || !mine) return no!;
-  const pool = (await deckPool(db, userId, mine)).map((r) => toProfile(r));
+  const pool = (await deckPool(db, userId, mine, opts.only ? { only: opts.only, includeSwiped: true } : {})).map((r) => toProfile(r));
   if (!pool.length) return { ok: true, for: { id: mine.id, name: mine.name }, cards: [], scores: {} };
   const [ranked, likers] = await Promise.all([
     rankFor(db, userId, toProfile(mine), pool),
@@ -207,10 +209,23 @@ export async function deckFor(db: Db, userId: string, characterId: string, limit
 }
 
 /**
+ * A viewer and a card make one impression at most this often, whatever the surface or serve: an agent calling
+ * swipe_deck again, or a person reloading the deck, sees the same cards again, and counting each repeat would inflate
+ * the shown-and-skipped record (the 2026-10-22 review of the data plan).
+ */
+export const IMPRESSION_DEDUPE_MINUTES = 10;
+/** The highest rank stored (swipe_impressions.rank is a smallint; nobody sees a thousand cards in one sitting). */
+const MAX_RANK = 1000;
+
+/**
  * Logs the cards a deck actually showed (data plan Tier 1): who saw whom, at what rank and score, on which surface.
  * With the swipes, that's the shown-and-skipped record a preference model needs (a swipe alone has no negatives).
- * One insert per serve; best effort, so a failed log never costs anyone their deck. Pruned after 400 days
- * (lib/retention.ts).
+ *  - MCP: what swipe_deck returns is what the agent sees, ranked 1..N in that reply.
+ *  - Web: one card at a time, the one on top when it's shown (logShownCard), never the whole hand that was dealt.
+ * `ranks`: each card's rank in what was seen (default its position here); `serveId`: the deck session it belongs to
+ * (default a new one). A card this viewer was shown in the last IMPRESSION_DEDUPE_MINUTES isn't logged again. One
+ * insert per call; best effort, so a failed log never costs anyone their deck. Returns how many rows went in. Pruned
+ * after 400 days (lib/retention.ts).
  */
 export async function logImpressions(
   db: Db,
@@ -218,16 +233,56 @@ export async function logImpressions(
   cards: { id: string; liked_you: boolean }[],
   scores: Record<string, number>,
   via: "web" | "mcp",
-): Promise<void> {
-  if (!cards.length) return;
-  await db
-    .query(
+  opts: { serveId?: string; ranks?: number[] } = {},
+): Promise<number> {
+  if (!cards.length) return 0;
+  const ranks = cards.map((_, i) => Math.max(1, Math.min(MAX_RANK, Math.floor(opts.ranks?.[i] ?? i + 1))));
+  return db
+    .query<{ card: string }>(
       `insert into swipe_impressions (viewer, card, serve_id, rank, score, liked_you, served_via)
        select $1, x.card, $2, x.rank, x.score, x.liked_you, $3
-         from unnest($4::text[], $5::int[], $6::real[], $7::boolean[]) as x(card, rank, score, liked_you)`,
-      [viewer, crypto.randomUUID(), via, cards.map((c) => c.id), cards.map((_, i) => i + 1), cards.map((c) => scores[c.id] ?? null), cards.map((c) => c.liked_you)],
+         from unnest($4::text[], $5::int[], $6::real[], $7::boolean[]) as x(card, rank, score, liked_you)
+        where not exists (select 1 from swipe_impressions p
+                           where p.viewer = $1 and p.card = x.card and p.at > now() - ($8 || ' minutes')::interval)
+       returning card`,
+      [
+        viewer,
+        opts.serveId ?? crypto.randomUUID(),
+        via,
+        cards.map((c) => c.id),
+        ranks,
+        cards.map((c) => scores[c.id] ?? null),
+        cards.map((c) => c.liked_you),
+        String(IMPRESSION_DEDUPE_MINUTES),
+      ],
     )
-    .catch(() => {});
+    .then((r) => r.rows.length)
+    .catch(() => 0);
+}
+
+/** A web deck session's id (the swipe page makes one per visit): what logShownCard groups a sitting's cards by. */
+export const SERVE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The web deck's impression (/swipe, app/api/swipes/seen): the card on top, logged when it's shown, with its rank in
+ * what this person has seen in this deck session (`rank`, counted by the page) and the score the deck gives it (kept on
+ * the server, never sent to the page). Only a card in this character's deck, for its owner; a repeat within
+ * IMPRESSION_DEDUPE_MINUTES is a no-op. `logged`: whether a row went in.
+ */
+export async function logShownCard(
+  db: Db,
+  userId: string,
+  characterId: string,
+  cardId: string,
+  serveId: string,
+  rank: number,
+): Promise<{ ok: true; logged: boolean } | Refusal> {
+  if (!SERVE_ID.test(serveId)) return refuse(422, "invalid_serve", "serve_id is the deck session's id.");
+  if (!cardId || cardId === characterId) return refuse(422, "invalid_card", "card_id is a card in your deck.");
+  const deck = await deckFor(db, userId, characterId, 1, { only: cardId });
+  if (!deck.ok) return deck;
+  if (!deck.cards.length) return refuse(404, "not_in_deck", "That card isn't in this character's deck.");
+  return { ok: true, logged: (await logImpressions(db, deck.for.id, deck.cards, deck.scores, "web", { serveId, ranks: [rank] })) > 0 };
 }
 
 /**

@@ -426,6 +426,16 @@ const sheet = (r: Row, p: "a" | "b"): CharacterSheet => ({
 
 const err = (status: number, error: string, message: string): Extract<OwnDateResult, { ok: false }> => ({ ok: false, status, error, message });
 
+/**
+ * SQL for episodes.turn_meta once a line is added to a transcript of `$3` lines: the entries it has, line for line;
+ * `{at: null, by: null}` (not known) for any it lacks (a JSON null, or a date from before turn_meta); then the new
+ * line's, by `by`. So turn_meta always has as many entries as the transcript, whatever it held before.
+ */
+const nextTurnMeta = (by: "show" | "agent") =>
+  `(select coalesce(jsonb_agg(case when jsonb_typeof(turn_meta) = 'array' and i < jsonb_array_length(turn_meta) then turn_meta -> i
+                                   else '{"at": null, "by": null}'::jsonb end order by i), '[]'::jsonb)
+      from generate_series(0, $3::int - 1) as i) || jsonb_build_array(jsonb_build_object('at', now(), 'by', '${by}'))`;
+
 /* ------------------------------------------------- starting ------------------------------------------------- */
 
 type OwnCharacter = { id: string; name: string; age: number; bio: string; traits: string[]; want: string; dealbreaker: string; appearance: string | null; pronouns: string | null; voice: string | null };
@@ -1450,12 +1460,9 @@ async function showTurn(
     // The same move rules as the agent's side (lib/moves.ts): an unanswered suggestion is a no.
     const turn = settleLine(parsed.turn, parsed.reply, shape, names);
     // Saved, or a request racing this one saved the turn first: either way the date has moved on.
-    // turn_meta (episodes.turn_meta): this line was the show's, appended only while it stays aligned with the transcript.
+    // turn_meta (episodes.turn_meta): this line was the show's, kept line for line with the transcript (nextTurnMeta).
     await db.query(
-      `update episodes set transcript = $2::jsonb, last_move_at = now(),
-              turn_meta = case when jsonb_array_length(coalesce(turn_meta, '[]'::jsonb)) = $3
-                               then coalesce(turn_meta, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'show'))
-                               else turn_meta end
+      `update episodes set transcript = $2::jsonb, last_move_at = now(), turn_meta = ${nextTurnMeta("show")}
         where id = $1 and status = 'generating' and jsonb_array_length(transcript) = $3`,
       [row.id, JSON.stringify([...transcript, turn]), transcript.length],
     );
@@ -1688,9 +1695,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       `update episodes set transcript = $2::jsonb, last_move_at = now(),
               wishes = case when $4::boolean is null then wishes else coalesce(wishes, '{}'::jsonb) || jsonb_build_object($5::text, $4::boolean) end,
               setup = case when $6::int is null then setup else coalesce(setup, '{}'::jsonb) || jsonb_build_object('end_by', $6::int) end,
-              turn_meta = case when jsonb_array_length(coalesce(turn_meta, '[]'::jsonb)) = $3
-                               then coalesce(turn_meta, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'agent'))
-                               else turn_meta end
+              turn_meta = ${nextTurnMeta("agent")}
         where id = $1 and status = 'generating' and performed_by = 'agent' and jsonb_array_length(transcript) = $3
         returning id`,
       [episodeId, JSON.stringify(next), transcript.length, parsed.wish ?? null, current.side, endBy],

@@ -7,11 +7,15 @@
  *    on our model have their own daily cap (lib/dating.ts).
  *  - Dates written by the paid default model (FRONTIER_DEFAULT, docs/frontier.md) are capped per UTC day. Past the
  *    cap a date still runs, on the free model, so a flood can spend at most a day's cap however it arrives.
+ *  - Originality checks of a draft (POST /api/characters/originality) are limited per visitor and per session: each
+ *    distinct bio can cost one embedding call (lib/originality-concept.ts, which also caps those calls per UTC day).
  */
 import { createHmac } from "node:crypto";
 import type { Db } from "./db";
 
 export const DATE_START_LIMITS = { perHour: 10, perDay: 30 };
+/** Draft originality checks: a person polishing a character runs a few dozen; a script running hundreds stops here. */
+export const ORIGINALITY_CHECK_LIMITS = { perHour: 60, perDay: 300 };
 /** Paid-model dates a day unless FRONTIER_DAILY_DATE_CAP says otherwise: about $4–11 at Haiku's 4–11¢ a date. */
 export const DEFAULT_PAID_DATES_PER_DAY = 100;
 /** How long a rate-limit row is kept (the longest window plus a margin). */

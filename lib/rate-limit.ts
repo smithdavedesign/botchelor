@@ -17,6 +17,7 @@
 export type RateLimitBucket =
   | "create_character"
   | "swipe"
+  | "swipe_deck"
   | "send_text"
   | "start_own_date"
   | "submit_own_date_step"
@@ -28,6 +29,9 @@ const LIMITS: Record<RateLimitBucket, { windowSeconds: number; max: number }> = 
   create_character: { windowSeconds: 300, max: 10 },
   // A swipe is one click; thousands in a session is bot abuse.
   swipe: { windowSeconds: 60, max: 60 },
+  // Reading the deck: a few times a minute while swiping through it; every call ranks the whole pool and logs what it
+  // shows (lib/swipes.ts logImpressions), so a loop polling it is held back.
+  swipe_deck: { windowSeconds: 60, max: 20 },
   // A text is a sentence; dozens a minute is spam.
   send_text: { windowSeconds: 60, max: 20 },
   // Starting a new own date takes time to play; starting many an hour is a DoS attempt.
