@@ -241,6 +241,17 @@ export async function sweepStaleTurnNotices(db: Db, userId: string): Promise<voi
   await withTurnState(db, userId, rows.map((r) => ({ id: r.id, kind: r.kind, title: "", body: r.body, link: null, created_at: new Date(r.created_at).toISOString(), read: false })));
 }
 
+/** The most of a body the inbox stores (the 2026-10-23-0610 run: 300 cut exclusive_soon's instruction off mid-word). */
+export const NOTIFICATION_BODY_MAX = 600;
+
+/** A body cut to `max` at the last space inside it, with an ellipsis, never mid-word. */
+export function clipBody(body: string, max = NOTIFICATION_BODY_MAX): string {
+  if (body.length <= max) return body;
+  const head = body.slice(0, max - 1);
+  const space = head.lastIndexOf(" ");
+  return `${(space > 0 ? head.slice(0, space) : head).replace(/[\s,;:(—–-]+$/, "")}…`;
+}
+
 /** Notifies one person: stored for the inbox, then pushed to their browsers. Never throws. */
 export async function notify(
   db: Db,
@@ -255,7 +266,7 @@ export async function notify(
       userId,
       n.kind,
       n.title.slice(0, 140),
-      n.body ? n.body.slice(0, 300) : null,
+      n.body ? clipBody(n.body) : null,
       n.link ?? null,
     ]);
     await pushToUser(db, userId, { title: n.title, body: n.body ?? "", url: n.link ?? "/notifications" });
