@@ -9,6 +9,7 @@ import {
   simulateConversation,
   trimTo,
   type Turn,
+  storedDraftReason,
 } from "@/lib/conversation";
 import {
   fixedEngine,
@@ -204,6 +205,33 @@ describe("the turn critic", () => {
     ]);
     await simulateConversation(m2, INPUT, OUTCOME, CHARS, PRODUCER, VENUE, undefined, undefined, undefined, undefined, undefined, undefined, { onDraft: (d) => kept.push(d) });
     expect(kept).toEqual([]);
+  });
+
+  it("never stores a never_says phrase in a draft's reason: the model is told it, the kept reason names it generically", async () => {
+    const drafts: { reason: string; rejected: string }[] = [];
+    const rafe = assembleCharacter({ id: "rafe-house", sheet: sheetB, soul: soul(BETA), memory: null, extras: { never_says: ["Splendid Weather"] } });
+    const { model, calls } = turnModel([
+      turnJson("Hi. I'm Mira. I brought a compass, just in case."),
+      turnJson("Well, splendid weather for it, isn't it?"), // sent back: Rafe never says that
+      turnJson("So what do you do when you're not on a date?"), // the revision wins
+      ...Array.from({ length: CONVERSATION_TURNS }, (_, i) => turnJson(`Line ${i}: something friendly to say.`)),
+    ]);
+    await simulateConversation(model, INPUT, OUTCOME, [CHARS[0], rafe], PRODUCER, VENUE, undefined, undefined, undefined, undefined, undefined, undefined, {
+      onDraft: (d) => drafts.push(d),
+    });
+    // The revision prompt still names the phrase, so the model can fix it.
+    expect(calls[2].at(-1)?.content).toMatch(/never say "Splendid Weather"/);
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].reason).toMatch(/never_says list/);
+    expect(drafts[0].reason.toLowerCase()).not.toContain("splendid weather");
+  });
+
+  it("storedDraftReason: the critic's never-say note and any other quote of the phrase, whatever the case", () => {
+    const notes = `you'd never say "no worries" — put it your own way; you started the same way as an earlier line ("No worries, I…") — say it differently`;
+    const out = storedDraftReason(notes, ["no worries"]);
+    expect(out).toBe(`the line used a phrase on the character's never_says list — put it your own way; you started the same way as an earlier line ("[never_says], I…") — say it differently`);
+    expect(storedDraftReason("say it differently", undefined)).toBe("say it differently");
+    expect(storedDraftReason("a (b) c", ["(b)"])).toBe("a [never_says] c");
   });
 
   it("keeps the first draft when the revision doesn't parse (the critic never costs a date, or a third call)", async () => {
