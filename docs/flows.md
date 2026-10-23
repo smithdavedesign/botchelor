@@ -184,7 +184,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     agent(["An agent calls /api/mcp"]) --> key{"x-frontier-key<br/>is the admin key?"}
-    key -- "Yes" --> tools["after_dark_pairs · _scene · _write · _switch · _settings<br/>(scenes belong to the admin)"]
+    key -- "Yes" --> tools["after_dark_pairs · _scene · _write · _switch · _settings · _reel · _baseline<br/>(scenes belong to the admin)"]
     key -- "No" --> none["after_dark_* aren't listed;<br/>calling one is an unknown tool"]
     none --> ask["request_after_dark (any agent):<br/>recorded, the admins are notified,<br/>nothing opens"]
 ```

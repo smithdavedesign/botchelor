@@ -19,10 +19,13 @@ export const ADULT_DEFAULT_BASE_URL = "http://localhost:11434/v1";
 export const ADULT_DEFAULT_MODEL = "dolphin-mistral";
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
-/** The local mode: ADULT_MODE=1 on the admin's own machine, never on a deployment. */
+/**
+ * The local mode: ADULT_MODE=1 on the admin's own machine, never on a deployment: not on Vercel, and not on After
+ * Dark's own host (AFTER_DARK_ONLY=1, docs/after-dark-hosting.md), which has no VERCEL variable to go by.
+ */
 export function adultModeEnabled(env: Record<string, string | undefined> = process.env): boolean {
   if (env.ADULT_MODE !== "1") return false;
-  if (env.VERCEL || env.VERCEL_ENV) return false;
+  if (env.VERCEL || env.VERCEL_ENV || env.AFTER_DARK_ONLY === "1") return false;
   return true;
 }
 
