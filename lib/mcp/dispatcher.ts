@@ -61,6 +61,7 @@ export { BOOKING_RULE } from "./constants";
 import { ARC_PICKS, AUTOPLAY_SIDES, BROWSE_MINE, DEALBREAKER_PICK_NUMBERS, DECK_FILTERS, FEEDBACK_SORTS, FEEDBACK_VOTES, LIST_CAST_KINDS, MY_STATUS_INCLUDES, SEARCH_MADE_BY, TOOL_DEFS, type ToolName } from "./tool-defs";
 import { detectBot } from "../bots";
 import { getDb, type Db } from "../db";
+import { dateNumberSql } from "../date-number";
 import { getCharacterHistory, getPoints, getPointsBreakdown, getPublicCharacter, listAiredPage, listAiringSoon, listMyEpisodes, type DateSetup, type EpisodeView } from "../game";
 import { readUserId, safeEqual, USER_COOKIE } from "../http";
 import { getDealbreakerQuiz, listCast } from "../mechanics";
@@ -4592,7 +4593,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ? db
               .query<{ id: string; a: string; b: string; date_number: number | null }>(
                 `select e.id, ca.name as a, cb.name as b,
-                        case when e.followup_of is not null then coalesce((e.setup->>'date_number')::int, 2) end as date_number
+                        ${dateNumberSql("e")} as date_number
                    from episodes e
                    join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
                   where e.ending = 'second_date' and e.revealed_at is not null and (e.character_a = any($1) or e.character_b = any($1))

@@ -14,6 +14,7 @@
  *    plays on one shared clock — "join and the date starts" — so there is always something to drop into.
  */
 import { getDb, type Db } from "./db";
+import { dateNumberSql } from "./date-number";
 import { decideTraced, seedFrom } from "./engine";
 import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { failureReason } from "./jobs";
@@ -304,6 +305,8 @@ type RoomRow = {
   b_hue: number | null;
   b_portrait: string | null;
   is_creator: boolean;
+  /** Which date it is for the couple (lib/date-number.ts), or null for a first date. */
+  date_number: number | null;
 };
 
 const ROOM_SELECT = `
@@ -312,7 +315,8 @@ const ROOM_SELECT = `
          e.revealed_at is not null as revealed,
          a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait,
          b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait,
-         coalesce($2::text in (a.owner_id, b.owner_id), false) as is_creator
+         coalesce($2::text in (a.owner_id, b.owner_id), false) as is_creator,
+         ${dateNumberSql("e")} as date_number
     from watch_parties w
     join episodes e on e.id = w.episode_id
     join characters a on a.id = e.character_a
@@ -422,7 +426,7 @@ export async function getRoomState(
       chaosTimeline = {
         label: WATCH_CHAOS_OPTIONS.find((o) => o.id === chaosTally.leading)?.label ?? "",
         ending: replay.alternate.ending,
-        ending_label: endingLabel(replay.alternate.ending, dateNumberOf(row.setup)),
+        ending_label: endingLabel(replay.alternate.ending, row.date_number),
         box_score: replay.alternate.box_score,
       };
     }
@@ -494,7 +498,7 @@ export async function getRoomState(
     watching,
     characters,
     setting: row.setting,
-    date_number: dateNumberOf(row.setup),
+    date_number: row.date_number,
     venue,
     venue_name: venue ? venueName(venue) : null,
     place,
@@ -511,7 +515,7 @@ export async function getRoomState(
     twist: showTwist ? row.twist : null,
     show_ending: showEnding,
     ending: showEnding ? row.ending : null,
-    ending_label: showEnding ? endingLabel(row.ending, dateNumberOf(row.setup)) : null,
+    ending_label: showEnding ? endingLabel(row.ending, row.date_number) : null,
     finale: showEnding ? row.finale : null,
     best_line: showEnding ? row.best_line : null,
     drama_question: row.drama_question ? DRAMA_QUESTION_LABELS[row.drama_question] : null,

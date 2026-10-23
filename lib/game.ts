@@ -5,6 +5,7 @@ import { approvedClipId, approvedClipIsVideo, approvedPortraitId, portraitPathSq
 import type { Db } from "./db";
 import { publicExtras, type CharacterExtras } from "./extras";
 import { matchmakerHitSql } from "./mechanics";
+import { dateNumberSql } from "./date-number";
 import {
   agendaLabel,
   dateNumberOf,
@@ -184,6 +185,8 @@ export type StoredEpisode = {
   status: EpisodeStatus;
   /** How the two sides' private wishes counted (lib/wishes.ts). Never shown; only a tip is told, beside the ending. */
   wishes?: StoredWishes | null;
+  /** Which date it is for the couple, as read (lib/date-number.ts): the stored number, or computed for an older date. */
+  date_number?: number | null;
 };
 
 export type EpisodeJson = {
@@ -206,7 +209,10 @@ export type EpisodeJson = {
   format?: FormatId;
   /** A second date: the first date it follows (lib/second-date.ts). Shown as a badge; not a spoiler. */
   followup_of?: string;
-  /** Which date this is for the couple (2, 3, ...), with followup_of. Older follow-ups without it are second dates. */
+  /**
+   * Which date this is for the couple (2, 3, ...) when they've dated before: every follow-up (older ones without it are
+   * second dates), and a rematch, counted from their public dates (lib/date-number.ts). Absent on a first date.
+   */
   date_number?: number;
   // Only present for the creators, or for everyone once the finale has aired.
   scenes?: string[];
@@ -310,6 +316,9 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     json.followup_of = ep.setup.followup_of;
     json.date_number = ep.setup.date_number ?? 2;
   }
+  // A rematch's number too (stored at booking, or read for an older one), so its ending names the right date.
+  const number = ep.date_number ?? dateNumberOf(ep.setup);
+  if (number && number > 1) json.date_number = number;
   if (opts.full) {
     json.scenes = ep.scenes;
     // A date still being written shows its lines without interest: a side's last one can stand in for its private wish
@@ -321,7 +330,7 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     json.drama_answer = ep.drama_answer;
     if (ep.best_line) json.best_line = ep.best_line;
     if (ep.box_score) json.box_score = ep.box_score;
-    const why = endingWhy(ep.ending, ep.box_score, ep.sides, ep.setup?.strategy, ep.setup?.engine_version, [a.name, b.name], dateNumberOf(ep.setup));
+    const why = endingWhy(ep.ending, ep.box_score, ep.sides, ep.setup?.strategy, ep.setup?.engine_version, [a.name, b.name], number);
     // When the two sides' wishes tipped the ending, the numbers alone don't explain it: say so (never which way a lone wish went).
     const tipped = wishLine(ep.wishes, ep.ending);
     // #469: on a date between a viewer's own two characters, which cue tripped which dealbreaker (the debrief the
@@ -404,6 +413,8 @@ type EpisodeRow = {
   my_drama_pick: DramaAnswer | null;
   my_consent: boolean;
   blocked: boolean;
+  /** Which date it is for the couple (lib/date-number.ts dateNumberSql), or null for a first date. */
+  date_number: number | null;
 };
 
 /**
@@ -428,7 +439,8 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
        pa.name as a_creator_name, pb.name as b_creator_name,
        p.pick as my_pick, p.drama_pick as my_drama_pick,
        exists (select 1 from identity_consents mc where mc.episode_id = e.id and mc.user_id = $1::text) as my_consent,
-       exists (select 1 from blocks bl where bl.blocker_id = $1::text and bl.via_episode_id = e.id) as blocked
+       exists (select 1 from blocks bl where bl.blocker_id = $1::text and bl.via_episode_id = e.id) as blocked,
+       ${dateNumberSql("e")} as date_number
   from episodes e
   join characters a on a.id = e.character_a
   join characters b on b.id = e.character_b
@@ -492,6 +504,7 @@ function toView(row: EpisodeRow): EpisodeView {
       afterglow: row.afterglow ?? [],
       status: row.status,
       wishes: row.wishes,
+      date_number: row.date_number,
     },
     {
       full,
@@ -797,7 +810,7 @@ export async function getPublicCharacter(db: Db, id: string): Promise<PublicChar
   return { ...rows[0], extras: publicExtras(rows[0].extras), portrait_asset_id, clip_asset_id, clip_is_video };
 }
 
-/** date_number: which date it was for the couple, on a follow-up (absent on a first date), so its ending reads right. */
+/** date_number: which date it was for the couple (absent on a first date), so its ending reads right. */
 export type CharacterEpisode = { episode_id: string; share_path: string; partner: string; ending: Ending; date_number?: number };
 export type CharacterRecord = { dates: number; second_dates: number; friends: number; disasters: number };
 
@@ -813,7 +826,7 @@ export async function getCharacterHistory(
   const { rows } = await db.query<{ episode_id: string; partner: string; ending: Ending; date_number: number | null }>(
     `select e.id as episode_id, e.ending,
             case when e.character_a = $1 then b.name else a.name end as partner,
-            case when e.followup_of is not null then coalesce((e.setup->>'date_number')::int, 2) end as date_number
+            ${dateNumberSql("e")} as date_number
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b

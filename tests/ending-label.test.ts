@@ -12,7 +12,7 @@ import { handleMcpMessage } from "@/lib/mcp";
 import { lastAct } from "@/lib/own-date";
 import { dateNumberOf, ENDING_LABELS, endingLabel } from "@/lib/rules";
 import { endingWhy } from "@/lib/why";
-import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
+import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter, validEpisodeDraft } from "./helpers";
 
 type Any = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -186,5 +186,89 @@ describe("a couple's third date that wants more reads 'A fourth date'; their fir
     const picked = await call("predict", { episode_id: ids[2], pick: "second_date" });
     expect(picked.prediction).toMatchObject({ pick: "second_date" });
     expect(picked.picks.second_date).toBe("A fourth date");
+  });
+});
+
+/* ------------------------------ rematches and own dates: numbered from the public record ------------------------------ */
+
+describe("a later date that isn't a follow-up names the right date too, counted from the pair's public dates", () => {
+  /** `n` fresh dates between one character and the same house partner (no second_date_of), each aired but the last. */
+  async function freshDates(n: number, opts: { privateAt?: number } = {}) {
+    const creator = newUserCookie();
+    const userId = creator.slice(creator.indexOf("=") + 1);
+    const character = await (await api.createCharacter(validCharacter({ name: "Cass Vega", partner_style: "open" }), creator)).json();
+    const ids: string[] = [];
+    for (let i = 0; i < n; i++) {
+      scriptOutcome({ ending: "second_date", sides: [side(true), side(true)] });
+      scriptDate();
+      const res = await api.createEpisode({ character_id: character.id, partner_id: HOUSE_PARTNER_ID, ...(i === opts.privateAt ? { visibility: "private" } : {}) }, creator);
+      const booked = (await res.json()) as Any;
+      expect(booked.id, JSON.stringify(booked)).toBeTruthy();
+      ids.push(booked.id);
+      if (i < n - 1) {
+        if (i === opts.privateAt) await t.db.query(`update episodes set revealed_at = now() where id = $1`, [booked.id]);
+        else expect(await airEpisode(t.db, booked.id, userId)).not.toBeNull();
+      }
+    }
+    return { ids, userId };
+  }
+  const stored = async (id: string) => (await t.db.query<{ n: number | null }>(`select (setup->>'date_number')::int as n from episodes where id = $1`, [id])).rows[0].n;
+
+  it("a rematch booked fresh after two public dates is their third: it says 'A fourth date'", async () => {
+    const { ids, userId } = await freshDates(3);
+    expect(await stored(ids[0])).toBeNull(); // a first date stays without a number
+    expect(await stored(ids[2])).toBe(3); // recorded at booking
+    const view = (await getEpisodeView(t.db, ids[2], userId))!;
+    expect(view.followup_of).toBeUndefined();
+    expect(view.date_number).toBe(3);
+    expect(endingLabel(view.ending!, dateNumberOf(view))).toBe("A fourth date");
+    expect(view.why).toMatch(/^A fourth date: /);
+  });
+
+  it("a private earlier date doesn't raise the number", async () => {
+    const { ids, userId } = await freshDates(3, { privateAt: 1 }); // public, private, then this one
+    expect(await stored(ids[2])).toBe(2);
+    const view = (await getEpisodeView(t.db, ids[2], userId))!;
+    expect(endingLabel(view.ending!, dateNumberOf(view))).toBe("A third date");
+  });
+
+  it("an older date stored without a number gets it when it's read, the same way", async () => {
+    const { ids, userId } = await freshDates(3);
+    await t.db.query(`update episodes set setup = setup - 'date_number' where id = any($1)`, [ids]);
+    const [first, , third] = await Promise.all(ids.map((id) => getEpisodeView(t.db, id, userId)));
+    expect(third!.date_number).toBe(3);
+    expect(endingLabel(third!.ending!, dateNumberOf(third!))).toBe("A fourth date");
+    expect(first!.date_number).toBeUndefined();
+    expect(endingLabel(first!.ending!, dateNumberOf(first!))).toBe("A second date");
+  });
+
+  it("an own date agents perform after one public date is their second: its steps say 'A third date'", async () => {
+    const ctx: Record<string, unknown> = {};
+    await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "ending-label-test" } } }, ctx);
+    const session = { sessionId: ctx.issuedSessionId as string };
+    const call = async (name: string, args: Record<string, unknown>) =>
+      ((await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, session)) as Any).result.structuredContent;
+    const a = await call("create_character", validCharacter({ name: "Ada Lumen", partner_style: "open" }));
+    const b = await call("create_character", validCharacter({ name: "Bo Quill", partner_style: "open" }));
+    const line = (i: number) => ({ dialogue: `Line ${i}: so what's the strangest map you've ever drawn, number ${i}?`, action: "", emotion: "curious", interest_signal: 0.6 });
+    const perform = async () => {
+      scriptOutcome({ ending: "second_date", sides: [side(true), side(true)] });
+      let step = (await call("start_own_date", { character_id: a.character.id, partner_id: b.character.id })).step;
+      const first = step;
+      for (let i = 0; step.stage === "turn"; i++) step = (await call("submit_own_date_step", { episode_id: step.episode_id, output: line(i) })).step;
+      const recap = step;
+      const done = (await call("submit_own_date_step", { episode_id: step.episode_id, output: validEpisodeDraft() })).step;
+      return { first, recap, done };
+    };
+    const one = await perform();
+    expect(one.first.ending_label).toBe("A second date");
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [one.done.episode_id]);
+    const two = await perform();
+    expect(await stored(two.done.episode_id)).toBe(2);
+    expect(two.first.ending_label).toBe("A third date");
+    expect(two.first.heading.ending_label).toBe("A third date");
+    expect(two.first.heading.says).toMatch(/^heading for a third date/);
+    expect(two.recap.ending_label).toBe("A third date");
+    expect(two.done.episode.date_number).toBe(2);
   });
 });

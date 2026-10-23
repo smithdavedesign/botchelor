@@ -11,6 +11,7 @@
  */
 import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
+import { publicDateSql } from "./date-number";
 import { originSql, type Origin } from "./origin";
 import { KIND_IDS, KINDS, kindLabel, type KindId } from "./kinds";
 import { healRelationships, stageOf, tieStrength, type Stage, STAGE_LABELS } from "./relationships";
@@ -273,10 +274,6 @@ const COARSE_MET: Record<string, MetVia> = {
 };
 export const coarseMetVia = (raw: string | null | undefined): MetVia | null => (raw ? (COARSE_MET[raw] ?? null) : null);
 
-/** A date the public layer counts (the same rule as lib/relationships.ts `HistoryItem.public`): aired, public, not hidden, not a replay. */
-const publicDateSql = (e: string, threshold: string) =>
-  `${e}.status = 'ready' and ${e}.visibility = 'public' and ${e}.revealed_at is not null and ${e}.varies_episode_id is null
-   and (select count(*)::int from reports r where r.episode_id = ${e}.id) < ${threshold}`;
 
 /** A pair's public dates (oldest first) as a timeline with the stage after each: the latest TIMELINE_KEPT of them. */
 export function publicTimeline(dates: readonly { at: string; ending: Ending }[]): PairTimeline {

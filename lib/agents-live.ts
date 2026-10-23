@@ -6,6 +6,7 @@
  */
 import type { Db } from "./db";
 import type { LlmsLive } from "./agents";
+import { dateNumberSql } from "./date-number";
 import { ENDING_LABELS, endingLabel, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 
 const OPEN_SHOWN = 5;
@@ -21,7 +22,7 @@ export async function llmsLive(db: Db): Promise<LlmsLive | null> {
       ),
       db.query<{ id: string; a: string; b: string; ending: Ending; date_number: number | null }>(
         `select e.id, ca.name as a, cb.name as b, e.ending,
-                case when e.followup_of is not null then coalesce((e.setup->>'date_number')::int, 2) end as date_number
+                ${dateNumberSql("e")} as date_number
            from episodes e
            join characters ca on ca.id = e.character_a
            join characters cb on cb.id = e.character_b

@@ -36,6 +36,7 @@ import { warnWhenSparksOut } from "./partners";
 import { loadSoul, type StoredSoul } from "./souls";
 import { isText, loadChain, promptTexts, type ChainItem, type PromptTexts } from "./text-chain";
 import type { Turn } from "./conversation";
+import { nextDateNumber } from "./date-number";
 import {
   AGENDA_IDS,
   dateNumberOf,
@@ -257,6 +258,8 @@ export function assembleDate(p: DateParts): BuiltDate {
     ...(p.followupOf ? { followup_of: p.followupOf, plan: agreed ? agreed.texts.map((t) => t.text) : plans.map((x) => x.text) } : {}),
     ...(p.nudges?.a ? { nudge_a: p.nudges.a } : {}),
     ...(p.nudges?.b ? { nudge_b: p.nudges.b } : {}),
+    // Which date this is for the couple (lib/date-number.ts): stored, so its happy ending names the date after it.
+    ...(p.dateNumber && p.dateNumber > 1 ? { date_number: p.dateNumber } : {}),
   };
   // Fill the format's cast from real data (flavour only, never the engine): a named house regular as the
   // meet-the-parents chaperone, and a real past partner as the returning ex when the graph has one.
@@ -311,7 +314,10 @@ export async function buildDate(
   opts: {
     creatorId?: string;
     followupOf?: string | null;
-    /** Which date this is for the couple (setup.date_number; a rebuild passes the stored one), for the words only. */
+    /**
+     * Which date this is for the couple (setup.date_number). A follow-up passes its own; a rebuild passes the stored one
+     * (null for none). Left out, as on a fresh booking, it's 1 + the pair's public dates so far (lib/date-number.ts).
+     */
     dateNumber?: number | null;
     historyOverride?: DateHistory | null;
     legacyHistory?: boolean;
@@ -384,7 +390,8 @@ export async function buildDate(
   return assembleDate({
     episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues, venueOverride: opts.venueOverride, agreedPlan: agreed,
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
-    relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null, dateNumber: opts.dateNumber ?? null,
+    relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
+    dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : await nextDateNumber(db, a.id, b.id, episodeId),
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     overusedA, overusedB,
