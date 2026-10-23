@@ -75,6 +75,12 @@ flowchart TD
     signed -- "Yes: Link it" --> agents["Account → Your agents:<br/>its characters and dates, its agent id<br/>to give back; unlink any time"]
 ```
 
+**Installing it (lib/pwa.ts).** Botchelor installs as an app (app/manifest.ts: standalone, opening on the home page, the
+PG heart tile for its icons). On a phone's browser a small "Install the app" hint shows once, on one page, a few seconds
+in: Install (Chrome's own prompt, where there is one) or How (Share, then Add to Home Screen on an iPhone), and × puts it
+away for good (localStorage `bz_install_hint`). Never on After Dark, the admin pages or the 18+ gate. On an iPhone, web
+push only reaches the Home Screen app, so the notifications page says so there instead of offering a switch.
+
 ## An AI agent, over MCP
 
 The server lists its 37 core tools by default (enough for everything below, and every tool a reply names is one of
@@ -155,7 +161,11 @@ flowchart TD
     later -. "once both pass" .-> can
     can -- "Subscribed and age-checked" --> avail{"Available here?<br/>on the site (turned on + an OpenRouter key)<br/>or locally (ADULT_MODE=1, Ollama)"}
     avail -- "No" --> hidden
-    avail -- "Yes" --> home["/after-dark: night look, 🌙 badge<br/>(🌙 After Dark in the nav, a card in Account)"]
+    avail -- "Yes" --> pin{"A PIN on this account?<br/>(discreet mode, lib/adult/privacy.ts)"}
+    pin -- "No PIN, or this device<br/>unlocked (12 hours)" --> home["/after-dark: night look, 🌙 badge<br/>(🌙 After Dark in the nav, a card in Account);<br/>pictures blurred until tapped, tab says Botchelor"]
+    pin -- "Locked" --> prompt["The PIN prompt (every page, API and picture<br/>answers not-found until it's right):<br/>5 tries, then a 15-minute wait"]
+    prompt -- "Right PIN" --> home
+    prompt -- "Forgot it" --> forgot["Through the account only: a code to its<br/>confirmed email, or its password;<br/>takes the PIN off"] --> home
     home --> shorts["📺 Shorts (/after-dark/shorts): the house cast's nights as episodes<br/>(the cover first; the night itself only after ▶ Play; no tokens)"]
     later -. "/after-dark/shorts" .-> teaser["The Shorts teaser: PG titles and names, the length,<br/>filler under a blur, Subscribe to unlock (no line, picture or video)"]
     home --> switch{"Switch characters in?<br/>your own and the house characters you bring,<br/>never another person's"}
@@ -236,6 +246,8 @@ flowchart LR
 | **After Dark:** monthly caps (300 steps, 30 pictures, 5 clips, 2,000 voiced lines; admins uncapped) | Subscribers | `lib/adult/usage.ts` |
 | **After Dark:** the output check on every picture and clip (Hive moderation + a VLM age check, fails closed, discard never store) | Adult visitors | `lib/adult/check.ts`, `lib/adult/media.ts` |
 | **After Dark over MCP:** the admin key for the tools; `request_after_dark` for everyone else | Agents | `lib/adult/mcp.ts`, `lib/mcp.ts` |
+| **After Dark discreet mode:** a PIN (when the owner sets one) on each device before any After Dark page, API or picture answers; 5 tries, then 15 minutes; a reset only through the account (an emailed code, or the password with no email) | Adult visitors | `lib/adult/privacy.ts`, `lib/adult/mode.ts` `adultViewer` |
+| **After Dark discreet mode:** pictures and videos blurred until tapped, and the tab titled "Botchelor" (both on by default) | Adult visitors | `app/after-dark/Frame.tsx`, `app/after-dark/discreet.css` |
 | **After Dark Shorts:** publishing is a signed-in admin's (two of this season's house cast, a whole saved night of their own, a PG title, a checked cover); watching needs `canAfterDark`; the night (lines, video) goes only to a viewer who pressed play; everyone else gets the teaser; bots get nothing | Admins, adult visitors | `lib/adult/shorts.ts` |
 
 ## Where each thing lives (2026-10-20)
@@ -261,3 +273,5 @@ Every page leads somewhere: no dead ends.
 | `/after-dark/shorts` | After Dark's Shorts: for someone it's open to, the published ones (cover, title, the pair, watched or not); for anyone else, the blurred teaser and Subscribe to unlock | each Short, the waitlist |
 | `/after-dark/shorts/[id]` | One Short: its cover and title, then ▶ Play (the theater; then its chapters and its video). Its owner can take it down | back to Shorts |
 | `/admin/after-dark/settings` | Admin only: on/off, models, the OpenRouter, fal and Hive keys, caps, other agents' requests | After Dark |
+| Any After Dark page, on a device without the PIN | The PIN prompt, in neutral words with a neutral title; Forgot your PIN? (a code to the account's email, or its password) | the page, once it's right; back to the show |
+| `/after-dark` → Privacy | The card at the foot of After Dark: blur until tapped, the neutral title, and the PIN (set, change, turn off, Lock now) | the same page |

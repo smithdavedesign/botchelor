@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { signedInAdmin } from "@/lib/adult/mode";
+import { lockedForCookies } from "@/lib/adult/privacy";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
@@ -14,8 +15,10 @@ export const metadata: Metadata = { title: "After dark settings · Botchelor", r
 /** After dark's settings: a signed-in admin only, even while it's off. Not found for anyone else. */
 export default async function AfterDarkSettingsPage() {
   const db = await getDb();
-  const admin = await signedInAdmin(db, authFromCookieStore(await cookies()));
-  if (!admin) notFound();
+  const store = await cookies();
+  const admin = await signedInAdmin(db, authFromCookieStore(store));
+  // Behind the admin's PIN too, when there is one (lib/adult/privacy.ts): the layout asks for it instead.
+  if (!admin || (await lockedForCookies(db, admin, store))) notFound();
   const settings = await getAdultSettings(db);
   const requests = (
     await db.query<{ id: string; client_name: string | null; reason: string; created_at: string | Date }>(

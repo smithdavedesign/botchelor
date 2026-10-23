@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { installSteps, platformOf } from "@/lib/pwa";
 
 /** The VAPID public key (base64url) as the bytes a browser's PushManager wants. */
 function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
@@ -11,7 +12,14 @@ function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-type State = "unsupported" | "denied" | "off" | "on" | "busy";
+type State = "unsupported" | "install" | "denied" | "off" | "on" | "busy";
+
+/** An iPhone or iPad in the browser rather than the Home Screen app: there, web push only works once it's installed. */
+function needsInstall(): boolean {
+  const nav = navigator as Navigator & { standalone?: boolean };
+  const installed = window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true;
+  return !installed && platformOf(nav.userAgent, nav.maxTouchPoints) === "ios";
+}
 
 /**
  * Browser notifications for this browser (lib/push.ts): registers the service worker, subscribes with the site's
@@ -23,7 +31,7 @@ export default function PushToggle({ publicKey }: { publicKey: string }) {
 
   useEffect(() => {
     (async () => {
-      if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return setState("unsupported");
+      if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return setState(needsInstall() ? "install" : "unsupported");
       if (Notification.permission === "denied") return setState("denied");
       const reg = await navigator.serviceWorker.getRegistration("/sw.js");
       const sub = await reg?.pushManager.getSubscription();
@@ -64,7 +72,9 @@ export default function PushToggle({ publicKey }: { publicKey: string }) {
   return (
     <section className="card">
       <h2>Browser notifications</h2>
-      {state === "denied" ? (
+      {state === "install" ? (
+        <p className="muted">On an iPhone they come through the Home Screen app. {installSteps("ios")}</p>
+      ) : state === "denied" ? (
         <p className="muted">This browser has notifications blocked for Botchelor. Allow them in the site settings to turn them on.</p>
       ) : state === "on" ? (
         <p>

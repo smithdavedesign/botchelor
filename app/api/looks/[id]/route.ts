@@ -1,4 +1,5 @@
 import { canAfterDark } from "@/lib/adult/entitlement";
+import { lockedForRequest } from "@/lib/adult/privacy";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json } from "@/lib/http";
 import { isTileId } from "@/lib/looks";
@@ -21,7 +22,10 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   if (!isTileId(id)) return json({ error: "not_found" }, 404);
   const db = await getDb();
   const nsfw = id.startsWith("nsfw-");
-  if (nsfw && !(await canAfterDark(db, authFromRequest(req))).ok) return json({ error: "not_found" }, 404);
+  const auth = nsfw ? authFromRequest(req) : null;
+  if (nsfw && !(await canAfterDark(db, auth)).ok) return json({ error: "not_found" }, 404);
+  // Nor to a device locked by the account's After Dark PIN (lib/adult/privacy.ts).
+  if (nsfw && (await lockedForRequest(db, auth!.userId, req))) return json({ error: "not_found" }, 404);
   const tile = await getTile(db, id, { bytes: !nsfw });
   if (!tile) return json({ error: "not_found" }, 404);
   const store = tile.key && tile.variant === "nsfw" ? objectStore() : null;

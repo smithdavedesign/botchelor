@@ -1126,6 +1126,62 @@ The fourth of the media PRs puts the three features above on a pair's page, in n
 answered in the browser with a second of soft tone, nothing generated): `docs/screenshots/after-dark-media-*.png` and
 `docs/screenshots/after-dark-listen-*.png`.
 
+## Discreet mode: blur, a neutral title and a PIN (2026-10-22)
+
+From the competitor analysis (David's picks, 2026-10-22): of the 15 adult companion apps checked, 14 blur and none has a
+PIN. Three settings per account (`adult_privacy`; lib/adult/privacy.ts, lib/adult/discreet.ts), on the **Privacy** card
+at the foot of /after-dark:
+
+| Setting | Default | What it does |
+|---|---|---|
+| Blur | on | Every picture and video on an After Dark page (the gallery, the reel player and its theater, the admin graph) is blurred until it's tapped or clicked, and blurred again on leaving the page or when the tab goes to the background. |
+| Neutral title | on | Every After Dark tab (and its history entry) says "Botchelor". The favicon was always the show's heart, and nothing in After Dark sets its own. |
+| PIN | off | 4 to 6 digits. Each device asks for it before any After Dark page opens, then stays open for 12 hours. |
+
+**The blur is one hook.** No media component was touched: both After Dark layouts (app/after-dark, app/admin/after-dark)
+wrap their pages in `<div class="ad-discreet" data-ad-discreet="blur">` (app/after-dark/Frame.tsx, `display: contents`
+so nothing moves), and app/after-dark/discreet.css blurs every `img`, `video` and SVG `image` under it. The show's PG
+portraits (`.avatar`, the same pictures the show prints everywhere) stay sharp unless one is an After Dark file. The
+server renders the hook, so nothing is ever sharp before the script loads, and anything added later (a new theater
+picture) arrives blurred. A small script (app/after-dark/DiscreetMedia.tsx) listens on the window: the first tap or click
+on a blurred picture only shows it (no link, lightbox or play underneath) and shows its siblings with it, so the reel
+player's two stacked videos are one tap. Enter or Space does the same from the keyboard.
+
+**The PIN:**
+- **Stored as a slow hash only:** scrypt (N 2^15, r 8) with a fresh random salt per PIN, over an HMAC of the PIN with
+  SESSION_SECRET, so a copy of the table alone can't be brute-forced (a million PINs is a small space). The PIN is never
+  stored, logged or sent back. Rotating SESSION_SECRET breaks every PIN (it signs everyone out anyway): owners reset it
+  through their account.
+- **Per device:** entering it sets `bz_ad_unlock`, a signed cookie (HttpOnly, SameSite=Lax) for 12 hours, naming the
+  account and the PIN's version. A new PIN, a removed one or a reset changes the version and signs every device out;
+  the device that set it stays in. "Lock now" on the card takes this device's cookie away.
+- **Everything respects it.** `adultViewer` and `adultViewerFromCookies` (lib/adult/mode.ts) return null on a locked
+  device, so every After Dark API (the scene, switch, clip, reel and why routes) and the media route answer 404, the same
+  as to a stranger. /after-dark itself, the admin graph, and the settings page and API check it too, and the looks
+  builder's After Dark tiles (/api/looks/nsfw-*) refuse a locked device. The layouts show the PIN prompt in place of the
+  page. A layout alone wouldn't do: Next still renders the page under it and ships its output with the HTML (tried on
+  16.4.2), so each page and route checks the lock itself.
+- **Wrong tries:** five (PIN, reset code or password alike), then a 15-minute wait that even the right PIN can't skip.
+  Each try is counted in the database before it's checked, so ten guesses sent at once can't get past five.
+- **Changing or removing it** takes the current PIN, and a locked device can't change any setting.
+- **Forgot it:** only the signed-in owner, and then through the account, never round it. With a confirmed email (the
+  Google sign-in address, or a confirmed notification address) an 8-digit code goes there: good once, for 15 to 30
+  minutes, in neutral words (no After Dark), at most one a minute and five a day, inside the show's daily email cap
+  (lib/email.ts `sendAccountEmail`). With no email, the account's password. With neither, it can't be reset here, and
+  the prompt says to add and confirm an email on /account. A right answer takes the PIN off and the owner sets a new
+  one. There is no admin override.
+
+**Not covered yet:**
+- /create's looks builder still opens its After Dark tab on a locked device; its tiles just don't load, because the tile
+  route refuses them. Showing the tab as locked there is a small change to lib/looks-draw.ts `builderLooks` for whoever
+  owns the looks.
+- The nav's "🌙 After Dark" link and the Account card still show to an account After Dark is open to. A neutral label
+  while discreet mode is on would be the next step, if David wants it.
+
+**Proof:** tests/discreet.test.ts (31 tests), and scripts/discreet-screenshots.mjs, a real-browser run on the production
+build with PG placeholder pictures only (docs/screenshots/after-dark-pin-*, after-dark-blur-*, after-dark-tapped-*,
+after-dark-privacy-desktop.png).
+
 ## Shorts: house-cast nights as episodes (2026-10-23)
 
 The first of the three show features David picked from the competitor read (2026-10-22): the companion apps are 1:1, so

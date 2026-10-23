@@ -1,0 +1,60 @@
+/*
+ * After Dark's discreet mode (lib/adult/discreet.ts, app/after-dark/Frame.tsx): one hook on both After Dark layouts,
+ * so the gallery, the reel player (its theater too) and anything added later are covered without touching them.
+ */
+
+/* The wrapper adds no box of its own: the pages lay out exactly as before. */
+.ad-discreet {
+  display: contents;
+}
+
+/* Blurred until tapped: every picture and video (and SVG image), except the show's own PG portraits (.avatar) unless one
+   is After Dark's own file. The same selectors as BLURRED_MEDIA in lib/adult/discreet.ts (tests/discreet.test.ts).
+   A tap sets data-ad-shown (app/after-dark/DiscreetMedia.tsx); leaving the page or the tab takes it off again. */
+[data-ad-discreet="blur"] :is(img, video, image):not(.avatar):not([data-ad-shown]),
+[data-ad-discreet="blur"] :is(img, video)[src*="/after-dark/"]:not([data-ad-shown]),
+[data-ad-discreet="blur"] image[href*="/after-dark/"]:not([data-ad-shown]) {
+  filter: blur(28px) saturate(0.5) brightness(0.8);
+  /* Keeps the blur inside the picture's own box, with the gallery's corners (the reel's stage clips its own). */
+  clip-path: inset(0 round 0.8rem);
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-ad-discreet] :is(img, video, image) {
+    transition: filter 0.2s ease;
+  }
+}
+
+/* The PIN prompt (app/after-dark/PinGate.tsx) and the privacy card (app/after-dark/PrivacyCard.tsx). */
+.ad-lock-card {
+  max-width: 28rem;
+  margin: 0 auto;
+}
+.ad-pin-form {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 20rem;
+  margin: var(--space-3) 0;
+}
+.ad-pin-form input[type="password"] {
+  letter-spacing: 0.35em;
+  font-variant-numeric: tabular-nums;
+}
+.ad-pin-forgot {
+  margin: var(--space-3) 0;
+}
+.ad-privacy-pin {
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  border: 0;
+}
+.ad-privacy-pin legend {
+  padding: 0;
+  font-weight: 700;
+}
+.ad-privacy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
