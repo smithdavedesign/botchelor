@@ -472,8 +472,11 @@ describe("dates an agent performs", () => {
     expect(early.done_ignored).toMatch(/goodbye stretch/);
     expect(early.step.stage).toBe("turn");
     await call("submit_own_date_step", { episode_id: step.episode_id, outputs: [line(1), line(2), line(3)] }, ctx);
-    const closing = (await call("submit_own_date_step", { episode_id: step.episode_id, output: { ...line(4), done: true } }, ctx)).structuredContent;
-    expect(closing.done_ignored).toBeUndefined();
+    const goodbye = (await call("submit_own_date_step", { episode_id: step.episode_id, output: { ...line(4), done: true } }, ctx)).structuredContent;
+    expect(goodbye.done_ignored).toBeUndefined();
+    // 2026-10-23: a goodbye never cuts the other side off: it gets its last line (with its see_again), then the date ends.
+    expect(goodbye.step).toMatchObject({ stage: "turn", turn_number: 6, of: 6, see_again: expect.any(String) });
+    const closing = (await call("submit_own_date_step", { episode_id: step.episode_id, output: line(5) }, ctx)).structuredContent;
     expect(closing.step.stage).toBe("recap");
     expect(closing.step.where).toMatch(/\w/);
     expect(closing.step.instructions).toMatch(/Set it at /);
@@ -483,7 +486,7 @@ describe("dates an agent performs", () => {
     expect(scheduled.reply_format).toMatch(/best_line/);
     const done = (await call("submit_own_date_step", { episode_id: step.episode_id, output: validEpisodeDraft() }, ctx)).structuredContent;
     expect(done.step.stage).toBe("done");
-    expect((await t.db.query<Any>(`select jsonb_array_length(transcript) as n, status from episodes where id = $1`, [step.episode_id])).rows[0]).toEqual({ n: 5, status: "ready" });
+    expect((await t.db.query<Any>(`select jsonb_array_length(transcript) as n, status from episodes where id = $1`, [step.episode_id])).rows[0]).toEqual({ n: 6, status: "ready" });
     // The debrief names the cue only when both characters are yours (#469): no dealbreaker tripped here, so nothing to say.
     const ep = (await call("get_episode", { episode_id: step.episode_id }, ctx)).structuredContent;
     expect(ep.status).toBe("ready");
@@ -681,5 +684,28 @@ describe("the 2026-10-21 runs (#517, #519, #520, #529, #534, #535, #536, #537)",
     const back = (await call("set_date_visibility", { episode_id: booked.episode.id, visibility: "public" }, ctx)).structuredContent;
     expect(back.note).toMatch(/had already aired \(airing isn't undone\), so from now on it's in the feed, scoring and counting/);
     expect(back.now).toMatch(/^public: in the feed/);
+  });
+});
+
+describe("2026-10-23 production visitors", () => {
+  it("two agents starting a date for the same couple at once end up in one date, the oldest", async () => {
+    scriptOutcome({ ending: "friends" });
+    const { A, B } = await matched();
+    await call("answer_match", { character_id: A.id, with: B.id, yes: true }, A.ctx);
+    await call("answer_match", { character_id: B.id, with: A.id, yes: true }, B.ctx);
+    const [ra, rb] = await Promise.all([
+      call("start_own_date", { character_id: A.id, partner_id: B.id, format: "speed_date" }, A.ctx),
+      call("start_own_date", { character_id: B.id, partner_id: A.id, format: "speed_date" }, B.ctx),
+    ]);
+    const live = (await t.db.query<Any>(
+      `select id from episodes where status = 'generating' and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1))`,
+      [A.id, B.id],
+    )).rows;
+    expect(live).toHaveLength(1);
+    // Both agents are pointed at the date that stands (one booked it, the other is told it's already started or resumed).
+    for (const r of [ra, rb]) {
+      const id = r.structuredContent?.step?.episode_id ?? (r.content[0].text.match(/[0-9a-f-]{36}/) ?? [])[0];
+      expect(id).toBe(live[0].id);
+    }
   });
 });

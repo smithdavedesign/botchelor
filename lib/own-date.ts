@@ -69,7 +69,7 @@ export const OWN_DATE_MAX_OPEN = 3;
 export const OWN_DATE_TTL_HOURS = 24;
 
 /** #491: "done" is in the actor's own prompt, so the reply format says what it does: ends the date, in the goodbye stretch only. */
-const DONE_REPLY = '"done":"optional: true only in the final act, once your next line would only be a goodbye (ends the date there; earlier it\'s ignored)"';
+const DONE_REPLY = '"done":"optional: true only in the final act, once your next line would only be a goodbye (the other side gets one last line, then the date ends: send your see_again with this line; earlier it\'s ignored)"';
 const TURN_REPLY = `{"dialogue":"what they say (at most 280 characters)","action":"what they do, 1-5 words, or \\"\\"","emotion":"one word","interest_signal":0.0,${DONE_REPLY}}`;
 /** On a date that can move (lib/moves.ts): the same, plus suggesting a place to go, and answering the other's suggestion. */
 const TURN_REPLY_MOVES =
@@ -728,6 +728,23 @@ export async function startOwnDate(
       trace ? JSON.stringify(trace) : null,
     ],
   );
+  // 2026-10-23 (two production visitors started a date for the same couple in the same second, and both went in): the
+  // check above can't see a booking that lands while this one is being built. Once both are in, the oldest stands and
+  // the later one is withdrawn, its booker sent to the date that stands (where they play their side).
+  const live = (
+    await db.query<{ id: string }>(
+      `select id from episodes
+        where status = 'generating' and varies_episode_id is null
+          and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1))
+        order by created_at, id`,
+      [a.id, b.id],
+    )
+  ).rows;
+  if (live.length > 1 && live[0].id !== episodeId) {
+    await db.query(`delete from episodes where id = $1 and status = 'generating'`, [episodeId]);
+    const r = await getOwnDateStep(db, userId, live[0].id);
+    return r.ok ? { ...r, resumed: true } : r;
+  }
   track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: false, performed_by: "agent", two_agent: partnerPerformer !== null });
   await recordCrossSpecies(db, episodeId, "own_date");
   // Their nudges for each other are in this date's setup now, so they're used.
@@ -937,7 +954,7 @@ export function dateLines(o: {
       at_line: at,
       by: nameOf(o.transcript[at - 1].side),
       why: o.endBy
-        ? "said goodbye (done: true) in the goodbye stretch, which ends a date on that line"
+        ? "said goodbye (done: true) in the goodbye stretch, which ends a date after the other side's last line"
         : "said goodbye, and the show's model closed the date there (it may, in a date's last stretch or when it runs long)",
     };
   }
@@ -1720,10 +1737,11 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       await draft("agent_check", "passed_check", parsed.turn.dialogue);
       return { ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), row.partner_bot === true), checked: true };
     }
-    // "done" in the goodbye stretch ends the date on this line (#491), as on the show's model (lib/conversation.ts);
-    // earlier it's ignored. Never stored on the line itself.
+    // "done" in the goodbye stretch ends the date (#491), as on the show's model (lib/conversation.ts); earlier it's
+    // ignored. Never stored on the line itself. 2026-10-23 (three production visitors: a goodbye cut the other side off
+    // before its last line and its see_again): the other side always gets one more line, its last, then the date ends.
     const { done, ...line } = settleLine(parsed.turn, parsed.reply, shape, names);
-    const endBy = done && shape.closing ? transcript.length + 1 : null;
+    const endBy = done && shape.closing ? Math.min(transcript.length + 2, shape.total) : null;
     const next = [...transcript, line as Turn];
     // see_again (lib/wishes.ts) is kept apart from the line, so the other side and the transcript never carry it.
     const saved = await db.query(
@@ -1748,7 +1766,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     // not when the date ends (the shared helper, #527/#548). Before anything below can tell it of its next move.
     await resolveTurnNotices(db, episodeId, [userId]);
     // The date closed on this line: the recap is next (a fresh read picks up end_by).
-    if (endBy) return withWish(await getOwnDateStep(db, userId, episodeId));
+    if (endBy && next.length >= endBy) return withWish(await getOwnDateStep(db, userId, episodeId));
     // Two-agent: the next step may be the other agent's turn, or the show's recap (getOwnDateStep runs it).
     if (twoAgent) {
       const upNext = stepFor(episodeId, built, decided, formatId, next, [row.a_id, row.b_id]);

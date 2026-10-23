@@ -1293,6 +1293,9 @@ create table if not exists adult_access_requests (
   reason text not null,
   created_at timestamptz not null default now()
 );
+-- 2026-10-23: a request has a status the agent can read (my_status), and asking again within 30 days is the same request.
+alter table adult_access_requests add column if not exists status text not null default 'pending';
+alter table adult_access_requests add column if not exists decided_at timestamptz;
 
 -- Who may use after dark besides an admin (docs/after-dark.md #2): an active subscription (from the adult payment
 -- processor's webhook) AND a passed age check (from the age-verification provider). Nothing writes these yet: until the

@@ -379,23 +379,21 @@ describe("clarity gaps from the reports", () => {
     expect((await call("my_status", { include: ["everything"] }, A.ctx)).structuredContent.house_cast[0].traits).toBeUndefined();
   });
 
-  it("speed_date line counts: a goodbye on line 5 of 6 is said in the done step and on get_episode", async () => {
+  it("speed_date line counts: a goodbye on line 5 of 6 still leaves the other side its last line (2026-10-23)", async () => {
     const ctx = await connect();
     const a = (await call("create_character", validCharacter({ name: "Ada Lumen", keep_name: true }), ctx)).structuredContent.character.id;
     const b = (await call("create_character", validCharacter({ name: "Bo Quill", keep_name: true }), ctx)).structuredContent.character.id;
     scriptOutcome({ ending: "friends" });
     const id = (await call("start_own_date", { character_id: a, partner_id: b, format: "speed_date" }, ctx)).structuredContent.step.episode_id;
-    const four = (await call("submit_own_date_step", { episode_id: id, outputs: [line(0), line(1), line(2), line(3), line(4, { done: true })] }, ctx)).structuredContent;
-    expect(four.step.stage).toBe("recap");
+    const five = (await call("submit_own_date_step", { episode_id: id, outputs: [line(0), line(1), line(2), line(3), line(4, { done: true })] }, ctx)).structuredContent;
+    expect(five.step).toMatchObject({ stage: "turn", turn_number: 6, see_again: expect.any(String) });
+    expect((await call("submit_own_date_step", { episode_id: id, output: line(5) }, ctx)).structuredContent.step.stage).toBe("recap");
     const done = (await call("submit_own_date_step", { episode_id: id, output: validEpisodeDraft() }, ctx)).structuredContent;
     expect(done.stage).toBe("done");
     const ep = (await call("get_episode", { episode_id: id }, ctx)).structuredContent;
-    const by = ep.transcript[4].side === "a" ? "Ada Lumen" : "Bo Quill";
-    expect(done.step.lines).toMatchObject({ planned: 6, in_all: 5, ended_early: { at_line: 5, by } });
-    expect(done.step.lines.note).toBe(`6 lines planned (Speed date); it ended at line 5: ${by} said goodbye (done: true) in the goodbye stretch, which ends a date on that line.`);
+    expect(done.step.lines).toMatchObject({ planned: 6, in_all: 6 });
+    expect(done.step.lines.ended_early).toBeUndefined();
     expect(ep.lines).toEqual(done.step.lines);
-    // summary: true keeps it.
-    expect((await call("get_episode", { episode_id: id, summary: true }, ctx)).structuredContent.lines.in_all).toBe(5);
   });
 
   it("line counts say when the show's model played a side, and when a move added lines", () => {
