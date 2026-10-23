@@ -4,8 +4,9 @@
  *
  * One Hive secret key (its V3 API, Bearer auth), two models on the returned file:
  *  1. hive/visual-moderation: refuse if its child head (yes_child_present) fires, on any frame.
- *  2. hive/vision-language-model, on pictures: asked whether everyone shown is clearly an adult; anything but a plain
- *     "ADULTS" (a possible minor, unsure, nobody visible, an unreadable answer) is a refusal.
+ *  2. hive/vision-language-model, on pictures: asked whether everyone shown is clearly an adult, its reply held to three
+ *     labels by a JSON schema (AGE_FORMAT); anything but "ADULTS" (a possible minor, unsure, nobody visible, an
+ *     unreadable answer) is a refusal.
  * Hive's face-age (demographics) model is Enterprise only on the V3 portal, so the VLM stands in for it. A clip is made
  * from a picture that already passed both, and its frames go through moderation again.
  * The check FAILS CLOSED: no key, an error, or an unreadable reply is a refusal.
@@ -21,8 +22,44 @@ export const HIVE_VLM = "https://api.thehive.ai/api/v3/chat/completions";
 export const CHILD_SCORE = 0.05;
 const MODERATION_CHILD = ["yes_child_present"];
 
+/** The age check's only answers. */
+export const AGE_LABELS = ["ADULTS", "MINOR", "UNSURE"] as const;
+
 export const AGE_QUESTION =
-  "Look at every person in this image. Answer with exactly one word: ADULTS if every person shown clearly appears to be 18 or older; MINOR if anyone could be under 18; UNSURE if you can't tell or no person is visible.";
+  'Look at every person in this image. Answer ADULTS if every person shown clearly appears to be 18 or older; MINOR if anyone could be under 18; UNSURE if you can\'t tell or no person is visible. Reply with JSON only: {"answer": "ADULTS" | "MINOR" | "UNSURE"}.';
+
+/**
+ * Hive's structured output (V3 chat completions `response_format`, docs.thehive.ai "Sending with a JSON Schema"): the
+ * reply is held to {"answer": one of AGE_LABELS}. Hive's terms (thehive.ai/terms-of-use, 1.5) count the VLM as a
+ * Generative AI Service, whose policy (3.2) bars content that "is not PG-rated" without written permission, "solely
+ * when used for any purpose other than receiving a response confined to a defined set of response labels". A reply
+ * held to three labels is that exception (terms review, 2026-10-22; docs/after-dark.md "Terms fixes").
+ */
+export const AGE_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "age_check",
+    schema: {
+      type: "object",
+      properties: { answer: { type: "string", enum: AGE_LABELS } },
+      required: ["answer"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+} as const;
+
+/** The VLM call for one picture, by URL or as a data: URI. */
+export function ageCheckRequest(url: string) {
+  return {
+    model: "hive/vision-language-model",
+    temperature: 0,
+    // {"answer": "UNSURE"} is about ten tokens; a cut-off reply is unreadable, which refuses.
+    max_tokens: 32,
+    response_format: AGE_FORMAT,
+    messages: [{ role: "user", content: [{ type: "text", text: AGE_QUESTION }, { type: "media_url", media_url: { url } }] }],
+  };
+}
 
 type Fetch = typeof fetch;
 let testFetch: Fetch | null = null;
@@ -47,12 +84,27 @@ export function classScores(body: unknown): { cls: string; score: number }[] {
   return out;
 }
 
-/** The VLM's answer: the chat-completions text, upper-cased, first word only. */
+/**
+ * The VLM's answer, upper-cased: the `answer` of its JSON reply (AGE_FORMAT), or, from a reply that isn't a JSON object
+ * (a model ignoring the schema), the first word, as before the schema. A JSON reply without a string answer is no
+ * answer. The caller refuses anything but ADULTS, so whatever this can't read fails closed.
+ */
 export function vlmAnswer(body: unknown): string {
   const b = body as { choices?: { message?: { content?: unknown } }[] };
   const content = b?.choices?.[0]?.message?.content;
   const text = typeof content === "string" ? content : Array.isArray(content) ? content.map((c) => (c as { text?: string })?.text ?? "").join(" ") : "";
+  const json = jsonObject(text);
+  if (json) return typeof json.answer === "string" ? json.answer.trim().toUpperCase() : "";
   return (text.trim().toUpperCase().match(/[A-Z]+/) ?? [""])[0];
+}
+
+function jsonObject(text: string): Record<string, unknown> | null {
+  try {
+    const v: unknown = JSON.parse(text);
+    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
 }
 
 async function hive(key: string, endpoint: string, payload: unknown): Promise<unknown> {
@@ -94,14 +146,7 @@ export async function checkOutput(key: string | null, media: Checkable, kind: "i
   try {
     const [mod, vlm] = await Promise.all([
       hive(key, HIVE_MODERATION, { input: [input], processing_mode: "sync_with_fallback" }),
-      kind === "image"
-        ? hive(key, HIVE_VLM, {
-            model: "hive/vision-language-model",
-            temperature: 0,
-            max_tokens: 5,
-            messages: [{ role: "user", content: [{ type: "text", text: AGE_QUESTION }, { type: "media_url", media_url: { url } }] }],
-          })
-        : Promise.resolve(null),
+      kind === "image" ? hive(key, HIVE_VLM, ageCheckRequest(url)) : Promise.resolve(null),
     ]);
     const modScores = classScores(mod);
     if (!modScores.some((s) => s.cls === "no_child_present" || s.cls === "yes_child_present")) return { ok: false, reason: "moderation reply had no child scores" };

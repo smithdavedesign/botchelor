@@ -40,8 +40,35 @@ export function setAdultModelForTests(model: Model | null): void {
 export type AdultModelOptions = { model?: string; timeoutMs?: number; retryDelaysMs?: number[] };
 
 /**
+ * The OpenRouter hosts After Dark's text may run on (terms review, 2026-10-22; docs/after-dark.md "Terms fixes"): of the
+ * five hosts serving DeepSeek V3.1, the two whose terms allow it. `:nitro` alone sorts all five by throughput, so a
+ * scene could land on SiliconFlow (its terms ban "obscene, pornographic, indecent" content) or SambaNova (its terms
+ * bar making the service available to third parties), or on Mara, whose terms weren't reviewed. ADULT_TEXT_PROVIDERS
+ * (comma-separated OpenRouter provider slugs) replaces the list; read a host's terms before adding it.
+ */
+export const ADULT_TEXT_PROVIDERS: readonly string[] = ["coreweave", "deepinfra"];
+
+/** The hosts After Dark's OpenRouter calls may use: ADULT_TEXT_PROVIDERS when it names any, else the reviewed two. */
+export function adultTextProviders(env: Record<string, string | undefined> = process.env): string[] {
+  const named = (env.ADULT_TEXT_PROVIDERS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  return named.length ? named : [...ADULT_TEXT_PROVIDERS];
+}
+
+/**
+ * OpenRouter's provider routing for After Dark (openrouter.ai/docs, "Provider Routing"). `only` is a hard allowlist:
+ * every attempt, fallbacks included, stays on those hosts, and a model none of them serves fails with OpenRouter's 404
+ * instead of landing on an unreviewed host. `sort: "throughput"` is what `:nitro` sorts by, kept explicit so CoreWeave
+ * (the faster host) stays first whatever the model id says. allow_fallbacks keeps its default (true): set to false it
+ * would allow only the top host, so DeepInfra could never stand in when CoreWeave fails.
+ */
+export function adultProviderRouting(env: Record<string, string | undefined> = process.env): { only: string[]; sort: "throughput" } {
+  return { only: adultTextProviders(env), sort: "throughput" };
+}
+
+/**
  * The after-dark model: OpenRouter when its key is saved, else the local model (local mode only). On OpenRouter it asks
- * for each call's cost (usage accounting), which a ModelOptions.onUsage reads as Usage.cost.
+ * for each call's cost (usage accounting), which a ModelOptions.onUsage reads as Usage.cost, and runs only on the hosts
+ * whose terms allow it (adultProviderRouting).
  */
 export async function adultModel(db: Db, env: Record<string, string | undefined> = process.env, opts: AdultModelOptions = {}): Promise<Model> {
   if (testModel) return testModel;
@@ -54,7 +81,7 @@ export async function adultModel(db: Db, env: Record<string, string | undefined>
       model: opts.model || s.text_model,
       timeoutMs: opts.timeoutMs ?? 120_000,
       retryDelaysMs: opts.retryDelaysMs ?? [2_000],
-      extraBody: { usage: { include: true } },
+      extraBody: { usage: { include: true }, provider: adultProviderRouting(env) },
     });
   }
   return openAICompatibleModel({
