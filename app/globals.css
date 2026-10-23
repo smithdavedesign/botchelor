@@ -1091,6 +1091,13 @@ button.chosen {
   box-shadow: none;
   font-weight: 600;
 }
+/* /create: the name is already on the show, with free ones to pick. */
+.name-taken {
+  margin: var(--space-1) 0 0;
+}
+.name-taken .error {
+  margin: 0 0 var(--space-1);
+}
 .hint-nudge {
   margin: var(--space-1) 0 0;
   padding: 0.45rem 0.7rem;

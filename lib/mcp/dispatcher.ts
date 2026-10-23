@@ -72,7 +72,8 @@ import { listThreads, markPairNoticesRead, markTextsRead, sweepAnsweredTexts, un
 import { rescueStuckJob } from "../jobs";
 import { findLookalikes, type Lookalike, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS } from "../originality";
 import { originalityWithConcepts } from "../originality-concept";
-import { pairNames, shortName, suggestFreeNames } from "../names";
+import { pairNames, shortName } from "../names";
+import { nameCheck } from "../name-check";
 import { currentPartners, partnerLabel, partnerStyleOf, settleCharacter, styleSql, takenSql } from "../partners";
 import { isLogistics } from "../memory";
 import { describeTemperament } from "../temperament";
@@ -5021,12 +5022,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       }
       // #249: an exact name another character has is refused before anything is saved, unless the agent insists.
       const wanted = typeof args.name === "string" ? args.name.trim() : "";
-      const twin = wanted ? (await db.query<{ id: string; name: string }>(`select id, name from characters where lower(trim(name)) = lower($1) limit 1`, [wanted])).rows[0] : undefined;
       // #477: free names to retry with in one call: the same surname, another first name, none taken on the show.
-      const freeNames = async () => {
-        const taken = new Set((await db.query<{ name: string }>(`select lower(trim(name)) as name from characters`)).rows.map((r) => r.name));
-        return suggestFreeNames(wanted, taken);
-      };
+      const { twin, freeNames } = await nameCheck(db, wanted);
       // #449: the guide's example character is a shape to copy, not a character; the deck filled with Odile Ferrants.
       const example = isExampleCharacter(args.name, args.bio);
       // 2.4.3 (#555): one partner or more, chosen up front (left out: decide, the character's own call).
