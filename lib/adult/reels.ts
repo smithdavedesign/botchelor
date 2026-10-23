@@ -43,6 +43,7 @@ import { keepBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { getSet } from "../sets";
 import { normalizeScene, setPath } from "../venues";
+import { crossesTaboo } from "./acts";
 import { checkOutput, type CheckResult } from "./check";
 import type { PlaceStop } from "./continuity";
 import { ensureBaseline, lookWords, signedMediaUrl } from "./media";
@@ -81,7 +82,12 @@ const NUDE_FROM = 4;
  * live reel: told to keep each "exactly as in their own picture", Lexi kept her portrait's lingerie through the sex).
  */
 const clothesAt = (stage: number) =>
-  stage >= NUDE_FROM ? "both are nude unless the moment says otherwise" : stage >= UNDRESSED_FROM ? "they're half undressed, as the moment says" : "they're dressed as the moment says, not nude";
+  stage >= NUDE_FROM
+    ? "both are nude unless the moment says otherwise"
+    : stage >= UNDRESSED_FROM
+      ? "they're half undressed, as the moment says"
+      : // Clips of 2026-10-22: "dressed as the moment says" still lost the man's shirt in a kiss. Spelled out, it stays on.
+        "they're dressed as the moment says, not nude: both fully clothed, shirts and tops on and done up";
 /** Between two keyframe checks, and before asking again when Hive couldn't check one: Hive rate-limits a burst. */
 const CHECK_PAUSE_MS = 1500;
 const CHECK_AGAIN_MS = 5000;
@@ -121,8 +127,26 @@ export type ReelShot = {
   /** On Replicate: the stock voice that says the line, and once the shot is in, that line (an adult_images 'audio'). */
   voice?: string;
   audio_id?: string;
+  /** The keyframe it started from, once that passed the check (an adult_images 'frame'): what Keep going carries on from. */
+  frame_id?: string;
 };
-export type Reel = { id: string; status: "making" | "ready" | "failed"; tokens: number; shots: ReelShot[]; created_at: string };
+/**
+ * A clip (lib/adult/clips.ts): one shot made on request, from the menu's act or the scene's latest moment, and the clip
+ * it keeps going from. `label` is what the videos list calls it.
+ */
+export type ClipMeta = { act: string | null; swap: boolean; from: string | null; stage: number; place: string | null; label: string };
+/** A video: a night's reel (`kind` "night", the default) or a clip; `a` and `b` are the pair's ids, lower first. */
+export type Reel = {
+  id: string;
+  status: "making" | "ready" | "failed";
+  tokens: number;
+  shots: ReelShot[];
+  created_at: string;
+  kind?: "night" | "clip";
+  clip?: ClipMeta | null;
+  a?: string;
+  b?: string;
+};
 
 type Fetch = typeof fetch;
 let testFetch: Fetch | null = null;
@@ -288,9 +312,9 @@ const STILLS = [
   "kissing and undressing each other, clothes half off",
   "having sex, their bodies pressed together, both nude",
 ] as const;
-const stillOf = (cast: readonly ReelPerson[], stage: number) =>
+export const stillOf = (cast: readonly ReelPerson[], stage: number) =>
   `${cap(cast[0].tag)} and ${cast[1].tag}, ${STILLS[Math.max(0, Math.min(STILLS.length - 1, stage))]}. Medium shot, both faces visible.`;
-const motionOf = (cast: readonly ReelPerson[], speaker: ReelPerson, action: string) =>
+export const motionOf = (cast: readonly ReelPerson[], speaker: ReelPerson, action: string) =>
   action ? `${cap(speaker.tag)} ${withoutNames(action[0].toLowerCase() + action.slice(1), cast).replace(/[.!]+$/, "")}, and the other answers it.` : "The two of them stay close, moving together.";
 
 /**
@@ -370,26 +394,62 @@ export async function pickShots(
  * place (the drawn set as Picture 3 when there is one), each kept as they are but dressed (or not) for the night's
  * `stage` at that line. Within the edit model's prompt limit.
  */
-export function keyframePrompt(cast: readonly [ReelPerson, ReelPerson], frame: string, place: string | null, stage: number, withSet: boolean): string {
+export function keyframePrompt(
+  cast: readonly [ReelPerson, ReelPerson],
+  frame: string,
+  place: string | null,
+  stage: number,
+  withSet: boolean,
+  opts: { explicit?: boolean } = {},
+): string {
   const [a, b] = cast;
   const head = `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together${withSet ? ", in the place from Picture 3" : ""}.`;
-  const who = a.tag === `the ${a.noun}` && b.tag === `the ${b.noun}` ? "" : `${cap(a.tag)} is the one from Picture 1; ${b.tag} is the one from Picture 2.`;
   const where = place ? `The place: ${place}.` : "";
   const keep =
     `Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes: ${clothesAt(stage)}.` +
     `${withSet ? " Keep the place, its furniture and its light from Picture 3." : ""} Two people only, both faces visible.`;
-  const tail = stage >= UNDRESSED_FROM ? "Explicit, uncensored, photorealistic. Both are adults." : "Photorealistic. Both are adults.";
-  const room = KEYFRAME_PROMPT_MAX - [head, who, where, keep, tail].filter(Boolean).join(" ").length - 2;
-  const still = frame.length <= room ? frame : frame.slice(0, Math.max(0, room)).replace(/\s+\S*$/, "");
-  return [head, who, still, where, keep, tail].filter(Boolean).join(" ");
+  return fitPrompt([head, whoIsWho(cast)], frame, [where, keep, tailAt(stage, opts.explicit ?? true)]);
 }
 
-/** A shot's prompt: what they do, both kept as they are, one continuous shot, and who says the line. */
+/** Which of them is which picture, when "the woman" and "the man" don't already say it. */
+const whoIsWho = ([a, b]: readonly [ReelPerson, ReelPerson]) =>
+  a.tag === `the ${a.noun}` && b.tag === `the ${b.noun}` ? "" : `${cap(a.tag)} is the one from Picture 1; ${b.tag} is the one from Picture 2.`;
+/**
+ * The end of a keyframe's prompt: explicit from undressing on, unless the pair's intensity is below explicit
+ * (lib/adult/limits.ts), when it stays sensual and never graphic.
+ */
+const tailAt = (stage: number, explicit: boolean) =>
+  stage < UNDRESSED_FROM ? "Photorealistic. Both are adults." : explicit ? "Explicit, uncensored, photorealistic. Both are adults." : "Sensual and tasteful, nothing graphic, photorealistic. Both are adults.";
+/** A keyframe's prompt within the edit model's limit: the middle (the still) is what gets cut short. */
+function fitPrompt(before: string[], middle: string, after: string[]): string {
+  const room = KEYFRAME_PROMPT_MAX - [...before, ...after].filter(Boolean).join(" ").length - 2;
+  const still = middle.length <= room ? middle : middle.slice(0, Math.max(0, room)).replace(/\s+\S*$/, "");
+  return [...before, still, ...after].filter(Boolean).join(" ");
+}
+
+/**
+ * The keyframe for a shot that keeps going from the one before (lib/adult/clips.ts Keep going). There's no ffmpeg on the
+ * server any more (#688), so not its last frame: the two baselines (Pictures 1 and 2, the faces) and the shot before's
+ * keyframe (Picture 3: the place, the light, the framing, how they're posed and dressed), moved on by what they did in
+ * that shot.
+ */
+export function continuePrompt(cast: readonly [ReelPerson, ReelPerson], after: string, stage: number, opts: { explicit?: boolean } = {}): string {
+  const [a, b] = cast;
+  const head =
+    `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together, a few seconds after the moment in Picture 3. ` +
+    "Picture 3 is the shot just before this one: keep its place, its light, its camera angle and framing, and what each of them is wearing or not, and carry how they're posed on from it, after this:";
+  const keep = "Keep each of them as in their own picture, the same face, hair, skin tone and body. Two people only, both faces visible.";
+  return fitPrompt([head], after, [whoIsWho(cast), keep, tailAt(stage, opts.explicit ?? true)]);
+}
+
+/** A shot's prompt: what they do, both kept as they are, one continuous shot, and who says the line (or that nobody does). */
 export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion">, audioIn: boolean): string {
   const speaker = cast[s.who === "a" ? 0 : 1];
   const base =
     `${s.motion || "The two of them stay close, moving together."} Two people only: ${cast[0].tag} and ${cast[1].tag}, exactly as in the picture, ` +
     "the same faces and bodies in the same place. One continuous shot, the camera steady: no cuts, nobody else comes in. Realistic motion.";
+  // A clip with no line in it (lib/adult/clips.ts, an act from the menu): nobody speaks.
+  if (!s.text.trim()) return `${base} Neither of them speaks: only their breathing and the sounds of the room.`;
   return audioIn ? `${base} ${cap(speaker.tag)} is the one speaking, lips moving with the words.` : `${base} ${cap(speaker.tag)}, in ${speaker.voice}, says: "${s.text}"`;
 }
 
@@ -407,8 +467,11 @@ export function replicateVoice(voice: string): string {
 /** Wan 2.2 on Replicate makes 81 to 121 frames (four to a step, plus one) at 16 a second: about 5 to 7.5 seconds. */
 const WAN_FPS = 16;
 const WAN_FRAMES = [81, 121] as const;
-/** How fast Kokoro talks, about 2.6 words a second, and a breath either side of the line. */
-const WORDS_PER_SECOND = 2.6;
+/**
+ * How fast Kokoro talks, about 3 words a second (the live run of 2026-10-23: an 8-word line came back as 2.7 s of WAV,
+ * its pauses included), and a breath either side of the line.
+ */
+const WORDS_PER_SECOND = 3;
 const BREATH_S = 0.6;
 /**
  * How long a Replicate shot runs, and how fast its line is said: long enough for the line (at least 5 s), and a line
@@ -470,7 +533,7 @@ async function venice(key: string, path: string, body: unknown): Promise<Respons
 }
 
 /** Each one's newest baseline that passed the check: the two faces every keyframe keeps. */
-async function baselines(db: Db, a: string, b: string): Promise<[string, string] | null> {
+export async function baselines(db: Db, a: string, b: string): Promise<[string, string] | null> {
   const { rows } = await db.query<{ id: string; character_id: string }>(
     `select distinct on (character_id) id, character_id from adult_images
       where status = 'ready' and kind = 'baseline' and character_b is null and character_id in ($1, $2)
@@ -483,7 +546,7 @@ async function baselines(db: Db, a: string, b: string): Promise<[string, string]
 }
 
 /** The drawn sets for the places the shots happen in (lib/sets.ts), as data URIs, by place; null where none is ready. */
-async function setPictures(db: Db, places: readonly (string | null)[]): Promise<Map<string, string | null>> {
+export async function setPictures(db: Db, places: readonly (string | null)[]): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>();
   for (const place of new Set(places.filter((p): p is string => Boolean(p)))) {
     const key = normalizeScene(place);
@@ -514,9 +577,9 @@ const MAX_SHOT_BYTES = 100 * 1024 * 1024;
 const MAX_VOICE_BYTES = 20 * 1024 * 1024;
 
 /** A reel made on Replicate: its token, the keyframe and video models, and the video LoRA. */
-type ReplicateMedia = { token: string; keyframe: string; video: string; videoLora: string | null };
+export type ReplicateMedia = { token: string; keyframe: string; video: string; videoLora: string | null };
 
-type ShotContext = {
+export type ShotContext = {
   pair: [string, string];
   cast: [ReelPerson, ReelPerson];
   places: readonly (string | null)[];
@@ -528,6 +591,11 @@ type ShotContext = {
   baseUrl: string;
   /** Set when the reel is made on Replicate; Venice otherwise. */
   replicate: ReplicateMedia | null;
+  /**
+   * A clip's own keyframe (lib/adult/clips.ts): its prompt, and the third picture, a keyframe id to carry on from (Keep
+   * going) or the place's set. Unset: a night's reel, the director's still in the line's place.
+   */
+  keyframeFor?: (s: ReelShot, set: string | null, place: string | null) => { prompt: string; continueFrom: string | null; withSet: boolean };
 };
 
 /** One keyframe from Replicate's edit model, its bytes downloaded at once. */
@@ -553,17 +621,24 @@ async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "r
  * queued. A shot whose keyframe can't be drawn or doesn't pass is dropped, and its share of the tokens comes back when
  * the reel settles.
  */
-async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx: ShotContext): Promise<void> {
+export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx: ShotContext): Promise<void> {
   const sets = await setPictures(db, shots.map((s) => ctx.places[s.line] ?? null));
   const faces = ctx.bases.map((id) => signedMediaUrl(id, ctx.baseUrl));
   const drawn = await Promise.all(
     shots.map(async (s) => {
       const place = ctx.places[s.line] ?? null;
-      const set = place ? (sets.get(place) ?? null) : null;
-      const prompt = keyframePrompt(ctx.cast, s.frame ?? "", place ? placeWords(place, ctx.cast) : null, ctx.stages[s.line] ?? 0, Boolean(set));
+      const drawnSet = place ? (sets.get(place) ?? null) : null;
+      const own = ctx.keyframeFor?.(s, drawnSet, place);
+      const set = own ? (own.withSet ? drawnSet : null) : drawnSet;
+      const prompt = own?.prompt ?? keyframePrompt(ctx.cast, s.frame ?? "", place ? placeWords(place, ctx.cast) : null, ctx.stages[s.line] ?? 0, Boolean(set));
+      // Keep going: the shot before's keyframe is the third picture, in the set's place.
+      const third = own?.continueFrom ? signedMediaUrl(own.continueFrom, ctx.baseUrl) : null;
       try {
-        if (ctx.replicate) return { prompt, file: await drawReplicateKeyframe(ctx.replicate, prompt, set && place ? [...faces, replicateSetImage(set, place, ctx.baseUrl)] : faces) };
-        return { prompt, file: await drawKeyframe(ctx.venice, prompt, set ? [...faces, set] : faces) };
+        if (ctx.replicate) {
+          const images = third ? [...faces, third] : set && place ? [...faces, replicateSetImage(set, place, ctx.baseUrl)] : faces;
+          return { prompt, file: await drawReplicateKeyframe(ctx.replicate, prompt, images) };
+        }
+        return { prompt, file: await drawKeyframe(ctx.venice, prompt, third ? [...faces, third] : set ? [...faces, set] : faces) };
       } catch (err) {
         Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" });
         return null;
@@ -598,6 +673,7 @@ async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx: ShotC
       [id, ownerId, ctx.pair[0], ctx.pair[1], d.prompt, d.file.mime, kept.data, kept.object_key],
     );
     s.media_id = id;
+    s.frame_id = id;
     await (ctx.replicate ? queueReplicateShot(ctx, s) : queueShot(ctx, s)).catch((err) => Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" }));
   }
 }
@@ -613,12 +689,12 @@ async function queueShot(ctx: Pick<ShotContext, "cast" | "venice" | "model" | "b
     negative_prompt: SHOT_NEGATIVE,
     image_url: signedMediaUrl(s.media_id!, ctx.baseUrl),
   };
-  if (audioIn) {
+  if (audioIn && s.text.trim()) {
     // Our voice, so the words are exact and the voice is theirs every time; the model lip-syncs to it.
     const tts = await venice(ctx.venice, "/audio/speech", { model: "tts-kokoro", input: s.text, voice: voiceFor(ctx.cast[s.who === "a" ? 0 : 1]), response_format: "mp3" });
     if (!tts.ok) throw new Error(`voice ${tts.status}`);
     body.audio_url = `data:audio/mpeg;base64,${Buffer.from(await tts.arrayBuffer()).toString("base64")}`;
-  } else {
+  } else if (!audioIn) {
     body.audio = true;
   }
   if (/^wan-3/.test(ctx.model)) body.aspect_ratio = "adaptive";
@@ -645,8 +721,11 @@ export function busyMessage(r: BusyReel): string {
     : `${what} One video at a time, and they usually take a few minutes.`;
 }
 
-/** The owner's reel still making, if any, after giving up on any past REEL_GIVE_UP_MS (no provider is called). */
-async function busyReel(db: Db, ownerId: string): Promise<BusyReel | null> {
+/**
+ * The owner's reel (or clip, lib/adult/clips.ts) still making, if any, after giving up on any past REEL_GIVE_UP_MS (no
+ * provider is called). One video at a time, either kind: Hive rate-limits a burst.
+ */
+export async function busyReel(db: Db, ownerId: string): Promise<BusyReel | null> {
   const { rows } = await db.query<{ id: string; character_a: string; character_b: string; shots: ReelShot[]; created_at: string | Date; a_name: string | null; b_name: string | null }>(
     `select r.id, r.character_a, r.character_b, r.shots, r.created_at, ca.name as a_name, cb.name as b_name
        from adult_reels r left join characters ca on ca.id = r.character_a left join characters cb on cb.id = r.character_b
@@ -743,8 +822,8 @@ export async function makeReel(
     for (const p of picks) {
       const l = lines[p.line];
       const { speech } = spoken(l.text);
-      // Every word that will be spoken, and every direction, is held to the two lines first.
-      if (!checkAdultText({ speech, frame: p.frame, motion: p.motion }).ok) continue;
+      // Every word that will be spoken, and every direction, is held to David's lines first.
+      if (!checkAdultText({ speech, frame: p.frame, motion: p.motion }).ok || crossesTaboo(`${speech} ${p.frame} ${p.motion}`)) continue;
       shots.push({ line: p.line, who: l.who, text: speech, frame: p.frame, motion: p.motion, status: "queued", ...(onReplicate ? { provider: "replicate" as const } : {}) });
     }
     if (!shots.length) throw new Error("no usable lines");
@@ -834,6 +913,8 @@ async function collectReplicateShot(
   s.media_id = mediaId;
   delete s.retry_at;
   delete s.reason;
+  // A clip with no line in it (an act from the menu) stays silent.
+  if (!s.text.trim()) return "checked";
   // Its line, in their voice: the words were held to the two lines when the reel started (makeReel). A voice that
   // doesn't come leaves the shot silent, with its caption, rather than losing it.
   try {
@@ -927,7 +1008,7 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
 }
 
 /** Once no shot is still being made: ready if any came through, and the share of tokens for the ones that didn't, back. */
-async function settleIfDone(db: Db, id: string): Promise<Reel> {
+export async function settleIfDone(db: Db, id: string): Promise<Reel> {
   const r = (await db.query<{ owner_id: string; status: string; tokens: number; shots: ReelShot[] }>(`select owner_id, status, tokens, shots from adult_reels where id = $1`, [id])).rows[0];
   if (r.status === "making" && !r.shots.some((s) => s.status === "queued")) {
     const good = r.shots.filter((s) => s.status === "ready").length;
@@ -939,18 +1020,34 @@ async function settleIfDone(db: Db, id: string): Promise<Reel> {
   return (await getReel(db, id))!;
 }
 
+type ReelRow = { id: string; status: Reel["status"]; tokens: number; shots: ReelShot[]; created_at: string | Date; kind: string | null; clip: ClipMeta | null; character_a: string; character_b: string };
+const REEL_COLUMNS = "id, status, tokens, shots, created_at, kind, clip, character_a, character_b";
+const reelOf = (r: ReelRow): Reel => ({
+  id: r.id,
+  status: r.status,
+  tokens: r.tokens,
+  shots: r.shots,
+  created_at: new Date(r.created_at).toISOString(),
+  kind: r.kind === "clip" ? "clip" : "night",
+  clip: r.clip ?? null,
+  a: r.character_a,
+  b: r.character_b,
+});
+
 export async function getReel(db: Db, id: string): Promise<Reel | null> {
-  const r = (await db.query<{ id: string; status: Reel["status"]; tokens: number; shots: ReelShot[]; created_at: string }>(`select id, status, tokens, shots, created_at from adult_reels where id = $1`, [id])).rows[0];
-  return r ? { ...r, created_at: new Date(r.created_at).toISOString() } : null;
+  const r = (await db.query<ReelRow>(`select ${REEL_COLUMNS} from adult_reels where id = $1`, [id])).rows[0];
+  return r ? reelOf(r) : null;
 }
 
-/** The pair's reels for this person, newest first. */
+/** The pair's reels and clips for this person, newest first: the last 20 reels and the last 40 clips. */
 export async function listReels(db: Db, ownerId: string, x: string, y: string): Promise<Reel[]> {
   const pair = await eligiblePair(db, ownerId, x, y);
   if (!pair) return [];
-  const { rows } = await db.query<{ id: string; status: Reel["status"]; tokens: number; shots: ReelShot[]; created_at: string }>(
-    `select id, status, tokens, shots, created_at from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 order by created_at desc limit 20`,
+  const { rows } = await db.query<ReelRow>(
+    `(select ${REEL_COLUMNS} from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and coalesce(kind, 'night') <> 'clip' order by created_at desc limit 20)
+     union all
+     (select ${REEL_COLUMNS} from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and kind = 'clip' order by created_at desc limit 40)`,
     [ownerId, ...pair],
   );
-  return rows.map((r) => ({ ...r, created_at: new Date(r.created_at).toISOString() }));
+  return rows.map(reelOf).sort((p, q) => q.created_at.localeCompare(p.created_at));
 }

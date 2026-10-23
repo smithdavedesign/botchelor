@@ -39,7 +39,7 @@ import type { ChatMessage } from "./model";
 import { PROMPT_VERSION, qualityContext } from "./pipeline";
 import { endingContradiction, neverSaid, selfAddress, transcriptQuality } from "./quality";
 import { isLogistics } from "./memory";
-import { actName, CONVERSATION_TURNS, MAX_MOVES, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, DATE_ACTS, ENDING_LABELS, type Ending, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY, WISH_NO_AT, WISH_YES_AT } from "./rules";
+import { actName, CONVERSATION_TURNS, MAX_MOVES, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, DATE_ACTS, dateNumberOf, ENDING_LABELS, endingLabel, type Ending, TURN_DIALOGUE_MAX, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY, WISH_NO_AT, WISH_YES_AT } from "./rules";
 import { anchorBestLine, buildMessages, parseEpisode } from "./showrunner";
 import { buildReflectionMessages, type Reflections } from "./reflection";
 import { useNudges } from "./between-dates";
@@ -787,6 +787,7 @@ async function rebuild(db: Db, row: Row) {
   const signals = row.setup?.signals_a && row.setup?.signals_b ? { a: row.setup.signals_a, b: row.setup.signals_b } : undefined;
   const built = await buildDate(db, row.id, forDate("a"), forDate("b"), request, row.seed === null ? undefined : Number(row.seed), signals, {
     creatorId: row.creator_id,
+    dateNumber: dateNumberOf(row.setup),
     historyOverride: row.setup?.history ?? null,
     nudges: { a: row.setup?.nudge_a ?? null, b: row.setup?.nudge_b ?? null },
     avoidVenues: row.setup?.avoid_venues ?? [],
@@ -837,12 +838,15 @@ async function settleEnding(db: Db, row: Row, decided: Outcome, seed: number): P
 function headingOf(built: BuiltDate, decided: Outcome): Heading {
   const trace = decideTraced(built.input, built.seed, built.setup.engine_version).trace;
   const names: [string, string] = [built.characters[0].name, built.characters[1].name];
-  return dateHeading(decided, names, built.input.a.strategy, trace && trace.ending === decided.ending ? trace : null);
+  return dateHeading(decided, names, built.input.a.strategy, trace && trace.ending === decided.ending ? trace : null, false, built.input.date_number);
 }
 
-/** The turn step's one line on where the date is headed (#204); on a two-agent date forViewer puts the heading's line there instead. */
-export const endingLine = (ending: Ending) =>
-  `The engine has this date heading for "${ENDING_LABELS[ending]}" (ending: ${ending}): let the turns head there, without announcing it. The recap step names the final call.`;
+/**
+ * The turn step's one line on where the date is headed (#204); on a two-agent date forViewer puts the heading's line there
+ * instead. `label` is the step's ending_label (lib/rules endingLabel: "A fourth date" on a third date).
+ */
+export const endingLine = (ending: Ending, label: string = ENDING_LABELS[ending]) =>
+  `The engine has this date heading for "${label}" (ending: ${ending}): let the turns head there, without announcing it. The recap step names the final call.`;
 
 /**
  * How the last act lands, by where the date is heading, in the words its prompt uses (lib/beats.ts closingMove). 2.8.0 (the
@@ -855,13 +859,16 @@ export const LAST_ACT: Record<Ending, string> = {
   friends: "closing as friends: land it warmly, as easy company, with no romance and no ask for another date",
   disaster: "ending badly: close it plainly, for the reason that came out tonight, with no ask for another date and no pretending it went well",
 };
+/** LAST_ACT for one date: on a couple's third date (dateNumber 3) a happy ending is heading for "a fourth date". */
+export const lastAct = (ending: Ending, dateNumber?: number | null): string =>
+  ending === "second_date" ? LAST_ACT.second_date.replace("a second date", endingLabel(ending, dateNumber).toLowerCase()) : LAST_ACT[ending];
 /**
  * The last act's note on a turn step, for the performer whose turn it is (both kinds of date: its prompt says the same).
  * 2.10.0 (the 2026-10-22-0800 run: "your lines shape how it plays, not how it ends" hid the one lever there is): the lever
  * first.
  */
-export const actNote = (ending: Ending): string =>
-  `Last act: as the date stands, it's ${LAST_ACT[ending]}. What can still tip it is each side's private see_again on its last line, not what the lines say.`;
+export const actNote = (ending: Ending, dateNumber?: number | null): string =>
+  `Last act: as the date stands, it's ${lastAct(ending, dateNumber)}. What can still tip it is each side's private see_again on its last line, not what the lines say.`;
 
 /**
  * What a side's last-line step leads with (2.10.0, the 2026-10-22-0800 run: all three visitors said "friends" in the dialogue,
@@ -1017,11 +1024,11 @@ function stepFor(
       act: actName(act, Boolean(built.input.history?.dates)),
       act_index: act,
       ending: decided.ending,
-      ending_label: ENDING_LABELS[decided.ending],
+      ending_label: endingLabel(decided.ending, built.input.date_number),
       ...(turn ? { last_lines: transcript.slice(-2).map((t) => `${built.characters[t.side === "a" ? 0 : 1].name}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`) } : {}),
       where: venueName(shape.place),
       // 2.8.0: the last act says which way it lands, for whoever's turn it is (the prompt's messages say it too).
-      ...(act === DATE_ACTS.length - 1 ? { act_note: actNote(decided.ending) } : {}),
+      ...(act === DATE_ACTS.length - 1 ? { act_note: actNote(decided.ending, built.input.date_number) } : {}),
       ...(shape.pending ? { answer_their_suggestion: `${other.name} suggested taking the date to ${venuePhrase(shape.pending.to)}: this reply needs "accept_move" (true to go, false to stay).` } : {}),
       instructions:
         // 2.10.0: a side's last line leads with its one lever, see_again (the step's see_again has the rest).
@@ -1036,7 +1043,7 @@ function stepFor(
         (shape.enabled
           ? `The date can move: if both characters want to take it somewhere else, one suggests it ("move") AND says so in its own line (a "move" the dialogue doesn't actually mention is ignored), and the other says yes on the very next turn ("accept_move"). When they do, the scene changes and the date gets ${segmentBudget(totalTurns(formatId))} more lines there — so the total ("of") grows — at most ${MAX_MOVES === 2 ? "twice" : `${MAX_MOVES} times`} a date. Most turns leave "move" empty. `
           : "") +
-        endingLine(decided.ending) +
+        endingLine(decided.ending, endingLabel(decided.ending, built.input.date_number)) +
         (lastLine ? " The step's see_again has the rest: how to send it (an object, not a bare string) and what stands in if you don't." : "") +
         ` ${TURN_EXAMPLES_LINE}`,
       messages,
@@ -1050,11 +1057,11 @@ function stepFor(
     stage: "recap",
     episode_id: episodeId,
     ending: decided.ending,
-    ending_label: ENDING_LABELS[decided.ending],
+    ending_label: endingLabel(decided.ending, built.input.date_number),
     where,
     instructions:
       "The date is over. Run these messages on a narrator process (it may see both characters — both are yours) and send its raw JSON reply back as \"output\". " +
-      `The engine's final call, with both characters' wishes weighed in: this date ends as "${ENDING_LABELS[decided.ending]}" (ending: ${decided.ending}); the recap lands there and matches the date as it happened. ` +
+      `The engine's final call, with both characters' wishes weighed in: this date ends as "${endingLabel(decided.ending, built.input.date_number)}" (ending: ${decided.ending}); the recap lands there and matches the date as it happened. ` +
       `Set it at ${where}${shape.segments.length > 1 ? ` (it started at ${venueName(shape.segments[0].place)} and moved)` : ""}: the engine chose the venue, so the recap never puts them somewhere else. ` +
       `Example recap (exactly these keys: two goals, three scenes, two confessionals): ${RECAP_EXAMPLE}`,
     messages,
@@ -1157,12 +1164,12 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
   // first step which way the date is heading"): its turns carry the heading, in words, with its own side's lever (heading);
   // the ending and ending_label fields stay a date-between-your-own-two's (the recap step and next_calls read them so).
   if (step.stage === "turn" && twoAgent) {
-    const { ending, ending_label: _label, ...rest } = step;
+    const { ending, ending_label: label, ...rest } = step;
     // 2.10.1 (#673, the 2026-10-22-0936 run: "show the time left for the 3-minute hand-over window as a plain field on every
     // own-date reply"): your clock, to the second, on your move.
     const clock = since ? { ...handOverClock(since), show_takes_over: `${step.speaker.name}'s side (yours), if you stay quiet` } : {};
     const heading = step.heading ? forTwoAgents(step.heading) : undefined;
-    const instructions = ending ? step.instructions.replace(` ${endingLine(ending)}`, heading ? ` ${headingLine(heading)}` : "") : step.instructions;
+    const instructions = ending ? step.instructions.replace(` ${endingLine(ending, label)}`, heading ? ` ${headingLine(heading)}` : "") : step.instructions;
     return { ...rest, ...(heading ? { heading } : {}), ...clock, instructions };
   }
   if (step.stage === "recap" && twoAgent) {
@@ -1482,7 +1489,7 @@ async function showTurn(
     // last act, a line that pulls against where the date is heading goes back once, with the direction (lib/quality.ts).
     const clash = attempt < 2 && ending && act === DATE_ACTS.length - 1 ? endingContradiction(parsed.turn.dialogue, ending) : null;
     if (clash) {
-      messages = [...messages, { role: "assistant", content: raw }, { role: "user", content: `Revise that line: "${clash}" doesn't fit how this date closes. As it stands it's ${LAST_ACT[ending!]}. Reply with the JSON again.` }];
+      messages = [...messages, { role: "assistant", content: raw }, { role: "user", content: `Revise that line: "${clash}" doesn't fit how this date closes. As it stands it's ${lastAct(ending!, dateNumberOf(row.setup))}. Reply with the JSON again.` }];
       continue;
     }
     // The same move rules as the agent's side (lib/moves.ts): an unanswered suggestion is a no.

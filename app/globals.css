@@ -4309,12 +4309,47 @@ details.recap-toggle[open] > summary {
   flex-direction: column;
   gap: 0.6rem;
 }
+/* A date row: one character's avatar on each side, the title and who-sees-it between them. */
 .account-dates li {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.75rem;
+}
+.account-date-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
   flex-wrap: wrap;
+}
+.account-date-main > a {
+  overflow-wrap: anywhere;
+}
+.account-date-main .visibility-pick > span {
+  white-space: nowrap;
+}
+/* On a phone the title sits over its picker, both between the two avatars. */
+@media (max-width: 560px) {
+  .account-date-main {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .account-date-main .visibility-pick {
+    min-width: 0;
+  }
+  .account-date-main .visibility-pick > span {
+    display: none;
+  }
+  .account-date-main .visibility-pick select {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+  }
+}
+.account-dates li > .avatar {
+  flex: 0 0 auto;
 }
 .visibility-pick {
   display: flex;
@@ -7456,6 +7491,10 @@ a.phone-head-btn {
   gap: 0.3rem;
   align-items: center;
 }
+/* A scene picture's chapter and place (lib/adult/auto-pictures.ts), under it in the gallery. */
+.ad-picture-where {
+  display: block;
+}
 /* Autoplay, beside the page's buttons: the scene carries on by itself (lib/adult/autoplay.ts). */
 .after-dark-autoplay {
   display: inline-flex;
@@ -7580,6 +7619,225 @@ a.phone-head-btn {
 /* The chips make the theater's bar taller: the action line and the cast stand higher to stay clear of it. */
 .theater-after-dark.has-suggestions {
   --ad-action-bottom: clamp(9.5rem, 18vh, 12.5rem);
+}
+
+/* After Dark's limits and memory panels (Limits.tsx, Memory.tsx): two folded panels under the steer bar, one above the
+   other. */
+.ad-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+.ad-panel {
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--ad-line, var(--line));
+  border-radius: 0.8rem;
+  background: var(--ad-card, var(--card));
+}
+.ad-panel > summary {
+  cursor: pointer;
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+}
+.ad-panel[open] > summary {
+  margin-bottom: var(--space-2);
+}
+.ad-panel fieldset {
+  min-width: 0;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  border: 0;
+}
+.ad-panel legend {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.ad-intensity {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.35rem;
+}
+.ad-intensity label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.4rem;
+  align-items: baseline;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.6rem;
+  border: 1px solid transparent;
+}
+.ad-intensity label.chosen {
+  border-color: var(--ad-accent, var(--accent));
+}
+.ad-intensity input {
+  flex: none;
+  accent-color: #c9a2ff;
+}
+.ad-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.ad-chip {
+  margin: 0;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--ad-line, var(--line));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ad-ink, var(--ink));
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.ad-chip.on {
+  border-color: #ff9f80;
+  background: rgba(255, 159, 128, 0.16);
+  color: #ffd2c4;
+  font-weight: 700;
+}
+.ad-chip:hover:not(:disabled) {
+  transform: none;
+  border-color: var(--ad-accent, var(--accent));
+}
+.ad-own-nos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-own-nos li {
+  display: inline-flex;
+  gap: 0.2rem;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.15rem 0.2rem 0.15rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 159, 128, 0.16);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.ad-own-add {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.ad-own-add input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ad-own-add button,
+.ad-panel-actions button {
+  margin-top: 0;
+}
+.ad-panel-actions {
+  margin: 0;
+}
+.ad-x {
+  margin: 0;
+  flex: none;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+  font-size: 1rem;
+  line-height: 1;
+}
+.ad-x:hover:not(:disabled) {
+  transform: none;
+  background: var(--soft);
+}
+.ad-memory-side h3 {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--text-base, 1rem);
+}
+.ad-memory-side > .muted {
+  margin: 0 0 var(--space-2);
+}
+.ad-memory-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-memory-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.6rem;
+  background: var(--soft);
+  font-size: var(--text-sm);
+}
+.ad-memory-item .badge {
+  margin-left: 0;
+}
+.ad-memory-text {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ad-memory-item.editing input,
+.ad-memory-item.editing textarea {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.ad-memory-buttons {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  margin-left: auto;
+}
+.ad-memory-buttons button {
+  margin-top: 0;
+}
+/* Scenarios (Scenarios.tsx): a card each, the place and starting stage as chips. */
+.ad-scenario-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-scenario-list li {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 0.7rem;
+  border: 1px solid var(--ad-line, var(--line));
+  background: var(--soft);
+}
+.ad-scenario-list li.chosen {
+  border-color: var(--ad-accent, var(--accent));
+}
+.ad-scenario-list li > button {
+  justify-self: start;
+  margin-top: 0.2rem;
+}
+.ad-scenario-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.ad-chip.is-turn-on {
+  border-color: #c792ff;
+  background: rgba(199, 146, 255, 0.18);
+  color: #f1e9ff;
+}
+.ad-turn-ons,
+.ad-framing {
+  margin-top: var(--space-2);
 }
 @media (max-width: 760px) {
   .ad-suggestions {
@@ -8757,6 +9015,135 @@ section:has(> .ad-pairs) {
     display: none;
   }
   .strip-pager {
-    display: flex;
+    display: block;
   }
+}
+
+/* ---------------- the pager (app/Pager.tsx) ----------------
+   One pager for every long list: ← Previous, the page numbers, Next →. Every control is --control-h (44px) square
+   at least, and the row wraps rather than scrolling sideways. On a phone with many pages only the first, current and
+   last numbers show, and the step buttons drop their words (their aria-labels keep them). */
+.pager-nav {
+  margin: var(--space-4) 0 0;
+}
+.pager-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pager-list > li {
+  margin: 0;
+  padding: 0;
+}
+.pager-item,
+button.pager-item {
+  --btn-border: var(--control-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: var(--control-h);
+  min-height: var(--control-h);
+  margin: 0;
+  padding: 0 var(--space-3);
+  border: var(--control-border) solid var(--line);
+  border-radius: var(--control-radius);
+  background: var(--card);
+  color: var(--accent-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: none;
+  transform: none;
+  cursor: pointer;
+}
+a.pager-item:hover,
+button.pager-item:hover:not(:disabled) {
+  background: var(--soft);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  transform: none;
+  box-shadow: none;
+}
+a.pager-item:focus-visible,
+button.pager-item:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--control-radius);
+}
+.pager-item.is-current {
+  background: var(--accent-btn);
+  border-color: var(--accent-btn);
+  color: var(--accent-ink);
+  cursor: default;
+}
+.pager-item.is-disabled {
+  color: var(--muted);
+  opacity: 0.55;
+  cursor: default;
+}
+.pager-gap {
+  min-width: 1.25rem;
+  text-align: center;
+  color: var(--muted);
+}
+@media (max-width: 480px) {
+  .pager-step-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .pager-list > li.pager-near {
+    display: none;
+  }
+}
+
+/* ---------------- a character's name (app/CharacterName.tsx) ----------------
+   A small round face, then the name, as one link to the character's page. It reads as a name, not a bright link:
+   the text colour it sits in, underlined on hover and keyboard focus (with the focus ring every link has). */
+.char-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  vertical-align: middle;
+  max-width: 100%;
+}
+.char-name .avatar {
+  flex: 0 0 auto;
+  box-shadow: none;
+}
+.char-name .avatar-house {
+  outline-width: 1.5px;
+  outline-offset: 1px;
+}
+.char-name-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+a.char-name-link {
+  color: inherit;
+  text-decoration: none;
+  border-radius: 999px;
+}
+a.char-name-link:hover .char-name-text,
+a.char-name-link:focus-visible .char-name-text {
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+a.char-name-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.char-name.is-private {
+  display: inline;
 }

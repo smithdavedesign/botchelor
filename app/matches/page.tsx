@@ -10,6 +10,8 @@ import { shortName } from "@/lib/names";
 import { takenWith } from "@/lib/partners";
 import CharacterTabs from "@/app/CharacterTabs";
 import CastPreview from "@/app/CastPreview";
+import Pager from "@/app/Pager";
+import { pageHref, pageOf, parsePage } from "@/lib/paging";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +21,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-type Props = { searchParams: Promise<{ character?: string }> };
+type Props = { searchParams: Promise<{ character?: string; page?: string | string[] }> };
+
+/** The conversations: this many a page (?page=N). The new-match faces above are a row, not paged. */
+const CONVERSATIONS_PAGE = 10;
 
 /** "now", "12m", "3h", "Tue", "Oct 12": how long ago, as a messaging app's list says it. */
 function ago(iso: string, now: number): string {
@@ -54,7 +59,7 @@ function dateBadge(t: Thread): string | null {
  * nothing else (/messages). A swipe match and anyone it has dated both count: they all text.
  */
 export default async function MatchesPage({ searchParams }: Props) {
-  const { character } = await searchParams;
+  const { character, page } = await searchParams;
   const db = await getDb();
   const viewerId = userIdFromCookieStore(await cookies());
   const mine = viewerId ? await listMyDatingProfiles(db, viewerId) : [];
@@ -80,6 +85,7 @@ export default async function MatchesPage({ searchParams }: Props) {
   const inbox = (await listThreads(db, viewerId, me.id)) ?? { fresh: [], conversations: [] };
   const first = shortName(me.name);
   const now = Date.now();
+  const convos = pageOf(inbox.conversations, parsePage(page), CONVERSATIONS_PAGE);
   const thread = (t: Thread) => `${t.link}?as=${encodeURIComponent(me.id)}`;
 
   return (
@@ -119,7 +125,7 @@ export default async function MatchesPage({ searchParams }: Props) {
         </h2>
         {inbox.conversations.length ? (
           <ul className="matches-list">
-            {inbox.conversations.map((t) => {
+            {convos.items.map((t) => {
               const badge = dateBadge(t);
               return (
                 <li key={t.with.id}>
@@ -145,7 +151,9 @@ export default async function MatchesPage({ searchParams }: Props) {
               );
             })}
           </ul>
-        ) : (
+        ) : null}
+        <Pager page={convos.page} pages={convos.pages} label="Messages pages" href={(n) => pageHref("/matches", { character: me.id }, "page", n, "messages-title")} prev="Newer" next="Older" scroll={false} />
+        {inbox.conversations.length ? null : (
           <p className="muted matches-empty">
             {inbox.fresh.length
               ? `No texts yet. ${first}'s matches text each other soon after they match.`

@@ -144,6 +144,8 @@ export function noOutput(p: Prediction): string | null {
 }
 
 const EXT: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", mp4: "video/mp4", wav: "audio/wav", mp3: "audio/mpeg" };
+/** One name for one format: replicate.delivery serves Kokoro's WAV as audio/x-wav (the live run, 2026-10-23). */
+const SAME_TYPE: Record<string, string> = { "audio/x-wav": "audio/wav", "audio/wave": "audio/wav", "audio/vnd.wave": "audio/wav" };
 const DELIVERY = /(^|\.)replicate\.delivery$/;
 
 /**
@@ -173,9 +175,10 @@ export async function downloadOutput(url: string, token: string, maxBytes: numbe
   const res = await doFetch(at.toString(), api ? { headers: { authorization: `Bearer ${token}` } } : {});
   if (!res.ok) throw new ReplicateError(`Replicate's file couldn't be downloaded (${res.status})`, res.status);
   if (Number(res.headers.get("content-length") ?? 0) > maxBytes) throw new ReplicateError("Replicate's file was too large");
-  const type = (res.headers.get("content-type") ?? "").split(";")[0].trim();
+  const type = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
   const byName = EXT[at.pathname.split(".").pop()?.toLowerCase() ?? ""];
-  return sized(Buffer.from(await res.arrayBuffer()), type && type !== "application/octet-stream" && type !== "binary/octet-stream" ? type : (byName ?? "application/octet-stream"));
+  const mime = type && type !== "application/octet-stream" && type !== "binary/octet-stream" ? type : (byName ?? "application/octet-stream");
+  return sized(Buffer.from(await res.arrayBuffer()), SAME_TYPE[mime] ?? mime);
 }
 
 /**

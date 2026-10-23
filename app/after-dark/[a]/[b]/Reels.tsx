@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Reel, ReelShot } from "@/lib/adult/reels";
+import { requestJson } from "@/app/request";
+import { clipChains, keepGoingFrom } from "@/lib/adult/clip-chains";
+import type { BusyReel, Reel, ReelShot } from "@/lib/adult/reels";
 import { reelFailureNote } from "@/lib/adult/reel-failure";
 import { REEL_STALLED_MS } from "@/lib/adult/reel-timing";
 
@@ -30,9 +32,12 @@ export default function Reels({ reels, onChange }: { reels: Reel[]; onChange: (r
   }, [making, onChange]);
 
   if (!reels.length) return null;
+  // Videos of the night, and clips (lib/adult/clips.ts) apart: a clip is a moment, not part of the night's film.
+  const nights = reels.filter((r) => r.kind !== "clip");
+  const clips = reels.filter((r) => r.kind === "clip");
   // The whole night: from the bottom of the list (the oldest video) up.
-  const night = [...reels].reverse().flatMap((r) => readyShots(r));
-  const finished = reels.filter((r) => readyShots(r).length).length;
+  const night = [...nights].reverse().flatMap((r) => readyShots(r));
+  const finished = nights.filter((r) => readyShots(r).length).length;
   return (
     <section>
       <h2>Their videos</h2>
@@ -44,18 +49,113 @@ export default function Reels({ reels, onChange }: { reels: Reel[]; onChange: (r
           <SeamlessPlayer shots={night} />
         </div>
       )}
-      <ul className="after-dark-reels">
-        {reels.map((r) => (
-          <li key={r.id}>
-            <ReelPlayer reel={r} onChange={onChange} />
-          </li>
-        ))}
-      </ul>
+      {clips.length > 0 && <Clips clips={clips} onChange={onChange} />}
+      {nights.length > 0 && (
+        <ul className="after-dark-reels">
+          {nights.map((r) => (
+            <li key={r.id}>
+              <ReelPlayer reel={r} onChange={onChange} />
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
 
 const readyShots = (r: Reel): ReelShot[] => (r.status === "making" ? [] : r.shots.filter((s) => s.status === "ready" && s.media_id));
+
+/**
+ * Their clips (lib/adult/clips.ts), each with the ones kept going from it as one film, newest first. "Keep going" carries
+ * the last one on: its keyframe is the picture the next shot starts from. The price is the pair's clip menu's.
+ */
+function Clips({ clips, onChange }: { clips: Reel[]; onChange: (r: Reel) => void }) {
+  const chains = clipChains(clips);
+  const pair = clips.find((c) => c.a && c.b);
+  const [price, setPrice] = useState<number | null>(null);
+  useEffect(() => {
+    if (!pair?.a || !pair.b) return;
+    let gone = false;
+    fetch(`/api/admin/after-dark/clips?a=${encodeURIComponent(pair.a)}&b=${encodeURIComponent(pair.b)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((offer: { price?: number } | null) => !gone && typeof offer?.price === "number" && setPrice(offer.price))
+      .catch(() => {});
+    return () => {
+      gone = true;
+    };
+  }, [pair?.a, pair?.b]);
+  const making = clips.some((c) => c.status === "making");
+  return (
+    <div className="ad-clips">
+      <h3>
+        Clips <span className="muted small">· {chains.length}</span>
+      </h3>
+      <ul className="after-dark-reels">
+        {chains.map((chain) => (
+          <li key={chain[0].id}>
+            <ClipChain chain={chain} price={price} making={making} onChange={onChange} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** One clip and the ones kept going from it: played as one, the last one's state, and Keep going. */
+function ClipChain({ chain, price, making, onChange }: { chain: Reel[]; price: number | null; making: boolean; onChange: (r: Reel) => void }) {
+  const [asking, setAsking] = useState(false);
+  const [note, setNote] = useState<{ text: string; busy?: BusyReel } | null>(null);
+  const shots = chain.flatMap((c) => readyShots(c));
+  const last = chain[chain.length - 1];
+  const from = keepGoingFrom(chain);
+  const label = chain[0].clip?.label ?? "A clip";
+  const cost = price === null ? "" : price === 0 ? " · free" : ` · ${price} token${price === 1 ? "" : "s"}`;
+  async function keepGoing() {
+    if (!from) return;
+    setAsking(true);
+    setNote(null);
+    const res = await requestJson("/api/admin/after-dark/clips", { continue: from.id }).catch(() => null);
+    setAsking(false);
+    if (!res) return setNote({ text: "That didn't reach the server. Check your connection and try again." });
+    if (!res.ok) return setNote({ text: res.message, busy: (res.data.busy as BusyReel | undefined) ?? undefined });
+    onChange(res.data.reel as Reel);
+  }
+  return (
+    <div className="ad-clip-chain">
+      <p className="ad-clip-title">
+        <strong>🎞 {label}</strong>{" "}
+        <span className="muted small">
+          · {shots.length} shot{shots.length === 1 ? "" : "s"}
+          {chain.length > 1 ? `, kept going ${chain.length - 1} time${chain.length === 2 ? "" : "s"}` : ""}
+        </span>
+      </p>
+      {shots.length > 0 && <SeamlessPlayer shots={shots} />}
+      {last.status === "making" ? (
+        <ReelPlayer reel={last} onChange={onChange} what="clip" />
+      ) : (
+        last.status === "failed" && <ReelPlayer reel={last} onChange={onChange} what="clip" />
+      )}
+      {from && (
+        <p>
+          <button
+            type="button"
+            className="secondary small"
+            disabled={asking || making}
+            onClick={() => void keepGoing()}
+            title="Carry this clip on: the next shot starts where this one left them"
+          >
+            {asking ? "Setting up the next shot…" : `▶▶ Keep going${cost}`}
+          </button>
+        </p>
+      )}
+      {note && (
+        <p className="error small" role="status">
+          {note.text}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /** Stops a reel still being made (DELETE): the shots in are kept, the rest's tokens come back. */
 export async function stopReel(id: string): Promise<Reel | null> {
@@ -63,7 +163,7 @@ export async function stopReel(id: string): Promise<Reel | null> {
   return (res?.reel as Reel | undefined) ?? null;
 }
 
-function ReelPlayer({ reel, onChange }: { reel: Reel; onChange: (r: Reel) => void }) {
+function ReelPlayer({ reel, onChange, what = "video" }: { reel: Reel; onChange: (r: Reel) => void; what?: "video" | "clip" }) {
   const shots = readyShots(reel);
   const done = reel.shots.filter((s) => s.status !== "queued").length;
   const [stopping, setStopping] = useState(false);
@@ -76,7 +176,7 @@ function ReelPlayer({ reel, onChange }: { reel: Reel; onChange: (r: Reel) => voi
     return (
       <div className="muted small" role="status">
         <p>
-          🎬 Making the video: {done} of {reel.shots.length} shots done
+          {what === "clip" ? "🎬 Making the clip" : `🎬 Making the video: ${done} of ${reel.shots.length} shots done`}
           {minutes >= 1 ? `, started ${minutes} min ago` : ""}.{" "}
           {stalled
             ? "That's much longer than usual, so it looks stuck. Stop it and its tokens come back for the shots that didn't arrive."
@@ -97,7 +197,7 @@ function ReelPlayer({ reel, onChange }: { reel: Reel; onChange: (r: Reel) => voi
               else setStopFailed(true);
             }}
           >
-            {stopping ? "Stopping…" : "Stop this video"}
+            {stopping ? "Stopping…" : `Stop this ${what}`}
           </button>
           {stopFailed && <span className="error"> That didn&apos;t go through. Try again.</span>}
         </p>
@@ -109,7 +209,12 @@ function ReelPlayer({ reel, onChange }: { reel: Reel; onChange: (r: Reel) => voi
   if (!shots.length) {
     const stopped = reel.shots.some((s) => s.reason === "stopped");
     if (stopped && !why) return <p className="muted small">Stopped before any shot came through. Its tokens are back.</p>;
-    return <p className={why ? "error small" : "muted small"}>That video didn&apos;t come through, and its tokens are back.{why && ` ${why}`}</p>;
+    const discarded = reel.shots.some((s) => s.status === "discarded");
+    return (
+      <p className={why ? "error small" : "muted small"}>
+        That {what} didn&apos;t come through{discarded ? " (the safety check discarded it)" : ""}, and its tokens are back.{why && ` ${why}`}
+      </p>
+    );
   }
   const discarded = reel.shots.filter((s) => s.status === "discarded").length;
   const failed = reel.shots.filter((s) => s.status === "failed").length;
@@ -312,6 +417,8 @@ function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
             className={n === i % 2 ? "on" : ""}
             playsInline
             preload="auto"
+            // Before it plays: the first shot's keyframe, the picture it starts from (shots since 2026-10-22 keep its id).
+            poster={!started && n === 0 && shots[0]?.frame_id ? mediaUrl(shots[0].frame_id) : undefined}
             onEnded={n === i % 2 ? ended : undefined}
             onPlay={(e) => {
               if (n !== i % 2) return;
@@ -330,7 +437,8 @@ function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
             {failed ? "A shot couldn't be loaded. Try again in a moment." : `Loading shots ${loaded} of ${shots.length}…`}
           </div>
         )}
-        {ready && started && <p className="ad-reel-caption">“{shot.text}”</p>}
+        {/* A clip from the act menu has no line in it: no caption. */}
+        {ready && started && shot.text && <p className="ad-reel-caption">“{shot.text}”</p>}
         {theater && (
           <button type="button" className="ad-reel-close" onClick={() => setTheater(false)} aria-label="Close theater">
             ✕

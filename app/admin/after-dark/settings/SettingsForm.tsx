@@ -64,6 +64,7 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       reel_model: s.reel_model,
       reel_shots: s.reel_shots,
       reel_tokens: s.reel_tokens,
+      clip_tokens: s.clip_tokens,
       media_provider: s.media_provider,
       replicate_picture_model: s.replicate_picture_model,
       replicate_keyframe_model: s.replicate_keyframe_model,
@@ -133,6 +134,19 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       <input id="ad-venice-key" type="password" autoComplete="off" value={veniceKey} onChange={(e) => setVeniceKey(e.target.value)} />
       <label htmlFor="ad-venice-model">Venice picture model</label>
       <input id="ad-venice-model" value={s.venice_image_model} onChange={(e) => setS({ ...s, venice_image_model: e.target.value })} />
+      <p>
+        <label className="fact-private">
+          <input
+            type="checkbox"
+            id="ad-auto-pictures"
+            checked={s.auto_scene_pictures}
+            disabled={busy}
+            onChange={(e) => void save({ auto_scene_pictures: e.target.checked })}
+          />{" "}
+          A picture of the two of them each time a chapter starts, and each time they go somewhere new{" "}
+          <span className="muted small">(one per chapter and place, about 1.5¢ each with its checks)</span>
+        </label>
+      </p>
       <h3>Video of the night: Venice</h3>
       <p className="muted small">
         A short film of a whole night: the strongest lines, each a shot of the two of them together, started from a picture of both made from
@@ -145,6 +159,8 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       <input id="ad-reel-shots" type="number" min={2} max={12} value={s.reel_shots} onChange={(e) => setS({ ...s, reel_shots: Number(e.target.value) || 6 })} />
       <label htmlFor="ad-reel-tokens">Price in bought tokens (admins don&apos;t pay)</label>
       <input id="ad-reel-tokens" type="number" min={0} max={500} value={s.reel_tokens} onChange={(e) => setS({ ...s, reel_tokens: Number(e.target.value) || 0 })} />
+      <label htmlFor="ad-clip-tokens">A clip on demand (one shot, from the act menu or the latest moment), in bought tokens</label>
+      <input id="ad-clip-tokens" type="number" min={0} max={100} value={s.clip_tokens} onChange={(e) => setS({ ...s, clip_tokens: Number(e.target.value) || 0 })} />
       <h3>The backup: Replicate</h3>
       <p className="muted small">
         Replicate can make After Dark&apos;s media instead of Venice: its pictures, each shot&apos;s keyframe of the two of them, the videos

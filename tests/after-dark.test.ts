@@ -52,6 +52,8 @@ describe("the gate", () => {
     expect(adultModeEnabled({})).toBe(false);
     expect(adultModeEnabled({ ADULT_MODE: "1", VERCEL: "1" })).toBe(false);
     expect(adultModeEnabled({ ADULT_MODE: "1", VERCEL_ENV: "production" })).toBe(false);
+    // After Dark's own host has no VERCEL variable (docs/after-dark-hosting.md).
+    expect(adultModeEnabled({ ADULT_MODE: "1", AFTER_DARK_ONLY: "1" })).toBe(false);
   });
 
   it("is not found for a stranger, a non-admin, an old unsigned cookie, and the admin when it's on Vercel", async () => {
@@ -252,7 +254,8 @@ describe("on the site, from the settings panel", () => {
 
   it("makes each character's baseline the first time it turns explicit, a new picture only when they agree, and serves them only to an admin", async () => {
     const { cookie } = await admin();
-    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive" }, cookie);
+    // The chapter's own picture (lib/adult/auto-pictures.ts) has tests of its own (tests/after-dark-v23.test.ts).
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive", auto_scene_pictures: false }, cookie);
     const seen = fakeFal();
     fakeHive();
     scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }, { who: "b", text: "Make me." }], explicit: true, picture: null }));
@@ -296,7 +299,7 @@ describe("the output check (Hive)", () => {
   for (const [what, vlm, mod, fail, reason] of cases) {
     it(`discards the picture, stores nothing, and logs why: ${what}`, async () => {
       const { cookie } = await admin();
-      await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive" }, cookie);
+      await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive", auto_scene_pictures: false }, cookie);
       fakeFal();
       fakeHive(vlm, mod, fail);
       scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }], explicit: true, picture: null }));
@@ -407,6 +410,10 @@ describe("settings over MCP", () => {
       }).structuredContent.settings;
     expect((await run({ text_model: "sao10k/l3.3-euryale-70b" })).text_model).toBe("sao10k/l3.3-euryale-70b");
     expect(JSON.stringify(await run({}))).not.toMatch(/ciphertext|nonce/);
+    // Where the media is made (#698): only the two providers there are.
+    expect((await run({ media_provider: "replicate" })).media_provider).toBe("replicate");
+    expect((await run({ media_provider: "fal" })).media_provider).toBe("replicate");
+    expect((await run({ media_provider: "venice" })).media_provider).toBe("venice");
     const stranger = await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "after_dark_settings", arguments: {} } }, {});
     expect((stranger!.error as { message?: string } | undefined)?.message).toMatch(/unknown tool/);
   });
@@ -568,7 +575,7 @@ describe("the picture request", () => {
 
   it("asks fal's custom-model endpoint for the photoreal base, steering away from anyone young-looking", async () => {
     const { cookie } = await admin();
-    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive" }, cookie);
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive", auto_scene_pictures: false }, cookie);
     let sent: Record<string, unknown> | null = null;
     let url = "";
     setMediaFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -589,7 +596,7 @@ describe("the picture request", () => {
 
   it("a picture of one of them keeps their face (their baseline as the reference); of both, or with no face found, it goes from the words", async () => {
     const { cookie } = await admin();
-    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive" }, cookie);
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive", auto_scene_pictures: false }, cookie);
     const sent: { url: string; body: Record<string, unknown> }[] = [];
     let faceStatus = 200;
     setMediaFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -704,10 +711,28 @@ describe("pictures on Venice", () => {
     setCheckFetchForTests(null);
   });
 
+  it("draws a new portrait over the admin MCP tool, keeps the old one beside it, and refuses anyone outside After Dark", async () => {
+    const { cookie } = await admin();
+    await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, image_provider: "venice", venice_key: "placeholder-venice-VNCE", hive_key: "placeholder-hive" }, cookie);
+    setMediaFetchForTests(async (input: RequestInfo | URL) =>
+      String(input) === VENICE_IMAGE ? Response.json({ id: "x", images: [Buffer.from(PNG).toString("base64")], timing: {} }) : new Response("unexpected", { status: 500 }),
+    );
+    setCheckFetchForTests(async (input: RequestInfo | URL) => Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD));
+    const key = crypto.randomUUID();
+    vi.stubEnv("FRONTIER_PASSWORD", key);
+    const tool = async (args: Record<string, unknown>) =>
+      JSON.stringify(await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "after_dark_baseline", arguments: args } }, { adminKey: key }));
+    expect(await tool({ character_id: CAST_A })).toMatch(/"kind":"baseline"/);
+    expect(await tool({ character_id: CAST_A })).toMatch(/"kind":"baseline"/);
+    // Both kept: the newest is the face later pictures and videos keep, the older one stays to compare.
+    expect((await t.db.query(`select 1 from adult_images where character_id = $1 and kind = 'baseline' and status = 'ready'`, [CAST_A])).rows).toHaveLength(2);
+    expect(await tool({ character_id: HOUSE_CHARACTERS[2].id })).toMatch(/Pick a character who is in after dark/);
+  });
+
   it("makes them on Venice with safe mode off, checks the bytes with Hive before storing, and keeps clips to fal pictures", async () => {
     const { cookie } = await admin();
     const saved = await (
-      await call(settingsPost, "/api/admin/after-dark/settings", { image_provider: "venice", venice_key: "placeholder-venice-VNCE", hive_key: "placeholder-hive" }, cookie)
+      await call(settingsPost, "/api/admin/after-dark/settings", { image_provider: "venice", venice_key: "placeholder-venice-VNCE", hive_key: "placeholder-hive", auto_scene_pictures: false }, cookie)
     ).json();
     expect(saved.settings).toMatchObject({ image_provider: "venice", venice_image_model: "lustify-v8", venice_last4: "VNCE" });
     let sent: Record<string, unknown> | null = null;
@@ -805,7 +830,7 @@ describe("the video of the night", () => {
 
   const night = Array.from({ length: 12 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `*leans closer* Line number ${i} says something rather vivid here.` }));
   async function ready(cookie: string, ownerId: string, lines: unknown[] = night) {
-    await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", reel_shots: 3 }, cookie);
+    await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", reel_shots: 3, auto_scene_pictures: false }, cookie);
     // Each one's own baseline (a reel makes one first for a character with none): the faces every keyframe keeps.
     for (const [pid, c] of [["base-a", CAST_A], ["base-b", CAST_B]]) {
       await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ($1, $2, $3, 'baseline', 'p', 'image/png', $4)`, [pid, ownerId, c, Buffer.from(PNG)]);
@@ -926,7 +951,7 @@ describe("the video of the night", () => {
     // Line 2 was on the street (before line 4 agreed to go): no set drawn there, the two baselines only.
     const street = edits.find((e) => e.prompt.includes("The place: street."))!;
     expect(street.images).toHaveLength(2);
-    expect(street.prompt).toContain("but not their clothes: they're dressed as the moment says, not nude.");
+    expect(street.prompt).toContain("but not their clothes: they're dressed as the moment says, not nude: both fully clothed, shirts and tops on and done up.");
     expect(street.prompt).not.toContain("Explicit");
     // Lines 6 and 9 were in her bedroom: its set is the third picture, and the place has no name in it.
     const bedroom = edits.filter((e) => e.prompt.includes("The place: her bedroom."));
@@ -1203,7 +1228,7 @@ describe("the video of the night", () => {
     expect(long).toMatch(/The place: the kitchen\. Keep each of them as in their own picture.*Both are adults\.$/);
     // Undressing: half undressed and explicit; before it, dressed and not.
     expect(keyframePrompt(cast, "x", null, 3, false)).toMatch(/they're half undressed, as the moment says\..*Explicit, uncensored, photorealistic\./);
-    expect(keyframePrompt(cast, "x", null, 1, false)).toMatch(/they're dressed as the moment says, not nude\..*Photorealistic\. Both are adults\.$/);
+    expect(keyframePrompt(cast, "x", null, 1, false)).toMatch(/they're dressed as the moment says, not nude: both fully clothed, shirts and tops on and done up\..*Photorealistic\. Both are adults\.$/);
     const s = { who: "b" as const, text: "Come here.", motion: "They kiss." };
     expect(shotPrompt(cast, s, false)).toMatch(new RegExp(`^They kiss\\. Two people only: .* ${cast[1].tag[0].toUpperCase()}${cast[1].tag.slice(1)}, in a [a-z ,']+voice, says: "Come here\\."$`));
     expect(shotPrompt(cast, s, true)).toMatch(/is the one speaking, lips moving with the words\.$/);

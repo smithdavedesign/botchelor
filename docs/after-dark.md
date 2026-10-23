@@ -474,6 +474,78 @@ on lines that never use them; and the set shown as "Lexis bedroom".
   lines, and its share) and `tell_uses`. The step flags, and so the admin's step log, add `hooks_cut`, `tells_cut`,
   `actions_cut`, `openings_cut` and `build_ups_cut`.
 
+### Prompt v2.3: quotes, Filthy, chapters that carry on, a picture per chapter (2026-10-23)
+
+v2 changed in place again (`prompt_version` is still `"v2"`; v1 is untouched, word for word, at every intensity). Each step's
+flags now say which revision wrote it (`prompt: "v2.3"`, `SCENE_PROMPT_REVISION` in `lib/adult/settings.ts`), and so
+does the eval's result (`prompt_revision`). David's review of a production night (chapter 5 of a long night) found three
+things, and asked for a fourth:
+
+- **Quoted lines in a Direct steer were never said.** The no-copy rule ("never copy the steer's words into a line")
+  cut any line that said them. Now (`lib/adult/quotes.ts`): a Direct steer's quoted speech ("…" or “…”) is said nearly
+  as written, by the character the steer names (the closest name, or a slip of one, or "she"/"he" when only one of them
+  goes by it, before the quote; or "…", says Rafe after it), or by either when it names nobody. The prompt says: *"The
+  words in quotes are lines to be spoken: {who} says "{quote}". Each one is said out loud nearly as written, in a line by
+  that character, fitted lightly to their voice and the moment (a name, a word or a tense can change; never the
+  meaning, or how explicit it is). Everything else in the steer is acted out in their own words and actions, as these
+  two characters would; never copy the rest of the steer's words into a line or an action."* The no-copy guard now reads
+  the steer without its quotes, and a line carrying a quote is let through the repeat and craft critics (the steer asked
+  for those words, even ones said before tonight). After writing, each quote is checked: at least 70% of its words
+  (lightly stemmed), out loud, in a line by the right speaker. The step's flags keep `quotes` (each with `kept`, `by`,
+  `line`) and `quote_kept`; a missing one gets the step's one retry, with a note naming it, and the new take is used only
+  when it says more of them. It never fails the step. The two lines (`checkAdultText`) hold for the steer and every line
+  as before. A Nudge, and v1, are unchanged.
+- **The jokes took over.** v2's voice rules ask for their humour in every intimate line, so a baker-judge made a pun of
+  everything. **Filthy**, one level above Explicit on #702's intensity dial (`lib/adult/limits.ts`, `adult_scenes.intensity`
+  = `"filthy"`; Explicit is untouched, word for word). It has Explicit's checks (as far as it goes, crude words allowed),
+  and its own prompt: *"…Explicit sexual content is allowed and expected when the scene goes there, and this scene is
+  written filthy: once they're undressing, the acts are described plainly and graphically, and they talk dirty in the
+  dialogue itself, in plain, explicit words."* From undressing on (`plainTalk`, stage 4 of 5) the voice rule becomes
+  *"Stay this person when it gets intimate, in attitude and rhythm… the jokes and their job are a light seasoning, a line
+  now and then at most: no puns, no wordplay on their work, no coy stand-ins for what they mean"*, the line rule *"From
+  here on they talk dirty in the dialogue itself, in plain, explicit words: what they want, what they're doing, how it
+  feels, said the way this person would say it. Their humour and their work are a light seasoning at most (a line now and
+  then), never a pun"*, and a craft note says so. Before undressing it's Explicit's rules. The hook and worn-phrase
+  critics are unchanged, so a pun loop is still cut. **A hard no wins:** with "dirty talk" among the pair's hard nos,
+  Filthy writes Explicit's prompt, and the hard-no check still drops a crude line. Set it in the Limits panel (🎚, the
+  fifth choice) or with `limits: {intensity: "filthy"}` on `POST /api/admin/after-dark`, like the other levels (#702 has
+  no MCP setter; `after_dark_scene` shows the scene's intensity). The step's flags say `filthy: true`. The stage floor
+  (`lib/adult/stage-floor.ts`) reads a few more plain words, in the dialogue as in the actions, so `stageShown`, the
+  limit check and the director agree with plainer talk. A Direct steer's quoted line is held to the limits like the
+  rest of the steer: one that asks past the intensity (its stage, or crude words below Explicit) or for a hard no is
+  refused before anything is written.
+- **A new chapter started over.** Chapter 4 ended mid-sex in the garden; chapter 5 teased again for 15 lines. Now the
+  first step of a chapter after the first gets the last chapter's last 6 lines (`prev_tail`), its stage and its place,
+  and: *"A new chapter of the night starts here, but nothing has stopped… Continue from here: the first of these lines
+  carries straight on from that exact moment, in that place, at {stage}, doing what they were doing. No teasing it out
+  again, no going back to an earlier stage, no starting over; where the recap and these last lines disagree, the last
+  lines are where they are."* The stage it ended at (its last line's) is the chapter's floor: a claim below it is raised
+  to it (`stage_floor_raised` in the flags), like any stage-floor breach, and the pace rule says carry on rather than
+  tease, until a climax in the chapter. After an afterglow or aftercare ending there's no floor, and v2.2's rule holds:
+  it only picks up again when one of them starts it and the other answers. The flags keep `carry`.
+- **The observer** reads the steps' flags now: `quotes_asked`, `quotes_dropped` (a `quote_dropped` finding each), and
+  `chapter_restarts`: a chapter whose first 12 lines plainly show less than where the last one ended (undressing or
+  further, not after an afterglow).
+
+**A picture for each chapter and each place** (`lib/adult/auto-pictures.ts`). Before, a night got a baseline per
+character and a picture only when they asked for one in a line: five chapters, a balloon and a rainy garden, three
+pictures. Now a chapter's first lines, and a change of place in a chapter (an agreed move, or Set the scene), draw one
+picture of the two of them where they are, at the stage they're at, from the last few lines: `makePicture` as any scene
+picture (the provider in the settings, Hive on the bytes before they're stored, the month's picture cap). A picture of
+both goes without a face reference (the face model reads one face), as an in-scene picture of both always has; the
+baselines are never redrawn. At most one per chapter and place: it's claimed on `adult_scenes.auto_pictures` before it's
+drawn, so a retry, a rewind and a redo, or a place visited twice in a chapter, never draws it twice (Start over clears
+the claims). It runs after the response and never fails or slows a step; one that doesn't come is only logged. Off with
+the setting **`auto_scene_pictures`** (on by default; the checkbox under Venice on `/admin/after-dark/settings`, or
+`after_dark_settings`), and off whenever pictures are (no Hive key, or the provider's key). The gallery shows each one
+with its chapter and place (`adult_images.scene_chapter`, `scene_place`), and the page looks for it 20 and 60 seconds
+after a step. It costs about $0.015 a picture on Venice (topped up, with a $10 auto-recharge, #677), $0.03 on
+Replicate: about $0.10 for a five-chapter night with two moves (`docs/after-dark-costs.md`).
+
+New columns, all additive: `adult_scenes.auto_pictures` (jsonb, the claims), `adult_images.scene_chapter` and
+`scene_place`, `adult_settings.auto_scene_pictures` (null is on); Filthy is one more value of #702's
+`adult_scenes.intensity`. After Dark only: none of them is in a dataset or an export.
+
 ### The model simulation, and the move to DeepSeek V3.1 (2026-10-22)
 
 `npm run sim:after-dark` (scripts/sim-after-dark.mjs) plays the whole path on a fresh local app with a throwaway
@@ -599,9 +671,9 @@ It showed two weak spots, both fixed in the follow-up:
 **Terms (2026-10-22):** Venice's terms (last updated 2026-06-08) have users warrant, in §10.9(c), that no reasonable person could deem their content "pornographic". Outputs count as user content (§10.1). That reads against Venice selling uncensored models. Settle it with Venice in writing before any subscriber uses After Dark: this widens the question that was already open for pictures. MiniMax H3 (Venice's `minimax-h3-max-reference-to-video`) has a further problem: its open licence excludes the US, EU, UK and South Korea, outputs included.
 
 **Next, not built:**
-- **A menu of acts per shot**, as the leaders do: preset framings that make keyframes more reliable than free text.
+- **A menu of acts per shot**, as the leaders do: preset framings that make keyframes more reliable than free text. Built for clips (below, "Clips on demand"); a night's reel still has the director write each shot.
 - **Act motion add-ons (LoRAs)** would need Wan run somewhere that takes them; Venice doesn't. Replicate's `wan-2.2-i2v-fast` takes LoRA URLs and a `disable_safety_checker` flag, and its terms ban only non-consensual or illegal pornography: about $0.05 at 480p, or $0.11 at 720p, a clip. RunPod, WaveSpeed, Novita, Segmind, Together and fal ban adult output. The Replicate backup (below) takes one LoRA for its videos, as a setting.
-- **"Extend"** from a shot's last frame, for longer moments.
+- **"Extend"** from a shot's last frame, for longer moments. Built for clips as Keep going, from the shot's keyframe instead (no ffmpeg on the server since #688).
 - **Wan 3.0 reference-to-video** as a one-step option.
 - **Terms:** Venice's model list marks Wan 3.0 "anonymized", which means a third party runs it, while `qwen-edit-uncensored` and LongCat are Venice's own. Get Venice's word in writing on explicit output for both kinds, along with the pictures question already open.
 
@@ -625,6 +697,14 @@ somewhere public is "One of them suggests they leave for somewhere private"), an
 (`suggestions_replaced`). They're stored on the scene (`adult_scenes.suggestions`), so a reload shows them, and go when
 the night starts over or the scene is set somewhere new. A chip sends its text as a Nudge. Prompt v1 (kept word for
 word for the A/B) asks for none, so it shows none.
+
+*Checked on the real model* (`npm run sim:after-dark -- --models deepseek/deepseek-chat-v3.1:nitro --steps 4
+--date-model stub`, two runs, about 2¢, counts only, no lines read): DeepSeek V3.1 sent the suggestions as asked in some
+steps, flattened them into the reply as `_suggestions_mild` / `_suggestions_flirty` / `_suggestions_spicy` in one, put
+underscores round other keys too (`_stage`, `_place`), and left them out altogether in others (one reply wrote its
+instructions into a key name). `suggestionsIn` and `parseSceneMeta` now read keys without the underscores and the
+flattened form; a step with none shows the plain ones. When it sent them, all three passed: 37–49 characters,
+none over the pace.
 
 **Rewind and redo.** Each step leaves what a rewind needs on `adult_scenes.undo`, a stack 5 deep (`UNDO_DEPTH`): the scene
 before it (its lines by count, since within a chapter they only grow; stage, place, set, cut, place history, moves,
@@ -714,6 +794,12 @@ Notes on each:
 - **The video** kept both of them in frame as one continuous take, with stable faces, and the scripted action played out. Visually it's comparable to Wan 3.0, but silent, hence the voices.
 - **Hive passed the Replicate keyframe** (child 6e-7, the age check ADULTS).
 
+**The smoke test after the merge** (2026-10-23): our code against the real API, run locally, with PG inputs only (two house characters' public portraits, dressed, at a harbour at dusk).
+- **The keyframe:** Qwen-Image-Edit took 6.5 s running (22 s with the queue) and returned an 880×1184 PNG of 873 KB. Hive passed it.
+- **The shot:** Wan 2.2 took 72 s running (100 s with the queue) and returned 81 frames, an 816×1104 H.264 MP4 of 5.06 s, 491 KB, with no audio track. It wasn't sent to Hive (one check that day), so it wasn't kept either.
+- **The voice:** Kokoro took 1.7 s and returned a 24 kHz mono WAV of 2.7 s for an 8-word line. Replicate serves it as `audio/x-wav`, and it's stored as `audio/wav`. Kokoro talks at about 3 words a second, and the shots' lengths now count on that: up to 13 words fit the shortest shot (5 s), about 20 the longest (7.5 s).
+- **It cost** about $0.14 ($0.03, $0.11 and under $0.001), plus one Hive moderation request and one age check.
+
 **What David does** (some of it done on 2026-10-22):
 1. **Sign up at replicate.com and prepay credit** at replicate.com/account/billing, with auto-reload off. Done: account smithdavedesign.
 2. **Set a spend limit.** Replicate retired its self-serve monthly limit (July 2025), so the prepaid balance with auto-reload off is the limit: at zero, Replicate starts no new work. Load only what you're willing to spend, and ask support@replicate.com if you want a hard monthly cap as well.
@@ -729,6 +815,181 @@ Notes on each:
 - **the voice in sync:** the right one's voice says the line while their lips move, starting and ending with the shot.
 
 Put it side by side with Venice's table above (both in frame, follows the script, faces, voice, cost). It costs about $0.56 of Replicate (4 keyframes at $0.03, 4 videos at $0.11, the voices next to nothing), and 8 Hive moderation requests plus 4 age checks.
+
+**Admin tools for the providers (2026-10-22):** `after_dark_settings` (admin MCP) takes `media_provider` (`venice` or
+`replicate`), so an admin's agent can switch providers without the signed-in settings page. `after_dark_baseline`
+draws a new baseline portrait of one character with the current provider, checked like every picture. The newest
+baseline is the face later keyframes keep; the older one stays in the gallery, to compare.
+
+## Limits and memory: the intensity dial, hard nos, and memory you can see and edit (2026-10-22)
+
+The second of the three scene PRs from the competitor read. Code: `lib/adult/limits.ts` (pure), `lib/adult/scenes.ts`
+(`saveLimits`, `limitRefusal`, `memoryView`, `editMemory`), `lib/adult/memory.ts` (`ownNotes`, `setOwnNote`),
+`lib/adult/facts.ts` (`editOwnFact`), and two folded panels under the steer bar (`Limits.tsx`, `Memory.tsx`).
+
+**The intensity dial**, per owner and pair (`adult_scenes.intensity`, kept through Start over; null is explicit):
+
+| | Furthest stage | Register |
+|---|---|---|
+| Slow burn | kissing | tender and suggestive, nothing explicit, no body parts named |
+| Flirty | undressing | playful and teasing, never graphic or crude; past undressing only implied |
+| Spicy | sex | steamy, sex included, no graphic anatomy or crude words |
+| Explicit (default) | sex | as it was: the prompt is word for word what it was |
+
+Every step holds to it, whatever the steer: the prompt says the register and "Tonight it goes no further than kissing";
+the pacing line says when they've gone as far as tonight goes (or, turned down mid-scene, to ease back to it); a line
+that shows more than the furthest stage (the stage floor's signs), or a crude word below explicit, is dropped
+(`intensity_dropped` in the step's flags); and the stage never climbs past it, a Direct steer included (turned down,
+the stage comes back to it). A steer or whisper that asks for more is refused before anything is written. The suggested
+next moves go no further either.
+
+**Hard nos**, per owner and pair (`adult_scenes.hard_nos`: `{chips, own}`, kept through Start over): 16 curated ones
+(pain, choking, degradation, anal, oral, restraints, rough sex, hair pulling, biting, spitting, dirty talk, cheating
+talk, pregnancy talk, toys, dom and sub, being watched), each a never-cross rule for the prompt and a pattern for the
+check (dirty talk reads only what they say; "chokes back a laugh" isn't choking, a shirt's cuffs aren't restraints), and
+up to 8 of the viewer's own, 40 characters each, matched by their words (filler out, a light stem: "tickling" catches
+"tickles"; "being called baby" needs both "call…" and "baby"). Own ones that cross the two lines are refused: those
+already never happen.
+- The prompt lists them as hard limits that hold over every steer (a nudge, a direct steer, a whisper), never crossed,
+  offered or asked for.
+- A line that crosses one is dropped and the step asked once more, told which, with nothing of the reply to copy from
+  (`hard_nos` and `retried` in the step's flags, the reason in its dropped lines). The second reply is held to
+  everything again; when nothing of it can be kept, the first reply's other lines stand.
+- A steer (Nudge or Direct) or whisper that asks for one is refused (422) before anything is written; a redo is checked
+  against the limits as they are now before anything is taken back.
+- The suggested next moves are held to them too, and saving new limits holds the ones on the scene to them at once
+  (a rewind does the same for the ones it brings back).
+- The free-text check is a backstop: the model is told the rule, and the words catch the plain cases, not every way of
+  putting it.
+
+**Memory you can see and edit** (the "🧠 What they remember" panel, loaded when opened): what each remembers about the
+other (their PG note from `adult_memories`, and their facts from `adult_facts`) and the night's recap. Each can be
+edited or deleted. Edits pass `checkAdultText`; the PG note, which reaches their public dates and texts, also passes the
+show's own `checkShowText` (nothing sexual, no innuendo) and stays under 300 characters. An edited fact drops its quote.
+Owner-scoped: a viewer sees and edits only what their own nights wrote (a note or fact another owner's night wrote is
+404 to them). A rewind of a step that didn't close a chapter leaves the recap as it is now, so an edit made since stays.
+
+**Screenshots** (`SHOTS=limits npm run screenshots:after-dark`): `docs/screenshots/after-dark-limits-*.png`.
+
+## Scenarios and turn-ons (2026-10-22)
+
+The third of the three scene PRs from the competitor read. Code: `lib/adult/scenarios.ts`, `lib/adult/profile.ts`,
+`lib/adult/scenes.ts` (`startScenario`, `saveFraming`, `profileView`), After Dark's part of `lib/safety.ts`
+(`excludedTheme`), and two more folded panels under the steer bar (`Scenarios.tsx`, `Profile.tsx`).
+
+**The themes that never happen**, now in `checkAdultText` itself, so every steer, whisper, place, line, suggestion,
+fact, memory edit, picture prompt and scenario is held to them: family and step-family ("step-sister", "pretend you're
+my sister", "call me daddy", incest), teacher and student ("my teacher", "a naughty student", "play the professor",
+detention), school settings ("school uniform", "high school", a classroom) and age-play ("age play", "ddlg", "pretend
+she's younger", "little one"). "schoolgirl", "barely legal", "teen" and the like were already minor terms. Whole
+phrases on the normalised text, so a ballroom instructor's beginners' class, "my sister set us up", "old school" and
+"let's play a little game" still pass. A refused steer, whisper or place says which line it crossed (`linesCrossed`),
+and, as before, is never stored. The result carries the theme (`SafetyResult.theme`); the reason stays one of the
+show's four, so nothing that maps reasons to messages had to change.
+
+**Scenario packs:** 16 curated starting points (`SCENARIOS`), each a title, a short premise, a place (a set label), a
+starting stage (0 to 2) and an opening steer: stuck in an elevator, hotel after the wedding, rivals at a conference,
+rainy cabin, exes at a party, a massage appointment between licensed adults (the attraction said out loud first),
+snowed in at the lodge, one motel room left, a power cut, the night train, a masquerade, the balcony next door, a
+bookshop after closing, the rooftop pool, long distance finally, an anniversary. Each is reviewed against the lines
+(`tests/after-dark-scenarios.test.ts` runs every one through `checkAdultText`, `excludedTheme` and a list of words that
+must never appear: family, teaching, school, youth, impairment, coercion, payment or a boss). **Start a night from a
+scenario** files the night that ran (as Start over does), puts them in the place (`setSceneTo`, so the first lines open
+on arriving there), sets the starting stage (never past the intensity), keeps the premise on the scene for every step
+of the night (`adult_scenes.scenario`, cleared by Start over: "Tonight's scenario: …; both of them chose to be here,
+and either can stop at any time"), and writes the first lines with the opening as a Nudge, so the pacing, the
+public-place cap, the intensity and the hard nos hold from the first line. Nothing is filed when the scenario runs
+into the viewer's hard nos or intensity, or the month's steps are used up. It's free (no Set the scene token): the
+places are a fixed sixteen, each drawn once for everyone.
+
+**Turn-ons**, per character: a private After Dark profile of 20 curated turn-ons (slow teasing, being in charge, being
+told what to do, praise, dirty talk, lingerie, massage, outdoors (private), roleplay (adults), long kisses, neck kisses,
+eye contact, whispering, being undressed slowly, showering together, candlelight, spontaneity, teasing touches, slow
+dancing, cuddling after). Owner-only: a person sets and sees their own character's; a house character's are an admin's
+(a subscriber sees neither). Stored in `adult_profiles`, one row per character, not in `characters.extras` like
+`looks.after_dark`: the show's own prompts and pages read extras, and the house cast's upsert in `ensureSchema`
+rewrites a house character's extras on every schema change. Nothing outside `lib/adult` reads the table (a test checks).
+A turn-on one of the pair's hard nos rules out (dirty talk with that hard no, being in charge or told what to do with
+dom and sub, outdoors with being watched, or one an own hard no's words catch) never reaches the prompt.
+
+**Framing**, per owner and pair (`adult_scenes.framing`, kept through Start over): strangers, first date, exes, friends
+to lovers, rivals, coworkers (equals: neither is the other's boss) or long-term partners. Never family, teacher and
+student, or school: they aren't in the list, and the route takes only these.
+
+**In the prompt** (only when set, so the default prompt is unchanged): "How the viewer frames them tonight: …", and per
+character "What Juniper is into (private, from her own profile: let it shape what she wants and enjoys tonight when it
+fits; never listed or named outright, and never past the hard limits or the intensity): slow teasing, praise."
+
+**Screenshots** (`SHOTS=scenarios npm run screenshots:after-dark`): `docs/screenshots/after-dark-scenarios-*.png`.
+
+## Clips on demand (2026-10-22)
+
+David picked these from the competitor read (Candy, OurDream and Seduced all sell a short clip from a fixed list of
+actions). Code: `lib/adult/acts.ts` (the menu, pure), `lib/adult/clips.ts`, `lib/adult/clip-chains.ts` (the list's
+chains, pure), `lib/adult/reels.ts` (the shared keyframe, check and video path), `/api/admin/after-dark/clips`, and the
+videos list (`Reels.tsx`).
+
+**Three ways to ask for one** (`POST /api/admin/after-dark/clips`), each one 5–10 s shot of the two of them:
+- **Clip from here** (`{a, b, here: true}`): the scene's latest moment. The director (After Dark's text model) reads the
+  last 8 lines and writes the still, the motion and which line is said in it (or none), as for a reel's shot. What it
+  writes is held to the stage the night has reached, the pair's limits, and kissing at most somewhere public; a still or
+  motion past that is replaced by the plain one for the stage. It needs 2 lines.
+- **An act from the menu** (`{a, b, act, swap?}`): 13 curated acts, from close together and a slow dance through
+  cuddling, a slow kiss, against the wall and undressing each other, to face to face, on top, from behind, spooning, in a
+  lap, going down, and afterglow. Each is a still (who is where, how they're posed, what touches, both faces visible), a
+  motion and a next motion, written with `{X}` and `{Y}` for how they look (never a name), framed by its own shot words
+  (wide, medium or close). For a man and a woman, who leads (on top, behind) follows the act; `swap` turns it round, and
+  for two women or two men the first leads unless swapped. Nobody speaks in an act's clip ("Neither of them speaks: only
+  their breathing and the sounds of the room"), so on Replicate no voice is made for it.
+- **Keep going** (`{continue: <clip id>}`): carries a finished clip on. There's no ffmpeg on the server since #688, so
+  not its last frame: the next keyframe is the two baselines plus the clip's own keyframe as Picture 3 (`continuePrompt`:
+  "a few seconds after the moment in Picture 3… keep its place, its light, its camera angle and framing, and what each of
+  them is wearing or not, and carry how they're posed on from it, after this: <the shot's motion>"). The motion carries
+  on: an act's `next`, or the director's next five seconds for a clip from here. A chain holds 6 shots at most
+  (`CHAIN_MAX`, about 30 s), and only a clip that came through can be kept going.
+
+**What the menu offers** (`GET /api/admin/after-dark/clips?a=&b=`: the price, whether Clip from here can run, the acts):
+- only what the night has reached: each act has a stage it needs, and later ones show locked ("Once they've got to sex");
+- nothing past kissing somewhere public ("Somewhere private first"), as in the scene itself (`isPublicPlace`);
+- never what the pair's limits rule out (lib/adult/limits.ts, #702): an act past the intensity's furthest stage, one that
+  is a hard no (`hardNos` on the act: going down is `oral`), or one whose words cross a hard no or one of the viewer's
+  own (`limitsHit` on its still, motion and next, both ways round) isn't on the menu at all, and asking for it anyway is
+  refused (422). Below explicit (spicy and lower) the keyframe is "sensual and tasteful, nothing graphic", never
+  "explicit, uncensored".
+- David's lines hold on every word a picture or video model reads: `checkAdultText`, and `crossesTaboo` (no step-family,
+  teacher and student, school or age-play; a reel's shots are held to it too). The age check reads "turned three" in
+  "turned three-quarters toward the camera" as an age, so the on-top still says "angled toward the camera".
+
+**How one is made**: a clip is a reel of one shot (`adult_reels.kind = 'clip'`, with `clip`: its act, who leads, the clip
+it keeps going from, its stage and place, and its label). The plan (act, director, or keep going) is settled before
+anything is spent, so a refusal costs nothing. Then `clip_tokens` bought tokens are spent (3 by default, admins free,
+`clip_tokens` in the settings), each one's baseline is made if missing, and the shot runs the reel's own path
+(`startShots`): the keyframe on Venice (`qwen-edit-uncensored`) or Replicate (`qwen/qwen-image-edit-2511`) from both
+baselines and the place's drawn set (or the clip before's keyframe), Hive on the keyframe before it's kept as a `frame`
+(its id now kept on the shot as `frame_id`), then the video (Wan 3.0 on Venice, Wan 2.2 on Replicate), collected by the
+reel poll and checked by Hive again before it's stored. One video at a time, reels and clips together. A keyframe the
+check refuses, a provider failure, or a video the check discards gives the tokens back.
+
+**The videos list**: clips sit apart from the videos of the night (they're never in "The whole night"). A clip and the
+ones kept going from it are one chain, played as one film by the seamless player, with ▶▶ Keep going and the price on
+its last. A keep-going that failed shows at the chain's end, with why, and can be tried again from the one before. A
+shot's player shows its keyframe as the poster before it plays, and a shot with no line has no caption.
+
+**The live check** (2026-10-22, local, Juniper and Rafe's PG portraits from public/cast as data URIs, Venice):
+- the keyframes (`qwen-edit-uncensored`, 9–18 s each): a slow kiss, undressing each other, on top, and a keep-going from
+  the kiss. All four had both of them in frame, posed as the act says, faces visible (in profile for the kiss, both for
+  on top). The keep-going kept the room, the light and the pose.
+- Hive (4 requests): the kiss and on top both passed (moderation clean, the age check ADULTS).
+- the clip (Wan 3.0, 5 s, from the kiss keyframe, 104 s to make): both in frame the whole take, one continuous shot, the
+  faces kept, and nobody speaking (quiet room sound, mean -39 dB).
+- two fixes from it: the man lost his shirt in the kiss and undressing went all the way, so dressed acts now say "both
+  fully clothed", the kiss has her arms round his waist instead of hands on his chest, undressing keeps them dressed below
+  the waist, and the reel's own dressed wording spells it out ("both fully clothed, shirts and tops on and done up").
+  Both re-checked live: both stay dressed.
+- It cost $0.93 of Venice (7 keyframes at $0.04, one 5 s Wan 3.0 clip at $0.65).
+
+**Screenshots** (`npm run screenshots:after-dark-media`, clips seeded locally from the repo's PG portraits, nothing
+generated): `docs/screenshots/after-dark-clips-*.png`.
 
 ## Discreet mode: blur, a neutral title and a PIN (2026-10-22)
 

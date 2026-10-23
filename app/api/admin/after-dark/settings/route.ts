@@ -36,6 +36,7 @@ const Input = z.object({
   reel_model: z.string().max(120).optional(),
   reel_shots: z.number().int().min(2).max(12).optional(),
   reel_tokens: z.number().int().min(0).max(500).optional(),
+  clip_tokens: z.number().int().min(0).max(100).optional(),
   media_provider: z.enum(MEDIA_PROVIDERS).optional(),
   replicate_key: z.string().max(400).optional(),
   replicate_picture_model: replicateModel.optional(),
@@ -43,6 +44,7 @@ const Input = z.object({
   replicate_video_model: replicateModel.optional(),
   replicate_voice_model: replicateModel.optional(),
   replicate_video_lora: videoLora.optional(),
+  auto_scene_pictures: z.boolean().optional(),
 });
 
 /** A signed-in admin on a device that isn't locked by their PIN (lib/adult/privacy.ts). */

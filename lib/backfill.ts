@@ -28,6 +28,7 @@ import { summarizeUsage } from "./pricing";
 import { planDate } from "./beats";
 import {
   DATE_VARIABLES,
+  dateNumberOf,
   DEFAULT_AUTONOMY,
   DEFAULT_GAME_BUDGET,
   DEFAULT_STRATEGY,
@@ -104,7 +105,7 @@ async function conversationFor(db: Db, r: Row, actor: Model, director: Model): P
   const forDate = (p: "a" | "b"): CharacterForDate => ({ id: r[`${p}_id`], sheet: sheet(r, p) });
   const snapshot = r.setup?.signals_a && r.setup?.signals_b ? { a: r.setup.signals_a, b: r.setup.signals_b } : undefined;
   // An old date re-decides on the history it ran on: its snapshot, or (before snapshots) dates and last ending only.
-  const built = await buildDate(db, r.id, forDate("a"), forDate("b"), req, seed, snapshot, { historyOverride: r.setup?.history, legacyHistory: true, nudges: { a: r.setup?.nudge_a ?? null, b: r.setup?.nudge_b ?? null }, avoidVenues: r.setup?.avoid_venues ?? [], venueOverride: r.setup?.venue, agreedPlan: r.setup?.agreed_plan ?? null });
+  const built = await buildDate(db, r.id, forDate("a"), forDate("b"), req, seed, snapshot, { historyOverride: r.setup?.history, legacyHistory: true, dateNumber: dateNumberOf(r.setup), nudges: { a: r.setup?.nudge_a ?? null, b: r.setup?.nudge_b ?? null }, avoidVenues: r.setup?.avoid_venues ?? [], venueOverride: r.setup?.venue, agreedPlan: r.setup?.agreed_plan ?? null });
   // An old date's characters speak as they were then: no memory of dates that came after it.
   const characters = built.characters.map((c) => ({ ...c, memory: null })) as [Character, Character];
   const outcome = storedOutcome(r, built.seed);

@@ -1184,6 +1184,12 @@ create table if not exists adult_reels (
   updated_at timestamptz not null default now()
 );
 create index if not exists adult_reels_pair on adult_reels (owner_id, character_a, character_b, created_at desc);
+-- Clips on demand (lib/adult/clips.ts, 2026-10-22): a clip is a reel of one shot, from the act menu or the scene's
+-- latest moment, that can be kept going. kind: 'night' (every reel before) or 'clip'; clip: its act, who leads, the clip
+-- it keeps going from, its stage and place, and what the list calls it. Its price in bought tokens: clip_tokens.
+alter table adult_reels add column if not exists kind text not null default 'night';
+alter table adult_reels add column if not exists clip jsonb;
+alter table adult_settings add column if not exists clip_tokens integer;
 -- Every image the output check refused: never the image itself, only why (for the admin to see it's working).
 create table if not exists adult_rejections (
   id text primary key,
@@ -1458,6 +1464,28 @@ alter table adult_scenes add column if not exists whispers jsonb not null defaul
 alter table adult_scenes add column if not exists undo jsonb not null default '[]';
 alter table adult_steps add column if not exists whisper jsonb;
 alter table adult_steps add column if not exists rewound jsonb;
+-- The viewer's limits for a pair (lib/adult/limits.ts; 2026-10-22), per owner and pair, kept through Start over: the
+-- intensity (null is explicit, After Dark as it was) and the hard nos ({chips: [...], own: [...]}).
+alter table adult_scenes add column if not exists intensity text;
+alter table adult_scenes add column if not exists hard_nos jsonb not null default '{}';
+-- Scenarios, turn-ons and framing (lib/adult/scenarios.ts, lib/adult/profile.ts; 2026-10-22): how the viewer frames the
+-- pair (kept through Start over), the scenario tonight started from (cleared by Start over), and each character's private
+-- turn-ons. Never in characters.extras: the show reads extras, and the house cast's upsert rewrites it.
+alter table adult_scenes add column if not exists framing text;
+alter table adult_scenes add column if not exists scenario text;
+create table if not exists adult_profiles (
+  character_id text primary key references characters (id) on delete cascade,
+  turn_ons jsonb not null default '[]',
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+-- After Dark v2.3 (lib/adult/auto-pictures.ts; 2026-10-23): the automatic pictures a scene has claimed (one per chapter
+-- and place, so a retry or a rewind never draws twice), the chapter and place a picture was drawn for, and the switch
+-- for them (null is on). Filthy, v2.3's intensity above explicit, is one more value of adult_scenes.intensity.
+alter table adult_scenes add column if not exists auto_pictures jsonb not null default '[]';
+alter table adult_images add column if not exists scene_chapter integer;
+alter table adult_images add column if not exists scene_place text;
+alter table adult_settings add column if not exists auto_scene_pictures boolean;
 -- Marketing + agent funnel analytics (lib/agent-funnel.ts). user_id is an agent_id or an anon id; event is a
 -- small enum. The partial unique index makes agent_first_* events idempotent per user, so a tool that
 -- re-fires on retry never inflates the count.

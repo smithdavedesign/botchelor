@@ -171,11 +171,13 @@ flowchart TD
     pair --> cap{"Monthly cap left?<br/>300 steps, 30 pictures, 5 clips<br/>(admins uncapped)"}
     cap -- "No" --> capped["Used up: resets on the 1st"]
     cap -- "Yes" --> write["Write the next lines (optional steer: Nudge, Direct,<br/>or 🤫 a whisper to one of them; or tap a suggested next move)<br/>on an adult-permissive model"]
-    write --> lines{"Each line: nobody under 18,<br/>no real people?"}
+    write --> lines{"Each line: nobody under 18 (no school, no age-play),<br/>no family or teacher/student roleplay, no real people?"}
     lines -- "Fails" --> dropped["Dropped and counted"]
     lines -- "Passes" --> scene["The scene, in private<br/>(adult_scenes only)"]
     scene --> director["The steer bar: three suggested next moves (mild, flirty, spicy),<br/>each held to the same rules; ↺ Rewind or ↻ Redo the last step<br/>(nothing it caused stays behind)"]
     director --> write
+    scene --> limits["Under it: 🎬 Start a night from a scenario (16, reviewed against the lines);<br/>🎚 Limits (intensity: slow burn, flirty, spicy, explicit; hard nos)<br/>that every step, steer and suggestion holds to; 💜 What they're into<br/>(framing, private turn-ons); 🧠 What they remember, each editable"]
+    limits --> write
     scene --> wants{"Turned explicit, or a picture<br/>asked for and agreed?"}
     wants -- "No" --> write
     wants -- "Yes" --> ready{"Output check set up?<br/>(the Hive key)"}
@@ -185,6 +187,12 @@ flowchart TD
     check -- "Fails" --> discard["Discarded, never stored;<br/>only the reason is logged"]
     check -- "Passes" --> gallery["Gallery (served to them only)"]
     gallery --> clip["Make it move: a clip on fal's queue,<br/>checked the same way before it's stored"]
+    scene --> ondemand{"A clip on demand (3 tokens, admins free):<br/>Clip from here, an act from the menu, or Keep going.<br/>Reached by the night? Private if past kissing?<br/>Inside the pair's limits?"}
+    ondemand -- "No" --> notyet["Refused before anything is spent<br/>(locked on the menu, or not on it at all)"]
+    ondemand -- "Yes" --> keyframe["A keyframe of both: their two baselines<br/>(+ the set, or the clip before's keyframe)"]
+    keyframe --> check
+    check -- "Passes" --> shot["One 5–10 s shot from it (Wan),<br/>checked again before it's stored;<br/>a discard or failure gives the tokens back"]
+    shot --> videos["Their videos: clips apart from the night's,<br/>each with the ones kept going from it as one film"]
 ```
 
 **Over MCP**, After Dark is the admin's own agents only:
@@ -192,7 +200,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     agent(["An agent calls /api/mcp"]) --> key{"x-frontier-key<br/>is the admin key?"}
-    key -- "Yes" --> tools["after_dark_pairs · _scene · _write · _switch · _settings<br/>(scenes belong to the admin)"]
+    key -- "Yes" --> tools["after_dark_pairs · _scene · _write · _switch · _settings · _reel · _baseline<br/>(scenes belong to the admin)"]
     key -- "No" --> none["after_dark_* aren't listed;<br/>calling one is an unknown tool"]
     none --> ask["request_after_dark (any agent):<br/>recorded, the admins are notified,<br/>nothing opens"]
 ```
@@ -225,7 +233,7 @@ flowchart LR
 | Linking an agent: a signed-in account confirms the agent's one-time link (an hour, used once); the agent gets nothing of the account | People and agents | `lib/agent-links.ts`, `/link/[code]` |
 | **After Dark:** a signed session, then `canAfterDark` (admin, or an active subscription and a passed age check); 404 for everyone else | Adult visitors | `lib/adult/entitlement.ts`, `lib/adult/mode.ts` |
 | **After Dark:** available here (on the site with a key, or local `ADULT_MODE=1`, never on Vercel by flag) | Adult visitors | `lib/adult/mode.ts` `adultAvailable` |
-| **After Dark:** the two lines (nobody under 18, no real people) on every line, steer and image prompt | Adult visitors | `lib/safety.ts` `checkAdultText` |
+| **After Dark:** the lines that never move (nobody under 18 and nothing that suggests it, no school or age-play, no family or teacher/student roleplay, no real people) on every line, steer, whisper, place, scenario and image prompt | Adult visitors | `lib/safety.ts` `checkAdultText`, `excludedTheme` |
 | **After Dark:** per-person switches (own characters and house characters only) | Adult visitors | `lib/adult/characters.ts` |
 | **After Dark:** monthly caps (300 steps, 30 pictures, 5 clips; admins uncapped) | Subscribers | `lib/adult/usage.ts` |
 | **After Dark:** the output check on every picture and clip (Hive moderation + a VLM age check, fails closed, discard never store) | Adult visitors | `lib/adult/check.ts`, `lib/adult/media.ts` |
@@ -252,7 +260,7 @@ Every page leads somewhere: no dead ends.
 | `/account` | You: your characters (Card · Matches · Swipe · Send on a date · Edit), your dates, badges, blocks, the AI agents linked to you (their characters, their agent id, unlink); an After Dark card only if it's open to you | each character's pages, After Dark |
 | `/link/[code]` | The one-time link an agent gives the person it plays for: sign in, then link it | Account → Your agents |
 | `/after-dark` | After Dark (only for someone it's open to): who's in, and every pair's scene, in its own night look | a scene, back to the show, settings (admin) |
-| `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), the theater, their nights, videos, the gallery and clips | back to After Dark |
+| `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), under it 🎬 Start a night from a scenario, 🎚 Limits (intensity, hard nos), 💜 What they're into (framing, private turn-ons) and 🧠 What they remember (editable), the theater, their nights, videos (videos of the night, and clips on demand with ▶▶ Keep going), the gallery and clips | back to After Dark |
 | `/admin/after-dark/settings` | Admin only: on/off, models, the OpenRouter, fal and Hive keys, caps, other agents' requests | After Dark |
 | Any After Dark page, on a device without the PIN | The PIN prompt, in neutral words with a neutral title; Forgot your PIN? (a code to the account's email, or its password) | the page, once it's right; back to the show |
 | `/after-dark` → Privacy | The card at the foot of After Dark: blur until tapped, the neutral title, and the PIN (set, change, turn off, Lock now) | the same page |

@@ -5,8 +5,9 @@
  */
 import { afterDarkBase, afterDarkElsewhere } from "../after-dark-host";
 import type { Db } from "../db";
-import { listSwitchable, setAdultSwitch } from "./characters";
-import { listMedia } from "./media";
+import { eligibleIds, listSwitchable, setAdultSwitch } from "./characters";
+import { baselinePrompt, listMedia, makePicture } from "./media";
+import { loadCharacter } from "../character";
 import { advanceReel, listReels, makeReel, reelNight } from "./reels";
 import { siteUrl } from "../site";
 import { adultAvailable } from "./mode";
@@ -37,14 +38,23 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     description:
       "Admin only. Writes the next lines of a pair's scene on after dark's model, optionally steered. Nobody under 18 and no real people, " +
       "always; anything else between the two adults is allowed. Pictures come when the scene turns explicit, or when they ask each other for one.",
-    inputSchema: { type: "object", required: ["a", "b"], properties: { a: id, b: id, direction: { type: "string", maxLength: 300 }, steer_mode: { type: "string", enum: ["nudge", "direct"], description: "nudge (default): worked toward at the scene's own pace. direct: done now, can skip ahead." } } },
+    inputSchema: {
+      type: "object",
+      required: ["a", "b"],
+      properties: {
+        a: id,
+        b: id,
+        direction: { type: "string", maxLength: 300, description: 'With steer_mode direct, words in quotes ("…") are spoken nearly as written, by whoever the steer names.' },
+        steer_mode: { type: "string", enum: ["nudge", "direct"], description: "nudge (default): worked toward at the scene's own pace. direct: done now, can skip ahead." },
+      },
+    },
     annotations: { readOnlyHint: false },
   },
   {
     name: "after_dark_settings",
     title: "After dark: models and on/off",
     description:
-      "Admin only. Reads after dark's settings, and changes the models or turns it on or off when given. Keys are never shown or set here " +
+      "Admin only. Reads after dark's settings, and changes the models, the media provider (venice or replicate) or turns it on or off when given. Keys are never shown or set here " +
       "(only on /admin/after-dark/settings).",
     inputSchema: {
       type: "object",
@@ -54,6 +64,8 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
         image_model: { type: "string", maxLength: 120, description: "A fal.ai image model id." },
         video_model: { type: "string", maxLength: 120, description: "A fal.ai video model id." },
         image_base: { type: "string", maxLength: 160, description: "For fal-ai/lora: the Hugging Face id of the base model." },
+        auto_scene_pictures: { type: "boolean", description: "A picture of the pair each time a chapter starts or the place changes (on by default)." },
+        media_provider: { type: "string", enum: ["venice", "replicate"], description: "Where pictures, keyframes, videos and voices are made." },
       },
     },
     annotations: { readOnlyHint: false },
@@ -63,6 +75,16 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     title: "After dark: switch a character in or out",
     description: "Admin only. Switches one of your characters, or a house character, in or out of after dark (this season's cast is always in).",
     inputSchema: { type: "object", required: ["character_id", "on"], properties: { character_id: id, on: { type: "boolean" } } },
+    annotations: { readOnlyHint: false },
+  },
+  {
+    name: "after_dark_baseline",
+    title: "After dark: a new portrait",
+    description:
+      "Admin only. Draws a new baseline portrait of one character in after dark (character_id) with the current media provider " +
+      "(after_dark_settings media_provider), checked like every picture. The newest baseline is the face their later pictures and videos " +
+      "keep; the older one stays in the gallery, to compare.",
+    inputSchema: { type: "object", properties: { character_id: id }, required: ["character_id"] },
     annotations: { readOnlyHint: false },
   },
   {
@@ -96,7 +118,9 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
   if (name === "after_dark_settings") {
     const patch: Record<string, unknown> = {};
     if (typeof args.enabled === "boolean") patch.enabled = args.enabled;
+    if (typeof args.auto_scene_pictures === "boolean") patch.auto_scene_pictures = args.auto_scene_pictures;
     for (const k of ["text_model", "image_model", "video_model", "image_base"]) if (typeof args[k] === "string" && (args[k] as string).trim()) patch[k] = (args[k] as string).trim();
+    if (args.media_provider === "venice" || args.media_provider === "replicate") patch.media_provider = args.media_provider;
     return { data: { settings: Object.keys(patch).length ? await saveAdultSettings(db, patch) : await getAdultSettings(db) } };
   }
   if (!(await adultAvailable(db))) return { error: "After dark is off: turn it on in its settings (/admin/after-dark/settings)." };
@@ -113,11 +137,24 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
     }
     case "after_dark_write": {
       const r = await continueScene(db, owner, a, b, typeof args.direction === "string" ? args.direction : null, args.steer_mode === "direct" ? "direct" : "nudge");
-      return r.ok ? { data: { scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}) } } : { error: r.message };
+      return r.ok
+        ? { data: { scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}), ...(r.auto_picture ? { auto_picture: "drawing" } : {}) } }
+        : { error: r.message };
     }
     case "after_dark_switch": {
       const ok = await setAdultSwitch(db, owner, String(args.character_id ?? ""), args.on === true);
       return ok ? { data: { characters: await listSwitchable(db, owner) } } : { error: "Only the admin's own characters, and house characters, can be switched on." };
+    }
+    case "after_dark_baseline": {
+      const id = String(args.character_id ?? "");
+      if (!(await eligibleIds(db, owner)).has(id)) return { error: "Pick a character who is in after dark (after_dark_pairs lists them)." };
+      const c = await loadCharacter(db, id);
+      if (!c) return { error: "No such character." };
+      try {
+        return { data: { picture: await makePicture(db, owner, { prompt: baselinePrompt(c, owner), kind: "baseline", character_id: id }) } };
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : "The picture didn't come." };
+      }
     }
     case "after_dark_reel": {
       if (typeof args.reel_id === "string") {

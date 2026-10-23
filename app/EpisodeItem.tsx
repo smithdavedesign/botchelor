@@ -2,22 +2,23 @@ import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import { formatLabel } from "@/lib/formats";
 import type { EpisodeView } from "@/lib/game";
-import { dateLabel, ENDING_LABELS } from "@/lib/rules";
+import { dateLabel, dateNumberOf, endingLabel } from "@/lib/rules";
 
 /** One episode in a list (Watch's latest episodes, Account's own dates): the pair, where it stands, its setting. */
 export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
   const [a, b] = episode.characters;
+  const dateNo = dateNumberOf(episode);
   const status = episode.hidden
     ? "Hidden after reports"
     : episode.revealed
       ? // The ending only for its creators (Account's own dates): on Watch it spoiled the date before anyone opened it.
         episode.is_creator && episode.ending
-        ? `Aired: ${ENDING_LABELS[episode.ending]}`
+        ? `Aired: ${endingLabel(episode.ending, dateNo)}`
         : "Aired"
       : episode.is_creator
         ? "Waiting for the finale"
         : episode.my_pick
-          ? `You picked ${ENDING_LABELS[episode.my_pick]}`
+          ? `You picked ${endingLabel(episode.my_pick, dateNo)}`
           : "Open for predictions";
   return (
     <li className="card">

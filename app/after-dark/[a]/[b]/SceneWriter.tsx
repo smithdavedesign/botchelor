@@ -5,6 +5,10 @@ import { requestJson } from "@/app/request";
 import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import AfterDarkTheater from "./AfterDarkTheater";
+import Limits from "./Limits";
+import Memory from "./Memory";
+import Profile from "./Profile";
+import Scenarios from "./Scenarios";
 import Link from "next/link";
 import Reels, { stopReel } from "./Reels";
 import Avatar from "@/app/Avatar";
@@ -92,6 +96,17 @@ export default function SceneWriter({
   const isThisPair = (r: BusyReel) => new Set([r.a, r.b, scene.a.id, scene.b.id]).size === 2;
   const nameOf = (who: "a" | "b") => (who === "a" ? scene.a.name : scene.b.name).split(/\s+/)[0];
 
+  /** Fetches the gallery again a little later (twice: a picture and its checks take a while), adding what's new. */
+  function lookForPictures() {
+    for (const ms of [20_000, 60_000]) {
+      setTimeout(async () => {
+        const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+        const fresh = (r?.gallery as Media[] | undefined) ?? [];
+        if (fresh.length) setGallery((g) => [...fresh.filter((m) => !g.some((x) => x.id === m.id)), ...g]);
+      }, ms);
+    }
+  }
+
   /** Sends one action to the scene's route; whether it went through. */
   async function send(body: Record<string, unknown>): Promise<boolean> {
     if (writing.current) return false;
@@ -107,6 +122,11 @@ export default function SceneWriter({
       return false;
     }
     if (!res.ok) {
+      // A scenario filed and placed whose first lines didn't come: show where it stands, the opening ready to send.
+      if (body.scenario && res.data.scene) {
+        setScene(res.data.scene as AdultScene);
+        if (Array.isArray(res.data.nights)) setNightList(res.data.nights as AdultNight[]);
+      }
       setNote({ text: res.message, error: true });
       return false;
     }
@@ -121,6 +141,9 @@ export default function SceneWriter({
       return true;
     }
     if (body.redo) setAutoplay(false);
+    if (body.limits) return true;
+    // A picture of the chapter or the new place is drawing after the response (lib/adult/auto-pictures.ts): look again soon.
+    if (res.data.auto_picture) lookForPictures();
     const pictures = (res.data.pictures as Media[] | undefined) ?? [];
     if (pictures.length) setGallery((g) => [...pictures, ...g]);
     const held = Number(res.data.held ?? 0);
@@ -134,9 +157,10 @@ export default function SceneWriter({
       typeof res.data.picture_note === "string" ? `Picture: ${res.data.picture_note}` : "",
     ].filter(Boolean);
     if (body.set_scene) parts.push("They're there now. Press Next to see them arrive.");
+    if (body.scenario) parts.unshift("A new night: the last one is under Their nights.");
     if (body.redo) parts.unshift("Rewritten: the last step was taken back and written again.");
     if (body.whisper) parts.push(`🤫 Whispered to ${nameOf((body.whisper as { to: "a" | "b" }).to)}: it shapes this step and the next.`);
-    const stop = autoplay && !body.reset && body.set_scene === undefined && !body.forget_whisper ? autoplayStop(scene, next, Number(res.data.added ?? 0)) : null;
+    const stop = autoplay && !body.reset && body.set_scene === undefined && !body.forget_whisper && !body.scenario ? autoplayStop(scene, next, Number(res.data.added ?? 0)) : null;
     if (stop) {
       setAutoplay(false);
       parts.push(stop);
@@ -323,6 +347,14 @@ export default function SceneWriter({
           </label>
         </p>
       </form>
+      {/* The viewer's limits for the pair, and what the two of them remember (both theirs to see and change): under the
+          steer bar, which settles into its place above them, so it never covers them. */}
+      <div className="ad-panels">
+        <Scenarios busy={busy} hasLines={scene.lines.length > 0} current={scene.scenario} onStart={(id) => send({ scenario: id })} />
+        <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits) => send({ limits })} />
+        <Profile scene={scene} onScene={setScene} />
+        <Memory a={scene.a} b={scene.b} onScene={setScene} />
+      </div>
       {watching && (
         <AfterDarkTheater
           scene={{ lines: watching.lines, place: watching.place, stage: watching.stage, dateVenue: watching.date_venue, set: watching.set_place }}
@@ -419,7 +451,7 @@ function Gallery({ items, problem, onAdd }: { items: Media[]; problem: string | 
     return (
       <>
         {problemNote}
-        <p className="muted small">No pictures yet: the first ones come when a scene turns explicit, or when they ask each other for one.</p>
+        <p className="muted small">No pictures yet: they come as each chapter starts and when they go somewhere new, when a scene turns explicit, or when they ask each other for one.</p>
       </>
     );
   }
@@ -455,6 +487,10 @@ function Gallery({ items, problem, onAdd }: { items: Media[]; problem: string | 
                 <img src={mediaUrl(m.id)} alt={m.kind === "baseline" ? "Baseline picture" : "Scene picture"} loading="lazy" />
               )}
               <span className="badge">{m.kind}</span>
+              {m.kind === "scene" && (m.chapter || m.place) && (
+                // Drawn for a chapter and a place (lib/adult/auto-pictures.ts).
+                <span className="muted small ad-picture-where">{[m.chapter ? `Chapter ${m.chapter}` : "", m.place ?? ""].filter(Boolean).join(" · ")}</span>
+              )}
               {m.clip && (
                 <button type="button" className="button-ghost small" onClick={() => void makeClip(m.id)}>
                   Make it move

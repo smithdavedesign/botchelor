@@ -17,11 +17,12 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { secondDateState } from "@/lib/second-date";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
-import { DATE_ACTS, dateLabel, DRAMA_QUESTION_LABELS, dramaAnswerLabel, ENDING_LABELS, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
+import { DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
 import { formatLabel } from "@/lib/formats";
 import { venueBackdropCss, venueName } from "@/lib/venues";
 import { venueBackdrop } from "@/lib/portraits";
 import Avatar from "@/app/Avatar";
+import CharacterName from "@/app/CharacterName";
 import Afterglow, { SecondDate } from "./Afterglow";
 import EpisodeTheater from "./EpisodeTheater";
 import ChatThread from "@/app/ChatThread";
@@ -87,7 +88,7 @@ function MakeYourOwn() {
   );
 }
 
-type HeroCharacter = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null; agent?: boolean };
+type HeroCharacter = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null; agent?: boolean; private?: boolean };
 
 /**
  * The top of an episode (David, 2026-10-21: "expand the setting image so it's like a hero background… entice people
@@ -130,7 +131,7 @@ function EpisodeHero({
           <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={84} />
         </div>
         <h1>
-          {a.name} <span className="episode-hero-x">×</span> {b.name}
+          <CharacterName character={a} avatar={false} /> <span className="episode-hero-x">×</span> <CharacterName character={b} avatar={false} />
         </h1>
         {setting && <p className="episode-hero-setting">{setting}</p>}
         {children}
@@ -237,6 +238,8 @@ export default async function EpisodePage({
   const base = siteUrl();
   // The theater can play it (the ending is known and there are lines), so the written recap folds behind a toggle.
   const hasTheater = Boolean(episode.ending && episode.transcript && episode.transcript.length > 0);
+  // Which date this is for the couple: a happy ending on their third date reads "A fourth date", never "A second date".
+  const dateNo = dateNumberOf(episode);
   return (
     <article className="episode-page">
       {episode.visibility === "public" && !episode.hidden && (
@@ -283,7 +286,7 @@ export default async function EpisodePage({
               characters={episode.characters}
               venue={episode.venue ?? null}
               transcript={episode.transcript}
-              endingLabel={ENDING_LABELS[episode.ending]}
+              endingLabel={endingLabel(episode.ending, dateNo)}
               autoOpen={play && episode.is_creator}
               startAt={play && episode.is_creator ? from : 0}
             />
@@ -336,7 +339,7 @@ export default async function EpisodePage({
                 <li key={g.character_id} className="card">
                   {c && <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={40} />}
                   <p>
-                    <strong>{nameOf(g.character_id)}</strong> {g.goal}
+                    {c ? <CharacterName character={c} avatar={false} strong /> : <strong>{nameOf(g.character_id)}</strong>} {g.goal}
                   </p>
                 </li>
               );
@@ -358,6 +361,7 @@ export default async function EpisodePage({
             dramaQuestion={episode.drama_question}
             myPick={episode.my_pick}
             myDramaPick={episode.my_drama_pick}
+            dateNumber={dateNo}
             visibility={episode.visibility}
             airsAt={airsAt}
           />
@@ -390,7 +394,7 @@ export default async function EpisodePage({
             <p>{episode.twist}</p>
             <h2>The finale</h2>
             <p>{episode.finale}</p>
-            <p className="ending">Ending: {ENDING_LABELS[episode.ending]}</p>
+            <p className="ending">Ending: {endingLabel(episode.ending, dateNo)}</p>
             {episode.drama_question && episode.drama_answer && (
               <p>
                 {DRAMA_QUESTION_LABELS[episode.drama_question]}{" "}
@@ -452,7 +456,7 @@ export default async function EpisodePage({
             </ul>
             {surprise && (
               <p className={surprise.surprised ? "notice" : undefined}>
-                You guessed {ENDING_LABELS[surprise.self_pick]}; your AI landed on {ENDING_LABELS[surprise.actual]}.{" "}
+                You guessed {endingLabel(surprise.self_pick, dateNo)}; your AI landed on {endingLabel(surprise.actual, dateNo)}.{" "}
                 {surprise.surprised ? "It surprised you." : "Exactly as you expected."}
               </p>
             )}
@@ -461,7 +465,7 @@ export default async function EpisodePage({
       </RecapToggle>
 
       {episode.afterglow && (
-        <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} />
+        <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} dateNumber={dateNo} />
       )}
       {!episode.afterglow && secondDate?.mutual && (
         <section className="card">
@@ -469,7 +473,7 @@ export default async function EpisodePage({
         </section>
       )}
 
-      {episode.is_creator && episode.box_score && <SlidingDoors episodeId={episode.id} />}
+      {episode.is_creator && episode.box_score && <SlidingDoors episodeId={episode.id} dateNumber={dateNo} />}
 
       {quiz && (
         <DealbreakerQuiz
@@ -487,7 +491,7 @@ export default async function EpisodePage({
         <section className="card">
           {episode.my_pick ? (
             <p className={episode.my_points ? "notice" : undefined}>
-              You picked {ENDING_LABELS[episode.my_pick]}
+              You picked {endingLabel(episode.my_pick, dateNo)}
               {episode.drama_question &&
                 episode.my_drama_pick &&
                 ` and ${dramaAnswerLabel(episode.drama_question, episode.my_drama_pick, names)}`}

@@ -8,6 +8,9 @@ the admin's own use, and it might become a paid season one day. Nobody's own cha
 - **Nobody under 18.** No minors, no "young-looking", no ages under 18 mentioned in passing, and no steer that makes
   someone younger (`checkAdultText` in `lib/safety.ts`, which is stricter on age than the show).
 - **No real, identifiable people**, in text or in images.
+- **No family or step-family, no teacher and student, no school settings, no age-play** (David, 2026-10-22), in any
+  steer, whisper, line, place or scenario (`checkAdultText`'s `excludedTheme` in `lib/safety.ts`). Everything between
+  them is consensual: either can stop, and the viewer's hard nos are never crossed (`lib/adult/limits.ts`).
 
 Everything else between the fictional adults is allowed. Every line the model writes and every steer goes through
 the check. A line that fails is dropped, and the admin is told how many.
