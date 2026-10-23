@@ -1765,6 +1765,69 @@ create table if not exists adult_privacy (
   updated_at timestamptz not null default now()
 );
 
+-- Connections (lib/connections.ts, docs/PRDs/connections.md): a person's own provider keys, one per provider, sealed by
+-- lib/key-crypto.ts and never read back (only the last four). Each job (dates and texts, portraits, intro clips) uses
+-- at most one of them, with the model it runs. A key's status is kept with it: when it was last checked live, last
+-- used, and the last thing that went wrong, in plain words (never the provider's own message).
+create table if not exists user_connections (
+  user_id text not null references accounts (user_id) on delete cascade,
+  provider text not null,
+  ciphertext text not null,
+  nonce text not null,
+  last4 text not null,
+  verified_at timestamptz,
+  last_used_at timestamptz,
+  last_error text,
+  last_error_kind text,
+  last_error_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, provider)
+);
+create table if not exists user_connection_jobs (
+  user_id text not null,
+  job text not null check (job in ('text', 'image', 'video')),
+  provider text not null,
+  model text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, job),
+  foreign key (user_id, provider) references user_connections (user_id, provider) on delete cascade
+);
+-- M16's user_keys rows move in, once (a key per provider and kind before; a key per provider and its jobs now). Same
+-- sealing, so each ciphertext moves as it is. When a provider had a key in both kinds, the text one is kept (in
+-- production, 2026-10-23, the one such pair had the same last four). The jobs are what each key did before: a text key
+-- runs dates; OpenAI's image-kind key, portraits; any Google key, clips (userVideoKey fell back to the dates key). A
+-- model nobody chose is pinned to the default it ran on then, so a later default never changes someone's model
+-- silently. Moved rows are deleted, so a key removed later can't come back on the next schema change. Never fatal: a
+-- failure leaves user_keys as it was and the app up.
+do $$ begin
+  insert into user_connections (user_id, provider, ciphertext, nonce, last4, created_at, updated_at)
+  select distinct on (user_id, provider) user_id, provider, ciphertext, nonce, last4, created_at, created_at
+    from user_keys order by user_id, provider, (kind = 'text') desc, created_at desc
+  on conflict (user_id, provider) do nothing;
+  insert into user_connection_jobs (user_id, job, provider, model, created_at, updated_at)
+  select distinct on (k.user_id, k.job) k.user_id, k.job, k.provider, k.model, k.created_at, k.created_at
+    from (
+      select user_id, provider, created_at, kind,
+             case when kind = 'text' then 'text' when provider = 'openai' then 'image' end as job,
+             case when kind = 'text' then coalesce(model, case provider
+               when 'google' then 'gemini-3.5-flash-lite' when 'openai' then 'gpt-4.1-mini' when 'anthropic' then 'claude-haiku-5-5'
+               when 'deepseek' then 'deepseek-chat' when 'groq' then 'llama-3.3-70b-versatile' when 'openrouter' then 'openai/gpt-4.1-mini' end)
+             else model end as model
+        from user_keys
+      union all
+      select user_id, provider, created_at, kind, 'video', null from user_keys where provider = 'google'
+    ) k
+   where k.job is not null
+     and exists (select 1 from user_connections c where c.user_id = k.user_id and c.provider = k.provider)
+   order by k.user_id, k.job, (k.kind = 'image') desc, k.created_at desc
+  on conflict (user_id, job) do nothing;
+  delete from user_keys k where exists (select 1 from user_connections c where c.user_id = k.user_id and c.provider = k.provider);
+exception when others then
+  raise warning 'connections: user_keys were not moved (%)', sqlerrm;
+end $$;
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

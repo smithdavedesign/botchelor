@@ -21,7 +21,8 @@ export type RateLimitBucket =
   | "send_text"
   | "start_own_date"
   | "submit_own_date_step"
-  | "feedback";
+  | "feedback"
+  | "key_check";
 
 /** Per-bucket window and limit, chosen so a healthy user never hits them and an abuser hits them fast. */
 const LIMITS: Record<RateLimitBucket, { windowSeconds: number; max: number }> = {
@@ -40,6 +41,9 @@ const LIMITS: Record<RateLimitBucket, { windowSeconds: number; max: number }> = 
   submit_own_date_step: { windowSeconds: 60, max: 60 },
   // Feedback is grateful, not a channel for noise.
   feedback: { windowSeconds: 3600, max: 10 },
+  // Checking a key live (lib/connections.ts checkKey) sends it to its provider for us: a person connecting a few keys
+  // checks a handful; anything more is someone using the show to test keys that aren't theirs.
+  key_check: { windowSeconds: 600, max: 12 },
 };
 
 type Entry = { timestamps: number[] };

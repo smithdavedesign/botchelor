@@ -47,6 +47,10 @@ The showrunner can run plan + recap on a stronger model while actor turns stay o
 
 ## BYOK (bring your own key)
 
+On the website, keys are managed on **Connections** (`/account/keys`, [docs/PRDs/connections.md](PRDs/connections.md)): one
+card per job, keys checked live before they're stored, sealed under `KEY_ENCRYPTION_SECRET`, and (M3) a monthly cap per job
+with a fallback to the free model.
+
 Already partly in place (`lib/keys.ts` + `TALK_LEVELS` "marathon" requires BYOK). Expand to:
 
 ### 1. One tool to set a key, one to clear it

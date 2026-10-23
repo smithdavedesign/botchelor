@@ -36,7 +36,7 @@ export default async function AfterDarkSettingsPage() {
       <h1>After dark settings</h1>
       <p className="muted">
         Admins only. Text runs on OpenRouter, pictures and clips on fal.ai, on keys you create (set a spend limit with each provider first). Keys
-        are stored sealed and only their last four are shown again.
+        are stored sealed and only their last four are shown again. Each provider&apos;s live status is on <Link href="/admin/after-dark/providers">Providers</Link>.
       </p>
       <section className="card">
         <h2>Paused right now</h2>

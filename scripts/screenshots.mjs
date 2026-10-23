@@ -22,6 +22,7 @@ import { createServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { startProviderStub } from "./harness.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const NEXT_BIN = join(ROOT, "node_modules", "next", "dist", "bin", "next");
@@ -668,18 +669,19 @@ async function capture(base, leagueId, viewer) {
       // character and sent it on a date, so the account adopts them.
       const handle = `mapmaker${label}`;
       const accountPw = ["sample", "account", "pass", "2026"].join("-"); // built from parts, never a literal secret
-      const sampleKey = ["AIza", "sample", "0".repeat(28), "Ab12"].join(""); // a fake key, for the last-four display
+      const sampleKey = ["sample", "key", "not", "real", "Ab12"].join("-"); // a fake key, for the last-four display
       await home.goto(`${base}/account`);
       await home.locator('input[name="handle"]').fill(handle);
       await home.locator('input[name="password"]').fill(accountPw);
       await home.locator('input[name="attest"]').check();
       await home.getByRole("button", { name: "Create account" }).click();
       await home.getByText(`Signed in as ${handle}`).waitFor();
-      await home.getByRole("heading", { name: "Your model key (optional)" }).waitFor();
-      await home.locator("#model-key details").first().locator("summary").click(); // each key is folded to its status line
-      await home.locator('input[name="key"]').first().fill(sampleKey); // the text-key form (an image-key form follows)
-      await home.getByRole("button", { name: "Save key", exact: true }).click();
-      await home.getByText("····Ab12").waitFor();
+      await home.getByRole("heading", { name: "Connections (optional)" }).waitFor();
+      // Connect a key the way Connections does (checked live by the local provider stub), then the account page sums it up.
+      const connected = await home.request.put(`${base}/api/me/connections`, { data: { job: "text", provider: "google", key: sampleKey } });
+      if (!connected.ok()) throw new Error(`connecting a key: HTTP ${connected.status()}`);
+      await home.reload();
+      await home.getByText("Your Google key ✓").first().waitFor();
       await shot(home, "account", { full: true });
       await visitor.close();
 
@@ -801,7 +803,9 @@ async function main() {
 
   build();
   const showrunner = await startShowrunner();
-  const env = appEnv(showrunner.address().port);
+  // The model providers a key is checked against, on loopback (BYOK_STUB_ORIGIN): the account shot connects a fake key.
+  const providerStub = await startProviderStub();
+  const env = { ...appEnv(showrunner.address().port), BYOK_STUB_ORIGIN: `http://127.0.0.1:${providerStub.address().port}` };
   const port = await freePort();
   const cast = Object.fromEntries(
     ["wren", "kestrel", "alder", "birch", "cedar", "miraCreator", "ottoCreator"].map((k) => [k, persona()]),
@@ -827,6 +831,7 @@ async function main() {
   } finally {
     await stopApp(app);
     showrunner.close();
+    providerStub.close();
     rmSync(DATA_DIR, { recursive: true, force: true });
   }
 }

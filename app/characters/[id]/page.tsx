@@ -18,6 +18,7 @@ import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { getDb } from "@/lib/db";
 import { getCharacterDatesPage, getPublicCharacter } from "@/lib/game";
 import { isAdmin } from "@/lib/admins";
+import { hasJobKey } from "@/lib/connections";
 import { CLIP_TOKEN_COST, episodeAllowance } from "@/lib/allowance";
 import { loadCharacter } from "@/lib/character";
 import { thisWeek } from "@/lib/life";
@@ -131,11 +132,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       ? await Promise.all([
           isAdmin(db, viewerId),
           episodeAllowance(db, viewerId),
-          db.query("select 1 from user_keys where user_id = $1 and provider = 'google' limit 1", [viewerId]),
+          hasJobKey(db, viewerId, "video"),
         ]).then(([admin, tokens, key]) => ({
           admin,
           boughtTokens: tokens.pack_left,
-          hasKey: key.rows.length > 0,
+          hasKey: key,
           cost: CLIP_TOKEN_COST,
           // Baseline-still gate: Veo drifts without an image anchor, so a clip now needs an approved portrait first.
           hasPortrait: Boolean(c.portrait_asset_id),
@@ -161,8 +162,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     ratings.is_owner && !c.house && viewerId
       ? await Promise.all([
           db.query<{ talk: string | null }>("select talk from characters where id = $1", [id]),
-          db.query("select 1 from user_keys where user_id = $1 and kind = 'text' limit 1", [viewerId]),
-        ]).then(([t, key]) => ({ level: isTalkLevel(t.rows[0]?.talk) ? t.rows[0].talk as TalkLevel : "standard" as TalkLevel, hasTextKey: key.rows.length > 0 }))
+          hasJobKey(db, viewerId, "text"),
+        ]).then(([t, key]) => ({ level: isTalkLevel(t.rows[0]?.talk) ? t.rows[0].talk as TalkLevel : "standard" as TalkLevel, hasTextKey: key }))
       : null;
   // Owner only: how the engine reads it on a date (its effective temperament, learned drift included).
   const plays = ratings.is_owner && !c.house ? (await loadCharacter(db, id))?.signals ?? null : null;

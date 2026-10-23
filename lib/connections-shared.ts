@@ -1,0 +1,386 @@
+/**
+ * Connections, the parts the page and the server share (docs/PRDs/connections.md): the jobs a key can do, the
+ * providers that can do each, how a stored key is shown (its last four, when it was checked) and errors in plain
+ * words with the fix. Client-safe and pure: no node imports, no database. The store and the provider calls are in
+ * lib/connections.ts.
+ */
+
+/** What a key can be used for. Each job has at most one key (one connection) at a time. */
+export const JOBS = ["text", "image", "video"] as const;
+export type Job = (typeof JOBS)[number];
+export const isJob = (v: unknown): v is Job => typeof v === "string" && (JOBS as readonly string[]).includes(v);
+
+export type JobInfo = {
+  title: string;
+  /** What the job is, in a line. */
+  what: string;
+  /** What runs it with no key of yours: the free model (dates), or nothing (portraits and clips need a key). */
+  free: string | null;
+  /** The card's anchor on /account/keys. */
+  anchor: string;
+  /** About what one use costs on the key, when that doesn't depend on the model. */
+  costHint: string | null;
+};
+
+export const JOB_INFO: Record<Job, JobInfo> = {
+  text: {
+    title: "Dates & texts",
+    what: "Your characters' lines on their dates, and texting between dates whenever you like.",
+    free: "Botchelor's free model",
+    anchor: "dates",
+    costHint: null,
+  },
+  image: {
+    title: "Portraits & pictures",
+    what: "A portrait of your own character, made when you ask for one (OpenAI moderates it).",
+    free: null,
+    anchor: "portraits",
+    costHint: "OpenAI's price, a few cents a portrait",
+  },
+  video: {
+    title: "Intro clips",
+    what: "A 4-second intro clip from a character's portrait, made when you ask for one (Veo, on Google).",
+    free: null,
+    anchor: "clips",
+    costHint: "about 20¢ a clip on your Google bill",
+  },
+};
+
+/**
+ * Providers whose chat API is OpenAI-compatible at a known base URL. No custom endpoints (SSRF / prompt theft).
+ * Each entry declares a short list of recommended models the UI shows: curated so users don't paste an id a
+ * provider doesn't have. The `defaultModel` is used when a user picks a provider but doesn't name a model.
+ *
+ * Adding a provider? Pick one that's genuinely OpenAI-compatible at `/chat/completions`, add it below and to
+ * PROVIDER_INFO, and keep the entry a single line. The validate ping and MCP's `set_model` pick it up automatically.
+ */
+export const TEXT_PROVIDERS = {
+  google: {
+    label: "Google Gemini",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    defaultModel: "gemini-3.5-flash-lite",
+    models: [
+      { id: "gemini-3.5-flash-lite", note: "the free-tier default; cheap and fast" },
+      { id: "gemini-3.5-flash", note: "a step up in writing, still cheap" },
+      { id: "gemini-3.5-pro", note: "best Gemini writing; more expensive" },
+    ],
+  },
+  openai: {
+    label: "OpenAI",
+    baseUrl: "https://api.openai.com/v1",
+    defaultModel: "gpt-4.1-mini",
+    models: [
+      { id: "gpt-4.1-mini", note: "the default; cheap, strong at dialogue" },
+      { id: "gpt-4.1", note: "flagship; best writing, highest cost" },
+      { id: "gpt-5-mini", note: "newer reasoning model" },
+    ],
+  },
+  anthropic: {
+    label: "Anthropic Claude",
+    baseUrl: "https://api.anthropic.com/v1",
+    defaultModel: "claude-haiku-5-5",
+    models: [
+      { id: "claude-haiku-5-5", note: "cheap, fast; strong dialogue" },
+      { id: "claude-sonnet-5-5", note: "the balanced pick for writing" },
+      { id: "claude-opus-5-5", note: "best writing; expensive" },
+    ],
+  },
+  deepseek: {
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com",
+    defaultModel: "deepseek-chat",
+    models: [
+      { id: "deepseek-chat", note: "very cheap; good at English + Chinese" },
+      { id: "deepseek-reasoner", note: "reasoning model; more thought, slower" },
+    ],
+  },
+  groq: {
+    label: "Groq",
+    baseUrl: "https://api.groq.com/openai/v1",
+    defaultModel: "llama-3.3-70b-versatile",
+    models: [
+      { id: "llama-3.3-70b-versatile", note: "fast inference (~500 tok/s)" },
+      { id: "llama-3.1-8b-instant", note: "smaller, cheaper, fastest" },
+      { id: "openai/gpt-oss-120b", note: "open-weights GPT; largest Groq hosts" },
+    ],
+  },
+  openrouter: {
+    label: "OpenRouter",
+    baseUrl: "https://openrouter.ai/api/v1",
+    defaultModel: "openai/gpt-4.1-mini",
+    models: [
+      { id: "openai/gpt-4.1-mini", note: "route to OpenAI, pay by usage" },
+      { id: "anthropic/claude-haiku-5-5", note: "route to Anthropic Claude" },
+      { id: "deepseek/deepseek-chat", note: "route to DeepSeek" },
+      { id: "x-ai/grok-4", note: "route to xAI Grok" },
+    ],
+  },
+} as const;
+export type TextProvider = keyof typeof TEXT_PROVIDERS;
+export const isTextProvider = (p: string): p is TextProvider => p in TEXT_PROVIDERS;
+
+/** The providers a person can connect, in the order the connect flow offers them. */
+export const USER_PROVIDERS = ["openrouter", "openai", "google", "anthropic", "deepseek", "groq"] as const;
+export type UserProvider = (typeof USER_PROVIDERS)[number];
+export const isUserProvider = (p: unknown): p is UserProvider => typeof p === "string" && (USER_PROVIDERS as readonly string[]).includes(p);
+
+export type ProviderInfo = {
+  label: string;
+  /** The letters on its tile: a text mark, not a logo (no outside assets). */
+  mark: string;
+  /** The jobs a key from here can do. */
+  jobs: readonly Job[];
+  /** One line on why you'd pick it. */
+  blurb: string;
+  /** What its keys look like, for the paste field. */
+  keyHint: string;
+  /** Where to make a key, and where to add credit. */
+  keysUrl: string;
+  billingUrl: string;
+};
+
+export const PROVIDER_INFO: Record<UserProvider, ProviderInfo> = {
+  openrouter: {
+    label: "OpenRouter",
+    mark: "OR",
+    jobs: ["text"],
+    blurb: "One key for hundreds of models, with a spend limit you set on the key.",
+    keyHint: "Starts with sk-or-",
+    keysUrl: "https://openrouter.ai/settings/keys",
+    billingUrl: "https://openrouter.ai/settings/credits",
+  },
+  openai: {
+    label: "OpenAI",
+    mark: "AI",
+    jobs: ["text", "image"],
+    blurb: "GPT models for dates, and the only key that makes portraits.",
+    keyHint: "Starts with sk-",
+    keysUrl: "https://platform.openai.com/api-keys",
+    billingUrl: "https://platform.openai.com/settings/organization/billing/overview",
+  },
+  google: {
+    label: "Google",
+    mark: "G",
+    jobs: ["text", "video"],
+    blurb: "Gemini for dates (it has a free tier), and Veo for intro clips (billing on).",
+    keyHint: "From AI Studio, starts with AIza",
+    keysUrl: "https://aistudio.google.com/apikey",
+    billingUrl: "https://aistudio.google.com/apikey",
+  },
+  anthropic: {
+    label: "Anthropic",
+    mark: "A",
+    jobs: ["text"],
+    blurb: "Claude for dates: strong, natural dialogue.",
+    keyHint: "Starts with sk-ant-",
+    keysUrl: "https://console.anthropic.com/settings/keys",
+    billingUrl: "https://console.anthropic.com/settings/billing",
+  },
+  deepseek: {
+    label: "DeepSeek",
+    mark: "DS",
+    jobs: ["text"],
+    blurb: "Very cheap per date.",
+    keyHint: "Starts with sk-",
+    keysUrl: "https://platform.deepseek.com/api_keys",
+    billingUrl: "https://platform.deepseek.com/top_up",
+  },
+  groq: {
+    label: "Groq",
+    mark: "GQ",
+    jobs: ["text"],
+    blurb: "Open models, very fast.",
+    keyHint: "Starts with gsk_",
+    keysUrl: "https://console.groq.com/keys",
+    billingUrl: "https://console.groq.com/settings/billing",
+  },
+};
+
+/** The providers that can do a job, in the connect flow's order. */
+export const providersFor = (job: Job): UserProvider[] => USER_PROVIDERS.filter((p) => PROVIDER_INFO[p].jobs.includes(job));
+
+/** The label for any provider id, including one stored before it was offered here. */
+export const providerLabel = (p: string): string => (isUserProvider(p) ? PROVIDER_INFO[p].label : p.charAt(0).toUpperCase() + p.slice(1));
+
+/** A model a job can run on a provider, as the model step lists it. */
+export type ModelChoice = { id: string; note: string; recommended?: boolean };
+
+/** The portrait model (lib/image.ts DEFAULT_IMAGE_MODEL) and the clip model (lib/video.ts VEO_MODEL). */
+export const IMAGE_MODEL = "gpt-image-2";
+export const VIDEO_MODEL = "veo-3.1-lite-generate-preview";
+
+/** The curated models a job can run on a provider, the recommended one first. Empty: the provider can't do the job. */
+export function curatedModels(provider: string, job: Job): ModelChoice[] {
+  if (job === "text") {
+    if (!isTextProvider(provider)) return [];
+    const p = TEXT_PROVIDERS[provider];
+    return p.models.map((m) => ({ id: m.id, note: m.note, ...(m.id === p.defaultModel ? { recommended: true } : {}) }));
+  }
+  if (job === "image") return provider === "openai" ? [{ id: IMAGE_MODEL, note: "OpenAI's current image model", recommended: true }] : [];
+  return provider === "google" ? [{ id: VIDEO_MODEL, note: "Veo 3.1 Lite: 4 s at 720p, about $0.20 a clip", recommended: true }] : [];
+}
+
+/** The model a job runs when none was picked. */
+export function defaultModelFor(provider: string, job: Job): string | null {
+  return curatedModels(provider, job).find((m) => m.recommended)?.id ?? null;
+}
+
+/** A stored key as it's shown: its last four, never more. */
+export const maskKey = (last4: string): string => `•••• ${last4}`;
+
+/** "just now", "2 min ago", "3 hours ago", "yesterday", "Oct 12": how long ago something was, as the cards say it. */
+export function ago(iso: string, now: number = Date.now()): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "";
+  const minutes = Math.floor((now - then) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  if (hours < 48) return "yesterday";
+  return new Date(then).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+/* ------------------------------------------------- errors in plain words ------------------------------------------------- */
+
+/**
+ * Why a key didn't work, sorted into what a person can do about it. `unreadable` is ours: the stored key can't be
+ * opened here any more (the server's key secret changed), so it has to be pasted again. `over_cap` is the monthly cap.
+ */
+export const ERROR_KINDS = ["invalid_key", "no_credit", "rate_limited", "model_unavailable", "provider_down", "unreachable", "unreadable", "over_cap", "unknown"] as const;
+export type ErrorKind = (typeof ERROR_KINDS)[number];
+export const isErrorKind = (v: unknown): v is ErrorKind => typeof v === "string" && (ERROR_KINDS as readonly string[]).includes(v);
+
+/** An error as the card shows it: what happened, and the one thing to do about it (a link when it's on the provider's site). */
+export type PlainError = { kind: ErrorKind; message: string; fix: { label: string; href: string | null } | null };
+
+/**
+ * The words for an error from a provider, with its fix. Never the provider's own message: that can carry part of a
+ * key, an account id or a model's internals, and none of it is what to do next.
+ */
+export function plainError(provider: string, kind: ErrorKind, opts: { model?: string | null } = {}): PlainError {
+  const name = providerLabel(provider);
+  const info = isUserProvider(provider) ? PROVIDER_INFO[provider] : null;
+  switch (kind) {
+    case "invalid_key":
+      return { kind, message: `${name} didn't accept this key.`, fix: { label: "Check you copied all of it, or make a new key", href: info?.keysUrl ?? null } };
+    case "no_credit":
+      return { kind, message: `${name}: out of credit.`, fix: { label: "Top up", href: info?.billingUrl ?? null } };
+    case "rate_limited":
+      return { kind, message: `${name} is limiting this key for now (too many requests, or a free tier's quota).`, fix: { label: "Wait a few minutes, or raise the key's limits", href: info?.billingUrl ?? null } };
+    case "model_unavailable":
+      return { kind, message: `${name} doesn't offer ${opts.model ? opts.model : "that model"} on this key.`, fix: { label: "Pick another model", href: null } };
+    case "provider_down":
+      return { kind, message: `${name} is having trouble right now.`, fix: { label: "Try again in a few minutes", href: null } };
+    case "unreachable":
+      return { kind, message: `Couldn't reach ${name}.`, fix: { label: "Try again in a minute", href: null } };
+    case "unreadable":
+      return { kind, message: "This key can't be read here any more (the server's key secret changed).", fix: { label: "Paste it again", href: null } };
+    case "over_cap":
+      return { kind, message: "This month's cap is reached.", fix: { label: "Raise the cap", href: null } };
+    default:
+      return { kind: "unknown", message: `${name} turned the key down.`, fix: { label: "Check the key on its site", href: info?.keysUrl ?? null } };
+  }
+}
+
+/* --------------------------------------------- After Dark's providers (admins) --------------------------------------------- */
+
+/** The house's After Dark providers, as the admin's status view shows them (lib/adult/provider-status.ts). */
+export const HOUSE_PROVIDERS = ["openrouter", "venice", "replicate", "fal", "hive"] as const;
+export type HouseProvider = (typeof HOUSE_PROVIDERS)[number];
+export const HOUSE_PROVIDER_INFO: Record<HouseProvider, { label: string; mark: string; what: string }> = {
+  openrouter: { label: "OpenRouter", mark: "OR", what: "Writes the scenes" },
+  venice: { label: "Venice", mark: "V", what: "Pictures, keyframes, videos and voices" },
+  replicate: { label: "Replicate", mark: "R", what: "The backup for pictures, keyframes, videos and voices" },
+  fal: { label: "fal.ai", mark: "fal", what: "Pictures and clips, when set to fal" },
+  hive: { label: "Hive", mark: "H", what: "The safety check every picture and video passes" },
+};
+
+/* ------------------------------------------------------ the job cards ------------------------------------------------------ */
+
+/** A stored key as the page sees it (lib/connections.ts ConnectionInfo, without anything sealed). */
+export type ConnectionSummary = {
+  provider: string;
+  last4: string;
+  verified_at: string | null;
+  last_used_at: string | null;
+  last_error: PlainError | null;
+  last_error_at?: string | null;
+  created_at: string;
+  jobs: Job[];
+};
+export type JobSummary = { job: Job; provider: string; model: string | null };
+
+/**
+ * A job card's state (docs/PRDs/connections.md "Card states"): no key of yours (`unset`), a key that's working
+ * (`connected`) or one whose last check or call went wrong (`error`). "Checking…" is the page's own while a check runs.
+ */
+export type CardState = "unset" | "connected" | "error";
+
+export type JobCard = {
+  job: Job;
+  title: string;
+  what: string;
+  state: CardState;
+  /** The short label in the card's corner. */
+  pill: string;
+  /** The card's one status line: "Using: Botchelor's free model", "Your OpenRouter key ✓ · openai/gpt-4.1-mini". */
+  status: string;
+  /** "•••• abcd", "checked 2 min ago", "last used 1 hour ago". */
+  meta: string[];
+  provider: string | null;
+  model: string | null;
+  error: PlainError | null;
+  /** Keys already connected that could do this job too, to use without pasting again. */
+  reusable: { provider: string; label: string; last4: string }[];
+};
+
+/** What a job card says with no key of yours. */
+const UNSET_STATUS: Record<Job, string> = {
+  text: "Using: Botchelor's free model",
+  image: "Not set up: portraits need your own OpenAI key.",
+  video: "Not set up: clips need your own Google key, with billing on.",
+};
+
+/**
+ * The meta line for a stored key: its last four, when it was last checked (or, when something went wrong since, when it
+ * failed), and when it last worked.
+ */
+export function keyMeta(c: Pick<ConnectionSummary, "last4" | "verified_at" | "last_used_at" | "last_error" | "last_error_at">, now: number = Date.now()): string[] {
+  const failed = c.last_error && c.last_error_at && (!c.verified_at || c.last_error_at >= c.verified_at) ? c.last_error_at : null;
+  return [
+    maskKey(c.last4),
+    failed ? `failed ${ago(failed, now)}` : c.verified_at ? `checked ${ago(c.verified_at, now)}` : "not checked yet",
+    c.last_used_at ? `last used ${ago(c.last_used_at, now)}` : "not used yet",
+  ];
+}
+
+/** Every job's card, from a person's connections and assignments. Pure: the page and the tests share it. */
+export function jobCards(listing: { connections: ConnectionSummary[]; jobs: JobSummary[] }, now: number = Date.now()): JobCard[] {
+  return JOBS.map((job) => {
+    const info = JOB_INFO[job];
+    const a = listing.jobs.find((j) => j.job === job);
+    const c = a ? listing.connections.find((x) => x.provider === a.provider) : undefined;
+    const reusable = listing.connections
+      .filter((x) => isUserProvider(x.provider) && PROVIDER_INFO[x.provider].jobs.includes(job) && x.provider !== a?.provider)
+      .map((x) => ({ provider: x.provider, label: providerLabel(x.provider), last4: x.last4 }));
+    if (!a || !c) {
+      return { job, title: info.title, what: info.what, state: "unset", pill: info.free ? "Free model" : "Not set up", status: UNSET_STATUS[job], meta: [], provider: null, model: null, error: null, reusable };
+    }
+    const model = a.model ?? defaultModelFor(a.provider, job);
+    const error = c.last_error;
+    return {
+      job,
+      title: info.title,
+      what: info.what,
+      state: error ? "error" : "connected",
+      pill: error ? "Needs attention" : "✓ Connected",
+      status: `Your ${providerLabel(a.provider)} key${error ? "" : " ✓"}${model ? ` · ${model}` : ""}`,
+      meta: keyMeta(c, now),
+      provider: a.provider,
+      model,
+      error,
+      reusable,
+    };
+  });
+}

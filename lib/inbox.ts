@@ -4,6 +4,7 @@
  * (owner layer), so a preview never shows a text from a date the viewer couldn't open.
  */
 import { PUBLIC_COLUMNS, toProfile, type MadeBy, type ProfileRow } from "./dating";
+import { hasJobKey } from "./connections";
 import type { Db } from "./db";
 import { getPublicCharacter } from "./game";
 import { markPairNotices, pairNoticeLinks } from "./notifications";
@@ -260,7 +261,7 @@ export async function loadThread(db: Db, viewerId: string | null, a: string, b: 
     matchView(db, lo, hi),
     loadRelationship(db, lo, hi),
     loadChain(db, lo, hi, { userId: viewerId, owner: true }),
-    db.query("select 1 from user_keys where user_id = $1 and kind = 'text' limit 1", [viewerId]),
+    hasJobKey(db, viewerId, "text"),
   ]);
   if (!ca || !cb) return null;
   const view = rel ? viewRelationship(rel, { userId: viewerId, owner: true }) : null;
@@ -283,7 +284,7 @@ export async function loadThread(db: Db, viewerId: string | null, a: string, b: 
     match,
     view,
     chain: chainPage(items),
-    ownKey: key.rows.length > 0,
+    ownKey: key,
     stageLabel: view?.stage_label ?? (match ? "💘 Matched" : null),
   };
 }

@@ -34,7 +34,11 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const apiKey = await userVideoKey(db, sess.userId);
   if (!apiKey) {
     return json(
-      { error: "no_video_key", message: "Add a Google key (AI Studio, with billing on) on your account first: clips run on Veo, on your Google bill." },
+      {
+        error: "no_video_key",
+        message: "Connect a Google key for Intro clips first (Account → Connections; AI Studio, with billing on): clips run on Veo, on your Google bill.",
+        connect: "/account/keys#clips",
+      },
       400,
       sess,
     );

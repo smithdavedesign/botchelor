@@ -87,7 +87,7 @@ export default function OwnerControls(props: Props) {
       router.refresh();
     } else {
       setTalk(prev);
-      setMessage({ text: res.message ?? "Couldn't save that.", error: true, link: next === "marathon" ? { href: "/account", label: "Add a text key" } : undefined });
+      setMessage({ text: res.message ?? "Couldn't save that.", error: true, link: next === "marathon" ? { href: "/account/keys#dates", label: "Connect a key" } : undefined });
     }
   }
 
@@ -119,7 +119,7 @@ export default function OwnerControls(props: Props) {
       setMessage({ text: "Portrait updated. Regenerate until it looks right, then make the clip from it." });
       router.refresh();
     } else if (status === 400) {
-      setMessage({ text: "Add an OpenAI image key on your account first.", error: true });
+      setMessage({ text: "Connect an OpenAI key for Portraits first.", error: true, link: { href: "/account/keys#portraits", label: "Connect one" } });
     } else {
       setMessage({ text: message, error: true });
     }
@@ -137,7 +137,7 @@ export default function OwnerControls(props: Props) {
       setBusy(false);
       if (start.status === 402) setMessage({ text: start.message ?? "A clip costs bought tokens.", error: true, link: { href: "/shop", label: "Get tokens" } });
       else if (start.status === 409) setMessage({ text: start.message ?? "Approve a portrait first.", error: true });
-      else if (start.status === 400) setMessage({ text: start.message ?? "Add a Google key first.", error: true, link: { href: "/account", label: "Add a Google key" } });
+      else if (start.status === 400) setMessage({ text: start.message ?? "Add a Google key first.", error: true, link: { href: "/account/keys#clips", label: "Connect a Google key" } });
       else setMessage({ text: start.message ?? "Google couldn't start the clip.", error: true });
       return;
     }
@@ -252,7 +252,7 @@ export default function OwnerControls(props: Props) {
           <p className="muted small">
             The date and the texts after. A date runs at the longer of the two characters&apos; settings, never shorter than
             standard, and it never changes how it ends. Marathon needs both sides on their creators&apos; own keys; otherwise
-            it plays Long.{!props.talk.hasTextKey && <> <Link href="/account">Add your own key</Link> to unlock it.</>}
+            it plays Long.{!props.talk.hasTextKey && <> <Link href="/account/keys#dates">Connect your own key</Link> to unlock it.</>}
           </p>
         </div>
       )}
@@ -293,7 +293,7 @@ export default function OwnerControls(props: Props) {
                 {!props.clip.hasKey && (
                   <>
                     {" "}
-                    · <Link href="/account">add a Google key</Link>
+                    · <Link href="/account/keys#clips">connect a Google key</Link>
                   </>
                 )}
               </span>

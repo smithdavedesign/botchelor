@@ -1,147 +1,262 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { requestJson } from "@/app/request";
+import type { Job, ModelChoice, PlainError, UserProvider } from "@/lib/connections-shared";
+import ProviderMark from "./ProviderMark";
 
-type Provider = {
+/** A provider the flow offers for this job, with the key already stored for it (its last four), if any. */
+export type FlowProvider = {
+  id: UserProvider;
   label: string;
-  baseUrl: string;
-  defaultModel: string;
-  models: readonly { readonly id: string; readonly note: string }[];
+  blurb: string;
+  keyHint: string;
+  keysUrl: string;
+  stored: { last4: string } | null;
+  models: ModelChoice[];
 };
 
-type ProviderPair = [string, Provider];
+/** Another job this key could do too, offered as "Also use it for …" when that job has no key yet. */
+export type AlsoJob = { job: Job; title: string; providers: UserProvider[]; note: string };
 
-/** The BYOK form: pick a provider, paste a key, optionally override the model, test it, save it. */
-export default function KeyForm({ providers }: { providers: ProviderPair[] }) {
+type Check = { state: "busy" } | { state: "ok"; text: string } | { state: "error"; error: PlainError };
+
+const fixLink = (e: PlainError) =>
+  e.fix &&
+  (e.fix.href ? (
+    <>
+      {" "}
+      →{" "}
+      <a href={e.fix.href} target="_blank" rel="noopener noreferrer">
+        {e.fix.label}
+      </a>
+    </>
+  ) : (
+    <> → {e.fix.label}</>
+  ));
+
+/**
+ * Connecting a key for one job (docs/PRDs/connections.md "The connect flow"): pick the provider, paste the key, Test it
+ * live (free: the provider's key or model list, nothing spent), pick the model, Save. A key already stored for the
+ * provider can be used again without pasting. The key lives only in this form until it's saved; after that it's never
+ * sent back, and the page shows its last four.
+ */
+export default function KeyForm({
+  job,
+  jobTitle,
+  providers,
+  current,
+  also,
+  onDone,
+}: {
+  job: Job;
+  jobTitle: string;
+  providers: FlowProvider[];
+  current: { provider: string | null; model: string | null };
+  also: AlsoJob[];
+  onDone: () => void;
+}) {
   const router = useRouter();
-  const [provider, setProvider] = useState<string>(providers[0][0]);
+  const ids = useId();
+  const first = providers.find((p) => p.id === current.provider) ?? (providers.length === 1 ? providers[0] : null);
+  const [providerId, setProviderId] = useState<UserProvider | null>(first?.id ?? null);
+  const provider = providers.find((p) => p.id === providerId) ?? null;
+  const [useStored, setUseStored] = useState<boolean>(Boolean(first?.stored));
   const [key, setKey] = useState("");
-  const [model, setModel] = useState<string>("");
-  const [status, setStatus] = useState<null | { kind: "ok" | "err" | "busy"; text: string }>(null);
-  const current = providers.find(([id]) => id === provider)![1];
+  const [check, setCheck] = useState<Check | null>(null);
+  const recommended = (p: FlowProvider | null) => p?.models.find((m) => m.recommended)?.id ?? p?.models[0]?.id ?? "";
+  const [model, setModel] = useState<string>(current.provider === first?.id && current.model ? current.model : recommended(first));
+  const [alsoJobs, setAlsoJobs] = useState<Set<Job>>(new Set(also.filter((a) => first && a.providers.includes(first.id)).map((a) => a.job)));
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<PlainError | string | null>(null);
 
-  // Pre-fill the model with the provider's default when the dropdown changes.
-  function onProvider(next: string) {
-    setProvider(next);
-    const def = providers.find(([id]) => id === next)![1].defaultModel;
-    setModel(def);
+  function pick(next: FlowProvider) {
+    setProviderId(next.id);
+    setUseStored(Boolean(next.stored));
+    setKey("");
+    setCheck(null);
+    setSaveError(null);
+    setModel(current.provider === next.id && current.model ? current.model : recommended(next));
+    setAlsoJobs(new Set(also.filter((a) => a.providers.includes(next.id)).map((a) => a.job)));
   }
 
   async function test() {
-    if (!key.trim()) return setStatus({ kind: "err", text: "Paste a key first." });
-    setStatus({ kind: "busy", text: "Testing…" });
-    try {
-      const res = await fetch("/api/me/keys", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider, key, model: model || undefined }),
-      });
-      const body = await res.json();
-      if (body?.test?.ok) {
-        setStatus({ kind: "ok", text: `OK: ${body.test.model} replied in ${body.test.latency_ms}ms.` });
-      } else {
-        setStatus({ kind: "err", text: `Test failed: ${body?.test?.error ?? body?.message ?? "unknown"}.` });
-      }
-    } catch (e) {
-      setStatus({ kind: "err", text: `Test failed: ${e instanceof Error ? e.message : String(e)}` });
-    }
+    if (!provider || !key.trim()) return setCheck({ state: "error", error: { kind: "invalid_key", message: "Paste a key first.", fix: null } });
+    setCheck({ state: "busy" });
+    const r = await requestJson("/api/me/connections/check", { provider: provider.id, key }).catch(() => null);
+    if (!r) return setCheck({ state: "error", error: { kind: "unreachable", message: "Couldn't reach Botchelor.", fix: { label: "Try again", href: null } } });
+    const d = r.data as { ok?: boolean; models_count?: number | null; error?: PlainError };
+    if (r.ok && d.ok) {
+      const models = typeof d.models_count === "number" ? ` · ${d.models_count} models on this key` : "";
+      setCheck({ state: "ok", text: `✓ ${provider.label} accepted it${models}. Nothing is stored until you save.` });
+    } else setCheck({ state: "error", error: d.error ?? { kind: "unknown", message: r.message, fix: null } });
   }
 
-  async function save() {
-    if (!key.trim()) return setStatus({ kind: "err", text: "Paste a key first." });
-    setStatus({ kind: "busy", text: "Saving…" });
-    try {
-      const res = await fetch("/api/me/keys", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider, kind: "text", key, model: model || undefined }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        return setStatus({ kind: "err", text: `Save failed: ${body?.message ?? res.statusText}` });
-      }
-      setKey("");
-      setStatus({ kind: "ok", text: "Saved." });
-      router.refresh();
-    } catch (e) {
-      setStatus({ kind: "err", text: `Save failed: ${e instanceof Error ? e.message : String(e)}` });
-    }
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (!provider) return;
+    if (!useStored && !key.trim()) return setSaveError("Paste a key first.");
+    setSaving(true);
+    setSaveError(null);
+    const body = { job, provider: provider.id, model: model || undefined, also: [...alsoJobs], ...(useStored ? {} : { key }) };
+    const r = await requestJson("/api/me/connections", body, "PUT").catch(() => null);
+    setSaving(false);
+    if (!r) return setSaveError("Couldn't reach Botchelor. Try again.");
+    const d = r.data as { message?: string; kind?: PlainError["kind"]; fix?: PlainError["fix"] };
+    if (!r.ok) return setSaveError(d.kind ? { kind: d.kind, message: d.message ?? r.message, fix: d.fix ?? null } : r.message);
+    setKey(""); // gone from the page: from here on it's the last four only
+    onDone();
+    router.refresh();
   }
 
-  async function remove() {
-    if (!confirm("Remove the key? Your dates go back to the shared platform model.")) return;
-    setStatus({ kind: "busy", text: "Removing…" });
-    try {
-      const res = await fetch("/api/me/keys", {
-        method: "DELETE",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider, kind: "text" }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        return setStatus({ kind: "err", text: `Remove failed: ${body?.message ?? res.statusText}` });
-      }
-      setStatus({ kind: "ok", text: "Removed." });
-      router.refresh();
-    } catch (e) {
-      setStatus({ kind: "err", text: `Remove failed: ${e instanceof Error ? e.message : String(e)}` });
-    }
-  }
+  const ready = Boolean(provider) && (useStored || check?.state === "ok");
+  const offered = also.filter((a) => provider && a.providers.includes(provider.id));
+  const note = provider?.models.find((m) => m.id === model)?.note;
 
   return (
-    <form className="byok-form" onSubmit={(e) => { e.preventDefault(); save(); }}>
-      <label>
-        <span>Provider</span>
-        <select value={provider} onChange={(e) => onProvider(e.target.value)}>
-          {providers.map(([id, p]) => (
-            <option key={id} value={id}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>Model</span>
-        {/* The id alone in the option (a long note got cut off mid-word); the chosen one's note shows under it. */}
-        <select value={model || current.defaultModel} onChange={(e) => setModel(e.target.value)} aria-describedby="byok-model-note">
-          {current.models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.id}
-            </option>
-          ))}
-        </select>
-        <span id="byok-model-note" className="muted small byok-model-note">
-          {current.models.find((m) => m.id === (model || current.defaultModel))?.note}
-        </span>
-      </label>
-      <label>
-        <span>API key</span>
-        <input
-          type="password"
-          autoComplete="off"
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          placeholder={`Your ${current.label} key`}
-          minLength={8}
-          maxLength={400}
-          required
-        />
-      </label>
-      <div className="byok-actions">
-        <button type="submit" disabled={status?.kind === "busy"}>Save</button>
-        <button type="button" className="secondary" onClick={test} disabled={status?.kind === "busy"}>
-          Test
-        </button>
-        <button type="button" onClick={remove} disabled={status?.kind === "busy"} className="link-button danger">
-          Remove
-        </button>
-      </div>
-      {status && <p className={`byok-status ${status.kind}`}>{status.text}</p>}
-      <p className="muted small">
-        Keys are AES-256-GCM encrypted at rest, never logged, never shown back to you (only the last four). The
-        test button runs one tiny call to the provider at your chosen model to confirm it works before you save.
-      </p>
+    <form className="connect-flow" onSubmit={save} aria-label={`Connect a key for ${jobTitle}`}>
+      {providers.length > 1 && (
+        <fieldset className="connect-step">
+          <legend>1. Provider</legend>
+          <div className="connect-providers">
+            {providers.map((p) => (
+              <label key={p.id} className={`connect-provider${p.id === providerId ? " is-picked" : ""}`}>
+                <input type="radio" name={`${ids}-provider`} value={p.id} checked={p.id === providerId} onChange={() => pick(p)} />
+                <ProviderMark provider={p.id} size={30} />
+                <span>
+                  <strong>{p.label}</strong>
+                  <span className="muted small">{p.stored ? `Your key •••• ${p.stored.last4} ✓` : p.blurb}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      {provider && (
+        <fieldset className="connect-step">
+          <legend>{providers.length > 1 ? "2. " : "1. "}Key</legend>
+          {provider.stored && (
+            <div className="connect-choice">
+              <label>
+                <input type="radio" name={`${ids}-key`} checked={useStored} onChange={() => setUseStored(true)} /> Use your {provider.label} key (•••• {provider.stored.last4})
+              </label>
+              <label>
+                <input type="radio" name={`${ids}-key`} checked={!useStored} onChange={() => setUseStored(false)} /> Paste a different key
+              </label>
+            </div>
+          )}
+          {!useStored && (
+            <>
+              <label className="connect-key">
+                <span>{provider.label} API key</span>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={key}
+                  onChange={(e) => {
+                    setKey(e.target.value);
+                    setCheck(null);
+                  }}
+                  placeholder={provider.keyHint}
+                  minLength={8}
+                  maxLength={400}
+                  aria-describedby={`${ids}-key-hint`}
+                />
+              </label>
+              <p id={`${ids}-key-hint`} className="muted small">
+                {provider.keyHint}.{" "}
+                <a href={provider.keysUrl} target="_blank" rel="noopener noreferrer">
+                  Make a key on {provider.label}
+                </a>
+                , and set a spend limit on it there.
+              </p>
+              <div className="byok-actions">
+                <button type="button" className="secondary" onClick={test} disabled={check?.state === "busy" || !key.trim()}>
+                  {check?.state === "busy" ? "Testing…" : "Test"}
+                </button>
+              </div>
+              <p className="connect-check" aria-live="polite">
+                {check?.state === "ok" && <span className="byok-status ok">{check.text}</span>}
+                {check?.state === "error" && (
+                  <span className="byok-status err">
+                    {check.error.message}
+                    {fixLink(check.error)}
+                  </span>
+                )}
+              </p>
+            </>
+          )}
+        </fieldset>
+      )}
+
+      {ready && provider && (
+        <>
+          <fieldset className="connect-step">
+            <legend>{providers.length > 1 ? "3. " : "2. "}Model</legend>
+            <label className="connect-model">
+              <span className="sr-only">Model</span>
+              <select value={model} onChange={(e) => setModel(e.target.value)} aria-describedby={`${ids}-model-note`}>
+                {provider.models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.id}
+                    {m.recommended ? " (Recommended)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {note && (
+              <p id={`${ids}-model-note`} className="muted small byok-model-note">
+                {note}
+              </p>
+            )}
+          </fieldset>
+          {offered.length > 0 && (
+            <fieldset className="connect-step">
+              <legend>Also use this key for</legend>
+              {offered.map((a) => (
+                <label key={a.job} className="connect-also">
+                  <input
+                    type="checkbox"
+                    checked={alsoJobs.has(a.job)}
+                    onChange={(e) =>
+                      setAlsoJobs((s) => {
+                        const next = new Set(s);
+                        if (e.target.checked) next.add(a.job);
+                        else next.delete(a.job);
+                        return next;
+                      })
+                    }
+                  />{" "}
+                  {a.title} <span className="muted small">({a.note})</span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+          <div className="byok-actions">
+            <button type="submit" disabled={saving}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button type="button" className="link-button" onClick={onDone}>
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+      {saveError && (
+        <p className="byok-status err" role="status">
+          {typeof saveError === "string" ? (
+            saveError
+          ) : (
+            <>
+              {saveError.message}
+              {fixLink(saveError)}
+            </>
+          )}
+        </p>
+      )}
     </form>
   );
 }

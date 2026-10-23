@@ -24,7 +24,8 @@ import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, l
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowance";
 import { track } from "../analytics";
 import { recordAgentEvent } from "../agent-funnel";
-import { byokAvailable, deleteUserKey, isTextProvider, listUserKeys, pingKey, saveUserKey, TEXT_PROVIDER_IDS, TEXT_PROVIDERS } from "../keys";
+import { byokAvailable, isTextProvider, listUserKeys, pingKey, saveUserKey, TEXT_PROVIDER_IDS, TEXT_PROVIDERS } from "../keys";
+import { removeConnection } from "../connections";
 import { checkRateLimit, rateLimitInfo, rateLimitMessage, type RateLimitBucket } from "../rate-limit";
 import { drainPending, isSubscribable, subscribe as subscribeResource, SUBSCRIBABLE, unsubscribe as unsubscribeResource } from "../mcp-subscriptions";
 import { requestElicitation, requestSampling, resolveServerRequest } from "../mcp-stream";
@@ -4974,7 +4975,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         test = await pingKey(provider, apiKey, model);
         if (!test.ok) return { error: `The key didn't work: ${test.error}. Nothing was saved.` };
       }
-      // user_keys has a FK to accounts.user_id. The MCP agent_id is an opaque identity but acts as a user,
+      // user_connections has a FK to accounts.user_id. The MCP agent_id is an opaque identity but acts as a user,
       // so give it an account row the first time it saves a key. link_account later moves the agent into
       // a real account under its person's user_id (lib/agent-links.ts).
       await db.query(`insert into accounts (user_id) values ($1) on conflict (user_id) do nothing`, [who.id]);
@@ -5025,7 +5026,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!who) return { error: NEEDS_IDENTITY };
       const keys = await listUserKeys(db, who.id);
       const textKeys = keys.filter((k) => k.kind === "text");
-      for (const k of textKeys) await deleteUserKey(db, who.id, k.provider, "text");
+      // The key itself goes, whatever else it was used for (lib/connections.ts): "delete your text key" means deleted.
+      for (const k of textKeys) await removeConnection(db, who.id, k.provider);
       return { data: { removed: textKeys.length > 0, note: textKeys.length ? "Your dates are back on the shared pool." : "There was no key to remove." }, identity: who };
     }
     case "create_character": {
