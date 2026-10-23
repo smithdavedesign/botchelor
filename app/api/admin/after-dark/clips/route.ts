@@ -11,7 +11,8 @@ export const maxDuration = 300;
 const id = z.string().min(1).max(64);
 /** The latest moment, an act from the menu (who leads swapped, or not), or keep going from a clip of theirs. */
 const Input = z.union([
-  z.object({ a: id, b: id, here: z.literal(true) }),
+  // A moment: the latest, or the line the theater shows (`at`), of the running scene or a saved night.
+  z.object({ a: id, b: id, here: z.literal(true), at: z.number().int().min(0).max(5000).optional(), night_id: id.nullable().optional() }),
   z.object({ a: id, b: id, act: z.string().min(1).max(40), swap: z.boolean().optional() }),
   z.object({ continue: id }),
 ]);

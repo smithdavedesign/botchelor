@@ -1062,3 +1062,31 @@ the line list comes with the fourth PR.
 **The live check** (2026-10-22, local, two of the house rooftop lines): Venice's `tts-kokoro` said each in its stock voice
 (Juniper `af_sarah`, Rafe `am_eric`) in 1.9 and 2.6 s, MP3s of 4.9 and 3.8 s at 24 kHz, the actions left out; Replicate's
 Kokoro said Rafe's in 1.4 s, a 3.8 s WAV. It cost about $0.0005 of Venice (138 characters) and under $0.001 of Replicate.
+
+## The media UI: clips, pictures and Listen on the page and in the theater (2026-10-22)
+
+The fourth of the media PRs puts the three features above on a pair's page, in new components with one-line mounts in
+`SceneWriter.tsx` and `AfterDarkTheater.tsx` (the scene features' files): `MediaMenu.tsx` and `Listen.tsx`.
+
+- **🎞 A clip or a picture of the two of them** (`MediaMenu`, a folded panel over Their videos, like the limits and memory
+  panels): two tabs, read from the server when it's opened and again when the night moves on (stage, place, limits), so
+  it only offers what the night has reached, nothing past kissing somewhere public, and nothing the pair's limits rule out.
+  - **🎬 A clip**: "Clip from here" (the scene's latest moment), or a moment from the act menu as chips (later ones 🔒,
+    saying why), with who's who by name and ⇄ Swap. It joins Their videos, where it can be kept going.
+  - **📸 A picture**: the act, what they're wearing (the outfits the act goes with; 🔒 until the night gets there, or
+    somewhere public past dressed), the framing (wide, medium, close) and where (now, or anywhere the night has been).
+    It joins the gallery; a subscriber sees how many pictures are left this month.
+- **🔈 Listen on the page** (`ListenLines`, over the lines): reads the lines aloud in their stock voices, from the newest
+  step on, and each new step as it's written; ⏮ From the top reads the chapter from its first line, and with it on,
+  tapping a line reads from there. The line being said is marked and kept in view.
+- **In the theater**: 🔈 Listen says each line as it comes on stage. While it's being said the theater holds the next
+  line (`useReplay`'s new `hold`), which comes a beat after it ends (600 ms, `HELD_BEAT_MS`) rather than a whole turn
+  later; pausing the theater pauses the voice, and a jump (⏭ catch up) isn't read out. 🎞 Clip makes a clip of the
+  line on stage (`at`), live or in a saved night's replay (`night_id`), held to how far the night had gone at that line;
+  it's announced on the window (`after-dark:reel`), so Their videos shows it when the theater closes.
+- Voices are asked for as they're about to play (the line and the next two), and remembered for the page's life; the
+  server keeps them too, so a replay costs nothing. At a subscriber's monthly cap Listen stops and says so.
+
+**Screenshots** (`SHOTS=ui npm run screenshots:after-dark-media`; a local app with PG placeholder lines, the voice route
+answered in the browser with a second of soft tone, nothing generated): `docs/screenshots/after-dark-media-*.png` and
+`docs/screenshots/after-dark-listen-*.png`.
