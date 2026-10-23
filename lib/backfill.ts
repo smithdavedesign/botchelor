@@ -159,11 +159,13 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
       const transcript = await conversationFor(db, r, actor.model, director.model);
       // The transcript was written later, by these models: recorded beside whatever wrote the rest (lib/pipeline.ts).
       const backfilledWith = { actor: actor.served(), director: director.served(), prompts: PROMPT_VERSION };
+      // turn_meta stays line for line with the transcript (episodes.turn_meta): every backfilled line is the show's, now.
+      const at = new Date().toISOString();
       await db.query(
-        `update episodes set transcript = $2::jsonb,
+        `update episodes set transcript = $2::jsonb, turn_meta = $4::jsonb,
                 generated_with = coalesce(generated_with, '{}'::jsonb) || jsonb_build_object('transcript_backfill', $3::jsonb)
           where id = $1 and jsonb_array_length(transcript) = 0`,
-        [r.id, JSON.stringify(transcript), JSON.stringify(backfilledWith)],
+        [r.id, JSON.stringify(transcript), JSON.stringify(backfilledWith), JSON.stringify(transcript.map(() => ({ at, by: "show" })))],
       );
       filled.push(r.id);
       const calls = actor.calls() + director.calls();

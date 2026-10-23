@@ -15,12 +15,16 @@ type DeckCard = BaseCard & { origin?: Origin };
 type Props = {
   character: { id: string; name: string; hue: number | null; portrait: string | null };
   initial: DeckCard[];
+  /** This visit's deck session (app/swipe/page.tsx): each card shown on top is reported under it. */
+  serveId: string;
 };
 
 /** How far a card has to be dragged to count as a swipe. */
 const THRESHOLD = 110;
 /** Fetch more cards when this few are left. */
 const REFILL_AT = 3;
+/** How long a swipe waits for its card's impression to land first (it's almost always in by then). */
+const SEEN_WAIT_MS = 1500;
 /** The kind badge is for anything but human (most of the cast): the label to skip. */
 const HUMAN = kindLabel({ kind: "human" });
 
@@ -28,8 +32,11 @@ const HUMAN = kindLabel({ kind: "human" });
  * The swipe deck (lib/swipes.ts): one card at a time, the next peeking behind it. Drag it right to like, left to pass,
  * or use the buttons or the arrow keys. A match shows "It's a match!" and opens their thread; every match is on
  * /matches. The characters decide about a date themselves.
+ *
+ * What's seen is what the preference data records (lib/swipes.ts logShownCard): each card is reported once, when it
+ * comes on top, with its place in what this person has seen this visit. The hand that was dealt is never logged.
  */
-export default function SwipeDeck({ character, initial }: Props) {
+export default function SwipeDeck({ character, initial, serveId }: Props) {
   const [cards, setCards] = useState(initial);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -70,6 +77,26 @@ export default function SwipeDeck({ character, initial }: Props) {
     if (!exhausted && cards.length <= REFILL_AT) void refill();
   }, [cards.length, exhausted, refill]);
 
+  // The card on top is the one being seen: reported once per visit (POST /api/swipes/seen), ranked in the order seen.
+  const seen = useRef<{ serve: string; sent: Map<string, Promise<void>> }>({ serve: serveId, sent: new Map() });
+  const topId = top?.id ?? null;
+  useEffect(() => {
+    if (!topId) return;
+    if (seen.current.serve !== serveId) seen.current = { serve: serveId, sent: new Map() };
+    const sent = seen.current.sent;
+    if (sent.has(topId)) return;
+    const report = fetch("/api/swipes/seen", {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ character_id: character.id, card_id: topId, serve_id: serveId, rank: sent.size + 1 }),
+      keepalive: true,
+    }).then(
+      () => undefined,
+      () => undefined, // best effort: a lost impression never gets in the way of swiping
+    );
+    sent.set(topId, report);
+  }, [topId, character.id, serveId]);
+
   const decide = useCallback(
     async (like: boolean) => {
       const card = cards[0];
@@ -84,6 +111,8 @@ export default function SwipeDeck({ character, initial }: Props) {
       setDragX(0);
       setStatus(like ? `Liked ${card.name}.` : `Passed on ${card.name}.`);
       try {
+        // Its impression goes in before its swipe: a like on the house cast is a match at once, and a match leaves the deck.
+        await Promise.race([seen.current.sent.get(card.id), new Promise((r) => setTimeout(r, SEEN_WAIT_MS))]);
         const res = await fetch("/api/swipes", {
           method: "POST",
           headers: { "content-type": "application/json", accept: "application/json" },

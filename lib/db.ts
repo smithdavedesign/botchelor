@@ -1478,6 +1478,12 @@ create table if not exists character_embeddings (
 -- re-embeds and a model change re-embeds everyone (vectors from two models don't compare).
 alter table character_embeddings add column if not exists model text;
 alter table character_embeddings add column if not exists text_hash text;
+-- Concept-embedding calls per UTC day, every caller together (lib/originality-concept.ts claimEmbedCall), so a flood of
+-- drafts can't spend past EMBED_DAILY_CAP. Counts only.
+create table if not exists embed_usage (
+  day date primary key,
+  calls integer not null default 0
+);
 
 -- Data plan Tier 1 (David, 2026-10-22): stop losing the data that shows what people and agents actually chose. All
 -- append-only, written best effort (a failed write never breaks the action), never After Dark. Consent (ml_consents)

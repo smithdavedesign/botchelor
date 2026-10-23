@@ -1,13 +1,34 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as postOriginality } from "@/app/api/characters/originality/route";
 import { POST as postReflection } from "@/app/api/episodes/[id]/reflection/route";
+import { GET as dailyJob } from "@/app/api/jobs/daily/route";
 import { deleteCharacter, exportAccount } from "@/lib/account";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { setInlineGenerationForTests } from "@/lib/jobs";
+import { ORIGINALITY_CHECK_LIMITS, visitorKey } from "@/lib/limits";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
-import { backfillEmbeddings, clearEmbedCacheForTests, conceptTwinsOf, EMBED_DIMS, refreshConceptEmbedding } from "@/lib/originality-concept";
+import {
+  BACKFILL_MIN_CALL_MS,
+  backfillEmbeddings,
+  checkTimeoutMs,
+  clearEmbedCacheForTests,
+  conceptText,
+  conceptTwinsOf,
+  DEFAULT_EMBED_DAILY_CAP,
+  DEFAULT_EMBED_MODEL,
+  EMBED_CHECK_TIMEOUT_MS,
+  EMBED_DIMS,
+  EMBED_SLOW_TIMEOUT_MS,
+  embedCallsToday,
+  embedDailyCap,
+  embedKey,
+  refreshConceptEmbedding,
+  textHash,
+} from "@/lib/originality-concept";
+import { resetRateLimitsForTests } from "@/lib/rate-limit";
 import { loadRelationship, viewRelationship } from "@/lib/relationships";
 import { createTemplateParty } from "@/lib/watch";
-import { api, episodeJson, HOUSE_PARTNER_ID, jsonRequest, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
+import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, jsonRequest, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -27,6 +48,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  resetRateLimitsForTests();
 });
 
 /** A vector that depends on the text, so different characters read differently (unless `same` pins one for all). */
@@ -35,8 +57,11 @@ function vectorFor(text: string): number[] {
   for (let i = 0; i < text.length; i++) v[(text.charCodeAt(i) * 31 + i) % EMBED_DIMS] += 1;
   return v;
 }
-/** Turns concept checks on with a stubbed embedding API; returns the calls it saw. */
-function embeddingsOn(opts: { status?: number; same?: number[] } = {}) {
+/**
+ * Turns concept checks on with a stubbed embedding API; returns the calls it saw. `respond` answers a call itself
+ * (`n` counts from 1).
+ */
+function embeddingsOn(opts: { status?: number; same?: number[]; respond?: (init: RequestInit, n: number) => Response | Promise<Response> } = {}) {
   vi.stubEnv("ORIGINALITY_CONCEPT", "1");
   vi.stubEnv("EMBED_API_KEY", "test-embed-key");
   const calls: { url: string; headers: Record<string, string>; body: Any }[] = [];
@@ -46,6 +71,7 @@ function embeddingsOn(opts: { status?: number; same?: number[] } = {}) {
       if (!String(url).includes(":embedContent")) throw new Error(`unexpected fetch ${url}`);
       const body = JSON.parse(String(init.body));
       calls.push({ url: String(url), headers: init.headers as Record<string, string>, body });
+      if (opts.respond) return opts.respond(init, calls.length);
       if (opts.status && opts.status !== 200) return new Response("nope", { status: opts.status });
       return new Response(JSON.stringify({ embedding: { values: opts.same ?? vectorFor(body.content.parts[0].text) } }), { status: 200 });
     }),
@@ -112,13 +138,14 @@ describe("concept embeddings (lib/originality-concept.ts)", () => {
     const gone = await make({ name: "Cy Three", bio: "Collects broken metronomes and fixes none of them." });
     await t.db.query(`update characters set owner_id = 'deleted' where id = $1`, [gone.id]);
     embeddingsOn();
-    expect(await backfillEmbeddings(t.db, 1)).toEqual({ made: 1, failed: 0 });
-    expect(await backfillEmbeddings(t.db, 10)).toEqual({ made: 1, failed: 0 });
+    const ran = { failed: 0, skipped: 0, stopped: null, key_from: "EMBED_API_KEY" };
+    expect(await backfillEmbeddings(t.db, { limit: 1 })).toEqual({ ...ran, made: 1 });
+    expect(await backfillEmbeddings(t.db, { limit: 10 })).toEqual({ ...ran, made: 1 });
     expect(await embeddingRow(a.id)).toBeDefined();
     expect(await embeddingRow(b.id)).toBeDefined();
     expect(await embeddingRow(gone.id)).toBeUndefined();
     expect((await t.db.query(`select 1 from character_embeddings e join characters c on c.id = e.character_id where c.is_house`)).rows).toHaveLength(0);
-    expect(await backfillEmbeddings(t.db, 10)).toEqual({ made: 0, failed: 0 });
+    expect(await backfillEmbeddings(t.db, { limit: 10 })).toEqual({ ...ran, made: 0 });
   });
 
   it("a twin is only ever a public character of a live account, from the same model", async () => {
@@ -179,6 +206,202 @@ describe("concept embeddings (lib/originality-concept.ts)", () => {
     );
     await deleteCharacter(t.db, userIdOf(c.cookie), c.id);
     expect(await embeddingRow(c.id)).toBeUndefined();
+  });
+});
+
+describe("embedding limits, latency and the daily job (the 2026-10-22 review on #678)", () => {
+  const secret = ["cron", "tier2", "secret", "0123456789"].join("-");
+  const runDailyJob = async () => {
+    vi.stubEnv("CRON_SECRET", secret);
+    scriptedModel([]); // the job's other steps get no model: they fail fast and are caught
+    return dailyJob(new Request(`${BASE_URL}/api/jobs/daily?backfill=0`, { headers: { authorization: `Bearer ${secret}` } }));
+  };
+  /** A call that never answers: it ends only when its timeout aborts it. */
+  const hang = (init: RequestInit) =>
+    new Promise<Response>((_, reject) => init.signal!.addEventListener("abort", () => reject((init.signal as AbortSignal).reason)));
+  const logged = () => vi.mocked(console.log).mock.calls.flat().join("\n");
+  const rpc = async (name: string, args: Record<string, unknown>, ctx: McpContext = {}): Promise<Any> =>
+    ((await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, ctx)) as Any).result;
+  /** Characters made while concept checks are off, so none has an embedding yet. */
+  const unembedded = async (n: number) => {
+    const made = [];
+    for (let i = 0; i < n; i++) made.push(await make({ name: `Backfill Nr${i}`, bio: `Character number ${i} keeps ${i + 2} lighthouses lit by hand.` }));
+    return made;
+  };
+
+  it("the key: EMBED_API_KEY first, then the show's own Google key; the logs name the variable once, never its value", async () => {
+    expect(embedKey({ EMBED_API_KEY: "e", GOOGLE_API_KEY: "g", LLM_API_KEY: "l" })).toEqual({ key: "e", from: "EMBED_API_KEY" });
+    expect(embedKey({ GOOGLE_API_KEY: "g", LLM_API_KEY: "l" })).toEqual({ key: "g", from: "GOOGLE_API_KEY" });
+    expect(embedKey({ LLM_API_KEY: "l" })).toEqual({ key: "l", from: "LLM_API_KEY" });
+    expect(embedKey({ LLM_API_KEY: "l", LLM_BASE_URL: "https://api.example.com/v1" })).toEqual({ key: "", from: null });
+
+    // Prod today: no EMBED_API_KEY, so the calls use GOOGLE_API_KEY, and the logs say which (once per process).
+    const calls = embeddingsOn();
+    vi.stubEnv("EMBED_API_KEY", "");
+    vi.stubEnv("GOOGLE_API_KEY", "show-google-key");
+    await make({ name: "Ada One", bio: "Tunes pipe organs in empty churches at night." });
+    await make({ name: "Bo Two", bio: "Paints lighthouses from memory, never from life." });
+    expect(calls.map((c) => c.headers["x-goog-api-key"])).toEqual(["show-google-key", "show-google-key"]);
+    expect(logged().match(/\[embed\] key from GOOGLE_API_KEY/g)).toHaveLength(1);
+    expect(logged()).not.toContain("show-google-key");
+  });
+
+  it("the backfill stops at its deadline: no call it can't finish in time, the rest left for the next run", async () => {
+    await unembedded(5);
+    let clock = 0;
+    // Each call takes 5 s on this clock; the deadline is 12 s in. Calls start at 0, 5 and 10 s; the fourth would start at
+    // 15 s, past it.
+    const calls = embeddingsOn({
+      respond: (init) => {
+        clock += 5000;
+        return new Response(JSON.stringify({ embedding: { values: vectorFor(JSON.parse(String(init.body)).content.parts[0].text) } }), { status: 200 });
+      },
+    });
+    const run = await backfillEmbeddings(t.db, { deadline: 12_000, now: () => clock });
+    expect(run).toEqual({ made: 3, failed: 0, skipped: 2, stopped: "deadline", key_from: "EMBED_API_KEY" });
+    expect(calls).toHaveLength(3);
+    // Under a second left: no call at all.
+    clock = 0;
+    expect(await backfillEmbeddings(t.db, { deadline: BACKFILL_MIN_CALL_MS - 1, now: () => clock })).toMatchObject({ made: 0, skipped: 2, stopped: "deadline" });
+    expect(calls).toHaveLength(3);
+    // The next run picks up the rest.
+    expect(await backfillEmbeddings(t.db)).toMatchObject({ made: 2, skipped: 0, stopped: null });
+  });
+
+  it("the first 429 ends the batch (pushing on would only hit the same quota)", async () => {
+    await unembedded(4);
+    const calls = embeddingsOn({ status: 429 });
+    expect(await backfillEmbeddings(t.db)).toEqual({ made: 0, failed: 1, skipped: 3, stopped: "rate_limited", key_from: "EMBED_API_KEY" });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("so does the first timeout, and no call outlives the deadline", async () => {
+    await unembedded(3);
+    const calls = embeddingsOn({ respond: hang });
+    const started = Date.now();
+    // 1.2 s to the deadline: the one call it makes is cut off there, not at the usual 8 s.
+    const run = await backfillEmbeddings(t.db, { deadline: started + 1200 });
+    expect(Date.now() - started).toBeLessThan(EMBED_SLOW_TIMEOUT_MS / 2);
+    expect(run).toMatchObject({ made: 0, failed: 1, skipped: 2, stopped: "timeout" });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("the daily job gives the backfill a deadline from its own start, and reports made, failed and skipped", async () => {
+    await unembedded(2);
+    const calls = embeddingsOn();
+    // A run that has already used 280 s by the time it reaches the backfill (its 270 s deadline has passed): no call.
+    const real = Date.now.bind(Date);
+    let t0: number | null = null;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => (t0 === null ? (t0 = real()) : real() + 280_000));
+    const late = await (await runDailyJob()).json();
+    clock.mockRestore();
+    expect(late.embeddings).toEqual({ made: 0, failed: 0, skipped: 2, stopped: "deadline", key_from: "EMBED_API_KEY" });
+    expect(calls).toHaveLength(0);
+    const report = logged()
+      .split("\n")
+      .find((l) => l.includes('"event":"daily_job"'));
+    expect(JSON.parse(report!)).toMatchObject({ embeddings_made: 0, embeddings_skipped: 2, embeddings_stopped: "deadline", embeddings_key: "EMBED_API_KEY" });
+    // On time, it catches up.
+    expect((await (await runDailyJob()).json()).embeddings).toEqual({ made: 2, failed: 0, skipped: 0, stopped: null, key_from: "EMBED_API_KEY" });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("the draft check is limited per connection and per session, like the other free paths (429)", async () => {
+    const post = (headers: Record<string, string>) =>
+      postOriginality(new Request(`${BASE_URL}/api/characters/originality`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(validCharacter()) }));
+    const fill = (bucket: string, key: string) =>
+      t.db.query(`insert into rate_hits (bucket, key, at) select $1, $2, now() from generate_series(1, $3)`, [bucket, key, ORIGINALITY_CHECK_LIMITS.perHour]);
+    const ip = { "x-forwarded-for": "203.0.113.7" };
+    expect((await post({ ...ip, cookie: newUserCookie() })).status).toBe(200);
+    await fill("originality", visitorKey(new Headers(ip))!);
+    const limited = await post({ ...ip, cookie: newUserCookie() });
+    expect(limited.status).toBe(429);
+    expect(await limited.json()).toMatchObject({ error: "too_many_checks" });
+    expect((await post({ "x-forwarded-for": "203.0.113.8", cookie: newUserCookie() })).status).toBe(200);
+    // One session from many addresses (or in-process, with none: MCP check_originality).
+    const cookie = newUserCookie();
+    await fill("originality_user", userIdOf(cookie));
+    expect((await post({ cookie })).status).toBe(429);
+  });
+
+  it("a daily cap on embedding calls, every caller together: past it the concept pass is skipped and the word check still runs", async () => {
+    vi.stubEnv("EMBED_DAILY_CAP", "2");
+    expect(embedDailyCap({})).toBe(DEFAULT_EMBED_DAILY_CAP);
+    const calls = embeddingsOn();
+    await make({ name: "Ira Fenn" }); // call 1: its save
+    const check = (bio: string) => postOriginality(jsonRequest("/api/characters/originality", { ...validCharacter({ name: "Ira Fenn" }), bio }, { cookie: newUserCookie() }));
+    expect((await check("Builds kites out of old maps and flies them over the harbour.")).status).toBe(200); // call 2
+    expect(calls).toHaveLength(2);
+    const over = await check("Repairs church bells and rings each one once a year.");
+    expect(over.status).toBe(200);
+    // The word-based check still ran: the same name is still called out.
+    expect((await over.json()).similar).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Ira Fenn" })]));
+    // MCP check_originality and create_character run the same code, under the same cap.
+    const checked = await rpc("check_originality", { ...validCharacter({ name: "Cy Marr" }), bio: "Times solar eclipses for a living, to the second." });
+    expect(checked.isError).toBeUndefined();
+    const created = await rpc("create_character", validCharacter({ name: "Juno Reyes", bio: "Keeps bees on the roof of a bank nobody works at." }));
+    expect(created.isError).toBeUndefined();
+    expect(calls).toHaveLength(2);
+    expect(logged().match(/\[embed\] daily cap reached \(2\)/g)).toHaveLength(1);
+    // Two made, one refused; after that the process doesn't ask the database again today.
+    expect(await embedCallsToday(t.db)).toBe(3);
+  });
+
+  it("an interactive check waits briefly, then falls back to the word-based twins and says so in the logs", async () => {
+    expect(checkTimeoutMs({})).toBe(EMBED_CHECK_TIMEOUT_MS);
+    expect([EMBED_CHECK_TIMEOUT_MS, EMBED_SLOW_TIMEOUT_MS]).toEqual([2500, 8000]);
+    await make({ name: "Ira Fenn" }); // made while off: no embedding
+    vi.stubEnv("EMBED_CHECK_TIMEOUT_MS", "50");
+    const calls = embeddingsOn({ respond: hang });
+    const started = Date.now();
+    const res = await postOriginality(jsonRequest("/api/characters/originality", validCharacter({ name: "Ira Fenn" }), { cookie: newUserCookie() }));
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(res.status).toBe(200);
+    expect((await res.json()).similar).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Ira Fenn" })]));
+    expect(calls).toHaveLength(1);
+    expect(logged()).toMatch(/\[embed\] check slower than 50ms: word-based twins only/);
+  });
+
+  it("end to end: a new character embeds after the response, the daily job backfills the rest, an unchanged edit costs nothing", async () => {
+    const queued: (() => unknown)[] = [];
+    vi.doMock("next/server", async (importOriginal) => ({ ...(await importOriginal<object>()), after: (fn: () => unknown) => void queued.push(fn) }));
+    setInlineGenerationForTests(false);
+    try {
+      const calls = embeddingsOn();
+      const a = await make({ name: "Ada Lantern", bio: "Restores lighthouse lenses by hand on an island nobody visits." });
+      const b = await make({ name: "Bo Quill", bio: "Writes the crossword for a newspaper that stopped printing in 1998." });
+      // The saves didn't wait on the embedding API: one job each, queued for after the response.
+      expect(calls).toHaveLength(0);
+      expect(queued).toHaveLength(2);
+      await queued[0](); // a's runs; b's is lost (say its instance was cut off), so the daily job has one to catch up
+      queued.length = 0;
+      expect(calls).toHaveLength(1);
+      expect(await embeddingRow(b.id)).toBeUndefined();
+
+      expect((await (await runDailyJob()).json()).embeddings).toEqual({ made: 1, failed: 0, skipped: 0, stopped: null, key_from: "EMBED_API_KEY" });
+      expect(calls).toHaveLength(2);
+      for (const c of [a, b]) {
+        const sheet = (await t.db.query<Any>(`select bio, traits, want, extras from characters where id = $1`, [c.id])).rows[0];
+        expect(await embeddingRow(c.id)).toEqual({ model: DEFAULT_EMBED_MODEL, text_hash: textHash(DEFAULT_EMBED_MODEL, conceptText(sheet)), dims: EMBED_DIMS });
+      }
+
+      // Edits that don't change what it's like cost nothing, even with the in-process cache cleared: the stored hash says so.
+      clearEmbedCacheForTests();
+      expect((await api.editCharacter(a.id, { name: "Ada Lantern-Ross" }, a.cookie)).status).toBe(200);
+      expect((await api.editCharacter(a.id, { bio: "Restores lighthouse lenses by hand on an island nobody visits." }, a.cookie)).status).toBe(200);
+      for (const run of queued.splice(0)) await run();
+      expect(calls).toHaveLength(2);
+      // The next daily run has nothing to do.
+      expect((await (await runDailyJob()).json()).embeddings).toMatchObject({ made: 0, failed: 0, skipped: 0 });
+      // A real change re-embeds, after the response again.
+      expect((await api.editCharacter(a.id, { bio: "Restores carousel horses and names each one after a lost aunt." }, a.cookie)).status).toBe(200);
+      expect(calls).toHaveLength(2);
+      for (const run of queued.splice(0)) await run();
+      expect(calls).toHaveLength(3);
+    } finally {
+      setInlineGenerationForTests(true);
+      vi.doUnmock("next/server");
+    }
   });
 });
 
@@ -284,6 +507,19 @@ describe("how they met (DateSetup.met_via)", () => {
     expect(rel!.history.map((h) => h.met_via)).toContain("chosen");
     expect(JSON.stringify(viewRelationship(rel!, { userId: userIdOf(owner), owner: true }))).not.toContain("met_via");
     expect(JSON.stringify(viewRelationship(rel!, { userId: null, owner: false }))).not.toContain("met_via");
+  });
+
+  it("a failed match lookup never fails the booking: the date goes ahead without a met_via", async () => {
+    const owner = newUserCookie();
+    const mine = await make({ name: "Ira Fenn" }, owner);
+    const query = t.db.query.bind(t.db);
+    let failed = 0;
+    vi.spyOn(t.db, "query").mockImplementation(((sql: string, params?: unknown[]) =>
+      /^select 1 from characters c where c\.id = \$1 and /.test(sql) && ++failed ? Promise.reject(new Error("db blip")) : query(sql, params)) as typeof t.db.query);
+    const id = await book({ character_id: mine.id, partner_id: HOUSE_PARTNER_ID }, owner);
+    vi.mocked(t.db.query).mockRestore();
+    expect(failed).toBe(1);
+    expect(await metVia(id)).toBeNull();
   });
 
   it("an agents' own date is own_date", async () => {

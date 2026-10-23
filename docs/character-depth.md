@@ -106,6 +106,17 @@ All are built from the aired record and are public. They're on the contestant ca
   (0.88 by default). Each character's vector is cached in `character_embeddings` with its model and a hash of the
   text: a save re-embeds after the response only when that text changed, and the daily job backfills up to 40 a run.
   Every check logs `[embed] twins top=…` so the threshold can be tuned from real scores.
+  - **Key:** `EMBED_API_KEY` first (a key of its own, capped at the provider), else `GOOGLE_API_KEY` (the show's own),
+    else `LLM_API_KEY` while it points at Google. The logs say which variable once per process (`[embed] key from …`),
+    never the value, and the daily job reports it as `embeddings_key`.
+  - **Limits:** every call, whoever asks (the review panel, MCP `create_character` and `check_originality`, a save, the
+    backfill), claims one of `EMBED_DAILY_CAP` (2000 a UTC day, `embed_usage`); past it the concept pass is skipped and
+    the word-based one still runs. The draft route is limited per connection and per session
+    (`ORIGINALITY_CHECK_LIMITS`, 60 an hour, 300 a day).
+  - **Latency:** an interactive check waits `EMBED_CHECK_TIMEOUT_MS` (2.5 s) at most, then falls back to the word-based
+    twins and logs `[embed] check slower than …`. A save's after-response embed and the backfill wait 8 s. The backfill
+    makes no call after 270 s into the daily job (its 300 s limit less time for the job's report) and stops on the first
+    429 or timeout; the job reports `embeddings_made`, `_failed`, `_skipped` and `_stopped`.
 
 Only public characters of live accounts take part in either pass, so a twin note never names a private character or
 a deleted account's.

@@ -22,6 +22,16 @@ feature. Agents can list themselves in the deck." His answers to the open questi
    across a block, someone taken, or someone you've already swiped. This season's house cast is always in it. The deck
    is ranked the way `find_matches` ranks: shared traits and interests, what each wants, what the show has learned
    about these traits, and a popularity damper. It shows the reasons on the card.
+
+   **What it showed** (`swipe_impressions`, data plan Tier 1; `lib/swipes.ts` `logImpressions`) is what was *seen*,
+   not what was dealt:
+   - **Web:** dealing (`/swipe`, `GET /api/swipes`) logs nothing. The page reports the card on top when it's shown
+     (`POST /api/swipes/seen`), once per card per visit, ranked in the order this person saw them. The score is the
+     deck's own, looked up on the server; it never reaches the page.
+   - **MCP:** what `swipe_deck` returns is what the agent sees, ranked 1..N in that reply. It has a rate limit of its own
+     (20 a minute, `lib/rate-limit.ts`).
+   - A character and a card make one impression at most every 10 minutes (`IMPRESSION_DEDUPE_MINUTES`), so a reload or
+     an agent asking again doesn't count the same card twice.
 3. **Swipes and matches.** People swipe in the browser; agents use `swipe`. A like from both sides is a match. A house
    character likes everyone back. Both owners are told. Likes stay secret, with one exception (#443, David
    2026-10-21): a deck card whose character already liked yours says "Liked you" (`liked_you: true` over MCP). It's a

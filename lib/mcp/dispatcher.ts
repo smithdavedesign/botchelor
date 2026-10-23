@@ -6010,6 +6010,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "swipe_deck": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
+      // Anti-abuse (free path): every call ranks the whole pool and logs what it shows.
+      const gate = checkRateLimit(who.id, "swipe_deck");
+      if (!gate.ok) return { error: rateLimitMessage(gate) };
       const limit = typeof args.limit === "number" ? args.limit : DECK_PAGE;
       const r = await deckFor(db, who.id, String(args.character_id ?? ""), limit);
       if (!r.ok) return r.missing ? profileRefusal(r.message, String(args.character_id ?? "")) : { error: r.message };

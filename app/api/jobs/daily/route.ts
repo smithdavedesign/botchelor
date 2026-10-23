@@ -65,13 +65,25 @@ async function run(req: Request): Promise<Response> {
   const candidates = await seasonGenerationDue(db).catch((e: unknown) => ({ season: "", made: [], errors: [e instanceof Error ? e.message : "error"] }));
   const baselines = await ensureCastBaselines(db).catch(() => ({ made: 0, errors: ["error"] }));
   // Concept embeddings (lib/originality-concept.ts): characters that have none from the current model yet. Off unless enabled.
-  const embeddings = await backfillEmbeddings(db).catch(() => ({ made: 0, failed: 0 }));
+  // It runs last, so it gets a deadline from the job's start: it stops in time to leave the report below (track, the
+  // relationship metrics, the response) inside maxDuration, and on the first 429 or timeout. 270 s: maxDuration less 30 s.
+  const embeddings = await backfillEmbeddings(db, { deadline: t0 + 270_000 }).catch(() => ({
+    made: 0,
+    failed: 0,
+    skipped: 0,
+    stopped: "error" as const,
+    key_from: null,
+  }));
   track("daily_job", {
     season_candidates_made: candidates?.made.length ?? 0,
     season_candidate_errors: candidates?.errors.length ?? 0,
     cast_baselines_made: baselines.made,
     embeddings_made: embeddings.made,
     embeddings_failed: embeddings.failed,
+    embeddings_skipped: embeddings.skipped,
+    embeddings_stopped: embeddings.stopped,
+    // The name of the variable the embedding key comes from (never the value): EMBED_API_KEY once it's set.
+    embeddings_key: embeddings.key_from,
     room_created: Boolean(lobby.created),
     lobby_reason: lobby.reason ?? null,
     backfilled: backfill.filled.length,

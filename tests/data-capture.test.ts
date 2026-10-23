@@ -4,15 +4,17 @@
 // each transcript line has when and by whom (turn_meta). Recording never changes an outcome.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import * as swipesRoute from "@/app/api/swipes/route";
+import * as seenRoute from "@/app/api/swipes/seen/route";
 import { exportAccount } from "@/lib/account";
 import { decideTraced, deterministicEngine, NEUTRAL_SIGNALS, type CharacterSheet, type DateInput, type SideSetup } from "@/lib/engine";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { refreshRelationship } from "@/lib/relationships";
 import { setSeasonCastForTests } from "@/lib/season-cast";
-import { answerMatch, deckFor, logImpressions, swipe } from "@/lib/swipes";
+import { answerMatch, deckFor, IMPRESSION_DEDUPE_MINUTES, logImpressions, swipe } from "@/lib/swipes";
 import { setEngineForTests } from "@/lib/engine";
 import { setModelForTests } from "@/lib/model";
-import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
+import { resetRateLimitsForTests } from "@/lib/rate-limit";
+import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, jsonRequest, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const PROFILE = {
@@ -41,6 +43,7 @@ afterEach(() => {
   setSeasonCastForTests(null);
   setEngineForTests(null);
   setModelForTests(null);
+  resetRateLimitsForTests();
   vi.restoreAllMocks();
 });
 
@@ -60,31 +63,107 @@ const impressions = async (viewer: string) =>
   )).rows;
 
 describe("swipe impressions: what a deck actually showed", () => {
-  it("a web deck logs every card it served, ranked 1..N, one serve id, with scores", async () => {
+  const deal = async (me: { id: string; cookie: string }) =>
+    (await (await swipesRoute.GET(new Request(`${BASE_URL}/api/swipes?character_id=${me.id}`, { headers: { cookie: me.cookie } }))).json()) as Any;
+  const seen = (cookie: string, body: Record<string, unknown>) => seenRoute.POST(jsonRequest("/api/swipes/seen", body, { cookie }));
+  const serve = () => crypto.randomUUID();
+
+  it("dealing a web deck logs nothing: a dealt card isn't a seen one", async () => {
     const me = await person("Wren Kestrel");
     await person("Pim Alder");
-    const res = await swipesRoute.GET(new Request(`${BASE_URL}/api/swipes?character_id=${me.id}`, { headers: { cookie: me.cookie } }));
-    const body = await res.json();
+    const body = await deal(me);
+    expect(body.cards.length).toBeGreaterThan(1);
     expect(body.scores).toBeUndefined(); // the scores never leave the server
-    const rows = await impressions(me.id);
-    expect(rows.map((r) => r.card)).toEqual(body.cards.map((c: Any) => c.id));
-    expect(rows.map((r) => r.rank)).toEqual(body.cards.map((_: unknown, i: number) => i + 1));
-    expect(new Set(rows.map((r) => r.serve_id)).size).toBe(1);
-    expect(rows.every((r) => r.served_via === "web" && typeof r.score === "number")).toBe(true);
-  });
-
-  it("a link prefetch isn't a person looking: nothing is logged", async () => {
-    const me = await person("Wren Kestrel");
-    await swipesRoute.GET(new Request(`${BASE_URL}/api/swipes?character_id=${me.id}`, { headers: { cookie: me.cookie, "next-router-prefetch": "1" } }));
     expect(await impressions(me.id)).toHaveLength(0);
   });
 
-  it("an MCP deck logs only the cards left after the agent's filter", async () => {
+  it("the web deck logs the card on top when it's shown, ranked in the order seen, with the deck's score", async () => {
+    const me = await person("Wren Kestrel");
+    await person("Pim Alder");
+    const { cards } = await deal(me);
+    const id = serve();
+    for (const [i, c] of cards.slice(0, 2).entries()) {
+      const res = await seen(me.cookie, { character_id: me.id, card_id: c.id, serve_id: id, rank: i + 1 });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ logged: true });
+    }
+    const rows = await impressions(me.id);
+    expect(rows.map((r) => [r.card, r.rank])).toEqual([
+      [cards[0].id, 1],
+      [cards[1].id, 2],
+    ]);
+    expect(rows.every((r) => r.serve_id === id && r.served_via === "web" && typeof r.score === "number")).toBe(true);
+    // The score is the one the deck ranked it by (kept on the server).
+    const deck = await deckFor(t.db, me.userId, me.id);
+    if (!deck.ok) throw new Error(deck.message);
+    expect(rows[0].score).toBeCloseTo(deck.scores[cards[0].id], 3);
+  });
+
+  it("a refill, a repeat or a reload never logs a card again within the window; later it counts as seen again", async () => {
+    const me = await person("Wren Kestrel");
+    await person("Pim Alder");
+    const { cards } = await deal(me);
+    const id = serve();
+    await seen(me.cookie, { character_id: me.id, card_id: cards[0].id, serve_id: id, rank: 1 });
+    await swipe(t.db, me.userId, me.id, cards[0].id, false);
+    // The refill deals again (the hand still holds cards[1]); it logs nothing, and cards[1] shown twice is logged once.
+    await deal(me);
+    for (const _ of [1, 2]) await seen(me.cookie, { character_id: me.id, card_id: cards[1].id, serve_id: id, rank: 2 });
+    // A reload is a new deck session: the card on top again isn't counted again within the window.
+    expect(await (await seen(me.cookie, { character_id: me.id, card_id: cards[1].id, serve_id: serve(), rank: 1 })).json()).toEqual({ logged: false });
+    expect((await impressions(me.id)).map((r) => [r.card, r.rank])).toEqual([
+      [cards[0].id, 1],
+      [cards[1].id, 2],
+    ]);
+    // Past the window it's a new look. A card swiped while its report was on the way still counts (it was on top).
+    await t.db.query(`update swipe_impressions set at = now() - interval '11 minutes' where viewer = $1`, [me.id]);
+    expect(await (await seen(me.cookie, { character_id: me.id, card_id: cards[0].id, serve_id: serve(), rank: 1 })).json()).toEqual({ logged: true });
+  });
+
+  it("only your own character, only a card in its deck, only a deck session's id", async () => {
+    const me = await person("Wren Kestrel");
+    const other = await person("Pim Alder");
+    const { cards } = await deal(me);
+    const ok = { character_id: me.id, card_id: cards[0].id, serve_id: serve(), rank: 1 };
+    expect((await seen(other.cookie, ok)).status).toBe(404); // not their character
+    expect((await seen(me.cookie, { ...ok, card_id: "no-such-character" })).status).toBe(404);
+    expect((await seen(me.cookie, { ...ok, card_id: me.id })).status).toBe(422);
+    expect((await seen(me.cookie, { ...ok, serve_id: "not-a-serve-id" })).status).toBe(422);
+    expect((await seen(me.cookie, { ...ok, rank: 0 })).status).toBe(422);
+    expect(await impressions(me.id)).toHaveLength(0);
+  });
+
+  it("an MCP deck logs only the cards left after the agent's filter, ranked as shown", async () => {
     const a = await agent("Ira Fenn");
     await person("Pim Alder");
     const ctx: McpContext = {};
     const all = (await rpc("swipe_deck", { agent_id: a.userId, character_id: a.id }, ctx)).structuredContent;
-    expect((await impressions(a.id)).filter((r) => r.served_via === "mcp").map((r) => r.card)).toEqual(all.cards.map((c: Any) => c.id));
+    const rows = (await impressions(a.id)).filter((r) => r.served_via === "mcp");
+    expect(rows.map((r) => r.card)).toEqual(all.cards.map((c: Any) => c.id));
+    expect(rows.map((r) => r.rank)).toEqual(all.cards.map((_: unknown, i: number) => i + 1));
+  });
+
+  it("calling swipe_deck again within the window doesn't log the same cards again", async () => {
+    const a = await agent("Ira Fenn");
+    await person("Pim Alder");
+    const first = (await rpc("swipe_deck", { agent_id: a.userId, character_id: a.id })).structuredContent;
+    for (const _ of [1, 2, 3]) await rpc("swipe_deck", { agent_id: a.userId, character_id: a.id });
+    expect(await impressions(a.id)).toHaveLength(first.cards.length);
+    // A new card in the deck is logged on the next call, at its rank in that reply; the rest aren't repeated.
+    const fresh = await person("Juno Reyes");
+    const next = (await rpc("swipe_deck", { agent_id: a.userId, character_id: a.id })).structuredContent;
+    const rows = await impressions(a.id);
+    expect(rows).toHaveLength(first.cards.length + 1);
+    expect(rows.find((r) => r.card === fresh.id)?.rank).toBe(next.cards.findIndex((c: Any) => c.id === fresh.id) + 1);
+    expect(IMPRESSION_DEDUPE_MINUTES).toBe(10);
+  });
+
+  it("swipe_deck has a rate limit of its own", async () => {
+    const a = await agent("Ira Fenn");
+    for (let i = 0; i < 20; i++) expect((await rpc("swipe_deck", { agent_id: a.userId, character_id: a.id })).isError).toBeUndefined();
+    const refused = await rpc("swipe_deck", { agent_id: a.userId, character_id: a.id });
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0].text).toMatch(/Too many swipe deck calls \(limit 20/);
   });
 
   it("a failed log never costs anyone their deck", async () => {
@@ -92,7 +171,7 @@ describe("swipe impressions: what a deck actually showed", () => {
     const deck = await deckFor(t.db, me.userId, me.id);
     if (!deck.ok) throw new Error(deck.message);
     const broken = { ...t.db, query: async () => Promise.reject(new Error("db down")) } as typeof t.db;
-    await expect(logImpressions(broken, me.id, deck.cards, deck.scores, "web")).resolves.toBeUndefined();
+    await expect(logImpressions(broken, me.id, deck.cards, deck.scores, "web")).resolves.toBe(0);
   });
 });
 
@@ -218,5 +297,36 @@ describe("engine_trace: why the engine decided what it did", () => {
     await api.createEpisode({ character_id: me.id, partner_id: HOUSE_PARTNER_ID }, me.cookie);
     const row = (await t.db.query<{ engine_trace: Any }>(`select engine_trace from episodes where character_a = $1 or character_b = $1`, [me.id])).rows[0];
     expect(row.engine_trace).toBeNull();
+  });
+
+  it("an own date's turn_meta keeps up with its transcript, even from a JSON null or a short array", async () => {
+    scriptOutcome({ ending: "second_date" });
+    const ctx: McpContext = {};
+    await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "data-capture-test" } } }, ctx);
+    Object.assign(ctx, { sessionId: ctx.issuedSessionId });
+    const x = (await rpc("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id as string;
+    const y = (await rpc("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id as string;
+    let step = (await rpc("start_own_date", { character_id: x, partner_id: y }, ctx)).structuredContent.step;
+    const id = step.episode_id as string;
+    const lines = ["So what brought you out tonight?", "Honestly, a friend dared me.", "Do they often win those dares?"];
+    const say = async (i: number) => {
+      step = (await rpc("submit_own_date_step", { episode_id: id, output: { dialogue: lines[i], action: "", emotion: "warm", interest_signal: 0.6 } }, ctx)).structuredContent.step;
+    };
+    const row = async () =>
+      (await t.db.query<{ transcript: Any[]; turn_meta: Any }>(`select transcript, turn_meta from episodes where id = $1`, [id])).rows[0];
+    await say(0);
+    expect((await row()).turn_meta).toEqual([{ at: expect.any(String), by: "agent" }]);
+    // A JSON null (not SQL null) used to fail jsonb_array_length: now the line it lacks is "not known", then the new one.
+    await t.db.query(`update episodes set turn_meta = 'null'::jsonb where id = $1`, [id]);
+    await say(1);
+    let now = await row();
+    expect(now.transcript).toHaveLength(2);
+    expect(now.turn_meta).toEqual([{ at: null, by: null }, { at: expect.any(String), by: "agent" }]);
+    // Too short (a date from before turn_meta): padded to the transcript's length, never left behind.
+    await t.db.query(`update episodes set turn_meta = '[]'::jsonb where id = $1`, [id]);
+    await say(2);
+    now = await row();
+    expect(now.turn_meta).toHaveLength(now.transcript.length);
+    expect(now.turn_meta.at(-1)).toEqual({ at: expect.any(String), by: "agent" });
   });
 });

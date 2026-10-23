@@ -406,7 +406,14 @@ async function writeAndSave(
   // Which date this is for the couple (lib/rules dateLabel): the badge says "Third date", not always "Second".
   if (secondDate) built.setup.date_number = secondDate.dateNumber;
   // How this date came about (data plan Tier 2). A blind date behind the swipe gate is one of your matches unless it fell
-  // back to the house cast; a date by name is a match when the two both said yes to one, else a pick.
+  // back to the house cast; a date by name is a match when the two both said yes to one, else a pick. Best effort: if the
+  // match lookup fails, the date is booked without a met_via (as dates before it were), never refused.
+  const byName = secondDate || input.blind || input.proposal_id
+    ? null
+    : await db
+        .query(`select 1 from characters c where c.id = $1 and ${agreedMatchSql("c", "$2")}`, [partner.id, own.id])
+        .then((r): "match" | "chosen" => (r.rows.length ? "match" : "chosen"))
+        .catch(() => undefined);
   built.setup.met_via = secondDate
     ? "second_date"
     : input.blind
@@ -415,9 +422,7 @@ async function writeAndSave(
         : "blind"
       : input.proposal_id
         ? "proposal"
-        : (await db.query(`select 1 from characters c where c.id = $1 and ${agreedMatchSql("c", "$2")}`, [partner.id, own.id])).rows.length
-          ? "match"
-          : "chosen";
+        : (byName ?? undefined);
   // The outcome, and why (episodes.engine_trace: margin, reason codes, terms; never a cue word).
   const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
 
