@@ -4,6 +4,7 @@ import { GET as picturesGet, POST as picturesPost } from "@/app/api/admin/after-
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { ACTS } from "@/lib/adult/acts";
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
+import { mediaLimitsOf } from "@/lib/adult/clips";
 import { listMedia } from "@/lib/adult/media";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { OUTFITS, picturePlaces } from "@/lib/adult/pictures-menu";
@@ -295,6 +296,14 @@ describe("a picture of both of them", () => {
     expect(input.image.map(mediaOf)).toEqual(["base-juniper", "base-rafe"]);
     expect(input).toMatchObject({ disable_safety_checker: true });
     expect(input.prompt).toContain("The woman and the man kiss slowly, faces close");
+  });
+
+  it("keeps Filthy (one above explicit, v2.3) as explicit as explicit; spicy and below sensual", () => {
+    const none = { chips: [], own: [] };
+    expect(mediaLimitsOf({ intensity: "filthy", hard_nos: none })).toMatchObject({ explicit: true, maxStage: 4 });
+    expect(mediaLimitsOf({ intensity: "explicit", hard_nos: none }).explicit).toBe(true);
+    expect(mediaLimitsOf({ intensity: "spicy", hard_nos: none }).explicit).toBe(false);
+    expect(mediaLimitsOf({ intensity: "flirty", hard_nos: none }).maxStage).toBe(3);
   });
 
   it("gives every act an outfit it goes with, and every outfit's words pass the two lines", () => {
