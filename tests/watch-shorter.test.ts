@@ -11,7 +11,8 @@ describe("Watch stays short", () => {
   });
 
   it("puts rooms (ready, premieres, replays) in sideways strips, and caps the replays", () => {
-    expect(page.match(/watch-lobby watch-strip/g)?.length).toBe(3);
+    // 2026-10-22: each strip is a StripPager (sideways on a phone, three a page on desktop).
+    expect(page.match(/<StripPager label=/g)?.length).toBe(3);
     expect(page).toContain("replays.slice(0, REPLAYS_SHOWN)");
   });
 
