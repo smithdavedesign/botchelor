@@ -20,7 +20,7 @@ import AfterDarkProvidersPage from "@/app/admin/after-dark/providers/page";
 import { registerAccount } from "@/lib/auth";
 import { claimAdmin } from "@/lib/admins";
 import { saveAdultSettings } from "@/lib/adult/settings";
-import { assignJob, recordError, saveConnection } from "@/lib/connections";
+import { assignJob, recordError, recordUsage, saveConnection } from "@/lib/connections";
 import { modelOptions, plainError } from "@/lib/connections-shared";
 import { signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
@@ -132,6 +132,59 @@ describe("/account/keys: Connections", () => {
     // Not on a device that hasn't entered the After Dark PIN.
     await t.db.query(`insert into adult_privacy (user_id, pin_hash, pin_version) values ($1, 'a-pin-hash', 1)`, [U]);
     expect(await page()).not.toMatch(/after dark/i);
+  });
+});
+
+describe("caps on the page (M3)", () => {
+  it("a capped job's card draws its spend as a meter, amber past 80%", async () => {
+    signIn();
+    await saveConnection(t.db, U, "openrouter", fakeKey("meter"));
+    await assignJob(t.db, U, "text", "openrouter", null, {}, { cap_usd: 10 });
+    await recordUsage(t.db, U, "text", { usd: 8.1, how: "reported", input: 0, output: 0 });
+    const html = await page();
+    expect(html).toContain("80% of cap");
+    expect(html).toContain("$8.10 of $10 this month");
+    expect(html).toMatch(/<div class="usage-meter level-warn" role="meter" aria-label="This month&#x27;s spend against the cap" aria-valuemin="0" aria-valuemax="10" aria-valuenow="8.1" aria-valuetext="\$8.10 of \$10 this month"><span style="width:81%"><\/span><\/div>/);
+  });
+
+  it("at the cap: the card says what happens until the 1st", async () => {
+    signIn();
+    await saveConnection(t.db, U, "openrouter", fakeKey("full"));
+    await assignJob(t.db, U, "text", "openrouter", null, {}, { cap_usd: 5, on_cap: "fallback" });
+    await recordUsage(t.db, U, "text", { usd: 5.2, how: "reported", input: 0, output: 0 });
+    const html = await page();
+    expect(html).toContain("Cap reached");
+    expect(html).toMatch(/Cap reached: Botchelor&#x27;s free model stands in until [A-Z][a-z]{2} 1/);
+    expect(html).toContain('style="width:100%"');
+  });
+
+  it("the flow's cap step: an amount, and for Dates & texts what happens at the cap; portraits just wait", () => {
+    const text = renderToStaticMarkup(
+      createElement(KeyForm, {
+        job: "text",
+        jobTitle: "Dates & texts",
+        providers: [{ id: "openai", label: "OpenAI", blurb: "", keyHint: "Starts with sk-", keysUrl: "https://platform.openai.com/api-keys", stored: { last4: "2468" }, models: modelOptions("openai", "text", null) }],
+        current: { provider: "openai", model: "gpt-4.1-mini", cap: { cap_usd: 10, on_cap: "pause" } },
+        also: [],
+        onDone: () => {},
+      }),
+    );
+    expect(text).toContain("Monthly cap");
+    expect(text).toMatch(/<input type="number" inputMode="decimal" min="0" max="1000" step="1" placeholder="no cap"[^>]*value="10"/);
+    expect(text).toMatch(/checked=""\/> My dates wait until it&#x27;s fixed/);
+    expect(text).toContain("Botchelor&#x27;s free model stands in, so dates carry on");
+    const image = renderToStaticMarkup(
+      createElement(KeyForm, {
+        job: "image",
+        jobTitle: "Portraits & pictures",
+        providers: [{ id: "openai", label: "OpenAI", blurb: "", keyHint: "Starts with sk-", keysUrl: "https://platform.openai.com/api-keys", stored: { last4: "2468" }, models: modelOptions("openai", "image", null) }],
+        current: { provider: null, model: null },
+        also: [],
+        onDone: () => {},
+      }),
+    );
+    expect(image).toContain("At the cap, portraits wait until the 1st");
+    expect(image).not.toContain("My dates wait");
   });
 });
 

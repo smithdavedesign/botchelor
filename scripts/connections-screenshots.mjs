@@ -9,7 +9,9 @@
  *   connections-flow: connecting OpenRouter for Dates & texts: provider, key, Test (passed);
  *   connections-models, connections-feel (M2): its models, tagged and priced, and the feel (Wild, Advanced open);
  *   connections-connected: OpenRouter running dates, OpenAI making portraits, and the key list;
- *   connections-error: OpenRouter out of credit after a Check, in plain words with "Top up";
+ *   connections-cap (M3): the monthly cap step;
+ *   connections-error: OpenRouter out of credit after a Check, in plain words with "Top up", the free model standing in;
+ *   connections-caps (M3): dates at 81% of the cap (the meter amber), portraits over theirs;
  *   connections-after-dark: an admin's read-only After Dark card; admin-providers: the providers view, Hive paused.
  *
  * On the phone it also checks no page scrolls sideways. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build.
@@ -68,7 +70,8 @@ async function main() {
     // A player, signed in.
     const ctx = await browser.newContext();
     await ctx.addCookies([{ name: "bz_adult", value: "1", url: app.base }]);
-    const reg = await ctx.request.post(`${app.base}/api/auth/register`, { data: { handle: `keys${Date.now() % 1e6}`, password: ["a", "long", "shots", "phrase"].join("-"), attest: true } });
+    const handle = `keys${Date.now() % 1e6}`;
+    const reg = await ctx.request.post(`${app.base}/api/auth/register`, { data: { handle, password: ["a", "long", "shots", "phrase"].join("-"), attest: true } });
     assert(reg.ok(), `register: HTTP ${reg.status()}`);
     const page = await ctx.newPage();
     await page.setViewportSize({ width: 1280, height: 860 });
@@ -121,12 +124,21 @@ async function main() {
     await checkPhone(page, "the feel step");
     await frameTop(page, dates.locator(".feel-picker"));
     await shot(page, "connections-feel-phone.png");
+    // M3: a monthly cap, and the free model standing in at it.
+    await page.setViewportSize({ width: 1280, height: 860 });
+    await dates.locator(".connect-cap input").fill("10");
+    await frameTop(page, dates.locator(".connect-cap"));
+    await shot(page, "connections-cap-desktop.png");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await checkPhone(page, "the cap step");
+    await frameTop(page, dates.locator(".connect-cap"));
+    await shot(page, "connections-cap-phone.png");
     await page.setViewportSize({ width: 1280, height: 860 });
     await dates.getByRole("button", { name: "Save" }).click();
     await page.getByText("Your OpenRouter key ✓ · deepseek/deepseek-chat-v3.1 · Custom (1.1)").waitFor({ timeout: 15_000 });
 
     // 3. OpenAI for portraits too (the same flow, through the API), then the cards and the key list.
-    const put = await ctx.request.put(`${app.base}/api/me/connections`, { data: { job: "image", provider: "openai", key: fake("openai", "4b1e") } });
+    const put = await ctx.request.put(`${app.base}/api/me/connections`, { data: { job: "image", provider: "openai", key: fake("openai", "4b1e"), cap_usd: 1 } });
     assert(put.ok(), `connect OpenAI: HTTP ${put.status()}`);
     await page.setViewportSize({ width: 1280, height: 860 });
     await page.reload();
@@ -144,6 +156,7 @@ async function main() {
     await page.locator("#dates").getByRole("button", { name: "Check" }).click();
     await page.locator("#dates").getByText("OpenRouter: out of credit.").waitFor({ timeout: 15_000 });
     await page.locator("#dates").getByText(/failed just now/).waitFor({ timeout: 15_000 }); // the card, refreshed from the server
+    await page.locator("#dates .connection-pill", { hasText: "On the free model" }).waitFor();
     await frameTop(page, page.locator("#dates"));
     await shot(page, "connections-error-desktop.png");
     await page.setViewportSize({ width: 390, height: 844 });
@@ -155,7 +168,8 @@ async function main() {
     state.dry = false;
 
     // 5. The admin: After Dark's house keys saved (fake), then Hive's daily-limit pause and Venice out of credit, as the
-    // cooldowns table holds them (written while the app is stopped: the local database has one writer).
+    // cooldowns table holds them, and (M3) a month's spend: $8.10 of the $10 on dates, portraits over their $1 (written while
+    // the app is stopped: the local database has one writer).
     assert((await ctx.request.post(`${app.base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } })).ok(), "claiming admin");
     const settings = await ctx.request.post(`${app.base}/api/admin/after-dark/settings`, {
       data: { openrouter_key: fake("house", "or11"), venice_key: fake("house", "ve22"), hive_key: fake("house", "hv33"), fal_key: fake("house", "fa44"), media_provider: "venice", image_provider: "venice" },
@@ -168,12 +182,30 @@ async function main() {
          ('hive', now() + interval '2 hours', 429, 'the check: 429'), ('venice', now() + interval '25 minutes', 402, 'out of credit')
        on conflict (provider) do update set until = excluded.until, status = excluded.status, reason = excluded.reason`,
     );
+    const userId = (await db.query(`select user_id from accounts where handle = $1`, [handle])).rows[0]?.user_id;
+    assert(userId, "the screenshot account");
+    const month = new Date().toISOString().slice(0, 7);
+    await db.query(
+      `insert into user_connection_usage (user_id, job, month, cost_usd, calls, estimated_calls) values ($1, 'text', $2, 8.1, 412, 0), ($1, 'image', $2, 1.02, 6, 6)`,
+      [userId, month],
+    );
     await db.close();
     app = await startApp(await freePort(), env);
     // Cookies are the host's, not the port's: the same signed-in browser, on the restarted app.
     const admin = await ctx.newPage();
     await admin.setViewportSize({ width: 1280, height: 860 });
     await admin.goto(`${app.base}/account/keys`);
+    // M3: OpenRouter checks out again (topped up), so the dates card shows its spend: 81% of the cap; portraits are capped.
+    await admin.locator("#dates").getByRole("button", { name: "Check" }).click();
+    await admin.locator("#dates").getByText("80% of cap").waitFor({ timeout: 15_000 });
+    await admin.locator("#portraits .connection-pill", { hasText: "Cap reached" }).waitFor();
+    await frameTop(admin, admin.locator("#dates"));
+    await shot(admin, "connections-caps-desktop.png");
+    await admin.setViewportSize({ width: 390, height: 844 });
+    await checkPhone(admin, "caps and meters");
+    await frameTop(admin, admin.locator("#dates"));
+    await shot(admin, "connections-caps-phone.png");
+    await admin.setViewportSize({ width: 1280, height: 860 });
     await admin.locator("#after-dark").waitFor();
     await frameTop(admin, admin.locator("#after-dark"));
     await shot(admin, "connections-after-dark-desktop.png");

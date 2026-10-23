@@ -253,9 +253,23 @@ describe("the shared pieces the page uses", () => {
     ]);
     const conn = { provider: "openrouter", last4: "abcd", verified_at: "2026-10-23T11:58:00Z", last_used_at: "2026-10-23T11:00:00Z", last_error: null, created_at: "2026-10-20T00:00:00Z", jobs: ["text" as const] };
     const ok = jobCards({ connections: [conn], jobs: [{ job: "text", provider: "openrouter", model: "deepseek/deepseek-chat-v3.1" }] }, now)[0];
-    expect(ok).toMatchObject({ state: "connected", pill: "✓ Connected", status: "Your OpenRouter key ✓ · deepseek/deepseek-chat-v3.1 · Lively", meta: ["•••• abcd", "checked 2 min ago", "last used 1 hour ago"] });
+    expect(ok).toMatchObject({
+      state: "connected",
+      pill: "✓ Connected",
+      status: "Your OpenRouter key ✓ · deepseek/deepseek-chat-v3.1 · Lively",
+      meta: ["•••• abcd", "checked 2 min ago", "last used 1 hour ago", "$0 this month"],
+    });
+    // A failed key on Dates & texts: Botchelor's free model stands in (M3's default), and the card says so.
     const broken = jobCards({ connections: [{ ...conn, last_error: plainError("openrouter", "no_credit") }], jobs: [{ job: "text", provider: "openrouter", model: null }] }, now)[0];
-    expect(broken).toMatchObject({ state: "error", pill: "Needs attention", status: "Your OpenRouter key · openai/gpt-4.1-mini · Lively", error: { message: "OpenRouter: out of credit." } });
+    expect(broken).toMatchObject({
+      state: "fallback",
+      pill: "On the free model",
+      status: "Your OpenRouter key failed, so Botchelor's free model stands in · openai/gpt-4.1-mini · Lively",
+      error: { message: "OpenRouter: out of credit." },
+    });
+    // One whose owner chose to pause instead needs attention.
+    const paused = jobCards({ connections: [{ ...conn, last_error: plainError("openrouter", "no_credit") }], jobs: [{ job: "text", provider: "openrouter", model: null, on_cap: "pause" }] }, now)[0];
+    expect(paused).toMatchObject({ state: "error", pill: "Needs attention", status: "Your OpenRouter key · openai/gpt-4.1-mini · Lively" });
     // An OpenAI key for dates is offered to Portraits, which has no key yet.
     const openai = { ...conn, provider: "openai" };
     expect(jobCards({ connections: [openai], jobs: [{ job: "text", provider: "openai", model: null }] }, now)[1].reusable).toEqual([{ provider: "openai", label: "OpenAI", last4: "abcd" }]);
@@ -277,13 +291,25 @@ describe("the store", () => {
     expect(JSON.stringify(listed)).not.toContain(row.ciphertext);
     expect(listed.connections[0]).toMatchObject({ provider: "openrouter", last4: "4321", sealed: "legacy", verified_at: "2026-10-23T11:58:00.000Z", jobs: ["text"] });
     expect(listed.jobs).toEqual([
-      { job: "text", provider: "openrouter", model: "deepseek/deepseek-chat-v3.1", updated_at: expect.any(String), preset: null, temperature: null, frequency_penalty: null, presence_penalty: null },
+      {
+        job: "text",
+        provider: "openrouter",
+        model: "deepseek/deepseek-chat-v3.1",
+        updated_at: expect.any(String),
+        preset: null,
+        temperature: null,
+        frequency_penalty: null,
+        presence_penalty: null,
+        cap_usd: null,
+        on_cap: null,
+      },
     ]);
     expect(await jobKey(t.db, A, "text", legacyEnv)).toEqual({
       provider: "openrouter",
       apiKey: key,
       model: "deepseek/deepseek-chat-v3.1",
       feel: { preset: null, temperature: null, frequency_penalty: null, presence_penalty: null },
+      cap: { cap_usd: null, on_cap: "fallback" }, // no cap; the free model stands in by default (M3)
     });
     expect(await hasJobKey(t.db, A, "text")).toBe(true);
     expect(await hasJobKey(t.db, A, "image")).toBe(false);
@@ -347,7 +373,7 @@ describe("the store", () => {
     await assignJob(t.db, A, "text", "openrouter", null);
     expect(await jobKey(t.db, A, "text", { SESSION_SECRET: ["a", "different", "session", "words"].join("-") })).toBeNull();
     const card = jobCards(await listConnections(t.db, A))[0];
-    expect(card.state).toBe("error");
+    expect(card.state).toBe("fallback"); // the free model stands in for dates meanwhile (M3)
     expect(card.error?.kind).toBe("unreadable");
     expect(card.error?.fix?.label).toBe("Paste it again");
   });

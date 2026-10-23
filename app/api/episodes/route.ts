@@ -5,6 +5,7 @@ import { z } from "zod";
 import { releaseEpisode, reserveEpisode, reserveSecondDate, type Reservation } from "@/lib/allowance";
 import { portraitPathSql } from "@/lib/assets";
 import { PACK_5 } from "@/lib/catalog";
+import { jobUsability } from "@/lib/connections";
 import { getDb, type Db } from "@/lib/db";
 import { decideTraced } from "@/lib/engine";
 import { getEpisodeView, listFeed, toEpisodeJson, type CharacterRef, type StoredEpisode } from "@/lib/game";
@@ -198,6 +199,14 @@ export const POST = handle(async (req) => {
     )
   ).rows[0];
   if (!own) return json({ error: "character_not_found" }, 404, sess);
+
+  // Connections M3: someone who chose to pause when their own key can't be used (at its cap, out of credit, revoked)
+  // books no date until it can; the free model doesn't stand in for them. Dates others book with their character still
+  // happen, on the show's model.
+  const usable = await jobUsability(db, sess.userId, "text");
+  if ((usable.state === "over_cap" && usable.cap.on_cap === "pause") || usable.state === "failing") {
+    return json({ error: "key_paused", message: usable.message, connect: "/account/keys#dates" }, 409, sess);
+  }
 
   // One partner (lib/partners.ts): a character that's with someone dates only them until it cools off. One left to
   // decide, and already with someone, decides now.

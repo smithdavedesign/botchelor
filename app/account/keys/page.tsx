@@ -5,7 +5,7 @@ import { isSignedInAdmin } from "@/lib/admins";
 import { houseProviderStatus, type HouseCard } from "@/lib/adult/provider-status";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { afterDarkHref } from "@/lib/after-dark-host";
-import { listConnections } from "@/lib/connections";
+import { currentUsage, listConnections } from "@/lib/connections";
 import {
   JOB_INFO,
   JOBS,
@@ -94,7 +94,7 @@ export default async function KeysPage() {
   }
   const db = await getDb();
   const listing = await listConnections(db, auth.userId);
-  const cards = jobCards(listing);
+  const cards = jobCards(listing, Date.now(), await currentUsage(db, auth.userId));
   const connections: ConnectionSummary[] = listing.connections.map(({ provider, last4, verified_at, last_used_at, last_error, last_error_at, created_at, jobs }) => ({
     provider,
     last4,

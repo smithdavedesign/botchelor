@@ -96,7 +96,12 @@ describe("connecting a key (PUT)", () => {
     expect(res.status).toBe(200);
     expect(text).not.toContain(key);
     const body = JSON.parse(text);
-    expect(body.cards[0]).toMatchObject({ job: "text", state: "connected", status: "Your OpenRouter key ✓ · deepseek/deepseek-chat-v3.1 · Lively", meta: ["•••• 5678", "checked just now", "not used yet"] });
+    expect(body.cards[0]).toMatchObject({
+      job: "text",
+      state: "connected",
+      status: "Your OpenRouter key ✓ · deepseek/deepseek-chat-v3.1 · Lively",
+      meta: ["•••• 5678", "checked just now", "not used yet", "$0 this month"],
+    });
     expect(body.connections).toEqual([expect.objectContaining({ provider: "openrouter", last4: "5678", jobs: ["text"] })]);
     expect(body.connections[0]).not.toHaveProperty("ciphertext");
     expect(seen.map((s) => s.url)).toEqual(["https://openrouter.ai/api/v1/key"]); // one free check, no model call

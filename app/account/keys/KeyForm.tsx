@@ -3,7 +3,7 @@
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { requestJson } from "@/app/request";
-import type { Feel, Job, ModelOption, PlainError, UserProvider } from "@/lib/connections-shared";
+import { CAP_MAX_USD, DEFAULT_ON_CAP, type CapSettings, type Feel, type Job, type ModelOption, type OnCap, type PlainError, type UserProvider } from "@/lib/connections-shared";
 import FeelPicker, { feelValue, type FeelValue } from "./FeelPicker";
 import ModelPicker from "./ModelPicker";
 import ProviderMark from "./ProviderMark";
@@ -57,7 +57,7 @@ export default function KeyForm({
   job: Job;
   jobTitle: string;
   providers: FlowProvider[];
-  current: { provider: string | null; model: string | null; feel?: Feel | null };
+  current: { provider: string | null; model: string | null; feel?: Feel | null; cap?: CapSettings | null };
   also: AlsoJob[];
   onDone: () => void;
 }) {
@@ -79,6 +79,9 @@ export default function KeyForm({
     loading: false,
   });
   const [feel, setFeel] = useState<FeelValue>(feelValue(current.feel ?? null));
+  // M3: the monthly cap ("" is none) and, for Dates & texts, what happens at it or when the key fails.
+  const [cap, setCap] = useState<string>(current.cap?.cap_usd != null ? String(current.cap.cap_usd) : "");
+  const [onCap, setOnCap] = useState<OnCap>(current.cap?.on_cap ?? DEFAULT_ON_CAP);
   const [alsoJobs, setAlsoJobs] = useState<Set<Job>>(new Set(also.filter((a) => first && a.providers.includes(first.id)).map((a) => a.job)));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<PlainError | string | null>(null);
@@ -144,7 +147,9 @@ export default function KeyForm({
             ...(feel.presence_penalty !== null ? { presence_penalty: feel.presence_penalty } : {}),
           }
         : {};
-    const body = { job, provider: provider.id, model: model || undefined, also: [...alsoJobs], ...sampling, ...(useStored ? {} : { key }) };
+    const capUsd = cap.trim() === "" ? null : Math.min(CAP_MAX_USD, Math.max(0, Number(cap) || 0));
+    const limits = { cap_usd: capUsd, ...(job === "text" ? { on_cap: onCap } : {}) };
+    const body = { job, provider: provider.id, model: model || undefined, also: [...alsoJobs], ...sampling, ...limits, ...(useStored ? {} : { key }) };
     const r = await requestJson("/api/me/connections", body, "PUT").catch(() => null);
     setSaving(false);
     if (!r) return setSaveError("Couldn't reach Botchelor. Try again.");
@@ -256,6 +261,42 @@ export default function KeyForm({
               <FeelPicker provider={provider.id} value={feel} onChange={setFeel} />
             </fieldset>
           )}
+          <fieldset className="connect-step">
+            <legend>{n + (job === "text" ? 4 : 3)}. Monthly cap</legend>
+            <label className="connect-cap">
+              <span>Spend at most</span>
+              <span className="cap-input">
+                <span aria-hidden="true">$</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  max={CAP_MAX_USD}
+                  step={1}
+                  value={cap}
+                  placeholder="no cap"
+                  onChange={(e) => setCap(e.target.value)}
+                  aria-describedby={`${ids}-cap-note`}
+                />
+              </span>
+            </label>
+            <p id={`${ids}-cap-note`} className="muted small">
+              A month, on this job (it resets on the 1st). You&apos;ll hear at 80%. The provider&apos;s own spend limit on the key still applies.
+            </p>
+            {job === "text" ? (
+              <div className="connect-choice" role="radiogroup" aria-label="At the cap, or when the key fails">
+                <span className="muted small">At the cap, or when the key fails:</span>
+                <label>
+                  <input type="radio" name={`${ids}-oncap`} checked={onCap === "fallback"} onChange={() => setOnCap("fallback")} /> Botchelor&apos;s free model stands in, so dates carry on
+                </label>
+                <label>
+                  <input type="radio" name={`${ids}-oncap`} checked={onCap === "pause"} onChange={() => setOnCap("pause")} /> My dates wait until it&apos;s fixed
+                </label>
+              </div>
+            ) : (
+              <p className="muted small">At the cap, {job === "image" ? "portraits" : "clips"} wait until the 1st: there&apos;s no free model for them.</p>
+            )}
+          </fieldset>
           {offered.length > 0 && (
             <fieldset className="connect-step">
               <legend>Also use this key for</legend>

@@ -41,6 +41,7 @@ export type AccountExport = {
   reflection_labels: Record<string, unknown>[];
   /** Saved provider keys: the provider, last four and model only (the key itself is never exported or shown). */
   provider_keys: Record<string, unknown>[];
+  provider_spend: Record<string, unknown>[];
   /** Between dates (lib/between-dates.ts): their characters' texts, the nudges they left, their second-date yeses. */
   couple_texts: Record<string, unknown>[];
   nudges: Record<string, unknown>[];
@@ -139,6 +140,11 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       `select c.provider, c.last4, c.verified_at, c.last_used_at, c.created_at, j.job, j.model
          from user_connections c left join user_connection_jobs j on j.user_id = c.user_id and j.provider = c.provider
         where c.user_id = $1 order by c.created_at`,
+      [userId],
+    ),
+    // What each of their jobs spent on their own keys, by month (Connections M3).
+    provider_spend: await q(
+      `select job, month, cost_usd, calls, estimated_calls, unpriced_calls from user_connection_usage where user_id = $1 order by month, job`,
       [userId],
     ),
     couple_texts: await q(

@@ -103,7 +103,15 @@ fix ("OpenRouter: out of credit → Top up"). Connecting is: provider, paste the
 or model list, never a model call), model, feel, Save; a key that fails its check is never stored. The model step lists the
 models the key can use (OpenRouter's live list with its prices; the others' own lists), tagged free, fast or vision, with a
 price hint per date; the feel is a preset (Steady, Lively, Wild) or Advanced's temperature and penalties, clamped to safe
-bounds and sent only to providers that take them (`lib/keys.ts withSampling`). An admin also sees After Dark's
+bounds and sent only to providers that take them (`lib/keys.ts withSampling`).
+
+**Caps and fallback (M3).** Every call on a person's key is counted for the month per job: OpenRouter's own reported cost,
+else tokens × the model's list price, else counted as unpriced (`user_connection_usage`). A job can have a monthly cap in
+dollars; its card shows the spend as a meter, and at 80% its owner gets a notice (and an email at once, if they turned email
+on). At the cap, or when the key fails (out of credit, revoked, limited, the provider down), Botchelor's free model stands in
+for their dates, mid-date included, so a date is never lost to a key. Or, if they chose to pause, the dates they book wait
+until it's fixed (the booking says why); dates others book with their character still happen on the show's model. Texting on
+your own key, portraits and clips have no free model, so at the cap they wait. An admin also sees After Dark's
 house providers there, read-only (nobody's own key reaches After Dark), and their live status on
 `/admin/after-dark/providers`.
 
