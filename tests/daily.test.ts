@@ -3,11 +3,11 @@ import { GET as dailyJob } from "@/app/api/jobs/daily/route";
 import { BACKFILL_MAX_ATTEMPTS, backfillTranscripts } from "@/lib/backfill";
 import { setConversationEnabledForTests } from "@/lib/conversation";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import { ModelError } from "@/lib/model";
+import { ModelError, setModelForTests } from "@/lib/model";
 import { CONVERSATION_TURNS, ENDING_LABELS } from "@/lib/rules";
 import { GET as lobbyJob } from "@/app/api/jobs/lobby/route";
 import { createTemplateParty, FRESH_ROOMS_PER_DAY, listLobby, refreshLobby } from "@/lib/watch";
-import { BASE_URL, episodeJson, planJson, scriptedModel, scriptOutcome, setupEpisode, startTestDb } from "./helpers";
+import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, planJson, scriptedModel, scriptOutcome, setupEpisode, startTestDb, validCharacter } from "./helpers";
 
 // Varied openers and no repeated distinctive content words — so the critics (opener, catchphrase, motif, near-
 // duplicate, profile) don't force revisions and the scripted model doesn't run out of outputs.
@@ -233,6 +233,34 @@ describe("backfillTranscripts", () => {
   it("does nothing while the conversation is switched off", async () => {
     await setupEpisode("friends");
     expect(await backfillTranscripts(t.db, 5)).toEqual({ filled: [], failed: [] });
+  });
+
+  it("turn_meta stays line for line with the transcript: empty after a failed conversation, full after the backfill", async () => {
+    const creator = newUserCookie();
+    const character = await (await api.createCharacter(validCharacter(), creator)).json();
+    scriptOutcome({ ending: "friends" });
+    setConversationEnabledForTests(true);
+    // The plan falls back to rules, every line fails (so the conversation fails), and the recap is written anyway.
+    setModelForTests({
+      async complete(messages) {
+        const system = messages[0]?.content ?? "";
+        if (system.startsWith("You are one fictional adult")) throw new Error("model down");
+        return system.includes("story editor") ? "{}" : episodeJson();
+      },
+    });
+    const res = await api.createEpisode({ character_id: character.id, partner_id: HOUSE_PARTNER_ID }, creator);
+    expect(res.status).toBe(200);
+    const id = (await res.json()).id as string;
+    const row = async () =>
+      (await t.db.query<{ transcript: unknown[]; turn_meta: { at: string; by: string }[] }>(`select transcript, turn_meta from episodes where id = $1`, [id])).rows[0];
+    expect(await row()).toEqual({ transcript: [], turn_meta: [] });
+
+    scriptedModel(["{}", "{}", ...turns(CONVERSATION_TURNS)]);
+    expect((await backfillTranscripts(t.db, 5)).filled).toEqual([id]);
+    const filled = await row();
+    expect(filled.transcript).toHaveLength(CONVERSATION_TURNS);
+    expect(filled.turn_meta).toHaveLength(filled.transcript.length);
+    for (const m of filled.turn_meta) expect(m).toEqual({ at: expect.any(String), by: "show" });
   });
 });
 
