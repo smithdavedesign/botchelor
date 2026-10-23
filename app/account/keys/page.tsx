@@ -7,10 +7,10 @@ import { lockedForCookies } from "@/lib/adult/privacy";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { listConnections } from "@/lib/connections";
 import {
-  curatedModels,
   JOB_INFO,
   JOBS,
   jobCards,
+  modelOptions,
   PROVIDER_INFO,
   providersFor,
   type ConnectionSummary,
@@ -109,7 +109,7 @@ export default async function KeysPage() {
     providersFor(job).map((id) => {
       const info = PROVIDER_INFO[id];
       const stored = connections.find((c) => c.provider === id);
-      return { id, label: info.label, blurb: info.blurb, keyHint: info.keyHint, keysUrl: info.keysUrl, stored: stored ? { last4: stored.last4 } : null, models: curatedModels(id, job) };
+      return { id, label: info.label, blurb: info.blurb, keyHint: info.keyHint, keysUrl: info.keysUrl, stored: stored ? { last4: stored.last4 } : null, models: modelOptions(id, job, null) };
     });
   const unassigned = JOBS.filter((j) => !listing.jobs.some((a) => a.job === j));
   const alsoFor = (job: Job): AlsoJob[] =>

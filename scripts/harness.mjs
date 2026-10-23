@@ -143,6 +143,27 @@ export function startShowrunner() {
   return new Promise((ok) => server.listen(0, "127.0.0.1", () => ok(server)));
 }
 
+/** A small OpenRouter model list for the stub: [id, name, $ in / out per 1M tokens, takes images, makes only images]. */
+const STUB_OPENROUTER_MODELS = [
+  ["openai/gpt-4.1-mini", "OpenAI: GPT-4.1 Mini", 0.4, 1.6, true],
+  ["anthropic/claude-haiku-5-5", "Anthropic: Claude Haiku 5.5", 1, 5, true],
+  ["deepseek/deepseek-chat", "DeepSeek: DeepSeek V3", 0.28, 0.42],
+  ["deepseek/deepseek-chat-v3.1", "DeepSeek: DeepSeek V3.1", 0.27, 1.1],
+  ["deepseek/deepseek-chat-v3.1:free", "DeepSeek: DeepSeek V3.1 (free)", 0, 0],
+  ["x-ai/grok-4", "xAI: Grok 4", 3, 15, true],
+  ["google/gemini-3.5-flash-lite", "Google: Gemini 3.5 Flash Lite", 0.3, 2.5, true],
+  ["meta-llama/llama-3.3-70b-instruct:free", "Meta: Llama 3.3 70B Instruct (free)", 0, 0],
+  ["mistralai/mistral-large", "Mistral: Mistral Large", 2, 6],
+  ["qwen/qwen3-235b-a22b", "Qwen: Qwen3 235B A22B", 0.13, 0.6],
+  ["openai/text-embedding-3-small", "OpenAI: Text Embedding 3 Small", 0.02, 0],
+  ["black-forest-labs/flux-1.1-pro", "Black Forest Labs: FLUX 1.1 Pro", 0, 0, false, true],
+].map(([id, name, input, output, vision, imageOnly]) => ({
+  id,
+  name,
+  pricing: { prompt: String(input / 1e6), completion: String(output / 1e6) },
+  architecture: { input_modalities: vision ? ["text", "image"] : ["text"], output_modalities: imageOnly ? ["image"] : ["text"] },
+}));
+
 /**
  * Every model provider a person's key is checked against (lib/connections.ts checkKey), answering on loopback: the app
  * points them all here when BYOK_STUB_ORIGIN is set (loopback only, never on Vercel), so a run connects fake keys
@@ -159,6 +180,8 @@ export function startProviderStub(state = {}) {
       if (state.dry) return send(402, { error: { message: "Insufficient credits", code: 402 } });
       return send(200, { data: { label: "local stub", usage: 1.2, limit: 10, is_free_tier: false } });
     }
+    // OpenRouter's public model list, as its API shapes it: per-token prices as strings, and each model's modalities.
+    if (url.pathname === "/openrouter/api/v1/models") return send(200, { data: STUB_OPENROUTER_MODELS });
     if (url.pathname === "/openai/v1/models") return send(200, { data: ["gpt-4.1-mini", "gpt-4.1", "gpt-5-mini", "gpt-image-2"].map((id) => ({ id })) });
     if (url.pathname === "/google/v1beta/models") {
       return send(200, { models: ["gemini-3.5-flash-lite", "gemini-3.5-flash", "veo-3.1-lite-generate-preview"].map((m) => ({ name: `models/${m}` })) });

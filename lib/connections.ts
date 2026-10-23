@@ -17,13 +17,21 @@
  */
 import type { Db } from "./db";
 import {
+  clampSetting,
+  curatedModels,
   defaultModelFor,
   isUserProvider,
+  modelFitsJob,
+  modelOption,
+  modelOptions,
   plainError,
+  PRESET_IDS,
   PROVIDER_INFO,
   TEXT_PROVIDERS,
   type ErrorKind,
+  type Feel,
   type Job,
+  type ModelOption,
   type PlainError,
   type UserProvider,
 } from "./connections-shared";
@@ -219,7 +227,7 @@ export type ConnectionInfo = {
   /** The jobs it's used for. */
   jobs: Job[];
 };
-export type JobAssignment = { job: Job; provider: string; model: string | null; updated_at: string };
+export type JobAssignment = { job: Job; provider: string; model: string | null; updated_at: string } & Feel;
 
 type ConnRow = {
   provider: string;
@@ -250,12 +258,12 @@ export async function listConnections(db: Db, userId: string): Promise<{ connect
          from user_connections where user_id = $1 order by created_at`,
       [userId],
     ),
-    db.query<{ job: Job; provider: string; model: string | null; updated_at: Date | string }>(
-      `select job, provider, model, updated_at from user_connection_jobs where user_id = $1`,
+    db.query<{ job: Job; provider: string; model: string | null; updated_at: Date | string } & Feel>(
+      `select job, provider, model, updated_at, preset, temperature, frequency_penalty, presence_penalty from user_connection_jobs where user_id = $1`,
       [userId],
     ),
   ]);
-  const assignments = jobs.rows.map((j) => ({ job: j.job, provider: j.provider, model: j.model, updated_at: iso(j.updated_at)! }));
+  const assignments = jobs.rows.map((j) => ({ job: j.job, provider: j.provider, model: j.model, updated_at: iso(j.updated_at)!, ...storedFeel(j) }));
   return {
     connections: conns.rows.map((r) => ({
       provider: r.provider,
@@ -275,34 +283,62 @@ export async function listConnections(db: Db, userId: string): Promise<{ connect
 
 /**
  * Stores (or replaces) a person's key for a provider, sealed. `verifiedAt` is when it last passed the live check (the
- * Connections page saves only a key that just passed). A replaced key starts with a clean slate: no error, not used yet.
+ * Connections page saves only a key that just passed), and `models` what that check listed. A replaced key starts with a
+ * clean slate: no error, not used yet.
  */
 export async function saveConnection(
   db: Db,
   userId: string,
   provider: string,
   apiKey: string,
-  opts: { verifiedAt?: string | null; env?: Env } = {},
+  opts: { verifiedAt?: string | null; models?: string[] | null; env?: Env } = {},
 ): Promise<{ provider: string; last4: string; sealed: SealVersion }> {
   const sealed = sealKey(apiKey, contextFor(userId, provider), opts.env);
   const last4 = apiKey.slice(-4);
+  const models = opts.models ? JSON.stringify(opts.models.slice(0, MAX_LISTED)) : null;
   await db.query(
-    `insert into user_connections (user_id, provider, ciphertext, nonce, last4, verified_at)
-     values ($1, $2, $3, $4, $5, $6)
+    `insert into user_connections (user_id, provider, ciphertext, nonce, last4, verified_at, models, models_at)
+     values ($1, $2, $3, $4, $5, $6, $7::jsonb, case when $7::jsonb is null then null else now() end)
      on conflict (user_id, provider) do update set
        ciphertext = excluded.ciphertext, nonce = excluded.nonce, last4 = excluded.last4, verified_at = excluded.verified_at,
+       models = excluded.models, models_at = excluded.models_at,
        last_used_at = null, last_error = null, last_error_kind = null, last_error_at = null, updated_at = now()`,
-    [userId, provider, sealed.ciphertext, sealed.nonce, last4, opts.verifiedAt ?? null],
+    [userId, provider, sealed.ciphertext, sealed.nonce, last4, opts.verifiedAt ?? null, models],
   );
   return { provider, last4, sealed: sealVersion(sealed) };
 }
 
-/** Points a job at a provider's stored key, with the model it runs (null: the provider's default for the job). */
-export async function assignJob(db: Db, userId: string, job: Job, provider: string, model: string | null): Promise<void> {
+/** A feel as it's read back: only a known preset, and every number inside its bounds (lib/connections-shared.ts). */
+function storedFeel(r: Partial<Record<keyof Feel, unknown>>): Feel {
+  const preset = r.preset === "custom" || (PRESET_IDS as string[]).includes(String(r.preset)) ? (r.preset as Feel["preset"]) : null;
+  return {
+    preset,
+    temperature: clampSetting(r.temperature, "temperature"),
+    frequency_penalty: clampSetting(r.frequency_penalty, "penalty"),
+    presence_penalty: clampSetting(r.presence_penalty, "penalty"),
+  };
+}
+
+/**
+ * Points a job at a provider's stored key, with the model it runs (null: the provider's default for the job) and, for
+ * Dates & texts, its feel (a preset, or Advanced's raw values, clamped to their bounds for that provider).
+ */
+export async function assignJob(db: Db, userId: string, job: Job, provider: string, model: string | null, feel: Partial<Feel> = {}): Promise<void> {
+  const f = job === "text" ? feel : {};
   await db.query(
-    `insert into user_connection_jobs (user_id, job, provider, model) values ($1, $2, $3, $4)
-     on conflict (user_id, job) do update set provider = excluded.provider, model = excluded.model, updated_at = now()`,
-    [userId, job, provider, model],
+    `insert into user_connection_jobs (user_id, job, provider, model, preset, temperature, frequency_penalty, presence_penalty) values ($1, $2, $3, $4, $5, $6, $7, $8)
+     on conflict (user_id, job) do update set provider = excluded.provider, model = excluded.model, preset = excluded.preset,
+       temperature = excluded.temperature, frequency_penalty = excluded.frequency_penalty, presence_penalty = excluded.presence_penalty, updated_at = now()`,
+    [
+      userId,
+      job,
+      provider,
+      model,
+      f.preset ?? null,
+      clampSetting(f.temperature, "temperature", provider),
+      clampSetting(f.frequency_penalty, "penalty"),
+      clampSetting(f.presence_penalty, "penalty"),
+    ],
   );
 }
 
@@ -350,11 +386,14 @@ export async function openConnection(db: Db, userId: string, provider: string, e
   return row ? openStored(db, userId, provider, row, env) : null;
 }
 
-/** What a job runs on for a person: the provider, its key (opened, for the call only) and the model; null with none. */
-export async function jobKey(db: Db, userId: string, job: Job, env: Env = process.env): Promise<{ provider: string; apiKey: string; model: string } | null> {
+/**
+ * What a job runs on for a person: the provider, its key (opened, for the call only), the model, and (Dates & texts) its
+ * feel; null with none.
+ */
+export async function jobKey(db: Db, userId: string, job: Job, env: Env = process.env): Promise<{ provider: string; apiKey: string; model: string; feel: Feel } | null> {
   const row = (
-    await db.query<{ provider: string; model: string | null; ciphertext: string; nonce: string }>(
-      `select j.provider, j.model, c.ciphertext, c.nonce
+    await db.query<{ provider: string; model: string | null; ciphertext: string; nonce: string } & Feel>(
+      `select j.provider, j.model, j.preset, j.temperature, j.frequency_penalty, j.presence_penalty, c.ciphertext, c.nonce
          from user_connection_jobs j join user_connections c on c.user_id = j.user_id and c.provider = j.provider
         where j.user_id = $1 and j.job = $2`,
       [userId, job],
@@ -364,7 +403,7 @@ export async function jobKey(db: Db, userId: string, job: Job, env: Env = proces
   const model = row.model || defaultModelFor(row.provider, job);
   if (!model) return null;
   const apiKey = await openStored(db, userId, row.provider, row, env);
-  return apiKey ? { provider: row.provider, apiKey, model } : null;
+  return apiKey ? { provider: row.provider, apiKey, model, feel: storedFeel(row) } : null;
 }
 
 /** Whether a person has a key for a job (no decrypting: for the pages that only say "you can"). */
@@ -393,11 +432,13 @@ export async function recordError(db: Db, userId: string, provider: string, kind
     .catch(() => {});
 }
 
-/** A key that passed the live check: checked now, its error cleared. */
-export async function recordCheck(db: Db, userId: string, provider: string, at: string): Promise<void> {
+/** A key that passed the live check: checked now, its error cleared, and the models it listed kept for the model step. */
+export async function recordCheck(db: Db, userId: string, provider: string, at: string, models: string[] | null = null): Promise<void> {
   await db.query(
-    `update user_connections set verified_at = $3, last_error = null, last_error_kind = null, last_error_at = null where user_id = $1 and provider = $2`,
-    [userId, provider, at],
+    `update user_connections set verified_at = $3, last_error = null, last_error_kind = null, last_error_at = null,
+       models = coalesce($4::jsonb, models), models_at = case when $4::jsonb is null then models_at else $3::timestamptz end
+      where user_id = $1 and provider = $2`,
+    [userId, provider, at, models ? JSON.stringify(models.slice(0, MAX_LISTED)) : null],
   );
 }
 
@@ -410,4 +451,102 @@ export function refusalKind(status: number | undefined, message = ""): ErrorKind
   if (status === undefined) return null;
   const kind = classifyRefusal(status, message);
   return kind === "unknown" || kind === "provider_down" ? null : kind;
+}
+
+/* ------------------------------------------------------ M2: the models ------------------------------------------------------ */
+
+/** The most model ids kept per key (OpenRouter's list is public and isn't kept; the others list dozens). */
+export const MAX_LISTED = 500;
+/** How long OpenRouter's public model list is reused before it's fetched again (per server instance). */
+export const OPENROUTER_LIST_TTL_MS = 60 * 60 * 1000;
+
+type OpenRouterModel = {
+  id?: unknown;
+  name?: unknown;
+  pricing?: { prompt?: unknown; completion?: unknown };
+  architecture?: { input_modalities?: unknown; output_modalities?: unknown };
+};
+let openRouterCache: { at: number; models: ModelOption[] } | null = null;
+/** Tests start from an empty cache. */
+export function resetModelCacheForTests(): void {
+  openRouterCache = null;
+}
+
+/** USD per 1M tokens from OpenRouter's per-token price strings; null when it doesn't say. */
+const perMillion = (v: unknown): number | null => {
+  const n = typeof v === "string" || typeof v === "number" ? Number(v) : NaN;
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 1e6 * 1000) / 1000 : null;
+};
+
+/**
+ * OpenRouter's whole model list for Dates & texts (public: no key needed, so none is sent), with each model's own prices
+ * and modalities: free when its id says so or both prices are 0, vision when it takes images. Text-out chat models only.
+ * Kept for an hour per instance. Null when the list can't be had.
+ */
+export async function openRouterModels(opts: { fetchImpl?: typeof fetch; env?: Env; now?: number } = {}): Promise<ModelOption[] | null> {
+  const now = opts.now ?? Date.now();
+  if (openRouterCache && now - openRouterCache.at < OPENROUTER_LIST_TTL_MS) return openRouterCache.models;
+  const doFetch = opts.fetchImpl ?? fetch;
+  try {
+    const res = await doFetch(at("openrouter", "https://openrouter.ai/api/v1/models", opts.env ?? process.env), { signal: AbortSignal.timeout(CHECK_TIMEOUT_MS) });
+    if (!res.ok) return null;
+    const body = (await res.json().catch(() => null)) as { data?: OpenRouterModel[] } | null;
+    if (!Array.isArray(body?.data)) return null;
+    const models: ModelOption[] = [];
+    for (const m of body.data) {
+      if (typeof m?.id !== "string" || !modelFitsJob("text", m.id)) continue;
+      const outs = Array.isArray(m.architecture?.output_modalities) ? (m.architecture!.output_modalities as unknown[]) : ["text"];
+      if (!outs.includes("text")) continue;
+      const ins = Array.isArray(m.architecture?.input_modalities) ? (m.architecture!.input_modalities as unknown[]) : [];
+      const input = perMillion(m.pricing?.prompt);
+      const output = perMillion(m.pricing?.completion);
+      const price = input !== null && output !== null ? { input, output } : null;
+      models.push(
+        modelOption("openrouter", "text", m.id, {
+          note: typeof m.name === "string" ? m.name.slice(0, 120) : null,
+          price,
+          free: /:free$/.test(m.id) || (price !== null && price.input === 0 && price.output === 0),
+          vision: ins.includes("image"),
+        }),
+      );
+    }
+    openRouterCache = { at: now, models };
+    return models;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The models a job can run on a provider, for the model step, Recommended first: OpenRouter's live list (with its prices),
+ * or the models this person's key listed at its last check, or (no list) the curated ones. `listed` overrides the stored
+ * list (a pasted key's, just checked).
+ */
+export async function modelsFor(
+  db: Db | null,
+  userId: string | null,
+  provider: string,
+  job: Job,
+  opts: { listed?: string[] | null; fetchImpl?: typeof fetch; env?: Env } = {},
+): Promise<{ models: ModelOption[]; source: "provider" | "curated" }> {
+  if (!isUserProvider(provider) || !PROVIDER_INFO[provider].jobs.includes(job)) return { models: [], source: "curated" };
+  if (provider === "openrouter" && job === "text") {
+    const live = await openRouterModels(opts);
+    if (!live) return { models: modelOptions(provider, job, null), source: "curated" };
+    // The curated ones first (Recommended at the top), with OpenRouter's own prices; then the rest of its list.
+    const byId = new Map(live.map((m) => [m.id, m]));
+    const curated = curatedModels(provider, job).map((c) => {
+      const listed = byId.get(c.id);
+      const tags: ModelOption["tags"] = c.recommended && listed && !listed.tags.includes("recommended") ? ["recommended", ...listed.tags] : (listed?.tags ?? []);
+      return listed ? { ...listed, note: c.note, tags } : modelOption(provider, job, c.id);
+    });
+    const ids = new Set(curated.map((m) => m.id));
+    return { models: [...curated, ...live.filter((m) => !ids.has(m.id))], source: "provider" };
+  }
+  let listed = opts.listed;
+  if (listed === undefined && db && userId) {
+    const row = (await db.query<{ models: unknown }>(`select models from user_connections where user_id = $1 and provider = $2`, [userId, provider])).rows[0];
+    listed = Array.isArray(row?.models) ? (row!.models as unknown[]).filter((m): m is string => typeof m === "string") : null;
+  }
+  return { models: modelOptions(provider, job, listed ?? null), source: listed?.length ? "provider" : "curated" };
 }

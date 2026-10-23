@@ -17,7 +17,7 @@
  * provider and the last four characters).
  */
 import type { Db } from "./db";
-import { isTextProvider, plainError, TEXT_PROVIDERS, type Job, type TextProvider } from "./connections-shared";
+import { DIALOGUE_TEMPERATURE, isTextProvider, plainError, samplingFor, TEXT_PROVIDERS, type Job, type Sampling, type TextProvider } from "./connections-shared";
 import {
   assignJob,
   chatBaseUrl,
@@ -204,15 +204,37 @@ function trackedModel(db: Db, userId: string, provider: string, apiKey: string, 
 }
 
 /**
- * A user's TEXT model built from their saved key, or null if they have none (or the app can't decrypt).
- * The reasoning level is passed through so a user-key actor also keeps thinking low (their cost too).
+ * A person's feel on every call (Connections M2, lib/connections-shared.ts samplingFor). The preset's temperature is what
+ * date lines run at (the show asks DIALOGUE_TEMPERATURE for them); a call the show runs cooler, like a reflection, is
+ * scaled by the same ratio, so the roles keep their difference. The penalties go on every call, where the provider takes
+ * them (samplingFor leaves them out otherwise).
+ */
+export function withSampling(model: Model, sampling: Sampling): Model {
+  return {
+    complete(messages, options) {
+      const asked = options?.temperature;
+      const temperature = asked === undefined ? sampling.temperature : Math.round(asked * (sampling.temperature / DIALOGUE_TEMPERATURE) * 100) / 100;
+      return model.complete(messages, {
+        ...options,
+        temperature,
+        ...(sampling.frequencyPenalty !== undefined ? { frequencyPenalty: sampling.frequencyPenalty } : {}),
+        ...(sampling.presencePenalty !== undefined ? { presencePenalty: sampling.presencePenalty } : {}),
+      });
+    },
+  };
+}
+
+/**
+ * A user's TEXT model built from their saved key, or null if they have none (or the app can't decrypt): the model they
+ * picked, at the feel they picked (Steady, Lively, Wild or their own numbers). The reasoning level is passed through so a
+ * user-key actor also keeps thinking low (their cost too).
  */
 export async function userTextModel(db: Db, userId: string, reasoning?: ReasoningEffort, env: Record<string, string | undefined> = process.env): Promise<Model | null> {
   const key = await jobKey(db, userId, "text", env);
   if (!key || !isTextProvider(key.provider)) return null;
   const baseUrl = chatBaseUrl(key.provider, env) ?? TEXT_PROVIDERS[key.provider].baseUrl;
   const model = openAICompatibleModel({ baseUrl, apiKey: key.apiKey, model: key.model, reasoning });
-  return trackedModel(db, userId, key.provider, key.apiKey, model, key.model);
+  return trackedModel(db, userId, key.provider, key.apiKey, withSampling(model, samplingFor(key.provider, key.feel)), key.model);
 }
 
 /** A user's saved image key (provider + decrypted key + optional model), or null. For portrait generation. */

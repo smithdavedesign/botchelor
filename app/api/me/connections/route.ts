@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { checkKey, listConnections, removeConnection, saveConnection, assignJob, unassignJob } from "@/lib/connections";
 import { checkLimit, connectionsGate, ModelId, PastedKey } from "@/lib/connections-http";
-import { JOB_INFO, JOBS, jobCards, PROVIDER_INFO, isUserProvider, providersFor, type Job } from "@/lib/connections-shared";
+import { JOB_INFO, JOBS, jobCards, PRESET_IDS, PROVIDER_INFO, isUserProvider, providersFor, type Feel, type Job } from "@/lib/connections-shared";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +44,14 @@ const SaveInput = z.object({
   model: ModelId.optional(),
   /** Other jobs this key should do too (a Google key for dates can make clips). */
   also: z.array(z.enum(JOBS)).max(JOBS.length).optional(),
+  /**
+   * Dates & texts' feel (M2): a preset, and under Advanced the raw numbers. Any number is clamped to its bounds on the way
+   * in (and again where it's used); one set by hand makes the preset "custom".
+   */
+  preset: z.enum([...(PRESET_IDS as [string, ...string[]]), "custom"]).optional(),
+  temperature: z.number().finite().nullable().optional(),
+  frequency_penalty: z.number().finite().nullable().optional(),
+  presence_penalty: z.number().finite().nullable().optional(),
 });
 
 /**
@@ -69,13 +77,20 @@ export const PUT = handle(async (req) => {
     if (limited) return limited;
     const check = await checkKey(provider, input.key);
     if (!check.ok) return json({ error: "key_check_failed", message: check.error.message, kind: check.error.kind, fix: check.error.fix }, 422);
-    await saveConnection(db, gate.userId, provider, input.key, { verifiedAt: check.checked_at });
+    await saveConnection(db, gate.userId, provider, input.key, { verifiedAt: check.checked_at, models: check.models });
   } else if (!stored) {
     return json({ error: "needs_key", message: `Paste a ${PROVIDER_INFO[provider].label} key first.` }, 422);
   } else if (!input.job) {
     return json({ error: "needs_key", message: "Paste the new key to replace this one." }, 422);
   }
-  if (input.job) await assignJob(db, gate.userId, input.job, provider, input.model ?? null);
+  const custom = [input.temperature, input.frequency_penalty, input.presence_penalty].some((v) => v !== undefined && v !== null);
+  const feel: Partial<Feel> = {
+    preset: custom ? "custom" : ((input.preset as Feel["preset"]) ?? null),
+    temperature: input.temperature ?? null,
+    frequency_penalty: input.frequency_penalty ?? null,
+    presence_penalty: input.presence_penalty ?? null,
+  };
+  if (input.job) await assignJob(db, gate.userId, input.job, provider, input.model ?? null, feel);
   for (const job of input.also ?? []) if (job !== input.job) await assignJob(db, gate.userId, job, provider, null);
   return json({ saved: true, ...(await view(gate.userId)) });
 });

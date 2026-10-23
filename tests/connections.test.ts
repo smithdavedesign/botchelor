@@ -253,9 +253,9 @@ describe("the shared pieces the page uses", () => {
     ]);
     const conn = { provider: "openrouter", last4: "abcd", verified_at: "2026-10-23T11:58:00Z", last_used_at: "2026-10-23T11:00:00Z", last_error: null, created_at: "2026-10-20T00:00:00Z", jobs: ["text" as const] };
     const ok = jobCards({ connections: [conn], jobs: [{ job: "text", provider: "openrouter", model: "deepseek/deepseek-chat-v3.1" }] }, now)[0];
-    expect(ok).toMatchObject({ state: "connected", pill: "✓ Connected", status: "Your OpenRouter key ✓ · deepseek/deepseek-chat-v3.1", meta: ["•••• abcd", "checked 2 min ago", "last used 1 hour ago"] });
+    expect(ok).toMatchObject({ state: "connected", pill: "✓ Connected", status: "Your OpenRouter key ✓ · deepseek/deepseek-chat-v3.1 · Lively", meta: ["•••• abcd", "checked 2 min ago", "last used 1 hour ago"] });
     const broken = jobCards({ connections: [{ ...conn, last_error: plainError("openrouter", "no_credit") }], jobs: [{ job: "text", provider: "openrouter", model: null }] }, now)[0];
-    expect(broken).toMatchObject({ state: "error", pill: "Needs attention", status: "Your OpenRouter key · openai/gpt-4.1-mini", error: { message: "OpenRouter: out of credit." } });
+    expect(broken).toMatchObject({ state: "error", pill: "Needs attention", status: "Your OpenRouter key · openai/gpt-4.1-mini · Lively", error: { message: "OpenRouter: out of credit." } });
     // An OpenAI key for dates is offered to Portraits, which has no key yet.
     const openai = { ...conn, provider: "openai" };
     expect(jobCards({ connections: [openai], jobs: [{ job: "text", provider: "openai", model: null }] }, now)[1].reusable).toEqual([{ provider: "openai", label: "OpenAI", last4: "abcd" }]);
@@ -276,8 +276,15 @@ describe("the store", () => {
     expect(JSON.stringify(listed)).not.toContain(key);
     expect(JSON.stringify(listed)).not.toContain(row.ciphertext);
     expect(listed.connections[0]).toMatchObject({ provider: "openrouter", last4: "4321", sealed: "legacy", verified_at: "2026-10-23T11:58:00.000Z", jobs: ["text"] });
-    expect(listed.jobs).toEqual([{ job: "text", provider: "openrouter", model: "deepseek/deepseek-chat-v3.1", updated_at: expect.any(String) }]);
-    expect(await jobKey(t.db, A, "text", legacyEnv)).toEqual({ provider: "openrouter", apiKey: key, model: "deepseek/deepseek-chat-v3.1" });
+    expect(listed.jobs).toEqual([
+      { job: "text", provider: "openrouter", model: "deepseek/deepseek-chat-v3.1", updated_at: expect.any(String), preset: null, temperature: null, frequency_penalty: null, presence_penalty: null },
+    ]);
+    expect(await jobKey(t.db, A, "text", legacyEnv)).toEqual({
+      provider: "openrouter",
+      apiKey: key,
+      model: "deepseek/deepseek-chat-v3.1",
+      feel: { preset: null, temperature: null, frequency_penalty: null, presence_penalty: null },
+    });
     expect(await hasJobKey(t.db, A, "text")).toBe(true);
     expect(await hasJobKey(t.db, A, "image")).toBe(false);
     expect(await hasJobKey(t.db, null, "text")).toBe(false);

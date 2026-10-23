@@ -1830,6 +1830,15 @@ do $$ begin
 exception when others then
   raise warning 'connections: user_keys were not moved (%)', sqlerrm;
 end $$;
+-- Connections M2 (docs/PRDs/connections.md): the models a key can use, as its provider listed them at its last check
+-- (OpenRouter's list is public, so not kept here), and each job's feel: a preset (steady, lively, wild, or custom) and,
+-- under Advanced, the raw temperature and penalties (clamped; null: the preset's).
+alter table user_connections add column if not exists models jsonb;
+alter table user_connections add column if not exists models_at timestamptz;
+alter table user_connection_jobs add column if not exists preset text;
+alter table user_connection_jobs add column if not exists temperature real;
+alter table user_connection_jobs add column if not exists frequency_penalty real;
+alter table user_connection_jobs add column if not exists presence_penalty real;
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
