@@ -108,7 +108,8 @@ describe("the gate", () => {
     expect((await run(body(), "Bearer nope")).status).toBe(404);
     expect((await GET(new Request(`${BASE_URL}/api/jobs/eval-after-dark`))).status).toBe(404);
     const listed = await (await GET(new Request(`${BASE_URL}/api/jobs/eval-after-dark`, { headers: { authorization: `Bearer ${SECRET}` } }))).json();
-    expect(listed.models).toEqual(["mistralai/mistral-large", ...EVAL_MODELS]);
+    // The current setting first (by default DeepSeek V3.1, which is on the shortlist too), then the rest of the shortlist.
+    expect(listed.models).toEqual(["deepseek/deepseek-chat-v3.1", ...EVAL_MODELS.filter((m) => m !== "deepseek/deepseek-chat-v3.1")]);
     expect(listed).toMatchObject({ memory: ["live", "none", "extracted"], prompt_versions: ["v1", "v2"], max_steps: 8 });
     expect(listed.budget).toMatchObject({ run_usd: 0.25, daily_usd: 2, spent_today_usd: 0, runs_today: 0 });
   });
@@ -142,7 +143,7 @@ describe("a run", () => {
     const res = await run(body({ temperature: 0.7, direction: ["they stay by the window", ""] }));
     expect(res.status).toBe(200);
     const r = await res.json();
-    expect(r).toMatchObject({ prompt_version: "v2", model: "mistralai/mistral-large", temperature: 0.7, memory: "live", stopped: null });
+    expect(r).toMatchObject({ prompt_version: "v2", model: "deepseek/deepseek-chat-v3.1", temperature: 0.7, memory: "live", stopped: null });
     expect(r.sampling).toEqual({ temperature: 0.7, frequency_penalty: 0.3, presence_penalty: 0.3, repetition_penalty: null });
     expect(r.lines).toEqual([
       { step: 1, who: "a", name: "Juniper Vale", text: "Hello again, chef.", action: "grins", why: "the moment", memory: "F1", stage: 0, cites: ["F1"] },
@@ -205,8 +206,8 @@ describe("a run", () => {
     expect(refused.steps[1]).toMatchObject({ step: 2, added: 2, error: null });
     expect(refused.refusals).toEqual([{ step: 1, kind: "reply", text: "I'm sorry, but I can't continue with this request." }]);
     expect(refused.metrics.refusals).toBe(1);
-    // No cost reported: the price table for the current model (mistral-large isn't in it), so none.
-    expect(refused.usage).toMatchObject({ calls: 2, cost_usd: null, cost_source: null });
+    // No cost reported: the current model's list price stands in (DeepSeek V3.1: 2,000 tokens in, 400 out).
+    expect(refused.usage).toMatchObject({ calls: 2, cost_usd: 0.00088, cost_source: "price_table" });
     scripted([new Error("model returned HTTP 503")]);
     const dead = await (await run(body({ steps: 3 }))).json();
     expect(dead.stopped).toBe("model_error");
@@ -229,6 +230,8 @@ describe("a run", () => {
     expect(evalCost(usage, "sao10k/l3.1-euryale-70b")).toMatchObject({ cost_usd: 0.935, cost_source: "price_table" });
     expect(evalCost([{ ...usage[0], cost: 0.5 }], "sao10k/l3.1-euryale-70b")).toMatchObject({ cost_usd: 0.5, cost_source: "openrouter" });
     expect(evalCost([], "sao10k/l3.1-euryale-70b")).toMatchObject({ cost_usd: null, cost_source: null });
+    // A model that isn't in the table, and didn't say: no cost at all.
+    expect(evalCost(usage, "mistralai/mistral-large")).toMatchObject({ cost_usd: null, cost_source: null });
   });
 });
 
@@ -264,6 +267,8 @@ describe("the budget (botchelor-41, 2026-10-21: a run can't drain the balance li
 
   it("counts a call nobody priced (the local model's) as free, and still counts the run", async () => {
     await setup();
+    // A model the price table doesn't know (the default, DeepSeek V3.1, is in it).
+    await saveAdultSettings(t.db, { text_model: "local-uncensored" });
     scripted([lines(["a", "Hi."], ["b", "Hello."])], { cost: false });
     const r = await (await run(body({ steps: 3 }))).json();
     expect(r.usage.cost_usd).toBeNull();

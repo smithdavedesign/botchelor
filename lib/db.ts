@@ -1254,6 +1254,28 @@ do $$ begin
     alter table adult_images add constraint adult_images_kind_check check (kind in ('baseline', 'scene', 'video', 'frame'));
   end if;
 end $$;
+-- Replicate as the backup for After Dark's media (lib/adult/replicate.ts, David 2026-10-22): which provider makes it,
+-- the Replicate models, an optional LoRA for its videos, and its key, sealed like the others. Its video model is
+-- silent, so a shot's line is said by a stock voice beside it ('audio', lib/adult/reels.ts): widen the CHECK once
+-- more, as for 'frame'.
+alter table adult_settings add column if not exists media_provider text;
+alter table adult_settings add column if not exists replicate_picture_model text;
+alter table adult_settings add column if not exists replicate_keyframe_model text;
+alter table adult_settings add column if not exists replicate_video_model text;
+alter table adult_settings add column if not exists replicate_voice_model text;
+alter table adult_settings add column if not exists replicate_video_lora text;
+alter table adult_settings add column if not exists replicate_ciphertext text;
+alter table adult_settings add column if not exists replicate_nonce text;
+alter table adult_settings add column if not exists replicate_last4 text;
+do $$ begin
+  if exists (
+    select 1 from pg_constraint where conname = 'adult_images_kind_check'
+       and pg_get_constraintdef(oid) not like '%audio%'
+  ) then
+    alter table adult_images drop constraint if exists adult_images_kind_check;
+    alter table adult_images add constraint adult_images_kind_check check (kind in ('baseline', 'scene', 'video', 'frame', 'audio'));
+  end if;
+end $$;
 -- Agents (not the admin's) asking for after dark: the admins see them on the settings page.
 create table if not exists adult_access_requests (
   id text primary key,
@@ -1427,6 +1449,14 @@ create table if not exists adult_eval_spend (
   usd double precision not null default 0,
   runs integer not null default 0
 );
+-- After Dark's director (lib/adult/director.ts, lib/adult/scenes.ts; 2026-10-22): the last step's three suggested next
+-- moves, the whispers still running (one each at most), and what a rewind needs to take steps back (a short stack,
+-- newest last). A rewound step stays in the log, marked, with the lines it wrote; a whisper is kept on its step.
+alter table adult_scenes add column if not exists suggestions jsonb not null default '[]';
+alter table adult_scenes add column if not exists whispers jsonb not null default '{}';
+alter table adult_scenes add column if not exists undo jsonb not null default '[]';
+alter table adult_steps add column if not exists whisper jsonb;
+alter table adult_steps add column if not exists rewound jsonb;
 -- Marketing + agent funnel analytics (lib/agent-funnel.ts). user_id is an agent_id or an anon id; event is a
 -- small enum. The partial unique index makes agent_first_* events idempotent per user, so a tool that
 -- re-fires on retry never inflates the count.

@@ -6,8 +6,12 @@
 import type { Db } from "../db";
 import { openSecret, sealSecret } from "../keys";
 
-/** Defaults to start from; every one can be changed on the settings page. */
-export const DEFAULT_TEXT_MODEL = "mistralai/mistral-large";
+/**
+ * Defaults to start from; every one can be changed on the settings page. The text model is the one production runs
+ * (David, 2026-10-22: DeepSeek V3.1, docs/after-dark.md), plain: lib/adult/mode.ts pins its hosts and sorts them by
+ * throughput, which is what `:nitro` did. The old default, mistral-large, isn't served by either pinned host.
+ */
+export const DEFAULT_TEXT_MODEL = "deepseek/deepseek-chat-v3.1";
 /**
  * fal's custom-model endpoint running a photoreal SDXL fine-tune (OpenRAIL++, which doesn't forbid consensual adult
  * content). FLUX [dev]'s terms don't fit adult output, so it's not the default (docs/after-dark.md #6).
@@ -31,6 +35,25 @@ export const DEFAULT_VENICE_IMAGE_MODEL = "lustify-v8";
 export const DEFAULT_REEL_MODEL = "wan-3-0-image-to-video";
 export const DEFAULT_REEL_SHOTS = 6;
 export const DEFAULT_REEL_TOKENS = 15;
+
+/**
+ * Who makes After Dark's explicit media: its pictures, each shot's keyframe, the videos and their voices. Venice, or
+ * Replicate as the backup (David, 2026-10-22) while Venice confirms in writing that its terms allow explicit output
+ * (docs/after-dark.md, "A Replicate backup"). The models, each checked against its Replicate page that day:
+ *  - pictures: Qwen-Image (official, so always warm and $0.025 a picture; open weights, Apache 2.0). An SDXL-style
+ *    model works too, by version, e.g. RealVisXL V4.0, `adirik/realvisxl-v4.0:85a58cc7…`, which cold-starts;
+ *  - keyframes: Qwen-Image-Edit 2511 (official, $0.03), the same family as Venice's `qwen-edit-uncensored`. It keeps
+ *    both faces well but tends to keep a portrait's clothes when the prompt says nude (the main session's test);
+ *  - videos: Wan 2.2 image-to-video, fast (official, $0.11 at 720p): the only Wan on Replicate that takes
+ *    `disable_safety_checker` and LoRAs. It's silent, so each line is said by Kokoro beside it;
+ *  - voices: Kokoro 82M (a community model, so run by its version), the same stock voices as Venice's, but af_heart.
+ */
+export const MEDIA_PROVIDERS = ["venice", "replicate"] as const;
+export type MediaProvider = (typeof MEDIA_PROVIDERS)[number];
+export const DEFAULT_REPLICATE_PICTURE_MODEL = "qwen/qwen-image";
+export const DEFAULT_REPLICATE_KEYFRAME_MODEL = "qwen/qwen-image-edit-2511";
+export const DEFAULT_REPLICATE_VIDEO_MODEL = "wan-video/wan-2.2-i2v-fast";
+export const DEFAULT_REPLICATE_VOICE_MODEL = "jaaari/kokoro-82m:f559560eb822dc509045f3921a1921234918b91739db4bf3daab2169b71c7a13";
 
 /**
  * The scene writer's sampling (David, 2026-10-21, after the review of 977 lines: repeats, stock words, sheets lost).
@@ -72,6 +95,17 @@ export type AdultSettings = {
   openrouter_last4: string | null;
   fal_last4: string | null;
   hive_last4: string | null;
+  /** Who makes the explicit media, and the Replicate models when it's Replicate (MEDIA_PROVIDERS). */
+  media_provider: MediaProvider;
+  replicate_picture_model: string;
+  replicate_keyframe_model: string;
+  replicate_video_model: string;
+  replicate_voice_model: string;
+  /** An optional LoRA for Wan: one .safetensors URL for both its transformers, or two (high noise, then low). */
+  replicate_video_lora: string | null;
+  replicate_last4: string | null;
+  /** No Replicate key saved, but the server has one (REPLICATE_API_TOKEN): that's the one used. Never its value. */
+  replicate_from_env: boolean;
 };
 
 type Row = {
@@ -102,13 +136,25 @@ type Row = {
   hive_ciphertext: string | null;
   hive_nonce: string | null;
   hive_last4: string | null;
+  media_provider: string | null;
+  replicate_picture_model: string | null;
+  replicate_keyframe_model: string | null;
+  replicate_video_model: string | null;
+  replicate_voice_model: string | null;
+  replicate_video_lora: string | null;
+  replicate_ciphertext: string | null;
+  replicate_nonce: string | null;
+  replicate_last4: string | null;
 };
+
+/** The server's own Replicate token, used when none is saved in the settings. */
+const envReplicate = (env: Record<string, string | undefined>) => env.REPLICATE_API_TOKEN?.trim() || null;
 
 async function row(db: Db): Promise<Row | null> {
   return (await db.query<Row>(`select * from adult_settings where id = 1`)).rows[0] ?? null;
 }
 
-export async function getAdultSettings(db: Db): Promise<AdultSettings> {
+export async function getAdultSettings(db: Db, env: Record<string, string | undefined> = process.env): Promise<AdultSettings> {
   const r = await row(db);
   // A stored number, or null for none (the default then applies).
   const num = (v: unknown): number | null => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
@@ -132,11 +178,22 @@ export async function getAdultSettings(db: Db): Promise<AdultSettings> {
     openrouter_last4: r?.openrouter_last4 ?? null,
     fal_last4: r?.fal_last4 ?? null,
     hive_last4: r?.hive_last4 ?? null,
+    media_provider: r?.media_provider === "replicate" ? "replicate" : "venice",
+    replicate_picture_model: r?.replicate_picture_model || DEFAULT_REPLICATE_PICTURE_MODEL,
+    replicate_keyframe_model: r?.replicate_keyframe_model || DEFAULT_REPLICATE_KEYFRAME_MODEL,
+    replicate_video_model: r?.replicate_video_model || DEFAULT_REPLICATE_VIDEO_MODEL,
+    replicate_voice_model: r?.replicate_voice_model || DEFAULT_REPLICATE_VOICE_MODEL,
+    replicate_video_lora: r?.replicate_video_lora || null,
+    replicate_last4: r?.replicate_last4 ?? null,
+    replicate_from_env: !r?.replicate_last4 && envReplicate(env) !== null,
   };
 }
 
-/** The decrypted keys, for the server only. */
-export async function adultKeys(db: Db): Promise<{ openrouter: string | null; fal: string | null; hive: string | null; venice: string | null }> {
+/** The decrypted keys, for the server only. Replicate's: the one saved here, else the server's REPLICATE_API_TOKEN. */
+export async function adultKeys(
+  db: Db,
+  env: Record<string, string | undefined> = process.env,
+): Promise<{ openrouter: string | null; fal: string | null; hive: string | null; venice: string | null; replicate: string | null }> {
   const r = await row(db);
   const open = (c: string | null | undefined, n: string | null | undefined) => (c && n ? openSecret({ ciphertext: c, nonce: n }) : null);
   return {
@@ -144,6 +201,7 @@ export async function adultKeys(db: Db): Promise<{ openrouter: string | null; fa
     fal: open(r?.fal_ciphertext, r?.fal_nonce),
     hive: open(r?.hive_ciphertext, r?.hive_nonce),
     venice: open(r?.venice_ciphertext, r?.venice_nonce),
+    replicate: open(r?.replicate_ciphertext, r?.replicate_nonce) ?? envReplicate(env),
   };
 }
 
@@ -170,6 +228,14 @@ export type SettingsPatch = {
   /** Hive's V3 secret key (the output check, lib/adult/check.ts). */
   hive_key?: string;
   venice_key?: string;
+  media_provider?: MediaProvider;
+  /** A model id, or "" for the default; a LoRA, or "" for none. */
+  replicate_picture_model?: string;
+  replicate_keyframe_model?: string;
+  replicate_video_model?: string;
+  replicate_voice_model?: string;
+  replicate_video_lora?: string;
+  replicate_key?: string;
 };
 
 export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<AdultSettings> {
@@ -183,14 +249,19 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<A
   if (patch.enabled !== undefined) put("enabled", patch.enabled);
   if (patch.image_provider !== undefined) put("image_provider", patch.image_provider);
   if (patch.prompt_version !== undefined) put("prompt_version", patch.prompt_version);
+  if (patch.media_provider !== undefined) put("media_provider", patch.media_provider);
   for (const k of ["reel_shots", "reel_tokens"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_temperature", "frequency_penalty", "presence_penalty", "repetition_penalty"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model", "reel_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
+  for (const k of ["replicate_picture_model", "replicate_keyframe_model", "replicate_video_model", "replicate_voice_model", "replicate_video_lora"] as const) {
+    if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
+  }
   for (const [k, col] of [
     ["openrouter_key", "openrouter"],
     ["fal_key", "fal"],
     ["hive_key", "hive"],
     ["venice_key", "venice"],
+    ["replicate_key", "replicate"],
   ] as const) {
     const v = patch[k];
     if (v === undefined) continue;

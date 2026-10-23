@@ -5,6 +5,7 @@ import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
 import { AUTOPLAY_THEATER_AHEAD } from "@/lib/adult/autoplay";
+import type { Suggestion } from "@/lib/adult/director";
 import type { SceneLine } from "@/lib/adult/scenes";
 import { STAGES } from "@/lib/adult/stages";
 import type { Turn } from "@/lib/conversation";
@@ -45,6 +46,9 @@ export function stageLabel(scene: { lines: SceneLine[]; stage: number; chapter?:
   return caughtUp ? (STAGES[scene.stage] ?? null) : null;
 }
 
+/** The heats' labels on the suggestion chips (the page's are the same). */
+const HEAT_WORD: Record<Suggestion["heat"], string> = { mild: "Mild", flirty: "Flirty", spicy: "Spicy" };
+
 const TIME_WORDS: ReadonlySet<string> = new Set(["night", "nights", "evening", "morning", "midnight", "after", "late", "dusk", "sunset", "golden", "hour"]);
 
 const lastOf = (turns: Turn[], side: "a" | "b") => {
@@ -57,7 +61,8 @@ const lastOf = (turns: Turn[], side: "a" | "b") => {
  * place the scene has got to, line by line, with the steer and "Next" inside it, so the scene carries on without
  * leaving. Opens on the latest lines; ↻ plays it from the top. A saved night (no onWrite) plays back from the top.
  * The steer has the page's Nudge/Direct choice too (David, 2026-10-21: no direct way to steer from the theater).
- * Autoplay (lib/adult/autoplay.ts) writes the next lines by itself while the last few are still playing.
+ * Autoplay (lib/adult/autoplay.ts) writes the next lines by itself while the last few are still playing. The last step's
+ * suggested next moves (lib/adult/director.ts) sit over the steer: one tap sends one as a nudge.
  */
 export default function AfterDarkTheater({
   scene,
@@ -74,6 +79,8 @@ export default function AfterDarkTheater({
   videoTokens = 15,
   videoNote = null,
   feedbackRef = null,
+  suggestions = [],
+  onSuggest,
   onExit,
 }: {
   scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null; set?: string | null; chapter?: number };
@@ -99,6 +106,9 @@ export default function AfterDarkTheater({
    * votes move to the night its chapter is filed as, so the running scene's are read again when its lines are replaced.
    */
   feedbackRef?: string | null;
+  /** The last step's suggested next moves, and what a tap does (sends it as a nudge). */
+  suggestions?: Suggestion[];
+  onSuggest?: (text: string) => Promise<void>;
   onExit: () => void;
 }) {
   const live = Boolean(onWrite);
@@ -141,7 +151,11 @@ export default function AfterDarkTheater({
   }
 
   return (
-    <div className="theater theater-clean theater-after-dark" role="dialog" aria-label={`${a.name} and ${b.name}, after dark`}>
+    <div
+      className={`theater theater-clean theater-after-dark${live && onSuggest && suggestions.length ? " has-suggestions" : ""}`}
+      role="dialog"
+      aria-label={`${a.name} and ${b.name}, after dark`}
+    >
       <div className={`theater-stage${convo ? " with-convo" : ""}`}>
         <div className="theater-scene-area">
           <Scene
@@ -229,6 +243,15 @@ export default function AfterDarkTheater({
         </form>
         ) : live ? (
         <form className="ad-theater-bar" onSubmit={next}>
+          {onSuggest && suggestions.length > 0 && (
+            <div className="ad-suggestions" role="group" aria-label="Suggested next moves">
+              {suggestions.map((sg) => (
+                <button key={sg.heat} type="button" className={`ad-suggestion is-${sg.heat}`} disabled={busy} onClick={() => void onSuggest(sg.text)} title={`Send it as a nudge: ${sg.text}`}>
+                  <span className="ad-heat">{HEAT_WORD[sg.heat]}</span> <span className="ad-suggestion-text">{sg.text}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <input
             aria-label="Steer it (optional)"
             value={direction}
