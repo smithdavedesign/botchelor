@@ -9470,3 +9470,11 @@ details > summary.small {
   gap: 0.4rem;
   min-width: 0;
 }
+/* The looks dashes: at least 24px wide each, even with eleven in a row (they wrap to a second row on a narrow phone). */
+.looks-dots {
+  flex-wrap: wrap;
+}
+.looks-dots li {
+  flex: 1 0 24px;
+  max-width: 44px;
+}

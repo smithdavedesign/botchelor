@@ -288,9 +288,7 @@
 .episode-hero-kicker {
   display: block;
 }
-.episode-hero-kicker span {
-  white-space: nowrap;
-}
+/* The "·" hangs off the word before it (::after), so a wrapped kicker never starts with it; a long venue may wrap. */
 .episode-hero-kicker span + span::before {
   content: none;
 }
@@ -498,4 +496,9 @@ details.recap-toggle[open] .recap-toggle-hide {
   margin: var(--space-3) 0 var(--space-2);
   color: var(--accent-text);
   font-weight: 600;
+}
+
+/* Fold-out toggles on the episode page open from a row tall enough to tap. */
+.boxscore-why > summary {
+  padding-block: 10px;
 }

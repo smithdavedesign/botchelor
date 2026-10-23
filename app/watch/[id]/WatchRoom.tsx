@@ -231,7 +231,11 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
               The Botchelor · {state.kind === "template" ? "Open date room" : "Premiere"}
             </p>
             <h1>
-              <CharacterName character={a} avatar={false} /> × <CharacterName character={b} avatar={false} />
+              {/* The × stays with the first name, as on the episode page, so a wrapped title never starts with it. */}
+              <span className="nowrap">
+                <CharacterName character={a} avatar={false} /> ×
+              </span>{" "}
+              <CharacterName character={b} avatar={false} />
             </h1>
           </div>
         </div>

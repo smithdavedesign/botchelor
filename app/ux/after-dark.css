@@ -486,3 +486,10 @@ label.ad-check-row {
 .ad-settings-actions button {
   margin: 0;
 }
+/* Listen's status line on a phone: its own line under the two buttons, not wrapped around them. */
+@media (max-width: 640px) {
+  .ad-listen-status {
+    display: block;
+    margin-top: var(--space-1);
+  }
+}
