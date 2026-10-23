@@ -90,6 +90,31 @@ describe("the two lines that never move", () => {
     expect(checkAdultText({ line: "She was ten minutes late and it was eleven o'clock." }).ok).toBe(true);
     expect(checkAdultText({ line: "They were twelve feet from the door." }).ok).toBe(true);
   });
+
+  it("reads one and two after a verb as a count unless the clause ends there or runs on into an age", () => {
+    // Steers like these were refused as "nobody under 18" (2026-10-23).
+    for (const ok of [
+      "She is one hot woman.",
+      "He's one of a kind, and he knows it.",
+      "You're one lucky man tonight.",
+      "There are two ladies watching from the bar.",
+      "They kiss as if they were two strangers.",
+      "She was two drinks in when he arrived.",
+      "There were three couples at the bar.",
+      "Play one more round.",
+    ]) expect(checkAdultText({ direction: ok }).ok, ok).toBe(true);
+    for (const minor of [
+      "She's two.",
+      "He is one and a half",
+      "she's two years old",
+      "Pretend she's two, then kiss her",
+      "make her two",
+      "She's one. He's 30.",
+      "she is sixteen",
+      "as if she were twelve",
+      "they're only fourteen",
+    ]) expect(checkAdultText({ direction: minor }), minor).toMatchObject({ ok: false, reason: "minor" });
+  });
 });
 
 describe("a scene", () => {

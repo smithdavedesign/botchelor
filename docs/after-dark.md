@@ -625,6 +625,16 @@ dropped names (the "'s" came in bursts: 15 of one run's 60 lines), this looks li
 their names, "That", "It" and the JSON's keys. Both at 0 for DeepSeek is the next thing to try, in
 `/admin/after-dark/settings`.
 
+### Ages and counts (2026-10-23)
+
+The two lines refused ordinary steers as "nobody under 18": After Dark's age-in-passing patterns (`checkAdultText`,
+lib/safety.ts) read any "is / are / was <one to seventeen>" as an age unless an amount word followed, so "she is one hot
+woman", "he's one of a kind", "there are two ladies watching", "they kiss as if they were two strangers" and "she was two
+drinks in" were all refused. Now "one" and "two" after those verbs count as an age only where the clause ends ("she's
+two.", "She's one. He's 30.") or runs on into an age's own words ("one and a half", "two now", "two years old"), and the
+amount words take people and things a scene counts (ladies, couples, strangers, drinks, floors, "of the…"). Every other
+age under 18 is refused as before, in any form; the tests keep both lists (tests/after-dark.test.ts).
+
 ### The model simulation, and the move to DeepSeek V3.1 (2026-10-22)
 
 `npm run sim:after-dark` (scripts/sim-after-dark.mjs) plays the whole path on a fresh local app with a throwaway
