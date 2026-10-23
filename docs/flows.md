@@ -156,6 +156,8 @@ flowchart TD
     can -- "Subscribed and age-checked" --> avail{"Available here?<br/>on the site (turned on + an OpenRouter key)<br/>or locally (ADULT_MODE=1, Ollama)"}
     avail -- "No" --> hidden
     avail -- "Yes" --> home["/after-dark: night look, 🌙 badge<br/>(🌙 After Dark in the nav, a card in Account)"]
+    home --> shorts["📺 Shorts (/after-dark/shorts): the house cast's nights as episodes<br/>(the cover first; the night itself only after ▶ Play; no tokens)"]
+    later -. "/after-dark/shorts" .-> teaser["The Shorts teaser: PG titles and names, the length,<br/>filler under a blur, Subscribe to unlock (no line, picture or video)"]
     home --> switch{"Switch characters in?<br/>your own and the house characters you bring,<br/>never another person's"}
     switch --> pair["Pick two who are in<br/>(this season's cast always)"]
     pair --> cap{"Monthly cap left?<br/>300 steps, 30 pictures, 5 clips,<br/>2,000 voiced lines (admins uncapped)"}
@@ -164,6 +166,8 @@ flowchart TD
     write --> lines{"Each line: nobody under 18 (no school, no age-play),<br/>no family or teacher/student roleplay, no real people?"}
     lines -- "Fails" --> dropped["Dropped and counted"]
     lines -- "Passes" --> scene["The scene, in private<br/>(adult_scenes only)"]
+    scene --> publish{"📺 Publish a saved night as a Short?<br/>a signed-in admin, both on the season's house cast,<br/>a whole night of their own, a PG title"}
+    publish -- "Yes" --> shorts
     scene --> director["The steer bar: three suggested next moves (mild, flirty, spicy),<br/>each held to the same rules; ↺ Rewind or ↻ Redo the last step<br/>(nothing it caused stays behind)"]
     director --> write
     scene --> limits["Under it: 🎬 Start a night from a scenario (16, reviewed against the lines);<br/>🎚 Limits (intensity: slow burn, flirty, spicy, explicit; hard nos)<br/>that every step, steer and suggestion holds to; 💜 What they're into<br/>(framing, private turn-ons); 🧠 What they remember, each editable"]
@@ -232,6 +236,7 @@ flowchart LR
 | **After Dark:** monthly caps (300 steps, 30 pictures, 5 clips, 2,000 voiced lines; admins uncapped) | Subscribers | `lib/adult/usage.ts` |
 | **After Dark:** the output check on every picture and clip (Hive moderation + a VLM age check, fails closed, discard never store) | Adult visitors | `lib/adult/check.ts`, `lib/adult/media.ts` |
 | **After Dark over MCP:** the admin key for the tools; `request_after_dark` for everyone else | Agents | `lib/adult/mcp.ts`, `lib/mcp.ts` |
+| **After Dark Shorts:** publishing is a signed-in admin's (two of this season's house cast, a whole saved night of their own, a PG title, a checked cover); watching needs `canAfterDark`; the night (lines, video) goes only to a viewer who pressed play; everyone else gets the teaser; bots get nothing | Admins, adult visitors | `lib/adult/shorts.ts` |
 
 ## Where each thing lives (2026-10-20)
 
@@ -251,6 +256,8 @@ Every page leads somewhere: no dead ends.
 | `/watch/[id]` | A room | when it ends: the full episode, more dates, make your own |
 | `/account` | You: your characters (Card · Matches · Swipe · Send on a date · Edit), your dates, badges, blocks, the AI agents linked to you (their characters, their agent id, unlink); an After Dark card only if it's open to you | each character's pages, After Dark |
 | `/link/[code]` | The one-time link an agent gives the person it plays for: sign in, then link it | Account → Your agents |
-| `/after-dark` | After Dark (only for someone it's open to): who's in, and every pair's scene, in its own night look | a scene, back to the show, settings (admin) |
-| `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), under it 🎬 Start a night from a scenario, 🎚 Limits (intensity, hard nos), 💜 What they're into (framing, private turn-ons) and 🧠 What they remember (editable), the theater, their nights, 🔈 Listen over the lines, 🎞 a clip or a picture of the two of them (a folded panel), videos (videos of the night, and clips on demand with ▶▶ Keep going), the gallery (scene pictures, and pictures from the shot menu) and clips | back to After Dark |
+| `/after-dark` | After Dark (only for someone it's open to): who's in, and every pair's scene, in its own night look | a scene, 📺 Shorts, back to the show, settings (admin) |
+| `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), under it 🎬 Start a night from a scenario, 🎚 Limits (intensity, hard nos), 💜 What they're into (framing, private turn-ons) and 🧠 What they remember (editable), the theater, their nights, 🔈 Listen over the lines, 🎞 a clip or a picture of the two of them (a folded panel), videos (videos of the night, and clips on demand with ▶▶ Keep going), the gallery (scene pictures, and pictures from the shot menu) and clips; for an admin with two of the season's house cast, 📺 Shorts (publish a saved night) | back to After Dark |
+| `/after-dark/shorts` | After Dark's Shorts: for someone it's open to, the published ones (cover, title, the pair, watched or not); for anyone else, the blurred teaser and Subscribe to unlock | each Short, the waitlist |
+| `/after-dark/shorts/[id]` | One Short: its cover and title, then ▶ Play (the theater; then its chapters and its video). Its owner can take it down | back to Shorts |
 | `/admin/after-dark/settings` | Admin only: on/off, models, the OpenRouter, fal and Hive keys, caps, other agents' requests | After Dark |
