@@ -952,3 +952,28 @@ ones marked), the framings, and the places (now first, each marked public or not
   profile. It kept the portraits' illustrated look, where Venice's edit went photoreal.
 - Hive (2 requests): the afterglow passed (moderation clean, ADULTS).
 - It cost $0.08 of Venice and $0.03 of Replicate.
+
+## Voiced nights (2026-10-22)
+
+The third media feature from the competitor read: every line of a night can be heard, as it plays, in each character's
+stock voice. Code: `lib/adult/voice-lines.ts` and `POST /api/admin/after-dark/voice`; the Listen toggle in the theater and
+the line list comes with the fourth PR.
+
+- **The voices:** Kokoro, where After Dark's media is made (`media_provider`): Venice's `tts-kokoro` (MP3), or Replicate's
+  Kokoro by its version (WAV; af_heart, which it lacks, becomes af_alloy). Each character has the stock voice their
+  videos use (`voiceFor`: picked once from their pronouns and id), never a cloned one.
+- **What's said:** only what a line says. Its *actions* come out wherever they are, and a line that's only an action stays
+  silent. Nothing goes to Kokoro before `checkAdultText`: a line that crosses one of the two lines is never voiced.
+- **Made once, kept:** a line's audio is an adult_images `audio` (the speaker with the other, out of the gallery), found
+  again through `adult_voice_lines` by a key of the owner, the voice and the words. A replay asks Kokoro for nothing and
+  isn't counted. Two plays of the same line at once keep the first and drop the other's copy.
+- **Lazily:** the page asks for a few lines at a time (3 at most a request), as they're about to play, never a whole night
+  up front, and only lines of the pair's own night (the running scene, or a saved night by `night_id`), word for word as
+  stored; anything else is `stale`. The audio is served by the media route, to its owner only.
+- **The cap:** it's part of the subscription, with a monthly cap per subscriber on new lines (`cap_voice_lines`, 2000, in
+  `adult_usage.voice_lines`; lib/adult/usage.ts). At the cap a new line comes back `cap` and stays silent; replays still
+  play. Admins aren't capped. A line Kokoro fails on stays silent and isn't counted.
+
+**The live check** (2026-10-22, local, two of the house rooftop lines): Venice's `tts-kokoro` said each in its stock voice
+(Juniper `af_sarah`, Rafe `am_eric`) in 1.9 and 2.6 s, MP3s of 4.9 and 3.8 s at 24 kHz, the actions left out; Replicate's
+Kokoro said Rafe's in 1.4 s, a 3.8 s WAV. It cost about $0.0005 of Venice (138 characters) and under $0.001 of Replicate.
