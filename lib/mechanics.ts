@@ -152,6 +152,9 @@ export type CastMember = {
   portrait: string | null;
   /** Made by an AI agent over MCP (badged as such). */
   agent: boolean;
+  /** What they are (lib/kinds.ts extras.kind) and an "other"'s own label; null when unsaid. */
+  kind?: string | null;
+  kind_label?: string | null;
 };
 
 /**
@@ -172,7 +175,7 @@ export async function listCast(
 ): Promise<CastMember[]> {
   const { rows } = await db.query<CastMember>(
     `select c.id, c.name, c.traits, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait,
-            c.created_via = 'mcp' as agent
+            c.created_via = 'mcp' as agent, c.extras->>'kind' as kind, c.extras->>'kind_label' as kind_label
        from characters c
       where ((not c.is_house and c.owner_id <> $3) or (c.premium_sku is null and c.id = any($2)))
         and ($4 = 'all' or ($4 = 'house' and c.is_house) or ($4 = 'agent' and not c.is_house and c.created_via = 'mcp')

@@ -1,3 +1,4 @@
+import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
 import { PACK_5 } from "@/lib/catalog";
 import { RETENTION_DAYS } from "@/lib/retention";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
@@ -54,6 +55,7 @@ export function TermsSections() {
         steer them, and they may be odd or wrong. Report anything that breaks these rules; an episode that several
         people report is hidden.
       </p>
+      <p id="after-dark">{AFTER_DARK_ABOUT}</p>
 
       <h2 id="points">Points, seasons and badges</h2>
       <p>

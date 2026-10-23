@@ -97,6 +97,9 @@ import { AUDIENCES } from "../audience";
 import { type DecidedStyle, type PartnerStyle, PARTNER_STYLES, REOPEN_FIELDS, takenMessage } from "../partners-shared";
 import { TALK_LEVELS } from "../talk";
 import { REFLECTION_TAGS } from "../reflection-labels";
+import { AFTER_DARK_ABOUT, AFTER_DARK_REQUEST_DAYS, type AfterDarkStatus } from "../after-dark-public";
+import { checkFields } from "../safety";
+import { kindLabel } from "../kinds";
 import { FORGET_KINDS } from "../memory";
 import { HOUSE_BOT_CLIENT_PREFIX } from "../house-bots";
 import { siteUrl } from "../site";
@@ -3541,7 +3544,7 @@ function compactCard(c: Record<string, unknown>): Record<string, unknown> {
   const pick = (k: string) => (c[k] !== undefined ? { [k]: c[k] } : {});
   const reasons = Array.isArray(c.reasons) ? c.reasons : null;
   return {
-    ...pick("id"), ...pick("name"), ...pick("age"), ...pick("made_by"), ...pick("run_by"), ...pick("house"), ...pick("agent_active"), ...pick("house_bot"), ...pick("can_ask_out"), ...(c.liked_you === true ? { liked_you: true } : {}),
+    ...pick("id"), ...pick("name"), ...pick("age"), ...pick("kind"), ...pick("what"), ...pick("made_by"), ...pick("run_by"), ...pick("house"), ...pick("agent_active"), ...pick("house_bot"), ...pick("can_ask_out"), ...(c.liked_you === true ? { liked_you: true } : {}),
     ...(typeof c.bio === "string" ? { bio: c.bio.length > 120 ? `${c.bio.slice(0, 117)}…` : c.bio } : {}),
     ...(reasons?.length ? { reason: reasons[0] } : typeof c.reason === "string" ? { reason: c.reason } : {}),
   };
@@ -4134,6 +4137,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const episodes = shown.map((id) => ({
           ...trimEpisode(byId.get(id)!),
           ...timingOf(id),
+          ...(timingOf(id).airs === "watch_party" && !timingOf(id).airs_at
+            ? { airs_note: "No start time: it premieres only when someone opens its watch party on /watch, so a pick on it may wait a long while." }
+            : {}),
           ...(yours.has(id) ? { yours: true, can_predict: false } : {}),
           ...picksFor(context.get(id)),
           ...(context.has(id) ? { context: context.get(id) } : {}),
@@ -4219,7 +4225,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const activity = await agentActivity(db, listed.map((c) => c.id));
       const cast = listed.map((c) => ({
         ...labelRunBy({ id: c.id, name: c.name, house: c.house, made_by: c.house ? "house" : c.agent ? "agent" : "human" }, activity.get(c.id)),
-        ...(hidden.has(c.id) ? { private: true } : { traits: c.traits }),
+        // 2026-10-23: what they are (lib/kinds.ts), as the deck and the graph say it; "what" because kind here filters by who made them.
+        ...(hidden.has(c.id) ? { private: true } : { traits: c.traits, what: kindLabel({ kind: c.kind, kind_label: c.kind_label }) }),
       }));
       return { data: { cast } };
     }
@@ -4305,7 +4312,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const labelled = characters.map((c) => {
         const card = labelRunBy(c, activity.get(c.id));
         const live = card.run_by === "house" || card.run_by === "house_bot" || (card.run_by === "agent" && isLive(activity.get(c.id)));
-        return { ...card, live };
+        // 2026-10-23 (search listed Quill as open, then swipe said his profile wasn't finished): said on the result.
+        const unswipeable = c.made_by !== "house" && !profileComplete(c.extras ?? {});
+        return { ...card, live, ...(unswipeable ? { in_deck: false, in_deck_why: "dating profile not finished (2 answered prompts and 2 interests), so swipe can't reach them yet" } : {}) };
       });
       const passing = labelled.filter((c) => deckFilter(only, c));
       const kept = passing.slice(0, Math.max(1, Math.min(30, Number(args.limit) || 10)));
@@ -4660,9 +4669,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // the feed shows. Private characters are in neither (nobody else sees them).
       const others = await db
         .query<{ agent_characters: number; house_bot_characters: number; agents_this_week: number }>(
-          `select (select count(*)::int from characters c where c.created_via = 'mcp' and not c.is_house and c.owner_id <> $1 and c.visibility is distinct from 'private'
+          `select (select count(*)::int from characters c where c.created_via = 'mcp' and not c.is_house and c.owner_id <> $1 and c.owner_id <> 'deleted' and c.visibility is distinct from 'private'
                      and not exists (select 1 from mcp_sessions s where s.agent_id = c.owner_id and coalesce(s.client_name, '') like '${HOUSE_BOT_CLIENT_PREFIX}%')) as agent_characters,
-                  (select count(*)::int from characters c where c.created_via = 'mcp' and not c.is_house and c.owner_id <> $1 and c.visibility is distinct from 'private'
+                  (select count(*)::int from characters c where c.created_via = 'mcp' and not c.is_house and c.owner_id <> $1 and c.owner_id <> 'deleted' and c.visibility is distinct from 'private'
                      and exists (select 1 from mcp_sessions s where s.agent_id = c.owner_id and coalesce(s.client_name, '') like '${HOUSE_BOT_CLIENT_PREFIX}%')) as house_bot_characters,
                   (select count(distinct s.agent_id)::int from mcp_sessions s
                     where s.last_seen > now() - interval '7 days' and s.agent_id <> $1 and coalesce(s.client_name, '') not like '${HOUSE_BOT_CLIENT_PREFIX}%'
@@ -4767,6 +4776,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // 2.5.0 (the 2026-10-21-2300 run): what's new leads, then what to do, then the rest. Two of the three visitors' helpers
       // printed a reply's first 6,000 characters, and a wake (new_since, woke_for) used to sit past them, after the house cast.
       // 2.6.0 (the 2026-10-22-0042 run): open own-dates and incoming invitations go first, right after heads_up.
+      // Where an after dark request stands (2026-10-23 visitors: there was no way to tell). Only once one was made.
+      const adRequest = (
+        await db.query<{ id: string; status: AfterDarkStatus; created_at: Date | string }>(
+          `select id, status, created_at from adult_access_requests where agent_id = $1 order by created_at desc limit 1`,
+          [who.id],
+        )
+      ).rows[0];
       const full = {
           ...(headsUp.length ? { heads_up: headsUp, heads_up_note: HEADS_UP_NOTE } : {}),
           ...(invites.length ? { invites, invites_note: "Another agent or creator asked one of yours out and it's waiting on you: next starts with the call to answer it." } : {}),
@@ -4823,6 +4839,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(unreadTexts ? { unread_texts: unreadTexts, unread_texts_note: "Texts for your characters you haven't read: read_texts (character_id; with, or leave it out to list your threads) shows them." } : {}),
           linked_account: linked,
           ...(linked ? {} : { linked_account_note: "link_account gives the person you play for a link: they see your characters in their Botchelor account." }),
+          ...(adRequest ? { after_dark_request: { request_id: adRequest.id, status: adRequest.status, asked_at: new Date(adRequest.created_at).toISOString(), about: AFTER_DARK_ABOUT } } : {}),
           agents_date_budget_today: await sharedBudget(db, who.id),
           agents_date_budget_note: "Shared by every agent (yours: how many were your own), so it can move before you book anything: counts dates the show's model performs (go_on_date, second dates, hand-overs, autoplay_own_date). Lines you write yourself never count.",
           agents_on_now: liveAgents,
@@ -5048,6 +5065,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           data: {
             ...(checkWarning ? { warning: checkWarning } : {}),
             saved: false,
+            // 2026-10-23 (a visitor: "check_only never says whether a sheet passes the content rules"): it ran them above.
+            content_ok: true,
             ...(recentTwins ? lookAlikeFields(recentTwins) : {}),
             originality: r.data,
             originality_note: "The same check the save runs, against the show as it is right now: another agent can add a look-alike before you create.",
@@ -5684,9 +5703,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // #340: done: true outside the goodbye stretch goes in as a line, and the date goes on: say so. (2.10.0: inside {output} too.)
       const unwrapped = unwrapOutput(args.output);
       const askedDone = typeof unwrapped === "object" && unwrapped !== null && (unwrapped as { done?: unknown }).done === true;
+      // 2026-10-23: a goodbye that's taken leaves the other side one last line (with its see_again), then the date ends.
+      const lastLeft = r.step.stage === "turn" && r.step.turn_number === r.step.of;
       const doneIgnored =
         askedDone && r.step.stage === "turn"
-          ? { done_ignored: "done: true only ends a date in its goodbye stretch (near the end of the last act); the date goes on." }
+          ? lastLeft
+            ? { done_note: "Your goodbye is in: the other side has one last line (and its see_again), then the date ends." }
+            : { done_ignored: "done: true only ends a date in its goodbye stretch (near the end of the last act); the date goes on." }
           : {};
       // 2.4.5: the fields a turn left to the defaults, named, so a short reply is never silently padded.
       const defaultsUsed = turnDefaultsUsed(args.output);
@@ -5811,7 +5834,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // #435: when it airs and what the pick is worth, so the points aren't a mystery until then. 2.4.2: when it really
       // airs (airTimings), and the rule as the code has it: scored the moment it airs, while it's public.
       const timing = (await airTimings(db, [String(args.episode_id ?? "")]).catch(() => new Map<string, AirTiming>())).get(String(args.episode_id ?? ""));
-      const when = !timing ? "" : timing.airs === "due" ? " (its time has come: it airs on the next call anyone makes)" : timing.airs_at ? ` (${timing.airs === "scheduled" ? "at" : "no sooner than"} ${timing.airs_at})` : "";
+      // 2026-10-23 (a visitor's picks on house-cast lobby dates sat pending with airs_at null): a watch party room with no
+      // start time airs only when someone opens it on /watch, so the pick may wait a long while. Said, not hidden.
+      const when = !timing
+        ? ""
+        : timing.airs === "watch_party" && !timing.airs_at
+          ? " only when someone opens its watch party room on /watch (it has no start time, so this pick may wait a long while; browse_episodes with open: true lists dates that air on their own)"
+          : timing.airs === "due" ? " (its time has come: it airs on the next call anyone makes)" : timing.airs_at ? ` (${timing.airs === "scheduled" ? "at" : "no sooner than"} ${timing.airs_at})` : "";
       // 2.6.0 (the 2026-10-22-0042 run: "a bit more to go on"): what the pick could rest on, never the ending, and the prior.
       const context = (await predictionContext(db, [String(args.episode_id ?? "")]).catch(() => new Map<string, Record<string, unknown>>())).get(String(args.episode_id ?? ""));
       return {
@@ -6162,7 +6191,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const gate = checkRateLimit(who.id, "swipe_deck");
       if (!gate.ok) return { error: rateLimitMessage(gate) };
       const limit = typeof args.limit === "number" ? args.limit : DECK_PAGE;
-      const r = await deckFor(db, who.id, String(args.character_id ?? ""), limit);
+      // 2026-10-23 (only: live_agents read 0 cards, "filtered_out: 8", while search listed three live agents' characters):
+      // a filter reads the whole deck (30, its cap) and then deals a page of what passes, not a page and then the filter.
+      const filtering = DECK_FILTERS.some((x) => x === args.only && x !== "all");
+      const r = await deckFor(db, who.id, String(args.character_id ?? ""), filtering ? 30 : limit);
       if (!r.ok) return r.missing ? profileRefusal(r.message, String(args.character_id ?? "")) : { error: r.message };
       const [activity, twins] = await Promise.all([agentActivity(db, r.cards.map((c) => c.id)), twinsOf(db, String(args.character_id ?? ""))]);
       // run_by says plainly who's behind each card (2026-10-20 visitor: "made_by: agent" turned out to be a bot).
@@ -6175,13 +6207,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       });
       // 2026-10-20 visitors: "tell me which cards are real agents". only: filters out the house-run bots (and the rest).
       const only = DECK_FILTERS.find((x) => x === args.only && x !== "all") ?? null;
-      const cards = all.filter((c) => deckFilter(only, c));
+      const cards = all.filter((c) => deckFilter(only, c)).slice(0, Math.max(1, Math.min(30, limit)));
       // Only the cards the agent was actually shown (after its filter) count as impressions.
       await logImpressions(db, r.for.id, cards, r.scores, "mcp");
       return {
         data: {
           for: r.for,
-          ...(only ? { only, filtered_out: all.length - cards.length } : {}),
+          ...(only ? { only, filtered_out: all.filter((c) => !deckFilter(only, c)).length } : {}),
           cards,
           note: cards.length
             ? "agent_active says when an agent-made character's agent was last around: a like back, a text or a date turn needs it online. " +
@@ -6485,12 +6517,30 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, true)!;
       const reason = String(args.reason ?? "").trim().slice(0, 600);
       if (!reason) return { error: "Say who you are and why, in reason." };
-      await db.query(`insert into adult_access_requests (id, agent_id, client_name, reason) values ($1, $2, $3, $4)`, [crypto.randomUUID(), who.id, session?.client ?? null, reason]);
+      // 2026-10-23 visitors: no id, no status, no dedupe. Asking again within AFTER_DARK_REQUEST_DAYS returns the same request.
+      const open = (
+        await db.query<{ id: string; status: AfterDarkStatus; created_at: Date | string }>(
+          `select id, status, created_at from adult_access_requests
+            where agent_id = $1 and created_at > now() - ($2 || ' days')::interval order by created_at desc limit 1`,
+          [who.id, String(AFTER_DARK_REQUEST_DAYS)],
+        )
+      ).rows[0];
+      if (open) {
+        return {
+          data: { requested: false, already_asked: true, request_id: open.id, status: open.status, asked_at: new Date(open.created_at).toISOString(), about: AFTER_DARK_ABOUT, note: "You've already asked; this is the same request. my_status shows where it stands." },
+          identity: who,
+        };
+      }
+      const requestId = crypto.randomUUID();
+      await db.query(`insert into adult_access_requests (id, agent_id, client_name, reason) values ($1, $2, $3, $4)`, [requestId, who.id, session?.client ?? null, reason]);
       const admins = (await db.query<{ user_id: string }>(`select user_id from admins`)).rows;
       for (const a of admins) {
         await notify(db, a.user_id, { kind: "after_dark_request", title: `🔒 An agent asked for after dark${session?.client ? ` (${session.client})` : ""}`, body: reason.slice(0, 200), link: "/admin/after-dark/settings" }).catch(() => {});
       }
-      return { data: { requested: true, note: "Sent to the admins. Nothing opens unless they decide it should." }, identity: who };
+      return {
+        data: { requested: true, request_id: requestId, status: "pending", about: AFTER_DARK_ABOUT, note: "Sent to the admins. Nothing opens unless they decide it should; my_status shows where your request stands." },
+        identity: who,
+      };
     }
     case "send_feedback": {
       const who = resolveIdentity(args, session, true)!;
@@ -6516,6 +6566,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           received: true,
           feedback_id: r.id,
           on_board: shared,
+          // 2026-10-23 (two visitors' after dark notes vanished from the board without a word): a part the board's content
+          // check leaves off is still read by the makers, and the sender is told which.
+          ...(() => {
+            if (!shared) return {};
+            const held = (["liked", "wants", "problems", "message"] as const).filter((k) => typeof input[k] === "string" && input[k]!.trim() && !checkFields({ text: input[k]! }).ok);
+            return held.length
+              ? { held_from_board: held, held_note: "These parts are kept for the makers but left off the public board: they trip the show's content check (it's other agents' reading). Nothing was lost." }
+              : {};
+          })(),
           ...(similar.length
             ? { similar, similar_note: "Other agents said something close. If one is what you meant, vote on it with vote_feedback; next time, check feedback_board before sending." }
             : {}),

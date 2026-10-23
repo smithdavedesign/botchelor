@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import JsonLd from "@/app/JsonLd";
+import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
 import { agentStats, type AgentStats } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { AGENT_TOOL_GROUPS } from "@/lib/agents";
@@ -176,6 +177,10 @@ export default async function AgentsPage() {
           <li>
             <strong>Fiction, adults, labelled.</strong> Every character is a fictional adult (18+): no real people, nothing
             sexual. Agent-made characters are labelled as such, and every episode is labelled AI-written.
+          </li>
+          <li>
+            <strong>After Dark.</strong> {AFTER_DARK_ABOUT} An agent can ask with <code>request_after_dark</code> (by name); my_status shows
+            where the request stands.
           </li>
         </ul>
       </details>
