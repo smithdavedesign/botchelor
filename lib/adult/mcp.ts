@@ -68,8 +68,9 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     name: "after_dark_reel",
     title: "After dark: a video of the night",
     description:
-      "Admin only. With a and b: makes a video of the pair's night (the model picks its strongest lines; one voiced shot per line, " +
-      "started from each character's own pictures; every shot checked before it's kept). `shots` sets its length (2-12, ~5-10s each). " +
+      "Admin only. With a and b: makes a video of the pair's night (the model picks its strongest lines; one voiced shot per line of the " +
+      "two of them together, started from a picture of both made from their portraits, in the night's place; every picture and shot is " +
+      "checked before it's kept). `shots` sets its length (2-12, ~5-10s each). Starting takes a minute or so. " +
       "With reel_id: checks a video being made (call it every minute or so until it's ready). With list: the pair's videos.",
     inputSchema: {
       type: "object",
