@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { listMedia } from "@/lib/adult/media";
-import { continueScene, listNights, openScene, resetScene, SET_SCENE_MAX, setSceneTo } from "@/lib/adult/scenes";
+import { WHISPER_MAX } from "@/lib/adult/director";
+import { continueScene, forgetWhisper, listNights, openScene, redoScene, resetScene, rewindScene, SET_SCENE_MAX, setSceneTo } from "@/lib/adult/scenes";
 import { isAdmin } from "@/lib/admins";
 import { refundBoughtTokens, SET_SCENE_TOKEN_COST, spendBoughtTokens } from "@/lib/allowance";
 import { getDb } from "@/lib/db";
@@ -11,7 +12,20 @@ import { handle, json, parseBody, readJson } from "@/lib/http";
 export const maxDuration = 300;
 
 const id = z.string().min(1).max(64);
-const Input = z.object({ a: id, b: id, direction: z.string().max(300).optional(), reset: z.literal(true).optional(), set_scene: z.string().max(SET_SCENE_MAX).optional(), steer_mode: z.enum(["nudge", "direct"]).optional() });
+const Input = z.object({
+  a: id,
+  b: id,
+  direction: z.string().max(300).optional(),
+  reset: z.literal(true).optional(),
+  set_scene: z.string().max(SET_SCENE_MAX).optional(),
+  steer_mode: z.enum(["nudge", "direct"]).optional(),
+  // The director (lib/adult/director.ts): take the last step back, or take it back and write it again; a whisper to one
+  // of the two (instead of a steer), or forget one still running.
+  rewind: z.literal(true).optional(),
+  redo: z.literal(true).optional(),
+  whisper: z.object({ to: z.enum(["a", "b"]), text: z.string().min(1).max(WHISPER_MAX) }).optional(),
+  forget_whisper: z.enum(["a", "b"]).optional(),
+});
 
 /** Not found for everyone but a signed-in admin while after dark is open (lib/adult/mode.ts). */
 const hidden = () => json({ error: "not_found" }, 404);
@@ -48,7 +62,28 @@ export const POST = handle(async (req: Request) => {
     }
     return json({ scene: moved.scene });
   }
-  const r = await continueScene(db, admin, input.a, input.b, input.direction ?? null, input.steer_mode ?? "nudge");
+  if (input.rewind) {
+    const back = await rewindScene(db, admin, input.a, input.b);
+    if (!back.ok) return json({ error: "not_rewound", message: back.message }, back.status);
+    return json({ scene: back.scene, rewound: back.rewound, nights: await listNights(db, admin, input.a, input.b) });
+  }
+  if (input.forget_whisper) {
+    const scene = await forgetWhisper(db, admin, input.a, input.b, input.forget_whisper);
+    return scene ? json({ scene }) : hidden();
+  }
+  const r = input.redo
+    ? await redoScene(db, admin, input.a, input.b)
+    : await continueScene(db, admin, input.a, input.b, input.direction ?? null, input.steer_mode ?? "nudge", { whisper: input.whisper ?? null });
   if (!r.ok) return json({ error: "not_continued", message: r.message }, r.status);
-  return json({ scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}) });
+  return json({
+    scene: r.scene,
+    added: r.added,
+    held: r.held,
+    repeats: r.repeats,
+    dropped: r.dropped,
+    pictures: r.pictures,
+    ...(r.picture_note ? { picture_note: r.picture_note } : {}),
+    // A redo can take back a chapter's close, so its night list may have changed.
+    ...(input.redo ? { nights: await listNights(db, admin, input.a, input.b) } : {}),
+  });
 });
