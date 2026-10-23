@@ -5,13 +5,23 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-/** The primary nav links (the token meter and the logo sit outside this list). */
-const LINKS = [
-  { href: "/create", label: "Create" },
+/**
+ * The primary nav links (the token meter and the logo sit outside these lists). David, 2026-10-22: Create isn't a nav
+ * item. Someone with no character yet gets the show (Watch, Characters, the Constellation) and one "Make your character"
+ * button; Swipe and Matches can't do anything for them, so they appear once there's a character, and doing anything
+ * that needs one (swipe, match, date) sends them to /create and back.
+ */
+const OWNER_LINKS = [
+  { href: "/watch", label: "Watch" },
   { href: "/swipe", label: "Swipe" },
   { href: "/matches", label: "Matches" },
+  { href: "/characters", label: "Characters" },
+  { href: "/account", label: "Account" },
+] as const;
+const NEWCOMER_LINKS = [
   { href: "/watch", label: "Watch" },
   { href: "/characters", label: "Characters" },
+  { href: "/graph", label: "Constellation" },
   { href: "/account", label: "Account" },
 ] as const;
 
@@ -30,9 +40,12 @@ export default function Nav({
   unread = 0,
   texts = 0,
   afterDark = false,
+  hasCharacter = true,
 }: {
   tokens: number;
   personal?: boolean;
+  /** The viewer owns a character: the owner's nav. Without one, the newcomer's, with the create button. */
+  hasCharacter?: boolean;
   unread?: number;
   texts?: number;
   afterDark?: boolean;
@@ -90,7 +103,12 @@ export default function Nav({
       {open &&
         createPortal(<button type="button" className="nav-backdrop" aria-label="Close menu" tabIndex={-1} onClick={() => setOpen(false)} />, document.body)}
       <div id="nav-menu" className="nav-links" data-open={open}>
-        {LINKS.map((l) => (
+        {!hasCharacter && (
+          <Link href="/create" className="button nav-create" aria-current={pathname === "/create" ? "page" : undefined}>
+            Make your character
+          </Link>
+        )}
+        {(hasCharacter ? OWNER_LINKS : NEWCOMER_LINKS).map((l) => (
           <Link key={l.href} href={l.href} aria-current={pathname === l.href || pathname.startsWith(`${l.href}/`) ? "page" : undefined}>
             {l.label}
             {l.href === "/matches" && texts > 0 && (

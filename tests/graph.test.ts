@@ -188,7 +188,7 @@ describe("the /graph page: server-rendered ledger (no JS needed) and JSON-LD", (
   it("renders the ledger with the private treatment and the missing-data panel", async () => {
     await seed();
     const { default: GraphPage } = await import("@/app/graph/page");
-    const html = renderToStaticMarkup(await GraphPage());
+    const html = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({}) }));
     expect(html).toContain("The Constellation");
     expect(html).toContain("Ana Vale × Bob Rook");
     expect(html).toContain(`/couples/${ANA}/${BOB}`);
@@ -349,7 +349,7 @@ describe("Tier 3: what the Constellation adds, and that a private character stil
     await kind(ANA, { kind: "vampire" });
     await kind(BOB, { kind: "robot" });
     const { default: GraphPage } = await import("@/app/graph/page");
-    const html = renderToStaticMarkup(await GraphPage());
+    const html = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({}) }));
     expect(html).toContain("Who dates whom, by kind");
     expect(html).toContain("🧛 Vampire × 🤖 Robot");
     expect(html).toContain("What they are is self-reported");

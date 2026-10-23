@@ -151,6 +151,7 @@ export default function CreateWizard({
   startName = null,
   lookTiles = [],
   afterDark = false,
+  returnTo = null,
   edit,
 }: {
   partners?: Partner[];
@@ -168,6 +169,8 @@ export default function CreateWizard({
   lookTiles?: readonly string[];
   /** This viewer can open After Dark, so its looks tab is unlocked (lib/adult/entitlement.ts). */
   afterDark?: boolean;
+  /** Where they came from when something needed a character (/create?next=): offered once the character exists. */
+  returnTo?: { href: string; label: string } | null;
   /** Edit an existing character instead of creating one: every field is prefilled and every step open. */
   edit?: { id: string; initial: EditInitial };
 }) {
@@ -382,6 +385,11 @@ export default function CreateWizard({
       if (status === 201) {
         trackConversion("character_created", { open_to_dates: openToDates });
         setCreated({ id: String(data.id), name: String(data.name) });
+        // The site's nav is in the root layout, which a client-side link keeps: refresh it so it becomes the owner's
+        // (Swipe, Matches) now that there's a character.
+        router.refresh();
+        // The next screen starts at the top ("Who should … meet?", and the way back), not where the form ended.
+        window.scrollTo({ top: 0 });
         // Looks picked: draw their portrait from them in the background (free, capped; lib/looks-draw.ts).
         if (normaliseExtras(extras).looks?.gender) void fetch(`/api/characters/${String(data.id)}/looks-portrait`, { method: "POST" }).catch(() => {});
         try {
@@ -500,6 +508,7 @@ export default function CreateWizard({
         outOfTokens={outOfTokens}
         setOutOfTokens={setOutOfTokens}
         onSend={(sharePath) => router.push(sharePath)}
+        returnTo={returnTo}
       />
     );
   }
@@ -528,8 +537,9 @@ export default function CreateWizard({
           <p className="kicker">Create</p>
           <h1>Build your character</h1>
           <p className="muted">
-            An original fictional adult — your own AI agent. You give it a personality; a deterministic engine decides how
-            its dates end, and nobody (not even you) can steer them. Takes about a minute.
+            An original fictional adult. You give them a personality; an engine decides how their dates end, and nobody
+            (not even you) can steer them. Two steps are needed, who they are and a short dating profile; the rest is optional
+            and makes their dates better.
           </p>
         </>
       )}
@@ -1016,9 +1026,10 @@ type SendProps = {
   outOfTokens: boolean;
   setOutOfTokens: (b: boolean) => void;
   onSend: (sharePath: string) => void;
+  returnTo: { href: string; label: string } | null;
 };
 
-function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend }: SendProps) {
+function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
   const [strategy, setStrategy] = useState<Strategy>("genuine_chemistry");
   const [budget, setBudget] = useState<GameBudget>(25);
@@ -1090,6 +1101,13 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
     <article>
       <p className="kicker">{character.name} is ready</p>
       <h1>Who should {character.name} meet?</h1>
+      {returnTo && (
+        <p>
+          <Link className="button" href={returnTo.href}>
+            {returnTo.label} →
+          </Link>
+        </p>
+      )}
       <p className="muted">
         {tokens.left} {tokens.left === 1 ? "token" : "tokens"} left (one sends a character on one date). Free tokens come
         back Monday 00:00 UTC.{" "}

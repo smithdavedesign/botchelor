@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import { safeFrom } from "@/lib/age";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
 import { listOpenCharacters } from "@/lib/dating";
@@ -74,8 +75,10 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
     ? priceLabelFromEnv(process.env, `${PACK_5.name} for ${formatPrice(PACK_5.price_cents)}`)
     : null;
 
+  const returnTo = await backTo(db ?? (await getDb()), typeof sp.next === "string" ? sp.next : null);
   return (
     <CreateWizard
+      returnTo={returnTo}
       partners={partners}
       openCharacters={openCharacters}
       swipeGate={swipeGate}
@@ -89,4 +92,23 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       afterDark={looks.afterDark}
     />
   );
+}
+
+/**
+ * Where they were when something needed a character (?next=, a local path): the button that takes them back once it
+ * exists (David, 2026-10-22: "drive them there if they try and do anything on the site as a new user without a
+ * character"). A character page names the character, since its call to action now sends one of theirs on the date.
+ */
+async function backTo(db: Awaited<ReturnType<typeof getDb>>, next: string | null): Promise<{ href: string; label: string } | null> {
+  const href = safeFrom(next);
+  if (href === "/" || href.startsWith("/create")) return null;
+  if (href.startsWith("/swipe")) return { href, label: "Start swiping" };
+  if (href.startsWith("/matches")) return { href, label: "Go to your matches" };
+  const character = /^\/characters\/([^/?#]+)/.exec(href)?.[1];
+  if (character) {
+    const name = (await db.query<{ name: string }>(`select name from characters where id = $1`, [decodeURIComponent(character)]).catch(() => ({ rows: [] }))).rows[0]?.name;
+    if (name) return { href, label: `Back to ${name.split(/\s+/)[0]}` };
+  }
+  if (href.startsWith("/couples/")) return { href, label: "Back to the couple" };
+  return { href, label: "Back to where you were" };
 }
