@@ -345,6 +345,11 @@ async function evalRun(
       }
       continue;
     }
+    // v2.4: a refusal the step's empty-reply retry got past still counts.
+    if (step.refused !== undefined) {
+      refusedElsewhere++;
+      refusals.push({ step: i + 1, kind: "reply", text: step.refused });
+    }
     // As production's bumpFacts: one more use for each fact these lines cited.
     const ids = new Set(step.lines.flatMap((l) => l.fact_ids ?? []));
     if (ids.size) facts = facts.map((f) => (ids.has(f.id) ? { ...f, uses: f.uses + 1, last_used_at: new Date(clock()).toISOString() } : f));

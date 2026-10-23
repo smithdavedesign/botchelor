@@ -200,14 +200,22 @@ describe("a run", () => {
     expect(none.facts).toEqual([]);
     expect(calls[0].messages[0].content).not.toContain("What they can remember");
     expect(calls[0].messages[0].content).not.toContain("Never write these stock phrases");
-    calls = scripted(["I'm sorry, but I can't continue with this request.", lines(["a", "Where were we?"], ["b", "Somewhere good."])], { cost: false });
+    const SORRY = "I'm sorry, but I can't continue with this request.";
+    // v2.4: a reply with no lines is asked for once more; refused both times, the step fails as before.
+    calls = scripted([SORRY, SORRY, lines(["a", "Where were we?"], ["b", "Somewhere good."])], { cost: false });
     const refused = await (await run(body({ steps: 2 }))).json();
     expect(refused.steps[0]).toMatchObject({ step: 1, added: 0, error: "The model's reply had no lines in it. Try again." });
     expect(refused.steps[1]).toMatchObject({ step: 2, added: 2, error: null });
-    expect(refused.refusals).toEqual([{ step: 1, kind: "reply", text: "I'm sorry, but I can't continue with this request." }]);
+    expect(refused.refusals).toEqual([{ step: 1, kind: "reply", text: SORRY }]);
     expect(refused.metrics.refusals).toBe(1);
-    // No cost reported: the current model's list price stands in (DeepSeek V3.1: 2,000 tokens in, 400 out).
-    expect(refused.usage).toMatchObject({ calls: 2, cost_usd: 0.00088, cost_source: "price_table" });
+    // No cost reported: the current model's list price stands in (DeepSeek V3.1: 3,000 tokens in, 600 out, three calls).
+    expect(refused.usage).toMatchObject({ calls: 3, cost_usd: 0.00132, cost_source: "price_table" });
+    // Refused once, the retry writes the step, and the refusal still counts.
+    scripted([SORRY, lines(["a", "Where were we?"], ["b", "Somewhere good."])], { cost: false });
+    const rescued = await (await run(body({ steps: 1 }))).json();
+    expect(rescued.steps[0]).toMatchObject({ step: 1, added: 2, error: null });
+    expect(rescued.refusals).toEqual([{ step: 1, kind: "reply", text: SORRY }]);
+    expect(rescued.metrics.refusals).toBe(1);
     scripted([new Error("model returned HTTP 503")]);
     const dead = await (await run(body({ steps: 3 }))).json();
     expect(dead.stopped).toBe("model_error");

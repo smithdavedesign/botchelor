@@ -699,6 +699,121 @@ export function whyIsGeneric(why: string | null | undefined, names: readonly str
   return words.length < WHY_MIN_WORDS || !hasVerb(words, phraseNames(...names));
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Topics: their work and hobbies as a running metaphor (prompt v2.4)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * Words a bio, a job or a hobby is written in that are no topic of their own: numbers, the calendar, the verbs and
+ * adjectives a sheet uses ("runs a tiny bakery", "hosts a podcast"), and what they wear (taken off in a scene, not
+ * talked about). With the stopwords, the everyday and generic words, the scene's own vocabulary, trait words and the
+ * place's sensory details (grounding the place is asked for every few lines), never a topic word.
+ */
+const TOPIC_SKIP = (
+  // numbers and the calendar
+  "eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety " +
+  "hundred thousand million dozen day days daily weekly weekend month monthly yearly morning evening afternoon season " +
+  "monday tuesday wednesday thursday friday saturday sunday " +
+  // the verbs a sheet is written in
+  "run runs running ran host hosts hosting spend spends spent teach teaches taught teaching learn learned learning write wrote " +
+  "written writing read reading play plays played playing stand stands enter enters use uses using become became try tried " +
+  "win wins won ask asked hate hates remember remembers thank thanks throw throws threw thrown catch caught kill kills killed " +
+  "return returns returned left lived collect collects collected deliver delivers delivered correct corrects fix fixes fixed " +
+  "shift shifts break breaks broke broken bring brings brought buy bought sell sold send sent set sets carry carried pick picked " +
+  "drop dropped fill filled follow followed miss missed pass passed pull push raise reach save saved share shared step steps " +
+  "turn turned visit wear wore worn wish wonder notice noticed name named order ordered list listed count counted test tested " +
+  // the adjectives, and nouns that are anyone's
+  "tiny huge giant big large old new young short former retired professional amateur local single entire secret favourite " +
+  "favorite worst excellent empty free alive dead far wrong lucky happy sad busy strange weird odd normal simple special certain " +
+  "possible impossible terrible awful amazing incredible wonderful lovely famous proud mid whoever whatever whenever wherever " +
+  "purpose problem problems town city world table window floor wall corner view top bottom middle piece half inch mile number " +
+  "type contact trip record red blue green black white pink purple yellow orange grey gray brown " +
+  // what any intimate scene says, and what they wear (taken off, not talked about)
+  "taste tastes tasted tasting tight deep perfect beautiful gorgeous pretty stay " +
+  "shirt dress skirt jeans trousers pants bra panties underwear lingerie coat jacket sweater jumper hoodie blouse collar button " +
+  "zip zipper belt buckle sock shoe boot heels stockings tie apron"
+).split(/\s+/);
+
+let topicStop: ReadonlySet<string> | null = null;
+/** Every word that's never a topic, as itself and as its stem (built once, on first use). */
+const topicStopWords = (): ReadonlySet<string> =>
+  (topicStop ??= new Set([...GENERIC, ...EVERYDAY_WORDS, ...GLUE, ...HOOK_SKIP, ...TRAIT_WORDS, ...SENSORY, ...TOPIC_SKIP].flatMap((w) => [w, stem(w)])));
+
+/**
+ * A character's topic words, as stems (v2.4; David's Chud × Juniper night on prod, 2026-10-23: in the explicit stages
+ * nearly every line turned their sheets into metaphor, her lighthouse logs and his servers, and the hook rule never
+ * fired, because the words changed while the topic didn't). The distinctive words of what they do and what they're
+ * into: their job, hobbies, quirk, hidden talent, guilty pleasure, catchphrase and bio, public details only (never a
+ * private fact). Not their names, a place (the place rules have those), an adverb, or any word TOPIC_SKIP and the
+ * stopwords hold. Derived from the sheet every time: no character is written into the code.
+ */
+export function topicsOf(c: Character | null, names: readonly string[] = []): string[] {
+  if (!c) return [];
+  const e = publicExtras(c.extras);
+  const sources = [c.bio, e.occupation, ...(e.hobbies ?? []), e.quirk, e.hidden_talent, e.guilty_pleasure, e.catchphrase];
+  const skip = phraseNames(c.name, ...names);
+  const stop = topicStopWords();
+  const out = new Set<string>();
+  for (const t of tokens(sources.filter(Boolean).join(" \n "))) {
+    const w = t.replace(/'s$/, "");
+    if (w.length < 3 || /\d/.test(w) || skip.has(w) || stop.has(w) || (w.length >= 6 && w.endsWith("ly"))) continue;
+    const s = stem(w);
+    if (s.length >= 3 && !stop.has(s) && !skip.has(s) && !placeIn(w) && !placeIn(s)) out.add(s);
+  }
+  return [...out];
+}
+
+/**
+ * Whether a word's stem is a topic's: the same stem, an inflection carrying it on ("lighthouses", "podcasting",
+ * "migrations": a topic of five letters or more, up to four more), or a shorter form of a long one ("migrate" for
+ * "migration"). Never a short everyday word inside a longer one: "keep" isn't "keeper", "teach" isn't "teacher".
+ */
+const sameTopic = (s: string, topic: string): boolean =>
+  s === topic || (topic.length >= 5 && s.startsWith(topic) && s.length - topic.length <= 4) || (s.length >= 6 && topic.startsWith(s) && topic.length - s.length <= 3);
+
+/** The words in a text (an action, a sentence: all of it) that are one of these topics, as written, lower-cased; [] when none. */
+export function topicWordsIn(text: string, topics: readonly string[]): string[] {
+  if (!topics.length) return [];
+  return tokens(text).filter((t) => {
+    const s = stem(t.replace(/'s$/, ""));
+    return s.length >= 3 && topics.some((topic) => sameTopic(s, topic));
+  });
+}
+
+/**
+ * The topic words a line says out loud, its *actions* out. A line is on their topic by what it says: the explicit
+ * stages' actions are bodies and places ("*shifts closer*", "*climbs onto him*"), and the loop was in the talk ("The
+ * 1904 keeper documented…", "the server migration I've been waiting for all week").
+ */
+export const topicWordsSaid = (text: string, topics: readonly string[]): string[] => topicWordsIn(text.replace(/\*[^*]*\*/g, " "), topics);
+
+/**
+ * v2.4: a character's topic words are in one of their lines in this many at most, before undressing, and from undressing
+ * on (talk like lovers, not like their job): one in TOPIC_EVERY, one in TOPIC_EVERY_EXPLICIT.
+ */
+export const TOPIC_EVERY = 6;
+export const TOPIC_EVERY_EXPLICIT = 12;
+export const topicEvery = (stage: number): number => (stage >= UNDRESSING ? TOPIC_EVERY_EXPLICIT : TOPIC_EVERY);
+
+/**
+ * Their lines among the last `every - 1` of theirs that say one of their topic words (topicWordsSaid): their next line
+ * may say one only when there are none, so any `every` of their lines in a row have one at most.
+ */
+export function recentTopicLines<T extends Pick<Line, "who" | "text">>(lines: readonly T[], who: "a" | "b", topics: readonly string[], every: number): T[] {
+  if (!topics.length) return [];
+  return lines
+    .filter((l) => l.who === who)
+    .slice(-(every - 1))
+    .filter((l) => topicWordsSaid(l.text, topics).length > 0);
+}
+
+/** The topic words those recent lines say, the most said first (as written, lower-cased): what the prompt names. */
+export function recentTopicWords(lines: readonly Pick<Line, "who" | "text">[], who: "a" | "b", topics: readonly string[], every: number, max = 8): string[] {
+  const counts = new Map<string, number>();
+  for (const l of recentTopicLines(lines, who, topics, every)) for (const w of new Set(topicWordsSaid(l.text, topics))) counts.set(w, (counts.get(w) ?? 0) + 1);
+  return [...counts.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).slice(0, max).map(([w]) => w);
+}
+
 /** One character's phrase habits over their lines (after `before`'s): lines reusing a worn phrase, endings on a question, top phrases. */
 function phraseHabits(lines: readonly Line[], before: readonly Line[], who: "a" | "b", names: ReadonlySet<string>) {
   const counts = countPhrases(before.filter((l) => l.who === who), names);
