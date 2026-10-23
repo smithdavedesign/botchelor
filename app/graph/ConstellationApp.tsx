@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { GraphData, GraphEdge, GraphNode } from "@/lib/graph";
 import { KINDS, type KindId } from "@/lib/kinds";
 import { communityColor, kindHue, type ColorBy } from "./colors";
@@ -34,9 +34,17 @@ type KindFilter = "all" | KindId | "unsaid";
  * filters), the sky itself, and the detail panel. Filtering happens here so the canvas just draws what it's given;
  * edges are always cut down to pairs whose both ends survived the node filter (the canvas relies on that alignment).
  */
-export default function ConstellationApp({ data }: { data: GraphData }) {
-  const [selection, setSelection] = useState<Selection>(null);
+export default function ConstellationApp({ data, initialFocus = null }: { data: GraphData; initialFocus?: string | null }) {
+  // /graph?focus=<id> (from a character, couple or episode page): open on that character, its panel open.
+  const start = initialFocus && data.nodes.some((n) => n.id === initialFocus && !n.private) ? initialFocus : null;
+  const [selection, setSelection] = useState<Selection>(start ? { kind: "node", id: start } : null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  // The canvas settles its layout first; focusing a moment later centres on where the node actually ends up.
+  useEffect(() => {
+    if (!start) return;
+    const t = setTimeout(() => setFocusId(start), 600);
+    return () => clearTimeout(t);
+  }, [start]);
   const [query, setQuery] = useState("");
   const [origin, setOrigin] = useState<OriginFilter>("all");
   const [minDates, setMinDates] = useState(0);

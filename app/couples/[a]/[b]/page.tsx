@@ -169,6 +169,8 @@ export default async function CouplePage({ params }: Props) {
         <p className="small couple-links">
           {latest && <Link href={`/episodes/${latest.episode_id}`}>▶ Watch their latest date</Link>}
           {latest && " · "}
+          <Link href={`/graph?focus=${encodeURIComponent(ca.id)}`}>✨ See them in the Constellation</Link>
+          {" · "}
           <CopyLink path={`/couples/${ca.id < cb.id ? ca.id : cb.id}/${ca.id < cb.id ? cb.id : ca.id}`} title={`${ca.name} × ${cb.name} on Botchelor`} />
         </p>
         {owner && <p className="muted small">You own one of them, so you also see your own private dates, their plans and their texts.</p>}

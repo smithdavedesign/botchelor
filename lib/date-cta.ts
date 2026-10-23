@@ -24,6 +24,8 @@ export type DateCta =
 
 export function dateCta(i: {
   first: string;
+  /** The character's id: the builder brings the viewer back to its page once theirs exists. */
+  id?: string;
   isOwner: boolean;
   isPrivate: boolean;
   /** Open to dates: on this season's cast (or premium), or opened by its creator. */
@@ -35,7 +37,7 @@ export function dateCta(i: {
   if (i.isOwner || i.isPrivate) return { kind: "none" };
   if (i.takenBy) return { kind: "closed", reason: `Not taking dates right now: ${i.first} is with ${i.takenBy}.` };
   if (!i.available) return { kind: "closed", reason: "Not taking dates right now." };
-  if (!i.mine.length) return { kind: "make", label: `Make a character to date ${i.first}`, href: "/create" };
+  if (!i.mine.length) return { kind: "make", label: `Make a character to date ${i.first}`, href: i.id ? `/create?next=${encodeURIComponent(`/characters/${i.id}`)}` : "/create" };
   return { kind: "send", label: `Send one of yours on a date with ${i.first}`, mine: i.mine };
 }
 
