@@ -82,7 +82,12 @@ const NUDE_FROM = 4;
  * live reel: told to keep each "exactly as in their own picture", Lexi kept her portrait's lingerie through the sex).
  */
 const clothesAt = (stage: number) =>
-  stage >= NUDE_FROM ? "both are nude unless the moment says otherwise" : stage >= UNDRESSED_FROM ? "they're half undressed, as the moment says" : "they're dressed as the moment says, not nude";
+  stage >= NUDE_FROM
+    ? "both are nude unless the moment says otherwise"
+    : stage >= UNDRESSED_FROM
+      ? "they're half undressed, as the moment says"
+      : // Clips of 2026-10-22: "dressed as the moment says" still lost the man's shirt in a kiss. Spelled out, it stays on.
+        "they're dressed as the moment says, not nude: both fully clothed, shirts and tops on and done up";
 /** Between two keyframe checks, and before asking again when Hive couldn't check one: Hive rate-limits a burst. */
 const CHECK_PAUSE_MS = 1500;
 const CHECK_AGAIN_MS = 5000;

@@ -301,6 +301,37 @@ describe("a clip from the menu", () => {
     expect(await used()).toBe(3);
   });
 
+  it("holds to the limits the viewer set for the pair (lib/adult/limits.ts): the intensity's ceiling, a hard no, and their own", async () => {
+    const { id, cookie } = await admin();
+    const scene = await ready(cookie, id, { stage: 4 });
+    const seen = fakeVenice();
+    fakeHive();
+    await t.db.query(`update adult_scenes set intensity = 'flirty', hard_nos = $2::jsonb where id = $1`, [scene.id, JSON.stringify({ chips: ["oral"], own: ["against the wall"] })]);
+    // Flirty goes as far as undressing; "against the wall" is theirs; oral is a hard no anyway.
+    expect((await menu(cookie)).acts.map((a) => a.id)).toEqual(["close", "dance", "cuddle", "kiss", "undress"]);
+    for (const act of ["on_top", "wall", "oral"]) {
+      const res = await clip(cookie, { a: RAFE, b: JUNIPER, act });
+      expect(res.status).toBe(422);
+      expect((await res.json()).message).toBe("That's past the limits you've set for these two.");
+    }
+    expect(seen).toHaveLength(0);
+    // From here: the night is at sex, but flirty holds the clip to undressing.
+    scripted(JSON.stringify({ frame: "On the bed, both nude, having sex.", motion: "They move together.", line: null }));
+    await clip(cookie, { a: RAFE, b: JUNIPER, here: true });
+    const here = String(seen.find((s) => s.path === "/image/multi-edit")!.body.prompt);
+    expect(here).toContain("kissing and undressing each other, clothes half off");
+    expect(here).not.toContain("having sex");
+    expect(here).toContain("Sensual and tasteful, nothing graphic, photorealistic.");
+    // Spicy: sex is on the menu, and its pictures stay sensual, never graphic.
+    await t.db.query(`update adult_reels set status = 'ready'`);
+    await t.db.query(`update adult_scenes set intensity = 'spicy', hard_nos = '{}'::jsonb where id = $1`, [scene.id]);
+    seen.length = 0;
+    expect((await clip(cookie, { a: RAFE, b: JUNIPER, act: "on_top" })).status).toBe(200);
+    const spicy = String(seen.find((s) => s.path === "/image/multi-edit")!.body.prompt);
+    expect(spicy).toContain("Sensual and tasteful, nothing graphic, photorealistic.");
+    expect(spicy).not.toContain("Explicit");
+  });
+
   it("is one video at a time, with the videos of the night", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id, { stage: 2, lines: night(12, 2) });

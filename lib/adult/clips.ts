@@ -23,6 +23,7 @@ import { checkAdultText } from "../safety";
 import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, NO_MEDIA_LIMITS, type MediaLimits, type MenuAct } from "./acts";
 import { CHAIN_MAX } from "./clip-chains";
 import { isPublicPlace } from "./continuity";
+import { INTENSITY, intensityOf, limitsHit, storedHardNos, type PairLimits } from "./limits";
 import { ensureBaseline } from "./media";
 import { adultModel } from "./mode";
 import {
@@ -60,16 +61,24 @@ export { CHAIN_MAX };
 const HERE_LINES = 8;
 
 /**
- * The pair's limits for its pictures and clips: the intensity dial and the hard nos (lib/adult/limits.ts, the scene
- * features' work of 2026-10-22, stored on adult_scenes as intensity and hard_nos).
- *
- * HOOK: that module isn't on main yet. Until it is, nothing here is ruled out beyond the night's stage and the
- * public-place cap. Once it is, this reads the scene's intensity and hard nos and returns
- * { maxStage: INTENSITY[intensity].maxStage, explicit: intensity === "explicit", hardNos: hard_nos.chips,
- *   hit: (text) => limitsHit(text, { intensity, hard_nos }) }; every caller already holds to whatever it returns.
+ * The viewer's limits for a pair (lib/adult/limits.ts: the intensity dial and the hard nos, set per owner and pair) as
+ * its pictures and clips hold to them: no further than the intensity goes, explicit only at explicit (spicy and below
+ * are sensual, never graphic), and no act, still, motion or line that crosses a hard no.
  */
-export async function mediaLimits(_db: Db, _ownerId: string, _a: string, _b: string): Promise<MediaLimits> {
-  return NO_MEDIA_LIMITS;
+export function mediaLimitsOf(limits: PairLimits): MediaLimits {
+  return {
+    maxStage: INTENSITY[limits.intensity].maxStage,
+    explicit: limits.intensity === "explicit",
+    hardNos: limits.hard_nos.chips,
+    hit: (text) => limitsHit(text, limits),
+  };
+}
+
+/** The pair's limits as the viewer set them on their scene (adult_scenes.intensity, .hard_nos); none set, none here. */
+export async function mediaLimits(db: Db, ownerId: string, a: string, b: string): Promise<MediaLimits> {
+  const row = (await db.query<{ intensity: string | null; hard_nos: unknown }>(`select intensity, hard_nos from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`, [ownerId, a, b])).rows[0];
+  if (!row) return NO_MEDIA_LIMITS;
+  return mediaLimitsOf({ intensity: intensityOf(row.intensity), hard_nos: storedHardNos(row.hard_nos) });
 }
 
 /** Where the pair's night stands, for what a clip or a picture may show: its stage, its place, and whether that's public. */

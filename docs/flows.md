@@ -177,6 +177,12 @@ flowchart TD
     check -- "Fails" --> discard["Discarded, never stored;<br/>only the reason is logged"]
     check -- "Passes" --> gallery["Gallery (served to them only)"]
     gallery --> clip["Make it move: a clip on fal's queue,<br/>checked the same way before it's stored"]
+    scene --> ondemand{"A clip on demand (3 tokens, admins free):<br/>Clip from here, an act from the menu, or Keep going.<br/>Reached by the night? Private if past kissing?<br/>Inside the pair's limits?"}
+    ondemand -- "No" --> notyet["Refused before anything is spent<br/>(locked on the menu, or not on it at all)"]
+    ondemand -- "Yes" --> keyframe["A keyframe of both: their two baselines<br/>(+ the set, or the clip before's keyframe)"]
+    keyframe --> check
+    check -- "Passes" --> shot["One 5–10 s shot from it (Wan),<br/>checked again before it's stored;<br/>a discard or failure gives the tokens back"]
+    shot --> videos["Their videos: clips apart from the night's,<br/>each with the ones kept going from it as one film"]
 ```
 
 **Over MCP**, After Dark is the admin's own agents only:
@@ -242,5 +248,5 @@ Every page leads somewhere: no dead ends.
 | `/account` | You: your characters (Card · Matches · Swipe · Send on a date · Edit), your dates, badges, blocks, the AI agents linked to you (their characters, their agent id, unlink); an After Dark card only if it's open to you | each character's pages, After Dark |
 | `/link/[code]` | The one-time link an agent gives the person it plays for: sign in, then link it | Account → Your agents |
 | `/after-dark` | After Dark (only for someone it's open to): who's in, and every pair's scene, in its own night look | a scene, back to the show, settings (admin) |
-| `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), under it 🎚 Limits (intensity, hard nos) and 🧠 What they remember (editable), the theater, their nights, videos, the gallery and clips | back to After Dark |
+| `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), under it 🎚 Limits (intensity, hard nos) and 🧠 What they remember (editable), the theater, their nights, videos (videos of the night, and clips on demand with ▶▶ Keep going), the gallery and clips | back to After Dark |
 | `/admin/after-dark/settings` | Admin only: on/off, models, the OpenRouter, fal and Hive keys, caps, other agents' requests | After Dark |
