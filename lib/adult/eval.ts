@@ -27,7 +27,7 @@ import { extractFacts, factLabels, mergeFacts, MIN_LINES_TO_EXTRACT, type AdultF
 import { adultModel, adultTextReady } from "./mode";
 import { refusalIn, sceneQuality, sideOfCharacter, type CitationStatus, type SceneQuality } from "./quality";
 import { CHAPTER_LINES, eligiblePair, emptyScene, samplingOf, stepContext, writeSceneStep, type DroppedLine, type SceneLine, type SceneState } from "./scenes";
-import { getAdultSettings, type PromptVersion } from "./settings";
+import { getAdultSettings, SCENE_PROMPT_REVISION, type PromptVersion } from "./settings";
 
 /**
  * The OpenRouter models an eval may run besides the current setting (David's shortlist, 2026-10-21), Dolphin among them
@@ -119,6 +119,8 @@ export type EvalFact = { id: string; label: string; of: "a" | "b"; kind: string;
 export type EvalResult = {
   pair: { a: { id: string; name: string }; b: { id: string; name: string } };
   prompt_version: PromptVersion;
+  /** Which revision of that prompt ran ("v2.3", or "v1"): v2 changes in place (lib/adult/settings.ts SCENE_PROMPT_REVISION). */
+  prompt_revision: string;
   model: string;
   temperature: number;
   sampling: { temperature: number; frequency_penalty: number | null; presence_penalty: number | null; repetition_penalty: number | null };
@@ -376,6 +378,7 @@ async function evalRun(
     result: {
       pair: { a: { id: aId, name: names.a }, b: { id: bId, name: names.b } },
       prompt_version: req.promptVersion,
+      prompt_revision: req.promptVersion === "v2" ? SCENE_PROMPT_REVISION : "v1",
       model: modelId,
       temperature: sampling.temperature,
       sampling,

@@ -1458,6 +1458,14 @@ alter table adult_scenes add column if not exists whispers jsonb not null defaul
 alter table adult_scenes add column if not exists undo jsonb not null default '[]';
 alter table adult_steps add column if not exists whisper jsonb;
 alter table adult_steps add column if not exists rewound jsonb;
+-- After Dark v2.3 (lib/adult/heat.ts, lib/adult/auto-pictures.ts; 2026-10-23): how explicitly a scene is written
+-- (suggestive, frank or filthy; null is frank), the automatic pictures it has claimed (one per chapter and place, so a
+-- retry or a rewind never draws twice), the chapter and place a picture was drawn for, and the switch for them (null is on).
+alter table adult_scenes add column if not exists heat text;
+alter table adult_scenes add column if not exists auto_pictures jsonb not null default '[]';
+alter table adult_images add column if not exists scene_chapter integer;
+alter table adult_images add column if not exists scene_place text;
+alter table adult_settings add column if not exists auto_scene_pictures boolean;
 -- Marketing + agent funnel analytics (lib/agent-funnel.ts). user_id is an agent_id or an anon id; event is a
 -- small enum. The partial unique index makes agent_first_* events idempotent per user, so a tool that
 -- re-fires on retry never inflates the count.

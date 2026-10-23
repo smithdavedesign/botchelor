@@ -131,6 +131,7 @@ export async function fromDb(q, o) {
   const [aRow, bRow] = x.id < y.id ? [x, y] : [y, x];
   const cols = new Set((await q(`select column_name from information_schema.columns where table_name = 'adult_nights'`)).map((r) => r.column_name));
   const sceneCols = new Set((await q(`select column_name from information_schema.columns where table_name = 'adult_scenes'`)).map((r) => r.column_name));
+  const hasSteps = (await q(`select 1 from information_schema.tables where table_name = 'adult_steps'`)).length > 0;
   const owner = o.owner ? `and owner_id = $3` : "";
   const params = o.owner ? [aRow.id, bRow.id, o.owner] : [aRow.id, bRow.id];
   const nights = await q(
@@ -176,7 +177,16 @@ export async function fromDb(q, o) {
       const prev = i ? iso(run[i - 1].created_at) : (nights.filter((n) => iso(n.created_at) < iso(run[0].created_at)).map((n) => iso(n.created_at)).pop() ?? earliest);
       const sets = prev ? (await q(`select label from place_sets where created_at > $1 and created_at <= $2 order by created_at`, [prev, end])).map((r) => r.label) : undefined;
       if (c.recap) memories.push(c.recap);
-      chapters.push({ chapter: c.chapter ?? i + 1, source: c.source, id: c.id, lines: asArray(c.lines), set_place: c.set_place, place: c.place, moves: c.moves ? asArray(c.moves) : null, sets_requested: sets });
+      // v2.3: the steps that wrote it (their flags carry a Direct steer's quoted lines, and whether each was said).
+      const steps = hasSteps
+        ? await q(
+            c.source === "night"
+              ? `select line_from, flags from adult_steps where night_id = $1 and kind = 'write' and status = 'ok' order by created_at`
+              : `select line_from, flags from adult_steps where scene_id = $1 and night_id is null and chapter = $2 and kind = 'write' and status = 'ok' order by created_at`,
+            c.source === "night" ? [c.id] : [c.id, c.chapter ?? 1],
+          )
+        : [];
+      chapters.push({ chapter: c.chapter ?? i + 1, source: c.source, id: c.id, lines: asArray(c.lines), set_place: c.set_place, place: c.place, moves: c.moves ? asArray(c.moves) : null, sets_requested: sets, steps });
     }
     out.push({ a: sideOf(aRow), b: sideOf(bRow), start: run[0].date_setting ?? date?.setting ?? null, chapters, memories });
   }

@@ -11,6 +11,7 @@ import Avatar from "@/app/Avatar";
 import type { BusyReel, Reel } from "@/lib/adult/reels";
 import { AUTOPLAY_PAGE_PAUSE_MS, autoplayStop } from "@/lib/adult/autoplay";
 import type { Heat } from "@/lib/adult/director";
+import { SCENE_HEAT_LABEL, SCENE_HEATS, type SceneHeat } from "@/lib/adult/heat";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
 
@@ -18,6 +19,13 @@ const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
 /** The suggested next moves' labels (lib/adult/director.ts): one per heat. */
 const HEAT_LABEL: Record<Heat, string> = { mild: "Mild", flirty: "Flirty", spicy: "Spicy" };
+
+/** How explicitly the scene is written (lib/adult/heat.ts), from the next lines on. */
+const HEAT_TITLE: Record<SceneHeat, string> = {
+  suggestive: "Implied, never spelled out: it cuts away at the climax",
+  frank: "Explicit and plain, with their humour and voice (the default)",
+  filthy: "From undressing on, plain dirty talk; the jokes become a seasoning",
+};
 
 /** The scene so far, the way to write more (a few lines at a time, with an optional steer), and the gallery. */
 export default function SceneWriter({
@@ -92,6 +100,17 @@ export default function SceneWriter({
   const isThisPair = (r: BusyReel) => new Set([r.a, r.b, scene.a.id, scene.b.id]).size === 2;
   const nameOf = (who: "a" | "b") => (who === "a" ? scene.a.name : scene.b.name).split(/\s+/)[0];
 
+  /** Fetches the gallery again a little later (twice: a picture and its checks take a while), adding what's new. */
+  function lookForPictures() {
+    for (const ms of [20_000, 60_000]) {
+      setTimeout(async () => {
+        const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+        const fresh = (r?.gallery as Media[] | undefined) ?? [];
+        if (fresh.length) setGallery((g) => [...fresh.filter((m) => !g.some((x) => x.id === m.id)), ...g]);
+      }, ms);
+    }
+  }
+
   /** Sends one action to the scene's route; whether it went through. */
   async function send(body: Record<string, unknown>): Promise<boolean> {
     if (writing.current) return false;
@@ -120,7 +139,13 @@ export default function SceneWriter({
       setNote({ text: `Rewound: ${n} line${n === 1 ? "" : "s"} taken back, and the scene is where it was before them.` });
       return true;
     }
+    if (body.heat) {
+      setNote({ text: `${SCENE_HEAT_LABEL[body.heat as SceneHeat]}, from the next lines on.` });
+      return true;
+    }
     if (body.redo) setAutoplay(false);
+    // A picture of the chapter or the new place is drawing after the response (lib/adult/auto-pictures.ts): look again soon.
+    if (res.data.auto_picture) lookForPictures();
     const pictures = (res.data.pictures as Media[] | undefined) ?? [];
     if (pictures.length) setGallery((g) => [...pictures, ...g]);
     const held = Number(res.data.held ?? 0);
@@ -297,6 +322,13 @@ export default function SceneWriter({
             </label>
           ))}
         </span>
+        <span className="after-dark-heat" role="radiogroup" aria-label="Heat">
+          {SCENE_HEATS.map((h) => (
+            <label key={h} title={HEAT_TITLE[h]} className={scene.heat === h ? "is-on" : undefined}>
+              <input type="radio" name="scene-heat" checked={scene.heat === h} disabled={busy} onChange={() => void send({ heat: h })} /> {SCENE_HEAT_LABEL[h]}
+            </label>
+          ))}
+        </span>
         <input
           id="after-dark-direction"
           value={direction}
@@ -419,7 +451,7 @@ function Gallery({ items, problem, onAdd }: { items: Media[]; problem: string | 
     return (
       <>
         {problemNote}
-        <p className="muted small">No pictures yet: the first ones come when a scene turns explicit, or when they ask each other for one.</p>
+        <p className="muted small">No pictures yet: they come as each chapter starts and when they go somewhere new, when a scene turns explicit, or when they ask each other for one.</p>
       </>
     );
   }
@@ -455,6 +487,10 @@ function Gallery({ items, problem, onAdd }: { items: Media[]; problem: string | 
                 <img src={mediaUrl(m.id)} alt={m.kind === "baseline" ? "Baseline picture" : "Scene picture"} loading="lazy" />
               )}
               <span className="badge">{m.kind}</span>
+              {m.kind === "scene" && (m.chapter || m.place) && (
+                // Drawn for a chapter and a place (lib/adult/auto-pictures.ts).
+                <span className="muted small ad-picture-where">{[m.chapter ? `Chapter ${m.chapter}` : "", m.place ?? ""].filter(Boolean).join(" · ")}</span>
+              )}
               {m.clip && (
                 <button type="button" className="button-ghost small" onClick={() => void makeClip(m.id)}>
                   Make it move

@@ -21,12 +21,17 @@
  * Lines saved before the private notes existed have no "why": the memory and share checks just count none.
  */
 import { agreedMove, canonicalSet, HOME_ROOMS, homeProposed, placeIn, proposesMove, repeatOf, samePlace, saysCatchphrase, speechOf, type MoveLog } from "./continuity";
-import { limitsIn, pronounKind, THRESHOLD_LINES, thresholdOf, wrongPossessives } from "./craft";
+import { climaxIn, limitsIn, pronounKind, THRESHOLD_LINES, thresholdOf, wrongPossessives } from "./craft";
 import { stageShown } from "./stage-floor";
 import { driftOf, sensoryDetail, sideOfObserved, whyRestatesTrait, type Drift } from "./quality";
 
 export type ObservedLine = { who: "a" | "b"; text: string; why?: string | null; memory?: string | null; moved_to?: string | null; stage?: number | null };
-export type ObservedChapter = { chapter: number; source: "night" | "scene"; id: string; lines: ObservedLine[]; set_place: string | null; place: string | null; moves?: MoveLog[] | null; sets_requested?: string[] };
+/** v2.3: a step's flags as the observer reads them: a Direct steer's quoted lines, and whether each was said. */
+export type ObservedStep = { line_from: number | null; flags: { quotes?: { text: string; who: "a" | "b" | null; kept: boolean }[]; quote_kept?: boolean } | null };
+export type ObservedChapter = {
+  chapter: number; source: "night" | "scene"; id: string; lines: ObservedLine[]; set_place: string | null; place: string | null; moves?: MoveLog[] | null; sets_requested?: string[];
+  steps?: ObservedStep[];
+};
 /**
  * One character's sheet as the observer reads it; `bio` and `details` (job, hobbies, quirk…) feed the drift section, and
  * `pronouns` (as the sheet gives them) the pronoun check.
@@ -76,8 +81,19 @@ export type ObserverReport = {
     why_restates_trait: number;
     /** The furthest stage the lines themselves show (stage-floor.ts stageShown), whatever the model claimed (the model simulation, 2026-10-22: a model claimed stage 4 for a night that never went past a kiss). */
     stage_shown_max: number;
+    /** v2.3: a Direct steer's quoted lines (from the steps' flags), and the ones no line said nearly as written. */
+    quotes_asked: number;
+    quotes_dropped: number;
+    /**
+     * v2.3: chapters whose first lines went back below where the last chapter ended (it ended at undressing or further,
+     * not in an afterglow, and the new one's first CHAPTER_START lines plainly show less): chapter 5 teasing again.
+     */
+    chapter_restarts: number;
   };
 };
+
+/** How many of a chapter's first lines the restart check reads. */
+const CHAPTER_START = 12;
 
 /** A line that takes them somewhere: a movement in its action ("stepping onto the balcony", "opens the car door"). */
 const MOVEMENT =
@@ -134,6 +150,9 @@ export function observeNight(input: ObserverInput): ObserverReport {
     sensory_detail_share: 0,
     why_restates_trait: 0,
     stage_shown_max: 0,
+    quotes_asked: 0,
+    quotes_dropped: 0,
+    chapter_restarts: 0,
   };
   const kinds = [pronounKind(input.a.pronouns), pronounKind(input.b.pronouns)] as const;
   const pronounsSaid = `${first("a")}: ${input.a.pronouns ?? "?"}, ${first("b")}: ${input.b.pronouns ?? "?"}`;
@@ -289,6 +308,32 @@ export function observeNight(input: ObserverInput): ObserverReport {
     }
     sensory += lines.filter((l) => sensoryDetail(l.text)).length;
     for (const l of lines) summary.stage_shown_max = Math.max(summary.stage_shown_max, stageShown(l.text) ?? 0);
+  }
+
+  // v2.3: the quoted lines Direct steers asked for, and the ones that never came (the steps' flags).
+  for (const ch of input.chapters) {
+    for (const s of ch.steps ?? []) {
+      for (const q of s.flags?.quotes ?? []) {
+        summary.quotes_asked++;
+        if (q.kept) continue;
+        summary.quotes_dropped++;
+        const at = Math.max(0, s.line_from ?? 0);
+        add("quote_dropped", ch.chapter, at, at, `a Direct steer's quoted line wasn't said nearly as written (${q.who ? `by ${first(q.who)}` : "by either"}): "${q.text.slice(0, 60)}"`);
+      }
+    }
+  }
+  // v2.3: a chapter that went back below where the last one ended, in its first lines (not after an afterglow).
+  for (let i = 1; i < input.chapters.length; i++) {
+    const before = input.chapters[i - 1].lines;
+    const ch = input.chapters[i];
+    const ended = before.at(-1)?.stage ?? null;
+    if (ended === null || ended < 3 || before.slice(-12).some((l) => climaxIn(l.text)) || !ch.lines.length) continue;
+    const start = ch.lines.slice(0, CHAPTER_START);
+    const shown = Math.max(...start.map((l) => stageShown(l.text) ?? 0));
+    if (shown < ended) {
+      summary.chapter_restarts++;
+      add("chapter_restart", ch.chapter, 0, start.length - 1, `the last chapter ended at stage ${ended + 1}, but these first lines show no more than stage ${shown + 1}: it started over instead of carrying on`);
+    }
   }
 
   summary.lines_with_why = withWhy;

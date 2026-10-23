@@ -474,6 +474,77 @@ on lines that never use them; and the set shown as "Lexis bedroom".
   lines, and its share) and `tell_uses`. The step flags, and so the admin's step log, add `hooks_cut`, `tells_cut`,
   `actions_cut`, `openings_cut` and `build_ups_cut`.
 
+### Prompt v2.3: quotes, heat, chapters that carry on, a picture per chapter (2026-10-23)
+
+v2 changed in place again (`prompt_version` is still `"v2"`; v1 is untouched, word for word, at every heat). Each step's
+flags now say which revision wrote it (`prompt: "v2.3"`, `SCENE_PROMPT_REVISION` in `lib/adult/settings.ts`), and so
+does the eval's result (`prompt_revision`). David's review of a production night (chapter 5 of a long night) found three
+things, and asked for a fourth:
+
+- **Quoted lines in a Direct steer were never said.** The no-copy rule ("never copy the steer's words into a line")
+  cut any line that said them. Now (`lib/adult/quotes.ts`): a Direct steer's quoted speech ("…" or “…”) is said nearly
+  as written, by the character the steer names (the closest name, or a slip of one, or "she"/"he" when only one of them
+  goes by it, before the quote; or "…", says Rafe after it), or by either when it names nobody. The prompt says: *"The
+  words in quotes are lines to be spoken: {who} says "{quote}". Each one is said out loud nearly as written, in a line by
+  that character, fitted lightly to their voice and the moment (a name, a word or a tense can change; never the
+  meaning, or how explicit it is). Everything else in the steer is acted out in their own words and actions, as these
+  two characters would; never copy the rest of the steer's words into a line or an action."* The no-copy guard now reads
+  the steer without its quotes, and a line carrying a quote is let through the repeat and craft critics (the steer asked
+  for those words, even ones said before tonight). After writing, each quote is checked: at least 70% of its words
+  (lightly stemmed), out loud, in a line by the right speaker. The step's flags keep `quotes` (each with `kept`, `by`,
+  `line`) and `quote_kept`; a missing one gets the step's one retry, with a note naming it, and the new take is used only
+  when it says more of them. It never fails the step. The two lines (`checkAdultText`) hold for the steer and every line
+  as before. A Nudge, and v1, are unchanged.
+- **The jokes took over.** v2's voice rules ask for their humour in every intimate line, so a baker-judge made a pun of
+  everything. A **heat** per scene (`lib/adult/heat.ts`, `adult_scenes.heat`, null meaning frank):
+  - *suggestive*: written around it. *"Sex can happen between them, but it's written around, never described: the
+    build-up, a look, a touch, what they say, then the scene cuts away before the act itself and picks up after. No
+    anatomy words and no graphic detail."*
+  - *frank* (the default): the prompt as it was.
+  - *filthy*: from undressing on (`PLAIN_TALK_FROM`, stage 4 of 5), the voice rule becomes *"Stay this person when it
+    gets intimate, in attitude and rhythm… the jokes and their job are a light seasoning, a line now and then at most:
+    no puns, no wordplay on their work, no coy stand-ins for what they mean"*, and the line rule *"From here on they talk
+    dirty in the dialogue itself, in plain, explicit words: what they want, what they're doing, how it feels, said the
+    way this person would say it. Their humour and their work are a light seasoning at most (a line now and then), never
+    a pun."* Before undressing it's frank's rules. The hook and worn-phrase critics are unchanged, so a pun loop is
+    still cut. The stage floor (`lib/adult/stage-floor.ts`) reads a few more plain words, in the dialogue as in the
+    actions, so `stageShown`, the limit check and the director agree with plainer talk.
+  Set it on the scene page (Suggestive / Frank / Filthy, the segmented control over the steer box; it saves at once and
+  applies from the next lines), with `heat` on `POST /api/admin/after-dark` (alone it only sets it; with a step it's set
+  first), or over MCP: `after_dark_heat {a, b, heat}`, or `heat` on `after_dark_write`; `after_dark_scene` shows it. The
+  two lines, both adults, and the media and Hive checks are the same at every heat.
+- **A new chapter started over.** Chapter 4 ended mid-sex in the garden; chapter 5 teased again for 15 lines. Now the
+  first step of a chapter after the first gets the last chapter's last 6 lines (`prev_tail`), its stage and its place,
+  and: *"A new chapter of the night starts here, but nothing has stopped… Continue from here: the first of these lines
+  carries straight on from that exact moment, in that place, at {stage}, doing what they were doing. No teasing it out
+  again, no going back to an earlier stage, no starting over; where the recap and these last lines disagree, the last
+  lines are where they are."* The stage it ended at (its last line's) is the chapter's floor: a claim below it is raised
+  to it (`stage_floor_raised` in the flags), like any stage-floor breach, and the pace rule says carry on rather than
+  tease, until a climax in the chapter. After an afterglow or aftercare ending there's no floor, and v2.2's rule holds:
+  it only picks up again when one of them starts it and the other answers. The flags keep `carry`.
+- **The observer** reads the steps' flags now: `quotes_asked`, `quotes_dropped` (a `quote_dropped` finding each), and
+  `chapter_restarts`: a chapter whose first 12 lines plainly show less than where the last one ended (undressing or
+  further, not after an afterglow).
+
+**A picture for each chapter and each place** (`lib/adult/auto-pictures.ts`). Before, a night got a baseline per
+character and a picture only when they asked for one in a line: five chapters, a balloon and a rainy garden, three
+pictures. Now a chapter's first lines, and a change of place in a chapter (an agreed move, or Set the scene), draw one
+picture of the two of them where they are, at the stage they're at, from the last few lines: `makePicture` as any scene
+picture (the provider in the settings, Hive on the bytes before they're stored, the month's picture cap). A picture of
+both goes without a face reference (the face model reads one face), as an in-scene picture of both always has; the
+baselines are never redrawn. At most one per chapter and place: it's claimed on `adult_scenes.auto_pictures` before it's
+drawn, so a retry, a rewind and a redo, or a place visited twice in a chapter, never draws it twice (Start over clears
+the claims). It runs after the response and never fails or slows a step; one that doesn't come is only logged. Off with
+the setting **`auto_scene_pictures`** (on by default; the checkbox under Venice on `/admin/after-dark/settings`, or
+`after_dark_settings`), and off whenever pictures are (no Hive key, or the provider's key). The gallery shows each one
+with its chapter and place (`adult_images.scene_chapter`, `scene_place`), and the page looks for it 20 and 60 seconds
+after a step. It costs about $0.015 a picture on Venice (topped up, with a $10 auto-recharge, #677), $0.03 on
+Replicate: about $0.10 for a five-chapter night with two moves (`docs/after-dark-costs.md`).
+
+New columns, all additive: `adult_scenes.heat` (text, null is frank), `adult_scenes.auto_pictures` (jsonb, the claims),
+`adult_images.scene_chapter` and `scene_place`, `adult_settings.auto_scene_pictures` (null is on). After Dark only: none
+of them is in a dataset or an export.
+
 ### The model simulation, and the move to DeepSeek V3.1 (2026-10-22)
 
 `npm run sim:after-dark` (scripts/sim-after-dark.mjs) plays the whole path on a fresh local app with a throwaway

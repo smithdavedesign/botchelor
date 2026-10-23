@@ -2,7 +2,8 @@ import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { listMedia } from "@/lib/adult/media";
 import { WHISPER_MAX } from "@/lib/adult/director";
-import { continueScene, forgetWhisper, listNights, openScene, redoScene, resetScene, rewindScene, SET_SCENE_MAX, setSceneTo } from "@/lib/adult/scenes";
+import { SCENE_HEATS } from "@/lib/adult/heat";
+import { continueScene, forgetWhisper, listNights, openScene, redoScene, resetScene, rewindScene, SET_SCENE_MAX, setSceneHeat, setSceneTo } from "@/lib/adult/scenes";
 import { isAdmin } from "@/lib/admins";
 import { refundBoughtTokens, SET_SCENE_TOKEN_COST, spendBoughtTokens } from "@/lib/allowance";
 import { getDb } from "@/lib/db";
@@ -25,6 +26,8 @@ const Input = z.object({
   redo: z.literal(true).optional(),
   whisper: z.object({ to: z.enum(["a", "b"]), text: z.string().min(1).max(WHISPER_MAX) }).optional(),
   forget_whisper: z.enum(["a", "b"]).optional(),
+  // How explicitly the scene is written (lib/adult/heat.ts). Alone, it's only set; with a step, it's set first.
+  heat: z.enum(SCENE_HEATS).optional(),
 });
 
 /** Not found for everyone but a signed-in admin while after dark is open (lib/adult/mode.ts). */
@@ -44,6 +47,12 @@ export const POST = handle(async (req: Request) => {
   const admin = await adultViewer(db, req);
   if (!admin) return hidden();
   const input = parseBody(Input, await readJson(req), "invalid_request");
+  if (input.heat) {
+    const scene = await setSceneHeat(db, admin, input.a, input.b, input.heat);
+    if (!scene) return hidden();
+    const step = [input.direction, input.reset, input.set_scene, input.steer_mode, input.rewind, input.redo, input.whisper, input.forget_whisper];
+    if (step.every((v) => v === undefined)) return json({ scene });
+  }
   if (input.reset) {
     await resetScene(db, admin, input.a, input.b);
     const scene = await openScene(db, admin, input.a, input.b);
@@ -60,7 +69,7 @@ export const POST = handle(async (req: Request) => {
       if (pays) await refundBoughtTokens(db, admin, SET_SCENE_TOKEN_COST);
       return json({ error: "not_moved", message: moved.message }, moved.status);
     }
-    return json({ scene: moved.scene });
+    return json({ scene: moved.scene, ...(moved.auto_picture ? { auto_picture: true } : {}) });
   }
   if (input.rewind) {
     const back = await rewindScene(db, admin, input.a, input.b);
@@ -83,6 +92,8 @@ export const POST = handle(async (req: Request) => {
     dropped: r.dropped,
     pictures: r.pictures,
     ...(r.picture_note ? { picture_note: r.picture_note } : {}),
+    // A picture of the chapter or the new place is being drawn (lib/adult/auto-pictures.ts): the page looks for it shortly.
+    ...(r.auto_picture ? { auto_picture: true } : {}),
     // A redo can take back a chapter's close, so its night list may have changed.
     ...(input.redo ? { nights: await listNights(db, admin, input.a, input.b) } : {}),
   });

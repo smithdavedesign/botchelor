@@ -252,7 +252,8 @@ describe("on the site, from the settings panel", () => {
 
   it("makes each character's baseline the first time it turns explicit, a new picture only when they agree, and serves them only to an admin", async () => {
     const { cookie } = await admin();
-    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive" }, cookie);
+    // The chapter's own picture (lib/adult/auto-pictures.ts) has tests of its own (tests/after-dark-v23.test.ts).
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive", auto_scene_pictures: false }, cookie);
     const seen = fakeFal();
     fakeHive();
     scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }, { who: "b", text: "Make me." }], explicit: true, picture: null }));
@@ -296,7 +297,7 @@ describe("the output check (Hive)", () => {
   for (const [what, vlm, mod, fail, reason] of cases) {
     it(`discards the picture, stores nothing, and logs why: ${what}`, async () => {
       const { cookie } = await admin();
-      await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive" }, cookie);
+      await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive", auto_scene_pictures: false }, cookie);
       fakeFal();
       fakeHive(vlm, mod, fail);
       scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }], explicit: true, picture: null }));
@@ -568,7 +569,7 @@ describe("the picture request", () => {
 
   it("asks fal's custom-model endpoint for the photoreal base, steering away from anyone young-looking", async () => {
     const { cookie } = await admin();
-    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive" }, cookie);
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive", auto_scene_pictures: false }, cookie);
     let sent: Record<string, unknown> | null = null;
     let url = "";
     setMediaFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -589,7 +590,7 @@ describe("the picture request", () => {
 
   it("a picture of one of them keeps their face (their baseline as the reference); of both, or with no face found, it goes from the words", async () => {
     const { cookie } = await admin();
-    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive" }, cookie);
+    await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive", auto_scene_pictures: false }, cookie);
     const sent: { url: string; body: Record<string, unknown> }[] = [];
     let faceStatus = 200;
     setMediaFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -707,7 +708,7 @@ describe("pictures on Venice", () => {
   it("makes them on Venice with safe mode off, checks the bytes with Hive before storing, and keeps clips to fal pictures", async () => {
     const { cookie } = await admin();
     const saved = await (
-      await call(settingsPost, "/api/admin/after-dark/settings", { image_provider: "venice", venice_key: "placeholder-venice-VNCE", hive_key: "placeholder-hive" }, cookie)
+      await call(settingsPost, "/api/admin/after-dark/settings", { image_provider: "venice", venice_key: "placeholder-venice-VNCE", hive_key: "placeholder-hive", auto_scene_pictures: false }, cookie)
     ).json();
     expect(saved.settings).toMatchObject({ image_provider: "venice", venice_image_model: "lustify-v8", venice_last4: "VNCE" });
     let sent: Record<string, unknown> | null = null;
@@ -805,7 +806,7 @@ describe("the video of the night", () => {
 
   const night = Array.from({ length: 12 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `*leans closer* Line number ${i} says something rather vivid here.` }));
   async function ready(cookie: string, ownerId: string, lines: unknown[] = night) {
-    await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", reel_shots: 3 }, cookie);
+    await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", reel_shots: 3, auto_scene_pictures: false }, cookie);
     // Each one's own baseline (a reel makes one first for a character with none): the faces every keyframe keeps.
     for (const [pid, c] of [["base-a", CAST_A], ["base-b", CAST_B]]) {
       await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ($1, $2, $3, 'baseline', 'p', 'image/png', $4)`, [pid, ownerId, c, Buffer.from(PNG)]);
