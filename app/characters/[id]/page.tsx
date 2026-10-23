@@ -26,7 +26,7 @@ import { connections, describeDrift, describeForgets, loadCharacterMemory, loadF
 import { getCharacterRatings } from "@/lib/ratings";
 import { relationshipsOf, viewRelationship } from "@/lib/relationships";
 import { userIdFromCookieStore } from "@/lib/http";
-import { ENDING_LABELS } from "@/lib/rules";
+import { endingLabel } from "@/lib/rules";
 import RatingButtons from "./RatingButtons";
 import Reviews from "./Reviews";
 import { reviewableNow, reviewSummary } from "@/lib/reviews";
@@ -416,7 +416,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             <ul className="list">
               {episodes.map((e) => (
                 <li key={e.episode_id}>
-                  vs <CharacterName character={e.partner} /> <span className="badge">{ENDING_LABELS[e.ending]}</span> ·{" "}
+                  vs <CharacterName character={e.partner} /> <span className="badge">{endingLabel(e.ending, e.date_number)}</span> ·{" "}
                   <Link href={e.share_path}>See the date</Link>
                 </li>
               ))}
