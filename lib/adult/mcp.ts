@@ -99,11 +99,12 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     description:
       "Admin only. With a and b: makes a video of the pair's night (the model picks its strongest lines; one voiced shot per line of the " +
       "two of them together, started from a picture of both made from their portraits, in the night's place; every picture and shot is " +
-      "checked before it's kept). `shots` sets its length (2-12, ~5-10s each). Starting takes a minute or so. " +
+      "checked before it's kept). `shots` sets its length (2-12, ~5-10s each). `scope`: \"night\" (the default) films the whole night, " +
+      "every chapter since it began (Start over begins a new one); \"chapter\" only the chapter being written now. Starting takes a minute or so. " +
       "With reel_id: checks a video being made (call it every minute or so until it's ready). With list: the pair's videos.",
     inputSchema: {
       type: "object",
-      properties: { a: id, b: id, shots: { type: "integer", minimum: 2, maximum: 12 }, reel_id: id, list: { type: "boolean" } },
+      properties: { a: id, b: id, shots: { type: "integer", minimum: 2, maximum: 12 }, scope: { type: "string", enum: ["night", "chapter"] }, reel_id: id, list: { type: "boolean" } },
     },
     annotations: { readOnlyHint: false },
   },
@@ -176,10 +177,11 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
         return reel ? { data: { reel } } : { error: "No video with that id." };
       }
       if (args.list === true) return { data: { reels: await listReels(db, owner, a, b) } };
-      const night = await reelNight(db, owner, a, b);
+      if (args.scope !== undefined && args.scope !== "night" && args.scope !== "chapter") return { error: 'scope is "night" (the whole night, the default) or "chapter" (the one being written now).' };
+      const night = await reelNight(db, owner, a, b, null, args.scope === "chapter" ? "chapter" : "night");
       if (!night) return { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
       const shots = typeof args.shots === "number" ? args.shots : undefined;
-      const r = await makeReel(db, owner, a, b, night.lines, afterDarkBase(siteUrl()), { shots, where: night.where });
+      const r = await makeReel(db, owner, a, b, night.lines, afterDarkBase(siteUrl()), { shots, where: night.where, night });
       return r.ok ? { data: { reel: r.reel } } : { error: r.message };
     }
     default:

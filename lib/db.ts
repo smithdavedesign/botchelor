@@ -1726,6 +1726,11 @@ create table if not exists adult_short_calls (
   primary key (short_id, user_id)
 );
 create index if not exists adult_short_calls_settled on adult_short_calls (settled_at);
+-- A video of the whole night (lib/adult/reels.ts, 2026-10-23): what a night's reel filmed. scope: 'chapter' (one
+-- chapter, every reel before) or 'night' (every chapter since the night began); chapters: each one's number, its saved
+-- night's id (null: the running scene's then) and its line count. Null on reels from before, and on clips.
+alter table adult_reels add column if not exists scope text;
+alter table adult_reels add column if not exists chapters jsonb;
 -- After Dark's discreet mode (lib/adult/privacy.ts): blur its pictures until tapped and a neutral tab title (both on
 -- by default), and an optional PIN kept only as a slow salted hash (scrypt), never the PIN. pin_version changes with
 -- every new or removed PIN, which signs every device out; the wrong tries and the wait they set live here too.

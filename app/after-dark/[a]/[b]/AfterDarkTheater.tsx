@@ -14,6 +14,9 @@ import { PLACE_LABEL_MAX, venueName, type PlaceId } from "@/lib/venues";
 import { useSteadySet } from "./useSteadySet";
 import { TheaterListen } from "./Listen";
 import { ClipHere } from "./MediaMenu";
+import VideoChoice from "./VideoChoice";
+import type { NightChapter } from "@/lib/adult/nights";
+import type { ReelScope } from "@/lib/adult/reels";
 
 /** A scene line as a date turn: the leading *action* apart from what they say. */
 export function lineToTurn(l: SceneLine): Turn {
@@ -78,6 +81,7 @@ export default function AfterDarkTheater({
   onAutoplay,
   onSetScene,
   onMakeVideo,
+  videoChapters = [],
   videoTokens = 15,
   videoNote = null,
   feedbackRef = null,
@@ -99,8 +103,12 @@ export default function AfterDarkTheater({
   onAutoplay?: (on: boolean) => void;
   /** Set the scene: take them anywhere (1 token). */
   onSetScene?: (place: string) => Promise<void>;
-  /** The full-night video (lib/adult/reels.ts): the whole conversation, in their voices, for `videoTokens`. */
-  onMakeVideo?: () => Promise<void>;
+  /**
+   * The video of the night (lib/adult/reels.ts), in their voices, for `videoTokens`: of this chapter, or of the whole
+   * night (`videoChapters`, every chapter since it began), as the viewer picks.
+   */
+  onMakeVideo?: (scope: ReelScope) => Promise<void>;
+  videoChapters?: readonly NightChapter[];
   videoTokens?: number;
   videoNote?: string | null;
   /**
@@ -207,15 +215,7 @@ export default function AfterDarkTheater({
             <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} />
             <ClipHere a={a.id} b={b.id} at={shown.length - 1} nightId={live ? null : feedbackRef} />
             {onMakeVideo && (
-              <button
-                type="button"
-                className="secondary small"
-                onClick={() => void onMakeVideo()}
-                disabled={busy || scene.lines.length < 6}
-                title={`A short film of the whole night, in their own voices (${videoTokens} tokens)`}
-              >
-                🎬 Video of the night · {videoTokens}
-              </button>
+              <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} onMake={onMakeVideo} />
             )}
             <button type="button" className="secondary small" onClick={onExit}>
               Exit
