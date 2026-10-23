@@ -100,7 +100,10 @@ without a key), **Portraits & pictures** (OpenAI) and **Intro clips** (Google's 
 do several jobs (a Google key runs dates and clips). Each card says what the job runs on ("Your OpenRouter key ✓ ·
 deepseek/deepseek-chat"), the key's last four, when it was checked and last used, and anything wrong in plain words with the
 fix ("OpenRouter: out of credit → Top up"). Connecting is: provider, paste the key, **Test** (free: the provider's key-info
-or model list, never a model call), model, Save; a key that fails its check is never stored. An admin also sees After Dark's
+or model list, never a model call), model, feel, Save; a key that fails its check is never stored. The model step lists the
+models the key can use (OpenRouter's live list with its prices; the others' own lists), tagged free, fast or vision, with a
+price hint per date; the feel is a preset (Steady, Lively, Wild) or Advanced's temperature and penalties, clamped to safe
+bounds and sent only to providers that take them (`lib/keys.ts withSampling`). An admin also sees After Dark's
 house providers there, read-only (nobody's own key reaches After Dark), and their live status on
 `/admin/after-dark/providers`.
 

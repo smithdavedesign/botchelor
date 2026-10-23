@@ -6,7 +6,8 @@
  * keys are fake, built from parts, and nothing leaves this machine.
  *
  *   connections-empty: a new account's three job cards (the free model, portraits and clips not set up);
- *   connections-flow: connecting OpenRouter for Dates & texts: provider, key, Test (passed), model;
+ *   connections-flow: connecting OpenRouter for Dates & texts: provider, key, Test (passed);
+ *   connections-models, connections-feel (M2): its models, tagged and priced, and the feel (Wild, Advanced open);
  *   connections-connected: OpenRouter running dates, OpenAI making portraits, and the key list;
  *   connections-error: OpenRouter out of credit after a Check, in plain words with "Top up";
  *   connections-after-dark: an admin's read-only After Dark card; admin-providers: the providers view, Hive paused.
@@ -88,15 +89,41 @@ async function main() {
     await dates.locator('input[type="password"]').fill(fake("openrouter", "9f2c"));
     await dates.getByRole("button", { name: "Test" }).click();
     await dates.getByText("OpenRouter accepted it").waitFor({ timeout: 15_000 });
-    await dates.locator("select").selectOption("deepseek/deepseek-chat");
     await frameTop(page, dates.locator(".connect-flow"));
     await shot(page, "connections-flow-desktop.png");
     await page.setViewportSize({ width: 390, height: 844 });
     await checkPhone(page, "the connect flow");
     await frameTop(page, dates.locator(".connect-step").nth(1));
     await shot(page, "connections-flow-phone.png");
+
+    // M2: the model step lists the key's models (OpenRouter's live list), tagged and priced; then the feel.
+    await page.setViewportSize({ width: 1280, height: 860 });
+    const row = (id) => dates.locator(".model-row").filter({ has: page.locator(".model-id", { hasText: new RegExp(`^${id.replace(/[./]/g, "\\$&")}$`) }) });
+    await row("deepseek/deepseek-chat-v3.1").waitFor();
+    await row("deepseek/deepseek-chat-v3.1").click();
+    // The list scrolls inside itself to the picked row; start it from the top, where Recommended is.
+    const listTop = () => dates.locator(".model-list").evaluate((el) => (el.scrollTop = 0));
+    await listTop();
+    await frameTop(page, dates.locator(".model-picker"));
+    await shot(page, "connections-models-desktop.png");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await checkPhone(page, "the model step");
+    await listTop();
+    await frameTop(page, dates.locator(".model-picker"));
+    await shot(page, "connections-models-phone.png");
+    await page.setViewportSize({ width: 1280, height: 860 });
+    await dates.locator(".feel-preset", { hasText: "Wild" }).click();
+    await dates.locator(".feel-advanced > summary").click();
+    await dates.getByLabel("Temperature").fill("1.1");
+    await frameTop(page, dates.locator(".feel-picker"));
+    await shot(page, "connections-feel-desktop.png");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await checkPhone(page, "the feel step");
+    await frameTop(page, dates.locator(".feel-picker"));
+    await shot(page, "connections-feel-phone.png");
+    await page.setViewportSize({ width: 1280, height: 860 });
     await dates.getByRole("button", { name: "Save" }).click();
-    await page.getByText("Your OpenRouter key ✓ · deepseek/deepseek-chat").waitFor({ timeout: 15_000 });
+    await page.getByText("Your OpenRouter key ✓ · deepseek/deepseek-chat-v3.1 · Custom (1.1)").waitFor({ timeout: 15_000 });
 
     // 3. OpenAI for portraits too (the same flow, through the API), then the cards and the key list.
     const put = await ctx.request.put(`${app.base}/api/me/connections`, { data: { job: "image", provider: "openai", key: fake("openai", "4b1e") } });

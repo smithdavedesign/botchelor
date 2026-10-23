@@ -650,6 +650,139 @@
 .connect-flow .byok-actions > button {
   margin: 0;
 }
+/* The model step (app/account/keys/ModelPicker.tsx): the key's own models, tagged and priced; a long list filters. */
+.model-filter {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.model-filter-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+button.chip-toggle {
+  --control-h: var(--control-h-sm);
+  --btn-border: var(--control-border);
+  margin: 0;
+  padding-inline: 0.9rem;
+  border: var(--btn-border) solid var(--line);
+  background: transparent;
+  color: var(--accent-text);
+  box-shadow: none;
+  font-size: var(--text-sm);
+}
+button.chip-toggle.is-on {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.model-chosen {
+  margin: 0 0 var(--space-2);
+  overflow-wrap: anywhere;
+}
+.model-list {
+  display: grid;
+  gap: var(--space-1);
+  max-height: 22rem;
+  padding: 2px;
+  overflow-y: auto;
+}
+.model-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--control-radius);
+  cursor: pointer;
+}
+.model-row.is-picked {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.model-row-main {
+  display: grid;
+  min-width: 0;
+}
+.model-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.model-row-side {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-1);
+}
+.model-tag {
+  font-size: var(--text-2xs);
+}
+.model-tag.tag-free {
+  background: color-mix(in srgb, var(--ok) 16%, var(--card));
+  color: var(--ok-text);
+}
+.model-price {
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .model-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .model-row-side {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+}
+/* The feel step (app/account/keys/FeelPicker.tsx): three presets, the raw numbers under Advanced. */
+.feel-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: var(--space-2);
+}
+.feel-preset {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: var(--control-border) solid var(--line);
+  border-radius: var(--control-radius);
+  cursor: pointer;
+}
+.feel-preset.is-picked {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.feel-preset > span {
+  display: grid;
+  gap: 2px;
+}
+.feel-preset .chip {
+  justify-self: start;
+}
+.feel-advanced {
+  margin-top: var(--space-3);
+}
+.feel-advanced > summary {
+  color: var(--accent-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+.feel-numbers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: var(--space-2);
+}
+.feel-numbers label {
+  display: grid;
+  gap: var(--space-1);
+}
+.feel-advanced .link-button {
+  margin-top: var(--space-2);
+}
 /* Your keys: one line each, Stripe's keys list. */
 .connection-keys {
   list-style: none;

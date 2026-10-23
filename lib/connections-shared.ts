@@ -309,7 +309,7 @@ export type ConnectionSummary = {
   created_at: string;
   jobs: Job[];
 };
-export type JobSummary = { job: Job; provider: string; model: string | null };
+export type JobSummary = { job: Job; provider: string; model: string | null } & Partial<Feel>;
 
 /**
  * A job card's state (docs/PRDs/connections.md "Card states"): no key of yours (`unset`), a key that's working
@@ -330,6 +330,8 @@ export type JobCard = {
   meta: string[];
   provider: string | null;
   model: string | null;
+  /** Dates & texts' feel (M2): the preset or custom values, as stored. */
+  feel: Feel | null;
   error: PlainError | null;
   /** Keys already connected that could do this job too, to use without pasting again. */
   reusable: { provider: string; label: string; last4: string }[];
@@ -365,22 +367,191 @@ export function jobCards(listing: { connections: ConnectionSummary[]; jobs: JobS
       .filter((x) => isUserProvider(x.provider) && PROVIDER_INFO[x.provider].jobs.includes(job) && x.provider !== a?.provider)
       .map((x) => ({ provider: x.provider, label: providerLabel(x.provider), last4: x.last4 }));
     if (!a || !c) {
-      return { job, title: info.title, what: info.what, state: "unset", pill: info.free ? "Free model" : "Not set up", status: UNSET_STATUS[job], meta: [], provider: null, model: null, error: null, reusable };
+      return { job, title: info.title, what: info.what, state: "unset", pill: info.free ? "Free model" : "Not set up", status: UNSET_STATUS[job], meta: [], provider: null, model: null, feel: null, error: null, reusable };
     }
     const model = a.model ?? defaultModelFor(a.provider, job);
     const error = c.last_error;
+    const feel: Feel | null =
+      job === "text" ? { preset: a.preset ?? null, temperature: a.temperature ?? null, frequency_penalty: a.frequency_penalty ?? null, presence_penalty: a.presence_penalty ?? null } : null;
     return {
       job,
       title: info.title,
       what: info.what,
       state: error ? "error" : "connected",
       pill: error ? "Needs attention" : "✓ Connected",
-      status: `Your ${providerLabel(a.provider)} key${error ? "" : " ✓"}${model ? ` · ${model}` : ""}`,
+      status: `Your ${providerLabel(a.provider)} key${error ? "" : " ✓"}${model ? ` · ${model}` : ""}${feel ? ` · ${feelLabel(feel)}` : ""}`,
       meta: keyMeta(c, now),
       provider: a.provider,
       model,
+      feel,
       error,
       reusable,
     };
   });
+}
+
+/* ------------------------------------------------- M2: models, tags, prices ------------------------------------------------- */
+
+/** What a model is good for at a glance, as the model step's chips say it (OpenRouter's and Cursor's pickers). */
+export const MODEL_TAGS = ["recommended", "free", "fast", "vision"] as const;
+export type ModelTag = (typeof MODEL_TAGS)[number];
+export const TAG_LABEL: Record<ModelTag, string> = { recommended: "Recommended", free: "Free", fast: "Fast", vision: "Vision" };
+
+/** A model the step offers: its id, a name or note, its tags, and what it costs (USD per 1M tokens) when we know. */
+export type ModelOption = {
+  id: string;
+  /** OpenRouter's name for it ("DeepSeek: DeepSeek V3.1"), or the curated note. */
+  note: string | null;
+  tags: ModelTag[];
+  price: { input: number; output: number } | null;
+  /** "≈ 1¢ a date", "free", or null when the price isn't known. */
+  perDate: string | null;
+};
+
+/**
+ * What a date takes on a person's key, for the price hint: their character's lines and a house partner's (a soulless side
+ * rides the creator's key, lib/keys.ts buildKeyForSide), the critic's rewrites, the texts after and the reflections, but
+ * never the plan or the recap. About 30k tokens in and 1.5k out (docs/upgrade-cost.md measured ~26k / ~2.2k for a whole
+ * date with the plan and recap on the show's model). Reasoning models think on top, billed as output.
+ */
+export const DATE_TOKENS = { input: 30_000, output: 1_500 } as const;
+
+/** "≈ 1¢ a date" from a price per 1M tokens; "free" for a zero price. */
+export function perDateHint(price: { input: number; output: number } | null): string | null {
+  if (!price) return null;
+  const usd = (DATE_TOKENS.input * price.input + DATE_TOKENS.output * price.output) / 1e6;
+  if (usd <= 0) return "free";
+  const cents = usd * 100;
+  if (cents < 0.95) return `≈ ${Math.max(0.1, Math.round(cents * 10) / 10)}¢ a date`;
+  if (cents < 99.5) return `≈ ${Math.round(cents)}¢ a date`;
+  return `≈ $${usd.toFixed(2)} a date`;
+}
+
+/**
+ * List prices (USD per 1M tokens, in / out) for the curated models of the providers whose model lists carry no prices,
+ * as each provider published them around 2026-10. A hint, never a bill: OpenRouter's own prices replace these live, and M3
+ * counts what each provider actually reports where it does.
+ */
+export const CURATED_PRICES: Record<string, { input: number; output: number }> = {
+  "gemini-3.5-flash-lite": { input: 0.3, output: 2.5 },
+  "gpt-4.1-mini": { input: 0.4, output: 1.6 },
+  "gpt-4.1": { input: 2, output: 8 },
+  "gpt-5-mini": { input: 0.25, output: 2 },
+  "claude-haiku-5-5": { input: 1, output: 5 },
+  "claude-sonnet-5-5": { input: 3, output: 15 },
+  "claude-opus-5-5": { input: 5, output: 25 },
+  "deepseek-chat": { input: 0.28, output: 0.42 },
+  "deepseek-reasoner": { input: 0.28, output: 0.42 },
+  "llama-3.3-70b-versatile": { input: 0.59, output: 0.79 },
+  "llama-3.1-8b-instant": { input: 0.05, output: 0.08 },
+  "openai/gpt-oss-120b": { input: 0.15, output: 0.75 },
+};
+
+/** Models with a free tier on their provider (Google gives the show's own model one). */
+const FREE_TIER = new Set(["gemini-3.5-flash-lite"]);
+/** Families that take images as well as text, by id (OpenRouter says so itself, in its list). */
+const VISION = /^(gpt-4\.1|gpt-4o|gpt-5|o3|o4|gemini|claude|gemma-3|llama-4)/;
+
+/** The tags a model gets from its id and provider (OpenRouter's list adds free and vision from its own data). */
+export function tagsFor(provider: string, id: string, extra: { free?: boolean; vision?: boolean; recommended?: boolean } = {}): ModelTag[] {
+  const tags: ModelTag[] = [];
+  if (extra.recommended) tags.push("recommended");
+  if (extra.free || FREE_TIER.has(id) || /:free$/.test(id)) tags.push("free");
+  if (provider === "groq" || /(flash|mini|haiku|instant|lite|nano|turbo)/.test(id.replace(/^[\w-]+\//, ""))) tags.push("fast");
+  if (extra.vision ?? VISION.test(id.replace(/^[\w-]+\//, ""))) tags.push("vision");
+  return tags;
+}
+
+/**
+ * Whether a listed model is one the job can run: a chat model for dates (not an embedding, speech, image, moderation or
+ * realtime model), a current image model for portraits (retired ones run gpt-image-2 anyway, lib/image.ts), Veo for clips.
+ */
+export function modelFitsJob(job: Job, id: string): boolean {
+  if (job === "image") return /^gpt-image/.test(id) && !/^gpt-image-1$/.test(id);
+  if (job === "video") return /^veo/.test(id);
+  return !/(embed|tts|whisper|dall-e|gpt-image|imagen|veo|moderation|realtime|audio|transcribe|speech|guard|aqa|search-preview|computer-use|instruct$|^babbage|^davinci)/i.test(id);
+}
+
+/** A curated or listed model as an option, with its tags and price hint. */
+export function modelOption(provider: string, job: Job, id: string, opts: { note?: string | null; price?: { input: number; output: number } | null; free?: boolean; vision?: boolean } = {}): ModelOption {
+  const curated = curatedModels(provider, job).find((m) => m.id === id);
+  const price = opts.price !== undefined ? opts.price : (CURATED_PRICES[id] ?? null);
+  return {
+    id,
+    note: opts.note ?? curated?.note ?? null,
+    tags: job === "text" ? tagsFor(provider, id, { free: opts.free, vision: opts.vision, recommended: curated?.recommended }) : curated?.recommended ? ["recommended"] : [],
+    price,
+    perDate: job === "text" ? perDateHint(price) : null,
+  };
+}
+
+/**
+ * The models the step offers for a job on a provider: what the key listed (filtered to the job), the curated ones always,
+ * Recommended first, then the rest of the curated list, then everything else by id. With no list, the curated ones.
+ */
+export function modelOptions(provider: string, job: Job, listed: string[] | null): ModelOption[] {
+  const curated = curatedModels(provider, job);
+  const seen = new Set<string>();
+  const out: ModelOption[] = [];
+  const add = (id: string) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    out.push(modelOption(provider, job, id));
+  };
+  for (const m of curated) add(m.id);
+  if (job === "video") return out; // the clip pipeline is tuned to Veo 3.1 Lite (lib/video.ts): one model
+  for (const id of [...(listed ?? [])].filter((m) => modelFitsJob(job, m)).sort()) add(id);
+  return out;
+}
+
+/* ------------------------------------------------------ M2: presets ------------------------------------------------------ */
+
+/**
+ * A feel instead of raw numbers (SillyTavern's and JanitorAI's presets), for Dates & texts. Lively is the show's own
+ * sampling (TURN_TEMPERATURE, lib/conversation.ts, and no penalties), so a key with no choice sounds like the show.
+ */
+export const PRESETS = {
+  steady: { label: "Steady", blurb: "Calm and consistent: true to the sheet, fewer surprises.", temperature: 0.7, frequency_penalty: 0.1, presence_penalty: 0 },
+  lively: { label: "Lively", blurb: "The show's own: varied and warm.", temperature: 1.0, frequency_penalty: 0, presence_penalty: 0 },
+  wild: { label: "Wild", blurb: "Surprising and talkative; it can wander off the sheet.", temperature: 1.25, frequency_penalty: 0.3, presence_penalty: 0.3 },
+} as const;
+export type PresetId = keyof typeof PRESETS;
+export const PRESET_IDS = Object.keys(PRESETS) as PresetId[];
+export const DEFAULT_PRESET: PresetId = "lively";
+/** The show's dialogue temperature (lib/conversation.ts TURN_TEMPERATURE): a preset's temperature is what date lines run at. */
+export const DIALOGUE_TEMPERATURE = 1.0;
+
+/** Advanced's bounds: temperature 0 to 1.5 (Anthropic's API stops at 1), penalties 0 to 1 (a negative one rewards repeats). */
+export const BOUNDS = { temperature: { min: 0, max: 1.5 }, penalty: { min: 0, max: 1 } } as const;
+/** The providers whose APIs take OpenAI's frequency and presence penalties (Anthropic's and Google's don't). */
+export const TAKES_PENALTIES: readonly string[] = ["openai", "deepseek", "groq", "openrouter"];
+const maxTemperature = (provider: string) => (provider === "anthropic" ? 1 : BOUNDS.temperature.max);
+
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+/** A number kept inside its bounds, to two decimals; null for anything that isn't a finite number. */
+export function clampSetting(v: unknown, kind: "temperature" | "penalty", provider = ""): number | null {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  if (!Number.isFinite(n)) return null;
+  const max = kind === "temperature" ? maxTemperature(provider) : BOUNDS.penalty.max;
+  return Math.round(clamp(n, kind === "temperature" ? BOUNDS.temperature.min : BOUNDS.penalty.min, max) * 100) / 100;
+}
+
+/** A job's feel as stored: a preset (or "custom") and the raw values Advanced set (null: the preset's). */
+export type Feel = { preset: PresetId | "custom" | null; temperature: number | null; frequency_penalty: number | null; presence_penalty: number | null };
+
+/** What a key's calls run at: the preset's values, Advanced's where set, clamped, and penalties only where the provider takes them. */
+export type Sampling = { temperature: number; frequencyPenalty?: number; presencePenalty?: number };
+export function samplingFor(provider: string, feel: Partial<Feel> = {}): Sampling {
+  const p = PRESETS[feel.preset && feel.preset !== "custom" ? feel.preset : DEFAULT_PRESET];
+  const temperature = clampSetting(feel.temperature ?? p.temperature, "temperature", provider) ?? p.temperature;
+  if (!TAKES_PENALTIES.includes(provider)) return { temperature };
+  const frequency = clampSetting(feel.frequency_penalty ?? p.frequency_penalty, "penalty") ?? 0;
+  const presence = clampSetting(feel.presence_penalty ?? p.presence_penalty, "penalty") ?? 0;
+  return { temperature, ...(frequency ? { frequencyPenalty: frequency } : {}), ...(presence ? { presencePenalty: presence } : {}) };
+}
+
+/** A feel's name for the card: "Lively", "Wild", or "Custom (0.9)". */
+export function feelLabel(feel: Partial<Feel>): string {
+  if (feel.preset === "custom" || (feel.preset == null && feel.temperature != null)) return `Custom (${feel.temperature ?? PRESETS[DEFAULT_PRESET].temperature})`;
+  return PRESETS[feel.preset ?? DEFAULT_PRESET].label;
 }

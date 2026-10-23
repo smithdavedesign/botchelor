@@ -88,7 +88,7 @@ export default function JobCard({ card, providers, also }: { card: JobCardView; 
           job={card.job}
           jobTitle={card.title}
           providers={providers}
-          current={{ provider: card.provider, model: card.model }}
+          current={{ provider: card.provider, model: card.model, feel: card.feel }}
           also={also}
           onDone={() => setOpen(false)}
         />

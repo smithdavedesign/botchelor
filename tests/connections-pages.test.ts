@@ -21,7 +21,7 @@ import { registerAccount } from "@/lib/auth";
 import { claimAdmin } from "@/lib/admins";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { assignJob, recordError, saveConnection } from "@/lib/connections";
-import { curatedModels, plainError } from "@/lib/connections-shared";
+import { modelOptions, plainError } from "@/lib/connections-shared";
 import { signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
 // /account/keys, Connections (docs/PRDs/connections.md): its signed-out and unavailable states, the job cards in each state,
@@ -93,7 +93,7 @@ describe("/account/keys: Connections", () => {
     await saveConnection(t.db, U, "openrouter", key, { verifiedAt: new Date(Date.now() - 120_000).toISOString() });
     await assignJob(t.db, U, "text", "openrouter", "deepseek/deepseek-chat-v3.1");
     const html = await page();
-    expect(html).toContain("Your OpenRouter key ✓ · deepseek/deepseek-chat-v3.1");
+    expect(html).toContain("Your OpenRouter key ✓ · deepseek/deepseek-chat-v3.1 · Lively");
     expect(html).toContain("•••• 2468 · checked 2 min ago · not used yet");
     expect(html).toContain("✓ Connected");
     expect(html).toContain('id="your-keys"');
@@ -158,7 +158,7 @@ describe("the card and the connect flow, on their own", () => {
       createElement(KeyForm, {
         job: "image",
         jobTitle: "Portraits & pictures",
-        providers: [{ id: "openai", label: "OpenAI", blurb: "", keyHint: "Starts with sk-", keysUrl: "https://platform.openai.com/api-keys", stored: { last4: "2468" }, models: curatedModels("openai", "image") }],
+        providers: [{ id: "openai", label: "OpenAI", blurb: "", keyHint: "Starts with sk-", keysUrl: "https://platform.openai.com/api-keys", stored: { last4: "2468" }, models: modelOptions("openai", "image", null) }],
         current: { provider: null, model: null },
         also: [],
         onDone: () => {},
@@ -166,7 +166,8 @@ describe("the card and the connect flow, on their own", () => {
     );
     expect(html).toContain("Use your OpenAI key (•••• 2468)");
     expect(html).toContain("Paste a different key");
-    expect(html).toContain("gpt-image-2 (Recommended)"); // a stored key goes straight on to the model
+    // A stored key goes straight on to the model step: the model as a radio row, tagged Recommended.
+    expect(html).toMatch(/<span class="model-id">gpt-image-2<\/span>.*>Recommended</);
     expect(html).toContain(">Save<");
   });
 
@@ -175,7 +176,7 @@ describe("the card and the connect flow, on their own", () => {
       createElement(KeyForm, {
         job: "text",
         jobTitle: "Dates & texts",
-        providers: [{ id: "openrouter", label: "OpenRouter", blurb: "", keyHint: "Starts with sk-or-", keysUrl: "https://openrouter.ai/settings/keys", stored: null, models: curatedModels("openrouter", "text") }],
+        providers: [{ id: "openrouter", label: "OpenRouter", blurb: "", keyHint: "Starts with sk-or-", keysUrl: "https://openrouter.ai/settings/keys", stored: null, models: modelOptions("openrouter", "text", null) }],
         current: { provider: null, model: null },
         also: [],
         onDone: () => {},

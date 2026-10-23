@@ -124,8 +124,10 @@ Under the card, in one panel (no modal, so it works on a phone and with a keyboa
    ("and set a spend limit on it there"), and **Test**: the provider's own free key-info or model-list endpoint, so testing
    spends nothing. "✓ OpenRouter accepted it · 214 models on this key. Nothing is stored until you save." With a stored key,
    "Use your OpenRouter key (•••• abcd)" skips this step.
-3. **Model**: M1 offers the curated list, Recommended first; M2 replaces it with the key's own list, tagged and priced.
-4. (M2) **Feel**: Steady / Lively / Wild, and Advanced.
+3. **Model**: the models the key can use (OpenRouter's live list; the others' lists from the check), Recommended first,
+   each tagged free, fast or vision with a price hint ("≈ 1¢ a date"); a long list has a filter and tag toggles. The
+   curated list stands in when a provider lists nothing.
+4. **Feel** (Dates & texts): Steady / Lively (the default: the show's own) / Wild, and Advanced (temperature, penalties).
 5. (M3) **Monthly cap**: an amount, or none; and "When the key can't be used: Botchelor's free model / Wait".
 6. **Also use this key for…** the other jobs it can do that have no key yet.
 7. **Save**: the server checks the key again before storing it (a key that fails is never stored), seals it, and points the
@@ -296,7 +298,10 @@ limit), OpenAI `GET /v1/models`, Google `GET /v1beta/models` (the key in `x-goog
 
 ## Milestones and acceptance criteria
 
-### M1: connections and per-job cards (this PR)
+### M1: connections and per-job cards
+
+**Shipped** in #743 (2026-10-23). `KEY_ENCRYPTION_SECRET` was added the same day, and every stored key (5 people's, 4 of
+the house's) was sealed again as v2.
 
 - `/account/keys` is Connections: a card per job in every state above that M1 produces (unset, connected, verifying, error),
   provider marks drawn inline, the connect flow (provider, key, Test, model, also, Save), Check, stop using, the key list
@@ -313,6 +318,13 @@ limit), OpenAI `GET /v1/models`, Google `GET /v1beta/models` (the key in `x-goog
   status view, and the pages rendering in each state.
 
 ### M2: the model picker and presets
+
+**Shipped** (the M2 PR). What it built, in short: `lib/connections.ts` `openRouterModels` (OpenRouter's public list, no key
+sent, kept an hour per instance) and `modelsFor`; each key's own list kept with it at every check
+(`user_connections.models`); `GET /api/me/connections/models`; the check returns the job's models; the step is
+`app/account/keys/ModelPicker.tsx` (a filter and Free / Fast / Vision toggles past 8 models, at most 40 rows) and
+`FeelPicker.tsx`; `lib/keys.ts withSampling` puts the feel on every call; the card says the feel ("· Lively",
+"· Custom (1.1)").
 
 - The model step lists the models the key can use: from the provider's list (OpenRouter's public `/models` with prices,
   modalities and context; the others' model lists from the check), cached with the connection and refreshed by Check, with a
@@ -355,7 +367,9 @@ Taken with `npm run screenshots:connections` (real browser, stubbed providers, f
 | | Desktop | Phone |
 |---|---|---|
 | A new account | ![](../screenshots/connections-empty-desktop.png) | ![](../screenshots/connections-empty-phone.png) |
-| Connecting OpenRouter (tested, picking the model) | ![](../screenshots/connections-flow-desktop.png) | ![](../screenshots/connections-flow-phone.png) |
+| Connecting OpenRouter (tested) | ![](../screenshots/connections-flow-desktop.png) | ![](../screenshots/connections-flow-phone.png) |
+| M2: the key's models, tagged and priced | ![](../screenshots/connections-models-desktop.png) | ![](../screenshots/connections-models-phone.png) |
+| M2: the feel (Wild, with Advanced open) | ![](../screenshots/connections-feel-desktop.png) | ![](../screenshots/connections-feel-phone.png) |
 | Dates on OpenRouter, portraits on OpenAI, the key list | ![](../screenshots/connections-connected-desktop.png) | ![](../screenshots/connections-connected-phone.png) |
 | OpenRouter out of credit | ![](../screenshots/connections-error-desktop.png) | ![](../screenshots/connections-error-phone.png) |
 | The admin's After Dark card | ![](../screenshots/connections-after-dark-desktop.png) | |
