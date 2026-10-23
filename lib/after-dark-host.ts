@@ -70,7 +70,8 @@ export const AFTER_DARK_APIS = ["/api/admin/after-dark/", "/api/jobs/eval-after-
 
 /**
  * What else After Dark's own host serves, because its pages need it. A new API that an After Dark page calls goes here
- * (or under /api/admin/after-dark/), or that host sends it to the show, where a browser's call to it fails (CORS).
+ * (or under /api/admin/after-dark/), or that host sends it to the show, where a browser's call to it fails (CORS);
+ * tests/after-dark-host.test.ts reads the pages' calls and fails until it's here.
  */
 export const AFTER_DARK_HOST_PAGES = ["/gate"] as const;
 export const AFTER_DARK_HOST_APIS = [

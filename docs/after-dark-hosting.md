@@ -99,7 +99,7 @@ These come first, and most of them need David to sign up, pay or decide:
 4. **`<meta name="rating" content="adult">`** and the RTA label on every After Dark page, so filters recognise it. Built
    (#695: `app/after-dark/layout.tsx`, `app/admin/after-dark/layout.tsx`, `lib/adult/rating.ts`). Check they're in the
    page source on ad.botchelor.com.
-5. **No Google Analytics on After Dark's host.** Leave `NEXT_PUBLIC_GA_ID` and `NEXT_PUBLIC_GTM_ID` unset there (step 3):
+5. **No Google Analytics on After Dark's host.** Leave `NEXT_PUBLIC_GA_ID` and `NEXT_PUBLIC_GTM_ID` unset there ("3. DigitalOcean"):
    without them no Google tag is rendered at all, on any page of that host, the 18+ gate included. On the show, the
    guard built in #695 (`lib/ga-guard.ts`) keeps GA off After Dark's paths. Vercel Web Analytics only runs on Vercel.
    Check: no request to `google-analytics.com` or `googletagmanager.com` in the network tab on any ad.botchelor.com page.
@@ -129,7 +129,7 @@ the account after four days negative (files are deleted after 60 days disabled).
    - Origin type: **Bunny Storage Zone** → `botchelor-ad`.
    - Pricing tier: **Standard**. Under Pricing & Routing, the Asia, South America, and Middle East and Africa regions
      cost 3 to 6 times more; switching them off is optional.
-4. **Its hostname:** General → Hostnames → add `media.botchelor.com` (after the DNS record in step 4 below), then
+4. **Its hostname:** General → Hostnames → add `media.botchelor.com` (once its record is in, "4. DNS at Wix"), then
    **Enable** SSL → Add Free Let's Encrypt Certificate. Turn on Force SSL.
 5. **Token Authentication:** Security → **Token Authentication** on. Copy the **URL Token Authentication Key**. Leave
    **Token IP Validation off** (it turns the zone's IPv6 off and breaks links when a phone changes network; the app
@@ -213,7 +213,7 @@ nothing: both deployments read those from the database.
    Email (`RESEND_API_KEY`) and push (`VAPID_*`) are optional; without them After Dark's notifications aren't emailed
    or pushed from this host.
 6. **Domain:** Settings → Domains → Add domain → `ad.botchelor.com` → "You manage your domain". Copy the CNAME alias it
-   shows (ending `ondigitalocean.app`) for step 4.
+   shows (ending `ondigitalocean.app`) for "4. DNS at Wix".
 7. **Spend:** App Platform has no hard cap; the instance is a fixed price and includes 100 GiB of outbound traffic
    (150 GiB on the $12 size), then $0.02 a GiB. Set a billing alert: Billing → Billing alerts → $15.
 8. **Alerts (optional):** the app's Settings → Alerts → Deployment failed, and Restart count.
@@ -274,7 +274,9 @@ In a browser, signed in on botchelor.com as the admin:
 
    As the admin on botchelor.com: the 🌙 After Dark link points to `https://ad.botchelor.com/api/auth/carry?to=%2Fafter-dark`
    and opens After Dark signed in. Reels and the eval job run there.
-4. Point the admin's own agents' MCP connection for After Dark's tools at `https://ad.botchelor.com/api/mcp` (same
+4. Run the copy (step 2) one last time: anything made on botchelor.com in the minutes before the switch went live is
+   only in the bucket.
+5. Point the admin's own agents' MCP connection for After Dark's tools at `https://ad.botchelor.com/api/mcp` (same
    `x-frontier-key`).
 
 ## 7. Switch back
