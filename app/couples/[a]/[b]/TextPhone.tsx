@@ -431,7 +431,7 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
       {phone}
       {!ownKey && (
         <p className="muted small phone-key-hint">
-          Want more than the daily text? <Link href="/account#model-key">Add your own model key</Link> and {shortName(self.name)} texts{" "}
+          Want more than the daily text? <Link href="/account/keys#dates">Connect your own model key</Link> and {shortName(self.name)} texts{" "}
           {shortName(other.name)} whenever you like, as much as you like, on your model.
         </p>
       )}

@@ -24,7 +24,11 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const key = await userImageKey(db, sess.userId);
   const generates = key && key.provider in IMAGE_PROVIDERS && IMAGE_PROVIDERS[key.provider as keyof typeof IMAGE_PROVIDERS].generates;
   if (!key || !generates) {
-    return json({ error: "no_image_key", message: "Add an OpenAI image key on your account first, then generate a portrait." }, 400, sess);
+    return json(
+      { error: "no_image_key", message: "Connect an OpenAI key for Portraits first (Account → Connections), then generate a portrait.", connect: "/account/keys#portraits" },
+      400,
+      sess,
+    );
   }
 
   const character = (await db.query<Row>(`select name, age, bio, traits, appearance, pronouns from characters where id = $1`, [id])).rows[0];

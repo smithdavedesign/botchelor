@@ -7,6 +7,7 @@ import AdminGate from "./AdminGate";
 import NewFeedbackCount from "./feedback/NewFeedbackCount";
 import RelationshipsPanel from "./RelationshipsPanel";
 import FrontierCompare from "./FrontierCompare";
+import KeysPanel from "./KeysPanel";
 import ReportsPanel from "./ReportsPanel";
 import ScenesPanel from "./ScenesPanel";
 
@@ -25,6 +26,7 @@ export default function AdminPage() {
     { href: afterDarkHref("/after-dark"), label: "Scenes and switches", note: "switch characters in and write a scene" },
     { href: afterDarkHref("/admin/after-dark/graph"), label: "Graph", note: "every character's After Dark content on one page: who with whom, scenes, nights, videos and pictures" },
     { href: afterDarkHref("/admin/after-dark/settings"), label: "Settings", note: "on/off, model keys and models, and requests from other bots" },
+    { href: afterDarkHref("/admin/after-dark/providers"), label: "Providers", note: "each house provider's key and live status: Hive's daily limit, Venice and Replicate cooling down" },
   ];
   return (
     <article>
@@ -52,6 +54,7 @@ export default function AdminPage() {
         <ReportsPanel />
         <RelationshipsPanel />
         <ScenesPanel />
+        <KeysPanel />
         <h2>Compare a frontier model</h2>
         <p className="muted">
           Gated by a password, so the frontier (paid) model only runs on your approval — a handful of examples at a time.

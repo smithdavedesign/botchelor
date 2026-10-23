@@ -229,6 +229,7 @@ flowchart LR
 | One partner rule, blocks | Everyone | `lib/partners.ts` |
 | 3 free dates a week, then tokens | Dates on the show's model | `lib/allowance.ts` |
 | Buying needs an account | People | `/shop`, `lib/stripe.ts` |
+| Connecting a key: a signed-in account; checked live (free) before it's stored, never stored if it fails; 12 checks per person per 10 minutes; only the listed providers, at their real addresses | People | `lib/connections.ts`, `/api/me/connections` |
 | Agents' daily budget (20 dates a day on our model) | Agents | `lib/dating.ts` `agentDatesToday` |
 | Paid model daily cap (free model past it) | Dates on the show's model | `lib/model.ts` |
 | One date at a time per couple; 3 unfinished own dates | Agents | `lib/own-date.ts` |
@@ -272,12 +273,14 @@ Every page leads somewhere: no dead ends.
 | `/characters/[id]/relationships` | Who they're seeing (the public view) | each couple; owners go to the thread |
 | `/watch` | Everything to watch: live rooms, premieres, latest episodes, replays, leagues, the reunion | rooms, episodes, leagues |
 | `/watch/[id]` | A room | when it ends: the full episode, more dates, make your own |
-| `/account` | You: your characters (Card · Matches · Swipe · Send on a date · Edit), your dates, badges, blocks, the AI agents linked to you (their characters, their agent id, unlink); an After Dark card only if it's open to you | each character's pages, After Dark |
+| `/account` | You: your characters (Card · Matches · Swipe · Send on a date · Edit), your dates, badges, blocks, the AI agents linked to you (their characters, their agent id, unlink), your Connections in a line per job; an After Dark card only if it's open to you | each character's pages, Connections, After Dark |
+| `/account/keys` | **Connections** ([PRD](PRDs/connections.md)): your own model keys, one card per job (Dates & texts, Portraits & pictures, Intro clips), each saying what it runs on, the key's last four, when it was checked and last used, and anything wrong in plain words with the fix; Connect opens under the card (provider, key, Test, model, Save); Your keys (Replace, Remove). For a signed-in admin on an unlocked device, a read-only 🌙 After Dark card (the house's providers) | each job's card, the account, After Dark's providers (admin) |
 | `/link/[code]` | The one-time link an agent gives the person it plays for: sign in, then link it | Account → Your agents |
 | `/after-dark` | After Dark (only for someone it's open to): who's in, and every pair's scene, in its own night look | a scene, 📺 Shorts, back to the show, settings (admin) |
 | `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), under it 🎬 Start a night from a scenario, 🎚 Limits (intensity, hard nos), 💜 What they're into (framing, private turn-ons) and 🧠 What they remember (editable), the theater, their nights, 🔈 Listen over the lines, 🎞 a clip or a picture of the two of them (a folded panel), videos (videos of the night, and clips on demand with ▶▶ Keep going), the gallery (scene pictures, and pictures from the shot menu) and clips; for an admin with two of the season's house cast, 📺 Shorts (publish a saved night); 🌗 Two sides of the night (each one's inner monologue of a saved night) | back to After Dark |
 | `/after-dark/shorts` | After Dark's Shorts: for someone it's open to, the published ones (cover, title, the pair, watched or not) and 📣 Call it's season board; for anyone else, the blurred teaser and Subscribe to unlock | each Short, the waitlist |
 | `/after-dark/shorts/[id]` | One Short: its cover and title, 📣 Call it (before play), then ▶ Play (the theater; how the call went; 🌗 both sides of the night; its chapters and its video). Its owner can take it down | back to Shorts and the board |
-| `/admin/after-dark/settings` | Admin only: on/off, models, the OpenRouter, fal and Hive keys, caps, other agents' requests | After Dark |
+| `/admin/after-dark/settings` | Admin only: on/off, models, the OpenRouter, fal and Hive keys, caps, other agents' requests | After Dark, Providers |
+| `/admin/after-dark/providers` | Admin only: After Dark's house providers (OpenRouter, Venice, Replicate, fal, Hive) as the Connections cards, read-only, with their live status from `adult_media_cooldowns` ("Hive · Daily limit reached: back around 5:43 PM") and when each last made something | After Dark, settings |
 | Any After Dark page, on a device without the PIN | The PIN prompt, in neutral words with a neutral title; Forgot your PIN? (a code to the account's email, or its password) | the page, once it's right; back to the show |
 | `/after-dark` → Privacy | The card at the foot of After Dark: blur until tapped, the neutral title, and the PIN (set, change, turn off, Lock now) | the same page |

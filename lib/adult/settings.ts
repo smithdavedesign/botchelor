@@ -4,6 +4,7 @@
  * and shown again only as their last four. Text runs on OpenRouter, pictures and clips on fal.ai.
  */
 import type { Db } from "../db";
+import { needsReseal, reseal } from "../key-crypto";
 import { openSecret, sealSecret } from "../keys";
 
 /**
@@ -228,20 +229,40 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
   };
 }
 
-/** The decrypted keys, for the server only. Replicate's: the one saved here, else the server's REPLICATE_API_TOKEN. */
+/** The house keys' columns (each sealed with its own context, "adult:<column>": lib/key-crypto.ts). */
+export const KEY_COLUMNS = ["openrouter", "fal", "hive", "venice", "replicate"] as const;
+export type KeyColumn = (typeof KEY_COLUMNS)[number];
+/** Where a house key is sealed: a v2 seal opens only in its own column. */
+export const keyContext = (col: KeyColumn): string => `adult:${col}`;
+
+/**
+ * The decrypted keys, for the server only. Replicate's: the one saved here, else the server's REPLICATE_API_TOKEN. A key
+ * still sealed the old way (from SESSION_SECRET) is sealed again under KEY_ENCRYPTION_SECRET on the way, once that's set,
+ * unless it was replaced meanwhile.
+ */
 export async function adultKeys(
   db: Db,
   env: Record<string, string | undefined> = process.env,
 ): Promise<{ openrouter: string | null; fal: string | null; hive: string | null; venice: string | null; replicate: string | null }> {
   const r = await row(db);
-  const open = (c: string | null | undefined, n: string | null | undefined) => (c && n ? openSecret({ ciphertext: c, nonce: n }) : null);
-  return {
-    openrouter: open(r?.openrouter_ciphertext, r?.openrouter_nonce),
-    fal: open(r?.fal_ciphertext, r?.fal_nonce),
-    hive: open(r?.hive_ciphertext, r?.hive_nonce),
-    venice: open(r?.venice_ciphertext, r?.venice_nonce),
-    replicate: open(r?.replicate_ciphertext, r?.replicate_nonce) ?? envReplicate(env),
+  const open = async (col: KeyColumn): Promise<string | null> => {
+    const ciphertext = r?.[`${col}_ciphertext`];
+    const nonce = r?.[`${col}_nonce`];
+    if (!ciphertext || !nonce) return null;
+    const sealed = { ciphertext, nonce };
+    if (needsReseal(sealed, env)) {
+      const moved = reseal(sealed, keyContext(col), env);
+      if (moved) {
+        await db
+          .query(`update adult_settings set ${col}_ciphertext = $1, ${col}_nonce = $2 where id = 1 and ${col}_ciphertext = $3`, [moved.sealed.ciphertext, moved.sealed.nonce, ciphertext])
+          .catch(() => {});
+        return moved.plain;
+      }
+    }
+    return openSecret(sealed, keyContext(col), env);
   };
+  const [openrouter, fal, hive, venice, replicate] = await Promise.all(KEY_COLUMNS.map(open));
+  return { openrouter, fal, hive, venice, replicate: replicate ?? envReplicate(env) };
 }
 
 export type SettingsPatch = {
@@ -353,7 +374,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch, by: string
       put(`${col}_nonce`, null);
       put(`${col}_last4`, null);
     } else {
-      const sealed = sealSecret(v.trim());
+      const sealed = sealSecret(v.trim(), keyContext(col));
       put(`${col}_ciphertext`, sealed.ciphertext);
       put(`${col}_nonce`, sealed.nonce);
       put(`${col}_last4`, v.trim().slice(-4));

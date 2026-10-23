@@ -36,7 +36,7 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await t.reset();
-  await t.db.query("delete from user_keys");
+  await t.db.query("delete from user_connections");
   await t.db.query("delete from character_assets");
   await t.db.query("delete from admins");
   await t.db.query("delete from pack_episode_usage");
@@ -212,7 +212,7 @@ describe("the clip button on the card", () => {
     const player = html({ admin: false, boughtTokens: 3, hasKey: false, cost: 1, hasPortrait: true });
     expect(player).toMatch(/<button[^>]*>Make a 4-second clip from the portrait<\/button>/);
     expect(player).toContain("1 bought token + ~$0.20 on your Google key; you have 3");
-    expect(player).toContain('href="/account"');
+    expect(player).toContain('href="/account/keys#clips"'); // the Intro clips card on Connections
     expect(html({ admin: true, boughtTokens: 0, hasKey: true, cost: 1, hasPortrait: true })).toContain("admin: no tokens");
   });
 

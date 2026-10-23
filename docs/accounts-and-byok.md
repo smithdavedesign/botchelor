@@ -89,10 +89,20 @@ A creator may change their own character's characteristics any time, and may not
   private date can't leak through an aggregate or inflate a score. The system still stores and tracks it, and
   the owner sees all their own dates on `/account` (backed by `/api/me/episodes`, every visibility).
 
-## Bring your own key (`lib/keys`, `/api/me/keys`)
+## Bring your own key: Connections (`lib/connections.ts`, `/account/keys`)
 
 A signed-in user can store their own model provider key, so their dates run on **their** quota and chosen
 model instead of the free tier. The engine still decides every outcome, so a stronger model can't buy a result.
+
+**Connections** (2026-10-23, [docs/PRDs/connections.md](PRDs/connections.md)) organises keys by what they're for. One card per
+job on `/account/keys`: **Dates & texts** (OpenRouter, OpenAI, Google, Anthropic, DeepSeek or Groq; Botchelor's free model
+without a key), **Portraits & pictures** (OpenAI) and **Intro clips** (Google's Veo). A key is stored once per provider and can
+do several jobs (a Google key runs dates and clips). Each card says what the job runs on ("Your OpenRouter key ✓ ·
+deepseek/deepseek-chat"), the key's last four, when it was checked and last used, and anything wrong in plain words with the
+fix ("OpenRouter: out of credit → Top up"). Connecting is: provider, paste the key, **Test** (free: the provider's key-info
+or model list, never a model call), model, Save; a key that fails its check is never stored. An admin also sees After Dark's
+house providers there, read-only (nobody's own key reaches After Dark), and their live status on
+`/admin/after-dark/providers`.
 
 ### Privacy is the whole design
 A user's key is only ever used for calls whose prompt contains **no other user's private soul**:
@@ -118,13 +128,23 @@ A user's key is only ever used for calls whose prompt contains **no other user's
 date and asserts one character's soul text never appears in the prompts sent to the other user's key.
 
 ### Storage and providers
-- **AES-256-GCM** encrypted at rest; the AES key is derived from `SESSION_SECRET` via HKDF (no second secret).
-  **Account-only.** The value is **write-only**: only the provider, the last four characters and an optional
-  model name are ever read back.
-- **Known OpenAI-compatible providers only** — `google`, `openai`, `openrouter` — at fixed base URLs. **No
-  custom endpoints**, so a key can't be pointed at an attacker's server to harvest prompts (or to SSRF ours).
-- `/api/me/keys` `GET` / `PUT` / `DELETE`, account-only (401 otherwise), 503 without `SESSION_SECRET`.
-  Account page has a "Your model key" section to add/remove a text key.
+- **AES-256-GCM** encrypted at rest (`lib/key-crypto.ts`). New keys are sealed under **`KEY_ENCRYPTION_SECRET`** (v2: HKDF from
+  a secret of its own, 32+ characters; the ciphertext starts `v2:` and is bound to its row, so it doesn't open if copied
+  elsewhere). Without that secret they're sealed the M16 way, derived from `SESSION_SECRET`, so nothing changes before it's
+  added. Reads open either; a legacy key is sealed again as v2 the next time it's read or saved, or all at once from the
+  admin's Stored keys panel on `/admin`. Once that panel counts no legacy keys, `SESSION_SECRET` can be rotated without
+  losing one. After Dark's house keys (`lib/adult/settings.ts`) follow the same rules.
+- **Account-only, signed in.** The value is **write-only**: only the provider, the last four characters, the job's model and
+  the key's status are ever read back. No route returns it, nothing logs it, and errors are plain words, never the
+  provider's own text (which can quote part of a key).
+- **Known providers only** (`google`, `openai`, `anthropic`, `deepseek`, `groq`, `openrouter`) at their real addresses. **No
+  custom endpoints**, so a key can't be pointed at an attacker's server to harvest prompts (or to SSRF ours). The only
+  stand-in is `BYOK_STUB_ORIGIN` for screenshot and e2e runs: loopback only, ignored on Vercel.
+- **Tables:** `user_connections` (one sealed key per provider, with `verified_at`, `last_used_at` and the last error) and
+  `user_connection_jobs` (which key and model each job uses). M16's `user_keys` rows moved in once (lib/db.ts).
+- **Routes:** `/api/me/connections` `GET` / `PUT` / `DELETE` and `/api/me/connections/check` (12 checks per 10 minutes per
+  person), account-only (401 otherwise), 503 without `SESSION_SECRET`. `/api/me/keys` (M16) still works, on the new store.
+  The account page sums each job up in a line and links to Connections.
 - **Cost**: user-key calls aren't counted in our unit-economics (`episode_generated` cost is our spend only);
   the plan and recap still are. See [docs/upgrade-cost.md](upgrade-cost.md).
 
@@ -143,7 +163,7 @@ pays, so it's $0 to us — which is what made image generation compatible with t
 - **Storage/serving**: the PNG is a data URL in the ledger, served through **`GET /api/assets/[id]`** (approved
   only) with a long immutable cache, so the bytes never sit inline in a page or an API body. At scale this
   moves to a blob store.
-- Account page has an **image-key** slot; generate a portrait from a character's card.
+- Connect an OpenAI key for **Portraits & pictures** on Connections; generate a portrait from a character's card.
 - **Model:** `gpt-image-2` (2026-10-16). OpenAI retires `gpt-image-1` on 2026-10-23, so a key saved with it (or a
   `dall-e-*` model) runs `gpt-image-2` instead (`imageModelFor`). A refusal shows OpenAI's own reason, key-shaped
   text scrubbed (`providerReason`).
@@ -164,7 +184,8 @@ Lite** through the Gemini API (`lib/video.ts`), on the player's own Google key.
 - **Playback:** `GET /api/assets/[id]/video` serves the MP4 with **byte ranges**, which Safari/iOS need to play it.
 - **Old clips:** a clip from the Sora era kept only a still, so the card shows that still.
 
-**The key:** the player's Google key is a "clip key" in the image/video slot on the account page, or their Google key for dates (`userVideoKey`).
+**The key:** the Google key the **Intro clips** job uses on Connections (`userVideoKey`). Connecting Google for dates offers
+it for clips too, and every Google key saved before Connections does both, as it did then.
 
 **The paywall:** a clip costs `CLIP_TOKEN_COST` (1) **bought** token (`spendBoughtTokens`).
 - **What counts:** only tokens from a pack. The weekly free tokens stay for dates.
@@ -187,6 +208,7 @@ Lite** through the Gemini API (`lib/video.ts`), on the player's own Google key.
 | Env | Enables | Without it |
 |---|---|---|
 | `SESSION_SECRET` | signed sessions → accounts and BYOK | anonymous-only, unsigned `bz_uid`, as before |
+| `KEY_ENCRYPTION_SECRET` | stored keys sealed under a secret of their own (v2), so `SESSION_SECRET` can rotate without losing them | keys sealed from `SESSION_SECRET`, as before |
 | `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` | "Continue with Google" | the button is hidden; handle+password still works |
 | `OAUTH_REDIRECT_BASE` | pins the OAuth callback to the canonical domain (set on prod to `https://botchelor.com`; `/start` on any other host hops there first, so the state cookie and the callback share a host) | the callback is derived from the request / Vercel's production domain |
 
@@ -219,8 +241,13 @@ and it shows on RepoHQ → Settings → Keys. Handle+password registration alrea
   the public record.
 - `tests/keys.test.ts` — encryption / last-four-only, provider allowlist, auth gating, the per-side routing
   rule, and a live conversation proving no soul crosses a key boundary.
+- `tests/key-crypto.test.ts` — v2 and legacy sealing, the fallback, re-encryption, the wrong secret, a moved or tampered
+  ciphertext, no plaintext anywhere.
+- `tests/connections.test.ts`, `tests/connections-routes.test.ts`, `tests/connections-pages.test.ts` — Connections: the
+  store and the move from `user_keys`, the live check against every provider (stubbed) and its plain-words errors, the
+  routes (auth, validation, write-only, the rate limit, no key in any response or log), the admin's views, the pages.
 - `tests/image.test.ts` — the prompt is built from filtered text, generation on the user's key (injected
   fetch), provider refusals surface, owner-only, the asset is recorded approved and served, and the serving
   route never returns an unapproved asset.
-- `npm run e2e` — sign up (adopting the browser's characters/dates), bring a key (last-four shown), change a
-  date's visibility, edit a character on its card.
+- `npm run e2e` — sign up (adopting the browser's characters/dates), connect a key on Connections (tested live
+  against a local stub, last four shown), change a date's visibility, edit a character on its card.

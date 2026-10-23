@@ -117,7 +117,8 @@ describe("how much they talk", () => {
     expect((await refused.json()).error).toBe("needs_own_key");
     const owner = (await t.db.query<{ owner_id: string }>(`select owner_id from characters where id = $1`, [character.id])).rows[0].owner_id;
     await t.db.query(`insert into accounts (user_id, google_sub, email) values ($1, $2, $3)`, [owner, `sub-${owner}`, "owner@example.test"]);
-    await t.db.query(`insert into user_keys (user_id, provider, kind, ciphertext, nonce, last4) values ($1, 'openai', 'text', 'x', 'y', 'abcd')`, [owner]);
+    await t.db.query(`insert into user_connections (user_id, provider, ciphertext, nonce, last4) values ($1, 'openai', 'x', 'y', 'abcd')`, [owner]);
+    await t.db.query(`insert into user_connection_jobs (user_id, job, provider) values ($1, 'text', 'openai')`, [owner]);
     expect((await api.editCharacter(character.id, { talk: "marathon" }, creator)).status).toBe(200);
     expect((await api.editCharacter(character.id, { talk: "standard" }, creator)).status).toBe(200);
     expect((await t.db.query(`select talk from characters where id = $1`, [character.id])).rows[0].talk).toBeNull();

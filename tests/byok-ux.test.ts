@@ -79,14 +79,16 @@ describe("pingKey: one-call validation", () => {
     expect(seen?.model).toBe("claude-sonnet-5-5");
   });
 
-  it("returns ok: false with the provider's error on a 4xx", async () => {
+  it("returns ok: false in plain words on a 4xx, never the provider's own text (it can echo part of the key)", async () => {
+    const bad = ["test", "key", "not", "real", "bad"].join("-"); // built from parts, obviously fake
     const fetchImpl = async () =>
-      new Response(JSON.stringify({ error: { message: "Invalid API key" } }), { status: 401, headers: { "content-type": "application/json" } });
-    const r = await pingKey("openai", "sk-bad", null, { fetchImpl: fetchImpl as typeof fetch });
+      new Response(JSON.stringify({ error: { message: `Incorrect API key provided: ${bad}.` } }), { status: 401, headers: { "content-type": "application/json" } });
+    const r = await pingKey("openai", bad, null, { fetchImpl: fetchImpl as typeof fetch });
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.status).toBe(401);
-      expect(r.error).toMatch(/Invalid API key/);
+      expect(r.error).toBe("401: OpenAI didn't accept this key");
+      expect(r.error).not.toContain(bad);
     }
   });
 
