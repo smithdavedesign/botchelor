@@ -540,9 +540,9 @@ describe("the modal, the button and the footer link (markup)", () => {
     expect(layout.match(/<FeedbackDock \/>/g)).toHaveLength(1);
   });
 
-  it("hides the button and the prompt, in one CSS rule, wherever they'd cover the show's own controls", () => {
+  it("hides the button and the prompt (and the install hint, app/InstallHint.tsx), in one CSS rule, wherever they'd cover the show's own controls", () => {
     const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-    const rule = /:is\(\s*html\.theater-lock,[\s\S]*?\)\s*:is\(\.feedback-fab, \.beta-toast\) \{\s*display: none;\s*\}/.exec(css)?.[0] ?? "";
+    const rule = /:is\(\s*html\.theater-lock,[\s\S]*?\)\s*:is\(\.feedback-fab, \.beta-toast, \.install-hint\) \{\s*display: none;\s*\}/.exec(css)?.[0] ?? "";
     for (const where of [
       "html.theater-lock",
       "html.feedback-open",

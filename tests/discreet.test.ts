@@ -167,7 +167,10 @@ describe("the PIN's hash", () => {
     expect(await verifyPin("4826", a)).toBe(true);
     expect(await verifyPin("4827", a)).toBe(false);
     expect(await verifyPin("48266", a)).toBe(false);
-    expect(await verifyPin("4826", a.replace(/.$/, (c) => (c === "A" ? "B" : "A")))).toBe(false);
+    // A changed hash fails. (Its first character: the last one of a 32-byte hash also carries two unused bits.)
+    const [scheme, n, salt, hash] = a.split("$");
+    const tampered = `${hash[0] === "A" ? "B" : "A"}${hash.slice(1)}`;
+    expect(await verifyPin("4826", [scheme, n, salt, tampered].join("$"))).toBe(false);
     expect(await verifyPin("4826", null)).toBe(false);
     expect(await verifyPin("4826", "scrypt$abc$def")).toBe(false);
   });
@@ -219,7 +222,8 @@ describe("the device's unlock cookie", () => {
     expect(verifyUnlock(token, "user-2", 3, process.env, now)).toBe(false);
     expect(verifyUnlock(token, "user-1", 4, process.env, now)).toBe(false);
     const [p, payload, sig] = token.split(".");
-    expect(verifyUnlock(`${p}.${payload}.${sig.slice(0, -2)}xx`, "user-1", 3, process.env, now)).toBe(false);
+    const forged = `${sig.slice(0, -2)}${sig.endsWith("xx") ? "yy" : "xx"}`;
+    expect(verifyUnlock(`${p}.${payload}.${forged}`, "user-1", 3, process.env, now)).toBe(false);
     // A session token is never taken for an unlock, whatever it says.
     expect(verifyUnlock(signSession({ uid: "user-1", authenticated: true }), "user-1", 3, process.env, now)).toBe(false);
     expect(verifyUnlock(token, "user-1", 3, { SESSION_SECRET: "another-secret" }, now)).toBe(false);
