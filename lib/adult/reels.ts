@@ -407,8 +407,11 @@ export function replicateVoice(voice: string): string {
 /** Wan 2.2 on Replicate makes 81 to 121 frames (four to a step, plus one) at 16 a second: about 5 to 7.5 seconds. */
 const WAN_FPS = 16;
 const WAN_FRAMES = [81, 121] as const;
-/** How fast Kokoro talks, about 2.6 words a second, and a breath either side of the line. */
-const WORDS_PER_SECOND = 2.6;
+/**
+ * How fast Kokoro talks, about 3 words a second (the live run of 2026-10-23: an 8-word line came back as 2.7 s of WAV,
+ * its pauses included), and a breath either side of the line.
+ */
+const WORDS_PER_SECOND = 3;
 const BREATH_S = 0.6;
 /**
  * How long a Replicate shot runs, and how fast its line is said: long enough for the line (at least 5 s), and a line

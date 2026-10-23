@@ -9,6 +9,7 @@ import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
 import { getDb } from "@/lib/db";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
+import { afterDarkHref } from "@/lib/after-dark-host";
 import { getEpisodeView, getPoints } from "@/lib/game";
 import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
@@ -162,7 +163,7 @@ export default async function EpisodePage({
   await airIfDue(db, id).catch(() => null);
   const episode = await getEpisodeView(db, id, viewerId);
   // 🌙 on a date that carried an After Dark memory, only for someone After Dark is open to (never a hint to anyone else).
-  const afterDarkLink = episode?.after_dark && (await adultViewerFromCookies(db, await cookies())) ? `/after-dark/${[episode!.characters[0].id, episode!.characters[1].id].sort().join("/")}` : null;
+  const afterDarkLink = episode?.after_dark && (await adultViewerFromCookies(db, await cookies())) ? afterDarkHref(`/after-dark/${[episode!.characters[0].id, episode!.characters[1].id].sort().join("/")}`) : null;
   // When an unaired date airs on its own (its booking plus the prediction window), for the host's controls.
   const airsAt =
     episode && !episode.revealed && episode.is_host

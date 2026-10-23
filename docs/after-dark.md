@@ -117,6 +117,15 @@ Track cost-per-subscriber; alert when a subscriber's generation cost exceeds a s
 - Set a **spend cap at every provider** when you create the key (`secrets add --cap`), and record it so the
   nightly scan sees it.
 
+**Built, and off (2026-10-22): After Dark can run on a host of its own.** David's call: the split goes live with payments
+and age checks, before the first subscriber; until then After Dark stays admin-only on Vercel. The same code deploys a
+second time to DigitalOcean App Platform as `ad.botchelor.com` (`AFTER_DARK_ONLY=1`), with its media on Bunny (storage,
+and a pull zone serving token-signed links that expire), sharing the Neon database. On the show, `AFTER_DARK_ORIGIN`
+points every After Dark link, page and API there, and the sign-in hop carries the admin across signed in. Unset, nothing
+changes. The runbook (accounts, DNS at Wix, env vars, copying the media, verifying, switching back, costs of about $16–18
+a month) is `docs/after-dark-hosting.md`; the code is `lib/after-dark-host.ts`, `lib/object-store.ts` (Bunny) and
+`scripts/media-to-bunny.mjs`.
+
 ### Terms fixes (2026-10-22)
 
 Three cheap fixes from the day's terms review:
@@ -704,6 +713,12 @@ Notes on each:
 - **The keyframe** kept both faces well (better than Venice on hair and face), with the drawn set as Picture 3. But it tends to keep the portrait's clothes when the prompt says nude: for explicit stages, Venice's `qwen-edit-uncensored` follows the clothing better.
 - **The video** kept both of them in frame as one continuous take, with stable faces, and the scripted action played out. Visually it's comparable to Wan 3.0, but silent, hence the voices.
 - **Hive passed the Replicate keyframe** (child 6e-7, the age check ADULTS).
+
+**The smoke test after the merge** (2026-10-23): our code against the real API, run locally, with PG inputs only (two house characters' public portraits, dressed, at a harbour at dusk).
+- **The keyframe:** Qwen-Image-Edit took 6.5 s running (22 s with the queue) and returned an 880×1184 PNG of 873 KB. Hive passed it.
+- **The shot:** Wan 2.2 took 72 s running (100 s with the queue) and returned 81 frames, an 816×1104 H.264 MP4 of 5.06 s, 491 KB, with no audio track. It wasn't sent to Hive (one check that day), so it wasn't kept either.
+- **The voice:** Kokoro took 1.7 s and returned a 24 kHz mono WAV of 2.7 s for an 8-word line. Replicate serves it as `audio/x-wav`, and it's stored as `audio/wav`. Kokoro talks at about 3 words a second, and the shots' lengths now count on that: up to 13 words fit the shortest shot (5 s), about 20 the longest (7.5 s).
+- **It cost** about $0.14 ($0.03, $0.11 and under $0.001), plus one Hive moderation request and one age check.
 
 **What David does** (some of it done on 2026-10-22):
 1. **Sign up at replicate.com and prepay credit** at replicate.com/account/billing, with auto-reload off. Done: account smithdavedesign.

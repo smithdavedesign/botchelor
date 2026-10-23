@@ -3,6 +3,7 @@
  * tools exist only for a call that carries the admin key (x-frontier-key): to any other agent they're not listed and
  * calling one is an unknown tool. Every other agent sees only request_after_dark (lib/mcp.ts), which asks the admins.
  */
+import { afterDarkBase, afterDarkElsewhere } from "../after-dark-host";
 import type { Db } from "../db";
 import { listSwitchable, setAdultSwitch } from "./characters";
 import { listMedia } from "./media";
@@ -88,6 +89,9 @@ async function sceneOwner(db: Db): Promise<string | null> {
 }
 
 export async function runAdultTool(db: Db, name: string, args: Record<string, unknown>): Promise<{ data: Record<string, unknown> } | { error: string }> {
+  // After Dark on a host of its own (lib/after-dark-host.ts): its tools run there, never on the show's deployment.
+  const elsewhere = afterDarkElsewhere();
+  if (elsewhere) return { error: `After Dark runs on its own host now: connect to ${elsewhere}/api/mcp (with the admin key) for its tools.` };
   // The settings themselves are reachable while it's off (that's where it's turned on). Never the keys.
   if (name === "after_dark_settings") {
     const patch: Record<string, unknown> = {};
@@ -124,7 +128,7 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
       const night = await reelNight(db, owner, a, b);
       if (!night) return { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
       const shots = typeof args.shots === "number" ? args.shots : undefined;
-      const r = await makeReel(db, owner, a, b, night.lines, siteUrl(), { shots, where: night.where });
+      const r = await makeReel(db, owner, a, b, night.lines, afterDarkBase(siteUrl()), { shots, where: night.where });
       return r.ok ? { data: { reel: r.reel } } : { error: r.message };
     }
     default:

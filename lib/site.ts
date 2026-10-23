@@ -1,3 +1,5 @@
+import { afterDarkOnly, afterDarkOrigin } from "./after-dark-host";
+
 /**
  * The site's public address, for absolute URLs (sitemap, robots.txt, og:image). On Vercel that is the
  * production domain Vercel sets in VERCEL_PROJECT_PRODUCTION_URL (a host name, no scheme); elsewhere
@@ -26,10 +28,13 @@ export function requestHost(req: Request): string {
 /**
  * The address to put in links an agent will follow (the guides, the MCP discovery file, the schema's $id): the
  * production domain on Vercel, else the address this request came in on, so a local or preview server never
- * advertises a host it isn't on.
+ * advertises a host it isn't on. After Dark's own host (lib/after-dark-host.ts) runs behind its platform's proxy, where
+ * req.url is the server's own address (localhost and its port), so there it's the address that host serves.
  */
 export function requestBase(req: Request, env: Record<string, string | undefined> = process.env): string {
   if (env.VERCEL_PROJECT_PRODUCTION_URL?.trim()) return siteUrl(env);
+  const afterDark = afterDarkOnly(env) ? afterDarkOrigin(env) : null;
+  if (afterDark) return afterDark;
   try {
     return new URL(req.url).origin;
   } catch {
