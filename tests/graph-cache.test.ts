@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setDbForTests } from "@/lib/db";
-import { cachedConstellation, GRAPH_TAG, GRAPH_TTL_SECONDS } from "@/lib/graph-cache";
+import { cachedConstellation, cachedPairTimeline, GRAPH_TAG, GRAPH_TTL_SECONDS } from "@/lib/graph-cache";
 import { reviewReports } from "@/lib/moderation";
 import { REPORT_HIDE_THRESHOLD } from "@/lib/rules";
 import { POST as removeCharacters } from "@/app/api/admin/characters/route";
@@ -13,10 +13,11 @@ import { api, jsonRequest, newUserCookie, startTestDb, userIdOf } from "./helper
 const cache = vi.hoisted(() => ({ entries: new Map<string, unknown>(), dropped: [] as string[] }));
 vi.mock("next/cache", () => ({
   unstable_cache:
-    (fn: () => Promise<unknown>, keys: string[], opts: { tags?: string[] }) =>
-    async () => {
-      const key = `${(opts.tags ?? []).join(",")}|${keys.join(",")}`;
-      if (!cache.entries.has(key)) cache.entries.set(key, await fn());
+    (fn: (...args: unknown[]) => Promise<unknown>, keys: string[], opts: { tags?: string[] }) =>
+    async (...args: unknown[]) => {
+      // Like Next's: the fixed key parts plus the call's arguments.
+      const key = `${(opts.tags ?? []).join(",")}|${keys.join(",")}-${JSON.stringify(args)}`;
+      if (!cache.entries.has(key)) cache.entries.set(key, await fn(...args));
       return cache.entries.get(key);
     },
   revalidateTag: (tag: string) => {
@@ -123,6 +124,19 @@ describe("lib/graph-cache: a minute's cache that a privacy change drops at once"
     const { DELETE: deleteAccount } = await import("@/app/api/me/route");
     expect((await deleteAccount(jsonRequest("/api/me", { confirm: true }, { cookie: ownerA, method: "DELETE" }))).status).toBe(200);
     expect(cache.dropped).toEqual([GRAPH_TAG, GRAPH_TAG, GRAPH_TAG]);
+  });
+
+  it("a pair's timeline is cached per pair too, but a pair that went private is a 404 at once", async () => {
+    await pair();
+    const story = await cachedPairTimeline("cache-b-bob", "cache-a-ana");
+    expect(story).toMatchObject({ total: 1, truncated: false, timeline: [{ ending: "friends" }] });
+    expect(cache.entries.size).toBe(1);
+    // Ids that aren't a public pair never make an entry.
+    expect(await cachedPairTimeline("cache-a-ana", "nobody")).toBeNull();
+    expect(cache.entries.size).toBe(1);
+    // Behind the cache's back: the cached timeline is still there, but the live check comes first.
+    await t.db.query(`update characters set visibility = 'private' where id = 'cache-b-bob'`);
+    expect(await cachedPairTimeline("cache-a-ana", "cache-b-bob")).toBeNull();
   });
 
   it("a date made private, enough reports, and a moderator's decision each drop it", async () => {

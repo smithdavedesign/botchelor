@@ -295,24 +295,28 @@ export function publicTimeline(dates: readonly { at: string; ending: Ending }[])
  * Read from the episodes, so a pair with more dates than the stored history keeps still starts at its first.
  */
 export async function pairTimeline(db: Db, x: string, y: string): Promise<PairTimeline | null> {
-  if (x === y) return null;
+  if (!(await publicPair(db, x, y))) return null;
   const [lo, hi] = x < y ? [x, y] : [y, x];
-  const [people, dates] = await Promise.all([
-    db.query<{ id: string }>(`select id from characters where id = any($1) and visibility is distinct from 'private' and owner_id is distinct from $2`, [
-      [lo, hi],
-      DELETED_OWNER,
-    ]),
-    db.query<{ ending: Ending; at: string | Date }>(
-      `select e.ending, e.revealed_at as at
-         from episodes e
-        where ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1)) and e.ending is not null
-          and ${publicDateSql("e", "$3")}
-        order by e.created_at, e.id`,
-      [lo, hi, REPORT_HIDE_THRESHOLD],
-    ),
-  ]);
-  if (people.rows.length !== 2 || !dates.rows.length) return null;
+  const dates = await db.query<{ ending: Ending; at: string | Date }>(
+    `select e.ending, e.revealed_at as at
+       from episodes e
+      where ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1)) and e.ending is not null
+        and ${publicDateSql("e", "$3")}
+      order by e.created_at, e.id`,
+    [lo, hi, REPORT_HIDE_THRESHOLD],
+  );
+  if (!dates.rows.length) return null;
   return publicTimeline(dates.rows.map((d) => ({ at: new Date(d.at).toISOString(), ending: d.ending })));
+}
+
+/** Both are public characters still on the show: the cheap check (two primary keys) before any of their dates is read. */
+export async function publicPair(db: Db, x: string, y: string): Promise<boolean> {
+  if (x === y) return false;
+  const { rows } = await db.query<{ id: string }>(
+    `select id from characters where id = any($1) and visibility is distinct from 'private' and owner_id is distinct from $2`,
+    [[x, y], DELETED_OWNER],
+  );
+  return rows.length === 2;
 }
 
 type NodeRow = Omit<GraphNode, "origin" | "kind" | "kind_label" | "community"> & { origin: Origin; kind: string | null; kind_label: string | null };
