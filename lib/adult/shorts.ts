@@ -415,7 +415,7 @@ async function shortNights(db: Db, r: Pick<ShortRow, "night_ids">): Promise<Nigh
 }
 
 /** A Short's chapters with everything stored on their lines (moved_to included): the server's own reading, never sent. */
-export async function shortLines(db: Db, id: string): Promise<{ rows: NightRow[]; short: Pick<ShortRow, "id" | "owner_id" | "character_a" | "character_b" | "night_ids"> } | null> {
+export async function shortLines(db: Db, id: string): Promise<{ rows: NightRow[]; short: Pick<ShortRow, "id" | "owner_id" | "character_a" | "character_b" | "night_ids" | "created_at"> } | null> {
   const r = (await db.query<ShortRow>(`select ${SHORT_COLUMNS} from adult_shorts where id = $1`, [id])).rows[0];
   return r ? { rows: await shortNights(db, r), short: r } : null;
 }

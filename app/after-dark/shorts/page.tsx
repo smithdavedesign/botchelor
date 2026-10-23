@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
+import { boardName, CALL_POINTS, callBoard } from "@/lib/adult/predictions";
 import { listShorts, shortsAccess, teaserShorts, watchedOf } from "@/lib/adult/shorts";
 import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
@@ -63,7 +64,7 @@ export default async function ShortsPage() {
     );
   }
   const shorts = await listShorts(db);
-  const watched = await watchedOf(db, access.viewer, shorts.map((s) => s.id));
+  const [watched, board, name] = await Promise.all([watchedOf(db, access.viewer, shorts.map((s) => s.id)), callBoard(db, access.viewer), boardName(db, access.viewer)]);
   return (
     <div className="after-dark-mode">
       <article className="after-dark">
@@ -102,6 +103,36 @@ export default async function ShortsPage() {
         ) : (
           <p className="muted">No Shorts yet.</p>
         )}
+        <section id="board" className={styles.board} aria-label="Call it: the board">
+          <h2>📣 Call it: {board.season.label}</h2>
+          <p className="muted small">
+            Call a Short before you press play: the first move ({CALL_POINTS.first_move} points), how far it goes ({CALL_POINTS.furthest}), one of their places (
+            {CALL_POINTS.their_place}) and the bonus, a second night ({CALL_POINTS.second_night}). Free points, on this board only: never the show&apos;s, and
+            nothing buys them. You&apos;re on it as {name ?? "Unnamed player"}
+            {name ? "." : ": your display name is the one the show's league boards use."}
+          </p>
+          {board.top.length ? (
+            <ol>
+              {board.top.map((e, i) => (
+                <li key={i} className={e.me ? styles.me : undefined}>
+                  <span className={styles.place}>{e.rank}</span>
+                  <span>
+                    {e.name}
+                    {e.me ? " (you)" : ""}
+                  </span>
+                  <span className={styles.points}>{e.points}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="muted">Nobody has called one yet this season.</p>
+          )}
+          {board.me && !board.top.some((e) => e.me) && (
+            <p className="small">
+              You: place {board.me.rank} of {board.players}, {board.me.points} points.
+            </p>
+          )}
+        </section>
       </article>
     </div>
   );

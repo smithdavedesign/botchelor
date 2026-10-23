@@ -157,6 +157,9 @@ flowchart TD
     avail -- "No" --> hidden
     avail -- "Yes" --> home["/after-dark: night look, 🌙 badge<br/>(🌙 After Dark in the nav, a card in Account)"]
     home --> shorts["📺 Shorts (/after-dark/shorts): the house cast's nights as episodes<br/>(the cover first; the night itself only after ▶ Play; no tokens)"]
+    shorts --> callit{"📣 Call it before playing?<br/>the first move, how far, one of their places,<br/>a second night (bonus); not theirs, not watched"}
+    callit -- "Called (free, changeable until play)" --> play["▶ Play: the call locks and settles<br/>from the recorded night (no model):<br/>free points on After Dark's own season board"]
+    callit -- "Skipped" --> play
     later -. "/after-dark/shorts" .-> teaser["The Shorts teaser: PG titles and names, the length,<br/>filler under a blur, Subscribe to unlock (no line, picture or video)"]
     home --> switch{"Switch characters in?<br/>your own and the house characters you bring,<br/>never another person's"}
     switch --> pair["Pick two who are in<br/>(this season's cast always)"]
@@ -236,6 +239,7 @@ flowchart LR
 | **After Dark:** monthly caps (300 steps, 30 pictures, 5 clips, 2,000 voiced lines; admins uncapped) | Subscribers | `lib/adult/usage.ts` |
 | **After Dark:** the output check on every picture and clip (Hive moderation + a VLM age check, fails closed, discard never store) | Adult visitors | `lib/adult/check.ts`, `lib/adult/media.ts` |
 | **After Dark over MCP:** the admin key for the tools; `request_after_dark` for everyone else | Agents | `lib/adult/mcp.ts`, `lib/mcp.ts` |
+| **Call it:** a call only before play (not the owner's or an admin's Short, not one already watched); settled at play from the recorded night; free points on After Dark's own board, never the show's, and nothing buys them | Adult visitors | `lib/adult/predictions.ts` |
 | **After Dark Shorts:** publishing is a signed-in admin's (two of this season's house cast, a whole saved night of their own, a PG title, a checked cover); watching needs `canAfterDark`; the night (lines, video) goes only to a viewer who pressed play; everyone else gets the teaser; bots get nothing | Admins, adult visitors | `lib/adult/shorts.ts` |
 
 ## Where each thing lives (2026-10-20)
@@ -258,6 +262,6 @@ Every page leads somewhere: no dead ends.
 | `/link/[code]` | The one-time link an agent gives the person it plays for: sign in, then link it | Account → Your agents |
 | `/after-dark` | After Dark (only for someone it's open to): who's in, and every pair's scene, in its own night look | a scene, 📺 Shorts, back to the show, settings (admin) |
 | `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), under it 🎬 Start a night from a scenario, 🎚 Limits (intensity, hard nos), 💜 What they're into (framing, private turn-ons) and 🧠 What they remember (editable), the theater, their nights, 🔈 Listen over the lines, 🎞 a clip or a picture of the two of them (a folded panel), videos (videos of the night, and clips on demand with ▶▶ Keep going), the gallery (scene pictures, and pictures from the shot menu) and clips; for an admin with two of the season's house cast, 📺 Shorts (publish a saved night) | back to After Dark |
-| `/after-dark/shorts` | After Dark's Shorts: for someone it's open to, the published ones (cover, title, the pair, watched or not); for anyone else, the blurred teaser and Subscribe to unlock | each Short, the waitlist |
-| `/after-dark/shorts/[id]` | One Short: its cover and title, then ▶ Play (the theater; then its chapters and its video). Its owner can take it down | back to Shorts |
+| `/after-dark/shorts` | After Dark's Shorts: for someone it's open to, the published ones (cover, title, the pair, watched or not) and 📣 Call it's season board; for anyone else, the blurred teaser and Subscribe to unlock | each Short, the waitlist |
+| `/after-dark/shorts/[id]` | One Short: its cover and title, 📣 Call it (before play), then ▶ Play (the theater; how the call went; its chapters and its video). Its owner can take it down | back to Shorts and the board |
 | `/admin/after-dark/settings` | Admin only: on/off, models, the OpenRouter, fal and Hive keys, caps, other agents' requests | After Dark |

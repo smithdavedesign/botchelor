@@ -1146,3 +1146,56 @@ New tables, both additive: `adult_shorts` (one row per night: `night_id` is its 
 **Screenshots** (`npm run screenshots:after-dark-shorts`, a seeded two-chapter night of PG placeholder lines; no model or
 provider is called): `docs/screenshots/after-dark-shorts-*.png`: the panel, the list, a Short before play, the theater,
 the night with its video, and the teaser.
+
+## Call it: predictions on a Short before it plays (2026-10-23)
+
+The second show feature from David's picks. Code: `lib/adult/predictions.ts`, `/api/admin/after-dark/shorts/<id>/call`
+(and the watch route, which settles), `CallIt.tsx` (the card and the reveal), and the board on `/after-dark/shorts`.
+
+**The call.** Before pressing play, an entitled viewer calls how the night goes, each part worth free points:
+
+| Part | Choices | Points |
+|---|---|---|
+| Who makes the first move | either of them by name, or neither (it never gets past talking) | 5 |
+| How far it goes: the furthest stage the night reaches | just talking, first touches, a kiss, undressing, all the way | 10 |
+| Whether they end up at one of their places | yes, no | 5 |
+| A second night (the bonus, optional) | yes, no, or skip it | 5 |
+
+It can be changed until play starts. Pressing play records the view (`adult_short_views`), which closes calls on that
+Short for that viewer, and settles their call there and then; a Short they've already watched can't be called (409), even
+if they never called it. Its owner (who wrote the night) and admins (who can read every night) don't call (403). A Short
+that's down, a bot, or anyone After Dark isn't open to gets not found. Calls cost nothing and count against no cap.
+
+**Settled from the recorded night, never a model** (`outcomeOf`, `shortOutcome`):
+- each line's stage is the one it was written at (`stage`, stored since 2026-10-21), else, for an older line, the furthest
+  its words plainly showed so far (`stageShown`, the stage floor's reading);
+- **the first move** is the first line that takes the night past talking and flirting (stage 1, "tension and the first
+  touches", or further), and whoever says or does it made it; none, and it's "neither". A step stamps each line with the
+  furthest its own words showed, and its last line with the step's stage, so a step whose claim rose without its words
+  showing it credits whoever spoke last in it;
+- **how far it goes** is the furthest stage on any line (or a chapter's own, for a night from before lines kept theirs);
+- **one of their places** is the night's last stop (its place history, which the moves they agreed to and `moved_to`
+  write) being one of their homes;
+- **a second night** is another night of the pair's (a first chapter) filed after this one ended and before the Short was
+  first published, so it's the same for every viewer whenever they press play.
+The outcome and the points are kept with the call (`adult_short_calls.outcome`, `points`, `settled_at`); playing again
+settles nothing twice.
+
+**The board** (`callBoard`): After Dark's own season board, a calendar month like the show's seasons
+(`lib/season-window.ts`): the points from calls settled this season on Shorts still published (taking one down takes its
+points off), ranked Olympic-style (ties share a place), with display names as the show does them (`profiles`, else
+"Unnamed player"), never a user id. It's on `/after-dark/shorts` for entitled viewers only; the teaser has none.
+
+**Free points, and only that.** Nothing buys them and they buy nothing: no token, order or cap is touched by a call or
+its settling, the catalog sells nothing of the kind, and only settling writes them (a test reads the code for any other
+writer). They never count on the show's side: `getPoints`, the league boards and `seasonStanding` read only the show's
+predictions and arcs, so a viewer's After Dark points leave their show points at what they were.
+
+**What a viewer sees.** Before play, the 📣 Call it card above ▶ Play, and nothing of the outcome in the page. After
+play, "📣 You called it: N points" (their call against the night, part by part), or "What happened" when they didn't
+call. The owner sees what the calls settle against.
+
+New table, additive: `adult_short_calls` (one row per viewer and Short). After Dark only: not in a dataset or an export.
+
+**Screenshots** (`SHOTS=callit npm run screenshots:after-dark-shorts`, three other subscribers' calls settled through the
+API): `docs/screenshots/after-dark-callit-*.png`: the call, how it went, and the board.

@@ -86,6 +86,119 @@
   color: #fff;
 }
 
+/* Call it (CallIt.tsx): the call before play, and how it went after. */
+.call {
+  margin: var(--space-4) 0;
+}
+
+.callForm {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.callForm fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.callForm legend {
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
+.callForm fieldset + fieldset {
+  margin-top: var(--space-2);
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.choices label {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.choices label.chosen {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.revealList {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.revealList li {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.6rem;
+  background: var(--soft);
+}
+
+.revealList p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.revealHead {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.hit {
+  color: var(--ok-text);
+  font-weight: 700;
+}
+
+/* After Dark's board (the Shorts page). */
+.board {
+  margin-top: var(--space-5);
+}
+
+.board ol {
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.board li {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.6rem;
+  background: var(--soft);
+}
+
+.board li.me {
+  outline: 2px solid var(--accent);
+}
+
+.board .place {
+  min-width: 2ch;
+  font-weight: 700;
+}
+
+.board .points {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
 /* The admin's panel on a pair's page. */
 .nights {
   display: grid;
