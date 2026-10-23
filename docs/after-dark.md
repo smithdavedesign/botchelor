@@ -545,9 +545,22 @@ room the theater shows. The keyframe passed Hive (child score 0.0000003, the age
 - **The places:** where each line was said comes from the night's start and the lines that agreed to go (`moved_to`), so the reel now reads the night itself (`reelNight`), not the page's copy of its lines. A saved night is filmed only for its own pair.
 - **Cost:** $0.24 more a video (6 keyframes), and 6 more Hive moderation requests against the self-serve 100 a day.
 
+**The first live reel** (3 shots of Lexi and Dex, the night they ended in her bedroom; #688):
+- It started in 31 s, all three keyframes passed Hive, and the shots took about 4 minutes.
+- **Opening (Dex's line):** a medium two-shot by the bed, her hand on him.
+- **Peak (her line, "Harder, Dex…"):** the script's position, her reaching back for his arm.
+- **Afterglow (his line):** lying together.
+- Every shot had both of them, in the drawn bedroom, as one continuous take, and each line was said by the right person (checked by transcribing).
+
+It showed two weak spots, both fixed in the follow-up:
+- **Her portrait's lingerie stayed on through the sex.** The keyframe was told to keep each of them "exactly as in their own picture". Now it keeps their faces and bodies, not their clothes: dressed before undressing, half undressed at it, nude from sex on unless the moment says otherwise.
+- **The afterglow's wide shot from above came out tangled, his face hidden.** The director now shoots lying down as a medium shot from the side, with both faces toward the camera. Both fixes were retried as keyframes on the same moments, and both looked clearly better.
+
+**Terms (2026-10-22):** Venice's terms (last updated 2026-06-08) have users warrant, in §10.9(c), that no reasonable person could deem their content "pornographic". Outputs count as user content (§10.1). That reads against Venice selling uncensored models. Settle it with Venice in writing before any subscriber uses After Dark: this widens the question that was already open for pictures. MiniMax H3 (Venice's `minimax-h3-max-reference-to-video`) has a further problem: its open licence excludes the US, EU, UK and South Korea, outputs included.
+
 **Next, not built:**
 - **A menu of acts per shot**, as the leaders do: preset framings that make keyframes more reliable than free text.
-- **Act motion add-ons (LoRAs)** would need Wan run somewhere that takes them; Venice doesn't.
+- **Act motion add-ons (LoRAs)** would need Wan run somewhere that takes them; Venice doesn't. Replicate's `wan-2.2-i2v-fast` takes LoRA URLs and a `disable_safety_checker` flag, and its terms ban only non-consensual or illegal pornography: about $0.05 at 480p, or $0.11 at 720p, a clip. RunPod, WaveSpeed, Novita, Segmind, Together and fal ban adult output.
 - **"Extend"** from a shot's last frame, for longer moments.
 - **Wan 3.0 reference-to-video** as a one-step option.
 - **Terms:** Venice's model list marks Wan 3.0 "anonymized", which means a third party runs it, while `qwen-edit-uncensored` and LongCat are Venice's own. Get Venice's word in writing on explicit output for both kinds, along with the pictures question already open.

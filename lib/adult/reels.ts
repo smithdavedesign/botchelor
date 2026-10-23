@@ -67,8 +67,15 @@ export const REEL_GIVE_UP_MS = 3 * 60 * 60 * 1000;
 export const KEYFRAME_MODEL = "qwen-edit-uncensored";
 /** Its prompt limit (promptCharacterLimit in Venice's model list). */
 const KEYFRAME_PROMPT_MAX = 1500;
-/** From "undressing" (stage 4 of 5) on, a keyframe is explicit; before it, they're dressed. */
+/** From "undressing" (stage 4 of 5) on, a keyframe is explicit; before it, they're dressed; from "sex", nude. */
 const UNDRESSED_FROM = 3;
+const NUDE_FROM = 4;
+/**
+ * What they wear in a keyframe, by how far the night had gone, never what their portrait wears (2026-10-22, the first
+ * live reel: told to keep each "exactly as in their own picture", Lexi kept her portrait's lingerie through the sex).
+ */
+const clothesAt = (stage: number) =>
+  stage >= NUDE_FROM ? "both are nude unless the moment says otherwise" : stage >= UNDRESSED_FROM ? "they're half undressed, as the moment says" : "they're dressed as the moment says, not nude";
 /** Between two keyframe checks, and before asking again when Hive couldn't check one: Hive rate-limits a burst. */
 const CHECK_PAUSE_MS = 1500;
 const CHECK_AGAIN_MS = 5000;
@@ -311,7 +318,7 @@ export async function pickShots(
             `Pick the ${want} lines that make the best short film of this night, in order: how it starts, how it builds, its most intense moment (usually in the middle or later, not at either end) and how it lands. ` +
               `Prefer short, vivid spoken lines, and give both of them lines${want >= 4 ? ` (at least ${Math.floor(want / 3)} each)` : ""}.`,
             "Every shot shows the two of them together in one frame, doing what the script has them doing at that line: its action, and the lines just before it. For each shot write:",
-            `- "frame": one photograph of that moment, in one or two sentences: where they are in the place, where each of them is (one on the left or in front, the other on the right or behind) and how their bodies are posed toward each other, what's touching, what they're wearing or not by then, and the framing (wide, medium or close, varied from shot to shot). Both faces visible, two people only.`,
+            `- "frame": one photograph of that moment, in one or two sentences: where they are in the place, where each of them is (one on the left or in front, the other on the right or behind) and how their bodies are posed toward each other, what's touching, what they're wearing or not by then, and the framing (wide, medium or close, varied from shot to shot; lying down, a medium shot from the side with both faces toward the camera, never from above). Both faces visible, two people only.`,
             `- "motion": one sentence: what each of them does over the next few seconds, carrying on from that photograph, as the line is said.`,
             "Concrete and physical, like a shot list: no feelings, no dialogue, no names.",
             'Reply with a JSON object: {"shots": [{"line": 12, "frame": "...", "motion": "..."}]}',
@@ -349,15 +356,18 @@ export async function pickShots(
 
 /**
  * A keyframe's prompt: the two baselines (Pictures 1 and 2) made into one photograph of the director's still, in the
- * place (the drawn set as Picture 3 when there is one), each kept as they are. Within the edit model's prompt limit.
+ * place (the drawn set as Picture 3 when there is one), each kept as they are but dressed (or not) for the night's
+ * `stage` at that line. Within the edit model's prompt limit.
  */
-export function keyframePrompt(cast: readonly [ReelPerson, ReelPerson], frame: string, place: string | null, explicit: boolean, withSet: boolean): string {
+export function keyframePrompt(cast: readonly [ReelPerson, ReelPerson], frame: string, place: string | null, stage: number, withSet: boolean): string {
   const [a, b] = cast;
   const head = `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together${withSet ? ", in the place from Picture 3" : ""}.`;
   const who = a.tag === `the ${a.noun}` && b.tag === `the ${b.noun}` ? "" : `${cap(a.tag)} is the one from Picture 1; ${b.tag} is the one from Picture 2.`;
   const where = place ? `The place: ${place}.` : "";
-  const keep = `Keep each of them exactly as in their own picture: the same face, hair, skin tone and body${withSet ? "; keep the place, its furniture and its light from Picture 3" : ""}. Two people only, both faces visible.`;
-  const tail = explicit ? "Explicit, uncensored, photorealistic. Both are adults." : "Photorealistic; they're dressed as described, not nude. Both are adults.";
+  const keep =
+    `Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes: ${clothesAt(stage)}.` +
+    `${withSet ? " Keep the place, its furniture and its light from Picture 3." : ""} Two people only, both faces visible.`;
+  const tail = stage >= UNDRESSED_FROM ? "Explicit, uncensored, photorealistic. Both are adults." : "Photorealistic. Both are adults.";
   const room = KEYFRAME_PROMPT_MAX - [head, who, where, keep, tail].filter(Boolean).join(" ").length - 2;
   const still = frame.length <= room ? frame : frame.slice(0, Math.max(0, room)).replace(/\s+\S*$/, "");
   return [head, who, still, where, keep, tail].filter(Boolean).join(" ");
@@ -439,7 +449,7 @@ async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx: ShotC
     shots.map(async (s) => {
       const place = ctx.places[s.line] ?? null;
       const set = place ? (sets.get(place) ?? null) : null;
-      const prompt = keyframePrompt(ctx.cast, s.frame ?? "", place ? placeWords(place, ctx.cast) : null, (ctx.stages[s.line] ?? 0) >= UNDRESSED_FROM, Boolean(set));
+      const prompt = keyframePrompt(ctx.cast, s.frame ?? "", place ? placeWords(place, ctx.cast) : null, ctx.stages[s.line] ?? 0, Boolean(set));
       try {
         return { prompt, file: await drawKeyframe(ctx.venice, prompt, set ? [...faces, set] : faces) };
       } catch (err) {
