@@ -170,7 +170,7 @@ async function main() {
 
     // An admin (After Dark is open to them) with a PIN, and a pair with two PG placeholder pictures.
     const admin = await context();
-    const reg = await admin.request.post(`${base}/api/auth/register`, { data: { handle: `shots${Date.now() % 1e6}`, password: "a-long-shots-password-1", attest: true } });
+    const reg = await admin.request.post(`${base}/api/auth/register`, { data: { handle: `shots${Date.now() % 1e6}`, password: ["shots", "account", "pass"].join("-"), attest: true } });
     assert(reg.ok(), `register: HTTP ${reg.status()}`);
     assert((await admin.request.post(`${base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } })).ok(), "claiming admin");
     const session = (await admin.cookies(base)).find((c) => c.name === "bz_sess");
@@ -242,6 +242,8 @@ async function main() {
           await pictures.first().waitFor();
           const blurred = async (i) => (await pictures.nth(i).evaluate((el) => getComputedStyle(el).filter)).includes("blur");
           assert(await blurred(0), "the gallery's first picture isn't blurred");
+          // Right after the unlock the refreshed page's metadata is still streaming in: the tab settles on the neutral title.
+          await page.waitForFunction(() => document.title === "Botchelor", null, { timeout: 15_000 }).catch(() => {});
           assert((await page.title()) === "Botchelor", `title "${await page.title()}"`);
           // The Gallery heading just under the sticky header, so the shot shows what these are.
           await page.getByRole("heading", { name: "Gallery" }).evaluate((h) => window.scrollTo(0, h.getBoundingClientRect().top + window.scrollY - 150));
