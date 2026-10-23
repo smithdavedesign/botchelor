@@ -292,7 +292,10 @@ describe("a Short's two sides", () => {
     // Taken down: not for viewers any more; still its owner's.
     await panelPatch(req("PATCH", "/api/admin/after-dark/shorts", { id, published: false }, ad.cookie));
     expect((await write({ short_id: id }, sub.cookie)).status).toBe(404);
+    // Nor by the read-only route, though they watched it while it was up.
+    expect((await (await read(`short_id=${id}`, sub.cookie)).json()).sides).toBeNull();
     expect((await write({ short_id: id }, ad.cookie)).status).toBe(200);
+    expect((await (await read(`short_id=${id}`, ad.cookie)).json()).sides.a.page).toBe(PAGE_A);
   });
 
   it("show on the Short's page only after play: the pages side by side by pronoun, and the morning after", async () => {
