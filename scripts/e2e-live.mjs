@@ -160,7 +160,7 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
     houseIds = [...new Set((await page.content()).match(/house-[a-z]+(?:-[a-z]+)?/g) ?? [])]
     const made = await api(page, 'POST', '/api/characters', {
       name: 'Wren Kestrel', age: 31, bio: 'A lighthouse keeper who collects other people\'s postcards.',
-      traits: ['dry', 'patient', 'curious'], want: 'Someone who writes back', dealbreaker: 'People who never ask questions', attest: true,
+      traits: ['dry', 'patient', 'curious'], want: 'Someone who writes back', dealbreaker: 'People who never ask questions', attest: true, keep_name: true,
       // A dating profile, so it can swipe (closed to dates, so it never shows in a real person's deck).
       extras: {
         hobbies: ['Postcards', 'Night walks'],

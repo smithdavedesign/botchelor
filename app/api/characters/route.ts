@@ -8,6 +8,7 @@ import { scheduleConceptEmbedding } from "@/lib/originality-concept";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { CHARACTER_REJECTION_MESSAGES, checkFields } from "@/lib/safety";
+import { nameCheck } from "@/lib/name-check";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput } from "@/lib/souls";
 
 const MIN_AGE = 18;
@@ -67,6 +68,8 @@ const CharacterInput = z.object({
   attest: z.literal(true, "Confirm you are 18+ and this is your own original character."),
   // #519: run every check a save makes (the schema, the content filter, the soul) and save nothing.
   check_only: z.boolean().optional(),
+  // Names are unique on the show (#249; lib/name-check.ts): a taken one is refused with free ones, unless this is true.
+  keep_name: z.boolean().optional(),
 });
 
 export const POST = handle(async (req) => {
@@ -105,6 +108,21 @@ export const POST = handle(async (req) => {
   if (soul && !isEmptySoul(soul)) assertSafeSoul(soul);
 
   if (checkOnly) return json({ checked: true, saved: false }, 200, sess);
+  if (input.name && input.keep_name !== true) {
+    const { twin, freeNames } = await nameCheck(db, input.name);
+    if (twin) {
+      const free = await freeNames();
+      return json(
+        {
+          error: "name_taken",
+          message: `There's already a ${twin.name} on the show. Pick another name${free.length ? ` (free right now: ${free.join(", ")})` : ""}.`,
+          free_names: free,
+        },
+        409,
+        sess,
+      );
+    }
+  }
   if (!input.name || input.age === undefined || !input.bio || !input.traits || !input.want || !input.dealbreaker || input.attest !== true) {
     return json({ error: "invalid_character", message: "A save needs name, age, bio, traits, want, dealbreaker and attest." }, 400, sess);
   }
@@ -127,7 +145,7 @@ export const POST = handle(async (req) => {
   // Its concept embedding, after the response (lib/originality-concept.ts; off unless enabled).
   await scheduleConceptEmbedding(db, id);
 
-  const { attest: _attest, soul: _soul, image_signals: _sig, temperament: _temp, extras: _extras, this_week: _week, ...character } = input;
+  const { attest: _attest, keep_name: _keep, check_only: _check, soul: _soul, image_signals: _sig, temperament: _temp, extras: _extras, this_week: _week, ...character } = input;
   return json(
     { id, ...character, extras, this_week: thisWeek(id, input.this_week?.trim() ? stampThisWeek(input.this_week) : null), house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals) },
     201,

@@ -81,7 +81,7 @@ for (const pair of PAIRS.slice(0, 9)) {
   const ids = [];
   for (const c of [pair.a, pair.b]) {
     const who = persona();
-    const r = await call("/api/characters", { ...c, open_to_dates: true, attest: true }, who);
+    const r = await call("/api/characters", { ...c, open_to_dates: true, attest: true, keep_name: true }, who);
     ids.push({ id: r.id, who });
   }
   made.push(ids);

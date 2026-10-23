@@ -50,12 +50,12 @@ async function seed(base) {
   const creator = persona();
   await call("/api/profile", { name: "Wren", attest: true }, creator);
   const { soul: _soul, ...mira } = CAST[0];
-  const character = await call("/api/characters", { ...mira, attest: true }, creator);
+  const character = await call("/api/characters", { ...mira, attest: true, keep_name: true }, creator);
   const episode = await call("/api/episodes", { character_id: character.id, partner_id: "house-rafe" }, creator);
   assert(episode.id && episode.ending, "the date wasn't made");
   // Two long names (a three-line title on a phone), to check the button still makes the first screen.
   const { soul: _soul2, ...emrys } = CAST.find((c) => c.name === "Emrys Nakamura-Pine");
-  const long = await call("/api/characters", { ...emrys, attest: true }, creator);
+  const long = await call("/api/characters", { ...emrys, attest: true, keep_name: true }, creator);
   const longEpisode = await call("/api/episodes", { character_id: long.id, partner_id: "house-perpetua" }, creator);
   return { creator, episode, longEpisode, creatorName: "Wren" };
 }
