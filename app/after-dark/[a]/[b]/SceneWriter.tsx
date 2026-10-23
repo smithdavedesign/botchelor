@@ -11,6 +11,8 @@ import Profile from "./Profile";
 import Scenarios from "./Scenarios";
 import Link from "next/link";
 import Reels, { stopReel } from "./Reels";
+import ListenLines from "./Listen";
+import MediaMenu from "./MediaMenu";
 import Avatar from "@/app/Avatar";
 import type { BusyReel, Reel } from "@/lib/adult/reels";
 import { AUTOPLAY_PAGE_PAUSE_MS, autoplayStop } from "@/lib/adult/autoplay";
@@ -244,6 +246,7 @@ export default function SceneWriter({
       {scene.chapter > SOFT_CHAPTERS && (
         <p className="muted small">This night has run {scene.chapter - 1} chapters. It might be a good place to end it: Start over files it, and the next night begins fresh.</p>
       )}
+      <ListenLines lines={scene.lines} a={scene.a.id} b={scene.b.id} names={[nameOf("a"), nameOf("b")]} />
       {scene.lines.length ? (
         <ol className="after-dark-lines">
           {scene.lines.map((l, i) => {
@@ -410,6 +413,7 @@ export default function SceneWriter({
           )}
         </div>
       )}
+      <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} />
       <Reels reels={reelList} onChange={putReel} />
       <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} />
     </section>
