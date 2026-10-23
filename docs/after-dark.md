@@ -502,3 +502,65 @@ SiliconFlow about 30 s, CoreWeave 6–7.6 s (about 90 tokens a second); SambaNov
 `text_model` is `deepseek/deepseek-chat-v3.1:nitro`, OpenRouter's throughput-first routing, which picked CoreWeave each
 time: two production steps through the eval route took 11 seconds, at about 0.2¢ a step (twice DeepInfra's price). A
 setting, not code: the plain id goes back to the cheapest-first routing.
+
+## Videos with both of them in (2026-10-22)
+
+**What David saw** (Lexi and Dex's video of the night): "doesn't actually show the interacting in the scene and they
+are not in the same video together". Every shot was one of them alone against the grey wall of their portrait,
+saying the line to the camera. The sex was played as a solo: the directions read "arches her back, reaching behind to
+urgently grab at the air" and "grips his own hips tightly". Five of the six shots were Dex.
+
+**Why.** An image-to-video model can only move what its first frame holds. Since #392 each shot started from one
+person's baseline, a waist-up studio portrait of them alone. Asked for "two adults" from it, the model made the
+partner up (Star Dust and Sable's strangers), so #588 told it the other one was off camera. The clips David liked
+all started from a picture of the two of them together (the Chud and Sable tests of 2026-10-19, and the first reel's
+two shots made from a scene picture).
+
+**What the adult products do** (read-only research, 2026-10-22; sources in the PR):
+- **Candy.ai:** one character, to the camera, with the viewer as the partner. Users pick from a fixed list of actions. Two people together appear only in its pre-made Shorts.
+- **Seduced** documents the rule outright: the start image must already show the act, and adding a missing participant by prompt from a solo image is "less reliable". Its acts are 200+ motion add-ons (LoRAs) the user picks.
+- **OurDream:** a character, a required action preset, and image-to-video.
+- **Nectar AI** is the only one that puts named characters together (up to 10). Its prompt rules: describe each person on their own, give each a place in the frame (left or right, in front or behind), say how many people there are, and restate each at every beat.
+- **The common recipe:** keep the identity, make a keyframe that already shows the act with both faces, animate it, 5–10 s a clip, with sound.
+
+**The bake-off** (Lexi and Dex at their peak line, one keyframe, 5 s each, about $2.10 of Venice):
+
+| Start | Video | Both in frame | Follows the script | Faces | Voice | Cost |
+|---|---|---|---|---|---|---|
+| Keyframe of both | Wan 3.0 (`wan-3-0-image-to-video`) | yes, the whole shot, no cut | yes | kept | says the line itself, the right person | $0.69 |
+| Keyframe of both | Wan 2.7 with Dex's Kokoro voice | yes | yes (she reaches back for his arm) | kept | lip-synced onto *her* face | $0.59 |
+| Keyframe of both | LongCat distilled | yes | drifts (she sits up instead) | drifts | none | $0.13 |
+| The two portraits as references | Wan 3.0 reference-to-video | yes | yes | kept | says the line | $0.65, but her baseline's lingerie stayed on, a generic room, and no picture to age-check before paying for the video |
+| One portrait (the old way) | Wan 3.0 | one person, or a made-up partner after a mid-shot cut | no | drifts after the cut | | $0.65 |
+
+The keyframes come from Venice's multi-image edit. `qwen-edit-uncensored` kept both faces and the pose. FireRed got the
+act wrong and kept a baseline's bra. Given the night's drawn set as a third picture, the keyframe lands in the same
+room the theater shows. The keyframe passed Hive (child score 0.0000003, the age check "ADULTS").
+
+**What changed** (`lib/adult/reels.ts`):
+- **The director** (After Dark's text model) picks the lines and, for each, writes a still ("frame": where they are, who is where, how they're posed, what they're wearing by then, the framing, varied) and a "motion" (what each does next), from the line's action and the lines before it. It names them only by how they look ("the woman", "the man", or by their hair when both are women or both men). Names are scrubbed from anything it writes, and from place names ("Lexi's bedroom" is "her bedroom"). It's asked to give both of them lines.
+- **Each shot's keyframe** is the two baselines (plus the place's drawn set, when one is ready) made into one picture of that still, kept by the edit model to each one's face, hair, skin and body. It's dressed before undressing and explicit from it. It's checked by Hive (moderation and the age question) before anything is made from it, and kept out of the gallery as a `frame`; a video row's `source_image` points at it. A keyframe the check refuses is discarded and logged. One Hive couldn't check is asked again once, then dropped. A shot dropped either way gives back its share of the tokens.
+- **The shot's prompt** is the motion, "two people only", both restated, one continuous steady shot with no cuts and nobody else, and who says the line, in the same voice words each time. Wan 3.0 stays the default (David's pick for the voice).
+- **Faster:** the keyframes are drawn at once, so all six videos run side by side. Before, each character's shots waited for their previous one. The chaining and its ffmpeg last-frame step (`lib/adult/frames.ts`, `ffmpeg-static`, ~75 MB in two routes' bundles) are gone.
+- **The places:** where each line was said comes from the night's start and the lines that agreed to go (`moved_to`), so the reel now reads the night itself (`reelNight`), not the page's copy of its lines. A saved night is filmed only for its own pair.
+- **Cost:** $0.24 more a video (6 keyframes), and 6 more Hive moderation requests against the self-serve 100 a day.
+
+**The first live reel** (3 shots of Lexi and Dex, the night they ended in her bedroom; #688):
+- It started in 31 s, all three keyframes passed Hive, and the shots took about 4 minutes.
+- **Opening (Dex's line):** a medium two-shot by the bed, her hand on him.
+- **Peak (her line, "Harder, Dex…"):** the script's position, her reaching back for his arm.
+- **Afterglow (his line):** lying together.
+- Every shot had both of them, in the drawn bedroom, as one continuous take, and each line was said by the right person (checked by transcribing).
+
+It showed two weak spots, both fixed in the follow-up:
+- **Her portrait's lingerie stayed on through the sex.** The keyframe was told to keep each of them "exactly as in their own picture". Now it keeps their faces and bodies, not their clothes: dressed before undressing, half undressed at it, nude from sex on unless the moment says otherwise.
+- **The afterglow's wide shot from above came out tangled, his face hidden.** The director now shoots lying down as a medium shot from the side, with both faces toward the camera. Both fixes were retried as keyframes on the same moments, and both looked clearly better.
+
+**Terms (2026-10-22):** Venice's terms (last updated 2026-06-08) have users warrant, in §10.9(c), that no reasonable person could deem their content "pornographic". Outputs count as user content (§10.1). That reads against Venice selling uncensored models. Settle it with Venice in writing before any subscriber uses After Dark: this widens the question that was already open for pictures. MiniMax H3 (Venice's `minimax-h3-max-reference-to-video`) has a further problem: its open licence excludes the US, EU, UK and South Korea, outputs included.
+
+**Next, not built:**
+- **A menu of acts per shot**, as the leaders do: preset framings that make keyframes more reliable than free text.
+- **Act motion add-ons (LoRAs)** would need Wan run somewhere that takes them; Venice doesn't. Replicate's `wan-2.2-i2v-fast` takes LoRA URLs and a `disable_safety_checker` flag, and its terms ban only non-consensual or illegal pornography: about $0.05 at 480p, or $0.11 at 720p, a clip. RunPod, WaveSpeed, Novita, Segmind, Together and fal ban adult output.
+- **"Extend"** from a shot's last frame, for longer moments.
+- **Wan 3.0 reference-to-video** as a one-step option.
+- **Terms:** Venice's model list marks Wan 3.0 "anonymized", which means a third party runs it, while `qwen-edit-uncensored` and LongCat are Venice's own. Get Venice's word in writing on explicit output for both kinds, along with the pictures question already open.

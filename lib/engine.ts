@@ -230,6 +230,8 @@ export function seedFrom(...parts: (string | number)[]): number {
 /* ---------------------------------- the model (tunable constants) ---------------------------------- */
 
 const START: Record<DateVariable, number> = { chemistry: 50, attraction: 48, trust: 45, awkwardness: 40 };
+/** Where an ordinary first date's four numbers start (read-only): lib/heading.ts weighs a date's numbers against it. */
+export const NEUTRAL_START: Readonly<Record<DateVariable, number>> = START;
 const BUDGET_BUMP: Record<GameBudget, number> = { 0: -4, 25: 0, 50: 3, 100: 6 };
 /** How wide the seeded jitter is, by autonomy. Guided barely wobbles; unpredictable can swing a date. */
 const JITTER: Record<Autonomy, number> = { guided: 3, balanced: 7, unpredictable: 16 };

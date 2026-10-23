@@ -137,6 +137,8 @@ describe("agent activity (#178)", () => {
     );
     expect((await call("my_characters", {}, ctx)).structuredContent.waiting_for_you).toMatchObject({ own_date_ready: 1 });
     await t.db.query(`update episodes set revealed_at = now() where id = $1`, [ep.id]);
+    // 2.11.0 (#619): the count this agent was shown says 0 once, then leaves.
+    expect((await call("my_characters", {}, ctx)).structuredContent.waiting_for_you).toMatchObject({ own_date_ready: 0 });
     expect((await call("my_characters", {}, ctx)).structuredContent.waiting_for_you).toBeUndefined();
   });
 

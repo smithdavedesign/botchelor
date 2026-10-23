@@ -1,12 +1,11 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
-import { advanceReel, listReels, makeReel, stopReel } from "@/lib/adult/reels";
-import { openScene, type SceneLine } from "@/lib/adult/scenes";
+import { advanceReel, listReels, makeReel, reelNight, stopReel } from "@/lib/adult/reels";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
 
-// Voicing and queueing six shots takes a little while.
+// Drawing, checking and queueing six shots' keyframes takes a minute or so.
 export const maxDuration = 300;
 
 const id = z.string().min(1).max(64);
@@ -21,14 +20,9 @@ export const POST = handle(async (req: Request) => {
   const viewer = await adultViewer(db, req);
   if (!viewer) return hidden();
   const input = parseBody(Input, await readJson(req), "invalid_request");
-  let lines: SceneLine[] | null = null;
-  if (input.night_id) {
-    lines = (await db.query<{ lines: SceneLine[] }>(`select lines from adult_nights where id = $1 and owner_id = $2`, [input.night_id, viewer])).rows[0]?.lines ?? null;
-  } else {
-    lines = (await openScene(db, viewer, input.a, input.b))?.lines ?? null;
-  }
-  if (!lines) return hidden();
-  const r = await makeReel(db, viewer, input.a, input.b, lines, requestBase(req));
+  const night = await reelNight(db, viewer, input.a, input.b, input.night_id);
+  if (!night) return hidden();
+  const r = await makeReel(db, viewer, input.a, input.b, night.lines, requestBase(req), { where: night.where });
   if (!r.ok) return json({ error: r.error, message: r.message, ...(r.busy ? { busy: r.busy } : {}) }, r.status);
   return json({ reel: r.reel });
 });
@@ -41,7 +35,7 @@ export const GET = handle(async (req: Request) => {
   const q = new URL(req.url).searchParams;
   const reelId = q.get("id");
   if (reelId) {
-    const reel = await advanceReel(db, viewer, reelId, requestBase(req));
+    const reel = await advanceReel(db, viewer, reelId);
     return reel ? json({ reel }) : hidden();
   }
   return json({ reels: await listReels(db, viewer, q.get("a") ?? "", q.get("b") ?? "") });

@@ -80,7 +80,8 @@ describe("1. the see_again lever, where it matters", () => {
     const ctx = await connect();
     const endings = (ctx.init.instructions as string).split("\n").find((l) => l.startsWith("Endings: "));
     expect(endings).toBe(`Endings: ${ENDING_RULE}.`);
-    expect(ENDING_RULE).toMatch(/^set when a date is booked .*never by what the lines say; on a date you write, your one lever is see_again: true or false \(private\) with your character's last line: both yes makes a better ending likelier, both no a parting, and the engine decides$/);
+    // 2.11.0 (#656): and a date you write shows where it's heading from its first step.
+    expect(ENDING_RULE).toMatch(/^set when a date is booked .*never by what the lines say; a date you write shows where it's heading from its first step \(heading\); your one lever is see_again: true or false \(private\) with your character's last line: both yes makes a better ending likelier, both no a parting, and the engine decides$/);
     // The 2.9.0 wording that hid the lever is gone everywhere an agent reads it first.
     expect(ctx.init.instructions).not.toMatch(/shape how it plays, not how it ends|your lines don't \(only/);
     const own = await ownPair();
@@ -371,8 +372,9 @@ describe("3. #662: argument names", () => {
     const ctx = await connect();
     await call("create_character", validCharacter({ name: "Ada Lumen", keep_name: true }), ctx);
     await call("create_character", validCharacter({ name: "Bo Quill", keep_name: true }), ctx);
-    const dry = await call("swipe", { preview: true }, ctx);
-    expect(dry.content[0].text).toMatch(/^Error: Not valid — preview: swipe has no preview or dry run, so nothing was done or spent\. Call it without preview to go ahead\. "character_id" is required: which of your characters\? .* "target_id" is required.* "like" is required/);
+    // 2.11.0 (#622): swipe takes preview now; leave_nudge is a write with no dry run.
+    const dry = await call("leave_nudge", { preview: true }, ctx);
+    expect(dry.content[0].text).toMatch(/^Error: Not valid — preview: leave_nudge has no preview or dry run, so nothing was done or spent\. Call it without preview to go ahead\. "character_id" is required: which of your characters\? .* "with" is required.* "note" is required/);
     expect(dry.structuredContent).toMatchObject({ code: "invalid_argument", field: "preview" });
     const short = await call("predict", { episode_id: "8c71e989" }, ctx);
     expect(short.content[0].text).toMatch(/^Error: episode_id is a date's full 36-character id \(got 8 characters, and no date starts with that\)\. my_dates and browse_episodes list full ids\. "pick" is required: one of second_date, friends, disaster/);
@@ -403,7 +405,8 @@ describe("3. #662: argument names", () => {
       for (const k of required) expect({ tool: tool.name, has: k in example, k }).toEqual({ tool: tool.name, has: true, k });
       for (const k of Object.keys(example)) expect({ tool: tool.name, known: props.includes(k), k }).toEqual({ tool: tool.name, known: true, k });
     }
-    expect(lines.find((l) => l.startsWith("swipe: "))).toBe('swipe: required character_id, target_id, like (true|false); optional none. e.g. swipe {"character_id":"<yours>","target_id":"<from swipe_deck>","like":true}');
+    // 2.11.0 (#622): swipe takes preview and undo.
+    expect(lines.find((l) => l.startsWith("swipe: "))).toBe('swipe: required character_id, target_id, like (true|false); optional preview (true|false), undo (true|false). e.g. swipe {"character_id":"<yours>","target_id":"<from swipe_deck>","like":true}');
     expect(lines.find((l) => l.startsWith("answer_match: "))).toMatch(/^answer_match: required character_id, with, yes \(true\|false\); optional preview \(true\|false\)\./);
     expect(lines.find((l) => l.startsWith("predict: "))).toMatch(/^predict: required episode_id, pick \(second_date\|friends\|disaster\); optional drama_pick \(a\|b\|neither\)\./);
     // The quickstart's last line points to it, and the quickstart stays as short as it was.

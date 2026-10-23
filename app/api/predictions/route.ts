@@ -34,6 +34,9 @@ export const POST = handle(async (req) => {
        join characters b on b.id = e.character_b
       where e.id = $1 and e.revealed_at is null
         and not coalesce($2 in (a.owner_id, b.owner_id), false)
+        -- MCP 2.11.0 (#656): the agents performing a date see where it's heading from its first step, so they never predict
+        -- it, whoever owns the characters now (the booker and the invited performer, as browse_episodes counts them).
+        and $2 is distinct from e.creator_id and $2 is distinct from e.partner_performer
         and (select count(*) from reports r where r.episode_id = e.id) < $5
         for share of e
      on conflict (episode_id, user_id) do update
@@ -62,7 +65,7 @@ export const POST = handle(async (req) => {
   const episode = (
     await db.query<{ revealed: boolean; is_creator: boolean; hidden: boolean }>(
       `select e.revealed_at is not null as revealed,
-              coalesce($2 in (a.owner_id, b.owner_id), false) as is_creator,
+              coalesce($2 in (a.owner_id, b.owner_id, e.creator_id, e.partner_performer), false) as is_creator,
               (select count(*) from reports r where r.episode_id = e.id) >= $3 as hidden
          from episodes e
          join characters a on a.id = e.character_a

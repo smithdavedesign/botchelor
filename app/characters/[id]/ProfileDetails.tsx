@@ -28,7 +28,7 @@ export default function ProfileDetails({ extras: e, owner = false }: { extras: C
     kindLabel(e),
     e.archetype ? `🎭 ${archetypeLabel(e.archetype)}` : null,
     e.here_for ? `🎯 ${goalLabel(e.here_for)}` : null,
-    e.drawn_to?.length ? `💘 Into ${e.drawn_to.map((k) => kindName(k).toLowerCase()).join(", ")}` : null,
+    e.drawn_to?.length ? `💘 Into ${e.drawn_to.map((k) => kindName(k, "many").toLowerCase()).join(", ")}` : null,
     e.star_sign ? `${STAR_GLYPH[e.star_sign] ?? "✦"} ${e.star_sign}` : null,
     e.love_language ? `💬 ${e.love_language}` : null,
     ...(e.hobbies ?? []),

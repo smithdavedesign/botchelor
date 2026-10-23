@@ -1242,8 +1242,9 @@ create table if not exists adult_steps (
 );
 create index if not exists adult_steps_pair on adult_steps (owner_id, character_a, character_b, created_at);
 alter table look_tiles add column if not exists object_key text;
--- A reel shot's last frame ('frame', lib/adult/frames.ts), for the same character's next shot to start from: widen the
--- CHECK on an existing database (the inline one above only applies to a fresh table), once.
+-- A reel shot's keyframe ('frame', lib/adult/reels.ts: the two of them, the picture its video starts from; before
+-- 2026-10-22, a shot's last frame): widen the CHECK on an existing database (the inline one above only applies to a
+-- fresh table), once.
 do $$ begin
   if exists (
     select 1 from pg_constraint where conname = 'adult_images_kind_check'

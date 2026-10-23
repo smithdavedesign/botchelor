@@ -8066,13 +8066,17 @@ details.episode-safety .safety > h2 {
 }
 
 /* ------------------------------- The Constellation (/graph): the social graph ------------------------------- */
-/* The stage breaks out of main's 46rem cap to full viewport width; the site chrome stays. */
+/* The stage breaks out of main's 46rem cap to full viewport width; the site chrome stays. A toolbar sits on top and the
+   sky under it, so the controls never cover a star (they used to float over the sky and wrap into two rows on it). */
 .constellation-page .constellation-stage {
   position: relative;
   width: 100vw;
   margin-left: calc(50% - 50vw);
-  height: clamp(420px, 72vh, 820px);
   background: var(--constellation-bg);
+}
+.constellation-sky {
+  position: relative;
+  height: clamp(420px, 72vh, 820px);
   overflow: hidden;
   touch-action: none;
 }
@@ -8107,28 +8111,33 @@ details.episode-safety .safety > h2 {
 .constellation-stats strong {
   color: var(--ink);
 }
-/* The HUD floats over the sky; its own colors are fixed to the sky, not the page theme. */
+/* The toolbar above the sky: one row on a desktop, wrapping on a phone (above the sky either way, never over it). */
 .constellation-hud {
-  position: absolute;
-  top: var(--space-3);
-  left: var(--space-3);
-  right: var(--space-3);
+  position: relative;
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: flex-start;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
   justify-content: space-between;
-  pointer-events: none;
-}
-.constellation-hud > * {
-  pointer-events: auto;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--constellation-line);
 }
 .constellation-search {
   position: relative;
-  min-width: 14rem;
+  flex: 1 1 11rem;
+  min-width: 11rem;
+  max-width: 17rem;
 }
 .constellation-search input {
   width: 100%;
+  min-height: 40px;
+}
+/* The site's form spacing (a label's top margin, an input's) would stagger the toolbar's one row. */
+.constellation-hud label,
+.constellation-hud input,
+.constellation-hud select {
+  margin: 0;
 }
 .constellation-search-results {
   position: absolute;
@@ -8151,6 +8160,9 @@ details.episode-safety .safety > h2 {
 }
 .constellation-segmented {
   margin: 0;
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 3px;
 }
 /* The origin filter reuses the segmented-tab look on buttons (the tabs elsewhere are links). */
 .constellation-segmented .segmented-tab {
@@ -8158,6 +8170,25 @@ details.episode-safety .safety > h2 {
   background: none;
   cursor: pointer;
   min-height: 32px;
+  white-space: nowrap;
+}
+.constellation-segmented button.segmented-tab {
+  padding: 0 0.7rem;
+}
+.constellation-colour {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.constellation-colour-label {
+  color: var(--constellation-label);
+  font-size: var(--text-sm);
+}
+/* The widest option ("🦊 Talking animal") would set the select's width; a fixed one keeps the phone's last row to one. */
+.constellation-kind select {
+  width: 9rem;
+  min-height: 36px;
+  padding-block: 0;
 }
 .constellation-segmented .segmented-tab[aria-current="page"],
 .constellation-segmented .segmented-tab[aria-pressed="true"] {
@@ -8165,21 +8196,22 @@ details.episode-safety .safety > h2 {
   color: var(--accent-ink);
 }
 .constellation-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--constellation-label);
   font-size: var(--text-sm);
-  background: color-mix(in srgb, var(--constellation-bg) 72%, transparent);
   border-radius: 999px;
-  padding: 2px 10px;
+  padding: 2px 4px;
+  white-space: nowrap;
 }
+/* Under the sky, not on it: on a phone it wraps to three lines, which used to sit on the colour key and the stars. */
 .constellation-legend {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: var(--space-2);
+  margin: 0;
   text-align: center;
   color: var(--constellation-label);
-  pointer-events: none;
-  padding: 0 var(--gutter);
+  padding: var(--space-2) var(--gutter);
+  border-top: 1px solid var(--constellation-line);
 }
 .constellation-panel {
   position: absolute;
@@ -8209,6 +8241,7 @@ details.episode-safety .safety > h2 {
 }
 .constellation-panel-head h2 {
   margin: 0;
+  padding-right: 1.75rem; /* clear of the close button */
   font-size: var(--text-lg);
 }
 .constellation-tile {
@@ -8264,7 +8297,7 @@ details.episode-safety .safety > h2 {
 .constellation-key {
   position: absolute;
   left: var(--space-3);
-  bottom: calc(var(--space-2) + 1.8rem);
+  bottom: var(--space-2);
   display: flex;
   flex-wrap: wrap;
   gap: 4px 12px;
@@ -8289,11 +8322,50 @@ details.episode-safety .safety > h2 {
 .constellation-aired {
   margin: 0 0 var(--space-2);
 }
+/* "Show what happened": the same fold as the episode page's recap toggle (details.recap-toggle), on a button because it
+   also turns the sky's chevrons on. */
+.constellation-outcomes {
+  margin: 0 0 var(--space-2);
+}
+.constellation-reveal {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 0;
+  box-shadow: none;
+}
+.constellation-reveal::before {
+  content: "▸ ";
+}
+.constellation-reveal[aria-expanded="true"]::before {
+  content: "▾ ";
+}
+.constellation-reveal:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+.constellation-outcomes-body {
+  margin-top: var(--space-2);
+}
+.constellation-timeline-note {
+  margin: 0 0 4px;
+}
 .constellation-timeline {
   max-height: 9rem;
   overflow-y: auto;
   margin: 0 0 var(--space-2);
-  padding-left: 1.2rem;
+  padding-left: 1.6rem;
+}
+.constellation-cluster-name {
+  margin: 2px 0 0;
 }
 .constellation-kind-table {
   width: 100%;
@@ -8321,8 +8393,23 @@ details.episode-safety .safety > h2 {
   line-height: 1.9;
 }
 @media (max-width: 640px) {
-  .constellation-page .constellation-stage {
+  .constellation-sky {
     height: clamp(380px, 62vh, 560px);
+  }
+  .constellation-hud {
+    padding: var(--space-2) var(--gutter);
+  }
+  .constellation-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .constellation-key {
+    font-size: var(--text-xs);
+    gap: 2px 8px;
+    padding: 4px 8px;
+  }
+  .constellation-key .muted {
+    display: none; /* the clusters' one-line explanation: the panel names a star's cluster on a phone */
   }
   .constellation-filters {
     justify-content: flex-start;
@@ -8435,4 +8522,25 @@ section:has(> .ad-pairs) {
 }
 .ad-teaser-soon {
   font-weight: 700;
+}
+
+/* Room rows on desktop: a grid of three a page, no sideways scroll (app/watch/StripPager.tsx; phones keep the strip). */
+.strip-item > * {
+  height: 100%;
+}
+.strip-pager {
+  display: none;
+}
+@media (min-width: 721px) {
+  .watch-strip.strip-paged {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+  .watch-strip.strip-paged > .off-page {
+    display: none;
+  }
+  .strip-pager {
+    display: flex;
+  }
 }

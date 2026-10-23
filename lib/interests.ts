@@ -40,3 +40,19 @@ export function canonInterest(raw: string): string {
     .trim();
   return SYNONYMS[s] ?? SYNONYMS[s.replace(/ /g, "")] ?? s;
 }
+
+/**
+ * The pastimes two characters share, once each: `theirs` that `mine` also has in any spelling, deduped by canonical
+ * form and kept in their first spelling. "Bouldering" and "Rock climbing" on one side and "climbing" on the other are
+ * one shared hobby, not two (lib/dating.ts rankFor scores and words each one once).
+ */
+export function sharedInterests(mine: readonly string[], theirs: readonly string[]): string[] {
+  const have = new Set(mine.map(canonInterest));
+  const seen = new Set<string>();
+  return theirs.filter((h) => {
+    const c = canonInterest(h);
+    if (!have.has(c) || seen.has(c)) return false;
+    seen.add(c);
+    return true;
+  });
+}

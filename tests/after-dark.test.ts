@@ -735,37 +735,55 @@ describe("set the scene (1 token)", () => {
 });
 
 import { DELETE as reelDelete, GET as reelGet, POST as reelPost } from "@/app/api/admin/after-dark/reel/route";
-import { busyMessage, frameFor, pickLines, setReelFetchForTests, spoken, startFrames, voiceFor, type Reel } from "@/lib/adult/reels";
-import { setFrameExtractorForTests } from "@/lib/adult/frames";
+import {
+  busyMessage,
+  feature,
+  keyframePrompt,
+  pickShots,
+  placesOf,
+  placeWords,
+  reelCast,
+  setReelFetchForTests,
+  setReelPausesForTests,
+  shotPrompt,
+  spoken,
+  voiceFor,
+  withoutNames,
+  type Reel,
+} from "@/lib/adult/reels";
+import { reelFailureNote } from "@/lib/adult/reel-failure";
 import { mediaLinkValid, signedMediaUrl } from "@/lib/adult/media";
 import { loadCharacter } from "@/lib/character";
+import { normalizeScene } from "@/lib/venues";
 
 describe("the video of the night", () => {
+  beforeEach(() => setReelPausesForTests(false));
   afterEach(() => {
     setReelFetchForTests(null);
+    setReelPausesForTests(true);
     setCheckFetchForTests(null);
   });
 
   const night = Array.from({ length: 12 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `*leans closer* Line number ${i} says something rather vivid here.` }));
-  async function ready(cookie: string, ownerId: string) {
+  async function ready(cookie: string, ownerId: string, lines: unknown[] = night) {
     await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", reel_shots: 3 }, cookie);
-    // A Hive-passed picture of the pair to start shots from, and the night itself.
-    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data) values ('pic-1', $1, $2, $3, 'scene', 'p', 'image/png', $4)`, [ownerId, CAST_A, CAST_B, Buffer.from(PNG)]);
-    // Each one's own baseline (a reel makes one first for a character with none).
+    // Each one's own baseline (a reel makes one first for a character with none): the faces every keyframe keeps.
     for (const [pid, c] of [["base-a", CAST_A], ["base-b", CAST_B]]) {
       await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ($1, $2, $3, 'baseline', 'p', 'image/png', $4)`, [pid, ownerId, c, Buffer.from(PNG)]);
     }
     const scene = (await (await get(CAST_A, CAST_B, cookie)).json()).scene;
-    await t.db.query(`update adult_scenes set lines = $2::jsonb where id = $1`, [scene.id, JSON.stringify(night)]);
+    await t.db.query(`update adult_scenes set lines = $2::jsonb where id = $1`, [scene.id, JSON.stringify(lines)]);
+    return scene as { id: string; a: { id: string }; b: { id: string } };
   }
-  /** Venice: voices, queues, and a shot that's done on the first retrieve. Records what was asked. */
-  function fakeVenice() {
+  /** Venice: keyframes, voices, queues, and a shot that's done on the first retrieve. Records what was asked. */
+  function fakeVenice(opts: { keyframe?: () => Response } = {}) {
     const seen: { path: string; body: Record<string, unknown> }[] = [];
     let q = 0;
     setReelFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input).replace("https://api.venice.ai/api/v1", "");
       const body = JSON.parse(String(init?.body ?? "{}"));
       seen.push({ path, body });
+      if (path === "/image/multi-edit") return opts.keyframe?.() ?? new Response(new Uint8Array(PNG), { headers: { "content-type": "image/png" } });
       if (path === "/audio/speech") return new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "audio/mpeg" } });
       if (path === "/video/queue") return Response.json({ model: body.model, queue_id: `q${++q}` });
       if (path === "/video/retrieve") return new Response(new Uint8Array([0, 0, 0, 24]), { headers: { "content-type": "video/mp4" } });
@@ -775,119 +793,177 @@ describe("the video of the night", () => {
   }
   const make = (cookie: string, body: Record<string, unknown> = {}) => call(reelPost, "/api/admin/after-dark/reel", { a: CAST_A, b: CAST_B, ...body }, cookie);
   const advance = async (id: string, cookie: string) => (await (await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?id=${id}`, { headers: { cookie } }))).json()).reel as Reel;
+  const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+)/)?.[1];
+  const threeShots = (shots = [{ line: 2 }, { line: 5 }, { line: 9 }]) => scripted(JSON.stringify({ shots: shots.map((s) => ({ frame: "", motion: "", ...s })) }));
 
-  it("starts each shot from the speaker's own baseline, never a picture of two people or anyone else's", async () => {
+  it("films the two of them together: every shot starts from a keyframe of both, made from their own two baselines (David, 2026-10-22)", async () => {
     const { id, cookie } = await admin();
-    await ready(cookie, id);
+    const scene = await ready(cookie, id);
     const other = HOUSE_CHARACTERS[2].id;
-    // B's night with someone else: a picture of the two of them, and one of that other partner alone; and a scene
-    // picture "of" A alone, which can still show someone else.
-    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data) values ('other-pair', $1, $2, $3, 'scene', 'p', 'image/png', $4), ('other-solo', $1, $2, null, 'baseline', 'p', 'image/png', $4), ('a-scene', $1, $5, null, 'scene', 'p', 'image/png', $4)`, [id, other, CAST_B, Buffer.from(PNG), CAST_A]);
-    const frames = await startFrames(t.db, CAST_A, CAST_B);
-    expect(frames.map((f) => f.id).sort()).toEqual(["base-a", "base-b"]);
-    expect(frameFor(frames, CAST_A, 0)).toBe("base-a");
-    expect(frameFor(frames, CAST_B, 3)).toBe("base-b");
-    // No baseline of their own: no shot of them, never the pair picture (a reel makes a baseline first).
-    expect(frameFor(frames.filter((f) => f.id !== "base-a"), CAST_A, 0)).toBeNull();
-    // The pair's page shows only theirs.
-    const gallery = (await (await get(CAST_A, CAST_B, cookie)).json()).gallery as { id: string }[];
-    expect(gallery.map((g) => g.id).sort()).toEqual(["a-scene", "base-a", "base-b", "pic-1"]);
-  });
-
-  it("voices each picked line in the speaker's own voice, lip-syncs a shot to it, checks every shot, and plays them in order", async () => {
-    const { id, cookie } = await admin();
-    await ready(cookie, id);
-    // Test B's route: our own stock voice, lip-synced by a model that takes audio in.
-    await call(settingsPost, "/api/admin/after-dark/settings", { reel_model: "wan-2.6-image-to-video" }, cookie);
+    // Pictures with someone else in them, and another partner's baseline: never part of this pair's video.
+    await t.db.query(
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data) values ('other-pair', $1, $2, $3, 'scene', 'p', 'image/png', $4), ('other-solo', $1, $2, null, 'baseline', 'p', 'image/png', $4), ('a-scene', $1, $5, null, 'scene', 'p', 'image/png', $4)`,
+      [id, other, CAST_B, Buffer.from(PNG), CAST_A],
+    );
     const seen = fakeVenice();
-    setCheckFetchForTests(async () => Response.json(CLEAN_MOD));
-    scripted(JSON.stringify({ shots: [{ line: 9, motion: "she pulls him down" }, { line: 2, motion: "they kiss" }, { line: 5, motion: "slow" }] }));
-    const started = await (await make(cookie)).json();
-    expect(started.reel).toMatchObject({ status: "making", tokens: 0 });
-    expect(started.reel.shots.map((s: { line: number }) => s.line)).toEqual([2, 5, 9]);
-    // Chained: each character's first shot goes now; line 9 waits for line 5 (the same speaker's), to start where it ends.
-    const queued = seen.filter((s) => s.path === "/video/queue");
-    expect(queued).toHaveLength(2);
-    expect(started.reel.shots.map((s: { after?: number }) => s.after)).toEqual([undefined, undefined, 1]);
-    expect(queued[0].body).toMatchObject({ model: "wan-2.6-image-to-video", audio_url: expect.stringMatching(/^data:audio\/mpeg;base64,/), image_url: expect.stringMatching(/\/api\/admin\/after-dark\/media\/base-[ab]\?until=/) });
-    // Line 2 is the first speaker's, line 9 the second's: each shot starts from its speaker's own baseline.
-    expect(new Set(queued.map((q) => String(q.body.image_url).match(/media\/(base-[ab])/)?.[1])).size).toBe(2);
-    // One person a shot (David, 2026-10-21: strangers, and Star with herself): the speaker alone, the other off camera.
-    for (const q of queued) {
-      expect(q.body.prompt).toMatch(/^One consenting adult (woman|man|person), the person in this picture, alone in the frame\./);
-      expect(q.body.prompt).toContain("speaking to someone just off camera");
-      expect(q.body.prompt).not.toMatch(/two consenting adults|alone together/i);
-      expect(q.body.negative_prompt).toMatch(/second person.*duplicate person.*clone/);
-    }
-    const voices = seen.filter((s) => s.path === "/audio/speech").map((s) => s.body.voice);
-    const sceneA = (await (await get(CAST_A, CAST_B, cookie)).json()).scene.a.id as string;
-    const chA = await loadCharacter(t.db, sceneA);
-    expect(voices[0]).toBe(voiceFor(chA!));
-    expect(voices[0]).toBe(voiceFor(chA!)); // the same voice every time
-    expect(seen.find((s) => s.path === "/audio/speech")!.body.input).toBe("Line number 2 says something rather vivid here.");
-    // Two shots per poll (Hive rate-limits a burst), then the last one.
-    expect((await advance(started.reel.id, cookie)).shots.filter((s) => s.status === "ready")).toHaveLength(2);
-    const done = await advance(started.reel.id, cookie);
-    expect(done.status).toBe("ready");
-    expect(done.shots.every((s) => s.status === "ready" && s.media_id)).toBe(true);
-  });
-
-  it("chains each character's shots: the next starts from the last frame of their previous one (David, 2026-10-21)", async () => {
-    const { id, cookie } = await admin();
-    await ready(cookie, id);
-    const seen = fakeVenice();
-    setCheckFetchForTests(async () => Response.json(CLEAN_MOD));
-    setFrameExtractorForTests(async () => Buffer.from(PNG));
-    // Lines 2 (a), 5 (b), 9 (b), 10 (a): each character's second shot waits for their first.
-    scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }, { line: 10, motion: "d" }] }));
-    await call(settingsPost, "/api/admin/after-dark/settings", { reel_shots: 4 }, cookie);
+    fakeHive();
+    scripted(
+      JSON.stringify({
+        shots: [
+          { line: 9, frame: "On the bed, Juniper on top of Rafe, both nude. Close shot.", motion: "She rolls her hips; Rafe grips her waist." },
+          { line: 2, frame: "By the door, kissing, both dressed. Wide shot.", motion: "He pulls her closer." },
+          { line: 5, frame: "", motion: "" },
+        ],
+      }),
+    );
     const started = (await (await make(cookie)).json()).reel as Reel;
-    expect(started.shots.map((s) => s.after)).toEqual([undefined, undefined, 1, 0]);
-    const queuedImages = () => seen.filter((s) => s.path === "/video/queue").map((q) => String(q.body.image_url).match(/media\/([^?]+)/)?.[1]);
-    // Each character's first shot starts from their baseline.
-    expect([...queuedImages()].sort()).toEqual(["base-a", "base-b"]);
-    // Both first shots come back: each one's last frame is kept (never in the gallery), and their next shots start from it.
-    const after1 = await advance(started.id, cookie);
-    const frames = (await t.db.query<{ id: string; source_image: string; character_id: string }>(`select id, source_image, character_id from adult_images where kind = 'frame'`)).rows;
-    expect(frames).toHaveLength(2);
-    expect(after1.shots.slice(0, 2).map((s) => s.last_frame).sort()).toEqual(frames.map((f) => f.id).sort());
-    expect(queuedImages().slice(2).sort()).toEqual(frames.map((f) => f.id).sort());
-    expect(after1.shots[2].media_id).toBe(after1.shots[1].last_frame);
-    const gallery = (await (await get(CAST_A, CAST_B, cookie)).json()).gallery as { id: string; kind: string }[];
-    expect(gallery.some((g) => g.kind === "frame")).toBe(false);
-    expect((await startFrames(t.db, CAST_A, CAST_B)).some((f) => f.kind === "frame")).toBe(false);
+    expect(started).toMatchObject({ status: "making", tokens: 0 });
+    expect(started.shots.map((s) => s.line)).toEqual([2, 5, 9]);
+    // One keyframe a shot, from the two of them only: the first picture is the scene's first character's baseline.
+    const edits = seen.filter((s) => s.path === "/image/multi-edit");
+    expect(edits).toHaveLength(3);
+    const firstBase = scene.a.id === CAST_A ? "base-a" : "base-b";
+    const secondBase = firstBase === "base-a" ? "base-b" : "base-a";
+    for (const e of edits) {
+      expect(e.body).toMatchObject({ modelId: "qwen-edit-uncensored", safe_mode: false });
+      expect((e.body.images as string[]).map(mediaOf)).toEqual([firstBase, secondBase]);
+      expect(e.body.prompt).toMatch(/^Make one photograph of the (man|woman) from Picture 1 and the (man|woman) from Picture 2 together\./);
+      // Their faces and bodies from their portraits, never their portraits' clothes (Lexi's lingerie stayed on, 2026-10-22).
+      expect(e.body.prompt).toContain("Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes:");
+      // A name never reaches a picture model (it can pull a real person's face).
+      expect(e.body.prompt).not.toMatch(/Rafe|Juniper|Calloway|Vale/);
+      expect(String(e.body.prompt).length).toBeLessThanOrEqual(1500);
+    }
+    expect(edits.map((e) => String(e.body.prompt)).find((p) => p.includes("On the bed"))).toContain("the woman on top of the man");
+    // A shot the director left blank gets a still from how far the night had gone, dressed before undressing.
+    expect(edits.some((e) => /standing close together, facing each other, both dressed/.test(String(e.body.prompt)) && /not nude/.test(String(e.body.prompt)))).toBe(true);
+    // Each keyframe passed the check and is kept, out of the gallery, as its video's start.
+    const frames = (await t.db.query<{ id: string; character_id: string; character_b: string }>(`select id, character_id, character_b from adult_images where kind = 'frame'`)).rows;
+    expect(frames).toHaveLength(3);
+    expect(frames.every((f) => [f.character_id, f.character_b].sort().join() === [CAST_A, CAST_B].sort().join())).toBe(true);
+    const queued = seen.filter((s) => s.path === "/video/queue");
+    expect(queued.map((q) => mediaOf(q.body.image_url)).sort()).toEqual(frames.map((f) => f.id).sort());
+    for (const q of queued) {
+      // By default Wan 3.0 says the line itself (David's pick), with both of them kept in one continuous shot.
+      expect(q.body).toMatchObject({ model: "wan-3-0-image-to-video", audio: true, aspect_ratio: "adaptive" });
+      expect(q.body.audio_url).toBeUndefined();
+      expect(q.body.prompt).toMatch(/Two people only: the (man|woman) and the (man|woman), exactly as in the picture/);
+      expect(q.body.prompt).toContain("One continuous shot, the camera steady: no cuts, nobody else comes in.");
+      expect(q.body.negative_prompt).toMatch(/a third person.*scene cut/);
+      expect(q.body.prompt).not.toMatch(/Rafe|Juniper/);
+    }
+    expect(String(queued.find((q) => String(q.body.prompt).includes("rolls her hips"))!.body.prompt)).toContain("She rolls her hips; the man grips her waist.");
+    expect(String(queued.find((q) => String(q.body.prompt).includes("Line number 2"))!.body.prompt)).toMatch(/says: "Line number 2 says something rather vivid here\."$/);
+    expect(seen.some((s) => s.path === "/audio/speech")).toBe(false);
+    // Two shots per poll (Hive rate-limits a burst), then the last one; each video row names its keyframe.
+    expect((await advance(started.id, cookie)).shots.filter((s) => s.status === "ready")).toHaveLength(2);
     const done = await advance(started.id, cookie);
     expect(done.status).toBe("ready");
-    expect(done.shots.every((s) => s.status === "ready")).toBe(true);
-    setFrameExtractorForTests(null);
+    expect(done.shots.every((s) => s.status === "ready" && s.media_id)).toBe(true);
+    const videos = (await t.db.query<{ source_image: string }>(`select source_image from adult_images where kind = 'video'`)).rows;
+    expect(videos.map((v) => v.source_image).sort()).toEqual(frames.map((f) => f.id).sort());
+    const gallery = (await (await get(CAST_A, CAST_B, cookie)).json()).gallery as { id: string; kind: string }[];
+    expect(gallery.some((g) => g.kind === "frame")).toBe(false);
   });
 
-  it("starts a chained shot from its own picture when the previous one fails or has no frame", async () => {
+  it("sets each shot where its line was said: the night's drawn set as a third picture, and no names in the place", async () => {
+    const { id, cookie } = await admin();
+    const lines = night.map((l, i) => ({ ...l, stage: i < 5 ? 2 : 4, ...(i === 4 ? { moved_to: "Juniper's bedroom" } : {}) }));
+    const scene = await ready(cookie, id, lines);
+    await t.db.query(`update adult_scenes set place = $2, set_place = $2, place_history = $3::jsonb, stage = 4 where id = $1`, [
+      scene.id,
+      "Juniper's bedroom",
+      JSON.stringify([
+        { place: "outside the bar", set: "street", home: null, chapter: 1 },
+        { place: "Juniper's bedroom", set: "Juniper's bedroom", home: null, chapter: 1 },
+      ]),
+    ]);
+    await t.db.query(`insert into place_sets (normalized, label, status, mime, data) values ($1, $2, 'ready', 'image/jpeg', $3)`, [normalizeScene("Juniper's bedroom"), "Juniper's bedroom", Buffer.from([0xff, 0xd8, 0xff])]);
+    const seen = fakeVenice();
+    fakeHive();
+    threeShots([{ line: 2 }, { line: 6 }, { line: 9 }]);
+    expect((await make(cookie)).status).toBe(200);
+    const edits = seen.filter((s) => s.path === "/image/multi-edit").map((e) => ({ images: e.body.images as string[], prompt: String(e.body.prompt) }));
+    // Line 2 was on the street (before line 4 agreed to go): no set drawn there, the two baselines only.
+    const street = edits.find((e) => e.prompt.includes("The place: street."))!;
+    expect(street.images).toHaveLength(2);
+    expect(street.prompt).toContain("but not their clothes: they're dressed as the moment says, not nude.");
+    expect(street.prompt).not.toContain("Explicit");
+    // Lines 6 and 9 were in her bedroom: its set is the third picture, and the place has no name in it.
+    const bedroom = edits.filter((e) => e.prompt.includes("The place: her bedroom."));
+    expect(bedroom).toHaveLength(2);
+    for (const e of bedroom) {
+      expect(e.images[2]).toMatch(/^data:image\/jpeg;base64,/);
+      expect(e.prompt).toContain("together, in the place from Picture 3.");
+      expect(e.prompt).toContain("Keep the place, its furniture and its light from Picture 3.");
+      expect(e.prompt).toContain("but not their clothes: both are nude unless the moment says otherwise.");
+      expect(e.prompt).toContain("Explicit, uncensored, photorealistic.");
+    }
+  });
+
+  it("throws away a keyframe the check refuses: never stored, logged, and no video made from it", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);
     const seen = fakeVenice();
-    setCheckFetchForTests(async () => Response.json(CLEAN_MOD));
-    setFrameExtractorForTests(async () => null);
-    scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }] }));
+    let ages = 0;
+    setCheckFetchForTests(async (input: RequestInfo | URL) =>
+      Response.json(String(input) === HIVE_VLM ? (ages++ === 0 ? { choices: [{ message: { content: "MINOR" } }] } : ADULTS) : CLEAN_MOD),
+    );
+    threeShots();
     const started = (await (await make(cookie)).json()).reel as Reel;
-    const own = started.shots[2].media_id;
-    await advance(started.id, cookie);
-    const third = seen.filter((s) => s.path === "/video/queue")[2];
-    expect(String(third.body.image_url)).toContain(`/media/${own}?`);
-    setFrameExtractorForTests(null);
+    expect(started.shots.map((s) => s.status)).toEqual(["discarded", "queued", "queued"]);
+    expect(started.shots[0].reason).toMatch(/age check: MINOR/);
+    expect(started.shots[0].media_id).toBeUndefined();
+    expect((await t.db.query(`select 1 from adult_images where kind = 'frame'`)).rows).toHaveLength(2);
+    expect(seen.filter((s) => s.path === "/video/queue")).toHaveLength(2);
+    const logged = (await t.db.query<{ reason: string }>(`select reason from adult_rejections where kind = 'reel'`)).rows;
+    expect(logged.map((r) => r.reason)).toEqual([expect.stringMatching(/^keyframe: age check: MINOR/)]);
   });
 
-  it("by default has Wan 3.0 speak each line itself, quoted in its prompt (David's pick)", async () => {
+  it("asks Hive once more when it couldn't check a keyframe, then drops that shot", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);
+    fakeVenice();
+    let calls = 0;
+    // The first keyframe: Hive busy twice. The others: fine.
+    setCheckFetchForTests(async (input: RequestInfo | URL) => (calls++ < 3 ? new Response("slow down", { status: 429 }) : Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD)));
+    threeShots();
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    expect(started.shots.map((s) => s.status)).toEqual(["failed", "queued", "queued"]);
+    expect(started.shots[0].reason).toMatch(/the check couldn't run/);
+    expect((await t.db.query(`select 1 from adult_rejections`)).rows).toHaveLength(0);
+  });
+
+  it("says why when Venice can't draw the keyframes, and gives the tokens back", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    const seen = fakeVenice({ keyframe: () => new Response(JSON.stringify({ error: "Insufficient USD or Diem balance to complete request." }), { status: 402 }) });
+    fakeHive();
+    threeShots();
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    expect(started.status).toBe("failed");
+    expect(started.shots.every((s) => s.status === "failed" && /^Venice 402/.test(s.reason ?? ""))).toBe(true);
+    expect(reelFailureNote(started.shots)).toMatch(/out of credits/);
+    expect(seen.some((s) => s.path === "/video/queue")).toBe(false);
+  });
+
+  it("lip-syncs our stock voice when the model takes audio in, and says which of them is speaking", async () => {
+    const { id, cookie } = await admin();
+    const scene = await ready(cookie, id);
+    await call(settingsPost, "/api/admin/after-dark/settings", { reel_model: "wan-2.6-image-to-video" }, cookie);
     const seen = fakeVenice();
-    scripted(JSON.stringify({ shots: [{ line: 2, motion: "they kiss" }, { line: 5, motion: "slow" }, { line: 9, motion: "closer" }] }));
+    fakeHive();
+    threeShots();
     await make(cookie);
-    expect(seen.some((x) => x.path === "/audio/speech")).toBe(false);
-    const q = seen.find((x) => x.path === "/video/queue")!.body;
-    expect(q).toMatchObject({ model: "wan-3-0-image-to-video", audio: true, aspect_ratio: "adaptive" });
-    expect(q.audio_url).toBeUndefined();
-    expect(String(q.prompt)).toContain('says: "Line number 2 says something rather vivid here."');
+    const queued = seen.filter((s) => s.path === "/video/queue");
+    expect(queued).toHaveLength(3);
+    expect(queued[0].body).toMatchObject({ model: "wan-2.6-image-to-video", audio_url: expect.stringMatching(/^data:audio\/mpeg;base64,/) });
+    expect(queued[0].body.audio).toBeUndefined();
+    expect(queued[0].body.prompt).toMatch(/The (man|woman) is the one speaking, lips moving with the words\.$/);
+    const speech = seen.filter((s) => s.path === "/audio/speech");
+    expect(speech[0].body.input).toBe("Line number 2 says something rather vivid here.");
+    // Line 2 is the scene's first character's: their voice, the same every time.
+    expect(speech[0].body.voice).toBe(voiceFor((await loadCharacter(t.db, scene.a.id))!));
   });
 
   it("costs a subscriber the reel's price, gives back the share of discarded shots, and waits when Hive is busy", async () => {
@@ -900,6 +976,7 @@ describe("the video of the night", () => {
     const scene = (await (await get(CAST_A, CAST_B, cookie)).json()).scene;
     await t.db.query(`update adult_scenes set lines = $2::jsonb where id = $1`, [scene.id, JSON.stringify(night)]);
     fakeVenice();
+    fakeHive();
     scripted("not json");
     expect((await make(cookie)).status).toBe(402);
     await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 20, 'test')`, [crypto.randomUUID(), sub]);
@@ -917,9 +994,9 @@ describe("the video of the night", () => {
     const waiting = await advance(started.id, cookie);
     expect(waiting.shots.every((s) => s.status === "queued")).toBe(true);
     expect(waiting.shots.filter((s) => s.retry_at)).toHaveLength(1);
-    // Each poll tries the next shot; once both queued ones are waiting (the third waits for its speaker's previous
-    // one), a poll sends nothing to Hive at all.
+    // Each poll tries the next shot; once all three are waiting, a poll sends nothing to Hive at all.
     expect((await advance(started.id, cookie)).shots.filter((s) => s.retry_at)).toHaveLength(2);
+    expect((await advance(started.id, cookie)).shots.filter((s) => s.retry_at)).toHaveLength(3);
     const calls = hiveCalls;
     await advance(started.id, cookie);
     expect(hiveCalls).toBe(calls);
@@ -939,7 +1016,8 @@ describe("the video of the night", () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);
     fakeVenice();
-    scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }] }));
+    fakeHive();
+    threeShots();
     const started = (await (await make(cookie)).json()).reel as Reel;
     setCheckFetchForTests(async () => new Response("slow down", { status: 429 }));
     await advance(started.id, cookie);
@@ -948,15 +1026,42 @@ describe("the video of the night", () => {
     const settled = await advance(started.id, cookie);
     expect(settled.status).toBe("failed");
     expect(settled.shots.every((s) => s.status === "failed")).toBe(true);
-    scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }] }));
+    fakeHive();
+    threeShots();
     expect((await make(cookie)).status).toBe(200);
+  });
+
+  it("fails a shot whose start was cut off before its video was queued, so the reel settles", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    fakeVenice();
+    const shots = [
+      { line: 2, who: "a", text: "x", motion: "", status: "queued" },
+      { line: 5, who: "b", text: "y", motion: "", status: "queued", queue_id: "q9", model: "wan-3-0-image-to-video", media_id: "f1" },
+    ];
+    await t.db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots, created_at) values ('r-cut', $1, $2, $3, 'making', 0, $4::jsonb, now() - interval '5 minutes')`, [
+      id,
+      ...[CAST_A, CAST_B].sort(),
+      JSON.stringify(shots),
+    ]);
+    fakeHive();
+    // Still within its start's time: left alone.
+    expect((await advance("r-cut", cookie)).shots[0].status).toBe("queued");
+    await t.db.query(`update adult_reels set created_at = now() - interval '11 minutes' where id = 'r-cut'`);
+    const settled = await advance("r-cut", cookie);
+    expect(settled.shots.map((s) => [s.status, s.reason ?? null])).toEqual([
+      ["failed", "never started"],
+      ["ready", null],
+    ]);
+    expect(settled.status).toBe("ready");
   });
 
   it("says which video is in the way and how far along it is, calls it stuck after 30 minutes, and lets the owner stop it (David, 2026-10-21)", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);
     fakeVenice();
-    scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }] }));
+    fakeHive();
+    threeShots();
     const started = (await (await make(cookie)).json()).reel as Reel;
     const refused = await make(cookie);
     expect(refused.status).toBe(409);
@@ -975,8 +1080,24 @@ describe("the video of the night", () => {
     const stopped = (await (await del(started.id, cookie)).json()).reel as Reel;
     expect(stopped.status).toBe("failed");
     expect(stopped.shots.every((s) => s.status === "failed" && s.reason === "stopped")).toBe(true);
-    scripted(JSON.stringify({ shots: [{ line: 2, motion: "a" }, { line: 5, motion: "b" }, { line: 9, motion: "c" }] }));
+    threeShots();
     expect((await make(cookie)).status).toBe(200);
+  });
+
+  it("films a saved night only for its own pair", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    const [a, b] = [CAST_A, CAST_B].sort();
+    await t.db.query(`insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage) values ('n1', $1, $2, $3, $4::jsonb, 'the kitchen', 4)`, [id, a, b, JSON.stringify(night)]);
+    const seen = fakeVenice();
+    fakeHive();
+    threeShots();
+    expect((await make(cookie, { night_id: "n1" })).status).toBe(200);
+    expect(String(seen.find((s) => s.path === "/image/multi-edit")!.body.prompt)).toContain("The place: the kitchen.");
+    // Another pair's night, asked for as this pair's: not found (its lines' "a" and "b" are other people).
+    const [x, y] = [CAST_A, HOUSE_CHARACTERS[2].id].sort();
+    await t.db.query(`insert into adult_nights (id, owner_id, character_a, character_b, lines, stage) values ('n2', $1, $2, $3, $4::jsonb, 4)`, [id, x, y, JSON.stringify(night)]);
+    expect((await make(cookie, { night_id: "n2" })).status).toBe(404);
   });
 
   it("words the refusal by age", () => {
@@ -985,19 +1106,68 @@ describe("the video of the night", () => {
     expect(busyMessage({ ...r, minutes: 4, stalled: false })).toMatch(/started 4 min ago\)\. One video at a time, and they usually take a few minutes\.$/);
   });
 
-  it("picks lines across the night when the model's pick can't be read, and cuts what's said to what a shot holds", async () => {
+  it("asks the director for both of them in every frame, and falls back to a still and the line's own action", async () => {
+    const [ca, cb] = await Promise.all([loadCharacter(t.db, CAST_A), loadCharacter(t.db, CAST_B)]);
+    const cast = reelCast(ca!, cb!);
     let asked = "";
     setAdultModelForTests({ complete: async (msgs) => ((asked = msgs.map((m) => m.content).join("\n")), "not json") });
-    const picks = await pickLines(t.db, night, 4);
-    // The motion it asks for is the speaker's alone: the other one is never in the shot.
-    expect(asked).toContain("Each shot films the speaker alone: the other one is just off camera, never in the frame.");
-    expect(asked).not.toContain("what the two of them are physically doing");
+    const picks = await pickShots(t.db, night, 4, cast, night.map(() => "the kitchen"), night.map(() => 2));
+    expect(asked).toContain("Every shot shows the two of them together in one frame, doing what the script has them doing at that line");
+    expect(asked).toContain("named only like this, never by name");
+    // Lying down from a wide angle came out tangled, a face hidden (the first live reel): from the side, faces to camera.
+    expect(asked).toContain("lying down, a medium shot from the side with both faces toward the camera, never from above");
+    expect(asked).toContain(`0 | ${cast[0].tag} | the kitchen | kissing | (leans closer) Line number 0`);
+    expect(asked).not.toMatch(/Rafe|Juniper/);
     expect(picks).toHaveLength(4);
-    expect(picks[picks.length - 1].line).toBe(11);
     expect(picks[0].line).toBe(0);
-    // No motion from a line's action ("*leans closer*" is done to the other one).
-    expect(picks.every((p) => p.motion === "")).toBe(true);
+    expect(picks[picks.length - 1].line).toBe(11);
+    expect(picks[0].frame).toBe(`${cast[0].tag[0].toUpperCase()}${cast[0].tag.slice(1)} and ${cast[1].tag}, kissing, their arms around each other, both dressed. Medium shot, both faces visible.`);
+    expect(picks[0].motion).toBe(`${cast[0].tag[0].toUpperCase()}${cast[0].tag.slice(1)} leans closer, and the other answers it.`);
     expect(spoken("*whispers* " + "word ".repeat(40)).speech.split(" ")).toHaveLength(24);
+  });
+
+  it("names them by how they look, never by name: by their hair when both are women or both men", async () => {
+    const [rafe, juniper, marisol, dex] = await Promise.all(["house-rafe", "house-juniper", "house-marisol", "house-dex"].map((x) => loadCharacter(t.db, x)));
+    expect(reelCast(rafe!, juniper!).map((p) => p.tag)).toEqual(["the man", "the woman"]);
+    expect(reelCast(juniper!, marisol!).map((p) => p.tag)).toEqual(["the woman with long auburn hair", "the woman with a sleek black bob"]);
+    expect(feature("in his early forties with dark brown skin, close-cropped hair greying at the temples")).toBe("close-cropped hair");
+    expect(feature("Caucasian, a short chin-length golden blonde bob, bright clear blue eyes")).toBe("a short chin-length golden blonde bob");
+    expect(feature("heavyset in his early forties with dark brown skin")).toBe("dark brown skin");
+    const pair = reelCast(dex!, juniper!);
+    expect(pair[0].names).toEqual(["Dex", "Okafor"]);
+    expect(withoutNames("Dex's hands on Juniper's hips, Okafor grinning", pair)).toBe("the man's hands on the woman's hips, the man grinning");
+    expect(placeWords("Junipers bedroom", pair)).toBe("her bedroom");
+    expect(placeWords("Dex's studio", pair)).toBe("his studio");
+    // Capitalised only: a name that's also a word stays a word.
+    expect(placeWords("the rose garden", [{ ...pair[1], names: ["Rose"] }])).toBe("the rose garden");
+    // The same words for both (twins): first and second.
+    const twin = (id: string) => ({ ...marisol!, id, look: { ...marisol!.look, appearance: "a sleek black bob", physical: null } });
+    expect(reelCast(twin("t1"), twin("t2")).map((p) => p.tag)).toEqual(["the first woman", "the second woman"]);
+  });
+
+  it("knows where each line was said, from where the night began and the lines that agreed to go", () => {
+    const lines = [{ who: "a" as const, text: "a" }, { who: "b" as const, text: "b", moved_to: "his studio" }, { who: "a" as const, text: "c" }];
+    const history = [
+      { place: "the bar", set: "bar", home: null, chapter: 1 },
+      { place: "his studio", set: "his studio", home: null, chapter: 1 },
+    ];
+    expect(placesOf(lines, { place: "his studio", set: "his studio", history, date: null, stage: 0 })).toEqual(["bar", "bar", "his studio"]);
+    // No moves tonight: where they are now.
+    expect(placesOf([lines[0], lines[2]], { place: "the roof", set: null, history, date: null, stage: 0 })).toEqual(["the roof", "the roof"]);
+  });
+
+  it("keeps a keyframe's prompt within the edit model's limit, and the shot's prompt saying who speaks", async () => {
+    const [ca, cb] = await Promise.all([loadCharacter(t.db, CAST_A), loadCharacter(t.db, CAST_B)]);
+    const cast = reelCast(ca!, cb!);
+    const long = keyframePrompt(cast, "word ".repeat(600), "the kitchen", 4, true);
+    expect(long.length).toBeLessThanOrEqual(1500);
+    expect(long).toMatch(/The place: the kitchen\. Keep each of them as in their own picture.*Both are adults\.$/);
+    // Undressing: half undressed and explicit; before it, dressed and not.
+    expect(keyframePrompt(cast, "x", null, 3, false)).toMatch(/they're half undressed, as the moment says\..*Explicit, uncensored, photorealistic\./);
+    expect(keyframePrompt(cast, "x", null, 1, false)).toMatch(/they're dressed as the moment says, not nude\..*Photorealistic\. Both are adults\.$/);
+    const s = { who: "b" as const, text: "Come here.", motion: "They kiss." };
+    expect(shotPrompt(cast, s, false)).toMatch(new RegExp(`^They kiss\\. Two people only: .* ${cast[1].tag[0].toUpperCase()}${cast[1].tag.slice(1)}, in a [a-z ,']+voice, says: "Come here\\."$`));
+    expect(shotPrompt(cast, s, true)).toMatch(/is the one speaking, lips moving with the words\.$/);
   });
 
   it("lets a provider fetch a picture for minutes by a signed link, never a clip, never after it expires", async () => {
