@@ -735,3 +735,8 @@ Notes on each:
 - **the voice in sync:** the right one's voice says the line while their lips move, starting and ending with the shot.
 
 Put it side by side with Venice's table above (both in frame, follows the script, faces, voice, cost). It costs about $0.56 of Replicate (4 keyframes at $0.03, 4 videos at $0.11, the voices next to nothing), and 8 Hive moderation requests plus 4 age checks.
+
+**Admin tools for the providers (2026-10-22):** `after_dark_settings` (admin MCP) takes `media_provider` (`venice` or
+`replicate`), so an admin's agent can switch providers without the signed-in settings page. `after_dark_baseline`
+draws a new baseline portrait of one character with the current provider, checked like every picture. The newest
+baseline is the face later keyframes keep; the older one stays in the gallery, to compare.
