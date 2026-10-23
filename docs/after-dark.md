@@ -546,6 +546,85 @@ New columns, all additive: `adult_scenes.auto_pictures` (jsonb, the claims), `ad
 `scene_place`, `adult_settings.auto_scene_pictures` (null is on); Filthy is one more value of #702's
 `adult_scenes.intensity`. After Dark only: none of them is in a dataset or an export.
 
+### v2.4: topics, fragments, empty replies (2026-10-23)
+
+v2 changed in place again (`prompt_version` is still `"v2"`, v1 is untouched, and a step's flags say `prompt: "v2.4"`).
+David's Chud × Juniper night (DeepSeek V3.1 on CoreWeave: "it fails terribly") showed three things. In the explicit
+stages nearly every line turned their sheets into metaphor: her lighthouse logs ("The 1904 keeper documented…") and his
+servers ("server overload", "server migration"). v2.2's hooks never fired, because the topic repeated while the words
+changed. Lines started on a dangling "'s" ("*'s movements become more deliberate and intense* 's the server migration I've
+been waiting for all week."). And two Direct steers in about 30 failed with "The model's reply had no lines in it."
+
+- **Topic words** (`lib/adult/quality.ts` `topicsOf`): the distinctive words of what each one does and is into, from
+  their job, hobbies, quirk, hidden talent, guilty pleasure, catchphrase and bio. Only public details count, never a
+  private fact. The words are stemmed, so close inflections count ("lighthouses", "podcasting", "migrate" for
+  "migration"), but an everyday word inside a longer one doesn't ("keep" isn't "keeper"). Left out: stopwords and
+  everyday words, numbers and the calendar, the verbs and adjectives a sheet is written in ("runs a tiny bakery"),
+  clothes and colours, places (the place rules have those), trait words, pet names and the scene's own vocabulary, the
+  place's sensory details, and their names. They're derived from the sheet each step, and no character is written into
+  the code. Juniper's are lighthouse, keeper, ghost, story, podcast, listener and gull.
+- **The budget** (`dropRepeats`, v2): a line is on its speaker's topic by what it says. Its action doesn't count, since
+  the explicit stages' actions are bodies and places. Before undressing, any 6 of a speaker's lines in a row have one
+  topic line at most; from undressing on, any 12 (`TOPIC_EVERY`, `TOPIC_EVERY_EXPLICIT`, by the stage the step starts
+  at). Past that, the sentences and the action that carry their topic words go (`withoutPart`), and the line goes when
+  nothing it says is left. A sentence proposing a move keeps its words. A topic word that the steer or a whisper names is
+  the owner's to ask for, and is never cut that step. The budget runs after the hook rule, so a hook's cut comes first.
+  It's counted in `CraftCuts.topics` and the step's `topics_cut`, and a dropped line reads `their work or hobbies again
+  ("ghost"; one of their lines in 12 at most)`. When every line went, the retry's note names those words.
+- **The prompt** (v2). From undressing on, two craft rules: *"In the heat of it they talk like lovers: short, direct,
+  physical, in the moment. Their job and hobbies come up rarely now, never as an extended metaphor."* and *"What they say
+  stays off their work and hobbies, Chud's (Systems administrator, Debugging, Server migrations) and Juniper's (…): no
+  terms, jargon, jokes or comparisons from them, whatever their voice says about their humour. They're themselves in how
+  they talk (bold or shy, quick or slow, dry or warm), not in their job's words. One can come up plainly now and then,
+  never as the way they say what they're doing or feeling."* The job and hobbies are named from their sheets. The line
+  rule adds *"From here they talk like lovers, about each other and this moment: no jargon, jokes or comparisons from their
+  work, whatever their sheets say about their humour."* At any stage, a character whose topic words are past the budget
+  gets a note, as worn phrases do: *"Juniper talked about her work or hobbies in 1 of her last 6 lines, and that's one line
+  in 12 at most from here. Don't lean on these words again: "lighthouse"; a line that says one loses it."* The voice
+  rules, the voice kit and the sample lines are unchanged, so the early stages sound like them as before.
+- **Fragments** (`lib/adult/guards.ts` `repairFragments`, every prompt version, before any other guard): an action
+  starting on "'s" gets the speaker's given name ("*Chud's movements…*"), and a sentence of speech starting on it gets
+  "That" ("That's the server migration…"). It also catches "'S", and a sentence inside the line ("Yes. That. 'S quieter
+  now."). "'Cause" and "'Twas" are left alone. The step's flags count them (`fragments_repaired`).
+- **Empty replies**: a reply with no lines in it is asked for once more in the same step, with *"Your last reply had no
+  lines in it. Reply with the JSON object again…"* (`empty_retry` in the flags). Empty twice, it's the 422 as before. The
+  month's cap counts steps, not calls, so it's one step either way. A refusal that the retry gets past is still flagged
+  (`refusal_reply`) and still counted by the eval route.
+- **A stage claim that isn't a number** (`parseSceneMeta`) is no claim, and the scene keeps its stage. The real-model
+  check found DeepSeek's JSON breaking down after its lines into keys like `"stage: 4": ""`. That was read as stage "",
+  `Number("")` is 0, and a scene fell back to talking mid-sex, on main and on the branch.
+
+**The real-model check** wrote nothing to any database and kept its transcripts in a scratchpad. A script ran
+`writeSceneStep` on DeepSeek V3.1 pinned to CoreWeave (temperature 0.8, penalties 0.3), with Juniper from the house kits
+and a stand-in Chud (a sysadmin: servers, migrations, protocols). Each run started from 12 lines of the loop at kissing,
+in her room at the lighthouse, and then took the same 10 steps: Direct steers through undressing, sex and a climax, with
+unsteered steps between. About $0.18 of text on After Dark's OpenRouter key.
+
+| At undressing or sex | main (v2.3), 2 runs | v2.4, 3 runs |
+|---|---|---|
+| Lines saying their own sheet's topic words | 14 of 44 (32%) | 5 of 76 (7%) |
+| Lines with job words in them, or whose why owns up to the job ("his tech jargon", "historical keeper knowledge") | 40 of 44 (91%) | 29 of 76 (38%) |
+| Steps that failed | 1 of 20 (no lines) | 0 of 50 across all branch runs (one reply with no lines, retried) |
+| Dangling "'s" | none came | 16 in the branch runs' replies, 15 of them in one run; the final repair, replayed on every reply, leaves none |
+
+The two runs on main read like David's night: "Executing primary function. No error codes.", "Bandwidth utilization at one
+hundred percent.", "The 1894 log entry described a pressure drop before the storm hit." v2.4's explicit lines are
+mostly the two of them: "Get on the bed, Chud.", "...Faster.", "...There. Just like that."
+
+What's left: the loop is cut down, not gone. About a third of the explicit lines still lean on the job, often in a word
+("uptime", "the tide's turning"), and mostly in words no sheet has, which the budget can't see. Two earlier runs had
+the budget and the "talk like lovers" rule, then a first work rule that didn't mention their voice. They brought the
+sheet words down (4 of 67 explicit lines) but not the loop (50 of 67). It moved to words no sheet has ("RAID array",
+"user acceptance testing", "the 1923 log", "the buoy bell"), and the lines' whys said why: "staying true to his
+character voice". What moved it was naming their work and saying the rule holds over their voice.
+
+**A setting worth trying** (not changed here): the "no lines" replies weren't empty. Their JSON began well and broke down
+partway, into stray keys ("_note_char_limit_check…") and "The assistant's responses have become corrupted". With the
+dropped names (the "'s" came in bursts: 15 of one run's 60 lines), this looks like the frequency and presence penalties
+(0.3 each, set for Dolphin) working against DeepSeek over a long JSON reply, pushing down the tokens it repeats most:
+their names, "That", "It" and the JSON's keys. Both at 0 for DeepSeek is the next thing to try, in
+`/admin/after-dark/settings`.
+
 ### The model simulation, and the move to DeepSeek V3.1 (2026-10-22)
 
 `npm run sim:after-dark` (scripts/sim-after-dark.mjs) plays the whole path on a fresh local app with a throwaway

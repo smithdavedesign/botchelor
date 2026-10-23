@@ -430,6 +430,8 @@ function voiceRules(a: Character | null, b: Character | null, names: { a: string
  */
 const LOVERS_RULE =
   "- In the heat of it they talk like lovers: short, direct, physical, in the moment. Their job and hobbies come up rarely now, never as an extended metaphor.";
+/** v2.4, the same in the line rule, from undressing on. */
+const LOVERS_LINE = "From here they talk like lovers, about each other and this moment: no jargon, jokes or comparisons from their work, whatever their sheets say about their humour. ";
 
 /** v2's rule for staying themselves (every intensity, and Filthy before undressing). */
 const VOICE_RULE =
@@ -514,10 +516,18 @@ function craftLines(
     '- When these lines take them somewhere (one suggests it, the other says yes, they go), "place" and "set" in your reply are where they are by the end of them.',
   ];
   if (now.stage >= UNDRESSING) {
+    // v2.4: their work named from their sheets, so the model knows what's out (the loop moved on to words no sheet has:
+    // "user acceptance testing", "the 1923 log", the real-model check of 2026-10-23).
+    const work = (["a", "b"] as const).flatMap((who) => {
+      const c = who === "a" ? a : b;
+      const sides = c ? sheetFacets(c).filter((f) => f.kind === "job" || f.kind === "hobby").map((f) => f.text) : [];
+      return sides.length ? [`${first(who)}'s (${sides.join(", ")})`] : [];
+    });
     rules.push(
       "- Their tells (the habits on their sheets) are for the talking: now it's gone this far they don't show, unless one truly fits the moment.",
       "- Keep track of how they're positioned: once a line sets it (on top, from behind, against the wall), the lines only show what each of them could see, reach or do from there (from behind, their eyes don't meet), until a line changes it.",
       LOVERS_RULE,
+      `- What they say stays off their work and hobbies${work.length ? `, ${work.join(" and ")}` : ""}: no terms, jargon, jokes or comparisons from them, whatever their voice says about their humour. They're themselves in how they talk (bold or shy, quick or slow, dry or warm), not in their job's words. One can come up plainly now and then, never as the way they say what they're doing or feeling.`,
     );
   }
   if (now.plain) {
@@ -774,6 +784,7 @@ export function sceneMessages(
     `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}${v2 ? `, starting with ${first(next)}` : ""}. ` +
     `Each line is ${v2 ? "a few words to 3 sentences (now and then only an action)" : "1 to 3 sentences"} in that character's own voice, vivid and specific, never a stock line ("you feel amazing"). ` +
     (v2 ? (plain ? FILTHY_LINE_RULE : LINE_RULE) : "") +
+    (v2 && now.stage >= UNDRESSING ? LOVERS_LINE : "") +
     `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text. Write both in English.` +
     (direction
       ? now.steerMode === "direct"
@@ -971,8 +982,11 @@ export function parseSceneMeta(raw: string): SceneMeta {
     const of = p && (p.of === "a" || p.of === "b" || p.of === "both") ? p.of : null;
     const description = p && typeof p.description === "string" ? p.description.trim().slice(0, 400) : "";
     const place = typeof j.place === "string" && j.place.trim() ? j.place.trim().slice(0, 120) : null;
-    const n = Number(j.stage);
-    const stage = Number.isFinite(n) ? Math.min(STAGES.length - 1, Math.max(0, Math.round(n) - 1)) : null;
+    // v2.4: only a stage number (1 to 5, or one written as a string) is a claim. DeepSeek's JSON broke down into keys like
+    // `"stage: 4": ""` (read as stage, ""), Number("") is 0, and the scene fell back to talking mid-sex (the real-model
+    // check, 2026-10-23). Anything else is no claim, and the scene keeps its stage.
+    const n = typeof j.stage === "number" ? j.stage : typeof j.stage === "string" && /^\s*\d+(?:\.\d+)?\s*$/.test(j.stage) ? Number(j.stage) : NaN;
+    const stage = Number.isFinite(n) && Math.round(n) >= 1 ? Math.min(STAGES.length - 1, Math.round(n) - 1) : null;
     const set = typeof j.set === "string" && j.set.trim() ? j.set.trim().replace(/[.!]+$/, "").slice(0, 40) : null;
     return { explicit: j.explicit === true, picture: of && description ? { of, description } : null, place, stage, set, suggestions: suggestionsIn(j) };
   } catch {

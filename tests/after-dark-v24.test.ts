@@ -3,7 +3,7 @@ import { POST } from "@/app/api/admin/after-dark/route";
 import { repairFragments } from "@/lib/adult/guards";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { recentTopicLines, topicEvery, topicsOf, topicWordsSaid, TOPIC_EVERY, TOPIC_EVERY_EXPLICIT } from "@/lib/adult/quality";
-import { dropRepeats, emptyScene, sceneMessages, writeSceneStep, type SceneLine, type SceneState, type StepInput } from "@/lib/adult/scenes";
+import { dropRepeats, emptyScene, parseSceneMeta, sceneMessages, writeSceneStep, type SceneLine, type SceneState, type StepInput } from "@/lib/adult/scenes";
 import { SCENE_PROMPT_REVISION } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
 import { assembleCharacter } from "@/lib/character";
@@ -103,8 +103,25 @@ describe("lines started on a dangling 's (the model dropped the speaker's name)"
     expect(repairFragments("’s more like it.", "Chud").text).toBe("That’s more like it.");
   });
 
+  it("a capital 'S, and one starting a sentence inside the line, too (the real-model check's burst)", () => {
+    expect(repairFragments("*helps her pull his shirt off* 'S okay if you find any stray cables.", "Chud").text).toBe("*helps her pull his shirt off* That's okay if you find any stray cables.");
+    expect(repairFragments("'S the only command I needed.", "Chud")).toEqual({ text: "That's the only command I needed.", repairs: 1 });
+    expect(repairFragments("Yes. That. 'S quieter now. Keep going! ’S coming.", "Juniper")).toEqual({ text: "Yes. That. That's quieter now. Keep going! That’s coming.", repairs: 2 });
+    expect(repairFragments("*'S hands shake*", "Juniper").text).toBe("*Juniper's hands shake*");
+  });
+
   it("leaves a line that really starts with an apostrophe, or has none dangling, as it is", () => {
-    for (const line of ["'Cause I said so.", "'Twas a long night.", "’Tis the season.", "*'Twas her idea, he decides* Fine.", "'sup, stranger?", "It's the server again.", "*pulls her close* Mm."]) {
+    for (const line of [
+      "'Cause I said so.",
+      "'Twas a long night.",
+      "’Tis the season.",
+      "*'Twas her idea, he decides* Fine.",
+      "'sup, stranger?",
+      "'Smarter than the gulls, at least.' She reaches for his belt.",
+      "Fine. 'Cause you asked.",
+      "It's the server again.",
+      "*pulls her close* Mm.",
+    ]) {
       expect(repairFragments(line, "Chud"), line).toEqual({ text: line, repairs: 0 });
     }
   });
@@ -236,11 +253,19 @@ describe("the prompt", () => {
   const prompt = (stage: number, over: Record<string, unknown> = {}, lines = night()) =>
     sceneMessages(chud(), juniper(), null, lines, null, PAIR.a.id, { place: "her bedroom", stage, linesAtStage: 20, opening: false, promptVersion: "v2", ...over } as never);
 
-  it("from undressing on, v2 says they talk like lovers; before it, and in v1, it doesn't", () => {
-    expect(prompt(3)[0].content).toContain(RULE);
+  it("from undressing on, v2 says they talk like lovers, naming each one's work from their sheet; before it, and in v1, it doesn't", () => {
+    const [system, user] = prompt(3).map((m) => m.content);
+    expect(system).toContain(RULE);
+    expect(system).toContain(
+      "- What they say stays off their work and hobbies, Chud's (Systems administrator, Debugging, Server migrations) and Juniper's (Lighthouse keeper and podcaster, Ghost stories, Podcasting, Talking to gulls): no terms, jargon, jokes or comparisons from them, whatever their voice says about their humour. They're themselves in how they talk (bold or shy, quick or slow, dry or warm), not in their job's words. One can come up plainly now and then, never as the way they say what they're doing or feeling.",
+    );
+    expect(user).toContain("From here they talk like lovers, about each other and this moment: no jargon, jokes or comparisons from their work, whatever their sheets say about their humour.");
     expect(prompt(4)[0].content).toContain(RULE);
-    expect(prompt(2)[0].content).not.toContain("talk like lovers");
-    expect(prompt(4, { promptVersion: "v1" })[0].content).not.toContain("talk like lovers");
+    for (const [s, u] of [prompt(2), prompt(4, { promptVersion: "v1" })].map((p) => p.map((m) => m.content))) {
+      expect(s).not.toContain("talk like lovers");
+      expect(s).not.toContain("stays off their work");
+      expect(u).not.toContain("talk like lovers");
+    }
   });
 
   it("names the topic words already past their share, like worn phrases, and none that the steer asks for", () => {
@@ -302,6 +327,17 @@ describe("a reply with no lines in it", () => {
     const ok = await step(once.model);
     expect(once.calls).toHaveLength(1);
     expect(ok.ok && ok.flags.empty_retry).toBeUndefined();
+  });
+
+  it("a reply whose JSON broke down after its lines claims no stage: the scene keeps its own", async () => {
+    // As the real-model check saw it: the lines whole, then keys like "stage: 4" with nothing in them.
+    const broken = `{"lines": [{"who": "a", "text": "Here."}, {"who": "b", "text": "Finally."}], "place": "", ": ": "", "stage: 4": "", "explicit: false": ""}`;
+    expect(parseSceneMeta(broken).stage).toBeNull();
+    for (const stage of ["", 0, false, null, "undressing"]) expect(parseSceneMeta(JSON.stringify({ lines: [], stage })).stage, String(stage)).toBeNull();
+    expect(parseSceneMeta(JSON.stringify({ lines: [], stage: "4" })).stage).toBe(3);
+    const r = await step(scripted(broken).model, { scene: at(4) });
+    expect(r.ok && r.next.stage).toBe(4);
+    expect(r.ok && r.lines.map((l) => l.stage)).toEqual([4, 4]);
   });
 
   it("a refusal it got past is still flagged, with what it said", async () => {
