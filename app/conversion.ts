@@ -1,4 +1,5 @@
 import { track } from "@vercel/analytics";
+import { gaOff } from "@/lib/ga-guard";
 import { sendFunnel } from "./funnel";
 
 /**
@@ -27,10 +28,13 @@ export function trackConversion(name: Conversion, props: Props = {}): void {
   }
   try {
     const w = window as DataLayerWindow;
-    // gtag is defined by the GA4 snippet (NEXT_PUBLIC_GA_ID set); a plain dataLayer object isn't a GA4 event.
-    if (typeof w.gtag === "function") w.gtag("event", name, props);
-    // Push only when GTM is on the page (NEXT_PUBLIC_GTM_ID set); otherwise there's no container to read it.
-    if (Array.isArray(w.dataLayer)) w.dataLayer.push({ event: name, ...props });
+    // Nothing for Google from a tab that has shown After Dark (lib/ga-guard.ts; gtag.js would drop it anyway).
+    if (!gaOff(w)) {
+      // gtag is defined by the GA4 snippet (NEXT_PUBLIC_GA_ID set); a plain dataLayer object isn't a GA4 event.
+      if (typeof w.gtag === "function") w.gtag("event", name, props);
+      // Push only when GTM is on the page (NEXT_PUBLIC_GTM_ID set); otherwise there's no container to read it.
+      if (Array.isArray(w.dataLayer)) w.dataLayer.push({ event: name, ...props });
+    }
   } catch {
     /* ignore */
   }

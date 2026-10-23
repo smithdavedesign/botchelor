@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
 import { getDb } from "@/lib/db";
+import { gaGuardScript } from "@/lib/ga-guard";
 import { unreadCount } from "@/lib/notifications";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { canAfterDark } from "@/lib/adult/entitlement";
@@ -88,6 +89,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang="en">
       {google && (
         <head>
+          {/* Before the Google tags load: GA stays off on After Dark's pages, and in a tab after it (lib/ga-guard.ts). */}
+          <script dangerouslySetInnerHTML={{ __html: gaGuardScript(TRACKING.gaId) }} />
           <script dangerouslySetInnerHTML={{ __html: consentDefaultScript(consent.granted) }} />
         </head>
       )}

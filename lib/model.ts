@@ -188,7 +188,7 @@ export function openAICompatibleModel(opts: {
   reasoning?: ReasoningEffort;
   /**
    * Extra fields for every request body, under the standard ones (After Dark asks OpenRouter for the call's cost with
-   * `usage: { include: true }`).
+   * `usage: { include: true }`, and pins its hosts with `provider`: lib/adult/mode.ts).
    */
   extraBody?: Record<string, unknown>;
 }): Model {
