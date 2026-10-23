@@ -10,11 +10,13 @@
  *
  * A set whose check couldn't run (Hive answered 429, or was down) isn't refused (David, 2026-10-21: 48 of 57 failed sets
  * were "Hive answered 429", never retried; the #310 fix for look tiles, lib/looks-draw.ts): its picture is kept, never
- * shown, and only the check runs again, with a growing delay, and never while Hive is cooling down from a 429.
+ * shown, and only the check runs again, with a growing delay, and never while Hive is cooling down from a 429. Nor while
+ * Hive is over its daily limit (lib/adult/hive-limit.ts, shared with After Dark): then no set is drawn or checked at all.
  */
 import { after } from "next/server";
 import { checkSet } from "./adult/check";
 import { canonicalSet, closestSet } from "./adult/continuity";
+import { hivePausedUntil, underHiveLimit } from "./adult/hive-limit";
 import { adultKeys } from "./adult/settings";
 import type { Db } from "./db";
 import { checkShowText } from "./safety";
@@ -107,7 +109,8 @@ export async function ensureSet(db: Db, place: string | null | undefined): Promi
       [normalized, label, RETRY_AFTER_MS, RETRY_ATTEMPTS, STALE_DRAWING_MS],
     );
     if (!claimed.rows.length) return "exists";
-    if (await hiveCooling(db)) return await later(db, normalized, `${UNCHECKED_PREFIX}waiting for Hive to cool down`, HIVE_COOLDOWN_MS);
+    const wait = await hiveWaitMs(db);
+    if (wait > 0) return await later(db, normalized, `${UNCHECKED_PREFIX}waiting for Hive to cool down`, wait);
     return claimed.rows[0].has_data ? await recheck(db, normalized) : await draw(db, normalized, label);
   } catch {
     // Cut off by an error (a timeout, a network failure): a passing problem, so it's tried again with the backoff.
@@ -143,11 +146,18 @@ async function later(db: Db, normalized: string, reason: string, ms: number): Pr
   return "failed";
 }
 
-/** Whether Hive rate-limited a set lately: then nothing more is sent to it until the cool-down passes. */
-async function hiveCooling(db: Db): Promise<boolean> {
+/**
+ * How long nothing more goes to Hive for a set, in ms (0: go ahead): while Hive is over its daily limit, until that pause
+ * is over (lib/adult/hive-limit.ts); after a set's 429, the cool-down.
+ */
+async function hiveWaitMs(db: Db): Promise<number> {
+  const paused = await hivePausedUntil(db);
+  if (paused) return Math.max(60_000, new Date(paused).getTime() - Date.now());
   const { rows } = await db.query(`select 1 from place_sets where reason like '%429%' and updated_at > now() - ($1::int * interval '1 millisecond') limit 1`, [HIVE_COOLDOWN_MS]);
-  return rows.length > 0;
+  return rows.length > 0 ? HIVE_COOLDOWN_MS : 0;
 }
+/** Whether Hive is cooling down for sets: then nothing more is sent to it until it's over. */
+const hiveCooling = async (db: Db): Promise<boolean> => (await hiveWaitMs(db)) > 0;
 
 async function draw(db: Db, normalized: string, label: string): Promise<SetStatus> {
   const done = (status: "ready" | "refused", reason: string | null, file?: { mime: string; bytes: Buffer }) =>
@@ -174,7 +184,8 @@ async function draw(db: Db, normalized: string, label: string): Promise<SetStatu
   }
   const url = ((await res.json()) as { images?: { url?: string }[] }).images?.[0]?.url;
   if (!url) return failed(db, normalized, "fal.ai returned no picture");
-  const verdict = await checkSet(keys.hive, url);
+  const hive = keys.hive;
+  const verdict = await underHiveLimit(db, () => checkSet(hive, url));
   if (!verdict.ok && verdict.reason.startsWith("moderation:")) return done("refused", verdict.reason);
   const file = await doFetch(url);
   if (!file.ok) return failed(db, normalized, `download ${file.status}`);
@@ -191,7 +202,8 @@ async function recheck(db: Db, normalized: string): Promise<SetStatus> {
   const row = (await db.query<{ mime: string | null; data: Buffer | Uint8Array | null }>(`select mime, data from place_sets where normalized = $1`, [normalized])).rows[0];
   const keys = await adultKeys(db).catch(() => null);
   if (!row?.data || !keys?.hive) return failed(db, normalized, `${UNCHECKED_PREFIX}no picture or no Hive key to check it with`);
-  const verdict = await checkSet(keys.hive, { base64: Buffer.from(row.data).toString("base64"), mime: row.mime ?? "image/jpeg" });
+  const [hive, data] = [keys.hive, row.data];
+  const verdict = await underHiveLimit(db, () => checkSet(hive, { base64: Buffer.from(data).toString("base64"), mime: row.mime ?? "image/jpeg" }));
   if (verdict.ok) {
     await db.query(`update place_sets set status = 'ready', reason = null, retry_at = null, updated_at = now() where normalized = $1`, [normalized]);
     return "ready";

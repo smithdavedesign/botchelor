@@ -1488,3 +1488,49 @@ that number filed since). Chapters it didn't film take their own chapter's newes
 
 New columns, additive: `adult_reels.scope` (`chapter` or `night`) and `adult_reels.chapters` (jsonb: each chapter's
 number, saved night id or null, and line count). Both are null on reels from before, and on clips.
+
+## Hive's daily limit (2026-10-23)
+
+**What happened.** Self-serve Hive allows 100 visual-moderation requests a day (docs/after-dark-costs.md), and every
+picture check is two Hive calls (moderation, then the age question), each asked up to twice more on a 429. That
+morning's video tests used the day up by about 08:26 UTC, and from then on Hive answered every check
+`429 {"message":"Too Many Requests"}`, with no `Retry-After` and no rate-limit headers, for 12 hours and more. David
+kept trying through the evening for a baseline of Ira Fenn and a picture or video with Lexi. Every try drew a picture
+first (paid, on Replicate or Venice), then the check "couldn't run (Hive answered 429)" and the picture was thrown away:
+18 baseline and 2 scene refusals in `adult_rejections`. With no baseline for Ira, her video couldn't start at all. The
+code treated each 429 as "busy, try again soon".
+
+**Now** (`lib/adult/hive-limit.ts`):
+- **The pause.** A check that still gets a 429 after its retries (a burst is still retried, `lib/adult/check.ts`) pauses
+  every picture and video for 30 minutes. The pause is a `hive` row in `adult_media_cooldowns`, the table the
+  providers' cooldowns use (`lib/adult/fallback.ts` skips it), so every Vercel instance sees it. It's never shortened.
+- **Why 30 minutes, then a probe.** Hive's 429 doesn't say when it will answer again, and we don't know when its day
+  resets (midnight UTC, 24 hours after the first call, or rolling). A fixed half hour finds the reset within 30 minutes
+  of whenever it happens, and asks Hive at most twice an hour while someone keeps trying, and never while nobody does.
+- **Nothing is drawn while it's paused.** Each of these asks first, and refuses before a provider is called or a token
+  is spent: `makePicture` (every baseline and scene picture, the MCP `after_dark_baseline`, the daily cast baselines),
+  menu pictures, automatic pictures (not claimed, so the first step after the pause draws one), videos of the night and
+  clips (before the director is asked), fal clips, sets, look tiles and look portraits, and season portraits. Shorts
+  don't draw: they reuse pictures that passed.
+- **What the page says,** as it's shown: "Pictures and videos are paused: the safety check every picture has to pass
+  is over its daily limit. Try again after 21:45 UTC (in about 30 minutes)." When the picture was already drawn and its
+  check started the pause, it adds that this one couldn't be checked and wasn't kept, and the tokens come back.
+- **The probe.** When the pause has run out, the first draw sends one moderation call on a plain grey 192×192 PNG,
+  inline (`PROBE_PNG`), before anything is drawn. A 429 starts another 30 minutes and refuses; an answer ends the pause
+  and the draw goes ahead. Any other answer (Hive down, unreachable) says nothing about the limit, so the draw goes ahead
+  and its own check decides. Sets and look tiles don't probe: what they draw is kept and only checked again.
+- **Still fail closed.** Nothing Hive hasn't passed is shown, kept as visible or charged for. A check skipped by the
+  pause says "the check couldn't run (Hive is over its daily limit, paused until …)", so whatever it was for waits or is
+  discarded as before. A video already being made waits: its shots aren't fetched from Venice or Replicate or sent to
+  Hive until the pause is over, and the page says until when (a Replicate shot that waits past Replicate's hour fails
+  and gives its tokens back). A video's keyframes after the one that found Hive out aren't sent: they're discarded and
+  their share of the tokens comes back.
+- **No more Hive calls on the same request.** After a check starts the pause, the keyframe check isn't asked again
+  after a wait (it still is when Hive is busy or down), no other keyframe, shot or tile is sent, and the age question
+  isn't asked after a moderation call that got the 429.
+- **Logged.** Every draw refused up front ("not drawn: Hive is over its daily limit, paused until …") and every picture
+  or keyframe thrown away because of it goes in `adult_rejections`, by kind.
+- **Shown to the admin.** /admin/after-dark/settings has "Paused right now": the Hive pause and any media provider
+  cooling down, with until when and why. The same list is `pauses` in MCP `after_dark_settings` and the settings API.
+- **Not changed:** Replicate throttling us (6 requests a minute with a burst of 1 while the account has less than $5 of
+  credit) is for David to top up. The gate never calls Replicate, so it doesn't add to it.

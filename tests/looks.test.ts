@@ -150,12 +150,24 @@ describe("drawing the tiles", () => {
     const spec = tileSpecs().find((s) => s.id === "pg-woman-hair_color-red")!;
     expect(await drawTile(t.db, spec)).toBe("failed");
     expect((await serve(spec.id)).status).toBe(404);
-    // The next batch picks it up (after the short wait) and only screens it.
     await t.db.query(`update look_tiles set updated_at = now() - interval '1 hour' where id = $1`, [spec.id]);
+    // Hive kept answering 429: its daily limit, so pictures are paused (lib/adult/hive-limit.ts) and a batch draws and
+    // sends nothing until that's over.
+    let sent = 0;
+    setCheckFetchForTests(async () => {
+      sent++;
+      return new Response("?", { status: 500 });
+    });
+    expect(await drawMissingTiles(t.db, { only: [spec.id] })).toEqual([]);
+    expect(sent).toBe(0);
+    // The pause over, the next batch picks it up and only screens it.
+    await t.db.query(`update adult_media_cooldowns set until = now() - interval '1 minute' where provider = 'hive'`);
     hive();
     expect(await drawMissingTiles(t.db, { only: [spec.id] })).toEqual([{ id: spec.id, status: "ready" }]);
     expect(calls).toHaveLength(1);
     expect((await serve(spec.id)).status).toBe(200);
+    // Hive answered, so the pause is gone.
+    expect((await t.db.query(`select 1 from adult_media_cooldowns`)).rows).toHaveLength(0);
   });
 
   it("stops a batch when the screen rate-limits, instead of paying for pictures it can't check", async () => {

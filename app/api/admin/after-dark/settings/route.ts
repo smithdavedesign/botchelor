@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mediaPauses } from "@/lib/adult/hive-limit";
 import { signedInAdmin } from "@/lib/adult/mode";
 import { MODEL_ID } from "@/lib/adult/replicate";
 import { getAdultSettings, MEDIA_PROVIDERS, PROMPT_VERSIONS, saveAdultSettings } from "@/lib/adult/settings";
@@ -61,7 +62,8 @@ export const GET = handle(async (req: Request) => {
   const { db, admin } = await unlockedAdmin(req);
   if (!admin) return json({ error: "not_found" }, 404);
   const requests = (await db.query(`select id, agent_id, client_name, reason, created_at from adult_access_requests order by created_at desc limit 50`)).rows;
-  return json({ settings: await getAdultSettings(db), requests });
+  // What's paused: Hive over its daily limit (lib/adult/hive-limit.ts), a media provider cooling down (lib/adult/fallback.ts).
+  return json({ settings: await getAdultSettings(db), requests, pauses: await mediaPauses(db) });
 });
 
 export const POST = handle(async (req: Request) => {

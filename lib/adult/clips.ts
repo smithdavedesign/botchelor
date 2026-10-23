@@ -13,7 +13,7 @@
  * kept, the same video models, the same poll that collects it, one video at a time, and a shot that doesn't come through
  * gives its tokens back. What a clip may show: no further than the night has gone (its stage), nothing past kissing
  * somewhere public, and nothing the pair's limits rule out (mediaLimits). Price: clip_tokens bought tokens (3 by
- * default), admins free.
+ * default), admins free. While Hive is over its daily limit (lib/adult/hive-limit.ts) none starts, and nothing is spent.
  */
 import { isAdmin } from "../admins";
 import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
@@ -23,6 +23,7 @@ import { checkAdultText } from "../safety";
 import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, NO_MEDIA_LIMITS, type MediaLimits, type MenuAct } from "./acts";
 import { CHAIN_MAX } from "./clip-chains";
 import { isPublicPlace } from "./continuity";
+import { hiveGate, HivePausedError } from "./hive-limit";
 import { atLeastExplicit, INTENSITY, intensityOf, limitsHit, storedHardNos, type PairLimits } from "./limits";
 import { ensureBaseline } from "./media";
 import { adultModel } from "./mode";
@@ -293,6 +294,12 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
   if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
     return refuse(409, "not_set_up", `Clips need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.`);
   }
+  // Hive over its daily limit (lib/adult/hive-limit.ts): refused before the director, a draw or a token is spent.
+  const gate = await hiveGate(db, keys.hive);
+  if (!gate.ok) {
+    await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'reel', $3)`, [crypto.randomUUID(), ownerId, `clip: ${gate.reason}`.slice(0, 300)]).catch(() => {});
+    return refuse(503, "hive_paused", gate.message);
+  }
   const night = await reelNight(db, ownerId, a, b, "here" in ask ? (ask.night_id ?? null) : null);
   const [ca, cb] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b)]);
   if (!night || !ca || !cb) return refuse(404, "not_found", "Pick two characters who are in after dark.");
@@ -413,6 +420,8 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
   } catch (err) {
     if (pays && price > 0) await refundBoughtTokens(db, ownerId, price);
     await db.query(`delete from adult_reels where id = $1`, [id]).catch(() => {});
+    // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
+    if (err instanceof HivePausedError) return refuse(503, "hive_paused", `${err.message}${pays && price > 0 ? " Your tokens are back." : ""}`);
     return refuse(502, "not_started", `The clip couldn't start (${err instanceof Error ? err.message : "error"}). Your tokens are back.`);
   }
 }

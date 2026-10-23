@@ -11,12 +11,14 @@
  * retry, a rewind and a redo, or the same place twice in a chapter, never draws it twice. The drawing runs after the
  * response (lib/sets.ts inBackground) and never fails or slows a step. A picture that doesn't come (2026-10-23: Hive
  * busy, so the output check couldn't run) gives its claim back, so a later step draws it, but not for RETRY_AFTER_MS:
- * a busy Hive isn't asked again at once, and a failed draw isn't paid for step after step.
+ * a busy Hive isn't asked again at once, and a failed draw isn't paid for step after step. While Hive is over its daily
+ * limit (lib/adult/hive-limit.ts) none is claimed or drawn: the step after the pause draws it.
  * Off when the setting is (auto_scene_pictures), or when pictures can't be made (no Hive key, or the provider's key).
  */
 import type { Character } from "../character";
 import type { Db } from "../db";
 import { inBackground } from "../sets";
+import { hivePausedUntil } from "./hive-limit";
 import { makePicture, outputCheckReady, pictureKeyReady, recentActions, scenePrompt, type Media } from "./media";
 import { getAdultSettings } from "./settings";
 
@@ -87,6 +89,8 @@ export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictur
     const key = autoPictureKey(scene.chapter, scene.set_place ?? scene.place);
     const failed = failedAt.get(`${scene.id}|${key}`);
     if (failed !== undefined && clock() - failed < RETRY_AFTER_MS) return false;
+    // Hive over its daily limit: not claimed, so the first step after the pause draws it (makePicture probes Hive first).
+    if (await hivePausedUntil(db)) return false;
     if (!(await claim(db, scene.id, key))) return false;
     const snapshot: AutoPictureScene = { ...scene, lines: scene.lines.slice(-6) };
     inBackground(() => {

@@ -23,6 +23,7 @@ import { dataColumn, keepBytes, objectStore, readBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { checkOutput } from "./check";
 import { fallbackNote, providerError, runMedia, type Ran } from "./fallback";
+import { hiveGate, hivePausedMessage, HivePausedError, hivePausedUntil, underHiveLimit } from "./hive-limit";
 import { runModel } from "./replicate";
 import { countUse, overCap } from "./usage";
 import { adultKeys, getAdultSettings } from "./settings";
@@ -267,6 +268,13 @@ async function baselineFace(db: Db, characterId: string): Promise<string | null>
   return bytes ? `data:${r!.mime};base64,${bytes.toString("base64")}` : null;
 }
 
+/** The output check refused a picture: logged, and thrown as what the page says (the pause's own message when Hive was out). */
+async function discarded(db: Db, ownerId: string, kind: string, verdict: { reason: string; paused?: string }): Promise<never> {
+  await logRejection(db, ownerId, kind, verdict.reason);
+  if (verdict.paused) throw new HivePausedError(verdict.paused, hivePausedMessage(verdict.paused, { discarded: true }));
+  throw new Error(`The picture was discarded by the output check (${verdict.reason}).`);
+}
+
 /** Makes one picture on fal and stores it. Refuses a prompt that crosses a line. */
 export async function makePicture(
   db: Db,
@@ -278,16 +286,20 @@ export async function makePicture(
   if (capped) throw new Error(capped);
   const check = checkAdultText({ prompt: opts.prompt });
   if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
+  const { hive } = await adultKeys(db);
+  // Hive over its daily limit (lib/adult/hive-limit.ts): nothing is drawn (or paid for) while its check can't run.
+  const gate = await hiveGate(db, hive);
+  if (!gate.ok) {
+    await logRejection(db, ownerId, opts.kind, gate.reason);
+    throw new HivePausedError(gate.until, gate.message);
+  }
   const { image_model, image_base, image_provider } = await getAdultSettings(db);
   if (image_provider === "venice") {
     const drawn = await drawPicture(db, opts.prompt);
     const file = drawn.value;
     // The output check on the bytes themselves, before anything is stored, whoever made them: a failure is discarded.
-    const verdict = await checkOutput((await adultKeys(db)).hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image");
-    if (!verdict.ok) {
-      await logRejection(db, ownerId, opts.kind, verdict.reason);
-      throw new Error(`The picture was discarded by the output check (${verdict.reason}).`);
-    }
+    const verdict = await underHiveLimit(db, () => checkOutput(hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image"));
+    if (!verdict.ok) return discarded(db, ownerId, opts.kind, verdict);
     return storePicture(db, ownerId, opts, file, null, { provider: drawn.provider, fell_back: drawn.fell_back });
   }
   const key = await falKey(db);
@@ -316,11 +328,8 @@ export async function makePicture(
   const url = body.images?.[0]?.url ?? body.image?.url;
   if (!url) throw new Error("fal.ai returned no picture.");
   // The output check, before anything is stored: a failure is discarded.
-  const verdict = await checkOutput((await adultKeys(db)).hive, url, "image");
-  if (!verdict.ok) {
-    await logRejection(db, ownerId, opts.kind, verdict.reason);
-    throw new Error(`The picture was discarded by the output check (${verdict.reason}).`);
-  }
+  const verdict = await underHiveLimit(db, () => checkOutput(hive, url, "image"));
+  if (!verdict.ok) return discarded(db, ownerId, opts.kind, verdict);
   return storePicture(db, ownerId, opts, await download(url), url, { provider: "fal", fell_back: false });
 }
 
@@ -375,6 +384,12 @@ export async function startClip(db: Db, ownerId: string, imageId: string, motion
   const prompt = `${motion.trim() || "Slow, natural movement"}. Everyone shown is an adult.`;
   const check = checkAdultText({ prompt });
   if (!check.ok) throw new Error(`That clip crosses one of the two lines (${check.reason}).`);
+  // A clip's frames pass Hive once it's made: none is started while Hive is over its daily limit (lib/adult/hive-limit.ts).
+  const gate = await hiveGate(db, (await adultKeys(db)).hive);
+  if (!gate.ok) {
+    await logRejection(db, ownerId, "video", gate.reason);
+    throw new HivePausedError(gate.until, gate.message);
+  }
   const key = await falKey(db);
   const { video_model } = await getAdultSettings(db);
   const res = await doFetch(`${FAL_QUEUE}/${video_model}`, {
@@ -404,6 +419,8 @@ export async function pollClip(db: Db, id: string, viewerId: string): Promise<st
     )
   ).rows[0];
   if (!row || row.status !== "pending" || !row.request_id) return row?.status ?? "missing";
+  // Hive over its daily limit: the clip waits at fal, unchecked, until its check can run (lib/adult/hive-limit.ts).
+  if (await hivePausedUntil(db)) return "pending";
   const key = await falKey(db);
   const { video_model } = await getAdultSettings(db);
   // fal's queue URLs use the model's app id (its first two path parts).
@@ -417,8 +434,10 @@ export async function pollClip(db: Db, id: string, viewerId: string): Promise<st
     await db.query(`update adult_images set status = 'failed' where id = $1`, [id]);
     return "failed";
   }
-  // The output check on the clip itself, before it's stored: a failure is discarded.
-  const verdict = await checkOutput((await adultKeys(db)).hive, body.video.url, "video");
+  // The output check on the clip itself, before it's stored: a failure is discarded. Hive out of its daily allowance isn't
+  // a verdict: the clip stays pending, unchecked and unstored, and is checked once the pause is over.
+  const verdict = await underHiveLimit(db, () => adultKeys(db).then((k) => checkOutput(k.hive, body.video!.url!, "video")));
+  if (!verdict.ok && verdict.paused) return "pending";
   if (!verdict.ok) {
     await logRejection(db, row.owner_id, "video", verdict.reason);
     await db.query(`update adult_images set status = 'failed' where id = $1`, [id]);

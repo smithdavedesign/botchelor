@@ -23,7 +23,8 @@
  *    shot (2026-10-22: Dex's line on Lexi's mouth); it stays a setting (`reel_model`).
  *  - The check: every keyframe passes Hive (moderation and the age question) before a video is made from it, and every
  *    shot passes it again before it's stored (lib/adult/check.ts); a failure is discarded, never stored, and its share
- *    of the tokens given back.
+ *    of the tokens given back. While Hive is over its daily limit (lib/adult/hive-limit.ts) no video starts, and a shot
+ *    already made waits, uncollected and unchecked, until the pause is over.
  *  - The price: `reel_tokens` bought tokens (After Dark's settings), admins free.
  *  - On Replicate, the backup (`media_provider`, David 2026-10-22; lib/adult/replicate.ts): the keyframe is Qwen-Image-
  *    Edit's, the shot Wan 2.2's, both with Replicate's safety checker off and both through the same Hive check. Wan
@@ -46,6 +47,7 @@ import { normalizeScene, setPath } from "../venues";
 import { crossesTaboo } from "./acts";
 import { checkOutput, type CheckResult } from "./check";
 import { providerError, runMedia } from "./fallback";
+import { hiveGate, hivePausedReason, HivePausedError, hivePausedUntil, underHiveLimit } from "./hive-limit";
 import type { PlaceStop } from "./continuity";
 import { ensureBaseline, lookWords, signedMediaUrl } from "./media";
 import { adultModel } from "./mode";
@@ -771,8 +773,23 @@ export async function drawKeyframe(key: string, prompt: string, images: string[]
   return { bytes: Buffer.from(b64.replace(/^data:[^,]*,/, ""), "base64"), mime: "image/png" };
 }
 
-/** Hive gave no verdict (busy, down): a reason to ask again, not a refusal. */
+/** Hive gave no verdict (busy, down, over its daily limit): a reason to ask again, not a refusal. */
 const couldntRun = (v: CheckResult): boolean => !v.ok && v.reason.startsWith("the check couldn't run") && !v.reason.includes("no Hive key");
+/** Until when Hive's daily-limit pause runs, when it's why a check didn't run (lib/adult/hive-limit.ts); else null. */
+const hiveOut = (v: CheckResult): string | null => (!v.ok && v.paused ? v.paused : null);
+/** When a shot Hive couldn't check is asked again: after CHECK_RETRY_MS, or once Hive's daily-limit pause is over. */
+const askAgainAt = (v: CheckResult, now: number): string => {
+  const until = hiveOut(v);
+  return new Date(Math.max(now + CHECK_RETRY_MS, until ? new Date(until).getTime() : 0)).toISOString();
+};
+/** What a shot Hive couldn't check says: why it didn't run, or until when Hive is out. */
+const waitReason = (v: CheckResult): string => {
+  const until = hiveOut(v);
+  return (until ? hivePausedReason(until) : v.ok ? "" : v.reason).slice(0, 200);
+};
+/** A keyframe, shot or clip thrown away because Hive was out of its daily allowance: logged, like a refusal. */
+const logPaused = (db: Db, ownerId: string, what: string) =>
+  db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'reel', $3)`, [crypto.randomUUID(), ownerId, what.slice(0, 300)]).catch(() => {});
 
 /** The biggest file a keyframe, a shot or a line's voice may be. */
 const MAX_PICTURE_BYTES = 40 * 1024 * 1024;
@@ -863,18 +880,33 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
     }),
   );
   let checked = 0;
+  // Once Hive is out of its daily allowance (lib/adult/hive-limit.ts), the rest aren't sent: until when.
+  let paused: string | null = null;
   for (const [k, s] of shots.entries()) {
     const d = drawn[k];
     if (!d) continue;
+    if (paused) {
+      // Drawn before the pause began, and can't be checked now: discarded, never stored, its share of tokens back.
+      Object.assign(s, { status: "failed", reason: hivePausedReason(paused).slice(0, 200) });
+      await logPaused(db, ownerId, `keyframe: ${hivePausedReason(paused)}`);
+      continue;
+    }
     if (checked++) await pause(CHECK_PAUSE_MS);
     const media = { base64: d.file.bytes.toString("base64"), mime: d.file.mime };
-    let verdict = await checkOutput(ctx.hive, media, "image");
-    if (couldntRun(verdict)) {
+    let verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "image"));
+    // Asked once more after a pause when Hive was busy or down; never when it's out for the day.
+    if (couldntRun(verdict) && !hiveOut(verdict)) {
       await pause(CHECK_AGAIN_MS);
-      verdict = await checkOutput(ctx.hive, media, "image");
+      verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "image"));
     }
     if (!verdict.ok) {
-      // Never stored either way; only a refusal is logged as one.
+      // Never stored either way; only a refusal is logged as one, and a keyframe thrown away because Hive was out.
+      paused = hiveOut(verdict);
+      if (paused) {
+        Object.assign(s, { status: "failed", reason: waitReason(verdict) });
+        await logPaused(db, ownerId, `keyframe: ${verdict.reason}`);
+        continue;
+      }
       const busy = couldntRun(verdict);
       Object.assign(s, { status: busy ? "failed" : "discarded", reason: verdict.reason.slice(0, 200) });
       if (!busy) {
@@ -1035,6 +1067,12 @@ export async function makeReel(
     return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
   }
   if (lines.length < 6) return { ok: false, status: 409, error: "too_short", message: "Let the night run a little longer first: a video needs at least six lines." };
+  // Hive over its daily limit (lib/adult/hive-limit.ts): refused before anything is drawn or spent.
+  const gate = await hiveGate(db, keys.hive);
+  if (!gate.ok) {
+    await logPaused(db, ownerId, gate.reason);
+    return { ok: false, status: 503, error: "hive_paused", message: gate.message };
+  }
   const busy = await busyReel(db, ownerId);
   if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
   const pays = !(await isAdmin(db, ownerId));
@@ -1096,6 +1134,8 @@ export async function makeReel(
   } catch (err) {
     if (pays) await refundBoughtTokens(db, ownerId, price);
     await db.query(`delete from adult_reels where id = $1`, [id]).catch(() => {});
+    // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
+    if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: `${err.message}${pays && price > 0 ? " Your tokens are back." : ""}` };
     return { ok: false, status: 502, error: "not_started", message: `The video couldn't start (${err instanceof Error ? err.message : "error"}). Your tokens are back.` };
   }
 }
@@ -1143,10 +1183,10 @@ async function collectReplicateShot(
     failShot(s, err.status === 403 || err.status === 404 || err.status === 410 ? "Replicate no longer has the video (it deletes what a model made an hour after)" : err.message);
     return "waiting";
   }
-  const verdict = await checkOutput(keys.hive, { base64: file.bytes.toString("base64"), mime: "video/mp4" }, "video");
+  const verdict = await underHiveLimit(db, () => checkOutput(keys.hive, { base64: file.bytes.toString("base64"), mime: "video/mp4" }, "video"));
   if (!verdict.ok && couldntRun(verdict)) {
-    s.retry_at = new Date(now + CHECK_RETRY_MS).toISOString();
-    s.reason = verdict.reason.slice(0, 200);
+    s.retry_at = askAgainAt(verdict, now);
+    s.reason = waitReason(verdict);
     return "busy";
   }
   if (!verdict.ok) {
@@ -1217,7 +1257,18 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
   // Replicate's voice model, read once a poll and only when a Replicate shot needs it.
   let voiceModel: string | null = null;
   const voiceModelOf = async () => (voiceModel ??= (await getAdultSettings(db)).replicate_voice_model);
+  // Hive over its daily limit (lib/adult/hive-limit.ts): nothing is fetched or sent to Hive; the shots wait where they
+  // were made, unchecked, until the pause is over, and say so.
+  const paused = await hivePausedUntil(db);
+  if (paused) {
+    for (const s of shots) {
+      if (s.status !== "queued" || !s.queue_id) continue;
+      if (!s.retry_at || s.retry_at < paused) s.retry_at = paused;
+      s.reason = hivePausedReason(paused).slice(0, 200);
+    }
+  }
   for (const s of shots) {
+    if (paused) break;
     if (s.status !== "queued" || !s.queue_id || !s.model || checked >= SHOTS_PER_POLL) continue;
     if (s.retry_at && now < new Date(s.retry_at).getTime()) continue;
     if (s.provider === "replicate") {
@@ -1239,12 +1290,12 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     if (!(res.headers.get("content-type") ?? "").includes("video")) continue; // still being made
     const bytes = Buffer.from(await res.arrayBuffer());
     checked++;
-    const verdict = await checkOutput(keys.hive, { base64: bytes.toString("base64"), mime: "video/mp4" }, "video");
-    // The check couldn't run (Hive busy or down): not a refusal yet. Try again after a wait, and send nothing more to
-    // Hive this poll.
+    const verdict = await underHiveLimit(db, () => checkOutput(keys.hive, { base64: bytes.toString("base64"), mime: "video/mp4" }, "video"));
+    // The check couldn't run (Hive busy, down, or out for the day): not a refusal yet. Try again after a wait (or once
+    // the pause is over), and send nothing more to Hive this poll.
     if (!verdict.ok && couldntRun(verdict)) {
-      s.retry_at = new Date(now + CHECK_RETRY_MS).toISOString();
-      s.reason = verdict.reason.slice(0, 200);
+      s.retry_at = askAgainAt(verdict, now);
+      s.reason = waitReason(verdict);
       break;
     }
     if (!verdict.ok) {

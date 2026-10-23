@@ -255,10 +255,22 @@ describe("a picture of both of them", () => {
     expect(discarded.status).toBe(422);
     expect((await discarded.json()).message).toMatch(/^The safety check discarded that picture \(age check: MINOR\)\. Your token is back\.$/);
     expect((await t.db.query<{ reason: string }>(`select reason from adult_rejections`)).rows.map((r) => r.reason)).toEqual(["menu picture: age check: MINOR"]);
-    // Hive busy: not kept either, and not a refusal.
+    // Hive out of its daily allowance (429 after its retries): not kept, the token back, and pictures pause
+    // (lib/adult/hive-limit.ts).
     fakeHive(() => new Response("slow down", { status: 429 }));
-    expect((await picture(cookie, { act: "kiss", outfit: "tonight" })).status).toBe(503);
-    // Venice out of credit.
+    const out = await picture(cookie, { act: "kiss", outfit: "tonight" });
+    expect(out.status).toBe(503);
+    expect((await out.json()).message).toMatch(/^Pictures and videos are paused: .* so this one couldn't be checked and wasn't kept\. Try again after \d\d:\d\d UTC \(in about 30 minutes\)\. Your token is back\.$/);
+    // While it lasts, the next one is refused before anything is drawn or spent.
+    const drawn = fakeVenice();
+    const seen = fakeHive();
+    const paused = await picture(cookie, { act: "kiss", outfit: "tonight" });
+    expect(paused.status).toBe(503);
+    expect((await paused.json()).error).toBe("hive_paused");
+    expect(drawn).toEqual([]);
+    expect(seen).toEqual([]);
+    // Over (its time run out, and Hive answers the probe): Venice out of credit.
+    await t.db.query(`update adult_media_cooldowns set until = now() - interval '1 minute' where provider = 'hive'`);
     fakeHive();
     fakeVenice(() => new Response(JSON.stringify({ error: "Insufficient USD or Diem balance" }), { status: 402 }));
     const broke = await picture(cookie, { act: "kiss", outfit: "tonight" });

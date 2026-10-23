@@ -1014,10 +1014,11 @@ describe("the video of the night", () => {
     await ready(cookie, id);
     fakeVenice();
     let calls = 0;
-    // The first keyframe: Hive busy through both of its checks, each asked HIVE_RETRIES more times (lib/adult/check.ts):
-    // 2 × (1 + HIVE_RETRIES) busy answers. The others: fine.
+    // The first keyframe: Hive down through both of its checks, each asked HIVE_RETRIES more times (lib/adult/check.ts):
+    // 2 × (1 + HIVE_RETRIES) failed answers. The others: fine. (A 429 that outlasts the retries is Hive's daily limit
+    // instead, and pauses everything: tests/hive-limit.test.ts.)
     const busy = 2 * (1 + HIVE_RETRIES);
-    setCheckFetchForTests(async (input: RequestInfo | URL) => (calls++ < busy ? new Response("slow down", { status: 429 }) : Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD)));
+    setCheckFetchForTests(async (input: RequestInfo | URL) => (calls++ < busy ? new Response("down", { status: 503 }) : Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD)));
     threeShots();
     const started = (await (await make(cookie)).json()).reel as Reel;
     expect(started.shots.map((s) => s.status)).toEqual(["failed", "queued", "queued"]);
@@ -1076,11 +1077,12 @@ describe("the video of the night", () => {
     expect(started.tokens).toBe(15);
     expect(await used()).toBe(15);
     expect((await make(cookie)).status).toBe(409);
-    // Hive busy: nothing discarded, and that shot waits before it's sent again (nothing more goes to Hive this poll).
+    // Hive busy (down for a while): nothing discarded, and that shot waits before it's sent again (nothing more goes to
+    // Hive this poll). Its daily limit (a 429 that outlasts the retries) pauses every shot instead: tests/hive-limit.test.ts.
     let hiveCalls = 0;
     setCheckFetchForTests(async () => {
       hiveCalls++;
-      return new Response("slow down", { status: 429 });
+      return new Response("busy", { status: 503 });
     });
     const waiting = await advance(started.id, cookie);
     expect(waiting.shots.every((s) => s.status === "queued")).toBe(true);
@@ -1110,7 +1112,7 @@ describe("the video of the night", () => {
     fakeHive();
     threeShots();
     const started = (await (await make(cookie)).json()).reel as Reel;
-    setCheckFetchForTests(async () => new Response("slow down", { status: 429 }));
+    setCheckFetchForTests(async () => new Response("busy", { status: 503 }));
     await advance(started.id, cookie);
     expect((await make(cookie)).status).toBe(409);
     await t.db.query(`update adult_reels set created_at = now() - interval '4 hours' where id = $1`, [started.id]);

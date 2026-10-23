@@ -347,8 +347,12 @@ describe("sets that couldn't be checked are tried again", () => {
     const before = hiveCalls;
     expect(await retryDueSets(t.db, 3, 0)).toEqual([]);
     expect(hiveCalls).toBe(before);
-    // Due, cool-down over: only the check runs again (no new drawing), and it's ready.
+    // Due, cool-down over (and the pause that 429 started, Hive's daily limit: lib/adult/hive-limit.ts): only the check
+    // runs again (no new drawing), and it's ready.
     await t.db.query(`update place_sets set retry_at = now() - interval '1 minute', updated_at = now() - interval '10 minutes'`);
+    expect(await retryDueSets(t.db, 3, 0)).toEqual([]);
+    expect(hiveCalls).toBe(before);
+    await t.db.query(`update adult_media_cooldowns set until = now() - interval '1 minute' where provider = 'hive'`);
     hive = Response.json(CLEAN);
     expect(await retryDueSets(t.db, 3, 0)).toEqual([{ label: "bedroom", status: "ready" }]);
     expect(draws).toBe(1);

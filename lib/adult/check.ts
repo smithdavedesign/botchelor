@@ -11,9 +11,16 @@
  * from a picture that already passed both, and its frames go through moderation again.
  * The check FAILS CLOSED: no key, an error, or an unreadable reply is a refusal.
  * Self-serve Hive doesn't include its CSAM classifier (Enterprise only); add it before anyone but the admin uses this.
+ * Self-serve Hive also stops at 100 moderation requests a day: lib/adult/hive-limit.ts pauses every picture and video
+ * when a check ends on its 429, so nothing is drawn (or paid for) that couldn't be checked.
  */
 
-export type CheckResult = { ok: true } | { ok: false; reason: string };
+/**
+ * A check's verdict. On a refusal, `limited` says the check ended on a Hive 429 after its retries (Hive's daily limit,
+ * 2026-10-23: lib/adult/hive-limit.ts pauses every picture and video on it), and `paused` is until when that pause runs
+ * (an ISO time), set by lib/adult/hive-limit.ts when the pause stopped this check or this check started it.
+ */
+export type CheckResult = { ok: true } | { ok: false; reason: string; limited?: boolean; paused?: string };
 
 export const HIVE_MODERATION = "https://api.thehive.ai/api/v3/hive/visual-moderation";
 export const HIVE_VLM = "https://api.thehive.ai/api/v3/chat/completions";
@@ -127,11 +134,25 @@ function jsonObject(text: string): Record<string, unknown> | null {
   }
 }
 
+/** Hive answered with an error status (`status`), after any retries. */
+export class HiveError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/** Whether a check failed because Hive kept answering 429: its rate limit, or (self-serve) its daily allowance. */
+const endedLimited = (err: unknown): boolean => err instanceof HiveError && err.status === 429;
+
 /**
  * One Hive call. A busy (429), down (5xx) or unreachable Hive is asked again, HIVE_RETRIES more times, after the wait it
  * asks for (Retry-After, capped) or a short backoff: on 2026-10-23 a picture was drawn, paid for and thrown away because
  * one 429 meant the check "couldn't run". Any other answer (a 4xx) fails at once. Whatever it ends on, a check that can't
- * run still refuses (the callers fail closed): nothing unchecked is ever kept.
+ * run still refuses (the callers fail closed): nothing unchecked is ever kept. A 429 that outlasts the retries is Hive's
+ * limit, not a burst: the check says so (`limited`), and lib/adult/hive-limit.ts pauses pictures and videos on it.
  */
 async function hive(key: string, endpoint: string, payload: unknown): Promise<unknown> {
   const body = JSON.stringify(payload);
@@ -150,7 +171,7 @@ async function hive(key: string, endpoint: string, payload: unknown): Promise<un
     }
     if (res.ok) return res.json();
     const busy = res.status === 429 || res.status >= 500;
-    if (!busy || attempt >= HIVE_RETRIES) throw new Error(`Hive answered ${res.status}`);
+    if (!busy || attempt >= HIVE_RETRIES) throw new HiveError(`Hive answered ${res.status}`, res.status);
     await sleep(retryAfterMs(res.headers.get("retry-after")) ?? HIVE_BACKOFF_MS[attempt] ?? HIVE_WAIT_MAX_MS);
   }
 }
@@ -169,8 +190,14 @@ export async function checkSet(key: string | null, media: string | { base64: str
     const bad = scores.find((s) => (MODERATION_CHILD.includes(s.cls) && s.score >= CHILD_SCORE) || (s.cls === "general_nsfw" && s.score >= SET_NSFW_SCORE));
     return bad ? { ok: false, reason: `moderation: ${bad.cls} ${bad.score.toFixed(2)}` } : { ok: true };
   } catch (err) {
-    return { ok: false, reason: `the check couldn't run (${err instanceof Error ? err.message : "error"})` };
+    return couldntRun(err);
   }
+}
+
+/** A check that couldn't run: a refusal (fail closed), `limited` when Hive kept answering 429. */
+function couldntRun(err: unknown): CheckResult {
+  const reason = `the check couldn't run (${err instanceof Error ? err.message : "error"})`;
+  return endedLimited(err) ? { ok: false, reason, limited: true } : { ok: false, reason };
 }
 
 /** A file to check: fal's URL, or the bytes themselves (Venice returns them, with no URL). */
@@ -195,6 +222,32 @@ export async function checkOutput(key: string | null, media: Checkable, kind: "i
     }
     return { ok: true };
   } catch (err) {
-    return { ok: false, reason: `the check couldn't run (${err instanceof Error ? err.message : "error"})` };
+    return couldntRun(err);
+  }
+}
+
+/**
+ * The picture the probe sends (lib/adult/hive-limit.ts): a plain grey 192×192 PNG, nobody in it, inline so the probe
+ * doesn't depend on the site being reachable from Hive.
+ */
+export const PROBE_PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAABYElEQVR42u3SMQ0AAAzDsPKHULSlMGmvDSFKCg+RAANhIAyEgcBAGAgDYSAwEAbCQBgIDISBMBAGAgNhIAyEgTAQGAgDYSAMBAbCQBgIA4GBMBAGwkBgIAyEgTAQBgIDYSAMhIHAQBgIA2EgMBAGwkAYCAyEgTAQBgIDYSAMhIEwEBgIA2EgDAQGwkAYCAOBgTAQBsJAYCAMhIEwEAYCA2EgDISBwEAYCANhIDAQBsJAGAgMhIEwEAbCQGAgDISBMBAYCANhIAwEBsJAGAgDgYEwEAbCQGAgDISBMBAGAgNhIAyEgcBAGAgDYSAwEAbCQBgIDISBMBAGwkBgIAyEgTAQGAgDYSAMBAbCQBgIA4GBMBAGwkAYCAyEgTAQBgIDYSAMhIHAQBgIA2EgMBAGwkAYCAyEgTAQBsJAYCAMhIEwEBgIA2EgDAQGwkAYCAOBgTAQBsJAGAgMhIEwEAaCqwEyu+8uG/pLDgAAAABJRU5ErkJggg==";
+
+/**
+ * Whether Hive is over its limit, for one moderation call on PROBE_PNG (no retry: the one call is the point). "ok": it
+ * answered; "limited": it answered 429; "unknown": anything else (down, unreachable, a refused key), which says nothing
+ * about the limit. Never throws.
+ */
+export async function probeHive(key: string): Promise<"ok" | "limited" | "unknown"> {
+  try {
+    const res = await doFetch(HIVE_MODERATION, {
+      method: "POST",
+      headers: { accept: "application/json", "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify({ input: [{ media_base64: PROBE_PNG }], processing_mode: "sync_with_fallback" }),
+    });
+    await res.text().catch(() => "");
+    return res.ok ? "ok" : res.status === 429 ? "limited" : "unknown";
+  } catch {
+    return "unknown";
   }
 }
