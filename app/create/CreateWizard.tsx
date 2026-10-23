@@ -388,6 +388,8 @@ export default function CreateWizard({
         // The site's nav is in the root layout, which a client-side link keeps: refresh it so it becomes the owner's
         // (Swipe, Matches) now that there's a character.
         router.refresh();
+        // The next screen starts at the top ("Who should … meet?", and the way back), not where the form ended.
+        window.scrollTo({ top: 0 });
         // Looks picked: draw their portrait from them in the background (free, capped; lib/looks-draw.ts).
         if (normaliseExtras(extras).looks?.gender) void fetch(`/api/characters/${String(data.id)}/looks-portrait`, { method: "POST" }).catch(() => {});
         try {
