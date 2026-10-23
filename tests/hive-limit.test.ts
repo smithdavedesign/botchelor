@@ -410,12 +410,13 @@ describe("a video whose first keyframe finds Hive out", () => {
     const sub = await subscriber();
     await scene(sub.cookie, sub.id);
     const venice = fakeVeniceReels();
-    const hive = fakeHive((kind) => (kind === "moderation" ? outForTheDay() : null));
+    const hive = fakeHive((kind) => (kind !== "probe" ? outForTheDay() : null));
     director();
     const res = await call(reelPost, "/api/admin/after-dark/reel", { a: RAFE, b: JUNIPER }, sub.cookie);
     const reel = (await res.json()).reel as Reel;
-    // One check, with its retries; no second try after a pause, and nothing for the other two keyframes.
-    expect(hive.calls).toEqual(Array.from({ length: 1 + HIVE_RETRIES }, () => "moderation"));
+    // One check (a keyframe's is the age question), with its retries; no second try after a pause, and nothing for the
+    // other two keyframes.
+    expect(hive.calls).toEqual(Array.from({ length: 1 + HIVE_RETRIES }, () => "vlm"));
     expect(venice.filter((p) => p === "/image/multi-edit")).toHaveLength(3);
     expect(venice.filter((p) => p === "/video/queue")).toHaveLength(0);
     expect(reel.status).toBe("failed");

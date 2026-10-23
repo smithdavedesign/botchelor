@@ -24,6 +24,7 @@ import { checkAdultText, checkShowText } from "../safety";
 import { seasonCastIds } from "../season-cast";
 import type { PlaceStop } from "./continuity";
 import { canAfterDark } from "./entitlement";
+import { FRAME_SHOWN } from "./media";
 import { adultAvailable, adultViewerFromCookies } from "./mode";
 import { groupNights, type NightGroupOf } from "./nights";
 import { spoken, type ReelShot } from "./reels";
@@ -99,12 +100,14 @@ export type CoverOption = { id: string; kind: "scene" | "frame"; created_at: str
 
 /**
  * The covers this person can pick for the pair: their own pictures and keyframes of the two of them together. Every one
- * passed the output check (Hive moderation and the age question) before it was stored: nothing else is ever stored.
+ * passed the output check before it was stored (a picture: Hive moderation and the age question), and a keyframe, which
+ * had the age question alone, is offered only once its shot's video has passed moderation (lib/adult/media.ts
+ * FRAME_SHOWN).
  */
 export async function coverOptions(db: Db, ownerId: string, pair: [string, string]): Promise<CoverOption[]> {
   const { rows } = await db.query<CoverOption & { created_at: string | Date }>(
     `select id, kind, created_at, scene_chapter as chapter, scene_place as place from adult_images
-      where owner_id = $1 and status = 'ready' and kind in ('scene', 'frame') and mime like 'image/%'
+      where owner_id = $1 and status = 'ready' and kind in ('scene', 'frame') and mime like 'image/%' and ${FRAME_SHOWN}
         and ((character_id = $2 and character_b = $3) or (character_id = $3 and character_b = $2))
       order by created_at desc, id limit ${COVERS_LISTED}`,
     [ownerId, ...pair],
