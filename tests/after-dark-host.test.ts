@@ -1,4 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET as carry } from "@/app/api/auth/carry/route";
@@ -28,6 +30,7 @@ const UID = "0cbfb3b3-1111-4222-8333-444455556666";
 const SECRET = ["carry", "test", "secret", "abcdefghij0123456789"].join("-");
 const AD = "https://ad.botchelor.com";
 const SHOW = "https://botchelor.com";
+const ROOT = join(import.meta.dirname, "..");
 const CHROME = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
 const GOOGLEBOT = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 
@@ -242,6 +245,23 @@ describe("on After Dark's own host (AFTER_DARK_ONLY=1)", () => {
     for (const path of kept) expect(`${path} ${await go(path)}`).toBe(`${path} 200 -`);
     const sent = ["/api/episodes/e1/reveal?x=1", "/api/auth/login", "/api/auth/google/start", "/api/auth/carry2", "/api/admin/after-darkness", "/api/webhooks/stripe", "/api/jobs/daily", "/api/me"];
     for (const path of sent) expect(`${path} ${await go(path)}`).toBe(`${path} 307 ${SHOW}${path}`);
+  });
+
+  it("keeps every API After Dark's pages call (a new one fails here until it's kept, lib/after-dark-host.ts)", async () => {
+    asAfterDark();
+    const config = afterDarkNextConfig(process.env, SHOW);
+    // After Dark's pages, and what they render or call from elsewhere: the gate, the feedback dock, the waitlist, the sets.
+    const files = [
+      ...[join(ROOT, "app/after-dark"), join(ROOT, "app/admin/after-dark")].flatMap((d) => readdirSync(d, { recursive: true, encoding: "utf8" }).map((f) => join(d, f))),
+      ...["app/AgeGate.tsx", "app/FeedbackDock.tsx", "app/WaitlistForm.tsx", "lib/venues.ts"].map((f) => join(ROOT, f)),
+    ].filter((f) => /\.tsx?$/.test(f));
+    const called = new Set(files.flatMap((f) => [...readFileSync(f, "utf8").matchAll(/["'`](\/api\/[A-Za-z0-9/_-]+)/g)].map((m) => m[1])));
+    expect(called.size).toBeGreaterThan(8);
+    for (const api of called) {
+      const path = api.endsWith("/") ? `${api}x` : api;
+      const res = await viaNextConfig({ url: `${AD}${path}`, nextConfig: config });
+      expect(`${path} ${res.status}`).toBe(`${path} 200`);
+    }
   });
 
   it("refuses to build without the show's address to send things to", () => {

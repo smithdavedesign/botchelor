@@ -52,7 +52,8 @@ The same code runs in both places. Two settings decide what each deployment does
 - Every other page and API redirects to botchelor.com, the same path and query (307).
 - `robots.txt` says `Disallow: /`, and every page carries `X-Robots-Tag: noindex, nofollow`, so search engines keep
   After Dark apart from the show's standing.
-- With no `DATABASE_URL` it refuses to start serving rather than quietly making an empty local database (`lib/db.ts`).
+- With no `DATABASE_URL` it fails (`/api/health` 503, pages 500, "DATABASE_URL is not configured") rather than quietly
+  making an empty local database of its own, as a local run does (`lib/db.ts`).
 - Links it hands out (a reel's signed start frames, MCP's links) name `https://ad.botchelor.com`, not the server's
   internal address (`lib/site.ts` `requestBase`).
 - Its media comes from Bunny when the `MEDIA_BUNNY_*` settings are there (`lib/object-store.ts`): new pictures and
@@ -95,10 +96,13 @@ These come first, and most of them need David to sign up, pay or decide:
      pull zone whose origin is the DigitalOcean app, with the same Traffic Manager block, or build the block into the
      age-check work in the app (a country check before anything is shown). Not built yet: decide with the age-check
      provider, since several of them geolocate as part of the check.
-4. **`<meta name="rating" content="adult">`** on every After Dark page, so filters recognise it (the compliance work's
-   After Dark layout). Check it's in the page source on ad.botchelor.com.
-5. **No Google Analytics on After Dark's host** (the compliance work's GA guard). Check: no `googletagmanager` request
-   in the browser's network tab on any ad.botchelor.com page.
+4. **`<meta name="rating" content="adult">`** and the RTA label on every After Dark page, so filters recognise it. Built
+   (#695: `app/after-dark/layout.tsx`, `app/admin/after-dark/layout.tsx`, `lib/adult/rating.ts`). Check they're in the
+   page source on ad.botchelor.com.
+5. **No Google Analytics on After Dark's host.** Leave `NEXT_PUBLIC_GA_ID` and `NEXT_PUBLIC_GTM_ID` unset there (step 3):
+   without them no Google tag is rendered at all, on any page of that host, the 18+ gate included. On the show, the
+   guard built in #695 (`lib/ga-guard.ts`) keeps GA off After Dark's paths. Vercel Web Analytics only runs on Vercel.
+   Check: no request to `google-analytics.com` or `googletagmanager.com` in the network tab on any ad.botchelor.com page.
 6. **Model terms in writing** (Venice), as `docs/after-dark.md` already lists.
 7. **The looks builder:** with the switch on, the After Dark tab of `/create` on botchelor.com still shows After Dark's
    tiles to the people it's open to (their images now come from ad.botchelor.com and Bunny, never through Vercel). Keep
@@ -197,10 +201,11 @@ nothing: both deployments read those from the database.
    | `MEDIA_BUNNY_CDN_HOST` | `media.botchelor.com` |
    | `MEDIA_BUNNY_KEY` | from the keychain (encrypt) |
    | `MEDIA_BUNNY_TOKEN_KEY` | from the keychain (encrypt) |
-   | `AD_EVAL_DAILY_USD` | only if it's set on Vercel |
+   | `AD_EVAL_DAILY_USD`, `ADULT_TEXT_PROVIDERS` | only if they're set on Vercel (the eval's budget; the OpenRouter hosts After Dark may use) |
 
    **Never set** `ADULT_MODE` (the local Ollama mode is kept off deployments by the `VERCEL` variable, which isn't there
-   on DigitalOcean), or the `MEDIA_S3_*` settings (Bunny is After Dark's store; the bucket stays the show's).
+   on DigitalOcean), `NEXT_PUBLIC_GA_ID`, `NEXT_PUBLIC_GTM_ID` or the site-verification tokens (no Google on this
+   host), or the `MEDIA_S3_*` settings (Bunny is After Dark's store; the bucket stays the show's).
    Email (`RESEND_API_KEY`) and push (`VAPID_*`) are optional; without them After Dark's notifications aren't emailed
    or pushed from this host.
 6. **Domain:** Settings → Domains → Add domain → `ad.botchelor.com` → "You manage your domain". Copy the CNAME alias it
