@@ -8523,3 +8523,24 @@ section:has(> .ad-pairs) {
 .ad-teaser-soon {
   font-weight: 700;
 }
+
+/* Room rows on desktop: a grid of three a page, no sideways scroll (app/watch/StripPager.tsx; phones keep the strip). */
+.strip-item > * {
+  height: 100%;
+}
+.strip-pager {
+  display: none;
+}
+@media (min-width: 721px) {
+  .watch-strip.strip-paged {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+  .watch-strip.strip-paged > .off-page {
+    display: none;
+  }
+  .strip-pager {
+    display: flex;
+  }
+}
