@@ -214,8 +214,9 @@ describe("a clip from the menu", () => {
     expect(prompt).toContain("Explicit, uncensored, photorealistic. Both are adults.");
     expect(prompt).not.toMatch(/Juniper|Rafe/);
     expect(prompt.length).toBeLessThanOrEqual(1500);
-    // Hive saw the keyframe (moderation and the age question) before it was kept, and the video started from it.
-    expect(checks).toEqual(["moderation", "vlm"]);
+    // Hive's age question saw the keyframe before it was kept, and the video started from it; its moderation is the
+    // shot's (lib/adult/check.ts "keyframe").
+    expect(checks).toEqual(["vlm"]);
     const frame = (await t.db.query<{ id: string }>(`select id from adult_images where kind = 'frame'`)).rows[0];
     expect(started.shots[0].frame_id).toBe(frame.id);
     const queued = seen.find((s) => s.path === "/video/queue")!;
@@ -223,9 +224,10 @@ describe("a clip from the menu", () => {
     expect(queued.body).toMatchObject({ model: "wan-3-0-image-to-video", duration: "5s", audio: true });
     expect(String(queued.body.prompt)).toMatch(/^The woman rides him slowly, rolling her hips; the man holds the woman's hips and moves with her\. Two people only/);
     expect(String(queued.body.prompt)).toMatch(/Neither of them speaks: only their breathing and the sounds of the room\.$/);
-    // Collected by the reel poll, checked again, and listed with the pair's videos as a clip.
+    // Collected by the reel poll, checked again (moderation, on the shot), and listed with the pair's videos as a clip.
     const done = await advance(started.id, cookie);
     expect(done.status).toBe("ready");
+    expect(checks).toEqual(["vlm", "moderation"]);
     expect(done.shots[0]).toMatchObject({ status: "ready", frame_id: frame.id });
     const listed = await listReels(t.db, id, RAFE, JUNIPER);
     expect(listed.map((r) => [r.kind, r.clip?.label])).toEqual([["clip", "On top"]]);
@@ -267,14 +269,14 @@ describe("a clip from the menu", () => {
     expect((await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" })).status).toBe(402);
     await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 20, 'test')`, [crypto.randomUUID(), sub]);
 
-    // The keyframe shows a child signal: discarded, never stored, logged, and the tokens back.
-    fakeHive((n, vlm) => (!vlm ? CHILD_MOD : null));
+    // The keyframe's age question doesn't say ADULTS: discarded, never stored, logged, and the tokens back.
+    fakeHive((n, vlm) => (vlm ? { choices: [{ message: { role: "assistant", content: '{"answer": "MINOR"}' } }] } : null));
     const refused = (await (await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" })).json()).reel as Reel;
     expect(refused).toMatchObject({ status: "failed", tokens: 3 });
     expect(refused.shots[0]).toMatchObject({ status: "discarded" });
     expect(await used()).toBe(0);
     expect((await t.db.query(`select 1 from adult_images where kind = 'frame'`)).rows).toHaveLength(0);
-    expect((await t.db.query<{ reason: string }>(`select reason from adult_rejections`)).rows[0].reason).toMatch(/^keyframe: moderation: yes_child_present/);
+    expect((await t.db.query<{ reason: string }>(`select reason from adult_rejections`)).rows[0].reason).toMatch(/^keyframe: age check: MINOR/);
 
     // Venice out of credit: nothing made, the tokens back.
     fakeHive();

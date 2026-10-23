@@ -379,8 +379,9 @@ describe("the video of the night on Replicate", () => {
       expect(String((k.body!.input as { prompt: string }).prompt)).toMatch(/^Make one photograph of the (man|woman) from Picture 1 and the (man|woman) from Picture 2 together\./);
       expect(String((k.body!.input as { prompt: string }).prompt)).not.toMatch(/Rafe|Juniper|Calloway|Vale/);
     }
-    // Every keyframe passed Hive (moderation and the age check) on its bytes before it was kept as a 'frame'.
+    // Every keyframe passed Hive's age check on its bytes before it was kept as a 'frame'; its moderation is its shot's.
     expect(checks.filter((c) => c.kind === "vlm")).toHaveLength(3);
+    expect(checks.filter((c) => c.kind === "moderation")).toHaveLength(0);
     const frames = (await t.db.query<{ id: string }>(`select id from adult_images where kind = 'frame'`)).rows.map((r) => r.id);
     expect(frames).toHaveLength(3);
 
@@ -413,8 +414,9 @@ describe("the video of the night on Replicate", () => {
     const done = await advance(started.id, cookie);
     expect(done.status).toBe("ready");
     expect(done.shots.every((s) => s.status === "ready" && s.media_id && s.audio_id)).toBe(true);
-    // Each shot went to Hive (moderation only: its keyframe already passed the age check) before it was stored.
-    expect(checks.filter((c) => c.kind === "moderation")).toHaveLength(6);
+    // Each shot went to Hive (moderation only: its keyframe already passed the age check) before it was stored: one
+    // moderation request a shot, and none for its keyframe (self-serve Hive's daily cap counts them).
+    expect(checks.filter((c) => c.kind === "moderation")).toHaveLength(3);
     expect(checks.filter((c) => c.kind === "vlm")).toHaveLength(3);
 
     // The voices: Kokoro by its version, each one's stock voice, the line itself; stored as audio beside the shot.
@@ -448,8 +450,9 @@ describe("the video of the night on Replicate", () => {
     await ready(cookie, id);
     noVenice();
     const replicate = fakeReplicate();
-    // The first keyframe's age check says MINOR; then the first video shows a child signal.
-    fakeHive((n) => (n.vlmCall && n.vlm === 0 ? vlmSays('{"answer": "MINOR"}') : !n.vlmCall && n.mod === 3 ? CHILD_MOD : null));
+    // The first keyframe's age check says MINOR; then the first video shows a child signal (the keyframes ask no
+    // moderation of their own, so the first video's is Hive's first moderation call).
+    fakeHive((n) => (n.vlmCall && n.vlm === 0 ? vlmSays('{"answer": "MINOR"}') : !n.vlmCall && n.mod === 0 ? CHILD_MOD : null));
     threeShots();
     const started = (await (await make(cookie)).json()).reel as Reel;
     expect(started.shots.map((s) => s.status)).toEqual(["discarded", "queued", "queued"]);

@@ -1764,6 +1764,9 @@ create table if not exists adult_privacy (
   pin_locked_until timestamptz,
   updated_at timestamptz not null default now()
 );
+-- A video's keyframe passes only Hive's age question (lib/adult/check.ts "keyframe", 2026-10-23), so it's shown on its
+-- own only once a ready video made from it exists (lib/adult/media.ts FRAME_SHOWN): that lookup, by source_image.
+create index if not exists adult_images_source on adult_images (source_image) where source_image is not null;
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.

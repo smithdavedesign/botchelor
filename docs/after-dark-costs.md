@@ -69,7 +69,7 @@ A default video (6 shots) on Replicate:
 | 6 keyframes × $0.03 | $0.18 |
 | 6 voices | about $0.001 |
 | Picking the lines and writing the shots (text model) | about $0.002 |
-| Hive moderation on each keyframe and shot, plus the age check on each keyframe | about $0.10 to $0.25 |
+| Hive moderation on each shot, and the age check on each keyframe (since 2026-10-23 a keyframe has no moderation of its own: 6 fewer requests, about $0.02) | about $0.08 to $0.23 |
 | **Total** | **about $0.95 to $1.10** (Venice: about $4.25 to $5.50) |
 
 At 15 tokens that keeps about $9 to $10 a video, against $5.30 to $6.50 on Venice. The 4-shot bake-off (docs/after-dark.md, "A Replicate backup") costs about $0.56 of Replicate.
@@ -99,7 +99,7 @@ against $0.11).
 | A 15 s video, standard | LongCat, 2 to 3 shots, Hive on the frames, a shot list from the text model | About $0.30 to $0.80 |
 | A 15 s video, best | Wan 3.0, 2 to 3 shots, a still for each opening frame, Hive | About $2.00 |
 | A 30 s video, best | Wan 3.0, 4 to 6 shots | About $4.00 |
-| A clip on demand (one 5 s shot; `lib/adult/clips.ts`) | A keyframe of the two of them, Hive on it, one shot, Hive on the shot; Clip from here adds a text call to direct it | About $0.70 on Venice ($0.04 keyframe, $0.65 Wan 3.0, about $0.02 Hive; a 10 s line $1.35), about $0.16 on Replicate ($0.03, $0.11, about $0.02) |
+| A clip on demand (one 5 s shot; `lib/adult/clips.ts`) | A keyframe of the two of them, Hive's age check on it, one shot, Hive's moderation on the shot; Clip from here adds a text call to direct it | About $0.70 on Venice ($0.04 keyframe, $0.65 Wan 3.0, about $0.02 Hive; a 10 s line $1.35), about $0.16 on Replicate ($0.03, $0.11, about $0.02) |
 | Keep going (the next 5 s of a clip) | The same: a keyframe from the clip's own, a shot | The same as a clip |
 | A picture from the shot menu (`lib/adult/pictures-menu.ts`) | One keyframe of the two of them (the act, outfit, framing and place as chosen), Hive on it | About $0.045 on Venice ($0.04, Hive about $0.004), about $0.035 on Replicate ($0.03) |
 | A Short (`lib/adult/shorts.ts`, 2026-10-23): a saved night of two house characters, published | Nothing is made: it shows the night's own lines, a picture already made and its video when it has one | $0 to make. Watching it is free to the viewer (in the subscription, no tokens, not counted against the caps) and costs us only the transfer: its lines, and the video's files from the bucket (a presigned link) or Postgres, a few MB a video, kept by each viewer's browser |
@@ -137,7 +137,7 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 - **Each line becomes one shot of the two of them together** (since 2026-10-22; docs/after-dark.md, "Videos with both of them in"):
   - the model writes a still of that moment (where they are, how they're posed, the framing) and what they do next;
   - Venice's multi-image edit (`qwen-edit-uncensored`, $0.04) turns their two portraits, plus the night's drawn set when there is one, into one picture of both;
-  - Hive checks that picture (moderation and the age check), and Wan 3.0 animates it.
+  - Hive's age check passes that picture (its moderation is the shot's, since 2026-10-23), and Wan 3.0 animates it.
 - **Voices (David's pick, 2026-10-19, after watching both tests):** Wan 3.0 speaks each line itself, from the prompt ("test A"). It sounded more real than a stock Kokoro voice lip-synced by Wan 2.6 ("test B").
   - The catch: the model chooses the voice per shot, so a character can sound slightly different from shot to shot. The prompt gives each character the same voice words every shot ("a deep, warm man's voice").
   - B's own-voice path is still in the code (set the model to a Wan 2.5–2.7 one), but with two people in the shot it lip-syncs whichever face is clearest. On 2026-10-22 that put Dex's line on Lexi's mouth.
@@ -151,12 +151,12 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 | 6 shots × $0.65 (5 s each; a long line takes 10 s, $1.30) | $3.90 to $5.00 |
 | 6 keyframes of the two of them × $0.04 (`qwen-edit-uncensored`) | $0.24 |
 | Picking the lines and writing the shots (text model) | about $0.002 |
-| Hive moderation on each keyframe and shot, plus the age check on each keyframe | about $0.10 to $0.25 |
+| Hive moderation on each shot, and the age check on each keyframe (since 2026-10-23 a keyframe has no moderation of its own: 6 fewer requests, about $0.02) | about $0.08 to $0.23 |
 | **Total** | **about $4.25 to $5.50** |
 
 At **15 tokens** we take in about $10.80 after Stripe's fee (about $10.20 with an adult processor), so we keep about **$5.30 to $6.50** a video. Test B's route (Wan 2.6 with our own voices) would cost about $3.50, but it lip-syncs the wrong face in a two-person shot.
 
-**Hive's limit:** self-serve allows 100 visual-moderation requests a day, and the only way to raise it is to contact Hive Sales. That's needed before real volume. A video now asks for 6 more of them (one per keyframe) on top of its shots. The vision-language model (the age check) has no listed limit and costs $0.50 per million input tokens and $2.50 per million output, about $0.001 a check.
+**Hive's limit:** self-serve allows 100 visual-moderation requests a day, and the only way to raise it is to contact Hive Sales. That's needed before real volume. A video asks for one per shot: **6 for a 6-shot video** (and a clip 1). Until 2026-10-23 it was 12, because each keyframe had its own as well. Now a keyframe gets the age check only, and its moderation is its shot's: Hive's video moderation samples the shot's frames, the first of them the keyframe, and a keyframe is never shown on its own until its shot has passed (docs/after-dark.md, "Hive's daily limit"). So the 100 a day are about 16 six-shot videos, not 8. A picture shown as a still (a baseline, a scene or menu picture) still asks for one moderation request and one age check. The vision-language model (the age check) has no listed limit and costs $0.50 per million input tokens and $2.50 per million output, about $0.001 a check.
 
 What happens when the day's 100 are used up (2026-10-23, `lib/adult/hive-limit.ts`; docs/after-dark.md "Hive's daily limit"): a check that still gets a 429 after its retries pauses every picture and video for 30 minutes. While it's paused nothing is drawn, so nothing is paid for: a baseline, a scene or menu picture, a video, a clip, a set, a look tile or portrait, and a season portrait are all refused before the provider is called, the page says until when, and no tokens are spent. When the pause runs out, the first draw sends one probe first, a moderation call on a plain grey picture (about $0.003, one of the 100). A 429 starts another 30 minutes; an answer ends the pause. So a day that runs out costs at most two probes an hour while someone keeps trying, instead of a paid picture thrown away on every try (on 2026-10-23: 18 baselines and 2 scene pictures, each drawn and paid for on Venice or Replicate). A picture that was already drawn when the limit hit is thrown away, as before, and its tokens are given back.
 

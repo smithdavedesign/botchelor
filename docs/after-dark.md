@@ -750,11 +750,11 @@ room the theater shows. The keyframe passed Hive (child score 0.0000003, the age
 
 **What changed** (`lib/adult/reels.ts`):
 - **The director** (After Dark's text model) picks the lines and, for each, writes a still ("frame": where they are, who is where, how they're posed, what they're wearing by then, the framing, varied) and a "motion" (what each does next), from the line's action and the lines before it. It names them only by how they look ("the woman", "the man", or by their hair when both are women or both men). Names are scrubbed from anything it writes, and from place names ("Lexi's bedroom" is "her bedroom"). It's asked to give both of them lines.
-- **Each shot's keyframe** is the two baselines (plus the place's drawn set, when one is ready) made into one picture of that still, kept by the edit model to each one's face, hair, skin and body. It's dressed before undressing and explicit from it. It's checked by Hive (moderation and the age question) before anything is made from it, and kept out of the gallery as a `frame`; a video row's `source_image` points at it. A keyframe the check refuses is discarded and logged. One Hive couldn't check is asked again once, then dropped. A shot dropped either way gives back its share of the tokens.
+- **Each shot's keyframe** is the two baselines (plus the place's drawn set, when one is ready) made into one picture of that still, kept by the edit model to each one's face, hair, skin and body. It's dressed before undressing and explicit from it. It's checked by Hive (moderation and the age question; since 2026-10-23 the age question alone, its moderation being its shot's: "Hive's daily limit" below) before anything is made from it, and kept out of the gallery as a `frame`; a video row's `source_image` points at it. A keyframe the check refuses is discarded and logged. One Hive couldn't check is asked again once, then dropped. A shot dropped either way gives back its share of the tokens.
 - **The shot's prompt** is the motion, "two people only", both restated, one continuous steady shot with no cuts and nobody else, and who says the line, in the same voice words each time. Wan 3.0 stays the default (David's pick for the voice).
 - **Faster:** the keyframes are drawn at once, so all six videos run side by side. Before, each character's shots waited for their previous one. The chaining and its ffmpeg last-frame step (`lib/adult/frames.ts`, `ffmpeg-static`, ~75 MB in two routes' bundles) are gone.
 - **The places:** where each line was said comes from the night's start and the lines that agreed to go (`moved_to`), so the reel now reads the night itself (`reelNight`), not the page's copy of its lines. A saved night is filmed only for its own pair.
-- **Cost:** $0.24 more a video (6 keyframes), and 6 more Hive moderation requests against the self-serve 100 a day.
+- **Cost:** $0.24 more a video (6 keyframes), and 6 more Hive moderation requests against the self-serve 100 a day (none since 2026-10-23: a keyframe gets the age question only).
 
 **The first live reel** (3 shots of Lexi and Dex, the night they ended in her bedroom; #688):
 - It started in 31 s, all three keyframes passed Hive, and the shots took about 4 minutes.
@@ -1534,3 +1534,22 @@ code treated each 429 as "busy, try again soon".
   cooling down, with until when and why. The same list is `pauses` in MCP `after_dark_settings` and the settings API.
 - **Not changed:** Replicate throttling us (6 requests a minute with a burst of 1 while the account has less than $5 of
   credit) is for David to top up. The gate never calls Replicate, so it doesn't add to it.
+
+**Fewer requests a video** (the same day, David's go-ahead). The cap counts moderation requests, and a 6-shot video used
+12: each keyframe had moderation and the age question, and each shot moderation again. Hive's video moderation samples
+a shot's frames, the first of them its keyframe, so now:
+- **A keyframe** (made only to start its shot, a reel's or a clip's) gets the age question alone (`checkOutput(…,
+  "keyframe")`), before it goes to the video provider. Nothing but ADULTS passes, as before; a keyframe that doesn't is
+  discarded, logged, and no video starts from it.
+- **Every shot's video** keeps its moderation (the child classifier) before it's stored or shown. Unchanged.
+- **A keyframe is never shown on its own until its shot has passed** (`FRAME_SHOWN`, `lib/adult/media.ts`): the media
+  route (a reel's poster), a Short's cover choices, and the admin's pair view (/admin/after-dark/graph) only show a
+  `frame` once a ready video made from it exists (`source_image`; indexed). A shot that moderation discards keeps its
+  keyframe hidden for good. Only a video provider gets a keyframe before that, by its signed link, to start the shot.
+  The gallery never lists frames, Keep going only carries on from a shot that came through, and a Short's posters and
+  files are only its shots that came through: none of those changed. Production had 46 keyframes (42 with a video that
+  came through) and no Shorts, so no cover was affected.
+- **Pictures shown as stills don't change:** baselines, scene pictures and menu pictures keep moderation and the age
+  question.
+- **The arithmetic:** a 6-shot video is 6 moderation requests (one a shot) and 6 age checks, where it was 12 and 6; a
+  clip is 1 and 1, where it was 2 and 1. The 100 a day are about 16 six-shot videos instead of 8.
