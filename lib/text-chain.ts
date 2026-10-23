@@ -107,7 +107,7 @@ export async function loadChain(db: Db, x: string, y: string, layer: ChainLayer)
       episode_id: e.id,
       number: i + 1,
       venue: venueName(e.venue),
-      ending_label: timelineLabel(e, ledOn.has(e.id), Boolean(e.followup_of && ids.has(e.followup_of))),
+      ending_label: timelineLabel(e, ledOn.has(e.id), Boolean(e.followup_of && ids.has(e.followup_of)), i + 1),
       aired: e.revealed_at !== null,
     });
     // The morning after, right behind its date. Side "a" is the episode's character_a, which may be either end.

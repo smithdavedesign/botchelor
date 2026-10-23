@@ -8,7 +8,7 @@ import {
   DRAMA_ANSWERS,
   DRAMA_QUESTION_LABELS,
   dramaAnswerLabel,
-  ENDING_LABELS,
+  endingLabel,
   ENDINGS,
   POINTS_PER_CORRECT_PICK,
   POINTS_PER_DRAMA_PICK,
@@ -30,6 +30,8 @@ type Props = {
   dramaQuestion: DramaQuestion | null;
   myPick: Ending | null;
   myDramaPick: DramaAnswer | null;
+  /** Which date this is for the couple (lib/rules dateNumberOf): on a third date the happy ending reads "A fourth date". */
+  dateNumber?: number | null;
   /** public / unlisted / private. Private is "offline": it never airs on its own. */
   visibility?: string;
   /** When an unaired date airs on its own (ISO), for its host. */
@@ -45,10 +47,10 @@ function setVisibility(episodeId: string, visibility: "public" | "private") {
 }
 
 export default function EpisodeActions(props: Props) {
-  const { episodeId, sharePath, shareBase, isCreator, isHost, revealed, names, dramaQuestion, myPick, myDramaPick, visibility, airsAt } = props;
+  const { episodeId, sharePath, shareBase, isCreator, isHost, revealed, names, dramaQuestion, myPick, myDramaPick, dateNumber, visibility, airsAt } = props;
   const offline = visibility === "private";
   const { busy, error, setError, run } = useAction();
-  const share = <EpisodeShare path={sharePath} base={shareBase} names={names} />;
+  const share = <EpisodeShare path={sharePath} base={shareBase} names={names} dateNumber={dateNumber} />;
 
   function predict(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -118,7 +120,7 @@ export default function EpisodeActions(props: Props) {
       <form className="choices" onSubmit={predict}>
         {ENDINGS.map((ending) => (
           <label key={ending}>
-            <input type="radio" name="pick" value={ending} defaultChecked={myPick === ending} /> {ENDING_LABELS[ending]}
+            <input type="radio" name="pick" value={ending} defaultChecked={myPick === ending} /> {endingLabel(ending, dateNumber)}
           </label>
         ))}
         {dramaQuestion && (
@@ -140,7 +142,7 @@ export default function EpisodeActions(props: Props) {
       </form>
       {myPick && (
         <p className="notice">
-          Your pick: {ENDING_LABELS[myPick]}
+          Your pick: {endingLabel(myPick, dateNumber)}
           {dramaQuestion && myDramaPick && `, and ${dramaAnswerLabel(dramaQuestion, myDramaPick, names)}`}. You can
           change it until the finale airs. A right ending earns {POINTS_PER_CORRECT_PICK} points
           {dramaQuestion && `, the bonus ${POINTS_PER_DRAMA_PICK}`}.

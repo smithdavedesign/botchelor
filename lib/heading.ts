@@ -13,7 +13,7 @@
  * The same words name a disaster's weak spot in its why (lib/why.ts) and the reflect_on_date hint.
  */
 import { endingScore, NEUTRAL_START, type EngineTrace, type Outcome, type SideOutcome } from "./engine";
-import { DATE_VARIABLES, DEFAULT_STRATEGY, ENDING_LABELS, type DateVariable, type Ending, type Strategy } from "./rules";
+import { DATE_VARIABLES, DEFAULT_STRATEGY, endingLabel, type DateVariable, type Ending, type Strategy } from "./rules";
 
 /** Each box-score number in plain words, during the date and after it. */
 export const PLAIN: Record<DateVariable, { now: string; past: string }> = {
@@ -115,6 +115,7 @@ export type Heading = {
  * Where a date is heading, for the agents performing it: the engine's ending as booked, said with the two or three factors
  * that matter most for this pair (the numbers that pull hardest the way it went, a tripped dealbreaker first: whose, never on
  * what), and what that means for the lines. `twoAgent`: each agent plays one side, so the lever is its own side's see_again.
+ * `dateNumber`: which date this is for the couple (lib/rules dateNumberOf), so a third date is heading for "a fourth date".
  */
 export function dateHeading(
   outcome: Pick<Outcome, "ending" | "variables" | "sides">,
@@ -122,8 +123,10 @@ export function dateHeading(
   strategy: Strategy | null | undefined,
   trace: EngineTrace | null | undefined,
   twoAgent = false,
+  dateNumber?: number | null,
 ): Heading {
   const ending = outcome.ending;
+  const lead = leadFor(ending, dateNumber);
   const ranked = pulls(outcome.variables, strategy);
   const tripped = (outcome.sides ?? []).flatMap((s: SideOutcome, i) => (s.dealbreaker_hit ? [firstName(names[i])] : []));
   const dealbreaker = tripped.length === 2 ? "both their dealbreakers trip" : tripped.length === 1 ? `${tripped[0]}'s dealbreaker trips` : null;
@@ -149,23 +152,26 @@ export function dateHeading(
     ...(dealbreaker && ending === "second_date" ? [`${dealbreaker} (what on stays private), and the rest outweighs it`] : []),
   ];
   const says = !best || !worst
-    ? `${LEAD[ending]}`
+    ? `${lead}`
     : ending === "second_date"
-      ? `${LEAD[ending]}: ${best.v} carries it`
+      ? `${lead}: ${best.v} carries it`
       : ending === "friends"
-        ? `${LEAD[ending]}: ${best.v} is there, but ${worst.v} never gets going`
-        : `${LEAD[ending]}: ${dealbreaker ? `${dealbreaker}, and ` : ""}${worst.v} is the weak spot`;
+        ? `${lead}: ${best.v} is there, but ${worst.v} never gets going`
+        : `${lead}: ${dealbreaker ? `${dealbreaker}, and ` : ""}${worst.v} is the weak spot`;
   const play = !best || !worst ? null : ending === "second_date" ? readsAs(best) : ending === "disaster" ? readsAs(worst) : `${readsAs(best)}; ${readsAs(worst)}`;
   const lever = twoAgent ? TWO_AGENT_LEVER : OWN_LEVER;
   return {
     ending,
-    ending_label: ENDING_LABELS[ending],
+    ending_label: endingLabel(ending, dateNumber),
     says,
     factors,
     note: `Set at booking from the two characters' numbers, not from how the lines read: play the lines toward it${play ? ` (${play})` : ""}. ${lever}`,
   };
 }
 const LEAD: Record<Ending, string> = { second_date: "heading for a second date", friends: "closing as friends", disaster: "heading for a disaster" };
+/** The heading's lead for one date: a couple's third date is "heading for a fourth date". */
+const leadFor = (ending: Ending, dateNumber?: number | null): string =>
+  ending === "second_date" ? `heading for ${endingLabel(ending, dateNumber).toLowerCase()}` : LEAD[ending];
 /** The lever, between your own two characters (you send both sides' see_again) and on a two-agent date (your side's only). */
 const OWN_LEVER = "The one lever is each side's private see_again on its last line: both yes makes a better ending likelier, both no a parting.";
 const TWO_AGENT_LEVER = "Your one lever is your side's private see_again on its last line: with theirs, it can tip it.";
@@ -187,16 +193,16 @@ export function weakSpotLine(box: Box | null | undefined, strategy: Strategy | n
 /**
  * reflect_on_date's one hint on how the numbers map to the lines (#656, the 2026-10-22-0610 run: "a short 'how the numbers
  * map to your lines' hint"): what set the ending, the number that mattered most this time and how it reads in a line, and
- * what to do with that on the next date.
+ * what to do with that on the next date. `dateNumber`: which date it was for the couple (lib/rules dateNumberOf).
  */
-export function numbersHint(ending: Ending | null | undefined, box: Box | null | undefined, strategy: Strategy | null | undefined): string {
+export function numbersHint(ending: Ending | null | undefined, box: Box | null | undefined, strategy: Strategy | null | undefined, dateNumber?: number | null): string {
   const ranked = pulls(box, strategy);
   const key = !ranked.length ? null : ending === "disaster" || ending === "friends" ? ranked.at(-1)! : ranked[0];
   const which = key
     ? ` This time it was ${key.v} (${PLAIN[key.v].past}), ${key.pull < 0 ? "working against them" : "carrying it"}: in a line, that's ${key.pull < 0 ? IN_LINES[key.v].against : IN_LINES[key.v].for}.`
     : "";
   return (
-    `How the numbers map to your lines: the ending${ending ? ` (${ENDING_LABELS[ending].toLowerCase()})` : ""} came from the two characters' numbers, set at booking (box_score), never from the lines, which play it.${which} ` +
+    `How the numbers map to your lines: the ending${ending ? ` (${endingLabel(ending, dateNumber).toLowerCase()})` : ""} came from the two characters' numbers, set at booking (box_score), never from the lines, which play it.${which} ` +
     "A date you perform names its heading from the first step (heading): write toward it, and send see_again on your character's last line, the one lever."
   );
 }

@@ -36,8 +36,10 @@ import { warnWhenSparksOut } from "./partners";
 import { loadSoul, type StoredSoul } from "./souls";
 import { isText, loadChain, promptTexts, type ChainItem, type PromptTexts } from "./text-chain";
 import type { Turn } from "./conversation";
+import { nextDateNumber } from "./date-number";
 import {
   AGENDA_IDS,
+  dateNumberOf,
   DEFAULT_AUTONOMY,
   DEFAULT_GAME_BUDGET,
   DEFAULT_STRATEGY,
@@ -151,6 +153,8 @@ export type DateParts = {
   /** What each side remembers of After Dark with the other, in PG terms (lib/adult/memory.ts), or null. */
   afterDark?: { a: string | null; b: string | null };
   followupOf?: string | null;
+  /** Which date this is for the couple (setup.date_number), for the words only: DateInput.date_number. */
+  dateNumber?: number | null;
   /** Each owner's standing nudge about the other, and who else each is seeing (public). Flavour only. */
   nudges?: { a: string | null; b: string | null };
   alsoSeeing?: { a: string[]; b: string[] };
@@ -254,6 +258,8 @@ export function assembleDate(p: DateParts): BuiltDate {
     ...(p.followupOf ? { followup_of: p.followupOf, plan: agreed ? agreed.texts.map((t) => t.text) : plans.map((x) => x.text) } : {}),
     ...(p.nudges?.a ? { nudge_a: p.nudges.a } : {}),
     ...(p.nudges?.b ? { nudge_b: p.nudges.b } : {}),
+    // Which date this is for the couple (lib/date-number.ts): stored, so its happy ending names the date after it.
+    ...(p.dateNumber && p.dateNumber > 1 ? { date_number: p.dateNumber } : {}),
   };
   // Fill the format's cast from real data (flavour only, never the engine): a named house regular as the
   // meet-the-parents chaperone, and a real past partner as the returning ex when the graph has one.
@@ -279,7 +285,8 @@ export function assembleDate(p: DateParts): BuiltDate {
     note: null,
     gameBudget: DEFAULT_GAME_BUDGET,
   };
-  return { input: { a: sideA, b: sideB, history: p.history }, characters: [charA, charB], setup, seed };
+  const input: DateInput = { a: sideA, b: sideB, history: p.history, ...(p.dateNumber && p.dateNumber > 1 ? { date_number: p.dateNumber } : {}) };
+  return { input, characters: [charA, charB], setup, seed };
 }
 
 /**
@@ -307,6 +314,11 @@ export async function buildDate(
   opts: {
     creatorId?: string;
     followupOf?: string | null;
+    /**
+     * Which date this is for the couple (setup.date_number). A follow-up passes its own; a rebuild passes the stored one
+     * (null for none). Left out, as on a fresh booking, it's 1 + the pair's public dates so far (lib/date-number.ts).
+     */
+    dateNumber?: number | null;
     historyOverride?: DateHistory | null;
     legacyHistory?: boolean;
     /** The nudges as booked (the worker passes the setup's snapshot: by then they've been used). */
@@ -379,6 +391,7 @@ export async function buildDate(
     episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues, venueOverride: opts.venueOverride, agreedPlan: agreed,
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
+    dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : await nextDateNumber(db, a.id, b.id, episodeId),
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     overusedA, overusedB,
@@ -568,8 +581,8 @@ async function replayDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pro
   const version = setup.engine_version ?? 1;
   const varied = varySetup(setup, change);
   const { outcome: alt, trace: altTrace } = deterministicTraced(build(varied), seed, version);
-  const baseWhy = endingWhy(row.ending, row.box_score, null, setup.strategy);
-  const altWhy = endingWhy(alt.ending, alt.variables, alt.sides, varied.strategy, setup.engine_version);
+  const baseWhy = endingWhy(row.ending, row.box_score, null, setup.strategy, undefined, undefined, dateNumberOf(setup));
+  const altWhy = endingWhy(alt.ending, alt.variables, alt.sides, varied.strategy, setup.engine_version, undefined, dateNumberOf(setup));
   const result: SlidingDoorsResult = {
     change,
     what_changed: `${shortName(row.a_name)}'s side was ${CHANGE_SAYS[change]}; ${shortName(row.b_name)}'s stayed as it was. Same seed, so nothing else moved.`,

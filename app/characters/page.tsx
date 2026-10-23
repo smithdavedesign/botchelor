@@ -12,7 +12,7 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { listCast, listMyProposals, listRelationshipEdges } from "@/lib/mechanics";
 import { parseTab, TAB_LABEL, tabHref, TABS, type Tab } from "@/lib/origin";
 import { topRatedCharacters } from "@/lib/ratings";
-import { ENDING_LABELS, RATING_CATEGORIES } from "@/lib/rules";
+import { endingLabel, RATING_CATEGORIES } from "@/lib/rules";
 import { seasonCastIds } from "@/lib/season-cast";
 import { listCandidates } from "@/lib/season-gen";
 import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
@@ -260,7 +260,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
                 <span className="muted">
                   {e.dates} {e.dates === 1 ? "date" : "dates"}
                   {e.second_dates > 0 && `, ${e.second_dates} second`}
-                  {e.last_ending && ` · last: ${ENDING_LABELS[e.last_ending]}`}
+                  {e.last_ending && ` · last: ${endingLabel(e.last_ending, e.dates)}`}
                 </span>
               </li>
               ),

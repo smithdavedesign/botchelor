@@ -19,7 +19,7 @@ import { trimTo, type Turn } from "./conversation";
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { formatNote, type FormatContext, type FormatId } from "./formats";
 import { ModelError, type ChatMessage, type Model } from "./model";
-import { AFTERGLOW_TURNS, agenda, ENDING_LABELS } from "./rules";
+import { AFTERGLOW_TURNS, agenda, endingLabel } from "./rules";
 import { checkFields } from "./safety";
 import { textsForPrompt } from "./text-chain";
 import { whereItHappened } from "./moves";
@@ -117,7 +117,7 @@ export function buildAfterglowMessages(
     the_show_format: formatNote(formatId, formatCtx),
     // M15: the morning after, both of them remember the date — what was said, and how it ended.
     ...(date.length ? { the_date: date.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue })) } : {}),
-    how_it_ended: ENDING_LABELS[outcome.ending],
+    how_it_ended: endingLabel(outcome.ending, input.date_number),
     // The relationship so far (lib/relationships.ts), minus "tonight's plan": last night was that plan.
     ...(meChar.pair ? { your_relationship_with_them: Object.fromEntries(Object.entries(meChar.pair).filter(([k]) => k !== "tonight_is_the_plan_you_made")) } : {}),
     ...(meChar.texts ? { your_texts_with_them: textsForPrompt(meChar.texts) } : {}),
