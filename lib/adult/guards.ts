@@ -12,6 +12,8 @@
  *    short enough) or the second is dropped. A reply's first line by whoever spoke last is kept and counted, not dropped:
  *    dropping it would drop a proposal with it, and a move needs both halves (lib/adult/continuity.ts); prompt v2 tells
  *    the model who starts instead.
+ *  - fragments (repairFragments, v2.4): a line the model started on a dangling "'s" gets its word back, the speaker's
+ *    name in an action, "That" in what they say.
  */
 import { shortName } from "../names";
 import { EVERYDAY_WORDS } from "../quality";
@@ -117,6 +119,33 @@ export function guardNames(text: string, ctx: NameContext): NameGuard {
     return word;
   });
   return { text: out, repairs, stranger };
+}
+
+/** A possessive or "is" left without its word ("'s movements", "’s the server migration"). */
+const DANGLING = /^(['’])s\s+/;
+
+/**
+ * A line the model started without its first word (v2.4; Chud × Juniper on prod, 2026-10-23, DeepSeek V3.1): "*'s
+ * movements become more deliberate and intense* 's the server migration I've been waiting for all week." The reply's
+ * "who" already says who, so the name went and its "'s" stayed. A leading action that starts with "'s" gets the
+ * speaker's given name in front ("*Chud's movements…*"), and what's said that starts with it gets "That" ("That's the
+ * server migration…"). A line that really starts with an apostrophe ("'Cause", "'Twas") is left as it is. Returns the
+ * line and how many fragments it put right.
+ */
+export function repairFragments(text: string, given: string): { text: string; repairs: number } {
+  const lead = /^(\s*\*\s*)([^*]*)(\*\s*)([\s\S]*)$/.exec(text);
+  let action = lead ? lead[2] : "";
+  let said = lead ? lead[4] : text;
+  let repairs = 0;
+  if (lead && given && DANGLING.test(action)) {
+    action = action.replace(DANGLING, (_m, q: string) => `${given}${q}s `);
+    repairs++;
+  }
+  if (DANGLING.test(said)) {
+    said = said.replace(DANGLING, (_m, q: string) => `That${q}s `);
+    repairs++;
+  }
+  return repairs ? { text: lead ? `${lead[1]}${action}${lead[3]}${said}` : said, repairs } : { text, repairs: 0 };
 }
 
 /** The name a line gets wrong, for the metrics: another character it names, or a near-miss of the pair's. */

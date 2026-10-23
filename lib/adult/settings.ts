@@ -84,9 +84,10 @@ export type PromptVersion = (typeof PROMPT_VERSIONS)[number];
 export const DEFAULT_PROMPT_VERSION: PromptVersion = "v2";
 /**
  * Which revision of v2 runs: v2 changes in place (v2.1 craft, v2.2 continuity, v2.3 the heat, a Direct steer's quoted
- * lines and a chapter carrying on: docs/after-dark.md), so each step's flags say which one wrote it.
+ * lines and a chapter carrying on, v2.4 their work and hobbies held to a share of their lines: docs/after-dark.md), so
+ * each step's flags say which one wrote it.
  */
-export const SCENE_PROMPT_REVISION = "v2.3";
+export const SCENE_PROMPT_REVISION = "v2.4";
 
 export type AdultSettings = {
   enabled: boolean;

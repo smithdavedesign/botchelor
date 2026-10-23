@@ -381,7 +381,7 @@ describe("Filthy, set from the Limits panel's route, and quoted lines held to th
     await post({ a: CAST_A, b: CAST_B }, cookie);
     expect(prompts[0][0].content).toContain("this scene is written filthy");
     const step = (await t.db.query<{ flags: { filthy?: boolean; prompt?: string } }>("select flags from adult_steps where kind = 'write' order by created_at desc limit 1")).rows[0];
-    expect(step.flags).toMatchObject({ filthy: true, prompt: "v2.3" });
+    expect(step.flags).toMatchObject({ filthy: true, prompt: SCENE_PROMPT_REVISION });
     // after_dark_scene shows it with the scene.
     const read = await runAdultTool(t.db, "after_dark_scene", { a: CAST_A, b: CAST_B });
     expect("data" in read && (read.data.scene as { intensity: string }).intensity).toBe("filthy");

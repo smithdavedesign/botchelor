@@ -35,7 +35,7 @@ import {
   type Suggestion,
   type Whispers,
 } from "./director";
-import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
+import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, proposesMove, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
 import { activeLimit, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
 import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
 import { textModelHistory, writtenBy, type WrittenBy } from "./model-log";
@@ -68,7 +68,7 @@ import {
   type SheetItem,
   type ShownFact,
 } from "./facts";
-import { guardAlternation, guardNames } from "./guards";
+import { givenName, guardAlternation, guardNames, repairFragments } from "./guards";
 import {
   ACTION_WINDOW,
   actionOf,
@@ -87,11 +87,17 @@ import {
   phraseNames,
   phrasesIn,
   questionHabit,
+  recentTopicLines,
+  recentTopicWords,
   refusalIn,
   sheetText,
   showsTell,
   sideOfCharacter,
   TELL_CAP,
+  topicEvery,
+  topicsOf,
+  topicWordsIn,
+  topicWordsSaid,
   topPhrases,
   touchesHook,
   WORN_AT,
@@ -418,6 +424,13 @@ function voiceRules(a: Character | null, b: Character | null, names: { a: string
   ];
 }
 
+/**
+ * v2.4, from undressing on (David, 2026-10-23: Juniper's lighthouse logs and Chud's servers turned nearly every explicit
+ * line into a job metaphor, "it reads as parody").
+ */
+const LOVERS_RULE =
+  "- In the heat of it they talk like lovers: short, direct, physical, in the moment. Their job and hobbies come up rarely now, never as an extended metaphor.";
+
 /** v2's rule for staying themselves (every intensity, and Filthy before undressing). */
 const VOICE_RULE =
   "Stay this person when it gets intimate: their humour and the way they talk still show, and their job or a hobby comes up now and then, not in every line; no generic romance-novel phrasing. They sound like their sheets, not like a paperback.";
@@ -464,12 +477,27 @@ const UNDRESSING = STAGES.indexOf("undressing");
  * ("eyes locked on hers" from behind); at the last stage the build-up is said once, and after an afterglow or aftercare
  * it only picks up again when one of them starts it in a line (it resumed with no transition after lines 28–33). The
  * notes name a tell already shown TELL_CAP times this chapter, and that a hook past its share is cut.
+ *
+ * v2.4 (Chud × Juniper on prod, 2026-10-23: her lighthouse logs and his servers in nearly every explicit line): from
+ * undressing on they talk like lovers, their work and hobbies rarely and never as a metaphor; and a character whose
+ * work or hobbies have had their share of their last lines (lib/adult/quality.ts topicEvery) is told which words to
+ * leave alone, like a worn phrase. `steered`: the steer and whispers, whose topic words are theirs to ask for.
  */
 function craftLines(
   a: Character | null,
   b: Character | null,
   lines: readonly SceneLine[],
-  now: { place: string; set?: string | null; stage: number; movesLeft?: number; linesHere?: number; publicPlace?: boolean; tellsUsed?: { a: readonly string[]; b: readonly string[] }; plain?: boolean },
+  now: {
+    place: string;
+    set?: string | null;
+    stage: number;
+    movesLeft?: number;
+    linesHere?: number;
+    publicPlace?: boolean;
+    tellsUsed?: { a: readonly string[]; b: readonly string[] };
+    plain?: boolean;
+    steered?: readonly (string | null | undefined)[];
+  },
 ): string[] {
   const nameOf = (who: "a" | "b") => (who === "a" ? a?.name : b?.name) ?? who;
   const first = (who: "a" | "b") => nameOf(who).split(/\s+/)[0];
@@ -489,6 +517,7 @@ function craftLines(
     rules.push(
       "- Their tells (the habits on their sheets) are for the talking: now it's gone this far they don't show, unless one truly fits the moment.",
       "- Keep track of how they're positioned: once a line sets it (on top, from behind, against the wall), the lines only show what each of them could see, reach or do from there (from behind, their eyes don't meet), until a line changes it.",
+      LOVERS_RULE,
     );
   }
   if (now.plain) {
@@ -536,6 +565,18 @@ function craftLines(
   const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
   for (const who of ["a", "b"] as const) {
     for (const tell of now.tellsUsed?.[who] ?? []) notes.push(`- ${first(who)} has shown ${poss(who)} tell (${tell}) ${times(TELL_CAP)} this chapter: not again.`);
+  }
+  // v2.4: work and hobbies past their share of the last lines, named like worn phrases (their next line can't say them).
+  const every = topicEvery(now.stage);
+  for (const who of ["a", "b"] as const) {
+    const own = topicsAllowed(who === "a" ? a : b, names, now.steered);
+    const recent = recentTopicLines(lines, who, own, every);
+    if (!recent.length) continue;
+    const words = recentTopicWords(lines, who, own, every);
+    const of = Math.min(every - 1, lines.filter((l) => l.who === who).length);
+    notes.push(
+      `- ${first(who)} talked about ${poss(who)} work or hobbies in ${recent.length} of ${poss(who)} last ${of} lines, and that's one line in ${every} at most${now.stage >= UNDRESSING ? " from here" : ""}. Don't lean on these words again: ${words.map((w) => `"${w}"`).join(", ")}; a line that says one loses it.`,
+    );
   }
   if (now.publicPlace && now.stage >= 1) {
     notes.push(
@@ -708,6 +749,7 @@ export function sceneMessages(
           publicPlace: !(direction && now.steerMode === "direct") && isPublicPlace(where.set ?? where.place, now.homeNow ?? null),
           tellsUsed: now.tellsUsed,
           plain,
+          steered: [direction, now.whispers?.a?.text, now.whispers?.b?.text],
         })
       : []),
   ]
@@ -948,8 +990,19 @@ const CRITIC_WINDOW = SCENE_IN_PROMPT;
 
 export type DroppedLine = { who: "a" | "b"; text: string; reason: string };
 
-/** What v2.2's craft guards took out on the way in, in lines that lost a part or went (dropRepeats). */
-export type CraftCuts = { hooks: number; tells: number; actions: number; openings: number; build_ups: number };
+/** What v2.2's craft guards (and v2.4's topic budget) took out on the way in, in lines that lost a part or went (dropRepeats). */
+export type CraftCuts = { hooks: number; tells: number; actions: number; openings: number; build_ups: number; topics: number };
+
+/**
+ * v2.4's topic budget for a step (lib/adult/quality.ts topicsOf): the stage it's written at (one line in 6 says their
+ * work or hobbies, one in 12 from undressing on), and what the owner asked for this step (the steer, a whisper): a topic
+ * word in those is theirs to ask for, so it's never cut this step.
+ */
+export type TopicBudget = { stage: number; steered?: readonly (string | null | undefined)[] };
+
+/** A character's topic words, without the ones a steer or whisper asks for. */
+const topicsAllowed = (c: Character | null, names: readonly string[], steered: readonly (string | null | undefined)[] = []): string[] =>
+  topicsOf(c, names).filter((topic) => !steered.some((s) => s && topicWordsIn(s, [topic]).length));
 
 /**
  * The new lines minus repeats (David, 2026-10-21: Star × Chud's lines 102–106 were 84–88 again): a line said before
@@ -961,6 +1014,11 @@ export type CraftCuts = { hooks: number; tells: number; actions: number; opening
  * nothing it says is left: a tell past TELL_CAP lines this chapter; an action from the last ACTION_WINDOW lines again
  * (only the action goes); an opening from the last OPENING_WINDOW lines again; the build-up ("almost there") again within
  * BUILD_UP_WINDOW lines; and a flagged hook past its share of the chapter (lib/adult/quality.ts hookAllowance).
+ *
+ * `topics` (v2.4, Chud × Juniper on prod, 2026-10-23: her lighthouse logs and his servers in nearly every explicit line)
+ * adds the topic budget: a line saying one of its speaker's topic words when one of their last 5 lines did (11 from
+ * undressing on) loses the sentences and the action with them, and goes when nothing it says is left. A sentence that
+ * proposes going somewhere keeps them (a move needs its proposal).
  */
 export function dropRepeats(
   written: readonly SceneLine[],
@@ -968,7 +1026,7 @@ export function dropRepeats(
   chapter: readonly SceneLine[],
   a: Character | null,
   b: Character | null,
-  opts: { worn?: boolean; craft?: boolean; quotes?: readonly SteerQuote[] } = {},
+  opts: { worn?: boolean; craft?: boolean; quotes?: readonly SteerQuote[]; topics?: TopicBudget } = {},
 ): { kept: SceneLine[]; dropped: DroppedLine[]; worn: number; cuts: CraftCuts } {
   const kept: SceneLine[] = [];
   const dropped: DroppedLine[] = [];
@@ -978,10 +1036,13 @@ export function dropRepeats(
   const counts = opts.worn ? { a: countPhrases(night.filter((l) => l.who === "a"), named), b: countPhrases(night.filter((l) => l.who === "b"), named) } : null;
   let worn = 0;
   // v2.2: the hooks flagged tonight (once flagged, held to their share), and each one's tells.
-  const cuts: CraftCuts = { hooks: 0, tells: 0, actions: 0, openings: 0, build_ups: 0 };
+  const cuts: CraftCuts = { hooks: 0, tells: 0, actions: 0, openings: 0, build_ups: 0, topics: 0 };
   const pair = [a?.name ?? "", b?.name ?? ""];
   const hooks = opts.craft ? { a: flaggedHooks(night, "a", pair), b: flaggedHooks(night, "b", pair) } : { a: [], b: [] };
   const tells = { a: sheetTells(a), b: sheetTells(b) };
+  // v2.4: each one's own topic words, and how many of their lines in a row may say them at this stage.
+  const topics = opts.topics ? { a: topicsAllowed(a, pair, opts.topics.steered), b: topicsAllowed(b, pair, opts.topics.steered) } : { a: [], b: [] };
+  const every = topicEvery(opts.topics?.stage ?? 0);
   for (const l of written) {
     const before = [...night, ...kept];
     const mine = [...chapter, ...kept].filter((x) => x.who === l.who);
@@ -1098,6 +1159,21 @@ export function dropRepeats(
         }
       }
     }
+    // v2.4: their work or hobbies said again before `every` of their lines have gone by: the sentences and the action
+    // that say them go (a proposal to go somewhere stays), and the line when nothing it says is left.
+    const own = topics[l.who];
+    const said = own.length ? topicWordsSaid(text, own) : [];
+    if (said.length && recentTopicLines(before, l.who, own, every).length) {
+      const cut = withoutPart(text, (s) => topicWordsIn(s, own).length > 0 && !proposesMove(s));
+      if (cut !== text) {
+        cuts.topics++;
+        if (!cut) {
+          drop(l, `their work or hobbies again ("${said[0]}"; one of their lines in ${every} at most)`);
+          continue;
+        }
+        text = cut;
+      }
+    }
     const line = text === l.text ? l : { ...l, text };
     kept.push(line);
     if (counts) for (const p of phrasesIn(line.text, named)) counts[l.who].set(p, (counts[l.who].get(p) ?? 0) + 1);
@@ -1197,7 +1273,7 @@ export type StepFlags = {
   /** Lines where the model stepped out of the scene to refuse (dropped), or to lecture (kept, counted). */
   refused: number;
   moralising: number;
-  /** The reply had no lines, only a refusal. */
+  /** A reply had no lines, only a refusal (v2.4: the first one too, when the empty-reply retry got past it). */
   refusal_reply: boolean;
   /** Per kept line, in order: what its private "memory" cited (lib/adult/facts.ts citeMemory). */
   citations: Citation[];
@@ -1215,6 +1291,14 @@ export type StepFlags = {
   actions_cut: number;
   openings_cut: number;
   build_ups_cut: number;
+  /**
+   * v2.4: lines that lost a part, or went, for saying their work or hobbies past the topic budget (dropRepeats); lines
+   * started on a dangling "'s" that got their word back (lib/adult/guards.ts repairFragments); and a reply with no lines
+   * in it, asked once more before the step failed (empty_retry).
+   */
+  topics_cut: number;
+  fragments_repaired: number;
+  empty_retry?: boolean;
   /** The director: lines dropped for saying a whisper out loud; suggestions replaced by a plain one, or left out. */
   whispers_said?: number;
   suggestions_replaced?: number;
@@ -1257,13 +1341,19 @@ const openingOf = (text: string): string => {
 function repeatNote(repeated: readonly DroppedLine[]): string {
   const openings = [...new Set(repeated.map((d) => openingOf(d.text)).filter(Boolean))].slice(0, 6);
   const worn = [...new Set(repeated.map((d) => /^a worn phrase \("([^"]+)"/.exec(d.reason)?.[1]).filter((x): x is string => Boolean(x)))];
+  // v2.4: lines dropped for their work or hobbies (the topic budget), named by the word that cost them.
+  const topics = [...new Set(repeated.map((d) => /^their work or hobbies again \("([^"]+)"/.exec(d.reason)?.[1]).filter((x): x is string => Boolean(x)))];
   return (
     `Your last reply only said again what's been said tonight, and a new action in front doesn't make a line new.` +
     (openings.length ? ` These can't come back, in any form: ${openings.map((o) => `"${o}"`).join(", ")}.` : "") +
     (worn.length ? ` These phrases are worn out: ${worn.map((w) => `"${w}"`).join(", ")}.` : "") +
+    (topics.length ? ` Leave their work and hobbies out of these lines (${topics.map((w) => `"${w}"`).join(", ")}): they're about the two of them.` : "") +
     ` Write ${LINES_PER_TURN} new lines that move the scene on, with something they haven't said or done yet. Reply with the JSON again.`
   );
 }
+
+/** v2.4: what the step's second call says after a reply with no lines in it. */
+const EMPTY_REPLY_NOTE = `Your last reply had no lines in it. Reply with the JSON object again, with the ${LINES_PER_TURN} new lines in "lines".`;
 
 /** The retry after nothing but repeats runs a little hotter, with stronger penalties (v2.1). */
 const hotter = (o: ModelOptions): ModelOptions => ({
@@ -1280,7 +1370,8 @@ const hotter = (o: ModelOptions): ModelOptions => ({
 export type Served = { model: string | null; provider: string | null };
 
 export type StepResult =
-  | { ok: true; lines: SceneLine[]; meta: SceneMeta; dropped: DroppedLine[]; flags: StepFlags; next: SceneState; shown: ShownFact[]; usage: Usage[]; served: Served }
+  /** `refused` (v2.4): the step's first reply, when it was only a refusal and the empty-reply retry wrote the lines. */
+  | { ok: true; lines: SceneLine[]; meta: SceneMeta; dropped: DroppedLine[]; flags: StepFlags; next: SceneState; shown: ShownFact[]; usage: Usage[]; served: Served; refused?: string }
   | { ok: false; status: 422 | 502; message: string; dropped: DroppedLine[]; flags: StepFlags; shown: ShownFact[]; usage: Usage[]; raw?: string; served: Served };
 
 /**
@@ -1353,7 +1444,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   const flags: StepFlags = {
     calls: 0, retried: false, held: 0, repeats: 0, names_repaired: 0, names_dropped: 0, alternation_merged: 0, alternation_dropped: 0, alternation_boundary: 0,
     refused: 0, moralising: 0, refusal_reply: false, citations: [], worn_phrases: 0, show_copies_cut: 0, public_dropped: 0,
-    hooks_cut: 0, tells_cut: 0, actions_cut: 0, openings_cut: 0, build_ups_cut: 0, whispers_said: 0, suggestions_replaced: 0, hard_nos: 0, intensity_dropped: 0,
+    hooks_cut: 0, tells_cut: 0, actions_cut: 0, openings_cut: 0, build_ups_cut: 0, topics_cut: 0, fragments_repaired: 0, whispers_said: 0, suggestions_replaced: 0, hard_nos: 0, intensity_dropped: 0,
     prompt: v2 ? SCENE_PROMPT_REVISION : "v1",
     ...(writesFilthy(v2, limits) ? { filthy: true } : {}),
     ...(carry ? { carry: { stage: carry.stage, place: carry.place, first: carry.first, floor: carry.floor } } : {}),
@@ -1383,7 +1474,12 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   const dropped: DroppedLine[] = [];
 
   const guard = (raw: string) => {
-    const written = parseSceneLines(raw, names);
+    // v2.4: a line DeepSeek started on a dangling "'s" (its speaker's name dropped) gets its word back first.
+    const written = parseSceneLines(raw, names).map((l) => {
+      const fixed = repairFragments(l.text, givenName(names[l.who]));
+      flags.fragments_repaired += fixed.repairs;
+      return fixed.repairs ? { ...l, text: fixed.text } : l;
+    });
     const drops: DroppedLine[] = [];
     const safe = written.filter((l) => {
       if (checkAdultText({ line: l.text }).ok) return true;
@@ -1464,7 +1560,8 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
             drops.push({ who: l.who, text: l.text, reason: `went past kissing in a public place (${scene.set_place ?? scene.place ?? date?.setting ?? "where they are"})` });
             return false;
           });
-    const reps = dropRepeats(inPlace, night, scene.lines, a, b, { worn: v2, craft: v2, quotes });
+    // v2.4: the topic budget goes by the stage they're at; a topic word the steer or a whisper asks for is never cut.
+    const reps = dropRepeats(inPlace, night, scene.lines, a, b, { worn: v2, craft: v2, quotes, ...(v2 ? { topics: { stage: scene.stage, steered: [steer, ...whispered] } } : {}) });
     const fresh = reps.kept.flatMap((l): SceneLine[] => {
       if (quotes.length && carriesQuote(quotes, l)) return [l];
       const copy = showLines.length ? repeatOf(l.text, showLines) : null;
@@ -1493,6 +1590,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     flags.actions_cut += reps.cuts.actions;
     flags.openings_cut += reps.cuts.openings;
     flags.build_ups_cut += reps.cuts.build_ups;
+    flags.topics_cut += reps.cuts.topics;
     flags.alternation_merged += turns.merged;
     flags.alternation_dropped += turns.dropped.length;
     dropped.push(...drops, ...reps.dropped, ...turns.dropped);
@@ -1502,9 +1600,22 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   };
 
   let out: ReturnType<typeof guard>;
+  // A reply with no lines, only a refusal: the first one is kept (the step's log and the eval count it, even when the
+  // empty-reply retry gets past it).
+  const refusalOf = (o: ReturnType<typeof guard>): string | null => (!o.written.length && refusalIn(o.raw) ? o.raw.slice(0, 400) : null);
+  let refusal: string | null = null;
   try {
     flags.calls++;
     out = guard(await input.model.complete(messages, options));
+    refusal = refusalOf(out);
+    if (!out.written.length) {
+      // v2.4 (Chud × Juniper on prod, 2026-10-23: two Direct steers in about 30 came back with no lines, and the owner had
+      // to press again): a reply with no lines in it is asked for once more before the step fails. Still one step: the
+      // month's cap counts steps, not calls.
+      flags.empty_retry = true;
+      flags.calls++;
+      out = guard(await input.model.complete([messages[0], { role: "user", content: `${messages[1].content}\n\n${EMPTY_REPLY_NOTE}` }], options));
+    }
     if (out.hardHits.length) {
       // A hard limit crossed (lib/adult/limits.ts): those lines are out, and the step is asked once more, told which, with
       // nothing of the reply to copy from. The second reply is held to everything again; when nothing of it can be kept,
@@ -1569,7 +1680,8 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   }
   const { raw, written } = out;
   flags.alternation_boundary += out.boundary;
-  if (!written.length && refusalIn(raw)) flags.refusal_reply = true;
+  refusal ??= refusalOf(out);
+  if (refusal) flags.refusal_reply = true;
   if (!out.kept.length) {
     return {
       ok: false,
@@ -1586,7 +1698,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
       shown,
       usage,
       served: served(),
-      ...(flags.refusal_reply ? { raw: raw.slice(0, 400) } : {}),
+      ...(refusal ? { raw: refusal } : {}),
     };
   }
   // What each line's memory cites: a fact shown (by its id, a quote or its words), another memory, a new pair's sheet
@@ -1680,7 +1792,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   const next: SceneState = {
     ...scene, lines: [...scene.lines, ...stamped], place, stage, stage_from, set_place, cut_to: null, place_history, moves, suggestions, whispers: afterWhisperStep(whispers),
   };
-  return { ok: true, lines: stamped, meta, dropped, flags, next, shown, usage, served: served() };
+  return { ok: true, lines: stamped, meta, dropped, flags, next, shown, usage, served: served(), ...(refusal ? { refused: refusal } : {}) };
 }
 
 /** What a step needs from the database, loaded read-only (stepContext). */
