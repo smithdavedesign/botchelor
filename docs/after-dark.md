@@ -599,9 +599,9 @@ It showed two weak spots, both fixed in the follow-up:
 **Terms (2026-10-22):** Venice's terms (last updated 2026-06-08) have users warrant, in §10.9(c), that no reasonable person could deem their content "pornographic". Outputs count as user content (§10.1). That reads against Venice selling uncensored models. Settle it with Venice in writing before any subscriber uses After Dark: this widens the question that was already open for pictures. MiniMax H3 (Venice's `minimax-h3-max-reference-to-video`) has a further problem: its open licence excludes the US, EU, UK and South Korea, outputs included.
 
 **Next, not built:**
-- **A menu of acts per shot**, as the leaders do: preset framings that make keyframes more reliable than free text.
+- **A menu of acts per shot**, as the leaders do: preset framings that make keyframes more reliable than free text. Built for clips (below, "Clips on demand"); a night's reel still has the director write each shot.
 - **Act motion add-ons (LoRAs)** would need Wan run somewhere that takes them; Venice doesn't. Replicate's `wan-2.2-i2v-fast` takes LoRA URLs and a `disable_safety_checker` flag, and its terms ban only non-consensual or illegal pornography: about $0.05 at 480p, or $0.11 at 720p, a clip. RunPod, WaveSpeed, Novita, Segmind, Together and fal ban adult output. The Replicate backup (below) takes one LoRA for its videos, as a setting.
-- **"Extend"** from a shot's last frame, for longer moments.
+- **"Extend"** from a shot's last frame, for longer moments. Built for clips as Keep going, from the shot's keyframe instead (no ffmpeg on the server since #688).
 - **Wan 3.0 reference-to-video** as a one-step option.
 - **Terms:** Venice's model list marks Wan 3.0 "anonymized", which means a third party runs it, while `qwen-edit-uncensored` and LongCat are Venice's own. Get Venice's word in writing on explicit output for both kinds, along with the pictures question already open.
 
@@ -841,3 +841,72 @@ character "What Juniper is into (private, from her own profile: let it shape wha
 fits; never listed or named outright, and never past the hard limits or the intensity): slow teasing, praise."
 
 **Screenshots** (`SHOTS=scenarios npm run screenshots:after-dark`): `docs/screenshots/after-dark-scenarios-*.png`.
+
+## Clips on demand (2026-10-22)
+
+David picked these from the competitor read (Candy, OurDream and Seduced all sell a short clip from a fixed list of
+actions). Code: `lib/adult/acts.ts` (the menu, pure), `lib/adult/clips.ts`, `lib/adult/clip-chains.ts` (the list's
+chains, pure), `lib/adult/reels.ts` (the shared keyframe, check and video path), `/api/admin/after-dark/clips`, and the
+videos list (`Reels.tsx`).
+
+**Three ways to ask for one** (`POST /api/admin/after-dark/clips`), each one 5–10 s shot of the two of them:
+- **Clip from here** (`{a, b, here: true}`): the scene's latest moment. The director (After Dark's text model) reads the
+  last 8 lines and writes the still, the motion and which line is said in it (or none), as for a reel's shot. What it
+  writes is held to the stage the night has reached, the pair's limits, and kissing at most somewhere public; a still or
+  motion past that is replaced by the plain one for the stage. It needs 2 lines.
+- **An act from the menu** (`{a, b, act, swap?}`): 13 curated acts, from close together and a slow dance through
+  cuddling, a slow kiss, against the wall and undressing each other, to face to face, on top, from behind, spooning, in a
+  lap, going down, and afterglow. Each is a still (who is where, how they're posed, what touches, both faces visible), a
+  motion and a next motion, written with `{X}` and `{Y}` for how they look (never a name), framed by its own shot words
+  (wide, medium or close). For a man and a woman, who leads (on top, behind) follows the act; `swap` turns it round, and
+  for two women or two men the first leads unless swapped. Nobody speaks in an act's clip ("Neither of them speaks: only
+  their breathing and the sounds of the room"), so on Replicate no voice is made for it.
+- **Keep going** (`{continue: <clip id>}`): carries a finished clip on. There's no ffmpeg on the server since #688, so
+  not its last frame: the next keyframe is the two baselines plus the clip's own keyframe as Picture 3 (`continuePrompt`:
+  "a few seconds after the moment in Picture 3… keep its place, its light, its camera angle and framing, and what each of
+  them is wearing or not, and carry how they're posed on from it, after this: <the shot's motion>"). The motion carries
+  on: an act's `next`, or the director's next five seconds for a clip from here. A chain holds 6 shots at most
+  (`CHAIN_MAX`, about 30 s), and only a clip that came through can be kept going.
+
+**What the menu offers** (`GET /api/admin/after-dark/clips?a=&b=`: the price, whether Clip from here can run, the acts):
+- only what the night has reached: each act has a stage it needs, and later ones show locked ("Once they've got to sex");
+- nothing past kissing somewhere public ("Somewhere private first"), as in the scene itself (`isPublicPlace`);
+- never what the pair's limits rule out (lib/adult/limits.ts, #702): an act past the intensity's furthest stage, one that
+  is a hard no (`hardNos` on the act: going down is `oral`), or one whose words cross a hard no or one of the viewer's
+  own (`limitsHit` on its still, motion and next, both ways round) isn't on the menu at all, and asking for it anyway is
+  refused (422). Below explicit (spicy and lower) the keyframe is "sensual and tasteful, nothing graphic", never
+  "explicit, uncensored".
+- David's lines hold on every word a picture or video model reads: `checkAdultText`, and `crossesTaboo` (no step-family,
+  teacher and student, school or age-play; a reel's shots are held to it too). The age check reads "turned three" in
+  "turned three-quarters toward the camera" as an age, so the on-top still says "angled toward the camera".
+
+**How one is made**: a clip is a reel of one shot (`adult_reels.kind = 'clip'`, with `clip`: its act, who leads, the clip
+it keeps going from, its stage and place, and its label). The plan (act, director, or keep going) is settled before
+anything is spent, so a refusal costs nothing. Then `clip_tokens` bought tokens are spent (3 by default, admins free,
+`clip_tokens` in the settings), each one's baseline is made if missing, and the shot runs the reel's own path
+(`startShots`): the keyframe on Venice (`qwen-edit-uncensored`) or Replicate (`qwen/qwen-image-edit-2511`) from both
+baselines and the place's drawn set (or the clip before's keyframe), Hive on the keyframe before it's kept as a `frame`
+(its id now kept on the shot as `frame_id`), then the video (Wan 3.0 on Venice, Wan 2.2 on Replicate), collected by the
+reel poll and checked by Hive again before it's stored. One video at a time, reels and clips together. A keyframe the
+check refuses, a provider failure, or a video the check discards gives the tokens back.
+
+**The videos list**: clips sit apart from the videos of the night (they're never in "The whole night"). A clip and the
+ones kept going from it are one chain, played as one film by the seamless player, with ▶▶ Keep going and the price on
+its last. A keep-going that failed shows at the chain's end, with why, and can be tried again from the one before. A
+shot's player shows its keyframe as the poster before it plays, and a shot with no line has no caption.
+
+**The live check** (2026-10-22, local, Juniper and Rafe's PG portraits from public/cast as data URIs, Venice):
+- the keyframes (`qwen-edit-uncensored`, 9–18 s each): a slow kiss, undressing each other, on top, and a keep-going from
+  the kiss. All four had both of them in frame, posed as the act says, faces visible (in profile for the kiss, both for
+  on top). The keep-going kept the room, the light and the pose.
+- Hive (4 requests): the kiss and on top both passed (moderation clean, the age check ADULTS).
+- the clip (Wan 3.0, 5 s, from the kiss keyframe, 104 s to make): both in frame the whole take, one continuous shot, the
+  faces kept, and nobody speaking (quiet room sound, mean -39 dB).
+- two fixes from it: the man lost his shirt in the kiss and undressing went all the way, so dressed acts now say "both
+  fully clothed", the kiss has her arms round his waist instead of hands on his chest, undressing keeps them dressed below
+  the waist, and the reel's own dressed wording spells it out ("both fully clothed, shirts and tops on and done up").
+  Both re-checked live: both stay dressed.
+- It cost $0.93 of Venice (7 keyframes at $0.04, one 5 s Wan 3.0 clip at $0.65).
+
+**Screenshots** (`npm run screenshots:after-dark-media`, clips seeded locally from the repo's PG portraits, nothing
+generated): `docs/screenshots/after-dark-clips-*.png`.
