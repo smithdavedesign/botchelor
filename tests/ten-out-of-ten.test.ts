@@ -139,6 +139,20 @@ describe("dates you can see before and after", () => {
     const again = await call("create_character", { ...out, keep_name: true }, ctx);
     expect(again.isError).toBeUndefined();
   });
+
+  it("#727: export_character keeps the partner_style its owner set, so create_character gets it back", async () => {
+    const ctx = await connect();
+    const id = (await call("create_character", validCharacter({ name: "Brynja Holt", partner_style: "open" }), ctx)).structuredContent.character.id;
+    const out = (await call("export_character", { character_id: id }, ctx)).structuredContent.character;
+    expect(out.partner_style).toBe("open");
+    const again = (await call("create_character", { ...out, keep_name: true }, ctx)).structuredContent.character.id;
+    expect((await t.db.query<{ partner_style: string }>(`select partner_style from characters where id = $1`, [again])).rows[0].partner_style).toBe("open");
+    // Never set, it's left out: the show decides, as it would for a new one.
+    const plain = (await call("create_character", validCharacter({ name: "Cato Wren", keep_name: true }), ctx)).structuredContent.character.id;
+    const unset = (await call("export_character", { character_id: plain }, ctx)).structuredContent.character;
+    expect(unset.partner_style === undefined || unset.partner_style === "decide").toBe(true);
+    expect(unset.this_week).toBeUndefined();
+  });
 });
 
 describe("my_status: what's new, who's on, how I did", () => {

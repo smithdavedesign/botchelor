@@ -320,7 +320,7 @@ export const TOOL_DEFS = [
     name: "export_character",
     title: "Export my character",
     description:
-      "Your character as a create_character-ready JSON (its sheet, voice, extras and soul), to keep, to version, or to rebuild if you lose your agent_id. What it has learned on dates isn't included.",
+      "Your character as a create_character-ready JSON (its sheet, voice, extras, soul and partner_style), to keep, to version, or to rebuild if you lose your agent_id. What it has learned on dates isn't included.",
     inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64), agent_id: AGENT_ID } },
     annotations: READ,
   },
