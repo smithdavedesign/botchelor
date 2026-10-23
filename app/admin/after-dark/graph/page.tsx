@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { fallbackNote } from "@/lib/adult/fallback";
 import { afterDarkGraph, layout, pairContent, pairKey, splitPair, type PairContent } from "@/lib/adult/graph";
+import { writtenByLabel } from "@/lib/adult/model-log";
 import { signedInAdmin } from "@/lib/adult/mode";
+import { lockedForCookies } from "@/lib/adult/privacy";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 
@@ -22,8 +25,10 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  */
 export default async function AfterDarkGraphPage({ searchParams }: { searchParams: SearchParams }) {
   const db = await getDb();
-  const admin = await signedInAdmin(db, authFromCookieStore(await cookies()));
-  if (!admin) notFound();
+  const store = await cookies();
+  const admin = await signedInAdmin(db, authFromCookieStore(store));
+  // A device that hasn't entered the admin's PIN (lib/adult/privacy.ts) gets nothing: the layout asks for it instead.
+  if (!admin || (await lockedForCookies(db, admin, store))) notFound();
   const graph = await afterDarkGraph(db);
   const raw = (await searchParams).pair;
   const picked = typeof raw === "string" ? splitPair(raw) : null;
@@ -155,6 +160,8 @@ function Pair({ content: c }: { content: PairContent }) {
               <li key={r.id} className="card">
                 <p className="muted small">
                   {day(r.created_at)} · {r.status} · {ready.length} of {r.shots.length} shots
+                  {r.provider ? ` · on ${r.provider}` : ""}
+                  {r.fell_back ? " (part of it on the fallback provider)" : ""}
                 </p>
                 {ready.length ? (
                   <div className="ad-shots">
@@ -191,6 +198,7 @@ function Pair({ content: c }: { content: PairContent }) {
               )}
               <figcaption className="muted small">
                 {p.kind} · {day(p.created_at)}
+                {fallbackNote(p.provider, p.fell_back) ? ` · ${fallbackNote(p.provider, p.fell_back)}` : ""}
               </figcaption>
             </figure>
           ))}
@@ -199,10 +207,47 @@ function Pair({ content: c }: { content: PairContent }) {
         <p className="muted">None.</p>
       )}
 
+      <h3>Which model wrote it</h3>
+      <p className="muted small">
+        Each chapter&apos;s text model, from its steps (the model OpenRouter said answered, and its host), or from the settings history for
+        lines older than that. Nothing is guessed.
+      </p>
+      {c.scene || c.nights.length ? (
+        <table className="ad-pairs ad-models">
+          <thead>
+            <tr>
+              <th>Chapter</th>
+              <th>When</th>
+              <th>Written by</th>
+            </tr>
+          </thead>
+          <tbody>
+            {c.scene && (
+              <tr>
+                <td>{c.scene.chapter} (running)</td>
+                <td className="muted small">{day(c.scene.updated_at)}</td>
+                <td>{writtenByLabel(c.scene.written_by)}</td>
+              </tr>
+            )}
+            {c.nights.map((n) => (
+              <tr key={n.id}>
+                <td>{n.chapter ?? "—"}</td>
+                <td className="muted small">{day(n.created_at)}</td>
+                <td>{writtenByLabel(n.written_by)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="muted">No lines yet.</p>
+      )}
+
       <h3>The scene ({c.scene?.lines.length ?? 0} lines)</h3>
       {c.scene ? (
         <details>
-          <summary>Read it · last written {day(c.scene.updated_at)}</summary>
+          <summary>
+            Read it · last written {day(c.scene.updated_at)} · {writtenByLabel(c.scene.written_by)}
+          </summary>
           {lines(c.scene.lines)}
         </details>
       ) : (
@@ -214,7 +259,7 @@ function Pair({ content: c }: { content: PairContent }) {
         c.nights.map((n) => (
           <details key={n.id}>
             <summary>
-              {day(n.created_at)} · {n.place ?? "no place"} · stage {n.stage} · {n.lines.length} lines
+              {day(n.created_at)} · {n.place ?? "no place"} · stage {n.stage} · {n.lines.length} lines · {writtenByLabel(n.written_by)}
             </summary>
             {lines(n.lines)}
           </details>

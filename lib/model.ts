@@ -48,6 +48,12 @@ export type ModelOptions = {
    * passes it through, so whichever model really served the call reports itself (lib/pipeline.ts records them).
    */
   onModel?: (id: string) => void;
+  /**
+   * Called with what the response itself says served the call, when it says: the model id (OpenRouter reports the one
+   * it routed to, e.g. "deepseek/deepseek-chat-v3.1") and the host (OpenRouter's `provider`, e.g. "DeepInfra").
+   * After Dark logs both on each step (lib/adult/steps.ts).
+   */
+  onServed?: (served: { model: string | null; provider: string | null }) => void;
 };
 
 export interface Model {
@@ -79,7 +85,7 @@ type UsageBody = {
   /** OpenRouter's usage accounting: what the call cost, in USD. */
   cost?: unknown;
 };
-type CompletionResponse = { choices?: { message?: { content?: unknown } }[]; usage?: UsageBody };
+type CompletionResponse = { choices?: { message?: { content?: unknown } }[]; usage?: UsageBody; model?: unknown; provider?: unknown };
 
 const count = (n: unknown): number => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0);
 
@@ -253,6 +259,10 @@ export function openAICompatibleModel(opts: {
         const usage = usageFrom(data?.usage, opts.model);
         if (usage) options?.onUsage?.(usage);
         options?.onModel?.(id);
+        if (options?.onServed) {
+          const said = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 120) : null);
+          options.onServed({ model: said(data?.model), provider: said(data?.provider) });
+        }
         return content;
       }
     },

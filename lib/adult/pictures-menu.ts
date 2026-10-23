@@ -19,12 +19,13 @@ import { keepBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, FRAMINGS, type Framing, type MediaLimits, type MenuAct } from "./acts";
 import { checkOutput } from "./check";
+import { fallbackNote, runMedia } from "./fallback";
 import { mediaLimits, nightStands } from "./clips";
 import { isPublicPlace } from "./continuity";
 import { ensureBaseline, signedMediaUrl, type Media } from "./media";
 import { baselines, drawKeyframe, drawReplicateKeyframe, keyframePrompt, placeWords, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
 import { eligiblePair } from "./scenes";
-import { adultKeys, getAdultSettings } from "./settings";
+import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
 import { STAGES } from "./stages";
 import { countUse, overCap, usageLeft } from "./usage";
 
@@ -193,6 +194,7 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   };
   const tokensBack = pays && price > 0 ? ` Your token${price === 1 ? " is" : "s are"} back.` : "";
   let file: { bytes: Buffer; mime: string };
+  let made: { provider: MediaProvider; fell_back: boolean };
   let prompt = plan.promptFor(false);
   try {
     for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
@@ -202,17 +204,21 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
     const set = (await setPictures(db, [plan.place])).get(plan.place) ?? null;
     // With the place's drawn set as Picture 3, the prompt says to keep its room and its light.
     prompt = plan.promptFor(Boolean(set));
-    if (onReplicate) {
-      const r = { token: keys.replicate!, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora };
-      file = await drawReplicateKeyframe(r, prompt, set ? [...faces, replicateSetImage(set, plan.place, baseUrl)] : faces);
-    } else {
-      file = await drawKeyframe(keys.venice!, prompt, set ? [...faces, set] : faces);
-    }
+    // One picture, one job: drawn on the other provider when the configured one is limited (lib/adult/fallback.ts).
+    const drawn = await runMedia(db, "keyframe", (p) => {
+      if (p === "replicate") {
+        const r = { token: keys.replicate!, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora };
+        return drawReplicateKeyframe(r, prompt, set ? [...faces, replicateSetImage(set, plan.place, baseUrl)] : faces);
+      }
+      return drawKeyframe(keys.venice!, prompt, set ? [...faces, set] : faces);
+    });
+    file = drawn.value;
+    made = { provider: drawn.provider, fell_back: drawn.fell_back };
   } catch (err) {
     await giveBack();
     return { ok: false, status: 502, error: "not_made", message: `The picture couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).${tokensBack}` };
   }
-  // The output check on the picture itself, before anything is kept: a refusal is discarded, never stored.
+  // The output check on the picture itself, before anything is kept, whoever made it: a refusal is discarded, never stored.
   const verdict = await checkOutput(keys.hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image");
   if (!verdict.ok) {
     await giveBack();
@@ -225,9 +231,15 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   const id = crypto.randomUUID();
   const kept = await keepBytes("after-dark", id, file.bytes, file.mime);
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status) values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready')`,
-    [id, ownerId, a, b, prompt.slice(0, 2000), file.mime, kept.data, kept.object_key],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back) values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10)`,
+    [id, ownerId, a, b, prompt.slice(0, 2000), file.mime, kept.data, kept.object_key, made.provider, made.fell_back],
   );
   await countUse(db, ownerId, "pictures");
-  return { ok: true, picture: { id, character_id: a, character_b: b, kind: "scene", status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: false } };
+  return {
+    ok: true,
+    picture: {
+      id, character_id: a, character_b: b, kind: "scene", status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: false,
+      provider: made.provider, fell_back: made.fell_back, note: fallbackNote(made.provider, made.fell_back),
+    },
+  };
 }

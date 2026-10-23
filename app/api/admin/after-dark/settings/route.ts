@@ -3,6 +3,7 @@ import { signedInAdmin } from "@/lib/adult/mode";
 import { MODEL_ID } from "@/lib/adult/replicate";
 import { getAdultSettings, MEDIA_PROVIDERS, PROMPT_VERSIONS, saveAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
+import { lockedForRequest } from "@/lib/adult/privacy";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 
 /** A Replicate model (owner/name, or owner/name:version), or "" for the default. */
@@ -45,19 +46,28 @@ const Input = z.object({
   replicate_voice_model: replicateModel.optional(),
   replicate_video_lora: videoLora.optional(),
   auto_scene_pictures: z.boolean().optional(),
+  media_fallback: z.boolean().optional(),
 });
+
+/** A signed-in admin on a device that isn't locked by their PIN (lib/adult/privacy.ts): their id, else null. */
+async function unlockedAdmin(req: Request) {
+  const db = await getDb();
+  const admin = await signedInAdmin(db, authFromRequest(req));
+  return { db, admin: admin && !(await lockedForRequest(db, admin, req)) ? admin : null };
+}
 
 /** After dark's settings: a signed-in admin only, even while it's off (that's where it's turned on). */
 export const GET = handle(async (req: Request) => {
-  const db = await getDb();
-  if (!(await signedInAdmin(db, authFromRequest(req)))) return json({ error: "not_found" }, 404);
+  const { db, admin } = await unlockedAdmin(req);
+  if (!admin) return json({ error: "not_found" }, 404);
   const requests = (await db.query(`select id, agent_id, client_name, reason, created_at from adult_access_requests order by created_at desc limit 50`)).rows;
   return json({ settings: await getAdultSettings(db), requests });
 });
 
 export const POST = handle(async (req: Request) => {
-  const db = await getDb();
-  if (!(await signedInAdmin(db, authFromRequest(req)))) return json({ error: "not_found" }, 404);
+  const { db, admin } = await unlockedAdmin(req);
+  if (!admin) return json({ error: "not_found" }, 404);
   const input = parseBody(Input, await readJson(req), "invalid_settings");
-  return json({ settings: await saveAdultSettings(db, input) });
+  // Who saved it goes in the settings history with each model or provider change.
+  return json({ settings: await saveAdultSettings(db, input, admin) });
 });

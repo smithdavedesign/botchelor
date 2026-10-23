@@ -175,6 +175,13 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
         <option value="venice">Venice</option>
         <option value="replicate">Replicate (the backup)</option>
       </select>
+      <p>
+        <label className="fact-private">
+          <input type="checkbox" id="ad-media-fallback" checked={s.media_fallback} disabled={busy} onChange={(e) => void save({ media_fallback: e.target.checked })} />{" "}
+          When that one is rate limited, out of credit or down, make it on the other one{" "}
+          <span className="muted small">(if its key is set; a video already being made stays where it started; a picture on Replicate costs about twice Venice&apos;s)</span>
+        </label>
+      </p>
       <label htmlFor="ad-replicate-key">
         Replicate API token{" "}
         {s.replicate_last4 ? (

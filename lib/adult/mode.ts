@@ -12,6 +12,7 @@ import type { Db } from "../db";
 import { authFromCookieStore, authFromRequest } from "../http";
 import { openAICompatibleModel, type Model } from "../model";
 import { canAfterDark } from "./entitlement";
+import { lockedForCookies, lockedForRequest } from "./privacy";
 import { adultKeys, cloudReady, getAdultSettings } from "./settings";
 
 /** Ollama's OpenAI-compatible endpoint on this machine, and an open model that writes adult fiction. */
@@ -35,8 +36,11 @@ export async function adultAvailable(db: Db, env: Record<string, string | undefi
 }
 
 let testModel: Model | null = null;
-export function setAdultModelForTests(model: Model | null): void {
+let testModelId = "test";
+/** A scripted model for tests, and the id a step records for it when it reports none (adultModelId). */
+export function setAdultModelForTests(model: Model | null, id = "test"): void {
   testModel = model;
+  testModelId = id;
 }
 
 /** What a caller may change about the client: another OpenRouter model (the eval's A/B arms), and its patience. */
@@ -98,6 +102,17 @@ export async function adultModel(db: Db, env: Record<string, string | undefined>
 }
 
 /**
+ * The id of the text model adultModel calls (the settings' text_model on OpenRouter, else the local model as
+ * `local/<name>`): what a step records as its model when the response doesn't say which one answered.
+ */
+export async function adultModelId(db: Db, env: Record<string, string | undefined> = process.env, opts: Pick<AdultModelOptions, "model"> = {}): Promise<string> {
+  if (testModel) return opts.model || testModelId;
+  const { openrouter } = await adultKeys(db).catch(() => ({ openrouter: null }));
+  if (openrouter) return opts.model || (await getAdultSettings(db)).text_model;
+  return `local/${env.ADULT_LLM_MODEL || ADULT_DEFAULT_MODEL}`;
+}
+
+/**
  * Whether After Dark has a text model to call here: the saved OpenRouter key, or the local mode (a test's scripted
  * model counts). The eval route answers 503 without one rather than calling a local model that isn't there.
  */
@@ -114,15 +129,19 @@ export async function signedInAdmin(db: Db, auth: { userId: string; authenticate
 
 /**
  * The viewer's user id when after dark may open for them (lib/adult/entitlement.ts: an admin, or a subscribed and
- * age-checked account) and it's available here; null for everyone and everything else.
+ * age-checked account) and it's available here; null for everyone and everything else. Null too on a device that
+ * hasn't entered the account's PIN (lib/adult/privacy.ts): every After Dark API and the media route ask here, so a
+ * locked device gets the same not-found as a stranger.
  */
 export async function adultViewer(db: Db, req: Request): Promise<string | null> {
   const auth = authFromRequest(req);
-  return (await canAfterDark(db, auth)).ok && (await adultAvailable(db)) ? auth!.userId : null;
+  if (!(await canAfterDark(db, auth)).ok || !(await adultAvailable(db))) return null;
+  return (await lockedForRequest(db, auth!.userId, req)) ? null : auth!.userId;
 }
 
-/** The same, for a server page (its cookie store). */
+/** The same, for a server page (its cookie store). A locked device's page sees null; its layout asks for the PIN. */
 export async function adultViewerFromCookies(db: Db, store: { get(name: string): { value: string } | undefined }): Promise<string | null> {
   const auth = authFromCookieStore(store);
-  return (await canAfterDark(db, auth)).ok && (await adultAvailable(db)) ? auth!.userId : null;
+  if (!(await canAfterDark(db, auth)).ok || !(await adultAvailable(db))) return null;
+  return (await lockedForCookies(db, auth!.userId, store)) ? null : auth!.userId;
 }
