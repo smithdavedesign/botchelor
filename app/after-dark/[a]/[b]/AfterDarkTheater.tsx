@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
+import { AUTOPLAY_THEATER_AHEAD } from "@/lib/adult/autoplay";
 import type { SceneLine } from "@/lib/adult/scenes";
 import { STAGES } from "@/lib/adult/stages";
 import type { Turn } from "@/lib/conversation";
@@ -56,6 +57,7 @@ const lastOf = (turns: Turn[], side: "a" | "b") => {
  * place the scene has got to, line by line, with the steer and "Next" inside it, so the scene carries on without
  * leaving. Opens on the latest lines; ↻ plays it from the top. A saved night (no onWrite) plays back from the top.
  * The steer has the page's Nudge/Direct choice too (David, 2026-10-21: no direct way to steer from the theater).
+ * Autoplay (lib/adult/autoplay.ts) writes the next lines by itself while the last few are still playing.
  */
 export default function AfterDarkTheater({
   scene,
@@ -65,6 +67,8 @@ export default function AfterDarkTheater({
   onWrite,
   steerMode = "nudge",
   onSteerMode,
+  autoplay = false,
+  onAutoplay,
   onSetScene,
   onMakeVideo,
   videoTokens = 15,
@@ -81,6 +85,9 @@ export default function AfterDarkTheater({
   /** How strongly a steer is taken: worked toward (nudge) or done now (direct). Shared with the page's form. */
   steerMode?: "nudge" | "direct";
   onSteerMode?: (mode: "nudge" | "direct") => void;
+  /** The scene carries on by itself, no Next needed. Shared with the page's form, which says when it stops. */
+  autoplay?: boolean;
+  onAutoplay?: (on: boolean) => void;
   /** Set the scene: take them anywhere (1 token). */
   onSetScene?: (place: string) => Promise<void>;
   /** The full-night video (lib/adult/reels.ts): the whole conversation, in their voices, for `videoTokens`. */
@@ -106,6 +113,11 @@ export default function AfterDarkTheater({
   const shown = replay.shown;
   const [a, b] = characters;
   const caughtUp = shown.length >= turns.length;
+  const left = turns.length - shown.length;
+  // Autoplay: the next lines are on their way before the stage runs out (paused playback stops it writing further ahead).
+  useEffect(() => {
+    if (live && autoplay && !busy && left <= AUTOPLAY_THEATER_AHEAD) void onWrite?.("");
+  }, [live, autoplay, busy, left, onWrite]);
   const latestAction = shown.length ? shown[shown.length - 1].action : "";
   const label = stageLabel(scene, shown.length, caughtUp);
   // The set: preloaded, so the last ready one stays up until the next has loaded (never the placeholder in between).
@@ -235,9 +247,15 @@ export default function AfterDarkTheater({
               </label>
             </span>
           )}
-          <button type="submit" className="primary" disabled={busy || !caughtUp}>
-            {busy ? "Writing…" : caughtUp ? "Next" : "Playing…"}
+          {/* Autoplay is always writing ahead, so a steer goes as soon as it's typed. */}
+          <button type="submit" className="primary" disabled={busy || (!caughtUp && !(autoplay && direction.trim()))}>
+            {busy ? "Writing…" : caughtUp || (autoplay && direction.trim()) ? "Next" : "Playing…"}
           </button>
+          {onAutoplay && (
+            <label className="ad-steer-mode" title="It carries on by itself, no Next needed, until the chapter ends">
+              <input type="checkbox" checked={autoplay} onChange={(e) => onAutoplay(e.target.checked)} /> Autoplay
+            </label>
+          )}
           {onSetScene && (
             <button type="button" className="button-ghost" onClick={() => setMoving(true)} disabled={busy} title="Take them anywhere (1 token)">
               📍 Set the scene

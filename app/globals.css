@@ -7407,6 +7407,13 @@ a.phone-head-btn {
   gap: 0.3rem;
   align-items: center;
 }
+/* Autoplay, beside the page's buttons: the scene carries on by itself (lib/adult/autoplay.ts). */
+.after-dark-autoplay {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  font-size: var(--text-sm);
+}
 
 /* ---------------- the OC ship name generator (/tools/ship-name-generator, /ship/<a>/<b>) ---------------- */
 
