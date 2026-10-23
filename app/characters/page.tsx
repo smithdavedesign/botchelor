@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
+import CharacterName from "@/app/CharacterName";
+import Pager from "@/app/Pager";
 import JsonLd from "@/app/JsonLd";
 import OriginBadge from "@/app/OriginBadge";
 import { getDb } from "@/lib/db";
@@ -10,16 +12,20 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { listCast, listMyProposals, listRelationshipEdges } from "@/lib/mechanics";
 import { parseTab, TAB_LABEL, tabHref, TABS, type Tab } from "@/lib/origin";
 import { topRatedCharacters } from "@/lib/ratings";
-import { ENDING_LABELS, RATING_CATEGORIES } from "@/lib/rules";
+import { endingLabel, RATING_CATEGORIES } from "@/lib/rules";
 import { seasonCastIds } from "@/lib/season-cast";
 import { listCandidates } from "@/lib/season-gen";
 import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
 import { itemListJsonLd } from "@/lib/seo";
+import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import MatchmakerForm from "./MatchmakerForm";
 
 export const dynamic = "force-dynamic";
 
-type Search = { tab?: string | string[]; page?: string | string[] };
+type Search = { tab?: string | string[]; page?: string | string[]; pairs?: string | string[] };
+
+/** The relationship graph on the cast tab: this many couples a page (?pairs=N). */
+const PAIRS_PAGE = 10;
 type Props = { searchParams: Promise<Search> };
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
@@ -70,9 +76,7 @@ function Entry({ e, badge }: { e: DirectoryEntry; badge?: string }) {
       <div className="char">
         <Avatar seed={e.id} name={e.name} hue={e.hue} house={e.house} portraitSrc={e.portrait} size={48} />
         <div className="meta">
-          <Link href={`/characters/${e.id}`}>
-            <strong>{e.name}</strong>
-          </Link>
+          <CharacterName character={e} avatar={false} strong />
           <OriginBadge origin={e.origin} />
           {badge && <span className="badge">{badge}</span>}
           {e.reviews > 0 && (
@@ -125,12 +129,12 @@ export default async function CharactersPage({ searchParams }: Props) {
         ))}
       </nav>
       {/* Awaited here, not rendered as async components, so the whole page is one server render (and testable). */}
-      {tab === "cast" ? await castTab({ season, thisId, castIds, now }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private })}
+      {tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs) }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private })}
     </article>
   );
 }
 
-async function castTab({ season, thisId, castIds, now }: { season: DirectoryEntry[]; thisId: string; castIds: string[]; now: Date }) {
+async function castTab({ season, thisId, castIds, now, pairsPage }: { season: DirectoryEntry[]; thisId: string; castIds: string[]; now: Date; pairsPage: number }) {
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
   const nextId = seasonIdOf(nextSeasonStart(now));
@@ -149,6 +153,7 @@ async function castTab({ season, thisId, castIds, now }: { season: DirectoryEntr
   // The leaderboard and the relationship graph show a private one by name only (#509's rule).
   const hidden = await privateAmong(db, [...cast.map((c) => c.id), ...boards.flat().map((t) => t.id), ...edges.flatMap((e) => [e.a_id, e.b_id])]);
   const matchable = cast.filter((c) => !hidden.has(c.id));
+  const pairs = pageSlice(edges, pairsPage, PAIRS_PAGE);
   const leaderboards = RATING_CATEGORIES.map((c, i) => ({ category: c, top: boards[i] })).filter((b) => b.top.length > 0);
 
   return (
@@ -199,10 +204,7 @@ async function castTab({ season, thisId, castIds, now }: { season: DirectoryEntr
                           <PrivateName name={t.name} />
                         </>
                       ) : (
-                        <>
-                          <Avatar seed={t.id} name={t.name} hue={t.hue} house={t.house} portraitSrc={t.portrait} size={28} />
-                          <Link href={`/characters/${t.id}`}>{t.name}</Link>
-                        </>
+                        <CharacterName character={t} size={28} />
                       )}
                       <span className="board-count">{t.count}</span>
                     </li>
@@ -232,14 +234,15 @@ async function castTab({ season, thisId, castIds, now }: { season: DirectoryEntr
         </section>
       )}
 
-      <section>
+      <section id="graph">
         <h2>The relationship graph</h2>
         <p className="muted small">
           <Link href="/graph">See it as a constellation →</Link>
         </p>
         {edges.length ? (
+          <>
           <ul className="list">
-            {edges.map((e) =>
+            {pairs.items.map((e) =>
               hidden.has(e.a_id) || hidden.has(e.b_id) ? (
                 // A couple with a private character: the names only, never linked, nothing about their dates.
                 <li key={`${e.a}-${e.b}`} className="card is-private">
@@ -257,12 +260,14 @@ async function castTab({ season, thisId, castIds, now }: { season: DirectoryEntr
                 <span className="muted">
                   {e.dates} {e.dates === 1 ? "date" : "dates"}
                   {e.second_dates > 0 && `, ${e.second_dates} second`}
-                  {e.last_ending && ` · last: ${ENDING_LABELS[e.last_ending]}`}
+                  {e.last_ending && ` · last: ${endingLabel(e.last_ending, e.dates)}`}
                 </span>
               </li>
               ),
             )}
           </ul>
+          <Pager page={pairs.page} pages={pairs.pages} label="Relationship graph pages" href={(n) => pageHref("/characters", {}, "pairs", n, "graph")} scroll={false} />
+          </>
         ) : (
           <p className="muted">No dates yet. Once characters start meeting, their history shows up here.</p>
         )}
@@ -312,15 +317,7 @@ async function madeByTab({ tab, page, privateCount }: { tab: "people" | "agents"
       ) : (
         <p className="muted">None yet.</p>
       )}
-      {list.pages > 1 && (
-        <nav className="pager" aria-label="Pages">
-          {list.page > 1 ? <Link href={tabHref(tab, list.page - 1)}>← Newer</Link> : <span />}
-          <span className="muted">
-            Page {list.page} of {list.pages}
-          </span>
-          {list.page < list.pages ? <Link href={tabHref(tab, list.page + 1)}>Older →</Link> : <span />}
-        </nav>
-      )}
+      <Pager page={list.page} pages={list.pages} label={`${TAB_LABEL[tab]} pages`} href={(n) => tabHref(tab, n)} prev="Newer" next="Older" />
     </section>
   );
 }

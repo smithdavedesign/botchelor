@@ -5,8 +5,10 @@ import { approvedClipId, approvedClipIsVideo, approvedPortraitId, portraitPathSq
 import type { Db } from "./db";
 import { publicExtras, type CharacterExtras } from "./extras";
 import { matchmakerHitSql } from "./mechanics";
+import { dateNumberSql } from "./date-number";
 import {
   agendaLabel,
+  dateNumberOf,
   ENDING_LABELS,
   ENDINGS,
   POINTS_PER_CORRECT_PICK,
@@ -50,6 +52,8 @@ export type CharacterRef = {
   portrait: string | null;
   /** Made by an AI agent over MCP rather than by a person on the website (characters.created_via). */
   agent?: boolean;
+  /** Private to someone other than the viewer (characters.visibility): its name is shown, never linked (app/CharacterName.tsx). */
+  private?: boolean;
 };
 export type CreatorRef = { character_id: string; name: string };
 
@@ -183,6 +187,8 @@ export type StoredEpisode = {
   status: EpisodeStatus;
   /** How the two sides' private wishes counted (lib/wishes.ts). Never shown; only a tip is told, beside the ending. */
   wishes?: StoredWishes | null;
+  /** Which date it is for the couple, as read (lib/date-number.ts): the stored number, or computed for an older date. */
+  date_number?: number | null;
 };
 
 export type EpisodeJson = {
@@ -205,7 +211,10 @@ export type EpisodeJson = {
   format?: FormatId;
   /** A second date: the first date it follows (lib/second-date.ts). Shown as a badge; not a spoiler. */
   followup_of?: string;
-  /** Which date this is for the couple (2, 3, ...), with followup_of. Older follow-ups without it are second dates. */
+  /**
+   * Which date this is for the couple (2, 3, ...) when they've dated before: every follow-up (older ones without it are
+   * second dates), and a rematch, counted from their public dates (lib/date-number.ts). Absent on a first date.
+   */
   date_number?: number;
   // Only present for the creators, or for everyone once the finale has aired.
   scenes?: string[];
@@ -309,6 +318,9 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     json.followup_of = ep.setup.followup_of;
     json.date_number = ep.setup.date_number ?? 2;
   }
+  // A rematch's number too (stored at booking, or read for an older one), so its ending names the right date.
+  const number = ep.date_number ?? dateNumberOf(ep.setup);
+  if (number && number > 1) json.date_number = number;
   if (opts.full) {
     json.scenes = ep.scenes;
     // A date still being written shows its lines without interest: a side's last one can stand in for its private wish
@@ -320,7 +332,7 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     json.drama_answer = ep.drama_answer;
     if (ep.best_line) json.best_line = ep.best_line;
     if (ep.box_score) json.box_score = ep.box_score;
-    const why = endingWhy(ep.ending, ep.box_score, ep.sides, ep.setup?.strategy, ep.setup?.engine_version, [a.name, b.name]);
+    const why = endingWhy(ep.ending, ep.box_score, ep.sides, ep.setup?.strategy, ep.setup?.engine_version, [a.name, b.name], number);
     // When the two sides' wishes tipped the ending, the numbers alone don't explain it: say so (never which way a lone wish went).
     const tipped = wishLine(ep.wishes, ep.ending);
     // #469: on a date between a viewer's own two characters, which cue tripped which dealbreaker (the debrief the
@@ -382,12 +394,14 @@ type EpisodeRow = {
   a_hue: number | null;
   a_portrait: string | null;
   a_agent: boolean;
+  a_private: boolean;
   b_id: string;
   b_name: string;
   b_house: boolean;
   b_hue: number | null;
   b_portrait: string | null;
   b_agent: boolean;
+  b_private: boolean;
   is_creator: boolean;
   is_host: boolean;
   /** Both characters are the viewer's (#469). */
@@ -403,6 +417,8 @@ type EpisodeRow = {
   my_drama_pick: DramaAnswer | null;
   my_consent: boolean;
   blocked: boolean;
+  /** Which date it is for the couple (lib/date-number.ts dateNumberSql), or null for a first date. */
+  date_number: number | null;
 };
 
 /**
@@ -416,7 +432,9 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
        e.revealed_at is not null as revealed,
        e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.afterglow, e.status, e.wishes,
        a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait, a.created_via = 'mcp' as a_agent,
+       (a.visibility = 'private' and a.owner_id is distinct from $1::text) as a_private,
        b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait, b.created_via = 'mcp' as b_agent,
+       (b.visibility = 'private' and b.owner_id is distinct from $1::text) as b_private,
        coalesce($1::text in (a.owner_id, b.owner_id), false) as is_creator,
        coalesce(e.creator_id = $1::text, false) as is_host,
        coalesce($1::text = a.owner_id and $1::text = b.owner_id, false) as owns_both,
@@ -427,7 +445,8 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
        pa.name as a_creator_name, pb.name as b_creator_name,
        p.pick as my_pick, p.drama_pick as my_drama_pick,
        exists (select 1 from identity_consents mc where mc.episode_id = e.id and mc.user_id = $1::text) as my_consent,
-       exists (select 1 from blocks bl where bl.blocker_id = $1::text and bl.via_episode_id = e.id) as blocked
+       exists (select 1 from blocks bl where bl.blocker_id = $1::text and bl.via_episode_id = e.id) as blocked,
+       ${dateNumberSql("e")} as date_number
   from episodes e
   join characters a on a.id = e.character_a
   join characters b on b.id = e.character_b
@@ -455,8 +474,8 @@ function debriefFrom(side: SideOutcome, setup: DateSetup | null, mySide: 0 | 1):
 
 function toView(row: EpisodeRow): EpisodeView {
   const characters: [CharacterRef, CharacterRef] = [
-    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait, agent: row.a_agent },
-    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait, agent: row.b_agent },
+    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait, agent: row.a_agent, ...(row.a_private ? { private: true } : {}) },
+    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait, agent: row.b_agent, ...(row.b_private ? { private: true } : {}) },
   ];
   const identityRevealed = row.needed > 0 && row.consents >= row.needed;
   const creators = identityRevealed
@@ -491,6 +510,7 @@ function toView(row: EpisodeRow): EpisodeView {
       afterglow: row.afterglow ?? [],
       status: row.status,
       wishes: row.wishes,
+      date_number: row.date_number,
     },
     {
       full,
@@ -583,19 +603,8 @@ const NOT_THE_VIEWERS = `not coalesce($1::text in (a.owner_id, b.owner_id), fals
 
 /** Watch's "Latest episodes": this many aired dates a page. */
 export const WATCH_PAGE_SIZE = 12;
-/** The highest `?page=` taken at face value; a bigger number is junk and reads as page 1. */
-const MAX_PAGE = 100_000;
-
-/**
- * A `?page=` search param as a page number: a whole number from 1, else 1. A repeated param uses the first; "0",
- * "-2", "2.5", "1e3", "abc" and absurdly large numbers all read as 1, so a hand-typed URL never errors.
- */
-export function parsePage(raw: string | string[] | undefined | null): number {
-  const value = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? "";
-  if (!/^\d{1,9}$/.test(value)) return 1;
-  const n = Number(value);
-  return n >= 1 && n <= MAX_PAGE ? n : 1;
-}
+/** `?page=` as a page number (lib/paging.ts, shared by every paged list). */
+export { parsePage } from "./paging";
 
 export type EpisodePage = {
   episodes: EpisodeView[];
@@ -796,7 +805,8 @@ export async function getPublicCharacter(db: Db, id: string): Promise<PublicChar
   return { ...rows[0], extras: publicExtras(rows[0].extras), portrait_asset_id, clip_asset_id, clip_is_video };
 }
 
-export type CharacterEpisode = { episode_id: string; share_path: string; partner: string; ending: Ending };
+/** date_number: which date it was for the couple (absent on a first date), so its ending reads right. */
+export type CharacterEpisode = { episode_id: string; share_path: string; partner: string; ending: Ending; date_number?: number };
 export type CharacterRecord = { dates: number; second_dates: number; friends: number; disasters: number };
 
 /**
@@ -808,9 +818,10 @@ export async function getCharacterHistory(
   id: string,
   limit = 10,
 ): Promise<{ episodes: CharacterEpisode[]; record: CharacterRecord }> {
-  const { rows } = await db.query<{ episode_id: string; partner: string; ending: Ending }>(
+  const { rows } = await db.query<{ episode_id: string; partner: string; ending: Ending; date_number: number | null }>(
     `select e.id as episode_id, e.ending,
-            case when e.character_a = $1 then b.name else a.name end as partner
+            case when e.character_a = $1 then b.name else a.name end as partner,
+            ${dateNumberSql("e")} as date_number
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b
@@ -819,7 +830,13 @@ export async function getCharacterHistory(
       limit $2`,
     [id, limit],
   );
-  const episodes = rows.map((r) => ({ episode_id: r.episode_id, share_path: `/episodes/${r.episode_id}`, partner: r.partner, ending: r.ending }));
+  const episodes: CharacterEpisode[] = rows.map((r) => ({
+    episode_id: r.episode_id,
+    share_path: `/episodes/${r.episode_id}`,
+    partner: r.partner,
+    ending: r.ending,
+    ...(r.date_number ? { date_number: r.date_number } : {}),
+  }));
   const record: CharacterRecord = {
     dates: episodes.length,
     second_dates: episodes.filter((e) => e.ending === "second_date").length,
@@ -827,6 +844,69 @@ export async function getCharacterHistory(
     disasters: episodes.filter((e) => e.ending === "disaster").length,
   };
   return { episodes, record };
+}
+
+/** One of a character's aired dates on its card, with who it was with (a face and a link: app/CharacterName.tsx). */
+/** date_number: which date it was for the couple (absent on a first date), so its ending reads right. */
+export type CharacterDate = { episode_id: string; share_path: string; partner: CharacterRef; ending: Ending; date_number?: number };
+
+/** A character card's "Date record" this many dates a page (?dates=N). */
+export const CHARACTER_DATES_PAGE = 10;
+
+/**
+ * A page of a character's public date record for its card (?dates=N): the aired public dates it was on, newest first,
+ * `per` a page from the database, and the tally over all of them (getCharacterHistory's counts only what it lists).
+ * The partner is marked private when it's private to someone other than `viewerId`. A page past the end is clamped.
+ */
+export async function getCharacterDatesPage(
+  db: Db,
+  id: string,
+  viewerId: string | null,
+  page = 1,
+  per = CHARACTER_DATES_PAGE,
+): Promise<{ dates: CharacterDate[]; record: CharacterRecord; page: number; pages: number; total: number }> {
+  const where = `(e.character_a = $1 or e.character_b = $1) and e.revealed_at is not null and e.visibility = 'public'`;
+  const tally = (
+    await db.query<CharacterRecord>(
+      `select count(*)::int as dates,
+              count(*) filter (where e.ending = 'second_date')::int as second_dates,
+              count(*) filter (where e.ending = 'friends')::int as friends,
+              count(*) filter (where e.ending = 'disaster')::int as disasters
+         from episodes e where ${where}`,
+      [id],
+    )
+  ).rows[0] ?? { dates: 0, second_dates: 0, friends: 0, disasters: 0 };
+  const pages = Math.max(1, Math.ceil(tally.dates / per));
+  const p = Math.min(Math.max(1, Math.floor(page) || 1), pages);
+  const { rows } = await db.query<{
+    episode_id: string;
+    ending: Ending;
+    p_id: string;
+    p_name: string;
+    p_house: boolean;
+    p_hue: number | null;
+    p_portrait: string | null;
+    p_private: boolean;
+    date_number: number | null;
+  }>(
+    `select e.id as episode_id, e.ending, ${dateNumberSql("e")} as date_number, p.id as p_id, p.name as p_name, p.is_house as p_house, p.avatar_hue as p_hue,
+            ${portraitPathSql("p")} as p_portrait,
+            (p.visibility = 'private' and p.owner_id is distinct from $2::text) as p_private
+       from episodes e
+       join characters p on p.id = case when e.character_a = $1 then e.character_b else e.character_a end
+      where ${where}
+      order by e.revealed_at desc, e.id
+      limit $3 offset $4`,
+    [id, viewerId, per, (p - 1) * per],
+  );
+  const dates = rows.map((r) => ({
+    episode_id: r.episode_id,
+    share_path: `/episodes/${r.episode_id}`,
+    ending: r.ending,
+    ...(r.date_number ? { date_number: r.date_number } : {}),
+    partner: { id: r.p_id, name: r.p_name, house: r.p_house, hue: r.p_hue, portrait: r.p_portrait, ...(r.p_private ? { private: true } : {}) },
+  }));
+  return { dates, record: tally, page: p, pages, total: tally.dates };
 }
 
 /** Where a viewer's points came from, by source (getPoints is their sum). */

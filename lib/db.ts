@@ -1462,6 +1462,17 @@ alter table adult_steps add column if not exists rewound jsonb;
 -- intensity (null is explicit, After Dark as it was) and the hard nos ({chips: [...], own: [...]}).
 alter table adult_scenes add column if not exists intensity text;
 alter table adult_scenes add column if not exists hard_nos jsonb not null default '{}';
+-- Scenarios, turn-ons and framing (lib/adult/scenarios.ts, lib/adult/profile.ts; 2026-10-22): how the viewer frames the
+-- pair (kept through Start over), the scenario tonight started from (cleared by Start over), and each character's private
+-- turn-ons. Never in characters.extras: the show reads extras, and the house cast's upsert rewrites it.
+alter table adult_scenes add column if not exists framing text;
+alter table adult_scenes add column if not exists scenario text;
+create table if not exists adult_profiles (
+  character_id text primary key references characters (id) on delete cascade,
+  turn_ons jsonb not null default '[]',
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
 -- After Dark v2.3 (lib/adult/auto-pictures.ts; 2026-10-23): the automatic pictures a scene has claimed (one per chapter
 -- and place, so a retry or a rewind never draws twice), the chapter and place a picture was drawn for, and the switch
 -- for them (null is on). Filthy, v2.3's intensity above explicit, is one more value of adult_scenes.intensity.

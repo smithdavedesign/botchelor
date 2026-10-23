@@ -61,6 +61,7 @@ export { BOOKING_RULE } from "./constants";
 import { ARC_PICKS, AUTOPLAY_SIDES, BROWSE_MINE, DEALBREAKER_PICK_NUMBERS, DECK_FILTERS, FEEDBACK_SORTS, FEEDBACK_VOTES, LIST_CAST_KINDS, MY_STATUS_INCLUDES, SEARCH_MADE_BY, TOOL_DEFS, type ToolName } from "./tool-defs";
 import { detectBot } from "../bots";
 import { getDb, type Db } from "../db";
+import { dateNumberSql } from "../date-number";
 import { getCharacterHistory, getPoints, getPointsBreakdown, getPublicCharacter, listAiredPage, listAiringSoon, listMyEpisodes, type DateSetup, type EpisodeView } from "../game";
 import { readUserId, safeEqual, USER_COOKIE } from "../http";
 import { getDealbreakerQuiz, listCast } from "../mechanics";
@@ -90,7 +91,7 @@ import { createLinkCode, isLinked } from "../agent-links";
 import { hasAccount } from "../auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "../formats";
 import { compatibility, loadTraitStats, MIN_EVIDENCE } from "../compatibility";
-import { AGENDA_IDS, AUTONOMY_LEVELS, DATE_VISIBILITIES, DRAMA_ANSWERS, DRAMA_QUESTION_LABELS, ENDING_LABELS, ENDINGS, FREE_EPISODES_PER_SEASON, GAME_BUDGETS, STRATEGIES, POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, type RatingCategory, WISH_NO_AT, WISH_YES_AT } from "../rules";
+import { AGENDA_IDS, AUTONOMY_LEVELS, dateNumberOf, DATE_VISIBILITIES, DRAMA_ANSWERS, DRAMA_QUESTION_LABELS, endingLabel, ENDINGS, FREE_EPISODES_PER_SEASON, GAME_BUDGETS, STRATEGIES, POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, type RatingCategory, WISH_NO_AT, WISH_YES_AT } from "../rules";
 import { AUDIENCES } from "../audience";
 import { type DecidedStyle, type PartnerStyle, PARTNER_STYLES, REOPEN_FIELDS, takenMessage } from "../partners-shared";
 import { TALK_LEVELS } from "../talk";
@@ -2184,7 +2185,7 @@ function compactIf(step: OwnDateStep, args: Record<string, unknown>): OwnDateSte
   // see_again and answer_their_suggestion fields say their own piece, so the reminder only points at them. #440: and how to get it all back.
   const hints =
     // 2.11.0 (#656): a two-agent side's reminder says where it's heading too (step.heading has the factors).
-    (step.ending ? ` ${endingLine(step.ending)}` : step.heading ? ` Heading: ${step.heading.says} (step.heading).` : "") +
+    (step.ending ? ` ${endingLine(step.ending, step.ending_label)}` : step.heading ? ` Heading: ${step.heading.says} (step.heading).` : "") +
     (step.see_again ? " step.see_again has the rest: how to send it (an object, not a bare string) and what stands in if you don't." : "") +
     (step.answer_their_suggestion ? " This reply answers their suggestion (answer_their_suggestion)." : "");
   // 2.10.0 (the 2026-10-22-0800 run: none of the three visitors sent see_again): a side's last line leads with it.
@@ -3089,7 +3090,7 @@ export function stepTop(step: OwnDateStep): Record<string, unknown> {
     const wishes = (step as { wishes?: Record<string, unknown> | null }).wishes;
     return {
       ...base, your_move: false, whose_move: null,
-      summary: `Done: ${a.name} and ${b.name}'s date ended: ${ENDING_LABELS[e.ending]} (${e.ending}). result: why, the box score's final numbers and the best line;${wishes ? " wishes: how the see_again wishes counted;" : ""} step.episode: the whole recap.`,
+      summary: `Done: ${a.name} and ${b.name}'s date ended: ${endingLabel(e.ending, dateNumberOf(e))} (${e.ending}). result: why, the box score's final numbers and the best line;${wishes ? " wishes: how the see_again wishes counted;" : ""} step.episode: the whole recap.`,
       result: summarised ? e : episodeSummary({ episode: e }).episode,
       ...(wishes ? { wishes } : {}),
     };
@@ -3974,6 +3975,15 @@ const CONTEXT_NOTE =
   "Dealbreakers stay secret (the audience guesses them). The engine decided the ending when the date was booked; endings_lately is how recent aired dates ended, a prior.";
 
 /**
+ * How the three picks read on one date when it's a later one (its context's date_number is 2 or more): the pick sent stays
+ * second_date, and on a couple's second date it reads "A third date". Beside context, which never names an ending.
+ */
+function picksFor(context: Record<string, unknown> | undefined): { picks?: Record<Ending, string> } {
+  const n = Number(context?.date_number);
+  return n > 1 ? { picks: Object.fromEntries(ENDINGS.map((e) => [e, endingLabel(e, n)])) as Record<Ending, string> } : {};
+}
+
+/**
  * 2.6.0 (the 2026-10-22-0042 run: "I had no information to go on, so predicting felt like guessing"): what an unaired public
  * date shows anyone before it airs, gathered for a prediction: the two characters' public sheets (traits, wants; never a
  * dealbreaker) and aired records, the teaser the episode page shows from the start (setting, goals, format, which date
@@ -4123,6 +4133,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...trimEpisode(byId.get(id)!),
           ...timingOf(id),
           ...(yours.has(id) ? { yours: true, can_predict: false } : {}),
+          ...picksFor(context.get(id)),
           ...(context.has(id) ? { context: context.get(id) } : {}),
         }));
         const first = shown.find((id) => !yours.has(id));
@@ -4172,7 +4183,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           e.status === "generating"
             ? [nextCall("get_episode", { episode_id: id, wait_seconds: WAIT_MAX_SECONDS, ...(args.summary === true ? { summary: true } : {}) }, "Still being written: this waits for it.")]
             : e.ending === "second_date" && out.data.aired === true && e.is_creator === true
-              ? [nextCall("plan_second_date", { episode_id: id, preview: true }, "It ended in a second date: this says whether it can be booked, and the cost.")]
+              ? [nextCall("plan_second_date", { episode_id: id, preview: true }, `It ended in ${endingLabel("second_date", dateNumberOf(e as { followup_of?: string; date_number?: number })).toLowerCase()}: this says whether it can be booked, and the cost.`)]
               : [];
         if (calls.length) out.data = { ...out.data, next_calls: calls };
       }
@@ -4580,8 +4591,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           .catch(() => []),
         ids.length
           ? db
-              .query<{ id: string; a: string; b: string }>(
-                `select e.id, ca.name as a, cb.name as b from episodes e
+              .query<{ id: string; a: string; b: string; date_number: number | null }>(
+                `select e.id, ca.name as a, cb.name as b,
+                        ${dateNumberSql("e")} as date_number
+                   from episodes e
                    join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
                   where e.ending = 'second_date' and e.revealed_at is not null and (e.character_a = any($1) or e.character_b = any($1))
                     and not exists (select 1 from episodes later where later.created_at > e.created_at
@@ -4725,7 +4738,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 ? nextCall("go_on_date", { character_id: first.id, partner_id: houseCast[0].id, preview: true }, `A date with ${houseCast[0].name}, of this season's house cast, no match needed: preview first; without preview it books.`)
                 : null;
           case "plan_second_date":
-            return rematch ? nextCall("plan_second_date", { episode_id: rematch.id, preview: true }, `${rematch.a} × ${rematch.b} ended in a second date: whether it can be booked and the cost; without preview it books.`) : null;
+            return rematch ? nextCall("plan_second_date", { episode_id: rematch.id, preview: true }, `${rematch.a} × ${rematch.b} ended in ${endingLabel("second_date", rematch.date_number).toLowerCase()}: whether it can be booked and the cost; without preview it books.`) : null;
           case "read_texts":
             return first ? nextCall("read_texts", { character_id: first.id }, "Your threads, with who wrote last and what's unread.") : null;
           case "my_notifications":
@@ -4800,7 +4813,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             `${POINTS_PER_DEALBREAKER_PICK} for a right dealbreaker guess (also when the date airs, public dates only), and a few for matchmaking. ` +
             "points_ledger says what each aired pick scored, newest first; points_from adds them up by source.",
           ...(predictions ? { predictions } : {}),
-          ...(rematch ? { second_date_ready: { episode_id: rematch.id, date: `${rematch.a} × ${rematch.b}`, note: "It ended in a second date: plan_second_date (episode_id, preview: true) says whether it can be booked and the cost; without preview it books." } } : {}),
+          ...(rematch ? { second_date_ready: { episode_id: rematch.id, date: `${rematch.a} × ${rematch.b}`, note: `It ended in ${endingLabel("second_date", rematch.date_number).toLowerCase()}: plan_second_date (episode_id, preview: true) says whether it can be booked and the cost; without preview it books.` } } : {}),
           ...(latest.length ? { latest_dates: latest, latest_dates_note: "The last 3: my_dates lists every date your characters have been on." } : {}),
           dates_note: "dates counts each character's aired public dates (its record on the show); all_dates counts every finished date, private and not yet aired too.",
           ...(staticSeen ? {} : { house_cast: compact ? houseCast.map((c) => ({ id: c.id, name: c.name })) : houseCast, house_cast_note: castNote }),
@@ -5808,6 +5821,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           points_if_right: POINTS_PER_CORRECT_PICK,
           ...(typeof args.drama_pick === "string" ? { drama_points_if_right: POINTS_PER_DRAMA_PICK } : {}),
           note: `${POINTS_NOTE} This one airs${when || " on its own"}: my_status lists the pick under predictions.pending until then. You can change your pick until it airs.`,
+          ...picksFor(context),
           ...(context ? { context, context_note: CONTEXT_NOTE } : {}),
           endings_lately: await endingsLately(db).catch(() => ({})),
           next_calls: [nextCall("browse_episodes", { open: true }, "More dates to call before they air.")],
@@ -7121,7 +7135,7 @@ async function airingFeed(db: Db): Promise<Record<string, unknown>> {
       const t = timing.get(e.id);
       return { episode_id: e.id, characters: who(e), status: e.status, airs_at: t?.airs_at ?? e.airs_at, ...(t ? { minutes_left: t.minutes_left, seconds_left: t.seconds_left, airs: t.airs } : {}), share_path: e.share_path, ...(e.venue ? { venue: venueName(e.venue) } : {}) };
     }),
-    just_aired: aired.episodes.map((e) => ({ episode_id: e.id, characters: who(e), ending: e.ending, ending_label: e.ending ? ENDING_LABELS[e.ending] : undefined, share_path: e.share_path })),
+    just_aired: aired.episodes.map((e) => ({ episode_id: e.id, characters: who(e), ending: e.ending, ending_label: e.ending ? endingLabel(e.ending, dateNumberOf(e)) : undefined, share_path: e.share_path })),
     note:
       "next: public dates that haven't aired, soonest first; predictions on each close when it airs (predict, or browse_episodes with open: true for what there is to go on). " +
       `just_aired: the newest aired ones, endings public. A date airs on its own ${airsWhen()}. Subscribe (resources/subscribe) to hear when this moves.`,

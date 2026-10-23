@@ -16,15 +16,17 @@ type Props = {
   afterglow: NonNullable<EpisodeView["afterglow"]>;
   /** Where their second date stands (lib/second-date.ts), for this owner. */
   secondDate?: SecondDateState | null;
+  /** Which date this was for the couple (lib/rules dateNumberOf): after their third, the one they'd skip is a fourth. */
+  dateNumber?: number | null;
 };
 
 /** The one-line mutual verdict, built client-side from each side's wants_another (never a model call). */
-function verdictLine(verdict: { a_wants: boolean; b_wants: boolean }, names: [string, string]): string {
+function verdictLine(verdict: { a_wants: boolean; b_wants: boolean }, names: [string, string], dateNumber?: number | null): string {
   switch (afterglowVerdictKind(verdict.a_wants, verdict.b_wants)) {
     case "mutual_yes":
       return "It was mutual — you both want to see each other again. 💘";
     case "mutual_no":
-      return "No second date: neither of them is feeling it.";
+      return `No ${dateLabel(Math.max(1, dateNumber ?? 1) + 1).toLowerCase()}: neither of them is feeling it.`;
     case "one_sided": {
       const keen = verdict.a_wants ? names[0] : names[1];
       const cool = verdict.a_wants ? names[1] : names[0];
@@ -37,7 +39,7 @@ function verdictLine(verdict: { a_wants: boolean; b_wants: boolean }, names: [st
  * M11 — the afterglow, for the characters' owners only: the morning-after texts and whether the interest was
  * mutual, shown as soon as they exist. No owner has to open it or agree first.
  */
-export default function Afterglow({ episodeId, characters, afterglow, secondDate }: Props) {
+export default function Afterglow({ episodeId, characters, afterglow, secondDate, dateNumber }: Props) {
   const [a, b] = characters;
   const names: [string, string] = [a.name, b.name];
   // These texts open the couple's text chain, which carries on between dates (lib/text-chain.ts).
@@ -47,7 +49,7 @@ export default function Afterglow({ episodeId, characters, afterglow, secondDate
     <section className="card afterglow">
       <h2>The afterglow</h2>
       <p className="muted">The morning after, your characters kept texting. Only the characters&apos; owners see this.</p>
-      {afterglow.verdict && <p className="ending">{verdictLine(afterglow.verdict, names)}</p>}
+      {afterglow.verdict && <p className="ending">{verdictLine(afterglow.verdict, names, dateNumber)}</p>}
       {afterglow.thread.map((line, i) => {
         const who = line.side === "a" ? a : b;
         return (
@@ -93,15 +95,15 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
     setMessage({ text: res.message, error: true, shop: res.status === 429 || res.status === 402 });
   }
 
+  const next = dateLabel(state.next_date_number).toLowerCase();
   if (state.planned_episode_id) {
     return (
       <p className="notice">
-        💞 Their second date is booked. <Link href={`/episodes/${state.planned_episode_id}`}>Watch it</Link>
+        💞 Their {next} is booked. <Link href={`/episodes/${state.planned_episode_id}`}>Watch it</Link>
       </p>
     );
   }
   if (!state.can_plan) return null;
-  const next = dateLabel(state.next_date_number).toLowerCase();
   const waiting = state.needs_their_yes && state.you_asked && !state.they_asked;
   return (
     <div className="second-date">

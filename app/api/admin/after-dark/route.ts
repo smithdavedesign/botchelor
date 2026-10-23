@@ -3,7 +3,25 @@ import { adultViewer } from "@/lib/adult/mode";
 import { listMedia } from "@/lib/adult/media";
 import { WHISPER_MAX } from "@/lib/adult/director";
 import { HARD_NO_IDS, INTENSITIES, OWN_LEN, OWN_MAX } from "@/lib/adult/limits";
-import { continueScene, editMemory, forgetWhisper, listNights, memoryView, openScene, redoScene, resetScene, rewindScene, saveLimits, SET_SCENE_MAX, setSceneTo } from "@/lib/adult/scenes";
+import { FRAMING_IDS, setTurnOns, TURN_ON_IDS } from "@/lib/adult/profile";
+import { SCENARIOS } from "@/lib/adult/scenarios";
+import {
+  continueScene,
+  editMemory,
+  forgetWhisper,
+  listNights,
+  memoryView,
+  openScene,
+  profileView,
+  redoScene,
+  resetScene,
+  rewindScene,
+  saveFraming,
+  saveLimits,
+  SET_SCENE_MAX,
+  setSceneTo,
+  startScenario,
+} from "@/lib/adult/scenes";
 import { isAdmin } from "@/lib/admins";
 import { refundBoughtTokens, SET_SCENE_TOKEN_COST, spendBoughtTokens } from "@/lib/allowance";
 import { getDb } from "@/lib/db";
@@ -33,6 +51,10 @@ const Input = z.object({
       hard_nos: z.object({ chips: z.array(z.enum(HARD_NO_IDS as [string, ...string[]])).max(HARD_NO_IDS.length).optional(), own: z.array(z.string().max(OWN_LEN * 2)).max(OWN_MAX * 2).optional() }).optional(),
     })
     .optional(),
+  // Start a night from a scenario (lib/adult/scenarios.ts); how the viewer frames the pair; a character's turn-ons.
+  scenario: z.enum(SCENARIOS.map((x) => x.id) as [string, ...string[]]).optional(),
+  framing: z.enum(FRAMING_IDS as [string, ...string[]]).nullable().optional(),
+  turn_ons: z.object({ character_id: id, ids: z.array(z.enum(TURN_ON_IDS as [string, ...string[]])).max(TURN_ON_IDS.length) }).optional(),
   // Their memory, seen and edited (null text deletes): a PG note, a fact, or the night's recap.
   memory_edit: z
     .discriminatedUnion("kind", [
@@ -51,6 +73,11 @@ export const GET = handle(async (req: Request) => {
   const admin = await adultViewer(db, req);
   if (!admin) return hidden();
   const q = new URL(req.url).searchParams;
+  // Each one's turn-ons, for a character whose profile the viewer may set (theirs; an admin's house cast).
+  if (q.get("profile") === "1") {
+    const profile = await profileView(db, admin, q.get("a") ?? "", q.get("b") ?? "");
+    return profile ? json({ profile }) : hidden();
+  }
   // What they remember, for the page's memory panel (owner-scoped).
   if (q.get("memory") === "1") {
     const memory = await memoryView(db, admin, q.get("a") ?? "", q.get("b") ?? "");
@@ -87,6 +114,22 @@ export const POST = handle(async (req: Request) => {
     const back = await rewindScene(db, admin, input.a, input.b);
     if (!back.ok) return json({ error: "not_rewound", message: back.message }, back.status);
     return json({ scene: back.scene, rewound: back.rewound, nights: await listNights(db, admin, input.a, input.b) });
+  }
+  if (input.scenario) {
+    const r = await startScenario(db, admin, input.a, input.b, input.scenario);
+    if (!r.ok) return json({ error: "not_started", message: r.message, ...(r.placed ? { scene: r.placed, nights: await listNights(db, admin, input.a, input.b) } : {}) }, r.status);
+    return json({ scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures, nights: await listNights(db, admin, input.a, input.b) });
+  }
+  if (input.framing !== undefined) {
+    const scene = await saveFraming(db, admin, input.a, input.b, input.framing);
+    return scene ? json({ scene }) : hidden();
+  }
+  if (input.turn_ons) {
+    // Only for one of this pair, in the viewer's After Dark.
+    if (!(await openScene(db, admin, input.a, input.b)) || ![input.a, input.b].includes(input.turn_ons.character_id)) return hidden();
+    const r = await setTurnOns(db, admin, input.turn_ons.character_id, input.turn_ons.ids);
+    if (!r.ok) return json({ error: "not_saved", message: r.message }, r.status);
+    return json({ profile: await profileView(db, admin, input.a, input.b) });
   }
   if (input.limits) {
     const r = await saveLimits(db, admin, input.a, input.b, input.limits);

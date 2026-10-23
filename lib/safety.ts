@@ -7,7 +7,9 @@
  */
 
 export type RejectReason = "minor" | "sexual" | "real_person" | "innuendo";
-export type SafetyResult = { ok: true } | { ok: false; reason: RejectReason; field: string };
+/** After Dark's themes that never happen (checkAdultText): family and step-family, teacher and student, school, age-play. */
+export type ExcludedTheme = "family" | "teacher_student" | "school" | "age_play";
+export type SafetyResult = { ok: true } | { ok: false; reason: RejectReason; field: string; theme?: ExcludedTheme };
 
 const SEXUAL_TERMS = [
   "sex", "sexy", "sexual", "sexually", "sexting", "porn", "porno", "pornographic", "pornography",
@@ -198,9 +200,43 @@ const ADULT_AGE_PATTERNS = [
   new RegExp(` as if (?:she|he|they|i|you) (?:were|was|is|are) ${CHILD_AGE} `),
 ];
 
+// After Dark's themes that never happen (David's lines, 2026-10-22: no school settings, no "teen", no age-play; no
+// step-family, incest or teacher/student roleplay). On the same normalised text as everything above. Whole phrases, so a
+// ballroom instructor's beginners' class, "my sister set us up", "old school" or "let's play a little game" pass, while
+// any roleplay of family, a teacher or a pupil, a school setting or an age-play term is refused, in a steer, a line, a
+// suggestion, a whisper or a scenario alike. "schoolgirl", "barely legal" and the like are already minor terms above.
+const KIN = "sister|sis|brother|bro|mom|mum|mommy|mummy|mother|dad|daddy|father|daughter|son|sibling|siblings|parent|parents|aunt|auntie|uncle|cousin|niece|nephew|grandma|grandpa|grandmother|grandfather";
+const ROLE = "pretend|pretends|pretending|play|plays|playing|roleplay|roleplays|roleplaying|role play|role playing|act|acts|acting|be";
+const EXCLUDED_THEMES: [ExcludedTheme, RegExp][] = [
+  ["family", new RegExp(` step ?(?:${KIN}|family|kid|kids|child|children) `)],
+  ["family", / incest\w* /],
+  ["family", new RegExp(` (?:${ROLE}) (?:like )?(?:you re |youre |you are |i m |im |i am |she s |shes |he s |hes |that )?(?:my|your|her|his|our) (?:${KIN}) `)],
+  ["family", / (?:call me|calls me|calling me|yes|please|who s your|whos your) (?:daddy|mommy|mummy) /],
+  ["family", / (?:daddy|mommy|mummy) s (?:girl|boy|good girl|good boy|little) /],
+  ["teacher_student", / (?:teacher|professor|tutor|headmaster|headmistress|principal) and (?:his |her |the |a )?(?:student|pupil) /],
+  ["teacher_student", / (?:student|pupil) and (?:his |her |the |a )?(?:teacher|professor|tutor|headmaster|headmistress|principal) /],
+  ["teacher_student", / (?:my|your) (?:teacher|professor|headmaster|headmistress|principal) /],
+  ["teacher_student", / (?:naughty|bad|good|dirty|favorite|favourite) (?:student|pupil) /],
+  ["teacher_student", new RegExp(` (?:${ROLE}) (?:the |a |my |your )?(?:teacher|professor|student|pupil|headmaster|headmistress) `)],
+  ["teacher_student", / detention /],
+  ["school", / school (?:uniform|uniforms|girl|girls|boy|boys|bus|yard|kid|kids|dance|locker) /],
+  ["school", / (?:high|middle|grade|primary|elementary|secondary|boarding|prep|catholic) school /],
+  ["school", / (?:classroom|classrooms|homeroom|schoolyard|playground|prom night|principal s office) /],
+  ["age_play", / (?:age ?play|ageplay|ddlg|mdlg|cgl|abdl|diaper|diapers|pacifier|binky|little one) /],
+  ["age_play", new RegExp(` (?:${ROLE})\\b[a-z ]{0,24}\\b(?:younger|underage|a kid|a child|a minor) `)],
+];
+
+/** The excluded theme a text plays, or null (After Dark only: the show is held to checkFields and checkShowText). */
+export function excludedTheme(text: string): ExcludedTheme | null {
+  const plain = spaced(fold(text));
+  for (const [theme, re] of EXCLUDED_THEMES) if (re.test(plain)) return theme;
+  return null;
+}
+
 /**
- * After dark (lib/adult): adult content is allowed there, so this keeps only the two lines that hold everywhere:
- * nobody under 18 (in any form, including an age in passing) and no real, identifiable people.
+ * After dark (lib/adult): adult content is allowed there, so this keeps only the lines that hold everywhere: nobody
+ * under 18 (in any form, including an age in passing, and nothing that suggests one: no school setting, no age-play), no
+ * family or step-family and no teacher/student roleplay (excludedTheme), and no real, identifiable people.
  */
 export function checkAdultText(fields: Record<string, string | readonly string[] | undefined>): SafetyResult {
   for (const [field, value] of Object.entries(fields)) {
@@ -216,6 +252,8 @@ export function checkAdultText(fields: Record<string, string | readonly string[]
       ) {
         return { ok: false, reason: "minor", field };
       }
+      const theme = excludedTheme(text);
+      if (theme) return { ok: false, reason: theme === "school" || theme === "age_play" ? "minor" : "sexual", field, theme };
       const deleeted = spaced(folded.replace(/[013457@$!]/g, (c) => LEET[c]));
       const variants = [plain, deleeted, joinSpelledOut(plain), joinSpelledOut(deleeted)];
       if (REAL_PEOPLE_PATTERNS.some((re) => variants.some((v) => re.test(v)))) return { ok: false, reason: "real_person", field };

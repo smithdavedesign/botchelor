@@ -277,10 +277,20 @@ export async function ownersOf(db: Db, ids: string[]): Promise<Map<string, strin
   return new Map(rows.map((r) => [r.id, r.owner_id]));
 }
 
-export async function listNotifications(db: Db, userId: string, limit = 50): Promise<Notification[]> {
+/** How many notifications someone has (or how many unread), for the /notifications pager. */
+export async function countNotifications(db: Db, userId: string, opts: { unread?: boolean } = {}): Promise<number> {
+  const { rows } = await db.query<{ n: number }>(
+    `select count(*)::int as n from notifications where user_id = $1${opts.unread ? " and read_at is null" : ""}`,
+    [userId],
+  );
+  return rows[0]?.n ?? 0;
+}
+
+/** Someone's notifications, newest first: `limit` of them from `offset` (the /notifications page passes a page's worth). */
+export async function listNotifications(db: Db, userId: string, limit = 50, offset = 0): Promise<Notification[]> {
   const { rows } = await db.query<{ id: string; kind: NotificationKind; title: string; body: string | null; link: string | null; created_at: Date | string; read_at: Date | string | null }>(
-    `select id, kind, title, body, link, created_at, read_at from notifications where user_id = $1 order by created_at desc limit $2`,
-    [userId, limit],
+    `select id, kind, title, body, link, created_at, read_at from notifications where user_id = $1 order by created_at desc, id desc limit $2 offset $3`,
+    [userId, limit, Math.max(0, offset)],
   );
   const items: Notification[] = rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, link: r.link, created_at: new Date(r.created_at).toISOString(), read: r.read_at !== null }));
   return withTurnState(db, userId, await withBookings(db, userId, items));

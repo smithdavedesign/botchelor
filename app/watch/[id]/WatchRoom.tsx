@@ -7,11 +7,12 @@ import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
 import { requestJson } from "@/app/request";
-import { DATE_ACTS, DATE_VARIABLES, ENDING_LABELS, ENDINGS, formatCountdown, preshowCountdownLabel, VARIABLE_LABELS } from "@/lib/rules";
+import { DATE_ACTS, DATE_VARIABLES, endingLabel, ENDINGS, formatCountdown, preshowCountdownLabel, VARIABLE_LABELS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { RoomState } from "@/lib/watch";
 import { placeAt } from "@/lib/venues";
 import { trackConversion } from "@/app/conversion";
+import CharacterName from "@/app/CharacterName";
 
 /** Where to go once the date is decided, so a finished room is never a dead end (David, 2026-10-18). */
 function RoomNext({ state }: { state: RoomState }) {
@@ -219,7 +220,7 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
               The Botchelor · {state.kind === "template" ? "Open date room" : "Premiere"}
             </p>
             <h1>
-              {a.name} × {b.name}
+              <CharacterName character={a} avatar={false} /> × <CharacterName character={b} avatar={false} />
             </h1>
           </div>
         </div>
@@ -341,7 +342,7 @@ function Theater({
         <header className="theater-hud">
           <div className="theater-id">
             <strong>
-              {a.name} <span className="vs">×</span> {b.name}
+              <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
             </strong>
             {isReplay ? (
               <span className="chip">Replay</span>
@@ -457,7 +458,7 @@ function Preshow({ state, left, tone = "light" }: { state: RoomState; left: numb
         <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={44} />
       </div>
       <p className="watch-countdown-who">
-        On stage: <strong>{a.name}</strong> and <strong>{b.name}</strong>
+        On stage: <CharacterName character={a} avatar={false} strong /> and <CharacterName character={b} avatar={false} strong />
         {place ? <> at {place}</> : null}.
       </p>
       <p className="watch-countdown-hint">
@@ -563,7 +564,7 @@ function Stage({ state, onPredict, preshowLeft }: { state: RoomState; onPredict:
           )}
           {state.my_prediction && (
             <p className={state.my_prediction === state.ending ? "notice" : "muted"}>
-              You predicted {ENDING_LABELS[state.my_prediction]}
+              You predicted {endingLabel(state.my_prediction, state.date_number)}
               {state.my_prediction === state.ending ? " — you called it." : "."}
             </p>
           )}
@@ -802,7 +803,7 @@ function Predictions({ state, onDone }: { state: RoomState; onDone: () => void }
               onClick={() => predict(ending)}
             >
               <span className="poll-dot" aria-hidden />
-              <span className="poll-label">{ENDING_LABELS[ending]}</span>
+              <span className="poll-label">{endingLabel(ending, state.date_number)}</span>
               {state.my_prediction === ending && <span className="poll-mine">Your call</span>}
             </button>
           ))}
@@ -810,7 +811,7 @@ function Predictions({ state, onDone }: { state: RoomState; onDone: () => void }
       )}
       {state.my_prediction && (
         <p className="notice">
-          Locked in: {ENDING_LABELS[state.my_prediction]}.
+          Locked in: {endingLabel(state.my_prediction, state.date_number)}.
           {state.predictions_open ? " You can change it until the decision." : ""}
         </p>
       )}

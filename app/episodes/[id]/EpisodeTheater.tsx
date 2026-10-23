@@ -9,6 +9,7 @@ import { DATE_ACTS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { placeAt, type PlaceId } from "@/lib/venues";
+import CharacterName from "@/app/CharacterName";
 
 type Props = {
   /** For the 👍/👎 on each line (lib/line-feedback.ts): line i is transcript[i], and playback shows them from the top. */
@@ -83,7 +84,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, autoO
         <header className="theater-hud">
           <div className="theater-id">
             <strong>
-              {a.name} <span className="vs">×</span> {b.name}
+              <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
             </strong>
             <span className="chip">{autoOpen ? "Just filmed" : "Replay"}</span>
           </div>
