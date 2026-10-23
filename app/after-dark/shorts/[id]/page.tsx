@@ -3,7 +3,9 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
+import { callOf, cantCall, shortOutcome } from "@/lib/adult/predictions";
 import { shortsAccess, teaserShort, viewShort } from "@/lib/adult/shorts";
+import { seasonIdOf, seasonLabel } from "@/lib/season-window";
 import { detectBot } from "@/lib/bots";
 import { getDb, type Db } from "@/lib/db";
 import { getPublicCharacter, type CharacterRef } from "@/lib/game";
@@ -82,7 +84,17 @@ export default async function ShortPage({ params }: Props) {
             {(short.owner || access.admin) && <ShortAdmin id={short.id} published={Boolean(short.published_at)} />}
           </div>
         </div>
-        <ShortEpisode id={short.id} characters={characters} initial={short.episode} />
+        <ShortEpisode
+          id={short.id}
+          characters={characters}
+          initial={short.episode}
+          canCall={!(await cantCall(db, access.viewer, short.id))}
+          call={short.owner || access.admin ? null : await callOf(db, access.viewer, short.id)}
+          // What happened only once the night is theirs to see (after play, or theirs): never in the page before.
+          outcome={short.episode ? await shortOutcome(db, short.id) : null}
+          owner={short.owner || access.admin}
+          boardLabel={seasonLabel(seasonIdOf(new Date()))}
+        />
       </article>
     </div>
   );

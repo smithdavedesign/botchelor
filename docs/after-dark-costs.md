@@ -103,6 +103,7 @@ against $0.11).
 | Keep going (the next 5 s of a clip) | The same: a keyframe from the clip's own, a shot | The same as a clip |
 | A picture from the shot menu (`lib/adult/pictures-menu.ts`) | One keyframe of the two of them (the act, outfit, framing and place as chosen), Hive on it | About $0.045 on Venice ($0.04, Hive about $0.004), about $0.035 on Replicate ($0.03) |
 | A Short (`lib/adult/shorts.ts`, 2026-10-23): a saved night of two house characters, published | Nothing is made: it shows the night's own lines, a picture already made and its video when it has one | $0 to make. Watching it is free to the viewer (in the subscription, no tokens, not counted against the caps) and costs us only the transfer: its lines, and the video's files from the bucket (a presigned link) or Postgres, a few MB a video, kept by each viewer's browser |
+| Call it (`lib/adult/predictions.ts`): a call on a Short, settled at play | Read from the night's own record: no model, no media | $0. The points are free and only free: nothing buys them, nothing they buy |
 
 Hive on a video is about $0.05 for 15 seconds and $0.09 for 30, if it samples about one frame a second. Confirm how
 Hive counts video frames before relying on this.

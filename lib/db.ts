@@ -1708,6 +1708,24 @@ create table if not exists adult_short_views (
   watched_at timestamptz not null default now(),
   primary key (short_id, user_id)
 );
+-- Call it (lib/adult/predictions.ts): a viewer's call on a Short before it plays (the first move, how far it goes, one of
+-- their places, and the optional second night), settled from the recorded night when they press play: what happened and
+-- the free points it earned are kept with it. After Dark's own season board reads these; the show's never do.
+create table if not exists adult_short_calls (
+  short_id text not null references adult_shorts (id) on delete cascade,
+  user_id text not null,
+  first_move text not null check (first_move in ('a', 'b', 'neither')),
+  furthest smallint not null check (furthest between 0 and 4),
+  their_place text not null check (their_place in ('yes', 'no')),
+  second_night text check (second_night in ('yes', 'no')),
+  outcome jsonb,
+  points integer,
+  settled_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (short_id, user_id)
+);
+create index if not exists adult_short_calls_settled on adult_short_calls (settled_at);
 -- After Dark's discreet mode (lib/adult/privacy.ts): blur its pictures until tapped and a neutral tab title (both on
 -- by default), and an optional PIN kept only as a slow salted hash (scrypt), never the PIN. pin_version changes with
 -- every new or removed PIN, which signs every device out; the wrong tries and the wait they set live here too.

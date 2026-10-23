@@ -9,8 +9,11 @@
  *   shorts: the admin's 📺 Shorts panel on the pair's page, publishing the night; the Shorts list and one Short for a
  *     subscriber (before ▶ Play, the theater, then the night in chapters with its video); the blurred teaser for
  *     someone After Dark isn't open to.
+ *   callit: a subscriber calls the Short before playing it (lib/adult/predictions.ts), presses play and sees how the call
+ *     went; the season's board, with three other subscribers' calls settled through the API.
  *
- * On the phone it checks the page never scrolls sideways. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build.
+ * SHOTS=shorts,callit picks the sets (all by default). On the phone it checks the page never scrolls sideways. Set
+ * CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build.
  */
 import { createServer } from "node:http";
 import { spawnSync } from "node:child_process";
@@ -93,13 +96,15 @@ function placeholders(a, b) {
 }
 
 /** The night, its cover and its video straight into the local database, and the subscriber's entitlement. */
-async function seed(pair, subscriberHandle) {
+async function seed(pair, subscriberHandles) {
   const [a, b] = pair;
   const db = new PGlite(DB_DIR);
   try {
     const owner = (await db.query("select user_id from admins limit 1")).rows[0].user_id;
-    const sub = (await db.query("select user_id from accounts where handle = $1", [subscriberHandle])).rows[0].user_id;
-    await db.query("insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())", [sub]);
+    for (const handle of subscriberHandles) {
+      const sub = (await db.query("select user_id from accounts where handle = $1", [handle])).rows[0].user_id;
+      await db.query("insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())", [sub]);
+    }
     const asLines = (rows) => rows.map(([who, text, stage, moved]) => ({ who, text, stage, why: "private note", memory: null, ...(moved ? { moved_to: moved } : {}) }));
     const night = (id, chapter, rows, ago) =>
       db.query(
@@ -149,8 +154,140 @@ async function checkPhone(page, name) {
   console.log(`  ✓ ${name}: no sideways scroll`);
 }
 
+const TITLE = "Rooftop tea, then downstairs";
+
+/** The admin publishes the night from the pair's page (📺 Shorts); the Short's address. */
+async function publishFromPanel({ admin, base, scenePath, shot, desktop, phone, top }) {
+  await admin.goto(`${base}${scenePath}`);
+  const panel = admin.locator(".ad-shorts");
+  await panel.locator("summary").click();
+  await panel.getByText("Publish as a Short").waitFor({ timeout: 30_000 });
+  await panel.locator('input[type="text"]').first().fill(TITLE);
+  if (shot) {
+    await top(admin, ".ad-shorts");
+    await shot(admin, "shorts-publish-desktop");
+    await phone(admin);
+    await top(admin, ".ad-shorts", 70);
+    await checkPhone(admin, "the Shorts panel");
+    await shot(admin, "shorts-publish-phone");
+    await desktop(admin);
+  }
+  await panel.getByRole("button", { name: "Publish as a Short" }).click();
+  await panel.getByText("📺 Published").waitFor({ timeout: 30_000 });
+  const shortPath = (await panel.getByRole("link", { name: "Open it" }).getAttribute("href")) ?? "";
+  assert(shortPath.startsWith("/after-dark/shorts/"), "the Short's address");
+  return shortPath;
+}
+
+/** Shorts (PR 1): the panel, the list, a Short before and after ▶ Play, the teaser. */
+async function shorts(s) {
+  const { base, shot, desktop, phone, top, browser } = s;
+  const shortPath = await s.published(true);
+  const sub = await s.subCtx.newPage();
+  await desktop(sub);
+  await sub.goto(`${base}/after-dark/shorts`);
+  await sub.getByText(TITLE).first().waitFor({ timeout: 30_000 });
+  await shot(sub, "shorts-list-desktop");
+  await phone(sub);
+  await checkPhone(sub, "the Shorts list");
+  await shot(sub, "shorts-list-phone");
+  await desktop(sub);
+  await sub.goto(`${base}${shortPath}`);
+  await sub.getByRole("button", { name: "▶ Play" }).waitFor({ timeout: 30_000 });
+  await shot(sub, "shorts-short-desktop");
+  await phone(sub);
+  await checkPhone(sub, "a Short before play");
+  await shot(sub, "shorts-short-phone");
+  await desktop(sub);
+  await sub.getByRole("button", { name: "▶ Play" }).click();
+  await sub.locator(".theater").waitFor({ timeout: 30_000 });
+  await sub.waitForTimeout(6000);
+  await shot(sub, "shorts-theater-desktop");
+  await sub.getByRole("button", { name: "Exit" }).click();
+  await sub.getByText("Chapter 2").first().waitFor({ timeout: 15_000 });
+  await top(sub, ".after-dark-reel", 120);
+  await shot(sub, "shorts-night-desktop");
+  await phone(sub);
+  await top(sub, ".after-dark-reel", 80);
+  await checkPhone(sub, "a Short's night");
+  await shot(sub, "shorts-night-phone");
+
+  // Someone After Dark isn't open to: the teaser.
+  const anon = await browser.newContext(PERSON);
+  await anon.addCookies([{ name: "bz_adult", value: "1", url: base }]);
+  const tease = await anon.newPage();
+  await desktop(tease);
+  await tease.goto(`${base}/after-dark/shorts`);
+  await tease.getByText("Subscribe to unlock").first().waitFor({ timeout: 30_000 });
+  const html = await tease.content();
+  assert(!html.includes("I counted every boat") && !html.includes("/media/"), "the teaser has none of the night");
+  await shot(tease, "shorts-teaser-desktop");
+  await phone(tease);
+  await checkPhone(tease, "the teaser");
+  await shot(tease, "shorts-teaser-phone");
+  await anon.close();
+}
+
+/** Call it (PR 2): three others call and play it through the API; then one calls it on the page, plays it, and the board. */
+async function callit(s) {
+  const { base, shot, desktop, phone, top } = s;
+  const shortPath = await s.published(false);
+  const api = `/api/admin/after-dark${shortPath.replace("/after-dark", "")}`;
+  const calls = [
+    { first_move: "a", furthest: 2, their_place: "yes", second_night: "no" },
+    { first_move: "b", furthest: 2, their_place: "yes", second_night: null },
+    { first_move: "a", furthest: 4, their_place: "no", second_night: "yes" },
+  ];
+  for (const [i, ctx] of s.boardCtxs.entries()) {
+    assert((await ctx.request.post(`${base}${api}/call`, { data: calls[i] })).ok(), "a board call");
+    assert((await ctx.request.post(`${base}${api}/watch`, { data: {} })).ok(), "a board play");
+  }
+  const page = await s.callCtx.newPage();
+  await desktop(page);
+  await page.goto(`${base}${shortPath}`);
+  const card = page.locator('section[aria-label="Call it"]');
+  await card.waitFor({ timeout: 30_000 });
+  await card.getByLabel(s.names[0], { exact: true }).check();
+  await card.getByLabel("A kiss", { exact: true }).check();
+  await card.getByLabel("Yes, one of their places", { exact: true }).check();
+  await card.getByLabel("Yes, another night", { exact: true }).check();
+  await card.getByRole("button", { name: "Lock in my call" }).click();
+  await card.getByText("Your call is in.").waitFor({ timeout: 15_000 });
+  await top(page, 'section[aria-label="Call it"]', 100);
+  await shot(page, "callit-call-desktop");
+  await phone(page);
+  await top(page, 'section[aria-label="Call it"]', 70);
+  await checkPhone(page, "the Call it card");
+  await shot(page, "callit-call-phone");
+  await desktop(page);
+  await page.getByRole("button", { name: "▶ Play" }).click();
+  await page.locator(".theater").waitFor({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Exit" }).click();
+  const reveal = page.locator('section[aria-label="How it went"]');
+  await reveal.waitFor({ timeout: 15_000 });
+  await top(page, 'section[aria-label="How it went"]', 100);
+  await shot(page, "callit-reveal-desktop");
+  await phone(page);
+  await top(page, 'section[aria-label="How it went"]', 70);
+  await checkPhone(page, "how the call went");
+  await shot(page, "callit-reveal-phone");
+  await desktop(page);
+  await page.goto(`${base}/after-dark/shorts#board`);
+  await page.locator("#board").waitFor({ timeout: 15_000 });
+  await top(page, "#board", 140);
+  await shot(page, "callit-board-desktop");
+  await phone(page);
+  await top(page, "#board", 70);
+  await checkPhone(page, "the board");
+  await shot(page, "callit-board-phone");
+}
+
+const FLOWS = { shorts, callit };
+
 async function main() {
   if (!process.env.CHROMIUM_PATH) throw new Error("Set CHROMIUM_PATH to a local Chromium; this script never downloads one.");
+  const wanted = (process.env.SHOTS || Object.keys(FLOWS).join(",")).split(",").map((x) => x.trim()).filter(Boolean);
+  for (const w of wanted) assert(FLOWS[w], `no such set of screenshots: ${w} (there are ${Object.keys(FLOWS).join(", ")})`);
   rmSync(DATA_DIR, { recursive: true, force: true });
   mkdirSync(DATA_DIR, { recursive: true });
   mkdirSync(OUT_DIR, { recursive: true });
@@ -178,88 +315,45 @@ async function main() {
   };
   const desktop = (page) => page.setViewportSize({ width: 1280, height: 800 });
   const phone = (page) => page.setViewportSize({ width: 390, height: 844 });
-  const top = (page, sel, by = 90) => page.evaluate(([s, y]) => window.scrollTo(0, document.querySelector(s).getBoundingClientRect().top + window.scrollY - y), [sel, by]);
+  const top = (page, sel, by = 90) => page.evaluate(([q, y]) => window.scrollTo(0, document.querySelector(q).getBoundingClientRect().top + window.scrollY - y), [sel, by]);
+  const contexts = [];
   try {
-    // An admin and a subscriber, made on the app; then the night goes straight into its database.
-    const adminCtx = await browser.newContext(PERSON);
-    await register(adminCtx, app.base, `shotsad${Date.now() % 1e6}`);
+    // An admin and the subscribers, made on the app (with their display names); then the night goes into its database.
+    const person = async (handle, name) => {
+      const ctx = await browser.newContext(PERSON);
+      contexts.push(ctx);
+      await register(ctx, app.base, handle);
+      if (name) assert((await ctx.request.post(`${app.base}/api/profile`, { data: { name, attest: true } })).ok(), `naming ${handle}`);
+      return ctx;
+    };
+    const stamp = Date.now() % 1e6;
+    const adminCtx = await person(`shotsad${stamp}`);
     assert((await adminCtx.request.post(`${app.base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } })).ok(), "claiming admin");
-    const subHandle = `shotssub${Date.now() % 1e6}`;
-    const subCtx = await browser.newContext(PERSON);
-    await register(subCtx, app.base, subHandle);
+    const subs = [`shotssub${stamp}`, `shotscall${stamp}`, `shotsb1${stamp}`, `shotsb2${stamp}`, `shotsb3${stamp}`];
+    const subCtx = await person(subs[0]);
+    const callCtx = await person(subs[1], "Harbour Watcher");
+    const boardCtxs = [await person(subs[2], "Night Owl"), await person(subs[3], "Tea Critic"), await person(subs[4])];
     const admin = await adminCtx.newPage();
     await desktop(admin);
     await admin.goto(`${app.base}/after-dark`);
     const scenePath = (await admin.locator(".after-dark li.card a").first().getAttribute("href")) ?? "";
     assert(scenePath.startsWith("/after-dark/"), "a pair to open");
     const pair = scenePath.split("/").slice(2, 4);
+    // Their first names, from the pair's page ("{a} × {b}", lower id first, as the pair's lines are).
+    await admin.goto(`${app.base}${scenePath}`);
+    const names = ((await admin.locator("h1").first().textContent()) ?? "").split(" × ").map((n) => n.trim().split(/\s+/)[0]);
+    assert(names.length === 2 && names.every(Boolean), "the pair's names");
     await stopApp(app);
-    await seed(pair, subHandle);
+    await seed(pair, subs);
     app = await startApp(port, env);
 
-    // The admin publishes the night from the pair's page.
-    await admin.goto(`${app.base}${scenePath}`);
-    const panel = admin.locator(".ad-shorts");
-    await panel.locator("summary").click();
-    await panel.getByText("Publish as a Short").waitFor({ timeout: 30_000 });
-    await panel.locator('input[type="text"]').first().fill("Rooftop tea, then downstairs");
-    await top(admin, ".ad-shorts");
-    await shot(admin, "shorts-publish-desktop");
-    await phone(admin);
-    await top(admin, ".ad-shorts", 70);
-    await checkPhone(admin, "the Shorts panel");
-    await shot(admin, "shorts-publish-phone");
-    await desktop(admin);
-    await panel.getByRole("button", { name: "Publish as a Short" }).click();
-    await panel.getByText("📺 Published").waitFor({ timeout: 30_000 });
-    const shortPath = (await panel.getByRole("link", { name: "Open it" }).getAttribute("href")) ?? "";
-    assert(shortPath.startsWith("/after-dark/shorts/"), "the Short's address");
-
-    // A subscriber: the list, the Short before ▶ Play, the theater, then the night with its video.
-    const sub = await subCtx.newPage();
-    await desktop(sub);
-    await sub.goto(`${app.base}/after-dark/shorts`);
-    await sub.getByText("Rooftop tea, then downstairs").first().waitFor({ timeout: 30_000 });
-    await shot(sub, "shorts-list-desktop");
-    await phone(sub);
-    await checkPhone(sub, "the Shorts list");
-    await shot(sub, "shorts-list-phone");
-    await desktop(sub);
-    await sub.goto(`${app.base}${shortPath}`);
-    await sub.getByRole("button", { name: "▶ Play" }).waitFor({ timeout: 30_000 });
-    await shot(sub, "shorts-short-desktop");
-    await phone(sub);
-    await checkPhone(sub, "a Short before play");
-    await shot(sub, "shorts-short-phone");
-    await desktop(sub);
-    await sub.getByRole("button", { name: "▶ Play" }).click();
-    await sub.locator(".theater").waitFor({ timeout: 30_000 });
-    await sub.waitForTimeout(6000);
-    await shot(sub, "shorts-theater-desktop");
-    await sub.getByRole("button", { name: "Exit" }).click();
-    await sub.getByText("Chapter 2").first().waitFor({ timeout: 15_000 });
-    await top(sub, ".after-dark-reel", 120);
-    await shot(sub, "shorts-night-desktop");
-    await phone(sub);
-    await top(sub, ".after-dark-reel", 80);
-    await checkPhone(sub, "a Short's night");
-    await shot(sub, "shorts-night-phone");
-
-    // Someone After Dark isn't open to: the teaser.
-    const anon = await browser.newContext(PERSON);
-    await anon.addCookies([{ name: "bz_adult", value: "1", url: app.base }]);
-    const tease = await anon.newPage();
-    await desktop(tease);
-    await tease.goto(`${app.base}/after-dark/shorts`);
-    await tease.getByText("Subscribe to unlock").first().waitFor({ timeout: 30_000 });
-    const html = await tease.content();
-    assert(!html.includes("I counted every boat") && !html.includes("/media/"), "the teaser has none of the night");
-    await shot(tease, "shorts-teaser-desktop");
-    await phone(tease);
-    await checkPhone(tease, "the teaser");
-    await shot(tease, "shorts-teaser-phone");
-    await Promise.all([adminCtx.close(), subCtx.close(), anon.close()]);
+    let shortPath = null;
+    const base = app.base;
+    const published = async (withShots) => (shortPath ??= await publishFromPanel({ admin, base, scenePath, shot: withShots ? shot : null, desktop, phone, top }));
+    const s = { base, browser, shot, desktop, phone, top, subCtx, callCtx, boardCtxs, names, published };
+    for (const name of wanted) await FLOWS[name](s);
   } finally {
+    await Promise.all(contexts.map((c) => c.close().catch(() => {})));
     await browser.close();
     await stopApp(app);
     showrunner.close();
