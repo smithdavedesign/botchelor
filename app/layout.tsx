@@ -23,6 +23,11 @@ import Nav from "./Nav";
 import { unreadTexts } from "@/lib/inbox";
 import { CrisisResources } from "./Notices";
 import "./globals.css";
+// The UX audit's per-area styles (2026-10-23), after the globals so they win ties.
+import "./ux/after-dark.css";
+import "./ux/create.css";
+import "./ux/show.css";
+import "./ux/agents-footer.css";
 
 const TRACKING = trackingConfig();
 
