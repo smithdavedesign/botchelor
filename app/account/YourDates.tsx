@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Avatar from "../Avatar";
+import Pager from "../Pager";
 import { requestJson } from "../request";
 
 type Visibility = "public" | "private" | "unlisted";
-type Side = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null };
+type Side = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null; private?: boolean };
 type EpisodeCard = {
   episode_id: string;
   share_path: string;
@@ -87,7 +88,7 @@ export default function YourDates() {
         <ul className="account-dates">
           {data.episodes.map((e) => (
             <li key={e.episode_id}>
-              <Avatar seed={e.a.id} name={e.a.name} hue={e.a.hue} house={e.a.house} portraitSrc={e.a.portrait} size={36} />
+              <Avatar seed={e.a.id} name={e.a.name} hue={e.a.hue} house={e.a.house} portraitSrc={e.a.portrait} size={36} decorative />
               <div className="account-date-main">
                 <Link href={e.share_path}>{e.title}</Link>
                 {e.is_host ? (
@@ -103,33 +104,13 @@ export default function YourDates() {
                   <span className="badge">{e.visibility}</span>
                 )}
               </div>
-              <Avatar seed={e.b.id} name={e.b.name} hue={e.b.hue} house={e.b.house} portraitSrc={e.b.portrait} size={36} />
+              <Avatar seed={e.b.id} name={e.b.name} hue={e.b.hue} house={e.b.house} portraitSrc={e.b.portrait} size={36} decorative />
             </li>
           ))}
         </ul>
       )}
       {error && <p className="error">{error}</p>}
-      {data && data.pages > 1 && (
-        <nav className="pager" aria-label="Your dates pages">
-          {data.page > 1 ? (
-            <button type="button" className="link-button" onClick={() => setPage(data.page - 1)}>
-              ← Newer
-            </button>
-          ) : (
-            <span />
-          )}
-          <span className="muted">
-            Page {data.page} of {data.pages}
-          </span>
-          {data.page < data.pages ? (
-            <button type="button" className="link-button" onClick={() => setPage(data.page + 1)}>
-              Older →
-            </button>
-          ) : (
-            <span />
-          )}
-        </nav>
-      )}
+      {data && <Pager page={data.page} pages={data.pages} label="Your dates pages" onPage={setPage} prev="Newer" next="Older" />}
     </section>
   );
 }

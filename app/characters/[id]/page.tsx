@@ -4,6 +4,10 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
+import CharacterName from "@/app/CharacterName";
+import Pager from "@/app/Pager";
+import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
+import { portraitPathSql } from "@/lib/assets";
 import JsonLd from "@/app/JsonLd";
 import { breadcrumbJsonLd, characterJsonLd } from "@/lib/seo";
 import ShareLink from "@/app/ShareLink";
@@ -12,7 +16,7 @@ import { hasExtras, profileComplete, profileMissing, type CharacterExtras } from
 import ProfileDetails from "./ProfileDetails";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { getDb } from "@/lib/db";
-import { getCharacterHistory, getPublicCharacter } from "@/lib/game";
+import { getCharacterDatesPage, getPublicCharacter } from "@/lib/game";
 import { isAdmin } from "@/lib/admins";
 import { CLIP_TOKEN_COST, episodeAllowance } from "@/lib/allowance";
 import { loadCharacter } from "@/lib/character";
@@ -40,7 +44,11 @@ export const dynamic = "force-dynamic";
 
 const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
 
-type Props = { params: Promise<{ id: string }> };
+type Search = { rel?: string | string[]; dates?: string | string[] };
+type Props = { params: Promise<{ id: string }>; searchParams?: Promise<Search> };
+
+/** Their relationships on the card: this many a page (?rel=N). The date record pages itself (?dates=N, lib/game.ts). */
+const RELATIONSHIPS_PAGE = 8;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
@@ -55,8 +63,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /** A shareable contestant card: a character's public persona only (no dealbreaker, no soul). */
-export default async function CharacterPage({ params }: Props) {
+export default async function CharacterPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const sp: Search = (await searchParams) ?? {};
   const db = await getDb();
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
@@ -74,8 +83,8 @@ export default async function CharacterPage({ params }: Props) {
       </article>
     );
   }
-  const [{ episodes, record }, ratings, memory, dating, reviews] = await Promise.all([
-    getCharacterHistory(db, id),
+  const [{ dates: episodes, record, page: datesPage, pages: datesPages }, ratings, memory, dating, reviews] = await Promise.all([
+    getCharacterDatesPage(db, id, viewerId, parsePage(sp.dates)),
     getCharacterRatings(db, id, viewerId),
     loadCharacterMemory(db, id),
     getDatingProfile(db, id),
@@ -92,9 +101,18 @@ export default async function CharacterPage({ params }: Props) {
   const relationships = await (async () => {
     const edges = await relationshipsOf(db, id);
     const others = edges.map((r) => (r.lo === id ? r.hi : r.lo));
-    const names = new Map(
+    // Each one's face and whether it's private to someone else (then: its name only, never linked).
+    type Other = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null; private: boolean };
+    const faces = new Map(
       others.length
-        ? (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [others])).rows.map((r) => [r.id, r.name])
+        ? (
+            await db.query<Other>(
+              `select c.id, c.name, c.avatar_hue as hue, c.is_house as house, ${portraitPathSql("c")} as portrait,
+                      (c.visibility = 'private' and c.owner_id is distinct from $2::text) as private
+                 from characters c where c.id = any($1)`,
+              [others, viewerId],
+            )
+          ).rows.map((r) => [r.id, r])
         : [],
     );
     return edges
@@ -102,7 +120,8 @@ export default async function CharacterPage({ params }: Props) {
       .filter((x) => x.view !== null)
       .map(({ rel, view }) => {
         const otherId = rel.lo === id ? rel.hi : rel.lo;
-        return { otherId, name: names.get(otherId) ?? "Someone", path: `/couples/${rel.lo}/${rel.hi}`, view: view! };
+        const other = faces.get(otherId) ?? { id: otherId, name: "Someone", hue: null, house: false, portrait: null, private: true };
+        return { otherId, other, path: `/couples/${rel.lo}/${rel.hi}`, view: view! };
       })
       .sort((x, y) => y.view.tie - x.view.tie);
   })();
@@ -148,6 +167,8 @@ export default async function CharacterPage({ params }: Props) {
   // Owner only: how the engine reads it on a date (its effective temperament, learned drift included).
   const plays = ratings.is_owner && !c.house ? (await loadCharacter(db, id))?.signals ?? null : null;
   const people = connections(memory);
+  const relPage = pageSlice(relationships, parsePage(sp.rel), RELATIONSHIPS_PAGE);
+  const here = (key: "rel" | "dates", hash: string) => (n: number) => pageHref(`/characters/${c.id}`, { ...sp }, key, n, hash);
   // Owner only: what it has learned, where each item came from, and what it's been told to forget.
   const learned =
     ratings.is_owner && !c.house && memory
@@ -351,7 +372,7 @@ export default async function CharacterPage({ params }: Props) {
       {c.house && <AfterDarkTeaser character={c.id} />}
 
       {relationships.length > 0 && (
-        <section className="card">
+        <section className="card" id="relationships">
           <div className="section-head">
             <h2>Relationships</h2>
             <span>
@@ -360,9 +381,9 @@ export default async function CharacterPage({ params }: Props) {
             </span>
           </div>
           <ul className="list connections">
-            {relationships.map((r) => (
+            {relPage.items.map((r) => (
               <li key={r.otherId}>
-                <Link href={`/characters/${r.otherId}`}>{r.name}</Link> {r.view.stage_label && <span className="badge">{r.view.stage_label}</span>}
+                <CharacterName character={r.other} /> {r.view.stage_label && <span className="badge">{r.view.stage_label}</span>}
                 <span className="muted">
                   {" "}
                   · {r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`} · <Link href={r.path}>see them together</Link>
@@ -379,10 +400,11 @@ export default async function CharacterPage({ params }: Props) {
               </li>
             ))}
           </ul>
+          <Pager page={relPage.page} pages={relPage.pages} label="Relationships pages" href={here("rel", "relationships")} scroll={false} />
         </section>
       )}
 
-      <section className="card">
+      <section className="card" id="date-record">
         <h2>Date record</h2>
         {record.dates > 0 ? (
           <>
@@ -394,10 +416,12 @@ export default async function CharacterPage({ params }: Props) {
             <ul className="list">
               {episodes.map((e) => (
                 <li key={e.episode_id}>
-                  <Link href={e.share_path}>vs {e.partner}</Link> <span className="badge">{ENDING_LABELS[e.ending]}</span>
+                  vs <CharacterName character={e.partner} /> <span className="badge">{ENDING_LABELS[e.ending]}</span> ·{" "}
+                  <Link href={e.share_path}>See the date</Link>
                 </li>
               ))}
             </ul>
+            <Pager page={datesPage} pages={datesPages} label="Date record pages" href={here("dates", "date-record")} prev="Newer" next="Older" scroll={false} />
           </>
         ) : (
           <p className="muted">No aired dates yet.</p>

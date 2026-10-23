@@ -4,6 +4,9 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import Avatar from "@/app/Avatar";
+import CharacterName from "@/app/CharacterName";
+import Pager from "@/app/Pager";
+import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import PhoneFrame from "@/app/PhoneFrame";
 import { getDb } from "@/lib/db";
 import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/lib/game";
@@ -28,7 +31,10 @@ import { originOf, originsOf } from "@/lib/origin";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ a: string; b: string }> };
+type Props = { params: Promise<{ a: string; b: string }>; searchParams?: Promise<{ dates?: string | string[] }> };
+
+/** "Their dates": this many a page (?dates=N). */
+const TIMELINE_PAGE = 10;
 
 /** The pair and what the viewer may see of it: the public layer, or an owner's (their own dates and plans). */
 async function load(a: string, b: string) {
@@ -102,8 +108,9 @@ const date = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "";
 
 /** A couple's page: their relationship in the graph (lib/relationships.ts), as the viewer is allowed to see it. */
-export default async function CouplePage({ params }: Props) {
+export default async function CouplePage({ params, searchParams }: Props) {
   const { a, b } = await params;
+  const sp = (await searchParams) ?? {};
   const [lo, hi] = pairKey(a, b);
   if (a !== lo) permanentRedirect(`/couples/${lo}/${hi}`);
   const data = await load(lo, hi);
@@ -119,17 +126,19 @@ export default async function CouplePage({ params }: Props) {
   const nameOf = (id: string) => (id === ca.id ? ca.name : cb.name);
   const first = (c: PublicCharacter) => shortName(c.name);
   const origins = await originsOf(await getDb(), [ca.id, cb.id]);
+  // A character private to someone else: its name only, never linked (the private-character rule, #509).
+  const viewerId = userIdFromCookieStore(await cookies());
+  const hidden = (c: PublicCharacter) => c.private && c.owner_id !== viewerId;
+  const timeline = pageSlice(view.timeline.map((t, i) => ({ ...t, n: i + 1 })), parsePage(sp.dates), TIMELINE_PAGE);
 
   return (
     <>
       <section className="card couple-head">
         <div className="couple-avatars">
-          <Link href={`/characters/${ca.id}`}>
-            <Avatar seed={ca.id} name={ca.name} hue={ca.hue} house={ca.house} size={72} portraitSrc={ca.portrait_asset_id ? `/api/assets/${ca.portrait_asset_id}` : null} />
-          </Link>
-          <Link href={`/characters/${cb.id}`}>
-            <Avatar seed={cb.id} name={cb.name} hue={cb.hue} house={cb.house} size={72} portraitSrc={cb.portrait_asset_id ? `/api/assets/${cb.portrait_asset_id}` : null} />
-          </Link>
+          {[ca, cb].map((c) => {
+            const face = <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={72} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} />;
+            return hidden(c) ? <span key={c.id}>{face}</span> : <Link key={c.id} href={`/characters/${c.id}`}>{face}</Link>;
+          })}
         </div>
         <h1>
           {first(ca)} × {first(cb)}
@@ -138,7 +147,7 @@ export default async function CouplePage({ params }: Props) {
           {[ca, cb].map((c, i) => (
             <span key={c.id}>
               {i > 0 && " and "}
-              <Link href={`/characters/${c.id}`}>{c.name}</Link>
+              <CharacterName character={{ ...refOf(c), private: hidden(c) }} avatar={false} />
               <OriginBadge origin={origins.get(c.id) ?? originOf({ house: c.house, agent: c.made_by_agent })} />
             </span>
           ))}
@@ -226,18 +235,19 @@ export default async function CouplePage({ params }: Props) {
           );
         })}
 
-      <section className="card">
+      <section className="card" id="their-dates">
         <h2>Their dates</h2>
-        <ol className="list couple-timeline">
-          {view.timeline.map((t, i) => (
+        <ol className="list couple-timeline" start={(timeline.page - 1) * TIMELINE_PAGE + 1}>
+          {timeline.items.map((t) => (
             <li key={t.episode_id}>
-              <Link href={`/episodes/${t.episode_id}`}>Date {i + 1}</Link> <span className="muted">· {t.venue}</span>{" "}
+              <Link href={`/episodes/${t.episode_id}`}>Date {t.n}</Link> <span className="muted">· {t.venue}</span>{" "}
               <span className="muted small">· {date(t.at)}</span> → <strong>{t.ending_label}</strong>
               {t.second_date_of && <span className="badge">planned together</span>}
               {!t.aired && <span className="badge">not aired yet</span>}
             </li>
           ))}
         </ol>
+        <Pager page={timeline.page} pages={timeline.pages} label="Their dates pages" href={(n) => pageHref(`/couples/${ca.id}/${cb.id}`, {}, "dates", n, "their-dates")} scroll={false} />
       </section>
 
       {view.jokes.length > 0 && (

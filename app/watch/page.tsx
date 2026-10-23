@@ -16,6 +16,7 @@ import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch
 import { dateLabel, ENDING_LABELS } from "@/lib/rules";
 import { CreateLeagueForm } from "./WatchActions";
 import StripPager from "./StripPager";
+import Pager from "@/app/Pager";
 
 export const dynamic = "force-dynamic";
 
@@ -129,31 +130,6 @@ function AiringCard({ episode, now }: { episode: AiringSoon; now: number }) {
         </span>
       </Link>
     </li>
-  );
-}
-
-/** Prev / "Page 2 of 5" / Next under the latest episodes: plain links, so every page renders and crawls without JS. */
-function Pager({ page, pages }: { page: number; pages: number }) {
-  if (pages <= 1 && page <= 1) return null;
-  const prev = Math.min(page - 1, pages);
-  return (
-    <nav className="watch-pager" aria-label="Latest episodes pages">
-      {page > 1 ? (
-        <Link className="button-ghost small" href={`${pagePath(prev)}#latest`} rel="prev">
-          ← Newer
-        </Link>
-      ) : (
-        <span className="watch-pager-gap" aria-hidden />
-      )}
-      <span className="muted small">{page <= pages ? `Page ${page} of ${pages}` : `${pages} ${pages === 1 ? "page" : "pages"}`}</span>
-      {page < pages ? (
-        <Link className="button-ghost small" href={`${pagePath(page + 1)}#latest`} rel="next">
-          Older →
-        </Link>
-      ) : (
-        <span className="watch-pager-gap" aria-hidden />
-      )}
-    </nav>
   );
 }
 
@@ -279,7 +255,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
             Nothing has aired yet. <Link href="/create">Send a character on a date</Link>.
           </p>
         )}
-        <Pager page={page} pages={latest.pages} />
+        <Pager page={page} pages={latest.pages} label="Latest episodes pages" href={(n) => `${pagePath(n)}#latest`} prev="Newer" next="Older" />
       </section>
 
       {privateDates > 0 && (
