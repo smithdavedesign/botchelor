@@ -25,6 +25,7 @@ import { seasonCastIds } from "../season-cast";
 import type { PlaceStop } from "./continuity";
 import { canAfterDark } from "./entitlement";
 import { adultAvailable, adultViewerFromCookies } from "./mode";
+import { groupNights, type NightGroupOf } from "./nights";
 import { spoken, type ReelShot } from "./reels";
 import { dropForeignActions, publicLines, type SceneLine } from "./scenes";
 
@@ -72,40 +73,15 @@ export type NightRow = {
   set_place: string | null;
   chapter: number | null;
   place_history: PlaceStop[] | null;
+  /** The running recap of the night so far, written when the chapter was filed (server-only: never sent to a viewer). */
+  recap?: string | null;
   created_at: string | Date;
 };
-const NIGHT_COLUMNS = "id, lines, place, stage, date_setting, date_venue, set_place, chapter, place_history, created_at";
+const NIGHT_COLUMNS = "id, lines, place, stage, date_setting, date_venue, set_place, chapter, place_history, recap, created_at";
 
-/**
- * A whole night: its saved chapters in order. `complete` is false while it's still running (its next chapter is the
- * scene being written now). `since` and `until` bound when it was filed: the end of the night before, and its own last
- * chapter (the pictures drawn in between are the night's).
- */
-export type NightGroup = { id: string; rows: NightRow[]; complete: boolean; since: Date | null; until: Date };
-
-/**
- * The saved chapters (oldest first) as nights: chapter 1, or an unnumbered night from before chapters, starts one, and
- * chapter n+1 filed after chapter n carries it on. The latest night is still running when the pair's scene is on its
- * next chapter (a chapter closed and the night ran on); Start over sets the scene back to chapter 1, which ends it.
- */
-export function groupNights(rows: readonly NightRow[], running: { chapter: number } | null): NightGroup[] {
-  const groups: NightGroup[] = [];
-  for (const r of rows) {
-    const open = groups.at(-1);
-    const last = open?.rows.at(-1);
-    const follows = open && typeof r.chapter === "number" && r.chapter > 1 && typeof last?.chapter === "number" && r.chapter === last.chapter + 1;
-    if (follows) {
-      open.rows.push(r);
-      open.until = new Date(r.created_at);
-    } else {
-      groups.push({ id: r.id, rows: [r], complete: true, since: open?.until ?? null, until: new Date(r.created_at) });
-    }
-  }
-  const latest = groups.at(-1);
-  const ended = latest?.rows.at(-1)?.chapter;
-  if (latest && running && typeof ended === "number" && running.chapter === ended + 1) latest.complete = false;
-  return groups;
-}
+/** A whole night: its saved chapters in order (lib/adult/nights.ts). */
+export type NightGroup = NightGroupOf<NightRow>;
+export { groupNights };
 
 /** This person's nights of the pair (lower id first), oldest first. */
 export async function pairNights(db: Db, ownerId: string, pair: [string, string]): Promise<NightGroup[]> {
@@ -164,16 +140,49 @@ export function filmed(lines: readonly SceneLine[], shots: readonly ReelShot[]):
   );
 }
 
-/** The night's videos: for each chapter, the newest video of the night (never a clip) that filmed its lines. */
+/**
+ * The chapters of `rows` a video of the whole night (scope "night") filmed, when every shot of it that came through says
+ * one of their lines, by the same one, at its place in its own chapter; null when it isn't this night's. A chapter it
+ * filmed while it was still the running scene is the saved chapter of that number filed since.
+ */
+export function filmedNight(rows: readonly NightRow[], shots: readonly ReelShot[]): Set<string> | null {
+  const ready = readyShots(shots);
+  const of = (s: ReelShot) => (s.night_id ? rows.find((r) => r.id === s.night_id) : rows.find((r) => r.chapter === s.chapter && typeof s.chapter === "number"));
+  if (!ready.length) return null;
+  const covered = new Set<string>();
+  for (const s of ready) {
+    const r = of(s);
+    if (!r || typeof s.chapter_line !== "number" || !filmed(r.lines ?? [], [{ ...s, line: s.chapter_line }])) return null;
+    covered.add(r.id);
+  }
+  return covered;
+}
+
+/**
+ * The night's videos, in the night's order: the newest video of the whole night (never a clip) that filmed it, for the
+ * chapters it covers, and for each chapter left, the newest video that filmed that chapter's lines.
+ */
 export async function nightVideos(db: Db, ownerId: string, pair: [string, string], rows: readonly NightRow[]): Promise<string[]> {
-  const { rows: reels } = await db.query<{ id: string; shots: ReelShot[] | null }>(
-    `select id, shots from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and coalesce(kind, 'night') <> 'clip' and status <> 'making'
+  const { rows: reels } = await db.query<{ id: string; shots: ReelShot[] | null; scope: string | null }>(
+    `select id, shots, scope from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and coalesce(kind, 'night') <> 'clip' and status <> 'making'
       order by created_at desc, id limit 40`,
     [ownerId, ...pair],
   );
+  let whole: { id: string; covered: Set<string> } | null = null;
+  for (const x of reels) {
+    const covered = x.scope === "night" ? filmedNight(rows, x.shots ?? []) : null;
+    if (covered) {
+      whole = { id: x.id, covered };
+      break;
+    }
+  }
   const out: string[] = [];
   for (const r of rows) {
-    const reel = reels.find((x) => !out.includes(x.id) && filmed(r.lines ?? [], x.shots ?? []));
+    if (whole?.covered.has(r.id)) {
+      if (!out.includes(whole.id)) out.push(whole.id);
+      continue;
+    }
+    const reel = reels.find((x) => x.scope !== "night" && !out.includes(x.id) && filmed(r.lines ?? [], x.shots ?? []));
     if (reel) out.push(reel.id);
   }
   return out;

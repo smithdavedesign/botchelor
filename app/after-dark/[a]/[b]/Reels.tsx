@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "@/app/request";
 import { clipChains, keepGoingFrom } from "@/lib/adult/clip-chains";
 import type { BusyReel, Reel, ReelShot } from "@/lib/adult/reels";
+import { chaptersLabel } from "@/lib/adult/nights";
 import { reelFailureNote } from "@/lib/adult/reel-failure";
 import { REEL_STALLED_MS } from "@/lib/adult/reel-timing";
 
@@ -54,6 +55,8 @@ export default function Reels({ reels, onChange }: { reels: Reel[]; onChange: (r
         <ul className="after-dark-reels">
           {nights.map((r) => (
             <li key={r.id}>
+              {/* What it filmed: "Whole night, chapters 1–2" or "Chapter 2" (not recorded on videos from before). */}
+              {r.chapters?.length ? <p className="muted small ad-reel-covers">🎬 {chaptersLabel(r.chapters)}</p> : null}
               <ReelPlayer reel={r} onChange={onChange} />
             </li>
           ))}

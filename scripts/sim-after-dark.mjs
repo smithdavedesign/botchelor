@@ -18,6 +18,12 @@
  * date model, SIM_LLM_API_KEY (the AI Gateway key); the caller reads them from the keychain.
  * Options: --models a,b (OpenRouter ids, default Dolphin-Mistral 24B and DeepSeek V3.1)  --partner house-sable
  *          --steps 26  --date-model paid|stub  --out .data/sim-after-dark  --no-build  --score-only (re-score a run)
+ *          --character file.json  the character to create instead of Teodor Vance (NEW_CHARACTER's shape, extras too)
+ *          --steers file.json     a night to replay instead of STEERS, one step each, in order (parseSteers); --steps
+ *                                 then defaults to the file's length
+ * Text hosts: each model's app runs on the hosts in this run's own ADULT_TEXT_PROVIDERS (lib/adult/mode.ts; unset, the
+ * app's reviewed two), or on the ones a model names after an @, joined by +
+ * (cognitivecomputations/dolphin-mistral-24b-venice-edition@venice): a local run can try a host production doesn't use.
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
@@ -31,12 +37,7 @@ const opt = (name, fallback) => {
   return i >= 0 && args[i + 1] && !args[i + 1].startsWith("--") ? args[i + 1] : fallback;
 };
 const flag = (name) => args.includes(`--${name}`);
-const MODELS = opt("models", "cognitivecomputations/dolphin-mistral-24b-venice-edition,deepseek/deepseek-chat-v3.1")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
 const PARTNER = opt("partner", "house-sable");
-const STEPS = Number(opt("steps", "26"));
 const DATE_MODEL = opt("date-model", "paid");
 const OUT = opt("out", join(ROOT, ".data", "sim-after-dark"));
 const ADMIN_PASSWORD = randomBytes(18).toString("hex");
@@ -65,6 +66,70 @@ export const STEERS = {
   13: "Something one of them said on one of their dates comes back now.",
   20: "Afterward: how they are with each other now.",
 };
+
+const hostList = (s, sep) => String(s ?? "").split(sep).map((h) => h.trim().toLowerCase()).filter(Boolean);
+
+/**
+ * The models a run compares (--models): OpenRouter ids, comma-separated, each with the hosts its text may run on after an
+ * @, joined by + ("deepseek/deepseek-chat-v3.1@coreweave+deepinfra"); a model naming none gets the run's own
+ * ADULT_TEXT_PROVIDERS, and with neither, hosts is null: the app's own list.
+ */
+export function parseArms(spec, envHosts) {
+  return String(spec)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const at = s.indexOf("@");
+      const own = at > 0 ? hostList(s.slice(at + 1), "+") : [];
+      const hosts = own.length ? own : hostList(envHosts, ",");
+      return { model: at > 0 ? s.slice(0, at).trim() : s, hosts: hosts.length ? hosts : null };
+    });
+}
+
+/** The character a run creates (--character): NEW_CHARACTER's shape, with what a save needs; the app checks the rest. */
+export function parseCharacter(json) {
+  if (!json || typeof json !== "object" || Array.isArray(json)) throw new Error("--character: a JSON object in NEW_CHARACTER's shape");
+  const missing = ["name", "age", "bio", "traits", "want", "dealbreaker"].filter((k) => json[k] === undefined || json[k] === null || json[k] === "");
+  if (missing.length) throw new Error(`--character: needs ${missing.join(", ")}`);
+  return json;
+}
+
+const STEP_KEYS = ["direction", "mode", "set_scene", "scenario"];
+/**
+ * A night to replay (--steers): an array of steps, in order, one a step, or { turn_ons, steers } to set each one's
+ * turn-ons first (their After Dark profiles: { character: [ids], partner: [ids] }). A step is one of:
+ *   {}                      a plain continue;
+ *   { direction, mode? }    a steer: "nudge" (the default) works toward it, "direct" does it now;
+ *   { set_scene }           the page's Set the scene: they're there now, and the next lines have them arrive;
+ *   { scenario }            the night started from one of the scenarios (lib/adult/scenarios.ts), as its button does.
+ */
+export function parseSteers(json) {
+  const list = Array.isArray(json) ? json : Array.isArray(json?.steers) ? json.steers : null;
+  if (!list) throw new Error("--steers: a JSON array of steps, or { turn_ons, steers: [...] }");
+  const steps = list.map((s, i) => {
+    const at = `--steers step ${i + 1}`;
+    if (!s || typeof s !== "object" || Array.isArray(s)) throw new Error(`${at}: an object`);
+    const unknown = Object.keys(s).filter((k) => !STEP_KEYS.includes(k));
+    if (unknown.length) throw new Error(`${at}: unknown ${unknown.join(", ")}`);
+    const given = ["direction", "set_scene", "scenario"].filter((k) => s[k] !== undefined && s[k] !== null);
+    for (const k of given) if (typeof s[k] !== "string" || !s[k].trim()) throw new Error(`${at}: ${k} is text`);
+    if (given.length > 1) throw new Error(`${at}: one of direction, set_scene or scenario`);
+    if (s.mode !== undefined && s.mode !== null && !["direct", "nudge"].includes(s.mode)) throw new Error(`${at}: mode is direct or nudge`);
+    if (s.mode && given[0] !== "direction") throw new Error(`${at}: a mode goes with a direction`);
+    if (given[0] === "set_scene") return { kind: "set_scene", place: s.set_scene.trim() };
+    if (given[0] === "scenario") return { kind: "scenario", scenario: s.scenario.trim() };
+    return { kind: "write", direction: s.direction?.trim() ?? null, mode: s.direction ? (s.mode ?? "nudge") : null };
+  });
+  const turnOns = { character: [], partner: [] };
+  for (const who of Object.keys(turnOns)) {
+    const ids = Array.isArray(json) ? undefined : json.turn_ons?.[who];
+    if (ids === undefined) continue;
+    if (!Array.isArray(ids) || ids.some((x) => typeof x !== "string" || !x.trim())) throw new Error(`--steers: turn_ons.${who} is a list of turn-on ids`);
+    turnOns[who] = ids.map((x) => x.trim());
+  }
+  return { steps, turnOns };
+}
 
 async function req(base, method, path, who, body, headers = {}) {
   const res = await fetch(base + path, {
@@ -100,10 +165,12 @@ async function tool(base, name, input) {
   return { data: result.structuredContent ?? JSON.parse(text) };
 }
 
-function envFor(showrunnerPort, dataDir) {
+function envFor(showrunnerPort, dataDir, hosts = null) {
   const env = appEnv(showrunnerPort, dataDir);
   delete env.INDEXNOW_KEY; // never ping a search engine from a local run
   for (const k of Object.keys(env)) if (/^(RESEND_|EMAIL_|FRONTIER_LLM_|FRONTIER_DEFAULT|SIM_|AD_OPENROUTER)/.test(k)) delete env[k];
+  // The hosts this model's text may run on (parseArms): this app only, never a deployment's setting.
+  if (hosts) env.ADULT_TEXT_PROVIDERS = hosts.join(",");
   env.FRONTIER_PASSWORD = ADMIN_PASSWORD;
   env.SESSION_SECRET = SESSION_SECRET;
   env.SWIPE_GATE = "0"; // one owner's character and a house character, dated twice: no deck to match in first
@@ -126,7 +193,7 @@ async function signUp(base, who) {
 }
 
 /** Steps 1–2: the owner, the new character, and two dates with the partner, on the base database. */
-async function datesPhase(dbDir, showrunnerPort) {
+async function datesPhase(dbDir, showrunnerPort, newCharacter) {
   const app = await startApp(await freePort(), envFor(showrunnerPort, dbDir));
   const base = app.base;
   try {
@@ -134,7 +201,7 @@ async function datesPhase(dbDir, showrunnerPort) {
     await signUp(base, owner);
     must(await req(base, "POST", "/api/admin/claim", owner, {}, { "x-frontier-key": ADMIN_PASSWORD }), "claim admin");
     must(await req(base, "POST", "/api/admin/tokens", owner, {}), "grant dates");
-    const character = must(await req(base, "POST", "/api/characters", owner, { ...NEW_CHARACTER, open_to_dates: true, attest: true }), "create the character");
+    const character = must(await req(base, "POST", "/api/characters", owner, { ...newCharacter, open_to_dates: true, attest: true }), "create the character");
     console.log(`  created ${character.name} (${character.id})`);
     const dates = [];
     let prev = null;
@@ -164,9 +231,23 @@ async function datesPhase(dbDir, showrunnerPort) {
   }
 }
 
-/** Step 4: one model's night on its own copy of the database, the same steers, STEPS steps. */
-async function nightPhase(model, dbDir, setup, showrunnerPort) {
-  const app = await startApp(await freePort(), envFor(showrunnerPort, dbDir));
+/**
+ * One step of a night: a write over MCP (as before), or, for a replayed night (parseSteers), the page's own Set the scene
+ * or scenario start through its route, as the signed-in owner.
+ */
+async function takeStep(base, setup, step) {
+  const pair = { a: setup.character.id, b: setup.partner };
+  if (step.kind === "write") {
+    return tool(base, "after_dark_write", { ...pair, ...(step.direction ? { direction: step.direction } : {}), ...(step.mode ? { steer_mode: step.mode } : {}) });
+  }
+  const r = await req(base, "POST", "/api/admin/after-dark", setup.owner, step.kind === "set_scene" ? { ...pair, set_scene: step.place } : { ...pair, scenario: step.scenario });
+  return r.status === 200 ? { data: { added: 0, ...r.data } } : { error: `${r.status} ${r.data?.error ?? "?"}: ${r.data?.message ?? ""}` };
+}
+
+/** Step 4: one model's night on its own copy of the database, the same steers (STEERS, or the replayed plan's steps). */
+async function nightPhase(arm, dbDir, setup, showrunnerPort, plan, stepCount) {
+  const { model } = arm;
+  const app = await startApp(await freePort(), envFor(showrunnerPort, dbDir, arm.hosts));
   const base = app.base;
   const steps = [];
   const t0 = Date.now();
@@ -174,21 +255,29 @@ async function nightPhase(model, dbDir, setup, showrunnerPort) {
     must(await req(base, "POST", "/api/admin/after-dark/settings", setup.owner, { enabled: true, openrouter_key: process.env.AD_OPENROUTER_KEY, text_model: model }), "After Dark's settings");
     const on = await tool(base, "after_dark_switch", { character_id: setup.character.id, on: true });
     if (on.error) throw new Error(`switching ${setup.character.name} on: ${on.error}`);
-    for (let i = 1; i <= STEPS; i++) {
+    // A replayed night's turn-ons, before its first step (the page's turn-on chips; an admin sets the house cast's).
+    for (const [who, id] of [["character", setup.character.id], ["partner", setup.partner]]) {
+      const ids = plan?.turnOns[who] ?? [];
+      if (ids.length) must(await req(base, "POST", "/api/admin/after-dark", setup.owner, { a: setup.character.id, b: setup.partner, turn_ons: { character_id: id, ids } }), `the ${who}'s turn-ons`);
+    }
+    for (let i = 1; i <= stepCount; i++) {
       const s0 = Date.now();
-      const r = await tool(base, "after_dark_write", { a: setup.character.id, b: setup.partner, ...(STEERS[i] ? { direction: STEERS[i] } : {}) });
+      const step = plan ? (plan.steps[i - 1] ?? { kind: "write", direction: null, mode: null }) : { kind: "write", direction: STEERS[i] ?? null, mode: null };
+      const r = await takeStep(base, setup, step);
       const scene = r.data?.scene;
+      const asked = step.kind === "write" ? { steer: step.direction, ...(step.mode ? { mode: step.mode } : {}) } : { kind: step.kind, steer: step.place ?? step.scenario };
       const row = r.error
-        ? { step: i, error: r.error.slice(0, 200), ms: Date.now() - s0 }
-        : { step: i, ms: Date.now() - s0, added: r.data.added, held: r.data.held, repeats: r.data.repeats, dropped: r.data.dropped, chapter: scene?.chapter, stage: scene?.stage, lines: scene?.lines?.length, place: scene?.set_place ?? scene?.place ?? null, steer: STEERS[i] ?? null };
+        ? { step: i, error: r.error.slice(0, 200), ms: Date.now() - s0, ...asked }
+        : { step: i, ms: Date.now() - s0, added: r.data.added, held: r.data.held, repeats: r.data.repeats, dropped: r.data.dropped, chapter: scene?.chapter, stage: scene?.stage, lines: scene?.lines?.length, place: scene?.set_place ?? scene?.place ?? null, ...asked };
       steps.push(row);
-      console.log(`  ${model}: step ${i} ${row.error ? `✗ ${row.error.slice(0, 90)}` : `+${row.added} (dropped ${row.dropped}, repeats ${row.repeats}) ch ${row.chapter} stage ${row.stage} at ${row.place}`}`);
+      const what = row.error ? `✗ ${row.error.slice(0, 90)}` : step.kind === "set_scene" ? `ch ${row.chapter} now at ${row.place}` : `+${row.added} (dropped ${row.dropped}, repeats ${row.repeats}) ch ${row.chapter} stage ${row.stage} at ${row.place}`;
+      console.log(`  ${model}: step ${i}${step.kind === "write" ? "" : ` (${step.kind})`} ${what}`);
       // A failed step is tried again by the next one, as a person would; three in a row ends the night.
       if (steps.length >= 3 && steps.slice(-3).every((s) => s.error)) break;
     }
     // Everything the night holds, with each line's private why and memory: the transcript stays in the output folder.
     const notes = await req(base, "GET", `/api/admin/after-dark/why?a=${encodeURIComponent(setup.character.id)}&b=${encodeURIComponent(setup.partner)}`, setup.owner);
-    return { model, steps, notes: notes.status === 200 ? notes.data : null, minutes: Math.round((Date.now() - t0) / 600) / 100 };
+    return { model, hosts: arm.hosts, steps, notes: notes.status === 200 ? notes.data : null, minutes: Math.round((Date.now() - t0) / 600) / 100 };
   } finally {
     await stopApp(app);
   }
@@ -279,9 +368,15 @@ export function scoreNight(report, steps, all = []) {
 
 async function main() {
   const scoreOnly = flag("score-only");
+  const characterFile = opt("character", null);
+  const steersFile = opt("steers", null);
+  const plan = steersFile ? parseSteers(JSON.parse(readFileSync(steersFile, "utf8"))) : null;
+  const stepCount = Number(opt("steps", plan ? String(plan.steps.length) : "26"));
   if (!scoreOnly) {
     if (!process.env.AD_OPENROUTER_KEY) throw new Error("AD_OPENROUTER_KEY needed: After Dark's OpenRouter key, read from the keychain by the caller");
     if (DATE_MODEL === "paid" && !process.env.SIM_LLM_API_KEY) throw new Error("--date-model paid needs SIM_LLM_API_KEY (the AI Gateway key)");
+    const newCharacter = characterFile ? parseCharacter(JSON.parse(readFileSync(characterFile, "utf8"))) : NEW_CHARACTER;
+    const arms = parseArms(opt("models", "cognitivecomputations/dolphin-mistral-24b-venice-edition,deepseek/deepseek-chat-v3.1"), process.env.ADULT_TEXT_PROVIDERS);
     rmSync(OUT, { recursive: true, force: true });
     mkdirSync(join(OUT, "db-base"), { recursive: true });
     if (!flag("no-build")) build();
@@ -289,19 +384,25 @@ async function main() {
     const port = showrunner ? showrunner.address().port : 0;
     try {
       console.log("== the new character and two dates");
-      const setup = await datesPhase(join(OUT, "db-base"), port);
+      const setup = await datesPhase(join(OUT, "db-base"), port, newCharacter);
       writeFileSync(join(OUT, "setup.json"), JSON.stringify({ ...setup, owner: { id: setup.owner.id } }, null, 2));
       const runs = [];
-      for (const [i, model] of MODELS.entries()) {
+      for (const [i, arm] of arms.entries()) {
         const dir = join(OUT, `model-${i + 1}`);
         mkdirSync(dir, { recursive: true });
         cpSync(join(OUT, "db-base"), join(dir, "db"), { recursive: true });
-        console.log(`== After Dark on ${model}`);
-        const night = await nightPhase(model, join(dir, "db"), setup, port);
+        console.log(`== After Dark on ${arm.model}${arm.hosts ? ` (hosts: ${arm.hosts.join(", ")})` : ""}`);
+        const night = await nightPhase(arm, join(dir, "db"), setup, port, plan, stepCount);
         writeFileSync(join(dir, "night.json"), JSON.stringify(night, null, 2));
-        const report = observe(join(dir, "db"), setup, dir);
+        // A night that wrote nothing has nothing to observe: its report is null, and the other models still run.
+        let report = null;
+        try {
+          report = observe(join(dir, "db"), setup, dir);
+        } catch (err) {
+          console.log(`  no observer report for ${arm.model}: ${String(err?.stderr || err?.message || err).trim().split("\n")[0].slice(0, 160)}`);
+        }
         writeFileSync(join(dir, "report.json"), JSON.stringify(report, null, 2));
-        runs.push({ model, dir });
+        runs.push({ model: arm.model, ...(arm.hosts ? { hosts: arm.hosts } : {}), dir });
       }
       writeFileSync(join(OUT, "runs.json"), JSON.stringify(runs, null, 2));
     } finally {
@@ -317,14 +418,16 @@ async function main() {
   const letterOf = existsSync(lettersFile) ? JSON.parse(readFileSync(lettersFile, "utf8")) : Object.fromEntries(runs.map((r, i) => [basename(r.dir), drawn[i]]));
   writeFileSync(lettersFile, JSON.stringify(letterOf, null, 2));
   const key = {};
-  const summary = { partner: setup.partner, character: setup.character, dates: setup.dates, steps: STEPS, steers: STEERS, models: [] };
+  // A replayed night's steers stay in its own file: the summary names the file, not its words.
+  const steers = plan ? { file: steersFile, steps: plan.steps.length, turn_ons: plan.turnOns } : STEERS;
+  const summary = { partner: setup.partner, character: setup.character, dates: setup.dates, steps: stepCount, steers, models: [] };
   for (const run of runs) {
     const night = JSON.parse(readFileSync(join(run.dir, "night.json"), "utf8"));
     const report = existsSync(join(run.dir, "report.json")) ? JSON.parse(readFileSync(join(run.dir, "report.json"), "utf8")) : null;
     const all = nightLines(night.notes);
     const { score, breakdown } = scoreNight(report, night.steps, all);
     const letter = letterOf[basename(run.dir)];
-    key[letter] = run.model;
+    key[letter] = run.hosts ? `${run.model} @ ${run.hosts.join(", ")}` : run.model;
     writeFileSync(
       join(OUT, `transcript-${letter}.txt`),
       all.map((l, n) => `${n + 1}. [ch ${l.chapter ?? "?"}] ${l.who === "a" ? night.notes?.a?.name : l.who === "b" ? night.notes?.b?.name : l.who}: ${l.text}\n   why: ${l.why ?? "—"} · memory: ${l.memory ?? "—"}`).join("\n"),
@@ -332,6 +435,7 @@ async function main() {
     const ok = night.steps.filter((s) => !s.error);
     summary.models.push({
       model: run.model,
+      hosts: run.hosts ?? null,
       score,
       breakdown,
       lines: all.length,

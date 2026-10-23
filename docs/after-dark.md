@@ -615,6 +615,15 @@ The code default (`DEFAULT_TEXT_MODEL`, for a setup with no `text_model` saved) 
 plain: the pinned hosts' throughput sort does what `:nitro` did, and the old default (`mistralai/mistral-large`) isn't
 served by either host.
 
+**Replaying a real night** (2026-10-23): `--character file.json` creates that character instead of Teodor Vance (the same
+shape, extras and all: they feed the voice kit), and `--steers file.json` replays a night in order, one step each, instead
+of the built-in nudges: `{}` continues, `{ direction, mode }` steers (`direct` or `nudge`), `{ set_scene }` and
+`{ scenario }` do what the page's buttons do, and the object form `{ turn_ons: { character, partner }, steers }` sets each
+one's turn-ons first. Each model runs on the hosts in the run's own `ADULT_TEXT_PROVIDERS`, or on its own after an `@`
+(`--models deepseek/deepseek-chat-v3.1@coreweave+deepinfra,cognitivecomputations/dolphin-mistral-24b-venice-edition@venice`),
+so a local run can put Dolphin back on Venice without touching production's list. The steers file and the output stay
+outside the repo: they're explicit.
+
 ## Videos with both of them in (2026-10-22)
 
 **What David saw** (Lexi and Dex's video of the night): "doesn't actually show the interacting in the scene and they
@@ -1290,3 +1299,102 @@ New table, additive: `adult_short_calls` (one row per viewer and Short). After D
 
 **Screenshots** (`SHOTS=callit npm run screenshots:after-dark-shorts`, three other subscribers' calls settled through the
 API): `docs/screenshots/after-dark-callit-*.png`: the call, how it went, and the board.
+
+## Two sides of the night (2026-10-23)
+
+The third show feature from David's picks. Code: `lib/adult/monologues.ts`, `/api/admin/after-dark/sides`, the 🌗 panel on
+a pair's page (`TwoSidesPanel.tsx`) and the section on a Short's page after play (`TwoSides.tsx`).
+
+**What it is.** For a whole saved night, each character's inner monologue of the same night: a page each (about 250 to
+350 words), first person, in their own voice, how they think rather than how they talk, what they noticed, wanted,
+worried about or misread, and what they think the other felt; neither knows the other's page, and the gap is the point.
+Then the morning after: one short text from each to the other (under 200 characters), and the two disagree about
+something real (what it meant, who started it, what's next). Shown side by side with pronoun-aware labels ("Her side ·
+Lexi", "His side · Dex", "Their side" otherwise), the two texts under them.
+
+**What it's written from.** Both sheets and their voice kits (`voiceKitLines`: details, public facts, tells,
+never-says, sample lines; never their private facts), the night's own lines by who and what (never a line's why, memory
+or facts; a night over 160 lines gives its recap and its last 160), where it began and ended and how far it went, and
+**what each remembered going into it**: their After Dark facts and PG note as they stood when the night's last chapter
+was filed (anything kept later belongs to a later night, and stays out).
+
+**The model and the lines.** One call on After Dark's text model (`adultModel`: OpenRouter, held to the hosts whose
+terms allow it), temperature 0.8, up to 2,400 tokens. Every word is held to `checkAdultText`, the way a scene's lines are:
+on a page, a sentence that crosses one of the lines is cut, and what's left must pass whole and still be a page; a
+morning text that crosses one fails the reply. A reply that can't be read, or can't be held, is asked for once more with
+a note naming why (never its words); a second one fails (422) and nothing is kept or counted. After Dark reads any number
+word after "was" or "is" as an age ("my flat was two floors down"), so the prompt asks the writer to put it another way,
+and a sentence that does it anyway is cut. The reply is read in the shape asked for and the near ones DeepSeek sends
+(keys in underscores, flattened keys, first names for a and b).
+
+**Written once, kept** (`adult_monologues`, one row a night: its first chapter's id). Every read after is free.
+- **An owner** writes or reads both sides of their own whole nights (a night still running can't: Start over first), from
+  the 🌗 panel on the pair's page.
+- **An entitled viewer** reads a published Short's once they've pressed play (409 before); its owner and admins without.
+  A Short's two sides are its night's, shared with its owner's cache: whoever asks first writes them for everyone. Taken
+  down, they go with it for every viewer (by either route), and stay its owner's.
+- Strangers and bots get not found.
+
+**Included in the subscription, with a cap**: writing one counts against the writer's month (`monologues` in
+`adult_usage`, `cap_monologues` in the settings, 20 by default; `lib/adult/usage.ts`); reading a kept one never does;
+admins aren't capped. With no settings row at all, every cap reads 0, as for the other caps.
+
+**Not checked on the real model**: this PR was tested with a scripted writer. The first real night will show how
+DeepSeek V3.1 takes the prompt; if its replies come back in a shape the parser doesn't read, the log says why
+(`[after-dark] two sides of night …`), never the words.
+
+New table and columns, additive: `adult_monologues`, `adult_usage.monologues`, `adult_settings.cap_monologues`. After Dark
+only: not in a dataset or an export.
+
+**Screenshots** (`SHOTS=sides npm run screenshots:after-dark-shorts`, the stand-in writer sends PG pages):
+`docs/screenshots/after-dark-sides-*.png`: a Short's two sides, and the owner's 🌗 panel.
+
+## A video of the whole night (2026-10-23)
+
+**What David saw.** A pair's scene was on chapter 2 with 8 lines; chapter 1, the night's main events, was saved in
+`adult_nights` and its recap was on the scene. Both videos he made were cut from chapter 2's 8 lines only. The cause:
+`reelNight` read "the running scene, or one saved night", so a reel filmed one chapter, and the director only picked
+from those lines.
+
+**What a night is.** The same rule Shorts use (`groupNights`, now in `lib/adult/nights.ts`): chapter 1 (or an
+unnumbered night from before chapters) starts a night, chapter n+1 filed after chapter n carries it on, and the night is
+still running while the scene is on the chapter after its last saved one. Start over files the chapter that ran and sets
+the scene back to chapter 1 (its `adult_steps` row is `kind: "reset"`), which ends the night. A gap in the chapters (one
+rewound away) never joins two nights. Nothing new identifies a night: it's the chapter numbers and the filing order.
+
+**The scope** (`reelNight(…, scope)`, `lib/adult/reels.ts`):
+- **`chapter`:** as before. The running scene's chapter, or one saved chapter by `night_id`.
+- **`night`:** every chapter of the night, in order: the running night's saved chapters and the scene's own (when it has
+  lines), or, from a saved chapter, every chapter of its night (and the scene's when that night is still running).
+- **Stitched:** the lines run on, numbered across the chapters. Each line's place comes from its own chapter (its start
+  and the lines that agreed to go), and so does its stage. `where` is the latest chapter's, and the place history is the
+  night's: it carries across chapters, and Start over clears it.
+- **Recorded as a night** only when it spans more than one chapter. One chapter is a chapter, whichever was asked.
+
+**The director** (`pickShots`): with more than one chapter, every row says its chapter
+(`index | chapter | who | where | stage | line`), and the prompt gives each chapter's line range. It asks for the
+strongest moments across the whole night (the opening, the build, the peak, the close), from every chapter (at least one
+from each when there are enough shots), not only the latest.
+- **A long night:** past 160 lines (`DIRECTOR_MAX_LINES`), the lines are first cut fairly across the chapters
+  (`acrossChapters`: each chapter gets at least one and about its share, then the same spread, weighted past the middle,
+  within each), so an early chapter is never dropped. One chapter is filed at about 120 lines, so a chapter alone is
+  always shown whole.
+- **The fallback** (a reply that can't be read) spreads per chapter the same way.
+- **Each shot** keeps its own chapter's place (the set as Picture 3), stage and outfit. On the row, its shots carry
+  `chapter`, `night_id` (null when it was the running scene's) and `chapter_line`.
+
+**The choice** (the theater's 🎬 Video, `VideoChoice.tsx`): with more than one chapter it opens two choices, "The whole
+night (chapters 1–N)" and "This chapter", each with its chapters, lines and price (the same `reel_tokens`), the whole
+night picked to begin with. With one chapter it's one button, as before. A saved chapter's 🎬 Video under Their nights
+films that chapter (`scope: "chapter"`).
+- **The route:** `POST /api/admin/after-dark/reel` takes `scope` (`night` by default).
+- **MCP:** `after_dark_reel` takes `scope` too (`night` by default).
+- **Their videos:** each video says what it filmed, "Whole night, chapters 1–2" or "Chapter 2" (not on videos from
+  before this).
+
+**Shorts:** a whole-night video is the night's video for the chapters it filmed (`filmedNight`: every shot that came
+through says its own chapter's line, by the same one of them; a chapter filmed while it was running is the chapter of
+that number filed since). Chapters it didn't film take their own chapter's newest video, as before.
+
+New columns, additive: `adult_reels.scope` (`chapter` or `night`) and `adult_reels.chapters` (jsonb: each chapter's
+number, saved night id or null, and line count). Both are null on reels from before, and on clips.

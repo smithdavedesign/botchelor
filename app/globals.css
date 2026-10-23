@@ -6862,6 +6862,37 @@ a.phone-head-btn {
 .ad-theater-bar input::placeholder {
   color: #b7a8d3;
 }
+/* The video's choice in the theater (VideoChoice.tsx): this chapter or the whole night, each with what it covers. */
+.ad-video-choice {
+  position: relative;
+  display: inline-flex;
+}
+.ad-video-choice-panel {
+  position: fixed;
+  top: 4.75rem;
+  right: 1rem;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(24rem, calc(100vw - 2rem));
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid #33264d;
+  border-radius: 0.6rem;
+  background: rgba(18, 10, 28, 0.96);
+  color: #f1e9ff;
+  font-size: var(--text-sm);
+  text-align: left;
+}
+.ad-video-choice-panel label {
+  display: block;
+  cursor: pointer;
+}
+.ad-video-choice-go {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
 /* Nudge or Direct, beside the theater's steer (the page's form has the same choice). */
 .ad-steer-mode {
   display: inline-flex;

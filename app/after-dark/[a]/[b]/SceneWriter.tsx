@@ -14,7 +14,8 @@ import Reels, { stopReel } from "./Reels";
 import ListenLines from "./Listen";
 import MediaMenu from "./MediaMenu";
 import Avatar from "@/app/Avatar";
-import type { BusyReel, Reel } from "@/lib/adult/reels";
+import type { BusyReel, Reel, ReelScope } from "@/lib/adult/reels";
+import { runningNight } from "@/lib/adult/nights";
 import { AUTOPLAY_PAGE_PAUSE_MS, autoplayStop } from "@/lib/adult/autoplay";
 import type { Heat } from "@/lib/adult/director";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
@@ -53,9 +54,10 @@ export default function SceneWriter({
     // Done, either way: the "it's being made" note would contradict the video below (a failure says why there).
     if (r.status !== "making") setReelNote((n) => (n && !n.error && !n.busy ? null : n));
   }, []);
-  async function makeVideo(nightId?: string) {
-    setReelNote({ text: "Picking the night's best moments and setting up a shot of the two of them for each (about a minute)…" });
-    const res = await requestJson("/api/admin/after-dark/reel", { a: scene.a.id, b: scene.b.id, ...(nightId ? { night_id: nightId } : {}) }).catch(() => null);
+  /** A video of one chapter (a saved one by `nightId`, else the one being written), or of the whole night (lib/adult/reels.ts). */
+  async function makeVideo(scope: ReelScope, nightId?: string) {
+    setReelNote({ text: `Picking the ${scope === "night" ? "whole night's" : "chapter's"} best moments and setting up a shot of the two of them for each (about a minute)…` });
+    const res = await requestJson("/api/admin/after-dark/reel", { a: scene.a.id, b: scene.b.id, scope, ...(nightId ? { night_id: nightId } : {}) }).catch(() => null);
     if (!res) return setReelNote({ text: "That didn't reach the server. Check your connection and try again.", error: true });
     // One at a time: the refusal names the video in the way (maybe another pair's), so it can be stopped from here.
     if (!res.ok) return setReelNote({ text: res.message, error: true, busy: (res.data.busy as BusyReel | undefined) ?? undefined });
@@ -229,7 +231,11 @@ export default function SceneWriter({
           onSetScene={async (place) => void (await send({ set_scene: place }))}
           suggestions={scene.suggestions}
           onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }))}
-          onMakeVideo={() => makeVideo()}
+          onMakeVideo={(scope) => makeVideo(scope)}
+          videoChapters={runningNight(
+            nightList.map((n) => ({ id: n.id, chapter: n.chapter, created_at: n.created_at, lines: n.lines.length })),
+            { chapter: scene.chapter, lines: scene.lines.length },
+          )}
           videoTokens={reelTokens}
           videoNote={reelNote?.text ?? null}
           feedbackRef={scene.id}
@@ -375,7 +381,7 @@ export default function SceneWriter({
                 <button type="button" className="button-ghost" onClick={() => setWatching(n)}>
                   ▶ Play
                 </button>{" "}
-                <button type="button" className="button-ghost" onClick={() => void makeVideo(n.id)} title={`A short film of this night, in their voices (${reelTokens} tokens)`}>
+                <button type="button" className="button-ghost" onClick={() => void makeVideo("chapter", n.id)} title={`A short film of this chapter, in their voices (${reelTokens} tokens)`}>
                   🎬 Video · {reelTokens} tokens
                 </button>{" "}
                 {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
