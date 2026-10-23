@@ -2,6 +2,22 @@
 
 ## Screenshots
 
+Long lists page, and every character's name comes with its face and goes to its card (local sample data, `next dev`,
+Chrome at 1280px and 390×844, no console errors, no sideways scroll). One pager everywhere (`app/Pager.tsx`): Previous,
+the page numbers, Next, with the page in the URL. On a phone it keeps just the arrows, with 44px targets. A private
+character stays a plain name.
+
+![Juniper's relationships on desktop: each partner's small round face and name link to their card, 8 a page, with the pager under them](docs/screenshots/names-pager-relationships-desktop.png)
+
+<img src="docs/screenshots/names-pager-relationships-mobile.png" width="240" alt="The same relationships on a phone, the pager as arrows and page numbers">
+<img src="docs/screenshots/pager-date-record-mobile.png" width="240" alt="Page 2 of Juniper's date record on a phone">
+
+![Page 2 of the date record on desktop: 14 aired dates, the last 4, each partner with a face and a link](docs/screenshots/pager-date-record-desktop.png)
+
+![Watch's latest episodes, 12 a page, with the shared pager](docs/screenshots/pager-watch-latest-desktop.png)
+
+![An episode's "What they want": each name links to the character](docs/screenshots/names-episode-wants-desktop.png)
+
 Beta feedback and the analytics overview, live on botchelor.com (2026-10-22), from a real Chrome at phone (390px) and
 laptop width, with the 18+ cookie set and analytics blocked. People can send feedback from a small floating button
 (there "for now") or the footer's "Give us feedback": a 0–10 score, a category, a note and an optional email, stored in

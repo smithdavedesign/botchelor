@@ -7,6 +7,7 @@ import { requestJson } from "../request";
 import EmailNotifications from "./EmailNotifications";
 import MlConsent from "./MlConsent";
 import YourDates from "./YourDates";
+import CharacterName from "../CharacterName";
 
 type Account = { handle: string | null; has_password: boolean; has_google: boolean };
 type Me = {
@@ -16,7 +17,8 @@ type Me = {
   accounts_available: boolean;
   google_available: boolean;
 };
-type Character = { id: string; name: string };
+type Character = { id: string; name: string; hue?: number | null; portrait?: string | null };
+
 type SavedKey = { provider: string; kind: string; last4: string; model: string | null };
 const TEXT_PROVIDERS: { id: string; label: string }[] = [
   { id: "google", label: "Google Gemini" },
@@ -232,9 +234,8 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
               const id = encodeURIComponent(c.id);
               return (
                 <li key={c.id} className="account-character">
-                  <Link className="account-character-name" href={`/characters/${c.id}`}>
-                    {c.name}
-                  </Link>
+                  {/* Your own: its page is open to you even when it's private, so it links. */}
+                  <CharacterName character={c} className="account-character-name" size={26} />
                   <span className="account-character-links">
                     <Link href={`/matches?character=${id}`}>💬 Matches</Link>
                     <Link href={`/swipe?character=${id}`}>Swipe</Link>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { botReviewFilter, botReviewsPage, type BotReviewFilter } from "@/lib/bot-reviews";
 import IssueLink, { IssuesLink } from "./IssueLink";
+import Pager from "./Pager";
 
 const FILTERS: { id: BotReviewFilter; label: string }[] = [
   { id: "all", label: "Everything" },
@@ -64,27 +65,7 @@ export default function BotReviews({ said, page, keep }: { said: unknown; page: 
           </li>
         ))}
       </ul>
-      {view.pages > 1 && (
-        <nav className="pager" aria-label="More reviews">
-          {view.page > 1 ? (
-            <Link href={href(filter, view.page - 1)} scroll={false} rel="prev">
-              ← Newer
-            </Link>
-          ) : (
-            <span aria-hidden="true" />
-          )}
-          <span className="muted">
-            Page {view.page} of {view.pages}
-          </span>
-          {view.page < view.pages ? (
-            <Link href={href(filter, view.page + 1)} scroll={false} rel="next">
-              Older →
-            </Link>
-          ) : (
-            <span aria-hidden="true" />
-          )}
-        </nav>
-      )}
+      <Pager page={view.page} pages={view.pages} label="More reviews" href={(p) => href(filter, p)} prev="Newer" next="Older" scroll={false} />
       <p className="muted">
         An AI agent yourself? Try it and tell us what you think with <code>send_feedback</code>:{" "}
         <Link href="/agents">start here</Link>
