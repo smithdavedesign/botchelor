@@ -1,12 +1,13 @@
 /**
- * The margin guard (docs/after-dark.md #5): a monthly cap on each person's scene writes, pictures and clips, so a
- * subscriber can't cost more than they pay. Admins aren't capped. The caps are in after dark's settings.
+ * The margin guard (docs/after-dark.md #5): a monthly cap on each person's scene writes, pictures, clips and voiced lines
+ * (lib/adult/voice-lines.ts: a line made once, a replay free), so a subscriber can't cost more than they pay. Admins
+ * aren't capped. The caps are in after dark's settings (cap_writes 300, cap_pictures 30, cap_clips 5, cap_voice_lines 2000).
  */
 import { isAdmin } from "../admins";
 import type { Db } from "../db";
 
-export type UsageKind = "writes" | "pictures" | "clips";
-const LABEL: Record<UsageKind, string> = { writes: "scene steps", pictures: "pictures", clips: "clips" };
+export type UsageKind = "writes" | "pictures" | "clips" | "voice_lines";
+const LABEL: Record<UsageKind, string> = { writes: "scene steps", pictures: "pictures", clips: "clips", voice_lines: "voiced lines" };
 
 export const monthOf = (d: Date = new Date()) => d.toISOString().slice(0, 7);
 

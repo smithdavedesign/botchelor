@@ -168,7 +168,7 @@ flowchart TD
     prompt -- "Forgot it" --> forgot["Through the account only: a code to its<br/>confirmed email, or its password;<br/>takes the PIN off"] --> home
     home --> switch{"Switch characters in?<br/>your own and the house characters you bring,<br/>never another person's"}
     switch --> pair["Pick two who are in<br/>(this season's cast always)"]
-    pair --> cap{"Monthly cap left?<br/>300 steps, 30 pictures, 5 clips<br/>(admins uncapped)"}
+    pair --> cap{"Monthly cap left?<br/>300 steps, 30 pictures, 5 clips,<br/>2,000 voiced lines (admins uncapped)"}
     cap -- "No" --> capped["Used up: resets on the 1st"]
     cap -- "Yes" --> write["Write the next lines (optional steer: Nudge, Direct,<br/>or 🤫 a whisper to one of them; or tap a suggested next move)<br/>on an adult-permissive model"]
     write --> lines{"Each line: nobody under 18 (no school, no age-play),<br/>no family or teacher/student roleplay, no real people?"}
@@ -239,7 +239,7 @@ flowchart LR
 | **After Dark:** available here (on the site with a key, or local `ADULT_MODE=1`, never on Vercel by flag) | Adult visitors | `lib/adult/mode.ts` `adultAvailable` |
 | **After Dark:** the lines that never move (nobody under 18 and nothing that suggests it, no school or age-play, no family or teacher/student roleplay, no real people) on every line, steer, whisper, place, scenario and image prompt | Adult visitors | `lib/safety.ts` `checkAdultText`, `excludedTheme` |
 | **After Dark:** per-person switches (own characters and house characters only) | Adult visitors | `lib/adult/characters.ts` |
-| **After Dark:** monthly caps (300 steps, 30 pictures, 5 clips; admins uncapped) | Subscribers | `lib/adult/usage.ts` |
+| **After Dark:** monthly caps (300 steps, 30 pictures, 5 clips, 2,000 voiced lines; admins uncapped) | Subscribers | `lib/adult/usage.ts` |
 | **After Dark:** the output check on every picture and clip (Hive moderation + a VLM age check, fails closed, discard never store) | Adult visitors | `lib/adult/check.ts`, `lib/adult/media.ts` |
 | **After Dark over MCP:** the admin key for the tools; `request_after_dark` for everyone else | Agents | `lib/adult/mcp.ts`, `lib/mcp.ts` |
 | **After Dark discreet mode:** a PIN (when the owner sets one) on each device before any After Dark page, API or picture answers; 5 tries, then 15 minutes; a reset only through the account (an emailed code, or the password with no email) | Adult visitors | `lib/adult/privacy.ts`, `lib/adult/mode.ts` `adultViewer` |
@@ -264,7 +264,7 @@ Every page leads somewhere: no dead ends.
 | `/account` | You: your characters (Card · Matches · Swipe · Send on a date · Edit), your dates, badges, blocks, the AI agents linked to you (their characters, their agent id, unlink); an After Dark card only if it's open to you | each character's pages, After Dark |
 | `/link/[code]` | The one-time link an agent gives the person it plays for: sign in, then link it | Account → Your agents |
 | `/after-dark` | After Dark (only for someone it's open to): who's in, and every pair's scene, in its own night look | a scene, back to the show, settings (admin) |
-| `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), under it 🎬 Start a night from a scenario, 🎚 Limits (intensity, hard nos), 💜 What they're into (framing, private turn-ons) and 🧠 What they remember (editable), the theater, their nights, videos (videos of the night, and clips on demand with ▶▶ Keep going), the gallery (scene pictures, and pictures from the shot menu) and clips | back to After Dark |
+| `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), under it 🎬 Start a night from a scenario, 🎚 Limits (intensity, hard nos), 💜 What they're into (framing, private turn-ons) and 🧠 What they remember (editable), the theater, their nights, 🔈 Listen over the lines, 🎞 a clip or a picture of the two of them (a folded panel), videos (videos of the night, and clips on demand with ▶▶ Keep going), the gallery (scene pictures, and pictures from the shot menu) and clips | back to After Dark |
 | `/admin/after-dark/settings` | Admin only: on/off, models, the OpenRouter, fal and Hive keys, caps, other agents' requests | After Dark |
 | Any After Dark page, on a device without the PIN | The PIN prompt, in neutral words with a neutral title; Forgot your PIN? (a code to the account's email, or its password) | the page, once it's right; back to the show |
 | `/after-dark` → Privacy | The card at the foot of After Dark: blur until tapped, the neutral title, and the PIN (set, change, turn off, Lock now) | the same page |

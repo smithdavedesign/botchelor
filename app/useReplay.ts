@@ -10,6 +10,8 @@ export const TURN_MS = 2600;
 export const ACT_BREAK_MS = 4000;
 /** The opening line comes quickly, so pressing play feels like the date starts right away. */
 export const FIRST_MS = 900;
+/** After a line that was held while it was said aloud, the next comes this soon. */
+export const HELD_BEAT_MS = 600;
 
 /** How long to wait before revealing the turn at `pos` (the one about to appear). */
 export function delayBefore(transcript: Turn[], pos: number): number {
@@ -44,7 +46,7 @@ export function useReplay(
    * the newest line and carries on as more arrive. `startAt`: open with that many lines already shown (the
    * creator watched them live, so the finished date picks up where they were).
    */
-  opts: { live?: boolean; startAt?: number } = {},
+  opts: { live?: boolean; startAt?: number; hold?: boolean } = {},
 ): Replay {
   const live = opts.live ?? false;
   const [pos, setPos] = useState(() => Math.max(0, Math.min(opts.startAt ?? 0, transcript.length)));
@@ -56,15 +58,25 @@ export function useReplay(
   const latest = useRef(transcript);
   latest.current = transcript;
   const total = transcript.length;
+  // `hold`: the line on screen is still being said (After Dark's Listen), so the next one waits for it, then comes a beat
+  // after it ends rather than a whole turn's pause.
+  const hold = opts.hold ?? false;
+  const held = useRef(false);
   useEffect(() => {
     if (!playing) return;
+    if (hold) {
+      held.current = true;
+      return;
+    }
     if (pos >= total) {
       if (!live) setPlaying(false);
       return;
     }
-    const timer = setTimeout(() => setPos((p) => p + 1), delayBefore(latest.current, pos));
+    const wait = held.current ? HELD_BEAT_MS : delayBefore(latest.current, pos);
+    held.current = false;
+    const timer = setTimeout(() => setPos((p) => p + 1), wait);
     return () => clearTimeout(timer);
-  }, [playing, pos, total, live]);
+  }, [playing, pos, total, live, hold]);
 
   const next = transcript[pos];
   const prev = transcript[pos - 1];
