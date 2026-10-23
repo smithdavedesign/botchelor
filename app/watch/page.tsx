@@ -15,6 +15,7 @@ import { itemListJsonLd } from "@/lib/seo";
 import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch";
 import { dateLabel, ENDING_LABELS } from "@/lib/rules";
 import { CreateLeagueForm } from "./WatchActions";
+import StripPager from "./StripPager";
 
 export const dynamic = "force-dynamic";
 
@@ -237,21 +238,21 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         {ready.length > 0 && (
           <>
             <h3 className="watch-subhead">Ready to start</h3>
-            <div className="watch-lobby watch-strip">
+            <StripPager label="Ready to start pages">
               {ready.map((r) => (
                 <RoomCard key={r.id} room={r} action="Start it" />
               ))}
-            </div>
+            </StripPager>
           </>
         )}
         {upcoming.length > 0 && (
           <>
             <h3 className="watch-subhead">Premieres coming up</h3>
-            <div className="watch-lobby watch-strip">
+            <StripPager label="Premieres pages">
               {upcoming.map((r) => (
                 <RoomCard key={r.id} room={r} action={`Starts ${startsIn(r.starts_at, now)}`} />
               ))}
-            </div>
+            </StripPager>
           </>
         )}
       </section>
@@ -297,13 +298,13 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         {replays.length ? (
           <>
             <p className="muted small">
-              Rooms that have ended, in theater mode{replays.length > REPLAYS_SHOWN ? `: the newest ${REPLAYS_SHOWN} of ${replays.length}` : ""}. Swipe for more.
+              Rooms that have ended, in theater mode{replays.length > REPLAYS_SHOWN ? `: the newest ${REPLAYS_SHOWN} of ${replays.length}` : ""}. Swipe or page for more.
             </p>
-            <div className="watch-lobby watch-strip">
+            <StripPager label="Replays pages">
               {replays.slice(0, REPLAYS_SHOWN).map((r) => (
                 <RoomCard key={r.id} room={r} action="Replay" />
               ))}
-            </div>
+            </StripPager>
           </>
         ) : (
           <p className="muted">No replays yet.</p>
