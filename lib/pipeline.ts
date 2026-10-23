@@ -38,7 +38,7 @@ import { applyWishes, resolveWishes, settledWishes, type StoredWishes } from "./
  * is handed). Recorded on every generated date with the models that wrote it, so a change in quality can be traced
  * to a prompt or a model. Bump it whenever a prompt or its data changes.
  */
-export const PROMPT_VERSION = "2026-10-18.date-moves";
+export const PROMPT_VERSION = "2026-10-22.ending-label";
 
 /** Which models wrote a date, by role (whichever actually answered, fallbacks included), and with which prompts. */
 export type GeneratedWith = { actor: string[]; director: string[]; byok: string[]; prompts: string };

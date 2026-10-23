@@ -7,6 +7,7 @@ import { publicExtras, type CharacterExtras } from "./extras";
 import { matchmakerHitSql } from "./mechanics";
 import {
   agendaLabel,
+  dateNumberOf,
   ENDING_LABELS,
   ENDINGS,
   POINTS_PER_CORRECT_PICK,
@@ -320,7 +321,7 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     json.drama_answer = ep.drama_answer;
     if (ep.best_line) json.best_line = ep.best_line;
     if (ep.box_score) json.box_score = ep.box_score;
-    const why = endingWhy(ep.ending, ep.box_score, ep.sides, ep.setup?.strategy, ep.setup?.engine_version, [a.name, b.name]);
+    const why = endingWhy(ep.ending, ep.box_score, ep.sides, ep.setup?.strategy, ep.setup?.engine_version, [a.name, b.name], dateNumberOf(ep.setup));
     // When the two sides' wishes tipped the ending, the numbers alone don't explain it: say so (never which way a lone wish went).
     const tipped = wishLine(ep.wishes, ep.ending);
     // #469: on a date between a viewer's own two characters, which cue tripped which dealbreaker (the debrief the
@@ -796,7 +797,8 @@ export async function getPublicCharacter(db: Db, id: string): Promise<PublicChar
   return { ...rows[0], extras: publicExtras(rows[0].extras), portrait_asset_id, clip_asset_id, clip_is_video };
 }
 
-export type CharacterEpisode = { episode_id: string; share_path: string; partner: string; ending: Ending };
+/** date_number: which date it was for the couple, on a follow-up (absent on a first date), so its ending reads right. */
+export type CharacterEpisode = { episode_id: string; share_path: string; partner: string; ending: Ending; date_number?: number };
 export type CharacterRecord = { dates: number; second_dates: number; friends: number; disasters: number };
 
 /**
@@ -808,9 +810,10 @@ export async function getCharacterHistory(
   id: string,
   limit = 10,
 ): Promise<{ episodes: CharacterEpisode[]; record: CharacterRecord }> {
-  const { rows } = await db.query<{ episode_id: string; partner: string; ending: Ending }>(
+  const { rows } = await db.query<{ episode_id: string; partner: string; ending: Ending; date_number: number | null }>(
     `select e.id as episode_id, e.ending,
-            case when e.character_a = $1 then b.name else a.name end as partner
+            case when e.character_a = $1 then b.name else a.name end as partner,
+            case when e.followup_of is not null then coalesce((e.setup->>'date_number')::int, 2) end as date_number
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b
@@ -819,7 +822,13 @@ export async function getCharacterHistory(
       limit $2`,
     [id, limit],
   );
-  const episodes = rows.map((r) => ({ episode_id: r.episode_id, share_path: `/episodes/${r.episode_id}`, partner: r.partner, ending: r.ending }));
+  const episodes: CharacterEpisode[] = rows.map((r) => ({
+    episode_id: r.episode_id,
+    share_path: `/episodes/${r.episode_id}`,
+    partner: r.partner,
+    ending: r.ending,
+    ...(r.date_number ? { date_number: r.date_number } : {}),
+  }));
   const record: CharacterRecord = {
     dates: episodes.length,
     second_dates: episodes.filter((e) => e.ending === "second_date").length,

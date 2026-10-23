@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import type { Reunion, ReunionChar } from "@/lib/reunion";
-import { ENDING_LABELS } from "@/lib/rules";
+import { endingLabel } from "@/lib/rules";
 
 function Face({ c, size = 34 }: { c: ReunionChar; size?: number }) {
   return (
@@ -71,7 +71,7 @@ export default function ReunionPanel({ reunion, heading = "h2" }: { reunion: Reu
                   <p className="muted">
                     {couple.dates} {couple.dates === 1 ? "date" : "dates"}
                     {couple.second_dates > 0 && `, ${couple.second_dates} second`}
-                    {couple.last_ending && ` · last: ${ENDING_LABELS[couple.last_ending]}`}
+                    {couple.last_ending && ` · last: ${endingLabel(couple.last_ending, couple.dates)}`}
                   </p>
                 </div>
               </li>

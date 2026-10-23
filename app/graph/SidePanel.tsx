@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import type { GraphEdge, GraphNode, PairTimeline } from "@/lib/graph";
 import { ORIGIN_LABEL } from "@/lib/origin";
-import { ENDING_LABELS } from "@/lib/rules";
+import { endingLabel } from "@/lib/rules";
 import { communityColor, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
 
@@ -102,7 +102,8 @@ function Timeline({ a, b }: { a: string; b: string }) {
       <ol className="constellation-timeline small" aria-label="Their public dates" start={total - timeline.length + 1}>
         {timeline.map((step, i) => (
           <li key={`${step.at}-${i}`}>
-            <span className="muted">{shortDate(step.at)}</span> {ENDING_LABELS[step.ending]}
+            {/* Step i is their (total - shown + 1 + i)th public date: a happy ending on their third reads "A fourth date". */}
+            <span className="muted">{shortDate(step.at)}</span> {endingLabel(step.ending, total - timeline.length + 1 + i)}
             {step.stage && <span className="muted"> → {step.stage}</span>}
           </li>
         ))}

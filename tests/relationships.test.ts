@@ -236,14 +236,26 @@ describe("the relationship graph — who sees what", () => {
     expect(owner2.timeline.map((t) => t.episode_id)).toEqual(["pub", "private"]);
   });
 
-  it("tells the timeline what happened next: friends for now, then another date", () => {
+  it("tells the timeline what happened next: friends for now, then the date after the second", () => {
     const chain = computeRelationship(LO, HI, [
       ep("d1", 1, { ending: "friends" }),
       ep("d2", 2, { followup_of: "d1", ending: "second_date" }),
       ep("d3", 3, { followup_of: "d2", ending: "friends" }),
     ]);
     const view = viewRelationship(chain, { userId: "user-1", owner: true })!;
-    expect(view.timeline.map((t) => t.ending_label)).toEqual(["Friends, for now", "Another date", "Just friends"]);
+    // Date 2 wanted more, so it reads "A third date" (it was "Another date" before the label knew the number).
+    expect(view.timeline.map((t) => t.ending_label)).toEqual(["Friends, for now", "A third date", "Just friends"]);
+  });
+
+  it("a happy ending on the timeline names the date after it: Date 1 a second date, Date 3 a fourth", () => {
+    const chain = computeRelationship(LO, HI, [
+      ep("d1", 1, { ending: "second_date" }),
+      ep("d2", 2, { followup_of: "d1", ending: "second_date" }),
+      ep("d3", 3, { followup_of: "d2", ending: "second_date" }),
+    ]);
+    const view = viewRelationship(chain, { userId: "user-1", owner: true })!;
+    expect(view.timeline.map((t) => t.ending_label)).toEqual(["A second date", "A third date", "A fourth date"]);
+    expect(view.timeline.map((t) => t.ending)).toEqual(["second_date", "second_date", "second_date"]);
   });
 
   it("a character brings into a date only the public record and the dates of whoever set this one up", () => {

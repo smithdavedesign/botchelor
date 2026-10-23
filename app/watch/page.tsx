@@ -13,7 +13,7 @@ import { getProfileName } from "@/lib/people";
 import { getReunion, type Reunion } from "@/lib/reunion";
 import { itemListJsonLd } from "@/lib/seo";
 import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch";
-import { dateLabel, ENDING_LABELS } from "@/lib/rules";
+import { dateLabel, dateNumberOf, endingLabel } from "@/lib/rules";
 import { CreateLeagueForm } from "./WatchActions";
 import StripPager from "./StripPager";
 
@@ -125,7 +125,7 @@ function AiringCard({ episode, now }: { episode: AiringSoon; now: number }) {
         </strong>
         <span className="chip watch-airing-when">{airsIn(episode.airs_at, now)}</span>
         <span className="watch-airing-call">
-          {episode.my_pick ? `You picked ${ENDING_LABELS[episode.my_pick]}` : "Call it →"}
+          {episode.my_pick ? `You picked ${endingLabel(episode.my_pick, dateNumberOf(episode))}` : "Call it →"}
         </span>
       </Link>
     </li>

@@ -7,7 +7,7 @@ import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
 import { requestJson } from "@/app/request";
-import { DATE_ACTS, DATE_VARIABLES, ENDING_LABELS, ENDINGS, formatCountdown, preshowCountdownLabel, VARIABLE_LABELS } from "@/lib/rules";
+import { DATE_ACTS, DATE_VARIABLES, endingLabel, ENDINGS, formatCountdown, preshowCountdownLabel, VARIABLE_LABELS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { RoomState } from "@/lib/watch";
 import { placeAt } from "@/lib/venues";
@@ -563,7 +563,7 @@ function Stage({ state, onPredict, preshowLeft }: { state: RoomState; onPredict:
           )}
           {state.my_prediction && (
             <p className={state.my_prediction === state.ending ? "notice" : "muted"}>
-              You predicted {ENDING_LABELS[state.my_prediction]}
+              You predicted {endingLabel(state.my_prediction, state.date_number)}
               {state.my_prediction === state.ending ? " — you called it." : "."}
             </p>
           )}
@@ -802,7 +802,7 @@ function Predictions({ state, onDone }: { state: RoomState; onDone: () => void }
               onClick={() => predict(ending)}
             >
               <span className="poll-dot" aria-hidden />
-              <span className="poll-label">{ENDING_LABELS[ending]}</span>
+              <span className="poll-label">{endingLabel(ending, state.date_number)}</span>
               {state.my_prediction === ending && <span className="poll-mine">Your call</span>}
             </button>
           ))}
@@ -810,7 +810,7 @@ function Predictions({ state, onDone }: { state: RoomState; onDone: () => void }
       )}
       {state.my_prediction && (
         <p className="notice">
-          Locked in: {ENDING_LABELS[state.my_prediction]}.
+          Locked in: {endingLabel(state.my_prediction, state.date_number)}.
           {state.predictions_open ? " You can change it until the decision." : ""}
         </p>
       )}

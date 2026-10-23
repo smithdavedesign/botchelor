@@ -6,7 +6,7 @@
  */
 import type { Db } from "./db";
 import type { LlmsLive } from "./agents";
-import { ENDING_LABELS, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
+import { ENDING_LABELS, endingLabel, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 
 const OPEN_SHOWN = 5;
 const LATEST_SHOWN = 5;
@@ -19,8 +19,9 @@ export async function llmsLive(db: Db): Promise<LlmsLive | null> {
         `select id, name, want from characters where open_to_dates and visibility <> 'private' order by created_at desc limit $1`,
         [OPEN_SHOWN],
       ),
-      db.query<{ id: string; a: string; b: string; ending: Ending }>(
-        `select e.id, ca.name as a, cb.name as b, e.ending
+      db.query<{ id: string; a: string; b: string; ending: Ending; date_number: number | null }>(
+        `select e.id, ca.name as a, cb.name as b, e.ending,
+                case when e.followup_of is not null then coalesce((e.setup->>'date_number')::int, 2) end as date_number
            from episodes e
            join characters ca on ca.id = e.character_a
            join characters cb on cb.id = e.character_b
@@ -34,7 +35,7 @@ export async function llmsLive(db: Db): Promise<LlmsLive | null> {
     return {
       openCount: count.rows[0]?.n ?? 0,
       open: open.rows,
-      latest: latest.rows.map((r) => ({ id: r.id, title: `${r.a} × ${r.b}`, ending: ENDING_LABELS[r.ending] ?? r.ending })),
+      latest: latest.rows.map((r) => ({ id: r.id, title: `${r.a} × ${r.b}`, ending: ENDING_LABELS[r.ending] ? endingLabel(r.ending, r.date_number) : r.ending })),
     };
   } catch {
     return null;

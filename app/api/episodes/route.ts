@@ -402,6 +402,7 @@ async function writeAndSave(
   const built = await buildDate(db, episodeId, forDate(own), forDate(partner), dateRequest, undefined, undefined, {
     creatorId: sess.userId,
     followupOf: secondDate?.followupOf ?? null,
+    dateNumber: secondDate?.dateNumber ?? null,
   });
   // Which date this is for the couple (lib/rules dateLabel): the badge says "Third date", not always "Second".
   if (secondDate) built.setup.date_number = secondDate.dateNumber;

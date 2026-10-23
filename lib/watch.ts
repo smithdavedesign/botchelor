@@ -28,8 +28,9 @@ import { getProfileName } from "./people";
 import {
   DATE_ACTS,
   DRAMA_QUESTION_LABELS,
+  dateNumberOf,
   dramaAnswerLabel,
-  ENDING_LABELS,
+  endingLabel,
   REPORT_HIDE_THRESHOLD,
   WATCH_AUDIENCE_PROMPTS,
   WATCH_CHAOS_OPTIONS,
@@ -229,6 +230,8 @@ export type RoomState = {
   watching: number;
   characters: [CharacterRef, CharacterRef];
   setting: string;
+  /** Which date this is for the couple (lib/rules dateNumberOf), or null: on a third date the happy ending is "A fourth date". */
+  date_number: number | null;
   venue: PlaceId | null;
   venue_name: string | null;
   /** Where the date is as of the lines shown so far: the venue, or where they've moved to (lib/moves.ts). */
@@ -419,7 +422,7 @@ export async function getRoomState(
       chaosTimeline = {
         label: WATCH_CHAOS_OPTIONS.find((o) => o.id === chaosTally.leading)?.label ?? "",
         ending: replay.alternate.ending,
-        ending_label: ENDING_LABELS[replay.alternate.ending],
+        ending_label: endingLabel(replay.alternate.ending, dateNumberOf(row.setup)),
         box_score: replay.alternate.box_score,
       };
     }
@@ -491,6 +494,7 @@ export async function getRoomState(
     watching,
     characters,
     setting: row.setting,
+    date_number: dateNumberOf(row.setup),
     venue,
     venue_name: venue ? venueName(venue) : null,
     place,
@@ -507,7 +511,7 @@ export async function getRoomState(
     twist: showTwist ? row.twist : null,
     show_ending: showEnding,
     ending: showEnding ? row.ending : null,
-    ending_label: showEnding ? ENDING_LABELS[row.ending] : null,
+    ending_label: showEnding ? endingLabel(row.ending, dateNumberOf(row.setup)) : null,
     finale: showEnding ? row.finale : null,
     best_line: showEnding ? row.best_line : null,
     drama_question: row.drama_question ? DRAMA_QUESTION_LABELS[row.drama_question] : null,

@@ -75,7 +75,11 @@ export type SideSetup = {
  */
 export type DateHistory = { dates: number; last_ending: Ending | null; chemistry?: number; trust?: number };
 
-export type DateInput = { a: SideSetup; b: SideSetup; history?: DateHistory };
+/**
+ * `date_number`: which date this is for the couple (setup.date_number, set on a follow-up), for the words only: a happy
+ * ending on their third date reads "A fourth date" (lib/rules endingLabel). The engine never reads it.
+ */
+export type DateInput = { a: SideSetup; b: SideSetup; history?: DateHistory; date_number?: number };
 
 /** How one game variable moved over the date: the box score is these four arcs. 0..100. */
 export type VariableArc = { start: number; delta: number; final: number };

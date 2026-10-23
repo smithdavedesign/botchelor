@@ -38,6 +38,7 @@ import { isText, loadChain, promptTexts, type ChainItem, type PromptTexts } from
 import type { Turn } from "./conversation";
 import {
   AGENDA_IDS,
+  dateNumberOf,
   DEFAULT_AUTONOMY,
   DEFAULT_GAME_BUDGET,
   DEFAULT_STRATEGY,
@@ -151,6 +152,8 @@ export type DateParts = {
   /** What each side remembers of After Dark with the other, in PG terms (lib/adult/memory.ts), or null. */
   afterDark?: { a: string | null; b: string | null };
   followupOf?: string | null;
+  /** Which date this is for the couple (setup.date_number), for the words only: DateInput.date_number. */
+  dateNumber?: number | null;
   /** Each owner's standing nudge about the other, and who else each is seeing (public). Flavour only. */
   nudges?: { a: string | null; b: string | null };
   alsoSeeing?: { a: string[]; b: string[] };
@@ -279,7 +282,8 @@ export function assembleDate(p: DateParts): BuiltDate {
     note: null,
     gameBudget: DEFAULT_GAME_BUDGET,
   };
-  return { input: { a: sideA, b: sideB, history: p.history }, characters: [charA, charB], setup, seed };
+  const input: DateInput = { a: sideA, b: sideB, history: p.history, ...(p.dateNumber && p.dateNumber > 1 ? { date_number: p.dateNumber } : {}) };
+  return { input, characters: [charA, charB], setup, seed };
 }
 
 /**
@@ -307,6 +311,8 @@ export async function buildDate(
   opts: {
     creatorId?: string;
     followupOf?: string | null;
+    /** Which date this is for the couple (setup.date_number; a rebuild passes the stored one), for the words only. */
+    dateNumber?: number | null;
     historyOverride?: DateHistory | null;
     legacyHistory?: boolean;
     /** The nudges as booked (the worker passes the setup's snapshot: by then they've been used). */
@@ -378,7 +384,7 @@ export async function buildDate(
   return assembleDate({
     episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues, venueOverride: opts.venueOverride, agreedPlan: agreed,
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
-    relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
+    relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null, dateNumber: opts.dateNumber ?? null,
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     overusedA, overusedB,
@@ -568,8 +574,8 @@ async function replayDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pro
   const version = setup.engine_version ?? 1;
   const varied = varySetup(setup, change);
   const { outcome: alt, trace: altTrace } = deterministicTraced(build(varied), seed, version);
-  const baseWhy = endingWhy(row.ending, row.box_score, null, setup.strategy);
-  const altWhy = endingWhy(alt.ending, alt.variables, alt.sides, varied.strategy, setup.engine_version);
+  const baseWhy = endingWhy(row.ending, row.box_score, null, setup.strategy, undefined, undefined, dateNumberOf(setup));
+  const altWhy = endingWhy(alt.ending, alt.variables, alt.sides, varied.strategy, setup.engine_version, undefined, dateNumberOf(setup));
   const result: SlidingDoorsResult = {
     change,
     what_changed: `${shortName(row.a_name)}'s side was ${CHANGE_SAYS[change]}; ${shortName(row.b_name)}'s stayed as it was. Same seed, so nothing else moved.`,

@@ -27,7 +27,7 @@ import type { ChatMessage, Model } from "./model";
 import { PAIR_STATUS_LABELS } from "./memory";
 import { allTells } from "./personality";
 import { contentWords } from "./quality";
-import { agenda, DATE_ACTS, dramaAnswerLabel, ENDING_LABELS, producerEvent, type AgendaId, type ProducerId } from "./rules";
+import { agenda, DATE_ACTS, dateLabel, dramaAnswerLabel, endingLabel, producerEvent, type AgendaId, type ProducerId } from "./rules";
 import { checkFields } from "./safety";
 import { venue, venuePhrase, type PlaceId } from "./venues";
 
@@ -137,12 +137,15 @@ function actTwoFeeling(outcome: Outcome, s: Side): string {
   }
 }
 
+/** The next date, mid-sentence: "a second date", or "a fourth date" on a couple's third (DateInput.date_number). */
+const nextDate = (dateNumber?: number | null) => endingLabel("second_date", dateNumber).toLowerCase();
+
 /**
  * Where a side ends up, feeling-wise, including the engine's deliberate surprises (wanting more after a
  * disaster). Worded so what's said never contradicts the ending: "just friends" must not play as a second
  * date, and nobody announces it either.
  */
-function finalFeeling(outcome: Outcome, s: Side): string {
+function finalFeeling(outcome: Outcome, s: Side, dateNumber?: number | null): string {
   const wants = outcome.sides[s].wants_another;
   switch (outcome.ending) {
     case "second_date":
@@ -150,7 +153,7 @@ function finalFeeling(outcome: Outcome, s: Side): string {
     case "friends":
       return wants
         ? "You like them as a friend: you'd hang out again, and nothing about your goodbye is romantic. Let it show; don't announce it."
-        : "It's friendly, and that's all it is: you won't be chasing a second date.";
+        : `It's friendly, and that's all it is: you won't be chasing ${nextDate(dateNumber)}.`;
     case "disaster":
       return wants
         ? "It went badly, and still, against your better judgement, part of you wants to see them again."
@@ -161,15 +164,15 @@ function finalFeeling(outcome: Outcome, s: Side): string {
 /**
  * A side's feeling about another date as a plain fact, worded for the ending like finalFeeling. Used by the
  * director and by the eval's judge (lib/judge.ts), so neither reads "wants another date" as romance after a
- * friends ending.
+ * friends ending. `dateNumber`: which date this is for the couple, so a third date's want is "a fourth date".
  */
-export function wantsFact(outcome: Outcome, s: Side, names: [string, string]): string {
+export function wantsFact(outcome: Outcome, s: Side, names: [string, string], dateNumber?: number | null): string {
   const me = names[s];
   const them = names[other(s)];
   const wants = outcome.sides[s].wants_another;
   switch (outcome.ending) {
     case "second_date":
-      return wants ? `${me} wants a second date.` : `${me} doesn't want a second date, lovely as the night is.`;
+      return wants ? `${me} wants ${nextDate(dateNumber)}.` : `${me} doesn't want ${nextDate(dateNumber)}, lovely as the night is.`;
     case "friends":
       return wants ? `${me} would happily see ${them} again, as a friend, not a date.` : `${me} isn't interested in anything beyond tonight.`;
     case "disaster":
@@ -180,7 +183,7 @@ export function wantsFact(outcome: Outcome, s: Side, names: [string, string]): s
 /** The engine's facts about the date, as plain sentences (what the director plans from, and the rules beats). */
 export function dateFacts(input: DateInput, outcome: Outcome, characters: [Character, Character]): string[] {
   const names: [string, string] = [characters[0].name, characters[1].name];
-  const facts: string[] = [`It ends: ${ENDING_LABELS[outcome.ending]} (it must read as ${ENDING_READS[outcome.ending]}).`];
+  const facts: string[] = [`It ends: ${endingLabel(outcome.ending, input.date_number)} (it must read as ${ENDING_READS[outcome.ending]}).`];
   facts.push(
     outcome.drama_question === "rejected"
       ? outcome.drama_answer === "neither" ? "Nobody gets turned down." : `${dramaAnswerLabel("rejected", outcome.drama_answer, names)} gets turned down.`
@@ -200,14 +203,14 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
         `the moment is when ${names[o]} ${thirdPerson(so.agenda_met ? cause.met : cause.missed)}.`,
     );
     if (so.note_followed !== null) facts.push(`${names[s]} ${so.note_followed ? "takes" : "ignores"} their creator's advice.`);
-    facts.push(wantsFact(outcome, s, names));
+    facts.push(wantsFact(outcome, s, names, input.date_number));
   });
   // A rematch: the pair has aired dates before, so they aren't strangers and tonight picks up from last time.
   const met = characters[0].memory?.people?.find((p) => p.id === characters[1].id) ?? characters[1].memory?.people?.find((p) => p.id === characters[0].id);
   if (met) {
     facts.push(
       `${names[0]} and ${names[1]} have met before (${met.dates === 1 ? "one date" : `${met.dates} dates`}; last time ${venuePhrase(met.last_venue)}, ` +
-        `which ended "${ENDING_LABELS[met.last_ending]}"; now: ${PAIR_STATUS_LABELS[met.status].replace(/^\S+\s/, "").toLowerCase()}). ` +
+        `which ended "${endingLabel(met.last_ending, met.dates)}"; now: ${PAIR_STATUS_LABELS[met.status].replace(/^\S+\s/, "").toLowerCase()}). ` +
         "Play it as a rematch: they remember each other, and a callback to last time belongs in act one.",
     );
   }
@@ -222,7 +225,7 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
     if (!met) facts.push(`${names[0]} and ${names[1]} have met before (${pair.times_together === 1 ? "one date" : `${pair.times_together} dates`}). Play it as people who remember each other.`);
     if (typeof pair.where_you_stand_now === "string") facts.push(`Where they stand: ${pair.where_you_stand_now.toLowerCase()}.`);
     if (Array.isArray(pair.your_inside_jokes) && pair.your_inside_jokes.length) facts.push(`Their inside jokes: ${pair.your_inside_jokes.map((j) => `"${j}"`).join(", ")}. One can come back, unforced.`);
-    if (Array.isArray(pair.tonight_is_the_plan_you_made)) facts.push(`Tonight is the second date they planned in their texts: ${pair.tonight_is_the_plan_you_made.join(" ")} Act one opens on that plan.`);
+    if (Array.isArray(pair.tonight_is_the_plan_you_made)) facts.push(`Tonight is the ${dateLabel(input.date_number ?? 2).toLowerCase()} they planned in their texts: ${pair.tonight_is_the_plan_you_made.join(" ")} Act one opens on that plan.`);
   }
   // The plan they agreed to by text (lib/plans.ts): tonight is it, even on a first date planned in a match chat.
   const planned = characters[0].tonightsPlan;
@@ -345,7 +348,7 @@ function rulesBeat(input: DateInput, outcome: Outcome, s: Side, act: number, wan
     parts.push(actTwoFeeling(outcome, s));
     return parts.join(" ");
   }
-  return `${finalFeeling(outcome, s)} ${dramaRole(outcome, s)} Land it your way, in your own words — no announcements.`;
+  return `${finalFeeling(outcome, s, input.date_number)} ${dramaRole(outcome, s)} Land it your way, in your own words — no announcements.`;
 }
 
 /** The deterministic beat sheet: built from the engine's facts alone. Always available; the director's fallback. */
@@ -379,7 +382,7 @@ export function rulesPlan(
     outcome.drama_question === "rejected"
       ? outcome.drama_answer === "neither" ? "Nobody is turned down" : `${dramaAnswerLabel("rejected", outcome.drama_answer, names)} gets turned down`
       : outcome.drama_answer === "neither" ? "They leave together" : `${dramaAnswerLabel("leaves_first", outcome.drama_answer, names)} leaves first`;
-  const scene2 = `It resolves: ${ENDING_LABELS[outcome.ending]} (${ENDING_READS[outcome.ending]}). ${drama}.`;
+  const scene2 = `It resolves: ${endingLabel(outcome.ending, input.date_number)} (${ENDING_READS[outcome.ending]}). ${drama}.`;
   const beat = (act: number): ActBeat => ({
     scene: [scene0, scene1, scene2][act],
     a: rulesBeat(input, outcome, 0, act, characters[0].persona.want, rematch),
@@ -387,7 +390,7 @@ export function rulesPlan(
   });
   return {
     source: "rules",
-    spine: `${names[0]} and ${names[1]}: ${rematch ? "a rematch" : "a first date"} that ends "${ENDING_LABELS[outcome.ending]}".`,
+    spine: `${names[0]} and ${names[1]}: ${rematch ? "a rematch" : "a first date"} that ends "${endingLabel(outcome.ending, input.date_number)}".`,
     acts: [beat(0), beat(1), beat(2)],
   };
 }
