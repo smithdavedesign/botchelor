@@ -202,6 +202,9 @@ describe("the Replicate client", () => {
     await downloadOutput("https://api.replicate.com/v1/files/f1/download", "r8_test", 1000);
     expect(asked).toEqual(["https://pbxt.replicate.delivery/a/output.wav", "https://api.replicate.com/v1/files/f1/download Bearer r8_test"]);
     await expect(downloadOutput("https://replicate.delivery/big.mp4", "r8_test", 10)).rejects.toThrow(/too large/);
+    // One name for WAV: replicate.delivery serves Kokoro's as audio/x-wav.
+    setReplicateFetchForTests(async () => new Response(new Uint8Array(WAV), { headers: { "content-type": "audio/x-wav" } }));
+    expect((await downloadOutput("https://replicate.delivery/xe/v/output.wav", "r8_test", 1000)).mime).toBe("audio/wav");
   });
 
   it("gives every voice of ours one Replicate's Kokoro has, and each shot long enough for its line", () => {
@@ -215,9 +218,12 @@ describe("the Replicate client", () => {
     for (const v of KOKORO) expect(replicateVoice(v)).toBe(v);
 
     const words = (n: number) => Array.from({ length: n }, (_, k) => `w${k}`).join(" ");
+    // Kokoro says about 3 words a second: up to 13 words fit the shortest shot (81 frames, about 5 s), about 20 the longest,
+    // and the longest line (24) is said a little faster.
     expect(replicateTiming(words(4))).toEqual({ frames: 81, speed: 1 });
-    expect(replicateTiming(words(12))).toEqual({ frames: 85, speed: 1 });
-    expect(replicateTiming(words(24))).toEqual({ frames: 121, speed: 1.25 });
+    expect(replicateTiming(words(13))).toEqual({ frames: 81, speed: 1 });
+    expect(replicateTiming(words(18))).toEqual({ frames: 109, speed: 1 });
+    expect(replicateTiming(words(24))).toEqual({ frames: 117, speed: 1.18 });
     for (let n = 1; n <= 24; n++) {
       const { frames, speed } = replicateTiming(words(n));
       expect((frames - 1) % 4).toBe(0);
