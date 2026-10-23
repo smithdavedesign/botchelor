@@ -1145,7 +1145,7 @@ function PortraitPanel({ id, name, portrait, onPortrait, hasLooks }: { id: strin
       </button>
       {state === "no_key" && (
         <p className="muted small">
-          Add an OpenAI image key on your <Link href="/account">account</Link> first.
+          <Link href="/account/keys#portraits">Connect an OpenAI key</Link> for Portraits first.
         </p>
       )}
       {state && typeof state === "object" && <p className="error">{state.error}</p>}
@@ -1235,7 +1235,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
     setPortrait("Generating a portrait on your key…");
     const { ok, status, message } = await requestJson(`/api/characters/${character.id}/portrait`, {}, "POST").catch(() => ({ ok: false, status: 0, message: "Network error." }));
     if (ok) setPortrait("done");
-    else if (status === 400) setPortrait("Add an OpenAI image key on your account first.");
+    else if (status === 400) setPortrait("Connect an OpenAI key for Portraits first (Account → Connections).");
     else setPortrait(message ?? "Couldn't generate a portrait.");
   }
 

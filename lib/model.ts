@@ -62,6 +62,13 @@ export interface Model {
 
 export class ModelError extends Error {
   override name = "ModelError";
+  /** The provider's HTTP status when it refused the call (401, 402, 429…); unset for a call that never got an answer. */
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+  }
 }
 
 export const DEFAULT_LLM_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
@@ -208,7 +215,7 @@ export function openAICompatibleModel(opts: {
   let trippedBy = "";
   return {
     async complete(messages, options) {
-      if (now() < trippedUntil) throw new ModelError(trippedBy);
+      if (now() < trippedUntil) throw new ModelError(trippedBy, 429);
       let useReasoning = opts.reasoning !== undefined && !noReasoning.has(opts.model);
       for (let pass = 0; ; pass++) {
         let res: Response;
@@ -251,7 +258,7 @@ export function openAICompatibleModel(opts: {
             trippedUntil = now() + RATE_LIMIT_TRIP_MS;
             trippedBy = message;
           }
-          throw new ModelError(message);
+          throw new ModelError(message, res.status);
         }
         const data = (await res.json().catch(() => null)) as CompletionResponse | null;
         const content = data?.choices?.[0]?.message?.content;

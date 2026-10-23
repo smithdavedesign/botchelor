@@ -23,7 +23,7 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await t.reset();
-  await t.db.query("delete from user_keys");
+  await t.db.query("delete from user_connections");
   await t.db.query("delete from character_assets");
   setDbForTests(t.db);
   vi.stubEnv("SESSION_SECRET", SECRET);
@@ -120,7 +120,7 @@ describe("POST /api/characters/[id]/portrait", () => {
   it("generates on the owner's key, approves the asset, and serves it", async () => {
     const owner = newUserCookie();
     const character = await (await api.createCharacter(validCharacter(), owner)).json();
-    // A key belongs to an account (user_keys references accounts); the owner id is the adopted one.
+    // A key belongs to an account (user_connections references accounts); the owner id is the adopted one.
     await registerAccount(t.db, userIdOf(owner), "portraitowner", ["a", "good", "password"].join("-"));
     await saveUserKey(t.db, userIdOf(owner), "openai", "image", KEY, null, { SESSION_SECRET: SECRET });
     vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ data: [{ b64_json: PNG_B64 }] }), { status: 200 }));

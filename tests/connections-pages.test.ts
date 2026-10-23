@@ -1,0 +1,207 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The Connections page and the admin's providers view read the viewer from next/headers: hand them this cookie store.
+const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: (name: string) => (jar.cookies.has(name) ? { name, value: jar.cookies.get(name)! } : undefined) }),
+  headers: async () => new Headers(),
+}));
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
+}));
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import KeysPage from "@/app/account/keys/page";
+import ConnectionCard from "@/app/account/keys/ConnectionCard";
+import ProviderMark from "@/app/account/keys/ProviderMark";
+import KeyForm from "@/app/account/keys/KeyForm";
+import AfterDarkProvidersPage from "@/app/admin/after-dark/providers/page";
+import { registerAccount } from "@/lib/auth";
+import { claimAdmin } from "@/lib/admins";
+import { saveAdultSettings } from "@/lib/adult/settings";
+import { assignJob, recordError, saveConnection } from "@/lib/connections";
+import { curatedModels, plainError } from "@/lib/connections-shared";
+import { signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
+
+// /account/keys, Connections (docs/PRDs/connections.md): its signed-out and unavailable states, the job cards in each state,
+// the key list (never the key), After Dark's read-only card for an admin, and the admin's providers view.
+
+const U = "dddd4444-0000-4000-8000-000000000004";
+const fakeKey = (tag: string) => ["test", "key", "not", "real", tag, "2468"].join("-");
+
+let t: Awaited<ReturnType<typeof startTestDb>>;
+beforeAll(async () => {
+  t = await startTestDb();
+});
+afterAll(async () => {
+  await t.close();
+});
+beforeEach(async () => {
+  await t.reset();
+  await t.db.query("delete from accounts");
+  await t.db.query("delete from admins");
+  await t.db.query("delete from adult_privacy");
+  jar.cookies.clear();
+  vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
+  await registerAccount(t.db, U, "pagekeys", ["a", "good", "password"].join("-"));
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
+const signIn = () => {
+  const [name, value] = signedInCookie(U).split("=");
+  jar.cookies.set(name, value);
+};
+const page = async () => renderToStaticMarkup(await KeysPage());
+
+describe("/account/keys: Connections", () => {
+  it("signed out: asks you to sign in, and comes back here after", async () => {
+    const html = await page();
+    expect(html).toContain("<h1>Connections</h1>");
+    expect(html).toContain('href="/account?next=%2Faccount%2Fkeys"');
+    expect(html).not.toContain("connection-card");
+  });
+
+  it("an anonymous cookie gets the same sign-in state", async () => {
+    jar.cookies.set("bz_uid", U);
+    expect(await page()).toContain('href="/account?next=%2Faccount%2Fkeys"');
+  });
+
+  it("says it isn't on here when the deployment can't seal keys", async () => {
+    vi.stubEnv("SESSION_SECRET", "");
+    expect(await page()).toMatch(/isn(&#x27;|')t enabled on this deployment/);
+  });
+
+  it("no keys yet: a card per job on the free model or not set up, and nothing about After Dark", async () => {
+    signIn();
+    const html = await page();
+    for (const title of ["Dates &amp; texts", "Portraits &amp; pictures", "Intro clips"]) expect(html).toContain(title);
+    expect(html).toContain("Using: Botchelor&#x27;s free model");
+    expect(html).toContain("Not set up: portraits need your own OpenAI key.");
+    expect(html).toContain("Not set up: clips need your own Google key, with billing on.");
+    expect(html.match(/>Connect</g)).toHaveLength(3);
+    expect(html).not.toContain('id="your-keys"');
+    expect(html).not.toMatch(/after dark/i);
+  });
+
+  it("a working key: its card says so with the model, its last four and when it was checked; the key itself never appears", async () => {
+    signIn();
+    const key = fakeKey("page");
+    await saveConnection(t.db, U, "openrouter", key, { verifiedAt: new Date(Date.now() - 120_000).toISOString() });
+    await assignJob(t.db, U, "text", "openrouter", "deepseek/deepseek-chat-v3.1");
+    const html = await page();
+    expect(html).toContain("Your OpenRouter key ✓ · deepseek/deepseek-chat-v3.1");
+    expect(html).toContain("•••• 2468 · checked 2 min ago · not used yet");
+    expect(html).toContain("✓ Connected");
+    expect(html).toContain('id="your-keys"');
+    expect(html).toContain("used for Dates &amp; texts");
+    expect(html).toContain(">Replace<");
+    expect(html).toContain(">Remove<");
+    expect(html).not.toContain(key);
+    const sealed = (await t.db.query<{ ciphertext: string }>(`select ciphertext from user_connections where user_id = $1`, [U])).rows[0].ciphertext;
+    expect(html).not.toContain(sealed);
+  });
+
+  it("a key in trouble: Needs attention, what went wrong in plain words, and a link to fix it", async () => {
+    signIn();
+    await saveConnection(t.db, U, "openrouter", fakeKey("dry"));
+    await assignJob(t.db, U, "text", "openrouter", null);
+    await recordError(t.db, U, "openrouter", "no_credit");
+    const html = await page();
+    expect(html).toContain("Needs attention");
+    expect(html).toContain("OpenRouter: out of credit.");
+    expect(html).toContain('href="https://openrouter.ai/settings/credits"');
+    expect(html).toContain(">Top up<");
+  });
+
+  it("an admin also sees After Dark, read-only: the house's providers, not their own keys", async () => {
+    signIn();
+    await claimAdmin(t.db, U);
+    await saveAdultSettings(t.db, { openrouter_key: fakeKey("house"), hive_key: fakeKey("hive") });
+    await t.db.query(`insert into adult_media_cooldowns (provider, until, status) values ('hive', now() + interval '2 hours', 429)`);
+    const html = await page();
+    expect(html).toContain("🌙 After Dark");
+    expect(html).toContain("your own keys are never used there");
+    expect(html).toContain("Something&#x27;s paused");
+    expect(html).toMatch(/Hive ⏸ until <time dateTime="[^"]+">\d\d:\d\d UTC<\/time>/);
+    expect(html).toContain('href="/admin/after-dark/providers"');
+    expect(html).not.toContain(fakeKey("house"));
+    // Not on a device that hasn't entered the After Dark PIN.
+    await t.db.query(`insert into adult_privacy (user_id, pin_hash, pin_version) values ($1, 'a-pin-hash', 1)`, [U]);
+    expect(await page()).not.toMatch(/after dark/i);
+  });
+});
+
+describe("the card and the connect flow, on their own", () => {
+  it("the card: the provider's mark, the state's pill and tone, and an error's fix as a link", () => {
+    const html = renderToStaticMarkup(
+      createElement(ConnectionCard, { id: "dates", title: "Dates & texts", provider: "openrouter", tone: "error", pill: "Needs attention", status: "Your OpenRouter key", error: plainError("openrouter", "invalid_key") }),
+    );
+    expect(html).toContain('class="card connection-card tone-error"');
+    expect(html).toContain('data-provider="openrouter"');
+    expect(html).toContain(">OR</text>");
+    expect(html).toContain('href="https://openrouter.ai/settings/keys"');
+    expect(html).toContain('rel="noopener noreferrer"');
+  });
+
+  it("a provider mark is drawn inline (no image to load), and decorative", () => {
+    const html = renderToStaticMarkup(createElement(ProviderMark, { provider: "google" }));
+    expect(html).toMatch(/^<svg[^>]*aria-hidden="true"/);
+    expect(html).not.toMatch(/<img|href=/);
+  });
+
+  it("the flow starts on the provider, with a stored key offered again without pasting", () => {
+    const html = renderToStaticMarkup(
+      createElement(KeyForm, {
+        job: "image",
+        jobTitle: "Portraits & pictures",
+        providers: [{ id: "openai", label: "OpenAI", blurb: "", keyHint: "Starts with sk-", keysUrl: "https://platform.openai.com/api-keys", stored: { last4: "2468" }, models: curatedModels("openai", "image") }],
+        current: { provider: null, model: null },
+        also: [],
+        onDone: () => {},
+      }),
+    );
+    expect(html).toContain("Use your OpenAI key (•••• 2468)");
+    expect(html).toContain("Paste a different key");
+    expect(html).toContain("gpt-image-2 (Recommended)"); // a stored key goes straight on to the model
+    expect(html).toContain(">Save<");
+  });
+
+  it("with a new key, Save waits for a passing Test, and the paste field is a password field that isn't remembered", () => {
+    const html = renderToStaticMarkup(
+      createElement(KeyForm, {
+        job: "text",
+        jobTitle: "Dates & texts",
+        providers: [{ id: "openrouter", label: "OpenRouter", blurb: "", keyHint: "Starts with sk-or-", keysUrl: "https://openrouter.ai/settings/keys", stored: null, models: curatedModels("openrouter", "text") }],
+        current: { provider: null, model: null },
+        also: [],
+        onDone: () => {},
+      }),
+    );
+    expect(html).toMatch(/<input type="password" autoComplete="off" spellCheck="false"/);
+    expect(html).toContain(">Test<");
+    expect(html).not.toContain(">Save<");
+  });
+});
+
+describe("the admin's After Dark providers view", () => {
+  it("a card per house provider with its live status; not found for anyone else, or on a locked device", async () => {
+    const notFound = /NEXT_HTTP_ERROR_FALLBACK;404|NEXT_NOT_FOUND/;
+    await expect(AfterDarkProvidersPage()).rejects.toThrow(notFound);
+    signIn();
+    await expect(AfterDarkProvidersPage()).rejects.toThrow(notFound); // signed in, but not an admin
+    await claimAdmin(t.db, U);
+    await saveAdultSettings(t.db, { openrouter_key: fakeKey("or"), venice_key: fakeKey("ve"), hive_key: fakeKey("hv"), media_provider: "venice" });
+    await t.db.query(`insert into adult_media_cooldowns (provider, until, status) values ('hive', now() + interval '90 minutes', 429)`);
+    const html = renderToStaticMarkup(await AfterDarkProvidersPage());
+    for (const label of ["OpenRouter", "Venice", "Replicate", "fal.ai", "Hive"]) expect(html).toContain(`>${label}</h2>`);
+    expect(html).toMatch(/Daily limit reached: back around <time dateTime="[^"]+">\d\d:\d\d UTC<\/time>/);
+    expect(html).toContain("•••• 2468");
+    expect(html).not.toContain(fakeKey("or"));
+    await t.db.query(`insert into adult_privacy (user_id, pin_hash, pin_version) values ($1, 'a-pin-hash', 1)`, [U]);
+    await expect(AfterDarkProvidersPage()).rejects.toThrow(notFound);
+  });
+});

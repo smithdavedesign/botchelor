@@ -143,6 +143,32 @@ export function startShowrunner() {
   return new Promise((ok) => server.listen(0, "127.0.0.1", () => ok(server)));
 }
 
+/**
+ * Every model provider a person's key is checked against (lib/connections.ts checkKey), answering on loopback: the app
+ * points them all here when BYOK_STUB_ORIGIN is set (loopback only, never on Vercel), so a run connects fake keys
+ * without anything leaving this machine. `state.dry` makes OpenRouter answer 402, out of credit. Returns the http server.
+ */
+export function startProviderStub(state = {}) {
+  const server = createServer((req, res) => {
+    const url = new URL(req.url ?? "/", "http://stub");
+    const send = (status, body) => {
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(JSON.stringify(body));
+    };
+    if (url.pathname === "/openrouter/api/v1/key") {
+      if (state.dry) return send(402, { error: { message: "Insufficient credits", code: 402 } });
+      return send(200, { data: { label: "local stub", usage: 1.2, limit: 10, is_free_tier: false } });
+    }
+    if (url.pathname === "/openai/v1/models") return send(200, { data: ["gpt-4.1-mini", "gpt-4.1", "gpt-5-mini", "gpt-image-2"].map((id) => ({ id })) });
+    if (url.pathname === "/google/v1beta/models") {
+      return send(200, { models: ["gemini-3.5-flash-lite", "gemini-3.5-flash", "veo-3.1-lite-generate-preview"].map((m) => ({ name: `models/${m}` })) });
+    }
+    if (/\/(v1\/)?models$/.test(url.pathname)) return send(200, { data: [{ id: "a-model" }] });
+    send(404, { error: { message: "not stubbed" } });
+  });
+  return new Promise((ok) => server.listen(0, "127.0.0.1", () => ok(server)));
+}
+
 // ---------------------------------------------------------------------------------------------------
 // The app lifecycle.
 

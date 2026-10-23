@@ -3,6 +3,7 @@ import { z } from "zod";
 import { TALK_LEVELS } from "@/lib/talk";
 import { PARTNER_STYLES, takenSql } from "@/lib/partners";
 import { deleteCharacter } from "@/lib/account";
+import { hasJobKey } from "@/lib/connections";
 import { getDb } from "@/lib/db";
 import { invalidateGraph } from "@/lib/graph-cache";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
@@ -152,9 +153,12 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   }
 
   if (input.talk === "marathon") {
-    const key = await db.query(`select 1 from user_keys where user_id = $1 and kind = 'text' limit 1`, [sess.userId]);
-    if (!key.rows.length) {
-      return json({ error: "needs_own_key", message: "Marathon runs on your own model key. Add a text key on your account first." }, 400, sess);
+    if (!(await hasJobKey(db, sess.userId, "text"))) {
+      return json(
+        { error: "needs_own_key", message: "Marathon runs on your own model key. Connect one for Dates & texts first (Account → Connections).", connect: "/account/keys#dates" },
+        400,
+        sess,
+      );
     }
   }
 

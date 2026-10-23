@@ -24,6 +24,7 @@
     "screenshots:after-dark": "node scripts/after-dark-screenshots.mjs",
     "screenshots:after-dark-media": "node scripts/after-dark-media-screenshots.mjs",
     "screenshots:after-dark-shorts": "node scripts/after-dark-shorts-screenshots.mjs",
+    "screenshots:connections": "node scripts/connections-screenshots.mjs",
     "portraits": "node scripts/portraits.mjs",
     "payment:live": "node scripts/payment-live.mjs",
     "typecheck": "tsc --noEmit"

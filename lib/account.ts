@@ -133,7 +133,14 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
         order by e.created_at`,
       [userId],
     ),
-    provider_keys: await q("select provider, kind, last4, model, created_at from user_keys where user_id = $1", [userId]),
+    // Their own keys as they're shown: the provider, the last four, when they were checked and used, and each job's model.
+    // Never the key: not even sealed (the ciphertext stays out of the export).
+    provider_keys: await q(
+      `select c.provider, c.last4, c.verified_at, c.last_used_at, c.created_at, j.job, j.model
+         from user_connections c left join user_connection_jobs j on j.user_id = c.user_id and j.provider = c.provider
+        where c.user_id = $1 order by c.created_at`,
+      [userId],
+    ),
     couple_texts: await q(
       `select t.character_lo, t.character_hi, t.day, t.seq, t.who, t.text, t.created_at
          from couple_texts t

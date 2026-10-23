@@ -3,92 +3,44 @@
  * their quota and their choice of model instead of the show's free tier. The engine still decides every
  * outcome, so a stronger model can never buy a result.
  *
+ * Since Connections (docs/PRDs/connections.md) keys live in lib/connections.ts: one per provider, each used by the
+ * jobs it's assigned to (dates and texts, portraits, intro clips), sealed by lib/key-crypto.ts. This module keeps the
+ * names the rest of the app was built on (MCP's set_model / my_model / clear_model, the routes, the date pipeline),
+ * now on that store: a "text" key is the key the Dates & texts job uses; an "image" key, the one portraits (OpenAI)
+ * or clips (Google) use.
+ *
  * Privacy is the whole design. A key is only ever used for calls whose prompt contains no OTHER user's
  * private soul (lib/pipeline keyForSide): a user's own turns (their soul, which they consent to), and
  * soulless turns (a house character). The director and narrator see both souls, so they always run on the
  * platform key. Keys are known providers only — no custom endpoints — so a key can't be pointed at an
- * attacker's server to harvest prompts. Stored AES-256-GCM encrypted (key derived from SESSION_SECRET),
- * account-only, never logged and never returned in full (only the provider and the last four characters).
+ * attacker's server to harvest prompts. Account-only, never logged and never returned in full (only the
+ * provider and the last four characters).
  */
-import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "node:crypto";
 import type { Db } from "./db";
-import { openAICompatibleModel, type Model, type ReasoningEffort } from "./model";
+import { isTextProvider, plainError, TEXT_PROVIDERS, type Job, type TextProvider } from "./connections-shared";
+import {
+  assignJob,
+  chatBaseUrl,
+  classifyRefusal,
+  hasJobKey,
+  jobKey,
+  listConnections,
+  recordError,
+  recordUse,
+  refusalKind,
+  removeConnection,
+  saveConnection,
+  unassignJob,
+} from "./connections";
+import { canSeal, openKey, sealKey } from "./key-crypto";
+import { ModelError, openAICompatibleModel, type Model, type ReasoningEffort } from "./model";
 
-/**
- * Providers whose chat API is OpenAI-compatible at a known base URL. No custom endpoints (SSRF / prompt theft).
- * Each entry declares a short list of recommended models the UI shows: curated so users don't paste an id a
- * provider doesn't have. The `defaultModel` is used when a user picks a provider but doesn't name a model.
- *
- * Adding a provider? Pick one that's genuinely OpenAI-compatible at `/chat/completions`, add it below, and keep
- * the entry a single line. The validate ping and MCP's `set_model` pick it up automatically.
- */
-export const TEXT_PROVIDERS = {
-  google: {
-    label: "Google Gemini",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-    defaultModel: "gemini-3.5-flash-lite",
-    models: [
-      { id: "gemini-3.5-flash-lite", note: "the free-tier default; cheap and fast" },
-      { id: "gemini-3.5-flash", note: "a step up in writing, still cheap" },
-      { id: "gemini-3.5-pro", note: "best Gemini writing; more expensive" },
-    ],
-  },
-  openai: {
-    label: "OpenAI",
-    baseUrl: "https://api.openai.com/v1",
-    defaultModel: "gpt-4.1-mini",
-    models: [
-      { id: "gpt-4.1-mini", note: "the default; cheap, strong at dialogue" },
-      { id: "gpt-4.1", note: "flagship; best writing, highest cost" },
-      { id: "gpt-5-mini", note: "newer reasoning model" },
-    ],
-  },
-  anthropic: {
-    label: "Anthropic Claude",
-    baseUrl: "https://api.anthropic.com/v1",
-    defaultModel: "claude-haiku-5-5",
-    models: [
-      { id: "claude-haiku-5-5", note: "cheap, fast; strong dialogue" },
-      { id: "claude-sonnet-5-5", note: "the balanced pick for writing" },
-      { id: "claude-opus-5-5", note: "best writing; expensive" },
-    ],
-  },
-  deepseek: {
-    label: "DeepSeek",
-    baseUrl: "https://api.deepseek.com",
-    defaultModel: "deepseek-chat",
-    models: [
-      { id: "deepseek-chat", note: "very cheap; good at English + Chinese" },
-      { id: "deepseek-reasoner", note: "reasoning model; more thought, slower" },
-    ],
-  },
-  groq: {
-    label: "Groq",
-    baseUrl: "https://api.groq.com/openai/v1",
-    defaultModel: "llama-3.3-70b-versatile",
-    models: [
-      { id: "llama-3.3-70b-versatile", note: "fast inference (~500 tok/s)" },
-      { id: "llama-3.1-8b-instant", note: "smaller, cheaper, fastest" },
-      { id: "openai/gpt-oss-120b", note: "open-weights GPT; largest Groq hosts" },
-    ],
-  },
-  openrouter: {
-    label: "OpenRouter",
-    baseUrl: "https://openrouter.ai/api/v1",
-    defaultModel: "openai/gpt-4.1-mini",
-    models: [
-      { id: "openai/gpt-4.1-mini", note: "route to OpenAI, pay by usage" },
-      { id: "anthropic/claude-haiku-5-5", note: "route to Anthropic Claude" },
-      { id: "deepseek/deepseek-chat", note: "route to DeepSeek" },
-      { id: "x-ai/grok-4", note: "route to xAI Grok" },
-    ],
-  },
-} as const;
+export { isTextProvider, TEXT_PROVIDERS, type TextProvider };
 
 /**
  * Image providers. OpenAI generation is wired (lib/image): it moderates its own input and output, so a
  * user-key portrait is provider-moderated, and our prompt is built only from already content-filtered sheet
- * text. fal / replicate are stored for later (no moderation story yet). Video is a key slot only for now.
+ * text. fal / replicate were stored for later (no moderation story yet); the Connections page doesn't offer them.
  */
 export const IMAGE_PROVIDERS = {
   openai: { label: "OpenAI Images", generates: true },
@@ -98,65 +50,40 @@ export const IMAGE_PROVIDERS = {
   replicate: { label: "Replicate", generates: false },
 } as const;
 
-export type TextProvider = keyof typeof TEXT_PROVIDERS;
 export type KeyKind = "text" | "image";
 
 /** The ids the set_model schema accepts — one source for the schema enum and the dispatcher's ENUM_SOURCES. */
 export const TEXT_PROVIDER_IDS = Object.keys(TEXT_PROVIDERS) as readonly TextProvider[];
 
-export const isTextProvider = (p: string): p is TextProvider => p in TEXT_PROVIDERS;
 export const isImageProvider = (p: string): boolean => p in IMAGE_PROVIDERS;
 
-/* ----------------------------------- encryption ----------------------------------- */
+/** True when the app can store BYOK keys: accounts work (SESSION_SECRET) and a key can be sealed. */
+export const byokAvailable = (env: Record<string, string | undefined> = process.env): boolean => Boolean(env.SESSION_SECRET) && canSeal(env);
 
-function aesKey(env: Record<string, string | undefined> = process.env): Buffer | null {
-  const secret = env.SESSION_SECRET;
-  if (!secret) return null;
-  // Derived from SESSION_SECRET so there's no second secret to manage; domain-separated from session signing.
-  return Buffer.from(hkdfSync("sha256", secret, Buffer.from("botchelor-byok-v1"), Buffer.from("user-keys"), 32));
-}
-
-/** True when the app can store BYOK keys (it can encrypt them). Same gate as accounts. */
-export const byokAvailable = (env: Record<string, string | undefined> = process.env): boolean => aesKey(env) !== null;
-
-type Encrypted = { ciphertext: string; nonce: string };
-
-function encryptKey(plain: string, env: Record<string, string | undefined> = process.env): Encrypted {
-  const key = aesKey(env);
-  if (!key) throw new Error("BYOK unavailable: no SESSION_SECRET");
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return { ciphertext: Buffer.concat([enc, tag]).toString("base64"), nonce: iv.toString("base64") };
-}
-
-function decryptKey(enc: Encrypted, env: Record<string, string | undefined> = process.env): string | null {
-  const key = aesKey(env);
-  if (!key) return null;
-  try {
-    const raw = Buffer.from(enc.ciphertext, "base64");
-    const tag = raw.subarray(raw.length - 16);
-    const data = raw.subarray(0, raw.length - 16);
-    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(enc.nonce, "base64"));
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
-  } catch {
-    return null;
-  }
-}
-
-const last4 = (s: string): string => s.slice(-4);
-
-/** The same sealing for a secret stored somewhere other than user_keys (lib/adult/settings.ts). */
-export const sealSecret = (plain: string, env: Record<string, string | undefined> = process.env) => encryptKey(plain, env);
-export const openSecret = (enc: { ciphertext: string; nonce: string }, env: Record<string, string | undefined> = process.env) => decryptKey(enc, env);
+/**
+ * The same sealing for a secret stored somewhere other than a person's connections (lib/adult/settings.ts). `context`
+ * is where it's stored ("adult:openrouter"): a v2 seal opens only there (lib/key-crypto.ts).
+ */
+export const sealSecret = (plain: string, context = "", env: Record<string, string | undefined> = process.env) => sealKey(plain, context, env);
+export const openSecret = (enc: { ciphertext: string; nonce: string }, context = "", env: Record<string, string | undefined> = process.env) => openKey(enc, context, env);
 
 /* ----------------------------------- store ----------------------------------- */
 
 export type StoredKeyInfo = { provider: string; kind: KeyKind; last4: string; model: string | null; created_at: string };
 
-/** Saves (replaces) a user's key for a provider+kind. Only the provider, last four and optional model are shown later. */
+/** The job an M16 key slot is: a text key runs dates and texts; an OpenAI image key, portraits; a Google one, clips. */
+export function jobForSlot(provider: string, kind: KeyKind): Job | null {
+  if (kind === "text") return "text";
+  if (provider === "openai") return "image";
+  if (provider === "google") return "video";
+  return null;
+}
+
+/**
+ * Saves (replaces) a user's key for a provider and points the slot's job at it. Only the provider, last four and
+ * optional model are shown later. A Google key for dates covers clips too when clips have no key of their own (it
+ * always did: clips fell back to the dates key).
+ */
 export async function saveUserKey(
   db: Db,
   userId: string,
@@ -166,22 +93,25 @@ export async function saveUserKey(
   model: string | null,
   env: Record<string, string | undefined> = process.env,
 ): Promise<StoredKeyInfo> {
-  const { ciphertext, nonce } = encryptKey(apiKey, env);
-  await db.query(
-    `insert into user_keys (user_id, provider, kind, ciphertext, nonce, last4, model)
-     values ($1, $2, $3, $4, $5, $6, $7)
-     on conflict (user_id, provider, kind) do update set
-       ciphertext = excluded.ciphertext, nonce = excluded.nonce, last4 = excluded.last4,
-       model = excluded.model, created_at = now()`,
-    [userId, provider, kind, ciphertext, nonce, last4(apiKey), model],
-  );
-  return { provider, kind, last4: last4(apiKey), model, created_at: new Date().toISOString() };
+  const saved = await saveConnection(db, userId, provider, apiKey, { env });
+  const job = jobForSlot(provider, kind);
+  if (job) await assignJob(db, userId, job, provider, model);
+  if (job === "text" && provider === "google" && !(await hasJobKey(db, userId, "video"))) await assignJob(db, userId, "video", "google", null);
+  return { provider, kind, last4: saved.last4, model, created_at: new Date().toISOString() };
+}
+
+/** A provider's own words, minus the key itself and anything shaped like one: for scrubbing before a message leaves. */
+export function scrubKey(text: string, apiKey: string): string {
+  let out = text;
+  if (apiKey.length >= 8) out = out.split(apiKey).join("[key]");
+  return out.replace(/\b(sk|rk|pk|gsk|xai|AIza)[-_A-Za-z0-9]{12,}/g, "[key]");
 }
 
 /**
  * Validate a key by making one tiny chat-completions call to the provider at a sub-1¢ cost. Returns the model
- * that actually answered, the latency, and whether it worked. Called before `saveUserKey` on request, and from
- * the MCP `set_model` tool with `test: true`. Never logs the key.
+ * that actually answered, the latency, and whether it worked. Called from the MCP `set_model` tool with `test: true`
+ * (the Connections page checks for free instead: lib/connections.ts checkKey). Never logs the key, and a refusal is
+ * told in plain words, never the provider's own text.
  */
 export async function pingKey(
   provider: string,
@@ -196,7 +126,7 @@ export async function pingKey(
   const timeout = opts.timeoutMs ?? 10_000;
   const started = Date.now();
   try {
-    const res = await doFetch(`${p.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+    const res = await doFetch(`${(chatBaseUrl(provider) ?? p.baseUrl).replace(/\/+$/, "")}/chat/completions`, {
       method: "POST",
       headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
       body: JSON.stringify({
@@ -209,34 +139,68 @@ export async function pingKey(
     });
     const latency_ms = Date.now() - started;
     if (!res.ok) {
-      let detail = "";
-      try {
-        const body = await res.json() as { error?: { message?: string } | string };
-        detail = typeof body?.error === "string" ? body.error : body?.error?.message ?? "";
-      } catch { /* body wasn't JSON */ }
-      return { ok: false, status: res.status, error: `${res.status} ${res.statusText}${detail ? `: ${detail}` : ""}` };
+      const body = await res.text().catch(() => "");
+      const kind = classifyRefusal(res.status, body);
+      // Without its full stop: MCP's set_model says "The key didn't work: <this>. Nothing was saved."
+      return { ok: false, status: res.status, error: `${res.status}: ${plainError(provider, kind, { model: chosen }).message.replace(/\.$/, "")}` };
     }
     return { ok: true, model: chosen, latency_ms };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+    return { ok: false, error: plainError(provider, timedOut ? "provider_down" : "unreachable").message.replace(/\.$/, "") };
   }
 }
 
+/**
+ * Takes a key out of a slot: its job (or jobs, for an image key: portraits and clips) stops using it, and once no job
+ * uses the key at all it's deleted. True when anything was removed.
+ */
 export async function deleteUserKey(db: Db, userId: string, provider: string, kind: KeyKind): Promise<boolean> {
-  const { rows } = await db.query<{ user_id: string }>(
-    `delete from user_keys where user_id = $1 and provider = $2 and kind = $3 returning user_id`,
-    [userId, provider, kind],
-  );
-  return rows.length > 0;
+  const { connections, jobs } = await listConnections(db, userId);
+  const mine = jobs.filter((j) => j.provider === provider);
+  const slot = mine.filter((j) => (kind === "text" ? j.job === "text" : j.job !== "text"));
+  for (const j of slot) await unassignJob(db, userId, j.job);
+  if (connections.some((c) => c.provider === provider) && mine.length === slot.length) return removeConnection(db, userId, provider);
+  return slot.length > 0;
 }
 
-/** The provider/last4/model of every key a user has saved (never the key itself). For the account page. */
+/** The provider/last4/model of each key a job uses (never the key itself), in M16's slot shape. Newest first. */
 export async function listUserKeys(db: Db, userId: string): Promise<StoredKeyInfo[]> {
-  const { rows } = await db.query<{ provider: string; kind: KeyKind; last4: string; model: string | null; created_at: Date }>(
-    `select provider, kind, last4, model, created_at from user_keys where user_id = $1 order by created_at desc`,
-    [userId],
-  );
-  return rows.map((r) => ({ provider: r.provider, kind: r.kind, last4: r.last4, model: r.model, created_at: new Date(r.created_at).toISOString() }));
+  const { connections, jobs } = await listConnections(db, userId);
+  const out: StoredKeyInfo[] = [];
+  for (const j of jobs) {
+    const c = connections.find((x) => x.provider === j.provider);
+    if (c) out.push({ provider: j.provider, kind: j.job === "text" ? "text" : "image", last4: c.last4, model: j.model, created_at: c.updated_at });
+  }
+  return out.sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
+}
+
+/**
+ * A person's key as a model, recording on its card when it last worked (once per model, so once per date) and,
+ * when the provider turned it down for a reason they can fix (a bad key, no credit, a limit), what went wrong. The
+ * error that leaves here never carries the key.
+ */
+function trackedModel(db: Db, userId: string, provider: string, apiKey: string, model: Model, modelId: string): Model {
+  let used = false;
+  return {
+    async complete(messages, options) {
+      try {
+        const out = await model.complete(messages, options);
+        if (!used) {
+          used = true;
+          await recordUse(db, userId, provider);
+        }
+        return out;
+      } catch (err) {
+        if (err instanceof ModelError) {
+          const kind = refusalKind(err.status, err.message);
+          if (kind) await recordError(db, userId, provider, kind, { model: modelId });
+          throw new ModelError(scrubKey(err.message, apiKey), err.status);
+        }
+        throw err;
+      }
+    },
+  };
 }
 
 /**
@@ -244,16 +208,11 @@ export async function listUserKeys(db: Db, userId: string): Promise<StoredKeyInf
  * The reasoning level is passed through so a user-key actor also keeps thinking low (their cost too).
  */
 export async function userTextModel(db: Db, userId: string, reasoning?: ReasoningEffort, env: Record<string, string | undefined> = process.env): Promise<Model | null> {
-  const { rows } = await db.query<{ provider: string; ciphertext: string; nonce: string; model: string | null }>(
-    `select provider, ciphertext, nonce, model from user_keys where user_id = $1 and kind = 'text' limit 1`,
-    [userId],
-  );
-  const row = rows[0];
-  if (!row || !isTextProvider(row.provider)) return null;
-  const apiKey = decryptKey({ ciphertext: row.ciphertext, nonce: row.nonce }, env);
-  if (!apiKey) return null;
-  const p = TEXT_PROVIDERS[row.provider];
-  return openAICompatibleModel({ baseUrl: p.baseUrl, apiKey, model: row.model || p.defaultModel, reasoning });
+  const key = await jobKey(db, userId, "text", env);
+  if (!key || !isTextProvider(key.provider)) return null;
+  const baseUrl = chatBaseUrl(key.provider, env) ?? TEXT_PROVIDERS[key.provider].baseUrl;
+  const model = openAICompatibleModel({ baseUrl, apiKey: key.apiKey, model: key.model, reasoning });
+  return trackedModel(db, userId, key.provider, key.apiKey, model, key.model);
 }
 
 /** A user's saved image key (provider + decrypted key + optional model), or null. For portrait generation. */
@@ -262,30 +221,14 @@ export async function userImageKey(
   userId: string,
   env: Record<string, string | undefined> = process.env,
 ): Promise<{ provider: string; apiKey: string; model: string | null } | null> {
-  // A user may hold more than one image-slot key (OpenAI for portraits, Google for clips): portraits want OpenAI.
-  const { rows } = await db.query<{ provider: string; ciphertext: string; nonce: string; model: string | null }>(
-    `select provider, ciphertext, nonce, model from user_keys where user_id = $1 and kind = 'image'
-      order by (provider = 'openai') desc limit 1`,
-    [userId],
-  );
-  const row = rows[0];
-  if (!row) return null;
-  const apiKey = decryptKey({ ciphertext: row.ciphertext, nonce: row.nonce }, env);
-  return apiKey ? { provider: row.provider, apiKey, model: row.model } : null;
+  const key = await jobKey(db, userId, "image", env);
+  return key ? { provider: key.provider, apiKey: key.apiKey, model: key.model } : null;
 }
 
-/**
- * A user's Google key for intro clips (Veo, lib/video.ts): one saved in the image/video slot if they keep a
- * separate one, else the Google key they use for dates. Null when they have neither. Veo needs billing on.
- */
+/** A user's Google key for intro clips (Veo, lib/video.ts): the key the Intro clips job uses. Null without one. */
 export async function userVideoKey(db: Db, userId: string, env: Record<string, string | undefined> = process.env): Promise<string | null> {
-  const { rows } = await db.query<{ ciphertext: string; nonce: string }>(
-    `select ciphertext, nonce from user_keys where user_id = $1 and provider = 'google'
-      order by (kind = 'image') desc limit 1`,
-    [userId],
-  );
-  const row = rows[0];
-  return row ? decryptKey({ ciphertext: row.ciphertext, nonce: row.nonce }, env) : null;
+  const key = await jobKey(db, userId, "video", env);
+  return key?.provider === "google" ? key.apiKey : null;
 }
 
 /**

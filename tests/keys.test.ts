@@ -24,7 +24,7 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await t.reset();
-  await t.db.query("delete from user_keys");
+  await t.db.query("delete from user_connections");
   await t.db.query("delete from accounts");
 });
 
@@ -32,11 +32,18 @@ describe("the encrypted key store", () => {
   it("stores a key encrypted and only ever reads back the last four", async () => {
     await registerAccount(t.db, "11111111-1111-4111-8111-111111111111", "mapmaker", "a-good-password");
     await saveUserKey(t.db, "11111111-1111-4111-8111-111111111111", "google", "text", KEY, null, env);
-    const row = (await t.db.query<{ ciphertext: string; last4: string }>(`select ciphertext, last4 from user_keys where user_id = $1`, ["11111111-1111-4111-8111-111111111111"])).rows[0];
+    const row = (await t.db.query<{ ciphertext: string; last4: string }>(`select ciphertext, last4 from user_connections where user_id = $1`, ["11111111-1111-4111-8111-111111111111"])).rows[0];
     expect(row.ciphertext).not.toContain(KEY); // encrypted at rest
     expect(row.last4).toBe(KEY.slice(-4));
     const listed = await listUserKeys(t.db, "11111111-1111-4111-8111-111111111111");
-    expect(listed).toEqual([{ provider: "google", kind: "text", last4: KEY.slice(-4), model: null, created_at: expect.any(String) }]);
+    // A Google key for dates covers intro clips too (as it always did), so it's listed in both slots: one key, two jobs.
+    expect(listed).toEqual(
+      expect.arrayContaining([
+        { provider: "google", kind: "text", last4: KEY.slice(-4), model: null, created_at: expect.any(String) },
+        { provider: "google", kind: "image", last4: KEY.slice(-4), model: null, created_at: expect.any(String) },
+      ]),
+    );
+    expect(listed).toHaveLength(2);
   });
 
   it("builds a working model that sends the decrypted key to the provider, and nothing without a key", async () => {
@@ -78,7 +85,7 @@ describe("the per-side routing rule (a key never sees another user's soul)", () 
     expect(blind("b")).toBeNull(); // B's soul must never ride A's key
 
     // Two real users, neither with a key: platform for both.
-    await t.db.query("delete from user_keys");
+    await t.db.query("delete from user_connections");
     const none = await buildKeyForSide(t.db, [A, B], [true, true], undefined, env);
     expect(none("a")).toBeNull();
     expect(none("b")).toBeNull();

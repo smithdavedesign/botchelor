@@ -47,7 +47,11 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const db = await getDb();
   const model = await userTextModel(db, sess.userId);
   if (!model) {
-    return json({ error: "needs_own_key", message: "Add your own model key on your account page, and your character can text whenever you like." }, 409, sess);
+    return json(
+      { error: "needs_own_key", message: "Connect your own model key for Dates & texts (Account → Connections), and your character can text whenever you like.", connect: "/account/keys#dates" },
+      409,
+      sess,
+    );
   }
   const r = await writeOwnText(db, { userId: sess.userId, from: input.character_id, to: input.character_id === a ? b : a, model, hint: input.hint });
   if (!r.ok) return json({ error: r.error, message: r.message }, r.status, sess);

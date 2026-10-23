@@ -29,6 +29,7 @@ import {
   signedEvent,
   solidPng,
   startApp,
+  startProviderStub,
   startShowrunner,
   stopApp,
 } from "./harness.mjs";
@@ -82,8 +83,11 @@ async function main() {
 
   if (!process.env.SKIP_BUILD) build();
   const showrunner = await startShowrunner();
+  // The model providers a key is checked against, on loopback (BYOK_STUB_ORIGIN): a fake key connects, nothing leaves here.
+  const providerStub = await startProviderStub();
   const port = await freePort();
   const env = appEnv(showrunner.address().port, DATA_DIR);
+  env.BYOK_STUB_ORIGIN = `http://127.0.0.1:${providerStub.address().port}`;
   // An admin password for this run only, so the admin pages can be signed in to (built from parts, never a real secret).
   const ADMIN_PASSWORD = ["e2e", "admin", Math.random().toString(36).slice(2)].join("-");
   env.FRONTIER_PASSWORD = ADMIN_PASSWORD;
@@ -580,17 +584,25 @@ async function main() {
       await page.getByText(`plus ${SAMPLE_PACK.episodes} topped up`).waitFor({ timeout: 10_000 });
     });
 
-    await step("brings their own model key, shown only by its last four", async () => {
-      const apiKey = ["AIza", "e2e", "0".repeat(28), "L4st"].join(""); // fake, built from parts
-      await page.goto(`${base}/account`);
-      await page.getByRole("heading", { name: "Your model key (optional)" }).waitFor();
-      await page.locator("#model-key details").first().locator("summary").click(); // each key is folded to its status line
-      await page.locator('select[name="provider"]').selectOption("google");
-      await page.locator('input[name="key"]').first().fill(apiKey); // the text-key form (an image-key form follows)
-      await page.getByRole("button", { name: "Save key", exact: true }).click();
-      await page.getByText("····L4st").waitFor({ timeout: 10_000 });
+    await step("connects their own model key on Connections: tested live, then shown only by its last four", async () => {
+      const apiKey = ["e2e", "key", "not", "real", "L4st"].join("-"); // fake, built from parts; checked by the local stub
+      await page.goto(`${base}/account/keys`);
+      await page.getByRole("heading", { name: "Connections", level: 1 }).waitFor();
+      const dates = page.locator("#dates");
+      await dates.getByRole("button", { name: "Connect", exact: true }).click();
+      await dates.locator(".connect-provider", { hasText: "Google" }).click();
+      await dates.locator('input[type="password"]').fill(apiKey);
+      await dates.getByRole("button", { name: "Test" }).click();
+      await dates.getByText("Google accepted it").waitFor({ timeout: 10_000 });
+      await dates.getByRole("button", { name: "Save" }).click();
+      await dates.getByText("Your Google key ✓").waitFor({ timeout: 10_000 });
+      await page.getByText("•••• L4st").first().waitFor();
       const shown = await page.content();
       assert(!shown.includes(apiKey), "the full API key must never be shown back");
+      // The account page sums it up and links here.
+      await page.goto(`${base}/account`);
+      await page.getByRole("heading", { name: "Connections (optional)" }).waitFor();
+      await page.getByText("Your Google key ✓").first().waitFor({ timeout: 10_000 });
     });
 
     await step("changes who can see a date, and it persists", async () => {
@@ -660,6 +672,7 @@ async function main() {
     await browser.close();
     await stopApp(app);
     showrunner.close();
+    providerStub.close();
     rmSync(DATA_DIR, { recursive: true, force: true });
   }
 

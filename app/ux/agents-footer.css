@@ -401,28 +401,316 @@
     min-height: 44px;
   }
 }
-/* The three keys, each one status line until opened. */
-.account-key {
-  border-top: 1px solid var(--line);
+/* Connections on the account page: one line per job, the rest on /account/keys. */
+.account-connections {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3) 0;
+  display: grid;
+  gap: var(--space-1);
 }
-.account-key:last-of-type {
-  border-bottom: 1px solid var(--line);
-}
-.account-key > summary {
-  flex-wrap: wrap;
-}
-.account-key > summary .muted {
+.account-connections li {
   overflow-wrap: anywhere;
 }
-.account-key[open] {
-  padding-bottom: var(--space-3);
+.account-connections li.is-error .muted {
+  color: var(--bad-text);
 }
 
-/* ---------------- /account/keys ---------------- */
+/* ---------------- /account/keys: Connections (docs/PRDs/connections.md) ---------------- */
 .byok-model-note {
   display: block;
   margin-top: var(--space-1);
   font-weight: 400;
+}
+/* One card per job (app/account/keys/ConnectionCard.tsx), two across where there's room, one on a phone. The admin's
+   After Dark providers view uses the same cards. */
+.connection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+.connection-grid > .card {
+  margin: 0;
+}
+.connection-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-top: 3px solid var(--line);
+}
+.connection-card.tone-ok {
+  border-top-color: var(--ok);
+}
+.connection-card.tone-error {
+  border-top-color: var(--bad);
+}
+.connection-card.tone-warn,
+.connection-card.tone-paused {
+  border-top-color: var(--warn);
+}
+.connection-card.tone-checking {
+  border-top-color: var(--accent);
+}
+.connection-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-3);
+}
+.connection-titles {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.connection-titles h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+.connection-titles p {
+  margin: var(--space-1) 0 0;
+}
+.connection-pill {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.connection-pill.tone-ok {
+  background: color-mix(in srgb, var(--ok) 16%, var(--card));
+  color: var(--ok-text);
+}
+.connection-pill.tone-error {
+  background: color-mix(in srgb, var(--bad) 14%, var(--card));
+  color: var(--bad-text);
+}
+.connection-pill.tone-warn,
+.connection-pill.tone-paused {
+  background: color-mix(in srgb, var(--warn) 16%, var(--card));
+  color: var(--warn);
+}
+.connection-pill.tone-checking {
+  color: var(--accent-text);
+}
+.connection-status,
+.connection-meta,
+.connection-error {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.connection-status {
+  font-weight: 600;
+}
+.connection-error {
+  color: var(--bad-text);
+  font-weight: 600;
+}
+.connection-error a,
+.byok-status a {
+  color: inherit;
+}
+.connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+.connection-actions > button,
+.connection-actions > a {
+  margin: 0;
+}
+.byok-status {
+  margin: var(--space-2) 0 0;
+  font-weight: 600;
+}
+.byok-status.ok {
+  color: var(--ok-text);
+}
+.byok-status.err {
+  color: var(--bad-text);
+}
+/* A provider's text mark (app/account/keys/ProviderMark.tsx): its letters on its colour. The colours are each provider's
+   own (data, not theme), set once here; white letters clear 4.5:1 on every one. */
+.provider-mark {
+  display: block;
+  flex: none;
+}
+.provider-mark-tile {
+  fill: var(--mark, var(--soft));
+  stroke: color-mix(in srgb, var(--ink) 14%, transparent);
+  stroke-width: 1;
+}
+.provider-mark-text {
+  fill: var(--mark-ink, #fff);
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.provider-mark[data-provider="none"] {
+  --mark: var(--soft);
+  --mark-ink: var(--accent-text);
+}
+.provider-mark[data-provider="openrouter"] {
+  --mark: #4f46e5;
+}
+.provider-mark[data-provider="openai"] {
+  --mark: #0d7a5f;
+}
+.provider-mark[data-provider="google"] {
+  --mark: #1a5fc8;
+}
+.provider-mark[data-provider="anthropic"] {
+  --mark: #a8482a;
+}
+.provider-mark[data-provider="deepseek"] {
+  --mark: #3451d1;
+}
+.provider-mark[data-provider="groq"] {
+  --mark: #c2410c;
+}
+.provider-mark[data-provider="venice"] {
+  --mark: #8b1d3b;
+}
+.provider-mark[data-provider="replicate"] {
+  --mark: #262626;
+}
+.provider-mark[data-provider="fal"] {
+  --mark: #6d28d9;
+}
+.provider-mark[data-provider="hive"] {
+  --mark: #92570a;
+}
+.provider-mark[data-provider="after-dark"] {
+  --mark: #2d1b4e;
+}
+/* The connect flow, under its card (app/account/keys/KeyForm.tsx): provider, key, Test, model, Save. */
+.connect-flow {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.connect-step {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.connect-step legend {
+  margin-bottom: var(--space-2);
+  font-weight: 700;
+}
+.connect-providers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-2);
+}
+.connect-provider {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  padding: var(--space-2) var(--space-3);
+  border: var(--control-border) solid var(--line);
+  border-radius: var(--control-radius);
+  cursor: pointer;
+}
+.connect-provider.is-picked {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.connect-provider > span {
+  display: grid;
+  min-width: 0;
+}
+.connect-choice {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+.connect-key,
+.connect-model {
+  display: grid;
+  gap: var(--space-1);
+}
+.connect-check {
+  margin: 0;
+}
+.connect-also {
+  display: block;
+  margin-top: var(--space-1);
+}
+.connect-flow .byok-actions > button {
+  margin: 0;
+}
+/* Your keys: one line each, Stripe's keys list. */
+.connection-keys {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.connection-key {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.connection-key:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.connection-key-body p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.connection-key-body .connection-pill {
+  margin-left: var(--space-2);
+}
+.connection-key-mask {
+  margin-left: var(--space-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.connection-key-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.connection-key-actions > button,
+.connection-replace button {
+  margin: 0;
+}
+.connection-replace {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.connection-replace label {
+  display: grid;
+  flex: 1 1 14rem;
+  gap: var(--space-1);
+}
+@media (max-width: 560px) {
+  .connection-key {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .connection-key-actions {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
 }
 
 /* ---------------- /swipe ---------------- */
