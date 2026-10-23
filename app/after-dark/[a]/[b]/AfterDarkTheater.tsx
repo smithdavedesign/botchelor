@@ -12,6 +12,8 @@ import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { PLACE_LABEL_MAX, venueName, type PlaceId } from "@/lib/venues";
 import { useSteadySet } from "./useSteadySet";
+import { TheaterListen } from "./Listen";
+import { ClipHere } from "./MediaMenu";
 
 /** A scene line as a date turn: the leading *action* apart from what they say. */
 export function lineToTurn(l: SceneLine): Turn {
@@ -115,7 +117,8 @@ export default function AfterDarkTheater({
   const turns = useMemo(() => scene.lines.map(lineToTurn), [scene.lines]);
   // Live: playback waits at the newest line and carries on as the next ones are written.
   const [startAt] = useState(() => (live ? Math.max(0, scene.lines.length - 6) : 0));
-  const replay = useReplay(turns, true, { live, startAt });
+  const [listenHold, setListenHold] = useState(false);
+  const replay = useReplay(turns, true, { live, startAt, hold: listenHold });
   const [convo, setConvo] = useState(false);
   const [direction, setDirection] = useState("");
   const [moving, setMoving] = useState(false);
@@ -201,6 +204,8 @@ export default function AfterDarkTheater({
             >
               📜
             </button>
+            <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} />
+            <ClipHere a={a.id} b={b.id} at={shown.length - 1} nightId={live ? null : feedbackRef} />
             {onMakeVideo && (
               <button
                 type="button"
