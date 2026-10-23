@@ -12,6 +12,7 @@ import type { Db } from "../db";
 import { authFromCookieStore, authFromRequest } from "../http";
 import { openAICompatibleModel, type Model } from "../model";
 import { canAfterDark } from "./entitlement";
+import { lockedForCookies, lockedForRequest } from "./privacy";
 import { adultKeys, cloudReady, getAdultSettings } from "./settings";
 
 /** Ollama's OpenAI-compatible endpoint on this machine, and an open model that writes adult fiction. */
@@ -111,15 +112,19 @@ export async function signedInAdmin(db: Db, auth: { userId: string; authenticate
 
 /**
  * The viewer's user id when after dark may open for them (lib/adult/entitlement.ts: an admin, or a subscribed and
- * age-checked account) and it's available here; null for everyone and everything else.
+ * age-checked account) and it's available here; null for everyone and everything else. Null too on a device that
+ * hasn't entered the account's PIN (lib/adult/privacy.ts): every After Dark API and the media route ask here, so a
+ * locked device gets the same not-found as a stranger.
  */
 export async function adultViewer(db: Db, req: Request): Promise<string | null> {
   const auth = authFromRequest(req);
-  return (await canAfterDark(db, auth)).ok && (await adultAvailable(db)) ? auth!.userId : null;
+  if (!(await canAfterDark(db, auth)).ok || !(await adultAvailable(db))) return null;
+  return (await lockedForRequest(db, auth!.userId, req)) ? null : auth!.userId;
 }
 
-/** The same, for a server page (its cookie store). */
+/** The same, for a server page (its cookie store). A locked device's page sees null; its layout asks for the PIN. */
 export async function adultViewerFromCookies(db: Db, store: { get(name: string): { value: string } | undefined }): Promise<string | null> {
   const auth = authFromCookieStore(store);
-  return (await canAfterDark(db, auth)).ok && (await adultAvailable(db)) ? auth!.userId : null;
+  if (!(await canAfterDark(db, auth)).ok || !(await adultAvailable(db))) return null;
+  return (await lockedForCookies(db, auth!.userId, store)) ? null : auth!.userId;
 }

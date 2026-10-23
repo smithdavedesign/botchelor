@@ -5136,8 +5136,51 @@ body:has(.feedback-fab) .site-footer {
   box-shadow: none;
 }
 
+/* "Install the app" (app/InstallHint.tsx, lib/pwa.ts): phones only, once, never on After Dark. Where the beta
+   prompt sits, above the floating button, and it steps aside with it (below); the beta prompt goes first when both are due. */
+.install-hint {
+  position: fixed;
+  left: max(var(--gutter), env(safe-area-inset-left));
+  right: max(var(--gutter), env(safe-area-inset-right));
+  bottom: calc(max(var(--space-4), env(safe-area-inset-bottom)) + 2.75rem + var(--space-3));
+  z-index: 16;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  max-width: 30rem;
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  animation: feedback-rise 0.25s ease-out;
+}
+.install-hint img {
+  border-radius: 9px;
+}
+.install-hint p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.35;
+}
+.install-hint p strong {
+  display: block;
+}
+.install-hint button {
+  margin: 0;
+}
+.install-hint .install-hint-how {
+  grid-column: 1 / -1;
+  padding: 0 var(--space-2) var(--space-1) 0;
+}
+body:has(.beta-toast) .install-hint {
+  display: none;
+}
+
 /*
- * Where the floating button and the beta prompt would cover the show's own controls, both step aside. The one list
+ * Where the floating button, the beta prompt and the install hint would cover the show's own controls, they step aside. The one list
  * (app/FeedbackDock.tsx relies on it, and counts the prompt as shown only once it's really on screen), so a new
  * full-screen view only needs adding here:
  *   html.theater-lock              the watch room's full-screen theater (app/watch/[id]/WatchRoom.tsx)
@@ -5172,7 +5215,7 @@ body:has(.feedback-fab) .site-footer {
         .nav-backdrop
       )
   )
-  :is(.feedback-fab, .beta-toast) {
+  :is(.feedback-fab, .beta-toast, .install-hint) {
   display: none;
 }
 

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { signedInAdmin } from "@/lib/adult/mode";
 import { getAdultSettings, PROMPT_VERSIONS, saveAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
+import { lockedForRequest } from "@/lib/adult/privacy";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 
 const Input = z.object({
@@ -27,17 +28,24 @@ const Input = z.object({
   reel_tokens: z.number().int().min(0).max(500).optional(),
 });
 
+/** A signed-in admin on a device that isn't locked by their PIN (lib/adult/privacy.ts). */
+async function unlockedAdmin(req: Request) {
+  const db = await getDb();
+  const admin = await signedInAdmin(db, authFromRequest(req));
+  return { db, ok: Boolean(admin) && !(await lockedForRequest(db, admin!, req)) };
+}
+
 /** After dark's settings: a signed-in admin only, even while it's off (that's where it's turned on). */
 export const GET = handle(async (req: Request) => {
-  const db = await getDb();
-  if (!(await signedInAdmin(db, authFromRequest(req)))) return json({ error: "not_found" }, 404);
+  const { db, ok } = await unlockedAdmin(req);
+  if (!ok) return json({ error: "not_found" }, 404);
   const requests = (await db.query(`select id, agent_id, client_name, reason, created_at from adult_access_requests order by created_at desc limit 50`)).rows;
   return json({ settings: await getAdultSettings(db), requests });
 });
 
 export const POST = handle(async (req: Request) => {
-  const db = await getDb();
-  if (!(await signedInAdmin(db, authFromRequest(req)))) return json({ error: "not_found" }, 404);
+  const { db, ok } = await unlockedAdmin(req);
+  if (!ok) return json({ error: "not_found" }, 404);
   const input = parseBody(Input, await readJson(req), "invalid_settings");
   return json({ settings: await saveAdultSettings(db, input) });
 });

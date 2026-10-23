@@ -1580,6 +1580,20 @@ alter table episodes add column if not exists last_posted_discord_at timestamptz
 alter table episodes add column if not exists last_posted_bluesky_at timestamptz;
 alter table episodes add column if not exists last_posted_x_at timestamptz;
 
+-- After Dark's discreet mode (lib/adult/privacy.ts): blur its pictures until tapped and a neutral tab title (both on
+-- by default), and an optional PIN kept only as a slow salted hash (scrypt), never the PIN. pin_version changes with
+-- every new or removed PIN, which signs every device out; the wrong tries and the wait they set live here too.
+create table if not exists adult_privacy (
+  user_id text primary key,
+  blur boolean not null default true,
+  neutral_title boolean not null default true,
+  pin_hash text,
+  pin_version integer not null default 0,
+  pin_failures integer not null default 0,
+  pin_locked_until timestamptz,
+  updated_at timestamptz not null default now()
+);
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (
