@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { guardTotals, nightLines, NEW_CHARACTER, parseArms, parseCharacter, parseSteers, scoreNight } from "../scripts/sim-after-dark.mjs";
+import { armLabel, guardTotals, nightLines, NEW_CHARACTER, parseArms, parseCharacter, parsePenalties, parseSteers, scoreNight } from "../scripts/sim-after-dark.mjs";
 
 // The After Dark model simulation's scoring (scripts/sim-after-dark.mjs): pure functions over what a run saved.
 describe("the After Dark simulation's night", () => {
@@ -118,6 +118,19 @@ describe("the After Dark simulation's inputs", () => {
     ]);
     // The default run: no hosts anywhere, so every model keeps the app's reviewed two.
     expect(parseArms("cognitivecomputations/dolphin-mistral-24b-venice-edition,deepseek/deepseek-chat-v3.1", undefined).map((a) => a.hosts)).toEqual([null, null]);
+  });
+
+  it("gives each model its own penalties in --models' order, the app's own where a place is empty, and names them in the key", () => {
+    expect(parsePenalties("0.3,0", 2)).toEqual([0.3, 0]);
+    expect(parsePenalties(",0", 2)).toEqual([null, 0]);
+    expect(parsePenalties("", 2)).toEqual([null, null]);
+    expect(parsePenalties(undefined, 1)).toEqual([null]);
+    expect(() => parsePenalties("0,0,0", 2)).toThrow(/3 values for 2 models/);
+    expect(() => parsePenalties("lots", 1)).toThrow(/isn't a number from -2 to 2/);
+    expect(() => parsePenalties("3", 1)).toThrow(/from -2 to 2/);
+    // The same model twice reads as two runs in the key.
+    expect(armLabel({ model: "deepseek/deepseek-chat-v3.1", hosts: ["coreweave", "deepinfra"], penalty: 0 })).toBe("deepseek/deepseek-chat-v3.1 (penalties 0) @ coreweave, deepinfra");
+    expect(armLabel({ model: "deepseek/deepseek-chat-v3.1", hosts: null, penalty: null })).toBe("deepseek/deepseek-chat-v3.1");
   });
 
   it("takes another character in NEW_CHARACTER's shape, and names what a save is missing", () => {
