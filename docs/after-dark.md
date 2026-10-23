@@ -1348,3 +1348,53 @@ only: not in a dataset or an export.
 
 **Screenshots** (`SHOTS=sides npm run screenshots:after-dark-shorts`, the stand-in writer sends PG pages):
 `docs/screenshots/after-dark-sides-*.png`: a Short's two sides, and the owner's 🌗 panel.
+
+## A video of the whole night (2026-10-23)
+
+**What David saw.** A pair's scene was on chapter 2 with 8 lines; chapter 1, the night's main events, was saved in
+`adult_nights` and its recap was on the scene. Both videos he made were cut from chapter 2's 8 lines only. The cause:
+`reelNight` read "the running scene, or one saved night", so a reel filmed one chapter, and the director only picked
+from those lines.
+
+**What a night is.** The same rule Shorts use (`groupNights`, now in `lib/adult/nights.ts`): chapter 1 (or an
+unnumbered night from before chapters) starts a night, chapter n+1 filed after chapter n carries it on, and the night is
+still running while the scene is on the chapter after its last saved one. Start over files the chapter that ran and sets
+the scene back to chapter 1 (its `adult_steps` row is `kind: "reset"`), which ends the night. A gap in the chapters (one
+rewound away) never joins two nights. Nothing new identifies a night: it's the chapter numbers and the filing order.
+
+**The scope** (`reelNight(…, scope)`, `lib/adult/reels.ts`):
+- **`chapter`:** as before. The running scene's chapter, or one saved chapter by `night_id`.
+- **`night`:** every chapter of the night, in order: the running night's saved chapters and the scene's own (when it has
+  lines), or, from a saved chapter, every chapter of its night (and the scene's when that night is still running).
+- **Stitched:** the lines run on, numbered across the chapters. Each line's place comes from its own chapter (its start
+  and the lines that agreed to go), and so does its stage. `where` is the latest chapter's, and the place history is the
+  night's: it carries across chapters, and Start over clears it.
+- **Recorded as a night** only when it spans more than one chapter. One chapter is a chapter, whichever was asked.
+
+**The director** (`pickShots`): with more than one chapter, every row says its chapter
+(`index | chapter | who | where | stage | line`), and the prompt gives each chapter's line range. It asks for the
+strongest moments across the whole night (the opening, the build, the peak, the close), from every chapter (at least one
+from each when there are enough shots), not only the latest.
+- **A long night:** past 160 lines (`DIRECTOR_MAX_LINES`), the lines are first cut fairly across the chapters
+  (`acrossChapters`: each chapter gets at least one and about its share, then the same spread, weighted past the middle,
+  within each), so an early chapter is never dropped. One chapter is filed at about 120 lines, so a chapter alone is
+  always shown whole.
+- **The fallback** (a reply that can't be read) spreads per chapter the same way.
+- **Each shot** keeps its own chapter's place (the set as Picture 3), stage and outfit. On the row, its shots carry
+  `chapter`, `night_id` (null when it was the running scene's) and `chapter_line`.
+
+**The choice** (the theater's 🎬 Video, `VideoChoice.tsx`): with more than one chapter it opens two choices, "The whole
+night (chapters 1–N)" and "This chapter", each with its chapters, lines and price (the same `reel_tokens`), the whole
+night picked to begin with. With one chapter it's one button, as before. A saved chapter's 🎬 Video under Their nights
+films that chapter (`scope: "chapter"`).
+- **The route:** `POST /api/admin/after-dark/reel` takes `scope` (`night` by default).
+- **MCP:** `after_dark_reel` takes `scope` too (`night` by default).
+- **Their videos:** each video says what it filmed, "Whole night, chapters 1–2" or "Chapter 2" (not on videos from
+  before this).
+
+**Shorts:** a whole-night video is the night's video for the chapters it filmed (`filmedNight`: every shot that came
+through says its own chapter's line, by the same one of them; a chapter filmed while it was running is the chapter of
+that number filed since). Chapters it didn't film take their own chapter's newest video, as before.
+
+New columns, additive: `adult_reels.scope` (`chapter` or `night`) and `adult_reels.chapters` (jsonb: each chapter's
+number, saved night id or null, and line count). Both are null on reels from before, and on clips.

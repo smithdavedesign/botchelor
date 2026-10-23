@@ -52,6 +52,7 @@ import { adultModel } from "./mode";
 import { REEL_STALLED_MS } from "./reel-timing";
 import { cancelPrediction, createPrediction, downloadOutput, getPrediction, isDone, noOutput, outputUrls, ReplicateError, runModel, type Prediction, type ReplicateFile } from "./replicate";
 import { dropForeignActions, eligiblePair, type SceneLine } from "./scenes";
+import { groupNights, type NightChapter } from "./nights";
 import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
 import { STAGES } from "./stages";
 
@@ -136,6 +137,13 @@ export type ReelShot = {
    */
   frame_provider?: MediaProvider;
   fell_back?: boolean;
+  /**
+   * In a reel of the whole night (scope "night"), the chapter its line is from: its number, its saved night (null: the
+   * running scene's when the reel was made), and the line's index in that chapter (`line` counts across the night).
+   */
+  chapter?: number | null;
+  night_id?: string | null;
+  chapter_line?: number;
 };
 /**
  * A clip (lib/adult/clips.ts): one shot made on request, from the menu's act or the scene's latest moment, and the clip
@@ -153,6 +161,9 @@ export type Reel = {
   clip?: ClipMeta | null;
   a?: string;
   b?: string;
+  /** A night's reel: one chapter or the whole night, and the chapters it filmed (null: made before it was recorded). */
+  scope?: ReelScope | null;
+  chapters?: ReelChapter[] | null;
 };
 
 type Fetch = typeof fetch;
@@ -275,22 +286,101 @@ export function placeWords(place: string, cast: readonly ReelPerson[]): string {
 export type ReelWhere = { place: string | null; set: string | null; history: readonly PlaceStop[]; date: string | null; stage: number };
 
 /**
- * The night a reel films and where it happened: the running scene, or one of the pair's saved nights. Read here rather
- * than through openScene, whose lines (the page's copy) leave out `moved_to`, where they went. No lines when the pair
- * has no scene yet; null for a pair outside this person's after dark, or someone else's night.
+ * What a reel films: one chapter (the running scene's, or one saved chapter), or the whole night, every chapter since
+ * it began (lib/adult/nights.ts: the saved chapters filed one after another since the last Start over, then the scene's
+ * own). David, 2026-10-23: a video made on chapter 2's eight lines showed nothing of chapter 1, the night's main events.
  */
-export async function reelNight(db: Db, ownerId: string, x: string, y: string, nightId?: string | null): Promise<{ lines: SceneLine[]; where: ReelWhere } | null> {
+export type ReelScope = "chapter" | "night";
+export const REEL_SCOPES = ["chapter", "night"] as const;
+
+/** One chapter a reel filmed: its number, the saved night it's filed as (null: the running scene's), and its line count. */
+export type ReelChapter = NightChapter;
+
+/**
+ * The lines a reel films and where each was said. `lines` runs across the chapters in order (a line's index is its
+ * place in all of them); `places` and `stages` are each line's own, from its own chapter; `chapterOf` is each line's
+ * index in `chapters`. `where` is stitched across them: where the night began, where it is now, every stop between.
+ */
+export type ReelNight = {
+  lines: SceneLine[];
+  where: ReelWhere;
+  scope: ReelScope;
+  chapters: ReelChapter[];
+  places: (string | null)[];
+  stages: number[];
+  chapterOf: number[];
+};
+
+type NightPart = {
+  id: string | null;
+  lines: SceneLine[] | null;
+  place: string | null;
+  set_place: string | null;
+  place_history: PlaceStop[] | null;
+  stage: number | null;
+  date_setting: string | null;
+  chapter: number | null;
+  created_at: string | Date;
+};
+const PART_COLUMNS = "id, lines, place, set_place, place_history, stage, date_setting, chapter, created_at";
+
+/**
+ * The night a reel films and where it happened: by default one chapter (the running scene, or one of the pair's saved
+ * nights by `nightId`); with scope "night", every chapter of the night that one belongs to (the running scene's: its
+ * saved chapters and its own; a saved chapter's: its night's chapters, and the scene's when that night is still
+ * running). Read here rather than through openScene, whose lines (the page's copy) leave out `moved_to`, where they
+ * went. No lines when the pair has no scene yet; null for a pair outside this person's after dark, or someone else's night.
+ */
+export async function reelNight(db: Db, ownerId: string, x: string, y: string, nightId?: string | null, scope: ReelScope = "chapter"): Promise<ReelNight | null> {
   const pair = await eligiblePair(db, ownerId, x, y);
   if (!pair) return null;
-  type Row = { lines: SceneLine[] | null; place: string | null; set_place: string | null; place_history: PlaceStop[] | null; stage: number | null; date_setting: string | null };
-  const row = nightId
-    ? (await db.query<Row>(`select lines, place, set_place, place_history, stage, date_setting from adult_nights where id = $1 and owner_id = $2 and character_a = $3 and character_b = $4`, [nightId, ownerId, ...pair])).rows[0]
-    : (await db.query<Row>(`select lines, place, set_place, place_history, stage, null as date_setting from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`, [ownerId, ...pair])).rows[0];
-  if (!row && nightId) return null;
-  return {
-    lines: (row?.lines ?? []).map((l) => ({ ...l, text: dropForeignActions(l.text) })),
-    where: { place: row?.place ?? null, set: row?.set_place ?? null, history: row?.place_history ?? [], date: row?.date_setting ?? null, stage: row?.stage ?? 0 },
-  };
+  const sceneRow = (
+    await db.query<NightPart>(
+      `select null as id, lines, place, set_place, place_history, stage, null as date_setting, chapter, updated_at as created_at from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`,
+      [ownerId, ...pair],
+    )
+  ).rows[0];
+  let parts: NightPart[];
+  if (scope === "chapter") {
+    if (nightId) {
+      const row = (await db.query<NightPart>(`select ${PART_COLUMNS} from adult_nights where id = $1 and owner_id = $2 and character_a = $3 and character_b = $4`, [nightId, ownerId, ...pair])).rows[0];
+      if (!row) return null;
+      parts = [row];
+    } else parts = sceneRow ? [sceneRow] : [];
+  } else {
+    const saved = (await db.query<NightPart & { id: string }>(`select ${PART_COLUMNS} from adult_nights where owner_id = $1 and character_a = $2 and character_b = $3 order by created_at, chapter nulls first, id`, [ownerId, ...pair])).rows;
+    const groups = groupNights(saved, sceneRow ? { chapter: sceneRow.chapter ?? 1 } : null);
+    const scenePart = sceneRow?.lines?.length ? [sceneRow] : [];
+    if (nightId) {
+      const g = groups.find((n) => n.rows.some((r) => r.id === nightId));
+      if (!g) return null;
+      parts = [...g.rows, ...(!g.complete && g === groups.at(-1) ? scenePart : [])];
+    } else {
+      const latest = groups.at(-1);
+      parts = [...(latest && !latest.complete ? latest.rows : []), ...scenePart];
+      if (!parts.length && sceneRow) parts = [sceneRow];
+    }
+  }
+  return stitchNight(parts, scope);
+}
+
+/** The chapters as one night: their lines in order, each with its own chapter's places and stages; `where` across them. */
+function stitchNight(parts: readonly NightPart[], asked: ReelScope): ReelNight {
+  const out: ReelNight = { lines: [], where: { place: null, set: null, history: [], date: null, stage: 0 }, scope: "chapter", chapters: [], places: [], stages: [], chapterOf: [] };
+  for (const [k, p] of parts.entries()) {
+    const lines = (p.lines ?? []).map((l) => ({ ...l, text: dropForeignActions(l.text) }));
+    const where: ReelWhere = { place: p.place ?? null, set: p.set_place ?? null, history: p.place_history ?? [], date: p.date_setting ?? null, stage: p.stage ?? 0 };
+    out.lines.push(...lines);
+    out.places.push(...placesOf(lines, where));
+    out.stages.push(...lines.map((l) => l.stage ?? where.stage));
+    out.chapterOf.push(...lines.map(() => k));
+    out.chapters.push({ chapter: p.chapter ?? null, night_id: p.id ?? null, lines: lines.length });
+    // Where it is now is the latest chapter's; the place history carries on across a night's chapters (Start over
+    // clears it), so the latest chapter's copy holds every stop since the night began.
+    out.where = { ...where, history: where.history.length >= out.where.history.length ? where.history : out.where.history, date: out.where.date ?? where.date };
+  }
+  out.scope = asked === "night" && out.chapters.length > 1 ? "night" : "chapter";
+  return out;
 }
 
 /**
@@ -325,9 +415,83 @@ export const motionOf = (cast: readonly ReelPerson[], speaker: ReelPerson, actio
   action ? `${cap(speaker.tag)} ${withoutNames(action[0].toLowerCase() + action.slice(1), cast).replace(/[.!]+$/, "")}, and the other answers it.` : "The two of them stay close, moving together.";
 
 /**
+ * The most lines the director is shown. A chapter is filed at about 120 (lib/adult/scenes.ts CHAPTER_LINES), so one
+ * chapter is always shown whole; a longer night is cut to this many first, fairly across its chapters.
+ */
+export const DIRECTOR_MAX_LINES = 160;
+
+/** `k` of `items` spread across them, more of them past the middle where a night peaks (fewer when two land on one). */
+function spread<T>(items: readonly T[], k: number): T[] {
+  const out: T[] = [];
+  for (let j = 0; j < k; j++) {
+    const t = k === 1 ? 0.6 : Math.pow(j / (k - 1), 0.8);
+    const pick = items[Math.min(items.length - 1, Math.round(t * (items.length - 1)))];
+    if (pick !== undefined && !out.includes(pick)) out.push(pick);
+  }
+  return out;
+}
+
+/** Exactly `k` of `items` (all of them when there are no more), spread as `spread` does and kept in order. */
+function spreadFull<T>(items: readonly T[], k: number): T[] {
+  if (k >= items.length) return [...items];
+  const out = spread(items, k);
+  // Two landed on one: the rest from the end back, past the middle where it peaks.
+  for (let i = items.length - 1; out.length < k && i >= 0; i--) if (!out.includes(items[i])) out.push(items[i]);
+  return items.filter((x) => out.includes(x));
+}
+
+/**
+ * `total` shared out across groups of these sizes, as near their share as it goes and never more than a group has:
+ * every group with something in it gets at least one when there's enough to go round (otherwise they go to groups
+ * spread across the night, past the middle).
+ */
+export function shareOut(sizes: readonly number[], total: number): number[] {
+  const live = sizes.map((n, k) => ({ n, k })).filter((g) => g.n > 0);
+  const out = sizes.map(() => 0);
+  const sum = live.reduce((t, g) => t + g.n, 0);
+  if (!sum || total <= 0) return out;
+  if (total >= sum) return [...sizes];
+  if (total < live.length) {
+    for (const g of spread(live, total)) out[g.k] = 1;
+    return out;
+  }
+  for (const g of live) out[g.k] = 1;
+  const rest = total - live.length;
+  let left = rest;
+  // The rest by share, then the largest remainders.
+  const share = live.map((g) => ({ ...g, share: ((g.n - 1) * rest) / (sum - live.length) }));
+  for (const g of share) {
+    const whole = Math.min(g.n - 1, Math.floor(g.share));
+    out[g.k] += whole;
+    left -= whole;
+  }
+  for (const g of [...share].sort((p, q) => q.share - Math.floor(q.share) - (p.share - Math.floor(p.share)))) {
+    if (left > 0 && out[g.k] < g.n) {
+      out[g.k]++;
+      left--;
+    }
+  }
+  for (const g of share) while (left > 0 && out[g.k] < g.n) (out[g.k]++, left--);
+  return out;
+}
+
+/** `n` of these, fairly across their chapters (`chapterOf`), spread within each one: no chapter dropped for being early. */
+export function acrossChapters<T extends { i: number }>(items: readonly T[], n: number, chapterOf: readonly number[]): T[] {
+  const ids = [...new Set(items.map((x) => chapterOf[x.i] ?? 0))].sort((p, q) => p - q);
+  const by = ids.map((c) => items.filter((x) => (chapterOf[x.i] ?? 0) === c));
+  const quota = shareOut(by.map((g) => g.length), n);
+  return by.flatMap((g, k) => (quota[k] ? spreadFull(g, quota[k]) : []));
+}
+
+/** What the director needs to know of a night of several chapters: each line's chapter, and the chapters' numbers. */
+export type DirectorNight = { chapterOf: readonly number[]; chapters: readonly Pick<ReelChapter, "chapter">[] };
+
+/**
  * The shots a reel is made of: the director's pick of the strongest moments across the night, in order, each written
  * as a still of the two of them and what they do next. Falls back to lines spread across the night, weighted past the
  * middle, with a still from how far the night had gone and the line's own action, when the model's pick can't be read.
+ * With `night` (a reel of a whole night of chapters), every line is numbered across the chapters and labelled by its
+ * own; a night too long to show whole is cut fairly across its chapters first, and the fallback spreads per chapter.
  */
 export async function pickShots(
   db: Db,
@@ -336,15 +500,33 @@ export async function pickShots(
   cast: [ReelPerson, ReelPerson],
   places: readonly (string | null)[],
   stages: readonly number[],
+  night?: DirectorNight | null,
 ): Promise<ShotPick[]> {
-  const usable = lines.map((l, i) => ({ i, ...spoken(l.text) })).filter((l) => l.speech.split(" ").length >= 3);
-  if (!usable.length) return [];
-  const want = Math.min(n, usable.length);
+  const all = lines.map((l, i) => ({ i, ...spoken(l.text) })).filter((l) => l.speech.split(" ").length >= 3);
+  if (!all.length) return [];
+  const want = Math.min(n, all.length);
+  const several = Boolean(night && night.chapters.length > 1);
+  const chapterOf = night?.chapterOf ?? lines.map(() => 0);
+  const chapterName = (i: number) => {
+    const c = night?.chapters[chapterOf[i] ?? 0];
+    return typeof c?.chapter === "number" ? `chapter ${c.chapter}` : `part ${(chapterOf[i] ?? 0) + 1}`;
+  };
+  // Too long to show whole: the same spread, per chapter, so every chapter is still there to pick from.
+  const usable = all.length > DIRECTOR_MAX_LINES ? acrossChapters(all, DIRECTOR_MAX_LINES, chapterOf) : all;
   const speaker = (i: number) => cast[lines[i].who === "a" ? 0 : 1];
   try {
-    const list = usable
-      .map((l) => `${l.i} | ${speaker(l.i).tag} | ${places[l.i] ? placeWords(places[l.i]!, cast) : "?"} | ${STAGES[stages[l.i]] ?? "?"} | ${l.action ? `(${l.action}) ` : ""}${l.speech}`)
-      .join("\n");
+    const row = (l: (typeof usable)[number]) =>
+      [String(l.i), ...(several ? [chapterName(l.i)] : []), speaker(l.i).tag, places[l.i] ? placeWords(places[l.i]!, cast) : "?", STAGES[stages[l.i]] ?? "?", `${l.action ? `(${l.action}) ` : ""}${l.speech}`].join(" | ");
+    const list = usable.map(row).join("\n");
+    const spans = several
+      ? night!.chapters
+          .map((_, k) => {
+            const own = all.filter((l) => chapterOf[l.i] === k);
+            return own.length ? `${cap(chapterName(own[0].i))} is lines ${own[0].i}–${own[own.length - 1].i}` : "";
+          })
+          .filter(Boolean)
+      : [];
+    const each = want >= 4 ? ` (at least ${Math.floor(want / 3)} each)` : "";
     const raw = await (await adultModel(db)).complete(
       [
         { role: "system", content: "You direct a short film cut from a private night between two consenting adults. You pick lines from its script; you never write new dialogue." },
@@ -354,11 +536,20 @@ export async function pickShots(
             "The two of them, named only like this, never by name:",
             ...cast.map((p) => `- ${p.tag}: a ${p.noun}${p.look ? `, ${p.look}` : ""}`),
             "",
-            `The night, one line per row as "index | who says it | where | how far it's gone | (what they do) what they say":`,
+            ...(several
+              ? [
+                  `The whole night, in ${night!.chapters.length} chapters one after another, its lines numbered straight through: ${spans.join("; ")}.` +
+                    (usable.length < all.length ? " It's long, so only some of each chapter's lines are here." : ""),
+                  `One line per row as "index | chapter | who says it | where | how far it's gone | (what they do) what they say":`,
+                ]
+              : [`The night, one line per row as "index | who says it | where | how far it's gone | (what they do) what they say":`]),
             list,
             "",
-            `Pick the ${want} lines that make the best short film of this night, in order: how it starts, how it builds, its most intense moment (usually in the middle or later, not at either end) and how it lands. ` +
-              `Prefer short, vivid spoken lines, and give both of them lines${want >= 4 ? ` (at least ${Math.floor(want / 3)} each)` : ""}.`,
+            several
+              ? `Pick the ${want} lines that make the best short film of the whole night, in order: its strongest moments across all of its chapters, how it opens, how it builds, its peak (the most intense moment, wherever in the night it comes) and how it closes. ` +
+                `Take them from across the night${want >= night!.chapters.length ? ", at least one from each chapter" : ""}, not only the latest chapter. Prefer short, vivid spoken lines, and give both of them lines${each}.`
+              : `Pick the ${want} lines that make the best short film of this night, in order: how it starts, how it builds, its most intense moment (usually in the middle or later, not at either end) and how it lands. ` +
+                `Prefer short, vivid spoken lines, and give both of them lines${each}.`,
             "Every shot shows the two of them together in one frame, doing what the script has them doing at that line: its action, and the lines just before it. For each shot write:",
             `- "frame": one photograph of that moment, in one or two sentences: where they are in the place, where each of them is (one on the left or in front, the other on the right or behind) and how their bodies are posed toward each other, what's touching, what they're wearing or not by then, and the framing (wide, medium or close, varied from shot to shot; lying down, a medium shot from the side with both faces toward the camera, never from above). Both faces visible, two people only.`,
             `- "motion": one sentence: what each of them does over the next few seconds, carrying on from that photograph, as the line is said.`,
@@ -386,14 +577,9 @@ export async function pickShots(
   } catch {
     /* fall through to the spread */
   }
-  // Spread across the night, more of them past the middle where it peaks.
-  const out: ShotPick[] = [];
-  for (let k = 0; k < want; k++) {
-    const t = want === 1 ? 0.6 : Math.pow(k / (want - 1), 0.8);
-    const pick = usable[Math.min(usable.length - 1, Math.round(t * (usable.length - 1)))];
-    if (!out.some((o) => o.line === pick.i)) out.push({ line: pick.i, frame: stillOf(cast, stages[pick.i] ?? 0), motion: motionOf(cast, speaker(pick.i), pick.action) });
-  }
-  return out;
+  // Spread across the night, more of them past the middle where it peaks; a night of chapters, within each of them.
+  const picks = several ? acrossChapters(all, want, chapterOf) : spread(all, want);
+  return picks.map((pick) => ({ line: pick.i, frame: stillOf(cast, stages[pick.i] ?? 0), motion: motionOf(cast, speaker(pick.i), pick.action) }));
 }
 
 /**
@@ -826,7 +1012,8 @@ export async function stopReel(db: Db, ownerId: string, id: string, reason = "st
 /**
  * Starts a reel of a night: spends the tokens (admins free), has the director pick and write the shots, and draws,
  * checks and queues each one's keyframe. `lines` is the night (the running scene, or a saved one); `where` is where it
- * happened, for each shot's place.
+ * happened, for each shot's place. `night` is what reelNight read (pass it whole): a reel of several chapters takes each
+ * line's place and stage from its own chapter, and the row records its scope and chapters.
  */
 export async function makeReel(
   db: Db,
@@ -835,7 +1022,7 @@ export async function makeReel(
   y: string,
   lines: SceneLine[],
   baseUrl: string,
-  opts: { shots?: number; where?: ReelWhere } = {},
+  opts: { shots?: number; where?: ReelWhere; night?: Pick<ReelNight, "scope" | "chapters" | "places" | "stages" | "chapterOf"> } = {},
 ): Promise<MakeReelResult> {
   const pair = await eligiblePair(db, ownerId, x, y);
   if (!pair) return { ok: false, status: 404, error: "not_found", message: "Pick two characters who are in after dark." };
@@ -866,25 +1053,37 @@ export async function makeReel(
     if (!bases) throw new Error("a picture of each of them is needed first");
     const where = opts.where ?? { place: null, set: null, history: [], date: null, stage: 0 };
     const cast = reelCast(ca, cb, ownerId);
-    const places = placesOf(lines, where);
-    const stages = lines.map((l) => l.stage ?? where.stage);
-    const picks = await pickShots(db, lines, Math.min(12, Math.max(2, opts.shots ?? settings.reel_shots)), cast, places, stages);
+    // Each line where it was said and how far the night had gone by then, from its own chapter.
+    const night = opts.night && opts.night.places.length === lines.length ? opts.night : null;
+    const places = night?.places ?? placesOf(lines, where);
+    const stages = night?.stages ?? lines.map((l) => l.stage ?? where.stage);
+    const whole = night?.scope === "night" && night.chapters.length > 1 ? night : null;
+    const picks = await pickShots(db, lines, Math.min(12, Math.max(2, opts.shots ?? settings.reel_shots)), cast, places, stages, whole);
+    // Where each chapter starts in the night's lines, for a shot's line in its own chapter.
+    const starts = (night?.chapters ?? []).map((_, k, all) => all.slice(0, k).reduce((t, c) => t + c.lines, 0));
     const shots: ReelShot[] = [];
     for (const p of picks) {
       const l = lines[p.line];
       const { speech } = spoken(l.text);
       // Every word that will be spoken, and every direction, is held to David's lines first.
       if (!checkAdultText({ speech, frame: p.frame, motion: p.motion }).ok || crossesTaboo(`${speech} ${p.frame} ${p.motion}`)) continue;
-      shots.push({ line: p.line, who: l.who, text: speech, frame: p.frame, motion: p.motion, status: "queued", ...(onReplicate ? { provider: "replicate" as const } : {}) });
+      const k = whole?.chapterOf[p.line];
+      const from = k === undefined ? null : { chapter: whole!.chapters[k].chapter, night_id: whole!.chapters[k].night_id, chapter_line: p.line - starts[k] };
+      shots.push({ line: p.line, who: l.who, text: speech, frame: p.frame, motion: p.motion, status: "queued", ...(onReplicate ? { provider: "replicate" as const } : {}), ...(from ?? {}) });
     }
     if (!shots.length) throw new Error("no usable lines");
-    await db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots) values ($1, $2, $3, $4, 'making', $5, $6::jsonb)`, [
+    // What it filmed: one chapter, or the whole night and its chapters.
+    const scope: ReelScope = whole ? "night" : "chapter";
+    const chapters = night?.chapters ?? null;
+    await db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots, scope, chapters) values ($1, $2, $3, $4, 'making', $5, $6::jsonb, $7, $8::jsonb)`, [
       id,
       ownerId,
       a,
       b,
       pays ? price : 0,
       JSON.stringify(shots),
+      scope,
+      chapters ? JSON.stringify(chapters) : null,
     ]);
     // Both providers' details when both are set up: a shot goes to the other when the configured one is limited.
     const replicate = keys.replicate
@@ -1084,8 +1283,20 @@ export async function settleIfDone(db: Db, id: string): Promise<Reel> {
   return (await getReel(db, id))!;
 }
 
-type ReelRow = { id: string; status: Reel["status"]; tokens: number; shots: ReelShot[]; created_at: string | Date; kind: string | null; clip: ClipMeta | null; character_a: string; character_b: string };
-const REEL_COLUMNS = "id, status, tokens, shots, created_at, kind, clip, character_a, character_b";
+type ReelRow = {
+  id: string;
+  status: Reel["status"];
+  tokens: number;
+  shots: ReelShot[];
+  created_at: string | Date;
+  kind: string | null;
+  clip: ClipMeta | null;
+  character_a: string;
+  character_b: string;
+  scope: string | null;
+  chapters: ReelChapter[] | null;
+};
+const REEL_COLUMNS = "id, status, tokens, shots, created_at, kind, clip, character_a, character_b, scope, chapters";
 const reelOf = (r: ReelRow): Reel => ({
   id: r.id,
   status: r.status,
@@ -1096,6 +1307,8 @@ const reelOf = (r: ReelRow): Reel => ({
   clip: r.clip ?? null,
   a: r.character_a,
   b: r.character_b,
+  scope: r.scope === "night" || r.scope === "chapter" ? r.scope : null,
+  chapters: r.chapters ?? null,
 });
 
 export async function getReel(db: Db, id: string): Promise<Reel | null> {
