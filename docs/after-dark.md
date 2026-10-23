@@ -117,6 +117,15 @@ Track cost-per-subscriber; alert when a subscriber's generation cost exceeds a s
 - Set a **spend cap at every provider** when you create the key (`secrets add --cap`), and record it so the
   nightly scan sees it.
 
+**Built, and off (2026-10-22): After Dark can run on a host of its own.** David's call: the split goes live with payments
+and age checks, before the first subscriber; until then After Dark stays admin-only on Vercel. The same code deploys a
+second time to DigitalOcean App Platform as `ad.botchelor.com` (`AFTER_DARK_ONLY=1`), with its media on Bunny (storage,
+and a pull zone serving token-signed links that expire), sharing the Neon database. On the show, `AFTER_DARK_ORIGIN`
+points every After Dark link, page and API there, and the sign-in hop carries the admin across signed in. Unset, nothing
+changes. The runbook (accounts, DNS at Wix, env vars, copying the media, verifying, switching back, costs of about $16–18
+a month) is `docs/after-dark-hosting.md`; the code is `lib/after-dark-host.ts`, `lib/object-store.ts` (Bunny) and
+`scripts/media-to-bunny.mjs`.
+
 ## Build order
 
 1. **Output moderation (#1)** — or keep images off and ship **text-first**. Safety, first.

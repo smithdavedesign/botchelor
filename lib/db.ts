@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { PGlite } from "@electric-sql/pglite";
 import type { Pool } from "pg";
+import { afterDarkOnly } from "./after-dark-host";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "./house";
 import { HOUSE_KITS } from "./house-kits";
 
@@ -1681,7 +1682,9 @@ export async function createPool(url: string) {
 async function openDb(): Promise<Db> {
   const url = process.env.DATABASE_URL;
   if (url) return pgPoolDb(await createPool(url));
-  if (process.env.VERCEL) throw new Error("DATABASE_URL is not configured for this deployment");
+  // A deployment never falls back to a local file: on After Dark's own host (lib/after-dark-host.ts) that would be an
+  // empty database of its own, silently, instead of the show's.
+  if (process.env.VERCEL || afterDarkOnly()) throw new Error("DATABASE_URL is not configured for this deployment");
   // Local runs without a database: a file-backed Postgres (PGlite) under .data/.
   const [{ PGlite }, { mkdirSync }] = await Promise.all([import("@electric-sql/pglite"), import("node:fs")]);
   const dir = process.env.PGLITE_DIR || DEFAULT_LOCAL_DATA_DIR;
