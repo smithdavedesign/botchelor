@@ -94,6 +94,7 @@ At 15 tokens that keeps about $9 to $10 a video, against $5.30 to $6.50 on Venic
 | A 30 s video, best | Wan 3.0, 4 to 6 shots | About $4.00 |
 | A clip on demand (one 5 s shot; `lib/adult/clips.ts`) | A keyframe of the two of them, Hive on it, one shot, Hive on the shot; Clip from here adds a text call to direct it | About $0.70 on Venice ($0.04 keyframe, $0.65 Wan 3.0, about $0.02 Hive; a 10 s line $1.35), about $0.16 on Replicate ($0.03, $0.11, about $0.02) |
 | Keep going (the next 5 s of a clip) | The same: a keyframe from the clip's own, a shot | The same as a clip |
+| A Short (`lib/adult/shorts.ts`, 2026-10-23): a saved night of two house characters, published | Nothing is made: it shows the night's own lines, a picture already made and its video when it has one | $0 to make. Watching it is free to the viewer (in the subscription, no tokens, not counted against the caps) and costs us only the transfer: its lines, and the video's files from the bucket (a presigned link) or Postgres, a few MB a video, kept by each viewer's browser |
 
 Hive on a video is about $0.05 for 15 seconds and $0.09 for 30, if it samples about one frame a second. Confirm how
 Hive counts video frames before relying on this.

@@ -22,6 +22,7 @@
     "screenshots:share": "node scripts/share-screenshots.mjs",
     "screenshots:after-dark": "node scripts/after-dark-screenshots.mjs",
     "screenshots:after-dark-media": "node scripts/after-dark-media-screenshots.mjs",
+    "screenshots:after-dark-shorts": "node scripts/after-dark-shorts-screenshots.mjs",
     "portraits": "node scripts/portraits.mjs",
     "payment:live": "node scripts/payment-live.mjs",
     "typecheck": "tsc --noEmit"

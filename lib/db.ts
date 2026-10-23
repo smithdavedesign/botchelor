@@ -1639,6 +1639,32 @@ alter table episodes add column if not exists last_posted_discord_at timestamptz
 alter table episodes add column if not exists last_posted_bluesky_at timestamptz;
 alter table episodes add column if not exists last_posted_x_at timestamptz;
 
+-- After Dark Shorts (lib/adult/shorts.ts; David, 2026-10-22): an admin's whole saved night of two house characters,
+-- published for entitled viewers. Fixed when published: its chapters (adult_nights ids, in order; night_id is the first),
+-- the cover (an adult_images picture of the two of them) and the night's videos. published_at null: taken down.
+-- adult_short_views: who pressed play (the night's lines and videos go only to them).
+create table if not exists adult_shorts (
+  id text primary key,
+  owner_id text not null,
+  character_a text not null references characters (id) on delete cascade,
+  character_b text not null references characters (id) on delete cascade,
+  night_id text not null unique references adult_nights (id) on delete cascade,
+  night_ids jsonb not null,
+  title text not null,
+  cover_id text,
+  reel_ids jsonb not null default '[]',
+  published_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists adult_shorts_published on adult_shorts (published_at desc);
+create table if not exists adult_short_views (
+  short_id text not null references adult_shorts (id) on delete cascade,
+  user_id text not null,
+  watched_at timestamptz not null default now(),
+  primary key (short_id, user_id)
+);
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (
