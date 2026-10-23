@@ -325,8 +325,8 @@ const TABOO =
   /\b(step[- ]?(mom|moms|mother|mothers|dad|dads|father|fathers|sister|sisters|brother|brothers|son|sons|daughter|daughters|sibling|siblings|family|parent|parents|kid|kids)|students?|(teacher|professor|tutor|coach)s? and|(her|his|their|my|your) (teacher|professor|tutor|coach)|class ?rooms?|school\w*|dorm(itory|itories|s)?|age[- ]?play|daddy'?s little|little (girl|boy|one)|babysit\w*|pigtails?|sweet sixteen)\b/i;
 export const crossesTaboo = (text: string): boolean => TABOO.test(text.replace(/’/g, "'"));
 
-/** One act as the menu shows it: offered now, or locked and why. */
-export type MenuAct = { id: string; label: string; says: string; available: boolean; why: string | null; stage: number };
+/** One act as the menu shows it: who's who (and swapped), offered now, or locked and why. */
+export type MenuAct = { id: string; label: string; says: string; swapped: string; available: boolean; why: string | null; stage: number };
 
 /** Why an act can't be made now (the night hasn't got there, or it's somewhere public), or null when it can. */
 export function actLocked(act: Pick<Act, "minStage">, where: { stage: number; publicPlace: boolean }): string | null {
@@ -353,6 +353,6 @@ export function actRuledOut(act: Act, cast: readonly [ReelPerson, ReelPerson], l
 export function actMenu(where: { stage: number; publicPlace: boolean }, cast: readonly [ReelPerson, ReelPerson], names: readonly [string, string], limits: MediaLimits = NO_MEDIA_LIMITS): MenuAct[] {
   return ACTS.filter((act) => !actRuledOut(act, cast, limits)).map((act) => {
     const why = actLocked(act, where);
-    return { id: act.id, label: act.label, says: actSays(act, cast, names), available: why === null, why, stage: act.minStage };
+    return { id: act.id, label: act.label, says: actSays(act, cast, names), swapped: actSays(act, cast, names, true), available: why === null, why, stage: act.minStage };
   });
 }

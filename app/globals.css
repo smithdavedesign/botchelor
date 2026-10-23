@@ -3767,6 +3767,14 @@ button.rating-chip:hover {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 38%, rgba(0, 0, 0, 0.4));
 }
+/* After Dark's theater has two more tools (🔈 Listen, 🎞 Clip, app/after-dark/[a]/[b]/Listen.tsx and MediaMenu.tsx): on a
+   narrow screen they wrap to a second row rather than push Exit off the edge. */
+.theater-after-dark .theater-tools {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: var(--space-1);
+  max-width: 100%;
+}
 .theater-verdict {
   position: absolute;
   top: 34%;
