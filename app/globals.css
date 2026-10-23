@@ -508,6 +508,13 @@ h2 {
     padding: 0.7rem 0.9rem;
     font-size: 1rem;
   }
+  .nav a.nav-create,
+  .nav a.nav-create:hover,
+  .nav a.nav-create[aria-current="page"] {
+    padding: 0.7rem 0.9rem;
+    font-size: 1rem;
+    text-align: center;
+  }
   .nav-bell-label {
     position: static;
     width: auto;

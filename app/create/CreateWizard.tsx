@@ -385,6 +385,9 @@ export default function CreateWizard({
       if (status === 201) {
         trackConversion("character_created", { open_to_dates: openToDates });
         setCreated({ id: String(data.id), name: String(data.name) });
+        // The site's nav is in the root layout, which a client-side link keeps: refresh it so it becomes the owner's
+        // (Swipe, Matches) now that there's a character.
+        router.refresh();
         // Looks picked: draw their portrait from them in the background (free, capped; lib/looks-draw.ts).
         if (normaliseExtras(extras).looks?.gender) void fetch(`/api/characters/${String(data.id)}/looks-portrait`, { method: "POST" }).catch(() => {});
         try {
