@@ -11,6 +11,7 @@
  */
 
 import type { Db } from "./db";
+import { loadOurIds } from "./our-traffic";
 
 /** The events we care about, each tagged so the admin page can roll them up. */
 export type AgentFunnelEvent =
@@ -63,10 +64,13 @@ export async function recordAgentEvent(
 }
 
 /**
- * The north-star cross-species event: a date between a character made on the website and one made over MCP, by two
- * different creators. Counted once per pair, whichever booking path made the date (web booking, go_on_date, a second
+ * The cross-species booking log: a date booked between a character made on the website and one made over MCP, by two
+ * different creators. Logged once per pair, whichever booking path made the date (web booking, go_on_date, a second
  * date, an agent's own date): the identity is `pair:<lo>:<hi>`, deduped by a partial unique index, and the props carry
  * no owner ids. "Species" is still where the character was made until characters carry a structured kind.
+ *
+ * It's logged at booking, before the date is written or anyone knows whether it airs, so it's a log of when a pair first
+ * booked and how, not the north star: that's crossSpeciesPairs, counted from the finished dates themselves.
  */
 export async function recordCrossSpecies(db: Db, episodeId: string, via: "booking" | "own_date"): Promise<void> {
   try {
@@ -91,6 +95,39 @@ export async function recordCrossSpecies(db: Db, episodeId: string, via: "bookin
   }
 }
 
+/**
+ * The north star (docs/data-plan.md): how many real pairs have dated across the human × agent line. A pair counts once,
+ * when at least one date between its two characters
+ *  - finished (status ready: a date still being written, or one that failed and was given back, doesn't count),
+ *  - isn't private (public and unlisted count: a private date is the creator's alone),
+ *  - is between a character made on the website and one made over MCP, with two different owners, neither the show,
+ *  - involves none of our own identities (lib/our-traffic.ts loadOurIds: admins, our checks and scripts, the house-run
+ *    bots, people from before the public launch, the deleted owner),
+ *  - and isn't a person's web character dating the character of an agent linked to that same person (agent_links).
+ *
+ * Derived from the dates at query time, never from the booking log: the log's old rows lost their owner ids on prod
+ * (#666), and its pair rows include private and test pairs, so it can't be filtered after the fact. The dates can.
+ */
+export async function crossSpeciesPairs(db: Db): Promise<number> {
+  const ours = await loadOurIds(db);
+  const { rows } = await db.query<{ n: number }>(
+    `select count(distinct least(e.character_a, e.character_b) || ':' || greatest(e.character_a, e.character_b))::int as n
+       from episodes e
+       join characters ca on ca.id = e.character_a
+       join characters cb on cb.id = e.character_b
+      where e.status = 'ready' and e.visibility <> 'private'
+        and not ca.is_house and not cb.is_house
+        and ca.owner_id is not null and cb.owner_id is not null and ca.owner_id <> cb.owner_id
+        and (ca.created_via = 'mcp') <> (cb.created_via = 'mcp')
+        and not (ca.owner_id = any($1::text[]) or cb.owner_id = any($1::text[]))
+        and not exists (select 1 from agent_links al
+                         where (al.agent_id = ca.owner_id and al.user_id = cb.owner_id)
+                            or (al.agent_id = cb.owner_id and al.user_id = ca.owner_id))`,
+    [ours],
+  );
+  return rows[0]?.n ?? 0;
+}
+
 /** The agent funnel, counted on the current database. Returns absolute counts and the step ratios. */
 export async function agentFunnel(db: Db): Promise<{
   initialize: number;
@@ -104,10 +141,8 @@ export async function agentFunnel(db: Db): Promise<{
 }> {
   try {
     const { rows } = await db.query<{ event: string; n: number }>(
-      // Cross-species counts pairs only (`pair:` rows): the pre-2026-10-22 rows keyed by episode id are left out.
       `select event, count(distinct user_id)::int as n from analytics_events
          where event in ('agent_initialize','agent_first_character','agent_first_date','agent_day_7_return')
-            or (event = 'cross_species_match' and user_id like 'pair:%')
          group by event`,
     );
     const by: Record<string, number> = Object.fromEntries(rows.map((r) => [r.event, r.n]));
@@ -115,7 +150,8 @@ export async function agentFunnel(db: Db): Promise<{
     const c = by.agent_first_character ?? 0;
     const d = by.agent_first_date ?? 0;
     const r = by.agent_day_7_return ?? 0;
-    const x = by.cross_species_match ?? 0;
+    // The north star, from the dates (crossSpeciesPairs), not from the cross_species_match log.
+    const x = await crossSpeciesPairs(db);
     const rate = (n: number, over: number) => (over ? Math.round((n / over) * 1000) / 1000 : 0);
     return {
       initialize: i,

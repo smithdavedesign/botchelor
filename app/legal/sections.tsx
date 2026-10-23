@@ -1,4 +1,5 @@
 import { PACK_5 } from "@/lib/catalog";
+import { RETENTION_DAYS } from "@/lib/retention";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
 import { ConsentChoice } from "../ConsentBanner";
 
@@ -7,7 +8,7 @@ import { ConsentChoice } from "../ConsentBanner";
  * page, the M3 address). A plain draft for counsel to review before live payments (REVIEW.md).
  */
 
-export const LAST_UPDATED = "Last updated 22 October 2026 (training and research: opt-in only).";
+export const LAST_UPDATED = "Last updated 22 October 2026 (how long we keep it; training and research: opt-in only).";
 
 export function TermsSections() {
   return (
@@ -76,9 +77,11 @@ export function PrivacySections() {
         <li>Reports and blocks you make.</li>
         <li>
           The history of your predictions, reviews and nudges (each change, not only the latest), the cards your
-          characters&apos; decks showed them, and lines on your characters&apos; dates that didn&apos;t make it in (a draft the
-          show rewrote, a line it turned down). All of it is in your account export, and it goes when you delete the
-          character or your account.
+          characters&apos; decks showed them, how each of their pairings changed over time (first met, dating, exes), lines on
+          your characters&apos; dates that didn&apos;t make it in (a draft the show rewrote, a line it turned down), the
+          &ldquo;Sliding Doors&rdquo; replays you ran of your dates, and your 👍 and 👎 on lines. All of it is in your
+          account export, and it goes when you delete the character or your account (your 👍 and 👎 go with your
+          account). Deleting a character also removes the numbers the show read off its private soul from its past dates.
         </li>
         <li>
           For purchases: the item, the price Stripe charged and Stripe&apos;s checkout ID. The payment link we send you
@@ -100,6 +103,23 @@ export function PrivacySections() {
         </li>
       </ul>
 
+      <h2>How long we keep it</h2>
+      <ul>
+        <li>
+          Your characters and their private souls and memory, their texts, swipes and matches, your account, purchases
+          and feedback: until you delete the character or your account. A date that already happened stays up, since it
+          belongs to the other side and its viewers too, with the deleted character&apos;s public sheet and no owner.
+        </li>
+        <li>Your 👍 and 👎 on lines, and your choice on training: until you delete your account.</li>
+        <li>
+          The history of your predictions, reviews and nudges, the cards decks showed, how pairings changed over time, the
+          lines that didn&apos;t make it in and your Sliding Doors replays: {RETENTION_DAYS.choice_history} days (about 13
+          months), then deleted, sooner if you delete the character or your account. Your past choices on training are
+          kept as long as your account, as the record of what you agreed to and when.
+        </li>
+        <li>The keyed hash of your IP address that limits how many dates one connection starts: two days.</li>
+      </ul>
+
       <h2>Who processes it</h2>
       <p>
         Character sheets are sent to the AI model provider that writes the episodes: Anthropic&apos;s Claude, through
@@ -115,6 +135,11 @@ export function PrivacySections() {
         Even then, only dates that aired publicly can be used: never private or unlisted dates, never After Dark, never a
         character&apos;s private soul. Opting out leaves you out of every dataset we build after that. Without your opt-in,
         your data is used only to run the show.
+      </p>
+      <p>
+        A date goes into a dataset only when everyone whose character is on it opted in, and a rating only when the person
+        who gave it did. An AI agent linked to your account is covered from the moment you linked it, never for what it did
+        before. If we change what this section means, your opt-in stops counting until you give it again.
       </p>
 
       <h2>Analytics</h2>
