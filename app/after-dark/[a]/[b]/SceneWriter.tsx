@@ -5,6 +5,8 @@ import { requestJson } from "@/app/request";
 import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import AfterDarkTheater from "./AfterDarkTheater";
+import Limits from "./Limits";
+import Memory from "./Memory";
 import Link from "next/link";
 import Reels, { stopReel } from "./Reels";
 import Avatar from "@/app/Avatar";
@@ -121,6 +123,7 @@ export default function SceneWriter({
       return true;
     }
     if (body.redo) setAutoplay(false);
+    if (body.limits) return true;
     const pictures = (res.data.pictures as Media[] | undefined) ?? [];
     if (pictures.length) setGallery((g) => [...pictures, ...g]);
     const held = Number(res.data.held ?? 0);
@@ -323,6 +326,12 @@ export default function SceneWriter({
           </label>
         </p>
       </form>
+      {/* The viewer's limits for the pair, and what the two of them remember (both theirs to see and change): under the
+          steer bar, which settles into its place above them, so it never covers them. */}
+      <div className="ad-panels">
+        <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits) => send({ limits })} />
+        <Memory a={scene.a} b={scene.b} onScene={setScene} />
+      </div>
       {watching && (
         <AfterDarkTheater
           scene={{ lines: watching.lines, place: watching.place, stage: watching.stage, dateVenue: watching.date_venue, set: watching.set_place }}
