@@ -1,6 +1,7 @@
 import { deleteAccount } from "@/lib/account";
 import { accountForUser, googleConfigured, needsSignIn, sessionsSignable } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { invalidateGraph } from "@/lib/graph-cache";
 import { getPoints } from "@/lib/game";
 import { authFromRequest, handle, json, readJson } from "@/lib/http";
 
@@ -44,5 +45,6 @@ export const DELETE = handle(async (req) => {
   const db = await getDb();
   if (await needsSignIn(db, auth)) return json({ error: "sign_in_required", message: "This is an account: sign in to do that." }, 401);
   const result = await deleteAccount(db, auth.userId);
+  invalidateGraph(); // their characters leave the Constellation now
   return json({ deleted: true, ...result });
 });

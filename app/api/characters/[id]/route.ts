@@ -4,6 +4,7 @@ import { TALK_LEVELS } from "@/lib/talk";
 import { PARTNER_STYLES, takenSql } from "@/lib/partners";
 import { deleteCharacter } from "@/lib/account";
 import { getDb } from "@/lib/db";
+import { invalidateGraph } from "@/lib/graph-cache";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { checkFields, type RejectReason } from "@/lib/safety";
@@ -164,6 +165,8 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
       `update characters set ${sets.join(", ")} where id = $1 and owner_id = $2 and not is_house`,
       [id, sess.userId, ...columns.map((c) => COLUMN[c](input))],
     );
+    // The Constellation shows a character's name, kind and look, and hides a private one: rebuild it now (lib/graph-cache.ts).
+    invalidateGraph();
   }
   // Set to one partner while already with someone: off the market now, like when they first got together.
   if (input.partner_style !== undefined) {
@@ -201,5 +204,6 @@ export const DELETE = handle(async (req: Request, ctx: Ctx) => {
   const db = await getDb();
   if (!(await ownsCharacter(db, id, sess.userId))) return json({ error: "character_not_found" }, 404, sess);
   const result = await deleteCharacter(db, sess.userId, id);
+  invalidateGraph(); // gone from the Constellation now, not in a minute
   return json({ id, ...result }, 200, sess);
 });

@@ -196,7 +196,7 @@ export async function deckFor(db: Db, userId: string, characterId: string, limit
   const boost = (id: string) => (likedMine.has(id) ? 2 : 0) + drawnToBoost(drawnTo, kindOf.get(id));
   for (const m of ranked) {
     const kind = kindOf.get(m.id);
-    if (drawnToBoost(drawnTo, kind)) m.why.push(`${shortName(mine.name)} is drawn to ${kindName(kind!).toLowerCase()}s`);
+    if (drawnToBoost(drawnTo, kind)) m.why.push(`${shortName(mine.name)} is drawn to ${kindName(kind!, "many").toLowerCase()}`);
   }
   ranked.sort((a, b) => b.score + boost(b.id) - (a.score + boost(a.id)));
   const dealt = ranked.slice(0, Math.max(1, Math.min(30, limit)));

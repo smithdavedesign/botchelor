@@ -81,9 +81,36 @@ export function kindLabel(extras: { kind?: string | null; kind_label?: string | 
   const name = k.id === "other" && extras?.kind_label?.trim() ? extras.kind_label.trim() : k.label;
   return `${k.emoji} ${name}`;
 }
+/**
+ * What they are in words, for a sentence ("is a vampire", what the date's writer hears): the kind's name, or an other's
+ * own label. Null when unsaid, or for an "other" with no label of its own: "is a something else" says nothing.
+ */
+export function kindWords(extras: { kind?: string | null; kind_label?: string | null } | null | undefined): string | null {
+  const k = extras?.kind ? KIND_BY_ID.get(extras.kind) : undefined;
+  if (!k) return null;
+  return k.id === "other" ? extras?.kind_label?.trim() || null : k.label;
+}
 export const archetypeLabel = (id: string | null | undefined): string | null => (id ? (ARCHETYPE_BY_ID.get(id) ?? null) : null);
 export const goalLabel = (id: string | null | undefined): string | null => (id ? (GOAL_BY_ID.get(id) ?? null) : null);
-export const kindName = (id: string): string => KIND_BY_ID.get(id)?.label ?? id;
+
+/** Each kind in the plural ("drawn to werewolves", never "werewolfs"). "Other" has nothing to be drawn to, so it's "Others". */
+export const KIND_PLURALS: Record<KindId, string> = {
+  human: "Humans",
+  vampire: "Vampires",
+  werewolf: "Werewolves",
+  ghost: "Ghosts",
+  robot: "Robots",
+  alien: "Aliens",
+  witch: "Witches",
+  fae: "Fae",
+  merfolk: "Merfolk",
+  monster: "Monsters",
+  animal: "Talking animals",
+  other: "Others",
+};
+/** A kind's name ("Werewolf"), or with `"many"` its plural ("Werewolves"); an unknown id comes back as it is. */
+export const kindName = (id: string, form: "one" | "many" = "one"): string =>
+  (form === "many" ? KIND_PLURALS[id as KindId] : KIND_BY_ID.get(id)?.label) ?? id;
 
 /** The swipe deck's small nudge (lib/swipes.ts): less than a like-back (2) or a shared trait (3). Never a filter. */
 export const DRAWN_TO_BOOST = 1.5;

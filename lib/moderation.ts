@@ -5,6 +5,7 @@
  * reports_reviewed, so the visibility queries that count `reports` never need to know review exists.
  */
 import type { Db } from "./db";
+import { invalidateGraph } from "./graph-cache";
 import { refreshEpisodePair } from "./relationships";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
 
@@ -103,7 +104,10 @@ export async function reviewReports(db: Db, episodeId: string, decision: ReviewD
     await db.query("update episodes set visibility = 'private' where id = $1", [episodeId]);
   }
   // Cleared or removed, the date's place in the relationship graph's public layer may have changed.
-  if (rows.length) await refreshEpisodePair(db, episodeId).catch(() => {});
+  if (rows.length) {
+    await refreshEpisodePair(db, episodeId).catch(() => {});
+    invalidateGraph(); // the Constellation counts the same dates (lib/graph-cache.ts)
+  }
   return rows.length;
 }
 
