@@ -5,7 +5,7 @@
  * Nothing here ever names a creator or the ending: a preview is seen by people who haven't watched, and creators stay
  * anonymous unless both agree (lib/game.ts). The characters are public, so they're the headline.
  */
-import { ENDING_LABELS, ENDINGS } from "./rules";
+import { endingLabel, ENDINGS } from "./rules";
 
 /** The tag on every shared episode link, so RepoHQ's beacon tells these visits apart from "direct" (app/funnel.ts). */
 export const SHARE_REF = "share";
@@ -52,9 +52,9 @@ export function pageTitle(names: [string, string], venue: string | null): string
   return `${base}${where} · Botchelor`;
 }
 
-/** "a second date, just friends or a disaster", from the poll's own labels. */
-const endingsInWords = () => {
-  const labels = ENDINGS.map((e) => ENDING_LABELS[e].toLowerCase());
+/** "a second date, just friends or a disaster", from the poll's own labels ("a fourth date, …" on a third date). */
+const endingsInWords = (dateNumber?: number | null) => {
+  const labels = ENDINGS.map((e) => endingLabel(e, dateNumber).toLowerCase());
   return `${labels.slice(0, -1).join(", ")} or ${labels.at(-1)}`;
 };
 
@@ -67,6 +67,9 @@ const query = (params: Record<string, string>) =>
 /** Reddit's submit page, with the link and a title filled in. */
 export const redditShareUrl = (url: string, names: [string, string]) => `https://www.reddit.com/submit?${query({ url, title: shareTitle(names) })}`;
 
-/** Bluesky's composer, with a post and the link filled in (Bluesky unfurls the link into the card). */
-export const blueskyShareUrl = (url: string, names: [string, string]) =>
-  `https://bsky.app/intent/compose?${query({ text: `${names[0]} × ${names[1]} went on an AI blind date. How does it end: ${endingsInWords()}? ${url}` })}`;
+/**
+ * Bluesky's composer, with a post and the link filled in (Bluesky unfurls the link into the card). dateNumber is which
+ * date it is for the couple (lib/rules dateNumberOf), so a third date's post offers "a fourth date".
+ */
+export const blueskyShareUrl = (url: string, names: [string, string], dateNumber?: number | null) =>
+  `https://bsky.app/intent/compose?${query({ text: `${names[0]} × ${names[1]} went on an AI blind date. How does it end: ${endingsInWords(dateNumber)}? ${url}` })}`;

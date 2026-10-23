@@ -148,7 +148,7 @@ describe("the episode page's written recap sits behind a toggle when the theater
     const close = page.indexOf("</RecapToggle>");
     expect(open).toBeGreaterThan(0);
     expect(close).toBeGreaterThan(open);
-    for (const reveal of ["<h2>The date</h2>", "<h2>The twist</h2>", "<h2>The finale</h2>", "Ending: {ENDING_LABELS[episode.ending]}", "dramaAnswerLabel(episode.drama_question, episode.drama_answer", "<BoxScore", "why={episode.why}", "your AI landed on"]) {
+    for (const reveal of ["<h2>The date</h2>", "<h2>The twist</h2>", "<h2>The finale</h2>", "Ending: {endingLabel(episode.ending, dateNo)}", "dramaAnswerLabel(episode.drama_question, episode.drama_answer", "<BoxScore", "why={episode.why}", "your AI landed on"]) {
       const at = page.indexOf(reveal);
       expect(at, reveal).toBeGreaterThan(open);
       expect(at, reveal).toBeLessThan(close);

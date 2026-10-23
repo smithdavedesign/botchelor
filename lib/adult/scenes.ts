@@ -10,7 +10,7 @@ import type { Db } from "../db";
 import { moveLineFeedback } from "../line-feedback";
 import type { ChatMessage, Model, ModelOptions, Usage } from "../model";
 import { pairKey } from "../relationships";
-import { checkAdultText } from "../safety";
+import { checkAdultText, type SafetyResult } from "../safety";
 import { eligibleIds } from "./characters";
 import { pictureKeyReady, ensureBaseline, makePicture, outputCheckReady, PICTURES_OFF_NOTE, recentActions, scenePrompt, type Media } from "./media";
 import { countUse, overCap } from "./usage";
@@ -39,6 +39,8 @@ import { activeLimit, linesAtPlace, objectOf, possessiveNames, possessiveOf, pro
 import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
 import { fileSteps, logStep, markRewound, stepIndexOf, stepsOf, unfileSteps, type StepRow } from "./steps";
 import { hardNoHit, hardNoLines, hasHardNos, INTENSITY, intensityLine, intensityOf, limitsHit, NO_LIMITS, OWN_LEN, OWN_MAX, storedHardNos, type HardNos, type Intensity, type PairLimits } from "./limits";
+import { framingOf, mayEditProfile, profileLines, turnOnsFor, turnOnsOf, type FramingId, type TurnOnId } from "./profile";
+import { scenarioById, type Scenario } from "./scenarios";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 import {
   bumpFacts,
@@ -145,6 +147,9 @@ export type AdultScene = {
   /** The viewer's limits for the pair (lib/adult/limits.ts): how far and how frank it goes, and their hard nos. */
   intensity: Intensity;
   hard_nos: HardNos;
+  /** How the viewer frames the two of them (lib/adult/profile.ts), and the scenario tonight started from (lib/adult/scenarios.ts). */
+  framing: FramingId | null;
+  scenario: string | null;
 };
 
 /** What a step was asked: its steer, how strongly, and a whisper sent with it. A redo asks the same again. */
@@ -268,9 +273,10 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     await db.query<{
       id: string; lines: SceneLine[]; place: string | null; stage: number; stage_from: number; picture_note: string | null; set_place: string | null; cut_to: string | null;
       chapter: number; recap: string | null; prev_tail: SceneLine[] | null; place_history: PlaceStop[] | null; moves: MoveLog[] | null; suggestions: unknown; whispers: unknown; undo: StepUndo[] | null;
-      intensity: string | null; hard_nos: unknown;
+      intensity: string | null; hard_nos: unknown; framing: string | null; scenario: string | null;
     }>(
-      `select id, lines, place, stage, stage_from, picture_note, set_place, cut_to, chapter, recap, prev_tail, place_history, moves, suggestions, whispers, undo, intensity, hard_nos
+      `select id, lines, place, stage, stage_from, picture_note, set_place, cut_to, chapter, recap, prev_tail, place_history, moves, suggestions, whispers, undo, intensity, hard_nos,
+              framing, scenario
          from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`,
       [adminId, a, b],
     )
@@ -299,6 +305,8 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     undo: Array.isArray(row.undo) ? row.undo : [],
     intensity: intensityOf(row.intensity),
     hard_nos: storedHardNos(row.hard_nos),
+    framing: framingOf(row.framing),
+    scenario: row.scenario && scenarioById(row.scenario) ? row.scenario : null,
   };
 }
 
@@ -568,6 +576,8 @@ export function sceneMessages(
     whispers?: Whispers;
     /** The viewer's limits (lib/adult/limits.ts): the intensity and the hard nos. None: the prompt as it was. */
     limits?: PairLimits;
+    /** Their profiles (lib/adult/profile.ts): each one's turn-ons, the pair's framing, and tonight's scenario. */
+    profile?: SceneProfile;
   } = { place: "wherever they've just met", stage: 0 },
 ): ChatMessage[] {
   const v2 = (now.promptVersion ?? DEFAULT_PROMPT_VERSION) === "v2";
@@ -606,6 +616,9 @@ export function sceneMessages(
     "",
     v2 ? sheetV2(b, "b", now.catchphraseUsed?.b, now.styles?.b) : sheetOf(b, "b", now.catchphraseUsed?.b),
     "",
+    // What they're into and how the viewer frames them (lib/adult/profile.ts), and tonight's scenario: only when set.
+    ...profileLines(names, now.profile?.turnOns ?? { a: [], b: [] }, now.profile?.framing ?? null),
+    now.profile?.scenario ? `Tonight's scenario: ${now.profile.scenario.title}. ${now.profile.scenario.premise} Both of them chose to be here, and either can stop at any time.` : "",
     date ? `Their latest date: ${date.setting ?? "a date"}. It ended: ${date.ending ?? "unknown"}.` : "They haven't been on a date yet: they've just met.",
     dateTail.length ? `The end of that date:\n${dateTail.join("\n")}` : "",
     v2
@@ -1043,7 +1056,12 @@ export type StepInput = {
   whispers?: Whispers;
   /** The viewer's limits for the pair (lib/adult/limits.ts); none (explicit, no hard nos) when left out. */
   limits?: PairLimits;
+  /** Their profiles (lib/adult/profile.ts) and tonight's scenario; none when left out. */
+  profile?: SceneProfile;
 };
+
+/** What the prompt knows of their profiles: each one's turn-ons (those the hard nos allow), the framing, tonight's scenario. */
+export type SceneProfile = { turnOns: { a: string[]; b: string[] }; framing: FramingId | null; scenario: Scenario | null };
 
 /** What happened to a step's lines on the way in, summed over its calls. */
 export type StepFlags = {
@@ -1186,6 +1204,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     ...(v2 ? { tellsUsed: { a: tellsAtCap(scene.lines, "a", a), b: tellsAtCap(scene.lines, "b", b) } } : {}),
     whispers,
     limits,
+    profile: input.profile,
   });
   const usage: Usage[] = [];
   const flags: StepFlags = {
@@ -1514,6 +1533,26 @@ export function limitRefusal(what: "steer" | "whisper", text: string | null, sce
   return null;
 }
 
+/** The scene's profile for the prompt: each one's turn-ons the hard nos allow, the framing, and tonight's scenario. */
+async function sceneProfile(db: Db, scene: AdultScene): Promise<SceneProfile> {
+  const [a, b] = await Promise.all([turnOnsOf(db, scene.a.id), turnOnsOf(db, scene.b.id)]);
+  return {
+    turnOns: { a: turnOnsFor(a, scene.hard_nos), b: turnOnsFor(b, scene.hard_nos) },
+    framing: scene.framing,
+    scenario: scene.scenario ? scenarioById(scene.scenario) : null,
+  };
+}
+
+/** Which of the lines that never move a refused text crossed, in words for the person who typed it. */
+export function linesCrossed(r: SafetyResult): string {
+  if (r.ok) return "";
+  if (r.theme === "family") return "no family or step-family roleplay";
+  if (r.theme === "teacher_student") return "no teacher and student roleplay";
+  if (r.theme === "school") return "no school settings";
+  if (r.theme === "age_play") return "no age-play";
+  return r.reason === "real_person" ? "no real people" : "nobody under 18, or anything that suggests it";
+}
+
 /** What a step can bring besides the steer: a whisper to one of the two, and whether it's a redo (logged as one). */
 export type StepOptions = { whisper?: { to: "a" | "b"; text: string } | null; redo?: boolean };
 
@@ -1541,13 +1580,15 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const capped = await overCap(db, adminId, "writes");
   if (capped) return failed(429, capped);
   const steer = direction?.trim().slice(0, DIRECTION_MAX) || null;
-  if (steer && !checkAdultText({ direction: steer }).ok) {
+  const steerCheck = steer ? checkAdultText({ direction: steer }) : { ok: true as const };
+  if (!steerCheck.ok) {
     // Never stored: only that a steer was refused.
-    return failed(422, "That steer crosses one of the two lines (nobody under 18, no real people).", { direction: "[a steer refused by the two lines]" });
+    return failed(422, `That steer crosses one of the lines that never move (${linesCrossed(steerCheck)}).`, { direction: "[a steer refused by the two lines]" });
   }
-  if (whisper && !checkAdultText({ whisper: whisper.text }).ok) {
+  const whisperCheck = whisper ? checkAdultText({ whisper: whisper.text }) : { ok: true as const };
+  if (whisper && !whisperCheck.ok) {
     // The same for a whisper: never stored, only that one was refused.
-    return failed(422, "That whisper crosses one of the two lines (nobody under 18, no real people).", { whisper: { to: whisper.to, text: "[a whisper refused by the two lines]" } });
+    return failed(422, `That whisper crosses one of the lines that never move (${linesCrossed(whisperCheck)}).`, { whisper: { to: whisper.to, text: "[a whisper refused by the two lines]" } });
   }
   // The viewer's own limits hold over every steer (lib/adult/limits.ts): a steer or whisper that asks for a hard no, or
   // for more than the intensity allows, is refused before anything is written.
@@ -1578,6 +1619,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     resolveSet: (label) => resolveSet(db, label),
     whispers,
     limits,
+    profile: await sceneProfile(db, scene),
   });
   if (!step.ok) return failed(step.status, step.message, { direction: steer, dropped: step.dropped, flags: step.flags, whisper });
   const { meta, next } = step;
@@ -1794,7 +1836,8 @@ async function nextChapter<S extends AdultScene>(db: Db, ownerId: string, scene:
 export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, place: string): Promise<{ ok: true; scene: AdultScene } | { ok: false; status: number; message: string }> {
   const label = place.trim().replace(/\s+/g, " ").slice(0, SET_SCENE_MAX);
   if (!label) return { ok: false, status: 400, message: "Say where to take them." };
-  if (!checkAdultText({ place: label }).ok) return { ok: false, status: 422, message: "That place crosses one of the two lines (nobody under 18, no real people)." };
+  const placeCheck = checkAdultText({ place: label });
+  if (!placeCheck.ok) return { ok: false, status: 422, message: `That place crosses one of the lines that never move (${linesCrossed(placeCheck)}).` };
   const loaded = await loadScene(db, ownerId, x, y);
   if (!loaded) return { ok: false, status: 404, message: "Pick two characters who are in after dark." };
   const scene = loaded;
@@ -1971,6 +2014,63 @@ export async function saveLimits(db: Db, ownerId: string, x: string, y: string, 
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// Scenarios, turn-ons and framing (David, 2026-10-22)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * Start a night from a scenario (lib/adult/scenarios.ts): the night that ran is filed as Start over files it, they're put
+ * in the scenario's place (setSceneTo: the first lines open on arriving there), the stage starts where the scenario does
+ * (never past the pair's intensity), the premise stays on the scene for every step of the night, and the first lines are
+ * written with the opening as a Nudge, so the pacing, the public-place cap, the intensity and the hard nos all hold from
+ * the first line. Nothing is filed when the scenario runs into the viewer's limits, or the month's steps are used up.
+ * Free: the places are a fixed few, each drawn once for everyone.
+ */
+export async function startScenario(db: Db, ownerId: string, x: string, y: string, id: string): Promise<ContinueResult & { placed?: AdultScene }> {
+  const sc = scenarioById(id);
+  if (!sc) return { ok: false, status: 404, message: "There's no such scenario." };
+  const before = await loadScene(db, ownerId, x, y);
+  if (!before) return { ok: false, status: 404, message: "Pick two characters who are in after dark." };
+  // Curated and reviewed, and checked again here so an edit to the list can never slip past the lines.
+  if (!checkAdultText({ title: sc.title, premise: sc.premise, place: sc.place, opening: sc.opening }).ok) return { ok: false, status: 422, message: "That scenario crosses one of the lines." };
+  const refused = limitRefusal("steer", `${sc.premise} ${sc.opening}`, { ...before, stage: sc.stage });
+  if (refused) return { ok: false, status: 422, message: refused.replace(/^That steer/, "That scenario") };
+  const capped = await overCap(db, ownerId, "writes");
+  if (capped) return { ok: false, status: 429, message: capped };
+  await resetScene(db, ownerId, x, y);
+  const placed = await setSceneTo(db, ownerId, x, y, sc.place);
+  if (!placed.ok) return placed;
+  const stage = Math.min(sc.stage, INTENSITY[before.intensity].maxStage);
+  await db.query(`update adult_scenes set stage = $2, stage_from = 0, scenario = $3, updated_at = now() where id = $1`, [placed.scene.id, stage, sc.id]);
+  const r = await continueScene(db, ownerId, x, y, sc.opening, "nudge");
+  if (r.ok) return r;
+  // Filed and placed, but the first lines didn't come: the page shows them there, ready for Write.
+  return { ...r, placed: (await openScene(db, ownerId, x, y)) ?? undefined };
+}
+
+/** Sets how the viewer frames the pair (lib/adult/profile.ts FRAMINGS), or clears it (null). Per owner and pair. */
+export async function saveFraming(db: Db, ownerId: string, x: string, y: string, framing: string | null): Promise<AdultScene | null> {
+  const scene = await loadScene(db, ownerId, x, y);
+  if (!scene) return null;
+  const value = framing === null ? null : framingOf(framing);
+  await db.query(`update adult_scenes set framing = $2, updated_at = now() where id = $1`, [scene.id, value]);
+  return publicScene({ ...scene, framing: value });
+}
+
+/** Each one's turn-ons as the viewer may see them: only a character whose profile they may set (theirs, or an admin's house cast). */
+export type ProfileView = { a: { editable: boolean; turn_ons: TurnOnId[] }; b: { editable: boolean; turn_ons: TurnOnId[] } };
+
+export async function profileView(db: Db, viewer: string, x: string, y: string): Promise<ProfileView | null> {
+  const pair = await eligiblePair(db, viewer, x, y);
+  if (!pair) return null;
+  const side = async (id: string) => {
+    const editable = await mayEditProfile(db, viewer, id);
+    return { editable, turn_ons: editable ? await turnOnsOf(db, id) : [] };
+  };
+  const [a, b] = await Promise.all([side(pair[0]), side(pair[1])]);
+  return { a, b };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // Memory you can see and edit (David, 2026-10-22)
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -2017,7 +2117,8 @@ export async function editMemory(
   if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark." };
   const text = edit.text === null ? null : edit.text.replace(/\s+/g, " ").trim();
   if (text !== null && !text) return { ok: false, status: 400, message: "Write something, or delete it instead." };
-  if (text !== null && !checkAdultText({ memory: text }).ok) return { ok: false, status: 422, message: "That crosses one of the two lines (nobody under 18, no real people)." };
+  const memoryCheck = text === null ? { ok: true as const } : checkAdultText({ memory: text });
+  if (!memoryCheck.ok) return { ok: false, status: 422, message: `That crosses one of the lines that never move (${linesCrossed(memoryCheck)}).` };
   let recap = scene.recap;
   if (edit.kind === "note") {
     const [self, other] = edit.of === "a" ? [scene.a.id, scene.b.id] : [scene.b.id, scene.a.id];
@@ -2118,7 +2219,7 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
   }
   await db.query(
     `update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, set_place = null, cut_to = null, chapter = 1, recap = null, prev_tail = '[]'::jsonb, place_history = '[]'::jsonb, moves = '[]'::jsonb,
-            suggestions = '[]'::jsonb, whispers = '{}'::jsonb, undo = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
+            suggestions = '[]'::jsonb, whispers = '{}'::jsonb, undo = '[]'::jsonb, scenario = null, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
     [adminId, ...pair],
   );
 }

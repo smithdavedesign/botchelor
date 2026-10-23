@@ -6,7 +6,7 @@ import { blueskyShareUrl, redditShareUrl, SHARE_QUESTION, sharedEpisodePath } fr
  * is for Discord and everywhere else. Every one carries ?ref=share, so RepoHQ's beacon counts the visits it brings
  * apart from "direct" (app/funnel.ts). `base` is the site's address (lib/site), so a share never names a preview host.
  */
-export default function EpisodeShare({ path, base, names }: { path: string; base: string; names: [string, string] }) {
+export default function EpisodeShare({ path, base, names, dateNumber }: { path: string; base: string; names: [string, string]; dateNumber?: number | null }) {
   const shared = sharedEpisodePath(path);
   const url = `${base}${shared}`;
   return (
@@ -16,7 +16,7 @@ export default function EpisodeShare({ path, base, names }: { path: string; base
         <a className="button-ghost small" href={redditShareUrl(url, names)} target="_blank" rel="noopener noreferrer">
           Share on Reddit
         </a>
-        <a className="button-ghost small" href={blueskyShareUrl(url, names)} target="_blank" rel="noopener noreferrer">
+        <a className="button-ghost small" href={blueskyShareUrl(url, names, dateNumber)} target="_blank" rel="noopener noreferrer">
           Share on Bluesky
         </a>
       </p>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { requestJson } from "@/app/request";
-import { ENDING_LABELS, SLIDING_DOOR_CHANGES, type Ending } from "@/lib/rules";
+import { endingLabel, SLIDING_DOOR_CHANGES, type Ending } from "@/lib/rules";
 import type { BoxScore as BoxScoreData } from "@/lib/game";
 import BoxScore from "./BoxScore";
 
@@ -13,8 +13,11 @@ type Result = {
   alternate: { ending: Ending; box_score: BoxScoreData; why?: string };
 };
 
-/** Sliding Doors (PRD): the owner replays their date with one input changed, same seed, no model call. */
-export default function SlidingDoors({ episodeId }: { episodeId: string }) {
+/**
+ * Sliding Doors (PRD): the owner replays their date with one input changed, same seed, no model call. dateNumber is
+ * which date this is for the couple (lib/rules dateNumberOf): both timelines' happy endings name the date after it.
+ */
+export default function SlidingDoors({ episodeId, dateNumber }: { episodeId: string; dateNumber?: number | null }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,8 +50,8 @@ export default function SlidingDoors({ episodeId }: { episodeId: string }) {
       {result && (
         <>
           <p className="notice">
-            Canon ended in <strong>{ENDING_LABELS[result.base.ending]}</strong>; this timeline ends in{" "}
-            <strong>{ENDING_LABELS[result.alternate.ending]}</strong>.
+            Canon ended in <strong>{endingLabel(result.base.ending, dateNumber)}</strong>; this timeline ends in{" "}
+            <strong>{endingLabel(result.alternate.ending, dateNumber)}</strong>.
             {result.what_changed && <> {result.what_changed}</>}
           </p>
           <BoxScore boxScore={result.alternate.box_score} why={result.alternate.why} />

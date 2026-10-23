@@ -9,6 +9,7 @@
  * win. One second date per date (episodes.followup_of is unique).
  */
 import type { Db } from "./db";
+import { dateNumberSql } from "./date-number";
 import { loadRelationship } from "./relationships";
 import { DELETED_OWNER } from "./rules";
 import { secondDateFreeNow } from "./allowance";
@@ -37,7 +38,7 @@ async function loadDate(db: Db, episodeId: string): Promise<DateRow | null> {
     `select e.id, e.status, e.visibility, e.sides, a.id as a_id, b.id as b_id, a.name as a_name, b.name as b_name,
             a.owner_id as a_owner, b.owner_id as b_owner, a.open_to_dates as a_open, b.open_to_dates as b_open,
             (select f.id from episodes f where f.followup_of = e.id limit 1) as planned,
-            coalesce((e.setup->>'date_number')::int, case when e.followup_of is null then 1 else 2 end) as date_number,
+            coalesce(${dateNumberSql("e")}, 1) as date_number,
             exists (select 1 from blocks bl
                      where a.owner_id is not null and b.owner_id is not null
                        and ((bl.blocker_id = a.owner_id and bl.blocked_id = b.owner_id)

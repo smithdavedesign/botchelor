@@ -22,7 +22,7 @@
 import { shortName } from "./names";
 import type { Db } from "./db";
 import type { SideOutcome, SoulSignals } from "./engine";
-import { ENDING_LABELS, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
+import { endingLabel, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
 import type { Turn } from "./conversation";
 import { stageOf, type Stage } from "./relationships";
 import { contentWords, EVERYDAY_WORDS } from "./quality";
@@ -746,7 +746,20 @@ function rememberPeople(dated: Dated[], forgets: Forgets = new Set()): PersonMem
     .slice(0, PEOPLE_KEPT);
 }
 
-const ENDING_PHRASE: Record<Ending, string> = { second_date: "a second date", friends: "just friends", disaster: "a disaster" };
+/** One date's ending mid-sentence: "a second date", or "a fourth date" when it was their third (lib/rules endingLabel). */
+const endingPhrase = (ending: Ending, dateNumber: number) => endingLabel(ending, dateNumber).toLowerCase();
+
+/** Each date's place in its pair's run of aired dates (oldest first in, as `dated` is): their first, second... */
+function pairNumbers(dated: Dated[]): Map<string, number> {
+  const count = new Map<string, number>();
+  const out = new Map<string, number>();
+  for (const d of dated) {
+    const n = (count.get(d.other.id) ?? 0) + 1;
+    count.set(d.other.id, n);
+    out.set(d.id, n);
+  }
+  return out;
+}
 
 /** "Week of Oct 12" for a season id. */
 export function chapterLabel(season: string): string {
@@ -756,13 +769,14 @@ export function chapterLabel(season: string): string {
 
 /** One line a season, most recent first: "2 dates: a second date with Nell, a disaster with Teo." */
 function buildChapters(dated: Dated[]): Chapter[] {
+  const nth = pairNumbers(dated);
   const bySeason = new Map<string, Dated[]>();
   for (const d of dated) bySeason.set(d.season, [...(bySeason.get(d.season) ?? []), d]);
   return [...bySeason.entries()]
     .sort(([x], [y]) => y.localeCompare(x))
     .slice(0, CHAPTERS_KEPT)
     .map(([season, ds]) => {
-      const parts = ds.slice(0, 3).map((d) => `${ENDING_PHRASE[d.ending]} with ${shortName(d.other.name)}`);
+      const parts = ds.slice(0, 3).map((d) => `${endingPhrase(d.ending, nth.get(d.id) ?? 1)} with ${shortName(d.other.name)}`);
       const more = ds.length - parts.length;
       return {
         season,
@@ -819,7 +833,8 @@ export function metBefore(memory: CharacterMemory | null | undefined, otherId: s
   if (!p) return null;
   return {
     times: p.dates,
-    last_time: `${venuePhrase(p.last_venue)}; it ended: ${ENDING_LABELS[p.last_ending]}`,
+    // Their last date was their p.dates-th: a happy one reads "A third date" after two (lib/rules endingLabel).
+    last_time: `${venuePhrase(p.last_venue)}; it ended: ${endingLabel(p.last_ending, p.dates)}`,
     where_you_stand: STANDING[p.status],
     ...(p.turned_down === "you" ? { how_it_ended_for_you: "They turned you down." } : p.turned_down === "them" ? { how_it_ended_for_you: "You turned them down." } : {}),
     ...(p.wanted_more !== null ? { how_you_left_it: p.wanted_more ? "You wanted to see them again." : "You didn't want to see them again." } : {}),
@@ -833,7 +848,7 @@ export function recentDates(memory: CharacterMemory | null | undefined, excludeI
   return (memory?.people ?? [])
     .filter((p) => p.id !== excludeId)
     .slice(0, n)
-    .map((p) => `With ${shortName(p.name)} at ${venuePhrase(p.last_venue)}: ${ENDING_LABELS[p.last_ending]}.`);
+    .map((p) => `With ${shortName(p.name)} at ${venuePhrase(p.last_venue)}: ${endingLabel(p.last_ending, p.dates)}.`);
 }
 
 /**

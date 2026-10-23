@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db";
 import { SHARE_QUESTION } from "@/lib/episode-share";
 import { getEpisodeView, type EpisodeView } from "@/lib/game";
 import { handle, json } from "@/lib/http";
-import { ENDING_LABELS, ENDINGS, POINTS_PER_CORRECT_PICK } from "@/lib/rules";
+import { dateNumberOf, endingLabel, ENDINGS, POINTS_PER_CORRECT_PICK } from "@/lib/rules";
 import { siteUrl } from "@/lib/site";
 import { venueName } from "@/lib/venues";
 
@@ -119,7 +119,7 @@ function EpisodeCard({ episode, portraits }: { episode: EpisodeView; portraits: 
             }}
           >
             <div style={{ display: "flex", width: 28, height: 28, borderRadius: 14, border: `4px solid ${ACCENT}`, marginRight: 14 }} />
-            <div style={{ display: "flex", fontSize: 34, fontWeight: 700 }}>{ENDING_LABELS[ending]}</div>
+            <div style={{ display: "flex", fontSize: 34, fontWeight: 700 }}>{endingLabel(ending, dateNumberOf(episode))}</div>
           </div>
         ))}
       </div>

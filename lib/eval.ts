@@ -162,7 +162,7 @@ export async function runEvalCase(c: EvalCase, models: DateModels, judge: Model 
   const characters = built.characters as [Character, Character];
   const venuePrompt = venue(built.setup.venue).prompt;
   const metrics = gen.quality ?? transcriptQuality(gen.transcript, characters, qualityContext(built, gen.draft.setting));
-  const verdict = judge ? await judgeDate(judge, characters, outcome, gen.transcript, venuePrompt) : null;
+  const verdict = judge ? await judgeDate(judge, characters, outcome, gen.transcript, venuePrompt, built.input.date_number) : null;
   return {
     case: c.id,
     format: c.format,
@@ -190,7 +190,7 @@ export async function runEvalCase(c: EvalCase, models: DateModels, judge: Model 
 export async function rejudgeCase(c: EvalCase, transcript: Turn[], judge: Model): Promise<{ judge: JudgeScores | null; judge_mean: number | null }> {
   const built = buildEvalDate(c);
   const outcome = deterministicEngine.decide(built.input, built.seed);
-  const verdict = await judgeDate(judge, built.characters as [Character, Character], outcome, transcript, venue(built.setup.venue).prompt);
+  const verdict = await judgeDate(judge, built.characters as [Character, Character], outcome, transcript, venue(built.setup.venue).prompt, built.input.date_number);
   return { judge: verdict, judge_mean: verdict ? judgeMean(verdict) : null };
 }
 
@@ -332,7 +332,7 @@ export async function runSagaStep(saga: EvalSaga, k: number, prior: Turn[][], mo
   });
   const characters = built.characters as [Character, Character];
   const metrics = gen.quality ?? transcriptQuality(gen.transcript, characters, qualityContext(built, gen.draft.setting));
-  const verdict = judge ? await judgeDate(judge, characters, outcome, gen.transcript, venue(built.setup.venue).prompt) : null;
+  const verdict = judge ? await judgeDate(judge, characters, outcome, gen.transcript, venue(built.setup.venue).prompt, built.input.date_number) : null;
   return {
     case: `${saga.id}-${k}`,
     saga: saga.id,

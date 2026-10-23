@@ -9,7 +9,7 @@ import { resolveArcs } from "./arcs";
 import { followerIds } from "./follows";
 import { notifyAll, ownersOf } from "./notifications";
 import { pairKey, refreshRelationship, STAGE_LABELS, type Stage } from "./relationships";
-import { ENDING_LABELS } from "./rules";
+import { endingLabel } from "./rules";
 
 /** How far along a romance a stage is; friends, exes and bad blood aren't a step up. */
 const RANK: Partial<Record<Stage, number>> = { just_met: 1, sparks: 2, dating: 3, going_steady: 4 };
@@ -47,7 +47,8 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
       await notifyAll(db, followers, {
         kind: "couple_date",
         title: `${couple} went on another date`,
-        body: `It ended: ${ENDING_LABELS[aired.ending]}.`,
+        // Its own date number (a follow-up's), so a happy third date reads "A fourth date", as on its page.
+        body: `It ended: ${endingLabel(aired.ending, aired.date_number)}.`,
         link: `/episodes/${opts.episodeId}`,
       });
     }

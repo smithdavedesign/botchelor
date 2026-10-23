@@ -7,9 +7,10 @@
  *
  *   director: the steer bar with the last step's suggested next moves, a whisper running, and Rewind/Redo → after a
  *     rewind → the theater with the suggestions over its steer;
- *   limits: the limits panel set (slow burn, hard nos), what they remember, and a steer a hard no refuses.
+ *   limits: the limits panel set (slow burn, hard nos), what they remember, and a steer a hard no refuses;
+ *   scenarios: the scenario picker, a night started from one, and the pair's framing and turn-ons.
  *
- * SHOTS=director,limits picks the sets (all by default), each as a new admin with a scene of its own. On the phone it
+ * SHOTS=director,limits,scenarios picks the sets (all by default), each as a new admin with a scene of its own. On the phone it
  * also checks the page never scrolls sideways and the sticky steer bar keeps under half the screen. Set CHROMIUM_PATH;
  * SKIP_BUILD=1 reuses the last build.
  */
@@ -49,6 +50,15 @@ const LINES = [
   ["leans her head on his shoulder", "I'll say it twice. Once for the tea, once for you."],
   ["", "Deal. The ferry's coming in. Watch, it turns at the last buoy."],
 ];
+/** The rainy cabin's first lines (a night started from that scenario), PG like the rest. */
+const CABIN = [
+  ["shakes the rain off his coat", "The road's gone. Officially. The ranger says morning, maybe."],
+  ["kneels by the hearth", "Then we'd better make friends with this fire. It's sulking."],
+  ["", "It's sulking because you keep poking it. Give it a minute."],
+  ["holds up the one blanket", "One blanket. I'm told this is how every bad film starts."],
+  ["laughs", "Bad films have the best endings. Sit. You're dripping on the rug."],
+  ["sits beside him, knees to the fire", "Fine. But I'm keeping my half of the blanket."],
+];
 const SUGGESTIONS = [
   { mild: "He tells her about the night he nearly kept a lighthouse", flirty: "She dares him to name every boat in the harbour", spicy: "Her hand finds his under the blanket" },
   { mild: "They count the ferry lights together", flirty: "He teases her about her terrible tea", spicy: "They finally kiss, rain on the awning" },
@@ -69,7 +79,10 @@ function startAdultStub() {
       if (/running recap/.test(system)) reply = { recap: "They watched the harbour from the rooftop, shared terrible tea and a blanket, and stayed out in the rain." };
       else if (/factual memory/.test(system)) reply = { a: [{ kind: "joke", fact: "He ranks himself second to his kettle", quote: null }], b: [{ kind: "like", fact: "She times her day by the green ferry light", quote: null }] };
       else if (/what a private night left behind/.test(system)) reply = { a: "You and him stayed out on the rooftop in the rain; you're closer now.", b: "You and her stayed out on the rooftop in the rain; you're closer now." };
-      else {
+      else if (/Tonight's scenario: Rainy cabin/.test(system) && !/The scene so far/.test(system)) {
+        const lines = CABIN.map(([action, text], i) => ({ who: i % 2 ? "b" : "a", action, text, why: "the storm, and the one blanket", memory: null }));
+        reply = { lines, place: "the cabin by the fire", set: "the cabin", stage: 2, explicit: false, picture: null, suggestions: { mild: "She tells him what she'd planned for the weekend", flirty: "He bets her the fire goes out first", spicy: "They share the blanket, closer than they need to" } };
+      } else {
         const lines = Array.from({ length: 6 }, (_, i) => {
           const [action, text] = LINES[(at + i) % LINES.length];
           return { who: i % 2 ? "b" : "a", action, text, why: "the rooftop, and what was just said", memory: null };
@@ -200,7 +213,57 @@ async function limits({ page, base, scenePath, shot, ctx }) {
   await shot("memory-phone");
 }
 
-const FLOWS = { director, limits };
+/** Scenarios and turn-ons (PR C): the picker, a night started from one, and the pair's framing and turn-ons. */
+async function scenarios({ page, base, scenePath, shot }) {
+  await page.goto(`${base}${scenePath}`);
+  const form = page.locator(".after-dark-form");
+  await form.locator("button[type=submit]").click();
+  await page.locator(".after-dark-lines li").first().waitFor({ timeout: 30_000 });
+  // The picker, open.
+  const picker = page.locator(".ad-scenarios");
+  await picker.locator("summary").click();
+  const top = (sel) => page.evaluate((s) => window.scrollTo(0, document.querySelector(s).getBoundingClientRect().top + window.scrollY - 120), sel);
+  await top(".ad-scenarios");
+  await shot("picker-desktop");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await top(".ad-scenarios");
+  await checkPhone(page, "the scenario picker");
+  await shot("picker-phone");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // Start one: the night that ran is filed, they're on the rainy cabin's set, and its opening is the first steer.
+  const cabin = picker.locator("li", { hasText: "Rainy cabin" });
+  await cabin.getByRole("button", { name: "Start this night" }).click();
+  await cabin.getByRole("button", { name: "Start", exact: true }).click();
+  await page.getByText(/A new night: the last one is under Their nights/).waitFor({ timeout: 30_000 });
+  // From where they are and how far it's gone, down through the night's first lines.
+  const status = () => page.evaluate(() => window.scrollTo(0, document.querySelector(".after-dark-lines").getBoundingClientRect().top + window.scrollY - 150));
+  await status();
+  await shot("started-desktop");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await status();
+  await checkPhone(page, "a night from a scenario");
+  await shot("started-phone");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // What they're into, and how they know each other.
+  const profile = page.locator(".ad-profile");
+  await profile.locator("summary").click();
+  await profile.getByRole("radio", { name: "Exes" }).click();
+  await profile.locator(".ad-turn-ons").first().waitFor({ timeout: 15_000 });
+  for (const label of ["Slow teasing", "Praise", "Candlelight"]) {
+    await profile.locator(".ad-turn-ons").first().getByRole("button", { name: label }).click();
+    await page.waitForTimeout(300);
+  }
+  await profile.locator(".ad-turn-ons").nth(1).getByRole("button", { name: "Massage" }).click();
+  await page.waitForTimeout(400);
+  await top(".ad-profile");
+  await shot("profile-desktop");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await top(".ad-profile");
+  await checkPhone(page, "the turn-ons panel");
+  await shot("profile-phone");
+}
+
+const FLOWS = { director, limits, scenarios };
 
 async function main() {
   if (!process.env.CHROMIUM_PATH) throw new Error("Set CHROMIUM_PATH to a local Chromium; this script never downloads one.");

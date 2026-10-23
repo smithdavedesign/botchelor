@@ -22,7 +22,7 @@ import type { DateInput, Outcome, SideSetup } from "./engine";
 import { formatNote, type FormatContext, type FormatId } from "./formats";
 import { metBefore } from "./memory";
 import { ModelError, type ChatMessage, type Model } from "./model";
-import { agenda, ENDING_LABELS } from "./rules";
+import { agenda, endingLabel } from "./rules";
 import { checkFields } from "./safety";
 import { whereItHappened } from "./moves";
 import type { PlaceId } from "./venues";
@@ -103,7 +103,7 @@ export function buildReflectionMessages(
     what_you_want_in_someone: meChar.persona.want,
     ...(history ? { you_had_met_them_before: history } : {}),
     ...(date.length ? { the_date: date.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue })) } : {}),
-    how_it_ended: ENDING_LABELS[outcome.ending],
+    how_it_ended: endingLabel(outcome.ending, input.date_number),
     your_feeling: feelingFor(sideIndex, outcome),
   };
   return [

@@ -11,7 +11,7 @@ import { characterSelfView, type Character } from "./character";
 import type { Turn } from "./conversation";
 import type { Outcome } from "./engine";
 import type { ChatMessage, Model } from "./model";
-import { DATE_ACTS, dramaAnswerLabel, ENDING_LABELS } from "./rules";
+import { DATE_ACTS, dramaAnswerLabel, endingLabel } from "./rules";
 
 const score = z.coerce.number().int().min(1).max(5);
 
@@ -54,14 +54,14 @@ Flags (true/false):
 Reply with ONLY a JSON object (no markdown):
 {"in_character_a":0,"in_character_b":0,"natural":0,"motivated":0,"specific":0,"distinct":0,"engaging":0,"profile_reading":false,"misgendering":false,"abrupt_turn":false,"note":"one or two sentences: the biggest problem and the best moment"}`;
 
-function outcomeLine(characters: [Character, Character], outcome: Outcome): string {
+function outcomeLine(characters: [Character, Character], outcome: Outcome, dateNumber?: number | null): string {
   const names: [string, string] = [characters[0].name, characters[1].name];
   const drama =
     outcome.drama_question === "rejected"
       ? outcome.drama_answer === "neither" ? "nobody is rejected" : `${dramaAnswerLabel("rejected", outcome.drama_answer, names)} gets turned down`
       : outcome.drama_answer === "neither" ? "they leave together" : `${dramaAnswerLabel("leaves_first", outcome.drama_answer, names)} leaves first`;
   // Worded for the ending (lib/beats.ts), so "wants to see them again" after "Just friends" reads as friendship.
-  return `Decided ending: ${ENDING_LABELS[outcome.ending]} (${ENDING_READS[outcome.ending]}). ${drama}. ${wantsFact(outcome, 0, names)} ${wantsFact(outcome, 1, names)}`;
+  return `Decided ending: ${endingLabel(outcome.ending, dateNumber)} (${ENDING_READS[outcome.ending]}). ${drama}. ${wantsFact(outcome, 0, names, dateNumber)} ${wantsFact(outcome, 1, names, dateNumber)}`;
 }
 
 export function buildJudgeMessages(
@@ -69,13 +69,15 @@ export function buildJudgeMessages(
   outcome: Outcome,
   transcript: Turn[],
   venuePrompt: string,
+  /** Which date this is for the couple (DateInput.date_number): a third date's happy ending is "A fourth date". */
+  dateNumber?: number | null,
 ): ChatMessage[] {
   const who = (t: Turn) => characters[t.side === "a" ? 0 : 1].name;
   const data = {
     character_a: { ...characterSelfView(characters[0]), pronouns: characters[0].pronouns ?? "unknown", voice: characters[0].voice ?? "(not given)" },
     character_b: { ...characterSelfView(characters[1]), pronouns: characters[1].pronouns ?? "unknown", voice: characters[1].voice ?? "(not given)" },
     where: venuePrompt,
-    outcome: outcomeLine(characters, outcome),
+    outcome: outcomeLine(characters, outcome, dateNumber),
     conversation: transcript.map((t) => `[${DATE_ACTS[t.act] ?? `Act ${t.act + 1}`}] ${who(t)}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`),
   };
   return [
@@ -104,9 +106,10 @@ export async function judgeDate(
   outcome: Outcome,
   transcript: Turn[],
   venuePrompt: string,
+  dateNumber?: number | null,
 ): Promise<JudgeScores | null> {
   if (transcript.length === 0) return null;
-  const messages = buildJudgeMessages(characters, outcome, transcript, venuePrompt);
+  const messages = buildJudgeMessages(characters, outcome, transcript, venuePrompt, dateNumber);
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const verdict = parseJudge(await model.complete(messages, { temperature: 0.2 }));
