@@ -24,6 +24,7 @@ export default function ConnectionCard({
   status,
   meta = [],
   error = null,
+  meter = null,
   children,
 }: {
   id: string;
@@ -35,6 +36,8 @@ export default function ConnectionCard({
   status?: ReactNode;
   meta?: string[];
   error?: PlainError | null;
+  /** M3: this month's spend against the cap ("$8.10 of $10 this month"), drawn as a bar; amber past 80%, full at the cap. */
+  meter?: { spent: number; cap: number; level: "ok" | "warn" | "over"; label: string } | null;
   children?: ReactNode;
 }) {
   return (
@@ -49,6 +52,19 @@ export default function ConnectionCard({
       </header>
       {status ? <p className="connection-status">{status}</p> : null}
       {meta.length > 0 && <p className="connection-meta muted small">{meta.join(" · ")}</p>}
+      {meter && (
+        <div
+          className={`usage-meter level-${meter.level}`}
+          role="meter"
+          aria-label="This month's spend against the cap"
+          aria-valuemin={0}
+          aria-valuemax={meter.cap}
+          aria-valuenow={Math.min(meter.spent, meter.cap)}
+          aria-valuetext={meter.label}
+        >
+          <span style={{ width: `${Math.min(100, Math.round((meter.spent / meter.cap) * 100))}%` }} />
+        </div>
+      )}
       {error && (
         <p className="connection-error" role="status">
           {error.message}

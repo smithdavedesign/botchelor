@@ -17,24 +17,38 @@
  */
 import type { Db } from "./db";
 import {
+  capLevel,
+  clampCap,
   clampSetting,
+  CURATED_PRICES,
   curatedModels,
   defaultModelFor,
   isUserProvider,
   modelFitsJob,
   modelOption,
   modelOptions,
+  money,
+  monthOf,
   plainError,
   PRESET_IDS,
   PROVIDER_INFO,
+  providerLabel,
+  resetDay,
   TEXT_PROVIDERS,
+  WARN_AT,
+  JOB_INFO,
+  type CapSettings,
   type ErrorKind,
   type Feel,
   type Job,
   type ModelOption,
+  type OnCap,
   type PlainError,
+  type UsageSummary,
   type UserProvider,
 } from "./connections-shared";
+import type { Usage } from "./model";
+import { notify } from "./notifications";
 import { needsReseal, openKey, reseal, sealKey, sealVersion, type Sealed, type SealVersion } from "./key-crypto";
 
 type Env = Record<string, string | undefined>;
@@ -227,7 +241,7 @@ export type ConnectionInfo = {
   /** The jobs it's used for. */
   jobs: Job[];
 };
-export type JobAssignment = { job: Job; provider: string; model: string | null; updated_at: string } & Feel;
+export type JobAssignment = { job: Job; provider: string; model: string | null; updated_at: string; cap_usd: number | null; on_cap: OnCap | null } & Feel;
 
 type ConnRow = {
   provider: string;
@@ -258,12 +272,20 @@ export async function listConnections(db: Db, userId: string): Promise<{ connect
          from user_connections where user_id = $1 order by created_at`,
       [userId],
     ),
-    db.query<{ job: Job; provider: string; model: string | null; updated_at: Date | string } & Feel>(
-      `select job, provider, model, updated_at, preset, temperature, frequency_penalty, presence_penalty from user_connection_jobs where user_id = $1`,
+    db.query<{ job: Job; provider: string; model: string | null; updated_at: Date | string; cap_usd: number | null; on_cap: string | null } & Feel>(
+      `select job, provider, model, updated_at, preset, temperature, frequency_penalty, presence_penalty, cap_usd, on_cap from user_connection_jobs where user_id = $1`,
       [userId],
     ),
   ]);
-  const assignments = jobs.rows.map((j) => ({ job: j.job, provider: j.provider, model: j.model, updated_at: iso(j.updated_at)!, ...storedFeel(j) }));
+  const assignments = jobs.rows.map((j) => ({
+    job: j.job,
+    provider: j.provider,
+    model: j.model,
+    updated_at: iso(j.updated_at)!,
+    ...storedFeel(j),
+    cap_usd: clampCap(j.cap_usd),
+    on_cap: j.on_cap === "pause" ? ("pause" as const) : j.on_cap === "fallback" ? ("fallback" as const) : null,
+  }));
   return {
     connections: conns.rows.map((r) => ({
       provider: r.provider,
@@ -323,12 +345,22 @@ function storedFeel(r: Partial<Record<keyof Feel, unknown>>): Feel {
  * Points a job at a provider's stored key, with the model it runs (null: the provider's default for the job) and, for
  * Dates & texts, its feel (a preset, or Advanced's raw values, clamped to their bounds for that provider).
  */
-export async function assignJob(db: Db, userId: string, job: Job, provider: string, model: string | null, feel: Partial<Feel> = {}): Promise<void> {
+export async function assignJob(
+  db: Db,
+  userId: string,
+  job: Job,
+  provider: string,
+  model: string | null,
+  feel: Partial<Feel> = {},
+  cap: Partial<CapSettings> = {},
+): Promise<void> {
   const f = job === "text" ? feel : {};
   await db.query(
-    `insert into user_connection_jobs (user_id, job, provider, model, preset, temperature, frequency_penalty, presence_penalty) values ($1, $2, $3, $4, $5, $6, $7, $8)
+    `insert into user_connection_jobs (user_id, job, provider, model, preset, temperature, frequency_penalty, presence_penalty, cap_usd, on_cap)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      on conflict (user_id, job) do update set provider = excluded.provider, model = excluded.model, preset = excluded.preset,
-       temperature = excluded.temperature, frequency_penalty = excluded.frequency_penalty, presence_penalty = excluded.presence_penalty, updated_at = now()`,
+       temperature = excluded.temperature, frequency_penalty = excluded.frequency_penalty, presence_penalty = excluded.presence_penalty,
+       cap_usd = excluded.cap_usd, on_cap = excluded.on_cap, updated_at = now()`,
     [
       userId,
       job,
@@ -338,6 +370,9 @@ export async function assignJob(db: Db, userId: string, job: Job, provider: stri
       clampSetting(f.temperature, "temperature", provider),
       clampSetting(f.frequency_penalty, "penalty"),
       clampSetting(f.presence_penalty, "penalty"),
+      clampCap(cap.cap_usd),
+      // Only Dates & texts has a free model to stand in; portraits and clips always wait at the cap.
+      job === "text" && cap.on_cap === "pause" ? "pause" : null,
     ],
   );
 }
@@ -390,10 +425,15 @@ export async function openConnection(db: Db, userId: string, provider: string, e
  * What a job runs on for a person: the provider, its key (opened, for the call only), the model, and (Dates & texts) its
  * feel; null with none.
  */
-export async function jobKey(db: Db, userId: string, job: Job, env: Env = process.env): Promise<{ provider: string; apiKey: string; model: string; feel: Feel } | null> {
+export async function jobKey(
+  db: Db,
+  userId: string,
+  job: Job,
+  env: Env = process.env,
+): Promise<{ provider: string; apiKey: string; model: string; feel: Feel; cap: CapSettings } | null> {
   const row = (
-    await db.query<{ provider: string; model: string | null; ciphertext: string; nonce: string } & Feel>(
-      `select j.provider, j.model, j.preset, j.temperature, j.frequency_penalty, j.presence_penalty, c.ciphertext, c.nonce
+    await db.query<{ provider: string; model: string | null; ciphertext: string; nonce: string; cap_usd: number | null; on_cap: string | null } & Feel>(
+      `select j.provider, j.model, j.preset, j.temperature, j.frequency_penalty, j.presence_penalty, j.cap_usd, j.on_cap, c.ciphertext, c.nonce
          from user_connection_jobs j join user_connections c on c.user_id = j.user_id and c.provider = j.provider
         where j.user_id = $1 and j.job = $2`,
       [userId, job],
@@ -403,7 +443,8 @@ export async function jobKey(db: Db, userId: string, job: Job, env: Env = proces
   const model = row.model || defaultModelFor(row.provider, job);
   if (!model) return null;
   const apiKey = await openStored(db, userId, row.provider, row, env);
-  return apiKey ? { provider: row.provider, apiKey, model, feel: storedFeel(row) } : null;
+  const cap: CapSettings = { cap_usd: clampCap(row.cap_usd), on_cap: job === "text" && row.on_cap === "pause" ? "pause" : job === "text" ? "fallback" : "pause" };
+  return apiKey ? { provider: row.provider, apiKey, model, feel: storedFeel(row), cap } : null;
 }
 
 /** Whether a person has a key for a job (no decrypting: for the pages that only say "you can"). */
@@ -424,12 +465,22 @@ export async function recordUse(db: Db, userId: string, provider: string): Promi
     .catch(() => {});
 }
 
-/** A key that just failed, in plain words for its card. Best effort. */
-export async function recordError(db: Db, userId: string, provider: string, kind: ErrorKind, opts: { model?: string | null } = {}): Promise<void> {
+/**
+ * A key that just failed, in plain words for its card. Best effort. True when it's a new failure (the key had no error,
+ * or another one), so its owner is told once, not on every call that fails the same way.
+ */
+export async function recordError(db: Db, userId: string, provider: string, kind: ErrorKind, opts: { model?: string | null } = {}): Promise<boolean> {
   const e = plainError(provider, kind, opts);
-  await db
-    .query(`update user_connections set last_error = $3, last_error_kind = $4, last_error_at = now() where user_id = $1 and provider = $2`, [userId, provider, e.message, e.kind])
-    .catch(() => {});
+  const r = await db
+    .query<{ prev: string | null }>(
+      `update user_connections c set last_error = $3, last_error_kind = $4, last_error_at = now()
+         from (select last_error_kind as prev from user_connections where user_id = $1 and provider = $2) p
+        where c.user_id = $1 and c.provider = $2 returning p.prev`,
+      [userId, provider, e.message, e.kind],
+    )
+    .catch(() => null);
+  const row = r?.rows[0];
+  return row !== undefined && row.prev !== e.kind;
 }
 
 /** A key that passed the live check: checked now, its error cleared, and the models it listed kept for the model step. */
@@ -517,6 +568,11 @@ export async function openRouterModels(opts: { fetchImpl?: typeof fetch; env?: E
   }
 }
 
+/** An OpenRouter model's list price from the list already fetched (never a fetch): for a call that reported no cost. */
+export function cachedOpenRouterPrice(id: string): { input: number; output: number } | null {
+  return openRouterCache?.models.find((m) => m.id === id)?.price ?? null;
+}
+
 /**
  * The models a job can run on a provider, for the model step, Recommended first: OpenRouter's live list (with its prices),
  * or the models this person's key listed at its last check, or (no list) the curated ones. `listed` overrides the stored
@@ -549,4 +605,191 @@ export async function modelsFor(
     listed = Array.isArray(row?.models) ? (row!.models as unknown[]).filter((m): m is string => typeof m === "string") : null;
   }
   return { models: modelOptions(provider, job, listed ?? null), source: listed?.length ? "provider" : "curated" };
+}
+
+/* --------------------------------------------------- M3: usage and caps --------------------------------------------------- */
+
+/** One call's cost on a person's key: what the provider reported, else tokens × the model's list price, else unknown. */
+export type CallCost = { usd: number; how: "reported" | "estimated" | "unpriced"; input: number; output: number };
+
+/**
+ * What a call cost the key's owner. OpenRouter reports it (asked for with usage.include); otherwise the tokens at the model's
+ * list price (lib/connections-shared.ts CURATED_PRICES, or OpenRouter's own prices from its list), thinking billed as
+ * output; otherwise unpriced (counted, shown on the card, never guessed).
+ */
+export function callCost(model: string, usage: Usage, listPrice: { input: number; output: number } | null = null): CallCost {
+  const input = usage.input;
+  const output = usage.output;
+  if (usage.cost !== undefined) return { usd: usage.cost, how: "reported", input, output };
+  const price = listPrice ?? CURATED_PRICES[model] ?? CURATED_PRICES[model.replace(/^[\w-]+\//, "")] ?? null;
+  if (!price) return { usd: 0, how: "unpriced", input, output };
+  return { usd: (input * price.input + output * price.output) / 1e6, how: "estimated", input, output };
+}
+
+type UsageRow = { cost_usd: number; calls: number; estimated_calls: number; unpriced_calls: number; warned_at: Date | string | null; capped_at: Date | string | null };
+
+/** What each job of a person's spent this month. */
+export async function currentUsage(db: Db, userId: string, now: number = Date.now()): Promise<Partial<Record<Job, UsageSummary>>> {
+  const { rows } = await db
+    .query<{ job: Job } & UsageRow>(`select job, cost_usd, calls, estimated_calls, unpriced_calls from user_connection_usage where user_id = $1 and month = $2`, [userId, monthOf(now)])
+    .catch(() => ({ rows: [] as ({ job: Job } & UsageRow)[] }));
+  return Object.fromEntries(rows.map((r) => [r.job, { cost_usd: Number(r.cost_usd), calls: r.calls, estimated_calls: r.estimated_calls, unpriced_calls: r.unpriced_calls }]));
+}
+
+/** Adds one call (or one portrait, one clip) to a job's month, and returns the month so far. Never throws. */
+export async function recordUsage(db: Db, userId: string, job: Job, cost: CallCost, now: number = Date.now()): Promise<{ cost_usd: number; warned: boolean; capped: boolean } | null> {
+  const r = await db
+    .query<UsageRow>(
+      `insert into user_connection_usage (user_id, job, month, cost_usd, calls, input_tokens, output_tokens, estimated_calls, unpriced_calls)
+       values ($1, $2, $3, $4, 1, $5, $6, $7, $8)
+       on conflict (user_id, job, month) do update set
+         cost_usd = user_connection_usage.cost_usd + excluded.cost_usd, calls = user_connection_usage.calls + 1,
+         input_tokens = user_connection_usage.input_tokens + excluded.input_tokens, output_tokens = user_connection_usage.output_tokens + excluded.output_tokens,
+         estimated_calls = user_connection_usage.estimated_calls + excluded.estimated_calls, unpriced_calls = user_connection_usage.unpriced_calls + excluded.unpriced_calls,
+         updated_at = now()
+       returning cost_usd, calls, estimated_calls, unpriced_calls, warned_at, capped_at`,
+      [userId, job, monthOf(now), Math.max(0, cost.usd), Math.round(cost.input), Math.round(cost.output), cost.how === "estimated" ? 1 : 0, cost.how === "unpriced" ? 1 : 0],
+    )
+    .catch(() => null);
+  const row = r?.rows[0];
+  return row ? { cost_usd: Number(row.cost_usd), warned: row.warned_at !== null, capped: row.capped_at !== null } : null;
+}
+
+/** Marks a job's 80% or cap notice as sent this month; true only for the one call that marked it (so it goes once). */
+async function claimNotice(db: Db, userId: string, job: Job, which: "warned_at" | "capped_at", now: number): Promise<boolean> {
+  const r = await db
+    .query(
+      `insert into user_connection_usage (user_id, job, month, ${which}) values ($1, $2, $3, now())
+       on conflict (user_id, job, month) do update set ${which} = now() where user_connection_usage.${which} is null
+       returning 1`,
+      [userId, job, monthOf(now)],
+    )
+    .catch(() => null);
+  return Boolean(r?.rows.length);
+}
+
+const fallbackWords = (job: Job, cap: CapSettings, now: number) =>
+  job === "text" && cap.on_cap === "fallback"
+    ? `Botchelor's free model stands in for your dates until ${resetDay(now)}.`
+    : `${job === "text" ? "Your dates wait" : job === "image" ? "Portraits wait" : "Clips wait"} until ${resetDay(now)}, or until you raise the cap.`;
+
+/**
+ * The notices a job's spend calls for (once a month each): the heads-up at WARN_AT of its cap, and the cap itself. In the
+ * app, and by email at once when its owner turned email on (lib/email.ts IMMEDIATE_KINDS).
+ */
+export async function noteSpend(db: Db, userId: string, job: Job, provider: string, spent: number, cap: CapSettings, now: number = Date.now()): Promise<void> {
+  const level = capLevel(spent, cap.cap_usd);
+  if (level === "none" || level === "ok" || cap.cap_usd === null) return;
+  const title = JOB_INFO[job].title;
+  const link = `/account/keys#${JOB_INFO[job].anchor}`;
+  if (level === "over") {
+    if (!(await claimNotice(db, userId, job, "capped_at", now))) return;
+    await notify(db, userId, {
+      kind: "key_capped",
+      title: `🔑 ${title} reached its ${money(cap.cap_usd)} cap for the month`,
+      body: `Your ${providerLabel(provider)} key has spent ${money(spent)} this month. ${fallbackWords(job, cap, now)} Raise the cap on Connections.`,
+      link,
+    });
+    return;
+  }
+  if (!(await claimNotice(db, userId, job, "warned_at", now))) return;
+  await notify(db, userId, {
+    kind: "key_usage",
+    title: `🔑 ${title} is at ${Math.floor(WARN_AT * 100)}% of its ${money(cap.cap_usd)} cap`,
+    body: `Your ${providerLabel(provider)} key has spent ${money(spent)} of ${money(cap.cap_usd)} this month. At the cap, ${fallbackWords(job, cap, now).charAt(0).toLowerCase()}${fallbackWords(job, cap, now).slice(1)}`,
+    link,
+  });
+}
+
+/** A key that stopped working, told once (recordError's new failure), with what to do and what happens meanwhile. */
+export async function noteFailure(db: Db, userId: string, job: Job, provider: string, kind: ErrorKind, cap: CapSettings): Promise<void> {
+  const e = plainError(provider, kind);
+  const meanwhile =
+    job === "text" ? (cap.on_cap === "fallback" ? "Meanwhile Botchelor's free model stands in for your dates." : "Meanwhile your dates wait (you chose that).") : "";
+  await notify(db, userId, {
+    kind: "key_failed",
+    title: `🔑 Your ${providerLabel(provider)} key stopped working`,
+    body: `${e.message}${e.fix ? ` ${e.fix.label}.` : ""} ${meanwhile}`.trim(),
+    link: `/account/keys#${JOB_INFO[job].anchor}`,
+  });
+}
+
+/** The failures only a key's owner can fix: while one stands, "pause" holds their bookings. */
+const OWNER_FIXES: readonly ErrorKind[] = ["invalid_key", "no_credit", "unreadable"];
+
+/**
+ * Whether a job can run on its key right now: it has one, it isn't at its cap, and (for a key whose owner chose to pause)
+ * it isn't failing for a reason only they can fix. With the words to say when it can't.
+ */
+export async function jobUsability(
+  db: Db,
+  userId: string,
+  job: Job,
+  now: number = Date.now(),
+): Promise<{ state: "none" } | { state: "ok"; cap: CapSettings; spent: number } | { state: "over_cap" | "failing"; cap: CapSettings; spent: number; provider: string; message: string }> {
+  const row = (
+    await db.query<{ provider: string; cap_usd: number | null; on_cap: string | null; last_error_kind: string | null }>(
+      `select j.provider, j.cap_usd, j.on_cap, c.last_error_kind
+         from user_connection_jobs j join user_connections c on c.user_id = j.user_id and c.provider = j.provider
+        where j.user_id = $1 and j.job = $2`,
+      [userId, job],
+    )
+  ).rows[0];
+  if (!row) return { state: "none" };
+  const cap: CapSettings = { cap_usd: clampCap(row.cap_usd), on_cap: job === "text" && row.on_cap === "pause" ? "pause" : job === "text" ? "fallback" : "pause" };
+  const spent = (await currentUsage(db, userId, now))[job]?.cost_usd ?? 0;
+  const title = JOB_INFO[job].title;
+  if (capLevel(spent, cap.cap_usd) === "over") {
+    return {
+      state: "over_cap",
+      cap,
+      spent,
+      provider: row.provider,
+      message: `${title} has reached its ${money(cap.cap_usd!)} cap for the month on your ${providerLabel(row.provider)} key. ${fallbackWords(job, cap, now)} You can raise the cap on Connections.`,
+    };
+  }
+  const failing = row.last_error_kind && (OWNER_FIXES as readonly string[]).includes(row.last_error_kind) ? (row.last_error_kind as ErrorKind) : null;
+  if (failing && cap.on_cap === "pause") {
+    const e = plainError(row.provider, failing);
+    return {
+      state: "failing",
+      cap,
+      spent,
+      provider: row.provider,
+      message: `${e.message} You chose to pause when your key can't be used, so ${job === "text" ? "your dates wait" : "this waits"}: ${e.fix ? `${e.fix.label.charAt(0).toLowerCase()}${e.fix.label.slice(1)}, then press Check` : "fix it, then press Check"} on Connections (or let Botchelor's free model stand in).`,
+    };
+  }
+  return { state: "ok", cap, spent };
+}
+
+/**
+ * One portrait or clip made on a person's key (no per-token usage to read): its list-price estimate added to the job's
+ * month, the 80% and cap notices, and the key's "last used". Never throws into the request it follows.
+ */
+export async function recordJobSpend(db: Db, userId: string, job: Job, provider: string, usd: number, now: number = Date.now()): Promise<void> {
+  try {
+    await recordUse(db, userId, provider);
+    const month = await recordUsage(db, userId, job, { usd, how: "estimated", input: 0, output: 0 }, now);
+    const usable = await jobUsability(db, userId, job, now);
+    if (month && usable.state !== "none") await noteSpend(db, userId, job, provider, month.cost_usd, usable.cap, now);
+  } catch {
+    /* the spend is a record, never a reason to fail what was made */
+  }
+}
+
+/**
+ * A portrait or clip the key's provider turned down: when its words carry the HTTP status ("(HTTP 401)"), what went wrong
+ * goes on the card in plain words, and its owner hears once when it's newly something only they can fix.
+ */
+export async function recordJobFailure(db: Db, userId: string, job: Job, provider: string, message: string): Promise<void> {
+  const status = Number(/HTTP (\d{3})/.exec(message)?.[1]);
+  const kind = refusalKind(Number.isFinite(status) ? status : undefined, message);
+  if (!kind) return;
+  try {
+    const isNew = await recordError(db, userId, provider, kind);
+    const usable = await jobUsability(db, userId, job);
+    if (isNew && (kind === "invalid_key" || kind === "no_credit") && usable.state !== "none") await noteFailure(db, userId, job, provider, kind, usable.cap);
+  } catch {
+    /* best effort */
+  }
 }

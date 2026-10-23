@@ -1,4 +1,6 @@
 import { recordAsset, reviewAsset } from "@/lib/assets";
+import { jobUsability, recordJobFailure, recordJobSpend } from "@/lib/connections";
+import { PORTRAIT_ESTIMATE_USD } from "@/lib/connections-shared";
 import { getDb } from "@/lib/db";
 import { handle, json, readJson, session } from "@/lib/http";
 import { DEFAULT_PORTRAIT_STYLE, imageModelFor, isPortraitStyle, PROMPT_VERSION, generatePortrait } from "@/lib/image";
@@ -21,6 +23,11 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const db = await getDb();
   if (!(await ownsCharacter(db, id, sess.userId))) return json({ error: "character_not_found" }, 404, sess);
 
+  // At the month's cap (Connections M3), portraits wait: there's no free model to stand in for them.
+  const usable = await jobUsability(db, sess.userId, "image");
+  if (usable.state === "over_cap" || usable.state === "failing") {
+    return json({ error: usable.state === "over_cap" ? "over_cap" : "key_paused", message: usable.message, connect: "/account/keys#portraits" }, 409, sess);
+  }
   const key = await userImageKey(db, sess.userId);
   const generates = key && key.provider in IMAGE_PROVIDERS && IMAGE_PROVIDERS[key.provider as keyof typeof IMAGE_PROVIDERS].generates;
   if (!key || !generates) {
@@ -43,8 +50,11 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   try {
     portrait = await generatePortrait(key.apiKey, character, imageModelFor(key.model), undefined, style);
   } catch (err) {
-    return json({ error: "generation_failed", message: err instanceof Error ? err.message : "The image couldn't be generated." }, 502, sess);
+    const message = err instanceof Error ? err.message : "The image couldn't be generated.";
+    await recordJobFailure(db, sess.userId, "image", key.provider, message);
+    return json({ error: "generation_failed", message }, 502, sess);
   }
+  await recordJobSpend(db, sess.userId, "image", key.provider, PORTRAIT_ESTIMATE_USD);
 
   const assetId = await recordAsset(db, {
     character_id: id,

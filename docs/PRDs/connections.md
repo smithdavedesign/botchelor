@@ -319,7 +319,7 @@ the house's) was sealed again as v2.
 
 ### M2: the model picker and presets
 
-**Shipped** (the M2 PR). What it built, in short: `lib/connections.ts` `openRouterModels` (OpenRouter's public list, no key
+**Shipped** in #744 (2026-10-23). What it built, in short: `lib/connections.ts` `openRouterModels` (OpenRouter's public list, no key
 sent, kept an hour per instance) and `modelsFor`; each key's own list kept with it at every check
 (`user_connections.models`); `GET /api/me/connections/models`; the check returns the job's models; the step is
 `app/account/keys/ModelPicker.tsx` (a filter and Free / Fast / Vision toggles past 8 models, at most 40 rows) and
@@ -347,6 +347,24 @@ sent, kept an hour per instance) and `modelsFor`; each key's own list kept with 
 
 ### M3: caps, usage, fallback and alerts
 
+**Shipped** (the M3 PR). What it built, in short:
+- `user_connection_usage`: what each job spent each UTC month, with the call count, the tokens, how many calls were estimated
+  or couldn't be priced, and when its 80% and cap notices went.
+- `lib/keys.ts personalModel`: every call on a person's text key goes through it. It counts the call's cost, sends the
+  notices, and stops the key at the cap. It hands a call to the show's model (`buildKeyForSide`'s `fallback`, passed by
+  `lib/jobs.ts`) when the key is capped or fails. A key that fails for a reason only its owner can fix (or a limit) is off for
+  the rest of the date. A provider's bad minute hands over only that call.
+- `lib/connections.ts`: `callCost`, `recordUsage`, `noteSpend` (once a month each), `noteFailure` (once per new failure) and
+  `jobUsability`. The booking route, own texting, portraits and clips each refuse in plain words at the cap or while a paused
+  key can't be used.
+- Notices `key_usage`, `key_capped` and `key_failed`, sent by email at once to anyone who turned email on
+  (`lib/email.ts` IMMEDIATE_KINDS).
+- The card: the spend line, the meter, "80% of cap", "Cap reached: … until Nov 1", "On the free model". The flow: the cap
+  step.
+- Known gaps: a line the show's model wrote in a key's place is still marked as the key's in the per-line record
+  (`turn_meta.by`), and its cost isn't in the date's logged spend. A rate limit doesn't hold a paused person's bookings (it
+  passes on its own).
+
 - Every call on a person's key is counted for the month, per job: the provider's own cost where it reports one (OpenRouter's
   `usage.cost`, asked for with `usage: { include: true }`), else tokens × the model's price; a portrait and a clip at their
   list prices.
@@ -371,7 +389,9 @@ Taken with `npm run screenshots:connections` (real browser, stubbed providers, f
 | M2: the key's models, tagged and priced | ![](../screenshots/connections-models-desktop.png) | ![](../screenshots/connections-models-phone.png) |
 | M2: the feel (Wild, with Advanced open) | ![](../screenshots/connections-feel-desktop.png) | ![](../screenshots/connections-feel-phone.png) |
 | Dates on OpenRouter, portraits on OpenAI, the key list | ![](../screenshots/connections-connected-desktop.png) | ![](../screenshots/connections-connected-phone.png) |
-| OpenRouter out of credit | ![](../screenshots/connections-error-desktop.png) | ![](../screenshots/connections-error-phone.png) |
+| OpenRouter out of credit: the free model stands in (M3) | ![](../screenshots/connections-error-desktop.png) | ![](../screenshots/connections-error-phone.png) |
+| M3: the monthly cap step | ![](../screenshots/connections-cap-desktop.png) | ![](../screenshots/connections-cap-phone.png) |
+| M3: dates at 81% of the cap, portraits over theirs | ![](../screenshots/connections-caps-desktop.png) | ![](../screenshots/connections-caps-phone.png) |
 | The admin's After Dark card | ![](../screenshots/connections-after-dark-desktop.png) | |
 | After Dark's providers (Hive paused, Venice cooling down) | ![](../screenshots/admin-providers-desktop.png) | ![](../screenshots/admin-providers-phone.png) |
 

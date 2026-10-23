@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
-import { checkKey, listConnections, removeConnection, saveConnection, assignJob, unassignJob } from "@/lib/connections";
+import { checkKey, currentUsage, listConnections, removeConnection, saveConnection, assignJob, unassignJob } from "@/lib/connections";
 import { checkLimit, connectionsGate, ModelId, PastedKey } from "@/lib/connections-http";
-import { JOB_INFO, JOBS, jobCards, PRESET_IDS, PROVIDER_INFO, isUserProvider, providersFor, type Feel, type Job } from "@/lib/connections-shared";
+import { CAP_MAX_USD, JOB_INFO, JOBS, jobCards, ON_CAP, PRESET_IDS, PROVIDER_INFO, isUserProvider, providersFor, type Feel, type Job } from "@/lib/connections-shared";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +13,10 @@ export const dynamic = "force-dynamic";
  * back, from every route here.
  */
 async function view(userId: string) {
-  const listing = await listConnections(await getDb(), userId);
+  const db = await getDb();
+  const listing = await listConnections(db, userId);
   return {
-    cards: jobCards(listing),
+    cards: jobCards(listing, Date.now(), await currentUsage(db, userId)),
     connections: listing.connections.map(({ provider, last4, verified_at, last_used_at, last_error, last_error_at, created_at, jobs }) => ({
       provider,
       last4,
@@ -52,6 +53,9 @@ const SaveInput = z.object({
   temperature: z.number().finite().nullable().optional(),
   frequency_penalty: z.number().finite().nullable().optional(),
   presence_penalty: z.number().finite().nullable().optional(),
+  /** M3: the job's monthly cap in USD (null or 0: none), and what happens at it (Dates & texts only: the free model, or wait). */
+  cap_usd: z.number().finite().min(0).max(CAP_MAX_USD).nullable().optional(),
+  on_cap: z.enum(ON_CAP).optional(),
 });
 
 /**
@@ -90,7 +94,7 @@ export const PUT = handle(async (req) => {
     frequency_penalty: input.frequency_penalty ?? null,
     presence_penalty: input.presence_penalty ?? null,
   };
-  if (input.job) await assignJob(db, gate.userId, input.job, provider, input.model ?? null, feel);
+  if (input.job) await assignJob(db, gate.userId, input.job, provider, input.model ?? null, feel, { cap_usd: input.cap_usd ?? null, on_cap: input.on_cap });
   for (const job of input.also ?? []) if (job !== input.job) await assignJob(db, gate.userId, job, provider, null);
   return json({ saved: true, ...(await view(gate.userId)) });
 });

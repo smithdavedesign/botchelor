@@ -17,15 +17,33 @@
  * provider and the last four characters).
  */
 import type { Db } from "./db";
-import { DIALOGUE_TEMPERATURE, isTextProvider, plainError, samplingFor, TEXT_PROVIDERS, type Job, type Sampling, type TextProvider } from "./connections-shared";
+import {
+  capLevel,
+  DIALOGUE_TEMPERATURE,
+  isTextProvider,
+  plainError,
+  samplingFor,
+  TEXT_PROVIDERS,
+  type CapSettings,
+  type ErrorKind,
+  type Job,
+  type Sampling,
+  type TextProvider,
+} from "./connections-shared";
 import {
   assignJob,
+  cachedOpenRouterPrice,
+  callCost,
   chatBaseUrl,
   classifyRefusal,
+  currentUsage,
   hasJobKey,
   jobKey,
   listConnections,
+  noteFailure,
+  noteSpend,
   recordError,
+  recordUsage,
   recordUse,
   refusalKind,
   removeConnection,
@@ -33,7 +51,7 @@ import {
   unassignJob,
 } from "./connections";
 import { canSeal, openKey, sealKey } from "./key-crypto";
-import { ModelError, openAICompatibleModel, type Model, type ReasoningEffort } from "./model";
+import { ModelError, openAICompatibleModel, type Model, type ReasoningEffort, type Usage } from "./model";
 
 export { isTextProvider, TEXT_PROVIDERS, type TextProvider };
 
@@ -175,30 +193,72 @@ export async function listUserKeys(db: Db, userId: string): Promise<StoredKeyInf
   return out.sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
 }
 
+/** The failures that turn a key off for the rest of a date: a retry can't fix them, only its owner can (or the minute). */
+const KEY_OFF: readonly ErrorKind[] = ["invalid_key", "no_credit", "unreadable", "rate_limited"];
+/** The ones its owner is told about (a limit passes on its own). */
+const TELL_OWNER: readonly ErrorKind[] = ["invalid_key", "no_credit", "unreadable"];
+
 /**
- * A person's key as a model, recording on its card when it last worked (once per model, so once per date) and,
- * when the provider turned it down for a reason they can fix (a bad key, no credit, a limit), what went wrong. The
- * error that leaves here never carries the key.
+ * A person's key as a model (Connections, lib/connections.ts), with everything around the call:
+ *  - its card: when it last worked (once per model, so once per date), and what went wrong in plain words, with one
+ *    notice when it newly stops working (out of credit, revoked);
+ *  - its spend (M3): every call's cost (what the provider reported, else tokens × list price) added to the month, the 80%
+ *    and cap notices, and at the cap the key stops for the rest of the date;
+ *  - its fallback (M3): when the key is at its cap or fails (out of credit, revoked, limited, or the provider is down), the
+ *    show's model writes instead, so a date is never lost to a key. With no fallback (texting on your own key), the
+ *    error goes back up, with the key scrubbed out of it.
  */
-function trackedModel(db: Db, userId: string, provider: string, apiKey: string, model: Model, modelId: string): Model {
+function personalModel(
+  db: Db,
+  userId: string,
+  key: { provider: string; apiKey: string; model: string; cap: CapSettings },
+  model: Model,
+  opts: { fallback?: Model; spent: number; now: () => number },
+): Model {
   let used = false;
+  let spent = opts.spent;
+  let off: ErrorKind | "over_cap" | null = capLevel(spent, key.cap.cap_usd) === "over" ? "over_cap" : null;
+  const stoodIn = (messages: Parameters<Model["complete"]>[0], options: Parameters<Model["complete"]>[1], why: string, status?: number) => {
+    if (opts.fallback) return opts.fallback.complete(messages, options);
+    throw new ModelError(why, status);
+  };
   return {
     async complete(messages, options) {
+      if (off) return stoodIn(messages, options, off === "over_cap" ? "your key reached this month's cap" : plainError(key.provider, off).message, off === "over_cap" ? 402 : undefined);
+      const usages: Usage[] = [];
+      let out: string;
       try {
-        const out = await model.complete(messages, options);
-        if (!used) {
-          used = true;
-          await recordUse(db, userId, provider);
-        }
-        return out;
+        out = await model.complete(messages, {
+          ...options,
+          onUsage: (u) => {
+            usages.push(u);
+            options?.onUsage?.(u);
+          },
+        });
       } catch (err) {
-        if (err instanceof ModelError) {
-          const kind = refusalKind(err.status, err.message);
-          if (kind) await recordError(db, userId, provider, kind, { model: modelId });
-          throw new ModelError(scrubKey(err.message, apiKey), err.status);
+        if (!(err instanceof ModelError)) throw err;
+        const kind = refusalKind(err.status, err.message);
+        if (kind) {
+          const isNew = await recordError(db, userId, key.provider, kind, { model: key.model });
+          if (isNew && TELL_OWNER.includes(kind)) await noteFailure(db, userId, "text", key.provider, kind, key.cap);
+          if (KEY_OFF.includes(kind)) off = kind;
         }
-        throw err;
+        return stoodIn(messages, options, scrubKey(err.message, key.apiKey), err.status);
       }
+      if (!used) {
+        used = true;
+        await recordUse(db, userId, key.provider);
+      }
+      const now = opts.now();
+      // A call the provider didn't report usage for is still counted, as unpriced.
+      for (const u of usages.length ? usages : [{ model: key.model, input: 0, cachedInput: 0, output: 0, thinking: 0 } as Usage]) {
+        const cost = usages.length ? callCost(key.model, u, key.provider === "openrouter" ? cachedOpenRouterPrice(key.model) : null) : { usd: 0, how: "unpriced" as const, input: 0, output: 0 };
+        const month = await recordUsage(db, userId, "text", cost, now);
+        if (month) spent = month.cost_usd;
+      }
+      await noteSpend(db, userId, "text", key.provider, spent, key.cap, now);
+      if (capLevel(spent, key.cap.cap_usd) === "over") off = "over_cap";
+      return out;
     },
   };
 }
@@ -225,16 +285,31 @@ export function withSampling(model: Model, sampling: Sampling): Model {
 }
 
 /**
- * A user's TEXT model built from their saved key, or null if they have none (or the app can't decrypt): the model they
- * picked, at the feel they picked (Steady, Lively, Wild or their own numbers). The reasoning level is passed through so a
- * user-key actor also keeps thinking low (their cost too).
+ * A user's TEXT model built from their saved key, or null if they have none, the app can't decrypt it, or it's at this
+ * month's cap (its side then runs on the show's model, and the cap notice goes once): the model they picked, at the feel
+ * they picked (Steady, Lively, Wild or their own numbers), counting its spend and standing `fallback` in when the key
+ * can't be used (personalModel). The reasoning level is passed through so a user-key actor also keeps thinking low.
  */
-export async function userTextModel(db: Db, userId: string, reasoning?: ReasoningEffort, env: Record<string, string | undefined> = process.env): Promise<Model | null> {
+export async function userTextModel(
+  db: Db,
+  userId: string,
+  reasoning?: ReasoningEffort,
+  env: Record<string, string | undefined> = process.env,
+  opts: { fallback?: Model; now?: () => number } = {},
+): Promise<Model | null> {
   const key = await jobKey(db, userId, "text", env);
   if (!key || !isTextProvider(key.provider)) return null;
+  const now = opts.now ?? Date.now;
+  const spent = (await currentUsage(db, userId, now()))["text"]?.cost_usd ?? 0;
+  if (capLevel(spent, key.cap.cap_usd) === "over") {
+    await noteSpend(db, userId, "text", key.provider, spent, key.cap, now());
+    return null;
+  }
   const baseUrl = chatBaseUrl(key.provider, env) ?? TEXT_PROVIDERS[key.provider].baseUrl;
-  const model = openAICompatibleModel({ baseUrl, apiKey: key.apiKey, model: key.model, reasoning });
-  return trackedModel(db, userId, key.provider, key.apiKey, withSampling(model, samplingFor(key.provider, key.feel)), key.model);
+  // OpenRouter reports each call's cost when asked: the meter counts what was really spent, not an estimate.
+  const extraBody = key.provider === "openrouter" ? { usage: { include: true } } : undefined;
+  const model = openAICompatibleModel({ baseUrl, apiKey: key.apiKey, model: key.model, reasoning, ...(extraBody ? { extraBody } : {}) });
+  return personalModel(db, userId, key, withSampling(model, samplingFor(key.provider, key.feel)), { fallback: opts.fallback, spent, now });
 }
 
 /** A user's saved image key (provider + decrypted key + optional model), or null. For portrait generation. */
@@ -260,7 +335,8 @@ export async function userVideoKey(db: Db, userId: string, env: Record<string, s
  *  - A soulless side (a house character, or a soul kept local-only) rides the date's lone creator's key
  *    when there is exactly one real creator — nothing private of anyone else is in that prompt.
  *  - Otherwise (a blind date between two users, the other side having no key) that side stays on the platform.
- * `reachableSoul[i]` is whether side i's prompt actually contains that side's private soul.
+ * `reachableSoul[i]` is whether side i's prompt actually contains that side's private soul. `fallback` is the show's model,
+ * standing in for a key that hits its cap or fails mid-date (Connections M3).
  */
 export async function buildKeyForSide(
   db: Db,
@@ -268,9 +344,10 @@ export async function buildKeyForSide(
   reachableSoul: [boolean, boolean],
   reasoning?: ReasoningEffort,
   env: Record<string, string | undefined> = process.env,
+  opts: { fallback?: Model } = {},
 ): Promise<(side: "a" | "b") => Model | null> {
   const models = new Map<string, Model | null>();
-  for (const o of owners) if (o && !models.has(o)) models.set(o, await userTextModel(db, o, reasoning, env));
+  for (const o of owners) if (o && !models.has(o)) models.set(o, await userTextModel(db, o, reasoning, env, { fallback: opts.fallback }));
   const realOwners = owners.filter((o): o is string => o !== null);
   const loneCreatorKey = realOwners.length === 1 ? (models.get(realOwners[0]) ?? null) : null;
   return (side) => {

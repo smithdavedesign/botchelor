@@ -309,13 +309,14 @@ export type ConnectionSummary = {
   created_at: string;
   jobs: Job[];
 };
-export type JobSummary = { job: Job; provider: string; model: string | null } & Partial<Feel>;
+export type JobSummary = { job: Job; provider: string; model: string | null; cap_usd?: number | null; on_cap?: OnCap | null } & Partial<Feel>;
 
 /**
  * A job card's state (docs/PRDs/connections.md "Card states"): no key of yours (`unset`), a key that's working
- * (`connected`) or one whose last check or call went wrong (`error`). "Checking…" is the page's own while a check runs.
+ * (`connected`), one whose last check or call went wrong (`error`), one at this month's cap (`over_cap`), or one that
+ * failed while Botchelor's free model stands in for it (`fallback`). "Checking…" is the page's own while a check runs.
  */
-export type CardState = "unset" | "connected" | "error";
+export type CardState = "unset" | "connected" | "error" | "over_cap" | "fallback";
 
 export type JobCard = {
   job: Job;
@@ -332,6 +333,9 @@ export type JobCard = {
   model: string | null;
   /** Dates & texts' feel (M2): the preset or custom values, as stored. */
   feel: Feel | null;
+  /** M3: the cap and what happens at it, and this month's spend against it (the card's meter). */
+  cap: CapSettings | null;
+  usage: { spent: number; cap: number | null; level: CapLevel; estimated: boolean; unpriced: number; line: string } | null;
   error: PlainError | null;
   /** Keys already connected that could do this job too, to use without pasting again. */
   reusable: { provider: string; label: string; last4: string }[];
@@ -357,8 +361,15 @@ export function keyMeta(c: Pick<ConnectionSummary, "last4" | "verified_at" | "la
   ];
 }
 
-/** Every job's card, from a person's connections and assignments. Pure: the page and the tests share it. */
-export function jobCards(listing: { connections: ConnectionSummary[]; jobs: JobSummary[] }, now: number = Date.now()): JobCard[] {
+/** What waits at the cap for each job, when it isn't the free model standing in. */
+const WAITS: Record<Job, string> = { text: "your dates wait", image: "portraits wait", video: "clips wait" };
+
+/** Every job's card, from a person's connections, assignments and this month's spend. Pure: the page and the tests share it. */
+export function jobCards(
+  listing: { connections: ConnectionSummary[]; jobs: JobSummary[] },
+  now: number = Date.now(),
+  spend: Partial<Record<Job, UsageSummary>> = {},
+): JobCard[] {
   return JOBS.map((job) => {
     const info = JOB_INFO[job];
     const a = listing.jobs.find((j) => j.job === job);
@@ -367,23 +378,50 @@ export function jobCards(listing: { connections: ConnectionSummary[]; jobs: JobS
       .filter((x) => isUserProvider(x.provider) && PROVIDER_INFO[x.provider].jobs.includes(job) && x.provider !== a?.provider)
       .map((x) => ({ provider: x.provider, label: providerLabel(x.provider), last4: x.last4 }));
     if (!a || !c) {
-      return { job, title: info.title, what: info.what, state: "unset", pill: info.free ? "Free model" : "Not set up", status: UNSET_STATUS[job], meta: [], provider: null, model: null, feel: null, error: null, reusable };
+      return { job, title: info.title, what: info.what, state: "unset", pill: info.free ? "Free model" : "Not set up", status: UNSET_STATUS[job], meta: [], provider: null, model: null, feel: null, cap: null, usage: null, error: null, reusable };
     }
     const model = a.model ?? defaultModelFor(a.provider, job);
     const error = c.last_error;
     const feel: Feel | null =
       job === "text" ? { preset: a.preset ?? null, temperature: a.temperature ?? null, frequency_penalty: a.frequency_penalty ?? null, presence_penalty: a.presence_penalty ?? null } : null;
+    const cap: CapSettings = { cap_usd: a.cap_usd ?? null, on_cap: job === "text" && a.on_cap === "pause" ? "pause" : job === "text" ? "fallback" : "pause" };
+    const u = spend[job];
+    const spent = u?.cost_usd ?? 0;
+    const level = capLevel(spent, cap.cap_usd);
+    const usage = {
+      spent,
+      cap: cap.cap_usd,
+      level,
+      estimated: (u?.estimated_calls ?? 0) > 0,
+      unpriced: u?.unpriced_calls ?? 0,
+      line: `${money(spent)}${cap.cap_usd !== null ? ` of ${money(cap.cap_usd)}` : ""} this month`,
+    };
+    const standsIn = job === "text" && cap.on_cap === "fallback";
+    const key = `Your ${providerLabel(a.provider)} key`;
+    const what = `${model ? ` · ${model}` : ""}${feel ? ` · ${feelLabel(feel)}` : ""}`;
+    let state: CardState = error ? (standsIn ? "fallback" : "error") : "connected";
+    let pill = error ? (standsIn ? "On the free model" : "Needs attention") : level === "warn" ? `${Math.floor(WARN_AT * 100)}% of cap` : "✓ Connected";
+    let status = `${key}${error ? "" : " ✓"}${what}`;
+    if (level === "over") {
+      state = "over_cap";
+      pill = "Cap reached";
+      status = `Cap reached: ${standsIn ? "Botchelor's free model stands in" : WAITS[job]} until ${resetDay(now)}`;
+    } else if (state === "fallback") {
+      status = `${key} failed, so Botchelor's free model stands in${what}`;
+    }
     return {
       job,
       title: info.title,
       what: info.what,
-      state: error ? "error" : "connected",
-      pill: error ? "Needs attention" : "✓ Connected",
-      status: `Your ${providerLabel(a.provider)} key${error ? "" : " ✓"}${model ? ` · ${model}` : ""}${feel ? ` · ${feelLabel(feel)}` : ""}`,
-      meta: keyMeta(c, now),
+      state,
+      pill,
+      status,
+      meta: [...keyMeta(c, now), `${usage.line}${usage.estimated ? " (estimated)" : ""}`],
       provider: a.provider,
       model,
       feel,
+      cap,
+      usage,
       error,
       reusable,
     };
@@ -554,4 +592,57 @@ export function samplingFor(provider: string, feel: Partial<Feel> = {}): Samplin
 export function feelLabel(feel: Partial<Feel>): string {
   if (feel.preset === "custom" || (feel.preset == null && feel.temperature != null)) return `Custom (${feel.temperature ?? PRESETS[DEFAULT_PRESET].temperature})`;
   return PRESETS[feel.preset ?? DEFAULT_PRESET].label;
+}
+
+/* -------------------------------------------------- M3: caps and usage -------------------------------------------------- */
+
+/** The month a call counts in: UTC, "2026-10". */
+export const monthOf = (at: number | Date = Date.now()): string => new Date(at).toISOString().slice(0, 7);
+/** When this month's spend resets: the 1st of next month, UTC. */
+export function nextMonthStart(at: number | Date = Date.now()): Date {
+  const d = new Date(at);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+}
+/** "Nov 1": the day a cap resets, as the cards say it. */
+export const resetDay = (at: number | Date = Date.now()): string =>
+  nextMonthStart(at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+/** "$1.20", "$0.04", "$10": dollars as the cards write them. */
+export function money(usd: number): string {
+  if (usd > 0 && usd < 0.01) return "<$0.01";
+  return Number.isInteger(usd) ? `$${usd}` : `$${usd.toFixed(2)}`;
+}
+
+/** The largest monthly cap a job takes (a cap is a promise to the person, not a budget we hold). */
+export const CAP_MAX_USD = 1000;
+/** When the card turns amber and the heads-up goes: this share of the cap. */
+export const WARN_AT = 0.8;
+/** What happens when a key hits its cap or can't be used: Botchelor's free model stands in, or the dates booked wait. */
+export const ON_CAP = ["fallback", "pause"] as const;
+export type OnCap = (typeof ON_CAP)[number];
+export const DEFAULT_ON_CAP: OnCap = "fallback";
+
+/**
+ * What a portrait costs on the key, for its monthly spend: OpenAI's list price for one high-quality 1024² image (lower
+ * quality costs less, so this errs high). A clip is lib/video.ts CLIP_PROVIDER_COST_USD. Both are counted as estimates.
+ */
+export const PORTRAIT_ESTIMATE_USD = 0.17;
+
+/** A job's spend this month. */
+export type UsageSummary = { cost_usd: number; calls: number; estimated_calls: number; unpriced_calls: number };
+export type CapSettings = { cap_usd: number | null; on_cap: OnCap };
+
+/** Where a job's spend stands against its cap: no cap, under, past WARN_AT, or at it. */
+export type CapLevel = "none" | "ok" | "warn" | "over";
+export function capLevel(spent: number, cap: number | null): CapLevel {
+  if (cap === null) return "none";
+  if (spent >= cap) return "over";
+  return spent >= cap * WARN_AT ? "warn" : "ok";
+}
+
+/** A cap as stored: a positive number of dollars up to CAP_MAX_USD, to the cent; null (no cap) for anything else. */
+export function clampCap(v: unknown): number | null {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(Math.min(CAP_MAX_USD, n) * 100) / 100;
 }

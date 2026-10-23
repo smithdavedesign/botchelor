@@ -1839,6 +1839,27 @@ alter table user_connection_jobs add column if not exists preset text;
 alter table user_connection_jobs add column if not exists temperature real;
 alter table user_connection_jobs add column if not exists frequency_penalty real;
 alter table user_connection_jobs add column if not exists presence_penalty real;
+-- Connections M3: what each job may spend a month on its key (null: no cap), and what happens at the cap or when the key
+-- can't be used ('fallback', the default: Botchelor's free model stands in; 'pause': the dates you book wait). What each
+-- job spent each month (UTC), as the provider reported it or estimated from tokens and list prices, and when its 80% and
+-- cap notices went (once a month each).
+alter table user_connection_jobs add column if not exists cap_usd double precision;
+alter table user_connection_jobs add column if not exists on_cap text;
+create table if not exists user_connection_usage (
+  user_id text not null references accounts (user_id) on delete cascade,
+  job text not null,
+  month text not null,
+  cost_usd double precision not null default 0,
+  calls integer not null default 0,
+  input_tokens integer not null default 0,
+  output_tokens integer not null default 0,
+  estimated_calls integer not null default 0,
+  unpriced_calls integer not null default 0,
+  warned_at timestamptz,
+  capped_at timestamptz,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, job, month)
+);
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.

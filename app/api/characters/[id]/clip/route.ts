@@ -1,12 +1,13 @@
 import { isSignedInAdmin } from "@/lib/admins";
 import { CLIP_TOKEN_COST, episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "@/lib/allowance";
 import { approvedPortraitId, getApprovedAsset, latestClip, recordAsset, reviewAsset, setAssetMedia } from "@/lib/assets";
+import { jobUsability, recordJobFailure, recordJobSpend } from "@/lib/connections";
 import { getDb, type Db } from "@/lib/db";
 import { handle, json, readJson, session } from "@/lib/http";
 import { DEFAULT_PORTRAIT_STYLE, isPortraitStyle } from "@/lib/image";
 import { userVideoKey } from "@/lib/keys";
 import { ownsCharacter } from "@/lib/souls";
-import { CLIP_PROMPT_VERSION_VEO, downloadVeoClip, pollVeoClip, startVeoClip, VideoError } from "@/lib/video";
+import { CLIP_PROMPT_VERSION_VEO, CLIP_PROVIDER_COST_USD, downloadVeoClip, pollVeoClip, startVeoClip, VideoError } from "@/lib/video";
 
 type Ctx = { params: Promise<{ id: string }> };
 type Row = { name: string; age: number; bio: string; traits: string[]; appearance: string | null; pronouns: string | null };
@@ -31,6 +32,11 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const sess = session(req);
   const db = await getDb();
   if (!(await ownsCharacter(db, id, sess.userId))) return json({ error: "character_not_found" }, 404, sess);
+  // At the month's cap (Connections M3), clips wait: Veo has no free tier to stand in.
+  const usable = await jobUsability(db, sess.userId, "video");
+  if (usable.state === "over_cap" || usable.state === "failing") {
+    return json({ error: usable.state === "over_cap" ? "over_cap" : "key_paused", message: usable.message, connect: "/account/keys#clips" }, 409, sess);
+  }
   const apiKey = await userVideoKey(db, sess.userId);
   if (!apiKey) {
     return json(
@@ -91,7 +97,9 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     job = await startVeoClip(apiKey, character, portrait, undefined, style);
   } catch (err) {
     if (cost > 0) await refundBoughtTokens(db, sess.userId, cost);
-    return json({ error: "generation_failed", message: err instanceof VideoError ? err.message : "Google couldn't start the clip." }, 502, sess);
+    const message = err instanceof VideoError ? err.message : "Google couldn't start the clip.";
+    await recordJobFailure(db, sess.userId, "video", "google", message);
+    return json({ error: "generation_failed", message }, 502, sess);
   }
   // Recorded pending (not servable). The operation name goes in source_url so the status poll finds it.
   const assetId = await recordAsset(db, {
@@ -146,6 +154,8 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
     const video = await downloadVeoClip(apiKey, state.videoUri);
     await setAssetMedia(db, clip.id, video);
     await reviewAsset(db, clip.id, "approved", "byok: Veo (Google-moderated) from filtered sheet text and an approved portrait");
+    // Google bills a clip it made (a filtered one isn't): its list price goes on the key's month (Connections M3).
+    await recordJobSpend(db, sess.userId, "video", "google", CLIP_PROVIDER_COST_USD);
     return json({ status: "ready", video_path: `/api/assets/${clip.id}/video` }, 200, sess);
   } catch (err) {
     if (err instanceof VideoError && /empty|too large|host/i.test(err.message)) return fail(err.message);

@@ -234,7 +234,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     if (!row.use_frontier) {
       const owners = sides.owners;
       const reachable = built.characters.map((c) => Boolean(c.soul && !c.soul.local_only && (soulText(c.soul) ?? "").trim())) as [boolean, boolean];
-      keyForSide = await buildKeyForSide(db, owners, reachable, roleReasoning("actor"));
+      // A key at its cap, or failing mid-date, hands its side to the show's model (Connections M3): a date is never lost to a key.
+      keyForSide = await buildKeyForSide(db, owners, reachable, roleReasoning("actor"), process.env, { fallback: models.actor });
     }
     // How long they talk (lib/talk.ts): the longer owner setting; marathon only with both sides on owners' keys.
     const talk = talkFor(sides.talk, Boolean(keyForSide?.("a") && keyForSide?.("b")), showFormat(formatId).turns);

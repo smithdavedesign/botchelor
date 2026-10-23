@@ -783,6 +783,37 @@ button.chip-toggle.is-on {
 .feel-advanced .link-button {
   margin-top: var(--space-2);
 }
+/* This month's spend against the cap (M3): a bar under the card's meta, amber past 80%, full at the cap. */
+.usage-meter {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--soft);
+  overflow: hidden;
+}
+.usage-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ok);
+}
+.usage-meter.level-warn > span,
+.usage-meter.level-over > span {
+  background: var(--warn);
+}
+/* The monthly cap step (M3): "$" and the amount, on one line. */
+.connect-cap {
+  display: grid;
+  gap: var(--space-1);
+}
+.cap-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 12rem;
+}
+.cap-input > span {
+  font-weight: 700;
+}
 /* Your keys: one line each, Stripe's keys list. */
 .connection-keys {
   list-style: none;

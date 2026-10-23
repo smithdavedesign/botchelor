@@ -2,6 +2,7 @@ import { z } from "zod";
 import { NUDGE_MAX } from "@/lib/between-dates";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { jobUsability } from "@/lib/connections";
 import { userTextModel } from "@/lib/keys";
 import { pairKey } from "@/lib/relationships";
 import { chainAfter, chainPage, loadChain } from "@/lib/text-chain";
@@ -45,6 +46,12 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     return json({ error: "not_in_couple", message: "That character isn't one of this couple." }, 422, sess);
   }
   const db = await getDb();
+  // Texting on your own key has no free model to stand in (Connections M3): at the cap, or while a key you chose to pause
+  // can't be used, it waits, and says why.
+  const usable = await jobUsability(db, sess.userId, "text");
+  if (usable.state === "over_cap" || usable.state === "failing") {
+    return json({ error: usable.state === "over_cap" ? "over_cap" : "key_paused", message: usable.message, connect: "/account/keys#dates" }, 409, sess);
+  }
   const model = await userTextModel(db, sess.userId);
   if (!model) {
     return json(
