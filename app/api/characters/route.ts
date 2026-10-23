@@ -7,7 +7,7 @@ import { ExtrasInput, extrasFields, normaliseExtras } from "@/lib/extras";
 import { scheduleConceptEmbedding } from "@/lib/originality-concept";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
-import { checkFields, type RejectReason } from "@/lib/safety";
+import { CHARACTER_REJECTION_MESSAGES, checkFields } from "@/lib/safety";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput } from "@/lib/souls";
 
 const MIN_AGE = 18;
@@ -69,13 +69,6 @@ const CharacterInput = z.object({
   check_only: z.boolean().optional(),
 });
 
-const REJECTION_MESSAGES: Record<RejectReason, string> = {
-  minor: "Characters must be adults, with nothing suggesting they are under 18.",
-  sexual: "Keep the character sheet free of sexual content.",
-  real_person: "Characters must be original: no real people.",
-  innuendo: "Keep the character sheet free of innuendo.",
-};
-
 export const POST = handle(async (req) => {
   const sess = session(req);
   const raw = await readJson(req);
@@ -101,7 +94,7 @@ export const POST = handle(async (req) => {
   });
   if (!verdict.ok) {
     return json(
-      { error: "content_rejected", reason: verdict.reason, field: verdict.field, message: REJECTION_MESSAGES[verdict.reason] },
+      { error: "content_rejected", reason: verdict.reason, field: verdict.field, message: CHARACTER_REJECTION_MESSAGES[verdict.reason] },
       422,
       sess,
     );

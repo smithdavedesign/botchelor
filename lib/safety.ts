@@ -11,6 +11,14 @@ export type RejectReason = "minor" | "sexual" | "real_person" | "innuendo";
 export type ExcludedTheme = "family" | "teacher_student" | "school" | "age_play";
 export type SafetyResult = { ok: true } | { ok: false; reason: RejectReason; field: string; theme?: ExcludedTheme };
 
+/** What a refused character sheet is told: /create's save (POST /api/characters) and the OC chemistry test say the same. */
+export const CHARACTER_REJECTION_MESSAGES: Record<RejectReason, string> = {
+  minor: "Characters must be adults, with nothing suggesting they are under 18.",
+  sexual: "Keep the character sheet free of sexual content.",
+  real_person: "Characters must be original: no real people.",
+  innuendo: "Keep the character sheet free of innuendo.",
+};
+
 const SEXUAL_TERMS = [
   "sex", "sexy", "sexual", "sexually", "sexting", "porn", "porno", "pornographic", "pornography",
   "nsfw", "nude", "nudes", "nudity", "naked", "erotic", "erotica", "orgasm", "orgasms", "orgy",

@@ -57,4 +57,5 @@ export const PUBLIC_PATHS = [
   "/terms",
   "/privacy",
   "/tools/ship-name-generator",
+  "/tools/oc-chemistry-test",
 ] as const;
