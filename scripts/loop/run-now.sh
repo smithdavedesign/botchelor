@@ -3,6 +3,7 @@
 # this working copy. Visitors and triage only unless you pass LOOP_FIX=1. Any LOOP_* setting can be passed in.
 #   npm run sim:visitors                      # 2 visitors, triage, no fixer
 #   LOOP_VISITORS=3 LOOP_FIX=1 npm run sim:visitors
+#   LOOP_ENV=prod npm run sim:visitors       # visit botchelor.com itself (LOOP_ENV=<url> for any other server)
 set -eu
 HOME_DIR="${LOOP_HOME:-$HOME/.botchelor-loop}"
 [ -d "$HOME_DIR/repo/.git" ] || { echo "No loop clone yet: run scripts/loop/install.sh first." >&2; exit 1; }
