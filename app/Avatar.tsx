@@ -14,6 +14,10 @@ type Props = {
   /** A BYOK-generated portrait to show instead of the drawn tile (served from /api/assets/<id>): pass the
    *  character's `portrait` wherever it's drawn, or an OC that has one shows its initials instead. */
   portraitSrc?: string | null;
+  /** Next to the character's name (app/CharacterName.tsx): hidden from screen readers, which read the name instead. */
+  decorative?: boolean;
+  /** A circle instead of the rounded tile (the small inline face before a name). */
+  round?: boolean;
 };
 
 /**
@@ -21,8 +25,8 @@ type Props = {
  * OC shows its generated portrait when it has one, and otherwise the gradient tile with a soft motif and its
  * initials. Pure (no hooks, no client directive), so it renders in both server and client components.
  */
-export default function Avatar({ seed, name, hue, size = 48, house = false, portraitSrc = null }: Props) {
-  const r = size * 0.28;
+export default function Avatar({ seed, name, hue, size = 48, house = false, portraitSrc = null, decorative = false, round = false }: Props) {
+  const r = round ? "50%" : size * 0.28;
   // A house character's reviewed file first: its ledger row (when it has one) only redirects to that same file.
   // Then an OC's BYOK-generated portrait (the owner's own, provider-moderated).
   const portrait = characterPortrait(seed) ?? sized(portraitSrc, size);
@@ -31,7 +35,7 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
       // eslint-disable-next-line @next/next/no-img-element -- a static public asset; no loader/optimizer needed
       <img
         src={portrait}
-        alt={`${name} portrait`}
+        alt={decorative ? "" : `${name} portrait`}
         width={size}
         height={size}
         decoding="async"
@@ -48,8 +52,9 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
       width={size}
       height={size}
       viewBox="0 0 100 100"
-      role="img"
-      aria-label={`${name} avatar`}
+      role={decorative ? undefined : "img"}
+      aria-label={decorative ? undefined : `${name} avatar`}
+      aria-hidden={decorative ? true : undefined}
       className={`avatar${house ? " avatar-house" : ""}`}
       // The same gradient as a background: the fill's url(#id) resolves to the first element with that id, and when
       // that one sits in a hidden subtree (the theater's scene on a phone) the tile would otherwise render empty.
@@ -61,7 +66,7 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
           <stop offset="100%" stopColor={p.to} />
         </linearGradient>
       </defs>
-      <rect width="100" height="100" rx="28" fill={`url(#${id})`} />
+      <rect width="100" height="100" rx={round ? 50 : 28} fill={`url(#${id})`} />
       <circle cx="78" cy="22" r="30" fill={p.soft} opacity="0.25" />
       <circle cx="20" cy="86" r="22" fill="#000" opacity="0.08" />
       <text

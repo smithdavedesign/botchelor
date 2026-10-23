@@ -512,6 +512,29 @@ export async function loadPairFacts(db: Db, ownerId: string, aId: string, bId: s
   return rows.map((r) => ({ ...r, created_at: iso(r.created_at)!, last_used_at: iso(r.last_used_at) }));
 }
 
+/**
+ * Edits one remembered fact, or deletes it (null): only one of this viewer's, about this pair. An edit is held to the two
+ * lines, FACT_MAX characters at most, and drops the fact's quote (it was the lines' own words for what the fact said).
+ */
+export async function editOwnFact(
+  db: Db,
+  ownerId: string,
+  pair: readonly [string, string],
+  id: string,
+  text: string | null,
+): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+  const owned = (await loadPairFacts(db, ownerId, pair[0], pair[1])).some((f) => f.id === id);
+  if (!owned) return { ok: false, status: 404, message: "There's no such fact of yours to change." };
+  if (text === null) {
+    await db.query(`delete from adult_facts where id = $1 and owner_id = $2`, [id, ownerId]);
+    return { ok: true };
+  }
+  if (text.length > FACT_MAX) return { ok: false, status: 400, message: `Keep a fact to ${FACT_MAX} characters.` };
+  if (!checkAdultText({ fact: text }).ok) return { ok: false, status: 422, message: "That crosses one of the two lines (nobody under 18, no real people)." };
+  await db.query(`update adult_facts set fact = $3, quote = null where id = $1 and owner_id = $2`, [id, ownerId, text]);
+  return { ok: true };
+}
+
 /** The facts kept lines cited: one more use each, and used now. */
 export async function bumpFacts(db: Db, ids: readonly string[]): Promise<void> {
   if (!ids.length) return;

@@ -196,7 +196,7 @@ describe("the watch room's pre-show countdown", () => {
     const room = readFileSync(new URL("../app/watch/[id]/WatchRoom.tsx", import.meta.url), "utf8");
     expect(room).toContain('empty={preshow ? null : "The conversation appears here, line by line."}');
     expect(room).toContain("{preshow && <Preshow state={state} left={preshowLeft} tone=\"dark\" />}");
-    expect(room).toMatch(/On stage: <strong>\{a\.name\}<\/strong> and <strong>\{b\.name\}<\/strong>/);
+    expect(room).toContain("On stage: <CharacterName character={a} avatar={false} strong /> and <CharacterName character={b} avatar={false} strong />");
     expect(room).toContain("useCountdown(state.clock.started && !state.clock.ended ? state.clock.preshow_left : null)");
   });
 });

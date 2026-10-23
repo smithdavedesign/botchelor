@@ -106,6 +106,37 @@ export async function restoreNotes(db: Db, aId: string, bId: string, before: rea
   }
 }
 
+/** The pair's PG notes this viewer's own nights wrote (both ways): what they see, and may edit, of it. */
+export async function ownNotes(db: Db, ownerId: string, aId: string, bId: string): Promise<NoteRow[]> {
+  return (await notesBetween(db, aId, bId)).filter((n) => n.owner_id === ownerId);
+}
+
+/**
+ * Edits one side's PG note, or deletes it (null), when this viewer's nights wrote it. It reaches the pair's public dates
+ * and texts, so an edit is held to the show's own text check (lib/safety.ts checkShowText: nothing sexual, no innuendo)
+ * as well as the two lines, at NOTE_MAX characters.
+ */
+export async function setOwnNote(
+  db: Db,
+  ownerId: string,
+  selfId: string,
+  otherId: string,
+  text: string | null,
+): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+  const mine = (await ownNotes(db, ownerId, selfId, otherId)).find((n) => n.character_id === selfId);
+  if (!mine) return { ok: false, status: 404, message: "There's no note of yours to change there." };
+  if (text === null) {
+    await db.query(`delete from adult_memories where character_id = $1 and other_id = $2 and owner_id = $3`, [selfId, otherId, ownerId]);
+    return { ok: true };
+  }
+  if (text.length > NOTE_MAX) return { ok: false, status: 400, message: `Keep the note to ${NOTE_MAX} characters.` };
+  if (!checkShowText({ note: text }).ok) {
+    return { ok: false, status: 422, message: "This note goes into their public dates and texts, so it has to stay PG: nothing sexual, nothing explicit, no innuendo." };
+  }
+  await db.query(`update adult_memories set note = $4, updated_at = now() where character_id = $1 and other_id = $2 and owner_id = $3`, [selfId, otherId, ownerId, text]);
+  return { ok: true };
+}
+
 /** What one character remembers of After Dark with another, or null. Only ever the PG note. */
 export async function afterDarkNote(db: Db, selfId: string, otherId: string): Promise<string | null> {
   const r = await db.query<{ note: string }>(`select note from adult_memories where character_id = $1 and other_id = $2`, [selfId, otherId]).catch(() => ({ rows: [] }));

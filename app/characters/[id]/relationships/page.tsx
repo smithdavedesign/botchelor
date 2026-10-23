@@ -14,10 +14,15 @@ import { relationshipsOf, viewRelationship, type End } from "@/lib/relationships
 import { myMatches } from "@/lib/swipes";
 import { isText, loadChain } from "@/lib/text-chain";
 import { dayLabel } from "@/lib/text-chain-shared";
+import Pager from "@/app/Pager";
+import { pageHref, pageOf, parsePage } from "@/lib/paging";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams?: Promise<{ page?: string | string[] }> };
+
+/** The phone's inbox: this many people a page (?page=N), latest first. */
+const BOARD_PAGE = 10;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
@@ -39,8 +44,9 @@ type Person = { id: string; name: string; house: boolean; hue: number | null; po
  * the latest first. Each one opens the couple's page. The characters' owners also see the latest text and go straight
  * to the thread (lib/text-chain.ts); everyone else sees where each pair stands in the public record.
  */
-export default async function RelationshipBoard({ params }: Props) {
+export default async function RelationshipBoard({ params, searchParams }: Props) {
   const { id } = await params;
+  const sp = (await searchParams) ?? {};
   const db = await getDb();
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
@@ -104,6 +110,7 @@ export default async function RelationshipBoard({ params }: Props) {
   rows.sort((x, y) => (y.at ?? "").localeCompare(x.at ?? ""));
   const first = shortName(c.name);
   const today = dayOf(new Date());
+  const shown = pageOf(rows, parsePage(sp.page), BOARD_PAGE);
 
   return (
     <article>
@@ -123,7 +130,7 @@ export default async function RelationshipBoard({ params }: Props) {
         </div>
         {rows.length > 0 ? (
           <ul className="phone-inbox">
-            {rows.map((r) => (
+            {shown.items.map((r) => (
               <li key={r.other.id}>
                 <Link
                   className="phone-row"
@@ -149,6 +156,7 @@ export default async function RelationshipBoard({ params }: Props) {
           <p className="phone-inbox-empty">No one yet. After {first}&apos;s first date, the people they&apos;ve met show up here.</p>
         )}
       </PhoneFrame>
+      <Pager page={shown.page} pages={shown.pages} label="Relationship board pages" href={(n) => pageHref(`/characters/${c.id}/relationships`, {}, "page", n)} prev="Newer" next="Older" />
       <p className="small">
         <Link href={`/characters/${c.id}`}>← Back to {first}&apos;s card</Link>
       </p>

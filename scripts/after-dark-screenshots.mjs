@@ -5,11 +5,13 @@
  * database, with a local stub for After Dark's model that writes PG placeholder lines (tea, rain, a rooftop): never
  * anything explicit, no key, no network beyond localhost. The portraits are the repo's own.
  *
- *   the steer bar with the last step's suggested next moves, a whisper running, and Rewind/Redo → after a rewind →
- *   the theater with the suggestions over its steer.
+ *   director: the steer bar with the last step's suggested next moves, a whisper running, and Rewind/Redo → after a
+ *     rewind → the theater with the suggestions over its steer;
+ *   limits: the limits panel set (slow burn, hard nos), what they remember, and a steer a hard no refuses.
  *
- * On the phone it also checks the page never scrolls sideways and the sticky steer bar keeps under half the screen.
- * Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build.
+ * SHOTS=director,limits picks the sets (all by default), each as a new admin with a scene of its own. On the phone it
+ * also checks the page never scrolls sideways and the sticky steer bar keeps under half the screen. Set CHROMIUM_PATH;
+ * SKIP_BUILD=1 reuses the last build.
  */
 import { createServer } from "node:http";
 import { mkdirSync, rmSync } from "node:fs";
@@ -19,7 +21,6 @@ import { appEnv, build, freePort, ROOT, startApp, startShowrunner, stopApp } fro
 
 const OUT_DIR = join(ROOT, "docs", "screenshots");
 const DATA_DIR = join(ROOT, ".data", "after-dark-screenshots");
-const PREFIX = process.env.SHOTS_PREFIX || "after-dark-director";
 
 /** PG placeholder lines: two people on a rooftop with a kettle, talking. Distinct, so no guard reads a repeat. */
 const LINES = [
@@ -99,8 +100,112 @@ async function checkPhone(page, name) {
   console.log(`  ✓ ${name}: no sideways scroll, steer bar ${Math.round(bar)}px`);
 }
 
+/** Scrolls to where the sticky steer bar sits under the lines (the end marker before it, plus its height). */
+const frame = (page) =>
+  page.evaluate(() => {
+    const form = document.querySelector(".after-dark-form");
+    const end = form?.previousElementSibling;
+    if (!form || !end) return;
+    window.scrollTo(0, end.getBoundingClientRect().top + window.scrollY + form.getBoundingClientRect().height - window.innerHeight + 24);
+  });
+
+/** The director (PR A): the steer bar with suggestions, a whisper and Rewind/Redo; after a rewind; the theater. */
+async function director({ page, base, scenePath, shot }) {
+  await page.goto(`${base}${scenePath}`);
+  const form = page.locator(".after-dark-form");
+  // Two steps: the first unsteered, the second with a whisper to the second of them.
+  await form.locator("button[type=submit]").click();
+  await page.locator(".ad-suggestion").first().waitFor({ timeout: 30_000 });
+  const radios = form.getByRole("radio");
+  await radios.nth(3).check();
+  await page.locator("#after-dark-direction").fill("She's been hoping you'd ask her to stay");
+  await form.locator("button[type=submit]").click();
+  await page.locator(".ad-whisper-chip").waitFor({ timeout: 30_000 });
+  await radios.nth(0).check();
+  await frame(page);
+  await shot("steer-desktop");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await frame(page);
+  await checkPhone(page, "the scene page");
+  await shot("steer-phone");
+  // Rewind: the whispered step goes, and so does its whisper.
+  await form.getByRole("button", { name: "↺ Rewind" }).click();
+  await page.getByText(/Rewound: 6 lines taken back/).waitFor({ timeout: 15_000 });
+  assert((await page.locator(".ad-whisper-chip").count()) === 0, "the rewound step's whisper should be gone");
+  await frame(page);
+  await checkPhone(page, "after a rewind");
+  await shot("rewound-phone");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await frame(page);
+  await shot("rewound-desktop");
+  // The theater, with the suggestions over its steer.
+  await page.goto(`${base}${scenePath}?play=1`);
+  await page.locator(".theater .ad-suggestion").first().waitFor({ timeout: 15_000 });
+  await page.locator(".theater").getByRole("button", { name: "⏭" }).click().catch(() => {});
+  await shot("theater-desktop");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const sideways = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  assert(!sideways, "the theater scrolls sideways on a phone");
+  await shot("theater-phone");
+}
+
+/** Limits and memory (PR B): the intensity and hard nos set, a steer refused by one, and what they remember. */
+async function limits({ page, base, scenePath, shot, ctx }) {
+  const [, , a, b] = scenePath.split("/");
+  await page.goto(`${base}${scenePath}`);
+  const form = page.locator(".after-dark-form");
+  // A night to remember: one step, filed by Start over (the stub writes their PG notes and facts), and a recap typed in.
+  await form.locator("button[type=submit]").click();
+  await page.locator(".ad-suggestion").first().waitFor({ timeout: 30_000 });
+  await form.getByRole("button", { name: "Start over" }).click();
+  await page.getByText("Nothing yet. Write the first lines, or steer it first.").waitFor({ timeout: 15_000 });
+  const recap = await ctx.request.post(`${base}/api/admin/after-dark`, {
+    data: { a, b, memory_edit: { kind: "recap", text: "They met on the rooftop in the rain, shared terrible tea and a blanket, and named every boat in the harbour." } },
+  });
+  assert(recap.ok(), `setting a recap: HTTP ${recap.status()}`);
+  await page.reload();
+  await form.locator("button[type=submit]").click();
+  await page.locator(".after-dark-lines li").first().waitFor({ timeout: 30_000 });
+  // The limits: slow burn, two curated hard nos and one of their own.
+  const panel = page.locator(".ad-limits");
+  await panel.locator("summary").click();
+  await panel.getByRole("radio", { name: /Slow burn/ }).check();
+  await panel.getByRole("button", { name: "Choking" }).click();
+  await panel.getByRole("button", { name: "Cheating talk" }).click();
+  await panel.getByRole("textbox", { name: "A hard no of your own" }).fill("tickling");
+  await panel.getByRole("button", { name: "Add" }).click();
+  await panel.getByRole("button", { name: "Save limits" }).click();
+  await panel.getByText(/Saved: every step from now holds to them/).waitFor({ timeout: 15_000 });
+  // What they remember, opened.
+  const memory = page.locator(".ad-memory");
+  await memory.locator("summary").click();
+  await memory.locator(".ad-memory-item").first().waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.scrollTo(0, document.querySelector(".ad-panels").getBoundingClientRect().top + window.scrollY - 140));
+  await shot("panels-desktop");
+  // A steer that asks for a hard no is refused before anything is written.
+  await page.locator("#after-dark-direction").fill("they get into an affair behind her girlfriend's back");
+  await form.locator("button[type=submit]").click();
+  await page.getByText(/one of your hard limits/).waitFor({ timeout: 15_000 });
+  await frame(page);
+  await shot("refused-desktop");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await frame(page);
+  await checkPhone(page, "a refused steer");
+  await shot("refused-phone");
+  const scrollTo = (sel) => page.evaluate((s) => window.scrollTo(0, document.querySelector(s).getBoundingClientRect().top + window.scrollY - 80), sel);
+  await scrollTo(".ad-limits");
+  await checkPhone(page, "the limits panel");
+  await shot("limits-phone");
+  await scrollTo(".ad-memory");
+  await shot("memory-phone");
+}
+
+const FLOWS = { director, limits };
+
 async function main() {
   if (!process.env.CHROMIUM_PATH) throw new Error("Set CHROMIUM_PATH to a local Chromium; this script never downloads one.");
+  const wanted = (process.env.SHOTS || Object.keys(FLOWS).join(",")).split(",").map((x) => x.trim()).filter(Boolean);
+  for (const w of wanted) assert(FLOWS[w], `no such set of screenshots: ${w} (there are ${Object.keys(FLOWS).join(", ")})`);
   rmSync(DATA_DIR, { recursive: true, force: true });
   mkdirSync(DATA_DIR, { recursive: true });
   mkdirSync(OUT_DIR, { recursive: true });
@@ -120,72 +225,30 @@ async function main() {
   const app = await startApp(await freePort(), env);
   const base = app.base;
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
-  const shot = async (page, file) => {
-    await page.waitForTimeout(400);
-    await page.screenshot({ path: join(OUT_DIR, `${PREFIX}-${file}.png`) });
-    console.log(`  📸 docs/screenshots/${PREFIX}-${file}.png`);
-  };
   try {
-    const ctx = await browser.newContext();
-    await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
-    const reg = await ctx.request.post(`${base}/api/auth/register`, { data: { handle: `shots${Date.now() % 1e6}`, password: "a-long-shots-password-1", attest: true } });
-    assert(reg.ok(), `register: HTTP ${reg.status()}`);
-    assert((await ctx.request.post(`${base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } })).ok(), "claiming admin");
-    const page = await ctx.newPage();
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto(`${base}/after-dark`);
-    const link = page.locator(".after-dark li.card a").first();
-    const scenePath = (await link.getAttribute("href")) ?? "";
-    assert(scenePath.startsWith("/after-dark/"), "a pair to open");
-    await page.goto(`${base}${scenePath}`);
-    const form = page.locator(".after-dark-form");
-    // Two steps: the first unsteered, the second with a whisper to the second of them.
-    await form.locator("button[type=submit]").click();
-    await page.locator(".ad-suggestion").first().waitFor({ timeout: 30_000 });
-    const radios = form.getByRole("radio");
-    await radios.nth(3).check();
-    await page.locator("#after-dark-direction").fill("She's been hoping you'd ask her to stay");
-    await form.locator("button[type=submit]").click();
-    await page.locator(".ad-whisper-chip").waitFor({ timeout: 30_000 });
-    await radios.nth(0).check();
-    // The last lines and the steer bar under them, in their own place (not stuck to the foot of the screen).
-    const frame = () =>
-      page.evaluate(() => {
-        // The form is sticky, so scroll to where it sits under the lines: the end marker just before it, plus its height.
-        const form = document.querySelector(".after-dark-form");
-        const end = form?.previousElementSibling;
-        if (!form || !end) return;
-        window.scrollTo(0, end.getBoundingClientRect().top + window.scrollY + form.getBoundingClientRect().height - window.innerHeight + 24);
-      });
-    await frame();
-    await shot(page, "steer-desktop");
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    await frame();
-    await checkPhone(page, "the scene page");
-    await shot(page, "steer-phone");
-
-    // Rewind: the whispered step goes, and so does its whisper.
-    await form.getByRole("button", { name: "↺ Rewind" }).click();
-    await page.getByText(/Rewound: 6 lines taken back/).waitFor({ timeout: 15_000 });
-    assert((await page.locator(".ad-whisper-chip").count()) === 0, "the rewound step's whisper should be gone");
-    await frame();
-    await checkPhone(page, "after a rewind");
-    await shot(page, "rewound-phone");
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await frame();
-    await shot(page, "rewound-desktop");
-
-    // The theater, with the suggestions over its steer.
-    await page.goto(`${base}${scenePath}?play=1`);
-    await page.locator(".theater .ad-suggestion").first().waitFor({ timeout: 15_000 });
-    await page.locator(".theater").getByRole("button", { name: "⏭" }).click().catch(() => {});
-    await shot(page, "theater-desktop");
-    await page.setViewportSize({ width: 390, height: 844 });
-    const sideways = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-    assert(!sideways, "the theater scrolls sideways on a phone");
-    await shot(page, "theater-phone");
-    await ctx.close();
+    for (const name of wanted) {
+      // Each set as a new admin, so each starts from a scene of its own.
+      const ctx = await browser.newContext();
+      await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
+      const reg = await ctx.request.post(`${base}/api/auth/register`, { data: { handle: `shots${name.slice(0, 3)}${Date.now() % 1e6}`, password: "a-long-shots-password-1", attest: true } });
+      assert(reg.ok(), `register: HTTP ${reg.status()}`);
+      assert((await ctx.request.post(`${base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } })).ok(), "claiming admin");
+      const page = await ctx.newPage();
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto(`${base}/after-dark`);
+      const scenePath = (await page.locator(".after-dark li.card a").first().getAttribute("href")) ?? "";
+      assert(scenePath.startsWith("/after-dark/"), "a pair to open");
+      const prefix = `after-dark-${name}`;
+      const shot = async (file) => {
+        // The pointer out of the way, so no control is caught mid-hover.
+        await page.mouse.move(0, 0);
+        await page.waitForTimeout(400);
+        await page.screenshot({ path: join(OUT_DIR, `${prefix}-${file}.png`) });
+        console.log(`  📸 docs/screenshots/${prefix}-${file}.png`);
+      };
+      await FLOWS[name]({ page, base, scenePath, shot, ctx });
+      await ctx.close();
+    }
   } finally {
     await browser.close();
     await stopApp(app);

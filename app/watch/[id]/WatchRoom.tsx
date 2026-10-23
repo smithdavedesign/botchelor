@@ -12,6 +12,7 @@ import type { Turn } from "@/lib/conversation";
 import type { RoomState } from "@/lib/watch";
 import { placeAt } from "@/lib/venues";
 import { trackConversion } from "@/app/conversion";
+import CharacterName from "@/app/CharacterName";
 
 /** Where to go once the date is decided, so a finished room is never a dead end (David, 2026-10-18). */
 function RoomNext({ state }: { state: RoomState }) {
@@ -219,7 +220,7 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
               The Botchelor · {state.kind === "template" ? "Open date room" : "Premiere"}
             </p>
             <h1>
-              {a.name} × {b.name}
+              <CharacterName character={a} avatar={false} /> × <CharacterName character={b} avatar={false} />
             </h1>
           </div>
         </div>
@@ -341,7 +342,7 @@ function Theater({
         <header className="theater-hud">
           <div className="theater-id">
             <strong>
-              {a.name} <span className="vs">×</span> {b.name}
+              <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
             </strong>
             {isReplay ? (
               <span className="chip">Replay</span>
@@ -457,7 +458,7 @@ function Preshow({ state, left, tone = "light" }: { state: RoomState; left: numb
         <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={44} />
       </div>
       <p className="watch-countdown-who">
-        On stage: <strong>{a.name}</strong> and <strong>{b.name}</strong>
+        On stage: <CharacterName character={a} avatar={false} strong /> and <CharacterName character={b} avatar={false} strong />
         {place ? <> at {place}</> : null}.
       </p>
       <p className="watch-countdown-hint">

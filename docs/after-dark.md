@@ -735,3 +735,53 @@ Notes on each:
 - **the voice in sync:** the right one's voice says the line while their lips move, starting and ending with the shot.
 
 Put it side by side with Venice's table above (both in frame, follows the script, faces, voice, cost). It costs about $0.56 of Replicate (4 keyframes at $0.03, 4 videos at $0.11, the voices next to nothing), and 8 Hive moderation requests plus 4 age checks.
+
+## Limits and memory: the intensity dial, hard nos, and memory you can see and edit (2026-10-22)
+
+The second of the three scene PRs from the competitor read. Code: `lib/adult/limits.ts` (pure), `lib/adult/scenes.ts`
+(`saveLimits`, `limitRefusal`, `memoryView`, `editMemory`), `lib/adult/memory.ts` (`ownNotes`, `setOwnNote`),
+`lib/adult/facts.ts` (`editOwnFact`), and two folded panels under the steer bar (`Limits.tsx`, `Memory.tsx`).
+
+**The intensity dial**, per owner and pair (`adult_scenes.intensity`, kept through Start over; null is explicit):
+
+| | Furthest stage | Register |
+|---|---|---|
+| Slow burn | kissing | tender and suggestive, nothing explicit, no body parts named |
+| Flirty | undressing | playful and teasing, never graphic or crude; past undressing only implied |
+| Spicy | sex | steamy, sex included, no graphic anatomy or crude words |
+| Explicit (default) | sex | as it was: the prompt is word for word what it was |
+
+Every step holds to it, whatever the steer: the prompt says the register and "Tonight it goes no further than kissing";
+the pacing line says when they've gone as far as tonight goes (or, turned down mid-scene, to ease back to it); a line
+that shows more than the furthest stage (the stage floor's signs), or a crude word below explicit, is dropped
+(`intensity_dropped` in the step's flags); and the stage never climbs past it, a Direct steer included (turned down,
+the stage comes back to it). A steer or whisper that asks for more is refused before anything is written. The suggested
+next moves go no further either.
+
+**Hard nos**, per owner and pair (`adult_scenes.hard_nos`: `{chips, own}`, kept through Start over): 16 curated ones
+(pain, choking, degradation, anal, oral, restraints, rough sex, hair pulling, biting, spitting, dirty talk, cheating
+talk, pregnancy talk, toys, dom and sub, being watched), each a never-cross rule for the prompt and a pattern for the
+check (dirty talk reads only what they say; "chokes back a laugh" isn't choking, a shirt's cuffs aren't restraints), and
+up to 8 of the viewer's own, 40 characters each, matched by their words (filler out, a light stem: "tickling" catches
+"tickles"; "being called baby" needs both "call…" and "baby"). Own ones that cross the two lines are refused: those
+already never happen.
+- The prompt lists them as hard limits that hold over every steer (a nudge, a direct steer, a whisper), never crossed,
+  offered or asked for.
+- A line that crosses one is dropped and the step asked once more, told which, with nothing of the reply to copy from
+  (`hard_nos` and `retried` in the step's flags, the reason in its dropped lines). The second reply is held to
+  everything again; when nothing of it can be kept, the first reply's other lines stand.
+- A steer (Nudge or Direct) or whisper that asks for one is refused (422) before anything is written; a redo is checked
+  against the limits as they are now before anything is taken back.
+- The suggested next moves are held to them too, and saving new limits holds the ones on the scene to them at once
+  (a rewind does the same for the ones it brings back).
+- The free-text check is a backstop: the model is told the rule, and the words catch the plain cases, not every way of
+  putting it.
+
+**Memory you can see and edit** (the "🧠 What they remember" panel, loaded when opened): what each remembers about the
+other (their PG note from `adult_memories`, and their facts from `adult_facts`) and the night's recap. Each can be
+edited or deleted. Edits pass `checkAdultText`; the PG note, which reaches their public dates and texts, also passes the
+show's own `checkShowText` (nothing sexual, no innuendo) and stays under 300 characters. An edited fact drops its quote.
+Owner-scoped: a viewer sees and edits only what their own nights wrote (a note or fact another owner's night wrote is
+404 to them). A rewind of a step that didn't close a chapter leaves the recap as it is now, so an edit made since stays.
+
+**Screenshots** (`SHOTS=limits npm run screenshots:after-dark`): `docs/screenshots/after-dark-limits-*.png`.

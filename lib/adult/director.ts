@@ -52,10 +52,17 @@ const LEAVES =
 /** Whether a steer has them leave for somewhere private. */
 export const leavesForPrivate = (text: string): boolean => LEAVES.test(text);
 
-/** The stage a steer asks for: what it plainly shows (lib/adult/stage-floor.ts), else a stage on when it asks for more. */
+/** Sex, as a steer names it rather than shows it ("they have sex", "make love", "sleep together"). */
+const SEX_ASKED = /\b(sex|make love|making love|made love|sleep(s|ing)? (together|with (him|her|me|you|them))|slept (together|with (him|her|me|you|them)))\b/i;
+
+/**
+ * The stage a steer asks for: what it plainly shows (lib/adult/stage-floor.ts), or sex when it names it, else a stage on
+ * when it asks for more.
+ */
 export function stageAsked(text: string, stage: number): number | null {
   const shown = stageShown(text);
   if (shown !== null) return shown;
+  if (SEX_ASKED.test(text)) return LAST;
   return FURTHER.test(text) ? Math.min(LAST, stage + 1) : null;
 }
 

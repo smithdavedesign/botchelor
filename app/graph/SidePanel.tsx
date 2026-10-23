@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import Avatar from "@/app/Avatar";
+import Pager from "@/app/Pager";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
+import { pageOf } from "@/lib/paging";
 import type { GraphEdge, GraphNode, PairTimeline } from "@/lib/graph";
 import { ORIGIN_LABEL } from "@/lib/origin";
 import { endingLabel } from "@/lib/rules";
@@ -22,6 +25,9 @@ type Props = {
   showOutcomes: boolean;
   onShowOutcomes: (on: boolean) => void;
 };
+
+/** The panel's lists, this many a page: a star's partners, a pair's public dates. */
+export const PANEL_PAGE = 8;
 
 export const SHOW_OUTCOMES_LABEL = "Show what happened (it gives away the endings)";
 
@@ -77,6 +83,7 @@ function firstPublic(edge: GraphEdge): string | null {
 function Timeline({ a, b }: { a: string; b: string }) {
   const key = `${a}~${b}`;
   const [got, setGot] = useState<{ key: string; data: PairTimeline | null } | null>(null);
+  const [page, setPage] = useState(1);
   useEffect(() => {
     let live = true;
     fetch(`/api/graph/${encodeURIComponent(a)}/${encodeURIComponent(b)}`)
@@ -92,6 +99,9 @@ function Timeline({ a, b }: { a: string; b: string }) {
   if (got?.key !== key) return <p className="muted small">Loading their dates…</p>;
   if (!got.data) return <p className="muted small">Their dates didn&apos;t load. Their story page has them all.</p>;
   const { timeline, total, truncated } = got.data;
+  const shown = pageOf(timeline, page, PANEL_PAGE);
+  // The first date on this page, counted over every public date (the timeline may be only the latest ones).
+  const firstNumber = total - timeline.length + 1 + (shown.page - 1) * PANEL_PAGE;
   return (
     <>
       {truncated && (
@@ -99,8 +109,8 @@ function Timeline({ a, b }: { a: string; b: string }) {
           Their latest {timeline.length} of {total} public dates.
         </p>
       )}
-      <ol className="constellation-timeline small" aria-label="Their public dates" start={total - timeline.length + 1}>
-        {timeline.map((step, i) => (
+      <ol className="constellation-timeline small" aria-label="Their public dates" start={firstNumber}>
+        {shown.items.map((step, i) => (
           <li key={`${step.at}-${i}`}>
             {/* Step i is their (total - shown + 1 + i)th public date: a happy ending on their third reads "A fourth date". */}
             <span className="muted">{shortDate(step.at)}</span> {endingLabel(step.ending, total - timeline.length + 1 + i)}
@@ -108,6 +118,42 @@ function Timeline({ a, b }: { a: string; b: string }) {
           </li>
         ))}
       </ol>
+      <Pager page={shown.page} pages={shown.pages} label="Their public dates pages" onPage={setPage} />
+    </>
+  );
+}
+
+/** A star's partners, a page at a time: each a button that jumps the sky to them (a private one: its name only). */
+function Partners({ node, mine, byId, onFocus }: { node: GraphNode; mine: GraphEdge[]; byId: Map<string, GraphNode>; onFocus: (id: string) => void }) {
+  const [page, setPage] = useState(1);
+  const rows = mine.flatMap((e) => {
+    const other = byId.get(e.a_id === node.id ? e.b_id : e.a_id);
+    return other ? [{ e, other }] : [];
+  });
+  const shown = pageOf(rows, page, PANEL_PAGE);
+  return (
+    <>
+      <ul className="list constellation-panel-list">
+        {shown.items.map(({ e, other }) => (
+          <li key={`${e.a_id}~${e.b_id}`}>
+            {other.private ? (
+              <span className="muted">🔒 {other.name}</span>
+            ) : (
+              <button type="button" className="link-button char-name" onClick={() => onFocus(other.id)}>
+                <Avatar seed={other.id} name={other.name} hue={other.hue} portraitSrc={other.portrait} size={22} decorative round />
+                <span className="char-name-text">{other.name}</span>
+              </button>
+            )}{" "}
+            {!e.masked && (
+              <span className="muted small">
+                {e.stage ? `${e.stage} · ` : ""}
+                {e.dates} {e.dates === 1 ? "date" : "dates"}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      <Pager page={shown.page} pages={shown.pages} label={`${node.name}'s connections pages`} onPage={setPage} />
     </>
   );
 }
@@ -148,32 +194,7 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus, c
             )}
           </div>
         </header>
-        {!node.private && mine.length > 0 && (
-          <ul className="list constellation-panel-list">
-            {mine.map((e) => {
-              const otherId = e.a_id === node.id ? e.b_id : e.a_id;
-              const other = byId.get(otherId);
-              if (!other) return null;
-              return (
-                <li key={`${e.a_id}~${e.b_id}`}>
-                  {other.private ? (
-                    <span className="muted">🔒 {other.name}</span>
-                  ) : (
-                    <button type="button" className="link-button" onClick={() => onFocus(otherId)}>
-                      {other.name}
-                    </button>
-                  )}{" "}
-                  {!e.masked && (
-                    <span className="muted small">
-                      {e.stage ? `${e.stage} · ` : ""}
-                      {e.dates} {e.dates === 1 ? "date" : "dates"}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {!node.private && mine.length > 0 && <Partners key={node.id} node={node} mine={mine} byId={byId} onFocus={onFocus} />}
         {!node.private && (
           <p className="constellation-panel-links">
             <Link className="button-ghost small" href={`/characters/${node.id}`}>
@@ -238,7 +259,7 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus, c
           {showOutcomes && (
             <div className="constellation-outcomes-body">
               {happened.length > 0 && <p className="small constellation-aired">{happened.join(" · ")}</p>}
-              <Timeline a={edge.a_id} b={edge.b_id} />
+              <Timeline key={`${edge.a_id}~${edge.b_id}`} a={edge.a_id} b={edge.b_id} />
             </div>
           )}
         </div>
