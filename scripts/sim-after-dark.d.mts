@@ -14,6 +14,12 @@ export type ScorePart = { value: number; points: number; of: number };
 
 export const NEW_CHARACTER: Record<string, unknown> & { name: string };
 export const STEERS: Record<number, string>;
+export type Arm = { model: string; hosts: string[] | null };
+export type ReplayStep = { kind: "write"; direction: string | null; mode: "direct" | "nudge" | null } | { kind: "set_scene"; place: string } | { kind: "scenario"; scenario: string };
+export type ReplayPlan = { steps: ReplayStep[]; turnOns: { character: string[]; partner: string[] } };
+export function parseArms(spec: string, envHosts?: string | null): Arm[];
+export function parseCharacter<T>(json: T): T;
+export function parseSteers(json: unknown): ReplayPlan;
 export function nightLines(notes: NightNotes | null): NightLine[];
 export function guardTotals(notes: NightNotes | null): Record<string, number>;
 export function scoreNight(report: ObserverReport | null, steps: StepRow[], all?: NightLine[]): { score: number; breakdown: Record<string, ScorePart> };

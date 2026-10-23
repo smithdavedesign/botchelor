@@ -615,6 +615,15 @@ The code default (`DEFAULT_TEXT_MODEL`, for a setup with no `text_model` saved) 
 plain: the pinned hosts' throughput sort does what `:nitro` did, and the old default (`mistralai/mistral-large`) isn't
 served by either host.
 
+**Replaying a real night** (2026-10-23): `--character file.json` creates that character instead of Teodor Vance (the same
+shape, extras and all: they feed the voice kit), and `--steers file.json` replays a night in order, one step each, instead
+of the built-in nudges: `{}` continues, `{ direction, mode }` steers (`direct` or `nudge`), `{ set_scene }` and
+`{ scenario }` do what the page's buttons do, and the object form `{ turn_ons: { character, partner }, steers }` sets each
+one's turn-ons first. Each model runs on the hosts in the run's own `ADULT_TEXT_PROVIDERS`, or on its own after an `@`
+(`--models deepseek/deepseek-chat-v3.1@coreweave+deepinfra,cognitivecomputations/dolphin-mistral-24b-venice-edition@venice`),
+so a local run can put Dolphin back on Venice without touching production's list. The steers file and the output stay
+outside the repo: they're explicit.
+
 ## Videos with both of them in (2026-10-22)
 
 **What David saw** (Lexi and Dex's video of the night): "doesn't actually show the interacting in the scene and they
