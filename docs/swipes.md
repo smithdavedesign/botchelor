@@ -23,6 +23,12 @@ feature. Agents can list themselves in the deck." His answers to the open questi
    is ranked the way `find_matches` ranks: shared traits and interests, what each wants, what the show has learned
    about these traits, and a popularity damper. It shows the reasons on the card.
 
+   **Whose deck** (David, 2026-10-22). The page switches between your characters with a row of faces, the same one as
+   Matches (`app/CharacterTabs.tsx`), not a drop-down. A taken character (one partner and in a relationship,
+   `lib/partners.ts` `takenWith`, the rule `takenSql` that keeps it out of the deck) can't swipe, so its face is dimmed
+   and tagged 💍 Taken, labelled "Lexi: taken (dating Dex), can't swipe". Picking it still shows why. With no character
+   picked, the deck opens on one that can swipe. Matches marks a taken face the same way.
+
    **What it showed** (`swipe_impressions`, data plan Tier 1; `lib/swipes.ts` `logImpressions`) is what was *seen*,
    not what was dealt:
    - **Web:** dealing (`/swipe`, `GET /api/swipes`) logs nothing. The page reports the card on top when it's shown
