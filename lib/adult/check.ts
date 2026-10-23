@@ -67,6 +67,26 @@ export function setCheckFetchForTests(f: Fetch | null): void {
   testFetch = f;
 }
 const doFetch: Fetch = (...a) => (testFetch ?? fetch)(...a);
+let testSleep: ((ms: number) => Promise<void>) | null = null;
+/** Tests skip the real waits between retries (and can record them). */
+export function setCheckSleepForTests(f: ((ms: number) => Promise<void>) | null): void {
+  testSleep = f;
+}
+const sleep = (ms: number) => (testSleep ?? ((t: number) => new Promise<void>((r) => setTimeout(r, t))))(ms);
+
+/** Hive was busy (429), down (5xx) or unreachable: asked again this many more times before the check gives up. */
+export const HIVE_RETRIES = 2;
+/** The waits before each retry when Hive doesn't say how long (Retry-After), and the most it may ask for. */
+const HIVE_BACKOFF_MS = [1500, 4000];
+const HIVE_WAIT_MAX_MS = 8000;
+
+/** How long Hive asked to wait (Retry-After, seconds or a date), capped; null when it didn't say. */
+export function retryAfterMs(header: string | null, now = Date.now()): number | null {
+  if (!header) return null;
+  const secs = Number(header);
+  const ms = Number.isFinite(secs) ? secs * 1000 : Date.parse(header) - now;
+  return Number.isFinite(ms) && ms >= 0 ? Math.min(ms, HIVE_WAIT_MAX_MS) : null;
+}
 
 /** Every { class, value|score } pair in a reply, wherever it sits (per frame). */
 export function classScores(body: unknown): { cls: string; score: number }[] {
@@ -107,14 +127,32 @@ function jsonObject(text: string): Record<string, unknown> | null {
   }
 }
 
+/**
+ * One Hive call. A busy (429), down (5xx) or unreachable Hive is asked again, HIVE_RETRIES more times, after the wait it
+ * asks for (Retry-After, capped) or a short backoff: on 2026-10-23 a picture was drawn, paid for and thrown away because
+ * one 429 meant the check "couldn't run". Any other answer (a 4xx) fails at once. Whatever it ends on, a check that can't
+ * run still refuses (the callers fail closed): nothing unchecked is ever kept.
+ */
 async function hive(key: string, endpoint: string, payload: unknown): Promise<unknown> {
-  const res = await doFetch(endpoint, {
-    method: "POST",
-    headers: { accept: "application/json", "content-type": "application/json", authorization: `Bearer ${key}` },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(`Hive answered ${res.status}`);
-  return res.json();
+  const body = JSON.stringify(payload);
+  for (let attempt = 0; ; attempt++) {
+    let res: Response;
+    try {
+      res = await doFetch(endpoint, {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json", authorization: `Bearer ${key}` },
+        body,
+      });
+    } catch (err) {
+      if (attempt >= HIVE_RETRIES) throw err;
+      await sleep(HIVE_BACKOFF_MS[attempt] ?? HIVE_WAIT_MAX_MS);
+      continue;
+    }
+    if (res.ok) return res.json();
+    const busy = res.status === 429 || res.status >= 500;
+    if (!busy || attempt >= HIVE_RETRIES) throw new Error(`Hive answered ${res.status}`);
+    await sleep(retryAfterMs(res.headers.get("retry-after")) ?? HIVE_BACKOFF_MS[attempt] ?? HIVE_WAIT_MAX_MS);
+  }
 }
 
 /** A set (an empty place, lib/sets.ts) is refused at this NSFW score or above, or with a child present. */
@@ -144,10 +182,9 @@ export async function checkOutput(key: string | null, media: Checkable, kind: "i
   const url = typeof media === "string" ? media : `data:${media.mime};base64,${media.base64}`;
   const input = typeof media === "string" ? { media_url: media } : { media_base64: media.base64 };
   try {
-    const [mod, vlm] = await Promise.all([
-      hive(key, HIVE_MODERATION, { input: [input], processing_mode: "sync_with_fallback" }),
-      kind === "image" ? hive(key, HIVE_VLM, ageCheckRequest(url)) : Promise.resolve(null),
-    ]);
+    // One after the other, not both at once: Hive rate-limits a burst, and a picture's two checks were half of one.
+    const mod = await hive(key, HIVE_MODERATION, { input: [input], processing_mode: "sync_with_fallback" });
+    const vlm = kind === "image" ? await hive(key, HIVE_VLM, ageCheckRequest(url)) : null;
     const modScores = classScores(mod);
     if (!modScores.some((s) => s.cls === "no_child_present" || s.cls === "yes_child_present")) return { ok: false, reason: "moderation reply had no child scores" };
     const child = modScores.find((s) => MODERATION_CHILD.includes(s.cls) && s.score >= CHILD_SCORE);

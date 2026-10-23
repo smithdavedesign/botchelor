@@ -182,7 +182,7 @@ import { GET as mediaGet } from "@/app/api/admin/after-dark/media/[id]/route";
 import { GET as clipGet, POST as clipPost } from "@/app/api/admin/after-dark/clip/route";
 import { baselinePrompt, FACE_MODEL, physicalLook, recentActions, scenePrompt, setMediaFetchForTests, VENICE_IMAGE } from "@/lib/adult/media";
 import type { Character } from "@/lib/character";
-import { checkOutput, classScores, HIVE_VLM, setCheckFetchForTests, vlmAnswer } from "@/lib/adult/check";
+import { checkOutput, classScores, HIVE_VLM, setCheckFetchForTests, vlmAnswer, HIVE_RETRIES } from "@/lib/adult/check";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { listNotifications } from "@/lib/notifications";
 
@@ -1014,8 +1014,10 @@ describe("the video of the night", () => {
     await ready(cookie, id);
     fakeVenice();
     let calls = 0;
-    // The first keyframe: Hive busy twice. The others: fine.
-    setCheckFetchForTests(async (input: RequestInfo | URL) => (calls++ < 3 ? new Response("slow down", { status: 429 }) : Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD)));
+    // The first keyframe: Hive busy through both of its checks, each asked HIVE_RETRIES more times (lib/adult/check.ts):
+    // 2 × (1 + HIVE_RETRIES) busy answers. The others: fine.
+    const busy = 2 * (1 + HIVE_RETRIES);
+    setCheckFetchForTests(async (input: RequestInfo | URL) => (calls++ < busy ? new Response("slow down", { status: 429 }) : Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD)));
     threeShots();
     const started = (await (await make(cookie)).json()).reel as Reel;
     expect(started.shots.map((s) => s.status)).toEqual(["failed", "queued", "queued"]);

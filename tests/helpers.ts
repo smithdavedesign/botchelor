@@ -48,6 +48,7 @@ import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setReflectionEnabledForTests } from "@/lib/reflection";
 import { setInlineGenerationForTests } from "@/lib/jobs";
 import { setPublicLaunchDayForTests } from "@/lib/our-traffic";
+import { setCheckSleepForTests } from "@/lib/adult/check";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
 import { POST as postRating } from "@/app/api/characters/[id]/ratings/route";
 import type { Ending } from "@/lib/rules";
@@ -123,6 +124,8 @@ export async function startTestDb() {
   // The analytics count people from the public launch (lib/our-traffic.ts PUBLIC_LAUNCH_DAY); in tests they count from
   // any day, so the fixtures can sit before it. tests/insights.test.ts turns the launch day on for its own test.
   setPublicLaunchDayForTests(null);
+  // The output check's waits between Hive retries (lib/adult/check.ts) don't hold up the suite.
+  setCheckSleepForTests(async () => {});
   return {
     db,
     async reset() {
