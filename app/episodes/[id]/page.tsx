@@ -432,37 +432,42 @@ export default async function EpisodePage({
 
         {episode.box_score && <BoxScore boxScore={episode.box_score} bestLine={episode.best_line} why={episode.why} note={episode.box_score_note} />}
 
-        {episode.agendas && (
-          <section className="card">
-            <h2>Secret agendas &amp; the producer</h2>
-            {episode.producer && (
-              <p className="muted">
-                The producer&apos;s act-2 situation: <strong>{episode.producer}</strong>.
-              </p>
+        {/* Behind the scenes: the agendas and the confessionals, one card instead of two in a row (UX audit 2026-10-23). */}
+        {(episode.agendas || episode.confessionals) && (
+          <section className="card behind-scenes">
+            <h2>Behind the scenes</h2>
+            {episode.agendas && (
+              <>
+                <h3>Secret agendas &amp; the producer</h3>
+                {episode.producer && (
+                  <p className="muted">
+                    The producer&apos;s act-2 situation: <strong>{episode.producer}</strong>.
+                  </p>
+                )}
+                <ul>
+                  {episode.agendas.map((ag) => {
+                    const rest = withoutLeadName(ag.agenda, nameOf(ag.character_id) ?? "");
+                    return (
+                      <li key={ag.character_id}>
+                        {who(ag.character_id)}
+                        {rest !== null ? rest : <>: {ag.agenda}</>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
             )}
-            <ul>
-              {episode.agendas.map((ag) => {
-                const rest = withoutLeadName(ag.agenda, nameOf(ag.character_id) ?? "");
-                return (
-                  <li key={ag.character_id}>
-                    {who(ag.character_id)}
-                    {rest !== null ? rest : <>: {ag.agenda}</>}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        )}
-
-        {episode.confessionals && (
-          <section className="card">
-            <h2>The confessionals</h2>
-            {episode.confessionals.map((c) => (
-              <p key={c.character_id} className="confessional">
-                {who(c.character_id)}: “{c.line}”
-              </p>
-            ))}
-            {episode.is_host && <ConfessionalShare episodeId={episode.id} shared={episode.confessionals_shared} />}
+            {episode.confessionals && (
+              <>
+                <h3>The confessionals</h3>
+                {episode.confessionals.map((c) => (
+                  <p key={c.character_id} className="confessional">
+                    {who(c.character_id)}: “{c.line}”
+                  </p>
+                ))}
+                {episode.is_host && <ConfessionalShare episodeId={episode.id} shared={episode.confessionals_shared} />}
+              </>
+            )}
           </section>
         )}
 

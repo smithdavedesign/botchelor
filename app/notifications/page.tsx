@@ -4,6 +4,9 @@ import Link from "next/link";
 import { getDb } from "@/lib/db";
 import { userIdFromCookieStore } from "@/lib/http";
 import { countNotifications, listNotifications, markRead } from "@/lib/notifications";
+import { notificationFaces } from "@/lib/notification-faces";
+import Avatar from "@/app/Avatar";
+import type { CharacterRef } from "@/lib/game";
 import Pager from "@/app/Pager";
 import { clampPage, pageCount, pageHref, parsePage } from "@/lib/paging";
 import { pushKeys } from "@/lib/push";
@@ -39,6 +42,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   const items = viewerId ? await listNotifications(db, viewerId, NOTIFICATIONS_PAGE, (page - 1) * NOTIFICATIONS_PAGE) : [];
   if (viewerId && (await countNotifications(db, viewerId, { unread: true })) > 0) await markRead(db, viewerId, "all");
   const push = pushKeys();
+  const faces = viewerId ? await notificationFaces(db, viewerId, items).catch(() => new Map<string, CharacterRef[]>()) : new Map<string, CharacterRef[]>();
 
   return (
     <>
@@ -65,8 +69,16 @@ export default async function NotificationsPage({ searchParams }: { searchParams
           <ul className="list" aria-label="Notifications">
             {items.map((n) => {
               const [emoji, title] = splitEmoji(n.title);
+              const who = faces.get(n.id) ?? [];
               return (
-              <li key={n.id} className={`notification${n.read ? "" : " unread"}${n.booked ? " is-booked" : ""}`}>
+              <li key={n.id} className={`notification${n.read ? "" : " unread"}${n.booked ? " is-booked" : ""}${who.length ? " has-faces" : ""}`}>
+                {who.length > 0 && (
+                  <span className={`notif-faces${who.length > 1 ? " is-pair" : ""}`} aria-hidden="true">
+                    {who.map((c) => (
+                      <Avatar key={c.id} seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={32} decorative round />
+                    ))}
+                  </span>
+                )}
                 <strong className="notif-title">
                   {emoji && (
                     <span className="notif-emoji" aria-hidden="true">
