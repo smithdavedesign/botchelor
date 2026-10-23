@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { POST } from "@/app/api/admin/after-dark/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { guardAlternation, guardNames, nearMiss } from "@/lib/adult/guards";
-import { adultModel, setAdultModelForTests } from "@/lib/adult/mode";
+import { ADULT_TEXT_PROVIDERS, adultModel, adultTextProviders, setAdultModelForTests } from "@/lib/adult/mode";
 import { observeNight, reportMarkdown } from "@/lib/adult/observer";
 import { bannedPhrases, clicheRate, refusalIn, sceneQuality, sheetDetailRate, STOCK_PHRASES, stockPhrasesIn, type QualitySide } from "@/lib/adult/quality";
 import { sceneMessages, type SceneLine } from "@/lib/adult/scenes";
@@ -337,6 +337,37 @@ describe("sampling", () => {
     const other = await adultModel(t.db, process.env, { model: "sao10k/l3.1-euryale-70b" });
     await other.complete([{ role: "user", content: "x" }]);
     expect(sent.at(-1)).toMatchObject({ model: "sao10k/l3.1-euryale-70b" });
+  });
+
+  it("After Dark's OpenRouter calls run only on the hosts whose terms allow it, fastest first; the local model is left alone", async () => {
+    setAdultModelForTests(null);
+    const sent: { url: string; body: Record<string, unknown> }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      sent.push({ url: String(url), body: JSON.parse(String(init.body)) });
+      return Response.json({ choices: [{ message: { content: "{}" } }] });
+    });
+    const ask = async (opts?: { model: string }) => (await adultModel(t.db, process.env, opts)).complete([{ role: "user", content: "x" }]);
+    // The local model (ADULT_MODE=1, no OpenRouter key): no OpenRouter routing in its request.
+    await ask();
+    expect(sent[0].url).not.toContain("openrouter.ai");
+    expect(sent[0].body).not.toHaveProperty("provider");
+    // Production's model on OpenRouter: CoreWeave and DeepInfra only, by throughput (what :nitro sorts by), so a scene
+    // can't land on SiliconFlow, SambaNova or Mara. Fallbacks stay on: `only` already keeps them on the two.
+    await saveAdultSettings(t.db, { openrouter_key: "sk-or-test-0000", text_model: "deepseek/deepseek-chat-v3.1:nitro" });
+    await ask();
+    expect(sent[1].url).toBe("https://openrouter.ai/api/v1/chat/completions");
+    expect(sent[1].body).toMatchObject({ model: "deepseek/deepseek-chat-v3.1:nitro", usage: { include: true } });
+    expect(sent[1].body.provider).toEqual({ only: ["coreweave", "deepinfra"], sort: "throughput" });
+    expect(ADULT_TEXT_PROVIDERS).toEqual(["coreweave", "deepinfra"]);
+    // An eval arm on the same key is held to the same hosts.
+    await ask({ model: "sao10k/l3.1-euryale-70b" });
+    expect(sent[2].body).toMatchObject({ model: "sao10k/l3.1-euryale-70b", provider: { only: ["coreweave", "deepinfra"] } });
+    // ADULT_TEXT_PROVIDERS (comma-separated OpenRouter slugs) replaces the list; a blank one keeps the reviewed two.
+    vi.stubEnv("ADULT_TEXT_PROVIDERS", " DeepInfra , coreweave/fp8 ,");
+    await ask();
+    expect(sent[3].body.provider).toEqual({ only: ["deepinfra", "coreweave/fp8"], sort: "throughput" });
+    expect(adultTextProviders({ ADULT_TEXT_PROVIDERS: " , " })).toEqual(["coreweave", "deepinfra"]);
+    expect(adultTextProviders({})).toEqual(["coreweave", "deepinfra"]);
   });
 });
 

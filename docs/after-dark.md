@@ -117,6 +117,32 @@ Track cost-per-subscriber; alert when a subscriber's generation cost exceeds a s
 - Set a **spend cap at every provider** when you create the key (`secrets add --cap`), and record it so the
   nightly scan sees it.
 
+### Terms fixes (2026-10-22)
+
+Three cheap fixes from the day's terms review:
+
+- **Text runs only on hosts whose terms allow it.** `:nitro` sorted all five of DeepSeek V3.1's OpenRouter hosts by
+  throughput, so a step could land on SiliconFlow (bans "obscene, pornographic, indecent" content), SambaNova (bars
+  making the service available to third parties) or Mara (not reviewed). Every After Dark OpenRouter call now sends
+  `provider: { only: ["coreweave", "deepinfra"], sort: "throughput" }` (lib/adult/mode.ts): CoreWeave first, DeepInfra
+  its only fallback. `only` is a hard allowlist, so `allow_fallbacks` keeps its default (`false` would allow only the
+  top host). A model neither host serves (the sim's Dolphin, most eval arms, the code default `mistral-large`) now
+  fails with OpenRouter's 404; `ADULT_TEXT_PROVIDERS` (comma-separated slugs) replaces the list once a host's terms are
+  read. The local `ADULT_MODE` model is untouched.
+- **Google Analytics never sees After Dark, and its pages say they're adult.** A `<head>` script (lib/ga-guard.ts)
+  sets gtag.js's own opt-out (`window['ga-disable-G-VHL1LZTPHL']`) before gtag loads on `/after-dark/*` and
+  `/admin/after-dark/*`, on a page reached from one, and before an in-app navigation reaches one. It stays on in that
+  tab until the next full page load, because GA's next in-app page_view would carry the After Dark address as its
+  page_referrer. Nothing sends a page title or address explicitly. In Chromium, against the real gtag.js (every hit
+  answered locally): normal pages still counted, and no hit came from or after After Dark. Vercel Web Analytics and
+  Speed Insights still count these pages, by path and route only (no titles, no cookies). The After Dark layouts add
+  `<meta name="rating" content="adult">` and the RTA label (lib/adult/rating.ts).
+- **Hive's age check answers from three labels.** Hive's terms (1.5) count its VLM as generative, which (3.2) bars
+  non-PG content without written permission, "solely when used for any purpose other than receiving a response
+  confined to a defined set of response labels". The check now sends a JSON schema (`response_format`, `answer` one of
+  ADULTS / MINOR / UNSURE; lib/adult/check.ts) and reads the JSON answer, falling back to the first word. Anything but
+  ADULTS still refuses. One live call on a PG portrait answered `{"answer": "ADULTS"}` in half a second.
+
 ## Build order
 
 1. **Output moderation (#1)** — or keep images off and ship **text-first**. Safety, first.
@@ -501,7 +527,8 @@ Timed on the scene prompt (about 1,400 tokens in, 600 out): DeepInfra 65–151 s
 SiliconFlow about 30 s, CoreWeave 6–7.6 s (about 90 tokens a second); SambaNova answered 429 every time. So
 `text_model` is `deepseek/deepseek-chat-v3.1:nitro`, OpenRouter's throughput-first routing, which picked CoreWeave each
 time: two production steps through the eval route took 11 seconds, at about 0.2¢ a step (twice DeepInfra's price). A
-setting, not code: the plain id goes back to the cheapest-first routing.
+setting, not code: the plain id went back to the cheapest-first routing. Since the terms fixes (#6), every call is held
+to CoreWeave and DeepInfra, fastest first, whatever the id says.
 
 ## Videos with both of them in (2026-10-22)
 
