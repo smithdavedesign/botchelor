@@ -104,6 +104,7 @@ against $0.11).
 | A picture from the shot menu (`lib/adult/pictures-menu.ts`) | One keyframe of the two of them (the act, outfit, framing and place as chosen), Hive on it | About $0.045 on Venice ($0.04, Hive about $0.004), about $0.035 on Replicate ($0.03) |
 | A Short (`lib/adult/shorts.ts`, 2026-10-23): a saved night of two house characters, published | Nothing is made: it shows the night's own lines, a picture already made and its video when it has one | $0 to make. Watching it is free to the viewer (in the subscription, no tokens, not counted against the caps) and costs us only the transfer: its lines, and the video's files from the bucket (a presigned link) or Postgres, a few MB a video, kept by each viewer's browser |
 | Call it (`lib/adult/predictions.ts`): a call on a Short, settled at play | Read from the night's own record: no model, no media | $0. The points are free and only free: nothing buys them, nothing they buy |
+| Two sides of the night (`lib/adult/monologues.ts`): both monologues and both morning texts of a night | One text call: about 4,000 to 6,000 tokens in (two sheets, up to 160 lines, what they remembered), about 1,500 out; a second when the first can't be used | About 0.5¢ on DeepSeek V3.1 (pinned hosts), about 1¢ with the retry. Written once a night and kept: every read after is free |
 
 Hive on a video is about $0.05 for 15 seconds and $0.09 for 30, if it samples about one frame a second. Confirm how
 Hive counts video frames before relying on this.
@@ -177,6 +178,7 @@ what one subscriber can cost:
 | Pictures | 30 | About $0.45 |
 | Clips (fal, non-explicit pictures only) | 5 | About $1 to $2 |
 | Voiced lines (each line made once; replays free) | 2,000 | About $0.70 on Venice (about 100 characters a line), about $0.40 on Replicate |
+| Two sides of the night (each night written once; reads free) | 20 | About $0.10 to $0.20 |
 | **All of it, used to the limit** | | **About $2 to $3 a subscriber a month** |
 
 At **$9.99 a month**, after an adult processor's fees (about $1.50), a subscriber who uses everything still leaves

@@ -12,6 +12,7 @@ import { getDb } from "@/lib/db";
 import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/lib/game";
 import SceneWriter from "./SceneWriter";
 import ShortsPanel from "./ShortsPanel";
+import TwoSidesPanel from "./TwoSidesPanel";
 import { housePair } from "@/lib/adult/shorts";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +59,8 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
       )}
       {/* Publish a night as a Short (lib/adult/shorts.ts): admins only, two of the season's house cast only. */}
       {(await isAdmin(db, admin)) && (await housePair(db, scene.a.id, scene.b.id)) && <ShortsPanel a={scene.a} b={scene.b} />}
+      {/* Two sides of the night (lib/adult/monologues.ts): each one's inner monologue of one of the viewer's whole nights. */}
+      <TwoSidesPanel a={scene.a} b={scene.b} />
       <SceneWriter
         initial={scene}
         gallery={await listMedia(db, [scene.a.id, scene.b.id])}

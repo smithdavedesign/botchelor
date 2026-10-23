@@ -11,8 +11,10 @@
  *     someone After Dark isn't open to.
  *   callit: a subscriber calls the Short before playing it (lib/adult/predictions.ts), presses play and sees how the call
  *     went; the season's board, with three other subscribers' calls settled through the API.
+ *   sides: two sides of the night (lib/adult/monologues.ts), written by the stand-in with PG pages: on the Short's page
+ *     after play, and in the 🌗 panel on the pair's page.
  *
- * SHOTS=shorts,callit picks the sets (all by default). On the phone it checks the page never scrolls sideways. Set
+ * SHOTS=shorts,callit,sides picks the sets (all by default). On the phone it checks the page never scrolls sideways. Set
  * CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build.
  */
 import { createServer } from "node:http";
@@ -56,14 +58,34 @@ const HISTORY = [
   { place: "the flat downstairs", set: "the flat downstairs", home: "a", chapter: 1 },
 ];
 
-/** No model is called on these pages; a stand-in answers anything that does with PG filler. */
+/** Two sides of the night, PG: what the stand-in writer sends for a night's monologues (lib/adult/monologues.ts). */
+const SIDE_A =
+  "I counted the boats so I wouldn't count how often I looked across the blanket. Seven, and then the ferry, and then I stopped pretending. " +
+  "The tea really was terrible. I made it terrible on purpose, I think, so there'd be something to laugh about if the talking ran out. It never ran out.\n\n" +
+  "When the rain came in I said my flat was just downstairs as if it were a weather report. It wasn't a weather report. " +
+  "On the sofa I made them pick a kettle, and they picked the chipped one, and that was the answer to a question I hadn't asked out loud.";
+const SIDE_B =
+  "They think I didn't see the counting. I saw it. I counted the looks instead and lost track somewhere around the green light on the ferry. " +
+  "Someone had to be brave about something, so I reached for a hand under the blanket and pretended it was about the cold.\n\n" +
+  "Downstairs, a flat the size of a lift, and a row of kettles. Of course a row of kettles. I picked the chipped one because it had clearly survived things, " +
+  "and I wanted to be the kind of person who notices that. I think I passed. I'm not sure what the test was.";
+const SIDES_REPLY = {
+  a: { side: SIDE_A, text: "Morning. For the record, you reached for my hand first. I have witnesses. Seven of them, all boats." },
+  b: { side: SIDE_B, text: "Morning. For the record, you invited me downstairs. The hand was weather. The flat was a decision." },
+};
+
+/** No model is called on most of these pages; a stand-in answers with PG filler, and with PG pages for both sides. */
 function startAdultStub() {
   const srv = createServer((req, res) => {
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {
+      const { messages = [] } = JSON.parse(body || "{}");
+      const sides = messages.some((m) => typeof m.content === "string" && m.content.includes("Each one's side of this night"));
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ id: "stub", object: "chat.completion", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: "{}" } }] }));
+      res.end(
+        JSON.stringify({ id: "stub", object: "chat.completion", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: sides ? JSON.stringify(SIDES_REPLY) : "{}" } }] }),
+      );
     });
   });
   return new Promise((ok) => srv.listen(0, "127.0.0.1", () => ok(srv)));
@@ -101,6 +123,8 @@ async function seed(pair, subscriberHandles) {
   const db = new PGlite(DB_DIR);
   try {
     const owner = (await db.query("select user_id from admins limit 1")).rows[0].user_id;
+    // After Dark's settings row, so a subscriber's monthly caps are the defaults (with no row, every cap reads 0).
+    await db.query("insert into adult_settings (id) values (1) on conflict (id) do nothing");
     for (const handle of subscriberHandles) {
       const sub = (await db.query("select user_id from accounts where handle = $1", [handle])).rows[0].user_id;
       await db.query("insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())", [sub]);
@@ -282,7 +306,44 @@ async function callit(s) {
   await shot(page, "callit-board-phone");
 }
 
-const FLOWS = { shorts, callit };
+/** Two sides of the night (PR 3): a subscriber who pressed play reads both sides of the Short; the owner's 🌗 panel. */
+async function sides(s) {
+  const { base, shot, desktop, phone, top } = s;
+  const shortPath = await s.published(false);
+  const api = `/api/admin/after-dark${shortPath.replace("/after-dark", "")}`;
+  // A subscriber who has pressed play (in the shorts set, or here).
+  assert((await s.subCtx.request.post(`${base}${api}/watch`, { data: {} })).ok(), "pressing play");
+  const page = await s.subCtx.newPage();
+  await desktop(page);
+  await page.goto(`${base}${shortPath}`);
+  const section = page.locator('section[aria-label="Two sides of the night"]');
+  await section.waitFor({ timeout: 30_000 });
+  await section.getByRole("button", { name: "Read both sides" }).click();
+  await section.getByRole("heading", { name: "The morning after" }).waitFor({ timeout: 60_000 });
+  await top(page, 'section[aria-label="Two sides of the night"]', 120);
+  await shot(page, "sides-short-desktop");
+  await phone(page);
+  await top(page, 'section[aria-label="Two sides of the night"]', 80);
+  await checkPhone(page, "both sides of a Short");
+  await shot(page, "sides-short-phone");
+  // The owner's panel on the pair's page: the night's two sides, already written, read again for nothing.
+  const admin = s.admin;
+  await desktop(admin);
+  await admin.goto(`${base}${s.scenePath}`);
+  const panel = admin.locator(".ad-two-sides");
+  await panel.locator("summary").click();
+  await panel.getByRole("button", { name: "Read both sides" }).first().click();
+  await panel.getByRole("heading", { name: "The morning after" }).waitFor({ timeout: 60_000 });
+  await top(admin, ".ad-two-sides", 120);
+  await shot(admin, "sides-panel-desktop");
+  await phone(admin);
+  await top(admin, ".ad-two-sides", 80);
+  await checkPhone(admin, "the 🌗 panel");
+  await shot(admin, "sides-panel-phone");
+  await desktop(admin);
+}
+
+const FLOWS = { shorts, callit, sides };
 
 async function main() {
   if (!process.env.CHROMIUM_PATH) throw new Error("Set CHROMIUM_PATH to a local Chromium; this script never downloads one.");
@@ -350,7 +411,7 @@ async function main() {
     let shortPath = null;
     const base = app.base;
     const published = async (withShots) => (shortPath ??= await publishFromPanel({ admin, base, scenePath, shot: withShots ? shot : null, desktop, phone, top }));
-    const s = { base, browser, shot, desktop, phone, top, subCtx, callCtx, boardCtxs, names, published };
+    const s = { base, browser, shot, desktop, phone, top, subCtx, callCtx, boardCtxs, names, published, admin, scenePath };
     for (const name of wanted) await FLOWS[name](s);
   } finally {
     await Promise.all(contexts.map((c) => c.close().catch(() => {})));

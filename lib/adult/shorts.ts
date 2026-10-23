@@ -73,9 +73,11 @@ export type NightRow = {
   set_place: string | null;
   chapter: number | null;
   place_history: PlaceStop[] | null;
+  /** The running recap of the night so far, written when the chapter was filed (server-only: never sent to a viewer). */
+  recap?: string | null;
   created_at: string | Date;
 };
-const NIGHT_COLUMNS = "id, lines, place, stage, date_setting, date_venue, set_place, chapter, place_history, created_at";
+const NIGHT_COLUMNS = "id, lines, place, stage, date_setting, date_venue, set_place, chapter, place_history, recap, created_at";
 
 /** A whole night: its saved chapters in order (lib/adult/nights.ts). */
 export type NightGroup = NightGroupOf<NightRow>;

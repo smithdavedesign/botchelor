@@ -4,11 +4,13 @@ import { useState } from "react";
 import Avatar from "@/app/Avatar";
 import AfterDarkTheater from "@/app/after-dark/[a]/[b]/AfterDarkTheater";
 import { requestJson } from "@/app/request";
+import type { TwoSides } from "@/lib/adult/monologues";
 import type { Call, Outcome } from "@/lib/adult/predictions";
 import type { ShortEpisode as Episode, ShortView } from "@/lib/adult/shorts";
 import type { CharacterRef } from "@/lib/game";
 import { CallIt, Reveal } from "./CallIt";
 import ShortVideo from "./ShortVideo";
+import { ShortSides } from "./TwoSides";
 import styles from "./shorts.module.css";
 
 /**
@@ -26,6 +28,7 @@ export default function ShortEpisode({
   outcome: firstOutcome = null,
   owner = false,
   boardLabel = null,
+  sides = null,
 }: {
   id: string;
   characters: [CharacterRef, CharacterRef];
@@ -37,6 +40,8 @@ export default function ShortEpisode({
   outcome?: Outcome | null;
   owner?: boolean;
   boardLabel?: string | null;
+  /** Both sides of the night (lib/adult/monologues.ts), when they've been written: shown after play. */
+  sides?: TwoSides | null;
 }) {
   const [episode, setEpisode] = useState(initial);
   const [call, setCall] = useState(firstCall);
@@ -84,6 +89,7 @@ export default function ShortEpisode({
         />
       )}
       {episode && outcome && <Reveal names={names} call={call} outcome={outcome} boardLabel={boardLabel} owner={owner} />}
+      {episode && <ShortSides shortId={id} initial={sides} />}
       {episode && (
         <>
           {episode.video.length > 0 && (
