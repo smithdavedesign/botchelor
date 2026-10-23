@@ -51,9 +51,14 @@ const HUMAN_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/53
 async function standardView(p) {
   await p.locator(".theater, .watch-grid").first().waitFor({ timeout: 10_000 });
   if (await p.locator(".theater").count()) {
-    await p.getByRole("button", { name: "Exit" }).click();
+    await p.getByRole("button", { name: /^Exit/ }).first().click();
     await p.locator(".watch-grid").waitFor({ timeout: 10_000 });
   }
+}
+/** Opens a tab of the room's panel (Chat, The date, Vote), in the standard room or the theater. */
+async function roomTab(p, name) {
+  const tab = p.getByRole("tab", { name: new RegExp(`^${name}`) }).first();
+  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
 }
 async function step(name, fn) {
   try {
@@ -128,7 +133,8 @@ async function main() {
       assert((await page.locator(".hero-art .avatar").count()) === 2, "hero product teaser missing");
       assert((await page.locator(".features .feature").count()) >= 3, "feature grid missing");
       assert((await page.locator(".faq details").count()) >= 3, "FAQ missing");
-      assert((await page.locator("#start").count()) > 0, "builder (#start) missing");
+      // The builder lives at /create (the home's #start is "Jump back in", for creators with a character already).
+      assert((await page.locator('a[href^="/create"]').count()) > 0, "no way to the builder");
     });
 
     await step("builds a custom character in the /create wizard: identity, voice, look, details, a private soul", async () => {
@@ -195,8 +201,8 @@ async function main() {
 
     await step("the episode is a three-act story with avatars, a turn-by-turn transcript, box score, debrief, agendas and an ending", async () => {
       await page.getByRole("heading", { level: 1 }).waitFor();
-      assert((await page.locator(".matchup .avatar").count()) === 2, "expected two matchup avatars");
-      assert((await page.getByText("The date, line by line").count()) > 0, "turn-by-turn transcript heading missing");
+      assert((await page.locator(".episode-hero-cast .avatar").count()) === 2, "expected the pair's two avatars");
+      assert((await page.getByText("Read it line by line").count()) > 0, "turn-by-turn transcript heading missing");
       assert((await page.locator(".transcript .chat-bubble").count()) >= 4, "the two agents' turn-by-turn chat thread is missing");
       assert((await page.locator(".transcript .chat-row-a").count()) > 0 && (await page.locator(".transcript .chat-row-b").count()) > 0, "the chat thread should put one character on each side");
       assert((await page.locator(".boxscore").count()) > 0, "box score missing for the creator");
@@ -275,10 +281,10 @@ async function main() {
       await page.getByRole("button", { name: "Start the premiere" }).click();
       await page.waitForURL(/\/watch\/[0-9a-f-]{36}$/);
       roomUrl = page.url();
-      await page.locator(".theater").waitFor({ timeout: 10_000 }); // a date opens in theater mode
-      await standardView(page);
+      await standardView(page); // a date opens in the standard view (theater is a button, 2026-10-22)
       await page.getByRole("heading", { level: 1 }).waitFor();
       assert((await page.locator(".watch-live").count()) > 0, "live 'watching' indicator missing");
+      await roomTab(page, "Chat"); // the reactions sit by the chat box
       assert((await page.locator(".watch-react").count()) >= 3, "the reactions bar is missing");
     });
 
@@ -288,6 +294,7 @@ async function main() {
       try {
         await fpage.goto(roomUrl);
         await standardView(fpage);
+        await roomTab(fpage, "Chat");
         await fpage.locator(".watch-react").first().waitFor();
         // React: the first emoji's count should tick from 0 to 1 after the heartbeat syncs it back.
         await fpage.locator(".watch-react").first().click();
@@ -300,6 +307,7 @@ async function main() {
         await fpage.getByRole("button", { name: "Send" }).click();
         await fpage.getByText("he is absolutely LYING").waitFor({ timeout: 10_000 });
         // Predict the ending from inside the room.
+        await roomTab(fpage, "Vote");
         await fpage.locator(".watch-predict button.poll-option").first().click();
         await fpage.getByText(/Locked in:/).waitFor({ timeout: 10_000 });
       } finally {
@@ -315,16 +323,15 @@ async function main() {
       if (!(await page.locator(".theater").count())) await page.getByRole("button", { name: /Theater mode|Watch the replay/ }).click();
       await page.locator(".theater .scene").waitFor({ timeout: 10_000 });
       assert((await page.locator(".theater-hud").count()) > 0, "the theater HUD is missing");
-      assert((await page.locator(".theater-convo .chat-thread").count()) > 0, "the conversation thread is missing in theater");
-      // The live chat docks behind its own icon (open by default on a wide screen, one tap away otherwise).
-      const chatIcon = page.getByRole("button", { name: "Live chat" });
-      await page.waitForTimeout(300); // let the wide-screen default settle before reading the toggle
-      if ((await chatIcon.getAttribute("aria-pressed")) !== "true") await chatIcon.click();
-      await page.locator(".theater-panel .watch-chat-head h2").filter({ hasText: "Live chat" }).waitFor({ timeout: 10_000 });
-      // The voting & questions panel opens from its own icon (keeping the scene itself clean).
-      await page.getByRole("button", { name: "Voting and questions" }).click();
-      await page.getByRole("heading", { name: "Voting & questions" }).waitFor({ timeout: 10_000 });
-      await page.getByRole("button", { name: "Exit" }).click();
+      // The sidebar beside the scene: the date line by line, the chat and the vote, in tabs.
+      if (await page.getByRole("button", { name: /Chat & vote/ }).count()) await page.getByRole("button", { name: /Chat & vote/ }).click();
+      await roomTab(page, "The date");
+      await page.locator(".theater .room-script .chat-thread").waitFor({ timeout: 10_000 });
+      await roomTab(page, "Chat");
+      await page.locator(".theater .watch-chat").waitFor({ timeout: 10_000 });
+      await roomTab(page, "Vote");
+      await page.locator(".theater .room-pane-vote").waitFor({ timeout: 10_000 });
+      await page.getByRole("button", { name: "Exit theater" }).click();
       await page.locator(".theater").waitFor({ state: "detached", timeout: 10_000 });
     });
 
@@ -340,6 +347,7 @@ async function main() {
         await standardView(gpage);
         await gpage.getByRole("heading", { level: 1 }).waitFor();
         assert((await gpage.locator(".watch-stage .card").count()) > 0, "the room stage did not render");
+        await roomTab(gpage, "Chat");
         assert((await gpage.locator(".watch-react").count()) >= 3, "the room reactions bar is missing");
       } finally {
         await guest.close();
@@ -471,8 +479,8 @@ async function main() {
     });
 
     await step("the cast gallery lists characters and a matchmaker proposal can be made", async () => {
-      await spage.goto(`${base}/cast`);
-      await spage.getByRole("heading", { name: "The cast" }).waitFor();
+      await spage.goto(`${base}/cast`); // the cast tab of /characters (2026-10-21)
+      await spage.getByRole("heading", { level: 1, name: "Characters" }).waitFor();
       assert((await spage.locator(".gallery .avatar").count()) > 0, "cast gallery avatars missing");
       const selects = spage.locator("form .traits select");
       await selects.nth(0).selectOption({ index: 1 });

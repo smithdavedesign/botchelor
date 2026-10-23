@@ -340,8 +340,8 @@ async function seedLastWeek(call, cast) {
   const league = await call("/api/leagues", { name: "Rooftop Regulars" }, wren);
   for (const who of [kestrel, alder, birch, cedar]) await call(`/api/leagues/${league.id}/join`, {}, who);
 
-  const mira = await call("/api/characters", { ...CHARACTERS.mira, attest: true }, miraCreator);
-  const otto = await call("/api/characters", { ...CHARACTERS.otto, attest: true }, ottoCreator);
+  const mira = await call("/api/characters", { ...CHARACTERS.mira, attest: true, keep_name: true }, miraCreator);
+  const otto = await call("/api/characters", { ...CHARACTERS.otto, attest: true, keep_name: true }, ottoCreator);
   const rooftop = await call("/api/episodes", { character_id: mira.id, partner_id: "house-rafe" }, miraCreator); // friends, b leaves first
   const lighthouse = await call("/api/episodes", { character_id: otto.id, partner_id: "house-juniper" }, ottoCreator); // second date, nobody rejected
 
@@ -760,7 +760,7 @@ async function captureGenerating(baseEnv) {
     const c = CHARACTERS.tamsin;
     const character = await call(
       "/api/characters",
-      { name: c.name, age: c.age, bio: c.bio, traits: c.traits, want: c.want, dealbreaker: c.dealbreaker, attest: true },
+      { name: c.name, age: c.age, bio: c.bio, traits: c.traits, want: c.want, dealbreaker: c.dealbreaker, attest: true, keep_name: true },
       who,
     );
     // Generation is NOT inline here, so this returns straight away with a 'generating' episode.

@@ -5090,7 +5090,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         }
       }
       const who = resolveIdentity(args, session, true)!;
-      const body = { ...pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience"]), attest: args.attest === true };
+      const body = { ...pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience"]), attest: args.attest === true, keep_name: true }; // the name was checked above (keep_name is the agent's call)
       const r = await callRoute(postCharacter, { agentId: who.id, body });
       if (!r.ok) return { error: extrasHint(errorOf(r)) };
       await db.query(`update characters set created_via = 'mcp', partner_style = $2 where id = $1`, [String(r.data.id), args.partner_style === undefined ? null : style]);

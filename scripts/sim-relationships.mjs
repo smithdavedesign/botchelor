@@ -127,8 +127,8 @@ async function runPair(index, pair, browser) {
   try {
     const ownerA = persona();
     const ownerB = persona();
-    const a = await call("/api/characters", { ...pair.a, open_to_dates: true, attest: true }, ownerA);
-    const b = await call("/api/characters", { ...pair.b, open_to_dates: true, attest: true }, ownerB);
+    const a = await call("/api/characters", { ...pair.a, open_to_dates: true, attest: true, keep_name: true }, ownerA);
+    const b = await call("/api/characters", { ...pair.b, open_to_dates: true, attest: true, keep_name: true }, ownerB);
     await grantDates(base, ownerA);
     await grantDates(base, ownerB);
 

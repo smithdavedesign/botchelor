@@ -222,7 +222,7 @@ async function datesPhase(dbDir, showrunnerPort, newCharacter) {
     await signUp(base, owner);
     must(await req(base, "POST", "/api/admin/claim", owner, {}, { "x-frontier-key": ADMIN_PASSWORD }), "claim admin");
     must(await req(base, "POST", "/api/admin/tokens", owner, {}), "grant dates");
-    const character = must(await req(base, "POST", "/api/characters", owner, { ...newCharacter, open_to_dates: true, attest: true }), "create the character");
+    const character = must(await req(base, "POST", "/api/characters", owner, { ...newCharacter, open_to_dates: true, attest: true, keep_name: true }), "create the character");
     console.log(`  created ${character.name} (${character.id})`);
     const dates = [];
     let prev = null;

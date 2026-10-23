@@ -281,8 +281,12 @@ function getRequest(path: string, cookie?: string): Request {
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
 export const api = {
+  // Suites make many Mira Quells, so a test's sheet keeps its name unless it says otherwise (tests/name-check.test.ts
+  // covers the unique-name rule itself).
   createCharacter: (body: unknown, cookie?: string, contentType?: string) =>
-    postCharacter(jsonRequest("/api/characters", body, { cookie, contentType })),
+    postCharacter(
+      jsonRequest("/api/characters", body && typeof body === "object" && !Array.isArray(body) ? { keep_name: true, ...body } : body, { cookie, contentType }),
+    ),
   createEpisode: (body: unknown, cookie?: string) => postEpisode(jsonRequest("/api/episodes", body, { cookie })),
   predict: (body: unknown, cookie?: string) => postPrediction(jsonRequest("/api/predictions", body, { cookie })),
   /** M1: the host "airs the finale" (POST /api/episodes/:id/reveal). */
