@@ -6080,7 +6080,8 @@ button.table-more {
 
 /* ---------------- Matches, Messages (lib/inbox.ts; David, 2026-10-18) ---------------- */
 
-/* Whose matches, as faces (app/matches/CharacterTabs.tsx): sideways on a phone, the one on screen marked. */
+/* Whose matches or deck, as faces (app/CharacterTabs.tsx, on /matches and /swipe): sideways on a phone, the one on
+   screen marked, a taken one dimmed and tagged. */
 .character-tabs {
   display: flex;
   gap: var(--space-2);
@@ -6101,6 +6102,23 @@ button.table-more {
   font-weight: 600;
   text-decoration: none;
 }
+/* Taken (lib/partners.ts takenWith: with someone, wanting one partner, so closed to other dates): a dashed edge, a faded
+   face and a muted name (still 4.5:1), and the 💍 Taken tag in the house-run badge's neutral tint. Still a link. */
+.character-tab.is-taken {
+  border-style: dashed;
+  color: var(--muted);
+}
+.character-tab.is-taken .avatar {
+  opacity: 0.55;
+  filter: grayscale(0.8);
+}
+.character-tab-taken {
+  margin-left: 0;
+  background: color-mix(in srgb, var(--muted) 16%, var(--card));
+  color: var(--ink);
+  white-space: nowrap;
+}
+/* After the taken rule, so the one on screen keeps its pink name even when it's taken. */
 .character-tab[aria-current="page"] {
   border-color: var(--accent);
   background: var(--soft);
@@ -6109,11 +6127,6 @@ button.table-more {
 .matches-new {
   background: var(--accent-btn);
   color: var(--accent-ink);
-}
-/* Whose matches: a drop-down of the viewer's characters (app/CharacterPicker.tsx). */
-.character-picker select {
-  width: auto;
-  font-weight: 700;
 }
 .matches-head {
   display: flex;
@@ -6242,8 +6255,9 @@ button.table-more {
   background: var(--card);
 }
 
-/* Swipe: the slim bar is the phone's; the intro is the desktop's. */
-.swipe-topbar {
+/* Swipe: the slim bar and the faces under it are the phone's; the intro is the desktop's. */
+.swipe-topbar,
+.swipe-faces {
   display: none;
 }
 .swipe-topbar-btn {
@@ -6300,6 +6314,15 @@ button.table-more {
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
+  }
+  /* Whose deck: the faces in their own row under the bar, the full width of the screen (the bar is too narrow for more
+     than two), scrolling sideways inside it when they don't fit. */
+  .swipe-faces {
+    display: block;
+    flex: none;
+  }
+  .swipe-faces .character-tabs {
+    margin: 0;
   }
   .swipe-fullscreen .swipe-deck {
     display: flex;

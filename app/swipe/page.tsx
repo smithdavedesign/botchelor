@@ -6,8 +6,9 @@ import { listMyDatingProfiles } from "@/lib/dating";
 import { userIdFromCookieStore } from "@/lib/http";
 import { shortName } from "@/lib/names";
 import CastPreview from "@/app/CastPreview";
-import CharacterPicker from "@/app/CharacterPicker";
+import CharacterTabs from "@/app/CharacterTabs";
 import { unreadTexts } from "@/lib/inbox";
+import { takenWith } from "@/lib/partners";
 import { deckFor } from "@/lib/swipes";
 import { withOrigins } from "@/lib/origin";
 import SwipeDeck from "./SwipeDeck";
@@ -25,7 +26,8 @@ type Props = { searchParams: Promise<{ character?: string }> };
 /**
  * The swipe deck (lib/swipes.ts, docs/swipes.md): you swipe for one of your characters; a match opens its chat, and
  * the characters decide about the date themselves. On a phone it's the whole screen, like a dating app (David,
- * 2026-10-18): no site header or footer, a slim bar with ✕, whose deck it is and 💬 Matches.
+ * 2026-10-18): no site header or footer, a slim bar with ✕, whose deck it is and 💬 Matches. To switch whose deck it
+ * is: your characters as a row of faces, as on /matches (David, 2026-10-22), a taken one dimmed and tagged 💍 Taken.
  */
 export default async function SwipePage({ searchParams }: Props) {
   const { character } = await searchParams;
@@ -47,12 +49,17 @@ export default async function SwipePage({ searchParams }: Props) {
       </article>
     );
   }
-  const me = mine.find((c) => c.id === character) ?? mine[0];
-  const [deck, texts] = await Promise.all([deckFor(db, viewerId, me.id), unreadTexts(db, viewerId).catch(() => 0)]);
+  // A taken one (lib/partners.ts: with someone and wanting one partner) is out of the deck (lib/swipes.ts cantSwipe), so
+  // without one asked for, the deck opens on one that can swipe. Picking a taken one still says why it can't.
+  const [taken, texts] = await Promise.all([takenWith(db, mine.map((c) => c.id)), unreadTexts(db, viewerId).catch(() => 0)]);
+  const me = mine.find((c) => c.id === character) ?? mine.find((c) => !taken.has(c.id)) ?? mine[0];
+  const deck = await deckFor(db, viewerId, me.id);
   // Dealing isn't seeing: the deck reports each card as it comes on top, under this visit's id (lib/swipes.ts logShownCard).
   const serveId = crypto.randomUUID();
   const first = shortName(me.name);
   const matchesHref = `/matches?character=${encodeURIComponent(me.id)}`;
+  // The same row of faces under the phone's slim bar and in the desktop's intro (only one of them shows at a time).
+  const faces = <CharacterTabs characters={mine} current={me.id} href="/swipe?character=" label="Whose deck" taken={taken} takenNote="can't swipe" />;
 
   return (
     <article className="swipe-page swipe-fullscreen">
@@ -60,21 +67,18 @@ export default async function SwipePage({ searchParams }: Props) {
         <Link href="/" className="swipe-topbar-btn" aria-label="Close the deck">
           ✕
         </Link>
-        {mine.length > 1 ? (
-          <CharacterPicker characters={mine} current={me.id} href="/swipe?character=" label="Swipe for" />
-        ) : (
-          <span className="swipe-topbar-name">{first}</span>
-        )}
+        <span className="swipe-topbar-name">{first}</span>
         <Link href={matchesHref} className="swipe-topbar-btn" aria-label={texts ? `Matches, ${texts} unread texts` : "Matches"}>
           💬{texts > 0 && <span className="nav-count">{texts > 99 ? "99+" : texts}</span>}
         </Link>
       </div>
+      {mine.length > 1 && <div className="swipe-faces">{faces}</div>}
       <div className="swipe-intro">
         <p className="kicker">Swipe</p>
         <div className="matches-head">
           <h1>Who should {first} meet?</h1>
-          <CharacterPicker characters={mine} current={me.id} href="/swipe?character=" label="Swipe for" />
         </div>
+        {faces}
         <p className="muted">
           You swipe for {first}. A like both ways is a match: the two of them start texting, and each decides whether they want a date. If both
           do, you book it. This season&apos;s house characters are always in the deck. <Link href={matchesHref}>{first}&apos;s matches</Link>

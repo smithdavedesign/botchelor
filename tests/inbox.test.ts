@@ -186,17 +186,58 @@ describe("which of your characters the news is for (David, 2026-10-21)", () => {
   it("shows each character as a face with its count, the one on screen marked", async () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { createElement } = await import("react");
-    const { default: CharacterTabs } = await import("@/app/matches/CharacterTabs");
+    const { default: CharacterTabs } = await import("@/app/CharacterTabs");
     const chars = [
       { id: "a1", name: "Ada Lumen", hue: 10, portrait: null },
       { id: "a2", name: "Ann Lumen", hue: 200, portrait: null },
     ];
     const news = new Map([["a2", { texts: 1, matches: 1, latest: "2026-10-21T00:00:00.000Z" }]]);
-    const html = renderToStaticMarkup(createElement(CharacterTabs, { characters: chars, current: "a2", news }));
+    const tabs = { characters: chars, current: "a2", href: "/matches?character=", label: "Whose matches", news };
+    const html = renderToStaticMarkup(createElement(CharacterTabs, tabs));
+    expect(html).toContain('<nav class="character-tabs" aria-label="Whose matches">');
     const current = html.match(/<a[^>]*aria-current="page"[^>]*>/)?.[0] ?? "";
     expect(current).toContain('href="/matches?character=a2"');
     expect(html).toContain('aria-label="1 new match, 1 new text"');
     expect(html).toContain(">Ann<");
-    expect(renderToStaticMarkup(createElement(CharacterTabs, { characters: chars.slice(0, 1), current: "a1", news }))).toBe("");
+    expect(html).not.toContain("Taken"); // nobody's taken unless the page says so
+    expect(renderToStaticMarkup(createElement(CharacterTabs, { ...tabs, characters: chars.slice(0, 1), current: "a1" }))).toBe("");
+  });
+
+  it("marks a taken face (/swipe and /matches): dimmed, 💍 Taken, and a label that says who it's with; still a link", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { createElement } = await import("react");
+    const { default: CharacterTabs } = await import("@/app/CharacterTabs");
+    const chars = [
+      { id: "a1", name: "Ada Lumen", hue: 10, portrait: null },
+      { id: "a2", name: "Ann Lumen", hue: 200, portrait: null },
+      { id: "a3", name: "Avi Lumen", hue: 300, portrait: null },
+    ];
+    const taken = new Map([
+      ["a1", [{ name: "Dex Marlow" }]],
+      ["a3", [{ name: "Sam Reyes" }, { name: "Ro Vale" }]],
+    ]);
+    const tab = (html: string, id: string) => html.match(new RegExp(`<a[^>]*href="[^"]*=${id}"[^>]*>.*?</a>`))?.[0] ?? "";
+    const swipe = renderToStaticMarkup(createElement(CharacterTabs, { characters: chars, current: "a2", href: "/swipe?character=", label: "Whose deck", taken, takenNote: "can't swipe" }));
+    const ada = tab(swipe, "a1");
+    expect(ada).toContain('href="/swipe?character=a1"'); // still a link: picking it says why
+    expect(ada).toContain('class="character-tab is-taken"');
+    expect(ada).toContain('aria-label="Ada: taken (dating Dex), can&#x27;t swipe"');
+    expect(ada).toContain('title="Ada: taken (dating Dex), can&#x27;t swipe"');
+    expect(ada).toContain(">💍 Taken<");
+    expect(tab(swipe, "a3")).toContain('aria-label="Avi: taken (dating Sam and Ro), can&#x27;t swipe"');
+    const ann = tab(swipe, "a2");
+    expect(ann).toContain('class="character-tab"');
+    expect(ann).toContain('aria-current="page"');
+    expect(ann).not.toContain("Taken");
+
+    // The one on screen can be taken too; on /matches its news joins its label.
+    const news = new Map([["a1", { texts: 2, matches: 0, latest: "2026-10-21T00:00:00.000Z" }]]);
+    const matches = renderToStaticMarkup(
+      createElement(CharacterTabs, { characters: chars, current: "a1", href: "/matches?character=", label: "Whose matches", news, taken, takenNote: "closed to other dates" }),
+    );
+    const mine = tab(matches, "a1");
+    expect(mine).toContain('aria-current="page"');
+    expect(mine).toContain('class="character-tab is-taken"');
+    expect(mine).toContain('aria-label="Ada: taken (dating Dex), closed to other dates. 2 new texts"');
   });
 });

@@ -7,7 +7,8 @@ import { listMyDatingProfiles } from "@/lib/dating";
 import { userIdFromCookieStore } from "@/lib/http";
 import { characterToOpen, listThreads, newsByCharacter, type Thread } from "@/lib/inbox";
 import { shortName } from "@/lib/names";
-import CharacterTabs from "./CharacterTabs";
+import { takenWith } from "@/lib/partners";
+import CharacterTabs from "@/app/CharacterTabs";
 import CastPreview from "@/app/CastPreview";
 
 export const dynamic = "force-dynamic";
@@ -71,8 +72,10 @@ export default async function MatchesPage({ searchParams }: Props) {
       </article>
     );
   }
-  // Without one asked for, open on the character the newest news is about (the nav's count can be anyone's).
-  const news = await newsByCharacter(db, viewerId, mine.map((c) => c.id));
+  // Without one asked for, open on the character the newest news is about (the nav's count can be anyone's). The taken
+  // ones are marked on the faces, the same as on /swipe.
+  const ids = mine.map((c) => c.id);
+  const [news, taken] = await Promise.all([newsByCharacter(db, viewerId, ids), takenWith(db, ids)]);
   const me = mine.find((c) => c.id === character) ?? characterToOpen(mine, news) ?? mine[0];
   const inbox = (await listThreads(db, viewerId, me.id)) ?? { fresh: [], conversations: [] };
   const first = shortName(me.name);
@@ -84,7 +87,7 @@ export default async function MatchesPage({ searchParams }: Props) {
       <header className="matches-head">
         <h1>{first}&apos;s matches</h1>
       </header>
-      <CharacterTabs characters={mine} current={me.id} news={news} />
+      <CharacterTabs characters={mine} current={me.id} href="/matches?character=" label="Whose matches" news={news} taken={taken} takenNote="closed to other dates" />
       <p className="matches-sub">
         <Link href={`/characters/${encodeURIComponent(me.id)}`}>{first}&apos;s card</Link> ·{" "}
         <Link href={`/swipe?character=${encodeURIComponent(me.id)}`}>Swipe for {first}</Link>
