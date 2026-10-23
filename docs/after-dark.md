@@ -1322,7 +1322,8 @@ and a sentence that does it anyway is cut. The reply is read in the shape asked 
 - **An owner** writes or reads both sides of their own whole nights (a night still running can't: Start over first), from
   the 🌗 panel on the pair's page.
 - **An entitled viewer** reads a published Short's once they've pressed play (409 before); its owner and admins without.
-  A Short's two sides are its night's, shared with its owner's cache: whoever asks first writes them for everyone.
+  A Short's two sides are its night's, shared with its owner's cache: whoever asks first writes them for everyone. Taken
+  down, they go with it for every viewer (by either route), and stay its owner's.
 - Strangers and bots get not found.
 
 **Included in the subscription, with a cap**: writing one counts against the writer's month (`monologues` in

@@ -331,27 +331,38 @@ export async function sidesForNight(db: Db, owner: string, nightId: string): Pro
   return sidesOf(db, owner, owner, own.pair, own.group.id, own.group.rows, own.group.until);
 }
 
+type ShortNight = NonNullable<Awaited<ReturnType<typeof shortLines>>>;
+
+/**
+ * A Short whose night this viewer may read: published (or theirs, or any for an admin), and pressed play on (its owner
+ * and admins without). Taken down, it's gone for every viewer, written sides and all.
+ */
+async function readableShort(db: Db, viewer: string, shortId: string): Promise<{ ok: true; s: ShortNight } | { ok: false; status: number; error: string; message: string }> {
+  const s = await shortLines(db, shortId);
+  const published = s ? (await db.query<{ published: boolean }>(`select published_at is not null as published from adult_shorts where id = $1`, [shortId])).rows[0]?.published : false;
+  const privileged = Boolean(s) && (s!.short.owner_id === viewer || (await isAdmin(db, viewer)));
+  if (!s || !s.rows.length || (!published && !privileged)) return { ok: false, status: 404, error: "not_found", message: "No Short with that id." };
+  if (!privileged && !(await hasWatched(db, viewer, shortId))) return { ok: false, status: 409, error: "not_watched", message: "Press play first: both sides tell how the night goes." };
+  return { ok: true, s };
+}
+
 /**
  * A Short's two sides, for an entitled viewer who has pressed play on it (its owner and admins without): kept, or written
  * now against the viewer's month. Shares the night's cache with its owner.
  */
 export async function sidesForShort(db: Db, viewer: string, shortId: string): Promise<SidesResult> {
-  const s = await shortLines(db, shortId);
-  const published = s ? (await db.query<{ published: boolean }>(`select published_at is not null as published from adult_shorts where id = $1`, [shortId])).rows[0]?.published : false;
-  const privileged = Boolean(s) && (s!.short.owner_id === viewer || (await isAdmin(db, viewer)));
-  if (!s || !s.rows.length || (!published && !privileged)) return refuse(404, "not_found", "No Short with that id.");
-  if (!privileged && !(await hasWatched(db, viewer, shortId))) return refuse(409, "not_watched", "Press play first: both sides tell how the night goes.");
+  const r = await readableShort(db, viewer, shortId);
+  if (!r.ok) return r;
+  const { s } = r;
   const until = new Date(s.rows.at(-1)!.created_at);
   return sidesOf(db, viewer, s.short.owner_id, [s.short.character_a, s.short.character_b], s.rows[0].id, s.rows, until);
 }
 
 /** The kept two sides of a Short, or null (none yet, or not this viewer's to read): nothing is written. */
 export async function keptSidesForShort(db: Db, viewer: string, shortId: string): Promise<TwoSides | null> {
-  const s = await shortLines(db, shortId);
-  if (!s || !s.rows.length) return null;
-  const privileged = s.short.owner_id === viewer || (await isAdmin(db, viewer));
-  if (!privileged && !(await hasWatched(db, viewer, shortId))) return null;
-  const kept = await cached(db, s.rows[0].id);
+  const r = await readableShort(db, viewer, shortId);
+  if (!r.ok) return null;
+  const kept = await cached(db, r.s.rows[0].id);
   return kept ? asSides(db, kept) : null;
 }
 
