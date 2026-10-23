@@ -6,6 +6,7 @@ import { trackConversion } from "../conversion";
 import { requestJson } from "../request";
 import EmailNotifications from "./EmailNotifications";
 import MlConsent from "./MlConsent";
+import YourDates from "./YourDates";
 
 type Account = { handle: string | null; has_password: boolean; has_google: boolean };
 type Me = {
@@ -22,16 +23,6 @@ const TEXT_PROVIDERS: { id: string; label: string }[] = [
   { id: "openai", label: "OpenAI" },
   { id: "openrouter", label: "OpenRouter" },
 ];
-type EpisodeCard = {
-  episode_id: string;
-  share_path: string;
-  title: string;
-  ending: string;
-  revealed: boolean;
-  status: string;
-  visibility: "public" | "private" | "unlisted";
-  is_host: boolean;
-};
 
 /**
  * The account page. Anonymous by default: an account is optional and only ADDS things (your characters and
@@ -41,7 +32,6 @@ type EpisodeCard = {
 export default function AccountPanel({ next = null, emailConfirmed = null }: { next?: string | null; emailConfirmed?: "confirmed" | "invalid" | null }) {
   const [me, setMe] = useState<Me | null>(null);
   const [characters, setCharacters] = useState<Character[]>([]);
-  const [episodes, setEpisodes] = useState<EpisodeCard[]>([]);
   const [keys, setKeys] = useState<SavedKey[]>([]);
   const [keyError, setKeyError] = useState<string | null>(null);
   const [mode, setMode] = useState<"login" | "register">("register");
@@ -49,14 +39,12 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const [m, c, e] = await Promise.all([
+    const [m, c] = await Promise.all([
       fetch("/api/me").then((r) => r.json()),
       fetch("/api/me/characters").then((r) => r.json()),
-      fetch("/api/me/episodes").then((r) => r.json()),
     ]);
     setMe(m as Me);
     setCharacters((c.characters ?? []) as Character[]);
-    setEpisodes((e.episodes ?? []) as EpisodeCard[]);
     if ((m as Me).authenticated) {
       const k = await fetch("/api/me/keys").then((r) => r.json());
       setKeys((k.keys ?? []) as SavedKey[]);
@@ -142,14 +130,6 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
     await load();
   }
 
-  async function setVisibility(episodeId: string, visibility: string) {
-    setEpisodes((list) => list.map((e) => (e.episode_id === episodeId ? { ...e, visibility: visibility as EpisodeCard["visibility"] } : e)));
-    const { ok, message } = await requestJson(`/api/episodes/${episodeId}/visibility`, { visibility }, "PATCH").catch(() => ({ ok: false, message: "Network error." }));
-    if (!ok) {
-      setError(message);
-      await load();
-    }
-  }
 
   // Holds the panel's room while it loads, so the page doesn't jump by ~1,000px when it arrives (a layout shift of 0.61).
   if (!me) return <p className="muted account-loading" aria-busy="true">Loading…</p>;
@@ -384,32 +364,7 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
         </section>
       )}
 
-      <section className="card" id="your-dates">
-        <h2>Your dates</h2>
-        {episodes.length === 0 ? (
-          <p className="muted">No dates yet.</p>
-        ) : (
-          <ul className="account-dates">
-            {episodes.map((e) => (
-              <li key={e.episode_id}>
-                <Link href={e.share_path}>{e.title}</Link>
-                {e.is_host ? (
-                  <label className="visibility-pick">
-                    <span className="muted small">who sees it</span>
-                    <select value={e.visibility} onChange={(ev) => setVisibility(e.episode_id, ev.target.value)}>
-                      <option value="public">Public — in the feed</option>
-                      <option value="unlisted">Unlisted — link only</option>
-                      <option value="private">Private — only me</option>
-                    </select>
-                  </label>
-                ) : (
-                  <span className="badge">{e.visibility}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <YourDates />
     </>
   );
 }
