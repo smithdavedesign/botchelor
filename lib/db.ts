@@ -1458,6 +1458,10 @@ alter table adult_scenes add column if not exists whispers jsonb not null defaul
 alter table adult_scenes add column if not exists undo jsonb not null default '[]';
 alter table adult_steps add column if not exists whisper jsonb;
 alter table adult_steps add column if not exists rewound jsonb;
+-- The viewer's limits for a pair (lib/adult/limits.ts; 2026-10-22), per owner and pair, kept through Start over: the
+-- intensity (null is explicit, After Dark as it was) and the hard nos ({chips: [...], own: [...]}).
+alter table adult_scenes add column if not exists intensity text;
+alter table adult_scenes add column if not exists hard_nos jsonb not null default '{}';
 -- After Dark v2.3 (lib/adult/heat.ts, lib/adult/auto-pictures.ts; 2026-10-23): how explicitly a scene is written
 -- (suggestive, frank or filthy; null is frank), the automatic pictures it has claimed (one per chapter and place, so a
 -- retry or a rewind never draws twice), the chapter and place a picture was drawn for, and the switch for them (null is on).

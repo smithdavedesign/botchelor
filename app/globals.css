@@ -7572,6 +7572,186 @@ a.phone-head-btn {
 .theater-after-dark.has-suggestions {
   --ad-action-bottom: clamp(9.5rem, 18vh, 12.5rem);
 }
+
+/* After Dark's limits and memory panels (Limits.tsx, Memory.tsx): two folded panels under the steer bar, one above the
+   other. */
+.ad-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+.ad-panel {
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--ad-line, var(--line));
+  border-radius: 0.8rem;
+  background: var(--ad-card, var(--card));
+}
+.ad-panel > summary {
+  cursor: pointer;
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+}
+.ad-panel[open] > summary {
+  margin-bottom: var(--space-2);
+}
+.ad-panel fieldset {
+  min-width: 0;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  border: 0;
+}
+.ad-panel legend {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.ad-intensity {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.35rem;
+}
+.ad-intensity label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.4rem;
+  align-items: baseline;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.6rem;
+  border: 1px solid transparent;
+}
+.ad-intensity label.chosen {
+  border-color: var(--ad-accent, var(--accent));
+}
+.ad-intensity input {
+  flex: none;
+  accent-color: #c9a2ff;
+}
+.ad-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.ad-chip {
+  margin: 0;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--ad-line, var(--line));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ad-ink, var(--ink));
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.ad-chip.on {
+  border-color: #ff9f80;
+  background: rgba(255, 159, 128, 0.16);
+  color: #ffd2c4;
+  font-weight: 700;
+}
+.ad-chip:hover:not(:disabled) {
+  transform: none;
+  border-color: var(--ad-accent, var(--accent));
+}
+.ad-own-nos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-own-nos li {
+  display: inline-flex;
+  gap: 0.2rem;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.15rem 0.2rem 0.15rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 159, 128, 0.16);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.ad-own-add {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.ad-own-add input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ad-own-add button,
+.ad-panel-actions button {
+  margin-top: 0;
+}
+.ad-panel-actions {
+  margin: 0;
+}
+.ad-x {
+  margin: 0;
+  flex: none;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+  font-size: 1rem;
+  line-height: 1;
+}
+.ad-x:hover:not(:disabled) {
+  transform: none;
+  background: var(--soft);
+}
+.ad-memory-side h3 {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--text-base, 1rem);
+}
+.ad-memory-side > .muted {
+  margin: 0 0 var(--space-2);
+}
+.ad-memory-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-memory-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.6rem;
+  background: var(--soft);
+  font-size: var(--text-sm);
+}
+.ad-memory-item .badge {
+  margin-left: 0;
+}
+.ad-memory-text {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ad-memory-item.editing input,
+.ad-memory-item.editing textarea {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.ad-memory-buttons {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  margin-left: auto;
+}
+.ad-memory-buttons button {
+  margin-top: 0;
+}
 @media (max-width: 760px) {
   .ad-suggestions {
     flex-wrap: nowrap;

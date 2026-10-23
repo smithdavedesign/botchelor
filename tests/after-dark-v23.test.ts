@@ -9,7 +9,8 @@ import { observeNight } from "@/lib/adult/observer";
 import { setMediaFetchForTests, VENICE_IMAGE } from "@/lib/adult/media";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { quoteOverlap, quotesKept, saysQuote, steerQuotes, withoutQuotes } from "@/lib/adult/quotes";
-import { CHAPTER_LINES, chapterCarry, emptyScene, sceneMessages, writeSceneStep, type SceneLine, type SceneState, type StepInput } from "@/lib/adult/scenes";
+import { NO_LIMITS } from "@/lib/adult/limits";
+import { CHAPTER_LINES, chapterCarry, effectiveHeat, emptyScene, sceneMessages, writeSceneStep, type SceneLine, type SceneState, type StepInput } from "@/lib/adult/scenes";
 import { SCENE_PROMPT_REVISION } from "@/lib/adult/settings";
 import { stageShown } from "@/lib/adult/stage-floor";
 import { claimAdmin } from "@/lib/admins";
@@ -198,6 +199,18 @@ describe("the heat", () => {
     expect(early.system).toContain("Stay this person when it gets intimate: their humour and the way they talk still show");
     expect(early.user).toContain("their humour and their way of talking keep showing");
     expect(early.system).not.toContain("- Filthy:");
+  });
+
+  it("works inside the viewer's intensity: below explicit, the intensity's register stands", () => {
+    const [system] = sceneMessages(juniper(), rafe(), null, [], null, "house-juniper", {
+      place: "her flat", stage: 3, linesAtStage: 20, opening: false, promptVersion: "v2", heat: "filthy", limits: { ...NO_LIMITS, intensity: "spicy" },
+    } as never);
+    expect(system.content).toContain("Keep it spicy");
+    expect(system.content).not.toContain("written filthy");
+    expect(system.content).not.toContain("- Filthy:");
+    expect(effectiveHeat(true, "filthy", "explicit")).toBe("filthy");
+    expect(effectiveHeat(true, "suggestive", "flirty")).toBe("frank");
+    expect(effectiveHeat(false, "filthy", "explicit")).toBe("frank");
   });
 
   it("prompt v1 is word for word whatever the heat", () => {
