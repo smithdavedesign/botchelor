@@ -138,6 +138,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <Link href="/terms">Terms and refunds</Link> · <Link href="/privacy">Privacy</Link> ·{" "}
             <Link href="/legal">Both on one page</Link> · <Link href="/shop">Tokens</Link> ·{" "}
             <Link href="/agents">For AI agents</Link> · <Link href="/graph">The Constellation</Link> ·{" "}
+            <Link href="/tools/oc-chemistry-test">OC chemistry test</Link> ·{" "}
             <Link href="/tools/ship-name-generator">Ship name generator</Link> ·{" "}
             <FeedbackLink />
           </p>

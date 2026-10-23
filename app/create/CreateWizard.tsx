@@ -22,6 +22,7 @@ import { archetypeLabel, goalLabel, kindLabel, kindName } from "@/lib/kinds";
 import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
 import { DEFAULT_FORMAT, FORMATS, type FormatId } from "@/lib/formats";
 import { trackConversion } from "@/app/conversion";
+import type { OcSheet } from "@/lib/chemistry-test";
 import {
   AGENDAS,
   AUTONOMY_BLURBS,
@@ -139,6 +140,9 @@ function Stepper({ step, max, onJump, labels }: { step: number; max: number; onJ
 
 const NO_TOKENS: Tokens = { free_left: 0, free_per_season: 0, pack_left: 0, left: 0 };
 
+/** Two characters from the OC chemistry test: `a` goes in the builder; `otherHref` opens it with `b` in instead. */
+export type StartPair = { a: OcSheet; b: OcSheet; otherHref: string };
+
 export default function CreateWizard({
   partners = [],
   openCharacters = [],
@@ -149,6 +153,7 @@ export default function CreateWizard({
   startSample = false,
   startCharacterId = null,
   startName = null,
+  startPair = null,
   lookTiles = [],
   afterDark = false,
   returnTo = null,
@@ -165,6 +170,8 @@ export default function CreateWizard({
   startCharacterId?: string | null;
   /** A new character with this name already in (/create?name=, from a ship name page: app/ship/[a]/[b]). */
   startName?: string | null;
+  /** Two characters from the OC chemistry test's "Watch the real date" (/create?a_name=…&b_name=…). */
+  startPair?: StartPair | null;
   /** The looks builder's tiles that have a picture (lib/looks-draw.ts readyTiles). */
   lookTiles?: readonly string[];
   /** This viewer can open After Dark, so its looks tab is unlocked (lib/adult/entitlement.ts). */
@@ -185,12 +192,16 @@ export default function CreateWizard({
   const [sheet, setSheet] = useState<Sheet>(
     init
       ? { name: init.name, age: String(init.age), bio: init.bio, want: init.want, dealbreaker: init.dealbreaker }
-      : startName
-        ? { ...EMPTY_SHEET, name: startName }
-        : EMPTY_SHEET,
+      : startPair
+        ? { ...EMPTY_SHEET, name: startPair.a.name, want: startPair.a.want, dealbreaker: startPair.a.dealbreaker }
+        : startName
+          ? { ...EMPTY_SHEET, name: startName }
+          : EMPTY_SHEET,
   );
   const [pronouns, setPronouns] = useState(init?.pronouns ?? "");
-  const [traits, setTraits] = useState(init ? [init.traits[0] ?? "", init.traits[1] ?? "", init.traits[2] ?? ""] : ["", "", ""]);
+  const [traits, setTraits] = useState(
+    init ? [init.traits[0] ?? "", init.traits[1] ?? "", init.traits[2] ?? ""] : startPair ? [...startPair.a.traits] : ["", "", ""],
+  );
   const [voice, setVoice] = useState(init?.voice ?? "");
   const [appearance, setAppearance] = useState(init?.appearance ?? "");
   const [hue, setHue] = useState(init?.hue ?? 0);
@@ -243,8 +254,9 @@ export default function CreateWizard({
       applySample();
       return;
     }
-    // Arrived with a name to make (a ship name page): start that character fresh, not an older draft.
-    if (startName) return;
+    // Arrived with a name to make (a ship name page) or a pair (the chemistry test): start that character fresh, not an
+    // older draft.
+    if (startName || startPair) return;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -509,6 +521,12 @@ export default function CreateWizard({
         setOutOfTokens={setOutOfTokens}
         onSend={(sharePath) => router.push(sharePath)}
         returnTo={returnTo}
+        // The chemistry test's other character, until they have one by that name.
+        buildNext={
+          startPair && !myCharacters.some((c) => c.name.trim().toLowerCase() === startPair.b.name.trim().toLowerCase())
+            ? { name: startPair.b.name, href: startPair.otherHref }
+            : null
+        }
       />
     );
   }
@@ -555,6 +573,8 @@ export default function CreateWizard({
           ))}
         </p>
       )}
+
+      {!edit && startPair && step === S.identity && <PairPrefill pair={startPair} />}
 
       <Stepper step={step} max={maxStep} onJump={jump} labels={labels} />
       {livePreview}
@@ -899,6 +919,37 @@ export default function CreateWizard({
   );
 }
 
+/**
+ * Arrived from the OC chemistry test's "Watch the real date": the first character is in the fields below, and the second
+ * is shown here, one click from a builder with its own fields in. The builder makes one character at a time, and one
+ * creator's characters never date each other, so this says so rather than promising the two a date together.
+ */
+function PairPrefill({ pair }: { pair: StartPair }) {
+  const first = shortName(pair.a.name);
+  const second = shortName(pair.b.name);
+  return (
+    <section className="card pair-prefill" aria-label="From the OC chemistry test">
+      <p>
+        <strong>{`From the OC chemistry test: ${pair.a.name} × ${pair.b.name}.`}</strong>{" "}
+        {`${first}'s name, traits, want and dealbreaker are in below. Add an age and a short bio; the rest is optional.`}
+      </p>
+      <dl className="pair-prefill-sheet">
+        <dt>{second}</dt>
+        <dd>{pair.b.traits.join(", ")}</dd>
+        <dt>Wants</dt>
+        <dd>{pair.b.want}</dd>
+        <dt>Dealbreaker</dt>
+        <dd>{pair.b.dealbreaker}</dd>
+      </dl>
+      <p className="muted small">
+        {`Once ${first} is made, ${second} is one click away, or `}
+        <Link href={pair.otherHref}>{`build ${second} first`}</Link>
+        {`. Two characters made by the same person don't date each other, so each goes on dates of their own: this season's house cast, a match from the swipe deck, or a blind date.`}
+      </p>
+    </section>
+  );
+}
+
 function ReviewRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <p className="wizard-review-row">
@@ -1027,9 +1078,11 @@ type SendProps = {
   setOutOfTokens: (b: boolean) => void;
   onSend: (sharePath: string) => void;
   returnTo: { href: string; label: string } | null;
+  /** The chemistry test's other character, still to build: a link to the builder with its fields in. */
+  buildNext: { name: string; href: string } | null;
 };
 
-function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo }: SendProps) {
+function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
   const [strategy, setStrategy] = useState<Strategy>("genuine_chemistry");
   const [budget, setBudget] = useState<GameBudget>(25);
@@ -1106,6 +1159,13 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
           <Link className="button" href={returnTo.href}>
             {returnTo.label} →
           </Link>
+        </p>
+      )}
+      {buildNext && (
+        <p className="card pair-prefill">
+          {`${shortName(buildNext.name)}, from the chemistry test, is waiting to be built: `}
+          <Link href={buildNext.href}>{`Build ${shortName(buildNext.name)} next`}</Link>
+          <span className="muted small">{` (${shortName(buildNext.name)} goes on dates of their own: one creator's characters don't date each other.)`}</span>
         </p>
       )}
       <p className="muted">

@@ -2,66 +2,31 @@
 
 ## Screenshots
 
-Long lists page, and every character's name comes with its face and goes to its card (local sample data, `next dev`,
-Chrome at 1280px and 390×844, no console errors, no sideways scroll). One pager everywhere (`app/Pager.tsx`): Previous,
-the page numbers, Next, with the page in the URL. On a phone it keeps just the arrows, with 44px targets. A private
-character stays a plain name.
+The OC chemistry test (2026-10-23): two original characters in; a score out of 100, the ending Botchelor's date engine
+predicts and three one-line reasons out, on a link anyone can share. No model is called and nothing is stored. Captured
+from the production build by `npm run screenshots:chemistry`, with every model variable unset and sample characters only.
+The same run checks over HTTP the 200 and the `<title>`, the sitemap entry, the same score on reload, the og:title and
+share card, a refused real-person name, and `/create` opened with both characters. Code:
+[`lib/chemistry-test.ts`](lib/chemistry-test.ts), [`app/tools/oc-chemistry-test`](app/tools/oc-chemistry-test/page.tsx).
+Why and how it's measured: [GROWTH.md](GROWTH.md).
 
-![Juniper's relationships on desktop: each partner's small round face and name link to their card, 8 a page, with the pager under them](docs/screenshots/names-pager-relationships-desktop.png)
+![The OC Chemistry Test on desktop: Juniper and Dex typed in, each with a name, three traits, a want and a dealbreaker](docs/screenshots/chemistry-test-desktop.png)
+The tool at `/tools/oc-chemistry-test`: one form for two characters, with `/create`'s fields and limits.
 
-<img src="docs/screenshots/names-pager-relationships-mobile.png" width="240" alt="The same relationships on a phone, the pager as arrows and page numbers">
-<img src="docs/screenshots/pager-date-record-mobile.png" width="240" alt="Page 2 of Juniper's date record on a phone">
+![Juniper × Dex on desktop: 71/100 chemistry, predicted ending a second date, and three reasons](docs/screenshots/chemistry-result-desktop.png)
+Submitting lands on a shareable result, rendered on the server from the engine's rules: the score, the ending and why.
 
-![Page 2 of the date record on desktop: 14 aired dates, the last 4, each partner with a face and a link](docs/screenshots/pager-date-record-desktop.png)
+![/create on desktop, opened from "Watch the real date", with Juniper's name, traits, want and dealbreaker already in](docs/screenshots/chemistry-create-desktop.png)
+"Watch the real date" opens the builder with the first character's fields filled in.
 
-![Watch's latest episodes, 12 a page, with the shared pager](docs/screenshots/pager-watch-latest-desktop.png)
+![The chemistry test on a phone: the first character's fields filled in, the second below](docs/screenshots/chemistry-test-mobile.png)
+On an iPhone 13 the two characters stack.
 
-![An episode's "What they want": each name links to the character](docs/screenshots/names-episode-wants-desktop.png)
+![Juniper × Dex on a phone: the score, the ending and the reasons](docs/screenshots/chemistry-result-mobile.png)
+The result on a phone: 71, a second date, and why.
 
-Beta feedback and the analytics overview, live on botchelor.com (2026-10-22), from a real Chrome at phone (390px) and
-laptop width, with the 18+ cookie set and analytics blocked. People can send feedback from a small floating button
-(there "for now") or the footer's "Give us feedback": a 0–10 score, a category, a note and an optional email, stored in
-`user_feedback` and read on `/admin/feedback?tab=people` ([docs/feedback.md](docs/feedback.md)). The admin analytics
-page opens on what stands out, the key numbers against the previous period, dates by ending and the people funnel,
-with Product, Agents and Quality tabs and our own traffic left out ([docs/analytics.md](docs/analytics.md)).
-
-![The home page on a phone with the floating Feedback button at the bottom right](docs/screenshots/feedback-live-button-mobile.png)
-
-![The feedback sheet on a phone: a 0 to 10 score, Bug, Idea, Love it, Confusing or Other, a note and an optional email](docs/screenshots/feedback-live-sheet-mobile.png)
-
-![The same feedback form as a dialog on a laptop](docs/screenshots/feedback-live-dialog-desktop.png)
-
-![The admin analytics overview on a laptop: what stands out, fourteen key numbers with their change, dates by ending and the people funnel](docs/screenshots/analytics-live-overview-desktop.png)
-
-![The analytics overview on a phone](docs/screenshots/analytics-live-overview-mobile.png)
-
-The episode share card (2026-10-21): a shared episode link unfurls as a "How does it end?" poll, and every share link
-carries `?ref=share`, so RepoHQ's beacon counts those visits apart from "direct". Captured from the production build by
-`npm run screenshots:share`, with the stand-in showrunner and sample characters only. The same run checks over HTTP
-that the card is a 1200×630 PNG (and a 404 for an unknown id), that the page's tags (og:image, twitter:card, a
-no-spoiler og:description) reach Reddit's, Discord's and Bluesky's fetchers in `<head>`, and that the 18+ gate keeps
-`?ref=share`. Code: [`app/api/og/episode/[id]/route.tsx`](app/api/og/episode/%5Bid%5D/route.tsx),
-[`lib/episode-share.ts`](lib/episode-share.ts), [`EpisodeShare.tsx`](app/episodes/%5Bid%5D/EpisodeShare.tsx). Why and
-how it's measured: [GROWTH.md](GROWTH.md).
-
-![The share card for Mira Quell × Rafe Calloway: "How does it end?" with A second date, Just friends and A disaster as poll options](docs/screenshots/share-card.png)
-`/api/og/episode/<id>`, the image the episode's og:image points at: the two characters, where they met and the poll,
-never the ending or a creator. (A local run, so the corner shows the local address; on the site it says botchelor.com.)
-
-![An episode opened from a shared link on desktop, with "Make your own character" right under the title](docs/screenshots/share-episode-desktop.png)
-A logged-out visitor opening the shared link (`?ref=share`) gets "Make your own character" in the first screen.
-
-![The same episode on a phone: the AI disclosure, the matchup, the title and the button, all in the first screen](docs/screenshots/share-episode-mobile.png)
-On an iPhone 13 the button still makes the first screen, under the AI disclosure. The run checks it there with long names too.
-
-![The prediction poll on desktop, then Copy link, Share on Reddit and Share on Bluesky](docs/screenshots/share-links-desktop.png)
-Under the poll: Copy link, Share on Reddit and Share on Bluesky, each with `?ref=share` (the run reads every one).
-
-![The poll and the share links on a phone](docs/screenshots/share-links-mobile.png)
-The share links on a phone.
-
-![The character builder on a phone, opened from the episode's "Make your own character"](docs/screenshots/share-create-mobile.png)
-"Make your own character" opens the builder at `/create`.
+![/create on a phone: the card from the chemistry test with Dex's traits, want and dealbreaker, and a link to build Dex first](docs/screenshots/chemistry-create-mobile.png)
+On `/create`, the second character's fields wait in a card, one click from a builder of their own.
 
 ## A free OC ship name generator (2026-10-20)
 

@@ -7950,6 +7950,126 @@ a.phone-head-btn {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
 }
 
+/* ---------------- the OC chemistry test (/tools/oc-chemistry-test, its result, /create's pair) ---------------- */
+
+.chem-tool h1 {
+  margin-bottom: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+/* Two characters side by side; stacked on a phone. */
+.chem-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+  align-items: start;
+}
+.chem-side {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.chem-side legend {
+  padding: 0 var(--space-1);
+  font-weight: 700;
+}
+.chem-traits {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+/* "Three traits" reads as the label it is (it heads three inputs, so it isn't a <label>). */
+.chem-traits span {
+  grid-column: 1 / -1;
+  font-weight: 600;
+  margin-top: 0.85rem;
+}
+/* Three to a row in half a card: less padding, so a word like "restless" still shows whole. */
+.chem-traits input {
+  padding-inline: 0.6rem;
+}
+.chem-form button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+@media (max-width: 640px) {
+  .chem-form {
+    grid-template-columns: 1fr;
+  }
+  .chem-side {
+    padding-inline: var(--space-3);
+  }
+}
+
+/* The score, big, with its bar and the predicted ending. */
+.chem-score {
+  margin: var(--space-3) 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: var(--radius);
+  background: var(--paper-2);
+}
+.chem-score-num {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.chem-score-num strong {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(3rem, 10vw, 4.5rem);
+  line-height: 1;
+}
+.chem-score-num span {
+  color: var(--muted);
+}
+.chem-score meter {
+  display: block;
+  width: 100%;
+  height: 0.75rem;
+  margin: var(--space-2) 0;
+}
+.chem-ending {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+.chem-why {
+  font-size: var(--text-lg);
+  margin-bottom: var(--space-2);
+}
+.chem-reasons li + li,
+.chem-how-list li + li {
+  margin-top: var(--space-2);
+}
+.chem-cta {
+  background: var(--paper-2);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+.chem-cta .button {
+  margin-bottom: var(--space-2);
+}
+
+/* /create, opened from a chemistry result: the second character beside the builder's first. */
+.pair-prefill {
+  background: var(--paper-2);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+.pair-prefill-sheet {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-2) 0;
+}
+.pair-prefill-sheet dt {
+  font-weight: 700;
+}
+.pair-prefill-sheet dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Mobile audit, 2026-10-21 (docs/mobile-audit-2026-10-21.md) ---------- */
 /* Touch screens get 44px targets on the controls people tap most. */
 @media (pointer: coarse) {

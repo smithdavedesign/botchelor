@@ -248,6 +248,19 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </ol>
       </section>
 
+      <section className="card home-tools">
+        <h2>Free tools for your OC</h2>
+        <ul>
+          <li>
+            <Link href="/tools/oc-chemistry-test">OC chemistry test</Link>: two characters in, a score out of 100, how
+            their first date ends and why.
+          </li>
+          <li>
+            <Link href="/tools/ship-name-generator">OC ship name generator</Link>: two names in, ship names out.
+          </li>
+        </ul>
+      </section>
+
       <BotReviews said={said} page={bots} keep={refSlug ? { ref: refSlug } : {}} />
 
       <section className="faq">
