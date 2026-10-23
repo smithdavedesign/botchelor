@@ -21,10 +21,13 @@
  *    voice words for a character every shot. A model that takes our audio in (Wan 2.5–2.7, each character's stock
  *    Kokoro voice, never a cloned one) lip-syncs it to whichever face is clearest, often the wrong one in a two-person
  *    shot (2026-10-22: Dex's line on Lexi's mouth); it stays a setting (`reel_model`).
- *  - The check: every keyframe passes Hive (moderation and the age question) before a video is made from it, and every
- *    shot passes it again before it's stored (lib/adult/check.ts); a failure is discarded, never stored, and its share
- *    of the tokens given back. While Hive is over its daily limit (lib/adult/hive-limit.ts) no video starts, and a shot
- *    already made waits, uncollected and unchecked, until the pause is over.
+ *  - The check: every keyframe passes Hive's age question before a video is made from it, and every shot passes Hive's
+ *    moderation before it's stored (lib/adult/check.ts); a failure is discarded, never stored, and its share of the
+ *    tokens given back. A keyframe doesn't get moderation of its own (2026-10-23: self-serve Hive's daily cap counts
+ *    moderation requests, and a 6-shot video used 12): the shot's moderation samples its frames, the first of them that
+ *    keyframe, and a keyframe isn't shown on its own until its shot has passed (lib/adult/media.ts FRAME_SHOWN). While
+ *    Hive is over its daily limit (lib/adult/hive-limit.ts) no video starts, and a shot already made waits, uncollected
+ *    and unchecked, until the pause is over.
  *  - The price: `reel_tokens` bought tokens (After Dark's settings), admins free.
  *  - On Replicate, the backup (`media_provider`, David 2026-10-22; lib/adult/replicate.ts): the keyframe is Qwen-Image-
  *    Edit's, the shot Wan 2.2's, both with Replicate's safety checker off and both through the same Hive check. Wan
@@ -844,8 +847,9 @@ async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "r
 /**
  * Starts the shots: every keyframe is drawn at once (on Venice, or Replicate), then each is checked (one at a time:
  * Hive rate-limits a burst; a check that couldn't run is asked once more after a pause) and kept, and its video
- * queued. A shot whose keyframe can't be drawn or doesn't pass is dropped, and its share of the tokens comes back when
- * the reel settles.
+ * queued. A keyframe gets the age question only (lib/adult/check.ts "keyframe"): it starts its shot and nothing else
+ * until that shot has passed moderation. A shot whose keyframe can't be drawn or doesn't pass is dropped, and its share
+ * of the tokens comes back when the reel settles.
  */
 export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx: ShotContext): Promise<void> {
   const configured: MediaProvider = ctx.provider ?? (ctx.replicate ? "replicate" : "venice");
@@ -893,11 +897,12 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
     }
     if (checked++) await pause(CHECK_PAUSE_MS);
     const media = { base64: d.file.bytes.toString("base64"), mime: d.file.mime };
-    let verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "image"));
+    // The age question alone: this keyframe's moderation comes with its shot's (lib/adult/check.ts "keyframe").
+    let verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "keyframe"));
     // Asked once more after a pause when Hive was busy or down; never when it's out for the day.
     if (couldntRun(verdict) && !hiveOut(verdict)) {
       await pause(CHECK_AGAIN_MS);
-      verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "image"));
+      verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "keyframe"));
     }
     if (!verdict.ok) {
       // Never stored either way; only a refusal is logged as one, and a keyframe thrown away because Hive was out.
@@ -914,7 +919,7 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
       }
       continue;
     }
-    // Kept, out of the gallery (a 'frame'), as the shot's start.
+    // Kept, out of the gallery (a 'frame'), as the shot's start: shown on its own only once the shot has passed.
     const id = crypto.randomUUID();
     const kept = await keepBytes("after-dark", id, d.file.bytes, d.file.mime);
     await db.query(

@@ -1764,6 +1764,9 @@ create table if not exists adult_privacy (
   pin_locked_until timestamptz,
   updated_at timestamptz not null default now()
 );
+-- A video's keyframe passes only Hive's age question (lib/adult/check.ts "keyframe", 2026-10-23), so it's shown on its
+-- own only once a ready video made from it exists (lib/adult/media.ts FRAME_SHOWN): that lookup, by source_image.
+create index if not exists adult_images_source on adult_images (source_image) where source_image is not null;
 
 -- Connections (lib/connections.ts, docs/PRDs/connections.md): a person's own provider keys, one per provider, sealed by
 -- lib/key-crypto.ts and never read back (only the last four). Each job (dates and texts, portraits, intro clips) uses

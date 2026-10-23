@@ -282,6 +282,13 @@ describe("publishing a Short", () => {
     await image("theirs", other.id, "scene");
     await image("clip", ad.id, "video", { mime: "video/mp4" });
     await image("others", ad.id, "scene", { b: C });
+    // A video's keyframe had only the age question (lib/adult/check.ts "keyframe"): not a cover until its shot has
+    // passed moderation and been kept.
+    expect((await publish({ a: A, b: B, night_id: "n1", title: "Fine", cover_id: "frame" }, ad.cookie)).status).toBe(422);
+    await t.db.query(
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, status, source_image) values ('frame-shot', $1, $2, $3, 'video', 'PG placeholder', 'video/mp4', $4, 'ready', 'frame')`,
+      [ad.id, B, A, PNG],
+    );
     for (const cover of ["both", "frame"]) expect((await publish({ a: A, b: B, night_id: "n1", title: "Fine", cover_id: cover }, ad.cookie)).status, cover).toBe(201);
     for (const cover of ["alone", "theirs", "clip", "others", "nope"]) expect((await publish({ a: A, b: B, night_id: "n1", title: "Fine", cover_id: cover }, ad.cookie)).status, cover).toBe(422);
   });

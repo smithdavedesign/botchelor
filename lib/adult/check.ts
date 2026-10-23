@@ -8,7 +8,10 @@
  *     labels by a JSON schema (AGE_FORMAT); anything but "ADULTS" (a possible minor, unsure, nobody visible, an
  *     unreadable answer) is a refusal.
  * Hive's face-age (demographics) model is Enterprise only on the V3 portal, so the VLM stands in for it. A clip is made
- * from a picture that already passed both, and its frames go through moderation again.
+ * from a picture that already passed both, and its frames go through moderation again. A video's keyframe, made only to
+ * start its shot, gets the age question alone ("keyframe", below): the shot's own moderation samples its frames, the
+ * first of them that keyframe, and the keyframe isn't shown on its own until the shot has passed (lib/adult/media.ts
+ * FRAME_SHOWN).
  * The check FAILS CLOSED: no key, an error, or an unreadable reply is a refusal.
  * Self-serve Hive doesn't include its CSAM classifier (Enterprise only); add it before anyone but the admin uses this.
  * Self-serve Hive also stops at 100 moderation requests a day: lib/adult/hive-limit.ts pauses every picture and video
@@ -203,20 +206,35 @@ function couldntRun(err: unknown): CheckResult {
 /** A file to check: fal's URL, or the bytes themselves (Venice returns them, with no URL). */
 export type Checkable = string | { base64: string; mime: string };
 
+/**
+ * What a check asks Hive, by what the file is for:
+ *  - "image": a picture shown as a still (a baseline, a scene or menu picture): moderation and the age question.
+ *  - "video": a shot or clip, before it's kept: moderation, on its frames.
+ *  - "keyframe": a picture made only to start a shot: the age question alone, and still nothing but ADULTS passes. Its
+ *    moderation comes with the shot's, which samples the shot's frames, the first of them this keyframe; it's never
+ *    shown on its own before that passes (lib/adult/media.ts FRAME_SHOWN). Self-serve Hive's daily cap counts
+ *    moderation requests only, so a 6-shot video asks for 6 of them, not 12 (2026-10-23, docs/after-dark-costs.md).
+ */
+export type CheckKind = "image" | "video" | "keyframe";
+
 /** Checks a file a provider returned. Never throws: any failure is a refusal. */
-export async function checkOutput(key: string | null, media: Checkable, kind: "image" | "video" = "image"): Promise<CheckResult> {
+export async function checkOutput(key: string | null, media: Checkable, kind: CheckKind = "image"): Promise<CheckResult> {
   if (!key) return { ok: false, reason: "the output check isn't set up (no Hive key)" };
   const url = typeof media === "string" ? media : `data:${media.mime};base64,${media.base64}`;
   const input = typeof media === "string" ? { media_url: media } : { media_base64: media.base64 };
   try {
+    const moderated = kind !== "keyframe";
+    const aged = kind !== "video";
     // One after the other, not both at once: Hive rate-limits a burst, and a picture's two checks were half of one.
-    const mod = await hive(key, HIVE_MODERATION, { input: [input], processing_mode: "sync_with_fallback" });
-    const vlm = kind === "image" ? await hive(key, HIVE_VLM, ageCheckRequest(url)) : null;
-    const modScores = classScores(mod);
-    if (!modScores.some((s) => s.cls === "no_child_present" || s.cls === "yes_child_present")) return { ok: false, reason: "moderation reply had no child scores" };
-    const child = modScores.find((s) => MODERATION_CHILD.includes(s.cls) && s.score >= CHILD_SCORE);
-    if (child) return { ok: false, reason: `moderation: ${child.cls} ${child.score.toFixed(2)}` };
-    if (kind === "image") {
+    const mod = moderated ? await hive(key, HIVE_MODERATION, { input: [input], processing_mode: "sync_with_fallback" }) : null;
+    const vlm = aged ? await hive(key, HIVE_VLM, ageCheckRequest(url)) : null;
+    if (moderated) {
+      const modScores = classScores(mod);
+      if (!modScores.some((s) => s.cls === "no_child_present" || s.cls === "yes_child_present")) return { ok: false, reason: "moderation reply had no child scores" };
+      const child = modScores.find((s) => MODERATION_CHILD.includes(s.cls) && s.score >= CHILD_SCORE);
+      if (child) return { ok: false, reason: `moderation: ${child.cls} ${child.score.toFixed(2)}` };
+    }
+    if (aged) {
       const answer = vlmAnswer(vlm);
       if (answer !== "ADULTS") return { ok: false, reason: `age check: ${answer || "no answer"}` };
     }

@@ -485,13 +485,23 @@ export function mediaLinkValid(id: string, until: string | null, sig: string | n
 }
 
 /**
- * A ready file, to its viewer: theirs or, for an admin, anyone's (viewableBy). Null only for a signed link, which names
- * the one picture itself.
+ * A video's keyframe (a 'frame') passed only Hive's age question (lib/adult/check.ts "keyframe"): its moderation is its
+ * shot's, which samples the shot's frames, the first of them the keyframe. So it's shown on its own (this media route,
+ * a Short's cover, the admin's pair view) only once a video made from it has passed and been kept; before that only a
+ * video provider gets it, by a signed link, to start the shot from. SQL on an unaliased adult_images.
+ */
+export const FRAME_SHOWN =
+  "(adult_images.kind <> 'frame' or exists (select 1 from adult_images shot where shot.source_image = adult_images.id and shot.kind = 'video' and shot.status = 'ready'))";
+
+/**
+ * A ready file, to its viewer: theirs or, for an admin, anyone's (viewableBy), a keyframe once its shot has passed
+ * (FRAME_SHOWN). Null only for a signed link, which names the one picture itself, and for a Short's own route, which
+ * lets through only its cover and its shots that came through (lib/adult/shorts.ts shortMediaAllowed).
  */
 const readyFor = (id: string, viewerId: string | null): { where: string; params: string[] } =>
   viewerId === null
     ? { where: `id = $1 and status = 'ready'`, params: [id] }
-    : { where: `id = $1 and status = 'ready' and ${viewableBy(2)}`, params: [id, viewerId] };
+    : { where: `id = $1 and status = 'ready' and ${viewableBy(2)} and ${FRAME_SHOWN}`, params: [id, viewerId] };
 
 /** Where a ready file is: its bucket key (when it's been moved there), and its mime. Null when there's no such file. */
 export async function mediaRef(db: Db, id: string, viewerId: string | null): Promise<{ mime: string; key: string | null } | null> {
