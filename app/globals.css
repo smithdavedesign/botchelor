@@ -4309,12 +4309,47 @@ details.recap-toggle[open] > summary {
   flex-direction: column;
   gap: 0.6rem;
 }
+/* A date row: one character's avatar on each side, the title and who-sees-it between them. */
 .account-dates li {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.75rem;
+}
+.account-date-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
   flex-wrap: wrap;
+}
+.account-date-main > a {
+  overflow-wrap: anywhere;
+}
+.account-date-main .visibility-pick > span {
+  white-space: nowrap;
+}
+/* On a phone the title sits over its picker, both between the two avatars. */
+@media (max-width: 560px) {
+  .account-date-main {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .account-date-main .visibility-pick {
+    min-width: 0;
+  }
+  .account-date-main .visibility-pick > span {
+    display: none;
+  }
+  .account-date-main .visibility-pick select {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+  }
+}
+.account-dates li > .avatar {
+  flex: 0 0 auto;
 }
 .visibility-pick {
   display: flex;
