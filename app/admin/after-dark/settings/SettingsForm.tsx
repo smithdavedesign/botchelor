@@ -64,6 +64,7 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       reel_model: s.reel_model,
       reel_shots: s.reel_shots,
       reel_tokens: s.reel_tokens,
+      clip_tokens: s.clip_tokens,
       media_provider: s.media_provider,
       replicate_picture_model: s.replicate_picture_model,
       replicate_keyframe_model: s.replicate_keyframe_model,
@@ -145,6 +146,8 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       <input id="ad-reel-shots" type="number" min={2} max={12} value={s.reel_shots} onChange={(e) => setS({ ...s, reel_shots: Number(e.target.value) || 6 })} />
       <label htmlFor="ad-reel-tokens">Price in bought tokens (admins don&apos;t pay)</label>
       <input id="ad-reel-tokens" type="number" min={0} max={500} value={s.reel_tokens} onChange={(e) => setS({ ...s, reel_tokens: Number(e.target.value) || 0 })} />
+      <label htmlFor="ad-clip-tokens">A clip on demand (one shot, from the act menu or the latest moment), in bought tokens</label>
+      <input id="ad-clip-tokens" type="number" min={0} max={100} value={s.clip_tokens} onChange={(e) => setS({ ...s, clip_tokens: Number(e.target.value) || 0 })} />
       <h3>The backup: Replicate</h3>
       <p className="muted small">
         Replicate can make After Dark&apos;s media instead of Venice: its pictures, each shot&apos;s keyframe of the two of them, the videos

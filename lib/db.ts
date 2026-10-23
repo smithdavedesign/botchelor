@@ -1184,6 +1184,12 @@ create table if not exists adult_reels (
   updated_at timestamptz not null default now()
 );
 create index if not exists adult_reels_pair on adult_reels (owner_id, character_a, character_b, created_at desc);
+-- Clips on demand (lib/adult/clips.ts, 2026-10-22): a clip is a reel of one shot, from the act menu or the scene's
+-- latest moment, that can be kept going. kind: 'night' (every reel before) or 'clip'; clip: its act, who leads, the clip
+-- it keeps going from, its stage and place, and what the list calls it. Its price in bought tokens: clip_tokens.
+alter table adult_reels add column if not exists kind text not null default 'night';
+alter table adult_reels add column if not exists clip jsonb;
+alter table adult_settings add column if not exists clip_tokens integer;
 -- Every image the output check refused: never the image itself, only why (for the admin to see it's working).
 create table if not exists adult_rejections (
   id text primary key,

@@ -950,7 +950,7 @@ describe("the video of the night", () => {
     // Line 2 was on the street (before line 4 agreed to go): no set drawn there, the two baselines only.
     const street = edits.find((e) => e.prompt.includes("The place: street."))!;
     expect(street.images).toHaveLength(2);
-    expect(street.prompt).toContain("but not their clothes: they're dressed as the moment says, not nude.");
+    expect(street.prompt).toContain("but not their clothes: they're dressed as the moment says, not nude: both fully clothed, shirts and tops on and done up.");
     expect(street.prompt).not.toContain("Explicit");
     // Lines 6 and 9 were in her bedroom: its set is the third picture, and the place has no name in it.
     const bedroom = edits.filter((e) => e.prompt.includes("The place: her bedroom."));
@@ -1227,7 +1227,7 @@ describe("the video of the night", () => {
     expect(long).toMatch(/The place: the kitchen\. Keep each of them as in their own picture.*Both are adults\.$/);
     // Undressing: half undressed and explicit; before it, dressed and not.
     expect(keyframePrompt(cast, "x", null, 3, false)).toMatch(/they're half undressed, as the moment says\..*Explicit, uncensored, photorealistic\./);
-    expect(keyframePrompt(cast, "x", null, 1, false)).toMatch(/they're dressed as the moment says, not nude\..*Photorealistic\. Both are adults\.$/);
+    expect(keyframePrompt(cast, "x", null, 1, false)).toMatch(/they're dressed as the moment says, not nude: both fully clothed, shirts and tops on and done up\..*Photorealistic\. Both are adults\.$/);
     const s = { who: "b" as const, text: "Come here.", motion: "They kiss." };
     expect(shotPrompt(cast, s, false)).toMatch(new RegExp(`^They kiss\\. Two people only: .* ${cast[1].tag[0].toUpperCase()}${cast[1].tag.slice(1)}, in a [a-z ,']+voice, says: "Come here\\."$`));
     expect(shotPrompt(cast, s, true)).toMatch(/is the one speaking, lips moving with the words\.$/);
