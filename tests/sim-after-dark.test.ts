@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { guardTotals, nightLines, scoreNight } from "../scripts/sim-after-dark.mjs";
+import { guardTotals, nightLines, NEW_CHARACTER, parseArms, parseCharacter, parseSteers, scoreNight } from "../scripts/sim-after-dark.mjs";
 
 // The After Dark model simulation's scoring (scripts/sim-after-dark.mjs): pure functions over what a run saved.
 describe("the After Dark simulation's night", () => {
@@ -65,5 +65,64 @@ describe("the After Dark simulation's night", () => {
     const r = scoreNight(broken, failing, [{ chapter: 1, who: "a" as const, text: "…", why: "the moment" }]);
     expect(r.score).toBeLessThan(10);
     expect(r.breakdown.safety_limit_overridden).toEqual({ value: 1, points: 2.5, of: 5 });
+  });
+});
+
+// A night replayed from a file (--steers), another character (--character), and each model's hosts (--models a@x+y).
+describe("the After Dark simulation's inputs", () => {
+  it("reads a night's steps in order, one a step, each with its mode", () => {
+    const plan = parseSteers([
+      { scenario: "elevator" },
+      { direction: 'He says "Stay a while."', mode: "direct" },
+      { direction: "They slow down.", mode: "nudge" },
+      { direction: "Something from their first date comes back." },
+      { set_scene: "her flat" },
+      {},
+    ]);
+    expect(plan.steps).toEqual([
+      { kind: "scenario", scenario: "elevator" },
+      { kind: "write", direction: 'He says "Stay a while."', mode: "direct" },
+      { kind: "write", direction: "They slow down.", mode: "nudge" },
+      { kind: "write", direction: "Something from their first date comes back.", mode: "nudge" },
+      { kind: "set_scene", place: "her flat" },
+      { kind: "write", direction: null, mode: null },
+    ]);
+    expect(plan.turnOns).toEqual({ character: [], partner: [] });
+  });
+
+  it("takes each one's turn-ons from the object form", () => {
+    const plan = parseSteers({ turn_ons: { character: ["slow_dancing"], partner: [" praise "] }, steers: [{}] });
+    expect(plan.turnOns).toEqual({ character: ["slow_dancing"], partner: ["praise"] });
+    expect(plan.steps).toHaveLength(1);
+  });
+
+  it("refuses a file it can't replay faithfully", () => {
+    expect(() => parseSteers({ steps: [] })).toThrow(/array of steps/);
+    expect(() => parseSteers(["go on"])).toThrow(/step 1: an object/);
+    expect(() => parseSteers([{ direction: "x", set_scene: "y" }])).toThrow(/step 1: one of direction, set_scene or scenario/);
+    expect(() => parseSteers([{}, { direction: "x", mode: "shove" }])).toThrow(/step 2: mode is direct or nudge/);
+    expect(() => parseSteers([{ mode: "direct" }])).toThrow(/a mode goes with a direction/);
+    expect(() => parseSteers([{ direction: "  " }])).toThrow(/direction is text/);
+    expect(() => parseSteers([{ whisper: "x" }])).toThrow(/unknown whisper/);
+    expect(() => parseSteers({ turn_ons: { partner: "praise" }, steers: [] })).toThrow(/turn_ons.partner/);
+  });
+
+  it("gives each model the hosts it names, else the run's own ADULT_TEXT_PROVIDERS, else none (the app's list)", () => {
+    expect(parseArms("deepseek/deepseek-chat-v3.1@coreweave+deepinfra, cognitivecomputations/dolphin-mistral-24b-venice-edition@Venice")).toEqual([
+      { model: "deepseek/deepseek-chat-v3.1", hosts: ["coreweave", "deepinfra"] },
+      { model: "cognitivecomputations/dolphin-mistral-24b-venice-edition", hosts: ["venice"] },
+    ]);
+    expect(parseArms("a/b,c/d@x", "coreweave, deepinfra")).toEqual([
+      { model: "a/b", hosts: ["coreweave", "deepinfra"] },
+      { model: "c/d", hosts: ["x"] },
+    ]);
+    // The default run: no hosts anywhere, so every model keeps the app's reviewed two.
+    expect(parseArms("cognitivecomputations/dolphin-mistral-24b-venice-edition,deepseek/deepseek-chat-v3.1", undefined).map((a) => a.hosts)).toEqual([null, null]);
+  });
+
+  it("takes another character in NEW_CHARACTER's shape, and names what a save is missing", () => {
+    expect(parseCharacter(NEW_CHARACTER)).toBe(NEW_CHARACTER);
+    expect(() => parseCharacter({ name: "Only a name" })).toThrow(/needs age, bio, traits, want, dealbreaker/);
+    expect(() => parseCharacter([NEW_CHARACTER])).toThrow(/a JSON object/);
   });
 });
