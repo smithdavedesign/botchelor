@@ -42,10 +42,8 @@ export default async function AfterDarkTeaser({ pair, character }: { pair?: [str
       ))}
       {!open && (
         <p>
-          <Link className="button" href="/after-dark/subscribe">
-            Subscribe to unlock
-          </Link>{" "}
-          <span className="muted small">Adults only: the private side of this season.</span>
+          {/* David, 2026-10-22: no way to subscribe yet (no adult processor), so no button that leads nowhere. Pun his. */}
+          <span className="badge ad-teaser-soon">Cumming soon</span> <span className="muted small">Adults only: the private side of this season.</span>
         </p>
       )}
     </section>

@@ -307,6 +307,18 @@ h2 {
   color: var(--accent-text);
 }
 
+/* The newcomer's one call to action (app/Nav.tsx): the site's button, sized to sit in the nav row. */
+.nav a.nav-create,
+.nav a.nav-create:hover,
+.nav a.nav-create[aria-current="page"] {
+  color: var(--accent-ink);
+  background: var(--grad);
+  margin-top: 0;
+  padding: 0.4rem 0.9rem;
+  font-size: var(--text-sm);
+  box-shadow: none;
+}
+
 /* The token meter (nav): always visible, a pill that doubles as the top-up entry. One token = one date. */
 .nav a.token-pill {
   display: inline-flex;
@@ -8386,4 +8398,30 @@ section:has(> .ad-pairs) {
 }
 .ad-lines li {
   margin: 0.2rem 0;
+}
+
+/* Home's "Just aired" strip and Constellation card, and the cast preview under "Make a character" (UX pass, 2026-10-22). */
+.home-aired {
+  margin-top: var(--space-4, 1rem);
+}
+.cast-preview {
+  margin-top: var(--space-3);
+}
+.cast-preview-faces {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.cast-preview-faces a {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  text-decoration: none;
+  color: var(--ink);
+}
+.ad-teaser-soon {
+  font-weight: 700;
 }

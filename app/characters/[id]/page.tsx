@@ -130,6 +130,7 @@ export default async function CharacterPage({ params }: Props) {
   const takenBy = partnerStyle?.taken && !partnerStyle.partners.some((p) => mine.some((m) => m.id === p.id)) ? shortName(partnerStyle.partners[0]?.name ?? "someone") : null;
   const cta = dateCta({
     first: shortName(c.name),
+    id,
     isOwner: ratings.is_owner,
     isPrivate: c.private,
     available: Boolean(dating?.open_to_dates) || (c.house && PREMIUM_IDS.has(c.id)),
@@ -353,7 +354,10 @@ export default async function CharacterPage({ params }: Props) {
         <section className="card">
           <div className="section-head">
             <h2>Relationships</h2>
-            <Link href={`/characters/${c.id}/relationships`}>📱 Open their relationship board</Link>
+            <span>
+              <Link href={`/characters/${c.id}/relationships`}>📱 Open their relationship board</Link> ·{" "}
+              <Link href={`/graph?focus=${encodeURIComponent(c.id)}`}>✨ See {shortName(c.name)} in the Constellation</Link>
+            </span>
           </div>
           <ul className="list connections">
             {relationships.map((r) => (

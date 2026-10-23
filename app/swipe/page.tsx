@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { listMyDatingProfiles } from "@/lib/dating";
 import { userIdFromCookieStore } from "@/lib/http";
 import { shortName } from "@/lib/names";
+import CastPreview from "@/app/CastPreview";
 import CharacterPicker from "@/app/CharacterPicker";
 import { unreadTexts } from "@/lib/inbox";
 import { deckFor, logImpressions } from "@/lib/swipes";
@@ -38,9 +39,10 @@ export default async function SwipePage({ searchParams }: Props) {
         <h1>Match before you date</h1>
         <section className="card">
           <p>Make a character first: you swipe for them, and if both characters want a date, it&apos;s on.</p>
-          <Link className="button" href="/create">
+          <Link className="button" href="/create?next=%2Fswipe">
             Make a character
           </Link>
+          <CastPreview line="This season's cast is in the deck, and they always like back:" />
         </section>
       </article>
     );
