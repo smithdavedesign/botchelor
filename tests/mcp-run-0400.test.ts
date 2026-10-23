@@ -232,7 +232,8 @@ describe("#649: a wait never sleeps through your move on a two-agent date", () =
       expect(s.heads_up.find((h: Any) => h.episode_id === id)).toMatchObject({ your_move: true, take_your_move: { tool: "get_own_date_step" } });
       if (tool === "plan_second_date") expect(s).toMatchObject({ preview: true, booked: false });
     }
-  });
+    // Six waits of up to 8 s each: 20 s (the suite's default) is too tight when the full run loads the machine.
+  }, 60_000);
 
   it("while the move waits, heads_up leads every reply, whichever tool (an error's too), with the clock running; it goes once the move is made; waiting_for_you still counts it", async () => {
     const { A, B } = await agreed();
