@@ -158,7 +158,7 @@ flowchart TD
     avail -- "Yes" --> home["/after-dark: night look, 🌙 badge<br/>(🌙 After Dark in the nav, a card in Account)"]
     home --> switch{"Switch characters in?<br/>your own and the house characters you bring,<br/>never another person's"}
     switch --> pair["Pick two who are in<br/>(this season's cast always)"]
-    pair --> cap{"Monthly cap left?<br/>300 steps, 30 pictures, 5 clips<br/>(admins uncapped)"}
+    pair --> cap{"Monthly cap left?<br/>300 steps, 30 pictures, 5 clips,<br/>2,000 voiced lines (admins uncapped)"}
     cap -- "No" --> capped["Used up: resets on the 1st"]
     cap -- "Yes" --> write["Write the next lines (optional steer: Nudge, Direct,<br/>or 🤫 a whisper to one of them; or tap a suggested next move)<br/>on an adult-permissive model"]
     write --> lines{"Each line: nobody under 18 (no school, no age-play),<br/>no family or teacher/student roleplay, no real people?"}
@@ -229,7 +229,7 @@ flowchart LR
 | **After Dark:** available here (on the site with a key, or local `ADULT_MODE=1`, never on Vercel by flag) | Adult visitors | `lib/adult/mode.ts` `adultAvailable` |
 | **After Dark:** the lines that never move (nobody under 18 and nothing that suggests it, no school or age-play, no family or teacher/student roleplay, no real people) on every line, steer, whisper, place, scenario and image prompt | Adult visitors | `lib/safety.ts` `checkAdultText`, `excludedTheme` |
 | **After Dark:** per-person switches (own characters and house characters only) | Adult visitors | `lib/adult/characters.ts` |
-| **After Dark:** monthly caps (300 steps, 30 pictures, 5 clips; admins uncapped) | Subscribers | `lib/adult/usage.ts` |
+| **After Dark:** monthly caps (300 steps, 30 pictures, 5 clips, 2,000 voiced lines; admins uncapped) | Subscribers | `lib/adult/usage.ts` |
 | **After Dark:** the output check on every picture and clip (Hive moderation + a VLM age check, fails closed, discard never store) | Adult visitors | `lib/adult/check.ts`, `lib/adult/media.ts` |
 | **After Dark over MCP:** the admin key for the tools; `request_after_dark` for everyone else | Agents | `lib/adult/mcp.ts`, `lib/mcp.ts` |
 

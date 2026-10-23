@@ -32,6 +32,7 @@ things with nobody undressed in them: empty sets, and clips from non-explicit pi
 | Picture moderation | Hive, `hive/visual-moderation` | $3 per 1,000 images ($0.003 each) |
 | Age check on a picture | Hive, `hive/vision-language-model` | $0.50 per million input tokens and $2.50 per million output; about 1,860 in and 3 out per check, so about $0.001. No daily limit listed. |
 | Text moderation (not used yet) | Hive, `hive/text-moderation` | $0.50 per 1,000 requests |
+| A line's voice (voiced nights, `lib/adult/voice-lines.ts`) | Venice, `tts-kokoro` | $3.50 per million characters, so about $0.0004 a line (made once; a replay is free) |
 
 ### Video (Venice quotes, 720p, made from a starting picture)
 
@@ -167,6 +168,7 @@ what one subscriber can cost:
 | Scene steps | 300 | About $0.30 |
 | Pictures | 30 | About $0.45 |
 | Clips (fal, non-explicit pictures only) | 5 | About $1 to $2 |
+| Voiced lines (each line made once; replays free) | 2,000 | About $0.70 on Venice (about 100 characters a line), about $0.40 on Replicate |
 | **All of it, used to the limit** | | **About $2 to $3 a subscriber a month** |
 
 At **$9.99 a month**, after an adult processor's fees (about $1.50), a subscriber who uses everything still leaves
