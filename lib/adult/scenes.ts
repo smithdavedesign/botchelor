@@ -23,6 +23,7 @@ import { afterDarkNote, notesBetween, ownNotes, rememberAfterDark, restoreNotes,
 import {
   afterWhisperStep,
   cleanWhisper,
+  metaKey,
   stageAsked,
   storedSuggestions,
   storedWhispers,
@@ -917,7 +918,12 @@ export type SceneMeta = {
 
 export function parseSceneMeta(raw: string): SceneMeta {
   try {
-    const j = JSON.parse(unfence(raw).trim()) as { explicit?: unknown; picture?: { of?: unknown; description?: unknown } | null; place?: unknown; stage?: unknown; set?: unknown; suggestions?: unknown };
+    const parsed = JSON.parse(unfence(raw).trim()) as Record<string, unknown>;
+    // DeepSeek V3.1 sometimes puts underscores round the keys ("_stage", "_place"; seen 2026-10-22): read them as meant,
+    // the key as asked for winning when both are there.
+    const j = { ...Object.fromEntries(Object.entries(parsed ?? {}).map(([k, v]) => [metaKey(k), v])), ...parsed } as {
+      explicit?: unknown; picture?: { of?: unknown; description?: unknown } | null; place?: unknown; stage?: unknown; set?: unknown; suggestions?: unknown;
+    };
     const p = j.picture;
     const of = p && (p.of === "a" || p.of === "b" || p.of === "both") ? p.of : null;
     const description = p && typeof p.description === "string" ? p.description.trim().slice(0, 400) : "";

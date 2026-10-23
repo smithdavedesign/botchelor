@@ -35,6 +35,7 @@ const Input = z.object({
   reel_model: z.string().max(120).optional(),
   reel_shots: z.number().int().min(2).max(12).optional(),
   reel_tokens: z.number().int().min(0).max(500).optional(),
+  clip_tokens: z.number().int().min(0).max(100).optional(),
   media_provider: z.enum(MEDIA_PROVIDERS).optional(),
   replicate_key: z.string().max(400).optional(),
   replicate_picture_model: replicateModel.optional(),
