@@ -39,6 +39,7 @@ import {
   reelNight,
   settleIfDone,
   spoken,
+  reelMadeOn,
   startShots,
   stillOf,
   withoutNames,
@@ -377,8 +378,9 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     const stages: number[] = [];
     where[plan.shot.line] = plan.place;
     stages[plan.shot.line] = plan.stage;
-    const replicate = onReplicate
-      ? { token: keys.replicate!, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora }
+    // Both providers' details when both are set up: the shot goes to the other when the configured one is limited.
+    const replicate = keys.replicate
+      ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora }
       : null;
     await startShots(db, ownerId, shots, {
       pair: [a, b],
@@ -391,9 +393,11 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
       model: settings.reel_model,
       baseUrl,
       replicate,
+      provider: settings.media_provider,
       keyframeFor: (_s, set, place) => plan.keyframe(set, place),
     });
-    await db.query(`update adult_reels set shots = $2::jsonb where id = $1`, [id, JSON.stringify(shots)]);
+    const made = reelMadeOn(shots);
+    await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4 where id = $1`, [id, JSON.stringify(shots), made.provider, made.fell_back]);
     return { ok: true, reel: await settleIfDone(db, id) };
   } catch (err) {
     if (pays && price > 0) await refundBoughtTokens(db, ownerId, price);

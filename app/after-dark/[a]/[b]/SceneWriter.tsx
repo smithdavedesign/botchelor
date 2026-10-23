@@ -491,6 +491,10 @@ function Gallery({ items, problem, onAdd }: { items: Media[]; problem: string | 
                 // Drawn for a chapter and a place (lib/adult/auto-pictures.ts).
                 <span className="muted small ad-picture-where">{[m.chapter ? `Chapter ${m.chapter}` : "", m.place ?? ""].filter(Boolean).join(" · ")}</span>
               )}
+              {m.note && (
+                // Made on the other provider because the configured one was limited (lib/adult/fallback.ts).
+                <span className="muted small ad-picture-fallback">{m.note}</span>
+              )}
               {m.clip && (
                 <button type="button" className="button-ghost small" onClick={() => void makeClip(m.id)}>
                   Make it move

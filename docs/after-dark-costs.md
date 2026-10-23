@@ -74,6 +74,12 @@ A default video (6 shots) on Replicate:
 
 At 15 tokens that keeps about $9 to $10 a video, against $5.30 to $6.50 on Venice. The 4-shot bake-off (docs/after-dark.md, "A Replicate backup") costs about $0.56 of Replicate.
 
+**The fallback costs more for pictures** (`media_fallback`, on by default; docs/after-dark.md, "Falling back to the other
+provider"): when Venice is rate limited, out of credit or down, the job runs on Replicate, and a Replicate picture is
+about $0.03 against about $0.015 on Venice (each with its checks), so every picture that falls back onto Replicate costs
+about twice as much. A video falling back the other way, from Replicate onto Venice, costs far more ($0.65 a shot
+against $0.11).
+
 **Not known yet:** Venice doesn't publish which video models allow explicit output.
 - The closed commercial models (Seedance, Kling, Veo, Grok) almost certainly refuse it.
 - The open-weight ones (Wan, LongCat) are the likely candidates.

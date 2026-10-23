@@ -821,6 +821,41 @@ Put it side by side with Venice's table above (both in frame, follows the script
 draws a new baseline portrait of one character with the current provider, checked like every picture. The newest
 baseline is the face later keyframes keep; the older one stays in the gallery, to compare.
 
+### Falling back to the other provider (2026-10-23)
+
+David hit "rate limited on Replicate" and the step failed: one provider made everything, with nothing behind it. Code:
+`lib/adult/fallback.ts` (`runMedia`), used by pictures (`drawPicture`), each shot's keyframe and video
+(`startShots`), a Replicate shot's voice, voiced lines and the shot-menu pictures.
+- **When it switches:** the provider in use answered 429 (rate limited), 402 (out of credit) or a 5xx, or didn't answer
+  (a network error, a timeout). The same job is tried once on the other, if its key is set and its model for that job is
+  configured. Anything else (a content refusal, a bad request, the output check failing) doesn't switch.
+- **The cooldown:** a provider that answered 429 or 402 is skipped for a while (its `Retry-After`, at most 15 minutes,
+  else 3 minutes for a 429 and 30 for a 402), so the next calls go straight to the other. It's kept in
+  `adult_media_cooldowns`, so it holds across Vercel's instances. When both are cooling down, the configured one runs
+  and its error shows as before.
+- **Never mid-job:** a video already queued is collected where it was queued (the shot's `provider`). Only a new shot or
+  a new Keep going goes to the other; a picture, a keyframe, a voice line and a menu picture switch freely.
+- **Unchanged:** Hive checks whatever comes back, and the caps and usage count it, whoever made it.
+- **On the record:** `adult_images.provider` and `fell_back` on each picture, keyframe, video and voice;
+  `adult_reels.provider` (`venice`, `replicate` or `mixed`) and `fell_back`; a shot's `frame_provider` and `fell_back`; a
+  scene step's flags list the pictures it made on the fallback (`media_fallback`). The gallery says "made on Replicate
+  (fallback)".
+- **The switch:** `media_fallback` (on by default) on /admin/after-dark/settings and in `after_dark_settings`.
+- **Cost:** a picture on Replicate is about twice Venice's (docs/after-dark-costs.md).
+
+### Which model wrote each step (2026-10-23)
+
+Every step now records the text model that answered it (`adult_steps.text_model`): the id OpenRouter reports in its
+response when it does, else the one asked for (`adultModelId`), and the host it routed to (`text_provider`, e.g.
+DeepInfra) when it says. Every change to the text model, the picture and video models and the media provider is kept in
+`adult_settings_history` (what, from, to, when, who: an admin's id or "mcp"), from the settings page and MCP alike.
+- **Shown** (admins only) on /admin/after-dark/graph per chapter, on the why view (`written_by` on the running chapter
+  and each night), and in MCP `after_dark_scene`.
+- **Older lines:** a chapter with no recorded model reads the settings history for the text model set then; with no
+  history, it says "before model logging" (lines older than step logging, 2026-10-22) or "not recorded". The history
+  starts empty: no change before this was recorded with a time, so nothing is backfilled or guessed.
+- **Not covered:** the eval and the A/B (lib/adult/eval.ts) don't log steps; they keep their own model ids per arm.
+
 ## Limits and memory: the intensity dial, hard nos, and memory you can see and edit (2026-10-22)
 
 The second of the three scene PRs from the competitor read. Code: `lib/adult/limits.ts` (pure), `lib/adult/scenes.ts`
