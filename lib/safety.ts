@@ -197,16 +197,30 @@ export function checkShowText(fields: Record<string, string | readonly string[] 
 
 // After dark is held tighter on age than the show: any "was / is / turned <age under 18>" counts, not only the
 // "when she was" form, unless what follows makes it a time, an amount or a count ("was ten minutes late").
-const NOT_AN_AMOUNT = "(?!(?:minutes?|mins?|seconds?|hours?|days?|weeks?|months?|o clock|oclock|am|pm|a m|p m|dollars?|bucks|pounds?|euros?|percent|times|of (?:us|them|you|those)|people|men|women|feet|foot|inches|miles|km|kilos?)\\b)";
-const ADULT_AGE_PATTERNS = [
-  new RegExp(` (?:was|is|am|are|were|turned|turns|turning|being|looks|look|looked|seems|seemed) (?:only |just |barely |about |maybe |like |not even |still )?${CHILD_AGE} ${NOT_AN_AMOUNT}`),
-  new RegExp(` ${CHILD_AGE} (?:year old|years old|yo|y o)\\b`),
+const NOT_AN_AMOUNT = "(?!(?:minutes?|mins?|seconds?|hours?|days?|weeks?|months?|o clock|oclock|am|pm|a m|p m|dollars?|bucks|pounds?|euros?|percent|times|of (?:us|them|you|those|the|my|your|his|her|their|our|these)|people|men|women|ladies|guys|couples|lovers|strangers|friends|drinks|shots|glasses|rounds|feet|foot|inches|miles|km|kilos?|floors|blocks|steps)\\b)";
+// "One" and "two" are a count far more often than an age ("she's one hot woman", "he's one of a kind", "there are two
+// ladies watching", "as if they were two strangers"), so after these verbs they count only at the end of a clause or
+// running on into an age's own words ("she's two.", "he is one and a half", "she's two now"): ONE_OR_TWO_AGE_PATTERNS,
+// on each clause. Every other age under 18 counts wherever what follows isn't an amount.
+const OLDER_CHILD_AGE = `(?:${UNDER_18}|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen)`;
+const SAYS_AN_AGE = [
+  " (?:was|is|am|are|were|turned|turns|turning|being|looks|look|looked|seems|seemed) (?:only |just |barely |about |maybe |like |not even |still )?",
   // The contracted forms, spelled out or in digits: "she's sixteen", "im 15", "they're only fourteen".
-  new RegExp(` (?:she s|shes|he s|hes|they re|theyre|i m|im|you re|youre|we re) (?:only |just |barely |about |maybe |like |not even |still )?${CHILD_AGE} ${NOT_AN_AMOUNT}`),
+  " (?:she s|shes|he s|hes|they re|theyre|i m|im|you re|youre|we re) (?:only |just |barely |about |maybe |like |not even |still )?",
   // A steer or a line that makes someone younger: "make her sixteen", "pretend he's 15", "as if she were twelve".
-  new RegExp(` (?:make|makes|made|making|play|plays|playing|pretend|pretends|pretending|act|acts|acting|roleplay|role play) (?:as )?(?:her|him|them|me|you|she s|he s|they re|she is|he is|it)? ?(?:a |an )?(?:${CHILD_AGE}) ${NOT_AN_AMOUNT}`),
-  new RegExp(` as if (?:she|he|they|i|you) (?:were|was|is|are) ${CHILD_AGE} `),
+  " (?:make|makes|made|making|play|plays|playing|pretend|pretends|pretending|act|acts|acting|roleplay|role play) (?:as )?(?:her|him|them|me|you|she s|he s|they re|she is|he is|it)? ?(?:a |an )?",
+  " as if (?:she|he|they|i|you) (?:were|was|is|are) ",
 ];
+const ADULT_AGE_PATTERNS = [
+  ...SAYS_AN_AGE.map((says) => new RegExp(`${says}${OLDER_CHILD_AGE} ${NOT_AN_AMOUNT}`)),
+  new RegExp(` ${CHILD_AGE} (?:year old|years old|yo|y o)\\b`),
+];
+const ONE_OR_TWO_AGE_PATTERNS = SAYS_AN_AGE.map(
+  (says) => new RegExp(`${says}(?:one|two) (?=$|(?:and|or|but|maybe|now|today|already|years?|yrs?|yo|y o)\\b)`),
+);
+
+/** A text's clauses, each spaced like the whole, so a clause ends where its sentence or comma does ("she's two."). */
+const clausesOf = (folded: string) => folded.split(/[.,!?;:()…—–"“”\n]+/).map(spaced);
 
 // After Dark's themes that never happen (David's lines, 2026-10-22: no school settings, no "teen", no age-play; no
 // step-family, incest or teacher/student roleplay). On the same normalised text as everything above. Whole phrases, so a
@@ -256,7 +270,8 @@ export function checkAdultText(fields: Record<string, string | readonly string[]
         MINOR_TERMS.some((t) => hasPhrase(plain, t)) ||
         MINOR_AGE_PATTERNS.some((re) => re.test(plain)) ||
         CHILDHOOD_AGE_PATTERNS.some((re) => re.test(plain)) ||
-        ADULT_AGE_PATTERNS.some((re) => re.test(plain))
+        ADULT_AGE_PATTERNS.some((re) => re.test(plain)) ||
+        clausesOf(folded).some((clause) => ONE_OR_TWO_AGE_PATTERNS.some((re) => re.test(clause)))
       ) {
         return { ok: false, reason: "minor", field };
       }
