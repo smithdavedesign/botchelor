@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import WaitlistForm from "@/app/WaitlistForm";
 import { canAfterDark } from "@/lib/adult/entitlement";
@@ -29,6 +30,9 @@ export default async function AfterDarkSubscribe() {
           Subscriptions open soon, with an age check. Leave your email and you&apos;ll hear first.
         </p>
         <WaitlistForm refSlug="after-dark" />
+        <p className="muted small">
+          A taste of what&apos;s on, blurred: <Link href="/after-dark/shorts">the Shorts</Link>, the house cast&apos;s nights as episodes.
+        </p>
       </article>
     </div>
   );

@@ -1125,3 +1125,59 @@ The fourth of the media PRs puts the three features above on a pair's page, in n
 **Screenshots** (`SHOTS=ui npm run screenshots:after-dark-media`; a local app with PG placeholder lines, the voice route
 answered in the browser with a second of soft tone, nothing generated): `docs/screenshots/after-dark-media-*.png` and
 `docs/screenshots/after-dark-listen-*.png`.
+
+## Shorts: house-cast nights as episodes (2026-10-23)
+
+The first of the three show features David picked from the competitor read (2026-10-22): the companion apps are 1:1, so
+nobody else can show two characters' night as an episode. Code: `lib/adult/shorts.ts`, `/api/admin/after-dark/shorts`
+(with `[id]/watch` and `[id]/media/[mediaId]`), the pages `/after-dark/shorts` and `/after-dark/shorts/[id]`, and the
+📺 Shorts panel on a pair's page (`ShortsPanel.tsx`, admins only).
+
+**What a Short is.** One of the admin's saved nights, published as an episode: a title, a cover, the night itself (its
+chapters to read, the theater to play it in) and the night's video when one filmed it. A night is its chapters filed one
+after another: chapter 1 (or an unnumbered night from before chapters), then 2, 3… until Start over ended it
+(`groupNights`). Publishing any of its chapters publishes the whole night, and a night still running (the scene is on its
+next chapter) can't be published: "Start over files it as a whole night; then it can be a Short." So a Short never
+changes once it's up; what it points at is fixed when it's published (`adult_shorts.night_ids`, `cover_id`, `reel_ids`).
+
+**Who can publish, and what.**
+- A signed-in admin only (everyone else, a subscriber included, gets not found from the route), and only their own nights.
+- Only when both characters are house characters on this season's cast (`housePair`: `seasonCastIds` and `is_house`).
+  A Short already up stays up when the season changes; once taken down, it can't go back up without both on the cast.
+- At least 6 lines.
+- The title is held to the two lines (`checkAdultText`) and to the show's own PG check (`checkShowText`), because it shows
+  on the teaser outside the paywall: "Naked in his kitchen" is refused.
+- The cover is one of the admin's own pictures of the two of them: a scene picture of both, or a video's keyframe. Every
+  one of those passed the output check (Hive moderation and the age question) before it was stored; nothing else is ever
+  stored. The panel picks the night's earliest picture by default: the cover shows before anyone plays it (and, from the
+  next PR, before they predict it), so an early one gives nothing away. With no picture of them, it's their PG portraits.
+- The night's video: for each chapter, the newest video of the night (never a clip) whose every kept shot says one of the
+  chapter's lines, by the same one of them, at its place (`filmed`; a reel doesn't record which night it filmed). On by
+  default when there is one; the panel can leave it out.
+- **The undo:** Take it down (on the panel or the Short's page) hides it from viewers and from the teaser; Publish it again
+  puts it back with its first publish time. Publishing the same night again changes its title, cover or video in place.
+
+**Who sees what.**
+- **An entitled viewer** (`canAfterDark`, After Dark available here: `adultViewer`, so whatever else it comes to check,
+  such as discreet mode's PIN, holds here too) sees the list and each Short's cover and title. The night itself (its lines, its video's files) goes
+  to them only once they press ▶ Play (`adult_short_views`): the page has none of it before, and the media route serves
+  a shot only to someone who has pressed play. Its owner and admins see it all without pressing play. Included in the
+  subscription: no tokens, and nothing counts against the monthly caps.
+- **Anyone else** (signed out, or without a subscription) gets the existing teaser treatment: the show's PG portraits of
+  the two of them, the title, the length and neutral filler under the blur (`fillerLines`), and Subscribe to unlock (the
+  waitlist at `/after-dark/subscribe`). No line, cover or video is ever sent: a CSS blur hides nothing from view-source.
+- **Bots** get not found, on the pages and on the watch route (`detectBot`; headless Chrome counts, so the screenshot
+  script browses as a person).
+- **The owner's private notes stay private.** A viewer's lines are `publicLines` (who, what, the stage), never a line's
+  why, memory, cited facts or `moved_to`; the route never sends `place_history`.
+
+**The media route** (`/api/admin/after-dark/shorts/<id>/media/<mediaId>`): the Short's cover, and its videos' shots (the
+video, its keyframe as the poster, its voice on Replicate), and no other file. A file in the bucket is a short-lived
+presigned link, as on the owner's route; the browser keeps a ready file (`private`, never a shared cache).
+
+New tables, both additive: `adult_shorts` (one row per night: `night_id` is its first chapter, unique) and
+`adult_short_views` (who pressed play). After Dark only: neither is in a dataset or an export.
+
+**Screenshots** (`npm run screenshots:after-dark-shorts`, a seeded two-chapter night of PG placeholder lines; no model or
+provider is called): `docs/screenshots/after-dark-shorts-*.png`: the panel, the list, a Short before play, the theater,
+the night with its video, and the teaser.
