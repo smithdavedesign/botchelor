@@ -199,12 +199,13 @@ export async function warnBeforeExclusive(db: Db, lo: string, hi: string, opts: 
     await notify(db, c.owner_id, {
       kind: "exclusive_soon",
       title: `⏳ ${first} is one date from going exclusive with ${other.name}`,
+      // What to do comes first, so a long pair of names can't push it out of a short preview (the 2026-10-23-0610 run).
       body:
-        `${c.name} and ${partnerLabel(other)} are Sparks: one more date that ends in a second date makes them a Dating couple, and ${why}, ` +
-        `so ${first} would then close to other dates. ` +
         (c.created_via === "mcp"
-          ? `To keep ${first} open: update_character with partner_style: "open" (character ${c.id}).`
-          : `To keep ${first} open, set them to more than one partner on their card.`),
+          ? `To keep ${first} open: update_character with partner_style: "open" (character ${c.id}). `
+          : `To keep ${first} open, set them to more than one partner on their card. `) +
+        `${c.name} and ${partnerLabel(other)} are Sparks: one more date that ends in a second date makes them a Dating couple, and ${why}, ` +
+        `so ${first} would then close to other dates.`,
       link: `/characters/${c.id}`,
     });
     told++;

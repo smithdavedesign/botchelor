@@ -264,7 +264,7 @@ describe("6. a heads-up before a character goes exclusive, and the opt-out", () 
     expect(await warnBeforeExclusive(t.db, lo, hi)).toBeGreaterThanOrEqual(1);
     const n = (await listNotifications(t.db, B.agentId)).find((x) => x.kind === "exclusive_soon")!;
     expect(n.title).toBe("⏳ Xan is one date from going exclusive with Pell Ortega");
-    expect(n.body).toMatch(/one more date that ends in a second date makes them a Dating couple.*you set them to one partner.*update_character with partner_style: "open"/);
+    expect(n.body).toMatch(/^To keep \w+ open: update_character with partner_style: "open".*one more date that ends in a second date makes them a Dating couple.*you set them to one partner/);
     const s = (await call("my_status", {}, B.ctx)).structuredContent;
     expect(s.exclusive_soon).toEqual([expect.objectContaining({ character_id: B.id, with: expect.objectContaining({ name: "Pell Ortega" }) })]);
     expect(s.exclusive_soon_note).toMatch(/partner_style: "open"/);

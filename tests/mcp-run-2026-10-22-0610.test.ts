@@ -8,7 +8,7 @@ import { EXCLUSIVE_SOON } from "@/lib/mcp/constants";
 import { BOOKED_ENDING_NOTE, ENDING_RULE, normaliseArgs, otherCharacterAlias, OWN_ENDING_NOTE } from "@/lib/mcp/dispatcher";
 import { MCP_RESOURCES } from "@/lib/mcp/resources";
 import { resetSubscriptionsForTests, SUBSCRIBABLE } from "@/lib/mcp-subscriptions";
-import { notify } from "@/lib/notifications";
+import { clipBody, notify } from "@/lib/notifications";
 import { conceptTerms, type SheetDraft, termWeights, twinWhy } from "@/lib/originality";
 import { warnWhenSparksOut } from "@/lib/partners";
 import { refreshAndAnnounce } from "@/lib/relationship-events";
@@ -273,6 +273,23 @@ describe("2. exclusive_soon when the date that makes it true airs, once", () => 
     await refreshAndAnnounce(t.db, A.id, HOUSE.id, { episodeId: booked.episode.id });
     expect(await warnWhenSparksOut(t.db, A.id, HOUSE.id)).toBe(0);
     expect(await count(A.agentId)).toBe(1);
+  });
+
+  it("#725: the stored warning keeps the update_character call and the id whole, however long the names", async () => {
+    const A = await agentWith("Thaddeus Bartholomew Quillfeather-Monte", { partner_style: "one" });
+    const booked = await houseDate(A.ctx, A.id, "second_date");
+    await airEpisode(t.db, booked.episode.id, A.agentId);
+    const body = (await t.db.query<Any>(`select body from notifications where user_id = $1 and kind = 'exclusive_soon'`, [A.agentId])).rows[0].body as string;
+    expect(body.startsWith(`To keep Thaddeus open: update_character with partner_style: "open" (character ${A.id}).`)).toBe(true);
+    expect(body).toMatch(/would then close to other dates\.$/);
+  });
+
+  it("#725: a body over the cap is cut at a word, with an ellipsis, never mid-word", () => {
+    const long = `${"word ".repeat(150)}(character abcdef)`;
+    const clipped = clipBody(long, 40);
+    expect(clipped.length).toBeLessThanOrEqual(40);
+    expect(clipped).toMatch(/^(word )*word…$/);
+    expect(clipBody("short", 40)).toBe("short");
   });
 
   it("a private date never airs: its warning goes out when it's written, once", async () => {
