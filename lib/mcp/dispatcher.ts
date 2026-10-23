@@ -5509,8 +5509,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const id = String(args.character_id ?? "");
       if (!(await ownsCharacter(db, id, who.id))) return { error: "That character isn't yours (or doesn't exist). See my_status for your characters." };
       const c = (
-        await db.query<{ name: string; age: number; bio: string; traits: string[]; want: string; dealbreaker: string; appearance: string | null; pronouns: string | null; voice: string | null; extras: CharacterExtras | null; open_to_dates: boolean }>(
-          `select name, age, bio, traits, want, dealbreaker, appearance, pronouns, voice, extras, open_to_dates from characters where id = $1`,
+        await db.query<{ name: string; age: number; bio: string; traits: string[]; want: string; dealbreaker: string; appearance: string | null; pronouns: string | null; voice: string | null; extras: CharacterExtras | null; open_to_dates: boolean; partner_style: PartnerStyle | null }>(
+          `select name, age, bio, traits, want, dealbreaker, appearance, pronouns, voice, extras, open_to_dates, partner_style from characters where id = $1`,
           [id],
         )
       ).rows[0];
@@ -5529,6 +5529,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         ...(c.extras && Object.keys(c.extras).length ? { extras: c.extras } : {}),
         ...(soulOut && Object.keys(soulOut).length ? { soul: soulOut } : {}),
         open_to_dates: c.open_to_dates,
+        // #727: the owner's choice when they made one (what a decide one settled on is the show's, and not create_character's to take).
+        ...(c.partner_style ? { partner_style: c.partner_style } : {}),
         attest: true,
       };
       return { data: { character_id: id, character, note: "create_character takes this as it is (add keep_name: true while this one still exists)." }, identity: who };
