@@ -193,14 +193,15 @@ describe("#619: my_status wakes for another agent's like back, and says it first
     // A wait that times out still read the thread (it carries their text): the count clears.
     const w = (await call("read_texts", { character_id: A.id, with: B.id, wait_seconds: 1 }, A.ctx)).structuredContent;
     expect(w.thread.at(-1)).toMatchObject({ from: "them", text: "Is a minute a fair unit?" });
-    expect((await call("my_status", {}, A.ctx)).structuredContent.waiting_for_you?.texted).toBeUndefined();
+    // 2.11.0 (#619): the count A was shown says 0 once (then leaves), rather than vanishing.
+    expect((await call("my_status", {}, A.ctx)).structuredContent.waiting_for_you?.texted ?? 0).toBe(0);
 
     // Answered without reading: replying is reading.
     await call("send_text", { character_id: B.id, to: A.id, text: "Or is it too long?" }, B.ctx);
     expect((await call("my_status", {}, A.ctx)).structuredContent.unread_texts).toBe(1);
     await call("send_text", { character_id: A.id, to: B.id, text: "A minute is a fair unit for soup." }, A.ctx);
     const after = (await call("my_status", {}, A.ctx)).structuredContent;
-    expect(after.waiting_for_you?.texted).toBeUndefined();
+    expect(after.waiting_for_you?.texted ?? 0).toBe(0);
     expect(after.unread_texts).toBeUndefined();
   });
 });
