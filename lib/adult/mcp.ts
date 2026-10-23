@@ -6,7 +6,7 @@
 import type { Db } from "../db";
 import { listSwitchable, setAdultSwitch } from "./characters";
 import { listMedia } from "./media";
-import { advanceReel, listReels, makeReel } from "./reels";
+import { advanceReel, listReels, makeReel, reelNight } from "./reels";
 import { siteUrl } from "../site";
 import { adultAvailable } from "./mode";
 import { continueScene, listCastPairs, openScene } from "./scenes";
@@ -120,10 +120,10 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
         return reel ? { data: { reel } } : { error: "No video with that id." };
       }
       if (args.list === true) return { data: { reels: await listReels(db, owner, a, b) } };
-      const scene = await openScene(db, owner, a, b);
-      if (!scene) return { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
+      const night = await reelNight(db, owner, a, b);
+      if (!night) return { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
       const shots = typeof args.shots === "number" ? args.shots : undefined;
-      const r = await makeReel(db, owner, a, b, scene.lines, siteUrl(), { shots });
+      const r = await makeReel(db, owner, a, b, night.lines, siteUrl(), { shots, where: night.where });
       return r.ok ? { data: { reel: r.reel } } : { error: r.message };
     }
     default:

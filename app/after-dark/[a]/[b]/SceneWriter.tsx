@@ -43,7 +43,7 @@ export default function SceneWriter({
     if (r.status !== "making") setReelNote((n) => (n && !n.error && !n.busy ? null : n));
   }, []);
   async function makeVideo(nightId?: string) {
-    setReelNote({ text: "Picking the night's best moments and voicing them…" });
+    setReelNote({ text: "Picking the night's best moments and setting up a shot of the two of them for each (about a minute)…" });
     const res = await requestJson("/api/admin/after-dark/reel", { a: scene.a.id, b: scene.b.id, ...(nightId ? { night_id: nightId } : {}) }).catch(() => null);
     if (!res) return setReelNote({ text: "That didn't reach the server. Check your connection and try again.", error: true });
     // One at a time: the refusal names the video in the way (maybe another pair's), so it can be stopped from here.
