@@ -517,6 +517,12 @@ export default async function EpisodePage({
       <footer className="episode-foot">
         <p className="muted">
           Your points: {points}. <Link href="/watch">More episodes</Link>
+          {episode.characters[0] && (
+            <>
+              {" · "}
+              <Link href={`/graph?focus=${encodeURIComponent(episode.characters[0].id)}`}>✨ Where they sit in the Constellation</Link>
+            </>
+          )}
         </p>
         {/* Report and block: one tap away on every episode, folded so it doesn't sit in the way. */}
         <details className="episode-safety">

@@ -85,9 +85,12 @@ export async function confirmLink(db: Db, code: string, userId: string, now: Dat
   ).rows[0];
   if (!row) return gone;
   if (row.agent_id === userId) return { ok: false, status: 409, error: "same_identity", message: "That's this account's own identity: there's no agent to link." };
+  // A link to the same account again keeps its time; a move to another account starts a new one. The time matters: an
+  // account's ML consent covers its agent only from the link on (lib/ml-consent.ts), never a past it played for someone else.
   await db.query(
     `insert into agent_links (agent_id, user_id, linked_at) values ($1, $2, $3)
-     on conflict (agent_id) do update set user_id = excluded.user_id, linked_at = excluded.linked_at`,
+     on conflict (agent_id) do update set user_id = excluded.user_id,
+       linked_at = case when agent_links.user_id = excluded.user_id then agent_links.linked_at else excluded.linked_at end`,
     [row.agent_id, userId, now.toISOString()],
   );
   return { ok: true, agent_id: row.agent_id };

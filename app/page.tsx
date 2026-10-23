@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
+import EpisodeItem from "@/app/EpisodeItem";
 import JsonLd from "@/app/JsonLd";
 import { siteJsonLd } from "@/lib/seo";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
-import { listMyCharacters } from "@/lib/game";
+import { listAiredPage, listMyCharacters } from "@/lib/game";
+import { constellation } from "@/lib/graph";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCastCards } from "@/lib/season-cast";
 import { GENERATE_FROM_DAY } from "@/lib/season-gen";
@@ -40,7 +42,12 @@ const FAQ = [
   { q: "Do I need an account?", a: "No sign-up to start. Make a character and send it on a date right away; sign in later to keep it across devices." },
 ];
 
-/** The landing page: pitched at AI-friendly roleplayers, built to convert — hero, features, proof, what the bots say, cast, FAQ. */
+/**
+ * The landing page, pitched at AI-friendly roleplayers. The UX pass (David, 2026-10-22: "think about the human
+ * experience"): the show itself straight under the hero (the latest aired dates), then what it is, the cast, the
+ * Constellation, how it works, what the bots say, questions. A newcomer gets one way to start (the hero's); someone with
+ * a character gets "Jump back in".
+ */
 export default async function Home({ searchParams }: { searchParams: SearchParams }) {
   const { ref, said, bots } = await searchParams;
   const refSlug = cleanRef(typeof ref === "string" ? ref : undefined);
@@ -49,6 +56,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
   const tokens = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
+  const shared = db ?? (await getDb());
+  const [aired, sky] = await Promise.all([listAiredPage(shared, viewerId, 1, 4).catch(() => null), constellation(shared).catch(() => null)]);
 
   // This season's handful of house characters (lib/season-cast.ts), plus any premium one this viewer owns.
   const onSeason = await seasonCastCards(db ?? (await getDb()));
@@ -84,6 +93,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               Watch episodes
             </Link>
           </p>
+          {myCharacters.length === 0 && (
+            <p className="small">
+              In a hurry? <Link href="/create?sample=1">Start from a sample character</Link>.
+            </p>
+          )}
           <p className="trust-micro">Fictional characters only, no real people · free points that can&apos;t be bought</p>
         </div>
         <div className="hero-art">
@@ -102,37 +116,50 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </div>
       </section>
 
-      <section id="start" className="card start-card">
-        <h2>{myCharacters.length > 0 ? "Jump back in" : "Start here"}</h2>
-        {myCharacters.length > 0 && (
-          <>
-            <p className="muted">Your characters — send one on another date:</p>
-            <ul className="list start-mine">
-              {myCharacters.map((c) => (
-                <li key={c.id} className="char">
-                  <Avatar seed={c.id} name={c.name} hue={c.hue} portraitSrc={c.portrait} size={36} />
-                  <Link className="button-ghost small" href={`/create?character=${c.id}`}>
-                    Send {c.name} on a date
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-        <p className="cta-row">
-          <Link className="button" href="/create">
-            {myCharacters.length > 0 ? "Build a new character" : "Build your character"}
-          </Link>
-          <Link className="button-ghost" href="/create?sample=1">
-            In a hurry? Use a sample
-          </Link>
-        </p>
-        <p className="muted">
-          {tokens.left} {tokens.left === 1 ? "token" : "tokens"} left this week (one sends a character on one date; free
-          ones come back Monday). Want more? &ldquo;{PACK_5.name}&rdquo; tops up your tokens in the{" "}
-          <Link href="/shop">token shop</Link>. Points and badges are free and can&apos;t be bought.
-        </p>
-      </section>
+      {aired && aired.episodes.length > 0 && (
+        <section className="home-aired">
+          <div className="section-head">
+            <h2>Just aired</h2>
+            <Link href="/watch">Watch more →</Link>
+          </div>
+          <ul className="list watch-latest-list">
+            {aired.episodes.map((episode) => (
+              <EpisodeItem key={episode.id} episode={episode} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {myCharacters.length > 0 && (
+        <section id="start" className="card start-card">
+          <h2>Jump back in</h2>
+          {myCharacters.length > 0 && (
+            <>
+              <p className="muted">Your characters — send one on another date:</p>
+              <ul className="list start-mine">
+                {myCharacters.map((c) => (
+                  <li key={c.id} className="char">
+                    <Avatar seed={c.id} name={c.name} hue={c.hue} portraitSrc={c.portrait} size={36} />
+                    <Link className="button-ghost small" href={`/create?character=${c.id}`}>
+                      Send {c.name} on a date
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <p className="cta-row">
+            <Link className="button-ghost" href="/create">
+              Build a new character
+            </Link>
+          </p>
+          <p className="muted">
+            {tokens.left} {tokens.left === 1 ? "token" : "tokens"} left this week (one sends a character on one date; free
+            ones come back Monday). Want more? &ldquo;{PACK_5.name}&rdquo; tops up your tokens in the{" "}
+            <Link href="/shop">token shop</Link>. Points and badges are free and can&apos;t be bought.
+          </p>
+        </section>
+      )}
 
       <section className="features">
         {FEATURES.map((f) => (
@@ -142,16 +169,6 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </div>
         ))}
       </section>
-
-      <section className="proof card">
-        <p>
-          <strong>The habit already exists.</strong> On the Love Island USA app, more than a quarter of mobile viewers
-          played the prediction game. Botchelor gives that habit a cast anyone can make — and the points are always
-          free.
-        </p>
-      </section>
-
-      <BotReviews said={said} page={bots} keep={refSlug ? { ref: refSlug } : {}} />
 
       <section>
         <h2>This season&apos;s house cast</h2>
@@ -190,9 +207,24 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               · <Link href="/characters#next-season">Meet next month&apos;s candidates</Link>
             </>
           )}{" "}
-          · <Link href="/characters">the relationship graph</Link>.
+          · <Link href="/graph">the Constellation</Link>.
         </p>
       </section>
+
+      {sky && sky.stats.couples > 0 && (
+        <section className="card home-sky">
+          <h2>✨ The Constellation</h2>
+          <p className="muted">
+            Every character and who they&apos;ve dated, as one living sky: {sky.stats.characters} characters, {sky.stats.couples} couples,{" "}
+            {sky.stats.dates} dates{sky.stats.deepest ? `; the deepest, ${sky.stats.deepest.a} × ${sky.stats.deepest.b}, with ${sky.stats.deepest.dates}` : ""}.
+          </p>
+          <p>
+            <Link className="button-ghost" href="/graph">
+              Explore the Constellation
+            </Link>
+          </p>
+        </section>
+      )}
 
       <section>
         <h2>How it works</h2>
@@ -215,6 +247,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </li>
         </ol>
       </section>
+
+      <BotReviews said={said} page={bots} keep={refSlug ? { ref: refSlug } : {}} />
 
       <section className="faq">
         <h2>Questions</h2>

@@ -23,8 +23,8 @@
  * Every connection is opened read-only (default_transaction_read_only=on) and the script only runs SELECTs. It ends by
  * emitting one summary event with ~/ai-stack/bin/emit-event when that exists.
  *
- * scripts/eval/observer-nightly.mjs and scripts/eval/export-preferences.mjs import loadLib, openDb and fromDb from here,
- * so main() runs only when this file is the script being run.
+ * scripts/eval/observer-nightly.mjs imports loadLib, openDb and fromDb from here, and scripts/eval/export-preferences.mjs
+ * openDb, so main() runs only when this file is the script being run.
  */
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

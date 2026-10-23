@@ -208,12 +208,6 @@ export async function deckFor(db: Db, userId: string, characterId: string, limit
   };
 }
 
-/** Deck impressions older than this go (the daily job), like mcp_calls: 13 months keeps the year-over-year view. */
-export const IMPRESSIONS_KEEP_DAYS = 400;
-export async function pruneImpressions(db: Db): Promise<void> {
-  await db.query(`delete from swipe_impressions where at < now() - ($1 || ' days')::interval`, [String(IMPRESSIONS_KEEP_DAYS)]);
-}
-
 /**
  * A viewer and a card make one impression at most this often, whatever the surface or serve: an agent calling
  * swipe_deck again, or a person reloading the deck, sees the same cards again, and counting each repeat would inflate
@@ -231,7 +225,7 @@ const MAX_RANK = 1000;
  * `ranks`: each card's rank in what was seen (default its position here); `serveId`: the deck session it belongs to
  * (default a new one). A card this viewer was shown in the last IMPRESSION_DEDUPE_MINUTES isn't logged again. One
  * insert per call; best effort, so a failed log never costs anyone their deck. Returns how many rows went in. Pruned
- * after 400 days.
+ * after 400 days (lib/retention.ts).
  */
 export async function logImpressions(
   db: Db,

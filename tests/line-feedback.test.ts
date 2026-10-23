@@ -11,7 +11,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import ChatThread, { LineVoteButtons } from "@/app/ChatThread";
 import { GET as getVotes, POST as postVote } from "@/app/api/line-feedback/route";
-import * as observer from "@/lib/adult/observer";
 import { resetScene } from "@/lib/adult/scenes";
 import { claimAdmin } from "@/lib/admins";
 import type { CharacterRef } from "@/lib/game";
@@ -261,27 +260,26 @@ describe("line votes in Real use", () => {
 
 describe("the preference export", () => {
   const query = async (sql: string, params: unknown[] = []) => (await t.db.query(sql, params)).rows as Record<string, unknown>[];
-  const UNGATED = { includeAfterDark: true, publicOnly: false, consentOnly: false };
+  // The record shape, with the dataset gates off (tests/ml-consent.test.ts covers the gates).
+  const UNGATED = { publicOnly: false, consentOnly: false };
 
-  it("one record per rated line: votes, words, context, the After Dark notes and observer flags, never who voted", async () => {
+  it("one record per rated line of a date: votes, words, context, never who voted", async () => {
     const owner = userIdOf(newUserCookie());
     const ep = await episode(owner);
-    const admin = await adminWithScene();
     const fan = randomUUID();
     await setLineVote(t.db, { userId: fan, kind: "episode", refId: ep, lineIndex: 2, vote: 1 });
     await setLineVote(t.db, { userId: owner, kind: "episode", refId: ep, lineIndex: 2, vote: 1 });
     await setLineVote(t.db, { userId: fan, kind: "episode", refId: ep, lineIndex: 3, vote: -1 });
-    await setLineVote(t.db, { userId: admin.id, kind: "after_dark", refId: admin.sceneId, lineIndex: 1, vote: -1 });
-    await setLineVote(t.db, { userId: admin.id, kind: "after_dark", refId: "night-gone", lineIndex: 0, vote: 1 }); // its night is gone
+    await setLineVote(t.db, { userId: fan, kind: "episode", refId: "ep-gone", lineIndex: 0, vote: 1 }); // its date is gone
 
-    // The record shape, with the dataset gates off (tests/ml-consent.test.ts covers the gates).
-    const { records, skipped, votes: rated } = await collectPreferences(query, { lib: observer, context: 2, ...UNGATED });
-    expect(rated).toBe(4);
+    const { records, skipped, votes: rated } = await collectPreferences(query, { context: 2, ...UNGATED });
+    expect(rated).toBe(3);
     expect(skipped).toBe(1);
-    expect(records).toHaveLength(3);
+    expect(records).toHaveLength(2);
 
-    const date = records.find((r) => r.kind === "episode" && r.line_index === 2)!;
+    const date = records.find((r) => r.line_index === 2)!;
     expect(date).toMatchObject({
+      kind: "episode",
       ref_id: ep,
       votes: { up: 2, down: 0, voters: 2, score: 2 },
       speaker: { side: "a", name: "Cass Vega", character_id: expect.any(String) },
@@ -289,8 +287,6 @@ describe("the preference export", () => {
       text: "Do the gulls take bookings?",
       emotion: "amused",
       act: 1,
-      why: null,
-      observer_flags: null,
       source: { setting: "A lighthouse bar.", ending: "friends", performed_by: "platform" },
     });
     expect(date.context).toEqual([
@@ -298,42 +294,33 @@ describe("the preference export", () => {
       { side: "b", name: HOUSE_CHARACTERS[0].name, text: "The gulls said you'd be late." },
     ]);
 
-    const night = records.find((r) => r.kind === "after_dark")!;
-    expect(night).toMatchObject({
-      ref_id: admin.sceneId,
-      line_index: 1,
-      votes: { up: 0, down: 1, voters: 1, score: -1 },
-      speaker: { side: "b", character_id: CAST_B },
-      text: "I said yes before you finished asking!",
-      action: null,
-      why: "her want",
-      memory: "she said yes to the karaoke first",
-      stage: 0,
-      source: { kind: "scene", chapter: 1 },
-    });
-    expect(night.context).toEqual([{ side: "a", name: expect.any(String), text: "*straightens his collar* You came." }]);
-    // The observer read the pair: the memory cited on that line isn't in anything they could remember.
-    expect(night.observer_flags).toEqual([expect.objectContaining({ check: "unfounded_memory", from: 1, to: 1 })]);
-
     // No voter's id anywhere.
     const dump = JSON.stringify(records);
-    for (const id of [fan, owner, admin.id]) expect(dump).not.toContain(id);
+    for (const id of [fan, owner]) expect(dump).not.toContain(id);
   });
 
-  it("writes JSONL, filters by kind, and leaves the flags out without the observer", async () => {
-    const ep = await episode(userIdOf(newUserCookie()));
+  it("never reads an After Dark vote, even with every gate off", async () => {
     const admin = await adminWithScene();
-    await setLineVote(t.db, { userId: "u1", kind: "episode", refId: ep, lineIndex: 0, vote: 1 });
+    await setLineVote(t.db, { userId: admin.id, kind: "after_dark", refId: admin.sceneId, lineIndex: 1, vote: -1 });
     await setLineVote(t.db, { userId: admin.id, kind: "after_dark", refId: admin.nightId, lineIndex: 0, vote: 1 });
+    const r = await collectPreferences(query, UNGATED);
+    expect(r).toMatchObject({ records: [], votes: 0, skipped: 0, excluded: 0 });
+  });
+
+  it("writes JSONL", async () => {
+    const ep = await episode(userIdOf(newUserCookie()));
+    await setLineVote(t.db, { userId: "u1", kind: "episode", refId: ep, lineIndex: 0, vote: 1 });
+    await setLineVote(t.db, { userId: "u1", kind: "episode", refId: ep, lineIndex: 1, vote: -1 });
     const dir = mkdtempSync(join(tmpdir(), "prefs-"));
     try {
       const out = join(dir, "sub", "prefs.jsonl");
-      const r = await exportPreferences({ query, lib: null, out, ...UNGATED });
+      const r = await exportPreferences({ query, out, ...UNGATED });
       expect(r.count).toBe(2);
       const lines = readFileSync(out, "utf8").trim().split("\n").map((l) => JSON.parse(l));
-      expect(lines.map((l) => l.kind).sort()).toEqual(["after_dark", "episode"]);
-      expect(lines.find((l) => l.kind === "after_dark")).toMatchObject({ ref_id: admin.nightId, action: "straightens his collar", text: "You came.", observer_flags: null, source: { kind: "night" } });
-      expect((await collectPreferences(query, { kind: "episode", ...UNGATED })).records.map((x) => x.kind)).toEqual(["episode"]);
+      expect(lines.map((l) => [l.kind, l.line_index, l.votes.score])).toEqual([
+        ["episode", 0, 1],
+        ["episode", 1, -1],
+      ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

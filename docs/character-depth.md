@@ -190,9 +190,9 @@ shows only the two public ones.
 
 ## 10. Who they are (2026-10-22)
 
-Four structured fields on top of the free text (data plan Tier 2), so a character can be compared, counted and
-graphed instead of read. One vocabulary in `lib/kinds.ts` serves the builder, the API, the JSON Schema and the tests.
-They live in `extras`, so there's no new table, and all four are optional and public.
+Four structured fields on top of the free text (data plan Tier 2, [data-plan.md](data-plan.md)), so a character can be
+compared, counted and graphed instead of read. One vocabulary in `lib/kinds.ts` serves the builder, the API, the JSON
+Schema and the tests. They live in `extras`, so there's no new table, and all four are optional and public.
 
 - **What they are (`kind`):** human, vampire, werewolf, ghost, robot, alien, witch, fae, merfolk, monster, talking
   animal, or other. "Other" takes a label of the owner's own (`kind_label`, up to 30 characters, through the content

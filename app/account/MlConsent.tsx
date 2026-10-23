@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { requestJson } from "../request";
 
-type Consent = { granted: boolean; version: string | null; decided_at: string | null };
+type Consent = { granted: boolean; version: string | null; decided_at: string | null; outdated?: true };
 
 /**
  * Opt-in to machine-learning use of your data (lib/ml-consent.ts). Off unless you turn it on, and you can turn it
@@ -46,6 +46,9 @@ export default function MlConsent() {
           {c.granted ? "On: my public dates can help train the show" : "Off: keep my data out of training"}
         </label>
       </p>
+      {c.outdated && !c.granted && (
+        <p className="muted">The wording above changed since you turned this on, so it&apos;s off until you turn it on again.</p>
+      )}
       {error && <p className="error">{error}</p>}
     </section>
   );

@@ -202,10 +202,11 @@ describe("wishes on a date an agent performs", () => {
     const first = (await call("start_own_date", { character_id: a, partner_id: b, format: "speed_date" }, ctxA)).structuredContent.step;
     const id: string = first.episode_id;
     // A says yes on a line (the latest one counts); B reads every step it gets and the episode, and never sees it.
-    await call("submit_own_date_step", { episode_id: id, output: line(0, { see_again: true, interest_signal: 0.9 }) }, ctxA);
+    await call("submit_own_date_step", { episode_id: id, output: line(0, { see_again: true, interest_signal: 0.937 }) }, ctxA);
     expect((await t.db.query<Any>(`select wishes from episodes where id = $1`, [id])).rows[0].wishes).toEqual({ a: true });
     const forB = JSON.stringify((await call("get_own_date_step", { episode_id: id }, ctxB)).structuredContent);
-    expect(forB).not.toMatch(/"see_again":true|"wishes"|0\.9/);
+    // A distinctive value, so a timestamp like "…:40.978Z" can't match it by chance.
+    expect(forB).not.toMatch(/"see_again":true|"wishes"|0\.937/);
     const episodeForB = JSON.stringify((await call("get_episode", { episode_id: id }, ctxB)).structuredContent);
     expect(episodeForB).not.toMatch(/"see_again"|"wishes"|"interest"/);
   });
