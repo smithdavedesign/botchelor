@@ -186,6 +186,7 @@ export async function startTestDb() {
         "reports_reviewed",
         "rate_hits",
         "paid_usage",
+        "embed_usage",
         "server_errors",
         "identity_consents",
         "afterglow_consents",
