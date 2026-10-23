@@ -97,6 +97,19 @@ const SAMPLES: { name: string; age: string; bio: string; traits: string[]; want:
 ];
 
 
+/** Whether a name is already on the show (app/api/characters/name), and free ones like it; null when the check fails. */
+async function checkName(name: string, except?: string): Promise<{ taken: boolean; free: string[] } | null> {
+  try {
+    const q = new URLSearchParams({ name, ...(except ? { except } : {}) });
+    const res = await fetch(`/api/characters/name?${q}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { taken?: boolean; free_names?: string[] };
+    return { taken: data.taken === true, free: data.free_names ?? [] };
+  } catch {
+    return null;
+  }
+}
+
 /** The steps, by name, so their order can change without renumbering every check. */
 const S = { identity: 0, voice: 1, look: 2, details: 3, facts: 4, soul: 5, review: 6 } as const;
 const STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Soul & autonomy", "Review"] as const;
@@ -237,6 +250,28 @@ export default function CreateWizard({
   const draftLoaded = useRef(false);
 
   const setField = (k: keyof Sheet, v: string) => setSheet((p) => ({ ...p, [k]: v }));
+
+  // Names are unique on the show (#249, as create_character keeps them): a name someone already has is flagged as
+  // you type, with free ones like it to pick (lib/name-check.ts). Editing, the character's own name is theirs.
+  const [nameTaken, setNameTaken] = useState<{ name: string; free: string[] } | null>(null);
+  useEffect(() => {
+    const name = sheet.name.trim();
+    if (!name || (edit && name.toLowerCase() === (init?.name ?? "").trim().toLowerCase())) {
+      setNameTaken(null);
+      return;
+    }
+    let live = true;
+    const t = setTimeout(() => {
+      void checkName(name, edit?.id).then((r) => {
+        if (live) setNameTaken(r && r.taken ? { name, free: r.free } : null);
+      });
+    }, 350);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [sheet.name, edit, init?.name]);
+  const nameClash = nameTaken !== null && nameTaken.name.toLowerCase() === sheet.name.trim().toLowerCase();
   const setSoulField = (k: keyof Soul, v: string | boolean) => setSoul((p) => ({ ...p, [k]: v }));
 
   // Returning here with ?character=id: skip the build and go straight to picking who they meet.
@@ -251,7 +286,7 @@ export default function CreateWizard({
     if (draftLoaded.current || startCharacterId || edit) return;
     draftLoaded.current = true;
     if (startSample) {
-      applySample();
+      void applySample();
       return;
     }
     // Arrived with a name to make (a ship name page) or a pair (the chemistry test): start that character fresh, not an
@@ -286,9 +321,12 @@ export default function CreateWizard({
     }
   }, [sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, extras, created, edit]);
 
-  function applySample() {
+  async function applySample() {
     const t = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
-    setSheet({ name: t.name, age: t.age, bio: t.bio, want: t.want, dealbreaker: t.dealbreaker });
+    // A sample someone already made keeps its surname under a free first name, so it isn't a second Juno Marlowe.
+    const check = await checkName(t.name);
+    const name = check?.taken && check.free[0] ? check.free[0] : t.name;
+    setSheet({ name, age: t.age, bio: t.bio, want: t.want, dealbreaker: t.dealbreaker });
     setTraits([...t.traits]);
     setAppearance(t.appearance);
     setPronouns(t.pronouns);
@@ -344,6 +382,7 @@ export default function CreateWizard({
   const ageNum = Number(sheet.age);
   const identityOk =
     sheet.name.trim().length > 0 &&
+    !nameClash &&
     Number.isFinite(ageNum) &&
     ageNum >= 18 &&
     words(sheet.bio) >= 1 &&
@@ -593,15 +632,40 @@ export default function CreateWizard({
             {!edit && (
               <p className="muted sample-row">
                 In a hurry?{" "}
-                <button type="button" className="secondary small" onClick={applySample}>
+                <button type="button" className="secondary small" onClick={() => void applySample()}>
                   Use a sample character
                 </button>
               </p>
             )}
             <label>
               Name
-              <input type="text" name="name" required maxLength={40} value={sheet.name} onChange={(e) => setField("name", e.target.value)} />
+              <input
+                type="text"
+                name="name"
+                required
+                maxLength={40}
+                value={sheet.name}
+                aria-invalid={nameClash || undefined}
+                aria-describedby={nameClash ? "name-taken" : undefined}
+                onChange={(e) => setField("name", e.target.value)}
+              />
             </label>
+            {nameClash && (
+              <div id="name-taken" className="name-taken" role="status">
+                <p className="error">
+                  There&apos;s already a {nameTaken.name} on the show. Pick another name{nameTaken.free.length ? ", or one of these free ones:" : "."}
+                </p>
+                {nameTaken.free.length > 0 && (
+                  <div className="voice-picks" role="group" aria-label="Free names">
+                    {nameTaken.free.map((n) => (
+                      <button key={n} type="button" className="look-chip" onClick={() => setField("name", n)}>
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <label>
               Age (18 or older)
               <input type="number" name="age" required min={18} max={1000} step={1} value={sheet.age} onChange={(e) => setField("age", e.target.value)} />
@@ -912,7 +976,7 @@ export default function CreateWizard({
             </button>
           )}
         </div>
-        {edit && !identityOk && <p className="error">Fill in the Identity step (name, an adult age, bio, three traits, want, dealbreaker) to save.</p>}
+        {edit && !identityOk && <p className="error">Fill in the Identity step (a name nobody on the show has, an adult age, bio, three traits, want, dealbreaker) to save.</p>}
         {error && <p className="error">{error}</p>}
       </form>
     </article>
