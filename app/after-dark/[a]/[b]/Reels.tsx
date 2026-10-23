@@ -5,7 +5,7 @@ import { requestJson } from "@/app/request";
 import { clipChains, keepGoingFrom } from "@/lib/adult/clip-chains";
 import type { BusyReel, Reel, ReelShot } from "@/lib/adult/reels";
 import { chaptersLabel } from "@/lib/adult/nights";
-import { reelFailureNote } from "@/lib/adult/reel-failure";
+import { pausedUntil, reelFailureNote } from "@/lib/adult/reel-failure";
 import { REEL_STALLED_MS } from "@/lib/adult/reel-timing";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
@@ -174,8 +174,10 @@ function ReelPlayer({ reel, onChange, what = "video" }: { reel: Reel; onChange: 
   if (reel.status === "making") {
     const minutes = Math.floor((Date.now() - new Date(reel.created_at).getTime()) / 60_000);
     const stalled = minutes * 60_000 > REEL_STALLED_MS;
-    // A shot the safety check couldn't look at yet (Hive busy) waits and is tried again.
+    // A shot the safety check couldn't look at yet (Hive busy) waits and is tried again; while Hive is over its daily
+    // limit, until that's over.
     const checkBusy = reel.shots.some((s) => s.status === "queued" && s.retry_at);
+    const hiveOut = pausedUntil(reel.shots.filter((s) => s.status === "queued").map((s) => s.reason));
     return (
       <div className="muted small" role="status">
         <p>
@@ -183,9 +185,11 @@ function ReelPlayer({ reel, onChange, what = "video" }: { reel: Reel; onChange: 
           {minutes >= 1 ? `, started ${minutes} min ago` : ""}.{" "}
           {stalled
             ? "That's much longer than usual, so it looks stuck. Stop it and its tokens come back for the shots that didn't arrive."
-            : checkBusy
-              ? "The safety check is busy, so some shots wait and are tried again every 10 minutes."
-              : "It takes a few minutes; you can leave and come back."}
+            : hiveOut
+              ? `The safety check is over its daily limit, so the shots wait until it's back, after ${hiveOut}.`
+              : checkBusy
+                ? "The safety check is busy, so some shots wait and are tried again every 10 minutes."
+                : "It takes a few minutes; you can leave and come back."}
         </p>
         <p>
           <button

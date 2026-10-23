@@ -8,10 +8,12 @@
  * A tile is claimed before it's drawn, so two runs can't pay for it twice, and a refused one stays refused (its prompt
  * isn't redrawn on the off chance). A picture Hive couldn't screen (busy, down) isn't a refusal: it's kept unshown and
  * screened again on the next run, so it's never paid for twice. The admin draws them a batch at a time (POST /api/admin/looks).
+ * While Hive is over its daily limit (lib/adult/hive-limit.ts), no tile or portrait is drawn and nothing goes to Hive.
  */
 import { recordAsset, reviewAsset } from "./assets";
 import { checkOutput } from "./adult/check";
 import { canAfterDark } from "./adult/entitlement";
+import { hiveGate, hivePausedMessage, hivePausedUntil, underHiveLimit } from "./adult/hive-limit";
 import { NEGATIVE_PROMPT, VENICE_IMAGE } from "./adult/media";
 import { adultKeys, getAdultSettings } from "./adult/settings";
 import type { Db } from "./db";
@@ -56,21 +58,22 @@ const UNCHECKED_PREFIX = "unchecked: ";
  * safety checker's job (on for every show picture; drawPg refuses what it flags), so Hive isn't asked twice: self-serve
  * Hive has a small daily quota, and the site's sets and After Dark pictures share it.
  */
-async function screenPg(hive: string | null, url: string): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
-  const v = await checkOutput(hive, url, "image");
+async function screenPg(db: Db, hive: string | null, url: string): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
+  // Held to Hive's daily limit (lib/adult/hive-limit.ts): while it's out, nothing is sent and the picture waits unscreened.
+  const v = await underHiveLimit(db, () => checkOutput(hive, url, "image"));
   if (v.ok) return { ok: true };
   return UNCHECKED.test(v.reason) ? { unchecked: v.reason } : { refused: v.reason };
 }
 
 /** Screens an After Dark picture: everyone shown an adult. */
-async function screenNsfw(hive: string | null, b64: string, mime: string): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
-  const v = await checkOutput(hive, { base64: b64, mime }, "image");
+async function screenNsfw(db: Db, hive: string | null, b64: string, mime: string): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
+  const v = await underHiveLimit(db, () => checkOutput(hive, { base64: b64, mime }, "image"));
   if (v.ok) return { ok: true };
   return UNCHECKED.test(v.reason) ? { unchecked: v.reason } : { refused: v.reason };
 }
 
 /** A show picture on fal, then Hive. */
-async function drawPg(keys: Keys, prompt: string, seed: number | null, size: { width: number; height: number }): Promise<Drawn> {
+async function drawPg(db: Db, keys: Keys, prompt: string, seed: number | null, size: { width: number; height: number }): Promise<Drawn> {
   if (!keys.fal || !keys.hive) return { failed: "no fal or Hive key saved" };
   const res = await doFetch(`${FAL_RUN}/${LOOKS_PG_MODEL}`, {
     method: "POST",
@@ -87,7 +90,7 @@ async function drawPg(keys: Keys, prompt: string, seed: number | null, size: { w
   const bytes = Buffer.from(await file.arrayBuffer());
   if (bytes.length > MAX_BYTES) return { failed: "file too large" };
   const pic = { bytes, mime: file.headers.get("content-type") ?? "image/jpeg", url };
-  const v = await screenPg(keys.hive, url);
+  const v = await screenPg(db, keys.hive, url);
   return "ok" in v ? pic : "refused" in v ? v : { ...pic, unchecked: v.unchecked };
 }
 
@@ -107,7 +110,7 @@ async function drawNsfw(db: Db, keys: Keys, prompt: string, seed: number): Promi
   const bytes = Buffer.from(b64, "base64");
   if (bytes.length > MAX_BYTES) return { failed: "file too large" };
   const pic = { bytes, mime: "image/webp", url: null };
-  const v = await screenNsfw(keys.hive, b64, pic.mime);
+  const v = await screenNsfw(db, keys.hive, b64, pic.mime);
   return "ok" in v ? pic : "refused" in v ? v : { ...pic, unchecked: v.unchecked };
 }
 
@@ -158,12 +161,12 @@ export async function drawTile(db: Db, spec: TileSpec, keys?: Keys): Promise<str
     const prevBytes = prev.mime && prev.reason?.startsWith(UNCHECKED_PREFIX) ? await readBytes(prev) : null;
     if (prevBytes && prev.mime) {
       const pic = { bytes: prevBytes, mime: prev.mime, url: prev.remote_url };
-      const v = spec.variant === "pg" ? (pic.url ? await screenPg(k.hive, pic.url) : { refused: "nothing to screen" }) : await screenNsfw(k.hive, pic.bytes.toString("base64"), pic.mime);
+      const v = spec.variant === "pg" ? (pic.url ? await screenPg(db, k.hive, pic.url) : { refused: "nothing to screen" }) : await screenNsfw(db, k.hive, pic.bytes.toString("base64"), pic.mime);
       if ("ok" in v) return done("ready", null, pic, prev.object_key);
       if ("refused" in v) return done("refused", v.refused);
       return done("failed", UNCHECKED_PREFIX + v.unchecked, pic, prev.object_key);
     }
-    const r = spec.variant === "pg" ? await drawPg(k, spec.prompt, spec.seed, { width: 512, height: 640 }) : await drawNsfw(db, k, spec.prompt, spec.seed);
+    const r = spec.variant === "pg" ? await drawPg(db, k, spec.prompt, spec.seed, { width: 512, height: 640 }) : await drawNsfw(db, k, spec.prompt, spec.seed);
     if ("refused" in r) return done("refused", r.refused);
     if ("failed" in r) return done("failed", r.failed);
     if ("unchecked" in r) return done("failed", UNCHECKED_PREFIX + r.unchecked, r);
@@ -183,9 +186,11 @@ export function setLooksPauseForTests(ms: number): void {
 
 /**
  * Draws up to `limit` tiles that aren't drawn yet (of one variant, or both), one at a time. Returns what happened to
- * each, and stops early when a provider rate-limits.
+ * each, and stops early when a provider rate-limits. Draws none while Hive is over its daily limit (lib/adult/hive-limit.ts):
+ * they couldn't be screened.
  */
 export async function drawMissingTiles(db: Db, opts: { limit?: number; variant?: TileVariant; only?: string[] } = {}): Promise<{ id: string; status: string }[]> {
+  if (await hivePausedUntil(db)) return [];
   const done = new Set(
     (
       await db.query<{ id: string }>(
@@ -266,8 +271,15 @@ export async function drawLooksPortrait(db: Db, characterId: string, env: Record
   const { mine, today } = used.rows[0] ?? { mine: 0, today: 0 };
   if (mine >= PORTRAITS_PER_CHARACTER) return { ok: false, status: 429, error: "portrait_limit", message: `That's all ${PORTRAITS_PER_CHARACTER} portraits for this character.` };
   if (today >= portraitsPerDay(env)) return { ok: false, status: 429, error: "portraits_busy", message: "Today's portraits are all drawn. Try again tomorrow." };
-  const r = await drawPg(await keysFor(db), prompt, null, { width: 640, height: 800 }).catch((err: unknown) => ({ failed: err instanceof Error ? err.message : "error" }));
+  const keys = await keysFor(db);
+  // Hive over its daily limit (lib/adult/hive-limit.ts): an unscreened portrait is never kept, so none is drawn (or paid for).
+  const gate = await hiveGate(db, keys.hive);
+  if (!gate.ok) return { ok: false, status: 503, error: "hive_paused", message: gate.message };
+  const r = await drawPg(db, keys, prompt, null, { width: 640, height: 800 }).catch((err: unknown) => ({ failed: err instanceof Error ? err.message : "error" }));
   if ("refused" in r) return { ok: false, status: 422, error: "portrait_refused", message: "The picture didn't pass our check. Try other looks." };
+  // Unscreened because Hive just ran out of its daily allowance: not kept, and the pause says until when.
+  const paused = "unchecked" in r ? await hivePausedUntil(db) : null;
+  if (paused) return { ok: false, status: 503, error: "hive_paused", message: hivePausedMessage(paused, { discarded: true }) };
   // Unscreened (Hive busy) is never approved: the same as a failure, try again.
   if ("failed" in r || "unchecked" in r) return { ok: false, status: 502, error: "portrait_failed", message: "The portrait couldn't be drawn right now. Try again in a bit." };
   const assetId = await recordAsset(db, {

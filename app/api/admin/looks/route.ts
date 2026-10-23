@@ -1,3 +1,4 @@
+import { hivePausedMessage, hivePausedUntil } from "@/lib/adult/hive-limit";
 import { isSignedInAdmin } from "@/lib/admins";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json } from "@/lib/http";
@@ -30,5 +31,9 @@ export const POST = handle(async (req: Request) => {
   const body = (await req.json().catch(() => ({}))) as { limit?: unknown; variant?: unknown; only?: unknown };
   const variant = body.variant === "pg" || body.variant === "nsfw" ? body.variant : undefined;
   const only = Array.isArray(body.only) ? body.only.filter((x): x is string => typeof x === "string").slice(0, 40) : undefined;
-  return json({ drawn: await drawMissingTiles(await getDb(), { limit: Number(body.limit) || 10, variant, only }) });
+  const db = await getDb();
+  const drawn = await drawMissingTiles(db, { limit: Number(body.limit) || 10, variant, only });
+  // Hive over its daily limit (lib/adult/hive-limit.ts): nothing was drawn, and this says until when.
+  const paused = await hivePausedUntil(db);
+  return json({ drawn, ...(paused ? { paused: hivePausedMessage(paused) } : {}) });
 });

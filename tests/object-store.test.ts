@@ -333,6 +333,8 @@ describe("looks tiles in the bucket", () => {
     const kept = (await row("look_tiles", s.id)).object_key!;
     expect(objects.has(kept)).toBe(true);
     await t.db.query(`update look_tiles set updated_at = now() - interval '1 hour' where id = $1`, [s.id]);
+    // That 429 was Hive's daily limit (lib/adult/hive-limit.ts): screened again once its pause is over.
+    await t.db.query(`update adult_media_cooldowns set until = now() - interval '1 minute' where provider = 'hive'`);
     hive();
     expect(await drawTile(t.db, s)).toBe("ready");
     expect(puts).toEqual([kept]);
@@ -343,6 +345,7 @@ describe("looks tiles in the bucket", () => {
     expect(await drawTile(t.db, r)).toBe("failed");
     const refusedKey = (await row("look_tiles", r.id)).object_key!;
     await t.db.query(`update look_tiles set updated_at = now() - interval '1 hour' where id = $1`, [r.id]);
+    await t.db.query(`update adult_media_cooldowns set until = now() - interval '1 minute' where provider = 'hive'`);
     hive({ choices: [{ message: { content: "UNSURE" } }] });
     expect(await drawTile(t.db, r)).toBe("refused");
     expect(objects.has(refusedKey)).toBe(false);

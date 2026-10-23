@@ -9,7 +9,8 @@
  * Held like a clip (lib/adult/clips.ts): nothing the night hasn't reached, nothing past kissing (or out of their
  * clothes) somewhere public, nothing past the pair's limits, David's lines on every word. It counts against the month's
  * pictures (lib/adult/usage.ts) and costs menu_picture_tokens bought tokens (1 by default), admins free; a picture the
- * check refuses, or a provider failure, gives the token back and isn't counted.
+ * check refuses, or a provider failure, gives the token back and isn't counted. While Hive is over its daily limit
+ * (lib/adult/hive-limit.ts) nothing is drawn or spent.
  */
 import { isAdmin } from "../admins";
 import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
@@ -20,6 +21,7 @@ import { checkAdultText } from "../safety";
 import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, FRAMINGS, type Framing, type MediaLimits, type MenuAct } from "./acts";
 import { checkOutput } from "./check";
 import { fallbackNote, runMedia } from "./fallback";
+import { hiveGate, hivePausedMessage, HivePausedError, underHiveLimit } from "./hive-limit";
 import { mediaLimits, nightStands } from "./clips";
 import { isPublicPlace } from "./continuity";
 import { ensureBaseline, signedMediaUrl, type Media } from "./media";
@@ -182,6 +184,14 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   const planned = planPicture(choice, { cast, stage: nightStands(night.where).stage, places: picturePlaces(night.where), limits });
   if (!planned.ok) return planned;
   const { plan } = planned;
+  const reject = (reason: string) =>
+    db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'scene', $3)`, [crypto.randomUUID(), ownerId, `menu picture: ${reason}`.slice(0, 300)]).catch(() => {});
+  // Hive over its daily limit (lib/adult/hive-limit.ts): refused before anything is drawn or spent.
+  const gate = await hiveGate(db, keys.hive);
+  if (!gate.ok) {
+    await reject(gate.reason);
+    return { ok: false, status: 503, error: "hive_paused", message: gate.message };
+  }
   const capped = await overCap(db, ownerId, "pictures");
   if (capped) return { ok: false, status: 429, error: "over_cap", message: capped };
   const pays = !(await isAdmin(db, ownerId));
@@ -216,14 +226,21 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
     made = { provider: drawn.provider, fell_back: drawn.fell_back };
   } catch (err) {
     await giveBack();
+    // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
+    if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: `${err.message}${tokensBack}` };
     return { ok: false, status: 502, error: "not_made", message: `The picture couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).${tokensBack}` };
   }
   // The output check on the picture itself, before anything is kept, whoever made it: a refusal is discarded, never stored.
-  const verdict = await checkOutput(keys.hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image");
+  const verdict = await underHiveLimit(db, () => checkOutput(keys.hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image"));
   if (!verdict.ok) {
     await giveBack();
+    // Hive out of its daily allowance: discarded, logged, and the pause says until when.
+    if (verdict.paused) {
+      await reject(verdict.reason);
+      return { ok: false, status: 503, error: "hive_paused", message: `${hivePausedMessage(verdict.paused, { discarded: true })}${tokensBack}` };
+    }
     const busy = verdict.reason.startsWith("the check couldn't run");
-    if (!busy) await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'scene', $3)`, [crypto.randomUUID(), ownerId, `menu picture: ${verdict.reason}`.slice(0, 300)]).catch(() => {});
+    if (!busy) await reject(verdict.reason);
     return busy
       ? { ok: false, status: 503, error: "check_busy", message: `The safety check couldn't look at it just now, so it wasn't kept. Try again in a few minutes.${tokensBack}` }
       : { ok: false, status: 422, error: "discarded", message: `The safety check discarded that picture (${verdict.reason}).${tokensBack}` };

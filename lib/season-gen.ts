@@ -22,6 +22,7 @@ import { DEFAULT_SEASON_CAST_SIZE, seasonCastIds, SURVIVORS } from "./season-cas
 import { nextSeasonStart, seasonIdOf } from "./season-window";
 import { saveSoul } from "./souls";
 import { checkOutput } from "./adult/check";
+import { hiveGate, HivePausedError, underHiveLimit } from "./adult/hive-limit";
 import { ensureBaseline, outputCheckReady, physicalLook, venicePicture } from "./adult/media";
 import { adultKeys } from "./adult/settings";
 
@@ -186,9 +187,16 @@ export async function makePortrait(db: Db, characterId: string): Promise<string>
   const keys = await adultKeys(db).catch(() => null);
   if (!keys?.venice || !keys.hive) return "portraits need the Venice and Hive keys (After Dark settings)";
   const prompt = portraitPrompt(c.look.physical ?? physicalLook(c), c.age);
+  // Hive over its daily limit (lib/adult/hive-limit.ts): not drawn, so not paid for; the admin can make it again later.
+  const gate = await hiveGate(db, keys.hive);
+  if (!gate.ok) {
+    await db.query(`update season_candidates set check_note = $2 where character_id = $1`, [characterId, gate.reason.slice(0, 200)]);
+    return gate.reason;
+  }
   try {
     const pic = await venicePicture(db, prompt, { safe: true });
-    const verdict = await checkOutput(keys.hive, { base64: pic.bytes.toString("base64"), mime: pic.mime }, "image");
+    const hive = keys.hive;
+    const verdict = await underHiveLimit(db, () => checkOutput(hive, { base64: pic.bytes.toString("base64"), mime: pic.mime }, "image"));
     if (!verdict.ok) {
       await db.query(`update season_candidates set check_note = $2 where character_id = $1`, [characterId, `portrait discarded: ${verdict.reason}`]);
       return `discarded by the check: ${verdict.reason}`;
@@ -307,6 +315,8 @@ export async function ensureCastBaselines(db: Db, now: Date = new Date(), max = 
       if (await ensureBaseline(db, owner, c)) made++;
     } catch (err) {
       errors.push(`${id}: ${err instanceof Error ? err.message.slice(0, 120) : "error"}`);
+      // Hive over its daily limit: the rest wait for the next run.
+      if (err instanceof HivePausedError) break;
     }
   }
   return { made, errors };

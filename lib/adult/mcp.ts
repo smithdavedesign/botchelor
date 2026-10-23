@@ -6,6 +6,7 @@
 import { afterDarkBase, afterDarkElsewhere } from "../after-dark-host";
 import type { Db } from "../db";
 import { eligibleIds, listSwitchable, setAdultSwitch } from "./characters";
+import { mediaPauses } from "./hive-limit";
 import { baselinePrompt, listMedia, makePicture } from "./media";
 import { loadCharacter } from "../character";
 import { advanceReel, listReels, makeReel, reelNight } from "./reels";
@@ -57,7 +58,8 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     title: "After dark: models and on/off",
     description:
       "Admin only. Reads after dark's settings, and changes the models, the media provider (venice or replicate) or turns it on or off when given. Keys are never shown or set here " +
-      "(only on /admin/after-dark/settings).",
+      "(only on /admin/after-dark/settings). `pauses` lists what's paused: Hive (the safety check) over its daily limit, which stops every picture and video until it's over, " +
+      "and a media provider cooling down after a 429 or 402.",
     inputSchema: {
       type: "object",
       properties: {
@@ -130,7 +132,8 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
     if (args.media_provider === "venice" || args.media_provider === "replicate") patch.media_provider = args.media_provider;
     if (typeof args.media_fallback === "boolean") patch.media_fallback = args.media_fallback;
     // Changes made here go in the settings history as "mcp".
-    return { data: { settings: Object.keys(patch).length ? await saveAdultSettings(db, patch, "mcp") : await getAdultSettings(db) } };
+    const settings = Object.keys(patch).length ? await saveAdultSettings(db, patch, "mcp") : await getAdultSettings(db);
+    return { data: { settings, pauses: await mediaPauses(db) } };
   }
   if (!(await adultAvailable(db))) return { error: "After dark is off: turn it on in its settings (/admin/after-dark/settings)." };
   const owner = await sceneOwner(db);
